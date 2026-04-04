@@ -1,129 +1,189 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-04
-Status: Phase 2 complete on 2026-04-04; items 1-8 complete
+Status: Phase 1 complete on 2026-04-04; awaiting explicit Phase 2 confirmation
 
 ## Evidence Snapshot
 
-- `target/perf/bench.json` reports `browser_filter_churn_latency` at `2396us` p95, with `apply_stage = 24us` p95, `pull_stage = 38us` p95, and `projection_stage = 2342us` p95.
-- The same snapshot reports repeated retained-model rebuild causes for interactive browser and map flows: `dirty_mask_static_rebuild_count = 24` and `bridge_model_pull_rebuild_count = 24` for filter churn, query churn, map pan proxy, and volume drag.
-- The prior 2026-04-04 runtime-performance lane already removed the previous top browser-row/frame invalidation issues, so the backlog below focuses only on the remaining live bottlenecks.
-- Read-only subagent audit: `Bohr` confirmed waveform render/transient work and selection/edit metadata flows as current controller-side hotspots. The renderer/runtime findings below are based on the primary audit because the vendor sweep did not return before plan cut-off.
+- `target/perf/bench.json` still shows the largest measured interaction costs in `hover_latency` (`2809us` p95), `wheel_latency` (`2511us` p95), `browser_filter_churn_latency` (`2075us` p95), and `waveform_interaction_latency` (`1444us` p95).
+- Stage attribution shows browser hover/wheel/filter churn are still dominated by projection work rather than action application:
+  - `hover_latency.projection_stage.p95_us = 2324`
+  - `wheel_latency.projection_stage.p95_us = 2140`
+  - `browser_filter_churn_latency.projection_stage.p95_us = 2039`
+- `waveform_interaction_latency` is different: `apply_stage.p95_us = 1322`, `pull_stage.p95_us = 103`, and `projection_stage.p95_us = 89`, so the remaining waveform tail is mostly input/apply work rather than projection.
+- `feature_blob_decode` in the same report still spends about `8050ms` decoding `320000` blobs, which keeps similarity/map warm paths on the shortlist for architectural work.
+- Measurement caveat:
+  - The current perf guard times the controller-mode path in `tools/bench-cli/src/bench/gui/interactions.rs`, which calls `prepare_native_frame(false)` plus `AppController::project_native_app_model()`.
+  - The real native runtime in `src/main.rs` goes through `GuiFixtureBridge` and `SempalNativeBridge`, which use retained projection in `src/app_core/native_bridge/runtime_projection.rs`.
+  - The backlog below therefore separates benchmark-path wins from retained-runtime wins and prioritizes changes that either help the real runtime directly or remove known duplicated work that exists in both paths.
+- Read-only subagent audit confirmed four recurring themes in the live tree:
+  - duplicated bridge key derivation
+  - non-segment audio/sidebar/options churn on unrelated pulls
+  - waveform preview batches rebuilding full keys in the apply path
+  - broad vendor overlay/text invalidation during hover/focus work
 
 ## ROI-Ordered Backlog
 
-### [x] 1. Keep retained app-model pulls pointer-stable for browser/map/static churn
+### [x] 1. Reuse bridge projection-key derivation across pulls and waveform batches
 - ROI: Very High
-- Effort: L
+- Effort: M
 - Expected impact: p95 interaction latency, frame time, CPU
 - Evidence:
-  - `target/perf/bench.json` shows `browser_filter_churn_latency.projection_stage.p95_us = 2342` while `interaction_rebuild_cause_attribution` still records `dirty_mask_static_rebuild_count = 24` and `bridge_model_pull_rebuild_count = 24` for filter churn, query churn, map pan proxy, and volume drag.
-  - `src/app_core/native_bridge/projection_cache/segment_materialize.rs:20` rebuilds the retained snapshot whenever `app_key` changes, then always refreshes non-segment fields through `refresh_non_segment_static_fields` and `refresh_non_segment_overlay_fields` at `src/app_core/native_bridge/projection_cache/segment_materialize.rs:72` and `src/app_core/native_bridge/projection_cache/segment_materialize.rs:76`.
-  - `src/app_core/native_shell/app_model.rs:65` and `src/app_core/native_shell/app_model.rs:146` still assemble fresh top-level model fields during full projection.
-- Recommended change: split retained top-level model identity from segment-local browser/map/static metadata so `resolve_or_project_with_derived` can reuse the existing `Arc<NativeAppModel>` when only segment payloads or keyed overlay fields change; add dedicated cache keys for non-segment overlay/static groups instead of tying them to the full `app_key`.
-- Risk/tradeoffs: architectural change touching retained projection invariants and tests; easy to regress segment dirtiness if keys are too coarse.
+  - `src/app_core/native_bridge/runtime_projection.rs:73-84` rebuilds the full projection key snapshot when stale.
+  - `src/app_core/native_bridge/runtime_projection.rs:133-169` then calls `DerivedProjectionState::from_controller_with_app_key`.
+  - `src/app_core/native_bridge/projection_cache/cache_state.rs:46-69` immediately re-derives overlapping segment keys after `build_projection_cache_key`.
+  - `src/app_core/native_bridge/reducer.rs:113-152` rebuilds a fresh `before_key`/`after_key` around waveform batch flushes.
+  - Live perf evidence: `hover_latency.projection_stage.p95_us = 2324`, `wheel_latency.projection_stage.p95_us = 2140`, and `waveform_interaction_latency.apply_stage.p95_us = 1322`.
+- Recommended change:
+  - Introduce one pull-scoped derived snapshot/key pack that is computed once and reused by retained cache lookup, segment dirtiness decisions, and waveform batch finalization.
+  - Replace waveform batch `before_key`/`after_key` rebuilds with narrower revision/fingerprint checks for the affected waveform sources.
+- Risk/tradeoffs:
+  - Incorrect reuse could miss a dirty segment transition and leave stale projected state.
+  - This touches bridge invariants and should be kept behind strong tests.
 - Visual impact: None
-- Completed: 2026-04-04 (`vendor/radiant` `e5c91739`, root `3c91fbef`)
-- Validation plan: extend retained projection cache tests for pointer reuse and dirty-segment accuracy; rerun `scripts/run_perf_guard.ps1`, `scripts/ci_agent.ps1`, and targeted native-bridge projection tests.
+- Validation plan:
+  - Extend bridge projection-cache tests for cache-hit parity and dirty-segment correctness.
+  - Add a focused regression test for waveform batch flushes that mutate view state without broad invalidation.
+  - Rerun `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` and `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
+- Completed on: `2026-04-04`
+- Commit: pending until this item's focused commit is created
+- Validation outcome:
+  - `cargo test native_bridge::tests::bridge_runtime` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed without warnings
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
 
-### [x] 2. Stop wasting CPU on superseded waveform renders and inline transient detection
+### [ ] 2. Split non-segment static and overlay projection so browser-only interactions stop paying audio/sidebar/options costs
 - ROI: Very High
-- Effort: M
-- Expected impact: startup, p95 interaction latency, frame time, CPU
-- Evidence:
-  - `src/app/controller/library/wavs/waveform_rendering/render_apply.rs:194` queues a new async raster job from `queue_waveform_render_now`.
-  - `src/app/controller/library/wavs/waveform_rendering/render_apply.rs:274` overwrites only one `pending_waveform_render` record, so older in-flight jobs can still complete after newer requests were queued.
-  - `src/app/controller/library/background_jobs/polling/runtime_handlers.rs:72` discards stale results only after those jobs already spent worker CPU.
-  - `src/app/controller/library/wavs/waveform_rendering/render_apply.rs:32`, `src/app/controller/library/wavs/waveform_rendering/render_apply.rs:65`, and `src/app/controller/library/wavs/waveform_rendering/render_apply.rs:305` still run transient detection synchronously when a waveform loads without cached markers.
-- Recommended change: make waveform rendering latest-only per `WaveformRenderKey` before dispatch, cancel or skip superseded work in the job lane, and move transient detection onto the same retained async pipeline or a sibling cache keyed by waveform cache token.
-- Risk/tradeoffs: cancellation and replacement logic must not drop the final repaint; transient markers may appear slightly later on cold loads.
-- Visual impact: Minimal
-- Completed: 2026-04-04 (`root` `dacfedac`)
-- Validation plan: add tests for latest-only waveform request replacement and transient-cache reuse; manually exercise rapid pan/zoom/loading; rerun `scripts/ci_agent.ps1` and perf guard.
-
-### [x] 3. Remove full-source path and embedding scans from loaded-similarity workflows
-- ROI: High
 - Effort: L
-- Expected impact: p95 interaction latency, memory, CPU
+- Expected impact: p95 interaction latency, startup, memory, CPU
 - Evidence:
-  - `src/app/controller/library/wavs/similar/query.rs:41` and `src/app/controller/library/wavs/similar/query.rs:126` collect all wav entry paths into a fresh `Vec<PathBuf>`.
-  - `src/app/controller/library/wavs/similar/background.rs:118` and `src/app/controller/library/wavs/similar/background.rs:210` clone the full entry-path list again for follow-loaded background refresh.
-  - `src/app/controller/library/wavs/similar/loaded.rs:30`, `src/app/controller/library/wavs/similar/loaded.rs:91`, `src/app/controller/library/wavs/similar/loaded.rs:100`, and `src/app/controller/library/wavs/similar/loaded.rs:149` rebuild a path lookup and score every embedding row by decoding blobs for each candidate.
-  - `src/app/controller/library/wavs/browser_pipeline/helpers.rs:161` and `src/app/state/browser/search.rs:187` / `src/app/state/browser/search.rs:193` add extra transient similarity fingerprint and index lookup work on top of the full scan.
-- Recommended change: retain a source-revision keyed path-to-index map and similarity score store, avoid cloning full path vectors per query, and add candidate pruning or persisted nearest-neighbor lookup so loaded-similarity refresh does not decode every embedding row each time.
-- Risk/tradeoffs: biggest change in the plan; must preserve exact ordering semantics and model-version invalidation behavior.
+  - `src/app_core/native_bridge/projection_cache/segment_materialize.rs:109-136` refreshes sources, audio engine, options, progress, confirm, and drag models through the non-segment path.
+  - `src/app_core/native_bridge/projection_cache/projection_key/non_segment.rs:12-118` builds one broad non-segment key and eagerly hashes audio-option vectors.
+  - `src/app_core/native_shell/options_panel_projection.rs:7-67` and `:194-317` rebuild full audio-engine option models and labels.
+  - `src/app_core/native_shell/sources_projection.rs:9-175` reconstructs the entire sources/sidebar model and folder rows.
+  - Subagent evidence showed this churn aligns with the still projection-dominated hover/wheel/filter profiles.
+- Recommended change:
+  - Break `GLOBAL_STATIC` into smaller retained buckets, at minimum:
+    - sources/sidebar
+    - audio/options
+    - transport/update/focus context
+  - Replace audio-option hashing with stable revision counters or precomputed fingerprints populated only when audio refresh actually runs.
+  - Keep unchanged sidebar/audio models pointer-stable across browser-only pulls.
+- Risk/tradeoffs:
+  - Architectural change across retained keys, tests, and dirty-mask mapping.
+  - Too-coarse revision reuse could leave sidebar or audio pickers stale.
 - Visual impact: None
-- Completed: 2026-04-04 (`root` `d573ddeb`)
-- Validation plan: add deterministic similarity-order tests, cache invalidation tests across source revisions/model versions, and benchmark the loaded-similarity query path before and after.
+- Validation plan:
+  - Add cache-behavior tests for isolated browser, sidebar, and audio-option invalidation.
+  - Exercise startup, opening options early, switching folder panes, and browser focus churn.
+  - Rerun perf guard plus targeted native-bridge projection-cache tests.
 
-### [x] 4. Replace rebuild-heavy selection path scans with retained selected-index lookup state
+### [ ] 3. Make waveform preview and selection batches overlay-first instead of full-key apply work
 - ROI: High
 - Effort: M
-- Expected impact: p95 interaction latency, CPU
+- Expected impact: p95 interaction latency, frame time, CPU
 - Evidence:
-  - `src/app/controller/library/wavs/browser_actions/selection/paths.rs:44`, `src/app/controller/library/wavs/browser_actions/selection/paths.rs:81`, and `src/app/controller/library/wavs/browser_actions/selection/paths.rs:139` repeatedly resolve selected paths back to entry indices.
-  - `src/app/controller/library/wavs/browser_lists/mod.rs:48`, `src/app/controller/library/wavs/browser_lists/mod.rs:58`, and nearby selection-pruning code repeatedly call `wav_index_for_path`.
-  - `src/app/controller/library/wavs/entry_access.rs:73` can fall back to source DB lookup when the retained path/index lookup cache misses.
-- Recommended change: keep a retained selected-path set plus selected-index cache keyed by source/projection revisions, and make selection-pruning/action-path builders operate on set membership and cached indices instead of repeated vector scans and fallback lookups.
-- Risk/tradeoffs: selection caches must invalidate correctly on source revision changes and destructive edits.
-- Visual impact: None
-- Completed: 2026-04-04 (`root` `849f0cf6`)
-- Validation plan: add selection-pruning and multi-select action tests across source reloads and deletes; rerun browser action test lanes plus `scripts/ci_agent.ps1`.
+  - `src/app_core/native_bridge/action_classification.rs:98-136` still routes many waveform preview/edit actions through the immediate path.
+  - `src/app_core/native_bridge/reducer.rs:183-194` handles those via `reduce_immediate_waveform_preview_action`.
+  - `src/app_core/native_bridge/reducer.rs:64-81` runs `apply_action_immediately`, which invalidates projection-key state and can trigger full pull preparation.
+  - `src/app_core/native_bridge/reducer.rs:113-152` also rebuilds keys around queued waveform batches.
+  - Live perf evidence: `waveform_interaction_latency.apply_stage.p95_us = 1322` while `projection_stage.p95_us = 89`.
+- Recommended change:
+  - Split immediate waveform preview actions into a true overlay-only path for cursor/selection/edit-preview updates.
+  - Reserve full-key rebuilds for actions that actually change waveform image inputs, playback state, or persistent browser-visible state.
+  - Reuse the existing pending waveform action lane for more preview-safe actions without delaying final visual confirmation.
+- Risk/tradeoffs:
+  - Over-aggressive coalescing could soften cursor or selection responsiveness.
+  - Must preserve immediate feel for active drags and edits.
+- Visual impact: Minimal
+- Validation plan:
+  - Add targeted bridge-runtime tests for cursor, seek, selection, zoom, and fade-preview action sequences.
+  - Manually stress waveform drag/zoom/selection behavior for feel regressions.
+  - Rerun perf guard and focused waveform/native-bridge test lanes.
 
-### [x] 5. Deduplicate optimistic metadata mutation batches and loaded-audio membership checks
+### [ ] 4. Incrementalize browser search worker source-cache refresh instead of reloading full source snapshots on revision changes
 - ROI: High
-- Effort: M
-- Expected impact: p95 interaction latency, memory, CPU
-- Evidence:
-  - `src/app/controller/library/browser_controller/actions/metadata.rs:139` builds grouped BPM contexts, rollback payloads, and path collections during `apply_bpm_contexts`.
-  - `src/app/controller/library/browser_controller/actions/metadata.rs:200` then forwards new vectors into `queue_metadata_mutation`.
-  - `src/app/controller/library/wavs/metadata_async.rs:15` batches those operations again into pending mutation state.
-  - `src/app/controller/library/wavs/metadata_async.rs:227` reopens the source DB to apply the worker batch, while optimistic checks also use linear path membership in the controller path list.
-- Recommended change: introduce one retained metadata mutation batch object that carries deduped paths, optimistic cache deltas, rollback data, and worker operations once; use set membership for loaded-audio checks instead of `Vec::contains`.
-- Risk/tradeoffs: rollback correctness matters more than raw speed here; the batch object must stay easy to reason about.
-- Visual impact: None
-- Completed: 2026-04-04 (`root` `faf927d8`)
-- Validation plan: extend metadata mutation success/rollback tests, especially mixed BPM/no-op batches and loaded-audio optimistic refresh cases.
-
-### [x] 6. Reuse background workers for destructive selection edits and folder/file operations
-- ROI: Medium
-- Effort: M
-- Expected impact: p95 interaction latency, CPU, I/O
-- Evidence:
-  - `src/app/controller/library/selection_edits/background.rs:109` starts a fresh thread per selection edit and reopens the source DB at `src/app/controller/library/selection_edits/background.rs:163`.
-  - `src/app/controller/library/browser_controller/helpers.rs:297` and `src/app/controller/library/browser_controller/helpers.rs:367` do the same for browser-controller file operations.
-  - `src/app/controller/library/source_folders/actions/rename_move_delete.rs:80`, `src/app/controller/library/source_folders/actions/rename_move_delete.rs:143`, `src/app/controller/library/source_folders/actions/rename_move_delete.rs:180`, `src/app/controller/library/source_folders/actions/rename_move_delete.rs:465`, and `src/app/controller/library/source_folders/actions/rename_move_delete.rs:547` still pay repeated thread-spawn and DB-open cost before the actual filesystem work.
-- Recommended change: route these operations through a bounded reusable worker lane owned by runtime jobs, and pass already-known metadata into worker tasks when correctness allows instead of reopening and rereading it for each operation.
-- Risk/tradeoffs: must preserve current error propagation and sequencing guarantees for file and database mutations.
-- Visual impact: None
-- Completed: 2026-04-04 (`root` `4ac3945e`)
-- Validation plan: add tests for serial ordering and failure rollback in edit/file-op workflows; manually exercise multi-item destructive edits; rerun `scripts/ci_agent.ps1`.
-
-### [x] 7. Stop rebuilding browser search and playback-age caches from whole-source state
-- ROI: Medium
 - Effort: M
 - Expected impact: startup, p95 interaction latency, memory, CPU
 - Evidence:
-  - `src/app/controller/library/wavs/browser_pipeline/visible_rows.rs:18` and `src/app/controller/library/wavs/browser_pipeline/visible_rows.rs:35` compute playback-age cache state before visible-row reuse.
-  - `src/app/controller/library/wavs/browser_pipeline/helpers.rs:177` scans all base rows to derive the playback-age cache token.
-  - `src/app/controller/library/wavs/browser_search/cache.rs:65`, `src/app/controller/library/wavs/browser_search/cache.rs:145`, and the label fill path rebuild or backfill source-wide `Vec<String>` storage on demand.
-  - `src/app/controller/library/wavs/browser_search_worker/pipeline/stages/source_cache.rs:50` rebuilds compact search entries and display labels across the whole source on revision changes.
-- Recommended change: keep a retained next-expiry token for playback-age filters, incrementalize label/materialized search-entry caches by source revision, and avoid whole-source string buffer resets when only a subset of rows or metadata changed.
-- Risk/tradeoffs: cache invalidation will be more complex; stale labels or missed age rollovers are the main correctness risks.
+  - `src/app/controller/library/wavs/browser_search_worker/pipeline/stages/source_cache.rs:58-90` reloads worker entries whenever DB revision changes.
+  - `:73-90` calls `db.list_files()`, then recomputes path fingerprints and compact entries for the whole source.
+  - `:112-172` hashes every path and rebuilds compact entry vectors when ordered paths change.
+  - Current code only avoids full rebuild when path order is unchanged; it still pays full-table reads on every revision refresh.
+- Recommended change:
+  - Carry DB-side changed-row information or row-level revision deltas into the worker cache so metadata-only updates patch entries in place without `list_files()` across the full source.
+  - Persist a stable row identity map in the worker cache to avoid full path hashing for metadata-only revisions.
+- Risk/tradeoffs:
+  - Incremental DB cache invalidation is correctness-sensitive.
+  - Must fall back cleanly to a full reload whenever row identity cannot be trusted.
 - Visual impact: None
-- Completed: 2026-04-04 (`root` `0efad4c2`)
-- Validation plan: add revision-sensitive cache invalidation tests for search labels and playback-age rollover, plus perf-guard coverage for age-filter/search-heavy scenarios.
+- Validation plan:
+  - Extend worker parity tests for rename, metadata-only mutations, insert/delete, and revision reuse.
+  - Add allocation/telemetry assertions where practical.
+  - Rerun `scripts/ci_agent.ps1` and search-heavy perf guard scenarios.
 
-### [x] 8. Reduce browser/runtime text allocation churn in `vendor/radiant`
+### [ ] 5. Batch similarity feature and embedding lookups instead of decoding blobs row-by-row
+- ROI: High
+- Effort: L
+- Expected impact: startup, p95 interaction latency, memory, CPU
+- Evidence:
+  - `src/app/controller/library/wavs/similar/resolve/ranking.rs:25-33` calls `load_embedding_for_sample` and `load_light_dsp_for_sample` per candidate.
+  - `src/app/controller/library/wavs/similar/resolve/ranking.rs:106` calls `load_rms_for_sample` during duplicate filtering.
+  - `src/app/controller/library/wavs/similar/resolve/repository.rs:72-121` performs separate `query_row` lookups and blob decodes for each feature family.
+  - `src/app/controller/library/wavs/browser_pipeline/helpers.rs:10-39` still allocates `vec![None; controller.wav_entries_len()]` for similarity sorting on the UI path.
+  - `target/perf/bench.json` reports `feature_blob_decode.total_elapsed_ms = 8050` for `320000` blobs.
+- Recommended change:
+  - Batch feature and embedding fetches for the active candidate set with one query per feature family instead of one query per candidate.
+  - Reuse worker-style scratch buffers for similarity sort/lookups in the UI pipeline.
+  - Keep decoded feature/embedding blocks in a short-lived retained cache keyed by source revision and model version.
+- Risk/tradeoffs:
+  - Larger architectural change touching similarity ordering, duplicate filtering, and cache invalidation.
+  - Must preserve exact ranking semantics and model-version boundaries.
+- Visual impact: None
+- Validation plan:
+  - Add ranking-parity tests against the current resolver.
+  - Benchmark candidate-set reranking before/after on large sources.
+  - Rerun similarity, duplicate-cleanup, and perf guard lanes.
+
+### [ ] 6. Narrow vendor hover/focus overlay invalidation and retain browser row text/layout geometry
+- ROI: Medium
+- Effort: L
+- Expected impact: frame time, p95 interaction latency, CPU, memory
+- Evidence:
+  - `vendor/radiant/src/gui_runtime/native_vello/scene_cache/signatures.rs:160-285` hashes broad hover/focus overlay model state.
+  - `vendor/radiant/src/gui_runtime/native_vello/runtime_render/scene/composition.rs:78-183` rebuilds the state overlay when those signatures change.
+  - `vendor/radiant/src/gui/native_shell/state/frame_build/browser/rows.rs:11-239` recomputes row text layout, approximate widths, and cloned text payloads for each rendered row.
+  - `vendor/radiant/src/gui/native_shell/state/frame_build/overlay/focus.rs:227-381` repeats similar layout/text work for focus overlays.
+- Recommended change:
+  - Narrow hover/focus signatures to the minimal state that actually affects overlay visuals.
+  - Cache browser-row text layout, approximate label width, and inline-tag geometry whenever the static row window changes, then reuse them during frame build and focus overlays.
+- Risk/tradeoffs:
+  - Signature narrowing and cached geometry can create stale highlight or text-bounds bugs if invalidation misses a dependency.
+- Visual impact: Needs review
+- Validation plan:
+  - Rerun focused `vendor/radiant` native-shell tests and screenshot fixtures at multiple scales.
+  - Manually inspect hover/focus overlays, text clipping, and inline-tag alignment.
+  - Rerun perf guard after vendor and root validations are green.
+
+### [ ] 7. Remove residual UI browser-pipeline linear rescans and align controller-mode perf tooling with the retained runtime path
 - ROI: Medium
 - Effort: M
-- Expected impact: frame time, CPU, memory
+- Expected impact: p95 interaction latency, startup, CPU
 - Evidence:
-  - `vendor/radiant/src/gui/native_shell/state/frame_build/browser/panel.rs:3` still constructs toolbar button and chip labels during frame build, including `button.label.to_string()` and formatted chip labels.
-  - `vendor/radiant/src/gui/native_shell/state/frame_build/overlay/focus.rs:206` rebuilds focused-row text payloads and inline-label strings during overlay rendering.
-  - `vendor/radiant/src/gui_runtime/native_vello/text_runtime.rs:89` rebuilds active text-field visual state and style tokens during editor sync.
-- Recommended change: move browser toolbar/focus text payload derivation into retained projection caches, reuse preformatted strings and reserved widths, and cache text-field visual state by layout/style signature instead of rebuilding it every sync.
-- Risk/tradeoffs: any retained text cache must invalidate correctly on DPI/theme/layout changes; stale text bounds would show up visually.
-- Visual impact: Needs review
-- Completed: 2026-04-04 (`vendor/radiant` `2f53bf98`, root `46a7168b`)
-- Validation plan: rerun focused `vendor/radiant` browser/focus/text-runtime tests, compare screenshots or manual visual checks at multiple scales, then rerun `scripts/ci_agent.ps1` and perf guard.
+  - `src/app/controller/library/wavs/browser_pipeline/visible_rows.rs:139-141` and `:388-390` use repeated `visible.iter().position(...)` scans for focused and loaded rows.
+  - `src/app/controller/library/wavs/browser_pipeline/helpers.rs:177-205` rescans all base rows to derive the next playback-age filter rollover token.
+  - `src/app/controller/library/wavs/browser_search/cache.rs:65-170` still fills labels on demand and recomputes score vectors in the UI path.
+  - `src/app_core/controller.rs:149-150` routes controller-mode projections through `native_shell::project_app_model`.
+  - `src/main.rs:129` and `src/gui_test/fixtures.rs:37-52` show the real runtime uses `GuiFixtureBridge` and `SempalNativeBridge` instead.
+- Recommended change:
+  - Retain visible-row position lookups and next-expiry playback-age tokens in the UI pipeline.
+  - Share more of the worker scratch/cache machinery with the UI browser pipeline.
+  - Add a retained bridge-backed benchmark path to perf guard, keeping the legacy controller projection only as an explicit diagnostic mode.
+- Risk/tradeoffs:
+  - Mixed controller/bridge benchmarking must preserve output parity so perf drift is interpretable.
+  - UI-pipeline lookup caches must invalidate correctly on row-order changes.
+- Visual impact: None
+- Validation plan:
+  - Add parity checks between controller-mode and bridge-mode projected outputs for representative fixtures.
+  - Extend browser-pipeline tests for visible-row lookup reuse and playback-age rollover.
+  - Rerun perf guard in both diagnostic modes and `scripts/ci_agent.ps1`.

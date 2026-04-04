@@ -14,9 +14,7 @@ use super::{
         trace_waveform_image_refresh,
     },
     pending_waveform::LOCAL_MODEL_PULL_FAST_PATH_BURST_LIMIT,
-    projection_cache::{
-        DerivedProjectionState, NativeProjectionCacheKey, build_projection_cache_key,
-    },
+    projection_cache::{DerivedProjectionState, NativeProjectionCacheKey},
 };
 use crate::app_core::{
     actions::{NativeAppModel, NativeMotionModel},
@@ -33,6 +31,7 @@ impl SempalNativeBridge {
     /// Mark the cached projection key snapshot stale after controller mutation.
     pub(super) fn invalidate_projection_key_snapshot(&mut self) {
         self.projection_key_snapshot = None;
+        self.derived_projection_snapshot = None;
     }
 
     /// Force the next app-model pull to use the full preparation path.
@@ -62,33 +61,40 @@ impl SempalNativeBridge {
         use_fast_path
     }
 
-    /// Return a cached projection key snapshot, recomputing only when stale.
-    pub(super) fn projection_key_snapshot(&mut self) -> NativeProjectionCacheKey {
+    /// Return a cached derived projection snapshot, recomputing only when stale.
+    fn derived_projection_snapshot(&mut self) -> DerivedProjectionState {
         if self.controller.refresh_projection_revision_bus() {
-            self.projection_key_snapshot = None;
+            self.invalidate_projection_key_snapshot();
         }
-        if let Some(key) = self.projection_key_snapshot.as_ref().cloned() {
-            return key;
+        if let Some(derived) = self.derived_projection_snapshot.as_ref().cloned() {
+            return derived;
         }
-        let key = build_projection_cache_key(&self.controller);
-        self.projection_key_snapshot = Some(key.clone());
-        key
+        let derived = DerivedProjectionState::from_controller(&self.controller);
+        self.projection_key_snapshot = Some(derived.app_key.clone());
+        self.derived_projection_snapshot = Some(derived.clone());
+        derived
     }
 
-    /// Return a projection key snapshot and optionally validate it against fresh state.
-    pub(super) fn projection_key_snapshot_for_pull(&mut self) -> NativeProjectionCacheKey {
-        let mut key = self.projection_key_snapshot();
+    /// Return a cached projection key snapshot, recomputing only when stale.
+    pub(super) fn projection_key_snapshot(&mut self) -> NativeProjectionCacheKey {
+        self.derived_projection_snapshot().app_key
+    }
+
+    /// Return a derived projection snapshot and optionally validate it against fresh state.
+    fn derived_projection_snapshot_for_pull(&mut self) -> DerivedProjectionState {
+        let mut derived = self.derived_projection_snapshot();
         if !projection_key_assertions_enabled() {
-            return key;
+            return derived;
         }
-        let fresh_key = build_projection_cache_key(&self.controller);
-        let stale = key != fresh_key;
+        let fresh_derived = DerivedProjectionState::from_controller(&self.controller);
+        let stale = derived.app_key != fresh_derived.app_key;
         trace_projection_key_assertion(stale);
         if stale {
-            self.projection_key_snapshot = Some(fresh_key.clone());
-            key = fresh_key;
+            self.projection_key_snapshot = Some(fresh_derived.app_key.clone());
+            self.derived_projection_snapshot = Some(fresh_derived.clone());
+            derived = fresh_derived;
         }
-        key
+        derived
     }
 
     /// Recompute dirty derived nodes and invalidate projection cache when required.
@@ -161,9 +167,7 @@ impl SempalNativeBridge {
             trace_pull_model_preparation(prepare_duration);
         }
         let project_start = profiling.then(Instant::now);
-        let projection_key = self.projection_key_snapshot_for_pull();
-        let derived =
-            DerivedProjectionState::from_controller_with_app_key(&self.controller, projection_key);
+        let derived = self.derived_projection_snapshot_for_pull();
         let (model, dirty_segments) = self
             .projection_cache
             .resolve_or_project_with_derived(&mut self.controller, &derived);

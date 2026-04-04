@@ -9,8 +9,29 @@ mod shared;
 mod status;
 mod waveform;
 
+/// One derived projection-key snapshot spanning segment keys and the full app key.
+pub(super) struct DerivedProjectionKeyParts {
+    pub(super) app_key: NativeProjectionCacheKey,
+    pub(super) selected_column: usize,
+    pub(super) status_key: super::StatusProjectionCacheKey,
+    pub(super) browser_frame_key: super::BrowserFrameProjectionCacheKey,
+    pub(super) browser_rows_key: super::BrowserRowsProjectionCacheKey,
+    pub(super) browser_rows_state_key: super::BrowserRowsStateProjectionCacheKey,
+    pub(super) map_key: super::MapProjectionCacheKey,
+    pub(super) waveform_key: super::WaveformProjectionCacheKey,
+    pub(super) non_segment_static_key: super::NonSegmentStaticProjectionCacheKey,
+}
+
 /// Build the full projection cache key from current controller state.
+#[cfg(test)]
 pub(super) fn build_projection_cache_key(controller: &AppController) -> NativeProjectionCacheKey {
+    derive_projection_key_parts(controller).app_key
+}
+
+/// Derive all segment keys plus the full app key from current controller state.
+pub(super) fn derive_projection_key_parts(controller: &AppController) -> DerivedProjectionKeyParts {
+    let selected_column = crate::app_core::native_shell::selected_column_index(&controller.ui);
+    let status_key = build_status_projection_key(controller, selected_column);
     let browser_frame_key = build_browser_frame_projection_key(controller);
     let browser_rows_key = build_browser_rows_projection_key(controller);
     let browser_rows_state_key = build_browser_rows_state_projection_key(controller);
@@ -18,7 +39,7 @@ pub(super) fn build_projection_cache_key(controller: &AppController) -> NativePr
     let waveform_key = build_waveform_projection_key(controller);
     let non_segment_static_key = build_non_segment_static_projection_key(controller);
     let options_panel = crate::app_core::native_shell::project_options_panel_model(&controller.ui);
-    NativeProjectionCacheKey {
+    let app_key = NativeProjectionCacheKey {
         status_revision: controller.ui.projection_revisions.status,
         sources_selected: non_segment_static_key.sources_selected,
         sources_len: non_segment_static_key.sources_len,
@@ -137,6 +158,17 @@ pub(super) fn build_projection_cache_key(controller: &AppController) -> NativePr
         volume_milli: non_segment_static_key.volume_milli,
         transport_running: non_segment_static_key.transport_running,
         focus_context: non_segment_static_key.focus_context,
+    };
+    DerivedProjectionKeyParts {
+        app_key,
+        selected_column,
+        status_key,
+        browser_frame_key,
+        browser_rows_key,
+        browser_rows_state_key,
+        map_key,
+        waveform_key,
+        non_segment_static_key,
     }
 }
 

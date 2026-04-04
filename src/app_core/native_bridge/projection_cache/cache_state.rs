@@ -2,7 +2,6 @@
 
 use crate::app_core::actions::{NativeAppModel, NativeDirtySegments};
 use crate::app_core::controller::AppController;
-use crate::app_core::native_shell;
 use std::sync::Arc;
 
 use super::projection_key;
@@ -43,30 +42,17 @@ pub(crate) struct DerivedProjectionState {
 impl DerivedProjectionState {
     /// Derive projection keys from controller state.
     pub(crate) fn from_controller(controller: &AppController) -> Self {
-        let app_key = projection_key::build_projection_cache_key(controller);
-        Self::from_controller_with_app_key(controller, app_key)
-    }
-
-    /// Derive projection keys while reusing a caller-provided app key snapshot.
-    pub(crate) fn from_controller_with_app_key(
-        controller: &AppController,
-        app_key: NativeProjectionCacheKey,
-    ) -> Self {
-        let selected_column = native_shell::selected_column_index(&controller.ui);
+        let derived = projection_key::derive_projection_key_parts(controller);
         Self {
-            app_key,
-            selected_column,
-            status_key: projection_key::build_status_projection_key(controller, selected_column),
-            browser_frame_key: projection_key::build_browser_frame_projection_key(controller),
-            browser_rows_key: projection_key::build_browser_rows_projection_key(controller),
-            browser_rows_state_key: projection_key::build_browser_rows_state_projection_key(
-                controller,
-            ),
-            map_key: projection_key::build_map_projection_key(controller),
-            waveform_key: projection_key::build_waveform_projection_key(controller),
-            non_segment_static_key: projection_key::build_non_segment_static_projection_key(
-                controller,
-            ),
+            app_key: derived.app_key,
+            selected_column: derived.selected_column,
+            status_key: derived.status_key,
+            browser_frame_key: derived.browser_frame_key,
+            browser_rows_key: derived.browser_rows_key,
+            browser_rows_state_key: derived.browser_rows_state_key,
+            map_key: derived.map_key,
+            waveform_key: derived.waveform_key,
+            non_segment_static_key: derived.non_segment_static_key,
         }
     }
 }

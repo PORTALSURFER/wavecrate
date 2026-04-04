@@ -44,6 +44,7 @@ fn flush_pending_waveform_actions_clears_queue_and_marks_waveform_dirty() {
         controller,
         projection_cache: cache,
         projection_key_snapshot: None,
+        derived_projection_snapshot: None,
         last_dirty_segments: NativeDirtySegments::all(),
         segment_revisions: NativeSegmentRevisions::default(),
         pending_waveform_actions: PendingWaveformActions::default(),
@@ -103,4 +104,26 @@ fn flush_pending_waveform_actions_noop_skips_dirty_marking() {
         bridge.projection_key_snapshot.as_ref(),
         Some(&first_snapshot)
     );
+}
+
+/// View-changing queued waveform batches should refresh the cached derived snapshot once.
+#[test]
+fn flush_pending_waveform_actions_reuses_derived_snapshot_for_view_updates() {
+    let mut bridge = test_bridge(16);
+
+    assert!(bridge.enqueue_waveform_action(&NativeUiAction::ZoomWaveformFull));
+    bridge.flush_pending_waveform_actions();
+
+    assert!(
+        bridge
+            .controller
+            .is_derived_node_dirty_for_test(DerivedNodeId::WaveformState)
+    );
+    let Some(snapshot_key) = bridge.projection_key_snapshot.as_ref() else {
+        panic!("waveform flush should retain a projection key snapshot");
+    };
+    let Some(derived) = bridge.derived_projection_snapshot.as_ref() else {
+        panic!("waveform flush should retain a derived projection snapshot");
+    };
+    assert_eq!(snapshot_key, &derived.app_key);
 }

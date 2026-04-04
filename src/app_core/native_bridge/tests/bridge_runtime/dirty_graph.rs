@@ -226,6 +226,7 @@ fn flush_derived_updates_clears_nodes_and_invalidates_key() {
         controller,
         projection_cache: cache,
         projection_key_snapshot: None,
+        derived_projection_snapshot: None,
         last_dirty_segments: NativeDirtySegments::all(),
         segment_revisions: NativeSegmentRevisions::default(),
         pending_waveform_actions: PendingWaveformActions::default(),

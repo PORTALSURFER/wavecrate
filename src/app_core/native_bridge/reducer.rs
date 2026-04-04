@@ -17,7 +17,7 @@ use super::{
         bridge_profiling_enabled, trace_action_call, trace_action_duration,
         trace_action_interaction, trace_waveform_flush,
     },
-    projection_cache::{NativeProjectionCacheKey, build_projection_cache_key},
+    projection_cache::NativeProjectionCacheKey,
 };
 use crate::app_core::actions::NativeUiAction;
 use crate::app_core::app_api::controller_state::{DerivedNodeId, DirtyReason};
@@ -142,9 +142,9 @@ impl SempalNativeBridge {
     ) {
         if emitted_actions != 0 {
             let _ = self.controller.refresh_projection_revision_bus();
-            let after_key = build_projection_cache_key(&self.controller);
+            self.invalidate_projection_key_snapshot();
+            let after_key = self.projection_key_snapshot();
             if before_key != after_key {
-                self.projection_key_snapshot = Some(after_key);
                 self.controller.mark_derived_source_dirty(
                     DerivedNodeId::WaveformState,
                     pending.dirty_reason(),

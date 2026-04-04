@@ -23,6 +23,7 @@ pub use segment_lookup::{
     ProjectionSegmentLookupCount, ProjectionSegmentLookupCounts, ProjectionSegmentProbeMeasurement,
 };
 
+#[cfg(test)]
 pub(super) fn build_projection_cache_key(controller: &AppController) -> NativeProjectionCacheKey {
     projection_key::build_projection_cache_key(controller)
 }

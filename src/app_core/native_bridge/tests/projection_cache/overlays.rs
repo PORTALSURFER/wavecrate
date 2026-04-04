@@ -379,6 +379,7 @@ fn bridge_metrics_track_projection_cache_and_waveform_refresh_paths() {
         controller,
         projection_cache: NativeProjectionCache::default(),
         projection_key_snapshot: None,
+        derived_projection_snapshot: None,
         last_dirty_segments: NativeDirtySegments::all(),
         segment_revisions: NativeSegmentRevisions::default(),
         pending_waveform_actions: PendingWaveformActions::default(),

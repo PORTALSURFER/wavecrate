@@ -73,6 +73,8 @@ pub struct SempalNativeBridge {
     projection_cache: projection_cache::NativeProjectionCache,
     /// Lazily recomputed projection cache key snapshot for controller state.
     projection_key_snapshot: Option<projection_cache::NativeProjectionCacheKey>,
+    /// Lazily recomputed derived projection snapshot for controller state.
+    derived_projection_snapshot: Option<projection_cache::DerivedProjectionState>,
     /// Dirty segments produced by the latest `pull_model` projection update.
     last_dirty_segments: NativeDirtySegments,
     /// Monotonic static-segment revisions from projection updates.
@@ -98,6 +100,7 @@ impl SempalNativeBridge {
             controller,
             projection_cache: projection_cache::NativeProjectionCache::default(),
             projection_key_snapshot: None,
+            derived_projection_snapshot: None,
             last_dirty_segments: NativeDirtySegments::all(),
             segment_revisions: NativeSegmentRevisions::default(),
             pending_waveform_actions: PendingWaveformActions::default(),
