@@ -10,11 +10,14 @@ use super::interactions::{
 use super::{BenchOptions, stats};
 use sempal::app_core::actions::{NativeAppModel, NativeMotionModel};
 use sempal::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
+use sempal::app_core::native_bridge::measure_projection_segment_probe;
 
 /// Latency summaries collected for every GUI benchmark scenario.
 pub(super) struct GuiScenarioMetrics {
     /// Latency of native app model projection.
     pub(super) app_model_projection: stats::LatencySummary,
+    /// Retained-runtime app-model projection p95 captured through the bridge cache path.
+    pub(super) retained_app_model_projection_p95_us: u64,
     /// Latency of native motion model projection.
     pub(super) motion_model_projection: stats::LatencySummary,
     /// Latency of a mixed interactive projection step sequence.
@@ -53,6 +56,9 @@ pub(super) fn collect_gui_scenario_metrics(
 ) -> Result<GuiScenarioMetrics, String> {
     Ok(GuiScenarioMetrics {
         app_model_projection: bench_app_model_projection(options, controller)?,
+        retained_app_model_projection_p95_us: bench_retained_app_model_projection_p95_us(
+            options, controller,
+        ),
         motion_model_projection: bench_motion_model_projection(options, controller)?,
         interactive_projection: bench_interactive_projection(
             options,
@@ -74,6 +80,19 @@ pub(super) fn collect_gui_scenario_metrics(
             options, controller,
         )?,
     })
+}
+
+fn bench_retained_app_model_projection_p95_us(
+    options: &BenchOptions,
+    controller: &mut AppController,
+) -> u64 {
+    measure_projection_segment_probe(
+        controller,
+        options.warmup_iters,
+        options.measure_iters,
+        |_controller, _| {},
+    )
+    .projection_p95_us
 }
 
 fn bench_app_model_projection(

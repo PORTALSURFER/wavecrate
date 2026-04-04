@@ -51,6 +51,7 @@ fn run_gui_benchmark_uses_one_row_when_gui_rows_is_zero() {
     let report = must(run(&options), "gui benchmark with minimum row count");
     assert_eq!(report.seeded_rows, 1);
     assert_eq!(report.app_model_projection.measure_iters, 1);
+    assert!(report.retained_app_model_projection_p95_us > 0);
     assert_eq!(report.hover_latency.measure_iters, 2);
     assert_eq!(
         report

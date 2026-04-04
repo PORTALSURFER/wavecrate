@@ -304,6 +304,13 @@ try {
     $guiReports += ,(Get-RequiredPropertyValue -Object $report -Key "gui")
   }
 
+  if ($guiReports.Count -gt 0 -and (Test-HasProperty -Object $guiReports[0] -Key "retained_app_model_projection_p95_us")) {
+    $retainedProjectionP95Us = Get-MedianInt -Values ($guiReports | ForEach-Object {
+      [double](Get-RequiredPropertyValue -Object $_ -Key "retained_app_model_projection_p95_us")
+    })
+    Write-Host "[perf_guard] retained_app_model_projection_p95_us: median=$retainedProjectionP95Us us (diagnostic, retained runtime path)"
+  }
+
   $warned = $false
   $failed = $false
 

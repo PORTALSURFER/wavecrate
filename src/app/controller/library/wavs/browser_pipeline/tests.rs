@@ -11,6 +11,26 @@ use std::collections::BTreeSet;
 use std::path::Path;
 use std::path::PathBuf;
 
+fn playback_age_cache_token(
+    controller: &AppController,
+    filters: &BTreeSet<PlaybackAgeFilterChip>,
+) -> Option<PlaybackAgeTokenCache> {
+    let base_fingerprint_hash =
+        super::helpers::hash_value(&controller.ui_cache.browser.pipeline.base_fingerprint);
+    let filter_hash = super::helpers::hash_value(filters);
+    controller
+        .ui_cache
+        .browser
+        .pipeline
+        .playback_age_token_caches
+        .iter()
+        .copied()
+        .find(|cached| {
+            cached.base_fingerprint_hash == base_fingerprint_hash
+                && cached.filter_hash == filter_hash
+        })
+}
+
 #[test]
 fn base_stage_partitions_rows_by_triage_bucket() {
     let entries = vec![
@@ -158,6 +178,22 @@ fn build_visible_rows_sort_stage_maps_focus_and_loaded_positions() {
     }
     assert_eq!(focused, Some(1));
     assert_eq!(loaded, Some(2));
+    assert_eq!(
+        controller
+            .ui_cache
+            .browser
+            .pipeline
+            .sorted_visible_position(1),
+        Some(1)
+    );
+    assert_eq!(
+        controller
+            .ui_cache
+            .browser
+            .pipeline
+            .sorted_visible_position(0),
+        Some(2)
+    );
 }
 
 #[test]
@@ -296,19 +332,17 @@ fn playback_age_filter_token_cache_tracks_base_snapshot_and_filter_shape() {
 
     let now = 100 + WEEK_SECS - 5;
     let _ = super::visible_rows::build_visible_rows_with_now(&mut controller, None, None, now);
-    let cached_before = controller
-        .ui_cache
-        .browser
-        .pipeline
-        .playback_age_token_cache;
+    let cached_before = playback_age_cache_token(
+        &controller,
+        &controller.ui.browser.search.playback_age_filter,
+    );
 
     let _ = super::visible_rows::build_visible_rows_with_now(&mut controller, None, None, now + 1);
     assert_eq!(
-        controller
-            .ui_cache
-            .browser
-            .pipeline
-            .playback_age_token_cache,
+        playback_age_cache_token(
+            &controller,
+            &controller.ui.browser.search.playback_age_filter
+        ),
         cached_before
     );
 
@@ -318,14 +352,20 @@ fn playback_age_filter_token_cache_tracks_base_snapshot_and_filter_shape() {
         .search
         .playback_age_filter
         .insert(PlaybackAgeFilterChip::OlderThanMonth);
+    let widened_filter = controller.ui.browser.search.playback_age_filter.clone();
     let _ = super::visible_rows::build_visible_rows_with_now(&mut controller, None, None, now + 1);
     assert_ne!(
+        playback_age_cache_token(&controller, &widened_filter),
+        cached_before
+    );
+    assert_eq!(
         controller
             .ui_cache
             .browser
             .pipeline
-            .playback_age_token_cache,
-        cached_before
+            .playback_age_token_caches
+            .len(),
+        2
     );
 }
 
@@ -350,13 +390,11 @@ fn targeted_playback_age_update_clears_cached_rollover_token() {
         now_unix_secs,
     );
     assert_eq!(
-        controller
-            .ui_cache
-            .browser
-            .pipeline
-            .playback_age_token_cache
-            .as_ref()
-            .and_then(|cache| cache.token),
+        playback_age_cache_token(
+            &controller,
+            &controller.ui.browser.search.playback_age_filter
+        )
+        .and_then(|cache| cache.token),
         Some(100 + WEEK_SECS)
     );
 
@@ -372,8 +410,8 @@ fn targeted_playback_age_update_clears_cached_rollover_token() {
             .ui_cache
             .browser
             .pipeline
-            .playback_age_token_cache
-            .is_none()
+            .playback_age_token_caches
+            .is_empty()
     );
 
     let _ = super::visible_rows::build_visible_rows_with_now(
@@ -383,13 +421,11 @@ fn targeted_playback_age_update_clears_cached_rollover_token() {
         now_unix_secs,
     );
     assert_eq!(
-        controller
-            .ui_cache
-            .browser
-            .pipeline
-            .playback_age_token_cache
-            .as_ref()
-            .and_then(|cache| cache.token),
+        playback_age_cache_token(
+            &controller,
+            &controller.ui.browser.search.playback_age_filter
+        )
+        .and_then(|cache| cache.token),
         Some(200 + WEEK_SECS)
     );
 }

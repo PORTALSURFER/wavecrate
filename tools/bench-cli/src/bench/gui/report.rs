@@ -11,6 +11,8 @@ pub(crate) struct GuiBenchResult {
     pub(super) seeded_rows: usize,
     /// Latency of native app model projection.
     pub(super) app_model_projection: stats::LatencySummary,
+    /// Retained-runtime app-model projection p95 measured through the bridge cache path.
+    pub(super) retained_app_model_projection_p95_us: u64,
     /// Latency of native motion model projection.
     pub(super) motion_model_projection: stats::LatencySummary,
     /// Latency of a small UI mutation plus projection sequence.
@@ -87,6 +89,7 @@ pub(super) fn assemble_gui_bench_result(
 ) -> GuiBenchResult {
     let GuiScenarioMetrics {
         app_model_projection,
+        retained_app_model_projection_p95_us,
         motion_model_projection,
         interactive_projection,
         hover_latency,
@@ -117,6 +120,7 @@ pub(super) fn assemble_gui_bench_result(
     GuiBenchResult {
         seeded_rows,
         app_model_projection,
+        retained_app_model_projection_p95_us,
         motion_model_projection,
         interactive_projection: interactive_projection.total,
         hover_latency: hover_latency.total,

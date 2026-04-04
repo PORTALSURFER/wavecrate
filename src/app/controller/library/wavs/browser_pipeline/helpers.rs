@@ -194,7 +194,13 @@ pub(super) fn playback_age_filter_cache_token(
         .ui_cache
         .browser
         .pipeline
-        .playback_age_token_cache
+        .playback_age_token_caches
+        .iter()
+        .copied()
+        .find(|cached| {
+            cached.base_fingerprint_hash == base_fingerprint_hash
+                && cached.filter_hash == filter_hash
+        })
         && cached.base_fingerprint_hash == base_fingerprint_hash
         && cached.filter_hash == filter_hash
         && cached.token.is_none_or(|token| now_unix_secs < token)
@@ -224,14 +230,22 @@ pub(super) fn playback_age_filter_cache_token(
                 })
         })
         .min();
-    controller
-        .ui_cache
-        .browser
-        .pipeline
-        .playback_age_token_cache = Some(super::PlaybackAgeTokenCache {
+    let cache_entry = super::PlaybackAgeTokenCache {
         base_fingerprint_hash,
         filter_hash,
         token,
-    });
+    };
+    let caches = &mut controller
+        .ui_cache
+        .browser
+        .pipeline
+        .playback_age_token_caches;
+    if let Some(index) = caches.iter().position(|cached| {
+        cached.base_fingerprint_hash == base_fingerprint_hash && cached.filter_hash == filter_hash
+    }) {
+        caches[index] = cache_entry;
+    } else {
+        caches.push(cache_entry);
+    }
     token
 }

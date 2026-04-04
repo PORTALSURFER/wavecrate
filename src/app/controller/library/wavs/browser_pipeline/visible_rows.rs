@@ -128,17 +128,25 @@ fn visible_result_for_duplicate_cleanup(
     cleanup: &BrowserDuplicateCleanupState,
 ) -> (VisibleRows, Option<usize>, Option<usize>) {
     let entries_len = controller.ui_cache.browser.pipeline.compact_entries.len();
+    let mut selected_visible = None;
+    let mut loaded_visible = None;
     let visible: Arc<[usize]> = cleanup
         .indices
         .iter()
         .copied()
         .filter(|index| *index < entries_len)
+        .enumerate()
+        .map(|(visible_row, index)| {
+            if focused_index == Some(index) {
+                selected_visible = Some(visible_row);
+            }
+            if loaded_index == Some(index) {
+                loaded_visible = Some(visible_row);
+            }
+            index
+        })
         .collect::<Vec<_>>()
         .into();
-    let selected_visible =
-        focused_index.and_then(|index| visible.iter().position(|row| *row == index));
-    let loaded_visible =
-        loaded_index.and_then(|index| visible.iter().position(|row| *row == index));
     (VisibleRows::List(visible), selected_visible, loaded_visible)
 }
 
@@ -255,6 +263,11 @@ fn ensure_sorted_stage_for_similar(
         visible.push(index);
     }
     helpers::apply_sort_for_similar(controller, &mut visible, sort_mode, similar);
+    controller
+        .ui_cache
+        .browser
+        .pipeline
+        .rebuild_sorted_row_positions(&visible);
     controller.ui_cache.browser.pipeline.sorted_rows = visible.into();
     controller.ui_cache.browser.pipeline.sorted_fingerprint = Some(sorted_fingerprint);
 }
@@ -347,6 +360,11 @@ fn ensure_sorted_stage_for_query(
             sort_mode == SampleBrowserSort::PlaybackAgeAsc,
         );
     }
+    controller
+        .ui_cache
+        .browser
+        .pipeline
+        .rebuild_sorted_row_positions(&visible);
     controller.ui_cache.browser.pipeline.sorted_rows = visible.into();
     controller.ui_cache.browser.pipeline.sorted_fingerprint = Some(sorted_fingerprint);
 }
@@ -373,6 +391,11 @@ fn ensure_sorted_stage_for_filter_only(
             sort_mode == SampleBrowserSort::PlaybackAgeAsc,
         );
     }
+    controller
+        .ui_cache
+        .browser
+        .pipeline
+        .rebuild_sorted_row_positions(&visible);
     controller.ui_cache.browser.pipeline.sorted_rows = visible.into();
     controller.ui_cache.browser.pipeline.sorted_fingerprint = Some(sorted_fingerprint);
 }
@@ -384,9 +407,19 @@ fn visible_result_from_sorted(
     loaded_index: Option<usize>,
 ) -> (VisibleRows, Option<usize>, Option<usize>) {
     let visible = Arc::clone(&controller.ui_cache.browser.pipeline.sorted_rows);
-    let selected_visible =
-        focused_index.and_then(|index| visible.iter().position(|row| *row == index));
-    let loaded_visible =
-        loaded_index.and_then(|index| visible.iter().position(|row| *row == index));
+    let selected_visible = focused_index.and_then(|index| {
+        controller
+            .ui_cache
+            .browser
+            .pipeline
+            .sorted_visible_position(index)
+    });
+    let loaded_visible = loaded_index.and_then(|index| {
+        controller
+            .ui_cache
+            .browser
+            .pipeline
+            .sorted_visible_position(index)
+    });
     (VisibleRows::List(visible), selected_visible, loaded_visible)
 }

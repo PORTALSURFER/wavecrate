@@ -38,8 +38,8 @@ pub(crate) struct BrowserPipelineCache {
     folder_accepts_fingerprint: Option<u64>,
     /// Cached folder-filter acceptance by absolute wav-entry index.
     folder_accepts_by_index: Vec<bool>,
-    /// Next playback-age rollover token cached for the current base snapshot and filter set.
-    playback_age_token_cache: Option<PlaybackAgeTokenCache>,
+    /// Next playback-age rollover tokens cached for the current base snapshot by filter set.
+    playback_age_token_caches: Vec<PlaybackAgeTokenCache>,
     /// Fingerprint for the filtered stage rows.
     filtered_fingerprint: Option<u64>,
     /// Filtered absolute entry indices.
@@ -50,6 +50,8 @@ pub(crate) struct BrowserPipelineCache {
     scored_rows: Vec<(usize, i64)>,
     /// Scratch lookup buffer used to sort similarity scores without per-build allocation.
     similar_lookup_scratch: Vec<Option<f32>>,
+    /// Retained visible-row positions keyed by absolute entry index for the sorted stage.
+    sorted_row_positions: Vec<Option<usize>>,
     /// Fingerprint for the sorted stage rows.
     sorted_fingerprint: Option<u64>,
     /// Sorted visible absolute entry indices, retained for cheap sharing.
@@ -68,12 +70,13 @@ impl BrowserPipelineCache {
         self.keep_rows.clear();
         self.folder_accepts_fingerprint = None;
         self.folder_accepts_by_index.clear();
-        self.playback_age_token_cache = None;
+        self.playback_age_token_caches.clear();
         self.filtered_fingerprint = None;
         self.filtered_rows.clear();
         self.scored_fingerprint = None;
         self.scored_rows.clear();
         self.similar_lookup_scratch.clear();
+        self.sorted_row_positions.clear();
         self.sorted_fingerprint = None;
         self.sorted_rows = Vec::new().into();
     }
@@ -92,9 +95,10 @@ impl BrowserPipelineCache {
             return true;
         }
         entry.last_played_at = played_at;
-        self.playback_age_token_cache = None;
+        self.playback_age_token_caches.clear();
         self.filtered_fingerprint = None;
         self.scored_fingerprint = None;
+        self.sorted_row_positions.clear();
         self.sorted_fingerprint = None;
         true
     }
@@ -103,6 +107,23 @@ impl BrowserPipelineCache {
     fn prepare_similar_lookup_scratch(&mut self, len: usize) {
         self.similar_lookup_scratch.clear();
         self.similar_lookup_scratch.resize(len, None);
+    }
+
+    /// Rebuild the sorted-stage absolute-index lookup table for the latest visible rows.
+    fn rebuild_sorted_row_positions(&mut self, sorted_rows: &[usize]) {
+        self.sorted_row_positions.clear();
+        self.sorted_row_positions
+            .resize(self.compact_entries.len(), None);
+        for (visible_row, index) in sorted_rows.iter().copied().enumerate() {
+            if let Some(slot) = self.sorted_row_positions.get_mut(index) {
+                *slot = Some(visible_row);
+            }
+        }
+    }
+
+    /// Resolve one visible-row position from the retained sorted-stage lookup table.
+    fn sorted_visible_position(&self, index: usize) -> Option<usize> {
+        self.sorted_row_positions.get(index).copied().flatten()
     }
 }
 

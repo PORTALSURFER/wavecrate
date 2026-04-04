@@ -185,6 +185,18 @@ for path in report_paths:
         sys.exit(1)
     gui_reports.append(gui)
 
+retained_projection_samples = [
+    gui.get("retained_app_model_projection_p95_us")
+    for gui in gui_reports
+    if isinstance(gui.get("retained_app_model_projection_p95_us"), (int, float))
+]
+if retained_projection_samples:
+    retained_projection_p95 = int(round(median(retained_projection_samples)))
+    print(
+        f"[perf_guard] retained_app_model_projection_p95_us: median={retained_projection_p95} us "
+        "(diagnostic, retained runtime path)"
+    )
+
 scenarios = [
     (
         "browser_filter_churn_latency",

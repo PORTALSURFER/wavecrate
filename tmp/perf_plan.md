@@ -1,7 +1,7 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-04
-Status: Phase 2 in progress on 2026-04-04; items 1-6 are complete and item 7 remains in ranked order
+Status: Phase 2 complete on 2026-04-04; items 1-7 are complete in ranked order
 
 ## Evidence Snapshot
 
@@ -214,7 +214,7 @@ Status: Phase 2 in progress on 2026-04-04; items 1-6 are complete and item 7 rem
   - Latest perf-guard snapshot: `hover_latency = 3722us` p95, `wheel_latency = 2659us` p95, `browser_filter_churn_latency = 2181us` p95, `browser_focus_preview_latency = 153us` p95, `browser_focus_commit_latency = 159us` p95
 - Pushed commit: `8a9c30f2` (`perf(radiant): narrow hover and focus overlay churn`)
 
-### [ ] 7. Remove residual UI browser-pipeline linear rescans and align controller-mode perf tooling with the retained runtime path
+### [x] 7. Remove residual UI browser-pipeline linear rescans and align controller-mode perf tooling with the retained runtime path
 - ROI: Medium
 - Effort: M
 - Expected impact: p95 interaction latency, startup, CPU
@@ -236,3 +236,12 @@ Status: Phase 2 in progress on 2026-04-04; items 1-6 are complete and item 7 rem
   - Add parity checks between controller-mode and bridge-mode projected outputs for representative fixtures.
   - Extend browser-pipeline tests for visible-row lookup reuse and playback-age rollover.
   - Rerun perf guard in both diagnostic modes and `scripts/ci_agent.ps1`.
+- Completed on: `2026-04-04`
+- Commit: pending until this item's focused commit is created
+- Validation outcome:
+  - `cargo test -p sempal --lib app::controller::library::wavs::browser_pipeline` passed
+  - `cargo test -p sempal-bench-cli --bin sempal-bench gui` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed without warnings
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+  - Implementation note: sorted browser rows now retain absolute-index-to-visible-row lookup state instead of rescanning `visible.iter().position(...)`, playback-age rollover tokens are cached per filter shape for the current base snapshot, and bench reports/perf guard now surface a retained-runtime projection diagnostic (`retained_app_model_projection_p95_us`) alongside the legacy controller-path summaries
+  - Latest perf-guard snapshot: `retained_app_model_projection_p95_us = 14us`, `browser_filter_churn_latency = 2584us` p95, `hover_latency = 2916us` p95, `wheel_latency = 3155us` p95, `browser_focus_preview_latency = 168us` p95, `browser_focus_commit_latency = 207us` p95
