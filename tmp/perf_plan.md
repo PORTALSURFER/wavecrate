@@ -1,7 +1,7 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-04
-Status: Phase 2 in progress; items 1-6 complete on 2026-04-04
+Status: Phase 2 in progress; items 1-7 complete on 2026-04-04
 
 ## Evidence Snapshot
 
@@ -99,7 +99,7 @@ Status: Phase 2 in progress; items 1-6 complete on 2026-04-04
 - Completed: 2026-04-04 (`root` `4ac3945e`)
 - Validation plan: add tests for serial ordering and failure rollback in edit/file-op workflows; manually exercise multi-item destructive edits; rerun `scripts/ci_agent.ps1`.
 
-### [ ] 7. Stop rebuilding browser search and playback-age caches from whole-source state
+### [x] 7. Stop rebuilding browser search and playback-age caches from whole-source state
 - ROI: Medium
 - Effort: M
 - Expected impact: startup, p95 interaction latency, memory, CPU
@@ -111,6 +111,7 @@ Status: Phase 2 in progress; items 1-6 complete on 2026-04-04
 - Recommended change: keep a retained next-expiry token for playback-age filters, incrementalize label/materialized search-entry caches by source revision, and avoid whole-source string buffer resets when only a subset of rows or metadata changed.
 - Risk/tradeoffs: cache invalidation will be more complex; stale labels or missed age rollovers are the main correctness risks.
 - Visual impact: None
+- Completed: 2026-04-04 (`root` `0efad4c2`)
 - Validation plan: add revision-sensitive cache invalidation tests for search labels and playback-age rollover, plus perf-guard coverage for age-filter/search-heavy scenarios.
 
 ### [ ] 8. Reduce browser/runtime text allocation churn in `vendor/radiant`

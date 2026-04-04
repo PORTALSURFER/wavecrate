@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-04-04T20:57:00Z
+Last Updated: 2026-04-04T21:35:00Z
 Updated By: Codex
 
 ## Purpose
@@ -33,7 +33,10 @@ Updated By: Codex
 - Item 6 is complete in root commit `4ac3945e` (`perf(file_ops): reuse one-shot worker lane`).
 - Item 6 now routes one-shot destructive selection edits plus sample delete/rename and folder rename/delete work through a dedicated reusable file-op worker thread owned by `ControllerJobs`, so those hot paths stop spawning fresh per-operation threads while preserving the existing file-op cancel/apply pipeline.
 - The latest perf-guard snapshot after item 6 stays warning-free with `browser_filter_churn_latency = 2310us` p95, `hover_latency = 2341us` p95, `wheel_latency = 2605us` p95, `browser_focus_preview_latency = 180us` p95, `browser_focus_commit_latency = 235us` p95, and `waveform_interaction_latency = 255us` p95.
-- Item 7, browser search and playback-age cache rebuild reduction, is next in strict ROI order.
+- Item 7 is complete in root commit `0efad4c2` (`perf(search): retain browser cache refresh state`).
+- Item 7 now caches the next playback-age filter rollover token by base snapshot and filter shape, preserves known browser label slots across in-memory rename/insert mutations, and refreshes worker search-entry metadata in place when source revisions change without changing ordered paths.
+- The latest perf-guard snapshot after item 7 stays warning-free with `browser_filter_churn_latency = 2994us` p95, `browser_query_churn_latency = 158us` p95, `browser_sort_toggle_latency = 224us` p95, `hover_latency = 2939us` p95, `wheel_latency = 3277us` p95, `browser_focus_preview_latency = 154us` p95, `browser_focus_commit_latency = 150us` p95, and `waveform_interaction_latency = 202us` p95.
+- Item 8, browser/runtime text allocation churn reduction in `vendor/radiant`, is next in strict ROI order.
 - The Windows Cargo wrapper lane is still trustworthy in this environment because `scripts/use_cargo_cache.ps1` falls back to a local passthrough `rustc` wrapper when user-level Cargo config forces a broken `sccache`.
 - `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` remain parked unless the user explicitly reopens those lanes.
 - Future Windows sessions must use the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
@@ -41,14 +44,14 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Implement item 7 from `tmp/perf_plan.md` next, then rerun relevant validation, update the plan, commit, and push.
+1. Implement item 8 from `tmp/perf_plan.md` next, then rerun relevant validation, update the plan, commit, and push.
 2. Keep the runtime-performance work in strict ROI order unless the user redirects the lane.
 3. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` parked unless the user explicitly reopens those lanes.
 4. Preserve the Windows PowerShell wrapper path for future validation runs in this environment.
 
 ## Work Notes
 
-- Active audit plan: `tmp/perf_plan.md` (Phase 2 in progress on 2026-04-04; items 1-6 complete)
+- Active audit plan: `tmp/perf_plan.md` (Phase 2 in progress on 2026-04-04; items 1-7 complete)
 - Current hotspot snapshot: `tmp/cleanup_audit_hotspots.md`
 - Active short queue: `docs/plans/active/todo.md`
 - Dual-lane validation reference: `docs/TEST.md`

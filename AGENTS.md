@@ -61,10 +61,10 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: executing the rebuilt runtime performance backlog for the current live tree
 - Source of truth: `tmp/perf_plan.md` for the 2026-04-04 Phase 2 runtime performance execution record; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `tmp/improvement_audit_plan.md` remains the separate improvement-audit lane
-- Current status: Phase 2 is in progress on `2026-04-04`. Items 1-6 are complete (`vendor/radiant` `e5c91739`, root `3c91fbef`, root `dacfedac`, root `d573ddeb`, root `849f0cf6`, root `faf927d8`, and root `4ac3945e`), and item 7 is next. The latest perf-guard run stays warning-free with `browser_filter_churn_latency = 2310us` p95, `hover_latency = 2341us` p95, `wheel_latency = 2605us` p95, `browser_focus_preview_latency = 180us` p95, `browser_focus_commit_latency = 235us` p95, and `waveform_interaction_latency = 255us` p95.
+- Current status: Phase 2 is in progress on `2026-04-04`. Items 1-7 are complete (`vendor/radiant` `e5c91739`, root `3c91fbef`, root `dacfedac`, root `d573ddeb`, root `849f0cf6`, root `faf927d8`, root `4ac3945e`, and root `0efad4c2`), and item 8 is next. The latest perf-guard run stays warning-free with `browser_filter_churn_latency = 2994us` p95, `browser_query_churn_latency = 158us` p95, `browser_sort_toggle_latency = 224us` p95, `hover_latency = 2939us` p95, `wheel_latency = 3277us` p95, `browser_focus_preview_latency = 154us` p95, `browser_focus_commit_latency = 150us` p95, and `waveform_interaction_latency = 202us` p95.
 
 ## Immediate Next Actions
-1. Treat `tmp/perf_plan.md` as the active runtime-performance execution record and continue with item 7 unless the user redirects the lane.
+1. Treat `tmp/perf_plan.md` as the active runtime-performance execution record and continue with item 8 unless the user redirects the lane.
 2. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` parked unless the user explicitly resumes those lanes.
 3. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable in this environment.
 
