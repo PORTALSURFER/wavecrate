@@ -245,3 +245,4 @@ Status: Phase 2 complete on 2026-04-04; items 1-7 are complete in ranked order
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
   - Implementation note: sorted browser rows now retain absolute-index-to-visible-row lookup state instead of rescanning `visible.iter().position(...)`, playback-age rollover tokens are cached per filter shape for the current base snapshot, and bench reports/perf guard now surface a retained-runtime projection diagnostic (`retained_app_model_projection_p95_us`) alongside the legacy controller-path summaries
   - Latest perf-guard snapshot: `retained_app_model_projection_p95_us = 14us`, `browser_filter_churn_latency = 2584us` p95, `hover_latency = 2916us` p95, `wheel_latency = 3155us` p95, `browser_focus_preview_latency = 168us` p95, `browser_focus_commit_latency = 207us` p95
+- Pushed commit: `3237d037` (`perf(browser-pipeline): retain visible-row lookups`)
