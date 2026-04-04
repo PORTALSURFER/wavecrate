@@ -1,7 +1,7 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-04
-Status: Phase 2 in progress on 2026-04-04; items 1-5 are complete and items 6-7 remain in ranked order
+Status: Phase 2 in progress on 2026-04-04; items 1-6 are complete and item 7 remains in ranked order
 
 ## Evidence Snapshot
 
@@ -182,8 +182,9 @@ Status: Phase 2 in progress on 2026-04-04; items 1-5 are complete and items 6-7 
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
   - Implementation note: similarity reranking and duplicate filtering now batch embedding/feature queries by candidate set, decode feature blobs once per batch, and reuse retained browser-pipeline similarity lookup scratch instead of allocating `vec![None; wav_entries_len]` on every similarity sort
   - Measurement note: the current perf guard invocation still uses `--no-similarity`, so this item’s runtime proof is test- and code-path-based rather than directly reflected in `target/perf/bench.json`
+- Pushed commit: `f3ee6c66` (`perf(similarity): batch candidate feature lookups`)
 
-### [ ] 6. Narrow vendor hover/focus overlay invalidation and retain browser row text/layout geometry
+### [x] 6. Narrow vendor hover/focus overlay invalidation and retain browser row text/layout geometry
 - ROI: Medium
 - Effort: L
 - Expected impact: frame time, p95 interaction latency, CPU, memory
@@ -202,6 +203,16 @@ Status: Phase 2 in progress on 2026-04-04; items 1-5 are complete and items 6-7 
   - Rerun focused `vendor/radiant` native-shell tests and screenshot fixtures at multiple scales.
   - Manually inspect hover/focus overlays, text clipping, and inline-tag alignment.
   - Rerun perf guard after vendor and root validations are green.
+- Completed on: `2026-04-04`
+- Commit: pending until this item's focused commit is created
+- Validation outcome:
+  - `cargo check --lib` passed in `vendor/radiant`
+  - `cargo test --lib` in `vendor/radiant` still fails in unrelated pre-existing `RetainedVec` test-only migrations outside this item; root `scripts/ci_agent.ps1` remained green
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed without warnings
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+  - Implementation note: cached browser rows now retain `BrowserRowTextLayout` plus approximate label width, the row cache key now tracks duplicate-cleanup state so focused-row truncation stays aligned with the rendered similarity button, and runtime hover/focus fingerprints only hash model branches that the overlay renderer can actually observe
+  - Latest perf-guard snapshot: `hover_latency = 3722us` p95, `wheel_latency = 2659us` p95, `browser_filter_churn_latency = 2181us` p95, `browser_focus_preview_latency = 153us` p95, `browser_focus_commit_latency = 159us` p95
+- Pushed commit: `8a9c30f2` (`perf(radiant): narrow hover and focus overlay churn`)
 
 ### [ ] 7. Remove residual UI browser-pipeline linear rescans and align controller-mode perf tooling with the retained runtime path
 - ROI: Medium
