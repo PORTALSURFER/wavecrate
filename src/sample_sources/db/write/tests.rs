@@ -16,6 +16,10 @@ fn revision_value(db: &SourceDatabase) -> i64 {
         .unwrap()
 }
 
+fn wav_paths_revision_value(db: &SourceDatabase) -> u64 {
+    db.get_wav_paths_revision().unwrap()
+}
+
 fn row_snapshot(
     db: &SourceDatabase,
 ) -> Vec<(std::path::PathBuf, Rating, bool, bool, bool, Option<i64>)> {
@@ -33,6 +37,25 @@ fn row_snapshot(
             )
         })
         .collect()
+}
+
+#[test]
+fn metadata_only_mutations_do_not_bump_wav_paths_revision() {
+    let dir = tempdir().unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+
+    db.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
+    assert_eq!(wav_paths_revision_value(&db), 1);
+
+    db.set_tag(Path::new("one.wav"), Rating::KEEP_1).unwrap();
+    db.set_locked(Path::new("one.wav"), true).unwrap();
+    db.set_missing(Path::new("one.wav"), true).unwrap();
+    db.set_last_played_at(Path::new("one.wav"), 42).unwrap();
+
+    assert_eq!(wav_paths_revision_value(&db), 1);
+
+    db.remove_file(Path::new("one.wav")).unwrap();
+    assert_eq!(wav_paths_revision_value(&db), 2);
 }
 
 #[test]

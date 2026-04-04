@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use rusqlite::params;
 
 use super::util::map_sql_error;
-use super::{Rating, SourceDatabase, SourceDbError, SourceWriteBatch};
+use super::{META_WAV_PATHS_REVISION, Rating, SourceDatabase, SourceDbError, SourceWriteBatch};
 
 mod mutation;
 mod upsert;
@@ -92,7 +92,10 @@ impl SourceDatabase {
             .connection
             .unchecked_transaction()
             .map_err(map_sql_error)?;
-        Ok(SourceWriteBatch { tx })
+        Ok(SourceWriteBatch {
+            tx,
+            paths_revision_dirty: false,
+        })
     }
 
     /// Insert or update a metadata key/value pair.
@@ -109,11 +112,21 @@ impl SourceDatabase {
     }
 
     pub(super) fn bump_revision(conn: &rusqlite::Connection) -> Result<(), SourceDbError> {
+        Self::bump_metadata_counter(conn, "revision")
+    }
+
+    pub(super) fn bump_wav_paths_revision(
+        conn: &rusqlite::Connection,
+    ) -> Result<(), SourceDbError> {
+        Self::bump_metadata_counter(conn, META_WAV_PATHS_REVISION)
+    }
+
+    fn bump_metadata_counter(conn: &rusqlite::Connection, key: &str) -> Result<(), SourceDbError> {
         conn.execute(
             "INSERT INTO metadata (key, value)
-             VALUES ('revision', '1')
+             VALUES (?1, '1')
              ON CONFLICT(key) DO UPDATE SET value = CAST(CAST(value AS INTEGER) + 1 AS TEXT)",
-            [],
+            [key],
         )
         .map_err(map_sql_error)?;
         Ok(())
@@ -137,6 +150,7 @@ impl<'conn> SourceWriteBatch<'conn> {
         file_size: u64,
         modified_ns: i64,
     ) -> Result<(), SourceDbError> {
+        self.paths_revision_dirty = true;
         self.clear_pending_rename_for_live_path(relative_path)?;
         execute_wav_upsert(
             &self.tx,
@@ -158,6 +172,7 @@ impl<'conn> SourceWriteBatch<'conn> {
         file_size: u64,
         modified_ns: i64,
     ) -> Result<(), SourceDbError> {
+        self.paths_revision_dirty = true;
         self.clear_pending_rename_for_live_path(relative_path)?;
         execute_wav_upsert(
             &self.tx,
@@ -180,6 +195,7 @@ impl<'conn> SourceWriteBatch<'conn> {
         modified_ns: i64,
         content_hash: &str,
     ) -> Result<(), SourceDbError> {
+        self.paths_revision_dirty = true;
         self.clear_pending_rename_for_live_path(relative_path)?;
         execute_wav_upsert(
             &self.tx,
@@ -204,6 +220,7 @@ impl<'conn> SourceWriteBatch<'conn> {
         tag: Rating,
         missing: bool,
     ) -> Result<(), SourceDbError> {
+        self.paths_revision_dirty = true;
         self.clear_pending_rename_for_live_path(relative_path)?;
         execute_wav_upsert(
             &self.tx,
@@ -263,12 +280,16 @@ impl<'conn> SourceWriteBatch<'conn> {
 
     /// Remove a wav row within the batch.
     pub fn remove_file(&mut self, relative_path: &Path) -> Result<(), SourceDbError> {
+        self.paths_revision_dirty = true;
         delete_path_statement(&self.tx, relative_path)
     }
 
     /// Commit all batched operations atomically.
     pub fn commit(self) -> Result<(), SourceDbError> {
         SourceDatabase::bump_revision(&self.tx)?;
+        if self.paths_revision_dirty {
+            SourceDatabase::bump_wav_paths_revision(&self.tx)?;
+        }
         self.tx.commit().map_err(map_sql_error)?;
         Ok(())
     }

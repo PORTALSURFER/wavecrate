@@ -6,6 +6,26 @@ use super::super::util::map_sql_error;
 use super::super::{Rating, SourceDatabase, SourceDbError, WavEntry};
 use super::decode::{WAV_FILE_SELECT_COLUMNS, decode_path_row, decode_wav_entry_row};
 
+/// Search-worker metadata for one ordered wav row.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SearchEntryMetadata {
+    /// Current keep/trash tag used by triage filters and badges.
+    pub tag: Rating,
+    /// Whether the row is locked in the browser UI.
+    pub locked: bool,
+    /// Most recent playback timestamp used by playback-age sorting.
+    pub last_played_at: Option<i64>,
+}
+
+/// Lightweight browser-search row snapshot with only path and worker metadata.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SearchEntryRow {
+    /// File path relative to the source root.
+    pub relative_path: PathBuf,
+    /// Worker-visible metadata for the same ordered row.
+    pub metadata: SearchEntryMetadata,
+}
+
 fn supported_audio_filter() -> String {
     crate::sample_sources::supported_audio_where_clause()
 }
@@ -48,6 +68,41 @@ fn count_rows(db: &SourceDatabase, extra_predicate: &str) -> Result<usize, Sourc
         .query_row(&sql, [], |row| row.get(0))
         .map_err(map_sql_error)?;
     Ok(count.max(0) as usize)
+}
+
+fn decode_search_entry_row(
+    row: &rusqlite::Row<'_>,
+    context: &str,
+) -> Result<Option<SearchEntryRow>, rusqlite::Error> {
+    let Some(relative_path) = decode_path_row(row, context)? else {
+        return Ok(None);
+    };
+    let tag = Rating::from_i64(row.get::<_, i64>(1)?);
+    let locked = row.get::<_, i64>(2)? != 0;
+    let last_played_at = row.get::<_, Option<i64>>(3)?;
+    Ok(Some(SearchEntryRow {
+        relative_path,
+        metadata: SearchEntryMetadata {
+            tag,
+            locked,
+            last_played_at,
+        },
+    }))
+}
+
+fn collect_search_entry_rows(
+    db: &SourceDatabase,
+    sql: &str,
+    params: impl Params,
+    context: &str,
+) -> Result<Vec<SearchEntryRow>, SourceDbError> {
+    let mut stmt = db.connection.prepare(sql).map_err(map_sql_error)?;
+    let rows = stmt
+        .query_map(params, |row| decode_search_entry_row(row, context))
+        .map_err(map_sql_error)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(map_sql_error)?;
+    Ok(rows.into_iter().flatten().collect())
 }
 
 impl SourceDatabase {
@@ -194,5 +249,31 @@ impl SourceDatabase {
             rusqlite::params![limit as i64, offset as i64],
             "Skipping wav row page with invalid relative path",
         )
+    }
+
+    /// Fetch lightweight browser-search rows ordered by path.
+    pub fn list_search_entry_rows(&self) -> Result<Vec<SearchEntryRow>, SourceDbError> {
+        let filter = supported_audio_filter();
+        let sql = format!(
+            "SELECT path, tag, locked, last_played_at
+             FROM wav_files
+             WHERE {filter}
+             ORDER BY path ASC"
+        );
+        collect_search_entry_rows(
+            self,
+            &sql,
+            [],
+            "Skipping browser-search row with invalid relative path",
+        )
+    }
+
+    /// Fetch only browser-search metadata ordered to match `list_search_entry_rows`.
+    pub fn list_search_entry_metadata(&self) -> Result<Vec<SearchEntryMetadata>, SourceDbError> {
+        Ok(self
+            .list_search_entry_rows()?
+            .into_iter()
+            .map(|row| row.metadata)
+            .collect())
     }
 }

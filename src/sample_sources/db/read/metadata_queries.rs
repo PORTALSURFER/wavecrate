@@ -3,7 +3,7 @@ use std::path::Path;
 use rusqlite::OptionalExtension;
 
 use super::super::util::map_sql_error;
-use super::super::{Rating, SourceDatabase, SourceDbError};
+use super::super::{META_WAV_PATHS_REVISION, Rating, SourceDatabase, SourceDbError};
 
 fn normalize_supported_audio_path(path: &Path) -> Result<Option<String>, SourceDbError> {
     if !crate::sample_sources::is_supported_audio(path) {
@@ -27,6 +27,15 @@ fn query_flag_for_path(
 }
 
 impl SourceDatabase {
+    /// Return the numeric metadata value for `key` (0 if missing).
+    fn get_numeric_metadata(&self, key: &str) -> Result<u64, SourceDbError> {
+        let value = self.get_metadata(key)?;
+        match value {
+            Some(raw) => raw.parse::<u64>().map_err(|_| SourceDbError::Unexpected),
+            None => Ok(0),
+        }
+    }
+
     /// Find the sorted index for a tracked wav path.
     pub fn index_for_path(&self, path: &Path) -> Result<Option<usize>, SourceDbError> {
         let Some(path_str) = normalize_supported_audio_path(path)? else {
@@ -115,10 +124,11 @@ impl SourceDatabase {
 
     /// Return the numeric metadata revision (0 if missing).
     pub fn get_revision(&self) -> Result<u64, SourceDbError> {
-        let rev_str = self.get_metadata("revision")?;
-        match rev_str {
-            Some(s) => s.parse::<u64>().map_err(|_| SourceDbError::Unexpected),
-            None => Ok(0),
-        }
+        self.get_numeric_metadata("revision")
+    }
+
+    /// Return the numeric revision for ordered wav-path changes (0 if missing).
+    pub fn get_wav_paths_revision(&self) -> Result<u64, SourceDbError> {
+        self.get_numeric_metadata(META_WAV_PATHS_REVISION)
     }
 }

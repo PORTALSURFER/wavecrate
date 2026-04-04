@@ -7,5 +7,7 @@ mod file_queries;
 /// Path-specific metadata and lookup helpers for source databases.
 mod metadata_queries;
 
+pub(crate) use self::file_queries::{SearchEntryMetadata, SearchEntryRow};
+
 #[cfg(test)]
 mod tests;

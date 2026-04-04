@@ -1,7 +1,7 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-04
-Status: Phase 2 in progress on 2026-04-04; items 1-3 are complete and items 4-7 remain in ranked order
+Status: Phase 2 in progress on 2026-04-04; items 1-4 are complete and items 5-7 remain in ranked order
 
 ## Evidence Snapshot
 
@@ -117,8 +117,9 @@ Status: Phase 2 in progress on 2026-04-04; items 1-3 are complete and items 4-7 
   - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed without warnings
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
   - Latest perf-guard snapshot: `waveform_interaction_latency = 232us` p95, `waveform_pan_zoom_adjacent_latency = 174us` p95, `hover_latency = 2756us` p95, `wheel_latency = 3157us` p95
+- Pushed commit: `a58df062` (`perf(native-bridge): route waveform previews through overlay pulls`)
 
-### [ ] 4. Incrementalize browser search worker source-cache refresh instead of reloading full source snapshots on revision changes
+### [x] 4. Incrementalize browser search worker source-cache refresh instead of reloading full source snapshots on revision changes
 - ROI: High
 - Effort: M
 - Expected impact: startup, p95 interaction latency, memory, CPU
@@ -138,6 +139,15 @@ Status: Phase 2 in progress on 2026-04-04; items 1-3 are complete and items 4-7 
   - Extend worker parity tests for rename, metadata-only mutations, insert/delete, and revision reuse.
   - Add allocation/telemetry assertions where practical.
   - Rerun `scripts/ci_agent.ps1` and search-heavy perf guard scenarios.
+- Completed on: `2026-04-04`
+- Commit: pending until this item's focused commit is created
+- Validation outcome:
+  - `cargo test -p sempal --lib app::controller::library::wavs::browser_search_worker::pipeline::stages_tests` passed
+  - `cargo test -p sempal --lib sample_sources::db::write::tests` passed
+  - `cargo test -p sempal --lib app::controller::library::wavs::browser_search_worker` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed without warnings
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+  - Implementation note: the worker now splits full source revision from a DB-backed wav-path-set revision, uses lightweight ordered search-entry queries, preserves query-score and folder-accept caches for metadata-only refreshes, and falls back to full reload on structural changes
 
 ### [ ] 5. Batch similarity feature and embedding lookups instead of decoding blobs row-by-row
 - ROI: High

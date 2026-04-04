@@ -33,6 +33,8 @@ pub const META_LAST_SIMILARITY_PREP_SCAN_AT: &str = "last_similarity_prep_scan_a
 pub const META_DEFERRED_MAINTENANCE_REVISION: &str = "deferred_maintenance_revision_v1";
 /// Metadata key storing the last deferred-maintenance schema token.
 pub const META_DEFERRED_MAINTENANCE_SCHEMA: &str = "deferred_maintenance_schema_v1";
+/// Metadata key storing the last revision that changed the ordered wav path set.
+pub const META_WAV_PATHS_REVISION: &str = "wav_paths_revision_v1";
 /// Env var that enables read-only source DB opening by default.
 pub const SOURCE_DB_READ_ONLY_ENV: &str = "SEMPAL_SOURCE_DB_READ_ONLY";
 /// Env var that allows writing source DB files in user-library-like roots.
@@ -174,6 +176,7 @@ pub struct SourceDatabase {
 /// Groups multiple database writes into one transaction using cached statements.
 pub struct SourceWriteBatch<'conn> {
     tx: Transaction<'conn>,
+    paths_revision_dirty: bool,
 }
 
 impl SourceDatabase {
