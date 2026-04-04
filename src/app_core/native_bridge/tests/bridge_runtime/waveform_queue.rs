@@ -1,20 +1,38 @@
 use super::*;
 
-/// Waveform preview-class actions should bypass queueing for immediate feedback.
+/// Cursor preview actions should coalesce through the waveform queue.
 #[test]
-fn on_action_applies_waveform_preview_actions_immediately() {
+fn on_action_queues_waveform_cursor_preview_actions() {
     let mut bridge = test_bridge(16);
 
     bridge.on_action(NativeUiAction::SetWaveformCursor {
         position_milli: 420,
     });
 
-    assert_eq!(bridge.pending_waveform_actions.cursor_nanos, None);
-    assert!(
-        bridge
-            .controller
-            .is_derived_node_dirty_for_test(DerivedNodeId::WaveformState)
+    assert_eq!(
+        bridge.pending_waveform_actions.cursor_nanos,
+        Some(420_000_000)
     );
+    assert_eq!(
+        bridge.pending_model_pull_preparation,
+        PendingModelPullPreparation::LocalOnly
+    );
+    assert!(!bridge.controller.has_dirty_derived_nodes());
+}
+
+/// Edit-preview actions should still apply immediately when they cannot be queued safely.
+#[test]
+fn on_action_applies_waveform_edit_preview_actions_immediately() {
+    let mut bridge = test_bridge(16);
+
+    bridge.on_action(NativeUiAction::SetWaveformEditSelectionRange {
+        start_micros: 120_000,
+        end_micros: 640_000,
+        preserve_view_edge: false,
+    });
+
+    assert!(!bridge.pending_waveform_actions.has_pending());
+    assert!(bridge.controller.ui.waveform.edit_selection.is_some());
 }
 
 /// Seek actions should remain coalesced in the queue to cap apply-stage cost.
@@ -32,7 +50,7 @@ fn on_action_keeps_seek_actions_queued() {
     );
 }
 
-/// Flushing queued waveform actions should clear queue state and mark waveform dirties.
+/// Overlay-only waveform batches should clear queue state and stay on the local pull path.
 #[test]
 fn flush_pending_waveform_actions_clears_queue_and_marks_waveform_dirty() {
     let controller = AppController::new(WaveformRenderer::new(16, 16), None);
@@ -63,12 +81,12 @@ fn flush_pending_waveform_actions_clears_queue_and_marks_waveform_dirty() {
     bridge.flush_pending_waveform_actions();
 
     assert!(!bridge.pending_waveform_actions.has_pending());
-    assert!(
-        bridge
-            .controller
-            .is_derived_node_dirty_for_test(DerivedNodeId::WaveformState)
+    assert!(!bridge.controller.has_dirty_derived_nodes());
+    assert!(bridge.projection_cache.app_key.is_none());
+    assert_eq!(
+        bridge.pending_model_pull_preparation,
+        PendingModelPullPreparation::LocalOnly
     );
-    assert!(bridge.projection_cache.app_key.is_some());
 }
 
 /// No-op queued waveform actions should not dirty the derived graph.

@@ -201,6 +201,7 @@ fn waveform_action_queue_keeps_smart_scale_selection_as_view_action() {
     assert_eq!(queue.selection_range_micros, Some((120_000, 640_000)));
     assert!(queue.selection_smart_scale);
     assert_eq!(queue.dirty_reason(), DirtyReason::WaveformViewAction);
+    assert!(queue.requires_full_model_pull());
     assert_eq!(
         queue.selection_action(),
         Some(NativeUiAction::SetWaveformSelectionRangeSmartScale {

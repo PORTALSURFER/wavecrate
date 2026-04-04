@@ -98,14 +98,10 @@ pub(super) fn classify_action_interaction(
 pub(super) fn is_immediate_waveform_preview_action(action: &NativeUiAction) -> bool {
     matches!(
         action,
-        NativeUiAction::SetWaveformCursorPrecise { .. }
-            | NativeUiAction::SetWaveformCursor { .. }
-            | NativeUiAction::BeginWaveformCircularSlide { .. }
+        NativeUiAction::BeginWaveformCircularSlide { .. }
             | NativeUiAction::UpdateWaveformCircularSlide { .. }
             | NativeUiAction::FinishWaveformCircularSlide
             | NativeUiAction::BeginWaveformSelectionAt { .. }
-            | NativeUiAction::SetWaveformSelectionRange { .. }
-            | NativeUiAction::SetWaveformSelectionRangeSmartScale { .. }
             | NativeUiAction::SetWaveformEditSelectionRange { .. }
             | NativeUiAction::SetWaveformEditFadeInEnd { .. }
             | NativeUiAction::SetWaveformEditFadeInMuteStart { .. }
@@ -126,7 +122,6 @@ pub(super) fn is_immediate_waveform_preview_action(action: &NativeUiAction) -> b
             | NativeUiAction::MoveWaveformSliceFocus { .. }
             | NativeUiAction::ToggleFocusedWaveformSliceExportMark
             | NativeUiAction::DetectWaveformExactDuplicateSlices
-            | NativeUiAction::ClearWaveformSelection
             | NativeUiAction::ClearWaveformEditSelection
             | NativeUiAction::ClearWaveformSelections
     )
@@ -178,6 +173,8 @@ pub(super) fn uses_local_model_pull_fast_path(action: &NativeUiAction) -> bool {
             | NativeUiAction::MoveWaveformSliceFocus { .. }
             | NativeUiAction::ToggleFocusedWaveformSliceExportMark
             | NativeUiAction::DetectWaveformExactDuplicateSlices
+            | NativeUiAction::ClearWaveformEditSelection
+            | NativeUiAction::ClearWaveformSelections
     )
 }
 

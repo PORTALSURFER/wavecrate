@@ -283,5 +283,6 @@ impl PendingWaveformActions {
             || self.zoom_full
             || self.view_center_micros.is_some()
             || self.view_center_nanos.is_some()
+            || self.selection_smart_scale
     }
 }

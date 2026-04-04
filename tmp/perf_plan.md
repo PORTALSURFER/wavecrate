@@ -1,7 +1,7 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-04
-Status: Phase 2 in progress on 2026-04-04; items 1-2 are complete and items 3-7 remain in ranked order
+Status: Phase 2 in progress on 2026-04-04; items 1-3 are complete and items 4-7 remain in ranked order
 
 ## Evidence Snapshot
 
@@ -85,8 +85,9 @@ Status: Phase 2 in progress on 2026-04-04; items 1-2 are complete and items 3-7 
   - `cargo test native_bridge::tests` passed
   - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed without warnings
   - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+- Pushed commit: `3ac87f59` (`perf(native-bridge): split non-segment overlay invalidation`)
 
-### [ ] 3. Make waveform preview and selection batches overlay-first instead of full-key apply work
+### [x] 3. Make waveform preview and selection batches overlay-first instead of full-key apply work
 - ROI: High
 - Effort: M
 - Expected impact: p95 interaction latency, frame time, CPU
@@ -108,6 +109,14 @@ Status: Phase 2 in progress on 2026-04-04; items 1-2 are complete and items 3-7 
   - Add targeted bridge-runtime tests for cursor, seek, selection, zoom, and fade-preview action sequences.
   - Manually stress waveform drag/zoom/selection behavior for feel regressions.
   - Rerun perf guard and focused waveform/native-bridge test lanes.
+- Completed on: `2026-04-04`
+- Commit: pending until this item's focused commit is created
+- Validation outcome:
+  - `cargo test -p sempal --lib app_core::actions::tests::local_model_pull_fast_path_catalog_entries_remain_ui_only_actions` passed
+  - `cargo test -p sempal --lib app_core::native_bridge::tests` passed
+  - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed without warnings
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
+  - Latest perf-guard snapshot: `waveform_interaction_latency = 232us` p95, `waveform_pan_zoom_adjacent_latency = 174us` p95, `hover_latency = 2756us` p95, `wheel_latency = 3157us` p95
 
 ### [ ] 4. Incrementalize browser search worker source-cache refresh instead of reloading full source snapshots on revision changes
 - ROI: High

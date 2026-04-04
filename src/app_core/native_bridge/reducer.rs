@@ -40,6 +40,42 @@ fn additional_dirty_sources_for_action(
 }
 
 impl SempalNativeBridge {
+    /// Apply one action immediately, optionally forcing the local pull fast path.
+    fn apply_action_immediately_with_pull_mode(
+        &mut self,
+        action: NativeUiAction,
+        force_local_pull_fast_path: bool,
+    ) -> bool {
+        let use_local_pull_fast_path =
+            force_local_pull_fast_path || uses_local_model_pull_fast_path(&action);
+        let before_key = use_local_pull_fast_path.then(|| self.projection_key_snapshot());
+        if !use_local_pull_fast_path {
+            self.mark_dirty_for_action(&action);
+        }
+        self.flush_pending_input_actions();
+        let handled = self.controller.apply_native_ui_action(action);
+        self.invalidate_projection_key_snapshot();
+        if !use_local_pull_fast_path {
+            self.schedule_full_model_pull_preparation();
+            return handled;
+        }
+        let after_key = self.projection_key_snapshot();
+        if before_key != Some(after_key) {
+            self.projection_cache.invalidate_key_only();
+            self.schedule_local_model_pull_fast_path();
+        }
+        handled
+    }
+
+    /// Schedule the next pull path based on whether waveform updates need full prep.
+    fn schedule_waveform_model_pull_preparation(&mut self, requires_full_pull: bool) {
+        if requires_full_pull {
+            self.schedule_full_model_pull_preparation();
+        } else {
+            self.schedule_local_model_pull_fast_path();
+        }
+    }
+
     /// Apply browser-focus movement immediately so wheel/arrow nudges are visible in-frame.
     pub(super) fn apply_browser_focus_delta_immediately(&mut self, delta: i8) {
         if delta == 0 {
@@ -62,24 +98,7 @@ impl SempalNativeBridge {
 
     /// Apply one action immediately using the standard dirty + queue-flush flow.
     fn apply_action_immediately(&mut self, action: NativeUiAction) -> bool {
-        let use_local_pull_fast_path = uses_local_model_pull_fast_path(&action);
-        let before_key = use_local_pull_fast_path.then(|| self.projection_key_snapshot());
-        if !use_local_pull_fast_path {
-            self.mark_dirty_for_action(&action);
-        }
-        self.flush_pending_input_actions();
-        let handled = self.controller.apply_native_ui_action(action);
-        self.invalidate_projection_key_snapshot();
-        if !use_local_pull_fast_path {
-            self.schedule_full_model_pull_preparation();
-            return handled;
-        }
-        let after_key = self.projection_key_snapshot();
-        if before_key != Some(after_key) {
-            self.projection_cache.invalidate_key_only();
-            self.schedule_local_model_pull_fast_path();
-        }
-        handled
+        self.apply_action_immediately_with_pull_mode(action, false)
     }
 
     /// Mark derived graph sources affected by one action.
@@ -106,8 +125,8 @@ impl SempalNativeBridge {
         if !self.pending_waveform_actions.has_pending() {
             return;
         }
-        self.schedule_full_model_pull_preparation();
         let pending = std::mem::take(&mut self.pending_waveform_actions);
+        self.schedule_waveform_model_pull_preparation(pending.requires_full_model_pull());
         let profiling = bridge_profiling_enabled();
         let flush_start = profiling.then(Instant::now);
         let before_key = self.projection_key_snapshot();
@@ -145,10 +164,16 @@ impl SempalNativeBridge {
             self.invalidate_projection_key_snapshot();
             let after_key = self.projection_key_snapshot();
             if before_key != after_key {
-                self.controller.mark_derived_source_dirty(
-                    DerivedNodeId::WaveformState,
-                    pending.dirty_reason(),
-                );
+                self.projection_cache.invalidate_key_only();
+                if pending.requires_full_model_pull() {
+                    self.controller.mark_derived_source_dirty(
+                        DerivedNodeId::WaveformState,
+                        pending.dirty_reason(),
+                    );
+                    self.schedule_full_model_pull_preparation();
+                } else {
+                    self.schedule_local_model_pull_fast_path();
+                }
             }
         }
         if profiling {
@@ -190,8 +215,7 @@ impl SempalNativeBridge {
         if call <= 64 {
             debug!(call, action = ?action, "native bridge: apply waveform preview action");
         }
-        self.schedule_full_model_pull_preparation();
-        let handled = self.apply_action_immediately(action);
+        let handled = self.apply_action_immediately_with_pull_mode(action, true);
         if profiling {
             let action_duration =
                 action_start.map_or(Duration::ZERO, |start: Instant| start.elapsed());
@@ -206,7 +230,9 @@ impl SempalNativeBridge {
         if !self.enqueue_waveform_action(action) {
             return false;
         }
-        self.schedule_full_model_pull_preparation();
+        self.schedule_waveform_model_pull_preparation(
+            self.pending_waveform_actions.requires_full_model_pull(),
+        );
         let call = trace_action_call();
         let profiling = bridge_profiling_enabled();
         let action_start = profiling.then(Instant::now);
