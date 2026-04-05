@@ -4,11 +4,11 @@ This directory keeps agent handoff planning state out of the way of other docs.
 
 ## Active
 
-- `../../tmp/improvement_audit_plan.md` — current evidence-driven ROI-ranked
+- `../../tmp/improvement_audit_plan.md` — parked evidence-driven ROI-ranked
   repo-wide improvement backlog for the current tree
-  (refreshed on 2026-04-02; Phase 2 is active and items 1-2 are complete locally)
+  (resume only when the user explicitly reopens that lane)
 - `../../tmp/perf_plan.md` — current runtime performance backlog for the live tree
-  (refreshed on 2026-04-03; Phase 2 completed on 2026-04-04 and all 7 ranked items are done)
+  (Phase 2 in progress on 2026-04-05; item 1 complete, item 2 next)
 - `active/runtime_performance_exec_plan.md` — completed responsiveness/performance redesign record retained for reference
 - `active/gui_test_platform_exec_plan.md` — phased rollout plan for the GUI
   action catalog, automation snapshot, runtime test mode, CLI, and AIV loops

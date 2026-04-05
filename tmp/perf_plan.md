@@ -1,248 +1,255 @@
 # Runtime Performance Audit Plan
 
-Date: 2026-04-04
-Status: Phase 2 complete on 2026-04-04; items 1-7 are complete in ranked order
+Date: 2026-04-05
+Status: Phase 2 in progress on 2026-04-05; item 1 complete, 6 items pending
 
 ## Evidence Snapshot
 
-- `target/perf/bench.json` still shows the largest measured interaction costs in `hover_latency` (`2809us` p95), `wheel_latency` (`2511us` p95), `browser_filter_churn_latency` (`2075us` p95), and `waveform_interaction_latency` (`1444us` p95).
-- Stage attribution shows browser hover/wheel/filter churn are still dominated by projection work rather than action application:
-  - `hover_latency.projection_stage.p95_us = 2324`
-  - `wheel_latency.projection_stage.p95_us = 2140`
-  - `browser_filter_churn_latency.projection_stage.p95_us = 2039`
-- `waveform_interaction_latency` is different: `apply_stage.p95_us = 1322`, `pull_stage.p95_us = 103`, and `projection_stage.p95_us = 89`, so the remaining waveform tail is mostly input/apply work rather than projection.
-- `feature_blob_decode` in the same report still spends about `8050ms` decoding `320000` blobs, which keeps similarity/map warm paths on the shortlist for architectural work.
+- `target/perf/bench.json` still shows the largest measured interaction costs in
+  `hover_latency` (`5138us` p95), `wheel_latency` (`5106us` p95),
+  `app_model_projection` (`4115us` p95), `interactive_projection` (`4008us`
+  p95), and `browser_filter_churn_latency` (`2872us` p95).
+- Stage attribution keeps the main hotspots projection-heavy:
+  - `hover_latency.projection_stage.p95_us = 4484`
+  - `wheel_latency.projection_stage.p95_us = 4336`
+  - `browser_filter_churn_latency.projection_stage.p95_us = 2810`
+  - `interactive_projection.projection_stage.p95_us = 3958`
+- The retained bridge cache path itself is now cheap in the current artifact:
+  - `retained_app_model_projection_p95_us = 8`
+  - segment probe `browser_rows_window.p95_us = 8`
+  - segment probe `waveform_overlay.p95_us = 28`
+- `feature_blob_decode` still spends about `8538ms` decoding `320000` blobs,
+  which keeps similarity/blob movement on the shortlist for direct work.
 - Measurement caveat:
-  - The current perf guard times the controller-mode path in `tools/bench-cli/src/bench/gui/interactions.rs`, which calls `prepare_native_frame(false)` plus `AppController::project_native_app_model()`.
-  - The real native runtime in `src/main.rs` goes through `GuiFixtureBridge` and `SempalNativeBridge`, which use retained projection in `src/app_core/native_bridge/runtime_projection.rs`.
-  - The backlog below therefore separates benchmark-path wins from retained-runtime wins and prioritizes changes that either help the real runtime directly or remove known duplicated work that exists in both paths.
-- Read-only subagent audit confirmed four recurring themes in the live tree:
-  - duplicated bridge key derivation
-  - non-segment audio/sidebar/options churn on unrelated pulls
-  - waveform preview batches rebuilding full keys in the apply path
-  - broad vendor overlay/text invalidation during hover/focus work
+  - The current GUI interaction scenarios in
+    `tools/bench-cli/src/bench/gui/interactions.rs` still time
+    `prepare_native_frame(false)` plus `AppController::project_native_app_model`
+    through the legacy controller/native-shell projection path.
+  - The shipped runtime in `src/main.rs` constructs `GuiFixtureBridge`, which
+    uses retained `SempalNativeBridge`.
+  - The current perf guard therefore over-measures legacy full projection for
+    hover/wheel/filter churn and under-measures real retained-runtime scene work.
+- Startup caveat:
+  - `scripts/run_perf_guard.ps1` still skips startup capture entirely.
+  - The native startup summary only emits once deferred model refresh completes,
+    but the default Windows/native startup path does not enable deferred first
+    pull today.
 
 ## ROI-Ordered Backlog
 
-### [x] 1. Reuse bridge projection-key derivation across pulls and waveform batches
+### [x] 1. Stop loaded-similarity recomputes from scanning and decoding the full source
 - ROI: Very High
 - Effort: M
-- Expected impact: p95 interaction latency, frame time, CPU
+- Expected impact: p95 interaction latency, CPU, memory
+- Completed: 2026-04-05 (`bd2b6a57`, `perf(similarity): cache loaded source snapshots`)
 - Evidence:
-  - `src/app_core/native_bridge/runtime_projection.rs:73-84` rebuilds the full projection key snapshot when stale.
-  - `src/app_core/native_bridge/runtime_projection.rs:133-169` then calls `DerivedProjectionState::from_controller_with_app_key`.
-  - `src/app_core/native_bridge/projection_cache/cache_state.rs:46-69` immediately re-derives overlapping segment keys after `build_projection_cache_key`.
-  - `src/app_core/native_bridge/reducer.rs:113-152` rebuilds a fresh `before_key`/`after_key` around waveform batch flushes.
-  - Live perf evidence: `hover_latency.projection_stage.p95_us = 2324`, `wheel_latency.projection_stage.p95_us = 2140`, and `waveform_interaction_latency.apply_stage.p95_us = 1322`.
+  - `src/app/controller/library/wavs/similar/loaded.rs:132-206` loads every
+    embedding row for the active model, filters by parsed `sample_id`, then
+    decodes embedding and feature blobs row-by-row in `score_similarity_row`.
+  - `src/app/controller/library/wavs/similar/resolve/repository.rs:104-185`
+    already exposes batched sample loaders that can be extended for this path.
+  - `target/perf/bench.json` reports
+    `feature_blob_decode.total_elapsed_ms = 8538` for `320000` blobs.
 - Recommended change:
-  - Introduce one pull-scoped derived snapshot/key pack that is computed once and reused by retained cache lookup, segment dirtiness decisions, and waveform batch finalization.
-  - Replace waveform batch `before_key`/`after_key` rebuilds with narrower revision/fingerprint checks for the affected waveform sources.
+  - Add a source-scoped candidate query for loaded similarity instead of walking
+    the full `embeddings` table.
+  - Batch embeddings/features for only the active candidate set and retain
+    decoded vectors/metrics per source revision and model version.
+  - Preserve the current missing-entry fill semantics after the narrowed query.
 - Risk/tradeoffs:
-  - Incorrect reuse could miss a dirty segment transition and leave stale projected state.
-  - This touches bridge invariants and should be kept behind strong tests.
+  - Ranking parity, DSP rerank semantics, and missing-entry ordering must remain
+    exact.
+  - Retained decoded caches need explicit invalidation on source revision and
+    model-version changes.
 - Visual impact: None
 - Validation plan:
-  - Extend bridge projection-cache tests for cache-hit parity and dirty-segment correctness.
-  - Add a focused regression test for waveform batch flushes that mutate view state without broad invalidation.
-  - Rerun `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` and `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
-- Completed on: `2026-04-04`
-- Commit: pending until this item's focused commit is created
-- Validation outcome:
-  - `cargo test native_bridge::tests::bridge_runtime` passed
-  - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed without warnings
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
-- Pushed commit: `ed1e7f98` (`perf(native-bridge): reuse derived projection snapshots`)
+  - Add loaded-similarity parity tests against the current resolver.
+  - Add a large-source rerank benchmark or perf fixture with similarity enabled.
+  - Rerun `cargo test -p sempal --lib app::controller::library::wavs::similar`
+    and `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
 
-### [x] 2. Split non-segment static and overlay projection so browser-only interactions stop paying audio/sidebar/options costs
+### [ ] 2. Replace full-source browser filter/folder/similarity rebuilds with indexed retained stages
 - ROI: Very High
 - Effort: L
-- Expected impact: p95 interaction latency, startup, memory, CPU
+- Expected impact: p95 interaction latency, CPU, memory
 - Evidence:
-  - `src/app_core/native_bridge/projection_cache/segment_materialize.rs:109-136` refreshes sources, audio engine, options, progress, confirm, and drag models through the non-segment path.
-  - `src/app_core/native_bridge/projection_cache/projection_key/non_segment.rs:12-118` builds one broad non-segment key and eagerly hashes audio-option vectors.
-  - `src/app_core/native_shell/options_panel_projection.rs:7-67` and `:194-317` rebuild full audio-engine option models and labels.
-  - `src/app_core/native_shell/sources_projection.rs:9-175` reconstructs the entire sources/sidebar model and folder rows.
-  - Subagent evidence showed this churn aligns with the still projection-dominated hover/wheel/filter profiles.
+  - `target/perf/bench.json` reports
+    `browser_filter_churn_latency.p95_us = 2872`.
+  - `src/app/controller/library/wavs/browser_search_worker/pipeline/stages/visible_rows.rs:242-291`
+    still sorts and rebuilds visible rows after scanning the active entry set
+    whenever non-default filters/similarity state are active.
+  - `src/app/controller/library/wavs/browser_search_worker/pipeline/folders.rs:53-120`
+    rebuilds folder acceptance over the full source-order entry list.
+  - `src/app/controller/library/wavs/browser_pipeline/folder_stage.rs:3-55`
+    mirrors that full acceptance-vector rebuild on the sync UI path.
 - Recommended change:
-  - Break `GLOBAL_STATIC` into smaller retained buckets, at minimum:
-    - sources/sidebar
-    - audio/options
-    - transport/update/focus context
-  - Replace audio-option hashing with stable revision counters or precomputed fingerprints populated only when audio refresh actually runs.
-  - Keep unchanged sidebar/audio models pointer-stable across browser-only pulls.
+  - Introduce retained bitset/index stages for rating, playback-age, marked, and
+    folder acceptance so filter composition becomes intersection/union work
+    instead of full rescans.
+  - Reuse the same retained filter primitives for similarity-filtered and sync
+    UI paths so both lanes stop rebuilding full visible vectors from scratch.
+  - Keep sort/order caches separate from filter-membership caches.
 - Risk/tradeoffs:
-  - Architectural change across retained keys, tests, and dirty-mask mapping.
-  - Too-coarse revision reuse could leave sidebar or audio pickers stale.
+  - Incorrect invalidation can surface stale visible rows, wrong counts, or bad
+    folder-negation behavior.
+  - This is a larger architecture change across worker and sync browser paths.
 - Visual impact: None
 - Validation plan:
-  - Add cache-behavior tests for isolated browser, sidebar, and audio-option invalidation.
-  - Exercise startup, opening options early, switching folder panes, and browser focus churn.
-  - Rerun perf guard plus targeted native-bridge projection-cache tests.
-- Completed on: `2026-04-04`
-- Commit: pending until this item's focused commit is created
-- Validation outcome:
-  - `cargo test native_bridge::tests::projection_cache` passed
-  - `cargo test native_bridge::tests` passed
-  - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed without warnings
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
-- Pushed commit: `3ac87f59` (`perf(native-bridge): split non-segment overlay invalidation`)
+  - Extend worker and sync browser parity tests for folder filters, playback-age
+    filters, similarity sort, and duplicate-cleanup mode.
+  - Add targeted benchmarks for filter-only and folder-only churn on large
+    sources.
+  - Rerun `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
+    and `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
 
-### [x] 3. Make waveform preview and selection batches overlay-first instead of full-key apply work
+### [ ] 3. Make search-entry refresh row-delta-aware instead of revision-wide metadata reloads
 - ROI: High
 - Effort: M
+- Expected impact: startup, p95 interaction latency, CPU, memory
+- Evidence:
+  - `src/app/controller/library/wavs/browser_search_worker/pipeline/stages/source_cache.rs:58-140`
+    reloads on any revision change, calls `list_search_entry_metadata()` across
+    the whole source for metadata-only refreshes, and falls back to
+    `list_search_entry_rows()` plus path hashing for structural changes.
+  - `src/app/controller/library/wavs/browser_pipeline/base_stage.rs:99-116`
+    still falls back to `db.list_files()` when loaded pages are incomplete.
+- Recommended change:
+  - Carry row-level change information from the DB into the worker/sync caches
+    so metadata-only changes patch retained entries in place.
+  - Separate structural path changes from metadata changes more aggressively and
+    skip whole-source path hashing when the wav-path set is unchanged.
+  - Share the same delta-aware entry cache between worker and sync browser
+    stages where possible.
+- Risk/tradeoffs:
+  - Row-identity correctness is sensitive; fallback to full rebuild must remain
+    available whenever trust is lost.
+  - Cross-path cache sharing increases coupling if boundaries are not kept clear.
+- Visual impact: None
+- Validation plan:
+  - Add parity tests for retag, lock/unlock, playback-age refresh, rename,
+    insert, and delete scenarios.
+  - Add allocation or refresh-count assertions where practical.
+  - Rerun worker browser tests and `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
+
+### [ ] 4. Split `prepare_native_frame(false)` into dirty-source maintenance lanes for retained bridge pulls
+- ROI: High
+- Effort: L
 - Expected impact: p95 interaction latency, frame time, CPU
 - Evidence:
-  - `src/app_core/native_bridge/action_classification.rs:98-136` still routes many waveform preview/edit actions through the immediate path.
-  - `src/app_core/native_bridge/reducer.rs:183-194` handles those via `reduce_immediate_waveform_preview_action`.
-  - `src/app_core/native_bridge/reducer.rs:64-81` runs `apply_action_immediately`, which invalidates projection-key state and can trigger full pull preparation.
-  - `src/app_core/native_bridge/reducer.rs:113-152` also rebuilds keys around queued waveform batches.
-  - Live perf evidence: `waveform_interaction_latency.apply_stage.p95_us = 1322` while `projection_stage.p95_us = 89`.
+  - `src/app_core/native_bridge/runtime_projection.rs:138-179` still calls
+    `controller.prepare_native_frame(false)` whenever the local-only fast path
+    does not apply.
+  - `src/app_core/controller.rs:105-147` serially polls background jobs,
+    flushes multiple pending writes/commits, refreshes waveform image state,
+    runs startup maintenance, ticks the playhead, refreshes revisions, and
+    updates the performance governor in one broad gate.
+  - `target/perf/bench.json` rebuild attribution still shows
+    `bridge_model_pull_rebuild_count = 24` for filter/query/sort/map/volume
+    scenarios.
 - Recommended change:
-  - Split immediate waveform preview actions into a true overlay-only path for cursor/selection/edit-preview updates.
-  - Reserve full-key rebuilds for actions that actually change waveform image inputs, playback state, or persistent browser-visible state.
-  - Reuse the existing pending waveform action lane for more preview-safe actions without delaying final visual confirmation.
+  - Split `prepare_native_frame` into explicit maintenance lanes keyed by dirty
+    source, transport state, pending async jobs, and deadline-driven tasks.
+  - Let browser-only retained pulls skip unrelated waveform/audio/startup
+    maintenance when no relevant dirty state exists.
+  - Keep one conservative fallback path for any ambiguous or mixed dirty state.
 - Risk/tradeoffs:
-  - Over-aggressive coalescing could soften cursor or selection responsiveness.
-  - Must preserve immediate feel for active drags and edits.
-- Visual impact: Minimal
-- Validation plan:
-  - Add targeted bridge-runtime tests for cursor, seek, selection, zoom, and fade-preview action sequences.
-  - Manually stress waveform drag/zoom/selection behavior for feel regressions.
-  - Rerun perf guard and focused waveform/native-bridge test lanes.
-- Completed on: `2026-04-04`
-- Commit: pending until this item's focused commit is created
-- Validation outcome:
-  - `cargo test -p sempal --lib app_core::actions::tests::local_model_pull_fast_path_catalog_entries_remain_ui_only_actions` passed
-  - `cargo test -p sempal --lib app_core::native_bridge::tests` passed
-  - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed without warnings
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
-  - Latest perf-guard snapshot: `waveform_interaction_latency = 232us` p95, `waveform_pan_zoom_adjacent_latency = 174us` p95, `hover_latency = 2756us` p95, `wheel_latency = 3157us` p95
-- Pushed commit: `a58df062` (`perf(native-bridge): route waveform previews through overlay pulls`)
-
-### [x] 4. Incrementalize browser search worker source-cache refresh instead of reloading full source snapshots on revision changes
-- ROI: High
-- Effort: M
-- Expected impact: startup, p95 interaction latency, memory, CPU
-- Evidence:
-  - `src/app/controller/library/wavs/browser_search_worker/pipeline/stages/source_cache.rs:58-90` reloads worker entries whenever DB revision changes.
-  - `:73-90` calls `db.list_files()`, then recomputes path fingerprints and compact entries for the whole source.
-  - `:112-172` hashes every path and rebuilds compact entry vectors when ordered paths change.
-  - Current code only avoids full rebuild when path order is unchanged; it still pays full-table reads on every revision refresh.
-- Recommended change:
-  - Carry DB-side changed-row information or row-level revision deltas into the worker cache so metadata-only updates patch entries in place without `list_files()` across the full source.
-  - Persist a stable row identity map in the worker cache to avoid full path hashing for metadata-only revisions.
-- Risk/tradeoffs:
-  - Incremental DB cache invalidation is correctness-sensitive.
-  - Must fall back cleanly to a full reload whenever row identity cannot be trusted.
-- Visual impact: None
-- Validation plan:
-  - Extend worker parity tests for rename, metadata-only mutations, insert/delete, and revision reuse.
-  - Add allocation/telemetry assertions where practical.
-  - Rerun `scripts/ci_agent.ps1` and search-heavy perf guard scenarios.
-- Completed on: `2026-04-04`
-- Commit: pending until this item's focused commit is created
-- Validation outcome:
-  - `cargo test -p sempal --lib app::controller::library::wavs::browser_search_worker::pipeline::stages_tests` passed
-  - `cargo test -p sempal --lib sample_sources::db::write::tests` passed
-  - `cargo test -p sempal --lib app::controller::library::wavs::browser_search_worker` passed
-  - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed without warnings
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
-  - Implementation note: the worker now splits full source revision from a DB-backed wav-path-set revision, uses lightweight ordered search-entry queries, preserves query-score and folder-accept caches for metadata-only refreshes, and falls back to full reload on structural changes
-- Pushed commit: `c8fea733` (`perf(search-worker): skip full refresh on metadata churn`)
-
-### [x] 5. Batch similarity feature and embedding lookups instead of decoding blobs row-by-row
-- ROI: High
-- Effort: L
-- Expected impact: startup, p95 interaction latency, memory, CPU
-- Evidence:
-  - `src/app/controller/library/wavs/similar/resolve/ranking.rs:25-33` calls `load_embedding_for_sample` and `load_light_dsp_for_sample` per candidate.
-  - `src/app/controller/library/wavs/similar/resolve/ranking.rs:106` calls `load_rms_for_sample` during duplicate filtering.
-  - `src/app/controller/library/wavs/similar/resolve/repository.rs:72-121` performs separate `query_row` lookups and blob decodes for each feature family.
-  - `src/app/controller/library/wavs/browser_pipeline/helpers.rs:10-39` still allocates `vec![None; controller.wav_entries_len()]` for similarity sorting on the UI path.
-  - `target/perf/bench.json` reports `feature_blob_decode.total_elapsed_ms = 8050` for `320000` blobs.
-- Recommended change:
-  - Batch feature and embedding fetches for the active candidate set with one query per feature family instead of one query per candidate.
-  - Reuse worker-style scratch buffers for similarity sort/lookups in the UI pipeline.
-  - Keep decoded feature/embedding blocks in a short-lived retained cache keyed by source revision and model version.
-- Risk/tradeoffs:
-  - Larger architectural change touching similarity ordering, duplicate filtering, and cache invalidation.
-  - Must preserve exact ranking semantics and model-version boundaries.
-- Visual impact: None
-- Validation plan:
-  - Add ranking-parity tests against the current resolver.
-  - Benchmark candidate-set reranking before/after on large sources.
-  - Rerun similarity, duplicate-cleanup, and perf guard lanes.
-- Completed on: `2026-04-04`
-- Commit: pending until this item's focused commit is created
-- Validation outcome:
-  - `cargo test -p sempal --lib app::controller::library::wavs::similar::resolve` passed
-  - `cargo test -p sempal --lib app::controller::library::wavs::browser_pipeline` passed
-  - `cargo test -p sempal --lib app::controller::library::wavs::similar` passed
-  - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed without warnings
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
-  - Implementation note: similarity reranking and duplicate filtering now batch embedding/feature queries by candidate set, decode feature blobs once per batch, and reuse retained browser-pipeline similarity lookup scratch instead of allocating `vec![None; wav_entries_len]` on every similarity sort
-  - Measurement note: the current perf guard invocation still uses `--no-similarity`, so this item’s runtime proof is test- and code-path-based rather than directly reflected in `target/perf/bench.json`
-- Pushed commit: `f3ee6c66` (`perf(similarity): batch candidate feature lookups`)
-
-### [x] 6. Narrow vendor hover/focus overlay invalidation and retain browser row text/layout geometry
-- ROI: Medium
-- Effort: L
-- Expected impact: frame time, p95 interaction latency, CPU, memory
-- Evidence:
-  - `vendor/radiant/src/gui_runtime/native_vello/scene_cache/signatures.rs:160-285` hashes broad hover/focus overlay model state.
-  - `vendor/radiant/src/gui_runtime/native_vello/runtime_render/scene/composition.rs:78-183` rebuilds the state overlay when those signatures change.
-  - `vendor/radiant/src/gui/native_shell/state/frame_build/browser/rows.rs:11-239` recomputes row text layout, approximate widths, and cloned text payloads for each rendered row.
-  - `vendor/radiant/src/gui/native_shell/state/frame_build/overlay/focus.rs:227-381` repeats similar layout/text work for focus overlays.
-- Recommended change:
-  - Narrow hover/focus signatures to the minimal state that actually affects overlay visuals.
-  - Cache browser-row text layout, approximate label width, and inline-tag geometry whenever the static row window changes, then reuse them during frame build and focus overlays.
-- Risk/tradeoffs:
-  - Signature narrowing and cached geometry can create stale highlight or text-bounds bugs if invalidation misses a dependency.
+  - This touches correctness-sensitive runtime plumbing; missing one dependency
+    could desync playhead, waveform image, pending commits, or async job state.
 - Visual impact: Needs review
 - Validation plan:
-  - Rerun focused `vendor/radiant` native-shell tests and screenshot fixtures at multiple scales.
-  - Manually inspect hover/focus overlays, text clipping, and inline-tag alignment.
-  - Rerun perf guard after vendor and root validations are green.
-- Completed on: `2026-04-04`
-- Commit: pending until this item's focused commit is created
-- Validation outcome:
-  - `cargo check --lib` passed in `vendor/radiant`
-  - `cargo test --lib` in `vendor/radiant` still fails in unrelated pre-existing `RetainedVec` test-only migrations outside this item; root `scripts/ci_agent.ps1` remained green
-  - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed without warnings
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
-  - Implementation note: cached browser rows now retain `BrowserRowTextLayout` plus approximate label width, the row cache key now tracks duplicate-cleanup state so focused-row truncation stays aligned with the rendered similarity button, and runtime hover/focus fingerprints only hash model branches that the overlay renderer can actually observe
-  - Latest perf-guard snapshot: `hover_latency = 3722us` p95, `wheel_latency = 2659us` p95, `browser_filter_churn_latency = 2181us` p95, `browser_focus_preview_latency = 153us` p95, `browser_focus_commit_latency = 159us` p95
-- Pushed commit: `8a9c30f2` (`perf(radiant): narrow hover and focus overlay churn`)
+  - Add native-bridge/controller tests for browser-only pulls, waveform-image
+    refresh timing, pending age updates, volume commits, and startup deferred
+    maintenance.
+  - Rerun perf guard, bridge tests, and `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
 
-### [x] 7. Remove residual UI browser-pipeline linear rescans and align controller-mode perf tooling with the retained runtime path
-- ROI: Medium
+### [ ] 5. Retain vendor browser-row geometry and truncation per row instead of invalidating the whole visible window
+- ROI: High
 - Effort: M
-- Expected impact: p95 interaction latency, startup, CPU
+- Expected impact: p95 interaction latency, frame time, CPU
 - Evidence:
-  - `src/app/controller/library/wavs/browser_pipeline/visible_rows.rs:139-141` and `:388-390` use repeated `visible.iter().position(...)` scans for focused and loaded rows.
-  - `src/app/controller/library/wavs/browser_pipeline/helpers.rs:177-205` rescans all base rows to derive the next playback-age filter rollover token.
-  - `src/app/controller/library/wavs/browser_search/cache.rs:65-170` still fills labels on demand and recomputes score vectors in the UI path.
-  - `src/app_core/controller.rs:149-150` routes controller-mode projections through `native_shell::project_app_model`.
-  - `src/main.rs:129` and `src/gui_test/fixtures.rs:37-52` show the real runtime uses `GuiFixtureBridge` and `SempalNativeBridge` instead.
+  - `vendor/radiant/src/gui/native_shell/state/cache.rs:80-119` caches browser
+    rows at whole-window granularity.
+  - `vendor/radiant/src/gui/native_shell/state/browser_rows/windowing/projection.rs:156-223`
+    walks the window and recomputes text layout, truncation, inline-tag rects,
+    label widths, and owned strings for every row on cache misses.
+  - `vendor/radiant/src/gui/native_shell/state/browser_rows/truncation.rs:103-120`
+    hashes all visible row labels/metadata into one text revision fingerprint.
 - Recommended change:
-  - Retain visible-row position lookups and next-expiry playback-age tokens in the UI pipeline.
-  - Share more of the worker scratch/cache machinery with the UI browser pipeline.
-  - Add a retained bridge-backed benchmark path to perf guard, keeping the legacy controller projection only as an explicit diagnostic mode.
+  - Split stable per-row text/geometry caches from volatile focus/selection
+    overlay state so window-focus churn does not rebuild the whole row window.
+  - Reuse cached row text layouts, truncated labels, and inline-tag geometry
+    when only selection/focus/anchor changes.
+  - Keep the rendered-row cache keyed by row identity plus width bucket rather
+    than whole-window state where feasible.
 - Risk/tradeoffs:
-  - Mixed controller/bridge benchmarking must preserve output parity so perf drift is interpretable.
-  - UI-pipeline lookup caches must invalidate correctly on row-order changes.
+  - Row identity and truncation invalidation must stay exact or stale text/rects
+    will show up immediately.
 - Visual impact: None
 - Validation plan:
-  - Add parity checks between controller-mode and bridge-mode projected outputs for representative fixtures.
-  - Extend browser-pipeline tests for visible-row lookup reuse and playback-age rollover.
-  - Rerun perf guard in both diagnostic modes and `scripts/ci_agent.ps1`.
-- Completed on: `2026-04-04`
-- Commit: pending until this item's focused commit is created
-- Validation outcome:
-  - `cargo test -p sempal --lib app::controller::library::wavs::browser_pipeline` passed
-  - `cargo test -p sempal-bench-cli --bin sempal-bench gui` passed
-  - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` passed without warnings
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1` passed
-  - Implementation note: sorted browser rows now retain absolute-index-to-visible-row lookup state instead of rescanning `visible.iter().position(...)`, playback-age rollover tokens are cached per filter shape for the current base snapshot, and bench reports/perf guard now surface a retained-runtime projection diagnostic (`retained_app_model_projection_p95_us`) alongside the legacy controller-path summaries
-  - Latest perf-guard snapshot: `retained_app_model_projection_p95_us = 14us`, `browser_filter_churn_latency = 2584us` p95, `hover_latency = 2916us` p95, `wheel_latency = 3155us` p95, `browser_focus_preview_latency = 168us` p95, `browser_focus_commit_latency = 207us` p95
-- Pushed commit: `3237d037` (`perf(browser-pipeline): retain visible-row lookups`)
+  - Extend vendor browser-row rendering, truncation, virtualization, and focus
+    overlay tests.
+  - Manually inspect dense browser rows, duplicate-cleanup labels, and focus
+    transitions at multiple viewport sizes.
+  - Rerun `cargo nextest run --manifest-path vendor/radiant/Cargo.toml` and the root perf guard.
+
+### [ ] 6. Make startup first-present measurable on Windows and then shift the default path toward progressive reveal
+- ROI: High
+- Effort: M
+- Expected impact: startup, CPU
+- Evidence:
+  - `scripts/run_perf_guard.ps1:233-240` explicitly skips startup capture.
+  - `vendor/radiant/src/gui_runtime/native_vello/runtime_startup/policy.rs:4-13`
+    keeps the window hidden by default and disables deferred first-model pull.
+  - `vendor/radiant/src/gui_runtime/native_vello/runtime_startup/initialization.rs:187-195`
+    marks model/layout dirty and rebuilds the first full scene during startup.
+  - `vendor/radiant/src/gui_runtime/native_vello/startup.rs:50-101` only emits
+    the startup summary once deferred model refresh is complete.
+- Recommended change:
+  - Implement Windows startup capture in the PowerShell perf guard using the
+    existing native startup profiler and/or run-contract artifacts.
+  - Make the startup profiler emit first-present summaries on both eager and
+    deferred startup paths.
+  - After measurement parity is in place, trial a default progressive startup:
+    earlier placeholder/first-scene reveal with deferred heavy refresh only when
+    it improves first-visible latency without obvious pop-in.
+- Risk/tradeoffs:
+  - Earlier reveal can expose partially-populated UI or defer visible work into
+    the first interactive moments.
+  - Startup policy changes affect user-perceived polish and need manual review.
+- Visual impact: Needs review
+- Validation plan:
+  - Capture repeated startup runs on Windows before/after, recording first-scene
+    and first-present timings.
+  - Run GUI startup tests in `vendor/radiant` and manual sandbox startups.
+  - Rerun `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
+
+### [ ] 7. Align GUI perf guard scenarios with the retained runtime path and demote controller projection to diagnostic mode
+- ROI: Medium
+- Effort: M
+- Expected impact: p95 interaction latency tracking, startup tracking
+- Evidence:
+  - `tools/bench-cli/src/bench/gui/scenario_registry.rs:52-137` still records
+    the main GUI scenarios through `project_native_app_model()`.
+  - `tools/bench-cli/src/bench/gui/interactions.rs:30-129` measures hover,
+    wheel, filter, query, and sort churn by projecting the legacy controller
+    native-shell model after each action.
+  - `target/perf/bench.json` simultaneously reports
+    `app_model_projection.p95_us = 4115` and
+    `retained_app_model_projection_p95_us = 8`, which makes the main guard hard
+    to interpret for the shipped runtime.
+- Recommended change:
+  - Add bridge-backed interaction scenarios that measure retained runtime pulls
+    and scene rebuild metrics end-to-end.
+  - Keep the controller projection path only as an explicit diagnostic mode in
+    reports, not the default headline metric.
+  - Surface startup summaries beside retained interaction results once Windows
+    startup capture exists.
+- Risk/tradeoffs:
+  - Bench complexity and fixture parity must remain understandable so perf drift
+    is interpretable over time.
+- Visual impact: None
+- Validation plan:
+  - Add parity assertions between controller and retained bridge outputs for
+    representative fixtures.
+  - Rerun `cargo test -p sempal-bench-cli --bin sempal-bench gui` and
+    `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`.

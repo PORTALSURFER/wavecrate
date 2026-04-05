@@ -59,20 +59,21 @@ Write for future selves: be precise, kind, and clear.
 - Repository: `X:\sempal`
 - Product: Sempal
 - Branch: `next`
-- Program: completed the rebuilt runtime performance backlog for the current live tree
-- Source of truth: `tmp/perf_plan.md` for the 2026-04-04 completed runtime performance execution record; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `tmp/improvement_audit_plan.md` remains the separate improvement-audit lane
-- Current status: Phase 2 is complete on `2026-04-04`. Items 1-8 are complete (`vendor/radiant` `e5c91739`, root `3c91fbef`, root `dacfedac`, root `d573ddeb`, root `849f0cf6`, root `faf927d8`, root `4ac3945e`, root `0efad4c2`, `vendor/radiant` `2f53bf98`, and root `46a7168b`). The latest perf-guard run stays warning-free with `browser_filter_churn_latency = 2075us` p95, `browser_query_churn_latency = 176us` p95, `browser_sort_toggle_latency = 157us` p95, `hover_latency = 2809us` p95, `wheel_latency = 2511us` p95, `browser_focus_preview_latency = 142us` p95, `browser_focus_commit_latency = 151us` p95, and `waveform_interaction_latency = 1444us` p95.
+- Program: Phase 2 runtime performance backlog execution for the current live tree
+- Source of truth: `tmp/perf_plan.md` for the 2026-04-05 rebuilt ROI-ranked runtime performance backlog; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `tmp/improvement_audit_plan.md` remains the separate improvement-audit lane
+- Current status: Phase 2 is in progress on `2026-04-05`. Item 1 in `tmp/perf_plan.md` is complete (`bd2b6a57`: `perf(similarity): cache loaded source snapshots`); item 2 is next. Measurement caveat: the current perf guard still headlines the controller-mode `project_native_app_model` path while the shipped runtime goes through retained `SempalNativeBridge`, and the Windows PowerShell perf guard still lacks startup capture.
 
 ## Immediate Next Actions
-1. Treat `tmp/perf_plan.md` as the completed runtime-performance execution record until the user opens a new performance lane.
-2. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` parked unless the user explicitly resumes those lanes.
-3. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable in this environment.
+1. Treat `tmp/perf_plan.md` as the live Phase 2 runtime-performance backlog and continue item execution strictly in listed ROI order.
+2. After each completed item, update `tmp/perf_plan.md`, run validation, commit, and push before moving to the next item.
+3. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` parked unless the user explicitly resumes those lanes.
+4. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable in this environment.
 
 ## Handoff Anchors
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/perf_plan.md`: active ROI-ranked runtime performance execution record for the live tree
+- `tmp/perf_plan.md`: active ROI-ranked runtime performance backlog for the live tree (Phase 2 started on 2026-04-05; item 1 complete, item 2 next)
 - `tmp/improvement_audit_plan.md`: separate evidence-driven repo-wide improvement backlog and execution record; resume only when the user reopens that lane
 - `docs/gui_test_platform.md`: GUI action catalog, automation snapshot, test mode, CLI, and AIV architecture
 - `docs/plans/active/gui_test_platform_exec_plan.md`: phased implementation plan for the GUI automation/test platform

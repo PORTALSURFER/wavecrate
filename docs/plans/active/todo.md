@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (local): 2026-04-05T00:05:00+02:00
+Last updated (local): 2026-04-05T14:57:00+02:00
 Owner: Codex agent sessions
 
 Purpose:
@@ -11,13 +11,14 @@ Purpose:
 ## Current lane
 
 - The active lane is the reopened runtime performance audit backlog for the current live tree.
-- `tmp/perf_plan.md` is the live source of truth for the ROI-ranked performance backlog rebuilt on 2026-04-04.
-- Phase 2 is complete. Items 1-8 are complete in commits `3c91fbef`, `dacfedac`, `d573ddeb`, `849f0cf6`, `faf927d8`, `4ac3945e`, `0efad4c2`, and `46a7168b`, with vendor/radiant support in `e5c91739` and `2f53bf98`.
-- The final validation lane passed focused item-7 tests, `vendor/radiant` library compile, `scripts/ci_agent.ps1`, and `scripts/run_perf_guard.ps1`. The latest perf run reports `browser_filter_churn_latency.p95_us = 2075`, `browser_query_churn_latency.p95_us = 176`, `browser_sort_toggle_latency.p95_us = 157`, `hover_latency.p95_us = 2809`, `wheel_latency.p95_us = 2511`, `browser_focus_preview_latency.p95_us = 142`, `browser_focus_commit_latency.p95_us = 151`, and `waveform_interaction_latency.p95_us = 1444`.
+- `tmp/perf_plan.md` is the live source of truth for the ROI-ranked performance backlog rebuilt on 2026-04-05.
+- Phase 2 is in progress. Item 1 is complete (`bd2b6a57`) and item 2 is next.
+- Measurement caveat: the current perf guard still measures the controller-mode `project_native_app_model` path for most GUI scenarios, while the shipped runtime goes through retained `SempalNativeBridge`; the Windows PowerShell perf guard also still lacks startup capture.
 - `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` remain parked while this performance lane is active.
 
 ## Next tasks (ordered)
 
-1. Treat `tmp/perf_plan.md` as the completed runtime-performance execution record unless the user opens a new performance lane.
-2. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` dormant unless the user explicitly reopens those lanes.
-3. Keep using the PowerShell validation wrappers for future Windows sessions unless the user explicitly overrides that rule.
+1. Execute item 2 from `tmp/perf_plan.md` next and keep the remaining backlog in strict ROI order.
+2. After each completed item, update `tmp/perf_plan.md`, validate, commit, and push before moving on.
+3. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` dormant unless the user explicitly reopens those lanes.
+4. Keep using the PowerShell validation wrappers for future Windows sessions unless the user explicitly overrides that rule.
