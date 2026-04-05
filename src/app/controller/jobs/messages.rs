@@ -561,8 +561,8 @@ pub(crate) struct LoadedSimilarityQueryResult {
     pub(crate) relative_path: PathBuf,
     /// Browser snapshot key the built query still aligns with.
     pub(crate) key: crate::app::controller::FeatureCacheKey,
-    /// Similarity query payload or the terminal error.
-    pub(crate) result: Result<crate::app::state::SimilarQuery, String>,
+    /// Similarity query payload plus retained source snapshot or the terminal error.
+    pub(crate) result: Result<crate::app::controller::state::runtime::LoadedSimilarityQueryData, String>,
 }
 
 #[derive(Debug)]

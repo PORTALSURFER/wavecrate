@@ -1,18 +1,22 @@
 //! Shared loaded-sample similarity query construction.
 
-use super::query::ensure_anchor_similarity_result;
-use super::resolve::{
-    cosine_similarity, load_embedding_for_sample, load_light_dsp_for_sample, normalize_l2,
+mod source_snapshot;
+
+use self::source_snapshot::{
+    build_loaded_similarity_query_data, cached_loaded_similarity_source_snapshot,
 };
+use super::query::ensure_anchor_similarity_result;
+use super::resolve::{load_embedding_for_sample, load_light_dsp_for_sample};
 use super::*;
 use crate::app::controller::FeatureCacheKey;
-use crate::app::controller::state::runtime::LoadedSimilarityQueryCache;
 use crate::app::controller::state::audio::LoadedAudio;
+use crate::app::controller::state::runtime::{
+    LoadedSimilarityQueryCache, LoadedSimilarityQueryData, LoadedSimilaritySourceSnapshot,
+};
 use crate::app::state::SimilarQuery;
 use crate::app::view_model;
 use crate::sample_sources::SourceId;
-use rusqlite::{Connection, params};
-use std::collections::HashMap;
+use rusqlite::Connection;
 use std::path::{Path, PathBuf};
 
 /// Stable inputs needed to rebuild loaded-sample similarity ordering.
@@ -24,30 +28,12 @@ pub(super) struct LoadedSimilarityQueryRequest<'a> {
     pub(super) entry_paths: &'a [PathBuf],
 }
 
-/// Build a loaded-sample similarity query from one source snapshot.
-pub(super) fn build_loaded_similarity_query(
+/// Build a loaded-sample similarity query plus reusable source snapshot data.
+pub(crate) fn build_loaded_similarity_query_data_with_cache(
     conn: &Connection,
     request: &LoadedSimilarityQueryRequest<'_>,
-) -> Result<SimilarQuery, String> {
-    let (query_embedding, query_dsp) = load_query_vectors(conn, &request.sample_id)?;
-    let path_lookup = build_path_lookup(request.entry_paths);
-    let anchor_index = path_lookup.get(request.relative_path.as_path()).copied();
-    let (indices, scores) = collect_ranked_similarity(
-        conn,
-        &request,
-        &path_lookup,
-        &query_embedding,
-        query_dsp.as_deref(),
-    )?;
-    let label = view_model::sample_display_label(&request.relative_path);
-    let (indices, scores) = ensure_anchor_similarity_result(indices, scores, anchor_index);
-    Ok(SimilarQuery {
-        sample_id: request.sample_id.clone(),
-        label: format!("Loaded: {label}"),
-        indices,
-        scores,
-        anchor_index,
-    })
+) -> Result<LoadedSimilarityQueryData, String> {
+    build_loaded_similarity_query_data(conn, request, None)
 }
 
 pub(super) fn build_loaded_similarity_request<'a>(
@@ -91,26 +77,32 @@ pub(super) fn cached_loaded_similarity_query(
     request: &LoadedSimilarityQueryRequest<'_>,
 ) -> Option<SimilarQuery> {
     let cache = cache?;
-    (cache.source_id == request.source_id
-        && cache.key == request.key
+    (cache.source_snapshot.source_id == request.source_id
+        && cache.source_snapshot.key == request.key
         && cache.sample_id == request.sample_id)
         .then(|| cache.query.clone())
 }
 
-/// Build one retained cache record for a freshly computed loaded-similarity query.
-pub(super) fn build_loaded_similarity_query_cache(
+/// Return one retained loaded-similarity source snapshot when the browser snapshot still matches.
+pub(super) fn cached_source_snapshot(
+    cache: Option<&LoadedSimilarityQueryCache>,
     request: &LoadedSimilarityQueryRequest<'_>,
-    query: &SimilarQuery,
+) -> Option<LoadedSimilaritySourceSnapshot> {
+    cached_loaded_similarity_source_snapshot(cache, request)
+}
+
+/// Build one retained cache record for a freshly computed loaded-similarity query payload.
+pub(crate) fn build_loaded_similarity_query_cache(
+    data: &LoadedSimilarityQueryData,
 ) -> LoadedSimilarityQueryCache {
     LoadedSimilarityQueryCache {
-        source_id: request.source_id.clone(),
-        key: request.key,
-        sample_id: request.sample_id.clone(),
-        query: query.clone(),
+        sample_id: data.query.sample_id.clone(),
+        query: data.query.clone(),
+        source_snapshot: data.source_snapshot.clone(),
     }
 }
 
-fn load_query_vectors(
+pub(super) fn load_query_vectors(
     conn: &Connection,
     sample_id: &str,
 ) -> Result<(Vec<f32>, Option<Vec<f32>>), String> {
@@ -118,105 +110,6 @@ fn load_query_vectors(
         .ok_or_else(|| "Similarity data missing for the loaded sample".to_string())?;
     let query_dsp = load_light_dsp_for_sample(conn, sample_id)?;
     Ok((query_embedding, query_dsp))
-}
-
-fn build_path_lookup(entry_paths: &[PathBuf]) -> HashMap<PathBuf, usize> {
-    entry_paths
-        .iter()
-        .cloned()
-        .enumerate()
-        .map(|(index, path)| (path, index))
-        .collect()
-}
-
-fn collect_ranked_similarity(
-    conn: &Connection,
-    request: &LoadedSimilarityQueryRequest<'_>,
-    path_lookup: &HashMap<PathBuf, usize>,
-    query_embedding: &[f32],
-    query_dsp: Option<&[f32]>,
-) -> Result<(Vec<usize>, Vec<f32>), String> {
-    let total = request.entry_paths.len();
-    let mut indices = Vec::with_capacity(total);
-    let mut scores = Vec::with_capacity(total);
-    let mut has_embedding = vec![false; total];
-    let mut stmt = conn
-        .prepare(
-            "SELECT embeddings.sample_id, embeddings.vec, features.vec_blob
-             FROM embeddings
-             LEFT JOIN features ON features.sample_id = embeddings.sample_id
-             WHERE embeddings.model_id = ?1",
-        )
-        .map_err(|err| format!("Load similarity embeddings failed: {err}"))?;
-    let mut rows = stmt
-        .query(params![crate::analysis::similarity::SIMILARITY_MODEL_ID])
-        .map_err(|err| format!("Load similarity embeddings failed: {err}"))?;
-    while let Some(row) = rows
-        .next()
-        .map_err(|err| format!("Load embeddings failed: {err}"))?
-    {
-        let candidate_id = row
-            .get::<_, String>(0)
-            .map_err(|err| format!("Load embeddings failed: {err}"))?;
-        let (candidate_source, relative_path) =
-            crate::app::controller::library::analysis_jobs::parse_sample_id(&candidate_id)?;
-        if candidate_source.as_str() != request.source_id.as_str() {
-            continue;
-        }
-        let Some(index) = path_lookup.get(&relative_path).copied() else {
-            continue;
-        };
-        let score = score_similarity_row(&row, query_embedding, query_dsp)?;
-        indices.push(index);
-        scores.push(score);
-        has_embedding[index] = true;
-    }
-    append_missing_similarity_entries(&mut indices, &mut scores, &has_embedding);
-    if indices.is_empty() {
-        return Err("No similarity data available for the current source".to_string());
-    }
-    Ok((indices, scores))
-}
-
-fn score_similarity_row(
-    row: &rusqlite::Row<'_>,
-    query_embedding: &[f32],
-    query_dsp: Option<&[f32]>,
-) -> Result<f32, String> {
-    let blob = row
-        .get::<_, Vec<u8>>(1)
-        .map_err(|err| format!("Load embeddings failed: {err}"))?;
-    let features_blob = row
-        .get::<_, Option<Vec<u8>>>(2)
-        .map_err(|err| format!("Load embeddings failed: {err}"))?;
-    let candidate = crate::analysis::decode_f32_le_blob(&blob).map_err(|err| err.to_string())?;
-    let embed_sim = cosine_similarity(query_embedding, &candidate).clamp(-1.0, 1.0);
-    let dsp_sim = query_dsp.and_then(|query_dsp| {
-        features_blob
-            .as_ref()
-            .and_then(|blob| crate::analysis::decode_f32_le_blob(blob).ok())
-            .and_then(|features| crate::analysis::light_dsp_from_features_v1(&features))
-            .map(normalize_l2)
-            .map(|candidate| cosine_similarity(query_dsp, &candidate))
-    });
-    Ok(if let Some(dsp_sim) = dsp_sim {
-        EMBED_WEIGHT * embed_sim + DSP_WEIGHT * dsp_sim
-    } else {
-        embed_sim
-    })
-}
-
-fn append_missing_similarity_entries(
-    indices: &mut Vec<usize>,
-    scores: &mut Vec<f32>,
-    has_embedding: &[bool],
-) {
-    for (index, has) in has_embedding.iter().enumerate() {
-        if !*has {
-            indices.push(index);
-            scores.push(MISSING_SIMILARITY_SCORE);
-        }
-    }
 }
 
 #[cfg(test)]
@@ -276,6 +169,7 @@ mod tests {
                 background_job,
             )
             .expect("background query");
+        let background_query = background_query.query;
 
         assert_eq!(sync_query.sample_id, background_query.sample_id);
         assert_eq!(sync_query.label, background_query.label);
@@ -283,7 +177,7 @@ mod tests {
         assert_eq!(sync_query.anchor_index, background_query.anchor_index);
         assert_eq!(sync_query.scores.len(), background_query.scores.len());
         for (left, right) in sync_query.scores.iter().zip(background_query.scores.iter()) {
-            assert!((left - right).abs() < f32::EPSILON);
+            assert!((*left - *right).abs() < f32::EPSILON);
         }
         assert_eq!(background_query.indices, vec![0, 1, 2]);
         assert_eq!(background_query.scores[0], 1.0);
@@ -302,9 +196,12 @@ mod tests {
             },
             entry_paths: &[],
         };
-        let cached = LoadedSimilarityQueryCache {
+        let source_snapshot = LoadedSimilaritySourceSnapshot {
             source_id: request.source_id.clone(),
             key: request.key,
+            candidates: Arc::from([]),
+        };
+        let cached = LoadedSimilarityQueryCache {
             sample_id: request.sample_id.clone(),
             query: SimilarQuery {
                 sample_id: request.sample_id.clone(),
@@ -313,17 +210,62 @@ mod tests {
                 scores: vec![1.0, 0.4],
                 anchor_index: Some(0),
             },
+            source_snapshot: source_snapshot.clone(),
         };
 
         assert!(cached_loaded_similarity_query(Some(&cached), &request).is_some());
+        assert!(cached_source_snapshot(Some(&cached), &request).is_some());
 
         let mut mismatched = cached.clone();
-        mismatched.key.entries_hash = 99;
+        mismatched.source_snapshot.key.entries_hash = 99;
         assert!(cached_loaded_similarity_query(Some(&mismatched), &request).is_none());
+        assert!(cached_source_snapshot(Some(&mismatched), &request).is_none());
 
         let mut wrong_sample = cached;
         wrong_sample.sample_id = "source-a::two.wav".to_string();
         assert!(cached_loaded_similarity_query(Some(&wrong_sample), &request).is_none());
+        assert!(cached_source_snapshot(Some(&wrong_sample), &request).is_some());
+    }
+
+    #[test]
+    fn loaded_similarity_query_data_reuses_cached_source_snapshot_for_new_anchor() {
+        let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+            sample_entry("anchor.wav", Rating::NEUTRAL),
+            sample_entry("close.wav", Rating::NEUTRAL),
+        ]);
+        controller.selection_state.ctx.selected_source = Some(source.id.clone());
+        let entry_paths = [PathBuf::from("anchor.wav"), PathBuf::from("close.wav")];
+        let request_a = build_loaded_similarity_request(
+            &source.id,
+            Path::new("anchor.wav"),
+            FeatureCacheKey {
+                entries_len: 2,
+                entries_hash: 9,
+            },
+            &entry_paths,
+        );
+        seed_similarity_row(&source, "anchor.wav", &[1.0, 0.0], Some(&[1.0, 0.0, 0.25]));
+        seed_similarity_row(&source, "close.wav", &[0.9, 0.1], Some(&[0.9, 0.1, 0.25]));
+        let conn = analysis_jobs::open_source_db(&source.root).expect("open source db");
+        let data_a =
+            build_loaded_similarity_query_data_with_cache(&conn, &request_a).expect("query data");
+
+        let request_b = build_loaded_similarity_request(
+            &source.id,
+            Path::new("close.wav"),
+            request_a.key,
+            request_a.entry_paths,
+        );
+        let data_b = source_snapshot::build_loaded_similarity_query_data(
+            &conn,
+            &request_b,
+            Some(&data_a.source_snapshot),
+        )
+        .expect("cached source snapshot query data");
+
+        assert_eq!(data_b.query.anchor_index, Some(1));
+        assert_eq!(data_b.query.indices[0], 1);
+        assert_eq!(data_b.source_snapshot.candidates.len(), 2);
     }
 
     fn seed_similarity_row(

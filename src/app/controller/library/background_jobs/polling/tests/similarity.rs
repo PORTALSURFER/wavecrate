@@ -114,12 +114,19 @@ fn loaded_similarity_query_message_ignores_stale_result_then_applies_matching_qu
             source_id: source.id.clone(),
             relative_path: PathBuf::from("one.wav"),
             key: snapshot_key,
-            result: Ok(SimilarQuery {
-                sample_id: format!("{}::one.wav", source.id.as_str()),
-                label: "Loaded: one.wav".to_string(),
-                indices: vec![0, 1],
-                scores: vec![1.0, 0.8],
-                anchor_index: Some(0),
+            result: Ok(crate::app::controller::state::runtime::LoadedSimilarityQueryData {
+                query: SimilarQuery {
+                    sample_id: format!("{}::one.wav", source.id.as_str()),
+                    label: "Loaded: one.wav".to_string(),
+                    indices: vec![0, 1],
+                    scores: vec![1.0, 0.8],
+                    anchor_index: Some(0),
+                },
+                source_snapshot: crate::app::controller::state::runtime::LoadedSimilaritySourceSnapshot {
+                    source_id: source.id.clone(),
+                    key: snapshot_key,
+                    candidates: Arc::from([]),
+                },
             }),
         },
     ));
@@ -133,12 +140,19 @@ fn loaded_similarity_query_message_ignores_stale_result_then_applies_matching_qu
             source_id: source.id.clone(),
             relative_path: PathBuf::from("one.wav"),
             key: snapshot_key,
-            result: Ok(SimilarQuery {
-                sample_id: format!("{}::one.wav", source.id.as_str()),
-                label: "Loaded: one.wav".to_string(),
-                indices: vec![0, 1],
-                scores: vec![1.0, 0.8],
-                anchor_index: Some(0),
+            result: Ok(crate::app::controller::state::runtime::LoadedSimilarityQueryData {
+                query: SimilarQuery {
+                    sample_id: format!("{}::one.wav", source.id.as_str()),
+                    label: "Loaded: one.wav".to_string(),
+                    indices: vec![0, 1],
+                    scores: vec![1.0, 0.8],
+                    anchor_index: Some(0),
+                },
+                source_snapshot: crate::app::controller::state::runtime::LoadedSimilaritySourceSnapshot {
+                    source_id: source.id.clone(),
+                    key: snapshot_key,
+                    candidates: Arc::from([]),
+                },
             }),
         },
     ));

@@ -8,6 +8,8 @@ use std::collections::HashMap;
 
 use super::super::FEATURE_RMS_INDEX;
 
+const SQLITE_IN_BATCH_SIZE: usize = 900;
+
 /// Resolve the sample identifier for one visible browser row.
 pub(crate) fn resolve_sample_id_for_visible_row(
     controller: &mut AppController,
@@ -109,35 +111,37 @@ pub(crate) fn load_embeddings_for_samples(
     if sample_ids.is_empty() {
         return Ok(HashMap::new());
     }
-    let sql = format!(
-        "SELECT sample_id, vec FROM embeddings
-         WHERE model_id = ?1 AND sample_id IN ({})",
-        placeholder_list(2, sample_ids.len())
-    );
-    let mut stmt = conn
-        .prepare(&sql)
-        .map_err(|err| format!("Load embeddings failed: {err}"))?;
-    let mut params = Vec::with_capacity(sample_ids.len() + 1);
-    params.push(rusqlite::types::Value::from(
-        crate::analysis::similarity::SIMILARITY_MODEL_ID.to_string(),
-    ));
-    params.extend(sample_ids.iter().cloned().map(rusqlite::types::Value::from));
-    let mut rows = stmt
-        .query(params_from_iter(params))
-        .map_err(|err| format!("Load embeddings failed: {err}"))?;
     let mut embeddings = HashMap::with_capacity(sample_ids.len());
-    while let Some(row) = rows
-        .next()
-        .map_err(|err| format!("Load embeddings failed: {err}"))?
-    {
-        let sample_id = row
-            .get::<_, String>(0)
+    for batch in sample_ids.chunks(SQLITE_IN_BATCH_SIZE) {
+        let sql = format!(
+            "SELECT sample_id, vec FROM embeddings
+             WHERE model_id = ?1 AND sample_id IN ({})",
+            placeholder_list(2, batch.len())
+        );
+        let mut stmt = conn
+            .prepare(&sql)
             .map_err(|err| format!("Load embeddings failed: {err}"))?;
-        let blob = row
-            .get::<_, Vec<u8>>(1)
+        let mut params = Vec::with_capacity(batch.len() + 1);
+        params.push(rusqlite::types::Value::from(
+            crate::analysis::similarity::SIMILARITY_MODEL_ID.to_string(),
+        ));
+        params.extend(batch.iter().cloned().map(rusqlite::types::Value::from));
+        let mut rows = stmt
+            .query(params_from_iter(params))
             .map_err(|err| format!("Load embeddings failed: {err}"))?;
-        let embedding = crate::analysis::decode_f32_le_blob(&blob)?;
-        embeddings.insert(sample_id, embedding);
+        while let Some(row) = rows
+            .next()
+            .map_err(|err| format!("Load embeddings failed: {err}"))?
+        {
+            let sample_id = row
+                .get::<_, String>(0)
+                .map_err(|err| format!("Load embeddings failed: {err}"))?;
+            let blob = row
+                .get::<_, Vec<u8>>(1)
+                .map_err(|err| format!("Load embeddings failed: {err}"))?;
+            let embedding = crate::analysis::decode_f32_le_blob(&blob)?;
+            embeddings.insert(sample_id, embedding);
+        }
     }
     Ok(embeddings)
 }
@@ -150,37 +154,39 @@ pub(crate) fn load_feature_metrics_for_samples(
     if sample_ids.is_empty() {
         return Ok(HashMap::new());
     }
-    let sql = format!(
-        "SELECT sample_id, vec_blob FROM features WHERE sample_id IN ({})",
-        placeholder_list(1, sample_ids.len())
-    );
-    let mut stmt = conn
-        .prepare(&sql)
-        .map_err(|err| format!("Load features failed: {err}"))?;
-    let params = sample_ids
-        .iter()
-        .cloned()
-        .map(rusqlite::types::Value::from)
-        .collect::<Vec<_>>();
-    let mut rows = stmt
-        .query(params_from_iter(params))
-        .map_err(|err| format!("Load features failed: {err}"))?;
     let mut metrics = HashMap::with_capacity(sample_ids.len());
-    while let Some(row) = rows
-        .next()
-        .map_err(|err| format!("Load features failed: {err}"))?
-    {
-        let sample_id = row
-            .get::<_, String>(0)
+    for batch in sample_ids.chunks(SQLITE_IN_BATCH_SIZE) {
+        let sql = format!(
+            "SELECT sample_id, vec_blob FROM features WHERE sample_id IN ({})",
+            placeholder_list(1, batch.len())
+        );
+        let mut stmt = conn
+            .prepare(&sql)
             .map_err(|err| format!("Load features failed: {err}"))?;
-        let blob = row
-            .get::<_, Vec<u8>>(1)
+        let params = batch
+            .iter()
+            .cloned()
+            .map(rusqlite::types::Value::from)
+            .collect::<Vec<_>>();
+        let mut rows = stmt
+            .query(params_from_iter(params))
             .map_err(|err| format!("Load features failed: {err}"))?;
-        let features = crate::analysis::decode_f32_le_blob(&blob)?;
-        let rms = features.get(FEATURE_RMS_INDEX).copied();
-        let light_dsp =
-            crate::analysis::light_dsp_from_features_v1(&features).map(super::normalize_l2);
-        metrics.insert(sample_id, SimilarityFeatureMetrics { light_dsp, rms });
+        while let Some(row) = rows
+            .next()
+            .map_err(|err| format!("Load features failed: {err}"))?
+        {
+            let sample_id = row
+                .get::<_, String>(0)
+                .map_err(|err| format!("Load features failed: {err}"))?;
+            let blob = row
+                .get::<_, Vec<u8>>(1)
+                .map_err(|err| format!("Load features failed: {err}"))?;
+            let features = crate::analysis::decode_f32_le_blob(&blob)?;
+            let rms = features.get(FEATURE_RMS_INDEX).copied();
+            let light_dsp =
+                crate::analysis::light_dsp_from_features_v1(&features).map(super::normalize_l2);
+            metrics.insert(sample_id, SimilarityFeatureMetrics { light_dsp, rms });
+        }
     }
     Ok(metrics)
 }
@@ -294,5 +300,25 @@ mod tests {
         assert_eq!(metrics["sample-b"].rms, Some(0.5));
         assert!(metrics["sample-a"].light_dsp.is_some());
         assert!(metrics["sample-b"].light_dsp.is_some());
+    }
+
+    #[test]
+    fn batched_similarity_loaders_span_sqlite_chunk_boundaries() {
+        let conn = in_memory_similarity_conn();
+        let sample_ids = (0..(SQLITE_IN_BATCH_SIZE + 5))
+            .map(|index| format!("sample-{index}"))
+            .collect::<Vec<_>>();
+        for sample_id in &sample_ids {
+            insert_embedding(&conn, sample_id, &[1.0, 0.0, 0.0]);
+        }
+
+        let embeddings = load_embeddings_for_samples(&conn, &sample_ids).unwrap();
+
+        assert_eq!(embeddings.len(), sample_ids.len());
+        assert_eq!(embeddings["sample-0"], vec![1.0, 0.0, 0.0]);
+        assert_eq!(
+            embeddings[&format!("sample-{}", SQLITE_IN_BATCH_SIZE + 4)],
+            vec![1.0, 0.0, 0.0]
+        );
     }
 }

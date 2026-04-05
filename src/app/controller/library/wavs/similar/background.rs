@@ -9,7 +9,6 @@ use crate::app::controller::jobs::{FocusedSimilarityPaths, JobMessage};
 use crate::app::controller::state::runtime::{
     PendingFocusedSimilarityQuery, PendingFocusedSimilarityRefresh, PendingLoadedSimilarityQuery,
 };
-use crate::app::state::SimilarQuery;
 use crate::sample_sources::SourceId;
 use rusqlite::{OptionalExtension, params};
 use std::{path::PathBuf, sync::Arc};
@@ -126,9 +125,10 @@ pub(crate) fn queue_loaded_similarity_query_refresh(
         snapshot.key,
         snapshot.entry_paths.as_ref(),
     );
-    if let Some(query) =
-        loaded::cached_loaded_similarity_query(controller.runtime.loaded_similarity_query_cache.as_ref(), &request)
-    {
+    if let Some(query) = loaded::cached_loaded_similarity_query(
+        controller.runtime.loaded_similarity_query_cache.as_ref(),
+        &request,
+    ) {
         controller.runtime.pending_loaded_similarity_query = None;
         controller.ui.browser.search.search_busy = false;
         controller.ui.browser.search.similar_query = Some(query);
@@ -223,7 +223,7 @@ pub(crate) fn compute_focused_similarity(
 /// Compute follow-loaded similarity ordering without touching controller state.
 pub(crate) fn compute_loaded_similarity_query(
     job: LoadedSimilarityQueryJob,
-) -> Result<SimilarQuery, String> {
+) -> Result<crate::app::controller::state::runtime::LoadedSimilarityQueryData, String> {
     let conn = crate::app::controller::library::analysis_jobs::open_source_db(&job.source_root)?;
     let request = loaded::build_loaded_similarity_request(
         &job.source_id,
@@ -231,7 +231,7 @@ pub(crate) fn compute_loaded_similarity_query(
         job.key,
         &job.entry_paths,
     );
-    loaded::build_loaded_similarity_query(&conn, &request)
+    loaded::build_loaded_similarity_query_data_with_cache(&conn, &request)
 }
 
 fn maybe_enqueue_full_analysis_for_request(

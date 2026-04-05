@@ -42,15 +42,19 @@ pub(crate) fn build_similarity_query_for_loaded_sample(
         .ok_or_else(|| "Similarity data unavailable for the current source".to_string())?;
     let request =
         loaded::loaded_audio_request(&loaded_audio, snapshot.key, snapshot.entry_paths.as_ref());
-    if let Some(query) =
-        loaded::cached_loaded_similarity_query(controller.runtime.loaded_similarity_query_cache.as_ref(), &request)
-    {
+    if let Some(query) = loaded::cached_loaded_similarity_query(
+        controller.runtime.loaded_similarity_query_cache.as_ref(),
+        &request,
+    ) {
         return Ok(query);
     }
-    let query = loaded::build_loaded_similarity_query(&conn, &request)?;
+    let data = loaded::build_loaded_similarity_query_data_with_cache(
+        &conn,
+        &request,
+    )?;
     controller.runtime.loaded_similarity_query_cache =
-        Some(loaded::build_loaded_similarity_query_cache(&request, &query));
-    Ok(query)
+        Some(loaded::build_loaded_similarity_query_cache(&data));
+    Ok(data.query)
 }
 
 pub(crate) fn build_similarity_query_for_audio_path(
@@ -196,14 +200,15 @@ mod tests {
             crate::sample_sources::Rating::NEUTRAL,
         )]);
         controller.selection_state.ctx.selected_source = Some(source.id.clone());
-        controller.sample_view.wav.loaded_audio = Some(crate::app::controller::state::audio::LoadedAudio {
-            source_id: source.id.clone(),
-            root: source.root.clone(),
-            relative_path: PathBuf::from("cached.wav"),
-            bytes: std::sync::Arc::from(Vec::<u8>::new()),
-            duration_seconds: 1.0,
-            sample_rate: 44_100,
-        });
+        controller.sample_view.wav.loaded_audio =
+            Some(crate::app::controller::state::audio::LoadedAudio {
+                source_id: source.id.clone(),
+                root: source.root.clone(),
+                relative_path: PathBuf::from("cached.wav"),
+                bytes: std::sync::Arc::from(Vec::<u8>::new()),
+                duration_seconds: 1.0,
+                sample_rate: 44_100,
+            });
         let snapshot = controller
             .current_browser_feature_cache_snapshot()
             .expect("browser snapshot");
@@ -218,15 +223,20 @@ mod tests {
             scores: vec![1.0],
             anchor_index: Some(0),
         };
-        controller.runtime.loaded_similarity_query_cache =
-            Some(crate::app::controller::state::runtime::LoadedSimilarityQueryCache {
-                source_id: source.id.clone(),
-                key: snapshot.key,
+        controller.runtime.loaded_similarity_query_cache = Some(
+            crate::app::controller::state::runtime::LoadedSimilarityQueryCache {
                 sample_id,
                 query: expected.clone(),
-            });
+                source_snapshot: crate::app::controller::state::runtime::LoadedSimilaritySourceSnapshot {
+                    source_id: source.id.clone(),
+                    key: snapshot.key,
+                    candidates: std::sync::Arc::from([]),
+                },
+            },
+        );
 
-        let query = build_similarity_query_for_loaded_sample(&mut controller).expect("cached query");
+        let query =
+            build_similarity_query_for_loaded_sample(&mut controller).expect("cached query");
 
         assert_eq!(query.indices, expected.indices);
         assert_eq!(query.scores, expected.scores);

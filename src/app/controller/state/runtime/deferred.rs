@@ -4,6 +4,7 @@ use crate::app::controller::state::audio::PendingPlayback;
 use crate::app::state::SimilarQuery;
 use crate::sample_sources::SourceId;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Instant;
 
 /// Controller-owned gate for deferring startup audio probing past first paint.
@@ -71,15 +72,42 @@ pub(crate) struct PendingLoadedSimilarityQuery {
 
 /// Cached loaded-similarity query aligned to one retained browser-path snapshot.
 #[derive(Clone, Debug)]
-pub(crate) struct LoadedSimilarityQueryCache {
-    /// Source that owns the cached similarity ordering.
+pub(crate) struct LoadedSimilaritySourceSnapshot {
+    /// Source that owns the cached browser-path snapshot.
     pub(crate) source_id: SourceId,
-    /// Browser-path snapshot key the cached indices align to.
+    /// Browser-path snapshot key the cached candidate rows align to.
     pub(crate) key: FeatureCacheKey,
+    /// Decoded candidate embeddings and DSP rows aligned to browser entry order.
+    pub(crate) candidates: Arc<[LoadedSimilaritySourceCandidate]>,
+}
+
+/// One decoded loaded-similarity candidate aligned to a browser entry.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct LoadedSimilaritySourceCandidate {
+    /// Normalized embedding decoded for this browser entry when similarity data exists.
+    pub(crate) embedding: Option<Arc<[f32]>>,
+    /// Lightweight DSP summary decoded for this browser entry when feature data exists.
+    pub(crate) light_dsp: Option<Arc<[f32]>>,
+}
+
+/// Fully built loaded-similarity query plus the retained source snapshot used to build it.
+#[derive(Clone, Debug)]
+pub(crate) struct LoadedSimilarityQueryData {
+    /// Similarity query aligned to the current browser snapshot.
+    pub(crate) query: SimilarQuery,
+    /// Source-scoped decoded candidate data reusable for future loaded-anchor queries.
+    pub(crate) source_snapshot: LoadedSimilaritySourceSnapshot,
+}
+
+/// Cached loaded-similarity query aligned to one retained browser-path snapshot.
+#[derive(Clone, Debug)]
+pub(crate) struct LoadedSimilarityQueryCache {
     /// Stable sample identifier for the loaded anchor sample.
     pub(crate) sample_id: String,
     /// Reusable similarity ordering for the matching snapshot and sample.
     pub(crate) query: SimilarQuery,
+    /// Retained decoded source snapshot reusable for matching source/path snapshots.
+    pub(crate) source_snapshot: LoadedSimilaritySourceSnapshot,
 }
 
 /// Pending manual similarity-filter rebuild waiting for wav-entry reload to finish.

@@ -10,6 +10,8 @@ mod loaded;
 mod query;
 mod resolve;
 
+pub(crate) use loaded::build_loaded_similarity_query_cache;
+
 const DEFAULT_SIMILAR_COUNT: usize = 40;
 const SIMILAR_RE_RANK_CANDIDATES: usize = 200;
 const EMBED_WEIGHT: f32 = 0.8;

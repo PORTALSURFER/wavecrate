@@ -175,16 +175,10 @@ impl AppController {
             return;
         }
         match result.result {
-            Ok(query) => {
-                self.runtime.loaded_similarity_query_cache = Some(
-                    crate::app::controller::state::runtime::LoadedSimilarityQueryCache {
-                        source_id: result.source_id.clone(),
-                        key: result.key,
-                        sample_id: query.sample_id.clone(),
-                        query: query.clone(),
-                    },
-                );
-                self.ui.browser.search.similar_query = Some(query);
+            Ok(data) => {
+                self.runtime.loaded_similarity_query_cache =
+                    Some(crate::app::controller::library::wavs::similar::build_loaded_similarity_query_cache(&data));
+                self.ui.browser.search.similar_query = Some(data.query);
                 if self.should_dispatch_browser_search_async() {
                     self.dispatch_search_job();
                 } else {

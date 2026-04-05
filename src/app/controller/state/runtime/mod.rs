@@ -13,8 +13,10 @@ use crate::sample_sources::Rating;
 use crate::sample_sources::db::SourceDbError;
 use crate::sample_sources::{ScanMode, SourceId, WavEntry};
 pub(crate) use deferred::{
-    AnalysisProgressUiCache, DeferredStartupAudioRefreshState, PendingBrowserFeatureCacheRefresh,
-    LoadedSimilarityQueryCache, PendingBrowserFocusCommit, PendingFocusedSimilarityQuery,
+    AnalysisProgressUiCache, DeferredStartupAudioRefreshState, LoadedSimilarityQueryCache,
+    LoadedSimilarityQueryData, LoadedSimilaritySourceCandidate,
+    LoadedSimilaritySourceSnapshot,
+    PendingBrowserFeatureCacheRefresh, PendingBrowserFocusCommit, PendingFocusedSimilarityQuery,
     PendingFocusedSimilarityRefresh, PendingLoadedDurationMetadata, PendingLoadedSimilarityQuery,
     PendingSimilarityFilterRebuild,
 };
