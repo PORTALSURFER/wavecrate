@@ -1,7 +1,7 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-05
-Status: Phase 2 in progress on 2026-04-06; items 1-2 complete, 5 items pending
+Status: Phase 2 in progress on 2026-04-06; items 1-3 complete, 4 items pending
 
 ## Evidence Snapshot
 
@@ -103,10 +103,11 @@ Status: Phase 2 in progress on 2026-04-06; items 1-2 complete, 5 items pending
   - Rerun `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
     and `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
 
-### [ ] 3. Make search-entry refresh row-delta-aware instead of revision-wide metadata reloads
+### [x] 3. Make search-entry refresh row-delta-aware instead of revision-wide metadata reloads
 - ROI: High
 - Effort: M
 - Expected impact: startup, p95 interaction latency, CPU, memory
+- Completed: 2026-04-06 (`e5d91fe3`, `perf(search): apply metadata deltas in place`)
 - Evidence:
   - `src/app/controller/library/wavs/browser_search_worker/pipeline/stages/source_cache.rs:58-140`
     reloads on any revision change, calls `list_search_entry_metadata()` across

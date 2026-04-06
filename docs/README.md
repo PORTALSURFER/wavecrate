@@ -30,7 +30,7 @@ Start here:
 - `tmp/cleanup_plan.md` — parked ROI-ranked cleanup backlog
   (Phase 1 complete on 2026-03-12; resume only after explicit Phase 2 confirmation)
 - `tmp/perf_plan.md` — current ROI-ranked runtime performance backlog for the live tree
-  (Phase 2 in progress on 2026-04-06; items 1-2 complete, item 3 next)
+  (Phase 2 in progress on 2026-04-06; items 1-3 complete, item 4 next)
 - `docs/plans/TEMPLATE_execution_plan.md` — template for multi-step work
 - `docs/plans/TEMPLATE_investigation.md` — template for bug/perf investigations
 - `docs/run_contracts.md` — machine-readable app-run artifact contract

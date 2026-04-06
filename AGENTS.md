@@ -61,7 +61,7 @@ Write for future selves: be precise, kind, and clear.
 - Branch: `next`
 - Program: Phase 2 runtime performance backlog execution for the current live tree
 - Source of truth: `tmp/perf_plan.md` for the 2026-04-05 rebuilt ROI-ranked runtime performance backlog; `docs/TEST.md` and `docs/README.md` still define the validation workflow; `tmp/improvement_audit_plan.md` remains the separate improvement-audit lane
-- Current status: Phase 2 is in progress on `2026-04-06`. Items 1-2 in `tmp/perf_plan.md` are complete (`bd2b6a57`: `perf(similarity): cache loaded source snapshots`, `d27d9adc`: `perf(browser): retain search filter stages`); item 3 is next. Measurement caveat: the current perf guard still headlines the controller-mode `project_native_app_model` path while the shipped runtime goes through retained `SempalNativeBridge`, and the Windows PowerShell perf guard still lacks startup capture.
+- Current status: Phase 2 is in progress on `2026-04-06`. Items 1-3 in `tmp/perf_plan.md` are complete (`bd2b6a57`: `perf(similarity): cache loaded source snapshots`, `d27d9adc`: `perf(browser): retain search filter stages`, `e5d91fe3`: `perf(search): apply metadata deltas in place`); item 4 is next. Measurement caveat: the current perf guard still headlines the controller-mode `project_native_app_model` path while the shipped runtime goes through retained `SempalNativeBridge`, and the Windows PowerShell perf guard still lacks startup capture.
 
 ## Immediate Next Actions
 1. Treat `tmp/perf_plan.md` as the live Phase 2 runtime-performance backlog and continue item execution strictly in listed ROI order.
@@ -73,7 +73,7 @@ Write for future selves: be precise, kind, and clear.
 - `MEMORY.md`: live, present-tense snapshot of what is happening now
 - `docs/plans/active/todo.md`: short ordered queue for immediate actions
 - `docs/plans/index.md`: active/completed plan map
-- `tmp/perf_plan.md`: active ROI-ranked runtime performance backlog for the live tree (Phase 2 in progress on 2026-04-06; items 1-2 complete, item 3 next)
+- `tmp/perf_plan.md`: active ROI-ranked runtime performance backlog for the live tree (Phase 2 in progress on 2026-04-06; items 1-3 complete, item 4 next)
 - `tmp/improvement_audit_plan.md`: separate evidence-driven repo-wide improvement backlog and execution record; resume only when the user reopens that lane
 - `docs/gui_test_platform.md`: GUI action catalog, automation snapshot, test mode, CLI, and AIV architecture
 - `docs/plans/active/gui_test_platform_exec_plan.md`: phased implementation plan for the GUI automation/test platform
