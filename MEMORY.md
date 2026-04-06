@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-04-05T12:57:00Z
+Last Updated: 2026-04-06T10:45:00Z
 Updated By: Codex
 
 ## Purpose
@@ -15,7 +15,7 @@ Updated By: Codex
 - The runtime performance lane is in Phase 2 execution for the current live tree.
 - The current workspace is dirty with unrelated user edits; I must not overwrite them while executing the perf lane.
 - `tmp/perf_plan.md` is the live source of truth for the rebuilt 2026-04-05 runtime performance backlog.
-- Item 1 is complete in `tmp/perf_plan.md` (`bd2b6a57`, `perf(similarity): cache loaded source snapshots`), and item 2 is now next in strict ROI order.
+- Items 1-2 are complete in `tmp/perf_plan.md` (`bd2b6a57`, `perf(similarity): cache loaded source snapshots`; `d27d9adc`, `perf(browser): retain search filter stages`), and item 3 is now next in strict ROI order.
 - The strongest remaining measured hotspots in `target/perf/bench.json` are `hover_latency = 5138us` p95, `wheel_latency = 5106us` p95, `app_model_projection = 4115us` p95, `interactive_projection = 4008us` p95, and `browser_filter_churn_latency = 2872us` p95.
 - The current perf artifact shows those headline browser hotspots are still projection-stage dominated (`hover = 4484us`, `wheel = 4336us`, `filter churn = 2810us` p95 projection stage), but the retained bridge diagnostic is now only `retained_app_model_projection_p95_us = 8`.
 - Important caveat: the current perf guard still measures the controller-mode `project_native_app_model` path for most GUI scenarios, while the real native runtime in `main` uses `GuiFixtureBridge` and retained `SempalNativeBridge`; the Windows PowerShell perf guard also still lacks startup capture.
@@ -33,14 +33,14 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Execute `tmp/perf_plan.md` strictly in listed ROI order, one item at a time, starting with item 2 next.
+1. Execute `tmp/perf_plan.md` strictly in listed ROI order, one item at a time, starting with item 3 next.
 2. After each implemented item in Phase 2, update `tmp/perf_plan.md`, run validation, commit, and push.
 3. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` parked unless the user explicitly reopens those lanes.
 4. Preserve the Windows PowerShell wrapper path for future validation runs in this environment.
 
 ## Work Notes
 
-- Active audit plan: `tmp/perf_plan.md` (Phase 2 in progress on 2026-04-05; item 1 complete, item 2 next)
+- Active audit plan: `tmp/perf_plan.md` (Phase 2 in progress on 2026-04-06; items 1-2 complete, item 3 next)
 - Active short queue: `docs/plans/active/todo.md`
 - Dual-lane validation reference: `docs/TEST.md`
 - Parked cleanup backlog: `tmp/cleanup_plan.md`

@@ -8,7 +8,7 @@ This directory keeps agent handoff planning state out of the way of other docs.
   repo-wide improvement backlog for the current tree
   (resume only when the user explicitly reopens that lane)
 - `../../tmp/perf_plan.md` — current runtime performance backlog for the live tree
-  (Phase 2 in progress on 2026-04-05; item 1 complete, item 2 next)
+  (Phase 2 in progress on 2026-04-06; items 1-2 complete, item 3 next)
 - `active/runtime_performance_exec_plan.md` — completed responsiveness/performance redesign record retained for reference
 - `active/gui_test_platform_exec_plan.md` — phased rollout plan for the GUI
   action catalog, automation snapshot, runtime test mode, CLI, and AIV loops

@@ -1,7 +1,7 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-05
-Status: Phase 2 in progress on 2026-04-05; item 1 complete, 6 items pending
+Status: Phase 2 in progress on 2026-04-06; items 1-2 complete, 5 items pending
 
 ## Evidence Snapshot
 
@@ -68,10 +68,11 @@ Status: Phase 2 in progress on 2026-04-05; item 1 complete, 6 items pending
   - Rerun `cargo test -p sempal --lib app::controller::library::wavs::similar`
     and `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
 
-### [ ] 2. Replace full-source browser filter/folder/similarity rebuilds with indexed retained stages
+### [x] 2. Replace full-source browser filter/folder/similarity rebuilds with indexed retained stages
 - ROI: Very High
 - Effort: L
 - Expected impact: p95 interaction latency, CPU, memory
+- Completed: 2026-04-06 (`d27d9adc`, `perf(browser): retain search filter stages`)
 - Evidence:
   - `target/perf/bench.json` reports
     `browser_filter_churn_latency.p95_us = 2872`.
