@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use rusqlite::Params;
+use rusqlite::{Params, params_from_iter};
 
 use super::super::util::map_sql_error;
 use super::super::{Rating, SourceDatabase, SourceDbError, WavEntry};
@@ -103,6 +103,13 @@ fn collect_search_entry_rows(
         .collect::<Result<Vec<_>, _>>()
         .map_err(map_sql_error)?;
     Ok(rows.into_iter().flatten().collect())
+}
+
+fn placeholder_list(start_index: usize, count: usize) -> String {
+    (0..count)
+        .map(|offset| format!("?{}", start_index + offset))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 impl SourceDatabase {
@@ -266,6 +273,39 @@ impl SourceDatabase {
             [],
             "Skipping browser-search row with invalid relative path",
         )
+    }
+
+    /// Fetch lightweight browser-search rows for a targeted path subset.
+    pub fn list_search_entry_rows_for_paths(
+        &self,
+        paths: &[PathBuf],
+    ) -> Result<Vec<SearchEntryRow>, SourceDbError> {
+        if paths.is_empty() {
+            return Ok(Vec::new());
+        }
+        let filter = supported_audio_filter();
+        let mut rows = Vec::new();
+        for batch in paths.chunks(900) {
+            let sql = format!(
+                "SELECT path, tag, locked, last_played_at
+                 FROM wav_files
+                 WHERE {filter}
+                   AND path IN ({})
+                 ORDER BY path ASC",
+                placeholder_list(1, batch.len())
+            );
+            let params = batch
+                .iter()
+                .map(|path| super::super::normalize_relative_path(path))
+                .collect::<Result<Vec<_>, _>>()?;
+            rows.extend(collect_search_entry_rows(
+                self,
+                &sql,
+                params_from_iter(params),
+                "Skipping targeted browser-search row with invalid relative path",
+            )?);
+        }
+        Ok(rows)
     }
 
     /// Fetch only browser-search metadata ordered to match `list_search_entry_rows`.

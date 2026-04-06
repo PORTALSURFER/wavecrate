@@ -305,6 +305,7 @@ fn make_search_job(source: &crate::sample_sources::SampleSource, query: &str) ->
         folder_selection: None,
         folder_negated: None,
         file_scope_mode: crate::app::state::FolderFileScopeMode::AllDescendants,
+        metadata_delta_paths: Vec::new(),
         playback_age_now_unix_secs: 0,
     }
 }

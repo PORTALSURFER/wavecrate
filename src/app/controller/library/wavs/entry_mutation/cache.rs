@@ -18,17 +18,37 @@ pub(crate) fn update_cached_entry(
     }
     if old_path == new_entry.relative_path {
         let mut updated = false;
+        let mut selected_index = None;
         if controller.selection_state.ctx.selected_source.as_ref() == Some(&source.id) {
             updated |= controller
                 .wav_entries
                 .update_entry(old_path, new_entry.clone());
+            selected_index = controller.wav_entries.lookup.get(old_path).copied();
         }
         if let Some(cache) = controller.cache.wav.entries.get_mut(&source.id) {
             updated |= cache.update_entry(old_path, new_entry.clone());
+            selected_index = selected_index.or_else(|| cache.lookup.get(old_path).copied());
         }
         if updated && controller.selection_state.ctx.selected_source.as_ref() == Some(&source.id) {
-            controller.ui_cache.browser.pipeline.invalidate();
-            controller.rebuild_browser_lists();
+            let source_revision = controller
+                .database_for(source)
+                .ok()
+                .and_then(|db| db.get_revision().ok());
+            let patched = selected_index
+                .and_then(|index| {
+                    controller
+                        .ui_cache
+                        .browser
+                        .pipeline
+                        .update_entry_metadata(index, &new_entry)
+                        .then_some(index)
+                })
+                .is_some();
+            controller.ui_cache.browser.pipeline.sync_source_revision(source_revision);
+            if !patched {
+                controller.ui_cache.browser.pipeline.invalidate();
+            }
+            controller.rebuild_browser_lists_with_metadata_delta(vec![old_path.to_path_buf()]);
         }
         return;
     }

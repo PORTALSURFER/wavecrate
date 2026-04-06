@@ -103,6 +103,31 @@ impl BrowserPipelineCache {
         true
     }
 
+    /// Update one retained compact browser entry in place when only metadata changes.
+    pub(crate) fn update_entry_metadata(
+        &mut self,
+        index: usize,
+        entry: &crate::sample_sources::WavEntry,
+    ) -> bool {
+        let Some(compact) = self.compact_entries.get_mut(index) else {
+            return false;
+        };
+        compact.tag = entry.tag;
+        compact.looped = entry.looped;
+        compact.locked = entry.locked;
+        compact.missing = entry.missing;
+        compact.last_played_at = entry.last_played_at;
+        self.refresh_base_partitions();
+        true
+    }
+
+    /// Sync the retained base-stage revision after metadata-only DB writes finish.
+    pub(crate) fn sync_source_revision(&mut self, source_revision: Option<u64>) {
+        if let Some(fingerprint) = self.base_fingerprint.as_mut() {
+            fingerprint.source_revision = source_revision;
+        }
+    }
+
     /// Prepare reusable similarity-score scratch for `len` absolute row slots.
     fn prepare_similar_lookup_scratch(&mut self, len: usize) {
         self.similar_lookup_scratch.clear();
@@ -124,6 +149,29 @@ impl BrowserPipelineCache {
     /// Resolve one visible-row position from the retained sorted-stage lookup table.
     fn sorted_visible_position(&self, index: usize) -> Option<usize> {
         self.sorted_row_positions.get(index).copied().flatten()
+    }
+
+    fn refresh_base_partitions(&mut self) {
+        self.base_rows.clear();
+        self.base_rows.reserve(self.compact_entries.len());
+        self.trash_rows.clear();
+        self.neutral_rows.clear();
+        self.keep_rows.clear();
+        for (index, entry) in self.compact_entries.iter().enumerate() {
+            self.base_rows.push(index);
+            if entry.tag.is_trash() {
+                self.trash_rows.push(index);
+            } else if entry.tag.is_keep() {
+                self.keep_rows.push(index);
+            } else {
+                self.neutral_rows.push(index);
+            }
+        }
+        self.playback_age_token_caches.clear();
+        self.filtered_fingerprint = None;
+        self.scored_fingerprint = None;
+        self.sorted_row_positions.clear();
+        self.sorted_fingerprint = None;
     }
 }
 

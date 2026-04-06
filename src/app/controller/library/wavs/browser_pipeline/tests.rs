@@ -109,6 +109,34 @@ fn base_stage_rebuilds_after_same_path_tag_updates() {
 }
 
 #[test]
+fn update_entry_metadata_refreshes_partitions_without_invalidating_base_snapshot() {
+    let entries = vec![
+        search_entry("neutral.wav", Rating::NEUTRAL, None),
+        search_entry("keep.wav", Rating::KEEP_1, None),
+    ];
+    let (mut controller, _) = prepare_with_source_and_wav_entries(entries);
+
+    ensure_base_stage(&mut controller);
+    let base_fingerprint = controller.ui_cache.browser.pipeline.base_fingerprint.clone();
+    let updated = search_entry("neutral.wav", Rating::TRASH_1, None);
+
+    assert!(
+        controller
+            .ui_cache
+            .browser
+            .pipeline
+            .update_entry_metadata(0, &updated)
+    );
+
+    assert_eq!(
+        controller.ui_cache.browser.pipeline.base_fingerprint,
+        base_fingerprint
+    );
+    assert_eq!(controller.ui_cache.browser.pipeline.trash_rows, vec![0]);
+    assert_eq!(controller.ui_cache.browser.pipeline.keep_rows, vec![1]);
+}
+
+#[test]
 fn folder_stage_acceptance_matches_root_and_negated_filters() {
     let entries = vec![
         search_entry("root.wav", Rating::NEUTRAL, None),

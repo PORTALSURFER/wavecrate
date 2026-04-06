@@ -165,6 +165,64 @@ fn metadata_only_refresh_reuses_cached_paths_and_scores() {
 }
 
 #[test]
+fn metadata_delta_refresh_updates_only_targeted_rows() {
+    let temp = tempdir().expect("tempdir");
+    let root = temp.path().join("source");
+    std::fs::create_dir_all(&root).expect("create source root");
+
+    let db = SourceDatabase::open(&root).expect("open source db");
+    db.upsert_file(Path::new("drums/kick.wav"), 1, 1)
+        .expect("insert kick");
+    db.upsert_file(Path::new("drums/snare.wav"), 1, 2)
+        .expect("insert snare");
+
+    let base_job = SearchJob {
+        source_id: SourceId::new(),
+        source_root: root.clone(),
+        ..make_search_job("kick")
+    };
+    let source_id = base_job.source_id.as_str().to_string();
+    let queue = SearchJobQueue::new();
+    queue.send(SearchJob {
+        source_id: base_job.source_id.clone(),
+        source_root: base_job.source_root.clone(),
+        ..make_search_job("kick")
+    });
+    let generation = queue
+        .take_blocking()
+        .expect("expected queued search job generation")
+        .generation;
+    let mut cache = SearchWorkerCache::default();
+
+    assert!(ensure_search_cache_ready_for_job(
+        &mut cache, &base_job, &source_id
+    ));
+    assert!(ensure_search_entries_loaded_for_job(
+        &mut cache, &base_job, &queue, generation
+    ));
+
+    db.set_last_played_at(Path::new("drums/snare.wav"), 77)
+        .expect("update snare playback age");
+    let delta_job = SearchJob {
+        metadata_delta_paths: vec![PathBuf::from("drums/snare.wav")],
+        source_id: base_job.source_id.clone(),
+        source_root: base_job.source_root.clone(),
+        ..make_search_job("kick")
+    };
+
+    assert!(ensure_search_cache_ready_for_job(
+        &mut cache, &delta_job, &source_id
+    ));
+    assert!(ensure_search_entries_loaded_for_job(
+        &mut cache, &delta_job, &queue, generation
+    ));
+
+    let refreshed = cache.entries.as_ref().expect("entries refreshed");
+    assert_eq!(refreshed[0].last_played_at, None);
+    assert_eq!(refreshed[1].last_played_at, Some(77));
+}
+
+#[test]
 fn path_set_refresh_rebuilds_entries_and_clears_query_scores() {
     let temp = tempdir().expect("tempdir");
     let root = temp.path().join("source");
@@ -343,6 +401,7 @@ fn make_search_job(query: &str) -> SearchJob {
         folder_selection: None,
         folder_negated: None,
         file_scope_mode: crate::app::state::FolderFileScopeMode::AllDescendants,
+        metadata_delta_paths: Vec::new(),
         playback_age_now_unix_secs: 0,
     }
 }

@@ -25,6 +25,7 @@ pub(in super::super) fn ensure_search_cache_ready_for_job(
         Ok(db) => {
             cache.db = Some(db);
             cache.entries = None;
+            cache.entry_lookup.clear();
             cache.revision = 0;
             cache.paths_revision = 0;
             if source_changed {
@@ -43,6 +44,7 @@ pub(in super::super) fn ensure_search_cache_ready_for_job(
         Err(_) => {
             cache.db = None;
             cache.entries = None;
+            cache.entry_lookup.clear();
             cache.revision = 0;
             cache.paths_revision = 0;
             cache.path_fingerprint = 0;
@@ -62,7 +64,7 @@ pub(in super::super) fn ensure_search_cache_ready_for_job(
 /// Load compact search entries when DB revision changes or cache is empty.
 pub(in super::super) fn ensure_search_entries_loaded_for_job(
     cache: &mut SearchWorkerCache,
-    _job: &SearchJob,
+    job: &SearchJob,
     queue: &SearchJobQueue,
     generation: u64,
 ) -> bool {
@@ -81,6 +83,19 @@ pub(in super::super) fn ensure_search_entries_loaded_for_job(
     }
 
     if cache.entries.is_some() && cache.paths_revision == paths_revision {
+        if !job.metadata_delta_paths.is_empty() {
+            let delta_rows = {
+                let Some(db) = cache.db.as_ref() else {
+                    return false;
+                };
+                db.list_search_entry_rows_for_paths(&job.metadata_delta_paths)
+                    .unwrap_or_default()
+            };
+            if refresh_cached_entry_metadata_delta(cache, &job.metadata_delta_paths, &delta_rows, revision)
+            {
+                return true;
+            }
+        }
         let metadata = {
             let Some(db) = cache.db.as_ref() else {
                 return false;
@@ -135,6 +150,7 @@ fn reload_compact_entries(
         return false;
     };
     cache.entries = Some(compact_entries);
+    cache.entry_lookup = build_entry_lookup(cache.entries.as_deref().unwrap_or(&[]));
     cache.revision = revision;
     cache.paths_revision = paths_revision;
     if cache.path_fingerprint != path_fingerprint {
@@ -160,6 +176,42 @@ fn refresh_cached_entry_metadata_only(
         return false;
     }
     refresh_cached_entry_metadata(entries, metadata);
+    cache.revision = revision;
+    cache.filter_stage_cache.clear();
+    cache.playback_age_token_caches.clear();
+    cache.triage_cache = None;
+    true
+}
+
+fn refresh_cached_entry_metadata_delta(
+    cache: &mut SearchWorkerCache,
+    delta_paths: &[PathBuf],
+    rows: &[crate::sample_sources::db::read::SearchEntryRow],
+    revision: u64,
+) -> bool {
+    let Some(entries) = cache.entries.as_mut() else {
+        return false;
+    };
+    if rows.is_empty() || rows.len() > delta_paths.len() {
+        return false;
+    }
+    let mut updated = 0usize;
+    for row in rows {
+        let path = row.relative_path.to_string_lossy().to_string();
+        let Some(index) = cache.entry_lookup.get(&path).copied() else {
+            return false;
+        };
+        let Some(entry) = entries.get_mut(index) else {
+            return false;
+        };
+        entry.tag = row.metadata.tag;
+        entry.locked = row.metadata.locked;
+        entry.last_played_at = row.metadata.last_played_at;
+        updated = updated.saturating_add(1);
+    }
+    if updated == 0 {
+        return false;
+    }
     cache.revision = revision;
     cache.filter_stage_cache.clear();
     cache.playback_age_token_caches.clear();
@@ -194,6 +246,14 @@ fn refresh_cached_entry_metadata(
         cached.locked = metadata.locked;
         cached.last_played_at = metadata.last_played_at;
     }
+}
+
+fn build_entry_lookup(entries: &[CompactSearchEntry]) -> std::collections::HashMap<String, usize> {
+    entries
+        .iter()
+        .enumerate()
+        .map(|(index, entry)| (entry.relative_path.to_string(), index))
+        .collect()
 }
 
 fn build_compact_entries(

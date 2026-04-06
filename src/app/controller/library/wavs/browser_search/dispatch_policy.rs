@@ -36,6 +36,14 @@ impl AppController {
 
     /// Enqueue the authoritative browser-search worker job for the current browser state.
     pub(crate) fn dispatch_search_job(&mut self) {
+        self.dispatch_search_job_with_metadata_delta(Vec::new());
+    }
+
+    /// Enqueue one authoritative browser-search worker job plus optional metadata-only row deltas.
+    pub(crate) fn dispatch_search_job_with_metadata_delta(
+        &mut self,
+        metadata_delta_paths: Vec<PathBuf>,
+    ) {
         let Some(source) = self.current_source() else {
             self.mark_browser_search_projection_revision_dirty();
             self.ui.browser.search.search_busy = false;
@@ -85,6 +93,7 @@ impl AppController {
                 folder_selection,
                 folder_negated,
                 file_scope_mode,
+                metadata_delta_paths,
                 playback_age_now_unix_secs,
             });
     }

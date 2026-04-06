@@ -10,11 +10,19 @@ mod projection;
 
 impl AppController {
     pub(crate) fn rebuild_browser_lists(&mut self) {
+        self.rebuild_browser_lists_with_metadata_delta(Vec::new());
+    }
+
+    /// Rebuild browser lists, optionally carrying metadata-only path deltas into the async lane.
+    pub(crate) fn rebuild_browser_lists_with_metadata_delta(
+        &mut self,
+        metadata_delta_paths: Vec<PathBuf>,
+    ) {
         self.clear_invalid_browser_duplicate_cleanup();
         self.prune_browser_selection();
         self.prune_browser_marks_for_selected_source();
         if self.should_rebuild_browser_lists_async() {
-            self.dispatch_search_job();
+            self.dispatch_search_job_with_metadata_delta(metadata_delta_paths);
             return;
         }
 

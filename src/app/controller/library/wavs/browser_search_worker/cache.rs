@@ -2,6 +2,7 @@
 
 use super::super::search_scoring::QueryScoreCacheEntry;
 use super::*;
+use std::collections::HashMap;
 
 pub(super) struct CompactSearchEntry {
     pub(super) display_label: Box<str>,
@@ -31,6 +32,7 @@ impl DbFileStamp {
 pub(super) struct SearchWorkerCache {
     pub(super) db: Option<crate::sample_sources::SourceDatabase>,
     pub(super) entries: Option<Vec<CompactSearchEntry>>,
+    pub(super) entry_lookup: HashMap<String, usize>,
     pub(super) source_id: Option<String>,
     pub(super) source_root: Option<PathBuf>,
     pub(super) revision: u64,
@@ -56,6 +58,7 @@ impl Default for SearchWorkerCache {
         Self {
             db: None,
             entries: None,
+            entry_lookup: HashMap::new(),
             source_id: None,
             source_root: None,
             revision: 0,

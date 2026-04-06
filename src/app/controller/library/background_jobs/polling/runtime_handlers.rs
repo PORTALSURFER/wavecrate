@@ -34,11 +34,21 @@ impl AppController {
         if pending.refresh_browser_projection
             && self.selection_state.ctx.selected_source.as_ref() == Some(&pending.source_id)
         {
+            let source_revision = self
+                .current_source()
+                .filter(|source| source.id == pending.source_id)
+                .and_then(|source| self.database_for(&source).ok())
+                .and_then(|db| db.get_revision().ok());
+            self.ui_cache
+                .browser
+                .pipeline
+                .sync_source_revision(source_revision);
             self.mark_browser_search_projection_revision_dirty();
+            let metadata_delta_paths = pending.paths.iter().cloned().collect::<Vec<_>>();
             if self.should_dispatch_browser_search_async() {
-                self.dispatch_search_job();
+                self.dispatch_search_job_with_metadata_delta(metadata_delta_paths);
             } else {
-                self.rebuild_browser_lists();
+                self.rebuild_browser_lists_with_metadata_delta(metadata_delta_paths);
             }
         }
     }

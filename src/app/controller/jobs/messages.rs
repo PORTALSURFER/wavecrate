@@ -393,6 +393,8 @@ pub(crate) struct SearchJob {
     pub(crate) folder_selection: Option<BTreeSet<PathBuf>>,
     pub(crate) folder_negated: Option<BTreeSet<PathBuf>>,
     pub(crate) file_scope_mode: crate::app::state::FolderFileScopeMode,
+    /// Metadata-only changed paths that can be refreshed in place when path order is unchanged.
+    pub(crate) metadata_delta_paths: Vec<PathBuf>,
     /// Reference timestamp used to classify playback-age buckets consistently within one job.
     pub(crate) playback_age_now_unix_secs: i64,
 }
