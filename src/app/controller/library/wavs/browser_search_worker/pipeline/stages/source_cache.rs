@@ -35,6 +35,8 @@ pub(in super::super) fn ensure_search_cache_ready_for_job(
             cache.source_root = Some(job.source_root.clone());
             cache.db_stamp = db_stamp;
             cache.folder_accept_cache.clear();
+            cache.filter_stage_cache.clear();
+            cache.playback_age_token_caches.clear();
             cache.triage_cache = None;
             true
         }
@@ -49,6 +51,8 @@ pub(in super::super) fn ensure_search_cache_ready_for_job(
             cache.db_stamp = db_stamp;
             cache.query_score_cache.clear();
             cache.folder_accept_cache.clear();
+            cache.filter_stage_cache.clear();
+            cache.playback_age_token_caches.clear();
             cache.triage_cache = None;
             false
         }
@@ -104,6 +108,8 @@ pub(in super::super) fn ensure_search_entries_loaded_for_job(
                 cache.path_fingerprint = 0;
                 cache.query_score_cache.clear();
                 cache.folder_accept_cache.clear();
+                cache.filter_stage_cache.clear();
+                cache.playback_age_token_caches.clear();
                 cache.triage_cache = None;
                 return false;
             }
@@ -136,6 +142,8 @@ fn reload_compact_entries(
         cache.query_score_cache.clear();
     }
     cache.folder_accept_cache.clear();
+    cache.filter_stage_cache.clear();
+    cache.playback_age_token_caches.clear();
     cache.triage_cache = None;
     true
 }
@@ -153,6 +161,8 @@ fn refresh_cached_entry_metadata_only(
     }
     refresh_cached_entry_metadata(entries, metadata);
     cache.revision = revision;
+    cache.filter_stage_cache.clear();
+    cache.playback_age_token_caches.clear();
     cache.triage_cache = None;
     true
 }

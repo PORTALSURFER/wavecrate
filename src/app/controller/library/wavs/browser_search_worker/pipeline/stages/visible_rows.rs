@@ -4,10 +4,9 @@ use super::super::super::telemetry::{
     record_search_worker_scratch_alloc, record_search_worker_similar_lookup_alloc,
     record_search_worker_visible_rows,
 };
-use super::super::folders::{filter_accepts_tag, folder_accepts_for_job, folder_accepts_index};
+use super::filtered_stage_for_job;
 use super::super::results::sort_visible_by_playback_age;
 use super::super::*;
-use std::path::Path;
 
 /// Return an `All` visible-rows result when no filtering/sorting/scoring work is required.
 pub(in super::super) fn build_fast_path_result_if_applicable(
@@ -70,11 +69,11 @@ pub(in super::super) fn build_visible_rows_for_job(
         source_id,
         has_folder_filters,
     } = params;
-    let folder_accepts = folder_accepts_for_job(
+    let filtered_stage = filtered_stage_for_job(
         cache,
         job,
         source_id,
-        cache.revision,
+        entries_len,
         has_folder_filters,
         queue,
         generation,
@@ -88,7 +87,7 @@ pub(in super::super) fn build_visible_rows_for_job(
             cache,
             job,
             similar,
-            folder_accepts.as_ref(),
+            filtered_stage.as_ref(),
             entries_len,
             queue,
             generation,
@@ -118,39 +117,38 @@ pub(in super::super) fn build_visible_rows_for_job(
     }
     let entries = cache.entries.as_ref()?;
 
-    let mut visible = Vec::new();
-    for (index, entry) in entries.iter().enumerate() {
-        if search_job_canceled_for_index(queue, generation, index) {
-            return None;
-        }
-        let marked = job
-            .marked_paths
-            .contains(Path::new(entry.relative_path.as_ref()));
-        if !filter_accepts_tag(
-            job.filter,
-            &job.rating_filter,
-            &job.playback_age_filter,
-            job.marked_only,
-            marked,
-            entry.tag,
-            entry.locked,
-            entry.last_played_at,
-            job.playback_age_now_unix_secs,
-        ) || !folder_accepts_index(folder_accepts.as_ref(), index)
-        {
-            continue;
-        }
-
-        if has_query {
-            if let Some(score) = scores.get(index).and_then(|score| *score) {
-                if query_needs_score_sort {
-                    cache.scored_index_scratch.push((index, score));
-                } else {
-                    visible.push(index);
-                }
+    if !query_needs_score_sort {
+        let mut visible = filtered_stage
+            .as_ref()
+            .map(|stage| stage.rows.as_ref().to_vec())
+            .unwrap_or_else(|| (0..entries_len).collect());
+        if job.sort != SampleBrowserSort::ListOrder {
+            sort_visible_indices(entries, &mut visible, job.sort);
+            if search_job_canceled(queue, generation) {
+                return None;
             }
-        } else {
-            visible.push(index);
+        }
+        return Some(visible);
+    }
+
+    let mut visible = Vec::new();
+    if let Some(filtered_stage) = filtered_stage.as_ref() {
+        for (offset, index) in filtered_stage.rows.iter().copied().enumerate() {
+            if search_job_canceled_for_index(queue, generation, offset) {
+                return None;
+            }
+            if let Some(score) = scores.get(index).and_then(|score| *score) {
+                cache.scored_index_scratch.push((index, score));
+            }
+        }
+    } else {
+        for (index, _) in entries.iter().enumerate() {
+            if search_job_canceled_for_index(queue, generation, index) {
+                return None;
+            }
+            if let Some(score) = scores.get(index).and_then(|score| *score) {
+                cache.scored_index_scratch.push((index, score));
+            }
         }
     }
 
@@ -182,7 +180,7 @@ fn build_visible_rows_for_similar(
     cache: &mut SearchWorkerCache,
     job: &SearchJob,
     similar: &crate::app::state::SimilarQuery,
-    folder_accepts: Option<&Arc<[bool]>>,
+    filtered_stage: Option<&super::filter_stage::WorkerFilteredStage>,
     entries_len: usize,
     queue: &SearchJobQueue,
     generation: u64,
@@ -216,24 +214,10 @@ fn build_visible_rows_for_similar(
         if search_job_canceled_for_index(queue, generation, offset) {
             return None;
         }
-        if let Some(entry) = entries.get(index)
-            && {
-                let marked = job
-                    .marked_paths
-                    .contains(Path::new(entry.relative_path.as_ref()));
-                filter_accepts_tag(
-                    job.filter,
-                    &job.rating_filter,
-                    &job.playback_age_filter,
-                    job.marked_only,
-                    marked,
-                    entry.tag,
-                    entry.locked,
-                    entry.last_played_at,
-                    job.playback_age_now_unix_secs,
-                )
-            }
-            && folder_accepts_index(folder_accepts, index)
+        if entries.get(index).is_some()
+            && filtered_stage
+                .map(|stage| stage.accepts.get(index).copied().unwrap_or(false))
+                .unwrap_or(true)
         {
             visible.push(index);
         }
@@ -261,20 +245,10 @@ fn build_visible_rows_for_similar(
         }
 
         if let Some(anchor) = similar.anchor_index
-            && let Some(entry) = entries.get(anchor)
-            && filter_accepts_tag(
-                job.filter,
-                &job.rating_filter,
-                &job.playback_age_filter,
-                job.marked_only,
-                job.marked_paths
-                    .contains(Path::new(entry.relative_path.as_ref())),
-                entry.tag,
-                entry.locked,
-                entry.last_played_at,
-                job.playback_age_now_unix_secs,
-            )
-            && folder_accepts_index(folder_accepts, anchor)
+            && entries.get(anchor).is_some()
+            && filtered_stage
+                .map(|stage| stage.accepts.get(anchor).copied().unwrap_or(false))
+                .unwrap_or(true)
         {
             if let Some(pos) = visible.iter().position(|index| *index == anchor) {
                 visible.remove(pos);

@@ -86,6 +86,28 @@ pub(super) fn build_visible_rows_with_now(
         return (VisibleRows::All { total }, focused_index, loaded_index);
     }
 
+    let filter_fingerprint = filtered_stage_fingerprint(
+        controller,
+        filter,
+        rating_filter_hash,
+        playback_age_filter_hash,
+        playback_age_cache_token,
+        marked_only,
+        marked_revision,
+        folder_hash,
+    );
+
+    if let Some(similar) = similar_query {
+        ensure_sorted_stage_for_similar(
+            controller,
+            filter_fingerprint,
+            sort_mode,
+            &similar,
+            playback_age_now_unix_secs,
+        );
+        return visible_result_from_sorted(controller, focused_index, loaded_index);
+    }
+
     let filtered_fingerprint = ensure_filtered_stage(
         controller,
         filter,
@@ -100,17 +122,6 @@ pub(super) fn build_visible_rows_with_now(
         selected_source_id.as_ref(),
         folder_hash,
     );
-
-    if let Some(similar) = similar_query {
-        ensure_sorted_stage_for_similar(
-            controller,
-            filtered_fingerprint,
-            sort_mode,
-            &similar,
-            playback_age_now_unix_secs,
-        );
-        return visible_result_from_sorted(controller, focused_index, loaded_index);
-    }
 
     if let Some(query) = query {
         ensure_sorted_stage_for_query(controller, filtered_fingerprint, sort_mode, &query);
@@ -164,18 +175,16 @@ fn ensure_filtered_stage(
     selected_source_id: Option<&crate::sample_sources::SourceId>,
     folder_hash: u64,
 ) -> u64 {
-    let base_fingerprint_hash =
-        helpers::hash_value(&controller.ui_cache.browser.pipeline.base_fingerprint);
-    let filtered_fingerprint = helpers::hash_value(&(
-        base_fingerprint_hash,
-        helpers::filter_key(filter),
+    let filtered_fingerprint = filtered_stage_fingerprint(
+        controller,
+        filter,
         rating_filter_hash,
         playback_age_filter_hash,
         playback_age_cache_token,
         marked_only,
-        marked_only.then_some(marked_revision),
+        marked_revision,
         folder_hash,
-    ));
+    );
     if controller.ui_cache.browser.pipeline.filtered_fingerprint != Some(filtered_fingerprint) {
         let base_len = controller.ui_cache.browser.pipeline.base_rows.len();
         let mut filtered_rows = Vec::with_capacity(base_len);
@@ -212,6 +221,30 @@ fn ensure_filtered_stage(
         controller.ui_cache.browser.pipeline.sorted_fingerprint = None;
     }
     filtered_fingerprint
+}
+
+fn filtered_stage_fingerprint(
+    controller: &AppController,
+    filter: TriageFlagFilter,
+    rating_filter_hash: u64,
+    playback_age_filter_hash: u64,
+    playback_age_cache_token: Option<i64>,
+    marked_only: bool,
+    marked_revision: u64,
+    folder_hash: u64,
+) -> u64 {
+    let base_fingerprint_hash =
+        helpers::hash_value(&controller.ui_cache.browser.pipeline.base_fingerprint);
+    helpers::hash_value(&(
+        base_fingerprint_hash,
+        helpers::filter_key(filter),
+        rating_filter_hash,
+        playback_age_filter_hash,
+        playback_age_cache_token,
+        marked_only,
+        marked_only.then_some(marked_revision),
+        folder_hash,
+    ))
 }
 
 fn ensure_sorted_stage_for_similar(

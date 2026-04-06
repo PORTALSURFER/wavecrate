@@ -41,6 +41,9 @@ pub(super) struct SearchWorkerCache {
     pub(super) max_cached_queries: usize,
     pub(super) folder_accept_cache: Vec<WorkerFolderAcceptCacheEntry>,
     pub(super) max_cached_folder_filters: usize,
+    pub(super) filter_stage_cache: Vec<WorkerFilterStageCacheEntry>,
+    pub(super) max_cached_filter_stages: usize,
+    pub(super) playback_age_token_caches: Vec<WorkerPlaybackAgeTokenCache>,
     pub(super) triage_cache: Option<WorkerTriageCacheEntry>,
     pub(super) score_scratch: Vec<Option<i64>>,
     pub(super) similar_lookup_scratch: Vec<Option<f32>>,
@@ -63,6 +66,9 @@ impl Default for SearchWorkerCache {
             max_cached_queries: 6,
             folder_accept_cache: Vec::new(),
             max_cached_folder_filters: 4,
+            filter_stage_cache: Vec::new(),
+            max_cached_filter_stages: 6,
+            playback_age_token_caches: Vec::new(),
             triage_cache: None,
             score_scratch: Vec::new(),
             similar_lookup_scratch: Vec::new(),
@@ -121,6 +127,23 @@ pub(super) struct WorkerFolderAcceptCacheEntry {
     pub(super) revision: u64,
     pub(super) folder_filter_hash: u64,
     pub(super) accepts: Arc<[bool]>,
+}
+
+/// Cached composed filter acceptance keyed by source revision and filter shape.
+pub(super) struct WorkerFilterStageCacheEntry {
+    pub(super) source_id: String,
+    pub(super) revision: u64,
+    pub(super) filter_hash: u64,
+    pub(super) accepts: Arc<[bool]>,
+    pub(super) rows: Arc<[usize]>,
+}
+
+/// Cached next playback-age rollover token for one worker revision and chip set.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct WorkerPlaybackAgeTokenCache {
+    pub(super) revision: u64,
+    pub(super) filter_hash: u64,
+    pub(super) token: Option<i64>,
 }
 
 /// Cached triage partitions for one source revision.

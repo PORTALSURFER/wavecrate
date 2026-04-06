@@ -1,9 +1,11 @@
 //! Staged helpers for search cache refresh, scoring, and visible-row construction.
 
+mod filter_stage;
 mod scoring;
 mod source_cache;
 mod visible_rows;
 
+pub(super) use self::filter_stage::filtered_stage_for_job;
 pub(super) use self::scoring::resolve_query_scores_for_job;
 #[cfg(test)]
 pub(super) use self::scoring::{reusable_prefix_query_scores, try_reuse_cached_query_scores};
