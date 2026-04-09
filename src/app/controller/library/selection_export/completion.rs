@@ -1,6 +1,8 @@
 //! UI-thread completion handlers for finished selection exports.
 
 use super::*;
+#[cfg(target_os = "windows")]
+use tracing::{info, warn};
 
 impl AppController {
     /// Apply one completed selection clip export on the UI thread.
@@ -139,12 +141,26 @@ impl AppController {
     #[cfg(target_os = "windows")]
     fn finish_external_selection_drag_export(&mut self, success: SelectionClipExportSuccess) {
         let Some(request_id) = self.ui.drag.pending_external_selection_request_id else {
+            warn!(
+                finished_request_id = success.request_id,
+                "selection export: missing pending external drag request id at completion"
+            );
             return;
         };
         if request_id != success.request_id {
+            warn!(
+                pending_request_id = request_id,
+                finished_request_id = success.request_id,
+                "selection export: ignoring stale external drag completion"
+            );
             return;
         }
         self.ui.drag.pending_external_selection_request_id = None;
+        info!(
+            request_id,
+            path = %success.absolute_path.display(),
+            "selection export: launching external drag for exported clip"
+        );
         match self
             .drag_drop()
             .start_external_drag(&[success.absolute_path.clone()])
@@ -154,10 +170,12 @@ impl AppController {
                     "Drag {} to an external target",
                     success.entry.relative_path.display()
                 );
+                info!(request_id, "selection export: external drag launch succeeded");
                 self.drag_drop().reset_drag();
                 self.set_status(label, StatusTone::Info);
             }
             Err(err) => {
+                warn!(request_id, error = %err, "selection export: external drag launch failed");
                 self.drag_drop().reset_drag();
                 self.set_status(err, StatusTone::Error);
             }

@@ -1,6 +1,8 @@
 use super::*;
 #[cfg(any(target_os = "windows", test))]
 use std::time::{Duration, Instant};
+#[cfg(target_os = "windows")]
+use tracing::{debug, info, warn};
 
 impl DragDropController<'_> {
     #[cfg(any(target_os = "windows", test))]
@@ -35,9 +37,28 @@ impl DragDropController<'_> {
         }
         let Some(armed_at) = self.ui.drag.external_arm_at else {
             self.ui.drag.external_arm_at = Some(now);
+            #[cfg(target_os = "windows")]
+            debug!(
+                pointer_outside,
+                pointer_left,
+                payload = ?self.ui.drag.payload.as_ref().map(drag_payload_kind),
+                arm_window_ms = Self::EXTERNAL_DRAG_ARM_WINDOW.as_millis(),
+                "drag controller: armed external drag dwell window"
+            );
             return false;
         };
-        now.duration_since(armed_at) >= Self::EXTERNAL_DRAG_ARM_WINDOW
+        let ready = now.duration_since(armed_at) >= Self::EXTERNAL_DRAG_ARM_WINDOW;
+        #[cfg(target_os = "windows")]
+        if ready {
+            info!(
+                pointer_outside,
+                pointer_left,
+                armed_for_ms = now.duration_since(armed_at).as_millis(),
+                payload = ?self.ui.drag.payload.as_ref().map(drag_payload_kind),
+                "drag controller: external drag dwell satisfied"
+            );
+        }
+        ready
     }
 
     #[cfg(target_os = "windows")]
@@ -47,18 +68,29 @@ impl DragDropController<'_> {
         pointer_left: bool,
     ) -> bool {
         if self.ui.drag.external_started {
+            debug!("drag controller: skipping external drag poll because drag already started");
             return false;
         }
         if !self.should_launch_external_drag(pointer_outside, pointer_left, Instant::now()) {
             return false;
         }
         let payload = self.ui.drag.payload.clone();
+        info!(
+            pointer_outside,
+            pointer_left,
+            payload = ?payload.as_ref().map(drag_payload_kind),
+            "drag controller: attempting external drag launch"
+        );
         let status = match payload {
             Some(DragPayload::Sample {
                 source_id,
                 relative_path,
             }) => {
                 let absolute = self.sample_absolute_path(&source_id, &relative_path);
+                info!(
+                    path = %absolute.display(),
+                    "drag controller: resolved single-sample external drag path"
+                );
                 self.start_external_drag(&[absolute])
                     .map(|_| format!("Drag {} to an external target", relative_path.display()))
             }
@@ -69,6 +101,14 @@ impl DragDropController<'_> {
                         self.sample_absolute_path(&sample.source_id, &sample.relative_path)
                     })
                     .collect();
+                info!(
+                    path_count = absolutes.len(),
+                    first_path = %absolutes
+                        .first()
+                        .map(|path| path.display().to_string())
+                        .unwrap_or_default(),
+                    "drag controller: resolved multi-sample external drag paths"
+                );
                 self.start_external_drag(&absolutes)
                     .map(|_| format!("Drag {} samples to an external target", samples.len()))
             }
@@ -76,6 +116,7 @@ impl DragDropController<'_> {
                 let snapshot = match self.capture_selection_export_snapshot(bounds, None) {
                     Ok(snapshot) => snapshot,
                     Err(err) => {
+                        warn!(error = %err, "drag controller: failed to capture external selection drag snapshot");
                         self.reset_drag();
                         self.set_status(err, StatusTone::Error);
                         return true;
@@ -84,6 +125,10 @@ impl DragDropController<'_> {
                 let request_id = self.runtime.jobs.next_selection_export_request_id();
                 self.ui.drag.external_started = true;
                 self.ui.drag.pending_external_selection_request_id = Some(request_id);
+                info!(
+                    request_id,
+                    "drag controller: queued selection export backing external drag"
+                );
                 self.runtime.jobs.begin_selection_export(
                     crate::app::controller::jobs::SelectionExportJob::Clip {
                         request_id,
@@ -102,6 +147,7 @@ impl DragDropController<'_> {
         self.ui.drag.external_started = true;
         match status {
             Ok(message) => {
+                info!(message, "drag controller: external drag launch succeeded");
                 self.reset_drag();
                 self.set_status(message, StatusTone::Info);
                 true
@@ -109,10 +155,22 @@ impl DragDropController<'_> {
             Err(err) => {
                 self.ui.drag.external_started = false;
                 self.ui.drag.external_arm_at = None;
+                warn!(error = %err, "drag controller: external drag launch failed");
                 self.set_status(err, StatusTone::Error);
                 false
             }
         }
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn drag_payload_kind(payload: &DragPayload) -> &'static str {
+    match payload {
+        DragPayload::Sample { .. } => "sample",
+        DragPayload::Samples { .. } => "samples",
+        DragPayload::Selection { .. } => "selection",
+        DragPayload::Folder { .. } => "folder",
+        DragPayload::DropTargetReorder { .. } => "drop_target_reorder",
     }
 }
 

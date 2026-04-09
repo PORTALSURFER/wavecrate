@@ -57,6 +57,8 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+#[cfg(target_os = "windows")]
+use tracing::info;
 
 pub(crate) use ui::map_view::UmapPointQuery;
 pub(crate) use ui::status_message::StatusMessage;
@@ -257,6 +259,7 @@ impl AppController {
     /// Store the HWND used for initiating external drag-and-drop operations on Windows.
     /// This is populated from the active host frame when available.
     pub fn set_drag_hwnd(&mut self, hwnd: Option<windows::Win32::Foundation::HWND>) {
+        info!(hwnd = ?hwnd, "controller: updated external drag HWND");
         self.drag_hwnd = hwnd;
     }
 

@@ -172,6 +172,7 @@ impl NativeAppBridge for SempalNativeBridge {
 
     #[cfg(target_os = "windows")]
     fn set_external_drag_hwnd(&mut self, hwnd: isize) {
+        info!(hwnd, "native bridge: received external drag HWND");
         self.controller
             .set_drag_hwnd(Some(windows::Win32::Foundation::HWND(
                 hwnd as *mut std::ffi::c_void,
@@ -180,8 +181,16 @@ impl NativeAppBridge for SempalNativeBridge {
 
     #[cfg(target_os = "windows")]
     fn maybe_launch_external_drag(&mut self, pointer_outside: bool, pointer_left: bool) -> bool {
-        self.controller
-            .maybe_launch_external_drag(pointer_outside, pointer_left)
+        let consumed = self
+            .controller
+            .maybe_launch_external_drag(pointer_outside, pointer_left);
+        info!(
+            pointer_outside,
+            pointer_left,
+            consumed,
+            "native bridge: external drag poll forwarded to controller"
+        );
+        consumed
     }
 
     /// Project motion-only fields for animation-only redraw phases.

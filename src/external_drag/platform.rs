@@ -4,6 +4,7 @@ use std::cell::Cell;
 use std::mem::ManuallyDrop;
 use std::path::PathBuf;
 use std::sync::OnceLock;
+use tracing::{info, warn};
 use windows::Win32::Foundation::{
     DRAGDROP_S_CANCEL, DRAGDROP_S_DROP, DRAGDROP_S_USEDEFAULTCURSORS, DV_E_FORMATETC, E_INVALIDARG,
     HGLOBAL,
@@ -235,18 +236,35 @@ impl windows::Win32::System::Ole::IDropSource_Impl for SimpleDropSource_Impl {
 }
 
 pub(super) fn start_file_drag(
-    _hwnd: windows::Win32::Foundation::HWND,
+    hwnd: windows::Win32::Foundation::HWND,
     paths: &[PathBuf],
 ) -> Result<(), String> {
+    info!(
+        hwnd = ?hwnd,
+        path_count = paths.len(),
+        first_path = %paths
+            .first()
+            .map(|path| path.display().to_string())
+            .unwrap_or_default(),
+        "external drag: starting Windows file drag"
+    );
     let _com = ComApartment::new()?;
     let absolute: Vec<PathBuf> = paths
         .iter()
         .map(|path| normalize_path(path.as_path()))
         .collect();
+    info!(
+        normalized_path_count = absolute.len(),
+        first_path = %absolute
+            .first()
+            .map(|path| path.display().to_string())
+            .unwrap_or_default(),
+        "external drag: normalized drag payload paths"
+    );
     let data_object: IDataObject = FileDropDataObject::new(absolute)?.into();
     let drop_source: IDropSource = SimpleDropSource.into();
     let mut effect = DROPEFFECT(0);
-    unsafe {
+    let drag_result = unsafe {
         DoDragDrop(
             &data_object,
             &drop_source,
@@ -254,12 +272,22 @@ pub(super) fn start_file_drag(
             &mut effect,
         )
     }
-    .ok()
-    .map_err(|err| format!("Drag failed: {err}"))?;
+    .ok();
+    match drag_result {
+        Ok(()) => info!(effect = effect.0, "external drag: DoDragDrop returned success"),
+        Err(ref err) => warn!(
+            error = %err,
+            effect = effect.0,
+            "external drag: DoDragDrop returned failure"
+        ),
+    }
+    drag_result.map_err(|err| format!("Drag failed: {err}"))?;
 
     if effect == DROPEFFECT_NONE {
+        warn!("external drag: drop completed with DROPEFFECT_NONE");
         Err("Drag canceled or target rejected drop".into())
     } else {
+        info!(effect = effect.0, "external drag: Windows file drag completed");
         Ok(())
     }
 }
