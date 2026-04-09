@@ -95,8 +95,12 @@ impl AppController {
 
     #[cfg(target_os = "windows")]
     /// Attempt to start an OS-level drag out of the app window (Windows-only).
-    pub fn maybe_launch_external_drag(&mut self, pointer_outside: bool, pointer_left: bool) {
+    pub fn maybe_launch_external_drag(
+        &mut self,
+        pointer_outside: bool,
+        pointer_left: bool,
+    ) -> bool {
         self.drag_drop()
-            .maybe_launch_external_drag(pointer_outside, pointer_left);
+            .maybe_launch_external_drag(pointer_outside, pointer_left)
     }
 }

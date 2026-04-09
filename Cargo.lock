@@ -4028,6 +4028,7 @@ dependencies = [
  "arboard",
  "image",
  "pollster",
+ "raw-window-handle",
  "roxmltree",
  "serde",
  "serde_json",

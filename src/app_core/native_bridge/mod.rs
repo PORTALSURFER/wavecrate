@@ -170,6 +170,20 @@ impl NativeAppBridge for SempalNativeBridge {
         self.controller.set_repaint_signal(signal);
     }
 
+    #[cfg(target_os = "windows")]
+    fn set_external_drag_hwnd(&mut self, hwnd: isize) {
+        self.controller
+            .set_drag_hwnd(Some(windows::Win32::Foundation::HWND(
+                hwnd as *mut std::ffi::c_void,
+            )));
+    }
+
+    #[cfg(target_os = "windows")]
+    fn maybe_launch_external_drag(&mut self, pointer_outside: bool, pointer_left: bool) -> bool {
+        self.controller
+            .maybe_launch_external_drag(pointer_outside, pointer_left)
+    }
+
     /// Project motion-only fields for animation-only redraw phases.
     fn project_motion_model(&mut self) -> Option<NativeMotionModel> {
         self.project_motion_model_snapshot()

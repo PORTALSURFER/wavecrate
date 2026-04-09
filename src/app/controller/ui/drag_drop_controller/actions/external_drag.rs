@@ -41,12 +41,16 @@ impl DragDropController<'_> {
     }
 
     #[cfg(target_os = "windows")]
-    pub(crate) fn maybe_launch_external_drag(&mut self, pointer_outside: bool, pointer_left: bool) {
+    pub(crate) fn maybe_launch_external_drag(
+        &mut self,
+        pointer_outside: bool,
+        pointer_left: bool,
+    ) -> bool {
         if self.ui.drag.external_started {
-            return;
+            return false;
         }
         if !self.should_launch_external_drag(pointer_outside, pointer_left, Instant::now()) {
-            return;
+            return false;
         }
         let payload = self.ui.drag.payload.clone();
         let status = match payload {
@@ -74,7 +78,7 @@ impl DragDropController<'_> {
                     Err(err) => {
                         self.reset_drag();
                         self.set_status(err, StatusTone::Error);
-                        return;
+                        return true;
                     }
                 };
                 let request_id = self.runtime.jobs.next_selection_export_request_id();
@@ -89,21 +93,23 @@ impl DragDropController<'_> {
                     },
                 );
                 self.set_status("Preparing clip for external drag...", StatusTone::Busy);
-                return;
+                return true;
             }
-            Some(DragPayload::Folder { .. }) => return,
-            Some(DragPayload::DropTargetReorder { .. }) => return,
-            None => return,
+            Some(DragPayload::Folder { .. }) => return false,
+            Some(DragPayload::DropTargetReorder { .. }) => return false,
+            None => return false,
         };
         self.ui.drag.external_started = true;
         match status {
             Ok(message) => {
                 self.reset_drag();
                 self.set_status(message, StatusTone::Info);
+                true
             }
             Err(err) => {
                 self.reset_drag();
                 self.set_status(err, StatusTone::Error);
+                true
             }
         }
     }
