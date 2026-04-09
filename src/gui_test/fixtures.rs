@@ -112,6 +112,17 @@ impl NativeAppBridge for GuiFixtureBridge {
         self.bridge.install_repaint_signal(signal);
     }
 
+    #[cfg(target_os = "windows")]
+    fn set_external_drag_hwnd(&mut self, hwnd: isize) {
+        self.bridge.set_external_drag_hwnd(hwnd);
+    }
+
+    #[cfg(target_os = "windows")]
+    fn maybe_launch_external_drag(&mut self, pointer_outside: bool, pointer_left: bool) -> bool {
+        self.bridge
+            .maybe_launch_external_drag(pointer_outside, pointer_left)
+    }
+
     fn observe_frame_result(&mut self, result: NativeFrameBuildResult) {
         self.bridge.observe_frame_result(result);
     }
