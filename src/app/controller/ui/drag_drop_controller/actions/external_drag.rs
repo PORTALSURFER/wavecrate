@@ -107,9 +107,10 @@ impl DragDropController<'_> {
                 true
             }
             Err(err) => {
-                self.reset_drag();
+                self.ui.drag.external_started = false;
+                self.ui.drag.external_arm_at = None;
                 self.set_status(err, StatusTone::Error);
-                true
+                false
             }
         }
     }
