@@ -13,11 +13,7 @@ pub(crate) struct ProjectedAudioEngineChipModel {
 
 /// Project the compact audio-engine chip state without materializing picker options.
 pub(crate) fn project_audio_engine_chip_model(ui: &UiState) -> ProjectedAudioEngineChipModel {
-    let output_mismatch = output_selection_mismatch(ui);
-    let chip_error = ui.audio.output_runtime_error.is_some()
-        || ui.audio.applied.is_none()
-        || ui.audio.warning.is_some()
-        || output_mismatch;
+    let chip_error = ui.audio.output_runtime_error.is_some() || ui.audio.applied.is_none();
     ProjectedAudioEngineChipModel {
         chip_state: if chip_error {
             crate::app_core::actions::NativeAudioEngineChipStateModel::Error
@@ -112,6 +108,7 @@ fn audio_engine_detail_label(ui: &UiState, output_mismatch: bool) -> Option<Stri
     ui.audio
         .output_runtime_error
         .clone()
+        .or_else(|| ui.audio.warning.clone())
         .or_else(|| {
             if output_mismatch {
                 Some(String::from(
@@ -121,7 +118,6 @@ fn audio_engine_detail_label(ui: &UiState, output_mismatch: bool) -> Option<Stri
                 None
             }
         })
-        .or_else(|| ui.audio.warning.clone())
         .or_else(|| {
             if ui.audio.applied.is_none() {
                 Some(String::from("Audio unavailable"))
@@ -450,5 +446,61 @@ mod tests {
         assert_eq!(projected.output_sample_rate_options.len(), 3);
         assert!(projected.output_sample_rate_options[1].selected);
         assert_eq!(projected.output_sample_rate_options[1].label, "44.1 kHz");
+    }
+
+    #[test]
+    fn audio_engine_projection_surfaces_output_warning_without_error_chip() {
+        let mut ui = UiState::default();
+        ui.audio.selected.host = Some(String::from("asio"));
+        ui.audio.selected.device = Some(String::from("Studio"));
+        ui.audio.selected.sample_rate = Some(96_000);
+        ui.audio.applied = Some(ActiveAudioOutput {
+            host_id: String::from("asio"),
+            device_name: String::from("Studio"),
+            sample_rate: 48_000,
+            buffer_size_frames: Some(256),
+            channel_count: 2,
+        });
+        ui.audio.warning = Some(String::from(
+            "Using Studio via asio (sample rate 96000 unavailable)",
+        ));
+
+        let projected = project_audio_engine_model(&ui);
+
+        assert_eq!(
+            projected.chip_state,
+            crate::app_core::actions::NativeAudioEngineChipStateModel::Healthy
+        );
+        assert_eq!(projected.chip_label, "48 kHz");
+        assert_eq!(
+            projected.detail_label.as_deref(),
+            Some("Using Studio via asio (sample rate 96000 unavailable)")
+        );
+    }
+
+    #[test]
+    fn audio_engine_projection_reports_generic_mismatch_without_warning() {
+        let mut ui = UiState::default();
+        ui.audio.selected.host = Some(String::from("asio"));
+        ui.audio.selected.device = Some(String::from("Studio"));
+        ui.audio.selected.sample_rate = Some(96_000);
+        ui.audio.applied = Some(ActiveAudioOutput {
+            host_id: String::from("asio"),
+            device_name: String::from("Studio"),
+            sample_rate: 48_000,
+            buffer_size_frames: Some(256),
+            channel_count: 2,
+        });
+
+        let projected = project_audio_engine_model(&ui);
+
+        assert_eq!(
+            projected.chip_state,
+            crate::app_core::actions::NativeAudioEngineChipStateModel::Healthy
+        );
+        assert_eq!(
+            projected.detail_label.as_deref(),
+            Some("Selected output differs from the active engine")
+        );
     }
 }
