@@ -20,23 +20,21 @@ mod store;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use entry::{
+pub use entry::{
     FileOpJournalEntry, FileOpStage, MoveJournalEntryInit, new_op_id, staged_relative_for_target,
 };
-pub(crate) type FileOpReconcileSummary = reconcile::FileOpReconcileSummary;
-#[cfg(test)]
-pub(crate) type ListedJournalEntries = store::ListedJournalEntries;
+/// Summary of the work performed while reconciling pending journal entries.
+pub type FileOpReconcileSummary = reconcile::FileOpReconcileSummary;
+/// Result of loading journal rows during tests.
+pub type ListedJournalEntries = store::ListedJournalEntries;
 
 /// Insert a new journal entry before mutating the filesystem.
-pub(crate) fn insert_entry(
-    db: &SourceDatabase,
-    entry: &FileOpJournalEntry,
-) -> Result<(), SourceDbError> {
+pub fn insert_entry(db: &SourceDatabase, entry: &FileOpJournalEntry) -> Result<(), SourceDbError> {
     store::insert_entry(db, entry)
 }
 
 /// Update a journal entry stage and optional metadata after filesystem work.
-pub(crate) fn update_stage(
+pub fn update_stage(
     db: &SourceDatabase,
     id: &str,
     stage: FileOpStage,
@@ -47,17 +45,16 @@ pub(crate) fn update_stage(
 }
 
 /// Remove a resolved journal entry after reconciliation.
-pub(crate) fn remove_entry(db: &SourceDatabase, id: &str) -> Result<(), SourceDbError> {
+pub fn remove_entry(db: &SourceDatabase, id: &str) -> Result<(), SourceDbError> {
     store::remove_entry(db, id)
 }
 
 /// Load all pending journal entries for reconciliation.
-#[cfg(test)]
-pub(crate) fn list_entries(db: &SourceDatabase) -> Result<ListedJournalEntries, SourceDbError> {
+pub fn list_entries(db: &SourceDatabase) -> Result<ListedJournalEntries, SourceDbError> {
     store::list_entries(db)
 }
 
 /// Reconcile all pending file ops against the filesystem and database.
-pub(crate) fn reconcile_pending_ops(db: &SourceDatabase) -> Result<FileOpReconcileSummary, String> {
+pub fn reconcile_pending_ops(db: &SourceDatabase) -> Result<FileOpReconcileSummary, String> {
     reconcile::reconcile_pending_ops(db)
 }

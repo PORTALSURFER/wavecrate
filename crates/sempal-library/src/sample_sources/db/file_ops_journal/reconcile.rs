@@ -8,14 +8,17 @@ use super::store::{list_entries, remove_entry};
 
 /// Summary of reconciliation work performed for pending file ops.
 #[derive(Debug, Default)]
-pub(crate) struct FileOpReconcileSummary {
-    pub(crate) total: usize,
-    pub(crate) completed: usize,
-    pub(crate) errors: Vec<String>,
+pub struct FileOpReconcileSummary {
+    /// Total number of journal rows considered, including malformed rows.
+    pub total: usize,
+    /// Number of rows successfully reconciled and removed.
+    pub completed: usize,
+    /// Human-readable reconciliation errors.
+    pub errors: Vec<String>,
 }
 
 /// Reconcile all pending file ops against the filesystem and database.
-pub(crate) fn reconcile_pending_ops(db: &SourceDatabase) -> Result<FileOpReconcileSummary, String> {
+pub fn reconcile_pending_ops(db: &SourceDatabase) -> Result<FileOpReconcileSummary, String> {
     let listed = list_entries(db).map_err(|err| err.to_string())?;
     let mut summary = FileOpReconcileSummary {
         total: listed.entries.len() + listed.malformed.len(),

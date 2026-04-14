@@ -14,7 +14,7 @@ mod schema_defs;
 
 use super::{SampleSource, SourceId};
 use crate::app_dirs;
-use crate::sample_sources::config::normalize_path;
+use crate::sample_sources::normalize_path;
 
 /// Filename for the global library database stored under the user app directory.
 pub const LIBRARY_DB_FILE_NAME: &str = "library.db";

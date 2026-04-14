@@ -10,28 +10,28 @@ const DELETE_PENDING_RENAME_SQL: &str = "DELETE FROM pending_wav_renames WHERE p
 /// Metadata retained for a recently pruned sample row so later scans can
 /// preserve user annotations when the file reappears at a new path.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PendingRenameEntry {
+pub struct PendingRenameEntry {
     /// File path relative to the source root when the row was pruned.
-    pub(crate) relative_path: PathBuf,
+    pub relative_path: PathBuf,
     /// File size at the time the row was pruned.
-    pub(crate) file_size: u64,
+    pub file_size: u64,
     /// Last modified timestamp at the time the row was pruned.
-    pub(crate) modified_ns: i64,
+    pub modified_ns: i64,
     /// Last known content hash, if one was computed before pruning.
-    pub(crate) content_hash: Option<String>,
+    pub content_hash: Option<String>,
     /// Current rating/tag for the file.
-    pub(crate) tag: Rating,
+    pub tag: Rating,
     /// Whether the sample was marked looped.
-    pub(crate) looped: bool,
+    pub looped: bool,
     /// Whether the sample was marked locked.
-    pub(crate) locked: bool,
+    pub locked: bool,
     /// Epoch seconds of the most recent playback, if available.
-    pub(crate) last_played_at: Option<i64>,
+    pub last_played_at: Option<i64>,
 }
 
 impl PendingRenameEntry {
     /// Convert the retained metadata back into a wav-entry snapshot.
-    pub(crate) fn into_wav_entry(self) -> WavEntry {
+    pub fn into_wav_entry(self) -> WavEntry {
         WavEntry {
             relative_path: self.relative_path,
             file_size: self.file_size,
@@ -48,7 +48,7 @@ impl PendingRenameEntry {
 
 impl SourceDatabase {
     /// List pending rename candidates retained after immediate pruning.
-    pub(crate) fn list_pending_renames(&self) -> Result<Vec<PendingRenameEntry>, SourceDbError> {
+    pub fn list_pending_renames(&self) -> Result<Vec<PendingRenameEntry>, SourceDbError> {
         let mut stmt = self
             .connection
             .prepare(
@@ -100,7 +100,7 @@ impl<'conn> SourceWriteBatch<'conn> {
     ///
     /// Quick scans keep these rows around so a later deep-hash pass or follow-up
     /// quick scan can reconcile path changes without losing user metadata.
-    pub(crate) fn stage_pending_rename(&mut self, entry: &WavEntry) -> Result<(), SourceDbError> {
+    pub fn stage_pending_rename(&mut self, entry: &WavEntry) -> Result<(), SourceDbError> {
         let path = normalize_relative_path(&entry.relative_path)?;
         self.tx
             .prepare_cached(
@@ -132,10 +132,7 @@ impl<'conn> SourceWriteBatch<'conn> {
     }
 
     /// Remove one retained rename candidate by its original relative path.
-    pub(crate) fn clear_pending_rename(
-        &mut self,
-        relative_path: &Path,
-    ) -> Result<(), SourceDbError> {
+    pub fn clear_pending_rename(&mut self, relative_path: &Path) -> Result<(), SourceDbError> {
         let path = normalize_relative_path(relative_path)?;
         self.tx
             .prepare_cached(DELETE_PENDING_RENAME_SQL)
@@ -157,7 +154,7 @@ impl<'conn> SourceWriteBatch<'conn> {
     ///
     /// Hard rescans use this to treat the current disk walk as authoritative and
     /// prune any unmatched quick-scan rename rows that are still hanging around.
-    pub(crate) fn clear_all_pending_renames(&mut self) -> Result<(), SourceDbError> {
+    pub fn clear_all_pending_renames(&mut self) -> Result<(), SourceDbError> {
         self.tx
             .execute("DELETE FROM pending_wav_renames", [])
             .map_err(map_sql_error)?;
@@ -165,7 +162,7 @@ impl<'conn> SourceWriteBatch<'conn> {
     }
 
     /// Claim one unique retained rename candidate by content hash.
-    pub(crate) fn take_pending_rename_by_hash(
+    pub fn take_pending_rename_by_hash(
         &mut self,
         hash: &str,
     ) -> Result<Option<PendingRenameEntry>, SourceDbError> {
@@ -179,7 +176,7 @@ impl<'conn> SourceWriteBatch<'conn> {
     }
 
     /// Claim one unique retained rename candidate by file facts.
-    pub(crate) fn take_pending_rename_by_facts(
+    pub fn take_pending_rename_by_facts(
         &mut self,
         file_size: u64,
         modified_ns: i64,

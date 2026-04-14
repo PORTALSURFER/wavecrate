@@ -4542,6 +4542,7 @@ dependencies = [
  "ringbuf",
  "rusqlite",
  "sempal-analysis",
+ "sempal-library",
  "semver",
  "serde",
  "serde_json",
@@ -4628,6 +4629,22 @@ dependencies = [
  "tempfile",
  "windows 0.62.2",
  "winreg 0.52.0",
+]
+
+[[package]]
+name = "sempal-library"
+version = "19.0.0"
+dependencies = [
+ "directories",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.17",
+ "toml 0.8.23",
+ "tracing",
+ "uuid",
+ "windows 0.62.2",
 ]
 
 [[package]]

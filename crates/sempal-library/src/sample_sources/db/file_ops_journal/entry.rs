@@ -7,7 +7,7 @@ use super::super::{Rating, SourceDbError};
 
 /// File operation kinds tracked in the per-source journal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum FileOpKind {
+pub enum FileOpKind {
     /// Moving a file between sources.
     Move,
     /// Copying a file into a source.
@@ -40,7 +40,7 @@ impl FileOpKind {
 /// the actual filesystem and database state so startup recovery remains
 /// idempotent after partial writes or repeated runs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum FileOpStage {
+pub enum FileOpStage {
     /// Intent recorded before any filesystem mutations.
     Intent,
     /// File moved/copied into staging location.
@@ -74,39 +74,61 @@ impl FileOpStage {
 
 /// Durable journal entry used to reconcile file and database state after crashes.
 #[derive(Debug, Clone)]
-pub(crate) struct FileOpJournalEntry {
-    pub(crate) id: String,
-    pub(crate) kind: FileOpKind,
-    pub(crate) stage: FileOpStage,
-    pub(crate) source_root: Option<PathBuf>,
-    pub(crate) source_relative: Option<PathBuf>,
-    pub(crate) target_relative: PathBuf,
-    pub(crate) staged_relative: Option<PathBuf>,
-    pub(crate) file_size: Option<u64>,
-    pub(crate) modified_ns: Option<i64>,
-    pub(crate) tag: Option<Rating>,
-    pub(crate) looped: Option<bool>,
-    pub(crate) locked: Option<bool>,
-    pub(crate) last_played_at: Option<i64>,
-    pub(crate) created_at: i64,
+pub struct FileOpJournalEntry {
+    /// Stable journal identifier.
+    pub id: String,
+    /// Operation kind being tracked.
+    pub kind: FileOpKind,
+    /// Most recently persisted recovery stage.
+    pub stage: FileOpStage,
+    /// Source root for move operations.
+    pub source_root: Option<PathBuf>,
+    /// Source-relative path for move operations.
+    pub source_relative: Option<PathBuf>,
+    /// Final target-relative destination path.
+    pub target_relative: PathBuf,
+    /// Temporary staged path used before finalization.
+    pub staged_relative: Option<PathBuf>,
+    /// Recorded file size once filesystem work has completed.
+    pub file_size: Option<u64>,
+    /// Recorded modified timestamp once filesystem work has completed.
+    pub modified_ns: Option<i64>,
+    /// Stored keep/trash rating that should survive reconciliation.
+    pub tag: Option<Rating>,
+    /// Stored loop marker that should survive reconciliation.
+    pub looped: Option<bool>,
+    /// Stored lock marker that should survive reconciliation.
+    pub locked: Option<bool>,
+    /// Stored playback timestamp that should survive reconciliation.
+    pub last_played_at: Option<i64>,
+    /// Journal creation time in epoch seconds.
+    pub created_at: i64,
 }
 
 /// Initialization payload for creating move journal entries without wide signatures.
 #[derive(Debug, Clone)]
-pub(crate) struct MoveJournalEntryInit {
-    pub(crate) source_root: PathBuf,
-    pub(crate) source_relative: PathBuf,
-    pub(crate) target_relative: PathBuf,
-    pub(crate) staged_relative: PathBuf,
-    pub(crate) tag: Rating,
-    pub(crate) looped: bool,
-    pub(crate) locked: bool,
-    pub(crate) last_played_at: Option<i64>,
+pub struct MoveJournalEntryInit {
+    /// Absolute source root that currently owns the file.
+    pub source_root: PathBuf,
+    /// Source-relative input path.
+    pub source_relative: PathBuf,
+    /// Final target-relative destination path.
+    pub target_relative: PathBuf,
+    /// Temporary staged path used before finalization.
+    pub staged_relative: PathBuf,
+    /// Stored keep/trash rating that should survive reconciliation.
+    pub tag: Rating,
+    /// Stored loop marker that should survive reconciliation.
+    pub looped: bool,
+    /// Stored lock marker that should survive reconciliation.
+    pub locked: bool,
+    /// Stored playback timestamp that should survive reconciliation.
+    pub last_played_at: Option<i64>,
 }
 
 impl FileOpJournalEntry {
     /// Build a new journal entry for a move operation.
-    pub(crate) fn new_move(id: String, init: MoveJournalEntryInit) -> Result<Self, SourceDbError> {
+    pub fn new_move(id: String, init: MoveJournalEntryInit) -> Result<Self, SourceDbError> {
         Ok(Self {
             id,
             kind: FileOpKind::Move,
@@ -126,7 +148,7 @@ impl FileOpJournalEntry {
     }
 
     /// Build a new journal entry for a copy operation.
-    pub(crate) fn new_copy(
+    pub fn new_copy(
         id: String,
         target_relative: PathBuf,
         staged_relative: PathBuf,
@@ -155,12 +177,12 @@ impl FileOpJournalEntry {
 }
 
 /// Generate a unique identifier for a pending file operation.
-pub(crate) fn new_op_id() -> String {
+pub fn new_op_id() -> String {
     Uuid::new_v4().to_string()
 }
 
 /// Create a deterministic staging path that lives beside the final destination.
-pub(crate) fn staged_relative_for_target(
+pub fn staged_relative_for_target(
     target_relative: &Path,
     op_id: &str,
 ) -> Result<PathBuf, SourceDbError> {

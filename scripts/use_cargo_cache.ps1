@@ -85,9 +85,8 @@ function Set-SempalCargoWrapperOverride {
   )
 
   if ([string]::IsNullOrWhiteSpace($Wrapper)) {
-    $passthroughWrapper = Get-SempalRustcPassthroughWrapperPath
-    $env:RUSTC_WRAPPER = $passthroughWrapper
-    $env:CARGO_BUILD_RUSTC_WRAPPER = $passthroughWrapper
+    Remove-Item Env:RUSTC_WRAPPER -ErrorAction SilentlyContinue
+    Remove-Item Env:CARGO_BUILD_RUSTC_WRAPPER -ErrorAction SilentlyContinue
     $script:SempalCargoConfigOverrideArgs = @()
     return
   }

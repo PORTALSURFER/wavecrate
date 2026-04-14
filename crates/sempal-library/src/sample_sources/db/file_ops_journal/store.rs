@@ -8,16 +8,20 @@ use super::entry::{FileOpJournalEntry, FileOpKind, FileOpStage};
 
 /// Result of loading journal rows, partitioned by valid and malformed entries.
 #[derive(Debug, Default)]
-pub(crate) struct ListedJournalEntries {
-    pub(crate) entries: Vec<FileOpJournalEntry>,
-    pub(crate) malformed: Vec<MalformedJournalEntry>,
+pub struct ListedJournalEntries {
+    /// Well-formed entries ready for reconciliation.
+    pub entries: Vec<FileOpJournalEntry>,
+    /// Malformed rows that could not be decoded safely.
+    pub malformed: Vec<MalformedJournalEntry>,
 }
 
 /// Description of one malformed journal row that cannot be reconciled safely.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct MalformedJournalEntry {
-    pub(crate) id: Option<String>,
-    pub(crate) detail: String,
+pub struct MalformedJournalEntry {
+    /// Journal row id when one could be decoded.
+    pub id: Option<String>,
+    /// Human-readable explanation of what was malformed.
+    pub detail: String,
 }
 
 impl MalformedJournalEntry {

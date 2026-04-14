@@ -20,7 +20,8 @@ pub mod util;
 
 mod rating_tests;
 
-pub(crate) use pending_renames::PendingRenameEntry;
+/// Metadata retained for a pruned row so later scans can recover rename state.
+pub use pending_renames::PendingRenameEntry;
 pub use util::normalize_relative_path;
 
 /// Hidden filename used for per-source databases.
@@ -384,9 +385,9 @@ fn user_root_dir() -> Result<PathBuf, &'static str> {
 
 /// Unit tests for source-database open, migration, and metadata invariants.
 #[cfg(test)]
-#[path = "../../../tests/unit/source_db_mod_tests/mod.rs"]
+#[path = "../../../../../tests/unit/source_db_mod_tests/mod.rs"]
 mod source_db_mod_tests;
 
 #[cfg(test)]
-#[path = "../../../tests/unit/source_db_migration_tests.rs"]
+#[path = "../../../../../tests/unit/source_db_migration_tests.rs"]
 mod source_db_migration_tests;

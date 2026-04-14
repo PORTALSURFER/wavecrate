@@ -15,7 +15,7 @@ mod app;
 /// Backend-neutral app-core projection and action helpers used during GUI migration.
 pub mod app_core;
 /// Application directory helpers.
-pub mod app_dirs;
+pub use sempal_library::app_dirs;
 /// Audio playback utilities.
 pub mod audio;
 /// Shared helpers used by companion binaries such as the installer and updater helper.
@@ -52,7 +52,7 @@ pub mod sample_sources;
 /// Selection math utilities.
 pub mod selection;
 /// Optional SQLite extension loader.
-pub mod sqlite_ext;
+pub use sempal_library::sqlite_ext;
 /// Update check + installer helper utilities.
 pub mod updater;
 /// WAV header sanitization helpers.

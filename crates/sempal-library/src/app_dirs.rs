@@ -5,12 +5,10 @@
 //! allowing a `SEMPAL_CONFIG_HOME` override for tests or portable setups.
 
 use std::{
+    cell::RefCell,
     path::PathBuf,
     sync::{LazyLock, Mutex},
 };
-
-#[cfg(test)]
-use std::cell::RefCell;
 
 use directories::BaseDirs;
 use thiserror::Error;
@@ -20,7 +18,6 @@ pub const APP_DIR_NAME: &str = ".sempal";
 
 static CONFIG_BASE_OVERRIDE: LazyLock<Mutex<Option<PathBuf>>> = LazyLock::new(|| Mutex::new(None));
 static APP_ROOT_OVERRIDE: LazyLock<Mutex<Option<PathBuf>>> = LazyLock::new(|| Mutex::new(None));
-#[cfg(test)]
 static TEST_CONFIG_BASE: LazyLock<PathBuf> = LazyLock::new(|| {
     let dir = tempfile::tempdir().expect("create test config dir");
     let path = dir.path().to_path_buf();
@@ -29,17 +26,14 @@ static TEST_CONFIG_BASE: LazyLock<PathBuf> = LazyLock::new(|| {
     path
 });
 
-#[cfg(test)]
 thread_local! {
     static TEST_CONFIG_OVERRIDE: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
 }
-#[cfg(test)]
 thread_local! {
     static TEST_APP_ROOT_OVERRIDE: RefCell<Option<PathBuf>> = const { RefCell::new(None) };
 }
 
 /// Ensure tests do not touch real user config directories.
-#[cfg(test)]
 pub fn ensure_test_config_base() {
     let test_base = LazyLock::force(&TEST_CONFIG_BASE).clone();
     let mut guard = CONFIG_BASE_OVERRIDE
@@ -68,9 +62,6 @@ pub enum AppDirError {
 
 /// Return the root `.sempal` directory, creating it if needed.
 pub fn app_root_dir() -> Result<PathBuf, AppDirError> {
-    #[cfg(test)]
-    ensure_test_config_base();
-    #[cfg(test)]
     if let Some(path) = TEST_APP_ROOT_OVERRIDE.with(|override_path| override_path.borrow().clone())
     {
         std::fs::create_dir_all(&path).map_err(|source| AppDirError::CreateDir {
@@ -79,7 +70,6 @@ pub fn app_root_dir() -> Result<PathBuf, AppDirError> {
         })?;
         return Ok(path);
     }
-    #[cfg(not(test))]
     if let Some(path) = APP_ROOT_OVERRIDE
         .lock()
         .expect("app root override mutex poisoned")
@@ -101,21 +91,6 @@ pub fn app_root_dir() -> Result<PathBuf, AppDirError> {
 }
 
 /// Override the resolved application root directory (the `.sempal` folder).
-/// Override the resolved application root directory in tests.
-#[cfg(test)]
-pub fn set_app_root_override(path: PathBuf) -> Result<(), AppDirError> {
-    std::fs::create_dir_all(&path).map_err(|source| AppDirError::CreateDir {
-        path: path.clone(),
-        source,
-    })?;
-    TEST_APP_ROOT_OVERRIDE.with(|override_path| {
-        *override_path.borrow_mut() = Some(path);
-    });
-    Ok(())
-}
-
-/// Override the resolved application root directory (the `.sempal` folder).
-#[cfg(not(test))]
 pub fn set_app_root_override(path: PathBuf) -> Result<(), AppDirError> {
     std::fs::create_dir_all(&path).map_err(|source| AppDirError::CreateDir {
         path: path.clone(),
@@ -144,7 +119,6 @@ pub fn config_base_dir_path() -> Option<PathBuf> {
 }
 
 fn config_base_dir() -> Option<PathBuf> {
-    #[cfg(test)]
     if let Some(path) = TEST_CONFIG_OVERRIDE.with(|override_path| override_path.borrow().clone()) {
         return Some(path);
     }
@@ -162,14 +136,12 @@ fn config_base_dir() -> Option<PathBuf> {
 }
 
 /// Guard that sets a temporary config base path for tests and restores the prior value.
-#[cfg(test)]
 pub struct ConfigBaseGuard {
     previous: Option<PathBuf>,
     previous_test_root: Option<PathBuf>,
     previous_root: Option<PathBuf>,
 }
 
-#[cfg(test)]
 impl ConfigBaseGuard {
     /// Override the config base directory for the lifetime of the guard.
     pub fn set(path: PathBuf) -> Self {
@@ -198,7 +170,6 @@ impl ConfigBaseGuard {
     }
 }
 
-#[cfg(test)]
 impl Drop for ConfigBaseGuard {
     fn drop(&mut self) {
         let previous = self.previous.take();
