@@ -2,11 +2,13 @@ use std::sync::LazyLock;
 
 use crate::analysis::{audio, similarity};
 
-pub(crate) fn analysis_version() -> &'static str {
+/// Return the current analysis-version fingerprint.
+pub fn analysis_version() -> &'static str {
     &ANALYSIS_VERSION
 }
 
-pub(crate) fn analysis_version_for_sample_rate(sample_rate: u32) -> String {
+/// Compute the analysis-version fingerprint for a specific sample rate.
+pub fn analysis_version_for_sample_rate(sample_rate: u32) -> String {
     let payload = format!(
         "embedder={}|sr={}|max={}|window={}|hop={}|min={}|trim_on_db={}|trim_off_db={}|pre={}|post={}",
         similarity::SIMILARITY_MODEL_ID,

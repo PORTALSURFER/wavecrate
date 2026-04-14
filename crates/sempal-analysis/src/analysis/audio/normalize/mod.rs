@@ -11,7 +11,7 @@ use self::dispatch::{max_abs, scale_and_clamp, scale_in_place, sum_sq};
 use self::scalar::sanitize_sample;
 
 /// Scale samples so the peak absolute value reaches full scale.
-pub(crate) fn normalize_peak_in_place(samples: &mut [f32]) {
+pub fn normalize_peak_in_place(samples: &mut [f32]) {
     let peak = max_abs(samples);
     if !peak.is_finite() || peak <= 0.0 {
         return;

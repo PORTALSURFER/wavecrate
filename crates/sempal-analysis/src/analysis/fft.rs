@@ -1,10 +1,12 @@
 use std::f32::consts::PI;
 use std::sync::Arc;
 
-pub(crate) use rustfft::num_complex::Complex32;
+/// Complex sample type used by FFT helpers.
+pub use rustfft::num_complex::Complex32;
 use rustfft::{Fft, FftPlanner};
 
-pub(crate) fn hann_window(length: usize) -> Vec<f32> {
+/// Build a Hann window with `length` samples.
+pub fn hann_window(length: usize) -> Vec<f32> {
     if length <= 1 {
         return vec![1.0_f32; length.max(1)];
     }
@@ -20,13 +22,15 @@ pub(crate) fn fft_radix2_inplace(buffer: &mut [Complex32]) -> Result<(), String>
     fft_radix2_inplace_with_plan(buffer, &plan)
 }
 
-pub(crate) struct FftPlan {
+/// Reusable radix-2 FFT plan.
+pub struct FftPlan {
     len: usize,
     plan: Arc<dyn Fft<f32>>,
 }
 
 impl FftPlan {
-    pub(crate) fn new(len: usize) -> Result<Self, String> {
+    /// Create a forward FFT plan for a power-of-two buffer length.
+    pub fn new(len: usize) -> Result<Self, String> {
         if len == 0 || !len.is_power_of_two() {
             return Err(format!("FFT length must be power-of-two, got {len}"));
         }
@@ -38,7 +42,8 @@ impl FftPlan {
     }
 }
 
-pub(crate) fn fft_radix2_inplace_with_plan(
+/// Run an in-place forward radix-2 FFT using a cached plan.
+pub fn fft_radix2_inplace_with_plan(
     buffer: &mut [Complex32],
     plan: &FftPlan,
 ) -> Result<(), String> {

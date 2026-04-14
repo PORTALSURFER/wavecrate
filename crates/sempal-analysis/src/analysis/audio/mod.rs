@@ -7,7 +7,7 @@ mod resample;
 mod silence;
 
 /// Fixed sample rate used during analysis.
-pub(crate) const ANALYSIS_SAMPLE_RATE: u32 = 16_000;
+pub const ANALYSIS_SAMPLE_RATE: u32 = 16_000;
 pub(crate) const MAX_ANALYSIS_SECONDS: f32 = 6.0;
 pub(crate) const WINDOW_SECONDS: f32 = 2.0;
 pub(crate) const WINDOW_HOP_SECONDS: f32 = 1.0;
@@ -26,21 +26,25 @@ pub(crate) const SLICE_SILENCE_MERGE_GAP_SECONDS: f32 = 0.01;
 const EMBEDDING_TARGET_RMS_DB: f32 = -20.0;
 
 pub(crate) use decode::decode_for_analysis;
-pub(crate) use decode::{
+pub use decode_io::AudioProbe;
+pub use decode_io::{
     decode_for_analysis_with_rate, decode_for_analysis_with_rate_limit, probe_metadata,
 };
-pub(crate) use exact_duplicates::DetectedDuplicateWindow;
-pub(crate) use exact_duplicates::detect_exact_duplicate_window_ranges;
-pub(crate) use normalize::normalize_peak_in_place;
+pub use exact_duplicates::DetectedDuplicateWindow;
+pub use exact_duplicates::detect_exact_duplicate_window_ranges;
+pub use normalize::normalize_peak_in_place;
 pub(crate) use normalize::sanitize_samples_in_place;
-pub(crate) use silence::detect_non_silent_ranges_for_slices;
+pub use silence::detect_non_silent_ranges_for_slices;
 
 /// Decoded mono audio ready for analysis.
 #[derive(Debug)]
-pub(crate) struct AnalysisAudio {
-    pub(crate) mono: Vec<f32>,
-    pub(crate) duration_seconds: f32,
-    pub(crate) sample_rate_used: u32,
+pub struct AnalysisAudio {
+    /// Peak-normalized mono samples prepared for the analysis pipeline.
+    pub mono: Vec<f32>,
+    /// Duration of the prepared audio buffer after trimming and resampling.
+    pub duration_seconds: f32,
+    /// Sample rate used for the prepared mono samples.
+    pub sample_rate_used: u32,
 }
 
 pub(crate) fn preprocess_mono_for_embedding(samples: &[f32], sample_rate: u32) -> Vec<f32> {

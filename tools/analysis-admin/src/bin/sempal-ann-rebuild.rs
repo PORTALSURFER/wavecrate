@@ -19,7 +19,7 @@ fn run() -> Result<(), String> {
     };
     let conn =
         Connection::open(&options.db_path).map_err(|err| format!("Open DB failed: {err}"))?;
-    sempal::analysis::rebuild_ann_index(&conn)?;
+    sempal_analysis::rebuild_ann_index(&conn)?;
     println!("Rebuilt ANN index for {}", options.db_path.display());
     Ok(())
 }

@@ -29,7 +29,7 @@ pub(super) fn load_embeddings(
     for row in rows {
         let (sample_id, dim, blob) =
             row.map_err(|err| format!("Read embedding row failed: {err}"))?;
-        let vector = sempal::analysis::decode_f32_le_blob(&blob)?;
+        let vector = sempal_analysis::decode_f32_le_blob(&blob)?;
         validate_embedding_dim(&sample_id, dim, vector.len(), expected_dim)?;
         expected_dim.get_or_insert(dim);
         sample_ids.push(sample_id);

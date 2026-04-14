@@ -20,24 +20,24 @@ const MIN_AUDIBLE_PEAK: f32 = 1.0e-4;
 
 /// One duplicate cleanup preview derived from the loaded waveform.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct DetectedDuplicateWindow {
+pub struct DetectedDuplicateWindow {
     /// Window start frame in decoded sample space.
-    pub(crate) start_frame: usize,
+    pub start_frame: usize,
     /// Window end frame in decoded sample space.
-    pub(crate) end_frame: usize,
+    pub end_frame: usize,
     /// Stable duplicate-group id for the matched exemplar family.
-    pub(crate) group_id: usize,
+    pub group_id: usize,
 }
 
 /// Near-duplicate cleanup candidates detected from one loaded waveform.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub(crate) struct ExactDuplicateWindowDetection {
+pub struct ExactDuplicateWindowDetection {
     /// Number of duplicate groups that have at least one removable clone.
-    pub(crate) duplicate_group_count: usize,
+    pub duplicate_group_count: usize,
     /// Duplicate windows kept as one preview per removable clone.
-    pub(crate) duplicate_windows: Vec<DetectedDuplicateWindow>,
+    pub duplicate_windows: Vec<DetectedDuplicateWindow>,
     /// Number of duplicate windows represented by `duplicate_windows`.
-    pub(crate) duplicate_window_count: usize,
+    pub duplicate_window_count: usize,
 }
 
 /// Detect selection-sized near-duplicate windows across the loaded waveform.
@@ -47,7 +47,7 @@ pub(crate) struct ExactDuplicateWindowDetection {
 /// to derive the event offset inside each window, scans candidate hit starts
 /// across the whole file, keeps the earliest window for each duplicate group,
 /// and returns one removable preview per later near-identical clone.
-pub(crate) fn detect_exact_duplicate_window_ranges(
+pub fn detect_exact_duplicate_window_ranges(
     samples: &[f32],
     channels: u16,
     sample_rate: u32,

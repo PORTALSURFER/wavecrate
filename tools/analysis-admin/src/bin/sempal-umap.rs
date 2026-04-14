@@ -15,7 +15,7 @@ fn run() -> Result<(), String> {
     let db_path = cli_support::resolve_library_db_path(options.db_path.as_deref())?;
     let conn = Connection::open(&db_path).map_err(|err| format!("Open DB failed: {err}"))?;
     let mut conn = conn;
-    let report = sempal::analysis::build_map_layout(
+    let report = sempal_analysis::build_map_layout(
         &mut conn,
         &options.model_id,
         &options.umap_version,
@@ -27,8 +27,8 @@ fn run() -> Result<(), String> {
         report.total,
         report.coverage_ratio * 100.0
     );
-    let report_path = sempal::analysis::default_layout_report_path(&db_path, &options.umap_version);
-    sempal::analysis::write_layout_report(&report_path, &report)?;
+    let report_path = sempal_analysis::default_layout_report_path(&db_path, &options.umap_version);
+    sempal_analysis::write_layout_report(&report_path, &report)?;
     println!(
         "Similarity map layout coverage {:.2}% (report: {})",
         report.coverage_ratio * 100.0,

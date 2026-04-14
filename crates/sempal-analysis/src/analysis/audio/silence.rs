@@ -65,7 +65,7 @@ pub(super) fn trim_silence_with_hysteresis(samples: &[f32], sample_rate: u32) ->
 ///
 /// This uses overlapping RMS windows across all channels so loud phase-opposed
 /// stereo material does not cancel out during mono downmixing.
-pub(crate) fn detect_non_silent_ranges_for_slices(
+pub fn detect_non_silent_ranges_for_slices(
     samples: &[f32],
     channels: u16,
     sample_rate: u32,

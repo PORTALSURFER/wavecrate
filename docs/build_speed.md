@@ -31,6 +31,13 @@ auto-discovered under the root package:
 - `apps/installer`
   - binary: `sempal-installer`
 
+The analysis pipeline now lives in its own shared workspace crate:
+
+- `crates/sempal-analysis`
+  - library crate: `sempal-analysis`
+  - owns feature extraction, similarity embeddings, ANN index helpers, and
+    similarity-map layout generation
+
 The root package now sets `autobins = false` and explicitly declares only the
 shipping app binary. That means normal root-level `cargo check --bins` and
 `cargo nextest` runs no longer fan out across all support-tool binaries.
@@ -44,6 +51,12 @@ App-focused lane:
 - `bash scripts/devcheck_app.sh`
 - `powershell -ExecutionPolicy Bypass -File scripts/devcheck_app.ps1`
 - runs `cargo check -p sempal --lib --bin sempal`
+
+Analysis-focused lane:
+
+- `cargo check -p sempal-analysis`
+- use this first for isolated analysis pipeline edits before re-running the
+  normal app lane
 
 - `bash scripts/devcheck.sh`
 - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
@@ -82,6 +95,10 @@ Recommended command matrix:
 
 - Main app or runtime-only edits:
   - start with `devcheck_app`
+  - then `devcheck`
+- Analysis-only edits inside `crates/sempal-analysis`:
+  - start with `cargo check -p sempal-analysis`
+  - then `devcheck_app`
   - then `devcheck`
 - Browser/runtime input, native shell, projection, controller work:
   - start with targeted `cargo test -p sempal --lib <name>`
@@ -147,6 +164,59 @@ Completed:
 5. added explicit workspace-wide smoke/test scripts for packaging and tooling work
 6. updated CI and release commands to use workspace-wide coverage where needed
 
+## Implemented Phase 2 Work
+
+Completed on 2026-04-14:
+
+1. extracted the analysis pipeline into `crates/sempal-analysis`
+2. kept the root `sempal::analysis` surface as a compatibility facade
+3. moved the heavy analysis dependency stack (`linfa*`, `hdbscan`, `hnsw_rs`,
+   `rustfft`) off the root package manifest
+4. updated analysis-admin binaries to consume the extracted crate directly
+5. documented the narrower local loop for analysis-only edits
+
+## Timings
+
+Measured on Windows with:
+
+- `cargo build -p sempal --bin sempal --profile release-local --timings`
+
+Baseline before the extraction:
+
+- timing report:
+  [cargo-timing-20260414T201827.2585082Z.html](/C:/dev/sempal/target/cargo-timings/cargo-timing-20260414T201827.2585082Z.html)
+- total time: 549.8s (9m 9.8s)
+- fresh units: 0
+- dirty units: 603
+- heaviest units included:
+  - `hnsw_rs` 66.5s
+  - `wgpu-hal` 66.3s
+  - `wgpu-core` 65.8s
+  - `wgpu` 36.3s
+  - `vello` 36.1s
+  - `cpal` build script 17.1s
+  - `linfa-tsne` 11.1s
+
+Follow-up build after the extraction:
+
+- timing report:
+  [cargo-timing-20260414T203441.1001366Z.html](/C:/dev/sempal/target/cargo-timings/cargo-timing-20260414T203441.1001366Z.html)
+- total time: 94.4s (1m 34.4s)
+- fresh units: 601
+- dirty units: 3
+- `sempal` bin codegen/link step: 11.2s
+
+Interpretation:
+
+- the dependency graph is still dominated by the retained native graphics stack
+  (`wgpu`/`vello`) and the Windows audio/tooling path (`cpal` + ASIO build
+  script)
+- the extracted analysis crate now rebuilds separately from the root app crate,
+  which narrows app-only rebuilds after normal code edits
+- the post-split number above is an incremental follow-up build, not a fresh
+  cold rebuild, so it should be read as app-edit-loop evidence rather than a
+  full cold-build replacement baseline
+
 ## Remaining Follow-Up
 
 The highest-ROI package split is done, but the root library crate is still
@@ -154,11 +224,6 @@ broad. Only continue if timing data says the app package is still too slow.
 
 Likely next shared-library candidates:
 
-- `crates/sempal-analysis`
-  - feature extraction
-  - embeddings
-  - ANN helpers
-  - similarity-map layout support (legacy UMAP/t-SNE compatibility)
 - `crates/sempal-library`
   - source DB access
   - scan helpers

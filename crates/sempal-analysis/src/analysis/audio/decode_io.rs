@@ -1,11 +1,10 @@
 use std::cell::RefCell;
-use std::path::Path;
-
-use crate::audio::Source;
-use crate::audio::decoder::SymphoniaDecoder;
 use std::fs::File;
+use std::path::Path;
 use std::time::Duration;
+use symphonia::core::formats::FormatOptions;
 use symphonia::core::io::MediaSourceStream;
+use symphonia::core::probe::Hint;
 
 use super::analysis_prep::{downmix_to_mono_into, prepare_mono_for_analysis_from_slice};
 use super::resample::resample_linear_into;
@@ -15,14 +14,19 @@ pub(crate) fn decode_for_analysis(path: &Path) -> Result<AnalysisAudio, String> 
     decode_for_analysis_with_rate(path, ANALYSIS_SAMPLE_RATE)
 }
 
-pub(crate) struct AudioProbe {
-    pub(crate) duration_seconds: Option<f32>,
-    pub(crate) sample_rate: Option<u32>,
+/// Audio metadata probed without running the full analysis decode path.
+pub struct AudioProbe {
+    /// Total decoded duration when the source reports one.
+    pub duration_seconds: Option<f32>,
+    /// Source sample rate when known.
+    pub sample_rate: Option<u32>,
     #[cfg(test)]
-    pub(crate) channels: Option<u16>,
+    /// Source channel count when known.
+    pub channels: Option<u16>,
 }
 
-pub(crate) fn probe_metadata(path: &Path) -> Result<AudioProbe, String> {
+/// Probe source metadata without running the full analysis decode path.
+pub fn probe_metadata(path: &Path) -> Result<AudioProbe, String> {
     if path
         .extension()
         .and_then(|ext| ext.to_str())
@@ -50,29 +54,54 @@ pub(crate) fn probe_metadata(path: &Path) -> Result<AudioProbe, String> {
         .and_then(|ext| ext.to_str())
         .map(str::to_ascii_lowercase);
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
-    let mut decoder = SymphoniaDecoder::new(mss)
-        .map_err(|err| format!("Audio metadata probe failed for {}: {err}", path.display()))?;
+    let mut probe_hint = Hint::new();
     if let Some(hint) = hint.as_deref() {
-        decoder.set_hint(hint);
+        probe_hint.with_extension(hint);
     }
+    let probed = symphonia::default::get_probe()
+        .format(
+            &probe_hint,
+            mss,
+            &FormatOptions::default(),
+            &Default::default(),
+        )
+        .map_err(|err| format!("Audio metadata probe failed for {}: {err}", path.display()))?;
+    let track = probed.format.default_track().ok_or_else(|| {
+        format!(
+            "Audio metadata probe failed for {}: no default track",
+            path.display()
+        )
+    })?;
+    let sample_rate = track.codec_params.sample_rate.unwrap_or(44_100).max(1);
+    let duration_seconds = track
+        .codec_params
+        .n_frames
+        .map(|frames| Duration::from_secs_f64(frames as f64 / sample_rate as f64).as_secs_f32());
     Ok(AudioProbe {
-        duration_seconds: decoder
-            .total_duration()
-            .map(|dur: Duration| dur.as_secs_f32()),
-        sample_rate: Some(decoder.sample_rate().max(1)),
+        duration_seconds,
+        sample_rate: Some(sample_rate),
         #[cfg(test)]
-        channels: Some(decoder.channels().max(1)),
+        channels: Some(
+            track
+                .codec_params
+                .channels
+                .map(|channels| channels.count() as u16)
+                .unwrap_or(2)
+                .max(1),
+        ),
     })
 }
 
-pub(crate) fn decode_for_analysis_with_rate(
+/// Decode and prepare audio at the requested analysis sample rate.
+pub fn decode_for_analysis_with_rate(
     path: &Path,
     sample_rate: u32,
 ) -> Result<AnalysisAudio, String> {
     decode_for_analysis_with_rate_limit(path, sample_rate, None)
 }
 
-pub(crate) fn decode_for_analysis_with_rate_limit(
+/// Decode and prepare audio at the requested analysis sample rate with an optional duration cap.
+pub fn decode_for_analysis_with_rate_limit(
     path: &Path,
     sample_rate: u32,
     max_seconds: Option<f32>,

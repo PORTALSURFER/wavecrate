@@ -95,17 +95,7 @@ pub(crate) fn finalize_analysis_job(
         .content_hash
         .as_deref()
         .ok_or_else(|| format!("Missing content_hash for analysis job {}", job.sample_id))?;
-    let time_domain = crate::analysis::time_domain::extract_time_domain_features(
-        &decoded.mono,
-        decoded.sample_rate_used,
-    );
-    let frequency_domain = crate::analysis::frequency_domain::extract_frequency_domain_features(
-        &decoded.mono,
-        decoded.sample_rate_used,
-    )?;
-    let features =
-        crate::analysis::features::AnalysisFeaturesV1::new(time_domain, frequency_domain);
-    let vector = crate::analysis::vector::to_f32_vector_v1(&features);
+    let vector = crate::analysis::compute_feature_vector_v1_for_decoded_audio(&decoded)?;
     let embedding = crate::analysis::similarity::embedding_from_features(&vector)?;
     if needs_embedding_upsert {
         let embedding_blob = crate::analysis::vector::encode_f32_le_blob(&embedding);

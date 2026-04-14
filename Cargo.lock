@@ -4524,16 +4524,10 @@ dependencies = [
  "embed-resource",
  "filetime",
  "fuzzy-matcher",
- "hdbscan",
- "hnsw_rs",
  "hound",
  "image",
  "keyring",
  "libc",
- "linfa",
- "linfa-reduction",
- "linfa-tsne",
- "ndarray",
  "notify",
  "open",
  "ordered-float 3.9.2",
@@ -4547,13 +4541,12 @@ dependencies = [
  "rfd",
  "ringbuf",
  "rusqlite",
- "rustfft",
+ "sempal-analysis",
  "semver",
  "serde",
  "serde_json",
  "sha2",
  "skrifa",
- "sprs",
  "symphonia",
  "sysinfo",
  "tempfile",
@@ -4576,12 +4569,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "sempal-analysis"
+version = "19.0.0"
+dependencies = [
+ "blake3",
+ "directories",
+ "hdbscan",
+ "hnsw_rs",
+ "hound",
+ "linfa",
+ "linfa-reduction",
+ "linfa-tsne",
+ "ndarray",
+ "rand 0.8.5",
+ "rayon",
+ "rusqlite",
+ "rustfft",
+ "serde",
+ "serde_json",
+ "sha2",
+ "symphonia",
+ "tempfile",
+ "thiserror 2.0.17",
+]
+
+[[package]]
 name = "sempal-analysis-admin"
 version = "19.0.0"
 dependencies = [
  "hdbscan",
  "rusqlite",
  "sempal",
+ "sempal-analysis",
 ]
 
 [[package]]

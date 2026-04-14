@@ -6,4 +6,5 @@ edition = "2024"
 [dependencies]
 hdbscan = "0.12.0"
 rusqlite = { version = "0.37.0", features = ["bundled", "load_extension"] }
+sempal-analysis = { path = "../../crates/sempal-analysis" }
 sempal = { path = "../.." }
