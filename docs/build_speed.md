@@ -217,6 +217,93 @@ Interpretation:
   cold rebuild, so it should be read as app-edit-loop evidence rather than a
   full cold-build replacement baseline
 
+Fresh rebuild after the extraction (`cargo clean` first):
+
+- timing report:
+  [cargo-timing-20260414T204640.7742215Z.html](/C:/dev/sempal/target/cargo-timings/cargo-timing-20260414T204640.7742215Z.html)
+- total time: 233.7s (3m 53.7s)
+- fresh units: 0
+- dirty units: 604
+- heaviest units included:
+  - `sempal` 74.0s
+  - `libsqlite3-sys` build script (run) 66.8s
+  - `asio-sys` build script (run) 63.5s
+  - `wgpu-core` 51.0s
+  - `sempal-analysis` 39.2s
+  - `rav1e` 33.2s
+  - `radiant` 26.8s
+  - `sempal` bin `sempal` 9.8s
+
+Warm rebuild after a tiny app-only edit (`src/main.rs`):
+
+- timing report:
+  [cargo-timing-20260414T205050.9207467Z.html](/C:/dev/sempal/target/cargo-timings/cargo-timing-20260414T205050.9207467Z.html)
+- total time: 5.6s
+- fresh units: 603
+- dirty units: 1
+- rebuilt units:
+  - `sempal` bin `sempal` 4.3s
+
+Warm rebuild after a tiny `sempal-analysis` edit:
+
+- timing report:
+  [cargo-timing-20260414T205102.518673Z.html](/C:/dev/sempal/target/cargo-timings/cargo-timing-20260414T205102.518673Z.html)
+- total time: 25.0s
+- fresh units: 601
+- dirty units: 3
+- rebuilt units:
+  - `sempal-analysis` 3.2s
+  - `sempal` 18.3s
+  - `sempal` bin `sempal` 4.8s
+
+Decision readout:
+
+- the extraction materially improved the clean app build: the fresh
+  `release-local` app build dropped from 549.8s to 233.7s
+- the final app binary step is no longer the dominant clean-build cost:
+  `sempal` bin is 9.8s out of 233.7s
+- app-entry edits are now cheap: a tiny `src/main.rs` change rebuilt only the
+  binary and finished in 5.6s
+- analysis-layer edits still fan back into the broad root `sempal` crate:
+  changing `sempal-analysis` triggered a 3.2s analysis rebuild, then an 18.3s
+  root-crate rebuild, then the 4.8s app binary step
+- native/non-Rust work still matters for fresh builds, but mainly in the cold
+  path rather than the tail: `libsqlite3-sys` and `asio-sys` build scripts are
+  both larger than the final binary step in the fresh timing report
+
+What this means:
+
+- do not prioritize linker tuning as the next main pass based on the current
+  numbers alone; it can still trim a few seconds, but it is not the primary
+  leftover bottleneck after the analysis split
+- the next structural win should come from narrowing the broad root `sempal`
+  crate so dependency changes do not force an 18s+ rebuild of the app library
+- the leading candidate remains a focused `crates/sempal-library` extraction
+  for source DB/library-storage code and the closely related shared types used
+  by tooling and controller code
+
+Next pass plan:
+
+1. map the current root-crate rebuild surface
+   - identify which `sempal` modules dominate the 18.3s rebuild after a
+     dependency change
+   - confirm the smallest coherent crate boundary that removes library/storage
+     concerns from the app crate without dragging GUI/runtime code along
+2. prepare a `crates/sempal-library` extraction
+   - move source DB access, library-storage helpers, and their shared domain
+     types behind a small documented API
+   - keep app entrypoints, GUI/runtime wiring, and Windows/native behavior
+     unchanged
+3. re-run the same timing matrix after that split
+   - fresh `release-local` app build
+   - tiny app-only warm rebuild
+   - tiny dependency-change rebuild through the extracted library layer
+4. only after that, run a narrow linker experiment if the warm app-only lane
+   still feels too slow
+   - compare default MSVC linker behavior against an `lld-link`-based lane
+   - measure whether any PDB/debug-info setting in `release-local` moves the
+     4-5s binary step enough to justify the configuration churn
+
 ## Remaining Follow-Up
 
 The highest-ROI package split is done, but the root library crate is still
