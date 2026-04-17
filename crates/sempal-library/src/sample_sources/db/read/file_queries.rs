@@ -90,6 +90,16 @@ fn decode_search_entry_row(
     }))
 }
 
+fn decode_search_entry_metadata(
+    row: &rusqlite::Row<'_>,
+) -> Result<SearchEntryMetadata, rusqlite::Error> {
+    Ok(SearchEntryMetadata {
+        tag: Rating::from_i64(row.get::<_, i64>(0)?),
+        locked: row.get::<_, i64>(1)? != 0,
+        last_played_at: row.get::<_, Option<i64>>(2)?,
+    })
+}
+
 fn collect_search_entry_rows(
     db: &SourceDatabase,
     sql: &str,
@@ -103,6 +113,18 @@ fn collect_search_entry_rows(
         .collect::<Result<Vec<_>, _>>()
         .map_err(map_sql_error)?;
     Ok(rows.into_iter().flatten().collect())
+}
+
+fn collect_search_entry_metadata(
+    db: &SourceDatabase,
+    sql: &str,
+    params: impl Params,
+) -> Result<Vec<SearchEntryMetadata>, SourceDbError> {
+    let mut stmt = db.connection.prepare(sql).map_err(map_sql_error)?;
+    stmt.query_map(params, decode_search_entry_metadata)
+        .map_err(map_sql_error)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(map_sql_error)
 }
 
 fn placeholder_list(start_index: usize, count: usize) -> String {
@@ -310,10 +332,13 @@ impl SourceDatabase {
 
     /// Fetch only browser-search metadata ordered to match `list_search_entry_rows`.
     pub fn list_search_entry_metadata(&self) -> Result<Vec<SearchEntryMetadata>, SourceDbError> {
-        Ok(self
-            .list_search_entry_rows()?
-            .into_iter()
-            .map(|row| row.metadata)
-            .collect())
+        let filter = supported_audio_filter();
+        let sql = format!(
+            "SELECT tag, locked, last_played_at
+             FROM wav_files
+             WHERE {filter}
+             ORDER BY path ASC"
+        );
+        collect_search_entry_metadata(self, &sql, [])
     }
 }

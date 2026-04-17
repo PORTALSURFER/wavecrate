@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use rusqlite::params;
 use tempfile::tempdir;
 
-use super::super::SourceDatabase;
+use super::super::{Rating, SourceDatabase};
 
 #[test]
 fn list_files_page_orders_supported_audio_and_applies_offsets() {
@@ -98,4 +98,26 @@ fn bpm_queries_return_only_present_rows_and_preserve_null_values() {
     assert_eq!(lookup.get("source::two.wav"), Some(&None));
     assert!(!lookup.contains_key("source::missing.wav"));
     assert!(db.bpms_for_sample_ids(&[]).unwrap().is_empty());
+}
+
+#[test]
+fn search_entry_metadata_matches_row_order_and_values() {
+    let dir = tempdir().unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    db.upsert_file(Path::new("drums/snare.wav"), 10, 5).unwrap();
+    db.upsert_file(Path::new("drums/kick.wav"), 10, 6).unwrap();
+    db.set_tag(Path::new("drums/kick.wav"), Rating::KEEP_1)
+        .unwrap();
+    db.set_locked(Path::new("drums/snare.wav"), true).unwrap();
+    db.set_last_played_at(Path::new("drums/snare.wav"), 42)
+        .unwrap();
+
+    let rows = db.list_search_entry_rows().unwrap();
+    let metadata = db.list_search_entry_metadata().unwrap();
+
+    assert_eq!(metadata.len(), rows.len());
+    assert_eq!(
+        metadata,
+        rows.into_iter().map(|row| row.metadata).collect::<Vec<_>>()
+    );
 }
