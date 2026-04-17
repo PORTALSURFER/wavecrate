@@ -1,36 +1,29 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-17
-Status: Phase 2 in progress on 2026-04-17; items 1-2 complete, item 3 next
+Status: Phase 2 in progress on 2026-04-17; items 1-3 complete, item 4 next
 
 ## Evidence Snapshot
 
-- Fresh local guard run on 2026-04-17 after item 2:
+- Fresh local guard run on 2026-04-17 after item 3:
   - `target/perf/bench.json`
-  - `hover_latency.p95_us = 2883`
-  - `wheel_latency.p95_us = 2383`
-  - `browser_filter_churn_latency.p95_us = 2856`
-  - `browser_query_churn_latency.p95_us = 131`
-  - `retained_app_model_projection_p95_us = 6`
+  - `hover_latency.p95_us = 261`
+  - `wheel_latency.p95_us = 508`
+  - `browser_filter_churn_latency.p95_us = 46`
+  - `browser_query_churn_latency.p95_us = 53`
+  - `app_model_projection.p95_us = 5`
+  - `controller_app_model_projection.p95_us = 2708`
+  - `retained_app_model_projection_p95_us = 5`
   - The guard completed without warnings.
-- Stage attribution in the same artifact still points the headline browser cost at
-  controller-mode projection rather than retained bridge pulls:
-  - `hover_latency.projection_stage.p95_us = 8165`
-  - `wheel_latency.projection_stage.p95_us = 4194`
-  - `interactive_projection.projection_stage.p95_us = 7769`
-- The retained bridge path itself is currently cheap in the same artifact:
+- The retained bridge path itself remains cheap in the same artifact:
   - `interaction_segment_attribution.browser_rows_window.p95_us = 11`
   - `interaction_segment_attribution.waveform_overlay.p95_us = 29`
+- A reduced startup-profile smoke run on Windows now captures the native-vello summary:
+  - `first_present_ms = 2377.742`
+  - `deferred_model_refresh_ms = 0.000`
+  - `scripts/run_perf_guard.ps1` emitted the startup summary and recommended lock thresholds.
 - The repo still carries a measurable feature-blob decode hotspot:
   - `feature_blob_decode.total_elapsed_ms = 5494` for `320000` blobs
-- Measurement caveat:
-  - `tools/bench-cli/src/bench/gui/interactions.rs` and
-    `tools/bench-cli/src/bench/gui/scenario_registry.rs` still headline
-    `prepare_native_frame(false)` plus `project_native_app_model()`, while the
-    shipped native runtime goes through retained `SempalNativeBridge`.
-- Startup caveat:
-  - `scripts/run_perf_guard.ps1` still prints that startup profiling is not
-    implemented on Windows.
 
 ## ROI-Ordered Backlog
 
@@ -99,12 +92,13 @@ Status: Phase 2 in progress on 2026-04-17; items 1-2 complete, item 3 next
   - Rerun `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`.
   - Rerun `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
 
-### [ ] 3. Make the perf guard measure the shipped retained runtime and capture Windows startup summaries
+### [x] 3. Make the perf guard measure the shipped retained runtime and capture Windows startup summaries
 - Classification: Developer-experience improvement
 - Confidence: High
 - ROI: High
 - Effort: M
 - Expected impact: startup tracking, p95 interaction latency tracking, engineering time
+- Completed: 2026-04-17 (`140a8640`, `perf(bench): measure retained runtime in guard`; vendor `174aa295`, `perf(native-vello): emit eager startup summaries`)
 - Evidence:
   - Fresh guard output shows `app_model_projection.p95_us = 4128` but
     `retained_app_model_projection_p95_us = 15`, proving the headline metric is
