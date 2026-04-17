@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-04-17T18:06:00Z
+Last Updated: 2026-04-17T18:31:00Z
 Updated By: Codex
 
 ## Purpose
@@ -16,7 +16,7 @@ Updated By: Codex
 - The current workspace is dirty with unrelated user edits; I must not overwrite them while executing the perf lane.
 - `tmp/perf_plan.md` is the live source of truth for the rebuilt 2026-04-17 runtime performance backlog.
 - I rebuilt the backlog from a fresh local `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` run on 2026-04-17 and started Phase 2 after explicit user confirmation.
-- Items 1-4 are complete in `tmp/perf_plan.md` (`cec627fd`, `perf(native-bridge): add retained browser prep lane`; `547a9c9b`, `perf(browser): retain filter and folder stage indexes`; `140a8640`, `perf(bench): measure retained runtime in guard`; vendor `174aa295`, `perf(native-vello): emit eager startup summaries`; `caf5d4cb`, `perf(db): add metadata-only search refresh query`), and item 5 is now next in strict ROI order.
+- Items 1-5 are complete in `tmp/perf_plan.md` (`cec627fd`, `perf(native-bridge): add retained browser prep lane`; `547a9c9b`, `perf(browser): retain filter and folder stage indexes`; `140a8640`, `perf(bench): measure retained runtime in guard`; vendor `174aa295`, `perf(native-vello): emit eager startup summaries`; `caf5d4cb`, `perf(db): add metadata-only search refresh query`; `a384984a`, `perf(similarity): avoid full feature decodes for rms checks`), and item 6 is now next in strict ROI order.
 - The latest default perf-guard artifact completed without warnings and now headlines the shipped retained bridge path: `app_model_projection = 5us` p95, `controller_app_model_projection = 2708us` p95, `retained_app_model_projection_p95_us = 5`, `hover_latency = 261us` p95, `wheel_latency = 508us` p95, `browser_filter_churn_latency = 46us` p95, and `browser_query_churn_latency = 53us` p95.
 - The Windows PowerShell perf guard now captures startup summaries; the reduced startup smoke run recorded `first_present_ms = 2377.742` and `deferred_model_refresh_ms = 0.000` while emitting recommended threshold locks.
 - The rebuilt backlog themes are:
@@ -34,14 +34,14 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Execute `tmp/perf_plan.md` strictly in listed ROI order, one item at a time, starting with item 5 next.
+1. Execute `tmp/perf_plan.md` strictly in listed ROI order, one item at a time, starting with item 6 next.
 2. After each implemented item in Phase 2, update `tmp/perf_plan.md`, run validation, commit, and push.
 3. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` parked unless the user explicitly reopens those lanes.
 4. Preserve the Windows PowerShell wrapper path for future validation runs in this environment.
 
 ## Work Notes
 
-- Active audit plan: `tmp/perf_plan.md` (Phase 2 in progress on 2026-04-17; items 1-4 complete, item 5 next)
+- Active audit plan: `tmp/perf_plan.md` (Phase 2 in progress on 2026-04-17; items 1-5 complete, item 6 next)
 - Active short queue: `docs/plans/active/todo.md`
 - Dual-lane validation reference: `docs/TEST.md`
 - Parked cleanup backlog: `tmp/cleanup_plan.md`

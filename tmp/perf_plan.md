@@ -1,7 +1,7 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-17
-Status: Phase 2 in progress on 2026-04-17; items 1-4 complete, item 5 next
+Status: Phase 2 in progress on 2026-04-17; items 1-5 complete, item 6 next
 
 ## Evidence Snapshot
 
@@ -153,12 +153,13 @@ Status: Phase 2 in progress on 2026-04-17; items 1-4 complete, item 5 next
   - Extend browser search worker tests for tag/lock/playback-age refreshes.
   - Rerun `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
 
-### [ ] 5. Stop duplicate/similarity RMS checks from decoding whole feature blobs
+### [x] 5. Stop duplicate/similarity RMS checks from decoding whole feature blobs
 - Classification: Bug fix
 - Confidence: High
 - ROI: Medium
 - Effort: M
 - Expected impact: similarity latency, CPU, memory
+- Completed: 2026-04-17 (`a384984a`, `perf(similarity): avoid full feature decodes for rms checks`)
 - Evidence:
   - `target/perf/bench.json` still reports `feature_blob_decode.total_elapsed_ms = 5494`
     for `320000` blobs.
