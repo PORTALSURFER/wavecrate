@@ -32,6 +32,12 @@ impl SempalNativeBridge {
     fn model_pull_preparation_plan(&self) -> NativeFramePreparationPlan {
         if self.controller.can_prepare_browser_retained_pull() {
             NativeFramePreparationPlan::BrowserRetainedPull
+        } else if self.controller.can_prepare_transport_retained_pull() {
+            NativeFramePreparationPlan::TransportRetainedPull
+        } else if self.controller.can_prepare_metadata_retained_pull() {
+            NativeFramePreparationPlan::MetadataRetainedPull
+        } else if self.controller.can_prepare_startup_retained_pull() {
+            NativeFramePreparationPlan::StartupRetainedPull
         } else {
             NativeFramePreparationPlan::Full
         }
