@@ -102,10 +102,7 @@ impl BrowserPipelineCache {
         }
         entry.last_played_at = played_at;
         self.playback_age_token_caches.clear();
-        self.filtered_fingerprint = None;
-        self.scored_fingerprint = None;
-        self.sorted_row_positions.clear();
-        self.sorted_fingerprint = None;
+        self.invalidate_filter_and_sort_stages();
         true
     }
 
@@ -118,12 +115,26 @@ impl BrowserPipelineCache {
         let Some(compact) = self.compact_entries.get_mut(index) else {
             return false;
         };
+        let previous_tag = compact.tag;
+        let previous_locked = compact.locked;
+        let previous_last_played_at = compact.last_played_at;
         compact.tag = entry.tag;
         compact.looped = entry.looped;
         compact.locked = entry.locked;
         compact.missing = entry.missing;
         compact.last_played_at = entry.last_played_at;
-        self.refresh_base_partitions();
+        if previous_tag != entry.tag {
+            self.update_triage_partition_membership(index, previous_tag, entry.tag);
+        }
+        if previous_last_played_at != entry.last_played_at {
+            self.playback_age_token_caches.clear();
+        }
+        if previous_tag != entry.tag
+            || previous_locked != entry.locked
+            || previous_last_played_at != entry.last_played_at
+        {
+            self.invalidate_filter_and_sort_stages();
+        }
         true
     }
 
@@ -182,6 +193,69 @@ impl BrowserPipelineCache {
         self.folder_accepts_active = false;
         self.folder_accepts_by_index.clear();
         self.folder_filtered_rows.clear();
+    }
+
+    fn invalidate_filter_and_sort_stages(&mut self) {
+        self.filtered_fingerprint = None;
+        self.scored_fingerprint = None;
+        self.sorted_row_positions.clear();
+        self.sorted_fingerprint = None;
+    }
+
+    fn update_triage_partition_membership(
+        &mut self,
+        index: usize,
+        previous_tag: Rating,
+        next_tag: Rating,
+    ) {
+        let previous_bucket = triage_bucket_for_rating(previous_tag);
+        let next_bucket = triage_bucket_for_rating(next_tag);
+        if previous_bucket == next_bucket {
+            return;
+        }
+        remove_index_from_bucket(triage_bucket_rows_mut(self, previous_bucket), index);
+        insert_index_into_bucket(triage_bucket_rows_mut(self, next_bucket), index);
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TriageBucket {
+    Trash,
+    Neutral,
+    Keep,
+}
+
+fn triage_bucket_for_rating(tag: Rating) -> TriageBucket {
+    if tag.is_trash() {
+        TriageBucket::Trash
+    } else if tag.is_keep() {
+        TriageBucket::Keep
+    } else {
+        TriageBucket::Neutral
+    }
+}
+
+fn triage_bucket_rows_mut(
+    cache: &mut BrowserPipelineCache,
+    bucket: TriageBucket,
+) -> &mut Vec<usize> {
+    match bucket {
+        TriageBucket::Trash => &mut cache.trash_rows,
+        TriageBucket::Neutral => &mut cache.neutral_rows,
+        TriageBucket::Keep => &mut cache.keep_rows,
+    }
+}
+
+fn remove_index_from_bucket(rows: &mut Vec<usize>, index: usize) {
+    if let Ok(position) = rows.binary_search(&index) {
+        rows.remove(position);
+    }
+}
+
+fn insert_index_into_bucket(rows: &mut Vec<usize>, index: usize) {
+    match rows.binary_search(&index) {
+        Ok(_) => {}
+        Err(position) => rows.insert(position, index),
     }
 }
 
