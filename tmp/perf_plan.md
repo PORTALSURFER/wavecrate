@@ -57,10 +57,11 @@ Status: Phase 1 rebuilt on 2026-04-17; awaiting explicit Phase 2 approval
   - Rerun `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
   - Rerun `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`.
 
-### [ ] 2. Narrow sync browser-pipeline invalidation for metadata-only edits
+### [x] 2. Narrow sync browser-pipeline invalidation for metadata-only edits
 - ROI: High
 - Effort: M
 - Expected impact: p95 interaction latency, CPU, allocations
+- Completed: 2026-04-17 (`ef401152`, `perf(browser): narrow metadata-only pipeline invalidation`)
 - Evidence:
   - `src/app/controller/library/wavs/browser_pipeline.rs:113`
     updates one compact entry in place.
