@@ -1,7 +1,7 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-17
-Status: Phase 2 in progress on 2026-04-17; items 1-3 complete
+Status: Phase 2 in progress on 2026-04-17; items 1-4 complete
 
 ## Evidence Snapshot
 
@@ -104,10 +104,11 @@ Status: Phase 2 in progress on 2026-04-17; items 1-3 complete
   - Rerun `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`.
   - Rerun `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
 
-### [ ] 4. Stop active text fields from shaping the same text twice per rebuild
+### [x] 4. Stop active text fields from shaping the same text twice per rebuild
 - ROI: High
 - Effort: M
 - Expected impact: p95 typing latency, CPU, allocations
+- Completed: 2026-04-17 (`2327a01e`, `perf(text): reuse full layout for visible text fields`)
 - Evidence:
   - `vendor/radiant/src/gui_runtime/native_vello/text_edit.rs:176`
     shapes the full text to derive stops and scroll state.
@@ -123,7 +124,7 @@ Status: Phase 2 in progress on 2026-04-17; items 1-3 complete
 - Visual impact: None
 - Validation plan:
   - Extend native-vello text-field tests for long query typing, selection ranges, scroll window shifts, and BPM/text fields.
-  - Rerun `cargo nextest run --manifest-path vendor/radiant/Cargo.toml text_runtime`.
+  - Rerun `cargo nextest run --manifest-path vendor/radiant/Cargo.toml text_runtime` once unrelated retained-vector test compile failures in `vendor/radiant` are cleared.
 
 ### [ ] 5. Replace entry-sized similarity scratch with sparse/windowed lookup
 - ROI: Medium
