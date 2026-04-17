@@ -102,6 +102,14 @@ Fast local runtime lane:
   raises codegen units, and lowers optimization to `opt-level = 2`
 - use plain `cargo run -r` when you need exact shipping-profile behavior
 
+Windows-only linker experiment lane:
+
+- `cargo --config .cargo/config.release-local-lld.toml build -p sempal --bin sempal --profile release-local --timings`
+- opt-in only; keeps the repo default linker unchanged unless you pass the
+  extra config override explicitly
+- use only for measurement or local comparison; the current measured result is
+  not recommended as the default fast lane
+
 Workspace-wide lane:
 
 - `bash scripts/devcheck_workspace.sh`
@@ -235,6 +243,16 @@ Completed on 2026-04-17:
    orchestration in the root crate
 4. moved the scan-layer unit tests with the extracted crate
 5. documented the narrower local loop for scan-only edits
+
+## Implemented Phase 5 Work
+
+Completed on 2026-04-17:
+
+1. added an opt-in Windows `lld-link` override config for the `release-local`
+   developer lane
+2. re-measured the baseline `release-local` timing matrix on the same machine
+3. re-ran the same timing matrix with the `lld-link` override enabled
+4. documented the exact experiment commands and the measured outcome
 
 ## Timings
 
@@ -435,19 +453,115 @@ Interpretation after Phase 4:
 - linker tuning still looks secondary to root-crate narrowing because the
   binary step is 3.3s while the root crate rebuild is 13.8s
 
+That Phase 4 measurement led directly to the Phase 5 linker experiment
+recorded below.
+
+Baseline re-measure on the current tree (default MSVC linker):
+
+Fresh rebuild after Phase 4 (`cargo clean --profile release-local` first):
+
+- timing report:
+  [cargo-timing-20260417T093453.8826125Z.html](/C:/dev/sempal/target/cargo-timings/cargo-timing-20260417T093453.8826125Z.html)
+- total time: 199.8s (3m 19.8s)
+- fresh units: 0
+- dirty units: 606
+- heaviest units included:
+  - `libsqlite3-sys` build script (run) 68.9s
+  - `sempal` 63.9s
+  - `wgpu-core` 49.8s
+  - `asio-sys` build script (run) 47.6s
+
+Warm rebuild after a tiny app-only edit (`src/main.rs`):
+
+- timing report:
+  [cargo-timing-20260417T093828.6347778Z.html](/C:/dev/sempal/target/cargo-timings/cargo-timing-20260417T093828.6347778Z.html)
+- total time: 5.6s
+- fresh units: 605
+- dirty units: 1
+- rebuilt units:
+  - `sempal` bin `sempal` 4.5s
+
+Warm rebuild after a tiny `sempal-scan` edit:
+
+- timing report:
+  [cargo-timing-20260417T093847.5090456Z.html](/C:/dev/sempal/target/cargo-timings/cargo-timing-20260417T093847.5090456Z.html)
+- total time: 25.2s
+- fresh units: 603
+- dirty units: 3
+- rebuilt units:
+  - `sempal` 19.1s
+  - `sempal` bin `sempal` 4.6s
+  - `sempal-scan` 1.6s
+
+Experimental `lld-link` lane on the same machine:
+
+Exact command shape:
+
+- `cargo --config .cargo/config.release-local-lld.toml build -p sempal --bin sempal --profile release-local --timings`
+
+Fresh rebuild with `lld-link` (`cargo clean --profile release-local` first):
+
+- timing report:
+  [cargo-timing-20260417T095009.8214348Z.html](/C:/dev/sempal/target/cargo-timings/cargo-timing-20260417T095009.8214348Z.html)
+- total time: 547.0s (9m 7.0s)
+- fresh units: 0
+- dirty units: 606
+- heaviest units included:
+  - `windows` 0.62.2 152.8s
+  - `windows` 0.61.3 140.8s
+  - `naga` 104.9s
+  - `hnsw_rs` 93.1s
+
+Warm rebuild after a tiny app-only edit (`src/main.rs`):
+
+- timing report:
+  [cargo-timing-20260417T095925.2028885Z.html](/C:/dev/sempal/target/cargo-timings/cargo-timing-20260417T095925.2028885Z.html)
+- total time: 5.0s
+- fresh units: 605
+- dirty units: 1
+- rebuilt units:
+  - `sempal` bin `sempal` 3.6s
+
+Warm rebuild after a tiny `sempal-scan` edit:
+
+- timing report:
+  [cargo-timing-20260417T095937.3866677Z.html](/C:/dev/sempal/target/cargo-timings/cargo-timing-20260417T095937.3866677Z.html)
+- total time: 18.8s
+- fresh units: 603
+- dirty units: 3
+- rebuilt units:
+  - `sempal` 14.5s
+  - `sempal` bin `sempal` 3.0s
+  - `sempal-scan` 1.2s
+
+Interpretation after Phase 5:
+
+- `lld-link` improved the warm binary step modestly on this machine:
+  4.5s down to 3.6s for the app-only edit path
+- `lld-link` also improved the dependency-edit warm rebuild:
+  25.2s down to 18.8s
+- but the fresh `release-local` build regressed drastically:
+  199.8s up to 547.0s
+- because the fresh-build regression is far larger than the warm-build win, the
+  `lld-link` lane is not recommended as the default local fast-build path for
+  this repo on this machine
+- keep the default `release-local` lane as the recommended workflow unless a
+  future toolchain update changes this result materially
+
 ## Remaining Follow-Up
 
-The three highest-ROI analysis/storage/scan splits are now done, but the root
-library crate is still broad for dependency-layer edits. Only continue if
-timing data says the remaining 13-14s root rebuild is still too expensive.
+The three highest-ROI analysis/storage/scan splits are now done, and the first
+linker experiment produced a mixed result that is not worth adopting broadly.
+Only continue if timing data says the remaining root rebuild is still too
+expensive.
 
 Likely next candidates:
 
 - app-config extraction only if the remaining `sample_sources::config` boundary
   can be separated cleanly from root runtime concerns
 - a focused updater-core split if updater work begins to dominate app rebuilds
-- a narrow linker experiment only after another measurement confirms the root
-  crate cannot be reduced much further
+- another linker experiment only if a toolchain upgrade or a very narrow
+  debug-info tweak changes the tradeoff materially
 
 Do not split GUI/runtime crates just to make the workspace compile. Only do the
 next round after re-measuring.
