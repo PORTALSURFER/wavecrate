@@ -1,7 +1,7 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-17
-Status: Phase 2 in progress on 2026-04-17; items 1-6 complete, item 7 next
+Status: Phase 2 complete on 2026-04-17; items 1-7 complete
 
 ## Evidence Snapshot
 
@@ -19,8 +19,8 @@ Status: Phase 2 in progress on 2026-04-17; items 1-6 complete, item 7 next
   - `interaction_segment_attribution.browser_rows_window.p95_us = 11`
   - `interaction_segment_attribution.waveform_overlay.p95_us = 29`
 - A reduced startup-profile smoke run on Windows now captures the native-vello summary:
-  - `first_present_ms = 2377.742`
-  - `deferred_model_refresh_ms = 0.000`
+  - `first_present_ms = 1742.747`
+  - `deferred_model_refresh_ms = 386.673`
   - `scripts/run_perf_guard.ps1` emitted the startup summary and recommended lock thresholds.
 - The repo still carries a measurable feature-blob decode hotspot:
   - `feature_blob_decode.total_elapsed_ms = 5494` for `320000` blobs
@@ -215,12 +215,13 @@ Status: Phase 2 in progress on 2026-04-17; items 1-6 complete, item 7 next
   - Manually inspect dense browser rows and focus transitions at multiple viewport sizes.
   - Rerun `cargo nextest run --manifest-path vendor/radiant/Cargo.toml`.
 
-### [ ] 7. After measurement parity, trial progressive startup reveal instead of hidden eager full-scene launch
+### [x] 7. After measurement parity, trial progressive startup reveal instead of hidden eager full-scene launch
 - Classification: Architecture improvement
 - Confidence: Medium
 - ROI: Medium
 - Effort: M
 - Expected impact: startup, CPU, perceived responsiveness
+- Completed: 2026-04-17 (vendor `b14e2423`, `perf(startup): reveal placeholder before full refresh`)
 - Evidence:
   - `vendor/radiant/src/gui_runtime/native_vello/runtime_startup/policy.rs:4-13`
     launches hidden and disables deferred first-model pull by default.

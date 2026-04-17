@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-04-17T19:14:00Z
+Last Updated: 2026-04-17T20:19:00Z
 Updated By: Codex
 
 ## Purpose
@@ -12,13 +12,14 @@ Updated By: Codex
 
 - I am on `next` in `X:\sempal`.
 - `X:\sempal` and `X:\sempal\vendor\radiant` are still expected to stay on local `next`.
-- The runtime performance lane is in Phase 2 execution for the current live tree.
+- The runtime performance lane is complete for the current live tree.
 - The current workspace is dirty with unrelated user edits; I must not overwrite them while executing the perf lane.
-- `tmp/perf_plan.md` is the live source of truth for the rebuilt 2026-04-17 runtime performance backlog.
+- `tmp/perf_plan.md` is the completed source of truth for the rebuilt 2026-04-17 runtime performance backlog.
 - I rebuilt the backlog from a fresh local `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1` run on 2026-04-17 and started Phase 2 after explicit user confirmation.
-- Items 1-6 are complete in `tmp/perf_plan.md` (`cec627fd`, `perf(native-bridge): add retained browser prep lane`; `547a9c9b`, `perf(browser): retain filter and folder stage indexes`; `140a8640`, `perf(bench): measure retained runtime in guard`; vendor `174aa295`, `perf(native-vello): emit eager startup summaries`; `caf5d4cb`, `perf(db): add metadata-only search refresh query`; `a384984a`, `perf(similarity): avoid full feature decodes for rms checks`; vendor `eda74e21`, `perf(browser-rows): retain geometry across selection changes`), and item 7 is now next in strict ROI order.
+- Items 1-7 are complete in `tmp/perf_plan.md` (`cec627fd`, `perf(native-bridge): add retained browser prep lane`; `547a9c9b`, `perf(browser): retain filter and folder stage indexes`; `140a8640`, `perf(bench): measure retained runtime in guard`; vendor `174aa295`, `perf(native-vello): emit eager startup summaries`; `caf5d4cb`, `perf(db): add metadata-only search refresh query`; `a384984a`, `perf(similarity): avoid full feature decodes for rms checks`; vendor `eda74e21`, `perf(browser-rows): retain geometry across selection changes`; vendor `b14e2423`, `perf(startup): reveal placeholder before full refresh`).
 - The latest default perf-guard artifact completed without warnings and now headlines the shipped retained bridge path: `app_model_projection = 5us` p95, `controller_app_model_projection = 2708us` p95, `retained_app_model_projection_p95_us = 5`, `hover_latency = 261us` p95, `wheel_latency = 508us` p95, `browser_filter_churn_latency = 46us` p95, and `browser_query_churn_latency = 53us` p95.
-- The Windows PowerShell perf guard now captures startup summaries; the reduced startup smoke run recorded `first_present_ms = 2377.742` and `deferred_model_refresh_ms = 0.000` while emitting recommended threshold locks.
+- The Windows PowerShell perf guard now captures startup summaries; the latest reduced startup smoke run recorded `first_present_ms = 1742.747` and `deferred_model_refresh_ms = 386.673` while emitting recommended threshold locks, improving on the earlier `2377.742` first-present smoke capture.
+- Manual visual review is still recommended for the progressive startup reveal because item 7 intentionally changes when the window becomes visible.
 - The rebuilt backlog themes are:
   - broad `prepare_native_frame(false)` maintenance before retained pulls
   - sync browser filter/folder rescans in the controller projection path
@@ -34,14 +35,14 @@ Updated By: Codex
 
 ## Immediate Next Actions
 
-1. Execute `tmp/perf_plan.md` strictly in listed ROI order, one item at a time, starting with item 7 next.
-2. After each implemented item in Phase 2, update `tmp/perf_plan.md`, run validation, commit, and push.
-3. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` parked unless the user explicitly reopens those lanes.
-4. Preserve the Windows PowerShell wrapper path for future validation runs in this environment.
+1. Treat `tmp/perf_plan.md` as the completed runtime-performance execution record.
+2. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` parked unless the user explicitly reopens those lanes.
+3. Preserve the Windows PowerShell wrapper path for future validation runs in this environment.
+4. If the user asks for follow-up perf work, extend from the completed backlog and preserve the startup visual-review caveat.
 
 ## Work Notes
 
-- Active audit plan: `tmp/perf_plan.md` (Phase 2 in progress on 2026-04-17; items 1-6 complete, item 7 next)
+- Active audit plan: `tmp/perf_plan.md` (Phase 2 complete on 2026-04-17; items 1-7 complete)
 - Active short queue: `docs/plans/active/todo.md`
 - Dual-lane validation reference: `docs/TEST.md`
 - Parked cleanup backlog: `tmp/cleanup_plan.md`
