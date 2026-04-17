@@ -1,7 +1,7 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-17
-Status: Phase 1 rebuilt on 2026-04-17; awaiting explicit Phase 2 approval
+Status: Phase 2 in progress on 2026-04-17; items 1-3 complete
 
 ## Evidence Snapshot
 
@@ -81,10 +81,11 @@ Status: Phase 1 rebuilt on 2026-04-17; awaiting explicit Phase 2 approval
   - Extend sync browser-pipeline tests for single-row tag changes, lock changes, playback-age updates, and mixed fallback cases.
   - Rerun targeted browser-pipeline tests and `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
 
-### [ ] 3. Split the remaining controller fallback prep lane beyond `BrowserRetainedPull`
+### [x] 3. Split the remaining controller fallback prep lane beyond `BrowserRetainedPull`
 - ROI: High
 - Effort: L
 - Expected impact: dirty-pull latency, frame time, CPU
+- Completed: 2026-04-17 (`1e54e355`, `perf(native-bridge): split retained prep lanes`)
 - Evidence:
   - `target/perf/bench.json:61` shows `controller_app_model_projection.p95_us = 2826`
     while `target/perf/bench.json:83` records `retained_app_model_projection_p95_us = 5`.
