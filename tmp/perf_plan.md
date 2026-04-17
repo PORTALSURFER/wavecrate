@@ -1,7 +1,7 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-17
-Status: Phase 2 in progress on 2026-04-17; items 1-5 complete
+Status: Phase 2 in progress on 2026-04-17; items 1-6 complete
 
 ## Evidence Snapshot
 
@@ -148,10 +148,11 @@ Status: Phase 2 in progress on 2026-04-17; items 1-5 complete
   - Add sync and worker tests for similarity sort ordering, anchor rotation, and missing-score fallback behavior.
   - Rerun targeted browser/similarity tests plus `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`.
 
-### [ ] 6. Tighten native text and frame-text caches to avoid clone-heavy hits
+### [x] 6. Tighten native text and frame-text caches to avoid clone-heavy hits
 - ROI: Medium
 - Effort: M
 - Expected impact: steady-state CPU, memory churn, long-session responsiveness
+- Completed: 2026-04-17 (`6784636f`, `perf(text-cache): retain native frame text payloads`)
 - Evidence:
   - `vendor/radiant/src/gui_runtime/native_vello/text_renderer/cache.rs:74`
     appends a fresh queue record on every atom-cache hit, and `:88` only trims when capacity is exceeded.
