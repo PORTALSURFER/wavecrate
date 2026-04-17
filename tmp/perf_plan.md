@@ -1,7 +1,7 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-17
-Status: Phase 2 in progress on 2026-04-17; items 1-3 complete, item 4 next
+Status: Phase 2 in progress on 2026-04-17; items 1-4 complete, item 5 next
 
 ## Evidence Snapshot
 
@@ -124,12 +124,13 @@ Status: Phase 2 in progress on 2026-04-17; items 1-3 complete, item 4 next
   - Run `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`.
   - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
 
-### [ ] 4. Add a true metadata-only DB path for browser search refreshes
+### [x] 4. Add a true metadata-only DB path for browser search refreshes
 - Classification: Bug fix
 - Confidence: High
 - ROI: High
 - Effort: S
 - Expected impact: startup, metadata refresh latency, allocations
+- Completed: 2026-04-17 (`caf5d4cb`, `perf(db): add metadata-only search refresh query`)
 - Evidence:
   - `crates/sempal-library/src/sample_sources/db/read/file_queries.rs:311-318`
     implements `list_search_entry_metadata()` by calling `list_search_entry_rows()`

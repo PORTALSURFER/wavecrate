@@ -1,6 +1,6 @@
 # Active TODO (Agent Handoff Queue)
 
-Last updated (local): 2026-04-17T19:48:00+02:00
+Last updated (local): 2026-04-17T20:06:00+02:00
 Owner: Codex agent sessions
 
 Purpose:
@@ -12,13 +12,13 @@ Purpose:
 
 - The active lane is the runtime performance backlog for the current live tree.
 - `tmp/perf_plan.md` is the live source of truth for the ROI-ranked performance backlog rebuilt on 2026-04-17.
-- Phase 2 is in progress. Items 1-3 are complete (`cec627fd`, `547a9c9b`, `140a8640`; vendor `174aa295`) and item 4 is next.
+- Phase 2 is in progress. Items 1-4 are complete (`cec627fd`, `547a9c9b`, `140a8640`, `caf5d4cb`; vendor `174aa295`) and item 5 is next.
 - The perf guard now headlines the retained bridge path and captures Windows startup summaries; `tmp/perf_plan.md` records the latest artifact details.
 - `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` remain parked while this performance lane is active.
 
 ## Next tasks (ordered)
 
-1. Execute item 4 from `tmp/perf_plan.md` next and keep the remaining backlog in strict ROI order.
+1. Execute item 5 from `tmp/perf_plan.md` next and keep the remaining backlog in strict ROI order.
 2. After each completed item, update `tmp/perf_plan.md`, validate, commit, and push before moving on.
 3. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` dormant unless the user explicitly reopens those lanes.
 4. Keep using the PowerShell validation wrappers for future Windows sessions unless the user explicitly overrides that rule.
