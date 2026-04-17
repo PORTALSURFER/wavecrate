@@ -1,265 +1,221 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-17
-Status: Phase 2 complete on 2026-04-17; items 1-7 complete
+Status: Phase 1 rebuilt on 2026-04-17; awaiting explicit Phase 2 approval
 
 ## Evidence Snapshot
 
-- Fresh local guard run on 2026-04-17 after item 3:
+- Fresh local guard run on 2026-04-17:
   - `target/perf/bench.json`
-  - `hover_latency.p95_us = 261`
-  - `wheel_latency.p95_us = 508`
-  - `browser_filter_churn_latency.p95_us = 46`
-  - `browser_query_churn_latency.p95_us = 53`
-  - `app_model_projection.p95_us = 5`
-  - `controller_app_model_projection.p95_us = 2708`
+  - `controller_app_model_projection.p95_us = 2826`
   - `retained_app_model_projection_p95_us = 5`
-  - The guard completed without warnings.
-- The retained bridge path itself remains cheap in the same artifact:
-  - `interaction_segment_attribution.browser_rows_window.p95_us = 11`
-  - `interaction_segment_attribution.waveform_overlay.p95_us = 29`
-- A reduced startup-profile smoke run on Windows now captures the native-vello summary:
-  - `first_present_ms = 1742.747`
-  - `deferred_model_refresh_ms = 386.673`
-  - `scripts/run_perf_guard.ps1` emitted the startup summary and recommended lock thresholds.
-- The repo still carries a measurable feature-blob decode hotspot:
-  - `feature_blob_decode.total_elapsed_ms = 5494` for `320000` blobs
+  - `browser_filter_churn_latency.p95_us = 38`
+  - `browser_query_churn_latency.p95_us = 65`
+  - `wheel_latency.p95_us = 419`
+  - `waveform_interaction_latency.p95_us = 108`
+  - `feature_blob_decode.total_elapsed_ms = 5329` for `320000` blobs
+- Fresh startup-profile smoke on 2026-04-17:
+  - `target/perf/bench..startup_summary.json`
+  - `first_present_ms = 1632.444`
+  - `surface_ready_ms = 904.170`
+  - `renderer_ready_ms = 1205.318`
+  - `deferred_model_refresh_ms = 371.057`
+- Waveform preview A/B on 2026-04-17:
+  - default immediate-preview median: `target/perf/bench_default_preview.json`
+    - `waveform_interaction_latency.p95_us = 158`
+    - `waveform_interaction_latency.p99_us = 215`
+  - preview disabled median: `target/perf/bench_preview_off.json`
+    - `waveform_interaction_latency.p95_us = 1304`
+    - `waveform_interaction_latency.p99_us = 13518`
+  - conclusion: disabling immediate waveform preview is a regression and should not be treated as the next perf win.
 
 ## ROI-Ordered Backlog
 
-### [x] 1. Split `prepare_native_frame(false)` into dirty-source maintenance lanes for retained pulls
-- Classification: Architecture improvement
-- Confidence: High
+### [ ] 1. Collapse browser search-worker reload into one retained pass
 - ROI: Very High
-- Effort: L
-- Expected impact: p95 interaction latency, frame time, CPU
-- Completed: 2026-04-17 (`cec627fd`, `perf(native-bridge): add retained browser prep lane`)
+- Effort: M
+- Expected impact: startup, browser refresh latency, CPU, memory
 - Evidence:
-  - `target/perf/bench.json` shows `hover_latency.p95_us = 8443`,
-    `interactive_projection.p95_us = 7843`, and `app_model_projection.p95_us = 4128`,
-    with projection-stage time dominating the browser-heavy scenarios.
-  - `src/app_core/native_bridge/runtime_projection.rs:139-167` calls
-    `controller.prepare_native_frame(false)` on every non-local fast-path pull.
-  - `src/app_core/controller.rs:105-147` serially polls jobs, flushes pending writes,
-    refreshes waveform/startup work, ticks playback, refreshes revisions, and updates
-    the performance governor inside one broad gate.
+  - `src/app/controller/library/wavs/browser_search_worker/pipeline/stages/source_cache.rs:121`
+    reloads every search row on revision changes.
+  - `src/app/controller/library/wavs/browser_search_worker/pipeline/stages/source_cache.rs:138`
+    rebuilds compact entries in a second pass.
+  - `src/app/controller/library/wavs/browser_search_worker/pipeline/stages/source_cache.rs:152`
+    hashes all paths again, and `:157` rebuilds the lookup map with fresh string clones.
+  - `crates/sempal-library/src/sample_sources/db/read/file_queries.rs:284`
+    and `:334` still do full ordered table scans for row and metadata refreshes.
 - Recommended change:
-  - Break native-frame preparation into explicit lanes keyed by dirty source:
-    background jobs, pending settings commits, waveform image work, startup
-    maintenance, playback tick, and governor maintenance.
-  - Let browser-only retained pulls run only the lanes they actually need.
-  - Keep one conservative full-prep fallback for ambiguous mixed state.
+  - Build compact entries, path fingerprint, and lookup map in one streaming reload path.
+  - Tighten metadata-only refresh so the full-table metadata fallback is used only when targeted delta refresh truly cannot preserve order.
+  - Avoid repeated `String` materialization for path-keyed caches where borrowed or boxed path storage already exists.
 - Risk / tradeoffs:
-  - Correctness-sensitive ordering can affect pending commits, waveform refresh,
-    startup work, or playback state if a dependency is missed.
-- Visual impact: Needs review
+  - Ordering parity with the DB path is correctness-sensitive; if row order drifts, retained metadata patches can silently target the wrong entries.
+- Visual impact: None
 - Validation plan:
-  - Add controller/native-bridge tests for browser-only pulls, waveform image
-    refresh timing, pending volume/age commits, and deferred startup work.
-  - Rerun `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`.
+  - Extend browser-search worker tests for full reloads, metadata-only refreshes, and targeted delta updates.
   - Rerun `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
+  - Rerun `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`.
 
-### [x] 2. Replace sync browser filter/folder rebuilds with retained stage indexes
-- Classification: Architecture improvement
-- Confidence: High
+### [ ] 2. Narrow sync browser-pipeline invalidation for metadata-only edits
 - ROI: High
 - Effort: M
 - Expected impact: p95 interaction latency, CPU, allocations
-- Completed: 2026-04-17 (`547a9c9b`, `perf(browser): retain filter and folder stage indexes`)
 - Evidence:
-  - `target/perf/bench.json` now reports `browser_filter_churn_latency.p95_us = 2856`,
-    down from `4435` in the audit snapshot.
-  - `src/app/controller/library/wavs/browser_pipeline/visible_rows.rs:164-223`
-    rescans `base_rows` and rebuilds `filtered_rows` entry-by-entry whenever the
-    filtered-stage fingerprint changes.
-  - `src/app/controller/library/wavs/browser_pipeline/folder_stage.rs:4-55`
-    rebuilds a full `Vec<bool>` acceptance map for the whole source snapshot.
-  - The sync controller projection path is still the default benchmark headline path in
-    `tools/bench-cli/src/bench/gui/interactions.rs:30-328`.
+  - `src/app/controller/library/wavs/browser_pipeline.rs:113`
+    updates one compact entry in place.
+  - `src/app/controller/library/wavs/browser_pipeline.rs:126`
+    immediately calls `refresh_base_partitions()`.
+  - `src/app/controller/library/wavs/browser_pipeline.rs:160`
+    rescans every compact entry and clears downstream stage fingerprints for single-entry metadata changes.
+  - `src/app/controller/library/wavs/entry_mutation/cache.rs:55`
+    routes single-row metadata edits through this path.
 - Recommended change:
-  - Port the worker-side retained filter/folder primitives into the sync browser
-    pipeline, or share the same index/cache ownership where boundaries allow it.
-  - Retain accepted-row sets and sorted positions by metadata/folder revisions
-    instead of rescanning the whole source for filter-only churn.
-  - Keep sort-order caches separate from acceptance caches.
+  - Patch the affected partition buckets and stage fingerprints incrementally when tag, lock, missing, or playback-age changes affect only one entry.
+  - Keep the existing full partition rebuild as a conservative fallback when multiple rows or structural mutations land together.
 - Risk / tradeoffs:
-  - Stale visible rows or wrong folder-negation behavior will show immediately if
-    invalidation is not exact.
+  - Incorrect partial invalidation can leave stale triage partitions, sort positions, or playback-age filters.
 - Visual impact: None
 - Validation plan:
-  - Extend sync browser pipeline tests for folder filters, marked-only,
-    playback-age filters, similarity sort, and duplicate-cleanup mode.
+  - Extend sync browser-pipeline tests for single-row tag changes, lock changes, playback-age updates, and mixed fallback cases.
+  - Rerun targeted browser-pipeline tests and `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
+
+### [ ] 3. Split the remaining controller fallback prep lane beyond `BrowserRetainedPull`
+- ROI: High
+- Effort: L
+- Expected impact: dirty-pull latency, frame time, CPU
+- Evidence:
+  - `target/perf/bench.json:61` shows `controller_app_model_projection.p95_us = 2826`
+    while `target/perf/bench.json:83` records `retained_app_model_projection_p95_us = 5`.
+  - `src/app_core/controller.rs:190`
+    still runs a broad full-prep lane that serially flushes transport, browser, metadata, waveform, startup, playhead, and governor work.
+  - `src/app_core/native_bridge/runtime_projection.rs:166`
+    still routes all non-local non-motion pulls through the selected prep plan before projection.
+- Recommended change:
+  - Introduce more specific dirty-pull maintenance lanes after `BrowserRetainedPull`, especially for metadata-only, startup-only, and transport/status-only work.
+  - Keep the current full lane as the fallback when dependencies cross boundaries or multiple queues are dirty.
+- Risk / tradeoffs:
+  - Ordering mistakes can surface as stale status, delayed startup maintenance, or inconsistent transport/browser state.
+- Visual impact: Minimal
+- Validation plan:
+  - Add controller/native-bridge tests for each lane boundary and mixed-dirty fallback behavior.
   - Rerun `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`.
   - Rerun `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
 
-### [x] 3. Make the perf guard measure the shipped retained runtime and capture Windows startup summaries
-- Classification: Developer-experience improvement
-- Confidence: High
+### [ ] 4. Stop active text fields from shaping the same text twice per rebuild
 - ROI: High
 - Effort: M
-- Expected impact: startup tracking, p95 interaction latency tracking, engineering time
-- Completed: 2026-04-17 (`140a8640`, `perf(bench): measure retained runtime in guard`; vendor `174aa295`, `perf(native-vello): emit eager startup summaries`)
+- Expected impact: p95 typing latency, CPU, allocations
 - Evidence:
-  - Fresh guard output shows `app_model_projection.p95_us = 4128` but
-    `retained_app_model_projection_p95_us = 15`, proving the headline metric is
-    not the shipped runtime path.
-  - `tools/bench-cli/src/bench/gui/interactions.rs:46-324` and
-    `tools/bench-cli/src/bench/gui/scenario_registry.rs:98-136` still measure
-    controller projection directly.
-  - `scripts/run_perf_guard.ps1:240` explicitly warns that startup profiling is not
-    implemented on Windows.
-  - `vendor/radiant/src/gui_runtime/native_vello/startup.rs:50-102` only emits the
-    startup summary once the deferred refresh path completes today.
+  - `vendor/radiant/src/gui_runtime/native_vello/text_edit.rs:176`
+    shapes the full text to derive stops and scroll state.
+  - `vendor/radiant/src/gui_runtime/native_vello/text_edit.rs:211`
+    immediately reshapes the visible slice again.
+  - `vendor/radiant/src/gui_runtime/native_vello/text_runtime.rs:114`
+    builds this layout on active text-field misses, and `:372` only caches the final visible payload.
 - Recommended change:
-  - Add bridge-backed GUI scenarios that report retained runtime pull + rebuild metrics
-    as the default headline numbers and keep controller projection as diagnostic output.
-  - Make startup summaries emit on both eager and deferred startup paths.
-  - Teach `scripts/run_perf_guard.ps1` to collect and validate startup summary output.
+  - Separate full-text shaping from visible-window extraction so caret math can reuse one shaped layout per text/editor state.
+  - Cache visible-slice geometry as a derived view of the shaped full-text layout instead of running a second `layout_text` call.
 - Risk / tradeoffs:
-  - Bench output becomes richer and needs careful report labeling so controller-mode and
-    retained-runtime numbers are not conflated.
+  - Caret, selection, and scroll-window math must remain exact or the active field can show mismatched highlight geometry.
 - Visual impact: None
 - Validation plan:
-  - Add parity assertions between controller and retained bridge outputs for fixture runs.
-  - Run `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`.
-  - Run `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
+  - Extend native-vello text-field tests for long query typing, selection ranges, scroll window shifts, and BPM/text fields.
+  - Rerun `cargo nextest run --manifest-path vendor/radiant/Cargo.toml text_runtime`.
 
-### [x] 4. Add a true metadata-only DB path for browser search refreshes
-- Classification: Bug fix
-- Confidence: High
-- ROI: High
-- Effort: S
-- Expected impact: startup, metadata refresh latency, allocations
-- Completed: 2026-04-17 (`caf5d4cb`, `perf(db): add metadata-only search refresh query`)
-- Evidence:
-  - `crates/sempal-library/src/sample_sources/db/read/file_queries.rs:311-318`
-    implements `list_search_entry_metadata()` by calling `list_search_entry_rows()`
-    and then discarding paths.
-  - `src/app/controller/library/wavs/browser_search_worker/pipeline/stages/source_cache.rs:103-114`
-    uses that metadata-only call for retained-cache refreshes.
-  - `src/app/controller/library/wavs/browser_search_worker/pipeline/stages/source_cache.rs:171-188`
-    only needs tag, lock, and playback-age fields to patch cached entries in place.
-- Recommended change:
-  - Add a dedicated `SELECT tag, locked, last_played_at ... ORDER BY path ASC`
-    query that skips relative-path decoding/allocation.
-  - Use that path for metadata-only refreshes and keep the full-row fallback for
-    structural changes and trust loss.
-- Risk / tradeoffs:
-  - Ordering must stay identical to the full-row query or retained metadata patches
-    will drift silently.
-- Visual impact: None
-- Validation plan:
-  - Add DB read tests for metadata ordering parity.
-  - Extend browser search worker tests for tag/lock/playback-age refreshes.
-  - Rerun `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
-
-### [x] 5. Stop duplicate/similarity RMS checks from decoding whole feature blobs
-- Classification: Bug fix
-- Confidence: High
+### [ ] 5. Replace entry-sized similarity scratch with sparse/windowed lookup
 - ROI: Medium
 - Effort: M
-- Expected impact: similarity latency, CPU, memory
-- Completed: 2026-04-17 (`a384984a`, `perf(similarity): avoid full feature decodes for rms checks`)
+- Expected impact: similarity sort latency, CPU, allocations
 - Evidence:
-  - `target/perf/bench.json` still reports `feature_blob_decode.total_elapsed_ms = 5494`
-    for `320000` blobs.
-  - `src/app/controller/library/wavs/similar/resolve/mod.rs:45-49` checks duplicate-mode
-    silence by calling `load_rms_for_sample()`.
-  - `src/app/controller/library/wavs/similar/resolve/ranking.rs:123-162` loads RMS for
-    duplicate filtering through `load_feature_metrics_for_samples()`.
-  - `src/app/controller/library/wavs/similar/resolve/repository.rs:149-191` decodes each
-    full `vec_blob` into `Vec<f32>` before reading `rms` and deriving `light_dsp`.
+  - `src/app/controller/library/wavs/browser_pipeline/helpers.rs:18`
+    sizes `similar_lookup_scratch` to the full entry count.
+  - `src/app/controller/library/wavs/browser_pipeline/helpers.rs:25`
+    fills the lookup table entry-by-entry before sorting only the visible slice.
+  - `src/app/controller/library/wavs/browser_search_worker/pipeline/stages/visible_rows.rs:189`
+    mirrors the same full-entry scratch strategy in the worker path.
 - Recommended change:
-  - Add a lightweight feature-metric reader that extracts RMS directly from the blob bytes
-    without allocating the full vector.
-  - Derive `light_dsp` only on the rerank path that actually needs it, and keep the
-    existing full decode fallback for unknown feature versions.
+  - Replace the full-entry scratch vector with a sparse score map or a retained windowed lookup keyed only by currently relevant indices.
+  - Keep anchor rotation and ordering semantics unchanged.
 - Risk / tradeoffs:
-  - Feature layout/version assumptions must stay explicit so older blobs still fall back
-    safely.
+  - Similarity ordering and anchor placement are correctness-sensitive, especially when scores are missing or equal.
 - Visual impact: None
 - Validation plan:
-  - Add metric-decoder parity tests against the existing full decode path.
-  - Extend duplicate-filter similarity tests.
-  - Rerun `cargo test -p sempal --lib app::controller::library::wavs::similar`.
+  - Add sync and worker tests for similarity sort ordering, anchor rotation, and missing-score fallback behavior.
+  - Rerun targeted browser/similarity tests plus `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`.
 
-### [x] 6. Narrow vendor browser-row cache invalidation and retain per-row geometry
-- Classification: Architecture improvement
-- Confidence: Medium
+### [ ] 6. Tighten native text and frame-text caches to avoid clone-heavy hits
+- ROI: Medium
+- Effort: M
+- Expected impact: steady-state CPU, memory churn, long-session responsiveness
+- Evidence:
+  - `vendor/radiant/src/gui_runtime/native_vello/text_renderer/cache.rs:74`
+    appends a fresh queue record on every atom-cache hit, and `:88` only trims when capacity is exceeded.
+  - `vendor/radiant/src/gui/native_shell/state/frame_text_cache.rs:33`
+    and `:69` clone full cached browser/status payloads on hits.
+  - `vendor/radiant/src/gui/native_shell/state/frame_text_cache.rs:184`
+    hashes broad layout rectangles and model signatures into one invalidation key.
+- Recommended change:
+  - Make the atom-cache recency path bounded without unbounded queue growth on hits.
+  - Rework browser/status text caches to reuse stored payloads without full owned clones, or split them into smaller cache layers with narrower invalidation.
+- Risk / tradeoffs:
+  - Cache-key bugs can leave stale text or stale positions during resize and status changes.
+- Visual impact: None
+- Validation plan:
+  - Extend native-shell cache tests for repeated-hit behavior, resize invalidation, and status/browser text updates.
+  - Manually inspect status/footer/browser chrome during resize and selection churn.
+
+### [ ] 7. Move lightweight feature metrics out of the full feature-blob decode hot path
 - ROI: Medium
 - Effort: L
-- Expected impact: frame time, CPU, p95 interaction latency on real scene rebuilds
-- Completed: 2026-04-17 (vendor `eda74e21`, `perf(browser-rows): retain geometry across selection changes`)
+- Expected impact: similarity latency, background prep CPU, memory
 - Evidence:
-  - `vendor/radiant/src/gui/native_shell/state/cache.rs:80-118` keys browser-row caching
-    at window scope and clears the retained truncation cache whenever the
-    whole-window truncation key changes.
-  - `vendor/radiant/src/gui/native_shell/state/browser_rows/windowing/projection.rs:137-224`
-    recomputes text layout, truncation, inline-tag geometry, and owned strings for every
-    row in the visible window on cache misses.
-  - `vendor/radiant/src/gui/native_shell/state/browser_rows/windowing/projection.rs:17-32`
-    and `vendor/radiant/src/gui/native_shell/state/browser_rows/truncation.rs:103-120`
-    still pay whole-slice scans/hashing to build cache keys.
-  - Fresh retained-bridge probe numbers are already low (`browser_rows_window.p95_us = 11`),
-    which is why this sits below the controller and measurement work.
+  - `target/perf/bench.json:30` records `feature_blob_decode.total_elapsed_ms = 5329` for `320000` blobs.
+  - `tools/bench-cli/src/bench/feature_blob_decode.rs:22`
+    still measures repeated full `decode_f32_le_blob()` work as a standalone hotspot.
+  - `src/app/controller/library/wavs/similar/resolve/repository.rs:146`
+    and `:192` still read `vec_blob` for batch feature-metric lookups.
 - Recommended change:
-  - Separate stable per-row text/geometry caches from volatile selection/focus overlay state.
-  - Key cached row geometry by row identity plus width bucket instead of whole-window state
-    where possible.
-  - Replace repeated visible-window scans for focused/selected hints with retained positions.
+  - Persist or cache lightweight metrics needed for similarity filtering/reranking separately from the full feature blob, or add a retained decode cache for repeated batch access.
+  - Keep the full blob for rerank paths that genuinely need the whole vector.
 - Risk / tradeoffs:
-  - Incorrect row identity or truncation invalidation will surface as stale labels/rects.
+  - Schema changes and cache lifetime need careful compatibility handling across existing feature versions.
 - Visual impact: None
 - Validation plan:
-  - Extend vendor browser-row rendering, truncation, and virtualization tests.
-  - Manually inspect dense browser rows and focus transitions at multiple viewport sizes.
-  - Rerun `cargo nextest run --manifest-path vendor/radiant/Cargo.toml`.
+  - Add parity tests between persisted lightweight metrics and full-blob derived values.
+  - Rerun targeted similarity tests and compare `feature_blob_decode` plus similarity scenarios before/after.
 
-### [x] 7. After measurement parity, trial progressive startup reveal instead of hidden eager full-scene launch
-- Classification: Architecture improvement
-- Confidence: Medium
+### [ ] 8. Re-measure and retune hidden-startup reveal policy for current first-present cost
 - ROI: Medium
 - Effort: M
-- Expected impact: startup, CPU, perceived responsiveness
-- Completed: 2026-04-17 (vendor `b14e2423`, `perf(startup): reveal placeholder before full refresh`)
+- Expected impact: startup, perceived responsiveness
 - Evidence:
-  - `vendor/radiant/src/gui_runtime/native_vello/runtime_startup/policy.rs:4-13`
-    launches hidden and disables deferred first-model pull by default.
-  - `vendor/radiant/src/gui_runtime/native_vello/runtime_startup/initialization.rs:191-199`
-    marks layout/model dirty and rebuilds the first scene before reveal.
-  - `docs/performance_qa.md` expects startup-first-paint tracking, but the Windows guard
-    still cannot collect it today.
+  - `target/perf/bench..startup_summary.json` reports `first_present_ms = 1632.444`,
+    `surface_ready_ms = 904.170`, and `deferred_model_refresh_ms = 371.057`.
+  - `vendor/radiant/src/gui_runtime/native_vello.rs:87`
+    hard-codes `STARTUP_REVEAL_STALL_TIMEOUT` to `300ms`.
+  - `vendor/radiant/src/gui_runtime/native_vello/runtime_startup/policy.rs:49`
+    arms the hidden-window reveal deadline with that constant.
+  - `vendor/radiant/src/gui_runtime/native_vello/runtime_render/present.rs:41`
+    only force-reveals the window after that stall fallback expires.
 - Recommended change:
-  - Once item 3 lands, compare the current eager hidden path against a conservative
-    placeholder-first or deferred-heavy refresh startup path.
-  - Keep the default policy only if first-present latency fails to improve without
-    visible pop-in.
+  - Collect a small startup matrix across the current policy and a more adaptive reveal deadline tied to first-scene readiness or backend behavior.
+  - Prefer a conservative adaptive policy over simply shortening the timeout globally.
 - Risk / tradeoffs:
-  - Earlier reveal can expose partially populated UI, motion hitching, or obvious pop-in.
+  - Over-eager reveal can expose placeholder pop-in or partially populated chrome.
 - Visual impact: Needs review
 - Validation plan:
-  - Run repeated startup captures on Windows before and after.
+  - Repeat startup captures with `SEMPAL_PERF_GUARD_STARTUP_PROFILE=1`.
   - Manually review sandbox launches for pop-in, text stability, and first-interaction feel.
-  - Rerun `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
-
-## Open Questions / Missing Definitions
-
-- None blocking for Phase 2 ordering today.
-- Startup policy experiments in item 7 should still be manually signed off for visual quality
-  before they remain enabled by default.
+  - Rerun vendor startup tests and `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
 
 ## Rejected Ideas
 
-- `[-]` Treat vendor browser-row cache work as the top priority.
-  - Why it was considered: the vendor row-window code still performs full-window rebuild work.
-  - Why it was rejected: fresh retained-runtime probe numbers show the bridge path is already
-    cheap (`retained_app_model_projection_p95_us = 15`, `browser_rows_window.p95_us = 11`),
-    so controller prep and sync pipeline work have higher immediate ROI.
-  - Missing evidence: no fresh live artifact yet shows vendor row-window cache misses as the
-    current top shipped-runtime bottleneck.
+- `[-]` Disable `SEMPAL_NATIVE_BRIDGE_IMMEDIATE_WAVEFORM_PREVIEW` to cut waveform latency.
+  - Why it was considered: a one-run smoke showed lower `waveform_interaction_latency`.
+  - Why it was rejected: the repeated A/B went the other direction. On 2026-04-17, default preview recorded `waveform_interaction_latency.p95_us = 158` and `p99_us = 215` in `target/perf/bench_default_preview.json`, while preview-off regressed to `p95_us = 1304` and `p99_us = 13518` in `target/perf/bench_preview_off.json`.
+  - Missing evidence: none; current local measurement is strong enough to keep this out of Phase 2.
 
-- `[-]` Spend the next cycle on waveform-motion-path optimization.
-  - Why it was considered: waveform paths are usually a common UI hotspot.
-  - Why it was rejected: fresh guard numbers are already low
-    (`waveform_interaction_latency.p95_us = 208`, `idle_cursor_motion_latency.p95_us = 34`).
-  - Missing evidence: no current measurement shows waveform motion dominating p95 latency.
+## Notes
+
+- Previous 2026-04-17 Phase 2 runtime-performance work is preserved in git history and should remain the baseline context for the follow-up items above.
+- Manual visual review is still mandatory for any startup-reveal policy change.
