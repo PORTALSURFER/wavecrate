@@ -1,7 +1,7 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-17
-Status: Phase 2 in progress on 2026-04-17; items 1-4 complete
+Status: Phase 2 in progress on 2026-04-17; items 1-5 complete
 
 ## Evidence Snapshot
 
@@ -126,10 +126,11 @@ Status: Phase 2 in progress on 2026-04-17; items 1-4 complete
   - Extend native-vello text-field tests for long query typing, selection ranges, scroll window shifts, and BPM/text fields.
   - Rerun `cargo nextest run --manifest-path vendor/radiant/Cargo.toml text_runtime` once unrelated retained-vector test compile failures in `vendor/radiant` are cleared.
 
-### [ ] 5. Replace entry-sized similarity scratch with sparse/windowed lookup
+### [x] 5. Replace entry-sized similarity scratch with sparse/windowed lookup
 - ROI: Medium
 - Effort: M
 - Expected impact: similarity sort latency, CPU, allocations
+- Completed: 2026-04-17 (`61cb941b`, `perf(browser): compact similarity score lookups`)
 - Evidence:
   - `src/app/controller/library/wavs/browser_pipeline/helpers.rs:18`
     sizes `similar_lookup_scratch` to the full entry count.
