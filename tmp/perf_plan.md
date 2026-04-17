@@ -1,7 +1,7 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-17
-Status: Phase 2 in progress on 2026-04-17; items 1-5 complete, item 6 next
+Status: Phase 2 in progress on 2026-04-17; items 1-6 complete, item 7 next
 
 ## Evidence Snapshot
 
@@ -183,12 +183,13 @@ Status: Phase 2 in progress on 2026-04-17; items 1-5 complete, item 6 next
   - Extend duplicate-filter similarity tests.
   - Rerun `cargo test -p sempal --lib app::controller::library::wavs::similar`.
 
-### [ ] 6. Narrow vendor browser-row cache invalidation and retain per-row geometry
+### [x] 6. Narrow vendor browser-row cache invalidation and retain per-row geometry
 - Classification: Architecture improvement
 - Confidence: Medium
 - ROI: Medium
 - Effort: L
 - Expected impact: frame time, CPU, p95 interaction latency on real scene rebuilds
+- Completed: 2026-04-17 (vendor `eda74e21`, `perf(browser-rows): retain geometry across selection changes`)
 - Evidence:
   - `vendor/radiant/src/gui/native_shell/state/cache.rs:80-118` keys browser-row caching
     at window scope and clears the retained truncation cache whenever the
