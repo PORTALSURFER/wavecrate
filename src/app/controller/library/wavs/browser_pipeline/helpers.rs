@@ -20,22 +20,17 @@ pub(super) fn apply_sort_for_similar(
                 .ui_cache
                 .browser
                 .pipeline
-                .prepare_similar_lookup_scratch(entries_len);
+                .prepare_similar_lookup_scratch(similar.indices.len());
             let lookup = &mut controller.ui_cache.browser.pipeline.similar_lookup_scratch;
             for (&index, &score) in similar.indices.iter().zip(similar.scores.iter()) {
-                if index < lookup.len() {
-                    lookup[index] = Some(score);
+                if index < entries_len {
+                    lookup.push((index, score));
                 }
             }
+            lookup.sort_unstable_by_key(|(index, _)| *index);
             visible.sort_by(|a, b| {
-                let a_score = lookup
-                    .get(*a)
-                    .and_then(|score| *score)
-                    .unwrap_or(f32::NEG_INFINITY);
-                let b_score = lookup
-                    .get(*b)
-                    .and_then(|score| *score)
-                    .unwrap_or(f32::NEG_INFINITY);
+                let a_score = similar_lookup_score(lookup, *a);
+                let b_score = similar_lookup_score(lookup, *b);
                 b_score
                     .partial_cmp(&a_score)
                     .unwrap_or(Ordering::Equal)
@@ -57,6 +52,14 @@ pub(super) fn apply_sort_for_similar(
             visible.sort_unstable();
         }
     }
+}
+
+fn similar_lookup_score(lookup: &[(usize, f32)], index: usize) -> f32 {
+    lookup
+        .binary_search_by_key(&index, |(candidate, _)| *candidate)
+        .ok()
+        .and_then(|position| lookup.get(position).map(|(_, score)| *score))
+        .unwrap_or(f32::NEG_INFINITY)
 }
 
 /// Return whether an entry tag matches the active triage/rating filters.

@@ -49,7 +49,7 @@ pub(super) struct SearchWorkerCache {
     pub(super) playback_age_token_caches: Vec<WorkerPlaybackAgeTokenCache>,
     pub(super) triage_cache: Option<WorkerTriageCacheEntry>,
     pub(super) score_scratch: Vec<Option<i64>>,
-    pub(super) similar_lookup_scratch: Vec<Option<f32>>,
+    pub(super) similar_lookup_scratch: Vec<(usize, f32)>,
     pub(super) scored_index_scratch: Vec<(usize, i64)>,
 }
 
@@ -90,11 +90,10 @@ impl SearchWorkerCache {
         added
     }
 
-    /// Ensure similarity-lookup scratch has `len` elements and return added capacity.
-    pub(super) fn prepare_similar_lookup_scratch(&mut self, len: usize) -> usize {
-        let added = reserve_growth(&mut self.similar_lookup_scratch, len);
+    /// Ensure similarity-lookup scratch can hold `capacity` sparse score entries.
+    pub(super) fn prepare_similar_lookup_scratch(&mut self, capacity: usize) -> usize {
+        let added = reserve_growth(&mut self.similar_lookup_scratch, capacity);
         self.similar_lookup_scratch.clear();
-        self.similar_lookup_scratch.resize(len, None);
         added
     }
 

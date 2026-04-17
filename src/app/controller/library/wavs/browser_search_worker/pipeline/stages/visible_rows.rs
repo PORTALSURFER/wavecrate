@@ -4,9 +4,9 @@ use super::super::super::telemetry::{
     record_search_worker_scratch_alloc, record_search_worker_similar_lookup_alloc,
     record_search_worker_visible_rows,
 };
-use super::filtered_stage_for_job;
 use super::super::results::sort_visible_by_playback_age;
 use super::super::*;
+use super::filtered_stage_for_job;
 
 /// Return an `All` visible-rows result when no filtering/sorting/scoring work is required.
 pub(in super::super) fn build_fast_path_result_if_applicable(
@@ -186,9 +186,9 @@ fn build_visible_rows_for_similar(
     generation: u64,
 ) -> Option<Vec<usize>> {
     if job.sort == SampleBrowserSort::Similarity {
-        let added_lookup_capacity = cache.prepare_similar_lookup_scratch(entries_len);
+        let added_lookup_capacity = cache.prepare_similar_lookup_scratch(similar.indices.len());
         record_search_worker_similar_lookup_alloc(
-            added_lookup_capacity.saturating_mul(std::mem::size_of::<Option<f32>>()),
+            added_lookup_capacity.saturating_mul(std::mem::size_of::<(usize, f32)>()),
         );
         for (offset, (&index, &score)) in similar
             .indices
@@ -199,10 +199,13 @@ fn build_visible_rows_for_similar(
             if search_job_canceled_for_index(queue, generation, offset) {
                 return None;
             }
-            if index < cache.similar_lookup_scratch.len() {
-                cache.similar_lookup_scratch[index] = Some(score);
+            if index < entries_len {
+                cache.similar_lookup_scratch.push((index, score));
             }
         }
+        cache
+            .similar_lookup_scratch
+            .sort_unstable_by_key(|(index, _)| *index);
         if search_job_canceled(queue, generation) {
             return None;
         }
@@ -225,16 +228,8 @@ fn build_visible_rows_for_similar(
 
     if job.sort == SampleBrowserSort::Similarity {
         visible.sort_by(|a: &usize, b: &usize| {
-            let a_score = cache
-                .similar_lookup_scratch
-                .get(*a)
-                .and_then(|score| *score)
-                .unwrap_or(f32::NEG_INFINITY);
-            let b_score = cache
-                .similar_lookup_scratch
-                .get(*b)
-                .and_then(|score| *score)
-                .unwrap_or(f32::NEG_INFINITY);
+            let a_score = similar_lookup_score(&cache.similar_lookup_scratch, *a);
+            let b_score = similar_lookup_score(&cache.similar_lookup_scratch, *b);
             b_score
                 .partial_cmp(&a_score)
                 .unwrap_or(Ordering::Equal)
@@ -263,6 +258,14 @@ fn build_visible_rows_for_similar(
     }
 
     Some(visible)
+}
+
+fn similar_lookup_score(lookup: &[(usize, f32)], index: usize) -> f32 {
+    lookup
+        .binary_search_by_key(&index, |(candidate, _)| *candidate)
+        .ok()
+        .and_then(|position| lookup.get(position).map(|(_, score)| *score))
+        .unwrap_or(f32::NEG_INFINITY)
 }
 
 /// Sort visible indices according to the active browser sort mode.

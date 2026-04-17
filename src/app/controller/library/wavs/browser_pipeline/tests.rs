@@ -164,8 +164,17 @@ fn update_entry_metadata_keeps_folder_acceptance_cache_for_same_path_edits() {
         folder_hash,
         true,
     );
-    let folder_accepts_fingerprint = controller.ui_cache.browser.pipeline.folder_accepts_fingerprint;
-    let folder_accepts_by_index = controller.ui_cache.browser.pipeline.folder_accepts_by_index.clone();
+    let folder_accepts_fingerprint = controller
+        .ui_cache
+        .browser
+        .pipeline
+        .folder_accepts_fingerprint;
+    let folder_accepts_by_index = controller
+        .ui_cache
+        .browser
+        .pipeline
+        .folder_accepts_by_index
+        .clone();
 
     let updated = search_entry("drums/kick.wav", Rating::TRASH_1, None);
     assert!(
@@ -177,7 +186,11 @@ fn update_entry_metadata_keeps_folder_acceptance_cache_for_same_path_edits() {
     );
 
     assert_eq!(
-        controller.ui_cache.browser.pipeline.folder_accepts_fingerprint,
+        controller
+            .ui_cache
+            .browser
+            .pipeline
+            .folder_accepts_fingerprint,
         folder_accepts_fingerprint
     );
     assert_eq!(
@@ -197,8 +210,20 @@ fn update_entry_metadata_invalidates_filtered_stage_without_rebuilding_base_rows
 
     let _ = build_visible_rows(&mut controller, None, None);
     let base_rows = controller.ui_cache.browser.pipeline.base_rows.clone();
-    let base_fingerprint = controller.ui_cache.browser.pipeline.base_fingerprint.clone();
-    assert!(controller.ui_cache.browser.pipeline.filtered_fingerprint.is_some());
+    let base_fingerprint = controller
+        .ui_cache
+        .browser
+        .pipeline
+        .base_fingerprint
+        .clone();
+    assert!(
+        controller
+            .ui_cache
+            .browser
+            .pipeline
+            .filtered_fingerprint
+            .is_some()
+    );
 
     let updated = search_entry("neutral.wav", Rating::KEEP_3, None);
     assert!(
@@ -215,8 +240,22 @@ fn update_entry_metadata_invalidates_filtered_stage_without_rebuilding_base_rows
         base_fingerprint
     );
     assert_eq!(controller.ui_cache.browser.pipeline.keep_rows, vec![0, 1]);
-    assert!(controller.ui_cache.browser.pipeline.filtered_fingerprint.is_none());
-    assert!(controller.ui_cache.browser.pipeline.sorted_fingerprint.is_none());
+    assert!(
+        controller
+            .ui_cache
+            .browser
+            .pipeline
+            .filtered_fingerprint
+            .is_none()
+    );
+    assert!(
+        controller
+            .ui_cache
+            .browser
+            .pipeline
+            .sorted_fingerprint
+            .is_none()
+    );
 }
 
 #[test]
@@ -401,6 +440,36 @@ fn similarity_sort_reuses_pipeline_lookup_scratch() {
             .similar_lookup_scratch
             .capacity(),
         first_capacity
+    );
+}
+
+#[test]
+fn similarity_sort_keeps_sparse_lookup_compact() {
+    let entries = vec![
+        search_entry("anchor.wav", Rating::NEUTRAL, None),
+        search_entry("close.wav", Rating::NEUTRAL, None),
+        search_entry("missing.wav", Rating::NEUTRAL, None),
+        search_entry("far.wav", Rating::NEUTRAL, None),
+    ];
+    let (mut controller, _) = prepare_with_source_and_wav_entries(entries);
+    controller.ui.browser.search.sort = SampleBrowserSort::Similarity;
+    controller.ui.browser.search.similar_query = Some(SimilarQuery {
+        sample_id: "source::anchor.wav".to_string(),
+        label: "anchor".to_string(),
+        indices: vec![3, 1],
+        scores: vec![0.9, 0.4],
+        anchor_index: None,
+    });
+
+    let (visible, _, _) = build_visible_rows(&mut controller, None, None);
+
+    match visible {
+        VisibleRows::List(rows) => assert_eq!(&*rows, &[3usize, 1usize]),
+        VisibleRows::All { total } => panic!("expected similarity-sorted rows, got all {total}"),
+    }
+    assert_eq!(
+        controller.ui_cache.browser.pipeline.similar_lookup_scratch,
+        vec![(1, 0.4), (3, 0.9)]
     );
 }
 
