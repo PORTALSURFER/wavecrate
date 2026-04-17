@@ -19,19 +19,22 @@ pub(super) fn ensure_folder_acceptance_stage(
         .pipeline
         .folder_accepts_fingerprint
         == Some(fingerprint)
-        && controller
-            .ui_cache
-            .browser
-            .pipeline
-            .folder_accepts_by_index
-            .len()
-            == entries_len
+        && controller.ui_cache.browser.pipeline.folder_accepts_active == has_folder_filters
+        && (!has_folder_filters
+            || controller
+                .ui_cache
+                .browser
+                .pipeline
+                .folder_accepts_by_index
+                .len()
+                == entries_len)
     {
         return;
     }
 
-    let accepts = if has_folder_filters {
+    if has_folder_filters {
         let mut accepts = Vec::with_capacity(entries_len);
+        let mut accepted_rows = Vec::new();
         for entry in &controller.ui_cache.browser.pipeline.compact_entries {
             let accepted = crate::app::controller::library::source_folders::folder_filter_accepts(
                 &entry.relative_path,
@@ -41,12 +44,30 @@ pub(super) fn ensure_folder_acceptance_stage(
             );
             accepts.push(accepted);
         }
-        accepts
+        accepted_rows.reserve(accepts.iter().filter(|accepted| **accepted).count());
+        for (index, accepted) in accepts.iter().copied().enumerate() {
+            if accepted {
+                accepted_rows.push(index);
+            }
+        }
+        controller.ui_cache.browser.pipeline.folder_accepts_by_index = accepts;
+        controller.ui_cache.browser.pipeline.folder_filtered_rows = accepted_rows;
     } else {
-        vec![true; entries_len]
-    };
+        controller
+            .ui_cache
+            .browser
+            .pipeline
+            .folder_accepts_by_index
+            .clear();
+        controller
+            .ui_cache
+            .browser
+            .pipeline
+            .folder_filtered_rows
+            .clear();
+    }
 
-    controller.ui_cache.browser.pipeline.folder_accepts_by_index = accepts;
+    controller.ui_cache.browser.pipeline.folder_accepts_active = has_folder_filters;
     controller
         .ui_cache
         .browser
@@ -56,6 +77,9 @@ pub(super) fn ensure_folder_acceptance_stage(
 
 /// Return cached folder-filter acceptance for an absolute wav-entry index.
 pub(super) fn folder_accepts(controller: &AppController, index: usize) -> bool {
+    if !controller.ui_cache.browser.pipeline.folder_accepts_active {
+        return true;
+    }
     controller
         .ui_cache
         .browser

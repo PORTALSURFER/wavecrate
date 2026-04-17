@@ -73,6 +73,7 @@ pub(super) fn ensure_base_stage(controller: &mut AppController) {
         .browser
         .pipeline
         .folder_accepts_fingerprint = None;
+    controller.ui_cache.browser.pipeline.folder_accepts_active = false;
     controller
         .ui_cache
         .browser
@@ -84,6 +85,12 @@ pub(super) fn ensure_base_stage(controller: &mut AppController) {
         .browser
         .pipeline
         .folder_accepts_by_index
+        .clear();
+    controller
+        .ui_cache
+        .browser
+        .pipeline
+        .folder_filtered_rows
         .clear();
     controller.ui_cache.browser.pipeline.filtered_fingerprint = None;
     controller.ui_cache.browser.pipeline.scored_fingerprint = None;

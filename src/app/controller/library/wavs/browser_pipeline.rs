@@ -36,8 +36,12 @@ pub(crate) struct BrowserPipelineCache {
     pub(crate) keep_rows: Vec<usize>,
     /// Fingerprint for the cached folder-filter acceptance map.
     folder_accepts_fingerprint: Option<u64>,
+    /// Whether the retained folder stage currently reflects active folder filters.
+    folder_accepts_active: bool,
     /// Cached folder-filter acceptance by absolute wav-entry index.
     folder_accepts_by_index: Vec<bool>,
+    /// Cached absolute indices accepted by the active folder filter.
+    folder_filtered_rows: Vec<usize>,
     /// Next playback-age rollover tokens cached for the current base snapshot by filter set.
     playback_age_token_caches: Vec<PlaybackAgeTokenCache>,
     /// Fingerprint for the filtered stage rows.
@@ -69,7 +73,9 @@ impl BrowserPipelineCache {
         self.neutral_rows.clear();
         self.keep_rows.clear();
         self.folder_accepts_fingerprint = None;
+        self.folder_accepts_active = false;
         self.folder_accepts_by_index.clear();
+        self.folder_filtered_rows.clear();
         self.playback_age_token_caches.clear();
         self.filtered_fingerprint = None;
         self.filtered_rows.clear();
@@ -172,6 +178,10 @@ impl BrowserPipelineCache {
         self.scored_fingerprint = None;
         self.sorted_row_positions.clear();
         self.sorted_fingerprint = None;
+        self.folder_accepts_fingerprint = None;
+        self.folder_accepts_active = false;
+        self.folder_accepts_by_index.clear();
+        self.folder_filtered_rows.clear();
     }
 }
 

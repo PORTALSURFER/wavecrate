@@ -186,10 +186,23 @@ fn ensure_filtered_stage(
         folder_hash,
     );
     if controller.ui_cache.browser.pipeline.filtered_fingerprint != Some(filtered_fingerprint) {
-        let base_len = controller.ui_cache.browser.pipeline.base_rows.len();
-        let mut filtered_rows = Vec::with_capacity(base_len);
-        for row in 0..base_len {
-            let index = controller.ui_cache.browser.pipeline.base_rows[row];
+        if let Some(retained_rows) = retained_filter_only_rows(
+            controller,
+            filter,
+            rating_filter,
+            playback_age_filter,
+            marked_only,
+        ) {
+            controller.ui_cache.browser.pipeline.filtered_rows = retained_rows.to_vec();
+            controller.ui_cache.browser.pipeline.filtered_fingerprint = Some(filtered_fingerprint);
+            controller.ui_cache.browser.pipeline.scored_fingerprint = None;
+            controller.ui_cache.browser.pipeline.sorted_fingerprint = None;
+            return filtered_fingerprint;
+        }
+
+        let (candidate_rows, needs_folder_check) = filtered_stage_candidates(controller, filter);
+        let mut filtered_rows = Vec::with_capacity(candidate_rows.len());
+        for &index in candidate_rows {
             let Some((tag, locked, last_played_at, marked)) = filter_stage_entry(
                 controller,
                 index,
@@ -210,7 +223,7 @@ fn ensure_filtered_stage(
             ) {
                 continue;
             }
-            if !folder_accepts(controller, index) {
+            if needs_folder_check && !folder_accepts(controller, index) {
                 continue;
             }
             filtered_rows.push(index);
@@ -221,6 +234,59 @@ fn ensure_filtered_stage(
         controller.ui_cache.browser.pipeline.sorted_fingerprint = None;
     }
     filtered_fingerprint
+}
+
+fn retained_filter_only_rows<'a>(
+    controller: &'a AppController,
+    filter: TriageFlagFilter,
+    rating_filter: &std::collections::BTreeSet<i8>,
+    playback_age_filter: &std::collections::BTreeSet<crate::app::state::PlaybackAgeFilterChip>,
+    marked_only: bool,
+) -> Option<&'a [usize]> {
+    if marked_only || !rating_filter.is_empty() || !playback_age_filter.is_empty() {
+        return None;
+    }
+    let pipeline = &controller.ui_cache.browser.pipeline;
+    if pipeline.folder_accepts_active {
+        return (filter == TriageFlagFilter::All)
+            .then_some(pipeline.folder_filtered_rows.as_slice());
+    }
+    match filter {
+        TriageFlagFilter::All => None,
+        TriageFlagFilter::Keep => Some(pipeline.keep_rows.as_slice()),
+        TriageFlagFilter::Trash => Some(pipeline.trash_rows.as_slice()),
+        TriageFlagFilter::Untagged => Some(pipeline.neutral_rows.as_slice()),
+    }
+}
+
+fn filtered_stage_candidates(
+    controller: &AppController,
+    filter: TriageFlagFilter,
+) -> (&[usize], bool) {
+    let pipeline = &controller.ui_cache.browser.pipeline;
+    if !pipeline.folder_accepts_active {
+        return (triage_candidate_rows(pipeline, filter), false);
+    }
+    if filter == TriageFlagFilter::All {
+        return (pipeline.folder_filtered_rows.as_slice(), false);
+    }
+
+    let triage_rows = triage_candidate_rows(pipeline, filter);
+    let folder_rows = pipeline.folder_filtered_rows.as_slice();
+    if triage_rows.len() <= folder_rows.len() {
+        (triage_rows, true)
+    } else {
+        (folder_rows, false)
+    }
+}
+
+fn triage_candidate_rows(pipeline: &BrowserPipelineCache, filter: TriageFlagFilter) -> &[usize] {
+    match filter {
+        TriageFlagFilter::All => pipeline.base_rows.as_slice(),
+        TriageFlagFilter::Keep => pipeline.keep_rows.as_slice(),
+        TriageFlagFilter::Trash => pipeline.trash_rows.as_slice(),
+        TriageFlagFilter::Untagged => pipeline.neutral_rows.as_slice(),
+    }
 }
 
 fn filtered_stage_fingerprint(
@@ -306,7 +372,7 @@ fn ensure_sorted_stage_for_similar(
 }
 
 fn filter_stage_entry(
-    controller: &mut AppController,
+    controller: &AppController,
     index: usize,
     selected_source_id: Option<&crate::sample_sources::SourceId>,
 ) -> Option<(Rating, bool, Option<i64>, bool)> {

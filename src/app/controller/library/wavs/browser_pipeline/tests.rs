@@ -117,7 +117,12 @@ fn update_entry_metadata_refreshes_partitions_without_invalidating_base_snapshot
     let (mut controller, _) = prepare_with_source_and_wav_entries(entries);
 
     ensure_base_stage(&mut controller);
-    let base_fingerprint = controller.ui_cache.browser.pipeline.base_fingerprint.clone();
+    let base_fingerprint = controller
+        .ui_cache
+        .browser
+        .pipeline
+        .base_fingerprint
+        .clone();
     let updated = search_entry("neutral.wav", Rating::TRASH_1, None);
 
     assert!(
@@ -186,6 +191,45 @@ fn build_visible_rows_uses_all_fast_path_when_filters_are_idle() {
     }
     assert_eq!(focused, None);
     assert_eq!(loaded, None);
+    assert!(
+        controller
+            .ui_cache
+            .browser
+            .pipeline
+            .folder_accepts_by_index
+            .is_empty()
+    );
+    assert!(
+        controller
+            .ui_cache
+            .browser
+            .pipeline
+            .folder_filtered_rows
+            .is_empty()
+    );
+}
+
+#[test]
+fn keep_filter_reuses_retained_triage_rows() {
+    let entries = vec![
+        search_entry("neutral.wav", Rating::NEUTRAL, None),
+        search_entry("keep.wav", Rating::KEEP_1, None),
+        search_entry("trash.wav", Rating::TRASH_1, None),
+        search_entry("keep-two.wav", Rating::KEEP_3, None),
+    ];
+    let (mut controller, _) = prepare_with_source_and_wav_entries(entries);
+    controller.ui.browser.search.filter = TriageFlagFilter::Keep;
+
+    let (visible, _, _) = build_visible_rows(&mut controller, None, None);
+
+    match visible {
+        VisibleRows::List(rows) => assert_eq!(&*rows, &[1usize, 3usize]),
+        VisibleRows::All { total } => panic!("expected keep-filtered rows, got all {total}"),
+    }
+    assert_eq!(
+        controller.ui_cache.browser.pipeline.filtered_rows,
+        controller.ui_cache.browser.pipeline.keep_rows
+    );
 }
 
 #[test]
@@ -634,6 +678,14 @@ fn folder_filter_build_does_not_fault_wav_pages_when_compact_cache_is_available(
         VisibleRows::All { total } => panic!("expected folder-filtered rows, got all {total}"),
     }
     assert!(controller.wav_entries.pages.is_empty());
+    assert_eq!(
+        controller.ui_cache.browser.pipeline.folder_filtered_rows,
+        vec![0, 2]
+    );
+    assert_eq!(
+        controller.ui_cache.browser.pipeline.filtered_rows,
+        vec![0, 2]
+    );
 }
 
 #[test]
