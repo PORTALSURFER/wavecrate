@@ -1,4 +1,5 @@
 use super::*;
+use crate::app_core::controller::NativeFramePreparationPlan;
 
 /// No-op immediate focus movement should keep projection cache keys intact.
 #[test]
@@ -73,4 +74,33 @@ fn search_query_actions_stay_on_full_model_pull_preparation() {
         PendingModelPullPreparation::Full
     );
     assert!(bridge.controller.has_dirty_derived_nodes());
+}
+
+/// Browser-only dirty state should use the narrower retained-pull preparation lane.
+#[test]
+fn browser_dirty_state_uses_browser_retained_pull_plan() {
+    let mut bridge = test_bridge(16);
+    bridge
+        .controller
+        .mark_derived_source_dirty(DerivedNodeId::BrowserState, DirtyReason::BrowserAction);
+
+    assert_eq!(
+        bridge.model_pull_preparation_plan_for_tests(),
+        NativeFramePreparationPlan::BrowserRetainedPull
+    );
+}
+
+/// Startup or non-browser dirty work should keep the bridge on the full preparation lane.
+#[test]
+fn startup_work_keeps_full_model_pull_plan() {
+    let mut bridge = test_bridge(16);
+    bridge
+        .controller
+        .apply_configuration(crate::sample_sources::config::AppConfig::default())
+        .expect("apply startup config");
+
+    assert_eq!(
+        bridge.model_pull_preparation_plan_for_tests(),
+        NativeFramePreparationPlan::Full
+    );
 }

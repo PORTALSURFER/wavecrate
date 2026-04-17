@@ -1,4 +1,8 @@
 use super::*;
+use crate::app::controller::{
+    startup_audio_refresh_count_for_tests, with_stubbed_startup_audio_refresh_for_tests,
+};
+use crate::app_core::controller::NativeFramePreparationPlan;
 
 #[test]
 fn prepare_native_frame_animation_only_updates_fps_when_not_playing() {
@@ -12,6 +16,38 @@ fn prepare_native_frame_animation_only_updates_fps_when_not_playing() {
     controller.prepare_native_frame(true);
 
     assert!(controller.average_fps().is_some());
+}
+
+#[test]
+fn browser_retained_pull_plan_skips_startup_lanes() {
+    with_stubbed_startup_audio_refresh_for_tests(|| {
+        let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+        controller
+            .apply_configuration(crate::sample_sources::config::AppConfig::default())
+            .expect("apply startup config");
+
+        controller.prepare_native_frame_with_plan(NativeFramePreparationPlan::BrowserRetainedPull);
+        controller.prepare_native_frame_with_plan(NativeFramePreparationPlan::BrowserRetainedPull);
+
+        assert!(controller.has_pending_startup_audio_refresh());
+        assert_eq!(startup_audio_refresh_count_for_tests(), 0);
+    });
+}
+
+#[test]
+fn full_pull_plan_runs_startup_lanes() {
+    with_stubbed_startup_audio_refresh_for_tests(|| {
+        let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+        controller
+            .apply_configuration(crate::sample_sources::config::AppConfig::default())
+            .expect("apply startup config");
+
+        controller.prepare_native_frame_with_plan(NativeFramePreparationPlan::Full);
+        controller.prepare_native_frame_with_plan(NativeFramePreparationPlan::Full);
+
+        assert!(!controller.has_pending_startup_audio_refresh());
+        assert_eq!(startup_audio_refresh_count_for_tests(), 1);
+    });
 }
 
 /// Native seek actions should queue deferred playback commit work.

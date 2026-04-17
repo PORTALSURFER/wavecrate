@@ -19,7 +19,7 @@ use super::{
 use crate::app_core::{
     actions::{NativeAppModel, NativeMotionModel},
     app_api::controller_state::DerivedNodeId,
-    controller::AppControllerNativeRuntimeExt,
+    controller::{AppControllerNativeRuntimeExt, NativeFramePreparationPlan},
 };
 use std::{
     sync::Arc,
@@ -28,6 +28,21 @@ use std::{
 use tracing::debug;
 
 impl SempalNativeBridge {
+    /// Resolve which native-frame maintenance lane to run for the next model pull.
+    fn model_pull_preparation_plan(&self) -> NativeFramePreparationPlan {
+        if self.controller.can_prepare_browser_retained_pull() {
+            NativeFramePreparationPlan::BrowserRetainedPull
+        } else {
+            NativeFramePreparationPlan::Full
+        }
+    }
+
+    #[cfg(test)]
+    /// Expose the selected non-local model-pull preparation plan to tests.
+    pub(super) fn model_pull_preparation_plan_for_tests(&self) -> NativeFramePreparationPlan {
+        self.model_pull_preparation_plan()
+    }
+
     /// Mark the cached projection key snapshot stale after controller mutation.
     pub(super) fn invalidate_projection_key_snapshot(&mut self) {
         self.projection_key_snapshot = None;
@@ -154,12 +169,15 @@ impl SempalNativeBridge {
             debug!(call, "native bridge: pull_model using local-only fast path");
         }
         if !use_local_pull_fast_path {
+            let prepare_plan = self.model_pull_preparation_plan();
             let revisions_before_prepare = self.controller.ui.projection_revisions;
-            self.controller.prepare_native_frame(false);
+            self.controller.prepare_native_frame_with_plan(prepare_plan);
             if revisions_before_prepare != self.controller.ui.projection_revisions {
                 self.invalidate_projection_key_snapshot();
             }
-            self.flush_derived_updates_before_pull(false);
+            if prepare_plan == NativeFramePreparationPlan::Full {
+                self.flush_derived_updates_before_pull(false);
+            }
         }
         let prepare_duration =
             prepare_start.map_or(Duration::ZERO, |start: Instant| start.elapsed());
