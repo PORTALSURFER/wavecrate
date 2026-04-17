@@ -1,7 +1,7 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-17
-Status: Phase 2 in progress on 2026-04-17; items 1-6 complete
+Status: Phase 2 in progress on 2026-04-17; items 1-7 complete
 
 ## Evidence Snapshot
 
@@ -13,7 +13,7 @@ Status: Phase 2 in progress on 2026-04-17; items 1-6 complete
   - `browser_query_churn_latency.p95_us = 65`
   - `wheel_latency.p95_us = 419`
   - `waveform_interaction_latency.p95_us = 108`
-  - `feature_blob_decode.total_elapsed_ms = 5329` for `320000` blobs
+  - `feature_blob_decode.total_elapsed_ms = 433` for `320000` lightweight blobs
 - Fresh startup-profile smoke on 2026-04-17:
   - `target/perf/bench..startup_summary.json`
   - `first_present_ms = 1632.444`
@@ -170,16 +170,17 @@ Status: Phase 2 in progress on 2026-04-17; items 1-6 complete
   - Extend native-shell cache tests for repeated-hit behavior, resize invalidation, and status/browser text updates.
   - Manually inspect status/footer/browser chrome during resize and selection churn.
 
-### [ ] 7. Move lightweight feature metrics out of the full feature-blob decode hot path
+### [x] 7. Move lightweight feature metrics out of the full feature-blob decode hot path
 - ROI: Medium
 - Effort: L
 - Expected impact: similarity latency, background prep CPU, memory
+- Completed: 2026-04-17 (`1a025192`, `perf(similarity): persist lightweight feature metrics`)
 - Evidence:
-  - `target/perf/bench.json:30` records `feature_blob_decode.total_elapsed_ms = 5329` for `320000` blobs.
+  - `target/perf/bench.json:30` now records `feature_blob_decode.total_elapsed_ms = 433` for `320000` lightweight blobs after persisting the DSP/RMS hot-path payload.
   - `tools/bench-cli/src/bench/feature_blob_decode.rs:22`
-    still measures repeated full `decode_f32_le_blob()` work as a standalone hotspot.
+    now measures the retained lightweight decode payload rather than the full feature vector.
   - `src/app/controller/library/wavs/similar/resolve/repository.rs:146`
-    and `:192` still read `vec_blob` for batch feature-metric lookups.
+    and `:192` now read persisted `light_dsp_blob` / `rms` first and only fall back to `vec_blob` for legacy rows.
 - Recommended change:
   - Persist or cache lightweight metrics needed for similarity filtering/reranking separately from the full feature blob, or add a retained decode cache for repeated batch access.
   - Keep the full blob for rerank paths that genuinely need the whole vector.

@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-04-17T22:14:10+02:00
+Last Updated: 2026-04-17T22:30:38+02:00
 Updated By: Codex
 
 ## Purpose
@@ -14,21 +14,20 @@ Updated By: Codex
 - `X:\sempal` and `X:\sempal\vendor\radiant` are still expected to stay on local `next`.
 - The current workspace is dirty with unrelated user edits; I must not overwrite them while executing the perf lane.
 - `tmp/perf_plan.md` is the active source of truth for the rebuilt 2026-04-17 follow-up runtime performance backlog.
-- Phase 2 is in progress on 2026-04-17. Items 1-6 are complete, including item 6 in `vendor/radiant` (`6784636f`, `perf(text-cache): retain native frame text payloads`), and item 7 is the next sequential implementation target.
+- Phase 2 is in progress on 2026-04-17. Items 1-7 are complete, including item 6 in `vendor/radiant` (`6784636f`, `perf(text-cache): retain native frame text payloads`) and item 7 in the root repo (`1a025192`, `perf(similarity): persist lightweight feature metrics`). Item 8 is the next sequential implementation target.
 - Fresh evidence captured on 2026-04-17:
   - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
-  - `target/perf/bench.json` with `controller_app_model_projection.p95_us = 2826`, `retained_app_model_projection_p95_us = 5`, `browser_filter_churn_latency.p95_us = 38`, `browser_query_churn_latency.p95_us = 65`, `wheel_latency.p95_us = 419`, `waveform_interaction_latency.p95_us = 108`, and `feature_blob_decode.total_elapsed_ms = 5329` for `320000` blobs.
+  - `target/perf/bench.json` with `controller_app_model_projection.p95_us = 2826`, `retained_app_model_projection_p95_us = 5`, `browser_filter_churn_latency.p95_us = 38`, `browser_query_churn_latency.p95_us = 65`, `wheel_latency.p95_us = 419`, `waveform_interaction_latency.p95_us = 108`, and `feature_blob_decode.total_elapsed_ms = 433` for `320000` lightweight blobs.
   - `SEMPAL_PERF_GUARD_STARTUP_PROFILE=1 powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
   - `target/perf/bench..startup_summary.json` with `first_present_ms = 1632.444`, `surface_ready_ms = 904.170`, `renderer_ready_ms = 1205.318`, and `deferred_model_refresh_ms = 371.057`.
   - Waveform preview A/B: `target/perf/bench_default_preview.json` vs `target/perf/bench_preview_off.json` shows disabling immediate waveform preview regresses `waveform_interaction_latency` (`p95 158us -> 1304us`, `p99 215us -> 13518us`).
-- The current ordered follow-up backlog in `tmp/perf_plan.md` now has items 1-6 complete and still tracks:
+- The current ordered follow-up backlog in `tmp/perf_plan.md` now has items 1-7 complete and still tracks:
   - collapsing browser search-worker reload/revision refresh into one retained pass
   - narrowing sync browser-pipeline invalidation for metadata-only edits
   - splitting the remaining controller fallback prep lane beyond `BrowserRetainedPull`
   - removing duplicate text shaping in active text fields
   - replacing entry-sized similarity scratch with sparse/windowed lookup
   - tightening native text/frame-text caches
-  - moving lightweight feature metrics off the full feature-blob decode hot path
   - retuning hidden-startup reveal policy with measurement and manual visual review
 - The Windows Cargo wrapper lane is still trustworthy in this environment because `scripts/use_cargo_cache.ps1` falls back to a local passthrough `rustc` wrapper when user-level Cargo config forces a broken `sccache`.
 - `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` remain parked unless the user explicitly reopens those lanes.
@@ -38,13 +37,13 @@ Updated By: Codex
 ## Immediate Next Actions
 
 1. Treat `tmp/perf_plan.md` as the active Phase 2 runtime-performance source of truth.
-2. Continue sequential implementation with item 7 unless a blocker or user redirect lands first.
+2. Continue sequential implementation with item 8 unless a blocker or user redirect lands first.
 3. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` parked unless the user explicitly reopens those lanes.
 4. Preserve the Windows PowerShell wrapper path for future validation runs in this environment.
 
 ## Work Notes
 
-- Active audit plan: `tmp/perf_plan.md` (Phase 2 in progress on 2026-04-17; items 1-6 complete)
+- Active audit plan: `tmp/perf_plan.md` (Phase 2 in progress on 2026-04-17; items 1-7 complete)
 - Active short queue: `docs/plans/active/todo.md`
 - Dual-lane validation reference: `docs/TEST.md`
 - Parked cleanup backlog: `tmp/cleanup_plan.md`
