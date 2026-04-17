@@ -90,6 +90,19 @@ fn browser_dirty_state_uses_browser_retained_pull_plan() {
     );
 }
 
+/// Retained browser pulls should still flush derived dirt before projection.
+#[test]
+fn browser_retained_pull_clears_dirty_nodes_after_projection() {
+    let mut bridge = test_bridge(16);
+    bridge
+        .controller
+        .mark_derived_source_dirty(DerivedNodeId::BrowserState, DirtyReason::BrowserAction);
+
+    let _ = bridge.pull_model_arc_snapshot();
+
+    assert!(!bridge.controller.has_dirty_derived_nodes());
+}
+
 /// Startup or non-browser dirty work should keep the bridge on the full preparation lane.
 #[test]
 fn startup_work_keeps_full_model_pull_plan() {

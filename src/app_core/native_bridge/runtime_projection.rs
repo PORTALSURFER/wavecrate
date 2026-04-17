@@ -175,7 +175,7 @@ impl SempalNativeBridge {
             if revisions_before_prepare != self.controller.ui.projection_revisions {
                 self.invalidate_projection_key_snapshot();
             }
-            if prepare_plan == NativeFramePreparationPlan::Full {
+            if prepare_plan != NativeFramePreparationPlan::MotionOnly {
                 self.flush_derived_updates_before_pull(false);
             }
         }
