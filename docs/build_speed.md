@@ -46,6 +46,13 @@ crate:
   - owns application-directory helpers, SQLite extension loading, per-source DB
     storage, and global library DB storage
 
+The scan-layer logic now lives in its own shared workspace crate:
+
+- `crates/sempal-scan`
+  - library crate: `sempal-scan`
+  - owns source scanning and scan-state helpers built on top of
+    `sempal-library`
+
 The root package now sets `autobins = false` and explicitly declares only the
 shipping app binary. That means normal root-level `cargo check --bins` and
 `cargo nextest` runs no longer fan out across all support-tool binaries.
@@ -71,6 +78,12 @@ Library-storage lane:
 - `cargo check -p sempal-library`
 - use this first for source-db, file-journal, library DB, and related storage
   helper edits before re-running the normal app lane
+
+Scan-focused lane:
+
+- `cargo check -p sempal-scan`
+- use this first for source scanning, deep-hash, rename reconciliation, and
+  scan-state edits before re-running the normal app lane
 
 - `bash scripts/devcheck.sh`
 - `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
@@ -116,6 +129,10 @@ Recommended command matrix:
   - then `devcheck`
 - Storage-only edits inside `crates/sempal-library`:
   - start with `cargo check -p sempal-library`
+  - then `devcheck_app`
+  - then `devcheck`
+- Scan-only edits inside `crates/sempal-scan`:
+  - start with `cargo check -p sempal-scan`
   - then `devcheck_app`
   - then `devcheck`
 - Browser/runtime input, native shell, projection, controller work:
@@ -205,6 +222,19 @@ Completed on 2026-04-14:
    the shared storage crate
 4. left app/controller orchestration and analysis-job workflows in `sempal`
 5. documented the narrower local loop for storage-only edits
+
+## Implemented Phase 4 Work
+
+Completed on 2026-04-17:
+
+1. extracted `sample_sources::scanner` and `sample_sources::scan_state` into
+   `crates/sempal-scan`
+2. kept the root `sempal::sample_sources` surface as a compatibility facade for
+   config plus re-exported scan/storage helpers
+3. kept app config, updater logic, GUI/runtime code, and controller
+   orchestration in the root crate
+4. moved the scan-layer unit tests with the extracted crate
+5. documented the narrower local loop for scan-only edits
 
 ## Timings
 
@@ -353,25 +383,78 @@ Interpretation after Phase 3:
 - the final binary step remains small relative to the root crate rebuild after
   storage edits, so linker tuning still does not look like the main next win
 
+That Phase 3 measurement led directly to the Phase 4 `sempal-scan` extraction
+recorded below.
+
+Fresh rebuild after the scan extraction (`cargo clean` first):
+
+- timing report:
+  [cargo-timing-20260417T090051.2970558Z.html](/C:/dev/sempal/target/cargo-timings/cargo-timing-20260417T090051.2970558Z.html)
+- total wall time: 212.4s (3m 32.4s)
+- fresh units: 0
+- dirty units: 606
+- heaviest units included:
+  - `libsqlite3-sys` build script (run) 65.6s
+  - `sempal` 59.1s
+  - `wgpu-core` 47.1s
+  - `asio-sys` build script (run) 44.5s
+  - `sempal-analysis` 37.6s
+  - `sempal-scan` 3.5s
+
+Warm rebuild after a tiny app-only edit (`src/main.rs`):
+
+- timing report:
+  [cargo-timing-20260417T090437.8041759Z.html](/C:/dev/sempal/target/cargo-timings/cargo-timing-20260417T090437.8041759Z.html)
+- total time: 5.1s
+- fresh units: 605
+- dirty units: 1
+- rebuilt units:
+  - `sempal` bin `sempal` 3.8s
+
+Warm rebuild after a tiny `sempal-scan` edit:
+
+- timing report:
+  [cargo-timing-20260417T090453.1366429Z.html](/C:/dev/sempal/target/cargo-timings/cargo-timing-20260417T090453.1366429Z.html)
+- total time: 18.7s
+- fresh units: 603
+- dirty units: 3
+- rebuilt units:
+  - `sempal` 13.8s
+  - `sempal` bin `sempal` 3.3s
+  - `sempal-scan` 1.0s
+
+Interpretation after Phase 4:
+
+- the scan extraction improved the dependency-edit path again, but only
+  modestly: 19.4s down to 18.7s
+- app-only warm rebuilds remain in the cheap 5s lane
+- the fresh app build stayed roughly flat after this split: 215.1s down to
+  212.4s
+- the remaining warm rebuild cost is still the broad root `sempal` crate
+  rather than the final binary step
+- linker tuning still looks secondary to root-crate narrowing because the
+  binary step is 3.3s while the root crate rebuild is 13.8s
+
 ## Remaining Follow-Up
 
-The two highest-ROI storage/analysis splits are now done, but the root library
-crate is still broad for dependency-layer edits. Only continue if timing data
-says the remaining 14s root rebuild on `sempal-library` edits is still too
-expensive.
+The three highest-ROI analysis/storage/scan splits are now done, but the root
+library crate is still broad for dependency-layer edits. Only continue if
+timing data says the remaining 13-14s root rebuild is still too expensive.
 
 Likely next candidates:
 
-- adjacent scan/storage helpers that still live in the root `sample_sources`
-  facade
+- app-config extraction only if the remaining `sample_sources::config` boundary
+  can be separated cleanly from root runtime concerns
 - a focused updater-core split if updater work begins to dominate app rebuilds
+- a narrow linker experiment only after another measurement confirms the root
+  crate cannot be reduced much further
 
 Do not split GUI/runtime crates just to make the workspace compile. Only do the
 next round after re-measuring.
 
 ## Re-measure Before More Refactors
 
-After the storage split:
+After the scan split:
 
 - rerun the `release-local` timing matrix:
   - fresh `cargo build -p sempal --bin sempal --profile release-local --timings`

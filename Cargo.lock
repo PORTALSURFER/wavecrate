@@ -4543,6 +4543,7 @@ dependencies = [
  "rusqlite",
  "sempal-analysis",
  "sempal-library",
+ "sempal-scan",
  "semver",
  "serde",
  "serde_json",
@@ -4645,6 +4646,17 @@ dependencies = [
  "tracing",
  "uuid",
  "windows 0.62.2",
+]
+
+[[package]]
+name = "sempal-scan"
+version = "19.0.0"
+dependencies = [
+ "blake3",
+ "sempal-library",
+ "tempfile",
+ "thiserror 2.0.17",
+ "tracing",
 ]
 
 [[package]]

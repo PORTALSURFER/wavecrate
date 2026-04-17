@@ -1,0 +1,17 @@
+[package]
+name = "sempal-scan"
+version = "19.0.0"
+edition = "2024"
+
+[lints.rust]
+warnings = "deny"
+missing_docs = "deny"
+
+[dependencies]
+blake3 = "1.6.1"
+sempal-library = { path = "../sempal-library" }
+thiserror = "2.0.17"
+tracing = "0.1.41"
+
+[dev-dependencies]
+tempfile = "3.23.0"
