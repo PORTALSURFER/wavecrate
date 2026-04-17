@@ -115,7 +115,7 @@ mod tests {
                 (0..(super::super::SEARCH_CANCEL_CHECK_INTERVAL + 1))
                     .map(|index| CompactSearchEntry {
                         display_label: format!("item-{index}").into_boxed_str(),
-                        relative_path: format!("item-{index}.wav").into_boxed_str(),
+                        relative_path: format!("item-{index}.wav").into(),
                         tag: if index % 2 == 0 {
                             Rating::KEEP_1
                         } else {

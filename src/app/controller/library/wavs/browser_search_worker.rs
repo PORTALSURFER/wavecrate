@@ -75,7 +75,7 @@ mod tests {
                 let display_label = crate::app::view_model::sample_display_label(&e.relative_path);
                 CompactSearchEntry {
                     display_label: display_label.into_boxed_str(),
-                    relative_path: relative_path.into_boxed_str(),
+                    relative_path: relative_path.into(),
                     tag: e.tag,
                     locked: e.locked,
                     last_played_at: e.last_played_at,

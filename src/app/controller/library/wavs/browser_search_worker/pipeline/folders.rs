@@ -213,7 +213,7 @@ mod tests {
                 (0..(super::super::SEARCH_CANCEL_CHECK_INTERVAL + 1))
                     .map(|index| CompactSearchEntry {
                         display_label: format!("item-{index}").into_boxed_str(),
-                        relative_path: format!("group/item-{index}.wav").into_boxed_str(),
+                        relative_path: format!("group/item-{index}.wav").into(),
                         tag: Rating::NEUTRAL,
                         locked: false,
                         last_played_at: None,

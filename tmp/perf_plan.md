@@ -31,10 +31,11 @@ Status: Phase 1 rebuilt on 2026-04-17; awaiting explicit Phase 2 approval
 
 ## ROI-Ordered Backlog
 
-### [ ] 1. Collapse browser search-worker reload into one retained pass
+### [x] 1. Collapse browser search-worker reload into one retained pass
 - ROI: Very High
 - Effort: M
 - Expected impact: startup, browser refresh latency, CPU, memory
+- Completed: 2026-04-17 (`d6267f32`, `perf(browser): collapse retained worker reload passes`)
 - Evidence:
   - `src/app/controller/library/wavs/browser_search_worker/pipeline/stages/source_cache.rs:121`
     reloads every search row on revision changes.

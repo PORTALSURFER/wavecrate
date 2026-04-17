@@ -259,7 +259,7 @@ fn compact_entries(entries: &[WavEntry]) -> Vec<CompactSearchEntry> {
             let display_label = crate::app::view_model::sample_display_label(&entry.relative_path);
             CompactSearchEntry {
                 display_label: display_label.into_boxed_str(),
-                relative_path: relative_path.into_boxed_str(),
+                relative_path: relative_path.into(),
                 tag: entry.tag,
                 locked: entry.locked,
                 last_played_at: entry.last_played_at,

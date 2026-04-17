@@ -3,10 +3,11 @@
 use super::super::search_scoring::QueryScoreCacheEntry;
 use super::*;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 pub(super) struct CompactSearchEntry {
     pub(super) display_label: Box<str>,
-    pub(super) relative_path: Box<str>,
+    pub(super) relative_path: Arc<str>,
     pub(super) tag: Rating,
     pub(super) locked: bool,
     pub(super) last_played_at: Option<i64>,
@@ -32,7 +33,7 @@ impl DbFileStamp {
 pub(super) struct SearchWorkerCache {
     pub(super) db: Option<crate::sample_sources::SourceDatabase>,
     pub(super) entries: Option<Vec<CompactSearchEntry>>,
-    pub(super) entry_lookup: HashMap<String, usize>,
+    pub(super) entry_lookup: HashMap<Arc<str>, usize>,
     pub(super) source_id: Option<String>,
     pub(super) source_root: Option<PathBuf>,
     pub(super) revision: u64,

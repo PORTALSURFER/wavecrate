@@ -2,6 +2,7 @@
 
 use super::super::*;
 use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 
 /// Ensure the worker cache targets the job source, reopening DB/caches on source or stamp changes.
 pub(in super::super) fn ensure_search_cache_ready_for_job(
@@ -91,8 +92,12 @@ pub(in super::super) fn ensure_search_entries_loaded_for_job(
                 db.list_search_entry_rows_for_paths(&job.metadata_delta_paths)
                     .unwrap_or_default()
             };
-            if refresh_cached_entry_metadata_delta(cache, &job.metadata_delta_paths, &delta_rows, revision)
-            {
+            if refresh_cached_entry_metadata_delta(
+                cache,
+                &job.metadata_delta_paths,
+                &delta_rows,
+                revision,
+            ) {
                 return true;
             }
         }
@@ -142,15 +147,13 @@ fn reload_compact_entries(
     revision: u64,
     paths_revision: u64,
 ) -> bool {
-    let Some(compact_entries) = build_compact_entries(rows, queue, generation) else {
-        return false;
-    };
-    let Some(path_fingerprint) = hash_compact_entry_paths(&compact_entries, queue, generation)
+    let Some((compact_entries, entry_lookup, path_fingerprint)) =
+        build_compact_entries(rows, queue, generation)
     else {
         return false;
     };
     cache.entries = Some(compact_entries);
-    cache.entry_lookup = build_entry_lookup(cache.entries.as_deref().unwrap_or(&[]));
+    cache.entry_lookup = entry_lookup;
     cache.revision = revision;
     cache.paths_revision = paths_revision;
     if cache.path_fingerprint != path_fingerprint {
@@ -197,8 +200,8 @@ fn refresh_cached_entry_metadata_delta(
     }
     let mut updated = 0usize;
     for row in rows {
-        let path = row.relative_path.to_string_lossy().to_string();
-        let Some(index) = cache.entry_lookup.get(&path).copied() else {
+        let path = row.relative_path.to_string_lossy();
+        let Some(index) = cache.entry_lookup.get(path.as_ref()).copied() else {
             return false;
         };
         let Some(entry) = entries.get_mut(index) else {
@@ -219,24 +222,6 @@ fn refresh_cached_entry_metadata_delta(
     true
 }
 
-fn hash_compact_entry_paths(
-    entries: &[CompactSearchEntry],
-    queue: &SearchJobQueue,
-    generation: u64,
-) -> Option<u64> {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    for (index, entry) in entries.iter().enumerate() {
-        if search_job_canceled_for_index(queue, generation, index) {
-            return None;
-        }
-        entry.relative_path.as_ref().hash(&mut hasher);
-    }
-    if search_job_canceled(queue, generation) {
-        return None;
-    }
-    Some(hasher.finish())
-}
-
 fn refresh_cached_entry_metadata(
     cached_entries: &mut [CompactSearchEntry],
     metadata: &[crate::sample_sources::db::read::SearchEntryMetadata],
@@ -248,40 +233,37 @@ fn refresh_cached_entry_metadata(
     }
 }
 
-fn build_entry_lookup(entries: &[CompactSearchEntry]) -> std::collections::HashMap<String, usize> {
-    entries
-        .iter()
-        .enumerate()
-        .map(|(index, entry)| (entry.relative_path.to_string(), index))
-        .collect()
-}
-
 fn build_compact_entries(
     loaded_entries: &[crate::sample_sources::db::read::SearchEntryRow],
     queue: &SearchJobQueue,
     generation: u64,
-) -> Option<Vec<CompactSearchEntry>> {
+) -> Option<(Vec<CompactSearchEntry>, std::collections::HashMap<Arc<str>, usize>, u64)> {
     let mut compact_entries = Vec::with_capacity(loaded_entries.len());
+    let mut entry_lookup = std::collections::HashMap::with_capacity(loaded_entries.len());
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
     for (index, entry) in loaded_entries.iter().enumerate() {
         if search_job_canceled_for_index(queue, generation, index) {
             return None;
         }
-        compact_entries.push(compact_search_entry_for(entry));
+        let compact_entry = compact_search_entry_for(entry);
+        compact_entry.relative_path.as_ref().hash(&mut hasher);
+        entry_lookup.insert(Arc::clone(&compact_entry.relative_path), index);
+        compact_entries.push(compact_entry);
     }
     if search_job_canceled(queue, generation) {
         return None;
     }
-    Some(compact_entries)
+    Some((compact_entries, entry_lookup, hasher.finish()))
 }
 
 fn compact_search_entry_for(
     entry: &crate::sample_sources::db::read::SearchEntryRow,
 ) -> CompactSearchEntry {
-    let relative_path = entry.relative_path.to_string_lossy().to_string();
+    let relative_path: Arc<str> = Arc::from(entry.relative_path.to_string_lossy().into_owned());
     let display_label = crate::app::view_model::sample_display_label(&entry.relative_path);
     CompactSearchEntry {
         display_label: display_label.into_boxed_str(),
-        relative_path: relative_path.into_boxed_str(),
+        relative_path,
         tag: entry.metadata.tag,
         locked: entry.metadata.locked,
         last_played_at: entry.metadata.last_played_at,
