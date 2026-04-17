@@ -58,6 +58,8 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         sample_id TEXT PRIMARY KEY,
         feat_version INTEGER NOT NULL,
         vec_blob BLOB NOT NULL,
+        light_dsp_blob BLOB,
+        rms REAL,
         computed_at INTEGER NOT NULL
     ) WITHOUT ROWID;
     CREATE TABLE IF NOT EXISTS layout_umap (
@@ -102,6 +104,8 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         analysis_version TEXT NOT NULL,
         feat_version INTEGER NOT NULL,
         vec_blob BLOB NOT NULL,
+        light_dsp_blob BLOB,
+        rms REAL,
         computed_at INTEGER NOT NULL,
         duration_seconds REAL NOT NULL,
         sr_used INTEGER NOT NULL

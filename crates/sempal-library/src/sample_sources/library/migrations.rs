@@ -44,19 +44,52 @@ impl LibraryDatabase {
     }
 
     pub(super) fn migrate_features_table(&mut self) -> Result<(), LibraryError> {
-        if self.table_exists("features")? {
+        if !self.table_exists("features")? {
+            self.connection
+                .execute_batch(
+                    "CREATE TABLE IF NOT EXISTS features (
+                        sample_id TEXT PRIMARY KEY,
+                        feat_version INTEGER NOT NULL,
+                        vec_blob BLOB NOT NULL,
+                        light_dsp_blob BLOB,
+                        rms REAL,
+                        computed_at INTEGER NOT NULL
+                    ) WITHOUT ROWID;",
+                )
+                .map_err(map_sql_error)?;
             return Ok(());
         }
-        self.connection
-            .execute_batch(
-                "CREATE TABLE IF NOT EXISTS features (
-                    sample_id TEXT PRIMARY KEY,
-                    feat_version INTEGER NOT NULL,
-                    vec_blob BLOB NOT NULL,
-                    computed_at INTEGER NOT NULL
-                ) WITHOUT ROWID;",
+        let columns = self.table_columns("features")?;
+        let tx = self.connection.transaction().map_err(map_sql_error)?;
+        if !columns.contains("light_dsp_blob") {
+            tx.execute("ALTER TABLE features ADD COLUMN light_dsp_blob BLOB", [])
+                .map_err(map_sql_error)?;
+        }
+        if !columns.contains("rms") {
+            tx.execute("ALTER TABLE features ADD COLUMN rms REAL", [])
+                .map_err(map_sql_error)?;
+        }
+        tx.commit().map_err(map_sql_error)?;
+        if !self.table_exists("analysis_cache_features")? {
+            return Ok(());
+        }
+        let cache_columns = self.table_columns("analysis_cache_features")?;
+        let tx = self.connection.transaction().map_err(map_sql_error)?;
+        if !cache_columns.contains("light_dsp_blob") {
+            tx.execute(
+                "ALTER TABLE analysis_cache_features ADD COLUMN light_dsp_blob BLOB",
+                [],
             )
             .map_err(map_sql_error)?;
+        }
+        if !cache_columns.contains("rms") {
+            tx.execute(
+                "ALTER TABLE analysis_cache_features ADD COLUMN rms REAL",
+                [],
+            )
+            .map_err(map_sql_error)?;
+        }
+        tx.commit().map_err(map_sql_error)?;
         Ok(())
     }
 

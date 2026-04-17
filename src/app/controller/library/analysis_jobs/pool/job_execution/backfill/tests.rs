@@ -31,6 +31,8 @@ fn conn_with_schema() -> Connection {
             sample_id TEXT PRIMARY KEY,
             feat_version INTEGER NOT NULL,
             vec_blob BLOB NOT NULL,
+            light_dsp_blob BLOB,
+            rms REAL,
             computed_at INTEGER NOT NULL
         ) WITHOUT ROWID;
         CREATE TABLE analysis_cache_features (
@@ -38,6 +40,8 @@ fn conn_with_schema() -> Connection {
             analysis_version TEXT NOT NULL,
             feat_version INTEGER NOT NULL,
             vec_blob BLOB NOT NULL,
+            light_dsp_blob BLOB,
+            rms REAL,
             computed_at INTEGER NOT NULL,
             duration_seconds REAL NOT NULL,
             sr_used INTEGER NOT NULL,

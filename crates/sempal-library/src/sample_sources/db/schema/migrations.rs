@@ -14,6 +14,8 @@ pub(super) fn apply_optional_migrations(connection: &Connection) -> Result<(), S
     ensure_file_ops_journal_optional_columns(connection)?;
     ensure_analysis_jobs_optional_columns(connection)?;
     ensure_samples_optional_columns(connection)?;
+    ensure_feature_metric_columns(connection, "features")?;
+    ensure_feature_metric_columns(connection, "analysis_cache_features")?;
     Ok(())
 }
 
@@ -209,6 +211,27 @@ fn ensure_samples_optional_columns(connection: &Connection) -> Result<(), Source
                 "ALTER TABLE samples ADD COLUMN long_sample_mark INTEGER",
                 [],
             )
+            .map_err(map_sql_error)?;
+    }
+    Ok(())
+}
+
+fn ensure_feature_metric_columns(
+    connection: &Connection,
+    table_name: &str,
+) -> Result<(), SourceDbError> {
+    let columns = table_columns(connection, table_name)?;
+    if !columns.contains("light_dsp_blob") {
+        connection
+            .execute(
+                &format!("ALTER TABLE {table_name} ADD COLUMN light_dsp_blob BLOB"),
+                [],
+            )
+            .map_err(map_sql_error)?;
+    }
+    if !columns.contains("rms") {
+        connection
+            .execute(&format!("ALTER TABLE {table_name} ADD COLUMN rms REAL"), [])
             .map_err(map_sql_error)?;
     }
     Ok(())

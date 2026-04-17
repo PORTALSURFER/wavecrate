@@ -1,8 +1,7 @@
 //! Background similarity-query helpers used by automatic UI refresh paths.
 
 use super::resolve::{
-    is_effectively_silent, load_embedding_for_sample, load_light_dsp_for_sample,
-    load_rms_for_sample, rerank_with_dsp,
+    is_effectively_silent, load_query_similarity_inputs, load_rms_for_samples, rerank_with_dsp,
 };
 use super::*;
 use crate::app::controller::jobs::{FocusedSimilarityPaths, JobMessage};
@@ -185,23 +184,22 @@ pub(crate) fn compute_focused_similarity(
         job.fast_mode_enabled,
         job.fast_sample_rate,
     )?;
-    if let Some(rms) = load_rms_for_sample(&conn, &job.sample_id)?
-        && is_effectively_silent(rms)
-    {
-        return Err("Selected sample is effectively silent".to_string());
-    }
     let neighbours = crate::analysis::ann_index::find_similar(
         &conn,
         &job.sample_id,
         SIMILAR_RE_RANK_CANDIDATES,
     )?;
-    let query_embedding = load_embedding_for_sample(&conn, &job.sample_id)?;
-    let query_dsp = load_light_dsp_for_sample(&conn, &job.sample_id)?;
+    let query = load_query_similarity_inputs(&conn, &job.sample_id)?;
+    if let Some(rms) = query.rms
+        && is_effectively_silent(rms)
+    {
+        return Err("Selected sample is effectively silent".to_string());
+    }
     let ranked = rerank_with_dsp(
         &conn,
         neighbours,
-        query_embedding.as_deref(),
-        query_dsp.as_deref(),
+        query.embedding.as_deref(),
+        query.light_dsp.as_deref(),
     )?;
     let (paths, scores) = filter_ranked_candidate_paths(
         &conn,
@@ -312,8 +310,7 @@ fn filter_ranked_candidate_paths(
     source_id: &SourceId,
     score_cutoff: Option<f32>,
 ) -> Result<(Vec<PathBuf>, Vec<f32>), String> {
-    let mut paths = Vec::new();
-    let mut scores = Vec::new();
+    let mut ranked_candidates = Vec::new();
     let apply_duplicate_filters = score_cutoff.is_some();
     for (candidate_id, score) in ranked {
         if let Some(cutoff) = score_cutoff
@@ -326,8 +323,24 @@ fn filter_ranked_candidate_paths(
         if candidate_source.as_str() != source_id.as_str() {
             continue;
         }
+        ranked_candidates.push((candidate_id, relative_path, score));
+    }
+    let rms_by_sample = if apply_duplicate_filters {
+        load_rms_for_samples(
+            conn,
+            &ranked_candidates
+                .iter()
+                .map(|(candidate_id, _, _)| candidate_id.clone())
+                .collect::<Vec<_>>(),
+        )?
+    } else {
+        std::collections::HashMap::new()
+    };
+    let mut paths = Vec::new();
+    let mut scores = Vec::new();
+    for (candidate_id, relative_path, score) in ranked_candidates {
         if apply_duplicate_filters
-            && let Some(rms) = load_rms_for_sample(conn, &candidate_id)?
+            && let Some(rms) = rms_by_sample.get(&candidate_id).copied()
             && is_effectively_silent(rms)
         {
             continue;

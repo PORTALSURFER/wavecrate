@@ -9,9 +9,8 @@ mod repository;
 
 pub(crate) use ranking::{cosine_similarity, is_effectively_silent, normalize_l2, rerank_with_dsp};
 pub(crate) use repository::{
-    load_embedding_for_sample, load_embeddings_for_samples, load_feature_metrics_for_samples,
-    load_light_dsp_for_sample, load_rms_for_sample, open_source_db_for_id,
-    resolve_sample_id_for_visible_row,
+    load_embeddings_for_samples, load_feature_metrics_for_samples, load_query_similarity_inputs,
+    load_rms_for_samples, open_source_db_for_id, resolve_sample_id_for_visible_row,
 };
 
 /// Ranked similarity matches resolved for one query sample.
@@ -42,21 +41,20 @@ pub(crate) fn resolve_similarity_for_sample_id(
     if let Err(err) = job_enqueue::maybe_enqueue_full_analysis(controller, &mut conn, sample_id) {
         tracing::debug!("Fast prep refine enqueue failed: {err}");
     }
+    let neighbours =
+        crate::analysis::ann_index::find_similar(&conn, sample_id, SIMILAR_RE_RANK_CANDIDATES)?;
+    let query = load_query_similarity_inputs(&conn, sample_id)?;
     if score_cutoff.is_some()
-        && let Some(rms) = repository::load_rms_for_sample(&conn, sample_id)?
+        && let Some(rms) = query.rms
         && ranking::is_effectively_silent(rms)
     {
         return Err("Selected sample is effectively silent".to_string());
     }
-    let neighbours =
-        crate::analysis::ann_index::find_similar(&conn, sample_id, SIMILAR_RE_RANK_CANDIDATES)?;
-    let query_embedding = load_embedding_for_sample(&conn, sample_id)?;
-    let query_dsp = load_light_dsp_for_sample(&conn, sample_id)?;
     let ranked = rerank_with_dsp(
         &conn,
         neighbours,
-        query_embedding.as_deref(),
-        query_dsp.as_deref(),
+        query.embedding.as_deref(),
+        query.light_dsp.as_deref(),
     )?;
     let (indices, scores) =
         ranking::filter_ranked_candidates(&conn, ranked, &source_id, score_cutoff, |path| {

@@ -168,6 +168,8 @@ mod tests {
                 sample_id TEXT PRIMARY KEY,
                 feat_version INTEGER NOT NULL,
                 vec_blob BLOB NOT NULL,
+                light_dsp_blob BLOB,
+                rms REAL,
                 computed_at INTEGER NOT NULL
              ) WITHOUT ROWID;",
         )
@@ -180,9 +182,9 @@ mod tests {
         values[FEATURE_RMS_INDEX] = rms;
         let blob = encode_f32_le_blob(&values);
         conn.execute(
-            "INSERT INTO features (sample_id, feat_version, vec_blob, computed_at)
-             VALUES (?1, 1, ?2, 0)",
-            params![sample_id, blob],
+            "INSERT INTO features (sample_id, feat_version, vec_blob, light_dsp_blob, rms, computed_at)
+             VALUES (?1, 1, ?2, NULL, ?3, 0)",
+            params![sample_id, blob, rms as f64],
         )
         .unwrap();
     }

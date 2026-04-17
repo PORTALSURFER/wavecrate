@@ -18,7 +18,7 @@ const EMBED_WEIGHT: f32 = 0.8;
 const DSP_WEIGHT: f32 = 0.2;
 const DUPLICATE_SCORE_THRESHOLD: f32 = 0.995;
 const DUPLICATE_RMS_MIN: f32 = 1.0e-4;
-const FEATURE_RMS_INDEX: usize = 2;
+pub(crate) const FEATURE_RMS_INDEX: usize = 2;
 const MISSING_SIMILARITY_SCORE: f32 = -2.0;
 
 pub(crate) fn find_similar_for_visible_row(

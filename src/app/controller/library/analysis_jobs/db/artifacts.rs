@@ -3,6 +3,8 @@ use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 pub(crate) struct CachedFeatures {
     pub(crate) feat_version: i64,
     pub(crate) vec_blob: Vec<u8>,
+    pub(crate) light_dsp_blob: Option<Vec<u8>>,
+    pub(crate) rms: Option<f32>,
     pub(crate) computed_at: i64,
     pub(crate) duration_seconds: f32,
     pub(crate) sr_used: u32,
@@ -43,6 +45,8 @@ pub(crate) struct CachedFeaturesUpsert<'a> {
     pub(crate) analysis_version: &'a str,
     pub(crate) feat_version: i64,
     pub(crate) vec_blob: &'a [u8],
+    pub(crate) light_dsp_blob: Option<&'a [u8]>,
+    pub(crate) rms: Option<f32>,
     pub(crate) computed_at: i64,
     pub(crate) duration_seconds: f32,
     pub(crate) sr_used: u32,
@@ -164,17 +168,28 @@ pub(crate) fn upsert_analysis_features(
     conn: &Connection,
     sample_id: &str,
     vec_blob: &[u8],
+    light_dsp_blob: Option<&[u8]>,
+    rms: Option<f32>,
     feat_version: i64,
     computed_at: i64,
 ) -> Result<(), String> {
     conn.execute(
-        "INSERT INTO features (sample_id, feat_version, vec_blob, computed_at)
-         VALUES (?1, ?2, ?3, ?4)
+        "INSERT INTO features (sample_id, feat_version, vec_blob, light_dsp_blob, rms, computed_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
          ON CONFLICT(sample_id) DO UPDATE SET
             feat_version = excluded.feat_version,
             vec_blob = excluded.vec_blob,
+            light_dsp_blob = excluded.light_dsp_blob,
+            rms = excluded.rms,
             computed_at = excluded.computed_at",
-        params![sample_id, feat_version, vec_blob, computed_at],
+        params![
+            sample_id,
+            feat_version,
+            vec_blob,
+            light_dsp_blob,
+            rms.map(f64::from),
+            computed_at
+        ],
     )
     .map_err(|err| format!("Failed to upsert analysis features: {err}"))?;
     Ok(())
@@ -215,7 +230,7 @@ pub(crate) fn cached_features_by_hash(
     feat_version: i64,
 ) -> Result<Option<CachedFeatures>, String> {
     conn.query_row(
-        "SELECT feat_version, vec_blob, computed_at, duration_seconds, sr_used
+        "SELECT feat_version, vec_blob, light_dsp_blob, rms, computed_at, duration_seconds, sr_used
          FROM analysis_cache_features
          WHERE content_hash = ?1 AND analysis_version = ?2 AND feat_version = ?3",
         params![content_hash, analysis_version, feat_version],
@@ -223,9 +238,11 @@ pub(crate) fn cached_features_by_hash(
             Ok(CachedFeatures {
                 feat_version: row.get(0)?,
                 vec_blob: row.get(1)?,
-                computed_at: row.get(2)?,
-                duration_seconds: row.get::<_, f64>(3)? as f32,
-                sr_used: row.get::<_, i64>(4)? as u32,
+                light_dsp_blob: row.get(2)?,
+                rms: row.get::<_, Option<f64>>(3)?.map(|value| value as f32),
+                computed_at: row.get(4)?,
+                duration_seconds: row.get::<_, f64>(5)? as f32,
+                sr_used: row.get::<_, i64>(6)? as u32,
             })
         },
     )
@@ -265,12 +282,14 @@ pub(crate) fn upsert_cached_features(
 ) -> Result<(), String> {
     conn.execute(
         "INSERT INTO analysis_cache_features
-            (content_hash, analysis_version, feat_version, vec_blob, computed_at, duration_seconds, sr_used)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            (content_hash, analysis_version, feat_version, vec_blob, light_dsp_blob, rms, computed_at, duration_seconds, sr_used)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
          ON CONFLICT(content_hash) DO UPDATE SET
             analysis_version = excluded.analysis_version,
             feat_version = excluded.feat_version,
             vec_blob = excluded.vec_blob,
+            light_dsp_blob = excluded.light_dsp_blob,
+            rms = excluded.rms,
             computed_at = excluded.computed_at,
             duration_seconds = excluded.duration_seconds,
             sr_used = excluded.sr_used",
@@ -279,6 +298,8 @@ pub(crate) fn upsert_cached_features(
             features.analysis_version,
             features.feat_version,
             features.vec_blob,
+            features.light_dsp_blob,
+            features.rms.map(f64::from),
             features.computed_at,
             features.duration_seconds as f64,
             features.sr_used as i64

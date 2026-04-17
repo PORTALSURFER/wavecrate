@@ -85,8 +85,8 @@ impl TestDb {
             .unwrap();
         self.conn
             .execute(
-                "INSERT INTO features (sample_id, feat_version, vec_blob, computed_at)
-                 VALUES (?1, 1, x'00', 0)",
+                "INSERT INTO features (sample_id, feat_version, vec_blob, light_dsp_blob, rms, computed_at)
+                 VALUES (?1, 1, x'00', x'00', 0.0, 0)",
                 params![sample_id],
             )
             .unwrap();
@@ -240,6 +240,8 @@ const SCHEMA_SQL: &str = "CREATE TABLE analysis_jobs (
         sample_id TEXT PRIMARY KEY,
         feat_version INTEGER NOT NULL,
         vec_blob BLOB NOT NULL,
+        light_dsp_blob BLOB,
+        rms REAL,
         computed_at INTEGER NOT NULL
     ) WITHOUT ROWID;
     CREATE TABLE embeddings (

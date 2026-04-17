@@ -6,7 +6,7 @@ use self::source_snapshot::{
     build_loaded_similarity_query_data, cached_loaded_similarity_source_snapshot,
 };
 use super::query::ensure_anchor_similarity_result;
-use super::resolve::{load_embedding_for_sample, load_light_dsp_for_sample};
+use super::resolve::load_query_similarity_inputs;
 use super::*;
 use crate::app::controller::FeatureCacheKey;
 use crate::app::controller::state::audio::LoadedAudio;
@@ -106,10 +106,11 @@ pub(super) fn load_query_vectors(
     conn: &Connection,
     sample_id: &str,
 ) -> Result<(Vec<f32>, Option<Vec<f32>>), String> {
-    let query_embedding = load_embedding_for_sample(conn, sample_id)?
+    let query = load_query_similarity_inputs(conn, sample_id)?;
+    let query_embedding = query
+        .embedding
         .ok_or_else(|| "Similarity data missing for the loaded sample".to_string())?;
-    let query_dsp = load_light_dsp_for_sample(conn, sample_id)?;
-    Ok((query_embedding, query_dsp))
+    Ok((query_embedding, query.light_dsp))
 }
 
 #[cfg(test)]

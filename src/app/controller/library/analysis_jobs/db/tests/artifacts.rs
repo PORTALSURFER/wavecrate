@@ -133,17 +133,37 @@ fn sample_ids_missing_duration_finds_nulls() {
 #[test]
 fn upsert_analysis_features_overwrites_existing() {
     let db = TestDb::new();
-    upsert_analysis_features(&db.conn, "s::a.wav", b"one", 1, 100).unwrap();
-    upsert_analysis_features(&db.conn, "s::a.wav", b"two", 1, 200).unwrap();
-    let (version, blob, computed_at): (i64, Vec<u8>, i64) = db
+    upsert_analysis_features(
+        &db.conn,
+        "s::a.wav",
+        b"one",
+        Some(b"dsp-a"),
+        Some(0.25),
+        1,
+        100,
+    )
+    .unwrap();
+    upsert_analysis_features(
+        &db.conn,
+        "s::a.wav",
+        b"two",
+        Some(b"dsp-b"),
+        Some(0.5),
+        1,
+        200,
+    )
+    .unwrap();
+    let (version, blob, light_dsp_blob, rms, computed_at): (i64, Vec<u8>, Option<Vec<u8>>, Option<f64>, i64) = db
         .conn
         .query_row(
-            "SELECT feat_version, vec_blob, computed_at FROM features WHERE sample_id = 's::a.wav'",
+            "SELECT feat_version, vec_blob, light_dsp_blob, rms, computed_at FROM features WHERE sample_id = 's::a.wav'",
             [],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
         )
         .unwrap();
     assert_eq!(version, 1);
     assert_eq!(blob, b"two");
+    assert_eq!(light_dsp_blob, Some(b"dsp-b".to_vec()));
+    assert_eq!(rms, Some(0.5));
     assert_eq!(computed_at, 200);
 }

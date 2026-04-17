@@ -151,6 +151,108 @@ pub(crate) fn load_feature_metrics_for_samples(
         return Ok(HashMap::new());
     }
     let mut metrics = HashMap::with_capacity(sample_ids.len());
+    let mut fallback_ids = Vec::new();
+    for batch in sample_ids.chunks(SQLITE_IN_BATCH_SIZE) {
+        fallback_ids.extend(load_persisted_feature_metrics_batch(
+            conn,
+            batch,
+            &mut metrics,
+        )?);
+    }
+    if !fallback_ids.is_empty() {
+        load_feature_metrics_from_blob(conn, &fallback_ids, &mut metrics)?;
+    }
+    Ok(metrics)
+}
+
+/// Load only RMS feature values for a candidate set in one feature query.
+pub(crate) fn load_rms_for_samples(
+    conn: &rusqlite::Connection,
+    sample_ids: &[String],
+) -> Result<HashMap<String, f32>, String> {
+    if sample_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let mut rms_by_sample = HashMap::with_capacity(sample_ids.len());
+    let mut fallback_ids = Vec::new();
+    for batch in sample_ids.chunks(SQLITE_IN_BATCH_SIZE) {
+        fallback_ids.extend(load_persisted_rms_batch(conn, batch, &mut rms_by_sample)?);
+    }
+    if !fallback_ids.is_empty() {
+        load_rms_from_blob(conn, &fallback_ids, &mut rms_by_sample)?;
+    }
+    Ok(rms_by_sample)
+}
+
+/// Load embedding plus lightweight feature metrics for one query sample with one feature-row lookup.
+pub(crate) fn load_query_similarity_inputs(
+    conn: &rusqlite::Connection,
+    sample_id: &str,
+) -> Result<QuerySimilarityInputs, String> {
+    let sample_ids = [sample_id.to_string()];
+    let mut embeddings = load_embeddings_for_samples(conn, &sample_ids)?;
+    let mut feature_metrics = load_feature_metrics_for_samples(conn, &sample_ids)?;
+    let metrics = feature_metrics.remove(sample_id).unwrap_or_default();
+    Ok(QuerySimilarityInputs {
+        embedding: embeddings.remove(sample_id),
+        light_dsp: metrics.light_dsp,
+        rms: metrics.rms,
+    })
+}
+
+fn load_persisted_feature_metrics_batch(
+    conn: &rusqlite::Connection,
+    sample_ids: &[String],
+    metrics: &mut HashMap<String, SimilarityFeatureMetrics>,
+) -> Result<Vec<String>, String> {
+    let sql = format!(
+        "SELECT sample_id, light_dsp_blob, rms FROM features WHERE sample_id IN ({})",
+        placeholder_list(1, sample_ids.len())
+    );
+    let mut stmt = match conn.prepare(&sql) {
+        Ok(stmt) => stmt,
+        Err(err) if feature_metric_column_missing(&err) => return Ok(sample_ids.to_vec()),
+        Err(err) => return Err(format!("Load features failed: {err}")),
+    };
+    let params = sample_ids
+        .iter()
+        .cloned()
+        .map(rusqlite::types::Value::from)
+        .collect::<Vec<_>>();
+    let mut rows = stmt
+        .query(params_from_iter(params))
+        .map_err(|err| format!("Load features failed: {err}"))?;
+    let mut fallback_ids = Vec::new();
+    while let Some(row) = rows
+        .next()
+        .map_err(|err| format!("Load features failed: {err}"))?
+    {
+        let sample_id = row
+            .get::<_, String>(0)
+            .map_err(|err| format!("Load features failed: {err}"))?;
+        let light_dsp = row
+            .get::<_, Option<Vec<u8>>>(1)
+            .map_err(|err| format!("Load features failed: {err}"))?
+            .map(|blob| decode_light_dsp_blob(&blob))
+            .transpose()?;
+        let rms = row
+            .get::<_, Option<f64>>(2)
+            .map_err(|err| format!("Load features failed: {err}"))?
+            .map(|value| value as f32);
+        if light_dsp.is_none() || rms.is_none() {
+            fallback_ids.push(sample_id);
+            continue;
+        }
+        metrics.insert(sample_id, SimilarityFeatureMetrics { light_dsp, rms });
+    }
+    Ok(fallback_ids)
+}
+
+fn load_feature_metrics_from_blob(
+    conn: &rusqlite::Connection,
+    sample_ids: &[String],
+    metrics: &mut HashMap<String, SimilarityFeatureMetrics>,
+) -> Result<(), String> {
     for batch in sample_ids.chunks(SQLITE_IN_BATCH_SIZE) {
         let sql = format!(
             "SELECT sample_id, feat_version, vec_blob FROM features WHERE sample_id IN ({})",
@@ -185,18 +287,57 @@ pub(crate) fn load_feature_metrics_for_samples(
             metrics.insert(sample_id, SimilarityFeatureMetrics { light_dsp, rms });
         }
     }
-    Ok(metrics)
+    Ok(())
 }
 
-/// Load only RMS feature values for a candidate set in one feature query.
-pub(crate) fn load_rms_for_samples(
+fn load_persisted_rms_batch(
     conn: &rusqlite::Connection,
     sample_ids: &[String],
-) -> Result<HashMap<String, f32>, String> {
-    if sample_ids.is_empty() {
-        return Ok(HashMap::new());
+    rms_by_sample: &mut HashMap<String, f32>,
+) -> Result<Vec<String>, String> {
+    let sql = format!(
+        "SELECT sample_id, rms FROM features WHERE sample_id IN ({})",
+        placeholder_list(1, sample_ids.len())
+    );
+    let mut stmt = match conn.prepare(&sql) {
+        Ok(stmt) => stmt,
+        Err(err) if feature_metric_column_missing(&err) => return Ok(sample_ids.to_vec()),
+        Err(err) => return Err(format!("Load features failed: {err}")),
+    };
+    let params = sample_ids
+        .iter()
+        .cloned()
+        .map(rusqlite::types::Value::from)
+        .collect::<Vec<_>>();
+    let mut rows = stmt
+        .query(params_from_iter(params))
+        .map_err(|err| format!("Load features failed: {err}"))?;
+    let mut fallback_ids = Vec::new();
+    while let Some(row) = rows
+        .next()
+        .map_err(|err| format!("Load features failed: {err}"))?
+    {
+        let sample_id = row
+            .get::<_, String>(0)
+            .map_err(|err| format!("Load features failed: {err}"))?;
+        let rms = row
+            .get::<_, Option<f64>>(1)
+            .map_err(|err| format!("Load features failed: {err}"))?
+            .map(|value| value as f32);
+        if let Some(rms) = rms {
+            rms_by_sample.insert(sample_id, rms);
+        } else {
+            fallback_ids.push(sample_id);
+        }
     }
-    let mut rms_by_sample = HashMap::with_capacity(sample_ids.len());
+    Ok(fallback_ids)
+}
+
+fn load_rms_from_blob(
+    conn: &rusqlite::Connection,
+    sample_ids: &[String],
+    rms_by_sample: &mut HashMap<String, f32>,
+) -> Result<(), String> {
     for batch in sample_ids.chunks(SQLITE_IN_BATCH_SIZE) {
         let sql = format!(
             "SELECT sample_id, feat_version, vec_blob FROM features WHERE sample_id IN ({})",
@@ -231,7 +372,7 @@ pub(crate) fn load_rms_for_samples(
             }
         }
     }
-    Ok(rms_by_sample)
+    Ok(())
 }
 
 fn decode_similarity_feature_metrics(
@@ -259,6 +400,15 @@ fn decode_feature_rms(blob: &[u8], feat_version: i64) -> Result<Option<f32>, Str
     }
     let features = crate::analysis::decode_f32_le_blob(blob)?;
     Ok(features.get(FEATURE_RMS_INDEX).copied())
+}
+
+fn decode_light_dsp_blob(blob: &[u8]) -> Result<Vec<f32>, String> {
+    let decoded = crate::analysis::decode_f32_le_blob(blob)?;
+    Ok(super::normalize_l2(decoded))
+}
+
+fn feature_metric_column_missing(err: &rusqlite::Error) -> bool {
+    err.to_string().contains("no such column")
 }
 
 fn decode_f32_prefix(blob: &[u8], count: usize) -> Result<Vec<f32>, String> {
@@ -294,6 +444,25 @@ pub(crate) struct SimilarityFeatureMetrics {
     pub(crate) rms: Option<f32>,
 }
 
+impl Default for SimilarityFeatureMetrics {
+    fn default() -> Self {
+        Self {
+            light_dsp: None,
+            rms: None,
+        }
+    }
+}
+
+/// Query-sample vectors reused across similarity resolution stages.
+pub(crate) struct QuerySimilarityInputs {
+    /// Normalized embedding used for ANN reranking.
+    pub(crate) embedding: Option<Vec<f32>>,
+    /// Lightweight normalized DSP vector used for the DSP blend path.
+    pub(crate) light_dsp: Option<Vec<f32>>,
+    /// RMS feature used for duplicate/silence filtering.
+    pub(crate) rms: Option<f32>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -318,6 +487,8 @@ mod tests {
                 sample_id TEXT PRIMARY KEY,
                 feat_version INTEGER NOT NULL,
                 vec_blob BLOB NOT NULL,
+                light_dsp_blob BLOB,
+                rms REAL,
                 computed_at INTEGER NOT NULL
              ) WITHOUT ROWID;",
         )
@@ -342,13 +513,18 @@ mod tests {
     fn insert_features(conn: &rusqlite::Connection, sample_id: &str, values: &[f32]) {
         let mut features = vec![0.0_f32; crate::analysis::FEATURE_VECTOR_LEN_V1];
         features[..values.len()].copy_from_slice(values);
+        let light_dsp_blob = crate::analysis::light_dsp_from_features_v1(&features)
+            .map(|light_dsp| encode_f32_le_blob(&light_dsp));
+        let rms = features.get(FEATURE_RMS_INDEX).copied().map(f64::from);
         conn.execute(
-            "INSERT INTO features (sample_id, feat_version, vec_blob, computed_at)
-             VALUES (?1, ?2, ?3, 0)",
+            "INSERT INTO features (sample_id, feat_version, vec_blob, light_dsp_blob, rms, computed_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, 0)",
             params![
                 sample_id,
                 crate::analysis::FEATURE_VERSION_V1,
                 encode_f32_le_blob(&features),
+                light_dsp_blob,
+                rms,
             ],
         )
         .unwrap();

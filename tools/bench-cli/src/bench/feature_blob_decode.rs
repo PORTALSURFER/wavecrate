@@ -13,7 +13,7 @@ pub(super) struct FeatureBlobDecodeBenchResult {
 
 pub(super) fn run(options: &BenchOptions) -> Result<FeatureBlobDecodeBenchResult, String> {
     let blobs = options.similarity_rows.max(1);
-    let feature_len_f32 = sempal::analysis::FEATURE_VECTOR_LEN_V1;
+    let feature_len_f32 = sempal::analysis::LIGHT_DSP_VECTOR_LEN;
     let bytes_per_blob = feature_len_f32.saturating_mul(4);
 
     let mut payload = vec![0u8; bytes_per_blob];
@@ -29,6 +29,7 @@ pub(super) fn run(options: &BenchOptions) -> Result<FeatureBlobDecodeBenchResult
         for _ in 0..blobs {
             let decoded = sempal::analysis::decode_f32_le_blob(&payload)?;
             checksum += decoded.first().copied().unwrap_or(0.0) as f64;
+            checksum += decoded.get(2).copied().unwrap_or(0.0) as f64;
         }
     }
     let elapsed = started.elapsed();

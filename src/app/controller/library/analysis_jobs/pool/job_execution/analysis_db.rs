@@ -2,6 +2,8 @@ use crate::app::controller::library::analysis_jobs::db;
 
 use super::support::now_epoch_seconds;
 
+const FEATURE_RMS_INDEX: usize = 2;
+
 pub(crate) fn apply_cached_features_and_embedding(
     conn: &rusqlite::Connection,
     job: &db::ClaimedJob,
@@ -25,6 +27,8 @@ pub(crate) fn apply_cached_features_and_embedding(
         conn,
         &job.sample_id,
         &features.vec_blob,
+        features.light_dsp_blob.as_deref(),
+        features.rms,
         features.feat_version,
         features.computed_at,
     )?;
@@ -131,11 +135,14 @@ pub(crate) fn finalize_analysis_job(
         crate::analysis::ann_index::upsert_embedding(conn, &job.sample_id, &embedding)?;
     }
     let blob = crate::analysis::vector::encode_f32_le_blob(&vector);
+    let (light_dsp_blob, rms) = derive_similarity_metric_payloads(&vector);
     let computed_at = now_epoch_seconds();
     db::upsert_analysis_features(
         conn,
         &job.sample_id,
         &blob,
+        light_dsp_blob.as_deref(),
+        rms,
         crate::analysis::vector::FEATURE_VERSION_V1,
         computed_at,
     )?;
@@ -147,6 +154,8 @@ pub(crate) fn finalize_analysis_job(
             analysis_version,
             feat_version: crate::analysis::vector::FEATURE_VERSION_V1,
             vec_blob: &blob,
+            light_dsp_blob: light_dsp_blob.as_deref(),
+            rms,
             computed_at,
             duration_seconds: decoded.duration_seconds,
             sr_used: decoded.sample_rate_used,
@@ -166,4 +175,11 @@ pub(crate) fn finalize_analysis_job(
         },
     )?;
     Ok(())
+}
+
+fn derive_similarity_metric_payloads(features: &[f32]) -> (Option<Vec<u8>>, Option<f32>) {
+    let light_dsp_blob = crate::analysis::light_dsp_from_features_v1(features)
+        .map(|light_dsp| crate::analysis::vector::encode_f32_le_blob(&light_dsp));
+    let rms = features.get(FEATURE_RMS_INDEX).copied();
+    (light_dsp_blob, rms)
 }
