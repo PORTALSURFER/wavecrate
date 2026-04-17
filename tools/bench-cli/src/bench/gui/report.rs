@@ -9,8 +9,10 @@ use serde::Serialize;
 pub(crate) struct GuiBenchResult {
     /// Number of DB rows seeded into the synthetic source.
     pub(super) seeded_rows: usize,
-    /// Latency of native app model projection.
+    /// Latency of retained app-model pull and projection through the shipped cache path.
     pub(super) app_model_projection: stats::LatencySummary,
+    /// Latency of controller-mode app-model projection kept for diagnostics.
+    pub(super) controller_app_model_projection: stats::LatencySummary,
     /// Retained-runtime app-model projection p95 measured through the bridge cache path.
     pub(super) retained_app_model_projection_p95_us: u64,
     /// Latency of native motion model projection.
@@ -89,6 +91,7 @@ pub(super) fn assemble_gui_bench_result(
 ) -> GuiBenchResult {
     let GuiScenarioMetrics {
         app_model_projection,
+        controller_app_model_projection,
         retained_app_model_projection_p95_us,
         motion_model_projection,
         interactive_projection,
@@ -120,6 +123,7 @@ pub(super) fn assemble_gui_bench_result(
     GuiBenchResult {
         seeded_rows,
         app_model_projection,
+        controller_app_model_projection,
         retained_app_model_projection_p95_us,
         motion_model_projection,
         interactive_projection: interactive_projection.total,

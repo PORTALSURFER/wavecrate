@@ -197,6 +197,18 @@ if retained_projection_samples:
         "(diagnostic, retained runtime path)"
     )
 
+controller_projection_samples = []
+for gui in gui_reports:
+    summary = gui.get("controller_app_model_projection")
+    if isinstance(summary, dict) and isinstance(summary.get("p95_us"), (int, float)):
+        controller_projection_samples.append(int(summary["p95_us"]))
+if controller_projection_samples:
+    controller_projection_p95 = int(round(median(controller_projection_samples)))
+    print(
+        f"[perf_guard] controller_app_model_projection_p95_us: median={controller_projection_p95} us "
+        "(diagnostic, legacy controller path)"
+    )
+
 scenarios = [
     (
         "browser_filter_churn_latency",

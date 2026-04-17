@@ -112,6 +112,10 @@ def classify_missing_reason(lines: list[str]) -> str:
         return "no_wayland_compositor"
     if "no X server" in text or "DISPLAY" in text and "error" in text.lower():
         return "display_backend_error"
+    if "native vello" in text or "runtime_started" in text:
+        return "startup_summary_not_emitted"
+    if "The system cannot find the file specified" in text:
+        return "launch_path_error"
     if "Running `target/debug/sempal`" not in text:
         return "build_or_launch_timeout"
     if "runtime returned error" in text:

@@ -94,8 +94,12 @@ pub struct SempalNativeBridge {
 }
 
 impl SempalNativeBridge {
-    /// Wrap an already-seeded controller for deterministic fixture-driven tests.
-    pub(crate) fn from_fixture_controller(controller: AppController) -> Self {
+    /// Wrap an already-seeded controller for deterministic fixture-driven runtimes.
+    ///
+    /// Benchmark and fixture harnesses use this to drive the retained native
+    /// bridge over a known controller snapshot without loading persisted app
+    /// configuration a second time.
+    pub fn from_fixture_controller(controller: AppController) -> Self {
         Self {
             controller,
             projection_cache: projection_cache::NativeProjectionCache::default(),
@@ -129,6 +133,18 @@ impl SempalNativeBridge {
     /// Enable live GUI test artifact emission for this bridge instance.
     pub fn install_gui_test_mode(&mut self, config: crate::gui_test::GuiTestModeConfig) {
         self.gui_test_recorder = Some(gui_test::BridgeGuiTestRecorder::new(config));
+    }
+
+    /// Apply direct controller mutations while keeping retained bridge caches coherent.
+    ///
+    /// Benchmark and fixture code can use this when they need to mutate
+    /// controller state through existing helpers that do not map cleanly onto a
+    /// single `NativeUiAction`.
+    pub fn mutate_controller<R>(&mut self, mutate: impl FnOnce(&mut AppController) -> R) -> R {
+        let result = mutate(&mut self.controller);
+        self.invalidate_projection_key_snapshot();
+        self.schedule_full_model_pull_preparation();
+        result
     }
 }
 
@@ -186,9 +202,7 @@ impl NativeAppBridge for SempalNativeBridge {
             .maybe_launch_external_drag(pointer_outside, pointer_left);
         info!(
             pointer_outside,
-            pointer_left,
-            consumed,
-            "native bridge: external drag poll forwarded to controller"
+            pointer_left, consumed, "native bridge: external drag poll forwarded to controller"
         );
         consumed
     }

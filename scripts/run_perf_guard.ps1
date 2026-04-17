@@ -222,6 +222,67 @@ function Invoke-PerfBenchRun {
   }
 }
 
+function Join-LogFiles {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$OutputPath,
+    [Parameter(Mandatory = $true)]
+    [string[]]$InputPaths
+  )
+
+  $content = New-Object System.Collections.Generic.List[string]
+  foreach ($path in $InputPaths) {
+    if (Test-Path $path) {
+      $content.Add((Get-Content $path -Raw))
+    }
+  }
+  Set-Content -Path $OutputPath -Value ($content -join [Environment]::NewLine)
+}
+
+function Invoke-StartupProfileRun {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$BinaryPath,
+    [Parameter(Mandatory = $true)]
+    [string]$OutputPath,
+    [Parameter(Mandatory = $true)]
+    [int]$TimeoutSecs,
+    [Parameter(Mandatory = $true)]
+    [string]$WorkingDirectory
+  )
+
+  $stdoutPath = "$OutputPath.stdout.log"
+  $stderrPath = "$OutputPath.stderr.log"
+  Remove-Item -LiteralPath $stdoutPath, $stderrPath, $OutputPath -ErrorAction SilentlyContinue
+
+  $previousStartupProfile = $env:SEMPAL_NATIVE_STARTUP_PROFILE
+  $env:SEMPAL_NATIVE_STARTUP_PROFILE = "1"
+  try {
+    $process = Start-Process `
+      -FilePath $BinaryPath `
+      -WorkingDirectory $WorkingDirectory `
+      -RedirectStandardOutput $stdoutPath `
+      -RedirectStandardError $stderrPath `
+      -PassThru
+    $timedOut = -not $process.WaitForExit($TimeoutSecs * 1000)
+    if ($timedOut) {
+      Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+      Wait-Process -Id $process.Id -Timeout 1 -ErrorAction SilentlyContinue
+    }
+  } finally {
+    if ($null -eq $previousStartupProfile) {
+      Remove-Item Env:SEMPAL_NATIVE_STARTUP_PROFILE -ErrorAction SilentlyContinue
+    } else {
+      $env:SEMPAL_NATIVE_STARTUP_PROFILE = $previousStartupProfile
+    }
+  }
+
+  Join-LogFiles -OutputPath $OutputPath -InputPaths @($stdoutPath, $stderrPath)
+  if (-not $timedOut -and $process.ExitCode -ne 0) {
+    Write-Warning "[perf_guard] startup profiling exited with status $($process.ExitCode); see $OutputPath"
+  }
+}
+
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $outPath = Get-EnvString -Name "SEMPAL_PERF_GUARD_OUT" -Default "target/perf/bench.json"
 $guiRows = Get-EnvInt -Name "SEMPAL_PERF_GUARD_GUI_ROWS" -Default 2500
@@ -231,13 +292,29 @@ $warmupIters = Get-EnvInt -Name "SEMPAL_PERF_GUARD_WARMUP_ITERS" -Default 3
 $measureIters = Get-EnvInt -Name "SEMPAL_PERF_GUARD_MEASURE_ITERS" -Default 16
 $runs = Get-EnvInt -Name "SEMPAL_PERF_GUARD_RUNS" -Default 1
 $startupProfileEnabled = Get-BoolEnvFlag -Name "SEMPAL_PERF_GUARD_STARTUP_PROFILE"
+$startupTimeoutSecs = Get-EnvInt -Name "SEMPAL_PERF_GUARD_STARTUP_TIMEOUT_SECS" -Default 6
+$startupRequireValidRuns = Get-BoolEnvFlag -Name "SEMPAL_PERF_GUARD_STARTUP_REQUIRE_VALID_RUNS"
+$startupLockEnvOut = [Environment]::GetEnvironmentVariable("SEMPAL_PERF_GUARD_STARTUP_LOCK_ENV_OUT")
+$startupLockEnvIn = Get-EnvString -Name "SEMPAL_PERF_GUARD_STARTUP_LOCK_ENV_IN" -Default (Join-Path $rootDir "scripts\perf_locks\startup_thresholds.env")
+$startupLockMinValidRuns = Get-OptionalEnvInt -Name "SEMPAL_PERF_GUARD_STARTUP_LOCK_MIN_VALID_RUNS"
 
 if ($runs -lt 1) {
   throw "[perf_guard] ERROR: SEMPAL_PERF_GUARD_RUNS must be an integer >= 1."
 }
 
-if ($startupProfileEnabled) {
-  Write-Warning "[perf_guard] startup profiling is not implemented in scripts/run_perf_guard.ps1; skipping startup capture"
+if ($startupProfileEnabled -and (Test-Path $startupLockEnvIn)) {
+  Get-Content $startupLockEnvIn | ForEach-Object {
+    if ($_ -match '^\s*(?:#|$)') {
+      return
+    }
+    if ($_ -match 'SEMPAL_PERF_[A-Z0-9_]+=') {
+      $parts = $_ -split '=', 2
+      $name = $parts[0].Trim(' :${}" ')
+      $value = $parts[1].Trim(' "}')
+      [Environment]::SetEnvironmentVariable($name, $value)
+    }
+  }
+  Write-Host "[perf_guard] loaded startup threshold lock env: $startupLockEnvIn"
 }
 
 $reportDir = Split-Path -Parent $outPath
@@ -266,7 +343,26 @@ $failJankRatio = Get-OptionalEnvDouble -Name "SEMPAL_PERF_FAIL_FRAME_JANK_RATIO"
 $failMissedPresentRatio = Get-OptionalEnvDouble -Name "SEMPAL_PERF_FAIL_MISSED_PRESENT_PROXY_RATIO"
 
 $reportPaths = New-Object System.Collections.Generic.List[string]
+$startupLogPaths = New-Object System.Collections.Generic.List[string]
 $canonicalReportPath = Join-Path $rootDir $outPath
+$startupSummaryOut = Get-EnvString -Name "SEMPAL_PERF_GUARD_STARTUP_SUMMARY_OUT" -Default ([System.IO.Path]::ChangeExtension($canonicalReportPath, $null) + ".startup_summary.json")
+
+if ($startupProfileEnabled) {
+  $startupBinary = Join-Path $rootDir "target\debug\sempal.exe"
+  Write-Host "[perf_guard] building sempal startup binary for profile capture"
+  cargo build --bin sempal | Out-Null
+  if ($LASTEXITCODE -ne 0) {
+    throw "[perf_guard] ERROR: cargo build --bin sempal failed with exit code $LASTEXITCODE."
+  }
+  if ($runs -ge 3) {
+    $startupMinValidRunsDefault = 3
+  } else {
+    $startupMinValidRunsDefault = 1
+  }
+  $startupMinValidRuns = Get-EnvInt -Name "SEMPAL_PERF_GUARD_STARTUP_MIN_VALID_RUNS" -Default $startupMinValidRunsDefault
+} else {
+  $startupMinValidRuns = 1
+}
 
 Push-Location $rootDir
 try {
@@ -284,6 +380,16 @@ try {
       -GuiInteractionIters $guiInteractionIters `
       -WarmupIters $warmupIters `
       -MeasureIters $measureIters
+    if ($startupProfileEnabled) {
+      $startupLog = [System.IO.Path]::ChangeExtension($canonicalReportPath, $null) + ".startup.run$run.log"
+      $startupLogPaths.Add($startupLog)
+      Write-Host "[perf_guard] capturing native startup profile (run $run/$runs)"
+      Invoke-StartupProfileRun `
+        -BinaryPath $startupBinary `
+        -OutputPath $startupLog `
+        -TimeoutSecs $startupTimeoutSecs `
+        -WorkingDirectory $rootDir
+    }
   }
 
   if ($runs -gt 1) {
@@ -309,6 +415,21 @@ try {
       [double](Get-RequiredPropertyValue -Object $_ -Key "retained_app_model_projection_p95_us")
     })
     Write-Host "[perf_guard] retained_app_model_projection_p95_us: median=$retainedProjectionP95Us us (diagnostic, retained runtime path)"
+  }
+
+  $controllerProjectionSamples = @()
+  foreach ($gui in $guiReports) {
+    if (-not (Test-HasProperty -Object $gui -Key "controller_app_model_projection")) {
+      continue
+    }
+    $summary = Get-RequiredPropertyValue -Object $gui -Key "controller_app_model_projection"
+    if ($summary -is [System.Collections.IDictionary] -or $summary -is [psobject]) {
+      $controllerProjectionSamples += [double](Get-RequiredPropertyValue -Object $summary -Key "p95_us")
+    }
+  }
+  if ($controllerProjectionSamples.Count -gt 0) {
+    $controllerProjectionP95Us = Get-MedianInt -Values $controllerProjectionSamples
+    Write-Host "[perf_guard] controller_app_model_projection_p95_us: median=$controllerProjectionP95Us us (diagnostic, legacy controller path)"
   }
 
   $warned = $false
@@ -391,6 +512,60 @@ try {
 
   if ($failed) {
     throw "[perf_guard] ERROR: fail thresholds exceeded."
+  }
+
+  if ($startupProfileEnabled) {
+    $startupSummaryArgs = @(
+      "scripts/perf_startup_summary.py",
+      "--output",
+      $startupSummaryOut,
+      "--warn-first-present-ms",
+      (Get-EnvDouble -Name "SEMPAL_PERF_WARN_STARTUP_FIRST_PRESENT_MS" -Default 800.0).ToString([System.Globalization.CultureInfo]::InvariantCulture),
+      "--min-valid-runs",
+      $startupMinValidRuns.ToString()
+    )
+    $startupFailMs = Get-OptionalEnvDouble -Name "SEMPAL_PERF_FAIL_STARTUP_FIRST_PRESENT_MS"
+    if ($null -ne $startupFailMs) {
+      $startupSummaryArgs += @(
+        "--fail-first-present-ms",
+        $startupFailMs.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+      )
+    }
+    $startupWarnSpreadMs = Get-OptionalEnvDouble -Name "SEMPAL_PERF_WARN_STARTUP_FIRST_PRESENT_SPREAD_MS"
+    if ($null -ne $startupWarnSpreadMs) {
+      $startupSummaryArgs += @(
+        "--warn-first-present-spread-ms",
+        $startupWarnSpreadMs.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+      )
+    }
+    $startupFailSpreadMs = Get-OptionalEnvDouble -Name "SEMPAL_PERF_FAIL_STARTUP_FIRST_PRESENT_SPREAD_MS"
+    if ($null -ne $startupFailSpreadMs) {
+      $startupSummaryArgs += @(
+        "--fail-first-present-spread-ms",
+        $startupFailSpreadMs.ToString([System.Globalization.CultureInfo]::InvariantCulture)
+      )
+    }
+    if ($startupRequireValidRuns) {
+      $startupSummaryArgs += "--require-min-valid-runs"
+    }
+    $startupSummaryArgs += $startupLogPaths
+    python @startupSummaryArgs
+    if ($LASTEXITCODE -ne 0) {
+      throw "[perf_guard] ERROR: startup summary parsing failed with exit code $LASTEXITCODE."
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($startupLockEnvOut)) {
+      if ($null -eq $startupLockMinValidRuns) {
+        $startupLockMinValidRuns = $startupMinValidRuns
+      }
+      python scripts/perf_startup_lock_thresholds.py `
+        --summary $startupSummaryOut `
+        --out $startupLockEnvOut `
+        --min-valid-runs $startupLockMinValidRuns
+      if ($LASTEXITCODE -ne 0) {
+        throw "[perf_guard] ERROR: startup threshold lock generation failed with exit code $LASTEXITCODE."
+      }
+    }
   }
 } finally {
   Pop-Location

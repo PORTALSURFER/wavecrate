@@ -5,8 +5,9 @@ pub(super) mod step_patterns;
 
 use super::super::{options::BenchOptions, stats};
 use super::workspace::wait_for_rows;
-use sempal::app_core::actions::{NativeAppModel, NativeMotionModel, NativeUiAction};
+use sempal::app_core::actions::{NativeAppBridge, NativeMotionModel, NativeUiAction};
 use sempal::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
+use sempal::app_core::native_bridge::SempalNativeBridge;
 use sempal::app_core::state::{
     MapBounds, MapPoint, MapQueryBounds, SampleBrowserSort, TriageFlagFilter,
 };
@@ -29,10 +30,10 @@ pub(super) fn execute_interaction_step(controller: &mut AppController, step: usi
 /// Measure pointer-hover style row focus update latency.
 pub(super) fn bench_hover_latency(
     options: &BenchOptions,
-    controller: &mut AppController,
+    bridge: &mut SempalNativeBridge,
 ) -> Result<stats::StagedLatencySummary, String> {
     let interaction_rows = options.gui_interaction_rows.max(1);
-    wait_for_rows(controller, interaction_rows)?;
+    bridge.mutate_controller(|controller| wait_for_rows(controller, interaction_rows))?;
     let mut step = 0usize;
     stats::bench_staged_action_with_iters(
         interaction_warmup(options),
@@ -41,11 +42,10 @@ pub(super) fn bench_hover_latency(
             let row = step % interaction_rows;
             step = step.saturating_add(1);
             timer.mark_input_done();
-            controller.focus_browser_row_only(row);
+            bridge.mutate_controller(|controller| controller.focus_browser_row_only(row));
             timer.mark_apply_done();
-            controller.prepare_native_frame(false);
+            let _ = bridge.project_model();
             timer.mark_pull_done();
-            let _: NativeAppModel = controller.project_native_app_model();
             Ok(())
         },
     )
@@ -54,10 +54,10 @@ pub(super) fn bench_hover_latency(
 /// Measure wheel-like row navigation latency.
 pub(super) fn bench_wheel_latency(
     options: &BenchOptions,
-    controller: &mut AppController,
+    bridge: &mut SempalNativeBridge,
 ) -> Result<stats::StagedLatencySummary, String> {
     let interaction_rows = options.gui_interaction_rows.max(1);
-    wait_for_rows(controller, interaction_rows)?;
+    bridge.mutate_controller(|controller| wait_for_rows(controller, interaction_rows))?;
     let mut step = 0usize;
     stats::bench_staged_action_with_iters(
         interaction_warmup(options),
@@ -71,11 +71,10 @@ pub(super) fn bench_wheel_latency(
             };
             step = step.saturating_add(1);
             timer.mark_input_done();
-            controller.apply_native_ui_action(NativeUiAction::MoveBrowserFocus { delta });
+            bridge.reduce_action(NativeUiAction::MoveBrowserFocus { delta });
             timer.mark_apply_done();
-            controller.prepare_native_frame(false);
+            let _ = bridge.project_model();
             timer.mark_pull_done();
-            let _: NativeAppModel = controller.project_native_app_model();
             Ok(())
         },
     )
@@ -84,23 +83,27 @@ pub(super) fn bench_wheel_latency(
 /// Measure filter-only browser recompute latency.
 pub(super) fn bench_browser_filter_churn_latency(
     options: &BenchOptions,
-    controller: &mut AppController,
+    bridge: &mut SempalNativeBridge,
 ) -> Result<stats::StagedLatencySummary, String> {
-    wait_for_rows(controller, options.gui_interaction_rows.max(1))?;
-    controller.set_browser_search("");
-    controller.set_browser_sort(SampleBrowserSort::ListOrder);
+    bridge.mutate_controller(|controller| {
+        wait_for_rows(controller, options.gui_interaction_rows.max(1))?;
+        controller.set_browser_search("");
+        controller.set_browser_sort(SampleBrowserSort::ListOrder);
+        Ok::<(), String>(())
+    })?;
     let mut step = 0usize;
     stats::bench_staged_action_with_iters(
         interaction_warmup(options),
         interaction_iters(options),
         |timer| {
             timer.mark_input_done();
-            controller.set_browser_filter(interaction_filter_for_step(step));
+            bridge.mutate_controller(|controller| {
+                controller.set_browser_filter(interaction_filter_for_step(step))
+            });
             step = step.saturating_add(1);
             timer.mark_apply_done();
-            controller.prepare_native_frame(false);
+            let _ = bridge.project_model();
             timer.mark_pull_done();
-            let _: NativeAppModel = controller.project_native_app_model();
             Ok(())
         },
     )
@@ -109,23 +112,27 @@ pub(super) fn bench_browser_filter_churn_latency(
 /// Measure query-only browser recompute latency.
 pub(super) fn bench_browser_query_churn_latency(
     options: &BenchOptions,
-    controller: &mut AppController,
+    bridge: &mut SempalNativeBridge,
 ) -> Result<stats::StagedLatencySummary, String> {
-    wait_for_rows(controller, options.gui_interaction_rows.max(1))?;
-    controller.set_browser_filter(TriageFlagFilter::All);
-    controller.set_browser_sort(SampleBrowserSort::ListOrder);
+    bridge.mutate_controller(|controller| {
+        wait_for_rows(controller, options.gui_interaction_rows.max(1))?;
+        controller.set_browser_filter(TriageFlagFilter::All);
+        controller.set_browser_sort(SampleBrowserSort::ListOrder);
+        Ok::<(), String>(())
+    })?;
     let mut step = 0usize;
     stats::bench_staged_action_with_iters(
         interaction_warmup(options),
         interaction_iters(options),
         |timer| {
             timer.mark_input_done();
-            controller.set_browser_search(interaction_query_for_step(step));
+            bridge.mutate_controller(|controller| {
+                controller.set_browser_search(interaction_query_for_step(step))
+            });
             step = step.saturating_add(1);
             timer.mark_apply_done();
-            controller.prepare_native_frame(false);
+            let _ = bridge.project_model();
             timer.mark_pull_done();
-            let _: NativeAppModel = controller.project_native_app_model();
             Ok(())
         },
     )
@@ -134,23 +141,27 @@ pub(super) fn bench_browser_query_churn_latency(
 /// Measure sort-only browser recompute latency.
 pub(super) fn bench_browser_sort_toggle_latency(
     options: &BenchOptions,
-    controller: &mut AppController,
+    bridge: &mut SempalNativeBridge,
 ) -> Result<stats::StagedLatencySummary, String> {
-    wait_for_rows(controller, options.gui_interaction_rows.max(1))?;
-    controller.set_browser_filter(TriageFlagFilter::All);
-    controller.set_browser_search(interaction_query_for_step(0));
+    bridge.mutate_controller(|controller| {
+        wait_for_rows(controller, options.gui_interaction_rows.max(1))?;
+        controller.set_browser_filter(TriageFlagFilter::All);
+        controller.set_browser_search(interaction_query_for_step(0));
+        Ok::<(), String>(())
+    })?;
     let mut step = 0usize;
     stats::bench_staged_action_with_iters(
         interaction_warmup(options),
         interaction_iters(options),
         |timer| {
             timer.mark_input_done();
-            controller.set_browser_sort(interaction_sort_for_step(step));
+            bridge.mutate_controller(|controller| {
+                controller.set_browser_sort(interaction_sort_for_step(step))
+            });
             step = step.saturating_add(1);
             timer.mark_apply_done();
-            controller.prepare_native_frame(false);
+            let _ = bridge.project_model();
             timer.mark_pull_done();
-            let _: NativeAppModel = controller.project_native_app_model();
             Ok(())
         },
     )
@@ -159,10 +170,10 @@ pub(super) fn bench_browser_sort_toggle_latency(
 /// Measure lightweight preview-focus navigation latency.
 pub(super) fn bench_browser_focus_preview_latency(
     options: &BenchOptions,
-    controller: &mut AppController,
+    bridge: &mut SempalNativeBridge,
 ) -> Result<stats::StagedLatencySummary, String> {
     let interaction_rows = options.gui_interaction_rows.max(1);
-    wait_for_rows(controller, interaction_rows)?;
+    bridge.mutate_controller(|controller| wait_for_rows(controller, interaction_rows))?;
     let mut step = 0usize;
     stats::bench_staged_action_with_iters(
         interaction_warmup(options),
@@ -171,11 +182,10 @@ pub(super) fn bench_browser_focus_preview_latency(
             let row = step % interaction_rows;
             step = step.saturating_add(1);
             timer.mark_input_done();
-            controller.focus_browser_row_only(row);
+            bridge.mutate_controller(|controller| controller.focus_browser_row_only(row));
             timer.mark_apply_done();
-            controller.prepare_native_frame(false);
+            let _ = bridge.project_model();
             timer.mark_pull_done();
-            let _: NativeAppModel = controller.project_native_app_model();
             Ok(())
         },
     )
@@ -184,10 +194,10 @@ pub(super) fn bench_browser_focus_preview_latency(
 /// Measure commit-focus latency after preview navigation.
 pub(super) fn bench_browser_focus_commit_latency(
     options: &BenchOptions,
-    controller: &mut AppController,
+    bridge: &mut SempalNativeBridge,
 ) -> Result<stats::StagedLatencySummary, String> {
     let interaction_rows = options.gui_interaction_rows.max(1);
-    wait_for_rows(controller, interaction_rows)?;
+    bridge.mutate_controller(|controller| wait_for_rows(controller, interaction_rows))?;
     let mut step = 0usize;
     stats::bench_staged_action_with_iters(
         interaction_warmup(options),
@@ -196,12 +206,13 @@ pub(super) fn bench_browser_focus_commit_latency(
             let row = step % interaction_rows;
             step = step.saturating_add(1);
             timer.mark_input_done();
-            controller.focus_browser_row_only(row);
-            let _ = controller.commit_focused_browser_row();
+            bridge.mutate_controller(|controller| {
+                controller.focus_browser_row_only(row);
+                let _ = controller.commit_focused_browser_row();
+            });
             timer.mark_apply_done();
-            controller.prepare_native_frame(false);
+            let _ = bridge.project_model();
             timer.mark_pull_done();
-            let _: NativeAppModel = controller.project_native_app_model();
             Ok(())
         },
     )
@@ -210,9 +221,9 @@ pub(super) fn bench_browser_focus_commit_latency(
 /// Measure map pan/zoom projection latency using cached map state.
 pub(super) fn bench_map_pan_proxy_latency(
     options: &BenchOptions,
-    controller: &mut AppController,
+    bridge: &mut SempalNativeBridge,
 ) -> Result<stats::StagedLatencySummary, String> {
-    prime_map_cache_for_benchmark(controller)?;
+    bridge.mutate_controller(prime_map_cache_for_benchmark)?;
     let mut step = 0usize;
     stats::bench_staged_action_with_iters(
         interaction_warmup(options),
@@ -221,15 +232,16 @@ pub(super) fn bench_map_pan_proxy_latency(
             let offset = (step % 16) as f32;
             step = step.saturating_add(1);
             timer.mark_input_done();
-            controller.ui.map.pan.x = -24.0 + offset * 3.0;
-            controller.ui.map.pan.y = 18.0 - offset * 2.0;
-            controller.ui.map.zoom = 1.0 + ((step % 7) as f32 * 0.1);
-            controller.ui.map.cached_points_revision =
-                controller.ui.map.cached_points_revision.saturating_add(1);
+            bridge.mutate_controller(|controller| {
+                controller.ui.map.pan.x = -24.0 + offset * 3.0;
+                controller.ui.map.pan.y = 18.0 - offset * 2.0;
+                controller.ui.map.zoom = 1.0 + ((step % 7) as f32 * 0.1);
+                controller.ui.map.cached_points_revision =
+                    controller.ui.map.cached_points_revision.saturating_add(1);
+            });
             timer.mark_apply_done();
-            controller.prepare_native_frame(false);
+            let _ = bridge.project_model();
             timer.mark_pull_done();
-            let _: NativeAppModel = controller.project_native_app_model();
             Ok(())
         },
     )
@@ -238,7 +250,7 @@ pub(super) fn bench_map_pan_proxy_latency(
 /// Measure waveform interaction latency across seek/cursor/selection/zoom actions.
 pub(super) fn bench_waveform_interactions(
     options: &BenchOptions,
-    controller: &mut AppController,
+    bridge: &mut SempalNativeBridge,
 ) -> Result<stats::StagedLatencySummary, String> {
     let mut step = 0usize;
     stats::bench_staged_action_with_iters(
@@ -248,12 +260,11 @@ pub(super) fn bench_waveform_interactions(
             let action = waveform_action_for_step(step);
             step = step.saturating_add(1);
             timer.mark_input_done();
-            controller.apply_native_ui_action(action);
+            bridge.reduce_action(action);
             timer.mark_apply_done();
-            controller.prepare_native_frame(false);
+            let _ = bridge.project_model();
             timer.mark_pull_done();
-            let _: NativeAppModel = controller.project_native_app_model();
-            let _: NativeMotionModel = controller.project_native_motion_model();
+            let _: Option<NativeMotionModel> = bridge.project_motion_model();
             Ok(())
         },
     )
@@ -262,23 +273,24 @@ pub(super) fn bench_waveform_interactions(
 /// Measure continuous volume-drag update latency.
 pub(super) fn bench_volume_drag_latency(
     options: &BenchOptions,
-    controller: &mut AppController,
+    bridge: &mut SempalNativeBridge,
 ) -> Result<stats::StagedLatencySummary, String> {
-    wait_for_rows(controller, options.gui_interaction_rows.max(1))?;
+    bridge.mutate_controller(|controller| {
+        wait_for_rows(controller, options.gui_interaction_rows.max(1))
+    })?;
     let mut step = 0usize;
     stats::bench_staged_action_with_iters(
         interaction_warmup(options),
         interaction_iters(options),
         |timer| {
             timer.mark_input_done();
-            controller.apply_native_ui_action(NativeUiAction::SetVolume {
+            bridge.reduce_action(NativeUiAction::SetVolume {
                 value_milli: volume_milli_for_step(step),
             });
             step = step.saturating_add(1);
             timer.mark_apply_done();
-            controller.prepare_native_frame(false);
+            let _ = bridge.project_model();
             timer.mark_pull_done();
-            let _: NativeAppModel = controller.project_native_app_model();
             Ok(())
         },
     )
@@ -287,7 +299,7 @@ pub(super) fn bench_volume_drag_latency(
 /// Measure idle cursor-motion latency using motion-only frame preparation.
 pub(super) fn bench_idle_cursor_motion_latency(
     options: &BenchOptions,
-    controller: &mut AppController,
+    bridge: &mut SempalNativeBridge,
 ) -> Result<stats::StagedLatencySummary, String> {
     let mut step = 0usize;
     stats::bench_staged_action_with_iters(
@@ -295,14 +307,13 @@ pub(super) fn bench_idle_cursor_motion_latency(
         interaction_iters(options),
         |timer| {
             timer.mark_input_done();
-            controller.apply_native_ui_action(NativeUiAction::SetWaveformCursor {
+            bridge.reduce_action(NativeUiAction::SetWaveformCursor {
                 position_milli: ((step.saturating_mul(37) % 1000) + 1) as u16,
             });
             step = step.saturating_add(1);
             timer.mark_apply_done();
-            controller.prepare_native_frame(true);
+            let _: Option<NativeMotionModel> = bridge.project_motion_model();
             timer.mark_pull_done();
-            let _: NativeMotionModel = controller.project_native_motion_model();
             Ok(())
         },
     )
@@ -311,18 +322,17 @@ pub(super) fn bench_idle_cursor_motion_latency(
 /// Measure adjacent waveform pan/zoom interactions.
 pub(super) fn bench_waveform_pan_zoom_adjacent_latency(
     options: &BenchOptions,
-    controller: &mut AppController,
+    bridge: &mut SempalNativeBridge,
 ) -> Result<stats::LatencySummary, String> {
     let mut step = 0usize;
     stats::bench_action_with_iters(
         interaction_warmup(options),
         interaction_iters(options),
         || {
-            controller.apply_native_ui_action(adjacent_waveform_action_for_step(step));
+            bridge.reduce_action(adjacent_waveform_action_for_step(step));
             step = step.saturating_add(1);
-            controller.prepare_native_frame(false);
-            let _: NativeAppModel = controller.project_native_app_model();
-            let _: NativeMotionModel = controller.project_native_motion_model();
+            let _ = bridge.project_model();
+            let _: Option<NativeMotionModel> = bridge.project_motion_model();
             Ok(())
         },
     )

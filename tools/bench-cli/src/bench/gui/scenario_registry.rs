@@ -8,14 +8,16 @@ use super::interactions::{
     bench_waveform_pan_zoom_adjacent_latency, bench_wheel_latency,
 };
 use super::{BenchOptions, stats};
-use sempal::app_core::actions::{NativeAppModel, NativeMotionModel};
+use sempal::app_core::actions::{NativeAppBridge, NativeAppModel, NativeMotionModel};
 use sempal::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
-use sempal::app_core::native_bridge::measure_projection_segment_probe;
+use sempal::app_core::native_bridge::{SempalNativeBridge, measure_projection_segment_probe};
 
 /// Latency summaries collected for every GUI benchmark scenario.
 pub(super) struct GuiScenarioMetrics {
-    /// Latency of native app model projection.
+    /// Latency of retained app-model pull and projection through the shipped cache path.
     pub(super) app_model_projection: stats::LatencySummary,
+    /// Latency of controller-mode app-model projection kept for diagnostics.
+    pub(super) controller_app_model_projection: stats::LatencySummary,
     /// Retained-runtime app-model projection p95 captured through the bridge cache path.
     pub(super) retained_app_model_projection_p95_us: u64,
     /// Latency of native motion model projection.
@@ -51,87 +53,107 @@ pub(super) struct GuiScenarioMetrics {
 /// Run every GUI latency scenario using the shared seeded controller.
 pub(super) fn collect_gui_scenario_metrics(
     options: &BenchOptions,
-    controller: &mut AppController,
+    controller: AppController,
     mut execute_interaction_step: impl FnMut(&mut AppController, usize),
 ) -> Result<GuiScenarioMetrics, String> {
+    let mut bridge = SempalNativeBridge::from_fixture_controller(controller);
     Ok(GuiScenarioMetrics {
-        app_model_projection: bench_app_model_projection(options, controller)?,
+        app_model_projection: bench_retained_app_model_projection(options, &mut bridge)?,
+        controller_app_model_projection: bench_controller_app_model_projection(
+            options,
+            &mut bridge,
+        )?,
         retained_app_model_projection_p95_us: bench_retained_app_model_projection_p95_us(
-            options, controller,
+            options,
+            &mut bridge,
         ),
-        motion_model_projection: bench_motion_model_projection(options, controller)?,
+        motion_model_projection: bench_motion_model_projection(options, &mut bridge)?,
         interactive_projection: bench_interactive_projection(
             options,
-            controller,
+            &mut bridge,
             &mut execute_interaction_step,
         )?,
-        hover_latency: bench_hover_latency(options, controller)?,
-        wheel_latency: bench_wheel_latency(options, controller)?,
-        browser_filter_churn_latency: bench_browser_filter_churn_latency(options, controller)?,
-        browser_query_churn_latency: bench_browser_query_churn_latency(options, controller)?,
-        browser_sort_toggle_latency: bench_browser_sort_toggle_latency(options, controller)?,
-        browser_focus_preview_latency: bench_browser_focus_preview_latency(options, controller)?,
-        browser_focus_commit_latency: bench_browser_focus_commit_latency(options, controller)?,
-        map_pan_proxy_latency: bench_map_pan_proxy_latency(options, controller)?,
-        waveform_interaction_latency: bench_waveform_interactions(options, controller)?,
-        volume_drag_latency: bench_volume_drag_latency(options, controller)?,
-        idle_cursor_motion_latency: bench_idle_cursor_motion_latency(options, controller)?,
+        hover_latency: bench_hover_latency(options, &mut bridge)?,
+        wheel_latency: bench_wheel_latency(options, &mut bridge)?,
+        browser_filter_churn_latency: bench_browser_filter_churn_latency(options, &mut bridge)?,
+        browser_query_churn_latency: bench_browser_query_churn_latency(options, &mut bridge)?,
+        browser_sort_toggle_latency: bench_browser_sort_toggle_latency(options, &mut bridge)?,
+        browser_focus_preview_latency: bench_browser_focus_preview_latency(options, &mut bridge)?,
+        browser_focus_commit_latency: bench_browser_focus_commit_latency(options, &mut bridge)?,
+        map_pan_proxy_latency: bench_map_pan_proxy_latency(options, &mut bridge)?,
+        waveform_interaction_latency: bench_waveform_interactions(options, &mut bridge)?,
+        volume_drag_latency: bench_volume_drag_latency(options, &mut bridge)?,
+        idle_cursor_motion_latency: bench_idle_cursor_motion_latency(options, &mut bridge)?,
         waveform_pan_zoom_adjacent_latency: bench_waveform_pan_zoom_adjacent_latency(
-            options, controller,
+            options,
+            &mut bridge,
         )?,
     })
 }
 
 fn bench_retained_app_model_projection_p95_us(
     options: &BenchOptions,
-    controller: &mut AppController,
+    bridge: &mut SempalNativeBridge,
 ) -> u64 {
-    measure_projection_segment_probe(
-        controller,
-        options.warmup_iters,
-        options.measure_iters,
-        |_controller, _| {},
-    )
-    .projection_p95_us
+    bridge.mutate_controller(|controller| {
+        measure_projection_segment_probe(
+            controller,
+            options.warmup_iters,
+            options.measure_iters,
+            |_controller, _| {},
+        )
+        .projection_p95_us
+    })
 }
 
-fn bench_app_model_projection(
+fn bench_retained_app_model_projection(
     options: &BenchOptions,
-    controller: &mut AppController,
+    bridge: &mut SempalNativeBridge,
 ) -> Result<stats::LatencySummary, String> {
     stats::bench_action(options, || {
-        controller.prepare_native_frame(false);
-        let _: NativeAppModel = controller.project_native_app_model();
+        let _: std::sync::Arc<NativeAppModel> = bridge.project_model();
+        Ok(())
+    })
+}
+
+fn bench_controller_app_model_projection(
+    options: &BenchOptions,
+    bridge: &mut SempalNativeBridge,
+) -> Result<stats::LatencySummary, String> {
+    stats::bench_action(options, || {
+        bridge.mutate_controller(|controller| {
+            controller.prepare_native_frame(false);
+            let _: NativeAppModel = controller.project_native_app_model();
+        });
         Ok(())
     })
 }
 
 fn bench_motion_model_projection(
     options: &BenchOptions,
-    controller: &mut AppController,
+    bridge: &mut SempalNativeBridge,
 ) -> Result<stats::LatencySummary, String> {
     stats::bench_action(options, || {
-        controller.prepare_native_frame(true);
-        let _: NativeMotionModel = controller.project_native_motion_model();
+        let _: Option<NativeMotionModel> = bridge.project_motion_model();
         Ok(())
     })
 }
 
 fn bench_interactive_projection(
     options: &BenchOptions,
-    controller: &mut AppController,
+    bridge: &mut SempalNativeBridge,
     execute_interaction_step: &mut impl FnMut(&mut AppController, usize),
 ) -> Result<stats::StagedLatencySummary, String> {
     let mut interaction_step = 0usize;
     stats::bench_staged_action_with_iters(options.warmup_iters, options.measure_iters, |timer| {
-        execute_interaction_step(controller, interaction_step);
+        bridge
+            .mutate_controller(|controller| execute_interaction_step(controller, interaction_step));
         interaction_step = interaction_step.saturating_add(1);
         timer.mark_input_done();
         timer.mark_apply_done();
-        controller.prepare_native_frame(false);
+        let _: std::sync::Arc<NativeAppModel> = bridge.project_model();
         timer.mark_pull_done();
-        let _: NativeAppModel = controller.project_native_app_model();
-        let _: NativeMotionModel = controller.project_native_motion_model();
+        let _: Option<NativeMotionModel> = bridge.project_motion_model();
         Ok(())
     })
 }

@@ -27,17 +27,24 @@ use super::{options::BenchOptions, stats};
 
 /// Run GUI benchmark actions and summarize performance characteristics.
 pub(super) fn run(options: &BenchOptions) -> Result<GuiBenchResult, String> {
-    let mut workspace = build_controller_with_db_rows(options)?;
-    let seeded_rows = seed_rows(&mut workspace.controller, options.gui_rows)?;
-    let scenario_metrics =
-        collect_gui_scenario_metrics(options, &mut workspace.controller, execute_interaction_step)?;
+    let mut scenario_workspace = build_controller_with_db_rows(options)?;
+    let seeded_rows = seed_rows(&mut scenario_workspace.controller, options.gui_rows)?;
+    let scenario_metrics = collect_gui_scenario_metrics(
+        options,
+        scenario_workspace.controller,
+        execute_interaction_step,
+    )?;
+    let mut attribution_workspace = build_controller_with_db_rows(options)?;
+    let _ = seed_rows(&mut attribution_workspace.controller, options.gui_rows)?;
     let interaction_segment_attribution = Some(collect_interaction_segment_attribution(
         options,
-        &mut workspace.controller,
+        &mut attribution_workspace.controller,
     )?);
-    let interaction_rebuild_cause_attribution = Some(
-        collect_interaction_rebuild_cause_attribution(options, &mut workspace.controller)?,
-    );
+    let interaction_rebuild_cause_attribution =
+        Some(collect_interaction_rebuild_cause_attribution(
+            options,
+            &mut attribution_workspace.controller,
+        )?);
     Ok(assemble_gui_bench_result(
         seeded_rows,
         scenario_metrics,
