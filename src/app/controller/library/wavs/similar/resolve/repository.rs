@@ -88,11 +88,7 @@ pub(crate) fn load_rms_for_sample(
     conn: &rusqlite::Connection,
     sample_id: &str,
 ) -> Result<Option<f32>, String> {
-    Ok(
-        load_feature_metrics_for_samples(conn, &[sample_id.to_string()])?
-            .remove(sample_id)
-            .and_then(|metrics| metrics.rms),
-    )
+    Ok(load_rms_for_samples(conn, &[sample_id.to_string()])?.remove(sample_id))
 }
 
 /// Load the persisted similarity embedding for one sample.
@@ -157,7 +153,7 @@ pub(crate) fn load_feature_metrics_for_samples(
     let mut metrics = HashMap::with_capacity(sample_ids.len());
     for batch in sample_ids.chunks(SQLITE_IN_BATCH_SIZE) {
         let sql = format!(
-            "SELECT sample_id, vec_blob FROM features WHERE sample_id IN ({})",
+            "SELECT sample_id, feat_version, vec_blob FROM features WHERE sample_id IN ({})",
             placeholder_list(1, batch.len())
         );
         let mut stmt = conn
@@ -178,17 +174,109 @@ pub(crate) fn load_feature_metrics_for_samples(
             let sample_id = row
                 .get::<_, String>(0)
                 .map_err(|err| format!("Load features failed: {err}"))?;
-            let blob = row
-                .get::<_, Vec<u8>>(1)
+            let feat_version = row
+                .get::<_, i64>(1)
                 .map_err(|err| format!("Load features failed: {err}"))?;
-            let features = crate::analysis::decode_f32_le_blob(&blob)?;
-            let rms = features.get(FEATURE_RMS_INDEX).copied();
-            let light_dsp =
-                crate::analysis::light_dsp_from_features_v1(&features).map(super::normalize_l2);
+            let blob = row
+                .get::<_, Vec<u8>>(2)
+                .map_err(|err| format!("Load features failed: {err}"))?;
+            let SimilarityFeatureMetrics { light_dsp, rms } =
+                decode_similarity_feature_metrics(&blob, feat_version)?;
             metrics.insert(sample_id, SimilarityFeatureMetrics { light_dsp, rms });
         }
     }
     Ok(metrics)
+}
+
+/// Load only RMS feature values for a candidate set in one feature query.
+pub(crate) fn load_rms_for_samples(
+    conn: &rusqlite::Connection,
+    sample_ids: &[String],
+) -> Result<HashMap<String, f32>, String> {
+    if sample_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let mut rms_by_sample = HashMap::with_capacity(sample_ids.len());
+    for batch in sample_ids.chunks(SQLITE_IN_BATCH_SIZE) {
+        let sql = format!(
+            "SELECT sample_id, feat_version, vec_blob FROM features WHERE sample_id IN ({})",
+            placeholder_list(1, batch.len())
+        );
+        let mut stmt = conn
+            .prepare(&sql)
+            .map_err(|err| format!("Load features failed: {err}"))?;
+        let params = batch
+            .iter()
+            .cloned()
+            .map(rusqlite::types::Value::from)
+            .collect::<Vec<_>>();
+        let mut rows = stmt
+            .query(params_from_iter(params))
+            .map_err(|err| format!("Load features failed: {err}"))?;
+        while let Some(row) = rows
+            .next()
+            .map_err(|err| format!("Load features failed: {err}"))?
+        {
+            let sample_id = row
+                .get::<_, String>(0)
+                .map_err(|err| format!("Load features failed: {err}"))?;
+            let feat_version = row
+                .get::<_, i64>(1)
+                .map_err(|err| format!("Load features failed: {err}"))?;
+            let blob = row
+                .get::<_, Vec<u8>>(2)
+                .map_err(|err| format!("Load features failed: {err}"))?;
+            if let Some(rms) = decode_feature_rms(&blob, feat_version)? {
+                rms_by_sample.insert(sample_id, rms);
+            }
+        }
+    }
+    Ok(rms_by_sample)
+}
+
+fn decode_similarity_feature_metrics(
+    blob: &[u8],
+    feat_version: i64,
+) -> Result<SimilarityFeatureMetrics, String> {
+    if feat_version == crate::analysis::FEATURE_VERSION_V1 {
+        let light_dsp = decode_f32_prefix(blob, crate::analysis::LIGHT_DSP_VECTOR_LEN)?;
+        let rms = decode_feature_rms(blob, feat_version)?;
+        return Ok(SimilarityFeatureMetrics {
+            light_dsp: Some(super::normalize_l2(light_dsp)),
+            rms,
+        });
+    }
+
+    let features = crate::analysis::decode_f32_le_blob(blob)?;
+    let rms = features.get(FEATURE_RMS_INDEX).copied();
+    let light_dsp = crate::analysis::light_dsp_from_features_v1(&features).map(super::normalize_l2);
+    Ok(SimilarityFeatureMetrics { light_dsp, rms })
+}
+
+fn decode_feature_rms(blob: &[u8], feat_version: i64) -> Result<Option<f32>, String> {
+    if feat_version == crate::analysis::FEATURE_VERSION_V1 {
+        return decode_f32_at(blob, FEATURE_RMS_INDEX).map(Some);
+    }
+    let features = crate::analysis::decode_f32_le_blob(blob)?;
+    Ok(features.get(FEATURE_RMS_INDEX).copied())
+}
+
+fn decode_f32_prefix(blob: &[u8], count: usize) -> Result<Vec<f32>, String> {
+    (0..count).map(|index| decode_f32_at(blob, index)).collect()
+}
+
+fn decode_f32_at(blob: &[u8], index: usize) -> Result<f32, String> {
+    if !blob.len().is_multiple_of(4) {
+        return Err("Feature blob length is not a multiple of 4 bytes".to_string());
+    }
+    let start = index.saturating_mul(4);
+    let end = start.saturating_add(4);
+    let Some(bytes) = blob.get(start..end) else {
+        return Err(format!("Feature blob missing value at index {index}"));
+    };
+    Ok(f32::from_le_bytes(bytes.try_into().map_err(|_| {
+        format!("Feature blob missing value at index {index}")
+    })?))
 }
 
 fn placeholder_list(start_index: usize, count: usize) -> String {
@@ -300,6 +388,40 @@ mod tests {
         assert_eq!(metrics["sample-b"].rms, Some(0.5));
         assert!(metrics["sample-a"].light_dsp.is_some());
         assert!(metrics["sample-b"].light_dsp.is_some());
+    }
+
+    #[test]
+    fn rms_loader_extracts_v1_rms_without_full_feature_decode() {
+        let conn = in_memory_similarity_conn();
+        insert_features(&conn, "sample-a", &[0.9, 0.1, 0.25]);
+        insert_features(&conn, "sample-b", &[0.2, 0.8, 0.5]);
+
+        let sample_ids = vec!["sample-a".to_string(), "sample-b".to_string()];
+        let rms_by_sample = load_rms_for_samples(&conn, &sample_ids).unwrap();
+
+        assert_eq!(rms_by_sample["sample-a"], 0.25);
+        assert_eq!(rms_by_sample["sample-b"], 0.5);
+    }
+
+    #[test]
+    fn rms_loader_falls_back_for_unknown_feature_versions() {
+        let conn = in_memory_similarity_conn();
+        let mut features = vec![0.0_f32; crate::analysis::FEATURE_VECTOR_LEN_V1];
+        features[FEATURE_RMS_INDEX] = 0.75;
+        conn.execute(
+            "INSERT INTO features (sample_id, feat_version, vec_blob, computed_at)
+             VALUES (?1, ?2, ?3, 0)",
+            params![
+                "sample-a",
+                crate::analysis::FEATURE_VERSION_V1 + 1,
+                encode_f32_le_blob(&features),
+            ],
+        )
+        .unwrap();
+
+        let rms = load_rms_for_sample(&conn, "sample-a").unwrap();
+
+        assert_eq!(rms, Some(0.75));
     }
 
     #[test]

@@ -1,6 +1,8 @@
 //! Reranking and filtering helpers for similarity resolution.
 
-use super::repository::{load_embeddings_for_samples, load_feature_metrics_for_samples};
+use super::repository::{
+    load_embeddings_for_samples, load_feature_metrics_for_samples, load_rms_for_samples,
+};
 use crate::sample_sources::SourceId;
 use rusqlite::Connection;
 use std::collections::HashMap;
@@ -147,19 +149,6 @@ pub(super) fn filter_ranked_candidates(
         }
     }
     Ok((indices, scores))
-}
-
-fn load_rms_for_samples(
-    conn: &Connection,
-    sample_ids: &[String],
-) -> Result<HashMap<String, f32>, String> {
-    let mut rms_by_sample = HashMap::new();
-    for (sample_id, metrics) in load_feature_metrics_for_samples(conn, sample_ids)? {
-        if let Some(rms) = metrics.rms {
-            rms_by_sample.insert(sample_id, rms);
-        }
-    }
-    Ok(rms_by_sample)
 }
 
 #[cfg(test)]
