@@ -1,7 +1,7 @@
 # Runtime Performance Audit Plan
 
 Date: 2026-04-17
-Status: Phase 2 in progress on 2026-04-17; items 1-7 complete
+Status: Phase 2 complete on 2026-04-17; items 1-8 complete, with manual startup visual review still recommended
 
 ## Evidence Snapshot
 
@@ -16,10 +16,11 @@ Status: Phase 2 in progress on 2026-04-17; items 1-7 complete
   - `feature_blob_decode.total_elapsed_ms = 433` for `320000` lightweight blobs
 - Fresh startup-profile smoke on 2026-04-17:
   - `target/perf/bench..startup_summary.json`
-  - `first_present_ms = 1632.444`
-  - `surface_ready_ms = 904.170`
-  - `renderer_ready_ms = 1205.318`
-  - `deferred_model_refresh_ms = 371.057`
+  - `first_present_ms = 1691.321`
+  - `surface_ready_ms = 880.581`
+  - `renderer_ready_ms = 1203.259`
+  - `first_scene_ready_ms = 1205.161`
+  - `deferred_model_refresh_ms = 420.733`
 - Waveform preview A/B on 2026-04-17:
   - default immediate-preview median: `target/perf/bench_default_preview.json`
     - `waveform_interaction_latency.p95_us = 158`
@@ -191,13 +192,14 @@ Status: Phase 2 in progress on 2026-04-17; items 1-7 complete
   - Add parity tests between persisted lightweight metrics and full-blob derived values.
   - Rerun targeted similarity tests and compare `feature_blob_decode` plus similarity scenarios before/after.
 
-### [ ] 8. Re-measure and retune hidden-startup reveal policy for current first-present cost
+### [x] 8. Re-measure and retune hidden-startup reveal policy for current first-present cost
 - ROI: Medium
 - Effort: M
 - Expected impact: startup, perceived responsiveness
+- Completed: 2026-04-17 (`00156ef1`, `perf(startup): reveal presented placeholder frame immediately`)
 - Evidence:
-  - `target/perf/bench..startup_summary.json` reports `first_present_ms = 1632.444`,
-    `surface_ready_ms = 904.170`, and `deferred_model_refresh_ms = 371.057`.
+  - `target/perf/bench..startup_summary.json` reports `first_present_ms = 1691.321`,
+    `first_scene_ready_ms = 1205.161`, and `deferred_model_refresh_ms = 420.733`.
   - `vendor/radiant/src/gui_runtime/native_vello.rs:87`
     hard-codes `STARTUP_REVEAL_STALL_TIMEOUT` to `300ms`.
   - `vendor/radiant/src/gui_runtime/native_vello/runtime_startup/policy.rs:49`
@@ -205,15 +207,16 @@ Status: Phase 2 in progress on 2026-04-17; items 1-7 complete
   - `vendor/radiant/src/gui_runtime/native_vello/runtime_render/present.rs:41`
     only force-reveals the window after that stall fallback expires.
 - Recommended change:
-  - Collect a small startup matrix across the current policy and a more adaptive reveal deadline tied to first-scene readiness or backend behavior.
-  - Prefer a conservative adaptive policy over simply shortening the timeout globally.
+  - Reveal the startup window immediately after a successfully presented placeholder frame instead of keeping it hidden behind the deferred model refresh.
+  - When reveal happens before the first visible present, request a fresh redraw directly from the window so hidden-window redraw throttling does not strand the placeholder scene.
 - Risk / tradeoffs:
-  - Over-eager reveal can expose placeholder pop-in or partially populated chrome.
+  - The placeholder frame now becomes visible earlier, so manual review is still needed to confirm the deferred model refresh does not produce distracting pop-in on slower machines.
 - Visual impact: Needs review
 - Validation plan:
   - Repeat startup captures with `SEMPAL_PERF_GUARD_STARTUP_PROFILE=1`.
   - Manually review sandbox launches for pop-in, text stability, and first-interaction feel.
-  - Rerun vendor startup tests and `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
+  - Rerun `cargo check --manifest-path vendor/radiant/Cargo.toml --lib`; vendor `cargo test --lib startup_window...` remains blocked by unrelated `RetainedVec` test-suite compile failures.
+  - Rerun `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`.
 
 ## Rejected Ideas
 
