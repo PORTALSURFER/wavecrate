@@ -22,6 +22,7 @@ Start here:
 - `docs/design_principles.md` — architectural goals and constraints
 - `docs/radiant_slot_layout_spec.md` — strict hierarchical slot-based layout contract for `vendor/radiant`
 - `docs/radiant_library_architecture_plan.md` — target public architecture and migration plan for turning `vendor/radiant` into a reusable GUI library while keeping Sempal shippable
+- `docs/radiant_widget_model.md` — first-class public widget taxonomy and shared widget contracts for `vendor/radiant`
 - `docs/QUALITY_SCORE.md` — coarse quality scorecard and known gaps
 - `docs/plans/index.md` — current/archived plan index for parallel agents
 - `docs/plans/active/todo.md` — short ordered queue for the active execution lane

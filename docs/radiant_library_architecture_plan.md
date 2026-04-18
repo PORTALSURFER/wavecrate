@@ -271,6 +271,14 @@ Mapped issue:
 
 - `OPT-32`
 
+Status:
+
+- Implemented as the first public `radiant::widgets` contract surface.
+- Code-facing taxonomy and contracts now live in
+  `vendor/radiant/src/widgets/*`.
+- Composition guidance and examples now live in
+  `docs/radiant_widget_model.md`.
+
 ### Phase 3: implement the first reusable primitive widgets
 
 Goal:
