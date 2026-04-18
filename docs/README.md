@@ -5,6 +5,10 @@ The `docs/` directory contains developer-facing documentation for Sempal.
 User-facing documentation lives in `manual/` (usage guide + the published docs
 site).
 
+Quick external pointer:
+
+- Linear project for Sempal (`PORTALSURFER` team): https://linear.app/boostnlvp/project/sempal-7230ebfad82d
+
 Start here:
 
 - `AGENTS.md` (repo root) — minimal wake-up portal + current mission
@@ -29,6 +33,7 @@ Start here:
 - `tmp/improvement_audit_plan.md` - current evidence-driven ROI-ranked improvement backlog
   and execution record for the live codebase; use it as the canonical source
   for the current audit lane status and execution order
+- `tmp/bug_audit_plan.md` — 2026-04-18 clear-bug audit snapshot with Linear issue links
 - `tmp/cleanup_plan.md` — parked ROI-ranked cleanup backlog
   (Phase 1 complete on 2026-03-12; resume only after explicit Phase 2 confirmation)
 - `tmp/perf_plan.md` — current ROI-ranked runtime performance backlog for the live tree
