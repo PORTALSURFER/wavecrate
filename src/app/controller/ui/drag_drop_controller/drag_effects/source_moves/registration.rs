@@ -12,6 +12,8 @@ pub(in crate::app::controller::ui::drag_drop_controller::drag_effects) struct Mo
     pub(in crate::app::controller::ui::drag_drop_controller::drag_effects) locked: bool,
     pub(in crate::app::controller::ui::drag_drop_controller::drag_effects) last_played_at:
         Option<i64>,
+    pub(in crate::app::controller::ui::drag_drop_controller::drag_effects) sound_type:
+        Option<crate::sample_sources::SampleSoundType>,
 }
 
 impl AppController {
@@ -40,6 +42,10 @@ impl AppController {
         if let Some(last_played_at) = registration.last_played_at {
             db.set_last_played_at(relative_path, last_played_at)
                 .map_err(|err| format!("Failed to copy playback age: {err}"))?;
+        }
+        if let Some(sound_type) = registration.sound_type {
+            db.set_sound_type(relative_path, Some(sound_type))
+                .map_err(|err| format!("Failed to copy sound type: {err}"))?;
         }
         Ok(())
     }

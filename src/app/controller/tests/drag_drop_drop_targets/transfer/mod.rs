@@ -208,6 +208,7 @@ fn transferred_sample(
         looped: true,
         locked: true,
         last_played_at: Some(42),
+        sound_type: None,
     }
 }
 

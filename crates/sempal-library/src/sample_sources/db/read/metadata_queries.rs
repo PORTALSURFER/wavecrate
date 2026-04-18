@@ -3,7 +3,9 @@ use std::path::Path;
 use rusqlite::OptionalExtension;
 
 use super::super::util::map_sql_error;
-use super::super::{META_WAV_PATHS_REVISION, Rating, SourceDatabase, SourceDbError};
+use super::super::{
+    META_WAV_PATHS_REVISION, Rating, SampleSoundType, SourceDatabase, SourceDbError,
+};
 
 fn normalize_supported_audio_path(path: &Path) -> Result<Option<String>, SourceDbError> {
     if !crate::sample_sources::is_supported_audio(path) {
@@ -88,6 +90,27 @@ impl SourceDatabase {
             return Ok(None);
         };
         query_flag_for_path(self, "locked", path_str.as_str())
+    }
+
+    /// Fetch the canonical sound classification for a specific wav path.
+    pub fn sound_type_for_path(
+        &self,
+        path: &Path,
+    ) -> Result<Option<SampleSoundType>, SourceDbError> {
+        let Some(path_str) = normalize_supported_audio_path(path)? else {
+            return Ok(None);
+        };
+        let value: Option<String> = self
+            .connection
+            .query_row(
+                "SELECT sound_type FROM wav_files WHERE path = ?1",
+                rusqlite::params![path_str.as_str()],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .optional()
+            .map_err(map_sql_error)?
+            .flatten();
+        Ok(value.as_deref().and_then(SampleSoundType::from_token))
     }
 
     /// Fetch the last played timestamp for a specific wav path.

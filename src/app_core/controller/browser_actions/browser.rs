@@ -147,6 +147,9 @@ pub(super) fn apply_browser_list_native_ui_action(
         NativeUiAction::StartBrowserRename => controller.start_browser_rename(),
         NativeUiAction::ConfirmBrowserRename => controller.apply_pending_browser_rename(),
         NativeUiAction::CancelBrowserRename => controller.cancel_browser_rename(),
+        NativeUiAction::AutoRenameBrowserSelection { visible_row } => {
+            controller.auto_rename_browser_selection_action(visible_row)
+        }
         NativeUiAction::TagBrowserSelection { target } => {
             controller.tag_selected_browser_target(target.into())
         }

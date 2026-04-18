@@ -97,6 +97,131 @@ impl Rating {
     }
 }
 
+/// Canonical sound classifications stored for browser auto-rename metadata.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SampleSoundType {
+    /// Kick drum sample.
+    Kick,
+    /// Snare drum sample.
+    Snare,
+    /// Clap sample.
+    Clap,
+    /// Closed or open hat sample.
+    Hat,
+    /// Generic percussion sample.
+    Perc,
+    /// Tom drum sample.
+    Tom,
+    /// Rimshot sample.
+    Rim,
+    /// Bass sample.
+    Bass,
+    /// Sub-bass sample.
+    Sub,
+    /// Chord sample.
+    Chord,
+    /// Stab sample.
+    Stab,
+    /// Pad sample.
+    Pad,
+    /// Lead sample.
+    Lead,
+    /// Arpeggio sample.
+    Arp,
+    /// Sequenced phrase sample.
+    Seq,
+    /// Vocal sample.
+    Vocal,
+    /// FX sample.
+    Fx,
+    /// Texture or ambience sample.
+    Texture,
+}
+
+impl SampleSoundType {
+    /// Return the stable filename/database token for this sound classification.
+    pub const fn token(self) -> &'static str {
+        match self {
+            Self::Kick => "kick",
+            Self::Snare => "snare",
+            Self::Clap => "clap",
+            Self::Hat => "hat",
+            Self::Perc => "perc",
+            Self::Tom => "tom",
+            Self::Rim => "rim",
+            Self::Bass => "bass",
+            Self::Sub => "sub",
+            Self::Chord => "chord",
+            Self::Stab => "stab",
+            Self::Pad => "pad",
+            Self::Lead => "lead",
+            Self::Arp => "arp",
+            Self::Seq => "SEQ",
+            Self::Vocal => "vocal",
+            Self::Fx => "fx",
+            Self::Texture => "texture",
+        }
+    }
+
+    /// Parse one persisted token into the canonical sound classification.
+    pub fn from_token(token: &str) -> Option<Self> {
+        match token.trim() {
+            "kick" => Some(Self::Kick),
+            "snare" => Some(Self::Snare),
+            "clap" => Some(Self::Clap),
+            "hat" => Some(Self::Hat),
+            "perc" => Some(Self::Perc),
+            "tom" => Some(Self::Tom),
+            "rim" => Some(Self::Rim),
+            "bass" => Some(Self::Bass),
+            "sub" => Some(Self::Sub),
+            "chord" => Some(Self::Chord),
+            "stab" => Some(Self::Stab),
+            "pad" => Some(Self::Pad),
+            "lead" => Some(Self::Lead),
+            "arp" => Some(Self::Arp),
+            "SEQ" | "seq" => Some(Self::Seq),
+            "vocal" => Some(Self::Vocal),
+            "fx" => Some(Self::Fx),
+            "texture" => Some(Self::Texture),
+            _ => None,
+        }
+    }
+
+    /// Best-effort filename inference used when no explicit sound metadata exists yet.
+    pub fn infer_from_name(name: &str) -> Option<Self> {
+        let normalized = name
+            .chars()
+            .map(|ch| if ch.is_ascii_alphanumeric() { ch.to_ascii_lowercase() } else { ' ' })
+            .collect::<String>();
+        let words = normalized.split_whitespace().collect::<Vec<_>>();
+        const SOUND_TYPES: [SampleSoundType; 18] = [
+            SampleSoundType::Kick,
+            SampleSoundType::Snare,
+            SampleSoundType::Clap,
+            SampleSoundType::Hat,
+            SampleSoundType::Perc,
+            SampleSoundType::Tom,
+            SampleSoundType::Rim,
+            SampleSoundType::Bass,
+            SampleSoundType::Sub,
+            SampleSoundType::Chord,
+            SampleSoundType::Stab,
+            SampleSoundType::Pad,
+            SampleSoundType::Lead,
+            SampleSoundType::Arp,
+            SampleSoundType::Seq,
+            SampleSoundType::Vocal,
+            SampleSoundType::Fx,
+            SampleSoundType::Texture,
+        ];
+        SOUND_TYPES.into_iter().find(|sound_type| {
+            let token = sound_type.token().to_ascii_lowercase();
+            words.iter().any(|word| *word == token)
+        })
+    }
+}
+
 /// Details about a wav file stored in a source database.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WavEntry {

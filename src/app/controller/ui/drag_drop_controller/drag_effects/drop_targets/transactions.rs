@@ -13,6 +13,7 @@ pub(super) fn sample_move_metadata(metadata: DroppedSampleMetadata) -> SampleMov
         looped: metadata.looped,
         locked: metadata.locked,
         last_played_at: metadata.last_played_at,
+        sound_type: metadata.sound_type,
     }
 }
 
@@ -43,6 +44,11 @@ pub(super) fn register_drop_target_target_entry(
         batch
             .set_last_played_at(relative_path, last_played_at)
             .map_err(|err| format!("Failed to copy playback age: {err}"))?;
+    }
+    if let Some(sound_type) = metadata.sound_type {
+        batch
+            .set_sound_type(relative_path, Some(sound_type))
+            .map_err(|err| format!("Failed to copy sound type: {err}"))?;
     }
     batch
         .commit()

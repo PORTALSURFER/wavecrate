@@ -1,5 +1,8 @@
 use super::*;
-use crate::app::controller::jobs::{FileOpResult, NormalizationJob, SampleRenameResult};
+use crate::app::controller::jobs::{
+    FileOpResult, NormalizationJob, SampleAutoRenameResult, SampleAutoRenameSuccess,
+    SampleRenameResult,
+};
 use crate::app::controller::undo;
 use std::sync::{Arc, atomic::AtomicBool};
 
@@ -358,25 +361,127 @@ fn run_sample_rename_job(
             result: Err(String::from("Rename cancelled")),
         };
     }
-    let new_absolute = ctx.source.root.join(&new_relative);
-    let result = std::fs::rename(&ctx.absolute_path, &new_absolute)
+    let old_relative = ctx.entry.relative_path.clone();
+    let result = perform_sample_rename(
+        &ctx.source,
+        &ctx.absolute_path,
+        &old_relative,
+        &new_relative,
+        tag,
+        ctx.entry.looped,
+        ctx.entry.locked,
+        ctx.entry.last_played_at,
+    );
+    SampleRenameResult {
+        source_id: ctx.source.id,
+        old_relative,
+        new_relative,
+        entry: result.as_ref().ok().cloned(),
+        resume_playback,
+        resume_looped,
+        resume_start_override,
+        result: result.map(|_| ()),
+    }
+}
+
+pub(crate) struct SampleAutoRenameRequest {
+    pub(crate) old_relative: PathBuf,
+    pub(crate) new_relative: PathBuf,
+    pub(crate) tag: crate::sample_sources::Rating,
+    pub(crate) resume_playback: bool,
+    pub(crate) resume_looped: bool,
+    pub(crate) resume_start_override: Option<f64>,
+}
+
+pub(crate) fn run_sample_auto_rename_job(
+    source: SampleSource,
+    requests: Vec<SampleAutoRenameRequest>,
+    cancel: Arc<AtomicBool>,
+) -> SampleAutoRenameResult {
+    let requested_paths = requests
+        .iter()
+        .map(|request| request.old_relative.clone())
+        .collect::<Vec<_>>();
+    let mut renamed = Vec::new();
+    let mut skipped = Vec::new();
+    let mut errors = Vec::new();
+    for request in requests {
+        if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+            errors.push((request.old_relative, String::from("Rename cancelled")));
+            break;
+        }
+        let old_absolute = source.root.join(&request.old_relative);
+        if request.old_relative == request.new_relative {
+            skipped.push((request.old_relative, String::from("Already matches auto-rename format")));
+            continue;
+        }
+        match perform_sample_rename(
+            &source,
+            &old_absolute,
+            &request.old_relative,
+            &request.new_relative,
+            request.tag,
+            false,
+            false,
+            None,
+        ) {
+            Ok(entry) => renamed.push(SampleAutoRenameSuccess {
+                old_relative: request.old_relative,
+                new_relative: request.new_relative,
+                entry,
+                resume_playback: request.resume_playback,
+                resume_looped: request.resume_looped,
+                resume_start_override: request.resume_start_override,
+            }),
+            Err(err) if err.contains("already exists") => skipped.push((request.old_relative, err)),
+            Err(err) => errors.push((request.old_relative, err)),
+        }
+    }
+    SampleAutoRenameResult {
+        source_id: source.id,
+        requested_paths,
+        renamed,
+        skipped,
+        errors,
+    }
+}
+
+fn perform_sample_rename(
+    source: &SampleSource,
+    old_absolute: &Path,
+    old_relative: &Path,
+    new_relative: &Path,
+    tag: crate::sample_sources::Rating,
+    fallback_looped: bool,
+    fallback_locked: bool,
+    fallback_last_played_at: Option<i64>,
+) -> Result<WavEntry, String> {
+    let new_absolute = source.root.join(new_relative);
+    std::fs::rename(old_absolute, &new_absolute)
         .map_err(|err| format!("Failed to rename file: {err}"))
         .and_then(|_| {
             let (file_size, modified_ns) = file_metadata(&new_absolute)?;
-            let db = crate::sample_sources::SourceDatabase::open(&ctx.source.root)
+            let db = crate::sample_sources::SourceDatabase::open(&source.root)
                 .map_err(|err| format!("Database unavailable: {err}"))?;
             let last_played_at = db
-                .last_played_at_for_path(&ctx.entry.relative_path)
+                .last_played_at_for_path(old_relative)
                 .map_err(|err| format!("Failed to load playback age: {err}"))?;
             let looped = db
-                .looped_for_path(&ctx.entry.relative_path)
+                .looped_for_path(old_relative)
                 .map_err(|err| format!("Failed to load loop marker: {err}"))?
-                .unwrap_or(false);
+                .unwrap_or(fallback_looped);
+            let locked = db
+                .locked_for_path(old_relative)
+                .map_err(|err| format!("Failed to load lock marker: {err}"))?
+                .unwrap_or(fallback_locked);
+            let sound_type = db
+                .sound_type_for_path(old_relative)
+                .map_err(|err| format!("Failed to load sound type: {err}"))?;
             let mut batch = db
                 .write_batch()
                 .map_err(|err| format!("Failed to start database update: {err}"))?;
             batch
-                .remove_file(&ctx.entry.relative_path)
+                .remove_file(old_relative)
                 .map_err(|err| format!("Failed to drop old entry: {err}"))?;
             batch
                 .upsert_file(&new_relative, file_size, modified_ns)
@@ -387,6 +492,9 @@ fn run_sample_rename_job(
             batch
                 .set_looped(&new_relative, looped)
                 .map_err(|err| format!("Failed to copy loop marker: {err}"))?;
+            batch
+                .set_sound_type(&new_relative, sound_type)
+                .map_err(|err| format!("Failed to copy sound type: {err}"))?;
             if let Some(last_played_at) = last_played_at {
                 batch
                     .set_last_played_at(&new_relative, last_played_at)
@@ -396,25 +504,15 @@ fn run_sample_rename_job(
                 .commit()
                 .map_err(|err| format!("Failed to save rename: {err}"))?;
             Ok(WavEntry {
-                relative_path: new_relative.clone(),
+                relative_path: new_relative.to_path_buf(),
                 file_size,
                 modified_ns,
                 content_hash: None,
                 tag,
-                looped: ctx.entry.looped,
-                locked: ctx.entry.locked,
+                looped,
+                locked,
                 missing: false,
-                last_played_at: ctx.entry.last_played_at,
+                last_played_at: last_played_at.or(fallback_last_played_at),
             })
-        });
-    SampleRenameResult {
-        source_id: ctx.source.id,
-        old_relative: ctx.entry.relative_path,
-        new_relative,
-        entry: result.as_ref().ok().cloned(),
-        resume_playback,
-        resume_looped,
-        resume_start_override,
-        result: result.map(|_| ()),
-    }
+        })
 }

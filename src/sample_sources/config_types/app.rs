@@ -20,7 +20,8 @@ use super::{AnalysisSettings, InteractionOptions, UpdateSettings};
 /// Config keys (TOML): `feature_flags`, `analysis`, `updates`, `app_data_dir`,
 /// `trash_folder`, `drop_targets`, `last_selected_source`,
 /// `upper_folder_pane_source`, `lower_folder_pane_source`, `active_folder_pane`,
-/// `volume`, `audio_output`, `audio_input`, `controls`, `job_message_queue_capacity`.
+/// `volume`, `audio_output`, `audio_input`, `controls`, `job_message_queue_capacity`,
+/// `default_identifier`.
 ///
 /// `sources` are stored in the library database.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -113,6 +114,9 @@ pub struct AppSettingsCore {
     #[serde(default)]
     /// Interaction option defaults.
     pub controls: InteractionOptions,
+    #[serde(default)]
+    /// Global creator or artist identifier used by sample auto-rename.
+    pub default_identifier: String,
 }
 
 impl AppSettingsCore {
@@ -200,6 +204,7 @@ impl Default for AppSettingsCore {
             audio_input: default_audio_input(),
             volume: default_volume(),
             controls: InteractionOptions::default(),
+            default_identifier: String::new(),
         }
     }
 }

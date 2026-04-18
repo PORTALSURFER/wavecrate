@@ -16,6 +16,8 @@ pub(crate) struct AppSettingsState {
     pub(crate) controls: crate::sample_sources::config::InteractionOptions,
     pub(crate) trash_folder: Option<PathBuf>,
     pub(crate) drop_targets: Vec<DropTargetConfig>,
+    /// Global creator or artist identifier used by sample auto-rename.
+    pub(crate) default_identifier: String,
 }
 
 impl AppSettingsState {
@@ -32,6 +34,7 @@ impl AppSettingsState {
             controls: crate::sample_sources::config::InteractionOptions::default(),
             trash_folder: None,
             drop_targets: Vec::new(),
+            default_identifier: String::new(),
         }
     }
 }

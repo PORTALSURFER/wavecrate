@@ -124,6 +124,17 @@ impl SourceMoveTransaction<'_> {
             );
             return false;
         }
+        if let Some(sound_type) = self.metadata.sound_type
+            && let Err(err) = batch.set_sound_type(&self.target_relative, Some(sound_type))
+        {
+            report_staged_move_failure(
+                errors,
+                self.target_db,
+                &self.prepared,
+                format!("Failed to copy sound type: {err}"),
+            );
+            return false;
+        }
         if let Err(err) = batch.commit() {
             report_staged_move_failure(
                 errors,
@@ -188,6 +199,7 @@ impl SourceMoveTransaction<'_> {
             looped: self.metadata.looped,
             locked: self.metadata.locked,
             last_played_at: self.metadata.last_played_at,
+            sound_type: self.metadata.sound_type,
         }
     }
 }

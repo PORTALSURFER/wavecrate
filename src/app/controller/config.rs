@@ -38,6 +38,7 @@ impl AppController {
         self.settings.audio_input = cfg.core.audio_input.clone();
         self.ui.audio.input_selected = self.settings.audio_input.clone();
         self.settings.controls = cfg.core.controls.clone();
+        self.settings.default_identifier = cfg.core.default_identifier.clone();
         self.settings.controls.waveform_scroll_speed =
             clamp_scroll_speed(self.settings.controls.waveform_scroll_speed);
         self.settings.controls.wheel_zoom_factor =
@@ -316,6 +317,7 @@ impl AppController {
                 audio_input: self.settings.audio_input.clone(),
                 volume: self.ui.volume,
                 controls: self.settings.controls.clone(),
+                default_identifier: self.settings.default_identifier.clone(),
             },
         })
     }

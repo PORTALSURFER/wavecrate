@@ -1,10 +1,15 @@
 use super::super::helpers::TriageSampleContext;
+use super::super::{
+    auto_rename::{AutoRenameInput, build_auto_rename_basename},
+    helpers::{SampleAutoRenameRequest, run_sample_auto_rename_job},
+};
 use super::common::format_bpm_label;
 use super::*;
-use crate::app::controller::jobs::AnalysisMetadataMutationOp;
+use crate::app::controller::jobs::{AnalysisMetadataMutationOp, FileOpResult};
 use crate::app::controller::state::runtime::MetadataRollback;
 use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
+use std::sync::{Arc, atomic::AtomicBool};
 use tracing::{info, warn};
 
 impl BrowserController<'_> {
@@ -231,5 +236,118 @@ impl BrowserController<'_> {
             self.set_status(err.clone(), StatusTone::Error);
         }
         result
+    }
+
+    pub(crate) fn auto_rename_browser_sample_paths_action(
+        &mut self,
+        paths: &[PathBuf],
+    ) -> Result<(), String> {
+        if paths.is_empty() {
+            return Ok(());
+        }
+        let Some(source) = self.current_source() else {
+            return Err(String::from("No source selected"));
+        };
+        if self.runtime.jobs.file_ops_in_progress() {
+            return Err("File operation already in progress".to_string());
+        }
+        let db = self
+            .database_for(&source)
+            .map_err(|err| format!("Database unavailable: {err}"))?;
+        let mut requests = Vec::new();
+        let mut skipped = Vec::new();
+        let identifier = self.settings.default_identifier.clone();
+        self.preload_bpm_values_for_paths(paths);
+        for relative_path in paths {
+            let tag = self.sample_tag_for(&source, relative_path)?;
+            let looped = self.sample_looped_for(&source, relative_path)?;
+            let sound_type = db
+                .sound_type_for_path(relative_path)
+                .map_err(|err| format!("Failed to read sound type: {err}"))?
+                .or_else(|| {
+                    relative_path
+                        .file_stem()
+                        .and_then(|stem| stem.to_str())
+                        .and_then(crate::sample_sources::SampleSoundType::infer_from_name)
+                });
+            if let Some(sound_type) = sound_type {
+                let _ = db.set_sound_type(relative_path, Some(sound_type));
+            }
+            let basename = match build_auto_rename_basename(&AutoRenameInput {
+                identifier: identifier.clone(),
+                looped,
+                sound_type,
+                bpm: self.bpm_value_for_path(relative_path),
+            }) {
+                Ok(basename) => basename,
+                Err(reason) => {
+                    skipped.push((relative_path.clone(), reason.message().to_string()));
+                    continue;
+                }
+            };
+            let full_name = self.name_with_preserved_extension(relative_path, &basename)?;
+            let new_relative =
+                match self.validate_new_sample_name_in_parent(relative_path, &source.root, &full_name)
+                {
+                    Ok(path) => path,
+                    Err(err) => {
+                        skipped.push((relative_path.clone(), err));
+                        continue;
+                    }
+                };
+            let is_currently_loaded = self
+                .sample_view
+                .wav
+                .loaded_audio
+                .as_ref()
+                .is_some_and(|audio| {
+                    audio.source_id == source.id && audio.relative_path == *relative_path
+                });
+            let playhead_position = self.ui.waveform.playhead.position;
+            requests.push(SampleAutoRenameRequest {
+                old_relative: relative_path.clone(),
+                new_relative,
+                tag,
+                resume_playback: is_currently_loaded && self.is_playing(),
+                resume_looped: self.ui.waveform.loop_enabled,
+                resume_start_override: playhead_position
+                    .is_finite()
+                    .then(|| f64::from(playhead_position.clamp(0.0, 1.0))),
+            });
+        }
+        if requests.is_empty() {
+            let count = skipped.len();
+            self.set_status(
+                format!("Auto Rename skipped {count} sample(s)"),
+                StatusTone::Warning,
+            );
+            return Ok(());
+        }
+        let requested_paths = requests
+            .iter()
+            .map(|request| request.old_relative.clone())
+            .collect::<Vec<_>>();
+        self.begin_pending_file_mutation(&source.id, requested_paths.clone());
+        if cfg!(test) {
+            let mut result =
+                run_sample_auto_rename_job(source.clone(), requests, Arc::new(AtomicBool::new(false)));
+            result.skipped.extend(skipped);
+            self.apply_file_op_result(FileOpResult::SampleAutoRename(result));
+            return Ok(());
+        }
+        self.set_status(
+            format!("Auto renaming {} sample(s)...", requested_paths.len()),
+            StatusTone::Busy,
+        );
+        let pending_source_id = source.id.clone();
+        if let Err(err) = self.runtime.jobs.begin_one_shot_file_op(move |cancel| {
+            let mut result = run_sample_auto_rename_job(source, requests, cancel);
+            result.skipped.extend(skipped);
+            FileOpResult::SampleAutoRename(result)
+        }) {
+            self.finish_pending_file_mutation(&pending_source_id, requested_paths);
+            return Err(err);
+        }
+        Ok(())
     }
 }

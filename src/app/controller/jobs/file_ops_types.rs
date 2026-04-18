@@ -35,6 +35,8 @@ pub(crate) enum FileOpResult {
     SampleDelete(SampleDeleteResult),
     /// Browser sample rename results.
     SampleRename(SampleRenameResult),
+    /// Browser batch auto-rename results.
+    SampleAutoRename(SampleAutoRenameResult),
     /// Folder creation results.
     FolderCreate(FolderCreateResult),
     /// Folder rename results.
@@ -59,7 +61,9 @@ pub(crate) struct SampleDeleteResult {
     /// Relative sample paths that were deleted successfully.
     pub(crate) deleted_paths: Vec<PathBuf>,
     /// Follow-up browser focus plan captured before deletion.
-    pub(crate) next_focus: Option<crate::app::controller::library::browser_controller::helpers::DeleteBrowserFocusPlan>,
+    pub(crate) next_focus: Option<
+        crate::app::controller::library::browser_controller::helpers::DeleteBrowserFocusPlan,
+    >,
     /// Final error reported by the worker when any deletion failed.
     pub(crate) last_error: Option<String>,
 }
@@ -83,6 +87,38 @@ pub(crate) struct SampleRenameResult {
     pub(crate) resume_start_override: Option<f64>,
     /// Terminal rename outcome.
     pub(crate) result: Result<(), String>,
+}
+
+/// One successful sample auto-rename entry in a batch.
+#[derive(Debug)]
+pub(crate) struct SampleAutoRenameSuccess {
+    /// Previous relative sample path.
+    pub(crate) old_relative: PathBuf,
+    /// New relative sample path.
+    pub(crate) new_relative: PathBuf,
+    /// Updated entry metadata aligned to the renamed file.
+    pub(crate) entry: crate::sample_sources::WavEntry,
+    /// Whether playback should resume once the renamed sample reloads.
+    pub(crate) resume_playback: bool,
+    /// Loop state that should be restored for playback resume.
+    pub(crate) resume_looped: bool,
+    /// Optional playback start override to restore after rename.
+    pub(crate) resume_start_override: Option<f64>,
+}
+
+/// Result of running auto-rename across one browser selection batch.
+#[derive(Debug)]
+pub(crate) struct SampleAutoRenameResult {
+    /// Source that owned the selected samples.
+    pub(crate) source_id: crate::sample_sources::SourceId,
+    /// Relative sample paths requested for auto rename.
+    pub(crate) requested_paths: Vec<PathBuf>,
+    /// Successfully renamed samples.
+    pub(crate) renamed: Vec<SampleAutoRenameSuccess>,
+    /// Samples skipped before rename plus the user-facing reason.
+    pub(crate) skipped: Vec<(PathBuf, String)>,
+    /// Fatal rename failures encountered during the batch.
+    pub(crate) errors: Vec<(PathBuf, String)>,
 }
 
 /// Result of creating one folder in the background.
@@ -125,7 +161,8 @@ pub(crate) struct FolderDeleteResult {
     /// Staging root that retains the deleted folder for recovery.
     pub(crate) staging_root: PathBuf,
     /// Delete staging info returned by the recovery layer.
-    pub(crate) staged: Option<crate::app::controller::library::source_folders::delete_recovery::DeleteStagingInfo>,
+    pub(crate) staged:
+        Option<crate::app::controller::library::source_folders::delete_recovery::DeleteStagingInfo>,
     /// Optional next-focused folder path captured before deletion.
     pub(crate) next_focus: Option<PathBuf>,
     /// Terminal delete outcome.
@@ -231,6 +268,8 @@ pub(crate) struct DropTargetTransferMetadata {
     pub(crate) locked: bool,
     /// Last played timestamp, if any.
     pub(crate) last_played_at: Option<i64>,
+    /// Canonical sound classification, if any.
+    pub(crate) sound_type: Option<crate::sample_sources::SampleSoundType>,
 }
 
 /// Result of a background drop-target copy or move operation.
@@ -271,6 +310,8 @@ pub(crate) struct DropTargetTransferSuccess {
     pub(crate) locked: bool,
     /// Last played timestamp, if any.
     pub(crate) last_played_at: Option<i64>,
+    /// Canonical sound classification, if any.
+    pub(crate) sound_type: Option<crate::sample_sources::SampleSoundType>,
 }
 
 /// Successful paste into a source folder with metadata for follow-up updates.
@@ -358,6 +399,8 @@ pub(crate) struct SourceMoveSuccess {
     pub(crate) locked: bool,
     /// Last played timestamp, if any.
     pub(crate) last_played_at: Option<i64>,
+    /// Canonical sound classification, if any.
+    pub(crate) sound_type: Option<crate::sample_sources::SampleSoundType>,
 }
 
 /// Request payload for a background in-source folder sample move.
@@ -388,6 +431,8 @@ pub(crate) struct FolderEntryMove {
     pub(crate) locked: bool,
     /// Last played timestamp, if any.
     pub(crate) last_played_at: Option<i64>,
+    /// Canonical sound classification, if any.
+    pub(crate) sound_type: Option<crate::sample_sources::SampleSoundType>,
 }
 
 /// Result of a background in-source folder sample move operation.

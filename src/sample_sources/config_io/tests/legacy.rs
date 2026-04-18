@@ -33,6 +33,7 @@ fn migrates_from_legacy_json() {
             audio_input: AudioInputConfig::default(),
             volume: 0.9,
             controls: InteractionOptions::default(),
+            default_identifier: String::from("legacy"),
         },
     };
     let mut data = serde_json::to_value(&legacy).unwrap();

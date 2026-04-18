@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use rusqlite::params;
 use tempfile::tempdir;
 
-use super::super::{Rating, SourceDatabase};
+use super::super::{Rating, SampleSoundType, SourceDatabase};
 
 #[test]
 fn list_files_page_orders_supported_audio_and_applies_offsets() {
@@ -119,5 +119,19 @@ fn search_entry_metadata_matches_row_order_and_values() {
     assert_eq!(
         metadata,
         rows.into_iter().map(|row| row.metadata).collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn sound_type_round_trips_for_path_queries() {
+    let dir = tempdir().unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    db.upsert_file(Path::new("drums/kick.wav"), 10, 5).unwrap();
+    db.set_sound_type(Path::new("drums/kick.wav"), Some(SampleSoundType::Kick))
+        .unwrap();
+
+    assert_eq!(
+        db.sound_type_for_path(Path::new("drums/kick.wav")).unwrap(),
+        Some(SampleSoundType::Kick)
     );
 }

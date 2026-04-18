@@ -198,6 +198,7 @@ fn settings_round_trip_preserves_fields() {
                 tooltip_mode: TooltipMode::Regular,
                 loop_lock_enabled: true,
             },
+            default_identifier: String::from("artist"),
         },
     };
 

@@ -94,6 +94,7 @@ fn apply_folder_move_result_remaps_folder_state_and_focuses_destination() {
                 looped: false,
                 locked: false,
                 last_played_at: None,
+                sound_type: None,
             }],
             errors: Vec::new(),
             cancelled: false,

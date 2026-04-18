@@ -22,7 +22,15 @@ fn wav_paths_revision_value(db: &SourceDatabase) -> u64 {
 
 fn row_snapshot(
     db: &SourceDatabase,
-) -> Vec<(std::path::PathBuf, Rating, bool, bool, bool, Option<i64>)> {
+) -> Vec<(
+    std::path::PathBuf,
+    Rating,
+    bool,
+    bool,
+    bool,
+    Option<i64>,
+    Option<SampleSoundType>,
+)> {
     db.list_files()
         .unwrap()
         .into_iter()
@@ -34,6 +42,7 @@ fn row_snapshot(
                 row.locked,
                 row.missing,
                 row.last_played_at,
+                db.sound_type_for_path(&row.relative_path).unwrap(),
             )
         })
         .collect()
@@ -51,6 +60,8 @@ fn metadata_only_mutations_do_not_bump_wav_paths_revision() {
     db.set_locked(Path::new("one.wav"), true).unwrap();
     db.set_missing(Path::new("one.wav"), true).unwrap();
     db.set_last_played_at(Path::new("one.wav"), 42).unwrap();
+    db.set_sound_type(Path::new("one.wav"), Some(SampleSoundType::Kick))
+        .unwrap();
 
     assert_eq!(wav_paths_revision_value(&db), 1);
 
@@ -105,6 +116,10 @@ fn single_write_wrappers_match_batch_results_and_revision_behavior() {
     assert_eq!(revision_value(&single), 5);
     single.set_last_played_at(Path::new("one.wav"), 42).unwrap();
     assert_eq!(revision_value(&single), 6);
+    single
+        .set_sound_type(Path::new("one.wav"), Some(SampleSoundType::Kick))
+        .unwrap();
+    assert_eq!(revision_value(&single), 7);
 
     let batch_dir = tempdir().unwrap();
     let batch_db = SourceDatabase::open(batch_dir.path()).unwrap();
@@ -116,6 +131,9 @@ fn single_write_wrappers_match_batch_results_and_revision_behavior() {
     batch.set_locked(Path::new("one.wav"), true).unwrap();
     batch.set_missing(Path::new("one.wav"), true).unwrap();
     batch.set_last_played_at(Path::new("one.wav"), 42).unwrap();
+    batch
+        .set_sound_type(Path::new("one.wav"), Some(SampleSoundType::Kick))
+        .unwrap();
     batch.commit().unwrap();
     assert_eq!(revision_value(&batch_db), 2);
 
@@ -128,9 +146,13 @@ fn single_write_wrappers_match_batch_results_and_revision_behavior() {
     assert_eq!(single_rows[0].locked, batch_rows[0].locked);
     assert_eq!(single_rows[0].missing, batch_rows[0].missing);
     assert_eq!(single_rows[0].last_played_at, batch_rows[0].last_played_at);
+    assert_eq!(
+        single.sound_type_for_path(Path::new("one.wav")).unwrap(),
+        batch_db.sound_type_for_path(Path::new("one.wav")).unwrap()
+    );
 
     single.remove_file(Path::new("one.wav")).unwrap();
-    assert_eq!(revision_value(&single), 7);
+    assert_eq!(revision_value(&single), 8);
     let mut batch = batch_db.write_batch().unwrap();
     batch.remove_file(Path::new("one.wav")).unwrap();
     batch.commit().unwrap();

@@ -224,6 +224,8 @@ pub enum GuiActionKind {
     ConfirmBrowserRename,
     /// Cancel the active browser rename prompt.
     CancelBrowserRename,
+    /// Run deterministic auto rename across the active browser selection snapshot.
+    AutoRenameBrowserSelection,
     /// Apply a rating/tag to the current browser selection.
     TagBrowserSelection,
     /// Delete the current browser selection.

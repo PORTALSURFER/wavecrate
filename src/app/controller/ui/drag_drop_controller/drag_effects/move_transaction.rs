@@ -2,7 +2,7 @@
 
 use crate::app::controller::library::wav_io::file_metadata;
 use crate::sample_sources::db::file_ops_journal;
-use crate::sample_sources::{Rating, SourceDatabase};
+use crate::sample_sources::{Rating, SampleSoundType, SourceDatabase};
 use std::path::{Path, PathBuf};
 
 /// Metadata copied from the source DB row while moving a sample file.
@@ -16,6 +16,8 @@ pub(super) struct SampleMoveMetadata {
     pub(super) locked: bool,
     /// Last played timestamp, if any.
     pub(super) last_played_at: Option<i64>,
+    /// Canonical sound classification, if any.
+    pub(super) sound_type: Option<SampleSoundType>,
 }
 
 /// Filesystem/journal state prepared before DB mutation and finalization.
@@ -73,11 +75,15 @@ pub(super) fn load_sample_move_metadata(
     let last_played_at = db
         .last_played_at_for_path(relative_path)
         .map_err(|err| format!("Failed to read database: {err}"))?;
+    let sound_type = db
+        .sound_type_for_path(relative_path)
+        .map_err(|err| format!("Failed to read database: {err}"))?;
     Ok(SampleMoveMetadata {
         tag,
         looped,
         locked,
         last_played_at,
+        sound_type,
     })
 }
 

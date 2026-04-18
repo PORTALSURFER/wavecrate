@@ -16,6 +16,7 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         tag INTEGER NOT NULL DEFAULT 0,
         looped INTEGER NOT NULL DEFAULT 0,
         locked INTEGER NOT NULL DEFAULT 0,
+        sound_type TEXT,
         missing INTEGER NOT NULL DEFAULT 0,
         extension TEXT NOT NULL DEFAULT '',
         last_played_at INTEGER

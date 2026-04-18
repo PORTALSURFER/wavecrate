@@ -87,6 +87,7 @@ pub(super) fn action_prefers_targeted_invalidation(action: &NativeUiAction) -> b
             | NativeUiAction::SetBrowserSearch { .. }
             | NativeUiAction::ToggleBrowserRatingFilter { .. }
             | NativeUiAction::ToggleBrowserPlaybackAgeFilter { .. }
+            | NativeUiAction::AutoRenameBrowserSelection { .. }
             | NativeUiAction::TagBrowserSelection { .. }
             | NativeUiAction::ToggleBrowserSampleMark
             | NativeUiAction::ToggleBrowserMarkedFilter
@@ -190,6 +191,7 @@ pub(super) fn classify_dirty_source(
         | NativeUiAction::StartBrowserRename
         | NativeUiAction::ConfirmBrowserRename
         | NativeUiAction::CancelBrowserRename
+        | NativeUiAction::AutoRenameBrowserSelection { .. }
         | NativeUiAction::TagBrowserSelection { .. }
         | NativeUiAction::DeleteBrowserSelection
         | NativeUiAction::StartNewFolder

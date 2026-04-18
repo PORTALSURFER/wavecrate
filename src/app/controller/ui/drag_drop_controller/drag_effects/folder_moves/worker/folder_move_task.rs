@@ -277,6 +277,7 @@ fn rewrite_entry(
         looped: entry.looped,
         locked: entry.locked,
         last_played_at: entry.last_played_at,
+        sound_type: None,
     })
 }
 

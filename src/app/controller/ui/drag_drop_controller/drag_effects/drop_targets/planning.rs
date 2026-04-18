@@ -89,5 +89,6 @@ fn drop_target_metadata(entry: &crate::sample_sources::WavEntry) -> DropTargetTr
         looped: entry.looped,
         locked: entry.locked,
         last_played_at: entry.last_played_at,
+        sound_type: None,
     }
 }

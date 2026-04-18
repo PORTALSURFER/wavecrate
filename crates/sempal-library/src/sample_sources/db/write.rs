@@ -3,7 +3,10 @@ use std::path::{Path, PathBuf};
 use rusqlite::params;
 
 use super::util::map_sql_error;
-use super::{META_WAV_PATHS_REVISION, Rating, SourceDatabase, SourceDbError, SourceWriteBatch};
+use super::{
+    META_WAV_PATHS_REVISION, Rating, SampleSoundType, SourceDatabase, SourceDbError,
+    SourceWriteBatch,
+};
 
 mod mutation;
 mod upsert;
@@ -13,13 +16,15 @@ mod tests;
 
 use mutation::{
     delete_path_statement, update_flag_statement, update_path_i64_statement,
-    update_path_null_statement,
+    update_path_null_statement, update_path_text_statement,
 };
 use upsert::{ContentHashPolicy, TagPolicy, WavFileWriteSpec, execute_wav_upsert};
 
 const UPDATE_TAG_SQL: &str = "UPDATE wav_files SET tag = ?1 WHERE path = ?2";
 const UPDATE_LOOPED_SQL: &str = "UPDATE wav_files SET looped = ?1 WHERE path = ?2";
 const UPDATE_LOCKED_SQL: &str = "UPDATE wav_files SET locked = ?1 WHERE path = ?2";
+const UPDATE_SOUND_TYPE_SQL: &str = "UPDATE wav_files SET sound_type = ?1 WHERE path = ?2";
+const CLEAR_SOUND_TYPE_SQL: &str = "UPDATE wav_files SET sound_type = NULL WHERE path = ?1";
 const UPDATE_MISSING_SQL: &str = "UPDATE wav_files SET missing = ?1 WHERE path = ?2";
 const UPDATE_LAST_PLAYED_AT_SQL: &str = "UPDATE wav_files SET last_played_at = ?1 WHERE path = ?2";
 const CLEAR_LAST_PLAYED_AT_SQL: &str = "UPDATE wav_files SET last_played_at = NULL WHERE path = ?1";
@@ -48,6 +53,15 @@ impl SourceDatabase {
     /// Persist a keep-lock marker for a single wav file by relative path.
     pub fn set_locked(&self, relative_path: &Path, locked: bool) -> Result<(), SourceDbError> {
         self.mutate_with_batch(|batch| batch.set_locked(relative_path, locked))
+    }
+
+    /// Persist a canonical sound classification for a single wav file by relative path.
+    pub fn set_sound_type(
+        &self,
+        relative_path: &Path,
+        sound_type: Option<SampleSoundType>,
+    ) -> Result<(), SourceDbError> {
+        self.mutate_with_batch(|batch| batch.set_sound_type(relative_path, sound_type))
     }
 
     /// Persist multiple tag changes in one transaction, coalescing SQLite work.
@@ -248,6 +262,23 @@ impl<'conn> SourceWriteBatch<'conn> {
     /// Update the keep-lock marker for a wav row within the batch.
     pub fn set_locked(&mut self, relative_path: &Path, locked: bool) -> Result<(), SourceDbError> {
         update_flag_statement(&self.tx, UPDATE_LOCKED_SQL, relative_path, locked)
+    }
+
+    /// Update the sound classification for a wav row within the batch.
+    pub fn set_sound_type(
+        &mut self,
+        relative_path: &Path,
+        sound_type: Option<SampleSoundType>,
+    ) -> Result<(), SourceDbError> {
+        match sound_type {
+            Some(sound_type) => update_path_text_statement(
+                &self.tx,
+                UPDATE_SOUND_TYPE_SQL,
+                relative_path,
+                sound_type.token(),
+            ),
+            None => update_path_null_statement(&self.tx, CLEAR_SOUND_TYPE_SQL, relative_path),
+        }
     }
 
     /// Update the missing flag for a wav row within the batch.

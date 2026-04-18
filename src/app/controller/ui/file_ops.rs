@@ -3,7 +3,8 @@
 use super::*;
 use crate::app::controller::jobs::{
     ClipboardPasteOutcome, ClipboardPasteResult, FileOpMessage, FileOpResult, FolderCreateResult,
-    FolderDeleteResult, FolderRenameResult, SampleDeleteResult, SampleRenameResult,
+    FolderDeleteResult, FolderRenameResult, SampleAutoRenameResult, SampleDeleteResult,
+    SampleRenameResult,
     SelectionEditCommitResult, UndoFileOpResult, UndoFileOutcome, WaveformSlideCommitResult,
 };
 use crate::app::controller::undo::{DeferredUndo, UndoDirection};
@@ -33,6 +34,7 @@ impl AppController {
             }
             FileOpResult::SampleDelete(result) => self.apply_sample_delete_result(result),
             FileOpResult::SampleRename(result) => self.apply_sample_rename_result(result),
+            FileOpResult::SampleAutoRename(result) => self.apply_sample_auto_rename_result(result),
             FileOpResult::FolderCreate(result) => self.apply_folder_create_result(result),
             FileOpResult::FolderRename(result) => self.apply_folder_rename_result(result),
             FileOpResult::FolderDelete(result) => self.apply_folder_delete_result(result),
@@ -303,7 +305,8 @@ impl AppController {
                 &result.deleted_paths.iter().cloned().collect::<std::collections::HashSet<_>>(),
             );
             crate::app::controller::library::wavs::apply_pending_similarity_filter_rebuild(self);
-            self.browser().restore_browser_focus_after_delete(result.next_focus);
+            self.browser()
+                .restore_browser_focus_after_delete(result.next_focus);
             self.set_status(
                 format!("Deleted {} sample(s)", result.deleted_paths.len()),
                 StatusTone::Info,
@@ -332,13 +335,15 @@ impl AppController {
                     self.update_cached_entry(&source, &result.old_relative, entry);
                 }
                 if result.resume_playback {
-                    self.runtime.jobs.set_pending_playback(Some(PendingPlayback {
-                        source_id: result.source_id.clone(),
-                        relative_path: result.new_relative.clone(),
-                        looped: result.resume_looped,
-                        start_override: result.resume_start_override,
-                        force_loaded_audio: false,
-                    }));
+                    self.runtime
+                        .jobs
+                        .set_pending_playback(Some(PendingPlayback {
+                            source_id: result.source_id.clone(),
+                            relative_path: result.new_relative.clone(),
+                            looped: result.resume_looped,
+                            start_override: result.resume_start_override,
+                            force_loaded_audio: false,
+                        }));
                 }
                 self.refresh_waveform_for_sample(&source, &result.new_relative);
                 self.set_status(
@@ -352,6 +357,41 @@ impl AppController {
             }
             Err(err) => self.set_status(err, StatusTone::Error),
         }
+    }
+
+    fn apply_sample_auto_rename_result(&mut self, result: SampleAutoRenameResult) {
+        self.finish_pending_file_mutation(&result.source_id, result.requested_paths.clone());
+        let Some(source) = self
+            .library
+            .sources
+            .iter()
+            .find(|source| source.id == result.source_id)
+            .cloned()
+        else {
+            self.set_status("Source not available for auto rename", StatusTone::Error);
+            return;
+        };
+        for renamed in &result.renamed {
+            self.update_cached_entry(&source, &renamed.old_relative, renamed.entry.clone());
+            if renamed.resume_playback {
+                self.runtime.jobs.set_pending_playback(Some(PendingPlayback {
+                    source_id: result.source_id.clone(),
+                    relative_path: renamed.new_relative.clone(),
+                    looped: renamed.resume_looped,
+                    start_override: renamed.resume_start_override,
+                    force_loaded_audio: false,
+                }));
+            }
+            self.refresh_waveform_for_sample(&source, &renamed.new_relative);
+        }
+        let renamed = result.renamed.len();
+        let skipped = result.skipped.len();
+        let failed = result.errors.len();
+        let tone = if failed == 0 { StatusTone::Info } else { StatusTone::Warning };
+        self.set_status(
+            format!("Auto Rename: renamed {renamed}, skipped {skipped}, failed {failed}"),
+            tone,
+        );
     }
 
     fn apply_folder_create_result(&mut self, result: FolderCreateResult) {
@@ -391,7 +431,8 @@ impl AppController {
                 };
                 for entry in result.entries {
                     let old_relative = result.old_folder.join(
-                        entry.relative_path
+                        entry
+                            .relative_path
                             .strip_prefix(&result.new_folder)
                             .unwrap_or(entry.relative_path.as_path()),
                     );

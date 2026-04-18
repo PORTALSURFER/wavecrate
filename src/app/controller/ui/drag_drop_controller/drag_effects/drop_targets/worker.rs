@@ -219,6 +219,7 @@ fn drop_target_metadata_from_request(
         looped: metadata.looped,
         locked: metadata.locked,
         last_played_at: metadata.last_played_at,
+        sound_type: metadata.sound_type,
     }
 }
 
@@ -253,6 +254,7 @@ fn load_dropped_sample_metadata(
         looped: metadata.looped,
         locked: metadata.locked,
         last_played_at: metadata.last_played_at,
+        sound_type: metadata.sound_type,
     })
 }
 
@@ -318,6 +320,7 @@ fn run_drop_target_copy(
         looped: metadata.looped,
         locked: metadata.locked,
         last_played_at: metadata.last_played_at,
+        sound_type: metadata.sound_type,
     })
 }
 
@@ -386,5 +389,6 @@ fn run_drop_target_move(
         looped: metadata.looped,
         locked: metadata.locked,
         last_played_at: metadata.last_played_at,
+        sound_type: metadata.sound_type,
     })
 }

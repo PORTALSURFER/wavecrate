@@ -1,4 +1,5 @@
 mod actions;
+mod auto_rename;
 mod delegates;
 pub(crate) mod helpers;
 
