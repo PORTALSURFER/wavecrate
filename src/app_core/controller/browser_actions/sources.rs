@@ -1,9 +1,8 @@
 //! Source-row and global options routing for native browser actions.
 
 use super::super::AppController;
-use crate::app::state::AudioPickerTarget;
-use crate::app::state::FolderPaneId;
 use crate::app_core::actions::NativeUiAction;
+use crate::app_core::state::{AudioPickerTarget, FolderPaneId};
 use radiant::app::FolderPaneIdModel;
 
 /// Try to dispatch source-row and options-panel native actions.

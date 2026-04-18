@@ -1,6 +1,7 @@
 //! Audio-engine and options-panel projection helpers for the native shell.
 
 use super::*;
+use crate::app_core::state::AudioPickerTarget;
 use std::path::Path;
 
 /// Lightweight audio-chip summary used by the top bar and retained cache keys.
@@ -333,25 +334,25 @@ fn input_sample_rate_options(
 }
 
 fn project_audio_picker_target(
-    target: crate::app::state::AudioPickerTarget,
+    target: AudioPickerTarget,
 ) -> crate::app_core::actions::NativeAudioPickerTargetModel {
     match target {
-        crate::app::state::AudioPickerTarget::OutputHost => {
+        AudioPickerTarget::OutputHost => {
             crate::app_core::actions::NativeAudioPickerTargetModel::OutputHost
         }
-        crate::app::state::AudioPickerTarget::OutputDevice => {
+        AudioPickerTarget::OutputDevice => {
             crate::app_core::actions::NativeAudioPickerTargetModel::OutputDevice
         }
-        crate::app::state::AudioPickerTarget::OutputSampleRate => {
+        AudioPickerTarget::OutputSampleRate => {
             crate::app_core::actions::NativeAudioPickerTargetModel::OutputSampleRate
         }
-        crate::app::state::AudioPickerTarget::InputHost => {
+        AudioPickerTarget::InputHost => {
             crate::app_core::actions::NativeAudioPickerTargetModel::InputHost
         }
-        crate::app::state::AudioPickerTarget::InputDevice => {
+        AudioPickerTarget::InputDevice => {
             crate::app_core::actions::NativeAudioPickerTargetModel::InputDevice
         }
-        crate::app::state::AudioPickerTarget::InputSampleRate => {
+        AudioPickerTarget::InputSampleRate => {
             crate::app_core::actions::NativeAudioPickerTargetModel::InputSampleRate
         }
     }
@@ -378,7 +379,7 @@ fn format_sample_rate_label(sample_rate: u32) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app::state::{ActiveAudioOutput, AudioDeviceView, AudioHostView, AudioPickerTarget};
+    use crate::app_core::app_api::state::{ActiveAudioOutput, AudioDeviceView, AudioHostView};
 
     #[test]
     fn audio_engine_projection_reports_healthy_chip_from_applied_output() {

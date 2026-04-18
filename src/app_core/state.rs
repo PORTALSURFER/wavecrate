@@ -21,6 +21,12 @@ pub type MapPoint = app_state::MapPoint;
 /// Browser tab selection state.
 pub type SampleBrowserTab = app_state::SampleBrowserTab;
 
+/// Active audio-picker target shown in options flows.
+pub type AudioPickerTarget = app_state::AudioPickerTarget;
+
+/// Source-pane identifier used by the two-pane source browser.
+pub type FolderPaneId = app_state::FolderPaneId;
+
 /// Browser tag target for triage actions.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BrowserTagTarget {
@@ -73,6 +79,9 @@ pub type SampleBrowserActionPrompt = app_state::SampleBrowserActionPrompt;
 
 /// Pending modal folder action prompt.
 pub type FolderActionPrompt = app_state::FolderActionPrompt;
+
+/// Pending options-panel confirmation prompt.
+pub type OptionsPanelPrompt = app_state::OptionsPanelPrompt;
 
 /// Unified drag target used by migration-facing drag/drop projections.
 pub type DragTarget = app_state::DragTarget;

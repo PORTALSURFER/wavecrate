@@ -147,10 +147,7 @@ fn project_browser_focused_sample_label(controller: &AppController) -> Option<St
 fn project_browser_tag_sidebar_model(
     controller: &mut AppController,
 ) -> radiant::app::BrowserTagSidebarModel {
-    let is_list_tab = matches!(
-        controller.ui.browser.active_tab,
-        crate::app::state::SampleBrowserTab::List
-    );
+    let is_list_tab = matches!(controller.ui.browser.active_tab, SampleBrowserTab::List);
     let target_entries = browser_tag_sidebar_target_entries(controller);
     let selected_count = target_entries.len();
     let header_label = match selected_count {

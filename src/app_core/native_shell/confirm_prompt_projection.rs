@@ -1,6 +1,7 @@
 //! Confirm-prompt projection helpers.
 
 use super::*;
+use crate::app_core::state::OptionsPanelPrompt;
 
 /// Project active confirm prompt metadata for modal rendering.
 pub(crate) fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
@@ -61,11 +62,9 @@ pub(crate) fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
     ConfirmPromptModel::default()
 }
 
-fn project_options_panel_prompt(
-    prompt: crate::app::state::OptionsPanelPrompt,
-) -> ConfirmPromptModel {
+fn project_options_panel_prompt(prompt: OptionsPanelPrompt) -> ConfirmPromptModel {
     match prompt {
-        crate::app::state::OptionsPanelPrompt::DefaultIdentifier { value } => ConfirmPromptModel {
+        OptionsPanelPrompt::DefaultIdentifier { value } => ConfirmPromptModel {
             visible: true,
             kind: Some(ConfirmPromptKind::OptionsDefaultIdentifier),
             title: String::from("Default identifier"),

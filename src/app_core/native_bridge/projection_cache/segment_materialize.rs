@@ -137,7 +137,7 @@ fn refresh_non_segment_static_fields(model: &mut NativeAppModel, controller: &mu
 /// Refresh the lightweight audio-chip fields consumed by the static top bar.
 fn refresh_non_segment_audio_chip_fields(
     model: &mut NativeAppModel,
-    ui: &crate::app::state::UiState,
+    ui: &crate::app_core::state::UiState,
 ) {
     let chip = native_shell::project_audio_engine_chip_model(ui);
     model.audio_engine.chip_state = chip.chip_state;
