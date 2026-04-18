@@ -486,6 +486,9 @@ fn perform_sample_rename(
             let sound_type = db
                 .sound_type_for_path(old_relative)
                 .map_err(|err| format!("Failed to load sound type: {err}"))?;
+            let user_tag = db
+                .user_tag_for_path(old_relative)
+                .map_err(|err| format!("Failed to load custom tag: {err}"))?;
             let mut batch = db
                 .write_batch()
                 .map_err(|err| format!("Failed to start database update: {err}"))?;
@@ -504,6 +507,9 @@ fn perform_sample_rename(
             batch
                 .set_sound_type(&new_relative, sound_type)
                 .map_err(|err| format!("Failed to copy sound type: {err}"))?;
+            batch
+                .set_user_tag(&new_relative, user_tag.as_deref())
+                .map_err(|err| format!("Failed to copy custom tag: {err}"))?;
             if let Some(last_played_at) = last_played_at {
                 batch
                     .set_last_played_at(&new_relative, last_played_at)
@@ -523,9 +529,7 @@ fn perform_sample_rename(
                 locked,
                 missing: false,
                 last_played_at: last_played_at.or(fallback_last_played_at),
-                user_tag: db
-                    .user_tag_for_path(old_relative)
-                    .map_err(|err| format!("Failed to load custom tag: {err}"))?,
+                user_tag,
             })
         })
 }

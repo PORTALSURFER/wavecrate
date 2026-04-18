@@ -275,10 +275,14 @@ impl BrowserController<'_> {
             if let Some(sound_type) = sound_type {
                 let _ = db.set_sound_type(relative_path, Some(sound_type));
             }
+            let user_tag = self.live_user_tag_for_path(&source, relative_path).or(db
+                .user_tag_for_path(relative_path)
+                .map_err(|err| format!("Failed to read custom tag: {err}"))?);
             let stem = build_auto_rename_stem(&AutoRenameInput {
                 identifier: identifier.clone(),
                 looped,
                 sound_type,
+                user_tag,
                 bpm: self.bpm_value_for_path(relative_path),
             });
             let new_relative = self.resolve_auto_rename_target(
@@ -419,6 +423,28 @@ impl BrowserController<'_> {
                     .and_then(|cache| cache.lookup.get(relative_path).copied())
                     .and_then(|index| self.cache.wav.entries.get(&source.id)?.entry(index))
                     .and_then(|entry| entry.sound_type)
+            })
+    }
+
+    fn live_user_tag_for_path(
+        &mut self,
+        source: &SampleSource,
+        relative_path: &Path,
+    ) -> Option<String> {
+        self.wav_index_for_path(relative_path)
+            .and_then(|index| {
+                let _ = self.ensure_wav_page_loaded(index);
+                self.wav_entry(index)
+                    .and_then(|entry| entry.user_tag.clone())
+            })
+            .or_else(|| {
+                self.cache
+                    .wav
+                    .entries
+                    .get(&source.id)
+                    .and_then(|cache| cache.lookup.get(relative_path).copied())
+                    .and_then(|index| self.cache.wav.entries.get(&source.id)?.entry(index))
+                    .and_then(|entry| entry.user_tag.clone())
             })
     }
 }

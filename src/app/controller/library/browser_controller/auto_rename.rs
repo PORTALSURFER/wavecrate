@@ -12,6 +12,8 @@ pub(crate) struct AutoRenameInput {
     pub(crate) looped: bool,
     /// Canonical sound classification for the sample.
     pub(crate) sound_type: Option<crate::sample_sources::SampleSoundType>,
+    /// Optional single custom metadata tag authored for the sample.
+    pub(crate) user_tag: Option<String>,
     /// Stored sample BPM metadata.
     pub(crate) bpm: Option<f32>,
 }
@@ -33,19 +35,26 @@ pub(crate) const DEFAULT_AUTO_RENAME_IDENTIFIER: &str = "portal";
 pub(crate) fn build_auto_rename_stem(input: &AutoRenameInput) -> AutoRenameStem {
     let identifier = sanitize_identifier(&input.identifier)
         .unwrap_or_else(|| String::from(DEFAULT_AUTO_RENAME_IDENTIFIER));
-    let tagged_basename = input.sound_type.and_then(|sound_type| {
-        input
-            .bpm
-            .filter(|bpm| bpm.is_finite() && *bpm > 0.0)
-            .map(|bpm| {
+    let tagged_basename = input
+        .bpm
+        .filter(|bpm| bpm.is_finite() && *bpm > 0.0)
+        .and_then(|bpm| {
+            let mut metadata_tokens = Vec::with_capacity(2);
+            if let Some(sound_type) = input.sound_type {
+                metadata_tokens.push(sound_type.token().to_string());
+            }
+            if let Some(user_tag) = input.user_tag.as_deref().and_then(sanitize_identifier) {
+                metadata_tokens.push(user_tag);
+            }
+            (!metadata_tokens.is_empty()).then(|| {
                 let shot_type = if input.looped { "loop" } else { "SS" };
                 format!(
                     "{identifier}_{shot_type}_{}_{:.0}",
-                    sound_type.token(),
+                    metadata_tokens.join("_"),
                     bpm.round()
                 )
             })
-    });
+        });
     AutoRenameStem {
         tagged_basename,
         fallback_identifier: identifier,
@@ -71,6 +80,7 @@ mod tests {
             identifier: String::from("Artist Name"),
             looped: false,
             sound_type: Some(crate::sample_sources::SampleSoundType::Kick),
+            user_tag: None,
             bpm: Some(129.6),
         }
     }
@@ -93,11 +103,43 @@ mod tests {
     }
 
     #[test]
-    fn missing_sound_type_or_bpm_uses_identifier_fallback() {
+    fn appends_sanitized_custom_tag_when_present() {
+        let mut tagged = input();
+        tagged.user_tag = Some(String::from("Vintage FX!"));
+        assert_eq!(
+            build_auto_rename_stem(&tagged).tagged_basename.as_deref(),
+            Some("artistname_SS_kick_vintagefx_130")
+        );
+    }
+
+    #[test]
+    fn uses_custom_tag_when_sound_type_is_missing() {
+        let mut tagged = input();
+        tagged.sound_type = None;
+        tagged.user_tag = Some(String::from("Vintage FX!"));
+        assert_eq!(
+            build_auto_rename_stem(&tagged).tagged_basename.as_deref(),
+            Some("artistname_SS_vintagefx_130")
+        );
+    }
+
+    #[test]
+    fn missing_sound_type_user_tag_or_bpm_uses_identifier_fallback() {
         let mut missing_sound = input();
         missing_sound.sound_type = None;
         assert_eq!(
             build_auto_rename_stem(&missing_sound),
+            AutoRenameStem {
+                tagged_basename: None,
+                fallback_identifier: String::from("artistname"),
+            }
+        );
+
+        let mut blank_user_tag = input();
+        blank_user_tag.sound_type = None;
+        blank_user_tag.user_tag = Some(String::from("!!!"));
+        assert_eq!(
+            build_auto_rename_stem(&blank_user_tag),
             AutoRenameStem {
                 tagged_basename: None,
                 fallback_identifier: String::from("artistname"),
