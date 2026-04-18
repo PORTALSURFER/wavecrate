@@ -331,6 +331,10 @@ Status:
 - `DeclarativeRuntimeBridge` now supports `state -> surface` projection and
   host-defined `message -> state` reduction without depending on
   `AppModel` or `UiAction`.
+- `SurfaceRuntime` now provides the generic runtime loop for this surface:
+  it runs layout, routes backend-neutral widget input, maps widget outputs to
+  host-defined messages, reduces them, and reprojects the next immutable
+  surface snapshot.
 - The legacy `radiant::app` contract remains available as the migration-time
   compatibility path while native-runtime integration is still finishing its
   transition.
