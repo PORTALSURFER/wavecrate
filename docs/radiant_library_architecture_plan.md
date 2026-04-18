@@ -322,6 +322,21 @@ Mapped issue:
 
 - `OPT-34`
 
+Status:
+
+- Implemented as the first public `radiant::runtime` surface in
+  `vendor/radiant/src/runtime/*`.
+- New host applications can now project a generic `UiSurface<Message>` tree
+  composed from public layout containers plus reusable `radiant::widgets`.
+- `DeclarativeRuntimeBridge` now supports `state -> surface` projection and
+  host-defined `message -> state` reduction without depending on
+  `AppModel` or `UiAction`.
+- The legacy `radiant::app` contract remains available as the migration-time
+  compatibility path while native-runtime integration is still finishing its
+  transition.
+- Public end-to-end coverage now lives in
+  `vendor/radiant/tests/runtime_surface_public_api.rs`.
+
 ### Phase 5: isolate the current native shell as compatibility code
 
 Goal:
