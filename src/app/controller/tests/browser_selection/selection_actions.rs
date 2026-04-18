@@ -333,8 +333,8 @@ fn auto_rename_falls_back_to_numbered_identifier_when_tags_are_missing() {
 
     controller.auto_rename_browser_selection_action(Some(0));
 
-    assert!(source.root.join("portal_001.wav").exists());
-    assert!(source.root.join("portal_002.wav").exists());
+    assert!(source.root.join("portal_SS.wav").exists());
+    assert!(source.root.join("portal_SS_001.wav").exists());
 }
 
 #[test]
@@ -365,6 +365,32 @@ fn auto_rename_uses_live_sidebar_custom_tag_before_metadata_flush() {
     controller.auto_rename_browser_selection_action(Some(0));
 
     assert!(source.root.join("portal_SS_vintagefx_128.wav").exists());
+}
+
+#[test]
+fn auto_rename_uses_live_sidebar_loop_and_sound_type_without_bpm() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.select_source_by_index(0);
+    controller.cache_db(&source).unwrap();
+    write_test_wav(&source.root.join("raw.wav"), &[0.0]);
+    controller.set_wav_entries_for_tests(vec![sample_entry(
+        "raw.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.focus_browser_row_only(0);
+
+    controller
+        .apply_browser_tag_sidebar_sound_type(Some(crate::sample_sources::SampleSoundType::Seq))
+        .expect("sound type should apply");
+    controller
+        .apply_browser_tag_sidebar_looped(true)
+        .expect("loop tag should apply");
+    controller.auto_rename_browser_selection_action(Some(0));
+
+    assert!(source.root.join("portal_loop_SEQ.wav").exists());
 }
 
 #[test]
