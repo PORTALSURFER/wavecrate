@@ -66,6 +66,10 @@ pub(crate) fn project_browser_rows_model_into(
         .unwrap_or_default()
         .as_secs() as i64;
     let duplicate_cleanup = controller.ui.browser.duplicate_cleanup.clone();
+    let similar_query = duplicate_cleanup
+        .is_none()
+        .then(|| controller.ui.browser.search.similar_query.clone())
+        .flatten();
     if rows.make_mut().capacity() < window_len {
         let additional = window_len.saturating_sub(rows.len());
         rows.make_mut().reserve(additional);
@@ -96,6 +100,7 @@ pub(crate) fn project_browser_rows_model_into(
                     false,
                     false,
                     false,
+                    None,
                 ),
             );
             continue;
@@ -106,6 +111,10 @@ pub(crate) fn project_browser_rows_model_into(
             absolute_index,
             &cached_row.bucket_label,
         );
+        let similarity_display_strength = similar_query
+            .as_ref()
+            .and_then(|query| query.display_strength_for_index(absolute_index))
+            .map(BrowserRowModel::encode_similarity_display_strength);
         write_browser_row_into_slot(
             rows,
             offset,
@@ -121,6 +130,7 @@ pub(crate) fn project_browser_rows_model_into(
                 cached_row.missing,
                 cached_row.locked,
                 cached_row.marked,
+                similarity_display_strength,
             ),
         );
     }
@@ -141,9 +151,8 @@ pub(crate) fn patch_browser_rows_state(
     for row in rows {
         let absolute_index = controller.ui.browser.viewport.visible.get(row.visible_row);
         row.focused = selected_visible_row.is_some_and(|focused| focused == row.visible_row);
-        row.selected = absolute_index.is_some_and(|index| {
-            super::selected_index_is_selected(controller, index)
-        });
+        row.selected = absolute_index
+            .is_some_and(|index| super::selected_index_is_selected(controller, index));
     }
 }
 
@@ -255,6 +264,7 @@ fn write_browser_row_into_slot(
         bool,
         bool,
         bool,
+        Option<u8>,
     ),
 ) {
     let rows = rows.make_mut();
@@ -270,6 +280,7 @@ fn write_browser_row_into_slot(
         missing,
         locked,
         marked,
+        similarity_display_strength,
     ) = projection;
     let bucket_label = (!bucket_label.is_empty()).then_some(bucket_label);
     let clamped_column_index = column_index.min(2);
@@ -281,6 +292,7 @@ fn write_browser_row_into_slot(
             row.missing = missing;
             row.locked = locked;
             row.marked = marked;
+            row.similarity_display_strength = similarity_display_strength;
             row.rating_level = rating_level.clamp(-3, 3);
             row.playback_age_bucket = native_playback_age_bucket;
             if row.label.as_ref() == row_label && row.bucket_label.as_deref() == bucket_label {
@@ -299,6 +311,7 @@ fn write_browser_row_into_slot(
         row.missing = missing;
         row.locked = locked;
         row.marked = marked;
+        row.similarity_display_strength = similarity_display_strength;
         if let Some(bucket_label) = bucket_label {
             let next_bucket_label = Arc::<str>::from(bucket_label);
             if row.bucket_label.as_deref() != Some(next_bucket_label.as_ref()) {
@@ -315,6 +328,9 @@ fn write_browser_row_into_slot(
         .with_missing(missing)
         .with_locked(locked)
         .with_marked(marked);
+    if let Some(similarity_display_strength) = similarity_display_strength {
+        row.similarity_display_strength = Some(similarity_display_strength);
+    }
     if let Some(bucket_label) = bucket_label {
         row = row.with_bucket_label(bucket_label);
     }

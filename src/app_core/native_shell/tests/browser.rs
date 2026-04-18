@@ -1,5 +1,19 @@
 use super::*;
 
+fn browser_projection_test_entry(name: &str) -> crate::sample_sources::WavEntry {
+    crate::sample_sources::WavEntry {
+        relative_path: std::path::PathBuf::from(name),
+        file_size: 0,
+        modified_ns: 0,
+        content_hash: None,
+        tag: crate::sample_sources::Rating::NEUTRAL,
+        looped: false,
+        locked: false,
+        missing: false,
+        last_played_at: None,
+    }
+}
+
 /// Selected-column projection should default to the neutral middle column when nothing is focused.
 #[test]
 fn selected_column_defaults_to_middle_column_without_selection() {
@@ -206,4 +220,94 @@ fn browser_chrome_projection_marks_search_focus_copy() {
     let projected = project_browser_chrome_model(&ui, 7);
     assert_eq!(projected.search_prefix_label, "Search • focused");
     assert_eq!(projected.search_placeholder, "▌");
+}
+
+/// Browser row projection should surface normalized similarity strengths during similarity search.
+#[test]
+fn browser_projection_attaches_similarity_strength_for_similarity_query_rows() {
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+    controller.set_wav_entries_for_tests(vec![
+        browser_projection_test_entry("anchor.wav"),
+        browser_projection_test_entry("close.wav"),
+        browser_projection_test_entry("far.wav"),
+    ]);
+    controller.ui.browser.viewport.visible =
+        crate::app_core::app_api::state::VisibleRows::All { total: 3 };
+    controller.ui.browser.search.similar_query =
+        Some(crate::app_core::app_api::state::SimilarQuery {
+            sample_id: String::from("sample-id"),
+            label: String::from("anchor.wav"),
+            indices: vec![0, 1, 2],
+            scores: vec![1.0, 0.5, -1.0],
+            anchor_index: Some(0),
+        });
+
+    let projected = project_browser_model(&mut controller);
+
+    assert_eq!(projected.rows.len(), 3);
+    assert_eq!(projected.rows[0].similarity_display_strength, Some(255));
+    assert!(projected.rows[1]
+        .similarity_display_strength
+        .zip(projected.rows[2].similarity_display_strength)
+        .is_some_and(|(middle, weakest)| middle > weakest));
+    assert_eq!(projected.rows[2].similarity_display_strength, Some(0));
+}
+
+/// Browser row projection should leave similarity strength empty outside similarity search mode.
+#[test]
+fn browser_projection_omits_similarity_strength_without_similarity_query() {
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+    controller.set_wav_entries_for_tests(vec![
+        browser_projection_test_entry("anchor.wav"),
+        browser_projection_test_entry("close.wav"),
+    ]);
+    controller.ui.browser.viewport.visible =
+        crate::app_core::app_api::state::VisibleRows::All { total: 2 };
+
+    let projected = project_browser_model(&mut controller);
+
+    assert!(projected
+        .rows
+        .iter()
+        .all(|row| row.similarity_display_strength.is_none()));
+}
+
+/// Duplicate cleanup mode should keep the compact similarity bar disabled.
+#[test]
+fn browser_projection_omits_similarity_strength_during_duplicate_cleanup() {
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+    let source_id = crate::sample_sources::SourceId::new();
+    controller.select_browser_source_for_tests(source_id.clone());
+    controller.set_wav_entries_for_tests(vec![
+        browser_projection_test_entry("anchor.wav"),
+        browser_projection_test_entry("close.wav"),
+    ]);
+    controller.ui.browser.viewport.visible =
+        crate::app_core::app_api::state::VisibleRows::All { total: 2 };
+    controller.ui.browser.search.similar_query =
+        Some(crate::app_core::app_api::state::SimilarQuery {
+            sample_id: String::from("sample-id"),
+            label: String::from("anchor.wav"),
+            indices: vec![0, 1],
+            scores: vec![1.0, 0.4],
+            anchor_index: Some(0),
+        });
+    controller.ui.browser.duplicate_cleanup = Some(
+        crate::app_core::app_api::state::BrowserDuplicateCleanupState::new(
+            source_id,
+            String::from("sample-id"),
+            std::path::PathBuf::from("anchor.wav"),
+            String::from("anchor.wav"),
+            vec![0, 1],
+            vec![1.0, 0.4],
+            0,
+        ),
+    );
+
+    let projected = project_browser_model(&mut controller);
+
+    assert!(projected
+        .rows
+        .iter()
+        .all(|row| row.similarity_display_strength.is_none()));
 }
