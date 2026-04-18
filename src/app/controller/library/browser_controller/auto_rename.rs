@@ -16,54 +16,40 @@ pub(crate) struct AutoRenameInput {
     pub(crate) bpm: Option<f32>,
 }
 
-/// Reason why one sample could not receive an auto-generated filename.
+/// Built naming parts for one auto-rename request.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum AutoRenameSkipReason {
-    /// No app-level identifier is configured.
-    MissingIdentifier,
-    /// No canonical sound classification is available.
-    MissingSoundType,
-    /// BPM metadata is missing or invalid.
-    MissingBpm,
-    /// Sanitization removed all visible identifier characters.
-    InvalidIdentifier,
+pub(crate) struct AutoRenameStem {
+    /// Fully tagged basename when all required metadata is available.
+    pub(crate) tagged_basename: Option<String>,
+    /// Sanitized identifier used for fallback numbering.
+    pub(crate) fallback_identifier: String,
 }
 
-impl AutoRenameSkipReason {
-    /// User-facing explanation for skipped rename items.
-    pub(crate) const fn message(&self) -> &'static str {
-        match self {
-            Self::MissingIdentifier => "missing default identifier",
-            Self::MissingSoundType => "missing sound type",
-            Self::MissingBpm => "missing BPM",
-            Self::InvalidIdentifier => "identifier is invalid after sanitization",
-        }
-    }
-}
+/// Canonical fallback identifier used when settings or sanitization produce no
+/// visible characters.
+pub(crate) const DEFAULT_AUTO_RENAME_IDENTIFIER: &str = "portal";
 
-/// Build the deterministic V1 auto-rename basename without a file extension.
-pub(crate) fn build_auto_rename_basename(
-    input: &AutoRenameInput,
-) -> Result<String, AutoRenameSkipReason> {
+/// Build deterministic naming parts for one auto-rename request.
+pub(crate) fn build_auto_rename_stem(input: &AutoRenameInput) -> AutoRenameStem {
     let identifier = sanitize_identifier(&input.identifier)
-        .ok_or_else(|| {
-            if input.identifier.trim().is_empty() {
-                AutoRenameSkipReason::MissingIdentifier
-            } else {
-                AutoRenameSkipReason::InvalidIdentifier
-            }
-        })?;
-    let sound_type = input
-        .sound_type
-        .ok_or(AutoRenameSkipReason::MissingSoundType)?
-        .token();
-    let bpm = input
-        .bpm
-        .filter(|bpm| bpm.is_finite() && *bpm > 0.0)
-        .map(|bpm| bpm.round() as i32)
-        .ok_or(AutoRenameSkipReason::MissingBpm)?;
-    let shot_type = if input.looped { "loop" } else { "SS" };
-    Ok(format!("{identifier}_{shot_type}_{sound_type}_{bpm}"))
+        .unwrap_or_else(|| String::from(DEFAULT_AUTO_RENAME_IDENTIFIER));
+    let tagged_basename = input.sound_type.and_then(|sound_type| {
+        input
+            .bpm
+            .filter(|bpm| bpm.is_finite() && *bpm > 0.0)
+            .map(|bpm| {
+                let shot_type = if input.looped { "loop" } else { "SS" };
+                format!(
+                    "{identifier}_{shot_type}_{}_{:.0}",
+                    sound_type.token(),
+                    bpm.round()
+                )
+            })
+    });
+    AutoRenameStem {
+        tagged_basename,
+        fallback_identifier: identifier,
+    }
 }
 
 fn sanitize_identifier(identifier: &str) -> Option<String> {
@@ -91,38 +77,63 @@ mod tests {
 
     #[test]
     fn builds_shot_type_and_stable_order() {
-        let one_shot = build_auto_rename_basename(&input()).unwrap();
-        assert_eq!(one_shot, "artistname_SS_kick_130");
+        let one_shot = build_auto_rename_stem(&input());
+        assert_eq!(
+            one_shot.tagged_basename.as_deref(),
+            Some("artistname_SS_kick_130")
+        );
+        assert_eq!(one_shot.fallback_identifier, "artistname");
 
         let mut looped = input();
         looped.looped = true;
         assert_eq!(
-            build_auto_rename_basename(&looped).unwrap(),
-            "artistname_loop_kick_130"
+            build_auto_rename_stem(&looped).tagged_basename.as_deref(),
+            Some("artistname_loop_kick_130")
         );
     }
 
     #[test]
-    fn rejects_missing_required_segments() {
-        let mut missing_identifier = input();
-        missing_identifier.identifier.clear();
-        assert_eq!(
-            build_auto_rename_basename(&missing_identifier),
-            Err(AutoRenameSkipReason::MissingIdentifier)
-        );
-
+    fn missing_sound_type_or_bpm_uses_identifier_fallback() {
         let mut missing_sound = input();
         missing_sound.sound_type = None;
         assert_eq!(
-            build_auto_rename_basename(&missing_sound),
-            Err(AutoRenameSkipReason::MissingSoundType)
+            build_auto_rename_stem(&missing_sound),
+            AutoRenameStem {
+                tagged_basename: None,
+                fallback_identifier: String::from("artistname"),
+            }
         );
 
         let mut missing_bpm = input();
         missing_bpm.bpm = None;
         assert_eq!(
-            build_auto_rename_basename(&missing_bpm),
-            Err(AutoRenameSkipReason::MissingBpm)
+            build_auto_rename_stem(&missing_bpm),
+            AutoRenameStem {
+                tagged_basename: None,
+                fallback_identifier: String::from("artistname"),
+            }
+        );
+    }
+
+    #[test]
+    fn invalid_or_empty_identifier_falls_back_to_portal() {
+        let mut invalid_identifier = input();
+        invalid_identifier.identifier = String::from("!!!");
+        invalid_identifier.sound_type = None;
+        invalid_identifier.bpm = None;
+        assert_eq!(
+            build_auto_rename_stem(&invalid_identifier),
+            AutoRenameStem {
+                tagged_basename: None,
+                fallback_identifier: String::from(DEFAULT_AUTO_RENAME_IDENTIFIER),
+            }
+        );
+
+        let mut empty_identifier = input();
+        empty_identifier.identifier.clear();
+        assert_eq!(
+            build_auto_rename_stem(&empty_identifier).fallback_identifier,
+            DEFAULT_AUTO_RENAME_IDENTIFIER
         );
     }
 }

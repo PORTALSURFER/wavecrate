@@ -64,6 +64,7 @@ pub(super) fn apply_source_and_options_native_ui_action(
         NativeUiAction::OpenAddSourceDialog => controller.add_source_via_dialog(),
         NativeUiAction::OpenOptionsMenu => controller.open_options_panel(),
         NativeUiAction::CloseOptionsPanel => controller.close_options_panel(),
+        NativeUiAction::EditDefaultIdentifier => controller.start_default_identifier_prompt(),
         NativeUiAction::ShowOptionsOverview => controller.show_audio_options_overview(),
         NativeUiAction::PickTrashFolder => controller.pick_trash_folder(),
         NativeUiAction::OpenTrashFolder => controller.open_trash_folder(),

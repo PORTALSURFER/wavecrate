@@ -34,7 +34,7 @@ impl AppSettingsState {
             controls: crate::sample_sources::config::InteractionOptions::default(),
             trash_folder: None,
             drop_targets: Vec::new(),
-            default_identifier: String::new(),
+            default_identifier: String::from("portal"),
         }
     }
 }

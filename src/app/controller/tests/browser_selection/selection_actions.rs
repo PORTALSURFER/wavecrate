@@ -232,6 +232,7 @@ fn keyboard_toggle_sequence_accumulates_multi_selection() {
 fn auto_rename_uses_primary_row_plus_hidden_selection() {
     let (mut controller, source) = dummy_controller();
     controller.settings.default_identifier = String::from("Artist Name");
+    controller.ui.options_panel.default_identifier = String::from("Artist Name");
     controller.library.sources.push(source.clone());
     controller.select_source_by_index(0);
     controller.cache_db(&source).unwrap();
@@ -277,4 +278,29 @@ fn auto_rename_uses_primary_row_plus_hidden_selection() {
 
     assert!(source.root.join("artistname_SS_kick_130.wav").exists());
     assert!(source.root.join("artistname_SS_bass_131.wav").exists());
+}
+
+#[test]
+fn auto_rename_falls_back_to_numbered_identifier_when_tags_are_missing() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.select_source_by_index(0);
+    controller.cache_db(&source).unwrap();
+    for name in ["untagged.wav", "untagged_001.wav", "mystery.wav"] {
+        write_test_wav(&source.root.join(name), &[0.0]);
+    }
+    controller.set_wav_entries_for_tests(vec![
+        sample_entry("untagged.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("untagged_001.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("mystery.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.focus_browser_row_only(0);
+    controller.toggle_browser_row_selection(2);
+
+    controller.auto_rename_browser_selection_action(Some(0));
+
+    assert!(source.root.join("portal_001.wav").exists());
+    assert!(source.root.join("portal_002.wav").exists());
 }

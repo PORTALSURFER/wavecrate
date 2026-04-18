@@ -1,14 +1,14 @@
 use super::super::helpers::TriageSampleContext;
 use super::super::{
-    auto_rename::{AutoRenameInput, build_auto_rename_basename},
+    auto_rename::{AutoRenameInput, build_auto_rename_stem},
     helpers::{SampleAutoRenameRequest, run_sample_auto_rename_job},
 };
 use super::common::format_bpm_label;
 use super::*;
 use crate::app::controller::jobs::{AnalysisMetadataMutationOp, FileOpResult};
 use crate::app::controller::state::runtime::MetadataRollback;
-use std::collections::{BTreeSet, HashMap};
-use std::path::PathBuf;
+use std::collections::{BTreeSet, HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, atomic::AtomicBool};
 use tracing::{info, warn};
 
@@ -255,7 +255,7 @@ impl BrowserController<'_> {
             .database_for(&source)
             .map_err(|err| format!("Database unavailable: {err}"))?;
         let mut requests = Vec::new();
-        let mut skipped = Vec::new();
+        let mut reserved_targets = HashSet::new();
         let identifier = self.settings.default_identifier.clone();
         self.preload_bpm_values_for_paths(paths);
         for relative_path in paths {
@@ -273,36 +273,27 @@ impl BrowserController<'_> {
             if let Some(sound_type) = sound_type {
                 let _ = db.set_sound_type(relative_path, Some(sound_type));
             }
-            let basename = match build_auto_rename_basename(&AutoRenameInput {
+            let stem = build_auto_rename_stem(&AutoRenameInput {
                 identifier: identifier.clone(),
                 looped,
                 sound_type,
                 bpm: self.bpm_value_for_path(relative_path),
-            }) {
-                Ok(basename) => basename,
-                Err(reason) => {
-                    skipped.push((relative_path.clone(), reason.message().to_string()));
-                    continue;
-                }
-            };
-            let full_name = self.name_with_preserved_extension(relative_path, &basename)?;
-            let new_relative =
-                match self.validate_new_sample_name_in_parent(relative_path, &source.root, &full_name)
-                {
-                    Ok(path) => path,
-                    Err(err) => {
-                        skipped.push((relative_path.clone(), err));
-                        continue;
-                    }
-                };
-            let is_currently_loaded = self
-                .sample_view
-                .wav
-                .loaded_audio
-                .as_ref()
-                .is_some_and(|audio| {
-                    audio.source_id == source.id && audio.relative_path == *relative_path
-                });
+            });
+            let new_relative = self.resolve_auto_rename_target(
+                &source.root,
+                relative_path,
+                stem.tagged_basename.as_deref(),
+                &stem.fallback_identifier,
+                &mut reserved_targets,
+            )?;
+            let is_currently_loaded =
+                self.sample_view
+                    .wav
+                    .loaded_audio
+                    .as_ref()
+                    .is_some_and(|audio| {
+                        audio.source_id == source.id && audio.relative_path == *relative_path
+                    });
             let playhead_position = self.ui.waveform.playhead.position;
             requests.push(SampleAutoRenameRequest {
                 old_relative: relative_path.clone(),
@@ -315,23 +306,17 @@ impl BrowserController<'_> {
                     .then(|| f64::from(playhead_position.clamp(0.0, 1.0))),
             });
         }
-        if requests.is_empty() {
-            let count = skipped.len();
-            self.set_status(
-                format!("Auto Rename skipped {count} sample(s)"),
-                StatusTone::Warning,
-            );
-            return Ok(());
-        }
         let requested_paths = requests
             .iter()
             .map(|request| request.old_relative.clone())
             .collect::<Vec<_>>();
         self.begin_pending_file_mutation(&source.id, requested_paths.clone());
         if cfg!(test) {
-            let mut result =
-                run_sample_auto_rename_job(source.clone(), requests, Arc::new(AtomicBool::new(false)));
-            result.skipped.extend(skipped);
+            let result = run_sample_auto_rename_job(
+                source.clone(),
+                requests,
+                Arc::new(AtomicBool::new(false)),
+            );
             self.apply_file_op_result(FileOpResult::SampleAutoRename(result));
             return Ok(());
         }
@@ -341,13 +326,76 @@ impl BrowserController<'_> {
         );
         let pending_source_id = source.id.clone();
         if let Err(err) = self.runtime.jobs.begin_one_shot_file_op(move |cancel| {
-            let mut result = run_sample_auto_rename_job(source, requests, cancel);
-            result.skipped.extend(skipped);
-            FileOpResult::SampleAutoRename(result)
+            FileOpResult::SampleAutoRename(run_sample_auto_rename_job(source, requests, cancel))
         }) {
             self.finish_pending_file_mutation(&pending_source_id, requested_paths);
             return Err(err);
         }
         Ok(())
+    }
+
+    fn resolve_auto_rename_target(
+        &self,
+        root: &Path,
+        relative_path: &Path,
+        tagged_basename: Option<&str>,
+        fallback_identifier: &str,
+        reserved_targets: &mut HashSet<PathBuf>,
+    ) -> Result<PathBuf, String> {
+        if let Some(tagged_basename) = tagged_basename {
+            if let Some(path) =
+                self.try_auto_rename_target(root, relative_path, tagged_basename, reserved_targets)?
+            {
+                reserved_targets.insert(path.clone());
+                return Ok(path);
+            }
+            for index in 1..=999 {
+                let suffixed_basename = format!("{tagged_basename}_{index:03}");
+                if let Some(path) = self.try_auto_rename_target(
+                    root,
+                    relative_path,
+                    &suffixed_basename,
+                    reserved_targets,
+                )? {
+                    reserved_targets.insert(path.clone());
+                    return Ok(path);
+                }
+            }
+        }
+        for index in 1..=999 {
+            let fallback_basename = format!("{fallback_identifier}_{index:03}");
+            if let Some(path) = self.try_auto_rename_target(
+                root,
+                relative_path,
+                &fallback_basename,
+                reserved_targets,
+            )? {
+                reserved_targets.insert(path.clone());
+                return Ok(path);
+            }
+        }
+        Err(format!(
+            "Unable to find a unique auto-rename target for {}",
+            relative_path.display()
+        ))
+    }
+
+    fn try_auto_rename_target(
+        &self,
+        root: &Path,
+        relative_path: &Path,
+        basename: &str,
+        reserved_targets: &HashSet<PathBuf>,
+    ) -> Result<Option<PathBuf>, String> {
+        let full_name = self.name_with_preserved_extension(relative_path, basename)?;
+        let new_relative = self.validate_new_sample_name_in_parent(relative_path, root, &full_name);
+        match new_relative {
+            Ok(path) if path == relative_path || !reserved_targets.contains(&path) => {
+                Ok(Some(path))
+            }
+            Ok(_) => Ok(None),
+            Err(err) if err.contains("already exists") => Ok(None),
+            Err(err) => Err(err),
+        }
     }
 }

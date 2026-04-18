@@ -163,6 +163,19 @@ fn apply_native_options_panel_actions_update_ui_state() {
 }
 
 #[test]
+fn edit_default_identifier_prompt_updates_setting_and_ui_projection_state() {
+    let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
+
+    controller.apply_native_ui_action(NativeUiAction::EditDefaultIdentifier);
+    controller.set_active_prompt_input(String::from("Artist One"));
+    controller.confirm_active_prompt_action();
+
+    assert_eq!(controller.settings.default_identifier, "Artist One");
+    assert_eq!(controller.ui.options_panel.default_identifier, "Artist One");
+    assert!(controller.ui.options_panel.pending_prompt.is_none());
+}
+
+#[test]
 fn open_options_menu_flushes_deferred_startup_audio_refresh_once() {
     with_stubbed_startup_audio_refresh_for_tests(|| {
         let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);

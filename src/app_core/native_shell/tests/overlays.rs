@@ -80,6 +80,27 @@ fn confirm_prompt_projects_folder_drop_conflict_prompt() {
     );
 }
 
+/// Options-panel identifier editing should project through the shared prompt overlay.
+#[test]
+fn confirm_prompt_projects_default_identifier_prompt() {
+    let mut ui = UiState::default();
+    ui.options_panel.pending_prompt =
+        Some(crate::app::state::OptionsPanelPrompt::DefaultIdentifier {
+            value: String::from("portal"),
+        });
+
+    let projected = project_confirm_prompt_model(&ui);
+
+    assert!(projected.visible);
+    assert_eq!(
+        projected.kind,
+        Some(ConfirmPromptKind::OptionsDefaultIdentifier)
+    );
+    assert_eq!(projected.title, "Default identifier");
+    assert_eq!(projected.confirm_label, "Save");
+    assert_eq!(projected.input_value.as_deref(), Some("portal"));
+}
+
 /// Inline folder creation should stay out of the modal confirm prompt.
 #[test]
 fn inline_folder_create_does_not_project_confirm_prompt() {

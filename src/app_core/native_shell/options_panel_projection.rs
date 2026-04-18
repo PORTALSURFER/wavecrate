@@ -87,6 +87,7 @@ pub(crate) fn project_options_panel_model(
 ) -> crate::app_core::actions::NativeOptionsPanelModel {
     crate::app_core::actions::NativeOptionsPanelModel {
         visible: ui.options_panel.open,
+        default_identifier: ui.options_panel.default_identifier.clone(),
         input_monitoring_enabled: ui.controls.input_monitoring_enabled,
         advance_after_rating_enabled: ui.controls.advance_after_rating,
         destructive_yolo_mode_enabled: ui.controls.destructive_yolo_mode,

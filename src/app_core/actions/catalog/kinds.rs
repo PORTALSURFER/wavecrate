@@ -42,6 +42,8 @@ pub enum GuiActionKind {
     OpenOptionsMenu,
     /// Close the options panel.
     CloseOptionsPanel,
+    /// Open the default-identifier editor inside the options panel.
+    EditDefaultIdentifier,
     /// Return from an audio picker to the options overview.
     ShowOptionsOverview,
     /// Open the trash-folder picker flow.

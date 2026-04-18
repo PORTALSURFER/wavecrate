@@ -162,6 +162,7 @@ fn hash_audio_option_items(
 fn hash_options_panel_model(model: &crate::app_core::actions::NativeOptionsPanelModel) -> u64 {
     let mut hasher = DefaultHasher::new();
     model.visible.hash(&mut hasher);
+    model.default_identifier.hash(&mut hasher);
     model.input_monitoring_enabled.hash(&mut hasher);
     model.advance_after_rating_enabled.hash(&mut hasher);
     model.destructive_yolo_mode_enabled.hash(&mut hasher);
@@ -198,6 +199,7 @@ fn hash_confirm_prompt_model(model: &crate::app_core::actions::NativeConfirmProm
             5u8
         }
         Some(crate::app_core::actions::NativeConfirmPromptKind::PurgeRetainedFolderDeletes) => 6u8,
+        Some(crate::app_core::actions::NativeConfirmPromptKind::OptionsDefaultIdentifier) => 7u8,
     }
     .hash(&mut hasher);
     model.title.hash(&mut hasher);

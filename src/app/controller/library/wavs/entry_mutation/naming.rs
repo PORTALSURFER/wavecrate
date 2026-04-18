@@ -53,7 +53,7 @@ pub(crate) fn validate_new_sample_name_in_parent(
     let parent = relative_path.parent().unwrap_or(Path::new(""));
     let new_relative = parent.join(trimmed);
     let new_absolute = root.join(&new_relative);
-    if new_absolute.exists() {
+    if new_absolute.exists() && new_relative != relative_path {
         return Err(format!(
             "A file named {} already exists",
             new_relative.display()

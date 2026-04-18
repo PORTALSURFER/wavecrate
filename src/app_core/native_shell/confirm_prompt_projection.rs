@@ -7,6 +7,9 @@ pub(crate) fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
     if let Some(prompt) = ui.browser.pending_action.clone() {
         return project_browser_prompt(prompt);
     }
+    if let Some(prompt) = ui.options_panel.pending_prompt.clone() {
+        return project_options_panel_prompt(prompt);
+    }
     if let Some(FolderActionPrompt::RestoreRetainedDeletes { entry_count }) =
         ui.sources.folders.pending_action.clone()
     {
@@ -56,6 +59,25 @@ pub(crate) fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
         };
     }
     ConfirmPromptModel::default()
+}
+
+fn project_options_panel_prompt(
+    prompt: crate::app::state::OptionsPanelPrompt,
+) -> ConfirmPromptModel {
+    match prompt {
+        crate::app::state::OptionsPanelPrompt::DefaultIdentifier { value } => ConfirmPromptModel {
+            visible: true,
+            kind: Some(ConfirmPromptKind::OptionsDefaultIdentifier),
+            title: String::from("Default identifier"),
+            message: String::from("Set the first tag used by Auto Rename."),
+            confirm_label: String::from("Save"),
+            cancel_label: String::from("Cancel"),
+            target_label: None,
+            input_value: Some(value),
+            input_placeholder: Some(String::from("portal")),
+            input_error: None,
+        },
+    }
 }
 
 fn project_browser_prompt(prompt: SampleBrowserActionPrompt) -> ConfirmPromptModel {

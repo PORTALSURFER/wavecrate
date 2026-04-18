@@ -114,7 +114,7 @@ pub struct AppSettingsCore {
     #[serde(default)]
     /// Interaction option defaults.
     pub controls: InteractionOptions,
-    #[serde(default)]
+    #[serde(default = "default_identifier")]
     /// Global creator or artist identifier used by sample auto-rename.
     pub default_identifier: String,
 }
@@ -204,9 +204,13 @@ impl Default for AppSettingsCore {
             audio_input: default_audio_input(),
             volume: default_volume(),
             controls: InteractionOptions::default(),
-            default_identifier: String::new(),
+            default_identifier: default_identifier(),
         }
     }
+}
+
+fn default_identifier() -> String {
+    String::from("portal")
 }
 
 fn deserialize_drop_targets<'de, D>(deserializer: D) -> Result<Vec<DropTargetConfig>, D::Error>

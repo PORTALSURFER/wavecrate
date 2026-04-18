@@ -6,6 +6,7 @@ impl AppController {
         if self.set_browser_rename_input(value.clone()) {
             return;
         }
+        let _ = self.set_options_panel_prompt_input(value);
     }
 
     /// Confirm active prompt action while tolerating no-op outcomes.
@@ -26,6 +27,10 @@ impl AppController {
             self.apply_pending_browser_rename();
             return true;
         }
+        if self.has_pending_options_panel_prompt() {
+            self.apply_pending_options_panel_prompt();
+            return true;
+        }
         if self.apply_pending_folder_delete_recovery_prompt() {
             return true;
         }
@@ -39,6 +44,10 @@ impl AppController {
         }
         if self.has_pending_browser_rename() {
             self.cancel_browser_rename();
+            return true;
+        }
+        if self.has_pending_options_panel_prompt() {
+            self.cancel_options_panel_prompt();
             return true;
         }
         if matches!(
