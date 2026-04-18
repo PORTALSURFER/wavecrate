@@ -176,7 +176,11 @@ pub struct SimilarQuery {
     pub label: String,
     /// Entry indices in similarity order.
     pub indices: Vec<usize>,
-    /// Similarity scores aligned with `indices` (0.0 = least similar, 1.0 = most similar).
+    /// Similarity scores aligned with `indices`.
+    ///
+    /// These are blended similarity values from the resolver pipeline. In
+    /// practice they are expected to live near `[-1.0, 1.0]`, but callers may
+    /// still pass sentinel values outside that range for unavailable matches.
     pub scores: Vec<f32>,
     /// Optional anchor index in the visible list.
     pub anchor_index: Option<usize>,
@@ -190,11 +194,47 @@ impl SimilarQuery {
     }
 
     /// Return a normalized similarity strength for UI display.
+    ///
+    /// The browser bar is intentionally normalized against the current query's
+    /// clamped score spread so nearby-but-not-equal results remain visually
+    /// distinguishable inside one similarity result set.
     pub fn display_strength_for_index(&self, entry_index: usize) -> Option<f32> {
         let position = self.indices.iter().position(|idx| *idx == entry_index)?;
-        let score = *self.scores.get(position)?;
+        let score = self.clamped_score_at(position)?;
+        let (min_score, max_score) = self.clamped_score_bounds()?;
+        let range = max_score - min_score;
+        if range <= f32::EPSILON {
+            return Some(Self::absolute_display_strength(score));
+        }
+        Some(((score - min_score) / range).clamp(0.0, 1.0))
+    }
+
+    fn clamped_score_at(&self, position: usize) -> Option<f32> {
+        self.scores
+            .get(position)
+            .copied()
+            .map(|score| score.clamp(-1.0, 1.0))
+    }
+
+    fn clamped_score_bounds(&self) -> Option<(f32, f32)> {
+        let mut scores = self
+            .scores
+            .iter()
+            .copied()
+            .map(|score| score.clamp(-1.0, 1.0));
+        let first = scores.next()?;
+        let mut min_score = first;
+        let mut max_score = first;
+        for score in scores {
+            min_score = min_score.min(score);
+            max_score = max_score.max(score);
+        }
+        Some((min_score, max_score))
+    }
+
+    fn absolute_display_strength(score: f32) -> f32 {
         let normalized = ((score.clamp(-1.0, 1.0) + 1.0) * 0.5).clamp(0.0, 1.0);
-        Some(normalized.powf(2.0))
+        normalized.powf(2.0)
     }
 }
 
@@ -243,4 +283,59 @@ pub enum SampleBrowserSort {
     PlaybackAgeAsc,
     /// Sort by playback age descending.
     PlaybackAgeDesc,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SimilarQuery;
+
+    #[test]
+    fn similarity_display_strength_uses_query_relative_score_spread() {
+        let query = SimilarQuery {
+            sample_id: String::from("sample-id"),
+            label: String::from("anchor"),
+            indices: vec![0, 1, 2],
+            scores: vec![1.0, 0.92, 0.84],
+            anchor_index: Some(0),
+        };
+
+        let anchor = query
+            .display_strength_for_index(0)
+            .expect("anchor strength");
+        let close = query.display_strength_for_index(1).expect("close strength");
+        let far = query.display_strength_for_index(2).expect("far strength");
+
+        assert_eq!(anchor, 1.0);
+        assert!(close > far);
+        assert!(far < 0.1);
+    }
+
+    #[test]
+    fn similarity_display_strength_clamps_out_of_range_scores_before_normalizing() {
+        let query = SimilarQuery {
+            sample_id: String::from("sample-id"),
+            label: String::from("anchor"),
+            indices: vec![0, 1, 2],
+            scores: vec![1.0, 0.2, -2.0],
+            anchor_index: Some(0),
+        };
+
+        assert_eq!(query.display_strength_for_index(0), Some(1.0));
+        assert_eq!(query.display_strength_for_index(2), Some(0.0));
+    }
+
+    #[test]
+    fn similarity_display_strength_falls_back_to_absolute_mapping_for_flat_scores() {
+        let query = SimilarQuery {
+            sample_id: String::from("sample-id"),
+            label: String::from("anchor"),
+            indices: vec![0, 1],
+            scores: vec![0.25, 0.25],
+            anchor_index: Some(0),
+        };
+
+        let expected = ((0.25_f32 + 1.0) * 0.5).powf(2.0);
+        assert_eq!(query.display_strength_for_index(0), Some(expected));
+        assert_eq!(query.display_strength_for_index(1), Some(expected));
+    }
 }
