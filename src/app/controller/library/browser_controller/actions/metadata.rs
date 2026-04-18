@@ -261,9 +261,11 @@ impl BrowserController<'_> {
         for relative_path in paths {
             let tag = self.sample_tag_for(&source, relative_path)?;
             let looped = self.sample_looped_for(&source, relative_path)?;
-            let sound_type = db
-                .sound_type_for_path(relative_path)
-                .map_err(|err| format!("Failed to read sound type: {err}"))?
+            let sound_type = self
+                .live_sound_type_for_path(&source, relative_path)
+                .or(db
+                    .sound_type_for_path(relative_path)
+                    .map_err(|err| format!("Failed to read sound type: {err}"))?)
                 .or_else(|| {
                     relative_path
                         .file_stem()
@@ -397,5 +399,26 @@ impl BrowserController<'_> {
             Err(err) if err.contains("already exists") => Ok(None),
             Err(err) => Err(err),
         }
+    }
+
+    fn live_sound_type_for_path(
+        &mut self,
+        source: &SampleSource,
+        relative_path: &Path,
+    ) -> Option<crate::sample_sources::SampleSoundType> {
+        self.wav_index_for_path(relative_path)
+            .and_then(|index| {
+                let _ = self.ensure_wav_page_loaded(index);
+                self.wav_entry(index).and_then(|entry| entry.sound_type)
+            })
+            .or_else(|| {
+                self.cache
+                    .wav
+                    .entries
+                    .get(&source.id)
+                    .and_then(|cache| cache.lookup.get(relative_path).copied())
+                    .and_then(|index| self.cache.wav.entries.get(&source.id)?.entry(index))
+                    .and_then(|entry| entry.sound_type)
+            })
     }
 }
