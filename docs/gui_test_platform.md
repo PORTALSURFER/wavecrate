@@ -2,6 +2,12 @@
 
 This document describes the layered GUI test platform used to make Sempal's native GUI testable in code and operable by AI-driven desktop automation.
 
+The current native shell is a compatibility layer, not the preferred core API
+for new generic Radiant work. New generic GUI and test-platform surfaces should
+continue to land in `radiant::layout`, `radiant::widgets`, and
+`radiant::runtime`, with shell-specific behavior kept under
+`radiant::compat::sempal_shell`.
+
 ## Goals
 
 - Give every `radiant::app::UiAction` a host-owned catalog entry with explicit coverage requirements and a clear public-dispatch policy.
@@ -37,6 +43,8 @@ Why it lives in `app_core`:
 - coverage policy is a host concern, not a renderer concern
 - tools and tests already depend on `sempal`
 - the catalog can evolve without coupling `radiant` to Sempal-specific fixture/AIV policy
+- generic runtime and widget work can stay in the reusable Radiant layers
+  while the compatibility shell remains the host-specific projection target
 
 ### 2. Native-shell automation snapshot
 

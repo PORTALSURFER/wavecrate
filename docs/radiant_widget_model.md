@@ -18,6 +18,11 @@ This document defines the public widget layer that sits:
 - below app-specific screens
 - outside Sempal shell-specific model types
 
+Generic widget work belongs in `radiant::widgets`, with layout behavior in
+`radiant::layout` and host event/message routing in `radiant::runtime`.
+Anything tied to the current native shell should stay in
+`radiant::compat::sempal_shell`.
+
 The goal is to make future primitive implementation work split cleanly by
 widget type without re-opening the container vocabulary every time.
 

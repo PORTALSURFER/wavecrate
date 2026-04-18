@@ -7,7 +7,9 @@ reusable declarative GUI library, while keeping Sempal shippable throughout the
 transition.
 
 This document is intentionally about boundaries and migration shape. It does
-not authorize behavior changes by itself.
+not authorize behavior changes by itself. New generic Radiant work should land
+in `radiant::layout`, `radiant::widgets`, and `radiant::runtime`; the current
+native shell belongs in compatibility space, not as the preferred core API.
 
 ## Why this plan exists
 
@@ -18,6 +20,8 @@ The current `Sempal` / `Radiant` split is only partially generic:
   models such as `AppModel`, `UiAction`, and `native_shell`.
 - `Sempal` consumes that shell-shaped API cleanly, but that does not yet make
   `Radiant` a reusable GUI library for other applications.
+- The current native shell is the compatibility layer for that legacy surface,
+  not the preferred public API for new generic work.
 
 The goal of this plan is to make the intended end state explicit before
 implementation work starts.
@@ -67,7 +71,8 @@ The target `Radiant` package structure should be:
 4. `radiant::compat::sempal_shell` or equivalent compatibility namespace
    - Transitional home for the current Sempal-shaped shell contract and native
      shell implementation.
-   - Explicitly not the preferred public API for new host applications.
+   - Explicitly not the preferred public API for new host applications or new
+     generic Radiant work.
    - Exists to keep Sempal running while the generic surfaces mature.
 
 ## Containers vs widgets
@@ -140,6 +145,7 @@ Sempal-shaped app snapshot rather than a generic view/message surface.
 
 - generic layout primitives
 - generic widgets
+- generic host/runtime surfaces that project view trees and route messages
 - input normalization
 - focus, hit testing, pointer capture, and key routing
 - repaint and scene scheduling
@@ -163,6 +169,8 @@ Sempal-shaped app snapshot rather than a generic view/message surface.
 - shell geometry and rendering built around Sempal regions
 - migration adapters from old shell projections into newer generic Radiant
   surfaces
+- the compatibility home for `radiant::app`, `native_shell`, and related
+  Sempal-shaped bridge types
 
 ## Surface inventory
 
@@ -174,9 +182,9 @@ The table below classifies the main current `Radiant` surfaces.
 | `vendor/radiant/src/gui/input.rs` | Input tokens and normalization vocabulary | Generic, keep in core | `radiant::runtime` with shared public input types |
 | `vendor/radiant/src/gui/repaint.rs` | Repaint signaling | Generic, keep in core | `radiant::runtime` |
 | `vendor/radiant/src/gui/types.rs` | Geometry and image/color primitives | Generic, keep in core | shared public core/types module |
-| `vendor/radiant/src/gui/native_shell/layout_adapter/*` | Shell geometry adapters using layout core | Sempal-specific | compatibility layer |
-| `vendor/radiant/src/gui/native_shell/layout/*` | Retained shell tree with Sempal regions | Sempal-specific | compatibility layer |
-| `vendor/radiant/src/gui/native_shell/state/*` | Shell interaction/render state for browser/sidebar/waveform/update flows | Sempal-specific | compatibility layer |
+| `vendor/radiant/src/gui/native_shell/layout_adapter/*` | Shell geometry adapters using layout core | Sempal-specific | `radiant::compat::sempal_shell` |
+| `vendor/radiant/src/gui/native_shell/layout/*` | Retained shell tree with Sempal regions | Sempal-specific | `radiant::compat::sempal_shell` |
+| `vendor/radiant/src/gui/native_shell/state/*` | Shell interaction/render state for browser/sidebar/waveform/update flows | Sempal-specific | `radiant::compat::sempal_shell` |
 | `vendor/radiant/src/gui/native_shell/style/*` | Current shell-specific tokens and chrome sizing | Generic but needs redesign | split into generic theming/tokens plus compatibility overrides |
 | `vendor/radiant/src/app/declarative.rs` | Closure-driven declarative bridge | Generic, keep with redesign | `radiant::runtime` or generic host bridge module |
 | `vendor/radiant/src/app/bridge.rs` | Host/runtime bridge trait | Generic but needs redesign | generic runtime bridge |
@@ -335,9 +343,9 @@ Status:
   it runs layout, routes backend-neutral widget input, maps widget outputs to
   host-defined messages, reduces them, and reprojects the next immutable
   surface snapshot.
-- The legacy `radiant::app` contract remains available as the migration-time
-  compatibility path while native-runtime integration is still finishing its
-  transition.
+- The legacy `radiant::app` contract remains available only as the migration
+  compatibility path, with the current shell expected to live under
+  `radiant::compat::sempal_shell`.
 - Public end-to-end coverage now lives in
   `vendor/radiant/tests/runtime_surface_public_api.rs`.
 
@@ -390,7 +398,7 @@ Mapped issue:
 - Do not expand the current shell-specific `AppModel`/`UiAction` surface further
   unless the work is explicitly compatibility-only.
 - New generic UI work should land in public container/widget/runtime surfaces,
-  not in `native_shell` helpers.
+  not in `native_shell` or `compat::sempal_shell` helpers.
 - New Sempal product work should compose generic Radiant surfaces where
   available instead of creating new shell-only helper structs.
 

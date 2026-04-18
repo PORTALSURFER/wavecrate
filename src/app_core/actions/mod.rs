@@ -2,6 +2,9 @@
 //!
 //! These aliases centralize runtime-facing type dependencies in `app_core`,
 //! so bridge/controller glue does not import concrete runtime types directly.
+//! They intentionally point at `radiant::compat::sempal_shell` because the
+//! current shell contract is compatibility infrastructure, not the preferred
+//! generic Radiant API.
 
 mod catalog;
 
@@ -12,145 +15,145 @@ pub use self::catalog::{
 };
 
 /// Native runtime browser action metadata model.
-pub type NativeBrowserActionsModel = radiant::app::BrowserActionsModel;
+pub type NativeBrowserActionsModel = radiant::compat::sempal_shell::BrowserActionsModel;
 
 /// Native runtime browser chrome model.
-pub type NativeBrowserChromeModel = radiant::app::BrowserChromeModel;
+pub type NativeBrowserChromeModel = radiant::compat::sempal_shell::BrowserChromeModel;
 
 /// Native runtime browser panel model.
-pub type NativeBrowserPanelModel = radiant::app::BrowserPanelModel;
+pub type NativeBrowserPanelModel = radiant::compat::sempal_shell::BrowserPanelModel;
 
 /// Native runtime browser tag-sidebar model.
-pub type NativeBrowserTagSidebarModel = radiant::app::BrowserTagSidebarModel;
+pub type NativeBrowserTagSidebarModel = radiant::compat::sempal_shell::BrowserTagSidebarModel;
 
 /// Native runtime browser playback-age row bucket model.
-pub type NativePlaybackAgeBucket = radiant::app::PlaybackAgeBucket;
+pub type NativePlaybackAgeBucket = radiant::compat::sempal_shell::PlaybackAgeBucket;
 
 /// Native runtime browser playback-age toolbar chip model.
-pub type NativePlaybackAgeFilterChip = radiant::app::PlaybackAgeFilterChip;
+pub type NativePlaybackAgeFilterChip = radiant::compat::sempal_shell::PlaybackAgeFilterChip;
 
 /// Native runtime browser row model.
-pub type NativeBrowserRowModel = radiant::app::BrowserRowModel;
+pub type NativeBrowserRowModel = radiant::compat::sempal_shell::BrowserRowModel;
 
 /// Native runtime automation node identifier.
-pub type NativeAutomationNodeId = radiant::app::AutomationNodeId;
+pub type NativeAutomationNodeId = radiant::compat::sempal_shell::AutomationNodeId;
 
 /// Native runtime automation node role.
-pub type NativeAutomationRole = radiant::app::AutomationRole;
+pub type NativeAutomationRole = radiant::compat::sempal_shell::AutomationRole;
 
 /// Native runtime automation node snapshot.
-pub type NativeAutomationNodeSnapshot = radiant::app::AutomationNodeSnapshot;
+pub type NativeAutomationNodeSnapshot = radiant::compat::sempal_shell::AutomationNodeSnapshot;
 
 /// Native runtime GUI automation snapshot.
-pub type NativeGuiAutomationSnapshot = radiant::app::GuiAutomationSnapshot;
+pub type NativeGuiAutomationSnapshot = radiant::compat::sempal_shell::GuiAutomationSnapshot;
 
 /// Native runtime browser tag target used by keyboard and pointer triage actions.
-pub type NativeBrowserTagTarget = radiant::app::BrowserTagTarget;
+pub type NativeBrowserTagTarget = radiant::compat::sempal_shell::BrowserTagTarget;
 
 /// Native runtime UI action payload.
-pub type NativeUiAction = radiant::app::UiAction;
+pub type NativeUiAction = radiant::compat::sempal_shell::UiAction;
 
 /// Native runtime projected app model.
-pub type NativeAppModel = radiant::app::AppModel;
+pub type NativeAppModel = radiant::compat::sempal_shell::AppModel;
 
 /// Native runtime audio-engine chip state.
-pub type NativeAudioEngineChipStateModel = radiant::app::AudioEngineChipStateModel;
+pub type NativeAudioEngineChipStateModel = radiant::compat::sempal_shell::AudioEngineChipStateModel;
 
 /// Native runtime audio-engine projection model.
-pub type NativeAudioEngineModel = radiant::app::AudioEngineModel;
+pub type NativeAudioEngineModel = radiant::compat::sempal_shell::AudioEngineModel;
 
 /// Native runtime audio-field summary model.
-pub type NativeAudioFieldModel = radiant::app::AudioFieldModel;
+pub type NativeAudioFieldModel = radiant::compat::sempal_shell::AudioFieldModel;
 
 /// Native runtime audio picker option item.
-pub type NativeAudioOptionItemModel = radiant::app::AudioOptionItemModel;
+pub type NativeAudioOptionItemModel = radiant::compat::sempal_shell::AudioOptionItemModel;
 
 /// Native runtime audio picker option raw value.
-pub type NativeAudioOptionValueModel = radiant::app::AudioOptionValueModel;
+pub type NativeAudioOptionValueModel = radiant::compat::sempal_shell::AudioOptionValueModel;
 
 /// Native runtime audio picker target.
-pub type NativeAudioPickerTargetModel = radiant::app::AudioPickerTargetModel;
+pub type NativeAudioPickerTargetModel = radiant::compat::sempal_shell::AudioPickerTargetModel;
 
 /// Native runtime focus-context model used for contextual input routing.
-pub type NativeFocusContextModel = radiant::app::FocusContextModel;
+pub type NativeFocusContextModel = radiant::compat::sempal_shell::FocusContextModel;
 
 /// Native runtime frame build result payload.
-pub type NativeFrameBuildResult = radiant::app::FrameBuildResult;
+pub type NativeFrameBuildResult = radiant::compat::sempal_shell::FrameBuildResult;
 
 /// Native runtime projection-dirty segment mask.
-pub type NativeDirtySegments = radiant::app::DirtySegments;
+pub type NativeDirtySegments = radiant::compat::sempal_shell::DirtySegments;
 
 /// Native runtime static-segment revision snapshot.
-pub type NativeSegmentRevisions = radiant::app::SegmentRevisions;
+pub type NativeSegmentRevisions = radiant::compat::sempal_shell::SegmentRevisions;
 
 /// Native runtime motion-only model payload.
-pub type NativeMotionModel = radiant::app::NativeMotionModel;
+pub type NativeMotionModel = radiant::compat::sempal_shell::NativeMotionModel;
 
 /// Native runtime table column summary model.
-pub type NativeColumnModel = radiant::app::ColumnModel;
+pub type NativeColumnModel = radiant::compat::sempal_shell::ColumnModel;
 
 /// Native runtime confirm prompt kind descriptor.
-pub type NativeConfirmPromptKind = radiant::app::ConfirmPromptKind;
+pub type NativeConfirmPromptKind = radiant::compat::sempal_shell::ConfirmPromptKind;
 
 /// Native runtime confirm prompt model.
-pub type NativeConfirmPromptModel = radiant::app::ConfirmPromptModel;
+pub type NativeConfirmPromptModel = radiant::compat::sempal_shell::ConfirmPromptModel;
 
 /// Native runtime drag overlay model.
-pub type NativeDragOverlayModel = radiant::app::DragOverlayModel;
+pub type NativeDragOverlayModel = radiant::compat::sempal_shell::DragOverlayModel;
 
 /// Native runtime folder actions model.
-pub type NativeFolderActionsModel = radiant::app::FolderActionsModel;
+pub type NativeFolderActionsModel = radiant::compat::sempal_shell::FolderActionsModel;
 
 /// Native runtime folder recovery model.
-pub type NativeFolderRecoveryModel = radiant::app::FolderRecoveryModel;
+pub type NativeFolderRecoveryModel = radiant::compat::sempal_shell::FolderRecoveryModel;
 
 /// Native runtime folder row model.
-pub type NativeFolderRowModel = radiant::app::FolderRowModel;
+pub type NativeFolderRowModel = radiant::compat::sempal_shell::FolderRowModel;
 
 /// Native runtime folder row kind.
-pub type NativeFolderRowKind = radiant::app::FolderRowKind;
+pub type NativeFolderRowKind = radiant::compat::sempal_shell::FolderRowKind;
 
 /// Native runtime map panel model.
-pub type NativeMapPanelModel = radiant::app::MapPanelModel;
+pub type NativeMapPanelModel = radiant::compat::sempal_shell::MapPanelModel;
 
 /// Native runtime map point model.
-pub type NativeMapPointModel = radiant::app::MapPointModel;
+pub type NativeMapPointModel = radiant::compat::sempal_shell::MapPointModel;
 
 /// Native runtime map render mode model.
-pub type NativeMapRenderModeModel = radiant::app::MapRenderModeModel;
+pub type NativeMapRenderModeModel = radiant::compat::sempal_shell::MapRenderModeModel;
 
 /// Native runtime options panel model.
-pub type NativeOptionsPanelModel = radiant::app::OptionsPanelModel;
+pub type NativeOptionsPanelModel = radiant::compat::sempal_shell::OptionsPanelModel;
 
 /// Native runtime normalized range model.
-pub type NativeNormalizedRangeModel = radiant::app::NormalizedRangeModel;
+pub type NativeNormalizedRangeModel = radiant::compat::sempal_shell::NormalizedRangeModel;
 
 /// Native runtime progress overlay model.
-pub type NativeProgressOverlayModel = radiant::app::ProgressOverlayModel;
+pub type NativeProgressOverlayModel = radiant::compat::sempal_shell::ProgressOverlayModel;
 
 /// Native runtime source row model.
-pub type NativeSourceRowModel = radiant::app::SourceRowModel;
+pub type NativeSourceRowModel = radiant::compat::sempal_shell::SourceRowModel;
 
 /// Native runtime sources panel model.
-pub type NativeSourcesPanelModel = radiant::app::SourcesPanelModel;
+pub type NativeSourcesPanelModel = radiant::compat::sempal_shell::SourcesPanelModel;
 
 /// Native runtime status bar model.
-pub type NativeStatusBarModel = radiant::app::StatusBarModel;
+pub type NativeStatusBarModel = radiant::compat::sempal_shell::StatusBarModel;
 
 /// Native runtime update panel model.
-pub type NativeUpdatePanelModel = radiant::app::UpdatePanelModel;
+pub type NativeUpdatePanelModel = radiant::compat::sempal_shell::UpdatePanelModel;
 
 /// Native runtime update status indicator model.
-pub type NativeUpdateStatusModel = radiant::app::UpdateStatusModel;
+pub type NativeUpdateStatusModel = radiant::compat::sempal_shell::UpdateStatusModel;
 
 /// Native runtime waveform chrome model.
-pub type NativeWaveformChromeModel = radiant::app::WaveformChromeModel;
+pub type NativeWaveformChromeModel = radiant::compat::sempal_shell::WaveformChromeModel;
 
 /// Native runtime waveform panel model.
-pub type NativeWaveformPanelModel = radiant::app::WaveformPanelModel;
+pub type NativeWaveformPanelModel = radiant::compat::sempal_shell::WaveformPanelModel;
 
 /// Native runtime bridge trait used by host launchers.
-pub use radiant::app::NativeAppBridge;
+pub use radiant::compat::sempal_shell::NativeAppBridge;
 
 #[cfg(test)]
 mod tests;

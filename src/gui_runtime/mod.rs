@@ -13,6 +13,10 @@
 //!
 //! This separation allows deterministic ownership of interaction and layout logic
 //! in one place while keeping host bootstrapping lightweight.
+//!
+//! Sempal intentionally reaches the current native shell through
+//! `radiant::compat::sempal_shell` so the shell reads as compatibility
+//! infrastructure rather than the preferred generic Radiant API.
 
 use crate::app_core::actions::NativeAppBridge;
 use crate::app_core::actions::{NativeAppModel, NativeGuiAutomationSnapshot};
@@ -52,7 +56,7 @@ pub struct NativeRunOptions {
 ///
 /// Mapping is intentionally field-for-field to preserve behavior and avoid
 /// hidden launch-time mutations.
-impl From<NativeRunOptions> for radiant::gui_runtime::NativeRunOptions {
+impl From<NativeRunOptions> for radiant::compat::sempal_shell::NativeRunOptions {
     fn from(value: NativeRunOptions) -> Self {
         Self {
             title: value.title,
@@ -70,7 +74,7 @@ impl From<NativeRunOptions> for radiant::gui_runtime::NativeRunOptions {
 ///
 /// All pixel bytes are forwarded unchanged; callers remain responsible for
 /// supplying valid RGBA data and matching dimensions.
-impl From<WindowIconRgba> for radiant::gui_runtime::WindowIconRgba {
+impl From<WindowIconRgba> for radiant::compat::sempal_shell::WindowIconRgba {
     fn from(value: WindowIconRgba) -> Self {
         Self {
             rgba: value.rgba,
@@ -91,8 +95,8 @@ pub fn run_native_vello_app<B: NativeAppBridge>(
     // No additional state is touched by this adapter; all control flow and
     // execution semantics remain in `radiant`.
     info!("Launching radiant native Vello runtime");
-    let result =
-        radiant::gui_runtime::run_native_vello_app(options.into(), bridge).map_err(|err| {
+    let result = radiant::compat::sempal_shell::run_native_vello_app(options.into(), bridge)
+        .map_err(|err| {
             error!(%err, "radiant native Vello runtime returned error");
             err
         });
@@ -113,8 +117,8 @@ pub fn run_native_vello_app_declarative<B: NativeAppBridge>(
     bridge: B,
 ) -> Result<(), String> {
     info!("Launching radiant native Vello runtime (declarative host)");
-    let result =
-        radiant::gui_runtime::run_native_vello_app(options.into(), bridge).map_err(|err| {
+    let result = radiant::compat::sempal_shell::run_native_vello_app(options.into(), bridge)
+        .map_err(|err| {
             error!(%err, "radiant native Vello runtime returned error");
             err
         });
@@ -132,10 +136,11 @@ pub fn run_native_vello_app_declarative<B: NativeAppBridge>(
 /// full application bridge.
 pub fn run_native_vello_preview(options: NativeRunOptions) -> Result<(), String> {
     info!("Launching radiant native Vello preview runtime");
-    let result = radiant::gui_runtime::run_native_vello_preview(options.into()).map_err(|err| {
-        error!(%err, "radiant native Vello preview returned error");
-        err
-    });
+    let result =
+        radiant::compat::sempal_shell::run_native_vello_preview(options.into()).map_err(|err| {
+            error!(%err, "radiant native Vello preview returned error");
+            err
+        });
 
     if result.is_ok() {
         info!("Radiant native Vello preview returned successfully");
@@ -149,5 +154,5 @@ pub fn capture_gui_automation_snapshot(
     viewport: [f32; 2],
     model: &NativeAppModel,
 ) -> NativeGuiAutomationSnapshot {
-    radiant::gui_runtime::capture_gui_automation_snapshot(viewport, model)
+    radiant::compat::sempal_shell::capture_gui_automation_snapshot(viewport, model)
 }

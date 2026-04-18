@@ -1,7 +1,13 @@
 # Native Shell Legacy Baseline Contract
 
-This document captures the target geometry and copy contract for the `radiant`
-native shell while we migrate from the legacy `egui` renderer.
+This document captures the target geometry and copy contract for the current
+`radiant` native shell compatibility layer while we migrate from the legacy
+`egui` renderer.
+
+The native shell is legacy compatibility infrastructure, not the preferred
+core API for new generic Radiant work. New reusable layout, widget, and
+runtime work should target `radiant::layout`, `radiant::widgets`, and
+`radiant::runtime` instead.
 
 ## Reference viewport
 
