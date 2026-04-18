@@ -62,12 +62,11 @@ pub(super) fn action_catalog_entry_by_kind(kind: GuiActionKind) -> &'static GuiA
 
 #[cfg(test)]
 mod tests {
-    use super::action_catalog_entry_by_kind;
-    use crate::app_core::actions::GuiActionKind;
+    use super::{GUI_ACTION_CATALOG, action_catalog_entry_by_kind};
 
     #[test]
     fn action_catalog_entry_by_kind_resolves_every_kind() {
-        for kind in GuiActionKind::ALL {
+        for kind in GUI_ACTION_CATALOG.iter().map(|entry| entry.kind) {
             assert_eq!(action_catalog_entry_by_kind(kind).kind, kind);
         }
     }

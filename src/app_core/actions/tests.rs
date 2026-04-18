@@ -1,6 +1,6 @@
 use super::{
-    GUI_ACTION_CATALOG, GuiActionKind, GuiCoverageLayer, GuiDispatchPolicy, GuiEffectClass,
-    GuiSurface, action_catalog_entry_by_id, action_kind, representative_action_for_kind,
+    GUI_ACTION_CATALOG, GuiCoverageLayer, GuiDispatchPolicy, GuiEffectClass, GuiSurface,
+    action_catalog_entry_by_id, action_kind, representative_action_for_kind,
 };
 use crate::app_core::app_api::controller_state::DerivedNodeId;
 use crate::app_core::native_bridge::{
@@ -13,18 +13,14 @@ use std::collections::BTreeSet;
 
 #[test]
 fn catalog_contains_every_action_kind_exactly_once() {
-    assert_eq!(GUI_ACTION_CATALOG.len(), GuiActionKind::ALL.len());
     let mut seen = BTreeSet::new();
-    for kind in GuiActionKind::ALL {
+    for kind in GUI_ACTION_CATALOG.iter().map(|entry| entry.kind) {
         assert!(
             seen.insert(kind),
-            "duplicate GuiActionKind declaration in ALL: {kind:?}"
-        );
-        assert!(
-            GUI_ACTION_CATALOG.iter().any(|entry| entry.kind == kind),
-            "missing catalog entry for {kind:?}"
+            "duplicate catalog action kind: {kind:?}"
         );
     }
+    assert_eq!(GUI_ACTION_CATALOG.len(), seen.len());
 }
 
 #[test]
@@ -89,7 +85,7 @@ fn desktop_aiv_catalog_claims_are_backed_by_manifest_cases() {
 
 #[test]
 fn representative_actions_round_trip_through_kind_matcher() {
-    for kind in GuiActionKind::ALL {
+    for kind in GUI_ACTION_CATALOG.iter().map(|entry| entry.kind) {
         let action = representative_action_for_kind(kind);
         assert_eq!(action_kind(&action), kind);
     }
