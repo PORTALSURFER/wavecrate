@@ -70,6 +70,10 @@ to `radiant` (`native_vello`) as the only runtime path.
 - Native map/update header metadata now uses single-band compact composition so projected labels
   remain inside tokenized header/control rows in dense viewports, with hover/cluster/viewport
   details consolidated into footer metadata lines.
+- Native waveform header metadata band now composes through a generic Radiant
+  surface, so the loaded-sample title and projected transport/tempo/zoom rows
+  share the same public container/widget hosting path while the waveform plot
+  and toolbar remain on the compatibility renderer.
 - Native layout tiering now keeps the classic-dense baseline as default up through common
   desktop widths (wide tier starts above 2100 logical px), and wide-tier row/header metrics
   remain table-dense instead of switching to oversized card spacing.
