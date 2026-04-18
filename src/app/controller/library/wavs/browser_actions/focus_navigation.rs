@@ -68,7 +68,12 @@ impl AppController {
         let Some(target) = self.browser_target_visible_row_from_delta(delta) else {
             return false;
         };
-        self.focus_browser_row_with_intent(target, intent);
+        match intent {
+            BrowserFocusIntent::Preview => {
+                self.focus_browser_row_only_preserving_anchor(target);
+            }
+            BrowserFocusIntent::Commit => self.focus_browser_row_with_intent(target, intent),
+        }
         true
     }
 
@@ -151,6 +156,24 @@ impl AppController {
 
     /// Focus a browser row without mutating the multi-selection set.
     pub fn focus_browser_row_only(&mut self, visible_row: usize) {
+        self.focus_browser_row_only_with_anchor_policy(visible_row, true);
+    }
+
+    /// Focus a browser row without mutating the multi-selection set or range anchor.
+    fn focus_browser_row_only_preserving_anchor(&mut self, visible_row: usize) {
+        self.focus_browser_row_only_with_anchor_policy(visible_row, false);
+    }
+
+    /// Focus a browser row without mutating the multi-selection set.
+    ///
+    /// `update_anchor` is reserved for direct focus jumps such as browser
+    /// re-entry, while plain keyboard navigation keeps the existing anchor so
+    /// later Shift-range extension still starts from the original selected row.
+    fn focus_browser_row_only_with_anchor_policy(
+        &mut self,
+        visible_row: usize,
+        update_anchor: bool,
+    ) {
         let Some(path) = self.browser_path_for_visible(visible_row) else {
             return;
         };
@@ -158,6 +181,7 @@ impl AppController {
             path.as_path(),
             Some(visible_row),
             BrowserReviewLinearMode::Preview,
+            update_anchor,
         );
     }
 
@@ -202,6 +226,7 @@ impl AppController {
             path.as_path(),
             Some(visible_row),
             BrowserReviewLinearMode::Commit,
+            true,
         );
         true
     }
@@ -335,7 +360,7 @@ impl AppController {
             self.record_random_navigation_target_for_source(source_id, path);
         }
         let visible_row = self.visible_row_for_path(path);
-        self.apply_browser_focus_target_path(path, visible_row, linear_mode);
+        self.apply_browser_focus_target_path(path, visible_row, linear_mode, true);
         if matches!(linear_mode, BrowserReviewLinearMode::Preview) {
             self.request_async_preview_playback_for_focused_selection();
         }
@@ -352,10 +377,17 @@ impl AppController {
         path: &Path,
         visible_row: Option<usize>,
         linear_mode: BrowserReviewLinearMode,
+        update_anchor: bool,
     ) {
         self.focus_browser_context();
         self.ui.browser.selection.autoscroll = true;
-        if let Some(row) = visible_row {
+        if update_anchor {
+            if let Some(row) = visible_row {
+                self.ui.browser.selection.selection_anchor_visible = Some(row);
+            }
+        } else if self.ui.browser.selection.selection_anchor_visible.is_none()
+            && let Some(row) = visible_row
+        {
             self.ui.browser.selection.selection_anchor_visible = Some(row);
         }
         match linear_mode {

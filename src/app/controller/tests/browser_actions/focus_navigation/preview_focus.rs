@@ -167,6 +167,68 @@ fn moving_browser_focus_queues_async_preview_playback() {
 }
 
 #[test]
+fn moving_browser_focus_preserves_multi_selection_and_anchor() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("three.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("three.wav"), &[0.0, 0.1]);
+
+    controller.focus_browser_row_only(0);
+    controller.toggle_focused_selection();
+    controller.runtime.jobs.pending_audio = None;
+    controller.runtime.jobs.pending_playback = None;
+
+    controller.focus_browser_delta_action(1);
+
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
+    assert_eq!(
+        controller.ui.browser.selection.selection_anchor_visible,
+        Some(0)
+    );
+    assert_eq!(
+        controller.ui.browser.selection.selected_paths,
+        vec![PathBuf::from("one.wav")]
+    );
+    assert_eq!(
+        controller.ui.browser.selection.last_focused_path.as_deref(),
+        Some(Path::new("two.wav"))
+    );
+}
+
+#[test]
+fn shift_extension_after_keyboard_toggle_uses_preserved_anchor() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("three.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("three.wav"), &[0.0, 0.1]);
+
+    controller.focus_browser_row_only(0);
+    controller.toggle_focused_selection();
+    controller.focus_browser_delta_action(1);
+    controller.focus_browser_delta_action(1);
+
+    controller.extend_browser_selection_from_focus_action(-1);
+
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
+    assert_eq!(
+        controller.ui.browser.selection.selection_anchor_visible,
+        Some(0)
+    );
+    assert_eq!(
+        controller.ui.browser.selection.selected_paths,
+        vec![PathBuf::from("one.wav"), PathBuf::from("two.wav")]
+    );
+}
+
+#[test]
 fn native_focus_browser_row_queues_async_preview_without_blocking_selection() {
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
         sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
@@ -270,6 +332,36 @@ fn native_move_browser_focus_queues_async_preview_playback() {
             .as_ref()
             .map(|pending| pending.relative_path.clone()),
         Some(PathBuf::from("two.wav"))
+    );
+}
+
+#[test]
+fn native_move_browser_focus_preserves_multi_selection_membership() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("three.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    controller.settings.feature_flags.autoplay_selection = false;
+    write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("three.wav"), &[0.0, 0.1]);
+
+    controller.focus_browser_row_only(0);
+    controller.toggle_focused_selection();
+    controller.runtime.jobs.pending_audio = None;
+    controller.runtime.jobs.pending_playback = None;
+
+    controller.apply_native_ui_action(NativeUiAction::MoveBrowserFocus { delta: 1 });
+
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
+    assert_eq!(
+        controller.ui.browser.selection.selection_anchor_visible,
+        Some(0)
+    );
+    assert_eq!(
+        controller.ui.browser.selection.selected_paths,
+        vec![PathBuf::from("one.wav")]
     );
 }
 

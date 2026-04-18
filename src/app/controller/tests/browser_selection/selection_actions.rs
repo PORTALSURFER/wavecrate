@@ -159,3 +159,71 @@ fn select_all_populates_visible_browser_paths() {
         Some(0)
     );
 }
+
+#[test]
+fn toggle_focused_selection_keeps_focus_on_current_row() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source);
+    controller.set_wav_entries_for_tests(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("three.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+
+    controller.focus_browser_row_only(1);
+    controller.toggle_focused_selection();
+
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
+    assert_eq!(
+        controller.ui.browser.selection.selection_anchor_visible,
+        Some(1)
+    );
+    assert_eq!(
+        controller.ui.browser.selection.selected_paths,
+        vec![PathBuf::from("two.wav")]
+    );
+    assert_eq!(
+        controller.ui.browser.selection.last_focused_path.as_deref(),
+        Some(Path::new("two.wav"))
+    );
+}
+
+#[test]
+fn keyboard_toggle_sequence_accumulates_multi_selection() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source);
+    controller.set_wav_entries_for_tests(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("three.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+
+    controller.focus_browser_row_only(0);
+    controller.toggle_focused_selection();
+    controller.focus_browser_delta_action(1);
+    controller.toggle_focused_selection();
+    controller.focus_browser_delta_action(1);
+    controller.toggle_focused_selection();
+
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(2));
+    assert_eq!(
+        controller.ui.browser.selection.selection_anchor_visible,
+        Some(0)
+    );
+    assert_eq!(
+        controller.ui.browser.selection.selected_paths,
+        vec![
+            PathBuf::from("one.wav"),
+            PathBuf::from("two.wav"),
+            PathBuf::from("three.wav")
+        ]
+    );
+    assert_eq!(
+        controller.ui.browser.selection.last_focused_path.as_deref(),
+        Some(Path::new("three.wav"))
+    );
+}

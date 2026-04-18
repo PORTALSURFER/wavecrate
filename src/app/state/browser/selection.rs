@@ -6,15 +6,22 @@ use std::path::PathBuf;
 /// Focus, multi-selection, and marker-cache state for the sample browser.
 #[derive(Clone, Debug, Default)]
 pub struct BrowserSelectionState {
-    /// Focused row used for playback/navigation (mirrors previously “selected”).
+    /// Focused row used for playback/navigation.
+    ///
+    /// This is the browser caret/focus target, not the browser multi-selection
+    /// membership set. Keyboard navigation updates this row without necessarily
+    /// changing `selected_paths`.
     pub selected: Option<super::SampleBrowserIndex>,
     /// Loaded row used for playback.
     pub loaded: Option<super::SampleBrowserIndex>,
-    /// Visible row indices for selection/autoscroll (filtered list).
+    /// Visible row index for the focused browser item in the filtered list.
     pub selected_visible: Option<usize>,
     /// Visible index for the loaded row, if any.
     pub loaded_visible: Option<usize>,
     /// Visible row anchor used for range selection (shift + click/arrow).
+    ///
+    /// This anchor is separate from the focused row so focus can move without
+    /// collapsing or redefining the current multi-selection set.
     pub selection_anchor_visible: Option<usize>,
     /// Paths currently included in the browser multi-selection set.
     pub selected_paths: Vec<PathBuf>,
