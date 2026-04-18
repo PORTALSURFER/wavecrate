@@ -51,9 +51,11 @@ mod tests {
                 content_hash: None,
                 tag: Rating::NEUTRAL,
                 looped: false,
+                sound_type: None,
                 locked: false,
                 missing: false,
                 last_played_at: None,
+                user_tag: None,
             },
             WavEntry {
                 relative_path: std::path::PathBuf::from("kits/drums/snare.wav"),
@@ -62,9 +64,11 @@ mod tests {
                 content_hash: None,
                 tag: Rating::NEUTRAL,
                 looped: false,
+                sound_type: None,
                 locked: false,
                 missing: false,
                 last_played_at: None,
+                user_tag: None,
             },
         ];
 

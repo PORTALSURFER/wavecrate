@@ -96,6 +96,12 @@ pub fn set_app_root_override(path: PathBuf) -> Result<(), AppDirError> {
         path: path.clone(),
         source,
     })?;
+    if TEST_CONFIG_OVERRIDE.with(|override_path| override_path.borrow().is_some()) {
+        TEST_APP_ROOT_OVERRIDE.with(|override_path| {
+            *override_path.borrow_mut() = Some(path);
+        });
+        return Ok(());
+    }
     let mut guard = APP_ROOT_OVERRIDE
         .lock()
         .expect("app root override mutex poisoned");

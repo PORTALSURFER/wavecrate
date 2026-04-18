@@ -63,9 +63,11 @@ fn seed_source_sample(controller: &mut AppController, source: &SampleSource, rel
         content_hash: None,
         tag: Rating::KEEP_1,
         looped: true,
+        sound_type: None,
         locked: true,
         missing: false,
         last_played_at: Some(42),
+        user_tag: None,
     }]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
@@ -88,9 +90,11 @@ fn set_source_samples_for_tests(
                 content_hash: None,
                 tag: Rating::KEEP_1,
                 looped: true,
+                sound_type: None,
                 locked: true,
                 missing: false,
                 last_played_at: Some(42),
+                user_tag: None,
             }
         })
         .collect();

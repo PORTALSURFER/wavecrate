@@ -76,9 +76,11 @@ fn selected_path_lookup_refreshes_for_same_len_path_changes() {
             content_hash: Some(String::from("hash-a")),
             tag: crate::sample_sources::Rating::NEUTRAL,
             looped: false,
+            sound_type: None,
             locked: false,
             missing: false,
             last_played_at: None,
+            user_tag: None,
         },
         crate::sample_sources::WavEntry {
             relative_path: std::path::PathBuf::from("second.wav"),
@@ -87,9 +89,11 @@ fn selected_path_lookup_refreshes_for_same_len_path_changes() {
             content_hash: Some(String::from("hash-b")),
             tag: crate::sample_sources::Rating::NEUTRAL,
             looped: false,
+            sound_type: None,
             locked: false,
             missing: false,
             last_played_at: None,
+            user_tag: None,
         },
     ]);
     controller.ui.browser.selection.selected_paths = vec![std::path::PathBuf::from("first.wav")];
@@ -124,9 +128,11 @@ fn cached_browser_row_rebuilds_when_stored_tag_column_is_stale() {
         content_hash: Some(String::from("hash")),
         tag: crate::sample_sources::Rating::KEEP_1,
         looped: false,
+        sound_type: None,
         locked: false,
         missing: false,
         last_played_at: None,
+        user_tag: None,
     }]);
     controller.projected_browser_rows.insert(
         0,
@@ -167,9 +173,11 @@ fn cached_browser_row_rebuilds_when_stored_missing_state_is_stale() {
         content_hash: Some(String::from("hash")),
         tag: crate::sample_sources::Rating::NEUTRAL,
         looped: false,
+        sound_type: None,
         locked: false,
         missing: true,
         last_played_at: None,
+        user_tag: None,
     }]);
     controller.projected_browser_rows.insert(
         0,
@@ -211,9 +219,11 @@ fn cached_browser_row_rebuilds_when_stored_mark_state_is_stale() {
         content_hash: Some(String::from("hash")),
         tag: crate::sample_sources::Rating::NEUTRAL,
         looped: false,
+        sound_type: None,
         locked: false,
         missing: false,
         last_played_at: None,
+        user_tag: None,
     }]);
     controller
         .ui
@@ -258,9 +268,11 @@ fn cached_browser_row_rebuilds_when_stored_playback_age_bucket_is_stale() {
         content_hash: Some(String::from("hash")),
         tag: crate::sample_sources::Rating::NEUTRAL,
         looped: false,
+        sound_type: None,
         locked: false,
         missing: false,
         last_played_at: Some(1),
+        user_tag: None,
     }]);
     controller.projected_browser_rows.insert(
         0,
@@ -327,9 +339,11 @@ fn browser_row_cache_evicts_one_lru_entry_at_capacity() {
         content_hash: Some(String::from("hash")),
         tag: crate::sample_sources::Rating::NEUTRAL,
         looped: false,
+        sound_type: None,
         locked: false,
         missing: false,
         last_played_at: None,
+        user_tag: None,
     }]);
 
     let cached_path = {
@@ -358,9 +372,11 @@ fn browser_rows_projection_reuses_provided_buffer_capacity() {
         content_hash: Some(String::from("hash")),
         tag: crate::sample_sources::Rating::NEUTRAL,
         looped: false,
+        sound_type: None,
         locked: false,
         missing: false,
         last_played_at: None,
+        user_tag: None,
     }]);
     controller.ui.browser.viewport.visible =
         crate::app_core::app_api::state::VisibleRows::List(vec![0usize].into());
@@ -389,9 +405,11 @@ fn browser_rows_state_patch_updates_flags_without_rebuilding_labels() {
             content_hash: Some(String::from("kick-hash")),
             tag: crate::sample_sources::Rating::NEUTRAL,
             looped: false,
+            sound_type: None,
             locked: false,
             missing: false,
             last_played_at: None,
+            user_tag: None,
         },
         crate::sample_sources::WavEntry {
             relative_path: std::path::PathBuf::from("snare.wav"),
@@ -400,9 +418,11 @@ fn browser_rows_state_patch_updates_flags_without_rebuilding_labels() {
             content_hash: Some(String::from("snare-hash")),
             tag: crate::sample_sources::Rating::NEUTRAL,
             looped: false,
+            sound_type: None,
             locked: false,
             missing: false,
             last_played_at: None,
+            user_tag: None,
         },
     ]);
     controller.ui.browser.viewport.visible =
@@ -443,9 +463,11 @@ fn browser_rows_projection_uses_pipeline_snapshot_when_pages_are_unloaded() {
         content_hash: Some(String::from("hash")),
         tag: crate::sample_sources::Rating::NEUTRAL,
         looped: false,
+        sound_type: None,
         locked: false,
         missing: false,
         last_played_at: None,
+        user_tag: None,
     }]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
@@ -472,9 +494,11 @@ fn browser_rows_projection_does_not_queue_feature_cache_refresh() {
         content_hash: Some(String::from("hash")),
         tag: crate::sample_sources::Rating::NEUTRAL,
         looped: false,
+        sound_type: None,
         locked: false,
         missing: false,
         last_played_at: None,
+        user_tag: None,
     }]);
     controller.ui.browser.viewport.visible =
         crate::app_core::app_api::state::VisibleRows::List(vec![0usize].into());
@@ -505,9 +529,11 @@ fn label_lookup_uses_pipeline_snapshot_when_pages_are_unloaded() {
         content_hash: Some(String::from("hash")),
         tag: crate::sample_sources::Rating::NEUTRAL,
         looped: false,
+        sound_type: None,
         locked: false,
         missing: false,
         last_played_at: None,
+        user_tag: None,
     }]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
