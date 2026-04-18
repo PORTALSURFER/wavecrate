@@ -182,10 +182,11 @@ The table below classifies the main current `Radiant` surfaces.
 | `vendor/radiant/src/gui/input.rs` | Input tokens and normalization vocabulary | Generic, keep in core | `radiant::runtime` with shared public input types |
 | `vendor/radiant/src/gui/repaint.rs` | Repaint signaling | Generic, keep in core | `radiant::runtime` |
 | `vendor/radiant/src/gui/types.rs` | Geometry and image/color primitives | Generic, keep in core | shared public core/types module |
+| `vendor/radiant/src/theme.rs` | Generic reusable theme tokens | Generic, keep in core | `radiant::theme` |
 | `vendor/radiant/src/gui/native_shell/layout_adapter/*` | Shell geometry adapters using layout core | Sempal-specific | `radiant::compat::sempal_shell` |
 | `vendor/radiant/src/gui/native_shell/layout/*` | Retained shell tree with Sempal regions | Sempal-specific | `radiant::compat::sempal_shell` |
 | `vendor/radiant/src/gui/native_shell/state/*` | Shell interaction/render state for browser/sidebar/waveform/update flows | Sempal-specific | `radiant::compat::sempal_shell` |
-| `vendor/radiant/src/gui/native_shell/style/*` | Current shell-specific tokens and chrome sizing | Generic but needs redesign | split into generic theming/tokens plus compatibility overrides |
+| `vendor/radiant/src/gui/native_shell/style/*` | Current shell-specific tokens and chrome sizing | Compatibility-only except shared theme composition | keep shell sizing/chrome here; compose from `radiant::theme` |
 | `vendor/radiant/src/app/declarative.rs` | Closure-driven declarative bridge | Generic, keep with redesign | `radiant::runtime` or generic host bridge module |
 | `vendor/radiant/src/app/bridge.rs` | Host/runtime bridge trait | Generic but needs redesign | generic runtime bridge |
 | `vendor/radiant/src/app/dirty_segments.rs` | Incremental rebuild hints | Generic but needs redesign | generic runtime/render invalidation surface |
@@ -207,6 +208,7 @@ The target public API should read more like:
 use radiant::{
     layout::{Column, Row, ScrollView},
     runtime::{AppRuntime, View, WidgetId},
+    theme::ThemeTokens,
     widgets::{Button, Text, TextInput, Toggle},
 };
 ```

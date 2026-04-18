@@ -27,6 +27,7 @@ Start here:
 - `docs/radiant_slot_layout_spec.md` — strict hierarchical slot-based layout contract for `vendor/radiant`
 - `docs/radiant_library_architecture_plan.md` — target public architecture and migration plan for turning `vendor/radiant` into a reusable GUI library, with new generic work directed to `radiant::layout`, `radiant::widgets`, and `radiant::runtime` and the current native shell treated as `radiant::compat::sempal_shell`
 - `docs/radiant_post_pilot_migration_queue.md` — ordered post-`OPT-36` Sempal UI slice queue for migrating additional shell chrome onto generic Radiant surfaces
+- `docs/radiant_theme_model.md` — boundary between generic `radiant::theme` tokens and compatibility-only Sempal shell chrome styling
 - `docs/radiant_widget_model.md` — first-class public widget taxonomy and shared widget contracts for `vendor/radiant`
 - `docs/QUALITY_SCORE.md` — coarse quality scorecard and known gaps
 - `docs/plans/index.md` — current/archived plan index for parallel agents

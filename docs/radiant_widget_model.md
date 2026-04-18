@@ -109,8 +109,15 @@ Instead it exposes generic shared vocabularies:
 - `WidgetProminence` for chrome weight
 - `WidgetStyle` for the minimal shared styling contract
 
-This keeps primitive state semantics reusable while leaving theme-token binding
-to later theming work.
+This keeps primitive state semantics reusable while leaving concrete token
+binding to `radiant::theme`.
+
+`OPT-37` adds the first core theme boundary:
+
+- reusable widget/container/runtime tokens live in `radiant::theme`
+- widget helpers may resolve visuals from those tokens through
+  `radiant::widgets::resolve_widget_visual_tokens()`
+- Sempal-shell-only chrome tokens stay inside the compatibility native shell
 
 ## Message model boundary
 
