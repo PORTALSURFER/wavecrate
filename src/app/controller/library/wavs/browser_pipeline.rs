@@ -368,6 +368,15 @@ impl AppController {
         ensure_base_stage(self);
         self.ui_cache.browser.pipeline.feature_cache_snapshot()
     }
+
+    /// Return a stable fingerprint for the retained browser path ordering.
+    pub(crate) fn browser_search_path_fingerprint(&self) -> u64 {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        for entry in &self.ui_cache.browser.pipeline.compact_entries {
+            std::hash::Hash::hash(&entry.relative_path, &mut hasher);
+        }
+        std::hash::Hasher::finish(&hasher)
+    }
 }
 
 /// Stable identity for the stage-A base snapshot.

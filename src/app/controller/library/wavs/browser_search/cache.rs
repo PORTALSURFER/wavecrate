@@ -11,13 +11,23 @@ use crate::app::controller::library::wavs::search_scoring::{
     reusable_prefix_query_score_cache_entry, score_query_candidates, store_query_score_cache_entry,
 };
 
-/// Cached score payload for a specific source/query combination.
-type BrowserQueryScoreCacheEntry = QueryScoreCacheEntry<Option<SourceId>>;
+/// Source/path-snapshot scope for one synchronous browser query-score cache entry.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct BrowserQueryScoreCacheScope {
+    /// Selected source associated with the cached score vector.
+    source_id: Option<SourceId>,
+    /// Ordered-path fingerprint for the entry snapshot used during scoring.
+    path_fingerprint: u64,
+}
+
+/// Cached score payload for a specific source/query/path snapshot combination.
+type BrowserQueryScoreCacheEntry = QueryScoreCacheEntry<BrowserQueryScoreCacheScope>;
 
 /// Cache state for browser search scoring and sort scratch buffers.
 pub(crate) struct BrowserSearchCache {
     source_id: Option<SourceId>,
     query: String,
+    path_fingerprint: u64,
     pub(crate) scores: Arc<[Option<i64>]>,
     scratch: Vec<(usize, i64)>,
     query_score_cache: Vec<BrowserQueryScoreCacheEntry>,
@@ -30,6 +40,7 @@ impl BrowserSearchCache {
         Self {
             source_id: None,
             query: String::new(),
+            path_fingerprint: 0,
             scores: Arc::from([]),
             scratch: Vec::new(),
             query_score_cache: Vec::new(),
@@ -41,9 +52,20 @@ impl BrowserSearchCache {
     pub(crate) fn invalidate(&mut self) {
         self.source_id = None;
         self.query.clear();
+        self.path_fingerprint = 0;
         self.scores = Arc::from([]);
         self.scratch.clear();
         self.query_score_cache.clear();
+    }
+
+    /// Refresh the ordered-path fingerprint and drop stale query scores when it changes.
+    fn sync_path_fingerprint(&mut self, path_fingerprint: u64) -> bool {
+        if self.path_fingerprint == path_fingerprint {
+            return false;
+        }
+        self.path_fingerprint = path_fingerprint;
+        self.query_score_cache.clear();
+        true
     }
 }
 
@@ -65,19 +87,32 @@ impl AppController {
     pub(crate) fn ensure_search_scores(&mut self, query: &str) {
         let entries_len = self.wav_entries_len();
         let source_id = self.selection_state.ctx.selected_source.clone();
+        let path_fingerprint = self.browser_search_path_fingerprint();
+        let search_cache = &self.ui_cache.browser.search;
         if self.ui_cache.browser.search.source_id == source_id
             && self.ui_cache.browser.search.query == query
             && self.ui_cache.browser.search.scores.len() == entries_len
+            && search_cache.path_fingerprint == path_fingerprint
         {
             return;
         }
+        let path_changed = self
+            .ui_cache
+            .browser
+            .search
+            .sync_path_fingerprint(path_fingerprint);
+        let scope = BrowserQueryScoreCacheScope {
+            source_id: source_id.clone(),
+            path_fingerprint,
+        };
         if let Some(cached) = promote_exact_query_score_cache_entry(
             &mut self.ui_cache.browser.search.query_score_cache,
-            &source_id,
+            &scope,
             query,
             entries_len,
         ) {
-            self.ui_cache.browser.search.source_id = cached.scope.clone();
+            self.ui_cache.browser.search.source_id = cached.scope.source_id.clone();
+            self.ui_cache.browser.search.path_fingerprint = cached.scope.path_fingerprint;
             self.ui_cache.browser.search.query.clone_from(&cached.query);
             self.ui_cache.browser.search.scores = cached.scores.clone();
             return;
@@ -85,8 +120,10 @@ impl AppController {
         if self.ui_cache.browser.search.source_id != source_id
             || self.ui_cache.browser.search.query != query
             || self.ui_cache.browser.search.scores.len() != entries_len
+            || path_changed
         {
             self.ui_cache.browser.search.source_id = source_id;
+            self.ui_cache.browser.search.path_fingerprint = path_fingerprint;
             self.ui_cache.browser.search.query.clear();
             self.ui_cache.browser.search.query.push_str(query);
             let Some(source_id) = self.selection_state.ctx.selected_source.clone() else {
@@ -107,7 +144,10 @@ impl AppController {
             }
             let prefix_cache = reusable_prefix_query_score_cache_entry(
                 &self.ui_cache.browser.search.query_score_cache,
-                &Some(source_id.clone()),
+                &BrowserQueryScoreCacheScope {
+                    source_id: Some(source_id.clone()),
+                    path_fingerprint,
+                },
                 query,
                 entries_len,
             );
@@ -133,7 +173,10 @@ impl AppController {
             store_query_score_cache_entry(
                 &mut self.ui_cache.browser.search.query_score_cache,
                 self.ui_cache.browser.search.max_cached_queries,
-                self.ui_cache.browser.search.source_id.clone(),
+                BrowserQueryScoreCacheScope {
+                    source_id: self.ui_cache.browser.search.source_id.clone(),
+                    path_fingerprint: self.ui_cache.browser.search.path_fingerprint,
+                },
                 self.ui_cache.browser.search.query.clone(),
                 self.ui_cache.browser.search.scores.clone(),
                 matched_indices,
@@ -204,5 +247,77 @@ impl AppController {
             .get(&source_id)
             .and_then(|labels| labels.get(index))
             .map(|label| label.as_str())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::controller::test_support::{prepare_with_source_and_wav_entries, sample_entry};
+    use crate::sample_sources::Rating;
+
+    #[test]
+    fn sync_path_fingerprint_change_clears_cached_query_scores() {
+        let mut cache = BrowserSearchCache {
+            path_fingerprint: 11,
+            query_score_cache: vec![QueryScoreCacheEntry {
+                scope: BrowserQueryScoreCacheScope {
+                    source_id: Some(SourceId::new()),
+                    path_fingerprint: 11,
+                },
+                query: String::from("kick"),
+                scores: Arc::from([Some(1)]),
+                matched_indices: Arc::from([0]),
+            }],
+            ..BrowserSearchCache::default()
+        };
+
+        assert!(cache.sync_path_fingerprint(22));
+        assert_eq!(cache.path_fingerprint, 22);
+        assert!(cache.query_score_cache.is_empty());
+        assert!(!cache.sync_path_fingerprint(22));
+    }
+
+    #[test]
+    fn ensure_search_scores_recomputes_after_same_length_reorder() {
+        let (mut controller, _source) = prepare_with_source_and_wav_entries(vec![
+            sample_entry("noise.wav", Rating::NEUTRAL),
+            sample_entry("abc.wav", Rating::NEUTRAL),
+        ]);
+        controller.set_browser_search("abc");
+
+        let stale_source_id = controller.ui_cache.browser.search.source_id.clone();
+        let stale_query = controller.ui_cache.browser.search.query.clone();
+        let stale_scores = controller.ui_cache.browser.search.scores.clone();
+        let stale_query_score_cache = controller.ui_cache.browser.search.query_score_cache.clone();
+        let stale_path_fingerprint = controller.ui_cache.browser.search.path_fingerprint;
+
+        controller.set_wav_entries_for_tests(vec![
+            sample_entry("abc.wav", Rating::NEUTRAL),
+            sample_entry("noise.wav", Rating::NEUTRAL),
+        ]);
+        controller.ui_cache.browser.labels.clear();
+        controller.ui_cache.browser.search.source_id = stale_source_id;
+        controller.ui_cache.browser.search.query = stale_query;
+        controller.ui_cache.browser.search.scores = stale_scores;
+        controller.ui_cache.browser.search.query_score_cache = stale_query_score_cache;
+        controller.ui_cache.browser.search.path_fingerprint = stale_path_fingerprint;
+
+        controller.rebuild_browser_lists();
+
+        let visible = (0..controller.visible_browser_len())
+            .filter_map(|row| controller.visible_browser_index(row))
+            .collect::<Vec<_>>();
+        assert_eq!(visible, vec![0]);
+        assert_ne!(
+            controller.ui_cache.browser.search.path_fingerprint,
+            stale_path_fingerprint
+        );
+        assert_eq!(
+            controller.ui_cache.browser.search.query_score_cache[0]
+                .matched_indices
+                .as_ref(),
+            &[0]
+        );
     }
 }
