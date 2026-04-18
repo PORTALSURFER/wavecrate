@@ -1,6 +1,7 @@
 # Radiant Public Widget Model
 
-Status: implemented design contract for `OPT-32`
+Status: implemented public taxonomy plus first reusable primitive widgets for
+`OPT-32` and `OPT-33`
 
 Purpose: define the first-class public widget taxonomy for `vendor/radiant`
 separately from layout containers, while keeping runtime/message migration work
@@ -59,6 +60,12 @@ The public taxonomy currently includes:
 - `Canvas`
 
 These map to `radiant::widgets::WidgetKind` and `radiant::widgets::WidgetSpec`.
+`OPT-33` also gives the first reusable interactive implementations for:
+
+- `Button`
+- `Toggle`
+- single-line `TextInput`
+- `Scrollbar`
 
 The taxonomy is intentionally small. It is large enough to express reusable
 controls, but narrow enough that follow-up implementation work can be split by
@@ -116,6 +123,24 @@ Current public families:
 This is deliberate. `OPT-32` defines the widget vocabulary and behavior
 contracts. Binding those families to host-defined message payloads belongs to
 the generic runtime/view work tracked separately by `OPT-34`.
+
+## Reusable primitive interfaces
+
+The first interactive primitive set now exposes explicit public props, mutable
+state, and emitted message interfaces:
+
+- `ButtonWidget` -> `ButtonProps`, `ButtonState`, `ButtonMessage`
+- `ToggleWidget` -> `ToggleProps`, `ToggleState`, `ToggleMessage`
+- `TextInputWidget` -> `TextInputProps`, `TextInputState`,
+  `TextInputMessage`
+- `ScrollbarWidget` -> `ScrollbarProps`, `ScrollbarState`,
+  `ScrollbarMessage`
+
+Each of these widgets accepts backend-neutral `WidgetInput` values and emits a
+deterministic widget-specific message when user-visible state changes. That
+keeps tests focused on the widget contract itself and lets later runtime work
+adapt host events without pulling Sempal-specific shell models into the public
+surface.
 
 ## Composition with public containers
 
