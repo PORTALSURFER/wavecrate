@@ -182,7 +182,12 @@ fn waveform_transients_computed_message_routes_to_loaded_waveform_state() {
         },
     ));
 
-    assert!(controller.runtime.pending_waveform_transient_compute.is_none());
+    assert!(
+        controller
+            .runtime
+            .pending_waveform_transient_compute
+            .is_none()
+    );
     assert_eq!(controller.ui.waveform.transients.as_ref(), &[0.15, 0.55]);
     assert_eq!(
         controller.ui.waveform.transient_cache_token,

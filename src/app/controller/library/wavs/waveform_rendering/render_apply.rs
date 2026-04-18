@@ -1,7 +1,6 @@
 use super::*;
 use crate::app::controller::jobs::{
-    JobMessage, WaveformRenderJob, WaveformRenderKey, WaveformRenderResult,
-    WaveformTransientResult,
+    JobMessage, WaveformRenderJob, WaveformRenderKey, WaveformRenderResult, WaveformTransientResult,
 };
 use crate::app::controller::playback::audio_cache::FileMetadata;
 use crate::app::controller::state::runtime::PendingWaveformTransientCompute;
@@ -321,13 +320,12 @@ impl AppController {
                 .map(|_| self.ui.waveform.transients.clone()),
         };
         let latest_request_id = self.runtime.jobs.latest_waveform_render_request_tracker();
-        self.runtime.jobs.spawn_optional_one_shot_job(
-            true,
-            move || {
+        self.runtime
+            .jobs
+            .spawn_optional_one_shot_job(true, move || {
                 run_waveform_render_job(job, desired_meta, latest_request_id)
                     .map(JobMessage::WaveformRendered)
-            },
-        );
+            });
         self.mark_waveform_projection_dirty();
     }
 
@@ -352,11 +350,16 @@ impl AppController {
         self.runtime
             .jobs
             .publish_latest_waveform_transient_request_id(request_id);
-        let latest_request_id = self.runtime.jobs.latest_waveform_transient_request_tracker();
-        self.runtime.jobs.spawn_optional_one_shot_job(true, move || {
-            run_waveform_transient_job(request_id, decoded, latest_request_id)
-                .map(JobMessage::WaveformTransientsComputed)
-        });
+        let latest_request_id = self
+            .runtime
+            .jobs
+            .latest_waveform_transient_request_tracker();
+        self.runtime
+            .jobs
+            .spawn_optional_one_shot_job(true, move || {
+                run_waveform_transient_job(request_id, decoded, latest_request_id)
+                    .map(JobMessage::WaveformTransientsComputed)
+            });
     }
 
     pub(crate) fn refresh_waveform_transients(&mut self) {

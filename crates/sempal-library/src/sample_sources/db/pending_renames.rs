@@ -39,9 +39,11 @@ impl PendingRenameEntry {
             content_hash: self.content_hash,
             tag: self.tag,
             looped: self.looped,
+            sound_type: None,
             locked: self.locked,
             missing: false,
             last_played_at: self.last_played_at,
+            user_tag: None,
         }
     }
 }

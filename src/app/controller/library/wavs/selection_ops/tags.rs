@@ -236,3 +236,119 @@ pub(crate) fn set_sample_looped_for_source(
     );
     Ok(())
 }
+
+/// Persist and propagate a sound-type metadata update for a specific source/path.
+pub(crate) fn set_sample_sound_type_for_source(
+    controller: &mut AppController,
+    source: &SampleSource,
+    path: &Path,
+    sound_type: Option<crate::sample_sources::SampleSoundType>,
+) -> Result<(), String> {
+    let before_sound_type = controller
+        .wav_index_for_path(path)
+        .and_then(|index| {
+            controller
+                .wav_entry(index)
+                .and_then(|entry| entry.sound_type)
+        })
+        .or_else(|| {
+            controller
+                .cache
+                .wav
+                .entries
+                .get(&source.id)
+                .and_then(|cache| cache.lookup.get(path).copied())
+                .and_then(|index| controller.cache.wav.entries.get(&source.id)?.entry(index))
+                .and_then(|entry| entry.sound_type)
+        });
+    if let Some(index) = controller.wav_index_for_path(path) {
+        let _ = controller.ensure_wav_page_loaded(index);
+        if let Some(entry) = controller.wav_entries.entry_mut(index) {
+            entry.sound_type = sound_type;
+        }
+    }
+    if let Some(cache) = controller.cache.wav.entries.get_mut(&source.id)
+        && let Some(index) = cache.lookup.get(path).copied()
+        && let Some(entry) = cache.entry_mut(index)
+    {
+        entry.sound_type = sound_type;
+    }
+    controller.ui_cache.browser.pipeline.invalidate();
+    controller.mark_browser_row_metadata_projection_revision_dirty();
+    controller.mark_browser_search_projection_revision_dirty();
+    controller.queue_metadata_mutation(
+        source,
+        vec![SourceMetadataMutationOp::SetSoundType {
+            relative_path: path.to_path_buf(),
+            sound_type,
+        }],
+        Vec::new(),
+        vec![MetadataRollback::SoundType {
+            relative_path: path.to_path_buf(),
+            before_sound_type,
+            expected_sound_type: sound_type,
+        }],
+        false,
+    );
+    Ok(())
+}
+
+/// Persist and propagate a single custom user-tag update for a specific source/path.
+pub(crate) fn set_sample_user_tag_for_source(
+    controller: &mut AppController,
+    source: &SampleSource,
+    path: &Path,
+    user_tag: Option<String>,
+) -> Result<(), String> {
+    let normalized = user_tag.and_then(|tag| {
+        let trimmed = tag.trim();
+        (!trimmed.is_empty()).then(|| trimmed.to_string())
+    });
+    let before_user_tag = controller
+        .wav_index_for_path(path)
+        .and_then(|index| {
+            controller
+                .wav_entry(index)
+                .and_then(|entry| entry.user_tag.clone())
+        })
+        .or_else(|| {
+            controller
+                .cache
+                .wav
+                .entries
+                .get(&source.id)
+                .and_then(|cache| cache.lookup.get(path).copied())
+                .and_then(|index| controller.cache.wav.entries.get(&source.id)?.entry(index))
+                .and_then(|entry| entry.user_tag.clone())
+        });
+    if let Some(index) = controller.wav_index_for_path(path) {
+        let _ = controller.ensure_wav_page_loaded(index);
+        if let Some(entry) = controller.wav_entries.entry_mut(index) {
+            entry.user_tag = normalized.clone();
+        }
+    }
+    if let Some(cache) = controller.cache.wav.entries.get_mut(&source.id)
+        && let Some(index) = cache.lookup.get(path).copied()
+        && let Some(entry) = cache.entry_mut(index)
+    {
+        entry.user_tag = normalized.clone();
+    }
+    controller.ui_cache.browser.pipeline.invalidate();
+    controller.mark_browser_row_metadata_projection_revision_dirty();
+    controller.mark_browser_search_projection_revision_dirty();
+    controller.queue_metadata_mutation(
+        source,
+        vec![SourceMetadataMutationOp::SetUserTag {
+            relative_path: path.to_path_buf(),
+            user_tag: normalized.clone(),
+        }],
+        Vec::new(),
+        vec![MetadataRollback::UserTag {
+            relative_path: path.to_path_buf(),
+            before_user_tag,
+            expected_user_tag: normalized,
+        }],
+        false,
+    );
+    Ok(())
+}

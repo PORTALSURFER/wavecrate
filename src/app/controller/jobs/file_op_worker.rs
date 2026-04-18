@@ -84,8 +84,10 @@ mod tests {
     #[test]
     fn reusable_file_op_worker_delivers_finished_messages() {
         let (tx, rx) = sync_channel(4);
-        let worker =
-            FileOpWorkerHandle::spawn(JobMessageSender::new(tx), Arc::new(SharedRepaintSignal::default()));
+        let worker = FileOpWorkerHandle::spawn(
+            JobMessageSender::new(tx),
+            Arc::new(SharedRepaintSignal::default()),
+        );
         let source_id = SourceId::from_string("source");
 
         worker

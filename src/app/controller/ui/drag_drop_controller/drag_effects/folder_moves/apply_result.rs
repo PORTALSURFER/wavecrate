@@ -26,9 +26,11 @@ impl DragDropController<'_> {
                 content_hash: None,
                 tag: entry.tag,
                 looped: entry.looped,
+                sound_type: entry.sound_type,
                 locked: entry.locked,
                 missing: false,
                 last_played_at: entry.last_played_at,
+                user_tag: None,
             };
             let new_entry = WavEntry {
                 relative_path: entry.new_relative.clone(),
@@ -37,9 +39,11 @@ impl DragDropController<'_> {
                 content_hash: None,
                 tag: entry.tag,
                 looped: entry.looped,
+                sound_type: entry.sound_type,
                 locked: entry.locked,
                 missing: false,
                 last_played_at: entry.last_played_at,
+                user_tag: None,
             };
             updates.push((old_entry, new_entry));
         }
@@ -128,9 +132,11 @@ impl DragDropController<'_> {
                 content_hash: None,
                 tag: entry.tag,
                 looped: entry.looped,
+                sound_type: entry.sound_type,
                 locked: entry.locked,
                 missing: false,
                 last_played_at: entry.last_played_at,
+                user_tag: None,
             };
             let new_entry = WavEntry {
                 relative_path: entry.new_relative.clone(),
@@ -139,9 +145,11 @@ impl DragDropController<'_> {
                 content_hash: None,
                 tag: entry.tag,
                 looped: entry.looped,
+                sound_type: entry.sound_type,
                 locked: entry.locked,
                 missing: false,
                 last_played_at: entry.last_played_at,
+                user_tag: None,
             };
             updates.push((old_entry, new_entry));
         }

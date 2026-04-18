@@ -114,6 +114,7 @@ pub(super) fn apply_browser_list_native_ui_action(
             controller.toggle_browser_marked_filter();
         }
         NativeUiAction::ToggleRandomNavigationMode => controller.toggle_random_navigation_mode(),
+        NativeUiAction::ToggleBrowserTagSidebar => controller.toggle_browser_tag_sidebar(),
         NativeUiAction::ToggleBrowserDuplicateCleanupMode => {
             controller.toggle_browser_duplicate_cleanup_mode()
         }
@@ -143,6 +144,43 @@ pub(super) fn apply_browser_list_native_ui_action(
         NativeUiAction::PlayPreviousRandomSample => controller.play_previous_random_sample(),
         NativeUiAction::AdjustSelectedBrowserRating { delta } => {
             controller.adjust_selected_rating(delta)
+        }
+        NativeUiAction::FocusBrowserTagSidebarInput => {}
+        NativeUiAction::SetBrowserTagSidebarInput { value } => {
+            controller.set_browser_tag_sidebar_input(value)
+        }
+        NativeUiAction::CommitBrowserTagSidebarInput => {
+            if let Err(err) = controller.commit_browser_tag_sidebar_input() {
+                controller.set_status(
+                    format!("Could not apply custom tag: {err}"),
+                    StatusTone::Error,
+                );
+            }
+        }
+        NativeUiAction::ClearBrowserTagSidebarUserTag => {
+            if let Err(err) = controller.apply_browser_tag_sidebar_user_tag(None) {
+                controller.set_status(
+                    format!("Could not clear custom tag: {err}"),
+                    StatusTone::Error,
+                );
+            }
+        }
+        NativeUiAction::SetBrowserSidebarLooped { looped } => {
+            if let Err(err) = controller.apply_browser_tag_sidebar_looped(looped) {
+                controller.set_status(
+                    format!("Could not update playback type: {err}"),
+                    StatusTone::Error,
+                );
+            }
+        }
+        NativeUiAction::SetBrowserSidebarSoundType { token } => {
+            let sound_type = crate::sample_sources::SampleSoundType::from_token(&token);
+            if let Err(err) = controller.apply_browser_tag_sidebar_sound_type(sound_type) {
+                controller.set_status(
+                    format!("Could not update sound type: {err}"),
+                    StatusTone::Error,
+                );
+            }
         }
         NativeUiAction::StartBrowserRename => controller.start_browser_rename(),
         NativeUiAction::ConfirmBrowserRename => controller.apply_pending_browser_rename(),

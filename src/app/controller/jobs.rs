@@ -4,10 +4,10 @@
 mod dispatch;
 /// Runtime/build/update dispatch helpers split from the primary dispatch module.
 mod dispatch_runtime;
-/// File-operation request and result DTOs.
-mod file_ops_types;
 /// Reusable worker lane for one-shot file-operation tasks.
 mod file_op_worker;
+/// File-operation request and result DTOs.
+mod file_ops_types;
 /// Issue-gateway and issue-token worker runners.
 mod issue_gateway_jobs;
 /// Controller job lifecycle and queue plumbing.

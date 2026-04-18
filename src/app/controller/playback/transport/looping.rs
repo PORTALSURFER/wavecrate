@@ -216,15 +216,19 @@ fn persist_loaded_sample_bpm(controller: &mut AppController) {
     controller.queue_metadata_mutation(
         &source,
         Vec::new(),
-        vec![crate::app::controller::jobs::AnalysisMetadataMutationOp::SetBpm {
-            relative_path: relative_path.clone(),
-            bpm: Some(bpm),
-        }],
-        vec![crate::app::controller::state::runtime::MetadataRollback::Bpm {
-            relative_path,
-            before_bpm,
-            expected_bpm: Some(bpm),
-        }],
+        vec![
+            crate::app::controller::jobs::AnalysisMetadataMutationOp::SetBpm {
+                relative_path: relative_path.clone(),
+                bpm: Some(bpm),
+            },
+        ],
+        vec![
+            crate::app::controller::state::runtime::MetadataRollback::Bpm {
+                relative_path,
+                before_bpm,
+                expected_bpm: Some(bpm),
+            },
+        ],
         false,
     );
     controller.mark_browser_row_metadata_projection_revision_dirty();

@@ -286,6 +286,10 @@ impl AppController {
                             .and_then(|idx| self.wav_entries.entry(idx))
                             .map(|e| e.looped)
                             .unwrap_or(false),
+                        sound_type: self
+                            .wav_index_for_path(&message.relative_path)
+                            .and_then(|idx| self.wav_entries.entry(idx))
+                            .and_then(|e| e.sound_type),
                         locked: self
                             .wav_index_for_path(&message.relative_path)
                             .and_then(|idx| self.wav_entries.entry(idx))
@@ -296,6 +300,10 @@ impl AppController {
                             .wav_index_for_path(&message.relative_path)
                             .and_then(|idx| self.wav_entries.entry(idx))
                             .and_then(|e| e.last_played_at),
+                        user_tag: self
+                            .wav_index_for_path(&message.relative_path)
+                            .and_then(|idx| self.wav_entries.entry(idx))
+                            .and_then(|e| e.user_tag.clone()),
                     };
 
                     let is_currently_loaded = self

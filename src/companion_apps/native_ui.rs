@@ -9,6 +9,7 @@ use crate::{
         NativeAppModel as AppModel, NativeBrowserActionsModel as BrowserActionsModel,
         NativeBrowserChromeModel as BrowserChromeModel,
         NativeBrowserPanelModel as BrowserPanelModel, NativeBrowserRowModel as BrowserRowModel,
+        NativeBrowserTagSidebarModel as BrowserTagSidebarModel,
         NativeSourceRowModel as SourceRowModel, NativeStatusBarModel as StatusBarModel,
         NativeUpdatePanelModel as UpdatePanelModel,
     },
@@ -130,6 +131,7 @@ pub fn standard_browser_panel(config: CompanionBrowserPanelConfig) -> BrowserPan
         sort_label: config.sort_label,
         active_tab_label: config.active_tab_label,
         focused_sample_label: config.focused_sample_label,
+        tag_sidebar: BrowserTagSidebarModel::default(),
         anchor_visible_row: None,
         rows: config.rows.into(),
     }

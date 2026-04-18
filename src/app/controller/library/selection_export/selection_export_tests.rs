@@ -50,9 +50,11 @@ fn written_entry(root: &Path, relative_path: &Path, tag: Rating) -> WavEntry {
         content_hash: None,
         tag,
         looped: false,
+        sound_type: None,
         locked: false,
         missing: false,
         last_played_at: None,
+        user_tag: None,
     }
 }
 

@@ -194,9 +194,11 @@ fn retained_restore_clears_stale_last_played_at_when_deleted_snapshot_has_none()
         content_hash: Some(String::from("hash-none-last-played")),
         tag: Rating::KEEP_3,
         looped: false,
+        sound_type: None,
         locked: true,
         missing: false,
         last_played_at: None,
+        user_tag: None,
     }];
     let original = source.root.join("Pack");
     fs::create_dir_all(&original).unwrap();
@@ -254,9 +256,11 @@ fn entry(relative: &str, tag: Rating, last_played_at: i64) -> WavEntry {
         content_hash: Some(format!("hash-{tag:?}-{last_played_at}")),
         tag,
         looped: false,
+        sound_type: None,
         locked: tag == Rating::KEEP_3,
         missing: false,
         last_played_at: Some(last_played_at),
+        user_tag: None,
     }
 }
 

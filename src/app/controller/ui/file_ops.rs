@@ -4,8 +4,8 @@ use super::*;
 use crate::app::controller::jobs::{
     ClipboardPasteOutcome, ClipboardPasteResult, FileOpMessage, FileOpResult, FolderCreateResult,
     FolderDeleteResult, FolderRenameResult, SampleAutoRenameResult, SampleDeleteResult,
-    SampleRenameResult,
-    SelectionEditCommitResult, UndoFileOpResult, UndoFileOutcome, WaveformSlideCommitResult,
+    SampleRenameResult, SelectionEditCommitResult, UndoFileOpResult, UndoFileOutcome,
+    WaveformSlideCommitResult,
 };
 use crate::app::controller::undo::{DeferredUndo, UndoDirection};
 use crate::app::controller::undo_jobs;
@@ -204,9 +204,11 @@ impl AppController {
                     content_hash: None,
                     tag: *tag,
                     looped: *looped,
+                    sound_type: None,
                     locked: false,
                     missing: false,
                     last_played_at: *last_played_at,
+                    user_tag: None,
                 };
                 self.update_cached_entry(&source, relative_path, entry);
                 self.refresh_waveform_for_sample(&source, relative_path);
@@ -255,9 +257,11 @@ impl AppController {
                         content_hash: None,
                         tag: *tag,
                         looped: *looped,
+                        sound_type: None,
                         locked: false,
                         missing: false,
                         last_played_at: *last_played_at,
+                        user_tag: None,
                     },
                 );
                 self.refresh_waveform_for_sample(&source, relative_path);
@@ -374,20 +378,26 @@ impl AppController {
         for renamed in &result.renamed {
             self.update_cached_entry(&source, &renamed.old_relative, renamed.entry.clone());
             if renamed.resume_playback {
-                self.runtime.jobs.set_pending_playback(Some(PendingPlayback {
-                    source_id: result.source_id.clone(),
-                    relative_path: renamed.new_relative.clone(),
-                    looped: renamed.resume_looped,
-                    start_override: renamed.resume_start_override,
-                    force_loaded_audio: false,
-                }));
+                self.runtime
+                    .jobs
+                    .set_pending_playback(Some(PendingPlayback {
+                        source_id: result.source_id.clone(),
+                        relative_path: renamed.new_relative.clone(),
+                        looped: renamed.resume_looped,
+                        start_override: renamed.resume_start_override,
+                        force_loaded_audio: false,
+                    }));
             }
             self.refresh_waveform_for_sample(&source, &renamed.new_relative);
         }
         let renamed = result.renamed.len();
         let skipped = result.skipped.len();
         let failed = result.errors.len();
-        let tone = if failed == 0 { StatusTone::Info } else { StatusTone::Warning };
+        let tone = if failed == 0 {
+            StatusTone::Info
+        } else {
+            StatusTone::Warning
+        };
         self.set_status(
             format!("Auto Rename: renamed {renamed}, skipped {skipped}, failed {failed}"),
             tone,

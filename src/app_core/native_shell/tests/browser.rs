@@ -8,9 +8,11 @@ fn browser_projection_test_entry(name: &str) -> crate::sample_sources::WavEntry 
         content_hash: None,
         tag: crate::sample_sources::Rating::NEUTRAL,
         looped: false,
+        sound_type: None,
         locked: false,
         missing: false,
         last_played_at: None,
+        user_tag: None,
     }
 }
 
@@ -170,7 +172,7 @@ fn browser_projection_exposes_manual_viewport_state() {
     controller.ui.browser.viewport.visible =
         crate::app_core::app_api::state::VisibleRows::All { total: 1_506 };
 
-    let projected = project_browser_panel_frame_model(&controller);
+    let projected = project_browser_panel_frame_model(&mut controller);
 
     assert!(!projected.autoscroll);
     assert_eq!(projected.view_start_row, 1_470);
@@ -185,7 +187,7 @@ fn browser_projection_prefers_selected_sample_label_when_loaded_state_is_stale()
         Some(std::path::PathBuf::from("browser/current_take.wav"));
     controller.ui.loaded_wav = Some(std::path::PathBuf::from("waveform/stale_loaded_take.wav"));
 
-    let projected = project_browser_panel_frame_model(&controller);
+    let projected = project_browser_panel_frame_model(&mut controller);
 
     assert_eq!(
         projected.focused_sample_label.as_deref(),
@@ -246,10 +248,12 @@ fn browser_projection_attaches_similarity_strength_for_similarity_query_rows() {
 
     assert_eq!(projected.rows.len(), 3);
     assert_eq!(projected.rows[0].similarity_display_strength, Some(255));
-    assert!(projected.rows[1]
-        .similarity_display_strength
-        .zip(projected.rows[2].similarity_display_strength)
-        .is_some_and(|(middle, weakest)| middle > weakest));
+    assert!(
+        projected.rows[1]
+            .similarity_display_strength
+            .zip(projected.rows[2].similarity_display_strength)
+            .is_some_and(|(middle, weakest)| middle > weakest)
+    );
     assert_eq!(projected.rows[2].similarity_display_strength, Some(0));
 }
 
@@ -266,10 +270,12 @@ fn browser_projection_omits_similarity_strength_without_similarity_query() {
 
     let projected = project_browser_model(&mut controller);
 
-    assert!(projected
-        .rows
-        .iter()
-        .all(|row| row.similarity_display_strength.is_none()));
+    assert!(
+        projected
+            .rows
+            .iter()
+            .all(|row| row.similarity_display_strength.is_none())
+    );
 }
 
 /// Duplicate cleanup mode should keep the compact similarity bar disabled.
@@ -306,8 +312,10 @@ fn browser_projection_omits_similarity_strength_during_duplicate_cleanup() {
 
     let projected = project_browser_model(&mut controller);
 
-    assert!(projected
-        .rows
-        .iter()
-        .all(|row| row.similarity_display_strength.is_none()));
+    assert!(
+        projected
+            .rows
+            .iter()
+            .all(|row| row.similarity_display_strength.is_none())
+    );
 }

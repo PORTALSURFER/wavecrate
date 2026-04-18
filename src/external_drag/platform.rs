@@ -274,7 +274,10 @@ pub(super) fn start_file_drag(
     }
     .ok();
     match drag_result {
-        Ok(()) => info!(effect = effect.0, "external drag: DoDragDrop returned success"),
+        Ok(()) => info!(
+            effect = effect.0,
+            "external drag: DoDragDrop returned success"
+        ),
         Err(ref err) => warn!(
             error = %err,
             effect = effect.0,
@@ -287,7 +290,10 @@ pub(super) fn start_file_drag(
         warn!("external drag: drop completed with DROPEFFECT_NONE");
         Err("Drag canceled or target rejected drop".into())
     } else {
-        info!(effect = effect.0, "external drag: Windows file drag completed");
+        info!(
+            effect = effect.0,
+            "external drag: Windows file drag completed"
+        );
         Ok(())
     }
 }

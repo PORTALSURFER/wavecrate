@@ -42,9 +42,11 @@ pub(crate) fn project_sources_model(controller: &AppController) -> SourcesPanelM
             .loading_source_id
             .as_ref()
             .and_then(|source_id| ui.sources.rows.iter().position(|row| row.id == *source_id)),
-        mutation_busy_row: ui.sources.rows.iter().position(|row| {
-            controller.source_has_pending_file_mutations(&row.id)
-        }),
+        mutation_busy_row: ui
+            .sources
+            .rows
+            .iter()
+            .position(|row| controller.source_has_pending_file_mutations(&row.id)),
         focused_folder_row: active_focused_folder_row,
         rows: ui
             .sources
@@ -170,7 +172,9 @@ fn project_folder_pane_id(pane: FolderPaneId) -> FolderPaneIdModel {
     }
 }
 
-fn project_folder_rows(folder_ui: &FolderBrowserUiState) -> radiant::app::RetainedVec<FolderRowModel> {
+fn project_folder_rows(
+    folder_ui: &FolderBrowserUiState,
+) -> radiant::app::RetainedVec<FolderRowModel> {
     let mut projected: Vec<FolderRowModel> = folder_ui
         .rows
         .iter()

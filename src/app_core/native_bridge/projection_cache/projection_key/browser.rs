@@ -20,6 +20,7 @@ pub(super) fn build_browser_frame_projection_key(
         browser_search_busy: controller.ui.browser.search.search_busy,
         browser_similarity_filtered: controller.ui.browser.search.similar_query.is_some(),
         browser_duplicate_cleanup_active: controller.ui.browser.duplicate_cleanup.is_some(),
+        browser_tag_sidebar_open: controller.ui.browser.tag_sidebar_open,
         browser_sort: encode_browser_sort(controller.ui.browser.search.sort),
         browser_tab: encode_browser_tab(controller.ui.browser.active_tab),
         browser_similarity_follow_loaded: controller

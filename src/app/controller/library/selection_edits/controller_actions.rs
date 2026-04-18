@@ -195,7 +195,10 @@ impl AppController {
         if !cfg!(test) {
             return self.queue_selection_edit_commit(
                 "Applied fade",
-                format!("Applied fade {}", self.selection_target()?.relative_path.display()),
+                format!(
+                    "Applied fade {}",
+                    self.selection_target()?.relative_path.display()
+                ),
                 true,
                 false,
                 false,

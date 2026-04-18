@@ -37,9 +37,11 @@ impl DragDropController<'_> {
                     content_hash: None,
                     tag: entry.tag,
                     looped: entry.looped,
+                    sound_type: entry.sound_type,
                     locked: entry.locked,
                     missing: false,
                     last_played_at: entry.last_played_at,
+                    user_tag: None,
                 },
             );
         }

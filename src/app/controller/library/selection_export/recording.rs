@@ -37,9 +37,11 @@ impl AppController {
             content_hash: None,
             tag: target_tag.unwrap_or(Rating::NEUTRAL),
             looped,
+            sound_type: None,
             locked: false,
             missing: false,
             last_played_at: None,
+            user_tag: None,
         };
         if register_in_source {
             let db = self

@@ -262,9 +262,11 @@ impl AppController {
             content_hash: None,
             tag,
             looped,
+            sound_type: None,
             locked,
             missing: false,
             last_played_at,
+            user_tag: None,
         };
         self.update_cached_entry(&state.source, &state.relative_path, entry);
         self.refresh_waveform_for_sample(&state.source, &state.relative_path);
@@ -339,9 +341,11 @@ fn run_waveform_slide_job(
                 content_hash: None,
                 tag,
                 looped,
+                sound_type: None,
                 locked,
                 missing: false,
                 last_played_at,
+                user_tag: None,
             },
             backup,
         ))

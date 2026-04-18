@@ -1,8 +1,6 @@
 //! Retained filter-stage caches for worker-side browser search composition.
 
-use super::super::folders::{
-    filter_accepts_tag, folder_accepts_for_job, folder_accepts_index,
-};
+use super::super::folders::{filter_accepts_tag, folder_accepts_for_job, folder_accepts_index};
 use super::super::*;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
@@ -51,10 +49,15 @@ pub(in super::super) fn filtered_stage_for_job(
     }) {
         let cached = cache.filter_stage_cache.remove(index);
         cache.filter_stage_cache.insert(0, cached);
-        return Some(cache.filter_stage_cache.first().map(|cached| WorkerFilteredStage {
-            accepts: Arc::clone(&cached.accepts),
-            rows: Arc::clone(&cached.rows),
-        }));
+        return Some(
+            cache
+                .filter_stage_cache
+                .first()
+                .map(|cached| WorkerFilteredStage {
+                    accepts: Arc::clone(&cached.accepts),
+                    rows: Arc::clone(&cached.rows),
+                }),
+        );
     }
 
     let Some(entries) = cache.entries.as_ref() else {
@@ -105,10 +108,15 @@ pub(in super::super) fn filtered_stage_for_job(
     cache
         .filter_stage_cache
         .truncate(cache.max_cached_filter_stages);
-    Some(cache.filter_stage_cache.first().map(|cached| WorkerFilteredStage {
-        accepts: Arc::clone(&cached.accepts),
-        rows: Arc::clone(&cached.rows),
-    }))
+    Some(
+        cache
+            .filter_stage_cache
+            .first()
+            .map(|cached| WorkerFilteredStage {
+                accepts: Arc::clone(&cached.accepts),
+                rows: Arc::clone(&cached.rows),
+            }),
+    )
 }
 
 fn filter_stage_required(job: &SearchJob, has_folder_filters: bool) -> bool {
@@ -128,7 +136,11 @@ fn filter_stage_hash(
         filter_key(job.filter),
         hash_value(&job.rating_filter),
         hash_value(&job.playback_age_filter),
-        playback_age_filter_cache_token(cache, &job.playback_age_filter, job.playback_age_now_unix_secs),
+        playback_age_filter_cache_token(
+            cache,
+            &job.playback_age_filter,
+            job.playback_age_now_unix_secs,
+        ),
         job.marked_only,
         job.marked_only.then_some(hash_value(&job.marked_paths)),
         has_folder_filters.then_some(super::super::folder_filter_hash_for_job(job)),
@@ -181,9 +193,11 @@ fn playback_age_filter_cache_token(
         filter_hash,
         token,
     };
-    if let Some(index) = cache.playback_age_token_caches.iter().position(|cached| {
-        cached.revision == cache.revision && cached.filter_hash == filter_hash
-    }) {
+    if let Some(index) = cache
+        .playback_age_token_caches
+        .iter()
+        .position(|cached| cached.revision == cache.revision && cached.filter_hash == filter_hash)
+    {
         cache.playback_age_token_caches[index] = cache_entry;
     } else {
         cache.playback_age_token_caches.push(cache_entry);
@@ -218,8 +232,10 @@ mod tests {
             ..SearchWorkerCache::default()
         };
         let filters = BTreeSet::from([crate::app::state::PlaybackAgeFilterChip::OlderThanWeek]);
-        let before = playback_age_filter_cache_token(&mut cache, &filters, 100 + (7 * 24 * 60 * 60) - 2);
-        let again = playback_age_filter_cache_token(&mut cache, &filters, 100 + (7 * 24 * 60 * 60) - 1);
+        let before =
+            playback_age_filter_cache_token(&mut cache, &filters, 100 + (7 * 24 * 60 * 60) - 2);
+        let again =
+            playback_age_filter_cache_token(&mut cache, &filters, 100 + (7 * 24 * 60 * 60) - 1);
 
         assert_eq!(before, Some(100 + (7 * 24 * 60 * 60)));
         assert_eq!(again, before);
@@ -259,28 +275,14 @@ mod tests {
             ..make_search_job()
         };
 
-        let first = filtered_stage_for_job(
-            &mut cache,
-            &job,
-            "source-a",
-            2,
-            false,
-            &queue,
-            generation,
-        )
-        .expect("filter stage build")
-        .expect("filter stage");
-        let second = filtered_stage_for_job(
-            &mut cache,
-            &job,
-            "source-a",
-            2,
-            false,
-            &queue,
-            generation,
-        )
-        .expect("filter stage reuse")
-        .expect("filter stage");
+        let first =
+            filtered_stage_for_job(&mut cache, &job, "source-a", 2, false, &queue, generation)
+                .expect("filter stage build")
+                .expect("filter stage");
+        let second =
+            filtered_stage_for_job(&mut cache, &job, "source-a", 2, false, &queue, generation)
+                .expect("filter stage reuse")
+                .expect("filter stage");
 
         assert_eq!(first.rows.as_ref(), &[0]);
         assert_eq!(cache.filter_stage_cache.len(), 1);

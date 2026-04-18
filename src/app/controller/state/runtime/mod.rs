@@ -14,8 +14,7 @@ use crate::sample_sources::db::SourceDbError;
 use crate::sample_sources::{ScanMode, SourceId, WavEntry};
 pub(crate) use deferred::{
     AnalysisProgressUiCache, DeferredStartupAudioRefreshState, LoadedSimilarityQueryCache,
-    LoadedSimilarityQueryData, LoadedSimilaritySourceCandidate,
-    LoadedSimilaritySourceSnapshot,
+    LoadedSimilarityQueryData, LoadedSimilaritySourceCandidate, LoadedSimilaritySourceSnapshot,
     PendingBrowserFeatureCacheRefresh, PendingBrowserFocusCommit, PendingFocusedSimilarityQuery,
     PendingFocusedSimilarityRefresh, PendingLoadedDurationMetadata, PendingLoadedSimilarityQuery,
     PendingSimilarityFilterRebuild,
@@ -292,6 +291,24 @@ pub(crate) enum MetadataRollback {
         before_looped: bool,
         /// Value written optimistically before persistence completed.
         expected_looped: bool,
+    },
+    /// Restore one sound-type value if the optimistic value is still current.
+    SoundType {
+        /// Relative sample path within the source root.
+        relative_path: PathBuf,
+        /// Value before the optimistic mutation.
+        before_sound_type: Option<crate::sample_sources::SampleSoundType>,
+        /// Value written optimistically before persistence completed.
+        expected_sound_type: Option<crate::sample_sources::SampleSoundType>,
+    },
+    /// Restore one custom user-tag value if the optimistic value is still current.
+    UserTag {
+        /// Relative sample path within the source root.
+        relative_path: PathBuf,
+        /// Value before the optimistic mutation.
+        before_user_tag: Option<String>,
+        /// Value written optimistically before persistence completed.
+        expected_user_tag: Option<String>,
     },
     /// Restore one playback-age value if the optimistic value is still current.
     LastPlayedAt {

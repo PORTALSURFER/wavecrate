@@ -308,9 +308,11 @@ mod tests {
                 content_hash: None,
                 tag: crate::sample_sources::Rating::NEUTRAL,
                 looped: false,
+                sound_type: None,
                 locked: false,
                 missing: false,
                 last_played_at: None,
+                user_tag: None,
             }],
         );
 
@@ -321,9 +323,11 @@ mod tests {
             content_hash: None,
             tag: crate::sample_sources::Rating::KEEP_1,
             looped: false,
+            sound_type: None,
             locked: false,
             missing: false,
             last_played_at: None,
+            user_tag: None,
         };
 
         // Update using backslash path

@@ -86,6 +86,11 @@ fn ensure_wav_files_optional_columns(connection: &Connection) -> Result<(), Sour
             .execute("ALTER TABLE wav_files ADD COLUMN sound_type TEXT", [])
             .map_err(map_sql_error)?;
     }
+    if !columns.contains("user_tag") {
+        connection
+            .execute("ALTER TABLE wav_files ADD COLUMN user_tag TEXT", [])
+            .map_err(map_sql_error)?;
+    }
     if !columns.contains("content_hash") {
         connection
             .execute("ALTER TABLE wav_files ADD COLUMN content_hash TEXT", [])

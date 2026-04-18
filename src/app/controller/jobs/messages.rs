@@ -63,6 +63,20 @@ pub(crate) enum SourceMetadataMutationOp {
         /// New loop-marker state to store.
         looped: bool,
     },
+    /// Persist one sound-type metadata change.
+    SetSoundType {
+        /// Relative sample path within the source root.
+        relative_path: PathBuf,
+        /// New sound type to store, or `None` to clear it.
+        sound_type: Option<crate::sample_sources::SampleSoundType>,
+    },
+    /// Persist one custom user-tag metadata change.
+    SetUserTag {
+        /// Relative sample path within the source root.
+        relative_path: PathBuf,
+        /// New user tag to store, or `None` to clear it.
+        user_tag: Option<String>,
+    },
     /// Persist one playback-age timestamp update.
     SetLastPlayedAt {
         /// Relative sample path within the source root.
@@ -564,7 +578,8 @@ pub(crate) struct LoadedSimilarityQueryResult {
     /// Browser snapshot key the built query still aligns with.
     pub(crate) key: crate::app::controller::FeatureCacheKey,
     /// Similarity query payload plus retained source snapshot or the terminal error.
-    pub(crate) result: Result<crate::app::controller::state::runtime::LoadedSimilarityQueryData, String>,
+    pub(crate) result:
+        Result<crate::app::controller::state::runtime::LoadedSimilarityQueryData, String>,
 }
 
 #[derive(Debug)]

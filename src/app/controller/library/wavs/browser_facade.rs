@@ -1,7 +1,7 @@
 use super::*;
 use crate::app::controller::jobs::LoadedSimilarityQueryResult;
 use crate::app::state::SampleBrowserTab;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 impl AppController {
     /// Select a wav row based on its path.
@@ -391,5 +391,101 @@ impl AppController {
         require_present: bool,
     ) -> Result<(), String> {
         selection_ops::set_sample_looped_for_source(self, source, path, looped, require_present)
+    }
+
+    /// Update the sound-type metadata for a sample path within a specific source.
+    pub(crate) fn set_sample_sound_type_for_source(
+        &mut self,
+        source: &SampleSource,
+        path: &Path,
+        sound_type: Option<crate::sample_sources::SampleSoundType>,
+    ) -> Result<(), String> {
+        selection_ops::set_sample_sound_type_for_source(self, source, path, sound_type)
+    }
+
+    /// Update the custom user tag for a sample path within a specific source.
+    pub(crate) fn set_sample_user_tag_for_source(
+        &mut self,
+        source: &SampleSource,
+        path: &Path,
+        user_tag: Option<String>,
+    ) -> Result<(), String> {
+        selection_ops::set_sample_user_tag_for_source(self, source, path, user_tag)
+    }
+
+    /// Toggle the browser-local metadata sidebar inside the list tab.
+    pub(crate) fn toggle_browser_tag_sidebar(&mut self) {
+        let is_list_tab = matches!(self.ui.browser.active_tab, SampleBrowserTab::List);
+        self.ui.browser.tag_sidebar_open = is_list_tab && !self.ui.browser.tag_sidebar_open;
+    }
+
+    /// Store the current draft value for the browser metadata custom-tag input.
+    pub(crate) fn set_browser_tag_sidebar_input(&mut self, value: String) {
+        self.ui.browser.tag_sidebar_input = value;
+    }
+
+    /// Apply the current custom-tag input draft to focused/selected browser rows.
+    pub(crate) fn commit_browser_tag_sidebar_input(&mut self) -> Result<(), String> {
+        let value = self.ui.browser.tag_sidebar_input.clone();
+        self.apply_browser_tag_sidebar_user_tag(if value.trim().is_empty() {
+            None
+        } else {
+            Some(value)
+        })
+    }
+
+    /// Apply one playback-type value to the focused/selected browser rows.
+    pub(crate) fn apply_browser_tag_sidebar_looped(&mut self, looped: bool) -> Result<(), String> {
+        let Some(source) = self.current_source() else {
+            return Err(String::from("No source selected"));
+        };
+        for path in self.browser_tag_sidebar_target_paths() {
+            self.set_sample_looped_for_source(&source, &path, looped, false)?;
+        }
+        Ok(())
+    }
+
+    /// Apply one sound-type value to the focused/selected browser rows.
+    pub(crate) fn apply_browser_tag_sidebar_sound_type(
+        &mut self,
+        sound_type: Option<crate::sample_sources::SampleSoundType>,
+    ) -> Result<(), String> {
+        let Some(source) = self.current_source() else {
+            return Err(String::from("No source selected"));
+        };
+        for path in self.browser_tag_sidebar_target_paths() {
+            self.set_sample_sound_type_for_source(&source, &path, sound_type)?;
+        }
+        Ok(())
+    }
+
+    /// Apply or clear the single custom user tag for the focused/selected browser rows.
+    pub(crate) fn apply_browser_tag_sidebar_user_tag(
+        &mut self,
+        user_tag: Option<String>,
+    ) -> Result<(), String> {
+        let Some(source) = self.current_source() else {
+            return Err(String::from("No source selected"));
+        };
+        for path in self.browser_tag_sidebar_target_paths() {
+            self.set_sample_user_tag_for_source(&source, &path, user_tag.clone())?;
+        }
+        Ok(())
+    }
+
+    fn browser_tag_sidebar_target_paths(&mut self) -> Vec<PathBuf> {
+        if !self.ui.browser.selection.selected_paths.is_empty() {
+            return self.browser_selected_paths_snapshot();
+        }
+        if let Some(path) = self.ui.browser.selection.last_focused_path.clone() {
+            return vec![path];
+        }
+        self.ui
+            .browser
+            .selection
+            .selected_visible
+            .and_then(|row| self.browser_path_for_visible(row))
+            .into_iter()
+            .collect()
     }
 }

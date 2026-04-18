@@ -44,7 +44,11 @@ pub(crate) fn update_cached_entry(
                         .then_some(index)
                 })
                 .is_some();
-            controller.ui_cache.browser.pipeline.sync_source_revision(source_revision);
+            controller
+                .ui_cache
+                .browser
+                .pipeline
+                .sync_source_revision(source_revision);
             if !patched {
                 controller.ui_cache.browser.pipeline.invalidate();
             }

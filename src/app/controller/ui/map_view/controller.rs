@@ -18,6 +18,9 @@ impl AppController {
         } else {
             SampleBrowserTab::List
         };
+        if map {
+            self.ui.browser.tag_sidebar_open = false;
+        }
         self.ui.map.open = map;
     }
 

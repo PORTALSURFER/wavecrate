@@ -22,9 +22,11 @@ fn apply_native_toggle_browser_sample_mark_marks_focused_browser_row() {
             content_hash: Some(String::from("hash-a")),
             tag: Rating::NEUTRAL,
             looped: false,
+            sound_type: None,
             locked: false,
             missing: false,
             last_played_at: None,
+            user_tag: None,
         },
         WavEntry {
             relative_path: PathBuf::from("next.wav"),
@@ -33,9 +35,11 @@ fn apply_native_toggle_browser_sample_mark_marks_focused_browser_row() {
             content_hash: Some(String::from("hash-b")),
             tag: Rating::NEUTRAL,
             looped: false,
+            sound_type: None,
             locked: false,
             missing: false,
             last_played_at: None,
+            user_tag: None,
         },
     ]);
     controller.rebuild_wav_lookup();
@@ -78,9 +82,11 @@ fn apply_native_toggle_browser_sample_mark_advances_on_repeated_marks() {
             content_hash: Some(String::from("hash-a")),
             tag: Rating::NEUTRAL,
             looped: false,
+            sound_type: None,
             locked: false,
             missing: false,
             last_played_at: None,
+            user_tag: None,
         },
         WavEntry {
             relative_path: PathBuf::from("second.wav"),
@@ -89,9 +95,11 @@ fn apply_native_toggle_browser_sample_mark_advances_on_repeated_marks() {
             content_hash: Some(String::from("hash-b")),
             tag: Rating::NEUTRAL,
             looped: false,
+            sound_type: None,
             locked: false,
             missing: false,
             last_played_at: None,
+            user_tag: None,
         },
         WavEntry {
             relative_path: PathBuf::from("third.wav"),
@@ -100,9 +108,11 @@ fn apply_native_toggle_browser_sample_mark_advances_on_repeated_marks() {
             content_hash: Some(String::from("hash-c")),
             tag: Rating::NEUTRAL,
             looped: false,
+            sound_type: None,
             locked: false,
             missing: false,
             last_played_at: None,
+            user_tag: None,
         },
     ]);
     controller.rebuild_wav_lookup();

@@ -27,8 +27,10 @@ use preload::preload_browser_window_bpms;
 pub(crate) use row_window::browser_column_index;
 #[cfg(test)]
 pub(crate) use row_window::browser_render_window;
+use row_window::{
+    browser_bucket_label, clear_projected_browser_row_cache, project_browser_rows_model,
+};
 pub(crate) use row_window::{patch_browser_rows_state, project_browser_rows_model_into};
-use row_window::{browser_bucket_label, clear_projected_browser_row_cache, project_browser_rows_model};
 
 pub(crate) fn project_browser_rows_projection_inputs(
     controller: &AppController,

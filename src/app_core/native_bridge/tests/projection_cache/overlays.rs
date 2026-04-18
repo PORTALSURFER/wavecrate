@@ -306,9 +306,11 @@ fn projection_overlay_only_miss_reuses_browser_row_text_arcs() {
         content_hash: Some(String::from("hash")),
         tag: crate::sample_sources::Rating::NEUTRAL,
         looped: false,
+        sound_type: None,
         locked: false,
         missing: false,
         last_played_at: None,
+        user_tag: None,
     }]);
     controller.ui.browser.viewport.visible =
         crate::app_core::app_api::state::VisibleRows::List(vec![0usize].into());

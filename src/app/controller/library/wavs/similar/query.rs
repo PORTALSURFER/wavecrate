@@ -48,10 +48,7 @@ pub(crate) fn build_similarity_query_for_loaded_sample(
     ) {
         return Ok(query);
     }
-    let data = loaded::build_loaded_similarity_query_data_with_cache(
-        &conn,
-        &request,
-    )?;
+    let data = loaded::build_loaded_similarity_query_data_with_cache(&conn, &request)?;
     controller.runtime.loaded_similarity_query_cache =
         Some(loaded::build_loaded_similarity_query_cache(&data));
     Ok(data.query)
@@ -227,11 +224,12 @@ mod tests {
             crate::app::controller::state::runtime::LoadedSimilarityQueryCache {
                 sample_id,
                 query: expected.clone(),
-                source_snapshot: crate::app::controller::state::runtime::LoadedSimilaritySourceSnapshot {
-                    source_id: source.id.clone(),
-                    key: snapshot.key,
-                    candidates: std::sync::Arc::from([]),
-                },
+                source_snapshot:
+                    crate::app::controller::state::runtime::LoadedSimilaritySourceSnapshot {
+                        source_id: source.id.clone(),
+                        key: snapshot.key,
+                        candidates: std::sync::Arc::from([]),
+                    },
             },
         );
 

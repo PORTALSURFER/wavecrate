@@ -5,8 +5,8 @@
 //! module build on these helpers when they need to trigger browser or waveform work.
 
 use super::*;
-use std::path::{Path, PathBuf};
 use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 
 impl AppController {
     /// Invalidate the retained selected-index cache after selection-path edits.
@@ -25,7 +25,9 @@ impl AppController {
     }
 
     /// Return the current source snapshot identity for selected-index cache validation.
-    fn browser_selected_indices_cache_identity(&mut self) -> (Option<SourceId>, Option<u64>, usize) {
+    fn browser_selected_indices_cache_identity(
+        &mut self,
+    ) -> (Option<SourceId>, Option<u64>, usize) {
         let source_id = self.selection_state.ctx.selected_source.clone();
         let source_revision = self
             .current_source()

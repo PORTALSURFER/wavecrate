@@ -16,9 +16,11 @@ fn selection_autoplay_preserves_active_loop_playback() {
         content_hash: None,
         tag: crate::sample_sources::Rating::NEUTRAL,
         looped: false,
+        sound_type: None,
         locked: false,
         missing: false,
         last_played_at: None,
+        user_tag: None,
     }]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
@@ -52,9 +54,11 @@ fn loading_non_looped_sample_preserves_loop_when_locked() {
         content_hash: None,
         tag: crate::sample_sources::Rating::NEUTRAL,
         looped: false,
+        sound_type: None,
         locked: false,
         missing: false,
         last_played_at: None,
+        user_tag: None,
     }]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
@@ -88,9 +92,11 @@ fn loading_looped_sample_preserves_locked_off_override() {
         content_hash: None,
         tag: crate::sample_sources::Rating::NEUTRAL,
         looped: true,
+        sound_type: None,
         locked: false,
         missing: false,
         last_played_at: None,
+        user_tag: None,
     }]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();

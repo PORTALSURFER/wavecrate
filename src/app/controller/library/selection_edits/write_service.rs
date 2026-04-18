@@ -130,8 +130,10 @@ pub(crate) fn sync_sample_entry(
         content_hash: None,
         tag,
         looped,
+        sound_type: None,
         locked: false,
         missing: false,
         last_played_at,
+        user_tag: None,
     })
 }

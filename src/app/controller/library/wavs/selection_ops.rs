@@ -9,8 +9,9 @@ mod side_effects;
 mod tags;
 use side_effects::SelectionSideEffects;
 pub(crate) use tags::{
-    set_sample_locked_for_source, set_sample_looped_for_source, set_sample_tag,
-    set_sample_tag_and_locked_for_source, set_sample_tag_for_source,
+    set_sample_locked_for_source, set_sample_looped_for_source, set_sample_sound_type_for_source,
+    set_sample_tag, set_sample_tag_and_locked_for_source, set_sample_tag_for_source,
+    set_sample_user_tag_for_source,
 };
 
 pub(crate) fn select_wav_by_path(controller: &mut AppController, path: &Path) {
@@ -275,8 +276,7 @@ impl AppController {
             return;
         };
         if self.selection_state.ctx.selected_source.as_ref() != Some(&pending.source_id)
-            || self.sample_view.wav.selected_wav.as_deref()
-                != Some(pending.relative_path.as_path())
+            || self.sample_view.wav.selected_wav.as_deref() != Some(pending.relative_path.as_path())
             || self.ui.browser.selection.last_focused_index != Some(pending.entry_index)
             || self.ui.browser.selection.last_focused_path.as_deref()
                 != Some(pending.relative_path.as_path())
@@ -305,10 +305,8 @@ impl AppController {
         }
         if pending.refresh_similarity_highlight {
             if let Some(source) = self.current_source() {
-                let sample_id = analysis_jobs::build_sample_id(
-                    source.id.as_str(),
-                    &pending.relative_path,
-                );
+                let sample_id =
+                    analysis_jobs::build_sample_id(source.id.as_str(), &pending.relative_path);
                 self.defer_focused_similarity_highlight_refresh(
                     sample_id,
                     pending.relative_path.clone(),
@@ -326,9 +324,11 @@ impl AppController {
             self.ui.waveform.loading = None;
             return;
         };
-        if let Err(err) =
-            self.dispatch_audio_load_for(&source, &pending.relative_path, AudioLoadIntent::Selection)
-        {
+        if let Err(err) = self.dispatch_audio_load_for(
+            &source,
+            &pending.relative_path,
+            AudioLoadIntent::Selection,
+        ) {
             self.runtime.jobs.set_pending_playback(None);
             self.ui.waveform.loading = None;
             self.set_status(err, StatusTone::Error);

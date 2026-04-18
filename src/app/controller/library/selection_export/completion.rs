@@ -170,7 +170,10 @@ impl AppController {
                     "Drag {} to an external target",
                     success.entry.relative_path.display()
                 );
-                info!(request_id, "selection export: external drag launch succeeded");
+                info!(
+                    request_id,
+                    "selection export: external drag launch succeeded"
+                );
                 self.drag_drop().reset_drag();
                 self.set_status(label, StatusTone::Info);
             }

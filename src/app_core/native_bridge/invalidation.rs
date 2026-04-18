@@ -91,11 +91,18 @@ pub(super) fn action_prefers_targeted_invalidation(action: &NativeUiAction) -> b
             | NativeUiAction::TagBrowserSelection { .. }
             | NativeUiAction::ToggleBrowserSampleMark
             | NativeUiAction::ToggleBrowserMarkedFilter
+            | NativeUiAction::ToggleBrowserTagSidebar
             | NativeUiAction::ToggleBrowserDuplicateCleanupMode
             | NativeUiAction::ToggleBrowserDuplicateCleanupKeep { .. }
             | NativeUiAction::FocusBrowserPanel
             | NativeUiAction::FocusBrowserSearch
             | NativeUiAction::BlurBrowserSearch
+            | NativeUiAction::FocusBrowserTagSidebarInput
+            | NativeUiAction::SetBrowserTagSidebarInput { .. }
+            | NativeUiAction::CommitBrowserTagSidebarInput
+            | NativeUiAction::ClearBrowserTagSidebarUserTag
+            | NativeUiAction::SetBrowserSidebarLooped { .. }
+            | NativeUiAction::SetBrowserSidebarSoundType { .. }
             | NativeUiAction::FocusLoadedSampleInBrowser
     )
 }
@@ -181,9 +188,16 @@ pub(super) fn classify_dirty_source(
         | NativeUiAction::ToggleBrowserPlaybackAgeFilter { .. }
         | NativeUiAction::ToggleBrowserSampleMark
         | NativeUiAction::ToggleBrowserMarkedFilter
+        | NativeUiAction::ToggleBrowserTagSidebar
         | NativeUiAction::FocusBrowserPanel
         | NativeUiAction::FocusBrowserSearch
         | NativeUiAction::BlurBrowserSearch
+        | NativeUiAction::FocusBrowserTagSidebarInput
+        | NativeUiAction::SetBrowserTagSidebarInput { .. }
+        | NativeUiAction::CommitBrowserTagSidebarInput
+        | NativeUiAction::ClearBrowserTagSidebarUserTag
+        | NativeUiAction::SetBrowserSidebarLooped { .. }
+        | NativeUiAction::SetBrowserSidebarSoundType { .. }
         | NativeUiAction::FocusLoadedSampleInBrowser
         | NativeUiAction::ToggleBrowserDuplicateCleanupMode
         | NativeUiAction::ToggleBrowserDuplicateCleanupKeep { .. }

@@ -105,6 +105,7 @@ fn apply_browser_frame(model: &mut NativeAppModel, frame: NativeBrowserPanelMode
     model.browser.active_tab_label = frame.active_tab_label;
     model.browser.focused_sample_label = frame.focused_sample_label;
     model.browser.anchor_visible_row = frame.anchor_visible_row;
+    model.browser.tag_sidebar = frame.tag_sidebar;
 }
 
 /// Refresh always-on non-segment metadata that is not covered by static keys.

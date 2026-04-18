@@ -15,10 +15,7 @@ use std::collections::BTreeSet;
 fn catalog_contains_every_action_kind_exactly_once() {
     let mut seen = BTreeSet::new();
     for kind in GUI_ACTION_CATALOG.iter().map(|entry| entry.kind) {
-        assert!(
-            seen.insert(kind),
-            "duplicate catalog action kind: {kind:?}"
-        );
+        assert!(seen.insert(kind), "duplicate catalog action kind: {kind:?}");
     }
     assert_eq!(GUI_ACTION_CATALOG.len(), seen.len());
 }

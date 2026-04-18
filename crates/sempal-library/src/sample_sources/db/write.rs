@@ -25,6 +25,8 @@ const UPDATE_LOOPED_SQL: &str = "UPDATE wav_files SET looped = ?1 WHERE path = ?
 const UPDATE_LOCKED_SQL: &str = "UPDATE wav_files SET locked = ?1 WHERE path = ?2";
 const UPDATE_SOUND_TYPE_SQL: &str = "UPDATE wav_files SET sound_type = ?1 WHERE path = ?2";
 const CLEAR_SOUND_TYPE_SQL: &str = "UPDATE wav_files SET sound_type = NULL WHERE path = ?1";
+const UPDATE_USER_TAG_SQL: &str = "UPDATE wav_files SET user_tag = ?1 WHERE path = ?2";
+const CLEAR_USER_TAG_SQL: &str = "UPDATE wav_files SET user_tag = NULL WHERE path = ?1";
 const UPDATE_MISSING_SQL: &str = "UPDATE wav_files SET missing = ?1 WHERE path = ?2";
 const UPDATE_LAST_PLAYED_AT_SQL: &str = "UPDATE wav_files SET last_played_at = ?1 WHERE path = ?2";
 const CLEAR_LAST_PLAYED_AT_SQL: &str = "UPDATE wav_files SET last_played_at = NULL WHERE path = ?1";
@@ -62,6 +64,15 @@ impl SourceDatabase {
         sound_type: Option<SampleSoundType>,
     ) -> Result<(), SourceDbError> {
         self.mutate_with_batch(|batch| batch.set_sound_type(relative_path, sound_type))
+    }
+
+    /// Persist a single custom tag for a wav file by relative path.
+    pub fn set_user_tag(
+        &self,
+        relative_path: &Path,
+        user_tag: Option<&str>,
+    ) -> Result<(), SourceDbError> {
+        self.mutate_with_batch(|batch| batch.set_user_tag(relative_path, user_tag))
     }
 
     /// Persist multiple tag changes in one transaction, coalescing SQLite work.
@@ -278,6 +289,20 @@ impl<'conn> SourceWriteBatch<'conn> {
                 sound_type.token(),
             ),
             None => update_path_null_statement(&self.tx, CLEAR_SOUND_TYPE_SQL, relative_path),
+        }
+    }
+
+    /// Update the custom user tag for a wav row within the batch.
+    pub fn set_user_tag(
+        &mut self,
+        relative_path: &Path,
+        user_tag: Option<&str>,
+    ) -> Result<(), SourceDbError> {
+        match user_tag.filter(|tag| !tag.trim().is_empty()) {
+            Some(user_tag) => {
+                update_path_text_statement(&self.tx, UPDATE_USER_TAG_SQL, relative_path, user_tag)
+            }
+            None => update_path_null_statement(&self.tx, CLEAR_USER_TAG_SQL, relative_path),
         }
     }
 

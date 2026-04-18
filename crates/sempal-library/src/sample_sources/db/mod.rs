@@ -192,7 +192,13 @@ impl SampleSoundType {
     pub fn infer_from_name(name: &str) -> Option<Self> {
         let normalized = name
             .chars()
-            .map(|ch| if ch.is_ascii_alphanumeric() { ch.to_ascii_lowercase() } else { ' ' })
+            .map(|ch| {
+                if ch.is_ascii_alphanumeric() {
+                    ch.to_ascii_lowercase()
+                } else {
+                    ' '
+                }
+            })
             .collect::<String>();
         let words = normalized.split_whitespace().collect::<Vec<_>>();
         const SOUND_TYPES: [SampleSoundType; 18] = [
@@ -238,6 +244,9 @@ pub struct WavEntry {
     /// True when the sample is marked as a loop for quick filtering in the UI.
     #[serde(default)]
     pub looped: bool,
+    /// Canonical sound classification used by browser metadata tools.
+    #[serde(default)]
+    pub sound_type: Option<SampleSoundType>,
     /// True when the sample has been promoted into the top keep state and should render as locked.
     ///
     /// The lock marker survives reloads so repeated keep-confirmation can show up
@@ -249,6 +258,9 @@ pub struct WavEntry {
     /// Epoch seconds of the most recent playback, if any.
     #[serde(default)]
     pub last_played_at: Option<i64>,
+    /// Optional single custom tag authored by the user.
+    #[serde(default)]
+    pub user_tag: Option<String>,
 }
 
 /// Errors returned when managing a source database.

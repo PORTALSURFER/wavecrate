@@ -189,7 +189,10 @@ impl AppController {
             .map(|row| self.browser_action_paths_from_primary(row))
             .unwrap_or_else(|| self.browser_selected_paths_snapshot());
         if target_paths.is_empty() {
-            self.set_status("Select one or more samples to auto rename", StatusTone::Info);
+            self.set_status(
+                "Select one or more samples to auto rename",
+                StatusTone::Info,
+            );
             return;
         }
         if let Err(err) = self

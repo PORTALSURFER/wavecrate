@@ -283,6 +283,11 @@ pub(crate) fn project_browser_actions_model(ui: &UiState) -> BrowserActionsModel
         can_tag: has_selection,
         random_navigation_enabled: ui.browser.search.random_navigation_mode,
         duplicate_cleanup_active: ui.browser.duplicate_cleanup.is_some(),
+        tag_sidebar_open: ui.browser.tag_sidebar_open
+            && matches!(
+                ui.browser.active_tab,
+                crate::app::state::SampleBrowserTab::List
+            ),
     }
 }
 

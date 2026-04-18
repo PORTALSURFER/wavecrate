@@ -2,10 +2,7 @@ use super::*;
 use crate::app::controller::jobs::{WaveformRenderJob, WaveformRenderKey};
 use crate::app::controller::test_support::dummy_controller;
 use crate::waveform::{DecodedWaveform, WaveformChannelView, WaveformRenderViewport};
-use std::sync::{
-    Arc,
-    atomic::AtomicU64,
-};
+use std::sync::{Arc, atomic::AtomicU64};
 
 #[test]
 /// Deferred transient work should be queued instead of running synchronously on apply.
@@ -66,11 +63,8 @@ fn stale_waveform_render_request_returns_none() {
         transient_visual_token: None,
     };
 
-    let result = super::render_apply::run_waveform_render_job(
-        job,
-        meta,
-        Arc::new(AtomicU64::new(9)),
-    );
+    let result =
+        super::render_apply::run_waveform_render_job(job, meta, Arc::new(AtomicU64::new(9)));
 
     assert!(result.is_none());
 }

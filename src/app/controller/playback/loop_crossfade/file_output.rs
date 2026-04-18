@@ -51,9 +51,11 @@ pub(super) fn register_loop_crossfade_entry(
             content_hash: None,
             tag,
             looped: false,
+            sound_type: None,
             locked: false,
             missing: false,
             last_played_at: None,
+            user_tag: None,
         },
     );
     controller.enqueue_similarity_for_new_sample(

@@ -17,9 +17,11 @@ fn selecting_legacy_missing_sample_prunes_it_and_sets_waveform_notice() {
         content_hash: Some(String::from("hash-one")),
         tag: crate::sample_sources::Rating::NEUTRAL,
         looped: false,
+        sound_type: None,
         locked: false,
         missing: true,
         last_played_at: None,
+        user_tag: None,
     }]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
@@ -57,9 +59,11 @@ fn read_failure_prunes_sample_row() {
         content_hash: Some(String::from("hash-gone")),
         tag: crate::sample_sources::Rating::NEUTRAL,
         looped: false,
+        sound_type: None,
         locked: false,
         missing: false,
         last_played_at: None,
+        user_tag: None,
     }]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
@@ -147,9 +151,11 @@ fn prune_missing_sample_removes_cache_and_db_entry_when_inactive() {
             content_hash: Some(String::from("hash-one")),
             tag: crate::sample_sources::Rating::KEEP_1,
             looped: false,
+            sound_type: None,
             locked: false,
             missing: false,
             last_played_at: None,
+            user_tag: None,
         }],
     );
     controller

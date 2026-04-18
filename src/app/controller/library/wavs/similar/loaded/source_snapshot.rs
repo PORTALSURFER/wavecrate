@@ -10,7 +10,8 @@ pub(super) fn cached_loaded_similarity_source_snapshot(
     request: &LoadedSimilarityQueryRequest<'_>,
 ) -> Option<LoadedSimilaritySourceSnapshot> {
     let cache = cache?;
-    (cache.source_snapshot.source_id == request.source_id && cache.source_snapshot.key == request.key)
+    (cache.source_snapshot.source_id == request.source_id
+        && cache.source_snapshot.key == request.key)
         .then(|| cache.source_snapshot.clone())
 }
 
@@ -19,19 +20,17 @@ pub(super) fn build_loaded_similarity_query_data(
     request: &LoadedSimilarityQueryRequest<'_>,
     cached_snapshot: Option<&LoadedSimilaritySourceSnapshot>,
 ) -> Result<LoadedSimilarityQueryData, String> {
-    let source_snapshot =
-        cached_snapshot.cloned().unwrap_or(build_loaded_similarity_source_snapshot(conn, request)?);
+    let source_snapshot = cached_snapshot
+        .cloned()
+        .unwrap_or(build_loaded_similarity_source_snapshot(conn, request)?);
     let anchor_index = request
         .entry_paths
         .iter()
         .position(|path| path == &request.relative_path);
     let (query_embedding, query_dsp) =
         load_query_vectors_for_request(conn, request, &source_snapshot, anchor_index)?;
-    let (indices, scores) = score_loaded_similarity_snapshot(
-        &source_snapshot,
-        &query_embedding,
-        query_dsp.as_deref(),
-    );
+    let (indices, scores) =
+        score_loaded_similarity_snapshot(&source_snapshot, &query_embedding, query_dsp.as_deref());
     let label = view_model::sample_display_label(&request.relative_path);
     let (indices, scores) = ensure_anchor_similarity_result(indices, scores, anchor_index);
     Ok(LoadedSimilarityQueryData {
@@ -99,10 +98,7 @@ fn load_query_vectors_for_request(
             .light_dsp
             .as_ref()
             .map(|light_dsp| light_dsp.iter().copied().collect());
-        return Ok((
-            embedding,
-            query_dsp,
-        ));
+        return Ok((embedding, query_dsp));
     }
     super::load_query_vectors(conn, &request.sample_id)
 }
@@ -119,7 +115,9 @@ fn score_loaded_similarity_snapshot(
         let score = candidate
             .embedding
             .as_deref()
-            .map(|embedding| score_loaded_similarity_candidate(embedding, candidate, query_embedding, query_dsp))
+            .map(|embedding| {
+                score_loaded_similarity_candidate(embedding, candidate, query_embedding, query_dsp)
+            })
             .unwrap_or(MISSING_SIMILARITY_SCORE);
         scores.push(score);
     }
@@ -132,7 +130,8 @@ fn score_loaded_similarity_candidate(
     query_embedding: &[f32],
     query_dsp: Option<&[f32]>,
 ) -> f32 {
-    let embed_sim = super::super::resolve::cosine_similarity(query_embedding, embedding).clamp(-1.0, 1.0);
+    let embed_sim =
+        super::super::resolve::cosine_similarity(query_embedding, embedding).clamp(-1.0, 1.0);
     let dsp_sim = query_dsp.and_then(|query_dsp| {
         candidate
             .light_dsp

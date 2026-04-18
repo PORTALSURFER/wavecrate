@@ -113,6 +113,22 @@ impl SourceDatabase {
         Ok(value.as_deref().and_then(SampleSoundType::from_token))
     }
 
+    /// Fetch the custom user tag for a specific wav path.
+    pub fn user_tag_for_path(&self, path: &Path) -> Result<Option<String>, SourceDbError> {
+        let Some(path_str) = normalize_supported_audio_path(path)? else {
+            return Ok(None);
+        };
+        self.connection
+            .query_row(
+                "SELECT user_tag FROM wav_files WHERE path = ?1",
+                rusqlite::params![path_str.as_str()],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .optional()
+            .map_err(map_sql_error)
+            .map(|value| value.flatten())
+    }
+
     /// Fetch the last played timestamp for a specific wav path.
     pub fn last_played_at_for_path(&self, path: &Path) -> Result<Option<i64>, SourceDbError> {
         let Some(path_str) = normalize_supported_audio_path(path)? else {

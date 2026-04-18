@@ -306,6 +306,50 @@ impl AppController {
                         wav.looped = *before_looped;
                     }
                 }
+                MetadataRollback::SoundType {
+                    relative_path,
+                    before_sound_type,
+                    expected_sound_type,
+                } => {
+                    if let Some(index) = self.wav_index_for_path(relative_path) {
+                        let _ = self.ensure_wav_page_loaded(index);
+                        if let Some(wav) = self.wav_entries.entry_mut(index)
+                            && wav.sound_type == *expected_sound_type
+                        {
+                            wav.sound_type = *before_sound_type;
+                        }
+                    }
+                    if let Some(source_id) = self.selection_state.ctx.selected_source.as_ref()
+                        && let Some(cache) = self.cache.wav.entries.get_mut(source_id)
+                        && let Some(index) = cache.lookup.get(relative_path).copied()
+                        && let Some(wav) = cache.entry_mut(index)
+                        && wav.sound_type == *expected_sound_type
+                    {
+                        wav.sound_type = *before_sound_type;
+                    }
+                }
+                MetadataRollback::UserTag {
+                    relative_path,
+                    before_user_tag,
+                    expected_user_tag,
+                } => {
+                    if let Some(index) = self.wav_index_for_path(relative_path) {
+                        let _ = self.ensure_wav_page_loaded(index);
+                        if let Some(wav) = self.wav_entries.entry_mut(index)
+                            && wav.user_tag == *expected_user_tag
+                        {
+                            wav.user_tag = before_user_tag.clone();
+                        }
+                    }
+                    if let Some(source_id) = self.selection_state.ctx.selected_source.as_ref()
+                        && let Some(cache) = self.cache.wav.entries.get_mut(source_id)
+                        && let Some(index) = cache.lookup.get(relative_path).copied()
+                        && let Some(wav) = cache.entry_mut(index)
+                        && wav.user_tag == *expected_user_tag
+                    {
+                        wav.user_tag = before_user_tag.clone();
+                    }
+                }
                 MetadataRollback::LastPlayedAt {
                     relative_path,
                     before_last_played_at,

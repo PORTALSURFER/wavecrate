@@ -40,6 +40,10 @@ pub struct SampleBrowserState {
     pub rename_focus_requested: bool,
     /// Active tab in the sample browser area.
     pub active_tab: SampleBrowserTab,
+    /// Whether the browser-local metadata tag sidebar is open.
+    pub tag_sidebar_open: bool,
+    /// Draft text for the sidebar custom-tag input.
+    pub tag_sidebar_input: String,
     /// Paths that should flash in the browser list after a copy action.
     pub copy_flash_paths: Vec<PathBuf>,
     /// Start time for the current browser copy flash.
@@ -60,6 +64,8 @@ impl Default for SampleBrowserState {
             pending_action: None,
             rename_focus_requested: false,
             active_tab: SampleBrowserTab::List,
+            tag_sidebar_open: false,
+            tag_sidebar_input: String::new(),
             copy_flash_paths: Vec::new(),
             copy_flash_at: None,
         }

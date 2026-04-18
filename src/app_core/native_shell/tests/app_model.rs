@@ -102,7 +102,7 @@ fn projection_distinguishes_source_loading_from_browser_filtering() {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(8, 8), None);
     controller.ui = ui;
     let projected_sources = project_sources_model(&controller);
-    let projected_browser = project_browser_panel_frame_model(&controller);
+    let projected_browser = project_browser_panel_frame_model(&mut controller);
     let status = project_status_model(&controller, 1);
 
     assert_eq!(projected_sources.loading_row, Some(0));

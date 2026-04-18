@@ -237,7 +237,11 @@ fn build_compact_entries(
     loaded_entries: &[crate::sample_sources::db::read::SearchEntryRow],
     queue: &SearchJobQueue,
     generation: u64,
-) -> Option<(Vec<CompactSearchEntry>, std::collections::HashMap<Arc<str>, usize>, u64)> {
+) -> Option<(
+    Vec<CompactSearchEntry>,
+    std::collections::HashMap<Arc<str>, usize>,
+    u64,
+)> {
     let mut compact_entries = Vec::with_capacity(loaded_entries.len());
     let mut entry_lookup = std::collections::HashMap::with_capacity(loaded_entries.len());
     let mut hasher = std::collections::hash_map::DefaultHasher::new();

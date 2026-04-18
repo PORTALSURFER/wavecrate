@@ -118,12 +118,18 @@ impl BrowserController<'_> {
             content_hash: None,
             tag,
             looped,
+            sound_type: entry_index
+                .and_then(|idx| self.wav_entries.entry(idx))
+                .and_then(|entry| entry.sound_type),
             locked: entry_index
                 .and_then(|idx| self.wav_entries.entry(idx))
                 .map(|entry| entry.locked)
                 .unwrap_or(false),
             missing: false,
             last_played_at,
+            user_tag: entry_index
+                .and_then(|idx| self.wav_entries.entry(idx))
+                .and_then(|entry| entry.user_tag.clone()),
         };
 
         let is_currently_loaded = self
@@ -412,7 +418,10 @@ pub(crate) fn run_sample_auto_rename_job(
         }
         let old_absolute = source.root.join(&request.old_relative);
         if request.old_relative == request.new_relative {
-            skipped.push((request.old_relative, String::from("Already matches auto-rename format")));
+            skipped.push((
+                request.old_relative,
+                String::from("Already matches auto-rename format"),
+            ));
             continue;
         }
         match perform_sample_rename(
@@ -510,9 +519,13 @@ fn perform_sample_rename(
                 content_hash: None,
                 tag,
                 looped,
+                sound_type,
                 locked,
                 missing: false,
                 last_played_at: last_played_at.or(fallback_last_played_at),
+                user_tag: db
+                    .user_tag_for_path(old_relative)
+                    .map_err(|err| format!("Failed to load custom tag: {err}"))?,
             })
         })
 }

@@ -44,11 +44,12 @@ impl AppController {
             .and_then(|index| self.wav_entry(index))
             .cloned()
             .ok_or_else(|| "Loaded sample is not available in the browser".to_string())?;
-        let ctx = crate::app::controller::library::browser_controller::helpers::TriageSampleContext {
-            source,
-            entry,
-            absolute_path,
-        };
+        let ctx =
+            crate::app::controller::library::browser_controller::helpers::TriageSampleContext {
+                source,
+                entry,
+                absolute_path,
+            };
         self.browser().try_normalize_browser_sample_ctx(&ctx)
     }
 
@@ -126,9 +127,11 @@ impl AppController {
                     content_hash: None,
                     tag: crate::sample_sources::Rating::NEUTRAL,
                     looped: false,
+                    sound_type: None,
                     locked: false,
                     missing: false,
                     last_played_at: None,
+                    user_tag: None,
                 },
                 absolute_path,
             };

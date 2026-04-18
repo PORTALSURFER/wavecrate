@@ -143,7 +143,10 @@ fn commit_focus_defers_audio_dispatch_until_frame_prepare() {
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(Path::new("two.wav"))
     );
-    assert_eq!(controller.ui.waveform.loading.as_deref(), Some(Path::new("two.wav")));
+    assert_eq!(
+        controller.ui.waveform.loading.as_deref(),
+        Some(Path::new("two.wav"))
+    );
     assert!(controller.runtime.jobs.pending_audio.is_none());
     assert!(controller.runtime.pending_browser_focus_commit.is_some());
     assert!(controller.history.focus_history.entries.is_empty());
@@ -161,12 +164,14 @@ fn commit_focus_defers_audio_dispatch_until_frame_prepare() {
             .map(|pending| pending.relative_path.as_path()),
         Some(Path::new("two.wav"))
     );
-    assert!(controller
-        .history
-        .focus_history
-        .entries
-        .back()
-        .is_some_and(|entry| entry.relative_path == Path::new("two.wav")));
+    assert!(
+        controller
+            .history
+            .focus_history
+            .entries
+            .back()
+            .is_some_and(|entry| entry.relative_path == Path::new("two.wav"))
+    );
     assert!(controller.runtime.pending_similarity_refresh.is_some());
 }
 
@@ -191,7 +196,10 @@ fn stale_commit_focus_loading_is_dropped_when_focus_changes_before_prepare() {
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(Path::new("one.wav"))
     );
-    assert_eq!(controller.ui.waveform.loading.as_deref(), Some(Path::new("two.wav")));
+    assert_eq!(
+        controller.ui.waveform.loading.as_deref(),
+        Some(Path::new("two.wav"))
+    );
 
     controller.prepare_native_frame(false);
 

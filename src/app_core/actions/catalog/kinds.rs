@@ -196,6 +196,8 @@ pub enum GuiActionKind {
     ToggleBrowserMarkedFilter,
     /// Toggle random browser-navigation mode.
     ToggleRandomNavigationMode,
+    /// Toggle the browser-local metadata tag sidebar.
+    ToggleBrowserTagSidebar,
     /// Toggle browser duplicate-cleanup mode for the focused browser sample.
     ToggleBrowserDuplicateCleanupMode,
     /// Focus the previous sample from browser history.
@@ -216,6 +218,18 @@ pub enum GuiActionKind {
     AdjustSelectedBrowserRating,
     /// Switch the browser between samples and map tabs.
     SetBrowserTab,
+    /// Focus the browser metadata custom-tag input.
+    FocusBrowserTagSidebarInput,
+    /// Set the browser metadata custom-tag input value.
+    SetBrowserTagSidebarInput,
+    /// Commit the browser metadata custom-tag input value.
+    CommitBrowserTagSidebarInput,
+    /// Clear the browser metadata custom user tag.
+    ClearBrowserTagSidebarUserTag,
+    /// Apply one playback-type value in the browser metadata sidebar.
+    SetBrowserSidebarLooped,
+    /// Apply one sound-type value in the browser metadata sidebar.
+    SetBrowserSidebarSoundType,
     /// Focus one sample in the map view.
     FocusMapSample,
     /// Set the active prompt input text.

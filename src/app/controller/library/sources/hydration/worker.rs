@@ -205,9 +205,11 @@ mod tests {
                 content_hash: None,
                 tag: Rating::NEUTRAL,
                 looped: false,
+                sound_type: None,
                 locked: false,
                 missing: false,
                 last_played_at: None,
+                user_tag: None,
             },
             WavEntry {
                 relative_path: PathBuf::from("kits/perc/snare.wav"),
@@ -216,9 +218,11 @@ mod tests {
                 content_hash: None,
                 tag: Rating::NEUTRAL,
                 looped: false,
+                sound_type: None,
                 locked: false,
                 missing: false,
                 last_played_at: None,
+                user_tag: None,
             },
         ];
 
@@ -247,9 +251,11 @@ mod tests {
             content_hash: None,
             tag: Rating::NEUTRAL,
             looped: false,
+            sound_type: None,
             locked: false,
             missing: false,
             last_played_at: None,
+            user_tag: None,
         }];
 
         let maps = build_hydration_entry_maps(temp.path(), &entries, false);
@@ -273,9 +279,11 @@ mod tests {
             content_hash: None,
             tag: Rating::NEUTRAL,
             looped: false,
+            sound_type: None,
             locked: false,
             missing: false,
             last_played_at: None,
+            user_tag: None,
         }];
 
         let maps = build_hydration_entry_maps(temp.path(), &entries, true);

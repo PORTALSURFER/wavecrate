@@ -151,9 +151,11 @@ fn build_written_entry(
         content_hash: None,
         tag,
         looped,
+        sound_type: None,
         locked: false,
         missing: false,
         last_played_at: None,
+        user_tag: None,
     })
 }
 

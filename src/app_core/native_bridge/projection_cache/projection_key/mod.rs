@@ -65,6 +65,7 @@ pub(super) fn derive_projection_key_parts(controller: &AppController) -> Derived
         browser_search_revision: browser_frame_key.browser_search_revision,
         browser_similarity_filtered: browser_frame_key.browser_similarity_filtered,
         browser_duplicate_cleanup_active: browser_frame_key.browser_duplicate_cleanup_active,
+        browser_tag_sidebar_open: browser_frame_key.browser_tag_sidebar_open,
         browser_filter: encode_browser_filter(controller.ui.browser.search.filter),
         browser_sort: browser_frame_key.browser_sort,
         browser_tab: browser_frame_key.browser_tab,

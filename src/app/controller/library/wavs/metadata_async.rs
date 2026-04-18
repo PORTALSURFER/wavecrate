@@ -177,6 +177,8 @@ fn metadata_mutation_paths(
         match op {
             SourceMetadataMutationOp::SetTagAndLocked { relative_path, .. }
             | SourceMetadataMutationOp::SetLooped { relative_path, .. }
+            | SourceMetadataMutationOp::SetSoundType { relative_path, .. }
+            | SourceMetadataMutationOp::SetUserTag { relative_path, .. }
             | SourceMetadataMutationOp::SetLastPlayedAt { relative_path, .. } => {
                 paths.insert(relative_path.clone());
             }
@@ -238,6 +240,22 @@ fn run_source_metadata_ops(
             } => {
                 batch
                     .set_looped(relative_path, *looped)
+                    .map_err(|err| err.to_string())?;
+            }
+            SourceMetadataMutationOp::SetSoundType {
+                relative_path,
+                sound_type,
+            } => {
+                batch
+                    .set_sound_type(relative_path, *sound_type)
+                    .map_err(|err| err.to_string())?;
+            }
+            SourceMetadataMutationOp::SetUserTag {
+                relative_path,
+                user_tag,
+            } => {
+                batch
+                    .set_user_tag(relative_path, user_tag.as_deref())
                     .map_err(|err| err.to_string())?;
             }
             SourceMetadataMutationOp::SetLastPlayedAt {

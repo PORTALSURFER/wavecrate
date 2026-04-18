@@ -20,6 +20,9 @@ pub type NativeBrowserChromeModel = radiant::app::BrowserChromeModel;
 /// Native runtime browser panel model.
 pub type NativeBrowserPanelModel = radiant::app::BrowserPanelModel;
 
+/// Native runtime browser tag-sidebar model.
+pub type NativeBrowserTagSidebarModel = radiant::app::BrowserTagSidebarModel;
+
 /// Native runtime browser playback-age row bucket model.
 pub type NativePlaybackAgeBucket = radiant::app::PlaybackAgeBucket;
 

@@ -11,9 +11,11 @@ fn browser_test_sample_entry(
         content_hash: None,
         tag,
         looped: false,
+        sound_type: None,
         locked: false,
         missing: false,
         last_played_at: None,
+        user_tag: None,
     }
 }
 

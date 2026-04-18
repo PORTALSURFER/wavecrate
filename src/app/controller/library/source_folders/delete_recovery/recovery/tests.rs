@@ -453,9 +453,11 @@ fn sample_entry(relative_path: &str) -> crate::sample_sources::WavEntry {
         content_hash: Some("abc123".into()),
         tag: crate::sample_sources::Rating::KEEP_1,
         looped: true,
+        sound_type: None,
         locked: true,
         missing: false,
         last_played_at: Some(456),
+        user_tag: None,
     }
 }
 

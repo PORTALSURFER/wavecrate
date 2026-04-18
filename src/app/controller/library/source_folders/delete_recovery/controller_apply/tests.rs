@@ -129,9 +129,11 @@ fn applying_recovery_report_tracks_retained_delete_entries() {
         content_hash: Some("hash".into()),
         tag: crate::sample_sources::Rating::KEEP_3,
         looped: true,
+        sound_type: None,
         locked: true,
         missing: false,
         last_played_at: Some(12),
+        user_tag: None,
     }];
 
     controller.apply_folder_delete_recovery_report(DeleteRecoveryReport {
