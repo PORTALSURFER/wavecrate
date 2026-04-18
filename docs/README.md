@@ -21,6 +21,7 @@ Start here:
 - `docs/gui_test_platform.md` — GUI action catalog, automation snapshot, runtime test mode, and AIV integration plan
 - `docs/design_principles.md` — architectural goals and constraints
 - `docs/radiant_slot_layout_spec.md` — strict hierarchical slot-based layout contract for `vendor/radiant`
+- `docs/radiant_library_architecture_plan.md` — target public architecture and migration plan for turning `vendor/radiant` into a reusable GUI library while keeping Sempal shippable
 - `docs/QUALITY_SCORE.md` — coarse quality scorecard and known gaps
 - `docs/plans/index.md` — current/archived plan index for parallel agents
 - `docs/plans/active/todo.md` — short ordered queue for the active execution lane
