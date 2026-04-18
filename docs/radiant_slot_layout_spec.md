@@ -528,13 +528,14 @@ For each container, assert exact output rects across:
 
 ## Current Implementation Status (Phase 19)
 
-- Sidebar chrome copy geometry now routes through slotized adapter helpers:
-  - `layout_adapter::compute_sidebar_header_text_layout(...)` for sidebar
-    header title/query text-line bounds
-  - `layout_adapter::compute_sidebar_footer_text_layout(...)` for sidebar
-    footer primary/secondary summary text-line bounds
-- Native-shell sidebar header/footer text rendering now consumes adapter-owned
-  line geometry instead of local sidebar chrome text-row arithmetic.
+- Sidebar header/footer chrome now composes through generic Radiant surfaces:
+  - `sidebar_surface::resolve_sidebar_header_surface_layout(...)` for sidebar
+    header title/query/add-button bounds
+  - `sidebar_surface::resolve_sidebar_footer_surface_layout(...)` for sidebar
+    footer summary/action-button bounds
+- Native-shell sidebar header/footer rendering, hit testing, and automation
+  now consume generic surface-owned geometry instead of the older local
+  sidebar chrome text/button helpers.
 
 ## Current Implementation Status (Phase 20)
 
