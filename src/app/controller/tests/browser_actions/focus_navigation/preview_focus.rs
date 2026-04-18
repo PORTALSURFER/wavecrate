@@ -229,16 +229,19 @@ fn shift_extension_after_keyboard_toggle_uses_preserved_anchor() {
 }
 
 #[test]
-fn native_focus_browser_row_queues_async_preview_without_blocking_selection() {
+fn native_focus_browser_row_clears_selection_and_queues_async_preview() {
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
         sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
         sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("three.wav", crate::sample_sources::Rating::NEUTRAL),
     ]);
     controller.settings.feature_flags.autoplay_selection = false;
     write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
     write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("three.wav"), &[0.0, 0.1]);
 
     controller.focus_browser_row_only(0);
+    controller.toggle_focused_selection();
     controller.sample_view.wav.loaded_wav = Some(PathBuf::from("one.wav"));
     controller.ui.loaded_wav = Some(PathBuf::from("one.wav"));
     controller.audio.pending_age_update = Some(PendingAgeUpdate {
@@ -281,6 +284,11 @@ fn native_focus_browser_row_queues_async_preview_without_blocking_selection() {
             .as_ref()
             .map(|pending| pending.relative_path.clone()),
         Some(PathBuf::from("two.wav"))
+    );
+    assert!(controller.ui.browser.selection.selected_paths.is_empty());
+    assert_eq!(
+        controller.ui.browser.selection.selection_anchor_visible,
+        Some(1)
     );
     assert!(controller.audio.pending_age_update.is_some());
     assert!(controller.runtime.pending_similarity_refresh.is_none());

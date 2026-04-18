@@ -24,7 +24,7 @@ pub(super) fn apply_browser_list_native_ui_action(
             controller.set_browser_view_start_action(visible_row)
         }
         NativeUiAction::FocusBrowserRow { visible_row } => {
-            controller.focus_browser_row_and_play_action(visible_row)
+            controller.focus_browser_row_from_pointer_action(visible_row)
         }
         NativeUiAction::SetCompareAnchorFromFocusedBrowserSample => {
             controller.set_compare_anchor_from_focused_browser_sample()

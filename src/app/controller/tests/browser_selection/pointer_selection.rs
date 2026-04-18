@@ -1,4 +1,6 @@
 use super::*;
+use crate::app_core::actions::NativeUiAction;
+use crate::app_core::controller::AppControllerNativeRuntimeExt;
 
 #[test]
 fn click_clears_selection_and_focuses_row() {
@@ -25,6 +27,37 @@ fn click_clears_selection_and_focuses_row() {
     assert_eq!(
         controller.ui.browser.selection.selection_anchor_visible,
         Some(2)
+    );
+}
+
+#[test]
+fn native_click_clears_selection_and_focuses_row() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.cache_db(&source).unwrap();
+    controller.set_wav_entries_for_tests(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("three.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+
+    controller.focus_browser_row_only(0);
+    controller.toggle_browser_row_selection(1);
+    assert_eq!(controller.ui.browser.selection.selected_paths.len(), 2);
+
+    controller.apply_native_ui_action(NativeUiAction::FocusBrowserRow { visible_row: 2 });
+
+    assert!(controller.ui.browser.selection.selected_paths.is_empty());
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(2));
+    assert_eq!(
+        controller.ui.browser.selection.selection_anchor_visible,
+        Some(2)
+    );
+    assert_eq!(
+        controller.ui.browser.selection.last_focused_path.as_deref(),
+        Some(Path::new("three.wav"))
     );
 }
 

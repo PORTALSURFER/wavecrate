@@ -142,6 +142,18 @@ impl AppController {
         self.request_async_preview_playback_for_focused_selection();
     }
 
+    /// Focus a browser row from a plain pointer click.
+    ///
+    /// Plain clicks intentionally clear any explicit multi-selection and move
+    /// only the focused row so later keyboard selection stays opt-in.
+    pub fn focus_browser_row_from_pointer_action(&mut self, visible_row: usize) {
+        self.record_meaningful_ui_transaction("Focus browser row", |controller| {
+            controller.clear_browser_selected_indices();
+            controller.focus_browser_row_only(visible_row);
+            controller.request_async_preview_playback_for_focused_selection();
+        });
+    }
+
     /// Focus a browser row with explicit preview-vs-commit semantics.
     pub fn focus_browser_row_with_intent(
         &mut self,
