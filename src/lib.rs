@@ -16,6 +16,8 @@ mod app;
 pub mod app_core;
 /// Application directory helpers.
 pub use sempal_library::app_dirs;
+#[cfg(test)]
+mod app_dirs_tests;
 /// Audio playback utilities.
 pub mod audio;
 /// Shared helpers used by companion binaries such as the installer and updater helper.

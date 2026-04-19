@@ -3,6 +3,8 @@
 //! The helpers centralize where config and log files live across platforms,
 //! defaulting to the OS config directory (e.g., `%APPDATA%` on Windows) and
 //! allowing a `SEMPAL_CONFIG_HOME` override for tests or portable setups.
+//! Test executables default to an isolated `automated-tests` profile unless
+//! they explicitly request the live profile or another config root.
 
 use std::{
     cell::RefCell,
@@ -19,8 +21,8 @@ pub const APP_DIR_NAME: &str = ".sempal";
 pub const PROFILE_DIR_NAME: &str = "profiles";
 
 const CONFIG_PROFILE_ENV: &str = "SEMPAL_CONFIG_PROFILE";
-#[cfg(test)]
 const TEST_PROFILE_NAME: &str = "automated-tests";
+const TEST_EXECUTABLE_DIR_NAME: &str = "deps";
 
 static CONFIG_BASE_OVERRIDE: LazyLock<Mutex<Option<PathBuf>>> = LazyLock::new(|| Mutex::new(None));
 static APP_ROOT_OVERRIDE: LazyLock<Mutex<Option<PathBuf>>> = LazyLock::new(|| Mutex::new(None));
@@ -44,6 +46,9 @@ thread_local! {
 
 /// Ensure tests do not touch real user config directories.
 pub fn ensure_test_config_base() {
+    if std::env::var_os("SEMPAL_CONFIG_HOME").is_some() {
+        return;
+    }
     let test_base = LazyLock::force(&TEST_CONFIG_BASE).clone();
     let mut guard = CONFIG_BASE_OVERRIDE
         .lock()
@@ -139,8 +144,7 @@ impl Drop for PersistenceProfileGuard {
 
 /// Return the root `.sempal` directory, creating it if needed.
 pub fn app_root_dir() -> Result<PathBuf, AppDirError> {
-    #[cfg(test)]
-    if current_profile_override().as_ref() != Some(&PersistenceProfile::Live) {
+    if should_auto_isolate_test_config_base() {
         ensure_test_config_base();
     }
 
@@ -227,10 +231,7 @@ fn config_base_dir() -> Option<PathBuf> {
 }
 
 fn resolve_profile_app_root(base: &std::path::Path) -> Result<PathBuf, AppDirError> {
-    match current_profile_override()
-        .or_else(profile_from_env)
-        .unwrap_or_else(default_profile)
-    {
+    match effective_profile() {
         PersistenceProfile::Live => Ok(base.join(APP_DIR_NAME)),
         PersistenceProfile::Named(profile) => {
             let sanitized = sanitize_profile_name(&profile)?;
@@ -240,6 +241,18 @@ fn resolve_profile_app_root(base: &std::path::Path) -> Result<PathBuf, AppDirErr
                 .join(sanitized))
         }
     }
+}
+
+fn effective_profile() -> PersistenceProfile {
+    current_profile_override()
+        .or_else(profile_from_env)
+        .unwrap_or_else(default_profile)
+}
+
+fn should_auto_isolate_test_config_base() -> bool {
+    std::env::var_os("SEMPAL_CONFIG_HOME").is_none()
+        && effective_profile() != PersistenceProfile::Live
+        && running_under_test_harness()
 }
 
 fn current_profile_override() -> Option<PersistenceProfile> {
@@ -259,14 +272,19 @@ fn profile_from_env() -> Option<PersistenceProfile> {
 }
 
 fn default_profile() -> PersistenceProfile {
-    #[cfg(test)]
-    {
+    if running_under_test_harness() {
         return PersistenceProfile::Named(String::from(TEST_PROFILE_NAME));
     }
-    #[cfg(not(test))]
-    {
-        PersistenceProfile::Live
-    }
+    PersistenceProfile::Live
+}
+
+fn running_under_test_harness() -> bool {
+    cfg!(test)
+        || std::env::current_exe().ok().is_some_and(|path| {
+            path.parent()
+                .and_then(std::path::Path::file_name)
+                .is_some_and(|name| name == TEST_EXECUTABLE_DIR_NAME)
+        })
 }
 
 fn sanitize_profile_name(profile: &str) -> Result<String, AppDirError> {

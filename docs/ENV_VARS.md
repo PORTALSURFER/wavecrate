@@ -115,7 +115,9 @@ Example: `SEMPAL_CONFIG_HOME=/tmp` causes logs to be written under
 Selects one named non-live persistence profile under the resolved app root.
 `SEMPAL_CONFIG_PROFILE=gui-test` writes config, logs, and `library.db` under
 `<config-base>/.sempal/profiles/gui-test/`. Set `SEMPAL_CONFIG_PROFILE=live`
-to force the real live app root explicitly.
+to force the real live app root explicitly. Test executables default to the
+named `automated-tests` profile when neither `SEMPAL_CONFIG_PROFILE` nor
+`SEMPAL_CONFIG_HOME` is set.
 
 ### What writes where (important for safe local runs)
 
