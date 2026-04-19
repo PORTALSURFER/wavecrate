@@ -1,14 +1,15 @@
 use super::base_stage::ensure_base_stage;
 use super::folder_stage::ensure_folder_acceptance_stage;
 use super::*;
-use crate::app::state::BrowserDuplicateCleanupState;
 use crate::app::state::{SampleBrowserSort, TriageFlagFilter, VisibleRows};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 mod filter_stage;
+mod results;
 mod sort_stage;
 
 use self::filter_stage::{ensure_filtered_stage, filtered_stage_fingerprint};
+use self::results::{visible_result_for_duplicate_cleanup, visible_result_from_sorted_stage};
 use self::sort_stage::{
     ensure_sorted_stage_for_filter_only, ensure_sorted_stage_for_query,
     ensure_sorted_stage_for_similar,
@@ -114,7 +115,7 @@ pub(super) fn build_visible_rows_with_now(
             &similar,
             playback_age_now_unix_secs,
         );
-        return visible_result_from_sorted(controller, focused_index, loaded_index);
+        return visible_result_from_sorted_stage(controller, focused_index, loaded_index);
     }
 
     let filtered_fingerprint = ensure_filtered_stage(
@@ -134,64 +135,11 @@ pub(super) fn build_visible_rows_with_now(
 
     if let Some(query) = query {
         ensure_sorted_stage_for_query(controller, filtered_fingerprint, sort_mode, &query);
-        return visible_result_from_sorted(controller, focused_index, loaded_index);
+        return visible_result_from_sorted_stage(controller, focused_index, loaded_index);
     }
 
     ensure_sorted_stage_for_filter_only(controller, filtered_fingerprint, sort_mode);
-    visible_result_from_sorted(controller, focused_index, loaded_index)
-}
-
-fn visible_result_for_duplicate_cleanup(
-    controller: &mut AppController,
-    focused_index: Option<usize>,
-    loaded_index: Option<usize>,
-    cleanup: &BrowserDuplicateCleanupState,
-) -> (VisibleRows, Option<usize>, Option<usize>) {
-    let entries_len = controller.ui_cache.browser.pipeline.compact_entries.len();
-    let mut selected_visible = None;
-    let mut loaded_visible = None;
-    let visible: Arc<[usize]> = cleanup
-        .indices
-        .iter()
-        .copied()
-        .filter(|index| *index < entries_len)
-        .enumerate()
-        .map(|(visible_row, index)| {
-            if focused_index == Some(index) {
-                selected_visible = Some(visible_row);
-            }
-            if loaded_index == Some(index) {
-                loaded_visible = Some(visible_row);
-            }
-            index
-        })
-        .collect::<Vec<_>>()
-        .into();
-    (VisibleRows::List(visible), selected_visible, loaded_visible)
-}
-
-/// Return the visible rows output from the sorted stage cache.
-fn visible_result_from_sorted(
-    controller: &mut AppController,
-    focused_index: Option<usize>,
-    loaded_index: Option<usize>,
-) -> (VisibleRows, Option<usize>, Option<usize>) {
-    let visible = Arc::clone(&controller.ui_cache.browser.pipeline.sorted_rows);
-    let selected_visible = focused_index.and_then(|index| {
-        controller
-            .ui_cache
-            .browser
-            .pipeline
-            .sorted_visible_position(index)
-    });
-    let loaded_visible = loaded_index.and_then(|index| {
-        controller
-            .ui_cache
-            .browser
-            .pipeline
-            .sorted_visible_position(index)
-    });
-    (VisibleRows::List(visible), selected_visible, loaded_visible)
+    visible_result_from_sorted_stage(controller, focused_index, loaded_index)
 }
 
 fn current_unix_secs() -> i64 {
