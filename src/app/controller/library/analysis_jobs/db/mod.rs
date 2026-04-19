@@ -8,6 +8,7 @@ mod enqueue;
 mod ids;
 mod jobs;
 mod progress;
+pub(crate) mod telemetry;
 mod types;
 
 #[cfg(test)]

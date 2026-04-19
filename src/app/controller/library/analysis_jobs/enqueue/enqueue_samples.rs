@@ -41,7 +41,7 @@ fn enqueue_samples(
             "Analysis enqueue skipped: no changed samples (source_id={})",
             request.source.id.as_str()
         );
-        return Ok((0, db::current_progress(&conn)?));
+        return Ok((0, db::current_progress(&conn, &request.source.root)?));
     }
 
     let sample_metadata =
@@ -62,6 +62,7 @@ fn enqueue_samples(
     let created_at = now_epoch_seconds();
     let (inserted, progress) = persist::write_changed_samples(
         &mut conn,
+        &request.source.root,
         &sample_metadata,
         &invalidate,
         &jobs,
@@ -127,7 +128,7 @@ fn enqueue_source_backfill(
                 request.source.id.as_str(),
                 force_full
             );
-            return Ok((0, db::current_progress(&conn)?));
+            return Ok((0, db::current_progress(&conn, &request.source.root)?));
         }
     }
     let staged_samples = scan::stage_samples_for_source(request.source, true)?;
@@ -137,7 +138,7 @@ fn enqueue_source_backfill(
             request.source.id.as_str(),
             force_full
         );
-        return Ok((0, db::current_progress(&conn)?));
+        return Ok((0, db::current_progress(&conn, &request.source.root)?));
     }
     enqueue_from_staged_samples(
         &mut conn,
@@ -168,7 +169,7 @@ fn enqueue_missing_features(
 
     let staged_samples = scan::stage_samples_for_source(request.source, false)?;
     if staged_samples.is_empty() {
-        return Ok((0, db::current_progress(&conn)?));
+        return Ok((0, db::current_progress(&conn, &request.source.root)?));
     }
     enqueue_from_staged_samples(
         &mut conn,
@@ -191,7 +192,7 @@ fn enqueue_from_staged_samples(
     source_id: &str,
 ) -> Result<(usize, AnalysisProgress), String> {
     if staged_samples.is_empty() {
-        return Ok((0, db::current_progress(conn)?));
+        return Ok((0, db::current_progress(conn, &source.root)?));
     }
     persist::stage_backfill_samples(conn, &staged_samples)?;
     let plan =
@@ -206,7 +207,7 @@ fn enqueue_from_staged_samples(
             job_type,
             force_full
         );
-        return Ok((0, db::current_progress(conn)?));
+        return Ok((0, db::current_progress(conn, &source.root)?));
     }
     info!(
         "Analysis backfill prepared (staged={}, jobs={}, failed_requeued={}, invalidate={}, source_id={}, job_type={}, force_full={})",
@@ -221,6 +222,7 @@ fn enqueue_from_staged_samples(
     let created_at = now_epoch_seconds();
     let (inserted, progress) = persist::write_backfill_samples(
         conn,
+        &source.root,
         &plan.sample_metadata,
         &plan.invalidate,
         &plan.jobs,

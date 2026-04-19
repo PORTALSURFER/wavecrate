@@ -1,24 +1,33 @@
 use super::super::types::{AnalysisProgress, RunningJobInfo};
 use super::constants::{ANALYZE_SAMPLE_JOB_TYPE, EMBEDDING_BACKFILL_JOB_TYPE};
+use super::telemetry;
 use rusqlite::Connection;
+use std::path::Path;
+use std::time::Instant;
 
-pub(crate) fn current_progress(conn: &Connection) -> Result<AnalysisProgress, String> {
-    current_progress_for_job_type(conn, ANALYZE_SAMPLE_JOB_TYPE, true)
+pub(crate) fn current_progress(
+    conn: &Connection,
+    source_root: &Path,
+) -> Result<AnalysisProgress, String> {
+    current_progress_for_job_type(conn, source_root, ANALYZE_SAMPLE_JOB_TYPE, true)
 }
 
 pub(crate) fn current_embedding_backfill_progress(
     conn: &Connection,
+    source_root: &Path,
 ) -> Result<AnalysisProgress, String> {
-    current_progress_for_job_type(conn, EMBEDDING_BACKFILL_JOB_TYPE, false)
+    current_progress_for_job_type(conn, source_root, EMBEDDING_BACKFILL_JOB_TYPE, false)
 }
 
 pub(crate) fn current_running_jobs(
     conn: &Connection,
+    source_root: &Path,
     limit: usize,
 ) -> Result<Vec<RunningJobInfo>, String> {
     if limit == 0 {
         return Ok(Vec::new());
     }
+    let started_at = Instant::now();
     let mut stmt = conn
         .prepare(
             "SELECT aj.sample_id, aj.running_at
@@ -46,11 +55,12 @@ pub(crate) fn current_running_jobs(
             last_heartbeat_at: running_at,
         });
     }
-    Ok(out)
+    telemetry::finish_query("analysis_running_jobs", source_root, started_at, Ok(out))
 }
 
 fn current_progress_for_job_type(
     conn: &Connection,
+    source_root: &Path,
     job_type: &str,
     filter_missing: bool,
 ) -> Result<AnalysisProgress, String> {
@@ -89,6 +99,7 @@ fn current_progress_for_job_type(
                AND status IN ('pending','running')",
         )
     };
+    let status_started_at = Instant::now();
     let mut stmt = conn
         .prepare(status_sql)
         .map_err(|err| format!("Failed to query analysis progress: {err}"))?;
@@ -111,14 +122,30 @@ fn current_progress_for_job_type(
             _ => {}
         }
     }
+    telemetry::finish_query(
+        "analysis_progress_status",
+        source_root,
+        status_started_at,
+        Ok(()),
+    )?;
 
-    progress.samples_total = conn
-        .query_row(total_sql, [job_type], |row| row.get::<_, i64>(0))
-        .map_err(|err| format!("Failed to query analysis sample total: {err}"))?
-        .max(0) as usize;
-    progress.samples_pending_or_running = conn
-        .query_row(pending_sql, [job_type], |row| row.get::<_, i64>(0))
-        .map_err(|err| format!("Failed to query analysis sample pending/running: {err}"))?
-        .max(0) as usize;
+    let total_started_at = Instant::now();
+    progress.samples_total = telemetry::finish_query(
+        "analysis_progress_total",
+        source_root,
+        total_started_at,
+        conn.query_row(total_sql, [job_type], |row| row.get::<_, i64>(0))
+            .map(|count| count.max(0) as usize)
+            .map_err(|err| format!("Failed to query analysis sample total: {err}")),
+    )?;
+    let pending_started_at = Instant::now();
+    progress.samples_pending_or_running = telemetry::finish_query(
+        "analysis_progress_pending",
+        source_root,
+        pending_started_at,
+        conn.query_row(pending_sql, [job_type], |row| row.get::<_, i64>(0))
+            .map(|count| count.max(0) as usize)
+            .map_err(|err| format!("Failed to query analysis sample pending/running: {err}")),
+    )?;
     Ok(progress)
 }

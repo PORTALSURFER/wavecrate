@@ -1,4 +1,5 @@
-use rusqlite::{Connection, TransactionBehavior, params};
+use super::telemetry;
+use rusqlite::{Connection, params};
 
 pub(crate) fn reset_running_to_pending(conn: &Connection) -> Result<usize, String> {
     conn.execute(
@@ -71,8 +72,7 @@ pub(crate) fn prune_jobs_for_missing_sources(conn: &Connection) -> Result<usize,
 }
 
 pub(crate) fn purge_orphaned_samples(conn: &mut Connection) -> Result<usize, String> {
-    let tx = conn
-        .transaction_with_behavior(TransactionBehavior::Immediate)
+    let tx = telemetry::begin_immediate_transaction(conn, "analysis_purge_orphans")
         .map_err(|err| format!("Failed to start purge transaction: {err}"))?;
     let mut removed = 0usize;
     for table in [
@@ -111,7 +111,7 @@ pub(crate) fn purge_orphaned_samples(conn: &mut Connection) -> Result<usize, Str
             .execute(&sql, params)
             .map_err(|err| format!("Failed to purge {table}: {err}"))?;
     }
-    tx.commit()
+    telemetry::commit_transaction(tx, "analysis_purge_orphans")
         .map_err(|err| format!("Failed to commit purge transaction: {err}"))?;
     Ok(removed)
 }

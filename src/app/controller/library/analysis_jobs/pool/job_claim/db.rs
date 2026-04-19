@@ -64,16 +64,18 @@ impl FinalizeJobContext<'_> {
         };
         match outcome {
             Ok(()) => {
-                update_job_status_with_retry(|| analysis_db::mark_done(conn, job.id));
+                update_job_status_with_retry(&job.source_root, "analysis_mark_done", || {
+                    analysis_db::mark_done(conn, job.id)
+                });
             }
             Err(err) => {
-                update_job_status_with_retry(|| {
+                update_job_status_with_retry(&job.source_root, "analysis_mark_failed", || {
                     analysis_db::mark_failed_with_reason(conn, job.id, &err)
                 });
             }
         }
         self.decode_queue.clear_inflight(job.id);
-        if let Ok(progress) = analysis_db::current_progress(conn) {
+        if let Ok(progress) = analysis_db::current_progress(conn, &job.source_root) {
             let source_id = analysis_db::parse_sample_id(&job.sample_id)
                 .ok()
                 .map(|(source_id, _)| crate::sample_sources::SourceId::from_string(source_id));
@@ -137,6 +139,14 @@ pub(crate) fn open_connection_with_retry<'a>(
                 match analysis_db::open_source_db(source_root) {
                     Ok(conn) => return Ok(entry.insert(conn)),
                     Err(err) => {
+                        analysis_db::telemetry::record_retry(
+                            "analysis_open_connection",
+                            source_root,
+                            attempt + 1,
+                            2,
+                            Duration::from_millis(50),
+                            &err,
+                        );
                         last_err = Some(err);
                         if attempt == 0 {
                             sleep(Duration::from_millis(50));

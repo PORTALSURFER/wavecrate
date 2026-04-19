@@ -56,6 +56,7 @@ mod tests {
         .unwrap();
         let mut sources = vec![ProgressSourceDb {
             source_id: crate::sample_sources::SourceId::from_string("source".to_string()),
+            source_root: dir.path().to_path_buf(),
             conn,
         }];
         let cache = Arc::new(RwLock::new(ProgressCache::default()));
@@ -104,6 +105,7 @@ mod tests {
         .unwrap();
         let mut sources = vec![ProgressSourceDb {
             source_id: crate::sample_sources::SourceId::from_string("source".to_string()),
+            source_root: dir.path().to_path_buf(),
             conn,
         }];
         let cache = Arc::new(RwLock::new(ProgressCache::default()));
@@ -133,6 +135,7 @@ mod tests {
         let source_id = crate::sample_sources::SourceId::from_string("source".to_string());
         let mut sources = vec![ProgressSourceDb {
             source_id: source_id.clone(),
+            source_root: dir.path().to_path_buf(),
             conn,
         }];
         let cache = Arc::new(RwLock::new(ProgressCache::default()));

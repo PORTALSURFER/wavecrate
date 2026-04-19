@@ -38,7 +38,7 @@ pub(super) fn cleanup_stale_jobs(
         if !touched_sources.contains(&source.source_id) {
             continue;
         }
-        if let Ok(progress) = db::current_progress(&source.conn) {
+        if let Ok(progress) = db::current_progress(&source.conn, &source.source_root) {
             updates.push((source.source_id.clone(), progress));
         }
     }

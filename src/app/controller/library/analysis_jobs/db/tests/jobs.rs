@@ -12,7 +12,7 @@ fn enqueue_jobs_dedupes_by_sample_and_type() {
     ];
     let inserted = enqueue_jobs(&mut db.conn, &jobs, DEFAULT_JOB_TYPE, 123, "s").unwrap();
     assert_eq!(inserted, 2);
-    let progress = current_progress(&db.conn).unwrap();
+    let progress = current_progress(&db.conn, std::path::Path::new("/tmp")).unwrap();
     assert_eq!(progress.pending, 1);
     assert_eq!(progress.total(), 1);
 }
@@ -24,7 +24,7 @@ fn progress_uses_relative_path_over_sample_id() {
     db.insert_job(
         JobRow::new("s::wrong.wav", DEFAULT_JOB_TYPE, "pending").with_source("s", "a.wav"),
     );
-    let progress = current_progress(&db.conn).unwrap();
+    let progress = current_progress(&db.conn, std::path::Path::new("/tmp")).unwrap();
     assert_eq!(progress.total(), 1);
     assert_eq!(progress.pending, 1);
 }

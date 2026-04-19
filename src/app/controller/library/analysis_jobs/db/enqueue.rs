@@ -1,7 +1,8 @@
+use super::telemetry;
 use super::types::SampleMetadata;
+use rusqlite::Connection;
 use rusqlite::params_from_iter;
 use rusqlite::types::Value;
-use rusqlite::{Connection, TransactionBehavior};
 
 pub(crate) fn enqueue_jobs(
     conn: &mut Connection,
@@ -13,11 +14,10 @@ pub(crate) fn enqueue_jobs(
     if jobs.is_empty() {
         return Ok(0);
     }
-    let tx = conn
-        .transaction_with_behavior(TransactionBehavior::Immediate)
+    let tx = telemetry::begin_immediate_transaction(conn, "analysis_enqueue")
         .map_err(|err| format!("Failed to start analysis enqueue transaction: {err}"))?;
     let inserted = enqueue_jobs_tx(&tx, jobs, job_type, created_at, source_id)?;
-    tx.commit()
+    telemetry::commit_transaction(tx, "analysis_enqueue")
         .map_err(|err| format!("Failed to commit analysis enqueue transaction: {err}"))?;
     Ok(inserted)
 }
@@ -89,11 +89,10 @@ pub(crate) fn upsert_samples(
     if samples.is_empty() {
         return Ok(0);
     }
-    let tx = conn
-        .transaction_with_behavior(TransactionBehavior::Immediate)
+    let tx = telemetry::begin_immediate_transaction(conn, "analysis_samples_upsert")
         .map_err(|err| format!("Failed to start samples upsert transaction: {err}"))?;
     let changed = upsert_samples_tx(&tx, samples)?;
-    tx.commit()
+    telemetry::commit_transaction(tx, "analysis_samples_upsert")
         .map_err(|err| format!("Failed to commit samples upsert transaction: {err}"))?;
     Ok(changed)
 }

@@ -12,6 +12,7 @@ mod pending_renames;
 pub mod read;
 /// SQLite schema management for sample source databases.
 pub mod schema;
+mod telemetry;
 /// Write-focused database helpers for sample sources.
 pub mod write;
 
@@ -433,6 +434,7 @@ fn open_source_database(
     allow_user_library_write: bool,
     mode: SourceDatabaseOpenMode,
 ) -> Result<SourceDatabase, SourceDbError> {
+    let open_started = std::time::Instant::now();
     if !root.is_dir() {
         return Err(SourceDbError::InvalidRoot(root.to_path_buf()));
     }
@@ -449,17 +451,132 @@ fn open_source_database(
 
     let db_path = root.join(DB_FILE_NAME);
     util::create_parent_if_needed(&db_path)?;
-    let connection = Connection::open(&db_path)?;
+    let connect_started = std::time::Instant::now();
+    let connection = match Connection::open(&db_path) {
+        Ok(connection) => {
+            telemetry::record_open_phase(
+                root,
+                &db_path,
+                mode.label(),
+                "connect",
+                false,
+                connect_started.elapsed(),
+                Ok(()),
+            );
+            connection
+        }
+        Err(err) => {
+            let err = SourceDbError::from(err);
+            telemetry::record_open_phase(
+                root,
+                &db_path,
+                mode.label(),
+                "connect",
+                false,
+                connect_started.elapsed(),
+                Err(&err),
+            );
+            telemetry::record_open_total(
+                root,
+                &db_path,
+                mode.label(),
+                false,
+                open_started.elapsed(),
+                Err(&err),
+            );
+            return Err(err);
+        }
+    };
     let db = SourceDatabase {
         connection,
         root: root.to_path_buf(),
     };
-    db.apply_pragmas()?;
-    match mode {
-        SourceDatabaseOpenMode::Fast => db.apply_schema_fast()?,
-        SourceDatabaseOpenMode::Full => db.apply_schema()?,
+    let pragmas_started = std::time::Instant::now();
+    if let Err(err) = db.apply_pragmas() {
+        telemetry::record_open_phase(
+            root,
+            &db_path,
+            mode.label(),
+            "pragmas",
+            false,
+            pragmas_started.elapsed(),
+            Err(&err),
+        );
+        telemetry::record_open_total(
+            root,
+            &db_path,
+            mode.label(),
+            false,
+            open_started.elapsed(),
+            Err(&err),
+        );
+        return Err(err);
     }
+    telemetry::record_open_phase(
+        root,
+        &db_path,
+        mode.label(),
+        "pragmas",
+        false,
+        pragmas_started.elapsed(),
+        Ok(()),
+    );
+    let schema_started = std::time::Instant::now();
+    let schema_result = match mode {
+        SourceDatabaseOpenMode::Fast => db.apply_schema_fast(),
+        SourceDatabaseOpenMode::Full => db.apply_schema(),
+    };
+    match schema_result {
+        Ok(()) => {
+            telemetry::record_open_phase(
+                root,
+                &db_path,
+                mode.label(),
+                "schema",
+                false,
+                schema_started.elapsed(),
+                Ok(()),
+            );
+        }
+        Err(err) => {
+            telemetry::record_open_phase(
+                root,
+                &db_path,
+                mode.label(),
+                "schema",
+                false,
+                schema_started.elapsed(),
+                Err(&err),
+            );
+            telemetry::record_open_total(
+                root,
+                &db_path,
+                mode.label(),
+                false,
+                open_started.elapsed(),
+                Err(&err),
+            );
+            return Err(err);
+        }
+    }
+    telemetry::record_open_total(
+        root,
+        &db_path,
+        mode.label(),
+        false,
+        open_started.elapsed(),
+        Ok(()),
+    );
     Ok(db)
+}
+
+impl SourceDatabaseOpenMode {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Fast => "fast",
+            Self::Full => "full",
+        }
+    }
 }
 
 fn should_open_source_db_read_only() -> bool {

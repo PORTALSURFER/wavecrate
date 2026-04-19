@@ -3,6 +3,7 @@ use crate::app::controller::library::analysis_jobs::types::AnalysisProgress;
 
 pub(crate) fn write_changed_samples(
     conn: &mut rusqlite::Connection,
+    source_root: &std::path::Path,
     sample_metadata: &[db::SampleMetadata],
     invalidate: &[String],
     jobs: &[(String, String)],
@@ -20,12 +21,13 @@ pub(crate) fn write_changed_samples(
         created_at,
         source_id,
     )?;
-    let progress = db::current_progress(conn)?;
+    let progress = db::current_progress(conn, source_root)?;
     Ok((inserted, progress))
 }
 
 pub(crate) fn write_backfill_samples(
     conn: &mut rusqlite::Connection,
+    source_root: &std::path::Path,
     sample_metadata: &[db::SampleMetadata],
     invalidate: &[String],
     jobs: &[(String, String)],
@@ -38,7 +40,7 @@ pub(crate) fn write_backfill_samples(
     }
     db::upsert_samples(conn, sample_metadata)?;
     let inserted = db::enqueue_jobs(conn, jobs, job_type, created_at, source_id)?;
-    let progress = db::current_progress(conn)?;
+    let progress = db::current_progress(conn, source_root)?;
     Ok((inserted, progress))
 }
 

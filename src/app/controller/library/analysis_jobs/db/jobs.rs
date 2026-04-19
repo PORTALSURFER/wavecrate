@@ -1,5 +1,6 @@
+use super::telemetry;
 use super::types::ClaimedJob;
-use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params, params_from_iter};
+use rusqlite::{Connection, OptionalExtension, params, params_from_iter};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -73,8 +74,7 @@ pub(crate) fn update_sample_bpms(
     let bpm = bpm
         .filter(|value| value.is_finite() && *value > 0.0)
         .map(|value| value as f64);
-    let tx = conn
-        .transaction_with_behavior(TransactionBehavior::Immediate)
+    let tx = telemetry::begin_immediate_transaction(conn, "analysis_update_bpms")
         .map_err(|err| format!("Failed to start BPM update transaction: {err}"))?;
     let mut updated = 0usize;
     for sample_id in sample_ids {
@@ -89,7 +89,7 @@ pub(crate) fn update_sample_bpms(
         }
         updated = updated.saturating_add(count);
     }
-    tx.commit()
+    telemetry::commit_transaction(tx, "analysis_update_bpms")
         .map_err(|err| format!("Failed to commit BPM updates: {err}"))?;
     Ok(updated)
 }
@@ -186,8 +186,7 @@ pub(crate) fn claim_next_jobs(
     if limit == 0 {
         return Ok(Vec::new());
     }
-    let tx = conn
-        .transaction_with_behavior(TransactionBehavior::Immediate)
+    let tx = telemetry::begin_immediate_transaction(conn, "analysis_claim_jobs")
         .map_err(|err| format!("Failed to start analysis claim transaction: {err}"))?;
     let running_at = now_epoch_seconds();
     let mut jobs = Vec::new();
@@ -249,11 +248,11 @@ pub(crate) fn claim_next_jobs(
         }
     }
     if jobs.is_empty() {
-        tx.commit()
+        telemetry::commit_transaction(tx, "analysis_claim_jobs_empty")
             .map_err(|err| format!("Failed to commit empty analysis claim transaction: {err}"))?;
         return Ok(Vec::new());
     }
-    tx.commit()
+    telemetry::commit_transaction(tx, "analysis_claim_jobs")
         .map_err(|err| format!("Failed to commit analysis claim transaction: {err}"))?;
     Ok(jobs)
 }

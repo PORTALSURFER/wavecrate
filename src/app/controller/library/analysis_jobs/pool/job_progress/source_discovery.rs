@@ -7,6 +7,7 @@ use super::SOURCE_REFRESH_INTERVAL;
 /// Open source database handle tracked by the progress poller.
 pub(super) struct ProgressSourceDb {
     pub(super) source_id: crate::sample_sources::SourceId,
+    pub(super) source_root: std::path::PathBuf,
     pub(super) conn: Connection,
 }
 
@@ -39,6 +40,7 @@ pub(super) fn refresh_sources(
         };
         next.push(ProgressSourceDb {
             source_id: source.id.clone(),
+            source_root: source.root,
             conn,
         });
     }

@@ -22,7 +22,7 @@ pub(super) fn current_progress_all(
         let mut total = AnalysisProgress::default();
         let mut updates = Vec::new();
         for source in sources {
-            if let Ok(progress) = db::current_progress(&source.conn) {
+            if let Ok(progress) = db::current_progress(&source.conn, &source.source_root) {
                 total.pending += progress.pending;
                 total.running += progress.running;
                 total.done += progress.done;

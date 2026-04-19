@@ -26,7 +26,7 @@ pub(crate) fn enqueue_jobs_for_embedding_samples(
             "Embedding backfill skipped: no sample ids provided (source_id={})",
             source.id.as_str()
         );
-        return Ok((0, db::current_progress(&conn)?));
+        return Ok((0, db::current_progress(&conn, &source.root)?));
     }
 
     const BATCH_SIZE: usize = 32;
@@ -49,7 +49,7 @@ pub(crate) fn enqueue_jobs_for_embedding_samples(
     if inserted > 0 {
         wakeup::notify_claim_wakeup();
     }
-    let progress = db::current_progress(&conn)?;
+    let progress = db::current_progress(&conn, &source.root)?;
     info!(
         "Embedding backfill enqueued (inserted={}, jobs={}, source_id={})",
         inserted,
@@ -80,7 +80,7 @@ fn enqueue_embedding_backfill(
             active_jobs,
             request.source.id.as_str()
         );
-        return Ok((0, db::current_progress(&conn)?));
+        return Ok((0, db::current_progress(&conn, &request.source.root)?));
     }
 
     let mut sample_ids = Vec::new();
@@ -116,7 +116,7 @@ fn enqueue_embedding_backfill(
             "Embedding backfill skipped: no missing embeddings (source_id={})",
             request.source.id.as_str()
         );
-        return Ok((0, db::current_progress(&conn)?));
+        return Ok((0, db::current_progress(&conn, &request.source.root)?));
     }
 
     let created_at = now_epoch_seconds();
@@ -137,7 +137,7 @@ fn enqueue_embedding_backfill(
     if inserted > 0 {
         wakeup::notify_claim_wakeup();
     }
-    let progress = db::current_progress(&conn)?;
+    let progress = db::current_progress(&conn, &request.source.root)?;
     info!(
         "Embedding backfill enqueued (inserted={}, jobs={}, sample_ids={}, source_id={})",
         inserted,
