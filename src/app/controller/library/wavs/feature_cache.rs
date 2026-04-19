@@ -152,15 +152,16 @@ impl AppController {
 
     /// Return cached browser feature metadata for one entry when the selected-source cache is safe.
     pub(crate) fn cached_feature_status_for_entry(
-        &self,
+        &mut self,
         entry_index: usize,
     ) -> Option<&FeatureStatus> {
-        let source_id = self.selection_state.ctx.selected_source.as_ref()?;
+        let source_id = self.selection_state.ctx.selected_source.clone()?;
+        let current_key = self.current_browser_feature_cache_key()?;
         self.ui_cache
             .browser
             .features
-            .get(source_id)
-            .filter(|cache| cache.rows.len() == self.wav_entries_len())
+            .get(&source_id)
+            .filter(|cache| cache.key == current_key)
             .and_then(|cache| cache.rows.get(entry_index))
             .and_then(|row| row.as_ref())
     }

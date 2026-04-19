@@ -1,5 +1,5 @@
 use super::super::test_support::{dummy_controller, sample_entry};
-use crate::app::controller::{FeatureCache, FeatureCacheKey, FeatureStatus};
+use crate::app::controller::{FeatureCache, FeatureStatus};
 use crate::app_core::native_shell::project_browser_rows_model_into;
 use crate::sample_sources::Rating;
 use std::path::PathBuf;
@@ -23,13 +23,14 @@ fn cached_browser_row_metadata_prefers_bpm_loop_and_long_without_rating_text() {
         .entry(source.id.clone())
         .or_default()
         .insert(PathBuf::from("kick.wav"), Some(128.0));
+    let feature_cache_key = controller
+        .current_browser_feature_cache_snapshot()
+        .expect("current browser feature cache snapshot")
+        .key;
     controller.ui_cache.browser.features.insert(
         source.id.clone(),
         FeatureCache {
-            key: FeatureCacheKey {
-                entries_len: 1,
-                entries_hash: 0,
-            },
+            key: feature_cache_key,
             rows: vec![Some(FeatureStatus {
                 has_features_v1: true,
                 has_embedding: false,
