@@ -1,15 +1,15 @@
 use super::super::super::projection_key_encoding::{encode_browser_sort, encode_browser_tab};
 use super::super::{
     BrowserFrameProjectionCacheKey, BrowserRowsProjectionCacheKey,
-    BrowserRowsStateProjectionCacheKey,
+    BrowserRowsStateProjectionCacheKey, BrowserTagSidebarProjectionCacheKey,
 };
+use super::shared::hash_string_for_projection_key;
 use crate::app_core::controller::AppController;
 
 /// Build a browser-frame projection key from the current controller snapshot.
 pub(super) fn build_browser_frame_projection_key(
     controller: &AppController,
 ) -> BrowserFrameProjectionCacheKey {
-    let sidebar_targets = controller.browser_tag_sidebar_target_snapshot();
     BrowserFrameProjectionCacheKey {
         browser_visible_len: controller.ui.browser.viewport.visible.len(),
         browser_selected_visible: controller.ui.browser.selection.selected_visible,
@@ -17,16 +17,10 @@ pub(super) fn build_browser_frame_projection_key(
         browser_autoscroll: controller.ui.browser.selection.autoscroll,
         browser_view_window_start: controller.ui.browser.viewport.view_window_start,
         browser_selected_paths_len: controller.ui.browser.selection.selected_paths.len(),
-        browser_selected_paths_revision: controller.ui.browser.selection.selected_paths_revision,
-        browser_row_metadata_revision: controller.ui.projection_revisions.browser_row_metadata,
-        browser_tag_sidebar_selected_count: sidebar_targets.selected_count(),
-        browser_tag_sidebar_primary_hash: sidebar_targets.primary_identity_hash(),
-        browser_tag_sidebar_target_hash: sidebar_targets.target_identity_hash(),
         browser_search_revision: controller.ui.projection_revisions.browser_search,
         browser_search_busy: controller.ui.browser.search.search_busy,
         browser_similarity_filtered: controller.ui.browser.search.similar_query.is_some(),
         browser_duplicate_cleanup_active: controller.ui.browser.duplicate_cleanup.is_some(),
-        browser_tag_sidebar_open: controller.ui.browser.tag_sidebar_open,
         browser_sort: encode_browser_sort(controller.ui.browser.search.sort),
         browser_tab: encode_browser_tab(controller.ui.browser.active_tab),
         browser_similarity_follow_loaded: controller
@@ -35,6 +29,24 @@ pub(super) fn build_browser_frame_projection_key(
             .search
             .similarity_sort_follow_loaded,
         loaded_wav_revision: controller.ui.projection_revisions.loaded_wav,
+    }
+}
+
+/// Build a browser tag-sidebar projection key from the current controller snapshot.
+pub(super) fn build_browser_tag_sidebar_projection_key(
+    controller: &AppController,
+) -> BrowserTagSidebarProjectionCacheKey {
+    let sidebar_targets = controller.browser_tag_sidebar_target_snapshot();
+    BrowserTagSidebarProjectionCacheKey {
+        browser_row_metadata_revision: controller.ui.projection_revisions.browser_row_metadata,
+        browser_tag_sidebar_selected_count: sidebar_targets.selected_count(),
+        browser_tag_sidebar_primary_hash: sidebar_targets.primary_identity_hash(),
+        browser_tag_sidebar_target_hash: sidebar_targets.target_identity_hash(),
+        browser_tag_sidebar_input_hash: hash_string_for_projection_key(
+            &controller.ui.browser.tag_sidebar_input,
+        ),
+        browser_tag_sidebar_open: controller.ui.browser.tag_sidebar_open,
+        browser_tab: encode_browser_tab(controller.ui.browser.active_tab),
     }
 }
 

@@ -214,6 +214,16 @@ pub(super) fn trace_projection_segment_lookup(segment: ProjectionSegment, hit: b
                 .projection_browser_frame_segment_miss_count
                 .fetch_add(1, Ordering::Relaxed);
         }
+        (ProjectionSegment::BrowserTagSidebar, true) => {
+            BRIDGE_METRICS
+                .projection_browser_tag_sidebar_segment_hit_count
+                .fetch_add(1, Ordering::Relaxed);
+        }
+        (ProjectionSegment::BrowserTagSidebar, false) => {
+            BRIDGE_METRICS
+                .projection_browser_tag_sidebar_segment_miss_count
+                .fetch_add(1, Ordering::Relaxed);
+        }
         (ProjectionSegment::BrowserRowsWindow, true) => {
             BRIDGE_METRICS
                 .projection_browser_rows_segment_hit_count

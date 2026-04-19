@@ -28,6 +28,7 @@ pub(super) fn resolve_or_project_with_derived(
         trace_projection_cache_lookup(true);
         cache.record_segment_lookup(ProjectionSegment::StatusBar, true);
         cache.record_segment_lookup(ProjectionSegment::BrowserFrame, true);
+        cache.record_segment_lookup(ProjectionSegment::BrowserTagSidebar, true);
         cache.record_segment_lookup(ProjectionSegment::BrowserRowsWindow, true);
         cache.record_segment_lookup(ProjectionSegment::MapPanel, true);
         cache.record_segment_lookup(ProjectionSegment::WaveformOverlay, true);
@@ -50,6 +51,17 @@ pub(super) fn resolve_or_project_with_derived(
     let browser_frame_changed =
         materialize_browser_frame_segment(cache, model, controller, derived, has_retained_model);
     if browser_frame_changed {
+        dirty_segments.insert(NativeDirtySegments::BROWSER_FRAME);
+    }
+
+    let browser_tag_sidebar_changed = materialize_browser_tag_sidebar_segment(
+        cache,
+        model,
+        controller,
+        derived,
+        has_retained_model,
+    );
+    if browser_tag_sidebar_changed {
         dirty_segments.insert(NativeDirtySegments::BROWSER_FRAME);
     }
 
@@ -105,7 +117,16 @@ fn apply_browser_frame(model: &mut NativeAppModel, frame: NativeBrowserPanelMode
     model.browser.active_tab_label = frame.active_tab_label;
     model.browser.focused_sample_label = frame.focused_sample_label;
     model.browser.anchor_visible_row = frame.anchor_visible_row;
-    model.browser.tag_sidebar = frame.tag_sidebar;
+}
+
+/// Copy tag-sidebar fields without rematerializing unrelated browser chrome.
+fn apply_browser_tag_sidebar(
+    model: &mut NativeAppModel,
+    focused_sample_label: Option<String>,
+    tag_sidebar: radiant::app::BrowserTagSidebarModel,
+) {
+    model.browser.focused_sample_label = focused_sample_label;
+    model.browser.tag_sidebar = tag_sidebar;
 }
 
 /// Refresh always-on non-segment metadata that is not covered by static keys.
@@ -208,6 +229,33 @@ fn materialize_browser_frame_segment(
         cache.browser_frame_key = Some(derived.browser_frame_key.clone());
     } else {
         cache.record_segment_lookup(ProjectionSegment::BrowserFrame, true);
+    }
+    changed
+}
+
+/// Materialize browser tag-sidebar fields when sidebar-specific inputs changed.
+fn materialize_browser_tag_sidebar_segment(
+    cache: &mut NativeProjectionCache,
+    model: &mut NativeAppModel,
+    controller: &mut AppController,
+    derived: &DerivedProjectionState,
+    has_retained_model: bool,
+) -> bool {
+    let changed = segment_key_changed(
+        has_retained_model,
+        &cache.browser_tag_sidebar_key,
+        &derived.browser_tag_sidebar_key,
+    );
+    if changed {
+        cache.record_segment_lookup(ProjectionSegment::BrowserTagSidebar, false);
+        apply_browser_tag_sidebar(
+            model,
+            native_shell::project_browser_focused_sample_label(controller),
+            native_shell::project_browser_tag_sidebar_model(controller),
+        );
+        cache.browser_tag_sidebar_key = Some(derived.browser_tag_sidebar_key.clone());
+    } else {
+        cache.record_segment_lookup(ProjectionSegment::BrowserTagSidebar, true);
     }
     changed
 }

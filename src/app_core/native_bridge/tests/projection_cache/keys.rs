@@ -109,6 +109,19 @@ fn projection_cache_key_changes_when_browser_sidebar_metadata_changes() {
 }
 
 #[test]
+/// Projection cache key should change when sidebar input text changes.
+fn projection_cache_key_changes_when_browser_sidebar_input_changes() {
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    controller.ui.browser.tag_sidebar_open = true;
+    let first = build_projection_cache_key(&controller);
+
+    controller.ui.browser.tag_sidebar_input = String::from("texture");
+
+    let second = build_projection_cache_key(&controller);
+    assert_ne!(first, second);
+}
+
+#[test]
 /// Projection cache key should change when the focused sidebar target swaps at the same count.
 fn projection_cache_key_changes_when_browser_sidebar_focus_target_changes() {
     let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);

@@ -7,6 +7,7 @@ fn projection_segment_noop_pull_hits_all_segments() {
     assert_eq!(dirty_segments, NativeDirtySegments::empty());
     assert_segment_lookup_counts(lookup_counts.status_bar, 1, 0);
     assert_segment_lookup_counts(lookup_counts.browser_frame, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.browser_tag_sidebar, 1, 0);
     assert_segment_lookup_counts(lookup_counts.browser_rows_window, 1, 0);
     assert_segment_lookup_counts(lookup_counts.map_panel, 1, 0);
     assert_segment_lookup_counts(lookup_counts.waveform_overlay, 1, 0);
@@ -25,6 +26,7 @@ fn projection_segment_status_dirty_mask_and_lookup_counts() {
     );
     assert_segment_lookup_counts(lookup_counts.status_bar, 0, 1);
     assert_segment_lookup_counts(lookup_counts.browser_frame, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.browser_tag_sidebar, 1, 0);
     assert_segment_lookup_counts(lookup_counts.browser_rows_window, 1, 0);
     assert_segment_lookup_counts(lookup_counts.map_panel, 1, 0);
     assert_segment_lookup_counts(lookup_counts.waveform_overlay, 1, 0);
@@ -42,6 +44,7 @@ fn projection_segment_browser_frame_dirty_mask_and_lookup_counts() {
     );
     assert_segment_lookup_counts(lookup_counts.status_bar, 1, 0);
     assert_segment_lookup_counts(lookup_counts.browser_frame, 0, 1);
+    assert_segment_lookup_counts(lookup_counts.browser_tag_sidebar, 1, 0);
     assert_segment_lookup_counts(lookup_counts.browser_rows_window, 1, 0);
     assert_segment_lookup_counts(lookup_counts.map_panel, 1, 0);
     assert_segment_lookup_counts(lookup_counts.waveform_overlay, 1, 0);
@@ -126,8 +129,30 @@ fn projection_segment_browser_frame_copies_marked_filter_state() {
 }
 
 #[test]
-/// Sidebar metadata edits should invalidate the retained browser frame on the next pull.
-fn projection_segment_browser_frame_refreshes_sidebar_pills_after_metadata_edit() {
+/// Sidebar input edits should miss the dedicated sidebar segment without rebuilding frame chrome.
+fn projection_segment_browser_tag_sidebar_refreshes_input_without_browser_frame_churn() {
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    controller.ui.browser.tag_sidebar_open = true;
+    let mut cache = NativeProjectionCache::default();
+    let _ = cache.resolve_or_project(&mut controller);
+    let _ = cache.take_segment_lookup_counts();
+
+    controller.ui.browser.tag_sidebar_input = String::from("texture");
+
+    let (model, dirty_segments) = cache.resolve_or_project(&mut controller);
+    assert_eq!(
+        dirty_segments,
+        NativeDirtySegments::from_bits(NativeDirtySegments::BROWSER_FRAME)
+    );
+    let lookup_counts = cache.take_segment_lookup_counts();
+    assert_segment_lookup_counts(lookup_counts.browser_frame, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.browser_tag_sidebar, 0, 1);
+    assert_eq!(model.browser.tag_sidebar.input_value.as_str(), "texture");
+}
+
+#[test]
+/// Sidebar metadata edits should invalidate the dedicated retained sidebar contract.
+fn projection_segment_browser_tag_sidebar_refreshes_pills_after_metadata_edit() {
     let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
     let temp = tempfile::tempdir().unwrap();
     let root = temp.path().join("source");
@@ -153,6 +178,7 @@ fn projection_segment_browser_frame_refreshes_sidebar_pills_after_metadata_edit(
 
     let mut cache = NativeProjectionCache::default();
     let (first_model, _) = cache.resolve_or_project(&mut controller);
+    let _ = cache.take_segment_lookup_counts();
     assert_eq!(
         first_model.browser.tag_sidebar.playback_type_pills[0].state,
         radiant::app::BrowserTagState::Off
@@ -169,6 +195,10 @@ fn projection_segment_browser_frame_refreshes_sidebar_pills_after_metadata_edit(
             NativeDirtySegments::BROWSER_FRAME | NativeDirtySegments::BROWSER_ROWS_WINDOW
         )
     );
+    let lookup_counts = cache.take_segment_lookup_counts();
+    assert_segment_lookup_counts(lookup_counts.browser_frame, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.browser_tag_sidebar, 0, 1);
+    assert_segment_lookup_counts(lookup_counts.browser_rows_window, 0, 1);
     assert_eq!(
         second_model.browser.tag_sidebar.playback_type_pills[0].state,
         radiant::app::BrowserTagState::On
@@ -180,8 +210,8 @@ fn projection_segment_browser_frame_refreshes_sidebar_pills_after_metadata_edit(
 }
 
 #[test]
-/// Same-count sidebar target swaps should not reuse retained header or pill state.
-fn projection_segment_browser_frame_refreshes_sidebar_for_same_count_selection_swap() {
+/// Same-count sidebar target swaps should miss the sidebar segment without forcing frame churn.
+fn projection_segment_browser_tag_sidebar_refreshes_for_same_count_selection_swap() {
     let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
     controller.ui.browser.tag_sidebar_open = true;
     controller.set_wav_entries_for_tests(vec![
@@ -217,6 +247,7 @@ fn projection_segment_browser_frame_refreshes_sidebar_for_same_count_selection_s
 
     let mut cache = NativeProjectionCache::default();
     let (first_model, _) = cache.resolve_or_project(&mut controller);
+    let _ = cache.take_segment_lookup_counts();
     assert_eq!(
         first_model.browser.tag_sidebar.header_label.as_str(),
         "first.wav"
@@ -236,6 +267,10 @@ fn projection_segment_browser_frame_refreshes_sidebar_for_same_count_selection_s
             NativeDirtySegments::BROWSER_FRAME | NativeDirtySegments::BROWSER_ROWS_WINDOW
         )
     );
+    let lookup_counts = cache.take_segment_lookup_counts();
+    assert_segment_lookup_counts(lookup_counts.browser_frame, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.browser_tag_sidebar, 0, 1);
+    assert_segment_lookup_counts(lookup_counts.browser_rows_window, 0, 1);
     assert_eq!(
         second_model.browser.tag_sidebar.header_label.as_str(),
         "second.wav"
@@ -253,12 +288,11 @@ fn projection_segment_browser_rows_dirty_mask_and_lookup_counts() {
     });
     assert_eq!(
         dirty_segments,
-        NativeDirtySegments::from_bits(
-            NativeDirtySegments::BROWSER_FRAME | NativeDirtySegments::BROWSER_ROWS_WINDOW
-        )
+        NativeDirtySegments::from_bits(NativeDirtySegments::BROWSER_ROWS_WINDOW)
     );
     assert_segment_lookup_counts(lookup_counts.status_bar, 1, 0);
-    assert_segment_lookup_counts(lookup_counts.browser_frame, 0, 1);
+    assert_segment_lookup_counts(lookup_counts.browser_frame, 1, 0);
+    assert_segment_lookup_counts(lookup_counts.browser_tag_sidebar, 1, 0);
     assert_segment_lookup_counts(lookup_counts.browser_rows_window, 0, 1);
     assert_segment_lookup_counts(lookup_counts.map_panel, 1, 0);
     assert_segment_lookup_counts(lookup_counts.waveform_overlay, 1, 0);
@@ -278,6 +312,7 @@ fn projection_segment_browser_anchor_change_skips_browser_rows_window() {
     );
     assert_segment_lookup_counts(lookup_counts.status_bar, 0, 1);
     assert_segment_lookup_counts(lookup_counts.browser_frame, 0, 1);
+    assert_segment_lookup_counts(lookup_counts.browser_tag_sidebar, 1, 0);
     assert_segment_lookup_counts(lookup_counts.browser_rows_window, 1, 0);
     assert_segment_lookup_counts(lookup_counts.map_panel, 1, 0);
     assert_segment_lookup_counts(lookup_counts.waveform_overlay, 1, 0);
@@ -297,6 +332,7 @@ fn projection_segment_browser_focus_change_updates_frame_and_rows() {
     );
     assert_segment_lookup_counts(lookup_counts.status_bar, 1, 0);
     assert_segment_lookup_counts(lookup_counts.browser_frame, 0, 1);
+    assert_segment_lookup_counts(lookup_counts.browser_tag_sidebar, 1, 0);
     assert_segment_lookup_counts(lookup_counts.browser_rows_window, 0, 1);
     assert_segment_lookup_counts(lookup_counts.map_panel, 1, 0);
     assert_segment_lookup_counts(lookup_counts.waveform_overlay, 1, 0);

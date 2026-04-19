@@ -15,6 +15,7 @@ pub(super) struct DerivedProjectionKeyParts {
     pub(super) selected_column: usize,
     pub(super) status_key: super::StatusProjectionCacheKey,
     pub(super) browser_frame_key: super::BrowserFrameProjectionCacheKey,
+    pub(super) browser_tag_sidebar_key: super::BrowserTagSidebarProjectionCacheKey,
     pub(super) browser_rows_key: super::BrowserRowsProjectionCacheKey,
     pub(super) browser_rows_state_key: super::BrowserRowsStateProjectionCacheKey,
     pub(super) map_key: super::MapProjectionCacheKey,
@@ -34,6 +35,7 @@ pub(super) fn derive_projection_key_parts(controller: &AppController) -> Derived
     let selected_column = crate::app_core::native_shell::selected_column_index(&controller.ui);
     let status_key = build_status_projection_key(controller, selected_column);
     let browser_frame_key = build_browser_frame_projection_key(controller);
+    let browser_tag_sidebar_key = build_browser_tag_sidebar_projection_key(controller);
     let browser_rows_key = build_browser_rows_projection_key(controller);
     let browser_rows_state_key = build_browser_rows_state_projection_key(controller);
     let map_key = build_map_projection_key(controller);
@@ -62,13 +64,15 @@ pub(super) fn derive_projection_key_parts(controller: &AppController) -> Derived
         browser_selected_paths_len: browser_frame_key.browser_selected_paths_len,
         browser_selected_paths_revision: browser_rows_state_key.browser_selected_paths_revision,
         browser_row_metadata_revision: browser_rows_key.browser_row_metadata_revision,
-        browser_tag_sidebar_selected_count: browser_frame_key.browser_tag_sidebar_selected_count,
-        browser_tag_sidebar_primary_hash: browser_frame_key.browser_tag_sidebar_primary_hash,
-        browser_tag_sidebar_target_hash: browser_frame_key.browser_tag_sidebar_target_hash,
+        browser_tag_sidebar_selected_count: browser_tag_sidebar_key
+            .browser_tag_sidebar_selected_count,
+        browser_tag_sidebar_primary_hash: browser_tag_sidebar_key.browser_tag_sidebar_primary_hash,
+        browser_tag_sidebar_target_hash: browser_tag_sidebar_key.browser_tag_sidebar_target_hash,
+        browser_tag_sidebar_input_hash: browser_tag_sidebar_key.browser_tag_sidebar_input_hash,
         browser_search_revision: browser_frame_key.browser_search_revision,
         browser_similarity_filtered: browser_frame_key.browser_similarity_filtered,
         browser_duplicate_cleanup_active: browser_frame_key.browser_duplicate_cleanup_active,
-        browser_tag_sidebar_open: browser_frame_key.browser_tag_sidebar_open,
+        browser_tag_sidebar_open: browser_tag_sidebar_key.browser_tag_sidebar_open,
         browser_filter: encode_browser_filter(controller.ui.browser.search.filter),
         browser_sort: browser_frame_key.browser_sort,
         browser_tab: browser_frame_key.browser_tab,
@@ -134,6 +138,7 @@ pub(super) fn derive_projection_key_parts(controller: &AppController) -> Derived
         selected_column,
         status_key,
         browser_frame_key,
+        browser_tag_sidebar_key,
         browser_rows_key,
         browser_rows_state_key,
         map_key,
@@ -163,6 +168,13 @@ pub(super) fn build_browser_rows_projection_key(
     controller: &AppController,
 ) -> super::BrowserRowsProjectionCacheKey {
     browser::build_browser_rows_projection_key(controller)
+}
+
+/// Build a browser tag-sidebar projection key from the current controller snapshot.
+pub(super) fn build_browser_tag_sidebar_projection_key(
+    controller: &AppController,
+) -> super::BrowserTagSidebarProjectionCacheKey {
+    browser::build_browser_tag_sidebar_projection_key(controller)
 }
 
 /// Build a browser-row-state projection key from the current controller snapshot.

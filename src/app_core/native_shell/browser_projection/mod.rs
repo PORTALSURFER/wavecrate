@@ -19,7 +19,10 @@ pub(super) use cache::{
 };
 pub(crate) use chrome::project_browser_chrome_model;
 use chrome::{browser_search_placeholder, browser_sort_label, browser_tab_label};
-pub(crate) use panel::{project_browser_model, project_browser_panel_frame_model};
+pub(crate) use panel::{
+    project_browser_focused_sample_label, project_browser_model, project_browser_panel_frame_model,
+    project_browser_tag_sidebar_model,
+};
 pub(crate) type BrowserRowsProjectionInputs = panel::BrowserRowsProjectionInputs;
 #[cfg(test)]
 pub(crate) use preload::browser_bpm_preload_ranges;

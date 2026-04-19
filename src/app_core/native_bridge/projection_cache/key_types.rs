@@ -27,6 +27,7 @@ pub(crate) struct NativeProjectionCacheKey {
     pub(crate) browser_tag_sidebar_selected_count: usize,
     pub(crate) browser_tag_sidebar_primary_hash: u64,
     pub(crate) browser_tag_sidebar_target_hash: u64,
+    pub(crate) browser_tag_sidebar_input_hash: u64,
     pub(crate) browser_search_revision: u64,
     pub(crate) browser_similarity_filtered: bool,
     pub(crate) browser_duplicate_cleanup_active: bool,
@@ -118,20 +119,26 @@ pub(crate) struct BrowserFrameProjectionCacheKey {
     pub(crate) browser_autoscroll: bool,
     pub(crate) browser_view_window_start: usize,
     pub(crate) browser_selected_paths_len: usize,
-    pub(crate) browser_selected_paths_revision: u64,
-    pub(crate) browser_row_metadata_revision: u64,
-    pub(crate) browser_tag_sidebar_selected_count: usize,
-    pub(crate) browser_tag_sidebar_primary_hash: u64,
-    pub(crate) browser_tag_sidebar_target_hash: u64,
     pub(crate) browser_search_revision: u64,
     pub(crate) browser_search_busy: bool,
     pub(crate) browser_similarity_filtered: bool,
     pub(crate) browser_duplicate_cleanup_active: bool,
-    pub(crate) browser_tag_sidebar_open: bool,
     pub(crate) browser_sort: u8,
     pub(crate) browser_tab: u8,
     pub(crate) browser_similarity_follow_loaded: bool,
     pub(crate) loaded_wav_revision: u64,
+}
+
+/// Browser tag-sidebar projection key scoped to target-sensitive sidebar state.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct BrowserTagSidebarProjectionCacheKey {
+    pub(crate) browser_row_metadata_revision: u64,
+    pub(crate) browser_tag_sidebar_selected_count: usize,
+    pub(crate) browser_tag_sidebar_primary_hash: u64,
+    pub(crate) browser_tag_sidebar_target_hash: u64,
+    pub(crate) browser_tag_sidebar_input_hash: u64,
+    pub(crate) browser_tag_sidebar_open: bool,
+    pub(crate) browser_tab: u8,
 }
 
 /// Browser rows projection key scoped to windowed row content.

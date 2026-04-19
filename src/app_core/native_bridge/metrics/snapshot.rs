@@ -27,6 +27,8 @@ pub(crate) struct BridgeMetricsSnapshot {
     pub(super) status_segment_miss_count: u64,
     pub(super) browser_frame_segment_hit_count: u64,
     pub(super) browser_frame_segment_miss_count: u64,
+    pub(super) browser_tag_sidebar_segment_hit_count: u64,
+    pub(super) browser_tag_sidebar_segment_miss_count: u64,
     pub(super) browser_rows_segment_hit_count: u64,
     pub(super) browser_rows_segment_miss_count: u64,
     pub(super) map_segment_hit_count: u64,
@@ -96,6 +98,12 @@ impl BridgeMetricsSnapshot {
                 .load(Ordering::Relaxed),
             browser_frame_segment_miss_count: BRIDGE_METRICS
                 .projection_browser_frame_segment_miss_count
+                .load(Ordering::Relaxed),
+            browser_tag_sidebar_segment_hit_count: BRIDGE_METRICS
+                .projection_browser_tag_sidebar_segment_hit_count
+                .load(Ordering::Relaxed),
+            browser_tag_sidebar_segment_miss_count: BRIDGE_METRICS
+                .projection_browser_tag_sidebar_segment_miss_count
                 .load(Ordering::Relaxed),
             browser_rows_segment_hit_count: BRIDGE_METRICS
                 .projection_browser_rows_segment_hit_count

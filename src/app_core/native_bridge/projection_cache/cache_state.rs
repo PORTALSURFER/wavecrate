@@ -8,10 +8,10 @@ use super::projection_key;
 use super::trace_projection_segment_lookup;
 use super::{
     BrowserFrameProjectionCacheKey, BrowserRowsProjectionCacheKey,
-    BrowserRowsStateProjectionCacheKey, MapProjectionCacheKey, NativeProjectionCacheKey,
-    NonSegmentOverlayProjectionCacheKey, NonSegmentStaticProjectionCacheKey, ProjectionSegment,
-    ProjectionSegmentLookupCounts, StatusProjectionCacheKey, WaveformProjectionCacheKey,
-    segment_materialize,
+    BrowserRowsStateProjectionCacheKey, BrowserTagSidebarProjectionCacheKey, MapProjectionCacheKey,
+    NativeProjectionCacheKey, NonSegmentOverlayProjectionCacheKey,
+    NonSegmentStaticProjectionCacheKey, ProjectionSegment, ProjectionSegmentLookupCounts,
+    StatusProjectionCacheKey, WaveformProjectionCacheKey, segment_materialize,
 };
 
 /// Lightweight derived projection snapshot computed before materialization.
@@ -28,6 +28,8 @@ pub(crate) struct DerivedProjectionState {
     pub(crate) status_key: StatusProjectionCacheKey,
     /// Browser-frame segment key.
     pub(crate) browser_frame_key: BrowserFrameProjectionCacheKey,
+    /// Browser tag-sidebar segment key.
+    pub(crate) browser_tag_sidebar_key: BrowserTagSidebarProjectionCacheKey,
     /// Browser visible-row window segment key.
     pub(crate) browser_rows_key: BrowserRowsProjectionCacheKey,
     /// Browser row-state segment key for focused/selected row decorations.
@@ -51,6 +53,7 @@ impl DerivedProjectionState {
             selected_column: derived.selected_column,
             status_key: derived.status_key,
             browser_frame_key: derived.browser_frame_key,
+            browser_tag_sidebar_key: derived.browser_tag_sidebar_key,
             browser_rows_key: derived.browser_rows_key,
             browser_rows_state_key: derived.browser_rows_state_key,
             map_key: derived.map_key,
@@ -68,6 +71,7 @@ pub(crate) struct NativeProjectionCache {
     pub(crate) app_model: Option<Arc<NativeAppModel>>,
     pub(crate) status_key: Option<StatusProjectionCacheKey>,
     pub(crate) browser_frame_key: Option<BrowserFrameProjectionCacheKey>,
+    pub(crate) browser_tag_sidebar_key: Option<BrowserTagSidebarProjectionCacheKey>,
     pub(crate) browser_rows_key: Option<BrowserRowsProjectionCacheKey>,
     pub(crate) browser_rows_state_key: Option<BrowserRowsStateProjectionCacheKey>,
     pub(crate) map_key: Option<MapProjectionCacheKey>,
@@ -113,6 +117,7 @@ impl NativeProjectionCache {
         self.app_model = None;
         self.status_key = None;
         self.browser_frame_key = None;
+        self.browser_tag_sidebar_key = None;
         self.browser_rows_key = None;
         self.browser_rows_state_key = None;
         self.map_key = None;

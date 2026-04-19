@@ -42,7 +42,7 @@ pub(crate) fn format_bridge_profile_message(snapshot: &BridgeMetricsSnapshot) ->
         "native bridge profiling: pull_model prep_ms={:.3} project_ms={:.3} \
          pull_motion prep_ms={:.3} project_ms={:.3} action_ms={:.3} \
          projection_cache hits={} misses={} \
-         segments status(h/m)={}/{} browser_frame(h/m)={}/{} browser_rows(h/m)={}/{} map(h/m)={}/{} waveform(h/m)={}/{} \
+         segments status(h/m)={}/{} browser_frame(h/m)={}/{} browser_tag_sidebar(h/m)={}/{} browser_rows(h/m)={}/{} map(h/m)={}/{} waveform(h/m)={}/{} \
          wheel_action_ms={:.3} map_proxy_action_ms={:.3} waveform_action_ms={:.3} volume_action_ms={:.3} \
          waveform_flush_ms={:.3} waveform_flush_avg_actions={:.2} \
          waveform_image_refresh apply={} skip={} \
@@ -63,6 +63,8 @@ pub(crate) fn format_bridge_profile_message(snapshot: &BridgeMetricsSnapshot) ->
         snapshot.status_segment_miss_count,
         snapshot.browser_frame_segment_hit_count,
         snapshot.browser_frame_segment_miss_count,
+        snapshot.browser_tag_sidebar_segment_hit_count,
+        snapshot.browser_tag_sidebar_segment_miss_count,
         snapshot.browser_rows_segment_hit_count,
         snapshot.browser_rows_segment_miss_count,
         snapshot.map_segment_hit_count,
@@ -169,6 +171,8 @@ mod tests {
             status_segment_miss_count: 1,
             browser_frame_segment_hit_count: 5,
             browser_frame_segment_miss_count: 2,
+            browser_tag_sidebar_segment_hit_count: 6,
+            browser_tag_sidebar_segment_miss_count: 3,
             browser_rows_segment_hit_count: 7,
             browser_rows_segment_miss_count: 4,
             map_segment_hit_count: 9,
@@ -188,7 +192,7 @@ mod tests {
         let message = format_bridge_profile_message(&snapshot);
         assert!(message.contains("projection_cache hits=11 misses=4"));
         assert!(message.contains(
-            "segments status(h/m)=3/1 browser_frame(h/m)=5/2 browser_rows(h/m)=7/4 map(h/m)=9/6 waveform(h/m)=11/8"
+            "segments status(h/m)=3/1 browser_frame(h/m)=5/2 browser_tag_sidebar(h/m)=6/3 browser_rows(h/m)=7/4 map(h/m)=9/6 waveform(h/m)=11/8"
         ));
         assert!(message.contains("browser_row_cache hits=9 misses=2"));
         assert!(
@@ -205,12 +209,17 @@ mod tests {
         trace_projection_cache_lookup(true);
         trace_projection_cache_lookup(false);
         trace_projection_segment_lookup(ProjectionSegment::StatusBar, true);
+        trace_projection_segment_lookup(ProjectionSegment::BrowserTagSidebar, true);
         trace_projection_segment_lookup(ProjectionSegment::BrowserRowsWindow, false);
         let after = BridgeMetricsSnapshot::capture();
 
         assert!(after.projection_cache_hit_count >= before.projection_cache_hit_count + 1);
         assert!(after.projection_cache_miss_count >= before.projection_cache_miss_count + 1);
         assert!(after.status_segment_hit_count >= before.status_segment_hit_count + 1);
+        assert!(
+            after.browser_tag_sidebar_segment_hit_count
+                >= before.browser_tag_sidebar_segment_hit_count + 1
+        );
         assert!(
             after.browser_rows_segment_miss_count >= before.browser_rows_segment_miss_count + 1
         );

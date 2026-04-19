@@ -7,6 +7,8 @@ pub(crate) enum ProjectionSegment {
     StatusBar,
     /// Browser metadata/chrome/action projection.
     BrowserFrame,
+    /// Browser tag-sidebar projection.
+    BrowserTagSidebar,
     /// Browser visible-row window projection.
     BrowserRowsWindow,
     /// Similarity map panel projection.
@@ -31,6 +33,8 @@ pub struct ProjectionSegmentLookupCounts {
     pub status_bar: ProjectionSegmentLookupCount,
     /// Browser-frame segment counters.
     pub browser_frame: ProjectionSegmentLookupCount,
+    /// Browser tag-sidebar segment counters.
+    pub browser_tag_sidebar: ProjectionSegmentLookupCount,
     /// Browser rows-window segment counters.
     pub browser_rows_window: ProjectionSegmentLookupCount,
     /// Map-panel segment counters.
@@ -45,6 +49,7 @@ impl ProjectionSegmentLookupCounts {
         let counts = match segment {
             ProjectionSegment::StatusBar => &mut self.status_bar,
             ProjectionSegment::BrowserFrame => &mut self.browser_frame,
+            ProjectionSegment::BrowserTagSidebar => &mut self.browser_tag_sidebar,
             ProjectionSegment::BrowserRowsWindow => &mut self.browser_rows_window,
             ProjectionSegment::MapPanel => &mut self.map_panel,
             ProjectionSegment::WaveformOverlay => &mut self.waveform_overlay,

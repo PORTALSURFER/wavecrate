@@ -124,7 +124,8 @@ fn browser_playback_age_filter_flags(
 ///
 /// Browser metadata should stay aligned with the current browser selection when
 /// the selection has already moved ahead of the async waveform-loading state.
-fn project_browser_focused_sample_label(controller: &AppController) -> Option<String> {
+/// Project the browser's focused sample label from the current target snapshot.
+pub(crate) fn project_browser_focused_sample_label(controller: &AppController) -> Option<String> {
     controller
         .ui
         .browser
@@ -144,7 +145,12 @@ fn project_browser_focused_sample_label(controller: &AppController) -> Option<St
         .map(view_model::sample_display_label)
 }
 
-fn project_browser_tag_sidebar_model(
+/// Project the browser tag sidebar from current target selection and metadata.
+///
+/// The retained projection cache keeps this surface on its own invalidation
+/// contract because tag metadata edits and same-cardinality target swaps should
+/// not depend on unrelated browser chrome churn.
+pub(crate) fn project_browser_tag_sidebar_model(
     controller: &mut AppController,
 ) -> radiant::app::BrowserTagSidebarModel {
     let is_list_tab = matches!(controller.ui.browser.active_tab, SampleBrowserTab::List);
