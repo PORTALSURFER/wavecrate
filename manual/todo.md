@@ -7,5 +7,5 @@ description: This page moved to developer documentation.
 
 # Moved
 
-This document is developer-facing and was moved to `docs/plans/todo.md`.
+This document is developer-facing and now points to `docs/plans/active/todo.md`.
 

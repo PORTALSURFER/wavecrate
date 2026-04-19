@@ -1,6 +1,6 @@
 # Agent Memory
 
-Last Updated: 2026-04-17T23:06:00+02:00
+Last Updated: 2026-04-18T22:41:57Z
 Updated By: Codex
 
 ## Purpose
@@ -16,13 +16,13 @@ Updated By: Codex
 - `tmp/perf_plan.md` is the active source of truth for the rebuilt 2026-04-17 follow-up runtime performance backlog.
 - Phase 2 is complete on 2026-04-17. Items 1-8 are complete, including item 6 in `vendor/radiant` (`6784636f`, `perf(text-cache): retain native frame text payloads`), item 7 in the root repo (`1a025192`, `perf(similarity): persist lightweight feature metrics`), and item 8 in `vendor/radiant` (`00156ef1`, `perf(startup): reveal presented placeholder frame immediately`).
 - Fresh evidence captured on 2026-04-17:
-  - `powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/perf/run_perf_guard.ps1`
   - `target/perf/bench.json` with `controller_app_model_projection.p95_us = 2826`, `retained_app_model_projection_p95_us = 5`, `browser_filter_churn_latency.p95_us = 38`, `browser_query_churn_latency.p95_us = 65`, `wheel_latency.p95_us = 419`, `waveform_interaction_latency.p95_us = 108`, and `feature_blob_decode.total_elapsed_ms = 433` for `320000` lightweight blobs.
-  - `SEMPAL_PERF_GUARD_STARTUP_PROFILE=1 powershell -ExecutionPolicy Bypass -File scripts/run_perf_guard.ps1`
+  - `SEMPAL_PERF_GUARD_STARTUP_PROFILE=1 powershell -ExecutionPolicy Bypass -File scripts/perf/run_perf_guard.ps1`
   - `target/perf/bench..startup_summary.json` with `first_present_ms = 1691.321`, `surface_ready_ms = 880.581`, `renderer_ready_ms = 1203.259`, `first_scene_ready_ms = 1205.161`, and `deferred_model_refresh_ms = 420.733`.
   - Waveform preview A/B: `target/perf/bench_default_preview.json` vs `target/perf/bench_preview_off.json` shows disabling immediate waveform preview regresses `waveform_interaction_latency` (`p95 158us -> 1304us`, `p99 215us -> 13518us`).
 - The current ordered follow-up backlog in `tmp/perf_plan.md` now has items 1-8 complete. The only remaining follow-up is manual visual review of the earlier startup placeholder reveal on a slow and a fast machine.
-- The Windows Cargo wrapper lane is still trustworthy in this environment because `scripts/use_cargo_cache.ps1` falls back to a local passthrough `rustc` wrapper when user-level Cargo config forces a broken `sccache`.
+- The Windows Cargo wrapper lane is still trustworthy in this environment because `scripts/internal/use_cargo_cache.ps1` falls back to a local passthrough `rustc` wrapper when user-level Cargo config forces a broken `sccache`.
 - `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` remain parked unless the user explicitly reopens those lanes.
 - Future Windows sessions must use the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
 - Rust tests must run serially in one cargo process at a time; do not run multiple Rust test processes concurrently.
@@ -41,7 +41,10 @@ Updated By: Codex
 - Dual-lane validation reference: `docs/TEST.md`
 - Parked cleanup backlog: `tmp/cleanup_plan.md`
 - Parked improvement backlog: `tmp/improvement_audit_plan.md`
-- GUI automation/test design: `docs/gui_test_platform.md`
+- GUI automation/test design: `docs/SYSTEMS.md`
 - GUI automation/test rollout plan: `docs/plans/active/gui_test_platform_exec_plan.md`
+
+
+
 
 

@@ -1,112 +1,144 @@
-# Architecture and Module Ownership
+# Architecture and Ownership
 
-This document is a lightweight “where should this change go?” map for Sempal.
-It is optimized for quick routing decisions by humans and coding agents.
+This document is the durable architecture map for Sempal. It explains what the
+system is optimizing for, where code should live, and how the Sempal and
+Radiant boundaries are meant to stay clean over time.
 
-If you are implementing a change request, read `docs/design_principles.md` and
-use `docs/FEATURE_CHECKLIST.md` as the default safe path.
+## Product principles
+
+Sempal is a realtime-oriented sample manager for exploratory listening,
+selection, and curation of audio material. The architecture should preserve a
+few non-negotiable product properties:
+
+- realtime primacy
+  - UI response should remain perceptually immediate
+  - blocking work belongs off the UI thread
+- flow preservation
+  - reversible actions beat confirmation-heavy workflows
+  - failures may surface, but the UI should not freeze
+- audition-first design
+  - playback, scrubbing, and navigation should stay fast enough to support
+    listening as the primary interaction mode
+- predictability over cleverness
+  - state transitions should be observable and easy to reason about
+- data trust
+  - destructive flows need explicit recovery behavior
+- performance as correctness
+  - perceived slowness counts as a product defect, not a cosmetic issue
+
+Use these principles when a change is ambiguous: prefer the calmer, more
+predictable, and lower-latency design.
 
 ## Change routing rules
 
-- Domain logic (indexing, analysis, playback behavior, persistence): put it in `src/` modules.
-- UI behavior (widgets, layout policies, focus model, hit testing, input routing): put it in `vendor/radiant/`.
-- App UI intent and runtime wiring: put backend-neutral projections/actions in `src/app_core`, host launch adapters in `src/gui_runtime`, and keep `src/gui` limited to `radiant` primitive re-exports.
-- Avoid adding new behavior to legacy UI/controller paths in `src/app` unless you are intentionally working in the legacy runtime.
+- domain workflows, persistence orchestration, and application state belong in
+  `src/`
+- new product-specific UI behavior should prefer `src/app_core/**` over the
+  legacy `src/app/**` layer unless the task is explicitly legacy-runtime work
+- reusable UI/runtime/layout work belongs in `vendor/radiant`
+- shell-compatibility behavior should stay inside the compatibility surfaces
+  rather than leaking back into generic Radiant modules
 
-## Ownership map (by responsibility)
+## Ownership map
 
-- App core projection and backend-neutral intent: `src/app_core`
-- Legacy app model/controller: `src/app`
-- Backend-neutral GUI primitive re-exports: `src/gui`
-- Runtime host bridge glue: `src/gui_runtime`
-- GUI contract harness, semantic assertions, and automation-target helpers: `src/gui_test`
-- UI framework, retained layout, input normalization, rendering coordination: `vendor/radiant`
-- Audio playback, I/O, decoding, processing: `src/audio`
-- DSP/feature analysis, similarity tooling, ANN containers: `src/analysis`
-- Sample catalog, scanning, database integration: `src/sample_sources`
-- Selection math and focus helpers: `src/selection/`
-- Filesystem paths for app data/caches/settings: `src/app_dirs`
-- Update checking/download/install flow: `src/updater` and `apps/updater-helper`
-- Installer UI: `apps/installer`
-- Benchmark CLI and perf probes: `tools/bench-cli`
-- Analysis/admin support tools: `tools/analysis-admin`
-- Similarity-prep support tool: `tools/similarity-prep`
-- Logging setup and tracing helpers: `src/logging.rs`
-- HTTP request helpers: `src/http_client.rs`
-- Issue reporting and GitHub issue flow: `src/issue_gateway`
-- Optional SQLite extension loading: `src/sqlite_ext.rs`
-- Platform clipboard/drag-and-drop integrations: `src/external_clipboard.rs`, `src/external_drag/`
+### `src/app/controller/**`
 
-## Ownership and CODEOWNERS
+Owns:
 
-`docs/ARCHITECTURE.md` is the human/agent routing map (source of truth for "where should this change go?").
-`.github/CODEOWNERS` is the enforcement mechanism that makes those ownership buckets show up in PR review.
+- UI intent handling
+- controller orchestration
+- library workflows and recovery actions
 
-When changing ownership boundaries:
+Should avoid:
 
-1. Update `docs/ARCHITECTURE.md` (the map) to reflect the intended responsibility split.
-2. Update `.github/CODEOWNERS` (the enforcement) to match the same buckets.
-3. Prefer broad, stable directory patterns over fragile file-level ownership unless you have a clear need.
-4. Keep changes small and reviewable: ownership churn causes review noise and slows throughput.
+- renderer-specific geometry logic
+- low-level DB primitives
 
-## Guardrails and invariants
+### `src/app_core/**`
 
-- `src` owns domain state and UI intent only; `vendor/radiant` owns GUI behavior.
-- `scripts/check_migration_boundary.sh` enforces the `app_core` migration boundary:
-  - Direct `crate::app::` references are only allowed in `src/app_core/app_api.rs`.
+Owns:
 
-## Where tests should go
+- host-facing application state projection
+- native bridge projection/invalidation rules
+- GUI action catalog and runtime test integration
 
-- Unit tests: next to the logic in `src/**` using `#[cfg(test)]`.
-- Integration tests: `tests/`.
-- Radiant UI behavior tests and fixtures: `vendor/radiant` (see `docs/TEST.md` for commands).
+Should avoid:
 
-## Codebase map (short)
+- direct filesystem mutation policy outside the persistence layer
+- new coupling back into the legacy runtime boundary
 
-- `src/` modules:
-  - `analysis` — DSP/feature analysis and similarity tooling.
-  - `app` — legacy app model state and controller logic.
-  - `app_core` — backend-neutral app-core projection/action helpers.
-  - `app_dirs` — filesystem paths for app data, caches, and settings.
-  - `audio` — playback, I/O, recording, decoding, and processing.
-  - `external_clipboard.rs` — platform clipboard integrations.
-  - `external_drag/` — platform drag-and-drop integrations.
-  - `gui` — `radiant` GUI primitive re-exports only; no widget behavior or layout policy lives here.
-  - `gui_runtime` — native runtime bridge glue, launch adapters, and snapshot capture helpers.
-  - `gui_test` — semantic GUI contract runner, scenario assertions, and automation-target helpers.
-  - `http_client.rs` — HTTP client helpers and request utilities.
-  - `issue_gateway` — issue reporting and GitHub issue flow.
-  - `logging.rs` — logging setup and tracing helpers.
-  - `sample_sources` — sample catalog, scan, and database integration.
-  - `selection/` — selection helpers and focus state math.
-  - `sqlite_ext.rs` — custom SQLite extension loading and helpers.
-  - `updater` — update checking, download, install, and patch flow.
-  - `wav_sanitize.rs` — WAV header/corpus sanitization helpers.
-  - `waveform` — waveform decoding, rendering, and caching.
-  - `main.rs` — shipping native-Vello app entrypoint for the root `sempal` package.
-- `vendor/radiant/`: UI shell, layout, and rendering engine used by native shells.
-  - Layout contract: `docs/radiant_slot_layout_spec.md`.
-  - `vendor/radiant/src/app/` — native-app bridge model types and action enums.
-  - `vendor/radiant/src/gui/` — retained shell layout, style, painting, and input bridge.
-    - `gui/native_shell/` — interaction state, layout primitives, and shell frame generation.
-    - `gui/input.rs` — key/mouse input tokenization consumed by state + actions.
-    - `gui/types.rs` — shared geometry and color primitives.
-    - `gui/repaint.rs` — repaint/dirty-bit signal bridging into retained caches.
-  - `vendor/radiant/src/gui_runtime/` — runtime host entrypoint and native window loop integration.
-    - `gui_runtime/native_vello.rs` — Vello-based render loop and scene rebuild scheduler.
-- `tests/`: integration tests and behavior checks.
-- `assets/`: static runtime assets.
-- `scripts/`: build/dev helper scripts.
-- `docs/`: developer documentation.
-- `manual/`: user-facing documentation (usage guide + published site).
-- `apps/`: workspace app packages that ship alongside the root app.
-  - `apps/installer` — installer GUI and install workflow.
-  - `apps/updater-helper` — standalone updater GUI used during update/apply flows.
-- `tools/`: workspace support-tool packages.
-  - `tools/analysis-admin` — ANN rebuild, DB inspection, HDBSCAN, and similarity-map layout binaries.
-  - `tools/bench-cli` — benchmark runner and GUI perf probes.
-  - `tools/similarity-prep` — offline similarity prep utility.
+### `src/sample_sources/**`
 
-### Submodules
+Owns:
 
-- `vendor/radiant` (UI framework dependency).
+- database schema and read/write APIs
+- journal-backed file operations
+- crash recovery behavior for file and folder mutations
+
+Should avoid:
+
+- UI policy and rendering behavior
+
+### `src/issue_gateway/**`
+
+Owns:
+
+- issue reporting DTOs
+- token storage and integration boundaries
+
+### `vendor/radiant/**`
+
+Owns:
+
+- reusable layout primitives
+- reusable widgets
+- runtime/backend integration
+- compatibility shell rendering for Sempal while migration continues
+
+Should avoid:
+
+- taking ownership of Sempal-specific controller or domain policy
+
+## Radiant boundary
+
+Radiant is moving toward a reusable GUI library with three preferred generic
+areas:
+
+- `radiant::layout`
+- `radiant::widgets`
+- `radiant::runtime`
+
+The current native shell remains a compatibility surface for Sempal. Treat it
+as `radiant::compat::sempal_shell` in spirit even where module names still
+reflect the older structure.
+
+Practical rule:
+
+- new generic GUI abstractions belong in the public Radiant layers
+- compatibility fixes may still touch the native shell
+- new Sempal product behavior should compose generic Radiant surfaces where
+  possible instead of expanding shell-only APIs
+
+## UI design direction
+
+The current UI direction is dense, structural, and utilitarian rather than
+ornamental. Preserve these characteristics:
+
+- strong layout structure over decorative flourish
+- clear visual hierarchy and repeatable geometry
+- interaction feedback that is obvious but not noisy
+- stable surfaces that prioritize readability and manipulation over novelty
+
+If a style decision would trade clarity or responsiveness for decoration, do
+not take that trade.
+
+## CODEOWNERS and guardrails
+
+When ownership boundaries change, update both:
+
+- `.github/CODEOWNERS`
+- the relevant architecture notes in this file
+
+Guardrail scripts in `scripts/check_*.{sh,ps1}` enforce several of these
+boundaries. When one fires, fix the ownership violation before considering an
+allowlist.

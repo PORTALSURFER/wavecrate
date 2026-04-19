@@ -1,133 +1,62 @@
-# Developer documentation
+# Developer Docs
 
-The `docs/` directory contains developer-facing documentation for Sempal.
+This directory now keeps a deliberately small set of canonical developer
+documents. Anything that is narrow, historical, or fast-moving should live in
+`tmp/` or `docs/plans/` instead of growing the long-term docs set again.
 
-User-facing documentation lives in `manual/` (usage guide + the published docs
-site).
+## Canonical docs
 
-Quick external pointer:
+- `docs/ARCHITECTURE.md`
+  - product principles, ownership boundaries, and the Radiant compatibility
+    boundary
+- `docs/ENV_VARS.md`
+  - environment variable reference and safety notes
+- `docs/TEST.md`
+  - development workflow, validation gates, and test suite map
+- `docs/SYSTEMS.md`
+  - runtime contracts, recovery rules, automation surfaces, and data formats
+- `docs/TROUBLESHOOTING.md`
+  - common failure modes, diagnostics, and guardrail-change workflow
 
-- Linear project for Sempal (`PORTALSURFER` team): https://linear.app/boostnlvp/project/sempal-7230ebfad82d
+## Live operational files
 
-Start here:
+- `AGENTS.md`
+  - wake-up portal and current mission
+- `MEMORY.md`
+  - present-tense session snapshot
+- `docs/plans/index.md`
+  - stable map for active plan artifacts and templates
+- `docs/plans/TEMPLATE_execution_plan.md`
+  - reusable template for execution plans
+- `docs/plans/TEMPLATE_investigation.md`
+  - reusable template for investigation writeups
+- `docs/plans/active/todo.md`
+  - short ordered queue for the active lane
+- `tmp/improvement_audit_plan.md`
+  - canonical source for the current audit lane status and execution order
+- `tmp/perf_plan.md`
+  - runtime-performance backlog and execution record for the live tree
+- `tmp/cleanup_plan.md`
+  - parked cleanup backlog
+- `tmp/bug_audit_plan.md`
+  - latest bug-audit snapshot
 
-- `AGENTS.md` (repo root) — minimal wake-up portal + current mission
-- `MEMORY.md` (repo root) — current session snapshot ("what is happening now")
-- `docs/INDEX.md` — invariants + allowlists inventory (what to do when checks fail)
-- `docs/FEATURE_CHECKLIST.md` — safe path for implementing changes
-- `docs/ARCHITECTURE.md` — module ownership map
-- `docs/file_ops_journal_recovery.md` — file-op journal stage contract and startup recovery rules
-- `docs/folder_delete_recovery.md` — folder-delete staging and restore/finalize recovery contract
-- `docs/native_bridge_projection_cache.md` — retained native-bridge segment keys, invalidation boundaries, and profiling/assertion contract
-- `docs/ENV_VARS.md` — environment variable reference
-- `docs/build_speed.md` — local compile-speed workflow and crate-split sketch
-- `docs/TEST.md` — test suite map and commands
-- `docs/gui_test_platform.md` — GUI action catalog, automation snapshot, runtime test mode, and AIV integration plan
-- `docs/design_principles.md` — architectural goals and constraints
-- `docs/radiant_slot_layout_spec.md` — strict hierarchical slot-based layout contract for `vendor/radiant`
-- `docs/radiant_library_architecture_plan.md` — target public architecture and migration plan for turning `vendor/radiant` into a reusable GUI library, with new generic work directed to `radiant::layout`, `radiant::widgets`, and `radiant::runtime` and the current native shell treated as `radiant::compat::sempal_shell`
-- `docs/radiant_post_pilot_migration_queue.md` — ordered post-`OPT-36` Sempal UI slice queue for migrating additional shell chrome onto generic Radiant surfaces
-- `docs/radiant_theme_model.md` — boundary between generic `radiant::theme` tokens and compatibility-only Sempal shell chrome styling
-- `docs/radiant_widget_model.md` — first-class public widget taxonomy and shared widget contracts for `vendor/radiant`
-- `docs/QUALITY_SCORE.md` — coarse quality scorecard and known gaps
-- `docs/plans/index.md` — current/archived plan index for parallel agents
-- `docs/plans/active/todo.md` — short ordered queue for the active execution lane
-- `tmp/improvement_audit_plan.md` - current evidence-driven ROI-ranked improvement backlog
-  and execution record for the live codebase; use it as the canonical source
-  for the current audit lane status and execution order
-- `tmp/bug_audit_plan.md` — 2026-04-18 clear-bug audit snapshot with Linear issue links
-- `tmp/cleanup_plan.md` — parked ROI-ranked cleanup backlog
-  (Phase 1 complete on 2026-03-12; resume only after explicit Phase 2 confirmation)
-- `tmp/perf_plan.md` — current ROI-ranked runtime performance backlog for the live tree
-  (Phase 2 in progress on 2026-04-06; items 1-3 complete, item 4 next)
-- `docs/plans/TEMPLATE_execution_plan.md` — template for multi-step work
-- `docs/plans/TEMPLATE_investigation.md` — template for bug/perf investigations
-- `docs/run_contracts.md` — machine-readable app-run artifact contract
+## Default workflow
 
-## Run / diagnose / CI parity
+1. Run request preflight.
+   - Windows PowerShell:
+     `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1`
+   - macOS/Linux/WSL:
+     `bash scripts/run_agent_request.sh`
+2. Use `docs/TEST.md` for the right validation lane.
+3. Use `docs/TROUBLESHOOTING.md` when a guardrail or environment check fails.
+4. Keep changes small, update the canonical doc that owns the changed behavior,
+   and avoid creating one-off docs unless the information truly needs to live
+   separately.
 
-Use these scripts as the default entrypoints for local work (humans and agents).
+## Principles for this folder
 
-- Bootstrap tooling + pinned toolchain:
-  - macOS/Linux/WSL: `bash scripts/bootstrap.sh`
-  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/bootstrap.ps1`
-- Fastest smoke/compile checks:
-  - Optional lighter app-only loop:
-    - macOS/Linux/WSL: `bash scripts/devcheck_app.sh`
-    - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/devcheck_app.ps1`
-  - This intentionally skips support-tool bins and tests; still run `devcheck` before commit.
-  - macOS/Linux/WSL: `bash scripts/devcheck.sh`
-  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
-- Agent-safe validation loop for constrained environments:
-  - macOS/Linux/WSL: `bash scripts/ci_agent.sh`
-  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
-  - Runs `devcheck` plus `cargo test -p sempal --lib` without `cargo nextest` or the GUI contract wrapper.
-  - Keep Rust test invocations to one cargo process at a time, but let each individual test run use Rust's default in-process threading.
-  - The Windows PowerShell wrappers probe inherited `sccache` usage and fall back to direct `rustc` plus `tmp/agent_temp` when the wrapper or default temp directory is unusable in a constrained session.
-- Broader integrated development checks:
-  - macOS/Linux/WSL: `bash scripts/ci_quick.sh`
-  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-  - Built around `cargo nextest`; the Windows PowerShell wrapper also runs the semantic GUI contract lane.
-- GUI-focused contract loop:
-  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/run_gui_contract.ps1`
-- GUI-focused broader suite:
-  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/run_gui_suite.ps1`
-- Full local validation gate:
-  - macOS/Linux/WSL: `bash scripts/ci_local.sh`
-  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
-  - This is broader than GitHub CI because it also runs `scripts/run_perf_guard.sh`.
-- Agent request preflight:
-  - `bash scripts/run_agent_request.sh` (or `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1`)  
-    refreshes `MEMORY.md`, runs mandatory checks, then the smoke `devcheck` by default.
-  - Pass `--quick-ci` for the filtered fast test loop or `--full-ci` for the broader local validation gate.
-- Lightweight per-request preflight: `bash scripts/run_agent_preflight.sh`
-- Automatic pull/checkout enforcement:
-  `bash scripts/install_agent_preflight_hooks.sh` is installed by
-  `bash scripts/bootstrap.sh` and enforces lightweight preflight checks after
-  branch/source updates.
-  - The installer also adds branch-guard hooks so sempal and `vendor/radiant`
-    must use local `next` tracking `origin/next` for development.
-  - Configure via `AGENT_PREFLIGHT_UPDATER` and
-    `AGENT_PREFLIGHT_MEMORY_MAX_AGE_HOURS`.
-  - Skip hook execution with `SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK=1`.
-  - Skip bootstrap-time hook installation with
-    `SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK_INSTALL=1`.
-  - CI-level memory guardrail overrides: `AGENT_CI_REQUIRED_UPDATER` and
-    `AGENT_CI_MEMORY_MAX_AGE_HOURS` (defaults: unset and `24`).
-- Safe local run (sandboxed config/logs):
-  - Default sandbox is persistent under `<repo>/.sandbox/sempal` for easy inspection.
-  - Ephemeral sandbox (no state left behind): `bash scripts/run_sandbox.sh --temp --` / `powershell -ExecutionPolicy Bypass -File scripts/run_sandbox.ps1 -Temp --`
-  - Per-source `.sempal_samples.db` files are read-only by default (`--write-db` required to allow writes).
-  - `--allow-user-library-db-write` is required to write DB files under user-library-like source roots.
-  - Run:
-    - macOS/Linux/WSL: `bash scripts/run_sandbox.sh --`
-    - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/run_sandbox.ps1 --`
-- Pull latest `next` and then do a release sandbox run:
-  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/pull_and_run_release.ps1 --`
-  - Fast-forwards both the main repo and `vendor/radiant` with `git pull --ff-only origin next`, then delegates to `scripts/run_sandbox.ps1`.
-  - Requires both repos to be clean and on local `next` tracking `origin/next`.
-- Clean sandbox state (delete `<repo>/.sandbox/sempal`):
-  - macOS/Linux/WSL: `bash scripts/clean_sandbox.sh`
-  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/clean_sandbox.ps1`
-- Environment sanity checks:
-  - macOS/Linux/WSL: `bash scripts/doctor.sh`
-  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/doctor.ps1`
-- Latest log tail:
-  - macOS/Linux/WSL: `bash scripts/latest_log.sh`
-  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/latest_log.ps1`
-- Bug report bundle (logs + config + versions):
-  - macOS/Linux/WSL: `bash scripts/bug_bundle.sh`
-  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/bug_bundle.ps1`
-- Branch policy check:
-  - macOS/Linux/WSL: `bash scripts/check_next_branch.sh`
-  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/check_next_branch.ps1`
-
-## Runbooks
-
-Fast triage for common failure modes:
-
-- `docs/runbooks/asio_build_failures.md`
-- `docs/runbooks/keyring_failures.md`
-- `docs/runbooks/native_font_fallback.md`
-- `docs/runbooks/sqlite_extension_load_blocked.md`
-- `docs/runbooks/updater_path_validation.md`
+- Prefer a few strong documents over many narrow notes.
+- Prefer current contracts over historical execution diaries.
+- Put detailed plans in `docs/plans/` or `tmp/`, not in the canonical docs.
+- Delete stale docs instead of keeping them as archaeological layers.

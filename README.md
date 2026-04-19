@@ -30,7 +30,7 @@ Audio sample triage tool built with Rust.
 - GUI backend:
   - Main app uses `native_vello` (radiant runtime path) by default and no longer exposes a legacy backend switch.
   - `app_core` defines the domain action/projection layer that feeds `radiant` without owning widget behavior.
-  - Migration parity tracker: `docs/gui_migration_parity.md`.
+  - Architecture and migration guidance: `docs/ARCHITECTURE.md`.
   - Native shell text rendering can use `SEMPAL_NATIVE_FONT_PATH=/path/to/font.ttf` if automatic system font discovery fails.
 - Windows (ASIO): If you want to build with ASIO support (or your build fails looking for the ASIO SDK), download the Steinberg ASIO SDK and set `CPAL_ASIO_DIR` to the SDK path (e.g. a folder named `ASIOSDK`) before running `cargo build`/`cargo run`.
 
@@ -55,8 +55,8 @@ Broader integrated local validation loop:
 
 The CI-parity scripts run formatting, linting, docs, tests, and perf guardrails
 in the same order used by repository workflows.
-On headless Linux hosts, `scripts/ci_local.sh` and `scripts/run_perf_guard.sh`
-automatically set `ALSA_CONFIG_PATH=scripts/alsa_headless.conf` (unless already
+On headless Linux hosts, `scripts/ci_local.sh` and `scripts/perf/run_perf_guard.sh`
+automatically set `ALSA_CONFIG_PATH=scripts/internal/alsa_headless.conf` (unless already
 set) to route audio probing to a dummy sink and reduce ALSA warning noise.
 
 ## Architecture
@@ -133,8 +133,8 @@ PANNs ONNX model.
 Legacy golden regression tests still use PANNs reference artifacts:
 
 - Generate/update golden references:
-  - `bash scripts/ci_golden_tests.sh`
-  - `powershell -ExecutionPolicy Bypass -File scripts/ci_golden_tests.ps1`
+  - `bash scripts/check/ci_golden_tests.sh`
+  - `powershell -ExecutionPolicy Bypass -File scripts/check/ci_golden_tests.ps1`
 - These scripts set:
   - `SEMPAL_PANNS_GOLDEN_PATH`
   - `SEMPAL_PANNS_EMBED_GOLDEN_PATH`
