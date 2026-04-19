@@ -62,6 +62,19 @@ fn native_waveform_selection_update_retargets_loop_playback_after_cycle() {
 }
 
 #[test]
+fn toggle_transport_stops_active_playback() {
+    let Some(mut controller) = setup_native_looping_controller(SelectionRange::new(0.1, 0.4))
+    else {
+        return;
+    };
+
+    controller.apply_native_ui_action(NativeUiAction::ToggleTransport);
+
+    assert!(!controller.is_playing());
+    assert!(!controller.ui.waveform.playhead.visible);
+}
+
+#[test]
 fn play_from_start_auditions_focused_review_slice_without_selection() {
     let Some(mut controller) = setup_native_looping_controller(SelectionRange::new(0.1, 0.4))
     else {

@@ -58,9 +58,15 @@ pub(crate) fn toggle_play_pause(controller: &mut AppController) {
             return;
         }
     };
-    let _is_playing = player_rc.borrow().is_playing();
+    let is_playing = player_rc.borrow().is_playing();
     drop(player_rc);
-    let _ = controller.play_audio(controller.ui.waveform.loop_enabled, None);
+    if is_playing {
+        stop_playback_if_active(controller);
+        return;
+    }
+    if let Err(err) = controller.play_audio(controller.ui.waveform.loop_enabled, None) {
+        controller.set_status(err, StatusTone::Error);
+    }
 }
 
 pub(crate) fn stop_playback_if_active(controller: &mut AppController) -> bool {
