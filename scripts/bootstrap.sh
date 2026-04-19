@@ -47,7 +47,7 @@ while (( $# > 0 )); do
 done
 
 install_agent_preflight_hooks() {
-  local hook_script="$ROOT_DIR/scripts/install_agent_preflight_hooks.sh"
+  local hook_script="$ROOT_DIR/scripts/agent/install_agent_preflight_hooks.sh"
 
   if [[ "${SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK_INSTALL:-0}" == "1" ]]; then
     echo "[bootstrap] SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK_INSTALL=1: skipping hook install."
@@ -213,7 +213,8 @@ fi
 echo
 echo "[bootstrap] Next steps:"
 echo "  - Environment sanity:   bash scripts/doctor.sh"
-echo "  - App-only check:       bash scripts/devcheck_app.sh"
+echo "  - App-only check:       bash scripts/devcheck.sh --app-only"
+echo "  - Workspace smoke:      bash scripts/devcheck.sh --workspace"
 echo "  - Smoke devcheck:       bash scripts/devcheck.sh"
 echo "  - Fast test checks:     bash scripts/ci_quick.sh"
 echo "  - CI parity checks:     bash scripts/ci_local.sh"
@@ -229,7 +230,7 @@ if (( VERIFY_ONLY == 1 )); then
 else
   if ! install_agent_preflight_hooks; then
     echo "[bootstrap] Agent workspace setup is incomplete without the preflight hooks."
-    echo "[bootstrap]   Re-run: bash scripts/install_agent_preflight_hooks.sh --force"
+    echo "[bootstrap]   Re-run: bash scripts/agent/install_agent_preflight_hooks.sh --force"
     exit 1
   fi
   echo "[bootstrap] Result: OK"

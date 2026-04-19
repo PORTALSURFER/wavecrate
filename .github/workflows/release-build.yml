@@ -111,7 +111,7 @@ jobs:
           SEMPAL_CARGO_BIN: ${{ matrix.use_cross && 'cross' || 'cargo' }}
         shell: bash
         run: |
-          scripts/build_release_zip.sh \
+          scripts/release/build_release_zip.sh \
             --target "${{ matrix.target }}" \
             --platform "${{ matrix.platform }}" \
             --arch "${{ matrix.arch }}" \
@@ -187,7 +187,7 @@ jobs:
           SEMPAL_SKIP_BUILD: "1"
         shell: bash
         run: |
-          scripts/build_release_zip.sh \
+          scripts/release/build_release_zip.sh \
             --target "${{ matrix.target }}" \
             --platform "${{ matrix.platform }}" \
             --arch "${{ matrix.arch }}" \

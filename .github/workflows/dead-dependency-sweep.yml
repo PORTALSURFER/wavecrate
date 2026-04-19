@@ -49,7 +49,7 @@ jobs:
           SEMPAL_DEAD_SWEEP_RUN_UDEPS: "1"
           SEMPAL_DEAD_SWEEP_UDEPS_TOOLCHAIN: nightly
           SEMPAL_DEAD_SWEEP_REPORT_PATH: target/dead_sweep_report.txt
-        run: ./scripts/check_rust_dead_deps_advisory.sh --advisory
+        run: ./scripts/check/check_rust_dead_deps_advisory.sh --advisory
       - name: Upload advisory sweep report
         if: always()
         uses: actions/upload-artifact@v4

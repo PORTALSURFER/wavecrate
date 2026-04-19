@@ -10,11 +10,11 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
-# shellcheck source=scripts/setup_headless_audio.sh
-source "$ROOT_DIR/scripts/setup_headless_audio.sh"
+# shellcheck source=scripts/internal/setup_headless_audio.sh
+source "$ROOT_DIR/scripts/internal/setup_headless_audio.sh"
 sempal_setup_headless_audio "ci_local"
-# shellcheck source=scripts/use_cargo_cache.sh
-source "$ROOT_DIR/scripts/use_cargo_cache.sh"
+# shellcheck source=scripts/internal/use_cargo_cache.sh
+source "$ROOT_DIR/scripts/internal/use_cargo_cache.sh"
 sempal_enable_cargo_cache
 
 SKIP_AGENT_PREFLIGHT=0
@@ -34,7 +34,7 @@ Usage: scripts/ci_local.sh [--skip-agent-preflight]
 Run the local CI sequence used by this repository.
 
 Options:
-  --skip-agent-preflight  Skip ./scripts/run_agent_ci_checks.sh.
+  --skip-agent-preflight  Skip ./scripts/agent/run_agent_ci_checks.sh.
   -h, --help             Show this help text.
 USAGE
       exit 0
@@ -50,13 +50,13 @@ echo "[ci_local] cargo fmt --all -- --check"
 cargo fmt --all -- --check
 
 if (( SKIP_AGENT_PREFLIGHT == 0 )); then
-  echo "[ci_local] scripts/run_agent_ci_checks.sh"
+  echo "[ci_local] scripts/agent/run_agent_ci_checks.sh"
   if [[ -n "$REQUIRED_UPDATER" ]]; then
-    ./scripts/run_agent_ci_checks.sh \
+    ./scripts/agent/run_agent_ci_checks.sh \
       --required-updater "$REQUIRED_UPDATER" \
       --memory-max-age-hours "$MEMORY_MAX_AGE_HOURS"
   else
-    ./scripts/run_agent_ci_checks.sh \
+    ./scripts/agent/run_agent_ci_checks.sh \
       --memory-max-age-hours "$MEMORY_MAX_AGE_HOURS"
   fi
 fi
@@ -73,7 +73,7 @@ cargo nextest run --workspace --all-targets --no-fail-fast
 echo "[ci_local] cargo test --workspace --doc"
 cargo test --workspace --doc
 
-echo "[ci_local] scripts/run_perf_guard.sh"
-./scripts/run_perf_guard.sh
+echo "[ci_local] scripts/perf/run_perf_guard.sh"
+./scripts/perf/run_perf_guard.sh
 
 echo "[ci_local] OK"

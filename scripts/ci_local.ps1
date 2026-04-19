@@ -17,12 +17,12 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-. (Join-Path $PSScriptRoot "use_cargo_cache.ps1")
+. (Join-Path $PSScriptRoot "internal/use_cargo_cache.ps1")
 
 if ($Help) {
   Write-Host "Usage: scripts/ci_local.ps1 [-SkipAgentPreflight]"
   Write-Host "Run the PowerShell local CI core lane used by this repository."
-  Write-Host "If -SkipAgentPreflight is set, skip `scripts/run_agent_ci_checks.ps1`."
+  Write-Host "If -SkipAgentPreflight is set, skip `scripts/agent/run_agent_ci_checks.ps1`."
   exit 0
 }
 
@@ -51,8 +51,8 @@ try {
   }
 
   if (-not $SkipAgentPreflight) {
-    Write-Host "[ci_local] scripts/run_agent_ci_checks.ps1"
-    & (Join-Path $rootDir "scripts/run_agent_ci_checks.ps1")
+    Write-Host "[ci_local] scripts/agent/run_agent_ci_checks.ps1"
+    & (Join-Path $rootDir "scripts/agent/run_agent_ci_checks.ps1")
   }
 
   Write-Host "[ci_local] cargo clippy --workspace --all-targets"
@@ -85,8 +85,8 @@ try {
     Invoke-SempalCargo test --workspace --doc
   }
 
-  Write-Host "[ci_local] scripts/run_perf_guard.ps1"
-  & (Join-Path $rootDir "scripts/run_perf_guard.ps1")
+  Write-Host "[ci_local] scripts/perf/run_perf_guard.ps1"
+  & (Join-Path $rootDir "scripts/perf/run_perf_guard.ps1")
 
   Write-Host "[ci_local] OK"
 } finally {

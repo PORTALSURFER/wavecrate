@@ -17,7 +17,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-. (Join-Path $PSScriptRoot "use_cargo_cache.ps1")
+. (Join-Path $PSScriptRoot "internal/use_cargo_cache.ps1")
 
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 
@@ -48,7 +48,7 @@ try {
   Enable-SempalCargoCache
   Write-Host "[ci_agent] branch policy"
   Invoke-NativeStep -Label "branch policy" -Command {
-    & (Join-Path $PSScriptRoot "check_next_branch.ps1")
+    & (Join-Path $PSScriptRoot "check/check_next_branch.ps1")
   }
 
   Write-Host "[ci_agent] scripts/devcheck.ps1"

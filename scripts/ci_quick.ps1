@@ -11,17 +11,19 @@ reserved for `scripts/ci_local.ps1`.
 #>
 
 param(
+  [switch]$Workspace,
   [switch]$Help
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-. (Join-Path $PSScriptRoot "use_cargo_cache.ps1")
+. (Join-Path $PSScriptRoot "internal/use_cargo_cache.ps1")
 
 if ($Help) {
-  Write-Host "Usage: scripts/ci_quick.ps1"
+  Write-Host "Usage: scripts/ci_quick.ps1 [-Workspace]"
   Write-Host "Run the broader integrated local development test loop."
+  Write-Host "Use -Workspace for the full workspace nextest lane."
   Write-Host "For the constrained agent-safe lane, use `scripts/ci_agent.ps1`."
   Write-Host "For the compile-only smoke gate, use `scripts/devcheck.ps1`."
   Write-Host "For full CI parity, use `scripts/ci_local.ps1`."
@@ -49,17 +51,24 @@ try {
   Enable-SempalCargoCache
   Write-Host "[ci_quick] branch policy"
   Invoke-NativeStep -Label "branch policy" -Command {
-    & (Join-Path $PSScriptRoot "check_next_branch.ps1")
+    & (Join-Path $PSScriptRoot "check/check_next_branch.ps1")
   }
 
-  Write-Host "[ci_quick] cargo nextest run -p sempal --profile quick --lib --tests"
-  Invoke-NativeStep -Label "cargo nextest run -p sempal --profile quick --lib --tests" -Command {
-    Invoke-SempalCargo nextest run -p sempal --profile quick --lib --tests
+  if ($Workspace) {
+    Write-Host "[ci_quick] cargo nextest run --workspace --profile quick --all-targets"
+    Invoke-NativeStep -Label "cargo nextest run --workspace --profile quick --all-targets" -Command {
+      Invoke-SempalCargo nextest run --workspace --profile quick --all-targets
+    }
+  } else {
+    Write-Host "[ci_quick] cargo nextest run -p sempal --profile quick --lib --tests"
+    Invoke-NativeStep -Label "cargo nextest run -p sempal --profile quick --lib --tests" -Command {
+      Invoke-SempalCargo nextest run -p sempal --profile quick --lib --tests
+    }
   }
 
-  Write-Host "[ci_quick] scripts/run_gui_contract.ps1"
-  Invoke-NativeStep -Label "scripts/run_gui_contract.ps1" -Command {
-    & (Join-Path $PSScriptRoot "run_gui_contract.ps1")
+  Write-Host "[ci_quick] scripts/gui/run_gui_contract.ps1"
+  Invoke-NativeStep -Label "scripts/gui/run_gui_contract.ps1" -Command {
+    & (Join-Path $PSScriptRoot "gui/run_gui_contract.ps1")
   }
 
   Write-Host "[ci_quick] OK"

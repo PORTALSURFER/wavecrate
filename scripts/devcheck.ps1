@@ -10,19 +10,27 @@ loops, then escalate to `scripts/ci_quick.ps1` before commit and
 #>
 
 param(
+  [switch]$AppOnly,
+  [switch]$Workspace,
   [switch]$Help
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-. (Join-Path $PSScriptRoot "use_cargo_cache.ps1")
+. (Join-Path $PSScriptRoot "internal/use_cargo_cache.ps1")
 
 if ($Help) {
-  Write-Host "Usage: scripts/devcheck.ps1"
-  Write-Host "Run the fastest local compile/smoke gate."
+  Write-Host "Usage: scripts/devcheck.ps1 [-AppOnly] [-Workspace]"
+  Write-Host "Run the compile/smoke gate."
+  Write-Host "Use -AppOnly for the lightest app-only check."
+  Write-Host "Use -Workspace for the broad workspace compile gate."
   Write-Host "For fast test coverage, use `scripts/ci_quick.ps1`."
   exit 0
+}
+
+if ($AppOnly -and $Workspace) {
+  throw "AppOnly and Workspace are mutually exclusive."
 }
 
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
@@ -46,12 +54,24 @@ try {
   Enable-SempalCargoCache
   Write-Host "[devcheck] branch policy"
   Invoke-NativeStep -Label "branch policy" -Command {
-    & (Join-Path $PSScriptRoot "check_next_branch.ps1")
+    & (Join-Path $PSScriptRoot "check/check_next_branch.ps1")
   }
 
-  Write-Host "[devcheck] cargo check -p sempal --tests --bins"
-  Invoke-NativeStep -Label "cargo check -p sempal --tests --bins" -Command {
-    Invoke-SempalCargo check -p sempal --tests --bins
+  if ($AppOnly) {
+    Write-Host "[devcheck] cargo check -p sempal --lib --bin sempal"
+    Invoke-NativeStep -Label "cargo check -p sempal --lib --bin sempal" -Command {
+      Invoke-SempalCargo check -p sempal --lib --bin sempal
+    }
+  } elseif ($Workspace) {
+    Write-Host "[devcheck] cargo check --workspace --tests --bins"
+    Invoke-NativeStep -Label "cargo check --workspace --tests --bins" -Command {
+      Invoke-SempalCargo check --workspace --tests --bins
+    }
+  } else {
+    Write-Host "[devcheck] cargo check -p sempal --tests --bins"
+    Invoke-NativeStep -Label "cargo check -p sempal --tests --bins" -Command {
+      Invoke-SempalCargo check -p sempal --tests --bins
+    }
   }
 
   Write-Host "[devcheck] OK"

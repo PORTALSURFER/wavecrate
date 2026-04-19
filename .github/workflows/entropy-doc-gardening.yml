@@ -32,9 +32,9 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist/entropy
-          ./scripts/report_markdown_links_all.sh > dist/entropy/markdown_links.md
-          ./scripts/report_env_vars_drift.sh > dist/entropy/env_vars_drift.md
-          ./scripts/report_file_size_budget_allowlist.sh > dist/entropy/file_budget_allowlist.md
+          ./scripts/check/report_markdown_links_all.sh > dist/entropy/markdown_links.md
+          ./scripts/check/report_env_vars_drift.sh > dist/entropy/env_vars_drift.md
+          ./scripts/check/report_file_size_budget_allowlist.sh > dist/entropy/file_budget_allowlist.md
       - name: Create or update tracking issue
         uses: actions/github-script@v7
         env:
@@ -114,8 +114,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ./scripts/prune_file_size_budget_allowlist.sh
-          ./scripts/fix_trivial_doc_links.sh
+          ./scripts/check/prune_file_size_budget_allowlist.sh
+          ./scripts/check/fix_trivial_doc_links.sh
           if git diff --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else

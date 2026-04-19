@@ -32,7 +32,7 @@ function Install-AgentPreflightHooks {
     return $true
   }
 
-  $hookInstaller = Join-Path $rootDir "scripts/install_agent_preflight_hooks.sh"
+  $hookInstaller = Join-Path $rootDir "scripts/agent/install_agent_preflight_hooks.sh"
   if (-not (Test-Path -LiteralPath $hookInstaller)) {
     Write-Host "[bootstrap] ERROR: missing hook installer at $hookInstaller" -ForegroundColor Red
     return $false
@@ -221,7 +221,8 @@ try {
   Write-Host ""
   Write-Host "[bootstrap] Next steps:"
   Write-Host "  - Environment sanity:   powershell -ExecutionPolicy Bypass -File scripts/doctor.ps1"
-  Write-Host "  - App-only check:       powershell -ExecutionPolicy Bypass -File scripts/devcheck_app.ps1"
+  Write-Host "  - App-only check:       powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1 -AppOnly"
+  Write-Host "  - Workspace smoke:      powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1 -Workspace"
   Write-Host "  - Smoke devcheck:       powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1"
   Write-Host "  - Fast test checks:     powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1"
   Write-Host "  - CI parity checks:     powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1"
@@ -236,7 +237,7 @@ try {
   } else {
     if (-not (Install-AgentPreflightHooks)) {
       Write-Host "[bootstrap] Agent workspace setup is incomplete without the preflight hooks."
-      Write-Host "[bootstrap] Run manually: bash scripts/install_agent_preflight_hooks.sh --force"
+      Write-Host "[bootstrap] Run manually: bash scripts/agent/install_agent_preflight_hooks.sh --force"
       Write-Error "[bootstrap] Result: FAIL"
       exit 1
     }

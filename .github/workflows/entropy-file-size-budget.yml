@@ -33,14 +33,14 @@ jobs:
         shell: bash
         run: |
           set +e
-          ./scripts/check_file_size_budget.sh --all
+          ./scripts/check/check_file_size_budget.sh --all
           echo "exit_code=$?" >> "$GITHUB_OUTPUT"
           set -e
       - name: Build allowlist report
         shell: bash
         run: |
           mkdir -p dist/entropy
-          ./scripts/report_file_size_budget_allowlist.sh > dist/entropy/file_budget_allowlist.md
+          ./scripts/check/report_file_size_budget_allowlist.sh > dist/entropy/file_budget_allowlist.md
       - name: Create or update tracking issue
         uses: actions/github-script@v7
         env:
@@ -60,7 +60,7 @@ jobs:
               : `# File size budget allowlist report\n\nMissing report file: \`${reportPath}\``;
 
             const header = [
-              `Full budget check: \`scripts/check_file_size_budget.sh --all\` exit_code=\`${exitCode}\``,
+              `Full budget check: \`scripts/check/check_file_size_budget.sh --all\` exit_code=\`${exitCode}\``,
               '',
               report.trim(),
             ].join('\n');
@@ -107,7 +107,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ./scripts/prune_file_size_budget_allowlist.sh
+          ./scripts/check/prune_file_size_budget_allowlist.sh
           if git diff --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else

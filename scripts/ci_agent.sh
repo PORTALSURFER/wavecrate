@@ -10,8 +10,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
-# shellcheck source=scripts/use_cargo_cache.sh
-source "$ROOT_DIR/scripts/use_cargo_cache.sh"
+# shellcheck source=scripts/internal/use_cargo_cache.sh
+source "$ROOT_DIR/scripts/internal/use_cargo_cache.sh"
 sempal_enable_cargo_cache
 
 usage() {
@@ -38,8 +38,8 @@ while (( $# > 0 )); do
   esac
 done
 
-echo "[ci_agent] ./scripts/check_next_branch.sh"
-./scripts/check_next_branch.sh
+echo "[ci_agent] ./scripts/check/check_next_branch.sh"
+./scripts/check/check_next_branch.sh
 
 echo "[ci_agent] ./scripts/devcheck.sh"
 ./scripts/devcheck.sh
