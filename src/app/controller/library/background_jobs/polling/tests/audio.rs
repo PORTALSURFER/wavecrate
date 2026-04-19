@@ -127,10 +127,7 @@ fn audio_visual_message_commits_staged_handoff_before_playback() {
         controller.sample_view.wav.loaded_wav.as_deref(),
         Some(relative_path)
     );
-    assert_eq!(
-        controller.ui.loaded_wav.as_deref(),
-        Some(relative_path)
-    );
+    assert_eq!(controller.ui.loaded_wav.as_deref(), Some(relative_path));
     assert!(controller.ui.waveform.loading.is_none());
     assert!(controller.runtime.jobs.pending_playback.is_none());
     assert_eq!(

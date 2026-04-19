@@ -267,7 +267,10 @@ fn native_focus_browser_row_clears_selection_and_queues_async_preview() {
         controller.sample_view.wav.loaded_wav.as_deref(),
         Some(Path::new("one.wav"))
     );
-    assert_eq!(controller.ui.loaded_wav.as_deref(), Some(Path::new("one.wav")));
+    assert_eq!(
+        controller.ui.loaded_wav.as_deref(),
+        Some(Path::new("one.wav"))
+    );
     assert_eq!(
         controller.ui.waveform.loading.as_deref(),
         Some(Path::new("two.wav"))
