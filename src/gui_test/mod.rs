@@ -20,7 +20,11 @@ pub use self::artifacts::{
 pub use self::automation::{
     GuiAutomationTarget, read_automation_snapshot_from_artifact, resolve_automation_target,
 };
-pub use self::config::GuiTestModeConfig;
+pub use self::config::{
+    GUI_TEST_ISOLATED_STARTUP_FIXTURE_TAG, GUI_TEST_LIVE_PROFILE_FIXTURE_TAG, GuiTestModeConfig,
+    canonical_gui_test_fixture_tag, gui_test_fixture_uses_isolated_startup,
+    gui_test_fixture_uses_live_profile,
+};
 pub use self::fixtures::GuiFixtureBridge;
 pub use self::packs::{GuiScenarioPack, gui_scenario_pack};
 pub use self::runner::{capture_default_bundle, dispatch_action_bundle, run_scenario};

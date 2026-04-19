@@ -154,7 +154,8 @@ Enables deterministic GUI test mode for the main app binary.
 Selects the GUI fixture used in GUI test mode. The default is
 `isolated-startup`, which keeps automated runs on a dedicated non-live
 profile. Use `live` only when you explicitly want GUI validation to exercise
-the real persisted startup profile.
+ the real persisted startup profile. The legacy `default` tag is accepted only
+ as an alias for `isolated-startup`.
 
 ## Logging
 

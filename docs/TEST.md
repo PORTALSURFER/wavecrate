@@ -85,6 +85,8 @@ Use for semantic GUI contracts, CLI scenarios, and desktop AIV loops.
   exercises persisted startup against a non-live profile.
 - Use the `live` GUI fixture only for deliberate manual validation against the
   real persisted startup profile.
+- Treat `default` only as a legacy alias for `isolated-startup`; it is not a
+  separate live-profile mode.
 
 - Browser preview/commit flicker regressions:
   - targeted controller checks: `cargo test browser_focus_transition`
