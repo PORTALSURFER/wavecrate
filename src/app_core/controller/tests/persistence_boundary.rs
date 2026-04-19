@@ -1,7 +1,16 @@
 use super::*;
 use crate::app_core::state::StatusTone;
 use crate::app_dirs::{ConfigBaseGuard, PersistenceProfileGuard, set_app_root_override};
-use crate::sample_sources::{LibraryState, SampleSource, library};
+use crate::sample_sources::{
+    LibraryState, SampleSource,
+    library::{self, LIBRARY_DB_FILE_NAME},
+};
+
+/// Read the live `library.db` bytes so persistence-boundary tests can prove
+/// isolated runs do not mutate the real profile's registry file.
+fn read_library_db_bytes(app_root: &std::path::Path) -> Vec<u8> {
+    std::fs::read(app_root.join(LIBRARY_DB_FILE_NAME)).expect("read library.db bytes")
+}
 
 #[test]
 fn controller_test_runs_do_not_mutate_live_library_state() {
@@ -29,6 +38,7 @@ fn controller_test_runs_do_not_mutate_live_library_state() {
             .map(|source| source.root)
             .collect::<Vec<_>>()
     };
+    let before_db_bytes = read_library_db_bytes(&live_root);
 
     let isolated_source_dir = tempdir().expect("isolated source tempdir");
     let isolated_source_root = isolated_source_dir.path().join("source");
@@ -40,7 +50,7 @@ fn controller_test_runs_do_not_mutate_live_library_state() {
 
     let after_roots = {
         let _live_profile_guard = PersistenceProfileGuard::live();
-        set_app_root_override(live_root).expect("restore live app root override");
+        set_app_root_override(live_root.clone()).expect("restore live app root override");
         library::load()
             .expect("load live library after test run")
             .sources
@@ -48,8 +58,10 @@ fn controller_test_runs_do_not_mutate_live_library_state() {
             .map(|source| source.root)
             .collect::<Vec<_>>()
     };
+    let after_db_bytes = read_library_db_bytes(&live_root);
 
     assert_eq!(after_roots, before_roots);
+    assert_eq!(after_db_bytes, before_db_bytes);
 }
 
 #[test]

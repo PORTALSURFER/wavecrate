@@ -123,6 +123,23 @@ validation. `scripts/run.* sandbox` now sets `SEMPAL_CONFIG_PROFILE=sandbox`
 explicitly so sandbox runs are first-class non-live profiles, not just
 alternate config-home directories.
 
+### Persistence profile quick reference
+
+- `live`
+  - app root: `<config-base>/.sempal/`
+  - use for: normal user-facing startup and release/manual runs
+- `sandbox`
+  - app root: `<config-base>/.sempal/profiles/sandbox/`
+  - use for: deliberate manual QA runs that must not touch the live profile
+- `automated-tests`
+  - app root: `<config-base>/.sempal/profiles/automated-tests/`
+  - use for: tests, GUI contract runs, and scripted validation
+
+The practical rule is simple: automated validation should prove behavior
+through isolated fixture roots and the `automated-tests` profile, while a plain
+`cargo run --release` with no overrides should still open the intended live
+source registry afterward.
+
 ### What writes where (important for safe local runs)
 
 - App config + logs:

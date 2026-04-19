@@ -104,6 +104,42 @@ Use for semantic GUI contracts, CLI scenarios, and desktop AIV loops.
 
 See `docs/SYSTEMS.md` for the GUI artifact and automation contract details.
 
+### Persistence profile boundary
+
+Use these checks when the change could affect startup config loading/saving,
+sample-source persistence, or GUI fixture profile selection.
+
+- profile model:
+  - live runs use `<config-base>/.sempal/`
+  - sandbox/manual QA runs use `<config-base>/.sempal/profiles/sandbox/`
+  - automated validation runs use `<config-base>/.sempal/profiles/automated-tests/`
+- regression anchors:
+  - `cargo test app_core::controller::tests::persistence_boundary::`
+  - `cargo test gui_test::`
+- wrapper coverage:
+  - `powershell -ExecutionPolicy Bypass -File scripts/gui.ps1 contract`
+    now includes the persistence-boundary regression that snapshots the live
+    `library.db` bytes before and after an isolated controller run
+  - `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 agent`
+    still covers the same regression through `cargo test -p sempal --lib`
+
+### Windows manual confirmation
+
+Use this after boundary/profile work when you want one explicit PowerShell proof
+that validation did not leak fixture sources into the real startup profile.
+
+1. Run `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 agent`.
+2. Run `powershell -ExecutionPolicy Bypass -File scripts/gui.ps1 contract`.
+3. Start one normal live runtime without `SEMPAL_CONFIG_HOME` or
+   `SEMPAL_CONFIG_PROFILE` overrides:
+   `cargo run --release`
+4. Confirm the app opens with the intended real source list instead of temp or
+   fixture paths.
+5. If you need a sandbox/manual QA run instead, use
+   `powershell -ExecutionPolicy Bypass -File scripts/run.ps1 sandbox --`
+   so the session writes to the dedicated `sandbox` profile instead of the live
+   profile.
+
 ### Benchmarks and perf checks
 
 - `cargo bench`

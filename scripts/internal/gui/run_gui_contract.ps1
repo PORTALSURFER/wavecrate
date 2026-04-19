@@ -4,9 +4,11 @@ Runs the GUI automation and contract validation lane.
 
 .DESCRIPTION
 Executes the GUI action-catalog tests, GUI fixture/automation tests, and the
-Radiant toolbar hit-test smoke. The lane uses the shared Cargo wrapper helper
-so inherited `sccache` or temp-directory issues degrade cleanly to direct
-`rustc` instead of failing before the test commands run.
+Radiant toolbar hit-test smoke plus the persistence-boundary regression that
+proves GUI-oriented validation stays off the live `library.db`. The lane uses
+the shared Cargo wrapper helper so inherited `sccache` or temp-directory
+issues degrade cleanly to direct `rustc` instead of failing before the test
+commands run.
 #>
 
 [CmdletBinding()]
@@ -45,6 +47,11 @@ try {
   Write-Host "[gui-contract] cargo test gui_test::"
   Invoke-NativeStep -Label "cargo test gui_test::" -Command {
     Invoke-SempalCargo test gui_test::
+  }
+
+  Write-Host "[gui-contract] cargo test app_core::controller::tests::persistence_boundary::"
+  Invoke-NativeStep -Label "cargo test app_core::controller::tests::persistence_boundary::" -Command {
+    Invoke-SempalCargo test app_core::controller::tests::persistence_boundary::
   }
 
   Write-Host "[gui-contract] cargo test --manifest-path vendor/radiant/Cargo.toml toolbar_hit_test_focuses_browser_search"
