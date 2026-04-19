@@ -154,6 +154,9 @@ Legacy golden regression tests still use PANNs reference artifacts:
   - Linux: `$HOME/.config/.sempal/config.toml`
   - Windows: `%APPDATA%\\.sempal\\config.toml`
   - macOS: `~/Library/Application Support/.sempal/config.toml`
+- Non-live persistence profiles live under the same root at `.sempal/profiles/<name>`.
+- Automated test and GUI-validation flows default to isolated non-live profiles so they do not rewrite the live `library.db` source list.
+- Manual GUI validation against the real persisted startup path is still available by opting into the `live` GUI fixture explicitly.
 
 ## SQLite extensions (optional)
 

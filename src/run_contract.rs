@@ -305,6 +305,7 @@ pub(crate) fn start_contract(
 #[cfg(test)]
 mod tests {
     use super::RunContract;
+    use sempal::app_dirs::{ConfigBaseGuard, PersistenceProfileGuard};
     use tempfile::tempdir;
 
     #[test]
@@ -319,16 +320,10 @@ mod tests {
             Ok(base) => base,
             Err(err) => panic!("create temp config dir: {err}"),
         };
-        let previous = std::env::var_os("SEMPAL_CONFIG_HOME");
-        unsafe {
-            std::env::set_var("SEMPAL_CONFIG_HOME", base.path());
-        }
+        let _base_guard = ConfigBaseGuard::set(base.path().to_path_buf());
+        let _profile_guard = PersistenceProfileGuard::live();
         let contract =
             RunContract::start("./target/app", "/tmp", 0, true).expect("contract should start");
         assert!(!contract.run_id.is_empty());
-        match previous {
-            Some(value) => unsafe { std::env::set_var("SEMPAL_CONFIG_HOME", value) },
-            None => unsafe { std::env::remove_var("SEMPAL_CONFIG_HOME") },
-        }
     }
 }

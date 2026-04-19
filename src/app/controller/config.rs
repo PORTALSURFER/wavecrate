@@ -16,8 +16,8 @@ impl AppController {
         &mut self,
         cfg: crate::sample_sources::config::AppConfig,
     ) -> Result<(), crate::sample_sources::config::ConfigError> {
-        let (sources, removed_transient_benchmark_sources) =
-            prune_transient_benchmark_sources(cfg.sources.clone());
+        let (sources, removed_transient_test_sources) =
+            prune_transient_test_sources(cfg.sources.clone());
         self.settings.feature_flags = cfg.core.feature_flags;
         self.settings.analysis = cfg.core.analysis;
         self.settings.analysis.max_analysis_duration_seconds =
@@ -162,17 +162,17 @@ impl AppController {
         self.runtime
             .analysis
             .start(self.runtime.jobs.message_sender());
-        if removed_transient_benchmark_sources > 0
+        if removed_transient_test_sources > 0
             && let Err(err) = self.save_full_config()
         {
-            let suffix = if removed_transient_benchmark_sources == 1 {
+            let suffix = if removed_transient_test_sources == 1 {
                 ""
             } else {
                 "s"
             };
             self.set_status(
                 format!(
-                    "Removed {removed_transient_benchmark_sources} transient benchmark source{suffix}, but failed to persist cleanup: {err}"
+                    "Removed {removed_transient_test_sources} transient test source{suffix}, but failed to persist cleanup: {err}"
                 ),
                 StatusTone::Warning,
             );
@@ -363,14 +363,14 @@ fn normalize_bpm_value(value: f32) -> Option<f32> {
     }
 }
 
-/// Remove transient benchmark sources that were incorrectly persisted into user config.
-fn prune_transient_benchmark_sources(
+/// Remove transient test and benchmark sources that should never survive startup.
+fn prune_transient_test_sources(
     sources: Vec<crate::sample_sources::SampleSource>,
 ) -> (Vec<crate::sample_sources::SampleSource>, usize) {
     let mut retained = Vec::with_capacity(sources.len());
     let mut removed = 0usize;
     for source in sources {
-        if is_transient_benchmark_source(&source) {
+        if is_transient_test_source(&source) {
             removed = removed.saturating_add(1);
         } else {
             retained.push(source);
@@ -379,14 +379,26 @@ fn prune_transient_benchmark_sources(
     (retained, removed)
 }
 
-/// Identify benchmark-generated GUI sources that should never survive into normal app state.
-fn is_transient_benchmark_source(source: &crate::sample_sources::SampleSource) -> bool {
-    source.root.starts_with(std::env::temp_dir())
-        && source
-            .root
-            .file_name()
-            .and_then(|name| name.to_str())
-            .is_some_and(|name| name.eq_ignore_ascii_case("gui-source"))
+/// Identify automated-test source roots that should never survive into live app state.
+fn is_transient_test_source(source: &crate::sample_sources::SampleSource) -> bool {
+    if !source.root.starts_with(std::env::temp_dir()) {
+        return false;
+    }
+    let Some(file_name) = source.root.file_name().and_then(|name| name.to_str()) else {
+        return false;
+    };
+    if file_name.eq_ignore_ascii_case("gui-source") {
+        return true;
+    }
+    !source.root.exists() && is_known_transient_test_source_name(file_name)
+}
+
+/// Return whether one temp-root leaf name matches Sempal-generated test fixtures.
+fn is_known_transient_test_source_name(name: &str) -> bool {
+    matches!(
+        name,
+        "browser-source" | "sources-source" | "source" | "source-a" | "source-b"
+    )
 }
 
 #[cfg(test)]
@@ -395,7 +407,7 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
-    fn prune_transient_benchmark_sources_keeps_user_sources() {
+    fn prune_transient_test_sources_keeps_user_sources() {
         let retained_dir = tempdir().expect("retained tempdir");
         let retained_root = retained_dir.path().join("user-source");
         std::fs::create_dir_all(&retained_root).expect("create retained source");
@@ -404,7 +416,7 @@ mod tests {
         std::fs::create_dir_all(&transient_root).expect("create transient source");
         let retained_source = crate::sample_sources::SampleSource::new(retained_root.clone());
 
-        let (sources, removed) = prune_transient_benchmark_sources(vec![
+        let (sources, removed) = prune_transient_test_sources(vec![
             crate::sample_sources::SampleSource::new(transient_root),
             retained_source.clone(),
         ]);
@@ -412,5 +424,22 @@ mod tests {
         assert_eq!(removed, 1);
         assert_eq!(sources.len(), 1);
         assert_eq!(sources[0].root, retained_source.root);
+    }
+
+    #[test]
+    fn prune_transient_test_sources_removes_missing_temp_fixture_roots() {
+        let missing_root = std::env::temp_dir().join("source-a");
+        let retained_dir = tempdir().expect("retained tempdir");
+        let retained_root = retained_dir.path().join("user-source");
+        std::fs::create_dir_all(&retained_root).expect("create retained source");
+
+        let (sources, removed) = prune_transient_test_sources(vec![
+            crate::sample_sources::SampleSource::new(missing_root),
+            crate::sample_sources::SampleSource::new(retained_root.clone()),
+        ]);
+
+        assert_eq!(removed, 1);
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0].root, retained_root);
     }
 }

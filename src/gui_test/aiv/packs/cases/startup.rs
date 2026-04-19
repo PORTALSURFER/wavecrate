@@ -6,7 +6,7 @@ use super::{assert_step, screenshot, wait_for_node};
 pub(crate) fn startup_ready_case() -> GuiAivCase {
     GuiAivCase {
         name: String::from("startup_ready"),
-        fixture_tag: String::from("default"),
+        fixture_tag: String::from("isolated-startup"),
         viewport: DEFAULT_VIEWPORT,
         window_title: String::from(GUI_TEST_WINDOW_TITLE),
         steps: vec![

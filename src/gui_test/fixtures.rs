@@ -9,6 +9,7 @@ use crate::{
         controller::build_named_gui_fixture_controller,
         native_bridge::{SempalNativeBridge, new_native_bridge, new_native_bridge_with_controller},
     },
+    app_dirs::PersistenceProfileGuard,
     gui::repaint::RepaintSignal,
     gui_test::GuiTestModeConfig,
     waveform::WaveformRenderer,
@@ -23,6 +24,7 @@ use tempfile::TempDir;
 /// delegating all bridge behavior to `SempalNativeBridge`.
 pub struct GuiFixtureBridge {
     bridge: SempalNativeBridge,
+    _profile_guard: Option<PersistenceProfileGuard>,
     _sandbox_guards: Vec<TempDir>,
     shutdown_emitted: bool,
 }
@@ -30,16 +32,32 @@ pub struct GuiFixtureBridge {
 impl GuiFixtureBridge {
     /// Build one bridge for the requested fixture tag and viewport.
     ///
-    /// The `default` fixture uses the normal persisted startup path. Named
-    /// fixtures use deterministic seeded controllers without touching user data.
+    /// The `live` fixture uses the normal persisted startup path. The
+    /// `isolated-startup`/`default` fixture exercises persisted startup against
+    /// a dedicated non-live profile. Named controller fixtures use deterministic
+    /// seeded controllers without touching user data.
     pub fn new_with_viewport(fixture_tag: &str, viewport: [u32; 2]) -> Result<Self, String> {
-        if fixture_tag == "default" {
+        if fixture_tag == "live" {
             let bridge = new_native_bridge(
                 WaveformRenderer::new(viewport[0].max(320), viewport[1].max(180)),
                 None,
             )?;
             return Ok(Self {
                 bridge,
+                _profile_guard: None,
+                _sandbox_guards: Vec::new(),
+                shutdown_emitted: false,
+            });
+        }
+        if fixture_tag == "default" || fixture_tag == "isolated-startup" {
+            let profile_guard = PersistenceProfileGuard::named("gui-test");
+            let bridge = new_native_bridge(
+                WaveformRenderer::new(viewport[0].max(320), viewport[1].max(180)),
+                None,
+            )?;
+            return Ok(Self {
+                bridge,
+                _profile_guard: Some(profile_guard),
                 _sandbox_guards: Vec::new(),
                 shutdown_emitted: false,
             });
@@ -50,6 +68,7 @@ impl GuiFixtureBridge {
         )?;
         Ok(Self {
             bridge: new_native_bridge_with_controller(bundle.controller),
+            _profile_guard: None,
             _sandbox_guards: bundle.sandbox_guards,
             shutdown_emitted: false,
         })

@@ -44,6 +44,12 @@ pub enum LibraryError {
         /// Underlying IO error.
         source: std::io::Error,
     },
+    /// Failed to resolve the configured persistence profile.
+    #[error("Invalid library persistence profile '{profile}'")]
+    InvalidProfile {
+        /// Rejected profile name.
+        profile: String,
+    },
     /// Failed to open or query the database.
     #[error("Library database query failed: {0}")]
     Sql(#[from] rusqlite::Error),
@@ -244,6 +250,9 @@ fn map_app_dir_error(error: app_dirs::AppDirError) -> LibraryError {
         app_dirs::AppDirError::NoBaseDir => LibraryError::NoConfigDir,
         app_dirs::AppDirError::CreateDir { path, source } => {
             LibraryError::CreateDir { path, source }
+        }
+        app_dirs::AppDirError::InvalidProfileName { profile } => {
+            LibraryError::InvalidProfile { profile }
         }
     }
 }

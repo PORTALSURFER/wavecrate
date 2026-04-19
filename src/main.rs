@@ -116,7 +116,7 @@ fn run_application(
     let fixture_tag = gui_test_mode
         .as_ref()
         .map(|config| config.fixture_tag.as_str())
-        .unwrap_or("default");
+        .unwrap_or("live");
     let viewport = gui_test_mode
         .as_ref()
         .map(|config| config.viewport)

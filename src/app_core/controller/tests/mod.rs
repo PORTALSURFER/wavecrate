@@ -13,4 +13,5 @@ use tempfile::tempdir;
 mod browser_sources;
 mod contextual_actions;
 mod dispatch;
+mod persistence_boundary;
 mod waveform;

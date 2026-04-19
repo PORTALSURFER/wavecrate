@@ -9,6 +9,7 @@ const GUI_TEST_ARTIFACT_DIR_ENV: &str = "SEMPAL_GUI_TEST_ARTIFACT_DIR";
 const GUI_TEST_FIXTURE_ENV: &str = "SEMPAL_GUI_TEST_FIXTURE";
 const GUI_TEST_VIEWPORT_ENV: &str = "SEMPAL_GUI_TEST_VIEWPORT";
 const GUI_TEST_SCENARIO_ENV: &str = "SEMPAL_GUI_TEST_SCENARIO";
+const DEFAULT_GUI_TEST_FIXTURE_TAG: &str = "isolated-startup";
 
 /// Deterministic runtime settings used by GUI contract tools and app test mode.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -39,7 +40,7 @@ impl Default for GuiTestModeConfig {
             viewport: [1440, 810],
             artifact_dir: PathBuf::from("gui-test"),
             scenario_name: None,
-            fixture_tag: String::from("default"),
+            fixture_tag: String::from(DEFAULT_GUI_TEST_FIXTURE_TAG),
             deterministic_seed: 1,
             disable_nonessential_animations: true,
             background_job_policy: String::from("foreground_only"),
@@ -60,7 +61,7 @@ impl GuiTestModeConfig {
             run_manifest_path,
             scenario_name: std::env::var(GUI_TEST_SCENARIO_ENV).ok(),
             fixture_tag: std::env::var(GUI_TEST_FIXTURE_ENV)
-                .unwrap_or_else(|_| String::from("default")),
+                .unwrap_or_else(|_| String::from(DEFAULT_GUI_TEST_FIXTURE_TAG)),
             ..Self::default()
         };
         if let Ok(value) = std::env::var(GUI_TEST_VIEWPORT_ENV)

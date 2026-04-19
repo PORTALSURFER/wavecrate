@@ -81,6 +81,11 @@ Use for compatibility-shell visual and behavior changes.
 
 Use for semantic GUI contracts, CLI scenarios, and desktop AIV loops.
 
+- Automated GUI runs default to the isolated `isolated-startup` fixture, which
+  exercises persisted startup against a non-live profile.
+- Use the `live` GUI fixture only for deliberate manual validation against the
+  real persisted startup profile.
+
 - Browser preview/commit flicker regressions:
   - targeted controller checks: `cargo test browser_focus_transition`
   - semantic GUI proof lane: `powershell -ExecutionPolicy Bypass -File scripts/gui.ps1 contract`

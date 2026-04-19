@@ -39,6 +39,12 @@ pub enum LoggingError {
         /// Underlying IO error.
         source: std::io::Error,
     },
+    /// Failed to resolve the configured persistence profile for logs.
+    #[error("Invalid log persistence profile '{profile}'")]
+    InvalidProfile {
+        /// Rejected profile name.
+        profile: String,
+    },
     /// Failed to enumerate existing log files for pruning.
     #[error("Failed to read log directory {path}: {source}")]
     ReadDir {
@@ -218,6 +224,9 @@ fn map_app_dir_error(error: app_dirs::AppDirError) -> LoggingError {
         app_dirs::AppDirError::NoBaseDir => LoggingError::NoDataDir,
         app_dirs::AppDirError::CreateDir { path, source } => {
             LoggingError::CreateDir { path, source }
+        }
+        app_dirs::AppDirError::InvalidProfileName { profile } => {
+            LoggingError::InvalidProfile { profile }
         }
     }
 }

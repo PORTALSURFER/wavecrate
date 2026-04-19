@@ -6,7 +6,7 @@ use super::{assert_step, click_node, screenshot, type_into_node, wait_for_node};
 pub(crate) fn options_open_close_case() -> GuiAivCase {
     GuiAivCase {
         name: String::from("options_open_close"),
-        fixture_tag: String::from("default"),
+        fixture_tag: String::from("isolated-startup"),
         viewport: DEFAULT_VIEWPORT,
         window_title: String::from(GUI_TEST_WINDOW_TITLE),
         steps: vec![

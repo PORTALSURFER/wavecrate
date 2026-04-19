@@ -111,6 +111,12 @@ and uses a `.sempal` directory under this base.
 Example: `SEMPAL_CONFIG_HOME=/tmp` causes logs to be written under
 `/tmp/.sempal/logs` on Unix-like platforms.
 
+- `SEMPAL_CONFIG_PROFILE`
+Selects one named non-live persistence profile under the resolved app root.
+`SEMPAL_CONFIG_PROFILE=gui-test` writes config, logs, and `library.db` under
+`<config-base>/.sempal/profiles/gui-test/`. Set `SEMPAL_CONFIG_PROFILE=live`
+to force the real live app root explicitly.
+
 ### What writes where (important for safe local runs)
 
 - App config + logs:
@@ -138,6 +144,15 @@ Example: `SEMPAL_CONFIG_HOME=/tmp` causes logs to be written under
 - `SEMPAL_NATIVE_FONT_PATH`
 Optional path to a `.ttf` font used by the native shell text renderer when
 system font discovery fails.
+
+- `SEMPAL_GUI_TEST_MODE`
+Enables deterministic GUI test mode for the main app binary.
+
+- `SEMPAL_GUI_TEST_FIXTURE`
+Selects the GUI fixture used in GUI test mode. The default is
+`isolated-startup`, which keeps automated runs on a dedicated non-live
+profile. Use `live` only when you explicitly want GUI validation to exercise
+the real persisted startup profile.
 
 ## Logging
 
