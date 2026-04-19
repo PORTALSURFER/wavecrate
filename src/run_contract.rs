@@ -32,6 +32,7 @@ const BUILD_GIT_SHA: Option<&str> = option_env!("SEMPAL_BUILD_GIT_SHA");
 struct RunContractEvent {
     run_id: String,
     git_sha: String,
+    persistence_mode: String,
     cfg_path: String,
     log_path: String,
     startup_phase: String,
@@ -55,6 +56,7 @@ struct RunContractMilestone {
 struct RunContractManifest {
     run_id: String,
     git_sha: String,
+    persistence_mode: String,
     cfg_path: String,
     log_path: String,
     process_id: u32,
@@ -74,6 +76,7 @@ struct RunContractManifest {
 pub(crate) struct RunContract {
     run_id: String,
     git_sha: String,
+    persistence_mode: String,
     cfg_path: String,
     log_path: String,
     executable_path: String,
@@ -96,14 +99,14 @@ impl RunContract {
         debug: bool,
     ) -> Result<Self, String> {
         let run_id = make_run_contract_id();
+        let persistence = app_dirs::resolve_persistence()
+            .map_err(|err| format!("failed to resolve persistence mode: {err}"))?;
 
-        let cfg_path = app_dirs::app_root_dir()
-            .map(|path| path.to_string_lossy().into_owned())
-            .map_err(|err| format!("failed to resolve cfg path: {err}"))?;
-
-        let log_path = app_dirs::logs_dir()
-            .map(|path| path.to_string_lossy().into_owned())
-            .map_err(|err| format!("failed to resolve log path: {err}"))?;
+        let cfg_path = persistence.app_root.to_string_lossy().into_owned();
+        let log_path = persistence.app_root.join("logs");
+        fs::create_dir_all(&log_path)
+            .map_err(|err| format!("failed to prepare log path {}: {err}", log_path.display()))?;
+        let log_path = log_path.to_string_lossy().into_owned();
 
         let contract_dir = Path::new(&log_path).join("contracts");
         let artifact_path = contract_dir.join(format!("run_contract_{run_id}.ndjson"));
@@ -112,6 +115,7 @@ impl RunContract {
         Ok(Self {
             run_id,
             git_sha: resolve_git_sha(),
+            persistence_mode: persistence.mode.to_string(),
             cfg_path,
             log_path,
             artifact_path,
@@ -132,6 +136,7 @@ impl RunContract {
         let event = RunContractEvent {
             run_id: self.run_id.clone(),
             git_sha: self.git_sha.clone(),
+            persistence_mode: self.persistence_mode.clone(),
             cfg_path: self.cfg_path.clone(),
             log_path: self.log_path.clone(),
             startup_phase: startup_phase.to_string(),
@@ -189,6 +194,7 @@ impl RunContract {
         let manifest = RunContractManifest {
             run_id: self.run_id.clone(),
             git_sha: self.git_sha.clone(),
+            persistence_mode: self.persistence_mode.clone(),
             cfg_path: self.cfg_path.clone(),
             log_path: self.log_path.clone(),
             process_id: self.process_id,

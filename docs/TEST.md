@@ -82,7 +82,8 @@ Use for compatibility-shell visual and behavior changes.
 Use for semantic GUI contracts, CLI scenarios, and desktop AIV loops.
 
 - Automated GUI runs default to the isolated `isolated-startup` fixture, which
-  exercises persisted startup against a non-live profile.
+  exercises persisted startup against the dedicated `automated-tests`
+  persistence profile.
 - Use the `live` GUI fixture only for deliberate manual validation against the
   real persisted startup profile.
 - Treat `default` only as a legacy alias for `isolated-startup`; it is not a

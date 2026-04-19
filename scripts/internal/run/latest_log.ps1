@@ -9,7 +9,8 @@ Prints the resolved log directory, the newest log file, and a tail snippet.
 Resolution order for the `.sempal` root:
 1) `SEMPAL_CONFIG_HOME` (config base override, if set)
 2) OS default config base (`%APPDATA%` on Windows, app-support on macOS, XDG on Linux)
-3) `app_data_dir` in `<app_root>/config.toml` (absolute path expected; overrides `.sempal` root)
+3) `SEMPAL_CONFIG_PROFILE` (`live`, `sandbox`, `automated-tests`, or another named profile)
+4) `app_data_dir` in `<app_root>/config.toml` (absolute path expected; overrides `.sempal` root)
 
 This is best-effort and intended for quick diagnostics (humans + agents).
 #>
@@ -45,6 +46,13 @@ function Get-DefaultConfigBase {
     return $env:XDG_CONFIG_HOME
   }
   return (Join-Path $HOME ".config")
+}
+
+function Get-PersistenceProfile {
+  if ([string]::IsNullOrWhiteSpace($env:SEMPAL_CONFIG_PROFILE)) {
+    return "live"
+  }
+  return $env:SEMPAL_CONFIG_PROFILE.Trim()
 }
 
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
@@ -86,7 +94,12 @@ function Get-AppDataDirOverrideFromConfig {
 }
 
 function Resolve-AppRoot {
-  $defaultRoot = Join-Path $configBase ".sempal"
+  $profile = Get-PersistenceProfile
+  $defaultRoot = if ($profile -ieq "live") {
+    Join-Path $configBase ".sempal"
+  } else {
+    Join-Path $configBase (".sempal\\profiles\\" + $profile)
+  }
   $configPath = Join-Path $defaultRoot "config.toml"
 
   $override = Get-AppDataDirOverrideFromConfig -ConfigPath $configPath
@@ -104,6 +117,7 @@ $appRoot = Resolve-AppRoot
 $logsDir = Join-Path $appRoot "logs"
 
 Write-Host ("[latest_log] config_base_dir={0}" -f $configBase)
+Write-Host ("[latest_log] persistence_profile={0}" -f (Get-PersistenceProfile))
 Write-Host ("[latest_log] preferred_sandbox_config_home={0}" -f $sandboxBase)
 Write-Host ("[latest_log] used_sandbox_config_home={0}" -f $usedSandbox.ToString().ToLowerInvariant())
 Write-Host ("[latest_log] app_root={0}" -f $appRoot)

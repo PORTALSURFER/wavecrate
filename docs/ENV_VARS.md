@@ -118,12 +118,17 @@ Selects one named non-live persistence profile under the resolved app root.
 to force the real live app root explicitly. Test executables default to the
 named `automated-tests` profile when neither `SEMPAL_CONFIG_PROFILE` nor
 `SEMPAL_CONFIG_HOME` is set.
+Use `sandbox` for manual QA/sandboxed runs and `automated-tests` for automated
+validation. `scripts/run.* sandbox` now sets `SEMPAL_CONFIG_PROFILE=sandbox`
+explicitly so sandbox runs are first-class non-live profiles, not just
+alternate config-home directories.
 
 ### What writes where (important for safe local runs)
 
 - App config + logs:
-  - Sempal writes under `<SEMPAL_CONFIG_HOME>/.sempal/` (or your OS config dir if `SEMPAL_CONFIG_HOME` is unset).
-  - `scripts/run.* sandbox` sets `SEMPAL_CONFIG_HOME` so the run does **not** touch your real user profile config/log directories.
+  - Live runs write under `<config-base>/.sempal/`.
+  - Named non-live profiles write under `<config-base>/.sempal/profiles/<name>/`.
+  - `scripts/run.* sandbox` sets both `SEMPAL_CONFIG_HOME` and `SEMPAL_CONFIG_PROFILE=sandbox` so the run does **not** touch your real user profile config/log directories.
 - Per-source-folder database side effect:
   - If you point Sempal at a folder, it may create or update a `.sempal_samples.db` in that source folder.
   - `SEMPAL_CONFIG_HOME` does **not** relocate these per-folder DB files.
@@ -154,7 +159,7 @@ Enables deterministic GUI test mode for the main app binary.
 Selects the GUI fixture used in GUI test mode. The default is
 `isolated-startup`, which keeps automated runs on a dedicated non-live
 profile. Use `live` only when you explicitly want GUI validation to exercise
- the real persisted startup profile. The legacy `default` tag is accepted only
+the real persisted startup profile. The legacy `default` tag is accepted only
  as an alias for `isolated-startup`.
 
 ## Logging

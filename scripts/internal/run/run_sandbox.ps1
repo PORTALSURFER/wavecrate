@@ -7,10 +7,11 @@ Runs Sempal in an isolated sandbox config directory.
 
 .DESCRIPTION
 Runs `cargo run --release` with `SEMPAL_CONFIG_HOME` set to an isolated sandbox
-base directory so local runs (including agent runs) do not touch real user data.
+base directory plus `SEMPAL_CONFIG_PROFILE=sandbox` so local runs (including
+agent runs) do not touch real user data.
 
 Derived paths:
-- app root:  <SEMPAL_CONFIG_HOME>\.sempal
+- app root:  <SEMPAL_CONFIG_HOME>\.sempal\profiles\sandbox
 - config:    <app root>\config.toml
 - logs:      <app root>\logs
 #>
@@ -69,13 +70,15 @@ if ($AllowUserLibraryDbWrite) {
 
 $sandboxBase = New-SandboxBase -Requested $Dir -SandboxName $Name -UseTemp ([bool]$Temp)
 $env:SEMPAL_CONFIG_HOME = $sandboxBase
+$env:SEMPAL_CONFIG_PROFILE = "sandbox"
 
-$appRoot = Join-Path $sandboxBase ".sempal"
+$appRoot = Join-Path $sandboxBase ".sempal\\profiles\\sandbox"
 $configPath = Join-Path $appRoot "config.toml"
 $logsDir = Join-Path $appRoot "logs"
 
 Write-Host ("[run_sandbox] repo_root={0}" -f $rootDir)
 Write-Host ("[run_sandbox] SEMPAL_CONFIG_HOME={0}" -f $sandboxBase)
+Write-Host ("[run_sandbox] SEMPAL_CONFIG_PROFILE={0}" -f $env:SEMPAL_CONFIG_PROFILE)
 Write-Host ("[run_sandbox] app_root={0}" -f $appRoot)
 Write-Host ("[run_sandbox] config={0}" -f $configPath)
 Write-Host ("[run_sandbox] logs={0}" -f $logsDir)

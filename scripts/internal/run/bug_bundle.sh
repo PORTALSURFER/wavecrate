@@ -77,6 +77,14 @@ default_config_base_dir() {
   esac
 }
 
+current_persistence_profile() {
+  if [[ -n "${SEMPAL_CONFIG_PROFILE:-}" ]]; then
+    printf "%s" "${SEMPAL_CONFIG_PROFILE}"
+  else
+    printf "%s" "live"
+  fi
+}
+
 config_base_dir="$(default_config_base_dir)"
 used_sandbox_config_home="false"
 if [[ -z "${SEMPAL_CONFIG_HOME:-}" ]] && [[ "$config_base_dir" == "$sandbox_config_home" ]]; then
@@ -98,7 +106,12 @@ extract_app_data_dir_from_config() {
 }
 
 resolve_app_root_dir() {
+  local profile
+  profile="$(current_persistence_profile)"
   local default_root="${config_base_dir}/.sempal"
+  if [[ "$profile" != "live" ]]; then
+    default_root="${default_root}/profiles/${profile}"
+  fi
 
   local config_path="${default_root}/config.toml"
   local override_root=""
@@ -127,6 +140,7 @@ mkdir -p "${bundle_dir}/meta"
   echo "timestamp_utc=${timestamp}"
   echo "repo_root=${ROOT_DIR}"
   echo "config_base_dir=${config_base_dir}"
+  echo "persistence_profile=$(current_persistence_profile)"
   echo "preferred_sandbox_config_home=${sandbox_config_home}"
   echo "used_sandbox_config_home=${used_sandbox_config_home}"
   echo "app_root=${app_root}"

@@ -21,9 +21,12 @@ use thiserror::Error;
 pub const APP_DIR_NAME: &str = ".sempal";
 /// Name of the directory that stores explicit non-live persistence profiles.
 pub const PROFILE_DIR_NAME: &str = "profiles";
+/// Canonical non-live profile name used for sandbox/manual QA runs.
+pub const SANDBOX_PROFILE_NAME: &str = "sandbox";
+/// Canonical non-live profile name used for automated validation runs.
+pub const AUTOMATED_PROFILE_NAME: &str = "automated-tests";
 
 const CONFIG_PROFILE_ENV: &str = "SEMPAL_CONFIG_PROFILE";
-const TEST_PROFILE_NAME: &str = "automated-tests";
 const TEST_EXECUTABLE_DIR_NAME: &str = "deps";
 
 static CONFIG_BASE_OVERRIDE: LazyLock<Mutex<Option<PathBuf>>> = LazyLock::new(|| Mutex::new(None));
@@ -45,7 +48,7 @@ thread_local! {
 }
 #[cfg(test)]
 thread_local! {
-    static SCOPED_PROFILE_OVERRIDE: RefCell<Option<PersistenceProfile>> = const { RefCell::new(None) };
+    static SCOPED_PROFILE_OVERRIDE: RefCell<Option<ProfileSelection>> = const { RefCell::new(None) };
 }
 
 /// Ensure tests do not touch real user config directories.
@@ -85,7 +88,7 @@ pub enum AppDirError {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum PersistenceProfile {
+enum ProfileSelection {
     Live,
     Named(String),
 }
@@ -93,7 +96,7 @@ enum PersistenceProfile {
 /// Guard that overrides the persistence profile for the current test thread.
 #[cfg(test)]
 pub struct PersistenceProfileGuard {
-    previous_profile: Option<PersistenceProfile>,
+    previous_profile: Option<ProfileSelection>,
     previous_root: Option<PathBuf>,
 }
 
@@ -101,15 +104,27 @@ pub struct PersistenceProfileGuard {
 impl PersistenceProfileGuard {
     /// Force the current thread onto the live persistence profile.
     pub fn live() -> Self {
-        Self::set(PersistenceProfile::Live)
+        Self::set(ProfileSelection::Live)
+    }
+
+    /// Force the current thread onto the dedicated sandbox/manual-QA profile.
+    pub fn sandbox() -> Self {
+        Self::set(ProfileSelection::Named(String::from(SANDBOX_PROFILE_NAME)))
+    }
+
+    /// Force the current thread onto the dedicated automated-validation profile.
+    pub fn automated() -> Self {
+        Self::set(ProfileSelection::Named(String::from(
+            AUTOMATED_PROFILE_NAME,
+        )))
     }
 
     /// Force the current thread onto one named non-live persistence profile.
     pub fn named(profile: impl Into<String>) -> Self {
-        Self::set(PersistenceProfile::Named(profile.into()))
+        Self::set(ProfileSelection::Named(profile.into()))
     }
 
-    fn set(profile: PersistenceProfile) -> Self {
+    fn set(profile: ProfileSelection) -> Self {
         let previous_profile = SCOPED_PROFILE_OVERRIDE.with(|override_profile| {
             let mut slot = override_profile.borrow_mut();
             let previous = slot.clone();
@@ -198,8 +213,8 @@ fn config_base_dir() -> Option<PathBuf> {
 
 fn resolve_profile_app_root(base: &std::path::Path) -> Result<PathBuf, AppDirError> {
     match effective_profile() {
-        PersistenceProfile::Live => Ok(base.join(APP_DIR_NAME)),
-        PersistenceProfile::Named(profile) => {
+        ProfileSelection::Live => Ok(base.join(APP_DIR_NAME)),
+        ProfileSelection::Named(profile) => {
             let sanitized = sanitize_profile_name(&profile)?;
             Ok(base
                 .join(APP_DIR_NAME)
@@ -209,7 +224,7 @@ fn resolve_profile_app_root(base: &std::path::Path) -> Result<PathBuf, AppDirErr
     }
 }
 
-fn effective_profile() -> PersistenceProfile {
+fn effective_profile() -> ProfileSelection {
     current_profile_override()
         .or_else(profile_from_env)
         .unwrap_or_else(default_profile)
@@ -217,27 +232,35 @@ fn effective_profile() -> PersistenceProfile {
 
 fn should_auto_isolate_test_config_base() -> bool {
     std::env::var_os("SEMPAL_CONFIG_HOME").is_none()
-        && effective_profile() != PersistenceProfile::Live
+        && effective_profile() != ProfileSelection::Live
         && running_under_test_harness()
 }
 
-fn profile_from_env() -> Option<PersistenceProfile> {
+fn profile_from_env() -> Option<ProfileSelection> {
     let raw = std::env::var(CONFIG_PROFILE_ENV).ok()?;
     let trimmed = raw.trim();
     if trimmed.is_empty() {
         return None;
     }
     if trimmed.eq_ignore_ascii_case("live") {
-        return Some(PersistenceProfile::Live);
+        return Some(ProfileSelection::Live);
     }
-    Some(PersistenceProfile::Named(trimmed.to_string()))
+    if trimmed.eq_ignore_ascii_case("automated") {
+        return Some(ProfileSelection::Named(String::from(
+            AUTOMATED_PROFILE_NAME,
+        )));
+    }
+    if trimmed.eq_ignore_ascii_case(SANDBOX_PROFILE_NAME) {
+        return Some(ProfileSelection::Named(String::from(SANDBOX_PROFILE_NAME)));
+    }
+    Some(ProfileSelection::Named(trimmed.to_string()))
 }
 
-fn default_profile() -> PersistenceProfile {
+fn default_profile() -> ProfileSelection {
     if running_under_test_harness() {
-        return PersistenceProfile::Named(String::from(TEST_PROFILE_NAME));
+        return ProfileSelection::Named(String::from(AUTOMATED_PROFILE_NAME));
     }
-    PersistenceProfile::Live
+    ProfileSelection::Live
 }
 
 fn running_under_test_harness() -> bool {
@@ -270,12 +293,12 @@ fn sanitize_profile_name(profile: &str) -> Result<String, AppDirError> {
 }
 
 #[cfg(test)]
-fn current_profile_override() -> Option<PersistenceProfile> {
+fn current_profile_override() -> Option<ProfileSelection> {
     SCOPED_PROFILE_OVERRIDE.with(|override_profile| override_profile.borrow().clone())
 }
 
 #[cfg(not(test))]
-fn current_profile_override() -> Option<PersistenceProfile> {
+fn current_profile_override() -> Option<ProfileSelection> {
     None
 }
 

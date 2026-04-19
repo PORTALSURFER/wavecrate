@@ -48,6 +48,13 @@ function Get-DefaultConfigBase {
   return (Join-Path $HOME ".config")
 }
 
+function Get-PersistenceProfile {
+  if ([string]::IsNullOrWhiteSpace($env:SEMPAL_CONFIG_PROFILE)) {
+    return "live"
+  }
+  return $env:SEMPAL_CONFIG_PROFILE.Trim()
+}
+
 function Get-AppDataDirOverrideFromConfig {
   param(
     [Parameter(Mandatory = $true)]
@@ -79,7 +86,12 @@ function Get-AppDataDirOverrideFromConfig {
 
 function Resolve-AppRoot {
   $base = Get-DefaultConfigBase
-  $defaultRoot = Join-Path $base ".sempal"
+  $profile = Get-PersistenceProfile
+  $defaultRoot = if ($profile -ieq "live") {
+    Join-Path $base ".sempal"
+  } else {
+    Join-Path $base (".sempal\\profiles\\" + $profile)
+  }
   $configPath = Join-Path $defaultRoot "config.toml"
 
   $override = Get-AppDataDirOverrideFromConfig -ConfigPath $configPath
@@ -124,6 +136,7 @@ function Try-Cmd([string]$Exe, [string[]]$Args) {
   "timestamp_utc=$timestamp"
   "repo_root=$rootDir"
   "config_base_dir=$configBase"
+  ("persistence_profile=" + (Get-PersistenceProfile))
   "preferred_sandbox_config_home=$sandboxBase"
   ("used_sandbox_config_home=" + $usedSandbox.ToString().ToLowerInvariant())
   "app_root=$appRoot"

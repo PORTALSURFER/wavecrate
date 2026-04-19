@@ -8,6 +8,7 @@
 )]
 
 use sempal::app_core::ui::MIN_VIEWPORT_SIZE;
+use sempal::app_dirs;
 use sempal::gui_runtime::{NativeRunOptions, run_native_vello_app_declarative};
 use sempal::gui_test::{GuiFixtureBridge, GuiTestModeConfig};
 use sempal::logging;
@@ -59,6 +60,15 @@ fn main() -> Result<(), String> {
         "sempal startup: process metadata captured"
     );
     info!("sempal startup: logging initialized");
+    match app_dirs::resolve_persistence() {
+        Ok(persistence) => info!(
+            persistence_mode = %persistence.mode,
+            config_base = %persistence.config_base.display(),
+            app_root = %persistence.app_root.display(),
+            "sempal startup: persistence profile resolved"
+        ),
+        Err(err) => error!(err = %err, "sempal startup: failed to resolve persistence profile"),
+    }
 
     let mut runtime_started = false;
     let run_result = panic::catch_unwind(AssertUnwindSafe(|| {

@@ -36,8 +36,8 @@ impl GuiFixtureBridge {
     /// Build one bridge for the requested fixture tag and viewport.
     ///
     /// The `live` fixture uses the normal persisted startup path. The canonical
-    /// `isolated-startup` fixture exercises persisted startup against a
-    /// dedicated non-live profile. The legacy `default` tag remains a
+    /// `isolated-startup` fixture exercises persisted startup against the
+    /// dedicated automated-validation profile. The legacy `default` tag remains a
     /// compatibility alias for `isolated-startup`. Named controller fixtures
     /// use deterministic seeded controllers without touching user data.
     pub fn new_with_viewport(fixture_tag: &str, viewport: [u32; 2]) -> Result<Self, String> {
@@ -54,7 +54,7 @@ impl GuiFixtureBridge {
             });
         }
         if gui_test_fixture_uses_isolated_startup(fixture_tag) {
-            let profile_guard = PersistenceProfileGuard::named("gui-test");
+            let profile_guard = PersistenceProfileGuard::automated();
             let bridge = new_native_bridge(
                 WaveformRenderer::new(viewport[0].max(320), viewport[1].max(180)),
                 None,

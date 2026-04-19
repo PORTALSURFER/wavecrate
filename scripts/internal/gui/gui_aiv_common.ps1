@@ -234,6 +234,7 @@ function Start-CaseProcess {
     $startInfo.WorkingDirectory = $RepoRoot
     $startInfo.UseShellExecute = $false
     $startInfo.Environment["SEMPAL_CONFIG_HOME"] = $SandboxDir
+    $startInfo.Environment["SEMPAL_CONFIG_PROFILE"] = "automated-tests"
     $startInfo.Environment["SEMPAL_GUI_TEST_MODE"] = "1"
     $startInfo.Environment["SEMPAL_GUI_TEST_ARTIFACT_DIR"] = $RuntimeArtifactsDir
     $startInfo.Environment["SEMPAL_GUI_TEST_FIXTURE"] = [string]$Case.fixture_tag

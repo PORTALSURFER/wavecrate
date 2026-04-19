@@ -3,8 +3,9 @@
 # Runs Sempal in an isolated sandbox config directory so local runs (including
 # agent runs) do not touch real user data.
 #
-# This works by setting `SEMPAL_CONFIG_HOME` to a sandbox base directory.
-# Sempal then creates and uses `<SEMPAL_CONFIG_HOME>/.sempal/` for config/logs.
+# This works by setting `SEMPAL_CONFIG_HOME` to a sandbox base directory and
+# `SEMPAL_CONFIG_PROFILE=sandbox`, which routes config/logs/library state into
+# `<SEMPAL_CONFIG_HOME>/.sempal/profiles/sandbox/`.
 
 set -euo pipefail
 
@@ -24,9 +25,10 @@ Usage: scripts/run.sh sandbox [--dir <sandbox_base>] [--name <id>] [--temp] [--c
 
 Runs `cargo run --release` with:
 - `SEMPAL_CONFIG_HOME` set to an isolated sandbox base directory
+- `SEMPAL_CONFIG_PROFILE=sandbox`
 
 Derived paths:
-- app root:  <SEMPAL_CONFIG_HOME>/.sempal
+- app root:  <SEMPAL_CONFIG_HOME>/.sempal/profiles/sandbox
 - config:    <app root>/config.toml
 - logs:      <app root>/logs
 
@@ -92,6 +94,7 @@ if (( CLEAN == 1 )); then
 fi
 
 export SEMPAL_CONFIG_HOME="$SANDBOX_BASE"
+export SEMPAL_CONFIG_PROFILE="sandbox"
 if (( WRITE_DB == 1 )); then
   unset SEMPAL_SOURCE_DB_READ_ONLY
 else
@@ -104,12 +107,13 @@ else
   unset SEMPAL_ALLOW_USER_LIBRARY_DB_WRITE
 fi
 
-APP_ROOT="${SEMPAL_CONFIG_HOME}/.sempal"
+APP_ROOT="${SEMPAL_CONFIG_HOME}/.sempal/profiles/sandbox"
 CONFIG_PATH="${APP_ROOT}/config.toml"
 LOGS_DIR="${APP_ROOT}/logs"
 
 echo "[run_sandbox] repo_root=$ROOT_DIR"
 echo "[run_sandbox] SEMPAL_CONFIG_HOME=$SEMPAL_CONFIG_HOME"
+echo "[run_sandbox] SEMPAL_CONFIG_PROFILE=$SEMPAL_CONFIG_PROFILE"
 echo "[run_sandbox] app_root=$APP_ROOT"
 echo "[run_sandbox] config=$CONFIG_PATH"
 echo "[run_sandbox] logs=$LOGS_DIR"
