@@ -30,6 +30,6 @@ What actually happened:
 
 ## Diagnostics
 
-- Attach a bundle from `scripts/bug_bundle.sh` / `scripts/bug_bundle.ps1` when useful (review before sharing; may contain local paths).
+- Attach a bundle from `scripts/run.sh bug-bundle` / `scripts/run.ps1 bug-bundle` when useful (review before sharing; may contain local paths).
 - If you used the sandbox runner, mention whether it was persistent (`<repo>/.sandbox/sempal`) or ephemeral (`--temp/-Temp`).
 

@@ -47,7 +47,7 @@ while (( $# > 0 )); do
 done
 
 install_agent_preflight_hooks() {
-  local hook_script="$ROOT_DIR/scripts/agent/install_agent_preflight_hooks.sh"
+  local hook_script="$ROOT_DIR/scripts/agent.sh"
 
   if [[ "${SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK_INSTALL:-0}" == "1" ]]; then
     echo "[bootstrap] SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK_INSTALL=1: skipping hook install."
@@ -59,7 +59,7 @@ install_agent_preflight_hooks() {
     return 1
   fi
 
-  if "$hook_script" --force; then
+  if "$hook_script" install-hooks --force; then
     echo "[bootstrap] agent preflight hooks: installed"
     return 0
   fi
@@ -213,12 +213,12 @@ fi
 echo
 echo "[bootstrap] Next steps:"
 echo "  - Environment sanity:   bash scripts/doctor.sh"
-echo "  - App-only check:       bash scripts/devcheck.sh --app-only"
-echo "  - Workspace smoke:      bash scripts/devcheck.sh --workspace"
-echo "  - Smoke devcheck:       bash scripts/devcheck.sh"
-echo "  - Fast test checks:     bash scripts/ci_quick.sh"
-echo "  - CI parity checks:     bash scripts/ci_local.sh"
-echo "  - Safe local run:       bash scripts/run_sandbox.sh --"
+echo "  - App-only check:       bash scripts/ci.sh smoke --app-only"
+echo "  - Workspace smoke:      bash scripts/ci.sh smoke --workspace"
+echo "  - Smoke devcheck:       bash scripts/ci.sh smoke"
+echo "  - Fast test checks:     bash scripts/ci.sh quick"
+echo "  - CI parity checks:     bash scripts/ci.sh local"
+echo "  - Safe local run:       bash scripts/run.sh sandbox --"
 
 if (( VERIFY_ONLY == 1 )); then
   if (( failures > 0 )); then
@@ -230,7 +230,7 @@ if (( VERIFY_ONLY == 1 )); then
 else
   if ! install_agent_preflight_hooks; then
     echo "[bootstrap] Agent workspace setup is incomplete without the preflight hooks."
-    echo "[bootstrap]   Re-run: bash scripts/agent/install_agent_preflight_hooks.sh --force"
+    echo "[bootstrap]   Re-run: bash scripts/agent.sh install-hooks --force"
     exit 1
   fi
   echo "[bootstrap] Result: OK"

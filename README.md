@@ -35,27 +35,27 @@ Audio sample triage tool built with Rust.
 - Windows (ASIO): If you want to build with ASIO support (or your build fails looking for the ASIO SDK), download the Steinberg ASIO SDK and set `CPAL_ASIO_DIR` to the SDK path (e.g. a folder named `ASIOSDK`) before running `cargo build`/`cargo run`.
 
 Local CI parity command (canonical):
-- macOS/Linux/WSL: `bash scripts/ci_local.sh`
-- Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
+- macOS/Linux/WSL: `bash scripts/ci.sh local`
+- Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 local`
 
 Fast local app loop:
-- macOS/Linux/WSL: `bash scripts/devcheck.sh`
-- Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
+- macOS/Linux/WSL: `bash scripts/ci.sh smoke`
+- Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 smoke`
 - local release-like runs: `cargo run-fast`
 
 Agent-safe local validation loop for constrained environments:
-- macOS/Linux/WSL: `bash scripts/ci_agent.sh`
-- Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_agent.ps1`
+- macOS/Linux/WSL: `bash scripts/ci.sh agent`
+- Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 agent`
 - Runs `devcheck` plus `cargo test -p sempal --lib -- --test-threads=1` without `cargo nextest`.
 
 Broader integrated local validation loop:
-- macOS/Linux/WSL: `bash scripts/ci_quick.sh`
-- Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
+- macOS/Linux/WSL: `bash scripts/ci.sh quick`
+- Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 quick`
 - Built around `cargo nextest`; the Windows PowerShell wrapper also runs the semantic GUI contract lane.
 
 The CI-parity scripts run formatting, linting, docs, tests, and perf guardrails
 in the same order used by repository workflows.
-On headless Linux hosts, `scripts/ci_local.sh` and `scripts/perf/run_perf_guard.sh`
+On headless Linux hosts, `scripts/ci.sh local` and `scripts/perf.sh guard`
 automatically set `ALSA_CONFIG_PATH=scripts/internal/alsa_headless.conf` (unless already
 set) to route audio probing to a dummy sink and reduce ALSA warning noise.
 
@@ -133,8 +133,8 @@ PANNs ONNX model.
 Legacy golden regression tests still use PANNs reference artifacts:
 
 - Generate/update golden references:
-  - `bash scripts/check/ci_golden_tests.sh`
-  - `powershell -ExecutionPolicy Bypass -File scripts/check/ci_golden_tests.ps1`
+  - `bash scripts/check.sh golden-tests`
+  - `powershell -ExecutionPolicy Bypass -File scripts/check.ps1 golden-tests`
 - These scripts set:
   - `SEMPAL_PANNS_GOLDEN_PATH`
   - `SEMPAL_PANNS_EMBED_GOLDEN_PATH`

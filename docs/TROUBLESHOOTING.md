@@ -11,14 +11,14 @@ Use this document when local setup, validation, or invariant checks fail.
     `bash scripts/doctor.sh`
 - latest logs:
   - Windows PowerShell:
-    `powershell -ExecutionPolicy Bypass -File scripts/latest_log.ps1`
+    `powershell -ExecutionPolicy Bypass -File scripts/run.ps1 logs`
   - macOS/Linux/WSL:
-    `bash scripts/latest_log.sh`
+    `bash scripts/run.sh logs`
 - bug bundle:
   - Windows PowerShell:
-    `powershell -ExecutionPolicy Bypass -File scripts/bug_bundle.ps1`
+    `powershell -ExecutionPolicy Bypass -File scripts/run.ps1 bug-bundle`
   - macOS/Linux/WSL:
-    `bash scripts/bug_bundle.sh`
+    `bash scripts/run.sh bug-bundle`
 
 ## Common failures
 
@@ -82,7 +82,8 @@ Fix:
 
 ## Guardrail policy
 
-Most repository invariants are enforced by `scripts/check_*.{sh,ps1}`.
+Most repository invariants are enforced through `scripts/check.{sh,ps1}`
+subcommands backed by `scripts/internal/check/`.
 
 When a check fails:
 

@@ -1,0 +1,65 @@
+<#
+.SYNOPSIS
+Runs the agent-safe local development validation loop.
+
+.DESCRIPTION
+This lane avoids `cargo-nextest` and the broader GUI contract/integration
+wrappers so it can run in constrained Windows environments where Application
+Control blocks the `cargo-nextest.exe` binary. It keeps the edit loop grounded
+by running the normal compile smoke gate plus the full sempal library test
+suite in one cargo process.
+#>
+
+param(
+  [switch]$Help
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+
+. (Join-Path $PSScriptRoot "../use_cargo_cache.ps1")
+
+$rootDir = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
+
+if ($Help) {
+  Write-Host "Usage: scripts/ci.ps1 agent"
+  Write-Host "Run the agent-safe local validation loop without cargo-nextest."
+  Write-Host "For the broader integrated lane, use `scripts/ci.ps1 quick`."
+  Write-Host "For full CI parity, use `scripts/ci.ps1 local`."
+  exit 0
+}
+
+function Invoke-NativeStep {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Label,
+    [Parameter(Mandatory = $true)]
+    [scriptblock]$Command
+  )
+
+  & $Command
+  if ($LASTEXITCODE -ne 0) {
+    throw "[ci_agent] Step failed ($Label) with exit code $LASTEXITCODE."
+  }
+}
+
+Push-Location $rootDir
+try {
+  Enable-SempalCargoCache
+  Write-Host "[ci_agent] branch policy"
+  Invoke-NativeStep -Label "branch policy" -Command {
+    & (Join-Path $rootDir "scripts/check.ps1") next-branch
+  }
+
+  Write-Host "[ci_agent] scripts/ci.ps1 smoke"
+  & (Join-Path $rootDir "scripts/ci.ps1") smoke
+
+  Write-Host "[ci_agent] cargo test -p sempal --lib"
+  Invoke-NativeStep -Label "cargo test -p sempal --lib" -Command {
+    Invoke-SempalCargo test -p sempal --lib
+  }
+
+  Write-Host "[ci_agent] OK"
+} finally {
+  Pop-Location
+}

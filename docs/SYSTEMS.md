@@ -44,11 +44,11 @@ The important contract is semantic stability:
 
 Current development loops:
 
-- semantic contract lane: `scripts/gui/run_gui_contract.ps1`
-- broader suite: `scripts/gui/run_gui_suite.ps1`
+- semantic contract lane: `scripts/gui.ps1 contract`
+- broader suite: `scripts/gui.ps1 suite`
 - local desktop AIV smoke/suite:
-  - `scripts/gui/run_gui_aiv_smoke.ps1`
-  - `scripts/gui/run_gui_aiv_suite.ps1 -PackName desktop-regression`
+  - `scripts/gui.ps1 aiv-smoke`
+  - `scripts/gui.ps1 aiv-suite -PackName desktop-regression`
 
 Desktop AIV remains local-only until foreground/focus stability is strong
 enough for promotion.

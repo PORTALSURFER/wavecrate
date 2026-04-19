@@ -5,7 +5,7 @@ documents. Anything that is narrow, historical, or fast-moving should live in
 `tmp/` or `docs/plans/` instead of growing the long-term docs set again.
 
 Machine-consumed check allowlists do not live here anymore. They now live under
-`scripts/check/allowlists/` so `docs/` stays human-facing.
+`scripts/internal/check/allowlists/` so `docs/` stays human-facing.
 
 ## Canonical docs
 
@@ -48,9 +48,9 @@ Machine-consumed check allowlists do not live here anymore. They now live under
 
 1. Run request preflight.
    - Windows PowerShell:
-     `powershell -ExecutionPolicy Bypass -File scripts/run_agent_request.ps1`
+     `powershell -ExecutionPolicy Bypass -File scripts/agent.ps1 request`
    - macOS/Linux/WSL:
-     `bash scripts/run_agent_request.sh`
+     `bash scripts/agent.sh request`
 2. Use `docs/TEST.md` for the right validation lane.
 3. Use `docs/TROUBLESHOOTING.md` when a guardrail or environment check fails.
 4. Keep changes small, update the canonical doc that owns the changed behavior,

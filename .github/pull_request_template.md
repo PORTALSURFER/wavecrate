@@ -16,12 +16,12 @@
 
 ## Validation
 
-- Smoke local checks: `bash scripts/devcheck.sh` / `powershell -ExecutionPolicy Bypass -File scripts/devcheck.ps1`
-- Fast local checks: `bash scripts/ci_quick.sh` / `powershell -ExecutionPolicy Bypass -File scripts/ci_quick.ps1`
-- Full CI parity (when relevant): `bash scripts/ci_local.sh` / `powershell -ExecutionPolicy Bypass -File scripts/ci_local.ps1`
+- Smoke local checks: `bash scripts/ci.sh smoke` / `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 smoke`
+- Fast local checks: `bash scripts/ci.sh quick` / `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 quick`
+- Full CI parity (when relevant): `bash scripts/ci.sh local` / `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 local`
 - Tests added/updated:
 - Manual QA notes:
-  - Prefer running the app via `scripts/run_sandbox.sh` / `scripts/run_sandbox.ps1` so tests and manual QA do not touch real user data.
+  - Prefer running the app via `scripts/run.sh sandbox` / `scripts/run.ps1 sandbox` so tests and manual QA do not touch real user data.
 
 ## Docs
 
@@ -35,4 +35,4 @@
 
 ## Diagnostics (when reporting bugs)
 
-- Attach a minimal repro and (when useful) a bundle from `scripts/bug_bundle.sh` / `scripts/bug_bundle.ps1` (review before sharing; may contain local paths).
+- Attach a minimal repro and (when useful) a bundle from `scripts/run.sh bug-bundle` / `scripts/run.ps1 bug-bundle` (review before sharing; may contain local paths).

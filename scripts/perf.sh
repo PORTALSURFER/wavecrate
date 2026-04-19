@@ -16,7 +16,7 @@ fi
 command="$1"
 shift
 
-script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/perf"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/internal/perf"
 
 case "$command" in
   guard) exec "$script_dir/run_perf_guard.sh" "$@" ;;

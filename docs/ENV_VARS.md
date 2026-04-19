@@ -17,7 +17,7 @@ Path to the Steinberg ASIO SDK root directory (expected to contain `host/` and
 `common/`). Required only when building with ASIO support on Windows.
 
 - `SEMPAL_CARGO_BIN`
-Overrides the build tool used by `scripts/release/build_release_zip.sh` (defaults to
+Overrides the build tool used by `scripts/internal/release/build_release_zip.sh` (defaults to
 `cargo`). CI sets this to `cross` for cross builds.
 
 - `SEMPAL_CHECKSUMS_ED25519_KEY`
@@ -64,11 +64,11 @@ Hook execution for existing hook setups is separately controlled by
 `SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK=1`.
 
 - `MEMORY_MAX_AGE_HOURS`
-Override for `scripts/check/check_memory_log.sh` freshness checks (hours). Defaults to
+Override for `scripts/check.sh memory-log` freshness checks (hours). Defaults to
 `24`. `0` is allowed (requires a timestamp no older than the current hour).
 
 - `MEMORY_REQUIRED_UPDATER`
-If set, `scripts/check/check_memory_log.sh` requires `Updated By:` in `MEMORY.md` to
+If set, `scripts/check.sh memory-log` requires `Updated By:` in `MEMORY.md` to
 match this exact value.
 
 - `AGENT_CI_MEMORY_MAX_AGE_HOURS`
@@ -80,26 +80,26 @@ Optional required updater for `run_agent_ci_checks.sh` and `ci_local.sh` when
 `--required-updater` is not provided.
 
 - `SEMPAL_DEAD_SWEEP_STRICT`
-When set to `1`/`true`/`yes`/`on`, `scripts/check/check_rust_dead_deps_advisory.sh`
+When set to `1`/`true`/`yes`/`on`, `scripts/check.sh dead-deps`
 exits non-zero when it detects unused dependency/dead-code findings. Default:
 advisory mode (`0`).
 
 - `SEMPAL_DEAD_SWEEP_RUN_UDEPS`
 When set to `1`/`true`/`yes`/`on`,
-`scripts/check/check_rust_dead_deps_advisory.sh` also runs `cargo udeps` using
+`scripts/check.sh dead-deps` also runs `cargo udeps` using
 `SEMPAL_DEAD_SWEEP_UDEPS_TOOLCHAIN` (or its default).
 
 - `SEMPAL_DEAD_SWEEP_INSTALL_MISSING`
 When set to `1`/`true`/`yes`/`on`,
-`scripts/check/check_rust_dead_deps_advisory.sh` attempts to install missing
+`scripts/check.sh dead-deps` attempts to install missing
 `cargo-machete`/`cargo-udeps` tools before running checks.
 
 - `SEMPAL_DEAD_SWEEP_UDEPS_TOOLCHAIN`
 Rust toolchain string passed to `cargo +<toolchain> udeps` by
-`scripts/check/check_rust_dead_deps_advisory.sh`. Default: `nightly`.
+`scripts/check.sh dead-deps`. Default: `nightly`.
 
 - `SEMPAL_DEAD_SWEEP_REPORT_PATH`
-Optional output path for `scripts/check/check_rust_dead_deps_advisory.sh` to write
+Optional output path for `scripts/check.sh dead-deps` to write
 the full advisory sweep report.
 
 ## Paths and directories
@@ -115,11 +115,11 @@ Example: `SEMPAL_CONFIG_HOME=/tmp` causes logs to be written under
 
 - App config + logs:
   - Sempal writes under `<SEMPAL_CONFIG_HOME>/.sempal/` (or your OS config dir if `SEMPAL_CONFIG_HOME` is unset).
-  - `scripts/run_sandbox.*` sets `SEMPAL_CONFIG_HOME` so the run does **not** touch your real user profile config/log directories.
+  - `scripts/run.* sandbox` sets `SEMPAL_CONFIG_HOME` so the run does **not** touch your real user profile config/log directories.
 - Per-source-folder database side effect:
   - If you point Sempal at a folder, it may create or update a `.sempal_samples.db` in that source folder.
   - `SEMPAL_CONFIG_HOME` does **not** relocate these per-folder DB files.
-  - `scripts/run_sandbox.sh` and `scripts/run_sandbox.ps1` set
+  - `scripts/run.sh sandbox` and `scripts/run.ps1 sandbox` set
     `SEMPAL_SOURCE_DB_READ_ONLY=1` by default, so source DB writes are blocked
     unless `--write-db` is explicitly passed.
 
@@ -149,7 +149,7 @@ Sempal defaults to `info`.
 
 - `ALSA_CONFIG_PATH`
 When set, ALSA uses the provided config file path instead of system defaults.
-On headless Linux runs, `scripts/ci_local.sh` and `scripts/perf/run_perf_guard.sh`
+On headless Linux runs, `scripts/ci.sh local` and `scripts/perf.sh guard`
 set this automatically to `scripts/internal/alsa_headless.conf` unless already defined.
 This routes default playback probing to a dummy sink to reduce `ALSA lib`
 warning noise in test/bench logs.
@@ -195,7 +195,7 @@ flush boundaries. Accepted values: `1`, `true`, `on`, `yes`
 ## Performance guard benchmark overrides
 
 - `SEMPAL_PERF_GUARD_OUT`
-Output path used by `scripts/perf/run_perf_guard.sh` for the benchmark JSON report.
+Output path used by `scripts/perf.sh guard` for the benchmark JSON report.
 Default: `target/perf/bench.json`.
 
 - `SEMPAL_PERF_GUARD_GUI_ROWS`
@@ -221,11 +221,11 @@ Default: `16`.
 
 - `SEMPAL_PERF_GUARD_RUNS`
 Number of full `sempal-bench` benchmark CLI runs executed by
-`scripts/perf/run_perf_guard.sh`. When greater than `1`, the guard reports median
+`scripts/perf.sh guard`. When greater than `1`, the guard reports median
 percentiles across runs and the p95 spread across runs. Default: `1`.
 
 - `SEMPAL_PERF_GUARD_STARTUP_PROFILE`
-When set to `1`/`true`/`on`/`yes`, `scripts/perf/run_perf_guard.sh` also captures
+When set to `1`/`true`/`on`/`yes`, `scripts/perf.sh guard` also captures
 native startup timing logs by launching `sempal` under timeout and parsing
 `SEMPAL_NATIVE_STARTUP_PROFILE` output. Default: disabled (`0`).
 
@@ -244,18 +244,18 @@ fall below `SEMPAL_PERF_GUARD_STARTUP_MIN_VALID_RUNS`. Default: disabled (`0`).
 
 - `SEMPAL_PERF_GUARD_STARTUP_SUMMARY_OUT`
 Output path for the startup timing summary JSON generated by
-`scripts/perf/perf_startup_summary.py` when startup profiling is enabled.
+`scripts/internal/perf/perf_startup_summary.py` when startup profiling is enabled.
 Default: `<SEMPAL_PERF_GUARD_OUT>.startup_summary.json`.
 
 - `SEMPAL_PERF_GUARD_STARTUP_LOCK_ENV_OUT`
 Optional output env file path for startup threshold locking. When set and
-startup profiling succeeds, `scripts/perf/run_perf_guard.sh` writes startup threshold
-assignments to this file using `scripts/perf/perf_startup_lock_thresholds.py`.
+startup profiling succeeds, `scripts/perf.sh guard` writes startup threshold
+assignments to this file using `scripts/internal/perf/perf_startup_lock_thresholds.py`.
 
 - `SEMPAL_PERF_GUARD_STARTUP_LOCK_ENV_IN`
 Optional startup threshold lock-file input path sourced by
-`scripts/perf/run_perf_guard.sh` before threshold parsing. Defaults to the tracked
-lock file at `scripts/perf/locks/startup_thresholds.env`. Set to an empty value
+`scripts/perf.sh guard` before threshold parsing. Defaults to the tracked
+lock file at `scripts/internal/perf/locks/startup_thresholds.env`. Set to an empty value
 to disable auto-loading.
 
 - `SEMPAL_PERF_GUARD_STARTUP_LOCK_MIN_VALID_RUNS`
@@ -265,9 +265,9 @@ Minimum valid startup-profile run count required before writing
 
 - `SEMPAL_PERF_GUARD_FRAME_QUALITY_LOCK_ENV_OUT`
 Optional output env file path for frame-quality threshold locking. When set,
-`scripts/perf/run_perf_guard.sh` writes calibrated frame-jank and missed-present
+`scripts/perf.sh guard` writes calibrated frame-jank and missed-present
 threshold assignments to this path using
-`scripts/perf/perf_frame_quality_lock_thresholds.py`.
+`scripts/internal/perf/perf_frame_quality_lock_thresholds.py`.
 
 - `SEMPAL_PERF_GUARD_FRAME_QUALITY_LOCK_MIN_RUNS`
 Minimum benchmark-report run count required before writing
@@ -328,7 +328,7 @@ interaction benchmark results. Default: `8000`.
 
 - `SEMPAL_PERF_WARN_FRAME_JANK_RATIO`
 Warning threshold (ratio `0.0..=1.0`) for per-scenario frame-jank proxy share
-reported by `scripts/perf/run_perf_guard.sh` from benchmark latency samples above
+reported by `scripts/perf.sh guard` from benchmark latency samples above
 `frame_budget_us` (`16667us`). Default: `0.10`.
 
 - `SEMPAL_PERF_FAIL_FRAME_JANK_RATIO`
@@ -337,7 +337,7 @@ proxy share. Unset by default.
 
 - `SEMPAL_PERF_WARN_MISSED_PRESENT_PROXY_RATIO`
 Warning threshold (ratio `0.0..=1.0`) for per-scenario missed-present proxy
-share reported by `scripts/perf/run_perf_guard.sh` from benchmark latency samples
+share reported by `scripts/perf.sh guard` from benchmark latency samples
 above `2 * frame_budget_us` (`33334us`). Default: `0.05`.
 
 - `SEMPAL_PERF_FAIL_MISSED_PRESENT_PROXY_RATIO`
@@ -449,16 +449,16 @@ When set (to any value), enables transient detection debug logs.
 
 - `SEMPAL_PANNS_GOLDEN_PATH`
 Path to the golden log-mel JSON used by the golden regression tests (typically
-set by `scripts/check/ci_golden_tests.sh` / `scripts/check/ci_golden_tests.ps1`).
+set by `scripts/check.sh golden-tests` / `scripts/check.ps1 golden-tests`).
 
 - `SEMPAL_PANNS_EMBED_GOLDEN_PATH`
 Path to the golden embedding JSON used by the golden regression tests (typically
-set by `scripts/check/ci_golden_tests.sh` / `scripts/check/ci_golden_tests.ps1`).
+set by `scripts/check.sh golden-tests` / `scripts/check.ps1 golden-tests`).
 
 ## Wheel stability workflow overrides
 
 - `SEMPAL_PERF_WHEEL_STABILITY_ROOT`
-Artifact root used by `scripts/perf/run_perf_wheel_stability.sh` for collected
+Artifact root used by `scripts/perf.sh wheel-stability` for collected
 wheel-latency evidence and summary outputs. Default:
 `target/perf/wheel_stability`.
 
@@ -490,11 +490,11 @@ Default: `0.35`.
 
 - `SEMPAL_PERF_WHEEL_STABILITY_SUMMARY_OUT`
 Output path for wheel-stability readiness summary JSON written by
-`scripts/perf/run_perf_wheel_stability.sh`. Default:
+`scripts/perf.sh wheel-stability`. Default:
 `target/perf/wheel_stability/wheel_stability_summary.json`.
 
 - `SEMPAL_PERF_WHEEL_STABILITY_ENFORCE_READY`
-When truthy (`1`, `true`, `yes`, `on`), `scripts/perf/run_perf_wheel_stability.sh
+When truthy (`1`, `true`, `yes`, `on`), `scripts/perf.sh wheel-stability
 evaluate` exits non-zero if readiness criteria are not met. Default: `0`.
 
 ## Issue reporting token storage

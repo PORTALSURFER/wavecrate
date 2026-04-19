@@ -50,7 +50,7 @@ jobs:
                 ? 'This is on the large side. If possible, split it into smaller PRs (single responsibility, fast review/merge).'
                 : 'Looks reasonably scoped.',
               '',
-              'Helpful local command: `bash scripts/ci_local.sh` (or `scripts/ci_local.ps1` on Windows).',
+              'Helpful local command: `bash scripts/ci.sh local` (or `scripts/ci.ps1 local` on Windows).',
             ].join('\n');
 
             const { owner, repo } = context.repo;

@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: scripts/agent.sh <request|preflight|checks> [args...]
+Usage: scripts/agent.sh <request|preflight|checks|install-hooks> [args...]
 EOF
 }
 
@@ -18,13 +18,16 @@ shift
 
 case "$command" in
   request)
-    exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/agent/run_agent_request.sh" "$@"
+    exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/internal/agent/run_agent_request.sh" "$@"
     ;;
   preflight)
-    exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/agent/run_agent_preflight.sh" "$@"
+    exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/internal/agent/run_agent_preflight.sh" "$@"
     ;;
   checks)
-    exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/agent/run_agent_ci_checks.sh" "$@"
+    exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/internal/agent/run_agent_ci_checks.sh" "$@"
+    ;;
+  install-hooks)
+    exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/internal/agent/install_agent_preflight_hooks.sh" "$@"
     ;;
   -h|--help)
     usage

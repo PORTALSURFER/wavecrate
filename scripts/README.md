@@ -1,29 +1,17 @@
 # Scripts
 
-Top-level `scripts/` now keeps only the entrypoints people are expected to run
-regularly.
+Top-level `scripts/` is intentionally small. These are the public entrypoints
+people should run directly:
 
-Primary workflow:
+- `bootstrap.{sh,ps1}`: set up the repo and install hooks.
+- `doctor.{sh,ps1}`: diagnose environment issues.
+- `agent.{sh,ps1}`: agent request, preflight, checks, and hook install helpers.
+- `ci.{sh,ps1}`: validation lanes (`smoke`, `agent`, `quick`, `local`).
+- `check.{sh,ps1}`: focused guardrails and report helpers.
+- `run.{sh,ps1}`: sandbox, cleanup, log, and bug-bundle helpers.
+- `perf.{sh,ps1}`: performance guard and calibration commands.
+- `gui.ps1`: Windows GUI validation lanes.
 
-- `bootstrap.{sh,ps1}`
-- `doctor.{sh,ps1}`
-- `devcheck.{sh,ps1}`
-- `ci_agent.{sh,ps1}`
-- `ci_quick.{sh,ps1}`
-- `ci_local.{sh,ps1}`
-- `run_sandbox.{sh,ps1}`
-- `clean_sandbox.{sh,ps1}`
-- `latest_log.{sh,ps1}`
-- `bug_bundle.{sh,ps1}`
-- `audit_cleanup_hotspots.{sh,ps1}`
-
-Grouped specialist entrypoints:
-
-- `agent.{sh,ps1}` for request/preflight/checks
-- `check.{sh,ps1}` for guardrails and report helpers
-- `perf.{sh,ps1}` for runtime-performance lanes
-- `gui.ps1` for GUI validation lanes
-
-Implementation details now live in subdirectories such as `scripts/agent/`,
-`scripts/check/`, `scripts/gui/`, `scripts/perf/`, `scripts/internal/`, and
-`scripts/release/`.
+Everything else under `scripts/internal/` is implementation detail. Tracked
+training dataset artifacts that used to live under `scripts/` now live under
+`testdata/training_dataset/scripts_dataset/`.
