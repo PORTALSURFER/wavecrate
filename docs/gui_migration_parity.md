@@ -72,8 +72,12 @@ to `radiant` (`native_vello`) as the only runtime path.
   details consolidated into footer metadata lines.
 - Native waveform header metadata band now composes through a generic Radiant
   surface, so the loaded-sample title and projected transport/tempo/zoom rows
-  share the same public container/widget hosting path while the waveform plot
-  and toolbar remain on the compatibility renderer.
+  share the same public container/widget hosting path.
+- Native waveform toolbar control strip now also composes through a generic
+  Radiant surface, keeping transport, loop/compare/slice toggles, and the BPM
+  input affordance on the same public container/widget hosting path while the
+  waveform plot, overlays, and edit geometry remain on the compatibility
+  renderer.
 - Native layout tiering now keeps the classic-dense baseline as default up through common
   desktop widths (wide tier starts above 2100 logical px), and wide-tier row/header metrics
   remain table-dense instead of switching to oversized card spacing.
