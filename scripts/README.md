@@ -12,6 +12,21 @@ people should run directly:
 - `perf.{sh,ps1}`: performance guard and calibration commands.
 - `gui.ps1`: Windows GUI validation lanes.
 
+PowerShell compatibility wrappers also remain available for the older
+single-purpose entrypoints:
+
+- `devcheck.ps1`
+- `ci_agent.ps1`
+- `ci_quick.ps1`
+- `ci_local.ps1`
+- `run_sandbox.ps1`
+- `clean_sandbox.ps1`
+- `latest_log.ps1`
+- `bug_bundle.ps1`
+
+Those wrappers delegate to `ci.ps1` and `run.ps1` so existing docs, local
+muscle memory, and agent instructions still resolve during the migration.
+
 Everything else under `scripts/internal/` is implementation detail. Tracked
 training dataset artifacts that used to live under `scripts/` now live under
 `testdata/training_dataset/scripts_dataset/`.
