@@ -18,6 +18,7 @@ fn apply_native_browser_normalize_routes_to_hotkey_behavior() {
 
 #[test]
 fn toggle_focused_browser_row_selection_action_preserves_focus_and_anchor() {
+    let _sandbox = ControllerPersistenceSandbox::new();
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     let dir = tempdir().unwrap();
     let source_root = dir.path().join("source");

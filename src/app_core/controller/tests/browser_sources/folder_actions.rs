@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn toggle_focused_folder_selection_action_preserves_focus_and_anchor() {
+    let _sandbox = ControllerPersistenceSandbox::new();
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     let dir = tempdir().unwrap();
     let source_root = dir.path().join("source");
@@ -67,6 +68,7 @@ fn toggle_focused_folder_selection_action_preserves_focus_and_anchor() {
 
 #[test]
 fn focus_folder_row_action_replaces_folder_selection() {
+    let _sandbox = ControllerPersistenceSandbox::new();
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     let dir = match tempdir() {
         Ok(dir) => dir,
@@ -124,6 +126,7 @@ fn focus_folder_row_action_replaces_folder_selection() {
 
 #[test]
 fn activate_folder_row_action_selects_and_toggles_expansion() {
+    let _sandbox = ControllerPersistenceSandbox::new();
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     let dir = tempdir().unwrap();
     let source_root = dir.path().join("source");
@@ -186,6 +189,7 @@ fn activate_folder_row_action_selects_and_toggles_expansion() {
 
 #[test]
 fn focus_folder_panel_preserves_existing_folder_selection() {
+    let _sandbox = ControllerPersistenceSandbox::new();
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     let dir = tempdir().unwrap();
     let source_root = dir.path().join("source");
@@ -235,6 +239,7 @@ fn focus_folder_panel_preserves_existing_folder_selection() {
 
 #[test]
 fn toggle_show_all_folders_action_updates_folder_tree_mode() {
+    let _sandbox = ControllerPersistenceSandbox::new();
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     let dir = tempdir().unwrap();
     let source_root = dir.path().join("source");
@@ -279,6 +284,7 @@ fn toggle_show_all_folders_action_updates_folder_tree_mode() {
 
 #[test]
 fn toggle_folder_flattened_view_action_updates_folder_scope_mode() {
+    let _sandbox = ControllerPersistenceSandbox::new();
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     let dir = tempdir().unwrap();
     let source_root = dir.path().join("source");
@@ -328,6 +334,7 @@ fn toggle_folder_flattened_view_action_updates_folder_scope_mode() {
 
 #[test]
 fn activate_root_folder_row_action_keeps_flattened_view_stable() {
+    let _sandbox = ControllerPersistenceSandbox::new();
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     let dir = tempdir().unwrap();
     let source_root = dir.path().join("source");

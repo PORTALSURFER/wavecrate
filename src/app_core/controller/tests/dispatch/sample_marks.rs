@@ -2,6 +2,7 @@ use super::*;
 
 #[test]
 fn apply_native_toggle_browser_sample_mark_marks_focused_browser_row() {
+    let _sandbox = ControllerPersistenceSandbox::new();
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     let dir = tempdir().expect("temp source root");
     let source_root = dir.path().join("source");
@@ -62,6 +63,7 @@ fn apply_native_toggle_browser_sample_mark_marks_focused_browser_row() {
 
 #[test]
 fn apply_native_toggle_browser_sample_mark_advances_on_repeated_marks() {
+    let _sandbox = ControllerPersistenceSandbox::new();
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     let dir = tempdir().expect("temp source root");
     let source_root = dir.path().join("source");

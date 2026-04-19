@@ -3,6 +3,7 @@ use crate::app::state::FolderPaneId;
 
 #[test]
 fn reload_source_row_action_assigns_target_pane_without_changing_active_browser_source() {
+    let _sandbox = ControllerPersistenceSandbox::new();
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     let dir = match tempdir() {
         Ok(dir) => dir,
@@ -49,6 +50,7 @@ fn reload_source_row_action_assigns_target_pane_without_changing_active_browser_
 
 #[test]
 fn remove_source_row_action_removes_clicked_pane_source_without_activating_it() {
+    let _sandbox = ControllerPersistenceSandbox::new();
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     let dir = match tempdir() {
         Ok(dir) => dir,
@@ -87,6 +89,7 @@ fn remove_source_row_action_removes_clicked_pane_source_without_activating_it() 
 
 #[test]
 fn focus_source_row_action_assigns_target_pane_and_focuses_sources_list() {
+    let _sandbox = ControllerPersistenceSandbox::new();
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     let dir = tempdir().unwrap();
     let source_a = dir.path().join("source-a");
@@ -124,6 +127,7 @@ fn focus_source_row_action_assigns_target_pane_and_focuses_sources_list() {
 
 #[test]
 fn focus_sources_panel_preserves_selected_source_row() {
+    let _sandbox = ControllerPersistenceSandbox::new();
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     let dir = tempdir().unwrap();
     let source_a = dir.path().join("source-a");
