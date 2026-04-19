@@ -81,6 +81,10 @@ Use for compatibility-shell visual and behavior changes.
 
 Use for semantic GUI contracts, CLI scenarios, and desktop AIV loops.
 
+- Browser preview/commit flicker regressions:
+  - targeted controller checks: `cargo test browser_focus_transition`
+  - semantic GUI proof lane: `powershell -ExecutionPolicy Bypass -File scripts/gui.ps1 contract`
+  - contract scenario anchor: `browser_focus_transition_stability`
 - contract loop:
   - `powershell -ExecutionPolicy Bypass -File scripts/gui.ps1 contract`
 - broader GUI suite:

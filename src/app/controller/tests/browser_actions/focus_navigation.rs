@@ -12,4 +12,5 @@ use std::time::{Duration, Instant};
 
 mod commit_focus;
 mod preview_focus;
+mod transition_stability;
 mod viewport_navigation;
