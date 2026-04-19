@@ -93,3 +93,31 @@ fn projection_cache_key_changes_when_browser_tab_encoding_changes() {
     let second = build_projection_cache_key(&controller);
     assert_ne!(first, second);
 }
+
+#[test]
+/// Projection cache key should change when sidebar metadata revisions change.
+fn projection_cache_key_changes_when_browser_sidebar_metadata_changes() {
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    controller.ui.browser.tag_sidebar_open = true;
+    let first = build_projection_cache_key(&controller);
+
+    controller.mark_browser_row_metadata_projection_revision_dirty();
+    let _ = controller.refresh_projection_revision_bus();
+
+    let second = build_projection_cache_key(&controller);
+    assert_ne!(first, second);
+}
+
+#[test]
+/// Projection cache key should change when the focused sidebar target swaps at the same count.
+fn projection_cache_key_changes_when_browser_sidebar_focus_target_changes() {
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    controller.ui.browser.tag_sidebar_open = true;
+    controller.ui.browser.selection.last_focused_path = Some(PathBuf::from("first.wav"));
+    let first = build_projection_cache_key(&controller);
+
+    controller.ui.browser.selection.last_focused_path = Some(PathBuf::from("second.wav"));
+
+    let second = build_projection_cache_key(&controller);
+    assert_ne!(first, second);
+}
