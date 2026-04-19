@@ -1,6 +1,7 @@
 use super::ui::interaction_options::{clamp_scroll_speed, clamp_zoom_factor};
 use super::*;
 use crate::app::state::FolderPaneId;
+use tracing::info;
 
 impl AppController {
     /// Load persisted configuration and populate initial UI state.
@@ -16,8 +17,8 @@ impl AppController {
         &mut self,
         cfg: crate::sample_sources::config::AppConfig,
     ) -> Result<(), crate::sample_sources::config::ConfigError> {
-        let (sources, removed_transient_test_sources) =
-            prune_transient_test_sources(cfg.sources.clone());
+        let startup_source_repair =
+            super::startup_source_repair::repair_persisted_startup_sources(cfg.sources.clone());
         self.settings.feature_flags = cfg.core.feature_flags;
         self.settings.analysis = cfg.core.analysis;
         self.settings.analysis.max_analysis_duration_seconds =
@@ -100,7 +101,7 @@ impl AppController {
         self.ui.trash_folder = cfg.core.trash_folder.clone();
         self.ui.update.last_seen_nightly_published_at =
             cfg.core.updates.last_seen_nightly_published_at.clone();
-        self.library.sources = sources;
+        self.library.sources = startup_source_repair.retained_sources;
         self.rebuild_missing_sources();
         if !self.library.missing.sources.is_empty() {
             let count = self.library.missing.sources.len();
@@ -162,20 +163,33 @@ impl AppController {
         self.runtime
             .analysis
             .start(self.runtime.jobs.message_sender());
-        if removed_transient_test_sources > 0
-            && let Err(err) = self.save_full_config()
-        {
+        let removed_transient_test_sources = startup_source_repair.removed_roots.len();
+        if removed_transient_test_sources > 0 {
             let suffix = if removed_transient_test_sources == 1 {
                 ""
             } else {
                 "s"
             };
-            self.set_status(
-                format!(
-                    "Removed {removed_transient_test_sources} transient test source{suffix}, but failed to persist cleanup: {err}"
-                ),
-                StatusTone::Warning,
+            info!(
+                removed_transient_test_sources,
+                roots = ?startup_source_repair.removed_roots,
+                "Removed persisted transient test startup sources."
             );
+            if let Err(err) = self.save_full_config() {
+                self.set_status(
+                    format!(
+                        "Removed {removed_transient_test_sources} transient test source{suffix}, but failed to persist cleanup: {err}"
+                    ),
+                    StatusTone::Warning,
+                );
+            } else {
+                self.set_status(
+                    format!(
+                        "Removed {removed_transient_test_sources} transient test source{suffix} from startup config"
+                    ),
+                    StatusTone::Info,
+                );
+            }
         }
         Ok(())
     }
@@ -360,86 +374,5 @@ fn normalize_bpm_value(value: f32) -> Option<f32> {
         Some(value)
     } else {
         None
-    }
-}
-
-/// Remove transient test and benchmark sources that should never survive startup.
-fn prune_transient_test_sources(
-    sources: Vec<crate::sample_sources::SampleSource>,
-) -> (Vec<crate::sample_sources::SampleSource>, usize) {
-    let mut retained = Vec::with_capacity(sources.len());
-    let mut removed = 0usize;
-    for source in sources {
-        if is_transient_test_source(&source) {
-            removed = removed.saturating_add(1);
-        } else {
-            retained.push(source);
-        }
-    }
-    (retained, removed)
-}
-
-/// Identify automated-test source roots that should never survive into live app state.
-fn is_transient_test_source(source: &crate::sample_sources::SampleSource) -> bool {
-    if !source.root.starts_with(std::env::temp_dir()) {
-        return false;
-    }
-    let Some(file_name) = source.root.file_name().and_then(|name| name.to_str()) else {
-        return false;
-    };
-    if file_name.eq_ignore_ascii_case("gui-source") {
-        return true;
-    }
-    !source.root.exists() && is_known_transient_test_source_name(file_name)
-}
-
-/// Return whether one temp-root leaf name matches Sempal-generated test fixtures.
-fn is_known_transient_test_source_name(name: &str) -> bool {
-    matches!(
-        name,
-        "browser-source" | "sources-source" | "source" | "source-a" | "source-b"
-    )
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::tempdir;
-
-    #[test]
-    fn prune_transient_test_sources_keeps_user_sources() {
-        let retained_dir = tempdir().expect("retained tempdir");
-        let retained_root = retained_dir.path().join("user-source");
-        std::fs::create_dir_all(&retained_root).expect("create retained source");
-        let transient_dir = tempdir().expect("transient tempdir");
-        let transient_root = transient_dir.path().join("gui-source");
-        std::fs::create_dir_all(&transient_root).expect("create transient source");
-        let retained_source = crate::sample_sources::SampleSource::new(retained_root.clone());
-
-        let (sources, removed) = prune_transient_test_sources(vec![
-            crate::sample_sources::SampleSource::new(transient_root),
-            retained_source.clone(),
-        ]);
-
-        assert_eq!(removed, 1);
-        assert_eq!(sources.len(), 1);
-        assert_eq!(sources[0].root, retained_source.root);
-    }
-
-    #[test]
-    fn prune_transient_test_sources_removes_missing_temp_fixture_roots() {
-        let missing_root = std::env::temp_dir().join("source-a");
-        let retained_dir = tempdir().expect("retained tempdir");
-        let retained_root = retained_dir.path().join("user-source");
-        std::fs::create_dir_all(&retained_root).expect("create retained source");
-
-        let (sources, removed) = prune_transient_test_sources(vec![
-            crate::sample_sources::SampleSource::new(missing_root),
-            crate::sample_sources::SampleSource::new(retained_root.clone()),
-        ]);
-
-        assert_eq!(removed, 1);
-        assert_eq!(sources.len(), 1);
-        assert_eq!(sources[0].root, retained_root);
     }
 }

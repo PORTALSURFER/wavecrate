@@ -10,6 +10,7 @@ mod history;
 mod library;
 mod playback;
 mod source_watcher;
+mod startup_source_repair;
 mod ui;
 
 mod config;
