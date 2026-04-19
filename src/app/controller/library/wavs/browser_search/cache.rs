@@ -1,9 +1,11 @@
 //! Search-score caching and label-fill helpers for the sample browser.
 
 use super::*;
+use crate::app::controller::state::cache::BrowserLabelCacheEntry;
 use crate::app::view_model;
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use crate::app::controller::library::wavs::search_scoring::{
@@ -77,6 +79,49 @@ impl Default for BrowserSearchCache {
 }
 
 impl AppController {
+    /// Hash the current ordered browser-entry snapshot used by the retained label cache.
+    fn browser_label_path_fingerprint(&self) -> u64 {
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        for index in 0..self.wav_entries_len() {
+            if let Some(entry) = self.browser_projection_entry(index) {
+                entry.relative_path.hash(&mut hasher);
+            }
+        }
+        hasher.finish()
+    }
+
+    /// Return whether the retained label cache entry is stale for the current wav snapshot.
+    fn browser_label_cache_is_stale(
+        &self,
+        source_id: &SourceId,
+        entries_len: usize,
+        path_fingerprint: u64,
+    ) -> bool {
+        self.ui_cache
+            .browser
+            .labels
+            .get(source_id)
+            .map(|cached| {
+                cached.labels.len() != entries_len || cached.path_fingerprint != path_fingerprint
+            })
+            .unwrap_or(true)
+    }
+
+    /// Ensure the retained browser label cache matches the current ordered wav snapshot.
+    fn ensure_browser_label_cache(
+        &mut self,
+        source_id: &SourceId,
+        entries_len: usize,
+        path_fingerprint: u64,
+    ) {
+        if self.browser_label_cache_is_stale(source_id, entries_len, path_fingerprint) {
+            self.ui_cache.browser.labels.insert(
+                source_id.clone(),
+                BrowserLabelCacheEntry::new(path_fingerprint, entries_len),
+            );
+        }
+    }
+
     /// Return the active trimmed browser query, when non-empty.
     pub(crate) fn active_search_query(&self) -> Option<&str> {
         let query = self.ui.browser.search.search_query.trim();
@@ -129,19 +174,8 @@ impl AppController {
             let Some(source_id) = self.selection_state.ctx.selected_source.clone() else {
                 return;
             };
-            let needs_labels = self
-                .ui_cache
-                .browser
-                .labels
-                .get(&source_id)
-                .map(|cached| cached.len() != entries_len)
-                .unwrap_or(true);
-            if needs_labels {
-                self.ui_cache
-                    .browser
-                    .labels
-                    .insert(source_id.clone(), vec![String::new(); entries_len]);
-            }
+            let label_path_fingerprint = self.browser_label_path_fingerprint();
+            self.ensure_browser_label_cache(&source_id, entries_len, label_path_fingerprint);
             let prefix_cache = reusable_prefix_query_score_cache_entry(
                 &self.ui_cache.browser.search.query_score_cache,
                 &BrowserQueryScoreCacheScope {
@@ -191,61 +225,55 @@ impl AppController {
         index: usize,
         relative_path: &Path,
     ) {
+        let path_fingerprint = self.browser_label_path_fingerprint();
         let Some(labels) = self.ui_cache.browser.labels.get_mut(source_id) else {
             return;
         };
-        if index < labels.len() {
-            labels[index] = view_model::sample_display_label(relative_path);
+        labels.path_fingerprint = path_fingerprint;
+        if index < labels.labels.len() {
+            labels.labels[index] = view_model::sample_display_label(relative_path);
         }
     }
 
     /// Insert one empty retained browser-label slot when an entry index is known.
     pub(crate) fn insert_cached_browser_label_slot(&mut self, source_id: &SourceId, index: usize) {
+        let path_fingerprint = self.browser_label_path_fingerprint();
         let Some(labels) = self.ui_cache.browser.labels.get_mut(source_id) else {
             return;
         };
-        if index <= labels.len() {
-            labels.insert(index, String::new());
+        labels.path_fingerprint = path_fingerprint;
+        if index <= labels.labels.len() {
+            labels.labels.insert(index, String::new());
         }
     }
 
     /// Return a display label for one wav entry, filling the retained label cache on demand.
     pub(crate) fn label_for_ref(&mut self, index: usize) -> Option<&str> {
         let source_id = self.selection_state.ctx.selected_source.clone()?;
-        let needs_labels = self
-            .ui_cache
-            .browser
-            .labels
-            .get(&source_id)
-            .map(|cached| cached.len() != self.wav_entries_len())
-            .unwrap_or(true);
-        if needs_labels {
-            self.ui_cache.browser.labels.insert(
-                source_id.clone(),
-                vec![String::new(); self.wav_entries_len()],
-            );
-        }
+        let entries_len = self.wav_entries_len();
+        let path_fingerprint = self.browser_label_path_fingerprint();
+        self.ensure_browser_label_cache(&source_id, entries_len, path_fingerprint);
         let needs_fill = self
             .ui_cache
             .browser
             .labels
             .get(&source_id)
-            .and_then(|labels| labels.get(index))
+            .and_then(|labels| labels.labels.get(index))
             .is_some_and(|label| label.is_empty());
         if needs_fill {
             let entry = self.browser_projection_entry(index)?;
             let label = view_model::sample_display_label(entry.relative_path);
             if let Some(labels) = self.ui_cache.browser.labels.get_mut(&source_id)
-                && index < labels.len()
+                && index < labels.labels.len()
             {
-                labels[index] = label;
+                labels.labels[index] = label;
             }
         }
         self.ui_cache
             .browser
             .labels
             .get(&source_id)
-            .and_then(|labels| labels.get(index))
+            .and_then(|labels| labels.labels.get(index))
             .map(|label| label.as_str())
     }
 }

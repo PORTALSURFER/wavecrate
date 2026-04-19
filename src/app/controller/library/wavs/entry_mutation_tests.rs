@@ -131,11 +131,13 @@ fn update_cached_entry_rewrites_cache_lookup_db_and_focus_path_on_rename() {
     let db = controller.database_for(&source).unwrap();
     db.set_looped(Path::new("old.wav"), true).unwrap();
     db.set_last_played_at(Path::new("old.wav"), 77).unwrap();
-    controller
-        .ui_cache
-        .browser
-        .labels
-        .insert(source.id.clone(), vec![String::from("old")]);
+    controller.ui_cache.browser.labels.insert(
+        source.id.clone(),
+        crate::app::controller::state::cache::BrowserLabelCacheEntry {
+            path_fingerprint: controller.browser_search_path_fingerprint(),
+            labels: vec![String::from("old")],
+        },
+    );
 
     let mut cache = WavEntriesState::new(1, 50);
     cache.insert_page(0, vec![sample_entry("old.wav", Rating::NEUTRAL)]);
@@ -227,8 +229,13 @@ fn update_cached_entry_rewrites_cache_lookup_db_and_focus_path_on_rename() {
         Some(Path::new("renamed.wav"))
     );
     assert_eq!(
-        controller.ui_cache.browser.labels.get(&source.id),
-        Some(&vec![String::from("renamed")])
+        controller
+            .ui_cache
+            .browser
+            .labels
+            .get(&source.id)
+            .map(|cache| cache.labels.clone()),
+        Some(vec![String::from("renamed")])
     );
 }
 
@@ -240,7 +247,10 @@ fn insert_cached_entry_preserves_existing_browser_labels_when_index_is_known() {
     ]);
     controller.ui_cache.browser.labels.insert(
         source.id.clone(),
-        vec![String::from("a"), String::from("c")],
+        crate::app::controller::state::cache::BrowserLabelCacheEntry {
+            path_fingerprint: controller.browser_search_path_fingerprint(),
+            labels: vec![String::from("a"), String::from("c")],
+        },
     );
     let db = controller.database_for(&source).unwrap();
     db.upsert_file(Path::new("b.wav"), 0, 0)
@@ -249,7 +259,12 @@ fn insert_cached_entry_preserves_existing_browser_labels_when_index_is_known() {
     controller.insert_cached_entry(&source, sample_entry("b.wav", Rating::KEEP_1));
 
     assert_eq!(
-        controller.ui_cache.browser.labels.get(&source.id),
-        Some(&vec![String::from("a"), String::new(), String::from("c"),])
+        controller
+            .ui_cache
+            .browser
+            .labels
+            .get(&source.id)
+            .map(|cache| cache.labels.clone()),
+        Some(vec![String::from("a"), String::new(), String::from("c")])
     );
 }

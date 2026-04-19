@@ -157,6 +157,10 @@ impl AppController {
                 }
                 return;
             }
+            if !from_cache {
+                self.ui_cache.browser.labels.remove(id);
+                self.ui_cache.browser.bpm_values.remove(id);
+            }
         }
         self.sync_after_wav_entries_changed();
         let mut pending_applied = false;
@@ -177,10 +181,6 @@ impl AppController {
             self.select_wav_by_index(0);
         }
         if let Some(ref id) = source_id {
-            if !from_cache {
-                self.ui_cache.browser.labels.remove(id);
-                self.ui_cache.browser.bpm_values.remove(id);
-            }
             let needs_failures =
                 !from_cache || !self.ui_cache.browser.analysis_failures.contains_key(id);
             if needs_failures {

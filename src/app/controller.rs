@@ -60,6 +60,8 @@ use std::{
 #[cfg(target_os = "windows")]
 use tracing::info;
 
+#[cfg(test)]
+pub(crate) use ui::loading::ApplyWavEntriesParams;
 pub(crate) use ui::map_view::UmapPointQuery;
 pub(crate) use ui::status_message::StatusMessage;
 

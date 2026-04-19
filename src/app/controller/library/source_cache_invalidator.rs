@@ -2,7 +2,7 @@ use super::{
     ControllerUiCacheState, LibraryCacheState, MissingState, SourceDatabase, SourceId,
     controller_state::FeatureCache,
 };
-use crate::app::controller::state::cache::FolderBrowserCacheKey;
+use crate::app::controller::state::cache::{BrowserLabelCacheEntry, FolderBrowserCacheKey};
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
@@ -12,7 +12,7 @@ use std::{
 pub(crate) struct SourceCacheInvalidator<'a> {
     db_cache: &'a mut HashMap<SourceId, Rc<SourceDatabase>>,
     wav_cache: &'a mut HashMap<SourceId, super::WavEntriesState>,
-    label_cache: &'a mut HashMap<SourceId, Vec<String>>,
+    label_cache: &'a mut HashMap<SourceId, BrowserLabelCacheEntry>,
     bpm_cache: &'a mut HashMap<SourceId, HashMap<PathBuf, Option<f32>>>,
     duration_cache: &'a mut HashMap<SourceId, HashMap<PathBuf, f32>>,
     analysis_failures_cache: &'a mut HashMap<SourceId, HashMap<PathBuf, String>>,

@@ -74,16 +74,20 @@ fn apply_source_move_result_invalidates_touched_sources_and_selected_target_stat
         .unwrap();
     cache_source_entries(&mut controller, &source, vec![source_entry]);
     cache_source_entries(&mut controller, &target, vec![existing_target_entry]);
-    controller
-        .ui_cache
-        .browser
-        .labels
-        .insert(source.id.clone(), vec!["cached".into()]);
-    controller
-        .ui_cache
-        .browser
-        .labels
-        .insert(target.id.clone(), vec!["cached".into()]);
+    controller.ui_cache.browser.labels.insert(
+        source.id.clone(),
+        crate::app::controller::state::cache::BrowserLabelCacheEntry {
+            path_fingerprint: 0,
+            labels: vec!["cached".into()],
+        },
+    );
+    controller.ui_cache.browser.labels.insert(
+        target.id.clone(),
+        crate::app::controller::state::cache::BrowserLabelCacheEntry {
+            path_fingerprint: 0,
+            labels: vec!["cached".into()],
+        },
+    );
 
     controller
         .drag_drop()

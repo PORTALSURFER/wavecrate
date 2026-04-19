@@ -65,7 +65,7 @@ impl LibraryCacheState {
 }
 
 pub(crate) struct BrowserCacheState {
-    pub(crate) labels: HashMap<SourceId, Vec<String>>,
+    pub(crate) labels: HashMap<SourceId, BrowserLabelCacheEntry>,
     pub(crate) analysis_failures: HashMap<SourceId, HashMap<PathBuf, String>>,
     pub(crate) analysis_failures_pending: HashSet<SourceId>,
     /// Retained staged browser pipeline outputs keyed by revision fingerprints.
@@ -74,6 +74,25 @@ pub(crate) struct BrowserCacheState {
     pub(crate) features: HashMap<SourceId, FeatureCache>,
     pub(crate) bpm_values: HashMap<SourceId, HashMap<PathBuf, Option<f32>>>,
     pub(crate) durations: HashMap<SourceId, HashMap<PathBuf, f32>>,
+}
+
+/// Retained browser labels aligned to one ordered wav-entry snapshot.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct BrowserLabelCacheEntry {
+    /// Stable hash of the ordered relative-path list backing the cached labels.
+    pub(crate) path_fingerprint: u64,
+    /// Display labels aligned to absolute wav-entry indices.
+    pub(crate) labels: Vec<String>,
+}
+
+impl BrowserLabelCacheEntry {
+    /// Build an empty label cache aligned to one ordered-path snapshot.
+    pub(crate) fn new(path_fingerprint: u64, entries_len: usize) -> Self {
+        Self {
+            path_fingerprint,
+            labels: vec![String::new(); entries_len],
+        }
+    }
 }
 
 /// Stable snapshot key for browser feature-cache rows aligned to the current wav list.
