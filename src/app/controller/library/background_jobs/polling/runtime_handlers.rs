@@ -94,6 +94,7 @@ impl AppController {
                     visual.projected_image,
                     visual.render_meta,
                 );
+                self.finalize_staged_audio_handoff(message.key.cache_token);
                 info!(
                     request_id = message.request_id,
                     elapsed_ms = message.elapsed.as_millis(),

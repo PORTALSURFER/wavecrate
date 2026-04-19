@@ -7,49 +7,39 @@ use std::thread;
 
 impl AppController {
     pub(crate) fn handle_audio_loaded(&mut self, pending: PendingAudio, outcome: AudioLoadOutcome) {
-        let source = SampleSource {
-            id: pending.source_id.clone(),
-            root: pending.root.clone(),
-        };
         let duration_seconds = outcome.decoded.duration_seconds;
         let sample_rate = outcome.decoded.sample_rate;
-        if let Err(err) = self.apply_loaded_audio_primary(
-            &source,
-            &pending.relative_path,
-            outcome.decoded,
-            outcome.bytes,
-            pending.intent,
-        ) {
-            self.runtime.jobs.set_pending_playback(None);
-            self.set_status(err, StatusTone::Error);
-            return;
-        }
+        self.runtime
+            .jobs
+            .set_staged_audio_handoff(Some(StagedAudioHandoff {
+                request_id: pending.request_id,
+                source_id: pending.source_id,
+                root: pending.root,
+                relative_path: pending.relative_path.clone(),
+                intent: pending.intent,
+                decoded: outcome.decoded,
+                bytes: outcome.bytes,
+            }));
         let message =
             Self::loaded_status_text(&pending.relative_path, duration_seconds, sample_rate);
         self.set_status(message, StatusTone::Info);
-        if matches!(pending.intent, AudioLoadIntent::Selection) {
-            self.refresh_similarity_sort_for_loaded_sample();
-        }
-        self.maybe_trigger_pending_playback();
     }
 
     pub(crate) fn handle_audio_visual_loaded(&mut self, result: AudioVisualResult) {
-        let Some(loaded_audio) = self.sample_view.wav.loaded_audio.as_ref() else {
+        let Some(staged) = self.runtime.jobs.staged_audio_handoff() else {
             return;
         };
-        if loaded_audio.source_id != result.source_id
-            || loaded_audio.relative_path != result.relative_path
+        if staged.request_id != result.request_id
+            || staged.source_id != result.source_id
+            || staged.relative_path != result.relative_path
         {
             return;
         }
-        let loaded_bytes = Arc::clone(&loaded_audio.bytes);
-        let Some(decoded) = self.sample_view.waveform.decoded.as_ref() else {
-            return;
-        };
-        if decoded.cache_token != result.cache_token {
+        if staged.decoded.cache_token != result.cache_token {
             return;
         }
-        let decoded = Arc::clone(decoded);
+        let decoded = Arc::clone(&staged.decoded);
+        let loaded_bytes = Arc::clone(&staged.bytes);
         self.ui.waveform.transients = result.transients.clone();
         self.ui.waveform.transient_cache_token = Some(result.cache_token);
         let expected_transient_visual_token = self
@@ -67,11 +57,11 @@ impl AppController {
                 result.projected_image,
                 result.render_meta,
             );
-        } else if self.sample_view.waveform.decoded.is_some() {
+        } else {
             self.sample_view.waveform.render_meta = None;
+            self.sample_view.waveform.decoded = Some(Arc::clone(&decoded));
             self.refresh_waveform_image();
         }
-        self.ui.waveform.loading = None;
         self.cache_loaded_waveform_transients(
             &result.source_id,
             &result.relative_path,
@@ -81,6 +71,7 @@ impl AppController {
             result.transients,
             result.stretched,
         );
+        self.finalize_staged_audio_handoff(result.cache_token);
     }
 
     pub(crate) fn handle_audio_transients_loaded(&mut self, result: AudioTransientResult) {
@@ -134,6 +125,7 @@ impl AppController {
         {
             self.runtime.jobs.set_pending_playback(None);
         }
+        self.runtime.jobs.set_staged_audio_handoff(None);
         match error {
             AudioLoadError::Missing(msg) => {
                 let _ = self.prune_missing_sample(&source, &pending.relative_path);
@@ -147,26 +139,59 @@ impl AppController {
         self.ui.waveform.loading = None;
     }
 
-    fn apply_loaded_audio_primary(
+    fn apply_loaded_audio_handoff(
         &mut self,
         source: &SampleSource,
-        relative_path: &Path,
-        decoded: Arc<DecodedWaveform>,
-        bytes: Arc<[u8]>,
-        intent: AudioLoadIntent,
+        handoff: &StagedAudioHandoff,
     ) -> Result<(), String> {
-        let duration_seconds = decoded.duration_seconds;
-        let sample_rate = decoded.sample_rate;
-        self.sample_view.waveform.decoded = Some(decoded);
-        self.sample_view.wav.loaded_wav = Some(relative_path.to_path_buf());
-        self.set_ui_loaded_wav(Some(relative_path.to_path_buf()));
-        self.sync_loaded_audio(source, relative_path, duration_seconds, sample_rate, bytes)?;
+        let relative_path = handoff.relative_path.as_path();
+        let duration_seconds = handoff.decoded.duration_seconds;
+        let sample_rate = handoff.decoded.sample_rate;
+        self.sample_view.waveform.decoded = Some(Arc::clone(&handoff.decoded));
+        self.sample_view.wav.loaded_wav = Some(handoff.relative_path.clone());
+        self.set_ui_loaded_wav(Some(handoff.relative_path.clone()));
+        self.sync_loaded_audio(
+            source,
+            relative_path,
+            duration_seconds,
+            sample_rate,
+            Arc::clone(&handoff.bytes),
+        )?;
         self.ui.waveform.notice = None;
-        if matches!(intent, AudioLoadIntent::Selection) {
+        if matches!(handoff.intent, AudioLoadIntent::Selection) {
             self.apply_loaded_sample_bpm(relative_path);
             self.apply_loaded_sample_loop_marker(source, relative_path);
         }
         Ok(())
+    }
+
+    /// Publish one staged audio load once waveform visuals for the same decode are ready.
+    pub(crate) fn finalize_staged_audio_handoff(&mut self, cache_token: u64) {
+        if self.runtime.pending_waveform_render.is_some() {
+            return;
+        }
+        let Some(staged) = self.runtime.jobs.staged_audio_handoff() else {
+            return;
+        };
+        if staged.decoded.cache_token != cache_token {
+            return;
+        }
+        let source = SampleSource {
+            id: staged.source_id.clone(),
+            root: staged.root.clone(),
+        };
+        if let Err(err) = self.apply_loaded_audio_handoff(&source, &staged) {
+            self.runtime.jobs.set_staged_audio_handoff(None);
+            self.runtime.jobs.set_pending_playback(None);
+            self.set_status(err, StatusTone::Error);
+            return;
+        }
+        self.runtime.jobs.set_staged_audio_handoff(None);
+        self.ui.waveform.loading = None;
+        if matches!(staged.intent, AudioLoadIntent::Selection) {
+            self.refresh_similarity_sort_for_loaded_sample();
+        }
+        self.maybe_trigger_pending_playback();
     }
 
     fn cache_loaded_waveform_transients(

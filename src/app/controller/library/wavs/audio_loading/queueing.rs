@@ -63,6 +63,7 @@ impl AppController {
         pending_playback: Option<PendingPlayback>,
     ) {
         self.runtime.jobs.set_pending_audio(None);
+        self.runtime.jobs.set_staged_audio_handoff(None);
         self.runtime.jobs.set_pending_playback(pending_playback);
         self.runtime.pending_waveform_render = None;
         self.runtime.pending_waveform_transient_compute = None;
@@ -107,6 +108,7 @@ impl AppController {
         }
         if self.runtime.jobs.send_audio_job(job).is_err() {
             self.runtime.jobs.set_pending_audio(None);
+            self.runtime.jobs.set_staged_audio_handoff(None);
             self.runtime.jobs.set_pending_playback(None);
             self.ui.waveform.loading = None;
             return Err("Failed to queue audio load".to_string());

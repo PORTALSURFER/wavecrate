@@ -49,6 +49,19 @@ impl ControllerJobs {
         self.pending_audio = pending;
     }
 
+    /// Return the staged audio payload waiting for waveform visuals, if any.
+    pub(in super::super) fn staged_audio_handoff(&self) -> Option<StagedAudioHandoff> {
+        self.staged_audio_handoff.clone()
+    }
+
+    /// Replace the staged audio payload waiting for waveform visuals.
+    pub(in super::super) fn set_staged_audio_handoff(
+        &mut self,
+        handoff: Option<StagedAudioHandoff>,
+    ) {
+        self.staged_audio_handoff = handoff;
+    }
+
     /// Return the in-flight playback request, if any.
     pub(in super::super) fn pending_playback(&self) -> Option<PendingPlayback> {
         self.pending_playback.clone()

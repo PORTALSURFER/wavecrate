@@ -40,6 +40,7 @@ pub(crate) fn clear_waveform_view(controller: &mut AppController) {
         .jobs
         .invalidate_waveform_transient_requests();
     controller.runtime.jobs.set_pending_audio(None);
+    controller.runtime.jobs.set_staged_audio_handoff(None);
     controller.runtime.jobs.set_pending_playback(None);
     controller.mark_waveform_projection_dirty();
 }

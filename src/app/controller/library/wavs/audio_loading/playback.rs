@@ -5,6 +5,12 @@ impl AppController {
         let Some(pending) = self.runtime.jobs.pending_playback() else {
             return;
         };
+        if self.runtime.jobs.staged_audio_handoff().is_some() {
+            return;
+        }
+        if self.ui.waveform.loading.as_deref() == Some(pending.relative_path.as_path()) {
+            return;
+        }
         let Some(audio) = self.sample_view.wav.loaded_audio.as_ref() else {
             return;
         };

@@ -111,6 +111,18 @@ pub(crate) struct PendingAudio {
     pub(crate) intent: AudioLoadIntent,
 }
 
+/// Primary audio payload staged until waveform visuals are ready to publish.
+#[derive(Clone)]
+pub(crate) struct StagedAudioHandoff {
+    pub(crate) request_id: u64,
+    pub(crate) source_id: SourceId,
+    pub(crate) root: PathBuf,
+    pub(crate) relative_path: PathBuf,
+    pub(crate) intent: AudioLoadIntent,
+    pub(crate) decoded: Arc<crate::waveform::DecodedWaveform>,
+    pub(crate) bytes: Arc<[u8]>,
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct PendingPlayback {
     pub(crate) source_id: SourceId,

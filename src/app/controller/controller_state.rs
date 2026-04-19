@@ -2,6 +2,7 @@
 
 pub(super) use super::state::audio::{
     AudioLoadIntent, ControllerAudioState, LoadedAudio, PendingAudio, PendingPlayback,
+    StagedAudioHandoff,
 };
 pub(crate) use super::state::cache::{
     AnalysisJobStatus, FeatureCache, FeatureCacheKey, FeatureStatus,

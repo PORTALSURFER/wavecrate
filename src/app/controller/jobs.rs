@@ -54,7 +54,9 @@ use super::playback::recording::waveform_loader::{
 use super::source_watcher::{
     SourceWatchCommand, SourceWatchEntry, SourceWatchEvent, SourceWatcherHandle,
 };
-use super::state::audio::{PendingAudio, PendingPlayback, PendingRecordingWaveform};
+use super::state::audio::{
+    PendingAudio, PendingPlayback, PendingRecordingWaveform, StagedAudioHandoff,
+};
 use super::state::runtime::{UpdateCheckResult, WavLoadJob, WavLoadResult};
 use crate::app::state::FolderPaneId;
 use crate::gui::repaint::{RepaintSignal, SharedRepaintSignal};
@@ -100,6 +102,7 @@ pub(crate) struct ControllerJobs {
     pub(super) pending_source: Option<SourceId>,
     pub(super) pending_select_path: Option<PathBuf>,
     pub(super) pending_audio: Option<PendingAudio>,
+    pub(super) staged_audio_handoff: Option<StagedAudioHandoff>,
     pub(super) pending_playback: Option<PendingPlayback>,
     pub(super) pending_recording_waveform: Option<PendingRecordingWaveform>,
     pub(super) pending_slice_batch_export: Option<PendingSliceBatchExport>,

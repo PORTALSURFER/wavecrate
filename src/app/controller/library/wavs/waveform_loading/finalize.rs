@@ -39,6 +39,7 @@ impl AppController {
         self.ui.waveform.loading = None;
         self.clear_waveform_slices();
         self.runtime.jobs.set_pending_audio(None);
+        self.runtime.jobs.set_staged_audio_handoff(None);
         self.sample_view.wav.loaded_wav = Some(relative_path.to_path_buf());
         self.set_ui_loaded_wav(Some(relative_path.to_path_buf()));
         self.sync_loaded_audio(source, relative_path, duration_seconds, sample_rate, bytes)?;
@@ -149,6 +150,7 @@ impl AppController {
         self.sample_view.waveform.decoded = None;
         self.runtime.pending_waveform_render = None;
         self.runtime.pending_waveform_transient_compute = None;
+        self.runtime.jobs.set_staged_audio_handoff(None);
         self.runtime.jobs.invalidate_waveform_render_requests();
         self.runtime.jobs.invalidate_waveform_transient_requests();
         self.ui.waveform.image = None;

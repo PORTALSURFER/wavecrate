@@ -55,6 +55,7 @@ impl ControllerJobs {
             pending_source: None,
             pending_select_path: None,
             pending_audio: None,
+            staged_audio_handoff: None,
             pending_playback: None,
             pending_recording_waveform: None,
             pending_slice_batch_export: None,
