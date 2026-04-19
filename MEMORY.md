@@ -13,6 +13,8 @@ Updated By: Codex
 - I am on `next` in `X:\sempal`.
 - `X:\sempal` and `X:\sempal\vendor\radiant` are still expected to stay on local `next`.
 - The current workspace is dirty with unrelated user edits; I must not overwrite them while executing the perf lane.
+- The user explicitly reopened the improvement-audit lane on 2026-04-19.
+- `tmp/improvement_audit_plan.md` is now refreshed as the active Phase 1 evidence-driven audit backlog for the current live tree.
 - `tmp/perf_plan.md` is the active source of truth for the rebuilt 2026-04-17 follow-up runtime performance backlog.
 - Phase 2 is complete on 2026-04-17. Items 1-8 are complete, including item 6 in `vendor/radiant` (`6784636f`, `perf(text-cache): retain native frame text payloads`), item 7 in the root repo (`1a025192`, `perf(similarity): persist lightweight feature metrics`), and item 8 in `vendor/radiant` (`00156ef1`, `perf(startup): reveal presented placeholder frame immediately`).
 - Fresh evidence captured on 2026-04-17:
@@ -22,6 +24,11 @@ Updated By: Codex
   - `target/perf/bench..startup_summary.json` with `first_present_ms = 1691.321`, `surface_ready_ms = 880.581`, `renderer_ready_ms = 1203.259`, `first_scene_ready_ms = 1205.161`, and `deferred_model_refresh_ms = 420.733`.
   - Waveform preview A/B: `target/perf/bench_default_preview.json` vs `target/perf/bench_preview_off.json` shows disabling immediate waveform preview regresses `waveform_interaction_latency` (`p95 158us -> 1304us`, `p99 215us -> 13518us`).
 - The current ordered follow-up backlog in `tmp/perf_plan.md` now has items 1-8 complete. The only remaining follow-up is manual visual review of the earlier startup placeholder reveal on a slow and a fast machine.
+- The current ordered improvement backlog is:
+  - `OPT-52` restore script entrypoint and guardrail path consistency after the `scripts/internal` migration
+  - `OPT-50` reuse the existing controller job-DTO split
+  - `OPT-54` split file-op apply flows from folder mutation execution/recovery paths
+  - `OPT-53` split browser visible-row pipeline stages into focused modules
 - The Windows Cargo wrapper lane is still trustworthy in this environment because `scripts/internal/use_cargo_cache.ps1` falls back to a local passthrough `rustc` wrapper when user-level Cargo config forces a broken `sccache`.
 - `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` remain parked unless the user explicitly reopens those lanes.
 - Future Windows sessions must use the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
@@ -31,8 +38,9 @@ Updated By: Codex
 
 1. Treat `tmp/perf_plan.md` as the active Phase 2 runtime-performance source of truth.
 2. Treat `tmp/perf_plan.md` as the completed runtime-performance record for this Phase 2 run and preserve the results for follow-up work.
-3. Keep `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` parked unless the user explicitly reopens those lanes.
+3. Treat `tmp/improvement_audit_plan.md` as the active Phase 1 audit source of truth until the user confirms implementation order.
 4. Preserve the Windows PowerShell wrapper path for future validation runs in this environment.
+5. Keep `tmp/cleanup_plan.md` parked unless the user explicitly reopens that lane.
 
 ## Work Notes
 
