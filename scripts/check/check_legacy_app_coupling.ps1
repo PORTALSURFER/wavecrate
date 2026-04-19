@@ -9,7 +9,7 @@ Diff-aware check: inspects only added lines in diffs for `crate::app` usage.
 Scope:
 - Checks diffs under `src/`
 - Skips legacy paths: `src/app/**`, `src/legacy_runtime/**`
-- Allows a small transitional allowlist in `docs/legacy_app_coupling_allowlist.txt`
+- Allows a small transitional allowlist in `scripts/check/allowlists/legacy_app_coupling_allowlist.txt`
 #>
 
 param(
@@ -24,7 +24,7 @@ $ErrorActionPreference = "Stop"
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
 Push-Location $rootDir
 try {
-  $allowlistPath = Join-Path $rootDir "docs/legacy_app_coupling_allowlist.txt"
+  $allowlistPath = Join-Path $rootDir "scripts/check/allowlists/legacy_app_coupling_allowlist.txt"
   $allowlist = New-Object "System.Collections.Generic.HashSet[string]"
   if (Test-Path -LiteralPath $allowlistPath) {
     foreach ($line in Get-Content -LiteralPath $allowlistPath) {

@@ -1,6 +1,6 @@
 param(
   [int]$Limit = 400,
-  [string]$AllowlistPath = "docs/file_size_budget_allowlist.txt"
+  [string]$AllowlistPath = "scripts/check/allowlists/file_size_budget_allowlist.txt"
 )
 
 $ErrorActionPreference = 'Stop'

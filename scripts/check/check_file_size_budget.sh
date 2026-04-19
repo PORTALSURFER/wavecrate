@@ -4,7 +4,7 @@
 #
 # By default, the script checks only added/modified Rust files in `src/`, `tests/`,
 # and `vendor/radiant/src` relative to a git diff range, plus any staged/unstaged
-# working tree changes. Known legacy exceptions live in `docs/file_size_budget_allowlist.txt`.
+# working tree changes. Known legacy exceptions live in `scripts/check/allowlists/file_size_budget_allowlist.txt`.
 
 set -euo pipefail
 
@@ -86,7 +86,7 @@ while (( $# > 0 )); do
   esac
 done
 
-ALLOWLIST_PATH="$ROOT_DIR/docs/file_size_budget_allowlist.txt"
+ALLOWLIST_PATH="$ROOT_DIR/scripts/check/allowlists/file_size_budget_allowlist.txt"
 declare -A ALLOWLIST=()
 if [[ -f "$ALLOWLIST_PATH" ]]; then
   while IFS= read -r line || [[ -n "$line" ]]; do

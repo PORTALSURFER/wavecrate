@@ -28,7 +28,7 @@ Usage: scripts/check/check_rust_private_docs.sh [--base <ref>] [--head <ref>]
 Fails when added Rust items introduce missing doc comments.
 
 Allowlist file:
-  docs/rust_private_docs_allowlist.txt
+  scripts/check/allowlists/rust_private_docs_allowlist.txt
 USAGE
 }
 
@@ -52,7 +52,7 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 2
 fi
 
-ALLOWLIST_PATH="$ROOT_DIR/docs/rust_private_docs_allowlist.txt"
+ALLOWLIST_PATH="$ROOT_DIR/scripts/check/allowlists/rust_private_docs_allowlist.txt"
 
 git_has_commit() {
   sempal_git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1

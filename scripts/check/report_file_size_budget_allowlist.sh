@@ -11,7 +11,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
 LIMIT=400
-ALLOWLIST_PATH="docs/file_size_budget_allowlist.txt"
+ALLOWLIST_PATH="scripts/check/allowlists/file_size_budget_allowlist.txt"
 
 usage() {
   cat <<'EOF'
@@ -108,4 +108,3 @@ if (( ok > 0 )); then
   awk -F'\t' '$1=="ok"{print $2 "\t" $3}' "$tmp" | sort -nr | awk -F'\t' '{print "| " $1 " | `" $2 "` |"}'
   echo
 fi
-

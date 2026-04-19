@@ -27,7 +27,7 @@ $ErrorActionPreference = "Stop"
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
 Push-Location $rootDir
 try {
-  $allowlistPath = Join-Path $rootDir "docs/rust_taste_invariants_allowlist.txt"
+  $allowlistPath = Join-Path $rootDir "scripts/check/allowlists/rust_taste_invariants_allowlist.txt"
   $allowlist = New-Object "System.Collections.Generic.HashSet[string]"
   if (Test-Path -LiteralPath $allowlistPath) {
     foreach ($line in Get-Content -LiteralPath $allowlistPath) {

@@ -9,7 +9,7 @@
 # Scope:
 # - Checks diffs under `src/`
 # - Skips legacy paths: `src/app/**`, `src/legacy_runtime/**`
-# - Allows a small transitional allowlist in `docs/legacy_app_coupling_allowlist.txt`
+# - Allows a small transitional allowlist in `scripts/check/allowlists/legacy_app_coupling_allowlist.txt`
 
 set -euo pipefail
 
@@ -33,7 +33,7 @@ Usage: scripts/check/check_legacy_app_coupling.sh [--base <ref>] [--head <ref>]
 
 Fails when added lines in `src/**` introduce new `crate::app` references outside
 legacy paths (`src/app/**`, `src/legacy_runtime/**`) and outside the allowlist:
-  docs/legacy_app_coupling_allowlist.txt
+  scripts/check/allowlists/legacy_app_coupling_allowlist.txt
 EOF
 }
 
@@ -52,7 +52,7 @@ while (( $# > 0 )); do
   esac
 done
 
-ALLOWLIST_PATH="$ROOT_DIR/docs/legacy_app_coupling_allowlist.txt"
+ALLOWLIST_PATH="$ROOT_DIR/scripts/check/allowlists/legacy_app_coupling_allowlist.txt"
 declare -A ALLOWLIST=()
 if [[ -f "$ALLOWLIST_PATH" ]]; then
   while IFS= read -r line || [[ -n "$line" ]]; do

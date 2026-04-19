@@ -9,7 +9,7 @@ any non-allowlisted file exceeds the line budget.
 
 By default, checks files added/modified in the supplied git diff range (if any),
 plus staged/unstaged working tree edits. Known legacy exceptions live in
-`docs/file_size_budget_allowlist.txt`.
+`scripts/check/allowlists/file_size_budget_allowlist.txt`.
 #>
 
 param(
@@ -26,7 +26,7 @@ $ErrorActionPreference = "Stop"
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
 Push-Location $rootDir
 try {
-  $allowlistPath = Join-Path $rootDir "docs/file_size_budget_allowlist.txt"
+  $allowlistPath = Join-Path $rootDir "scripts/check/allowlists/file_size_budget_allowlist.txt"
   $allowlist = New-Object "System.Collections.Generic.HashSet[string]"
   if (Test-Path -LiteralPath $allowlistPath) {
     foreach ($line in Get-Content -LiteralPath $allowlistPath) {

@@ -21,12 +21,12 @@ $ErrorActionPreference = "Stop"
 if ($Help) {
   Write-Host "Usage: scripts/check/check_rust_private_docs.ps1 [-Base <ref>] [-Head <ref>]"
   Write-Host ""
-  Write-Host "Allowlist file: docs/rust_private_docs_allowlist.txt"
+  Write-Host "Allowlist file: scripts/check/allowlists/rust_private_docs_allowlist.txt"
   exit 0
 }
 
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
-$allowlistPath = Join-Path $rootDir "docs/rust_private_docs_allowlist.txt"
+$allowlistPath = Join-Path $rootDir "scripts/check/allowlists/rust_private_docs_allowlist.txt"
 $itemRegex = '^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+|unsafe\s+|extern\s+"[^"]+"\s+)*\b(fn|struct|enum|trait|type|const|static|mod)\b'
 $hunkRegex = '\+(\d+)(?:,(\d+))?'
 

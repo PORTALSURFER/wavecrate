@@ -11,7 +11,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
 LIMIT=400
-ALLOWLIST_PATH="docs/file_size_budget_allowlist.txt"
+ALLOWLIST_PATH="scripts/check/allowlists/file_size_budget_allowlist.txt"
 
 usage() {
   cat <<'EOF'
@@ -83,4 +83,3 @@ mv "$tmp" "$ALLOWLIST_PATH"
 trap - EXIT
 
 echo "[prune_file_size_budget_allowlist] updated $ALLOWLIST_PATH (kept=$kept removed_ok=$removed_ok removed_missing=$removed_missing)" >&2
-

@@ -38,7 +38,7 @@ Fails when added lines introduce forbidden patterns in non-test Rust sources:
 - `.expect(...)`
 
 Allowlist file:
-  docs/rust_taste_invariants_allowlist.txt
+  scripts/check/allowlists/rust_taste_invariants_allowlist.txt
 EOF
 }
 
@@ -67,7 +67,7 @@ while (( $# > 0 )); do
   esac
 done
 
-ALLOWLIST_PATH="$ROOT_DIR/docs/rust_taste_invariants_allowlist.txt"
+ALLOWLIST_PATH="$ROOT_DIR/scripts/check/allowlists/rust_taste_invariants_allowlist.txt"
 declare -A ALLOWLIST=()
 if [[ -f "$ALLOWLIST_PATH" ]]; then
   while IFS= read -r line || [[ -n "$line" ]]; do

@@ -4,6 +4,9 @@ This directory now keeps a deliberately small set of canonical developer
 documents. Anything that is narrow, historical, or fast-moving should live in
 `tmp/` or `docs/plans/` instead of growing the long-term docs set again.
 
+Machine-consumed check allowlists do not live here anymore. They now live under
+`scripts/check/allowlists/` so `docs/` stays human-facing.
+
 ## Canonical docs
 
 - `docs/ARCHITECTURE.md`

@@ -36,7 +36,7 @@ Fails when added lines in `src/app_core/**` introduce any of:
 - `crate::gui_runtime::`
 
 Allowlist file (last resort):
-  docs/app_core_dependency_boundary_allowlist.txt
+  scripts/check/allowlists/app_core_dependency_boundary_allowlist.txt
 EOF
 }
 
@@ -55,7 +55,7 @@ while (( $# > 0 )); do
   esac
 done
 
-ALLOWLIST_PATH="$ROOT_DIR/docs/app_core_dependency_boundary_allowlist.txt"
+ALLOWLIST_PATH="$ROOT_DIR/scripts/check/allowlists/app_core_dependency_boundary_allowlist.txt"
 declare -A ALLOWLIST=()
 if [[ -f "$ALLOWLIST_PATH" ]]; then
   while IFS= read -r line || [[ -n "$line" ]]; do

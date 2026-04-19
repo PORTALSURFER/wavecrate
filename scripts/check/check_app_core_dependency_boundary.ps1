@@ -8,7 +8,7 @@ Diff-aware check: inspects only added lines in diffs for forbidden dependencies.
 tokens; `crate::gui_runtime::` is the current live runtime layer.
 
 Allowlist file (last resort):
-  docs/app_core_dependency_boundary_allowlist.txt
+  scripts/check/allowlists/app_core_dependency_boundary_allowlist.txt
 #>
 
 param(
@@ -23,7 +23,7 @@ $ErrorActionPreference = "Stop"
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
 Push-Location $rootDir
 try {
-  $allowlistPath = Join-Path $rootDir "docs/app_core_dependency_boundary_allowlist.txt"
+  $allowlistPath = Join-Path $rootDir "scripts/check/allowlists/app_core_dependency_boundary_allowlist.txt"
   $allowlist = New-Object "System.Collections.Generic.HashSet[string]"
   if (Test-Path -LiteralPath $allowlistPath) {
     foreach ($line in Get-Content -LiteralPath $allowlistPath) {
