@@ -148,7 +148,8 @@ fn project_browser_tag_sidebar_model(
     controller: &mut AppController,
 ) -> radiant::app::BrowserTagSidebarModel {
     let is_list_tab = matches!(controller.ui.browser.active_tab, SampleBrowserTab::List);
-    let target_entries = browser_tag_sidebar_target_entries(controller);
+    let sidebar_targets = controller.browser_tag_sidebar_target_snapshot();
+    let target_entries = sidebar_targets.resolve_entries(controller);
     let selected_count = target_entries.len();
     let header_label = match selected_count {
         0 => String::from("Select samples"),
@@ -186,26 +187,6 @@ fn project_browser_tag_sidebar_model(
             .1
             .map(|label| pill_model("custom-tag", label.as_str(), custom_tag_state.0)),
     }
-}
-
-fn browser_tag_sidebar_target_entries(controller: &mut AppController) -> Vec<WavEntry> {
-    let mut entries = Vec::new();
-    if !controller.ui.browser.selection.selected_paths.is_empty() {
-        let selected_paths = controller.ui.browser.selection.selected_paths.clone();
-        for path in &selected_paths {
-            if let Some(index) = controller.wav_index_for_path(path)
-                && let Some(entry) = controller.wav_entry(index)
-            {
-                entries.push(entry.clone());
-            }
-        }
-    } else if let Some(path) = controller.ui.browser.selection.last_focused_path.clone()
-        && let Some(index) = controller.wav_index_for_path(&path)
-        && let Some(entry) = controller.wav_entry(index)
-    {
-        entries.push(entry.clone());
-    }
-    entries
 }
 
 fn pill_model(

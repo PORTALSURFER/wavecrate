@@ -163,6 +163,27 @@ fn browser_projection_marks_search_placeholder_when_focused() {
     assert_eq!(projected.search_placeholder.as_deref(), Some("▌"));
 }
 
+/// Browser tag sidebar should fall back to the focused visible row when no path snapshot exists yet.
+#[test]
+fn browser_projection_sidebar_uses_selected_visible_target_snapshot_fallback() {
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+    controller.ui.browser.tag_sidebar_open = true;
+    controller.set_wav_entries_for_tests(vec![
+        browser_projection_test_entry("first.wav"),
+        browser_projection_test_entry("second.wav"),
+    ]);
+    controller.ui.browser.viewport.visible =
+        crate::app_core::app_api::state::VisibleRows::All { total: 2 };
+    controller.ui.browser.selection.selected_visible = Some(1);
+    controller.ui.browser.selection.last_focused_path = None;
+    controller.ui.browser.selection.selected_paths.clear();
+
+    let projected = project_browser_panel_frame_model(&mut controller);
+
+    assert_eq!(projected.tag_sidebar.selected_count, 1);
+    assert_eq!(projected.tag_sidebar.header_label.as_str(), "second.wav");
+}
+
 /// Browser projection should expose manual viewport state for native scrollbar rendering.
 #[test]
 fn browser_projection_exposes_manual_viewport_state() {

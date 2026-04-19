@@ -14,6 +14,8 @@ mod browser_marks;
 mod browser_pipeline;
 mod browser_search;
 pub(crate) mod browser_search_worker;
+/// Shared browser tag-sidebar target snapshots for mutation and projection.
+mod browser_tag_sidebar_targets;
 mod browser_viewport;
 mod duplicate_cleanup;
 /// Lightweight entry/cache paging and lookup facade methods.

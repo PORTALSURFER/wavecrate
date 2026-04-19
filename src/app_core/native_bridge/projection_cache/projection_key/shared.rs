@@ -8,13 +8,6 @@ pub(super) fn hash_path_for_projection_key(path: &std::path::Path) -> u64 {
     hasher.finish()
 }
 
-/// Hash one ordered path list into a compact projection-key scalar.
-pub(super) fn hash_paths_for_projection_key(paths: &[std::path::PathBuf]) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    paths.hash(&mut hasher);
-    hasher.finish()
-}
-
 /// Hash one projected string into a compact projection-key scalar.
 pub(super) fn hash_string_for_projection_key(value: &str) -> u64 {
     let mut hasher = DefaultHasher::new();

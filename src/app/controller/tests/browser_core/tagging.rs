@@ -115,6 +115,24 @@ fn tagging_under_search_filter_updates_hidden_selected_paths() {
 }
 
 #[test]
+fn browser_tag_sidebar_mutation_uses_selected_visible_target_snapshot_fallback() {
+    let (mut controller, _source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    controller.ui.browser.selection.selected_visible = Some(1);
+    controller.ui.browser.selection.last_focused_path = None;
+    controller.ui.browser.selection.selected_paths.clear();
+
+    controller
+        .apply_browser_tag_sidebar_looped(true)
+        .expect("selected-visible fallback should resolve one target");
+
+    assert!(!controller.wav_entry(0).unwrap().looped);
+    assert!(controller.wav_entry(1).unwrap().looped);
+}
+
+#[test]
 fn rating_filter_rating_keeps_focus_on_next_visible_item() {
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
         sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),

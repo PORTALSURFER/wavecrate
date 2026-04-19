@@ -1,7 +1,7 @@
 use super::*;
 use crate::app::controller::jobs::LoadedSimilarityQueryResult;
 use crate::app::state::SampleBrowserTab;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 impl AppController {
     /// Select a wav row based on its path.
@@ -471,21 +471,5 @@ impl AppController {
             self.set_sample_user_tag_for_source(&source, &path, user_tag.clone())?;
         }
         Ok(())
-    }
-
-    fn browser_tag_sidebar_target_paths(&mut self) -> Vec<PathBuf> {
-        if !self.ui.browser.selection.selected_paths.is_empty() {
-            return self.browser_selected_paths_snapshot();
-        }
-        if let Some(path) = self.ui.browser.selection.last_focused_path.clone() {
-            return vec![path];
-        }
-        self.ui
-            .browser
-            .selection
-            .selected_visible
-            .and_then(|row| self.browser_path_for_visible(row))
-            .into_iter()
-            .collect()
     }
 }

@@ -121,3 +121,47 @@ fn projection_cache_key_changes_when_browser_sidebar_focus_target_changes() {
     let second = build_projection_cache_key(&controller);
     assert_ne!(first, second);
 }
+
+#[test]
+/// Projection cache key should change when selected-visible fallback swaps sidebar targets.
+fn projection_cache_key_changes_when_browser_sidebar_selected_visible_target_changes() {
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    controller.ui.browser.tag_sidebar_open = true;
+    controller.ui.browser.viewport.visible =
+        crate::app_core::app_api::state::VisibleRows::All { total: 2 };
+    controller.ui.browser.selection.selected_visible = Some(0);
+    controller.set_wav_entries_for_tests(vec![
+        crate::sample_sources::WavEntry {
+            relative_path: PathBuf::from("first.wav"),
+            file_size: 0,
+            modified_ns: 0,
+            content_hash: None,
+            tag: crate::sample_sources::Rating::NEUTRAL,
+            looped: false,
+            sound_type: None,
+            locked: false,
+            missing: false,
+            last_played_at: None,
+            user_tag: None,
+        },
+        crate::sample_sources::WavEntry {
+            relative_path: PathBuf::from("second.wav"),
+            file_size: 0,
+            modified_ns: 0,
+            content_hash: None,
+            tag: crate::sample_sources::Rating::NEUTRAL,
+            looped: false,
+            sound_type: None,
+            locked: false,
+            missing: false,
+            last_played_at: None,
+            user_tag: None,
+        },
+    ]);
+    let first = build_projection_cache_key(&controller);
+
+    controller.ui.browser.selection.selected_visible = Some(1);
+
+    let second = build_projection_cache_key(&controller);
+    assert_ne!(first, second);
+}

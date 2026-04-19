@@ -9,6 +9,7 @@ use crate::app_core::controller::AppController;
 pub(super) fn build_browser_frame_projection_key(
     controller: &AppController,
 ) -> BrowserFrameProjectionCacheKey {
+    let sidebar_targets = controller.browser_tag_sidebar_target_snapshot();
     BrowserFrameProjectionCacheKey {
         browser_visible_len: controller.ui.browser.viewport.visible.len(),
         browser_selected_visible: controller.ui.browser.selection.selected_visible,
@@ -18,7 +19,9 @@ pub(super) fn build_browser_frame_projection_key(
         browser_selected_paths_len: controller.ui.browser.selection.selected_paths.len(),
         browser_selected_paths_revision: controller.ui.browser.selection.selected_paths_revision,
         browser_row_metadata_revision: controller.ui.projection_revisions.browser_row_metadata,
-        browser_tag_sidebar_target_hash: browser_tag_sidebar_target_hash(controller),
+        browser_tag_sidebar_selected_count: sidebar_targets.selected_count(),
+        browser_tag_sidebar_primary_hash: sidebar_targets.primary_identity_hash(),
+        browser_tag_sidebar_target_hash: sidebar_targets.target_identity_hash(),
         browser_search_revision: controller.ui.projection_revisions.browser_search,
         browser_search_busy: controller.ui.browser.search.search_busy,
         browser_similarity_filtered: controller.ui.browser.search.similar_query.is_some(),
@@ -33,23 +36,6 @@ pub(super) fn build_browser_frame_projection_key(
             .similarity_sort_follow_loaded,
         loaded_wav_revision: controller.ui.projection_revisions.loaded_wav,
     }
-}
-
-/// Hash the sidebar target identity so same-count swaps still invalidate frame metadata.
-fn browser_tag_sidebar_target_hash(controller: &AppController) -> u64 {
-    if !controller.ui.browser.selection.selected_paths.is_empty() {
-        return super::shared::hash_paths_for_projection_key(
-            &controller.ui.browser.selection.selected_paths,
-        );
-    }
-    controller
-        .ui
-        .browser
-        .selection
-        .last_focused_path
-        .as_deref()
-        .map(super::shared::hash_path_for_projection_key)
-        .unwrap_or(0)
 }
 
 /// Build a browser-rows projection key from the current controller snapshot.
