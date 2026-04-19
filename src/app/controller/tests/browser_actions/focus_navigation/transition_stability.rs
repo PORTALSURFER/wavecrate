@@ -74,7 +74,7 @@ fn browser_focus_transition_preview_keeps_latest_waveform_target_visible() {
     let (browser_label, waveform_label, waveform_loading, transport_running) =
         project_transition_state(&mut controller);
     assert_eq!(browser_label.as_deref(), Some("three"));
-    assert_eq!(waveform_label.as_deref(), Some("three"));
+    assert_eq!(waveform_label.as_deref(), Some("one"));
     assert!(waveform_loading);
     assert!(!transport_running);
 }
@@ -117,7 +117,7 @@ fn browser_focus_transition_commit_keeps_browser_and_waveform_targets_aligned() 
     let (browser_label, waveform_label, waveform_loading, transport_running) =
         project_transition_state(&mut controller);
     assert_eq!(browser_label.as_deref(), Some("three"));
-    assert_eq!(waveform_label.as_deref(), Some("three"));
+    assert_eq!(waveform_label.as_deref(), Some("one"));
     assert!(waveform_loading);
     assert!(!transport_running);
 }

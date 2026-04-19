@@ -140,7 +140,10 @@ fn moving_browser_focus_queues_async_preview_playback() {
         Some(Path::new("two.wav"))
     );
     assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
-    assert_eq!(controller.sample_view.wav.loaded_wav, None);
+    assert_eq!(
+        controller.sample_view.wav.loaded_wav.as_deref(),
+        Some(Path::new("one.wav"))
+    );
     assert_eq!(
         controller.ui.waveform.loading.as_deref(),
         Some(Path::new("two.wav"))
@@ -260,8 +263,11 @@ fn native_focus_browser_row_clears_selection_and_queues_async_preview() {
         Some(Path::new("two.wav"))
     );
     assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
-    assert_eq!(controller.sample_view.wav.loaded_wav, None);
-    assert_eq!(controller.ui.loaded_wav, None);
+    assert_eq!(
+        controller.sample_view.wav.loaded_wav.as_deref(),
+        Some(Path::new("one.wav"))
+    );
+    assert_eq!(controller.ui.loaded_wav.as_deref(), Some(Path::new("one.wav")));
     assert_eq!(
         controller.ui.waveform.loading.as_deref(),
         Some(Path::new("two.wav"))
@@ -317,7 +323,10 @@ fn native_move_browser_focus_queues_async_preview_playback() {
         Some(Path::new("two.wav"))
     );
     assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
-    assert_eq!(controller.sample_view.wav.loaded_wav, None);
+    assert_eq!(
+        controller.sample_view.wav.loaded_wav.as_deref(),
+        Some(Path::new("one.wav"))
+    );
     assert_eq!(
         controller.ui.waveform.loading.as_deref(),
         Some(Path::new("two.wav"))

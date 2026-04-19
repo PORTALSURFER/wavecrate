@@ -133,7 +133,7 @@ fn rating_previous_random_history_entry_restores_waveform_for_replacement() {
         controller.ui.waveform.loading.as_deref(),
         Some(Path::new("a.wav"))
     );
-    assert!(controller.ui.waveform.image.is_none());
+    assert!(controller.ui.waveform.image.is_some());
 
     wait_for_loaded_waveform(&mut controller, Path::new("a.wav"));
 

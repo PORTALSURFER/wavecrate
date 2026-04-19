@@ -15,6 +15,11 @@ fn browser_row_is_queued_or_loaded(controller: &AppController, relative_path: &P
         .pending_audio
         .as_ref()
         .is_some_and(|pending| pending.relative_path == relative_path)
+        || controller
+            .runtime
+            .pending_browser_focus_commit
+            .as_ref()
+            .is_some_and(|pending| pending.relative_path == relative_path && pending.queue_audio_load)
         || controller.ui.waveform.loading.as_deref() == Some(relative_path)
         || controller.sample_view.wav.loaded_wav.as_deref() == Some(relative_path)
 }
@@ -218,10 +223,11 @@ fn focus_browser_row_and_play_queues_latest_preview_for_unloaded_sample() {
     controller.settings.feature_flags.autoplay_selection = false;
     write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
     write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
-
+    controller
+        .load_waveform_for_selection(&source, Path::new("one.wav"))
+        .expect("load one.wav");
+    controller.ui.waveform.selection = Some(SelectionRange::new(0.0, 1.0));
     controller.focus_browser_row_only(0);
-    controller.sample_view.wav.loaded_wav = Some(PathBuf::from("one.wav"));
-    controller.ui.loaded_wav = Some(PathBuf::from("one.wav"));
     controller.runtime.jobs.pending_audio = None;
     controller.runtime.jobs.pending_playback = None;
     controller.ui.waveform.loading = None;
@@ -233,13 +239,16 @@ fn focus_browser_row_and_play_queues_latest_preview_for_unloaded_sample() {
         Some(Path::new("two.wav"))
     );
     assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
-    assert_eq!(controller.sample_view.wav.loaded_wav, None);
-    assert_eq!(controller.ui.loaded_wav, None);
+    assert_eq!(
+        controller.sample_view.wav.loaded_wav.as_deref(),
+        Some(Path::new("one.wav"))
+    );
+    assert_eq!(controller.ui.loaded_wav.as_deref(), Some(Path::new("one.wav")));
     assert_eq!(
         controller.ui.waveform.loading.as_deref(),
         Some(Path::new("two.wav"))
     );
-    assert!(controller.ui.waveform.image.is_none());
+    assert!(controller.sample_view.waveform.decoded.is_some());
     assert_eq!(
         controller
             .runtime
@@ -257,6 +266,48 @@ fn focus_browser_row_and_play_queues_latest_preview_for_unloaded_sample() {
             .as_ref()
             .map(|pending| pending.relative_path.clone()),
         Some(PathBuf::from("two.wav"))
+    );
+}
+
+#[test]
+/// Preview-loading another browser row should not stop the currently playing sample early.
+fn focus_browser_row_and_play_preserves_transport_until_new_audio_is_ready() {
+    let Some(player) = crate::audio::AudioPlayer::playing_for_tests() else {
+        return;
+    };
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", Rating::NEUTRAL),
+        sample_entry("two.wav", Rating::NEUTRAL),
+    ]);
+    controller.audio.player = Some(Rc::new(RefCell::new(player)));
+    controller.settings.feature_flags.autoplay_selection = false;
+    write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1, -0.1, 0.2]);
+    controller
+        .load_waveform_for_selection(&source, Path::new("one.wav"))
+        .expect("load one.wav");
+    controller.ui.waveform.selection = Some(SelectionRange::new(0.0, 1.0));
+    controller.focus_browser_row_only(0);
+    controller.play_audio(false, None).expect("start one.wav playback");
+
+    controller.focus_browser_row_and_play_action(1);
+
+    assert_eq!(
+        controller.sample_view.wav.loaded_wav.as_deref(),
+        Some(Path::new("one.wav"))
+    );
+    assert_eq!(
+        controller.ui.waveform.loading.as_deref(),
+        Some(Path::new("two.wav"))
+    );
+    assert!(
+        controller
+            .audio
+            .player
+            .as_ref()
+            .expect("player")
+            .borrow()
+            .is_playing()
     );
 }
 

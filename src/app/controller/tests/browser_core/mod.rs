@@ -24,6 +24,11 @@ fn browser_row_is_queued_or_loaded(
         .pending_audio
         .as_ref()
         .is_some_and(|pending| pending.relative_path == relative_path)
+        || controller
+            .runtime
+            .pending_browser_focus_commit
+            .as_ref()
+            .is_some_and(|pending| pending.relative_path == relative_path && pending.queue_audio_load)
         || controller.ui.waveform.loading.as_deref() == Some(relative_path)
         || controller.sample_view.wav.loaded_wav.as_deref() == Some(relative_path)
 }

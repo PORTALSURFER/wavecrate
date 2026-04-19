@@ -143,11 +143,9 @@ fn commit_focus_defers_audio_dispatch_until_frame_prepare() {
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(Path::new("two.wav"))
     );
-    assert_eq!(
-        controller.ui.waveform.loading.as_deref(),
-        Some(Path::new("two.wav"))
-    );
+    assert!(controller.ui.waveform.loading.is_none());
     assert!(controller.runtime.jobs.pending_audio.is_none());
+    assert!(controller.runtime.jobs.pending_playback.is_none());
     assert!(controller.runtime.pending_browser_focus_commit.is_some());
     assert!(controller.history.focus_history.entries.is_empty());
     assert!(controller.runtime.pending_similarity_refresh.is_none());
@@ -196,10 +194,7 @@ fn stale_commit_focus_loading_is_dropped_when_focus_changes_before_prepare() {
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(Path::new("one.wav"))
     );
-    assert_eq!(
-        controller.ui.waveform.loading.as_deref(),
-        Some(Path::new("two.wav"))
-    );
+    assert!(controller.ui.waveform.loading.is_none());
 
     controller.prepare_native_frame(false);
 

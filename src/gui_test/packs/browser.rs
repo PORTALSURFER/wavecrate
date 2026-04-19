@@ -91,7 +91,7 @@ pub(super) fn browser_focus_transition_stability_scenario() -> GuiScenario {
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::NodeValueContains {
                     node_id: String::from("waveform.region"),
-                    needle: String::from("hat_three"),
+                    needle: String::from("kick_one"),
                 },
             },
             GuiScenarioStep::DispatchAction {
@@ -112,7 +112,7 @@ pub(super) fn browser_focus_transition_stability_scenario() -> GuiScenario {
             GuiScenarioStep::Assert {
                 assertion: GuiAssertion::NodeValueContains {
                     node_id: String::from("waveform.region"),
-                    needle: String::from("hat_three"),
+                    needle: String::from("kick_one"),
                 },
             },
         ],

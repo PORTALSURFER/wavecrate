@@ -218,7 +218,10 @@ fn select_wav_known_index_with_options(
         } else {
             None
         };
-        controller.begin_audio_load_transition(&path, pending_playback.clone());
+        controller
+            .runtime
+            .jobs
+            .set_pending_playback(pending_playback.clone());
         controller.defer_browser_focus_commit(PendingBrowserFocusCommit {
             source_id: source.id.clone(),
             relative_path: path.clone(),
@@ -324,10 +327,11 @@ impl AppController {
             self.ui.waveform.loading = None;
             return;
         };
-        if let Err(err) = self.dispatch_audio_load_for(
+        if let Err(err) = self.queue_audio_load_for(
             &source,
             &pending.relative_path,
             AudioLoadIntent::Selection,
+            pending.pending_playback,
         ) {
             self.runtime.jobs.set_pending_playback(None);
             self.ui.waveform.loading = None;

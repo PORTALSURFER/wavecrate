@@ -3,8 +3,9 @@ use super::super::*;
 impl AppController {
     /// Queue background audio loading for browser-preview playback.
     ///
-    /// The waveform panel now clears immediately for every new selection, but
-    /// playback still waits for the newest background result only.
+    /// Preview navigation keeps the currently stable waveform and transport
+    /// visible while the newest request loads in the background, then hands off
+    /// playback only when that request becomes ready.
     pub(crate) fn queue_browser_preview_audio_load(
         &mut self,
         source: &SampleSource,
@@ -51,10 +52,11 @@ impl AppController {
         self.dispatch_audio_load_for(source, relative_path, intent)
     }
 
-    /// Publish immediate loading-state changes for a newly selected sample.
+    /// Publish non-destructive loading-state changes for a newly selected sample.
     ///
-    /// This clears stale waveform/audio state synchronously so the next frame
-    /// shows the new loading target even when job dispatch is deferred.
+    /// Selection changes should advertise the newest load target without
+    /// blanking the currently stable waveform or stopping playback until the new
+    /// sample is actually ready to take over.
     pub(crate) fn begin_audio_load_transition(
         &mut self,
         relative_path: &Path,
@@ -67,21 +69,7 @@ impl AppController {
         self.runtime.jobs.invalidate_waveform_render_requests();
         self.runtime.jobs.invalidate_waveform_transient_requests();
         self.ui.waveform.loading = Some(relative_path.to_path_buf());
-        self.ui.waveform.waveform_image_signature = None;
-        self.projected_waveform_image_signature = None;
-        self.projected_waveform_image = None;
         self.ui.waveform.notice = None;
-        self.sample_view.waveform.render_meta = None;
-        self.sample_view.waveform.decoded = None;
-        self.ui.waveform.image = None;
-        self.ui.waveform.transients = Arc::from([]);
-        self.ui.waveform.transient_cache_token = None;
-        self.sample_view.wav.loaded_audio = None;
-        self.sample_view.wav.loaded_wav = None;
-        self.set_ui_loaded_wav(None);
-        self.ui.waveform.last_bpm_grid_origin = 0.0;
-        self.stop_playback_if_active();
-        self.clear_waveform_selection();
         self.mark_waveform_projection_dirty();
         self.set_status(
             format!("Loading {}", relative_path.display()),
