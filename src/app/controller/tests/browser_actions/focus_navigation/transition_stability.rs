@@ -96,7 +96,7 @@ fn browser_focus_transition_commit_keeps_browser_and_waveform_targets_aligned() 
     controller.apply_native_ui_action(NativeUiAction::MoveBrowserFocus { delta: 1 });
     controller.apply_native_ui_action(NativeUiAction::CommitFocusedBrowserRow);
 
-    assert!(controller.runtime.pending_browser_focus_commit.is_some());
+    assert!(controller.runtime.browser_selection_transition.is_some());
     controller.prepare_native_frame(false);
 
     assert_eq!(

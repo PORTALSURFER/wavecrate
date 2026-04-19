@@ -38,10 +38,9 @@ pub(super) fn queue_or_load_pending_playback(
         .runtime
         .jobs
         .set_pending_playback(Some(pending_playback.clone()));
-    controller.queue_audio_load_for(
+    controller.queue_browser_selection_audio_load_for(
         &source,
         &selected,
-        AudioLoadIntent::Selection,
         Some(pending_playback),
     )?;
     controller.set_status(format!("Loading {}", selected.display()), StatusTone::Busy);
@@ -89,10 +88,9 @@ pub(super) fn queue_or_load_explicit_pending_playback(
         .runtime
         .jobs
         .set_pending_playback(Some(pending_playback.clone()));
-    controller.queue_audio_load_for(
+    controller.queue_browser_selection_audio_load_for(
         source,
         relative_path,
-        AudioLoadIntent::Selection,
         Some(pending_playback),
     )?;
     controller.set_status(

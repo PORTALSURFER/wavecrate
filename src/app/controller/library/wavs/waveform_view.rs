@@ -42,5 +42,7 @@ pub(crate) fn clear_waveform_view(controller: &mut AppController) {
     controller.runtime.jobs.set_pending_audio(None);
     controller.runtime.jobs.set_staged_audio_handoff(None);
     controller.runtime.jobs.set_pending_playback(None);
+    controller.runtime.browser_selection_transition = None;
+    controller.ui.browser.selection.commit_focus_pending = false;
     controller.mark_waveform_projection_dirty();
 }

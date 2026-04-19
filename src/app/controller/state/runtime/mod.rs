@@ -13,11 +13,12 @@ use crate::sample_sources::Rating;
 use crate::sample_sources::db::SourceDbError;
 use crate::sample_sources::{ScanMode, SourceId, WavEntry};
 pub(crate) use deferred::{
-    AnalysisProgressUiCache, DeferredStartupAudioRefreshState, LoadedSimilarityQueryCache,
-    LoadedSimilarityQueryData, LoadedSimilaritySourceCandidate, LoadedSimilaritySourceSnapshot,
-    PendingBrowserFeatureCacheRefresh, PendingBrowserFocusCommit, PendingFocusedSimilarityQuery,
-    PendingFocusedSimilarityRefresh, PendingLoadedDurationMetadata, PendingLoadedSimilarityQuery,
-    PendingSimilarityFilterRebuild,
+    AnalysisProgressUiCache, BrowserSelectionCommitRequest, BrowserSelectionCommitStage,
+    BrowserSelectionLoadState, BrowserSelectionTransition, DeferredStartupAudioRefreshState,
+    LoadedSimilarityQueryCache, LoadedSimilarityQueryData, LoadedSimilaritySourceCandidate,
+    LoadedSimilaritySourceSnapshot, PendingBrowserFeatureCacheRefresh,
+    PendingFocusedSimilarityQuery, PendingFocusedSimilarityRefresh, PendingLoadedDurationMetadata,
+    PendingLoadedSimilarityQuery, PendingSimilarityFilterRebuild,
 };
 pub(crate) use derived_graph::{DerivedNodeId, DerivedStateGraph, DirtyReason};
 pub(crate) use performance::PerformanceGovernorState;
@@ -105,8 +106,8 @@ pub(crate) struct ControllerRuntimeState {
     pub(crate) pending_similarity_refresh_not_before: Option<Instant>,
     /// Active async focused-similarity highlight computation awaiting apply.
     pub(crate) pending_focused_similarity_query: Option<PendingFocusedSimilarityQuery>,
-    /// Deferred browser-focus commit side effects awaiting frame-time flush.
-    pub(crate) pending_browser_focus_commit: Option<PendingBrowserFocusCommit>,
+    /// Browser-selection candidate lifecycle spanning preview, commit, loading, and handoff.
+    pub(crate) browser_selection_transition: Option<BrowserSelectionTransition>,
     /// Active async follow-loaded similarity query computation awaiting apply.
     pub(crate) pending_loaded_similarity_query: Option<PendingLoadedSimilarityQuery>,
     /// Retained loaded-similarity query cached by source snapshot and anchor sample.
@@ -199,7 +200,7 @@ impl ControllerRuntimeState {
             pending_similarity_refresh: None,
             pending_similarity_refresh_not_before: None,
             pending_focused_similarity_query: None,
-            pending_browser_focus_commit: None,
+            browser_selection_transition: None,
             pending_loaded_similarity_query: None,
             loaded_similarity_query_cache: None,
             pending_similarity_filter_rebuild: None,

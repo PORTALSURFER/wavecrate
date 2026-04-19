@@ -13,13 +13,14 @@ impl AppController {
             .jobs
             .set_staged_audio_handoff(Some(StagedAudioHandoff {
                 request_id: pending.request_id,
-                source_id: pending.source_id,
+                source_id: pending.source_id.clone(),
                 root: pending.root,
                 relative_path: pending.relative_path.clone(),
                 intent: pending.intent,
                 decoded: outcome.decoded,
                 bytes: outcome.bytes,
             }));
+        self.note_browser_selection_staged(&pending.source_id, &pending.relative_path);
         let message =
             Self::loaded_status_text(&pending.relative_path, duration_seconds, sample_rate);
         self.set_status(message, StatusTone::Info);
@@ -137,6 +138,7 @@ impl AppController {
             }
         }
         self.ui.waveform.loading = None;
+        self.clear_browser_selection_transition(&pending.source_id, &pending.relative_path);
     }
 
     fn apply_loaded_audio_handoff(
@@ -183,11 +185,13 @@ impl AppController {
         if let Err(err) = self.apply_loaded_audio_handoff(&source, &staged) {
             self.runtime.jobs.set_staged_audio_handoff(None);
             self.runtime.jobs.set_pending_playback(None);
+            self.clear_browser_selection_transition(&staged.source_id, &staged.relative_path);
             self.set_status(err, StatusTone::Error);
             return;
         }
         self.runtime.jobs.set_staged_audio_handoff(None);
         self.ui.waveform.loading = None;
+        self.clear_browser_selection_transition(&staged.source_id, &staged.relative_path);
         if matches!(staged.intent, AudioLoadIntent::Selection) {
             self.refresh_similarity_sort_for_loaded_sample();
         }

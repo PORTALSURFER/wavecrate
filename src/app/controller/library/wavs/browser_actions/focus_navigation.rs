@@ -296,6 +296,7 @@ impl AppController {
         if is_loaded {
             self.runtime.jobs.set_pending_audio(None);
             self.runtime.jobs.set_pending_playback(None);
+            self.clear_browser_selection_transition(&source.id, &relative_path);
             self.stop_playback_if_active();
             let _ = self.play_audio(looped, None);
             return;

@@ -18,21 +18,52 @@ pub(crate) struct DeferredStartupAudioRefreshState {
 
 /// Deferred browser-focus side effects scheduled after immediate selection updates.
 #[derive(Clone, Debug)]
-pub(crate) struct PendingBrowserFocusCommit {
-    /// Source that owned the committed browser focus when it was queued.
+pub(crate) struct BrowserSelectionTransition {
+    /// Source that owns both the stable sample and the candidate browser selection.
     pub(crate) source_id: SourceId,
-    /// Relative wav path that must still be selected when the deferred work runs.
+    /// Relative wav path for the candidate sample the browser currently points at.
     pub(crate) relative_path: PathBuf,
     /// Absolute wav entry index expected to still own browser focus.
     pub(crate) entry_index: usize,
+    /// Whether browser focus is still preview-only, dispatch-pending, or fully settled.
+    pub(crate) commit_stage: BrowserSelectionCommitStage,
+    /// Whether the candidate sample is still stable, loading, or waiting on waveform visuals.
+    pub(crate) load_state: BrowserSelectionLoadState,
+    /// Playback intent captured for the candidate sample while it is loading.
+    pub(crate) pending_playback: Option<PendingPlayback>,
+}
+
+/// Commit lifecycle for one browser-selected candidate sample.
+#[derive(Clone, Debug)]
+pub(crate) enum BrowserSelectionCommitStage {
+    /// Browser focus has moved, but commit-only side effects are still deferred.
+    Preview,
+    /// Commit-only side effects were requested and still need controller-frame dispatch.
+    DispatchPending(BrowserSelectionCommitRequest),
+    /// The current candidate no longer has deferred commit work.
+    Settled,
+}
+
+/// Side effects still waiting to run before one candidate selection is fully committed.
+#[derive(Clone, Debug)]
+pub(crate) struct BrowserSelectionCommitRequest {
     /// Whether the focused path should be written into browser/random history.
     pub(crate) record_focus_history: bool,
     /// Whether focused-similarity refresh should be scheduled once the commit settles.
     pub(crate) refresh_similarity_highlight: bool,
-    /// Whether the focused path still needs a committed audio load dispatch.
-    pub(crate) queue_audio_load: bool,
-    /// Playback intent captured during the immediate focus commit phase.
-    pub(crate) pending_playback: Option<PendingPlayback>,
+    /// Whether the candidate still needs a committed audio load dispatch.
+    pub(crate) load_requested: bool,
+}
+
+/// Load lifecycle for one browser-selected candidate sample.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BrowserSelectionLoadState {
+    /// The currently visible waveform still belongs to the previously loaded sample.
+    Stable,
+    /// Audio decode is in flight for the candidate sample.
+    Loading,
+    /// Audio decode finished and is waiting for waveform visuals before handoff.
+    AwaitingWaveform,
 }
 
 /// Deferred focused-similarity refresh request for the current browser selection.

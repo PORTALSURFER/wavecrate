@@ -34,6 +34,7 @@ mod metadata_facade;
 /// Shared fuzzy-search scoring and cache-reuse helpers for sync and worker paths.
 mod search_scoring;
 mod selection_ops;
+mod selection_transition;
 mod similar;
 mod waveform_loading;
 pub mod waveform_rendering;
