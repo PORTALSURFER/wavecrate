@@ -30,7 +30,7 @@ pub(crate) use cleanup::{
     fail_stale_running_jobs, fail_stale_running_jobs_with_sources, prune_jobs_for_missing_sources,
     reset_running_to_pending,
 };
-pub(crate) use connection::open_source_db;
+pub(crate) use connection::{open_source_db, open_source_db_maintenance, open_source_db_ui_read};
 #[cfg(test)]
 pub(crate) use constants::DEFAULT_JOB_TYPE;
 pub(crate) use constants::{

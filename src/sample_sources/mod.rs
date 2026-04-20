@@ -24,7 +24,8 @@ pub(crate) use sempal_library::sample_sources::is_supported_audio;
 pub use sempal_library::sample_sources::normalize_relative_path;
 pub use sempal_library::sample_sources::{
     DB_FILE_NAME, LIBRARY_DB_FILE_NAME, LibraryError, LibraryState, Rating, SampleSource,
-    SourceDatabase, SourceDbError, SourceId, WavEntry, database_path_for, normalize_path,
+    SourceDatabase, SourceDatabaseConnectionRole, SourceDbError, SourceId, WavEntry,
+    database_path_for, normalize_path,
 };
 pub use sempal_scan::sample_sources::ScanTracker;
 pub use sempal_scan::sample_sources::{ChangedSample, ScanError, ScanMode, ScanStats};

@@ -11,7 +11,9 @@ pub mod library;
 
 pub use audio_support::{is_supported_audio, supported_audio_where_clause};
 pub use db::normalize_relative_path;
-pub use db::{DB_FILE_NAME, Rating, SourceDatabase, SourceDbError, WavEntry};
+pub use db::{
+    DB_FILE_NAME, Rating, SourceDatabase, SourceDatabaseConnectionRole, SourceDbError, WavEntry,
+};
 pub use library::{LIBRARY_DB_FILE_NAME, LibraryError, LibraryState};
 
 /// Identifier for a configured sample source.

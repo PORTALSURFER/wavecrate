@@ -11,7 +11,10 @@ use crate::sample_sources::scanner::{scan_once, schedule_deep_hash_scan};
 pub(super) fn run_source_db_maintenance_job(
     job: SourceDbMaintenanceJob,
 ) -> SourceDbMaintenanceOutcome {
-    let probe = match crate::sample_sources::SourceDatabase::open_fast(&job.source_root) {
+    let probe = match crate::sample_sources::SourceDatabase::open_with_role(
+        &job.source_root,
+        crate::sample_sources::SourceDatabaseConnectionRole::Maintenance,
+    ) {
         Ok(db) => db,
         Err(err) => {
             return SourceDbMaintenanceOutcome {
@@ -162,7 +165,7 @@ fn run_source_db_maintenance_once(
     job: &SourceDbMaintenanceJob,
     revision: u64,
 ) -> Result<usize, String> {
-    let mut conn = analysis_jobs::open_source_db(&job.source_root)?;
+    let mut conn = analysis_jobs::open_source_db_maintenance(&job.source_root)?;
     let removed = analysis_jobs::purge_orphaned_samples(&mut conn)?;
     update_deferred_maintenance_markers(&conn, revision)?;
     Ok(removed)

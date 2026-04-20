@@ -22,7 +22,10 @@ pub(in super::super) fn ensure_search_cache_ready_for_job(
     let source_changed = cache.source_id.as_deref() != Some(source_id)
         || cache.source_root.as_ref() != Some(&job.source_root);
 
-    match crate::sample_sources::SourceDatabase::open_read_only(&job.source_root) {
+    match crate::sample_sources::SourceDatabase::open_with_role(
+        &job.source_root,
+        crate::sample_sources::SourceDatabaseConnectionRole::UiRead,
+    ) {
         Ok(db) => {
             cache.db = Some(db);
             cache.entries = None;

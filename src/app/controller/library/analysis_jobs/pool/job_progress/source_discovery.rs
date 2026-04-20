@@ -34,7 +34,7 @@ pub(super) fn refresh_sources(
         {
             continue;
         }
-        let conn = match db::open_source_db(&source.root) {
+        let conn = match db::open_source_db_ui_read(&source.root) {
             Ok(conn) => conn,
             Err(_) => continue,
         };

@@ -25,7 +25,7 @@ pub(super) fn open_cached_source_db<'a>(
         .map_query_connections
         .contains_key(&source_id)
     {
-        let conn = analysis_jobs::open_source_db(&source_root)?;
+        let conn = analysis_jobs::open_source_db_ui_read(&source_root)?;
         controller
             .runtime
             .map_query_connections
@@ -45,5 +45,5 @@ pub(super) fn open_source_db_for_id(source_id: &SourceId) -> Result<Connection, 
         .iter()
         .find(|source| &source.id == source_id)
         .ok_or_else(|| "Source not found".to_string())?;
-    analysis_jobs::open_source_db(&source.root)
+    analysis_jobs::open_source_db_ui_read(&source.root)
 }

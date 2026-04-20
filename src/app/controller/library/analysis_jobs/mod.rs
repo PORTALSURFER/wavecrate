@@ -7,7 +7,7 @@ mod pool;
 mod types;
 mod wakeup;
 
-pub(crate) use db::open_source_db;
+pub(crate) use db::{open_source_db, open_source_db_maintenance, open_source_db_ui_read};
 pub(crate) use db::purge_orphaned_samples;
 #[cfg(test)]
 pub(crate) use db::sample_bpm;
@@ -31,14 +31,14 @@ pub(crate) use types::{AnalysisJobMessage, AnalysisProgress, RunningJobInfo};
 pub(crate) fn current_progress_for_source(
     source: &crate::sample_sources::SampleSource,
 ) -> Result<AnalysisProgress, String> {
-    let conn = db::open_source_db(&source.root)?;
+    let conn = db::open_source_db_ui_read(&source.root)?;
     db::current_progress(&conn, &source.root)
 }
 
 pub(crate) fn current_embedding_backfill_progress_for_source(
     source: &crate::sample_sources::SampleSource,
 ) -> Result<AnalysisProgress, String> {
-    let conn = db::open_source_db(&source.root)?;
+    let conn = db::open_source_db_ui_read(&source.root)?;
     db::current_embedding_backfill_progress(&conn, &source.root)
 }
 
@@ -46,7 +46,7 @@ pub(crate) fn current_running_jobs_for_source(
     source: &crate::sample_sources::SampleSource,
     limit: usize,
 ) -> Result<Vec<types::RunningJobInfo>, String> {
-    let conn = db::open_source_db(&source.root)?;
+    let conn = db::open_source_db_ui_read(&source.root)?;
     db::current_running_jobs(&conn, &source.root, limit)
 }
 

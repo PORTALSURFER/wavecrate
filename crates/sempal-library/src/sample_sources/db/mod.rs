@@ -6,6 +6,7 @@ use thiserror::Error;
 
 /// Persistent file operation journal for crash recovery.
 pub mod file_ops_journal;
+mod open_profiles;
 /// Private rename-recovery metadata retained after immediate file pruning.
 mod pending_renames;
 /// Read-only database queries for sample sources.
@@ -21,6 +22,7 @@ pub mod util;
 
 mod rating_tests;
 
+pub use open_profiles::SourceDatabaseConnectionRole;
 /// Metadata retained for a pruned row so later scans can recover rename state.
 pub use pending_renames::PendingRenameEntry;
 pub use util::normalize_relative_path;
@@ -336,37 +338,38 @@ impl SourceDatabase {
     /// path validation/cleanup to a background maintenance job.
     pub fn open_fast(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
         let root = root.as_ref();
-        open_source_database(
-            root,
-            should_open_source_db_read_only(),
-            allow_user_library_db_write(),
-            SourceDatabaseOpenMode::Fast,
-        )
+        Self::open_with_role(root, SourceDatabaseConnectionRole::JobWorker)
     }
 
     /// Open an existing database in read-only mode without applying schema migrations.
     pub fn open_read_only(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
-        let root = root.as_ref();
-        if !root.is_dir() {
-            return Err(SourceDbError::InvalidRoot(root.to_path_buf()));
-        }
+        Self::open_with_role(root, SourceDatabaseConnectionRole::UiRead)
+    }
 
-        let db_path = root.join(DB_FILE_NAME);
-        if !db_path.is_file() {
-            return Err(SourceDbError::ReadOnlyDatabaseMissing(db_path));
-        }
-        let connection = Connection::open_with_flags(&db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
-        let db = Self {
-            connection,
-            root: root.to_path_buf(),
-        };
-        db.apply_read_only_pragmas()?;
-        Ok(db)
+    /// Open a source database using one explicit runtime role profile.
+    ///
+    /// This keeps the caller's intent visible at the call site so UI reads,
+    /// worker writes, and deferred maintenance do not silently share the same
+    /// writable open behavior.
+    pub fn open_with_role(
+        root: impl AsRef<Path>,
+        role: SourceDatabaseConnectionRole,
+    ) -> Result<Self, SourceDbError> {
+        open_source_database_for_role(root.as_ref(), allow_user_library_db_write(), role)
     }
 
     /// Open a database connection for the given root without wrapping in SourceDatabase.
     pub fn open_connection(root: impl AsRef<Path>) -> Result<Connection, SourceDbError> {
         let db = Self::open(root)?;
+        Ok(db.into_connection())
+    }
+
+    /// Open a raw SQLite connection using one explicit runtime role profile.
+    pub fn open_connection_with_role(
+        root: impl AsRef<Path>,
+        role: SourceDatabaseConnectionRole,
+    ) -> Result<Connection, SourceDbError> {
+        let db = Self::open_with_role(root, role)?;
         Ok(db.into_connection())
     }
 
@@ -423,9 +426,121 @@ impl SourceDatabase {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum SourceDatabaseOpenMode {
+pub(super) enum SourceDatabaseOpenMode {
     Fast,
     Full,
+}
+
+fn open_source_database_for_role(
+    root: &Path,
+    allow_user_library_write: bool,
+    role: SourceDatabaseConnectionRole,
+) -> Result<SourceDatabase, SourceDbError> {
+    if role.uses_read_only_connection() {
+        return open_read_only_source_database(root, role);
+    }
+    open_source_database_with_flags(
+        root,
+        allow_user_library_write,
+        role.open_flags(),
+        role.open_mode(),
+        role.label(),
+    )
+}
+
+fn open_read_only_source_database(
+    root: &Path,
+    role: SourceDatabaseConnectionRole,
+) -> Result<SourceDatabase, SourceDbError> {
+    let open_started = std::time::Instant::now();
+    if !root.is_dir() {
+        return Err(SourceDbError::InvalidRoot(root.to_path_buf()));
+    }
+
+    let db_path = root.join(DB_FILE_NAME);
+    if !db_path.is_file() {
+        return Err(SourceDbError::ReadOnlyDatabaseMissing(db_path));
+    }
+
+    let connect_started = std::time::Instant::now();
+    let connection = match Connection::open_with_flags(&db_path, role.open_flags()) {
+        Ok(connection) => {
+            telemetry::record_open_phase(
+                root,
+                &db_path,
+                role.label(),
+                "connect",
+                true,
+                connect_started.elapsed(),
+                Ok(()),
+            );
+            connection
+        }
+        Err(err) => {
+            let err = SourceDbError::from(err);
+            telemetry::record_open_phase(
+                root,
+                &db_path,
+                role.label(),
+                "connect",
+                true,
+                connect_started.elapsed(),
+                Err(&err),
+            );
+            telemetry::record_open_total(
+                root,
+                &db_path,
+                role.label(),
+                true,
+                open_started.elapsed(),
+                Err(&err),
+            );
+            return Err(err);
+        }
+    };
+    let db = SourceDatabase {
+        connection,
+        root: root.to_path_buf(),
+    };
+    let pragmas_started = std::time::Instant::now();
+    if let Err(err) = db.apply_read_only_pragmas() {
+        telemetry::record_open_phase(
+            root,
+            &db_path,
+            role.label(),
+            "pragmas",
+            true,
+            pragmas_started.elapsed(),
+            Err(&err),
+        );
+        telemetry::record_open_total(
+            root,
+            &db_path,
+            role.label(),
+            true,
+            open_started.elapsed(),
+            Err(&err),
+        );
+        return Err(err);
+    }
+    telemetry::record_open_phase(
+        root,
+        &db_path,
+        role.label(),
+        "pragmas",
+        true,
+        pragmas_started.elapsed(),
+        Ok(()),
+    );
+    telemetry::record_open_total(
+        root,
+        &db_path,
+        role.label(),
+        true,
+        open_started.elapsed(),
+        Ok(()),
+    );
+    Ok(db)
 }
 
 fn open_source_database(
@@ -434,13 +549,28 @@ fn open_source_database(
     allow_user_library_write: bool,
     mode: SourceDatabaseOpenMode,
 ) -> Result<SourceDatabase, SourceDbError> {
+    if read_only {
+        return open_read_only_source_database(root, SourceDatabaseConnectionRole::UiRead);
+    }
+    open_source_database_with_flags(
+        root,
+        allow_user_library_write,
+        OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
+        mode,
+        mode.label(),
+    )
+}
+
+fn open_source_database_with_flags(
+    root: &Path,
+    allow_user_library_write: bool,
+    open_flags: OpenFlags,
+    mode: SourceDatabaseOpenMode,
+    telemetry_label: &'static str,
+) -> Result<SourceDatabase, SourceDbError> {
     let open_started = std::time::Instant::now();
     if !root.is_dir() {
         return Err(SourceDbError::InvalidRoot(root.to_path_buf()));
-    }
-
-    if read_only {
-        return SourceDatabase::open_read_only(root);
     }
 
     if is_user_library_root(root) && !allow_user_library_write {
@@ -452,12 +582,12 @@ fn open_source_database(
     let db_path = root.join(DB_FILE_NAME);
     util::create_parent_if_needed(&db_path)?;
     let connect_started = std::time::Instant::now();
-    let connection = match Connection::open(&db_path) {
+    let connection = match Connection::open_with_flags(&db_path, open_flags) {
         Ok(connection) => {
             telemetry::record_open_phase(
                 root,
                 &db_path,
-                mode.label(),
+                telemetry_label,
                 "connect",
                 false,
                 connect_started.elapsed(),
@@ -470,7 +600,7 @@ fn open_source_database(
             telemetry::record_open_phase(
                 root,
                 &db_path,
-                mode.label(),
+                telemetry_label,
                 "connect",
                 false,
                 connect_started.elapsed(),
@@ -479,7 +609,7 @@ fn open_source_database(
             telemetry::record_open_total(
                 root,
                 &db_path,
-                mode.label(),
+                telemetry_label,
                 false,
                 open_started.elapsed(),
                 Err(&err),
@@ -496,7 +626,7 @@ fn open_source_database(
         telemetry::record_open_phase(
             root,
             &db_path,
-            mode.label(),
+            telemetry_label,
             "pragmas",
             false,
             pragmas_started.elapsed(),
@@ -505,7 +635,7 @@ fn open_source_database(
         telemetry::record_open_total(
             root,
             &db_path,
-            mode.label(),
+            telemetry_label,
             false,
             open_started.elapsed(),
             Err(&err),
@@ -515,7 +645,7 @@ fn open_source_database(
     telemetry::record_open_phase(
         root,
         &db_path,
-        mode.label(),
+        telemetry_label,
         "pragmas",
         false,
         pragmas_started.elapsed(),
@@ -531,7 +661,7 @@ fn open_source_database(
             telemetry::record_open_phase(
                 root,
                 &db_path,
-                mode.label(),
+                telemetry_label,
                 "schema",
                 false,
                 schema_started.elapsed(),
@@ -542,7 +672,7 @@ fn open_source_database(
             telemetry::record_open_phase(
                 root,
                 &db_path,
-                mode.label(),
+                telemetry_label,
                 "schema",
                 false,
                 schema_started.elapsed(),
@@ -551,7 +681,7 @@ fn open_source_database(
             telemetry::record_open_total(
                 root,
                 &db_path,
-                mode.label(),
+                telemetry_label,
                 false,
                 open_started.elapsed(),
                 Err(&err),
@@ -562,7 +692,7 @@ fn open_source_database(
     telemetry::record_open_total(
         root,
         &db_path,
-        mode.label(),
+        telemetry_label,
         false,
         open_started.elapsed(),
         Ok(()),
