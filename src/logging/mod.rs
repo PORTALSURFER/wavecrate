@@ -4,6 +4,15 @@
 //! per-launch log file. Files are timestamped and kept to a bounded count to
 //! avoid unbounded growth.
 
+mod contract;
+mod policy;
+
+pub use contract::{
+    ACTION_EVENT_TARGET, ActionDebugEvent, DB_EVENT_TARGET, DbDebugEvent, emit_action_debug_event,
+    emit_db_debug_event,
+};
+pub use policy::{DEBUG_LOGGING_ENV_VAR, DebugLoggingMode, DebugLoggingSettings};
+
 use std::{
     backtrace::Backtrace,
     fs::{self, OpenOptions},
@@ -15,7 +24,7 @@ use std::{
 
 use time::{OffsetDateTime, UtcOffset, format_description::FormatItem, macros::format_description};
 use tracing_appender::{non_blocking::WorkerGuard, rolling};
-use tracing_subscriber::{EnvFilter, Registry, fmt, prelude::*};
+use tracing_subscriber::{Registry, fmt, prelude::*};
 
 use crate::app_dirs;
 
@@ -24,6 +33,7 @@ const MAX_LOG_FILES: usize = 10;
 const LOG_FILE_PREFIX: &str = "sempal";
 
 static LOG_GUARD: OnceLock<WorkerGuard> = OnceLock::new();
+static DEBUG_LOGGING_ENABLED: OnceLock<bool> = OnceLock::new();
 
 /// Errors that may occur while initializing logging.
 #[derive(Debug, thiserror::Error)]
@@ -77,7 +87,7 @@ pub enum LoggingError {
     },
 }
 
-/// Initialize tracing to write to stdout and a rotating log file.
+/// Initialize tracing to write to stdout and a per-launch log file.
 ///
 /// Subsequent calls are no-ops. Failures are returned so callers can degrade
 /// gracefully without aborting startup.
@@ -86,6 +96,7 @@ pub fn init() -> Result<(), LoggingError> {
         return Ok(());
     }
 
+    let settings = DebugLoggingSettings::from_environment();
     let log_dir = log_directory()?;
     let log_file_name = format_log_file_name(now_local_or_utc())?;
     let log_path = log_dir.join(&log_file_name);
@@ -96,7 +107,7 @@ pub fn init() -> Result<(), LoggingError> {
     prune_old_logs(&log_dir, MAX_LOG_FILES)?;
 
     let timer = build_timer();
-    let env_filter = build_env_filter();
+    let env_filter = settings.env_filter();
     let stdout_layer = fmt::layer()
         .with_timer(timer.clone())
         .with_writer(std::io::stdout);
@@ -111,9 +122,31 @@ pub fn init() -> Result<(), LoggingError> {
         .with(file_layer);
     tracing::subscriber::set_global_default(subscriber).map_err(LoggingError::SetGlobal)?;
     let _ = LOG_GUARD.set(guard);
+    let _ = DEBUG_LOGGING_ENABLED.set(settings.mode().enabled());
 
-    tracing::info!("Logging initialized; log file at {}", log_path.display());
+    tracing::info!(
+        log_path = %log_path.display(),
+        debug_logging_mode = settings.mode().as_str(),
+        debug_logging_filter_source = settings.filter_source(),
+        debug_logging_filter = settings.filter_description(),
+        "Logging initialized"
+    );
+    if let Some(invalid_value) = settings.invalid_debug_value() {
+        tracing::warn!(
+            env_var = DEBUG_LOGGING_ENV_VAR,
+            invalid_value,
+            "Ignoring invalid debug logging flag; expected one of 1/0/true/false/on/off/yes/no"
+        );
+    }
     Ok(())
+}
+
+/// Returns `true` when the Sempal-owned debug logging mode is enabled.
+///
+/// Rich action/database diagnostics should use this gate instead of treating a
+/// broad `RUST_LOG` override as product intent.
+pub fn debug_logging_enabled() -> bool {
+    *DEBUG_LOGGING_ENABLED.get_or_init(|| DebugLoggingSettings::from_environment().mode().enabled())
 }
 
 /// Install a panic hook that writes panic context and backtrace to logs.
@@ -213,10 +246,6 @@ fn build_timer() -> fmt::time::OffsetTime<time::format_description::BorrowedForm
 
 fn now_local_or_utc() -> OffsetDateTime {
     OffsetDateTime::now_local().unwrap_or_else(|_| OffsetDateTime::now_utc())
-}
-
-fn build_env_filter() -> EnvFilter {
-    EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"))
 }
 
 fn map_app_dir_error(error: app_dirs::AppDirError) -> LoggingError {

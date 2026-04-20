@@ -181,9 +181,41 @@ the real persisted startup profile. The legacy `default` tag is accepted only
 
 ## Logging
 
+- `SEMPAL_DEBUG_LOGGING`
+Sempal-owned opt-in switch for richer per-launch debug diagnostics in release or
+manual debugging runs. Accepted truthy values: `1`, `true`, `yes`, `on`.
+Accepted falsy values: `0`, `false`, `no`, `off`.
+
+Semantics:
+- when unset or falsy, launch logs keep the normal always-on baseline (`info`
+  level plus warnings/errors) and richer action/DB reconstruction events stay
+  disabled
+- when truthy and `RUST_LOG` is unset, Sempal installs the default filter
+  `sempal=debug,info` so Sempal-owned debug events are visible without turning
+  third-party crates up to `debug`
+- when truthy and `RUST_LOG` is also set, `RUST_LOG` still owns the final
+  filter expression, but Sempal still treats the run as debug mode for
+  diagnostics that explicitly gate on `SEMPAL_DEBUG_LOGGING`
+
+Structured debug event contract for later instrumentation:
+- action events must use stable `action`, `pane`, `source`, `outcome`,
+  `elapsed_ms`, and `error` fields
+- DB events must use stable `operation`, `source`, `outcome`, `elapsed_ms`, and
+  `error` fields
+- use concise, sanitized identifiers; prefer stable action/operation names over
+  free-form prose
+
+Never log:
+- secrets, tokens, auth headers, credentials, encryption keys, or session data
+- raw SQL with interpolated private values
+- large unredacted user-authored payloads or other sensitive content that is not
+  required to diagnose the seam
+
 - `RUST_LOG`
 Controls logging verbosity via `tracing_subscriber::EnvFilter`. When unset,
-Sempal defaults to `info`.
+Sempal defaults to `info`, or to `sempal=debug,info` when
+`SEMPAL_DEBUG_LOGGING` is enabled. `RUST_LOG` overrides that default filter when
+it is set.
 
 ## Headless audio
 
