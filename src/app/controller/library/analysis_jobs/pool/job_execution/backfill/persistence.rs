@@ -23,6 +23,10 @@ pub(super) fn write_backfill_results(
             3,
             Duration::from_millis(50),
         )?;
+        crate::sample_sources::SourceDatabase::maybe_checkpoint_wal(
+            &job.source_root,
+            crate::sample_sources::SourceDatabaseConnectionRole::JobWorker,
+        );
         if let Err(err) = update_ann_index_with_retry(conn, chunk) {
             let rebuild_result = handle_ann_update_failure(conn, job, &err);
             return Err(format_ann_update_error(err, rebuild_result));

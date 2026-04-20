@@ -311,13 +311,17 @@ pub enum SourceDbError {
 /// SQLite wrapper that stores wav metadata for a single source folder.
 pub struct SourceDatabase {
     connection: Connection,
+    db_path: PathBuf,
     root: PathBuf,
+    telemetry_label: &'static str,
 }
 
 /// Groups multiple database writes into one transaction using cached statements.
 pub struct SourceWriteBatch<'conn> {
     tx: Transaction<'conn>,
+    db_path: PathBuf,
     paths_revision_dirty: bool,
+    telemetry_label: &'static str,
 }
 
 impl SourceDatabase {
@@ -378,17 +382,37 @@ impl SourceDatabase {
         &self.root
     }
 
+    /// Evaluate the shared WAL maintenance policy for one source DB root.
+    ///
+    /// This is a best-effort passive checkpoint: it only runs after the WAL has
+    /// already grown beyond the steady-state target, it is throttled per source
+    /// DB file, and it yields immediately if active readers still own older WAL
+    /// snapshots.
+    pub fn maybe_checkpoint_wal(root: impl AsRef<Path>, role: SourceDatabaseConnectionRole) {
+        if role.uses_read_only_connection() {
+            return;
+        }
+        crate::sqlite_wal::maybe_checkpoint_database_file(
+            &super::database_path_for(root.as_ref()),
+            "source_db",
+            role.label(),
+        );
+    }
+
     fn apply_pragmas(&self) -> Result<(), SourceDbError> {
-        self.connection
-            .execute_batch(
-                "PRAGMA journal_mode=WAL;
+        let pragmas = format!(
+            "PRAGMA journal_mode=WAL;
              PRAGMA synchronous = NORMAL;
+             {}
              PRAGMA foreign_keys=ON;
              PRAGMA busy_timeout=5000;
              PRAGMA temp_store=MEMORY;
              PRAGMA cache_size=-32000;
              PRAGMA mmap_size=134217728;",
-            )
+            crate::sqlite_wal::WORKLOAD_WAL_PRAGMAS_SQL
+        );
+        self.connection
+            .execute_batch(&pragmas)
             .map_err(util::map_sql_error)?;
         if let Err(err) = crate::sqlite_ext::try_load_optional_extension(&self.connection) {
             tracing::debug!("SQLite extension not loaded: {err}");
@@ -500,7 +524,9 @@ fn open_read_only_source_database(
     };
     let db = SourceDatabase {
         connection,
+        db_path: db_path.clone(),
         root: root.to_path_buf(),
+        telemetry_label: role.label(),
     };
     let pragmas_started = std::time::Instant::now();
     if let Err(err) = db.apply_read_only_pragmas() {
@@ -619,7 +645,9 @@ fn open_source_database_with_flags(
     };
     let db = SourceDatabase {
         connection,
+        db_path: db_path.clone(),
         root: root.to_path_buf(),
+        telemetry_label,
     };
     let pragmas_started = std::time::Instant::now();
     if let Err(err) = db.apply_pragmas() {

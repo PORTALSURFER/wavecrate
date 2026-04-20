@@ -10,3 +10,4 @@ mod env_flags;
 pub mod sample_sources;
 /// Optional SQLite extension loader shared by storage code.
 pub mod sqlite_ext;
+mod sqlite_wal;

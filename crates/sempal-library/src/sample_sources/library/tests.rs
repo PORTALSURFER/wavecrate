@@ -68,6 +68,16 @@ fn applies_workload_pragmas_and_indices() {
             .unwrap();
         assert_eq!(synchronous, 2, "expected PRAGMA synchronous=NORMAL (2)");
 
+        let wal_autocheckpoint: i64 = conn
+            .query_row("PRAGMA wal_autocheckpoint", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(wal_autocheckpoint, 4096);
+
+        let journal_size_limit: i64 = conn
+            .query_row("PRAGMA journal_size_limit", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(journal_size_limit, 67_108_864);
+
         let busy_timeout: i64 = conn
             .query_row("PRAGMA busy_timeout", [], |row| row.get(0))
             .unwrap();

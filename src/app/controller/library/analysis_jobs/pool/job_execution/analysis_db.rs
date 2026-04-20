@@ -1,5 +1,6 @@
 use crate::app::controller::library::analysis_jobs::db;
 use crate::app::controller::library::analysis_jobs::db::telemetry;
+use std::path::Path;
 
 use super::support::now_epoch_seconds;
 
@@ -67,6 +68,7 @@ pub(crate) fn apply_cached_features_and_embedding(
     if !persist_cached_analysis_write(
         conn,
         job,
+        Some(job.source_root.as_path()),
         content_hash,
         features,
         embedding,
@@ -127,7 +129,7 @@ pub(crate) fn finalize_analysis_job(
 ) -> Result<(), String> {
     let write =
         build_decoded_analysis_write(job, decoded, analysis_version, needs_embedding_upsert)?;
-    let persisted = persist_decoded_analysis_write(conn, &write)?;
+    let persisted = persist_decoded_analysis_write(conn, Some(job.source_root.as_path()), &write)?;
     finish_decoded_analysis_write(conn, job, &write, persisted, do_ann_upsert)
 }
 
@@ -141,15 +143,18 @@ fn derive_similarity_metric_payloads(features: &[f32]) -> (Option<Vec<u8>>, Opti
 /// Persist one decoded analysis result inside a single immediate transaction.
 pub(crate) fn persist_decoded_analysis_write(
     conn: &mut rusqlite::Connection,
+    source_root: Option<&Path>,
     write: &DecodedAnalysisWrite,
 ) -> Result<bool, String> {
-    let mut persisted = persist_decoded_analysis_batch(conn, std::slice::from_ref(write))?;
+    let mut persisted =
+        persist_decoded_analysis_batch(conn, source_root, std::slice::from_ref(write))?;
     Ok(persisted.pop().unwrap_or(false))
 }
 
 /// Persist one decoded batch inside a single immediate transaction.
 pub(crate) fn persist_decoded_analysis_batch(
     conn: &mut rusqlite::Connection,
+    source_root: Option<&Path>,
     writes: &[DecodedAnalysisWrite],
 ) -> Result<Vec<bool>, String> {
     if writes.is_empty() {
@@ -163,6 +168,7 @@ pub(crate) fn persist_decoded_analysis_batch(
     }
     telemetry::commit_transaction(tx, "analysis_persist_decoded_batch")
         .map_err(|err| format!("Failed to commit decoded analysis transaction: {err}"))?;
+    maybe_checkpoint_source_db(source_root);
     Ok(persisted)
 }
 
@@ -208,6 +214,7 @@ fn persist_decoded_analysis_write_in_tx(
 fn persist_cached_analysis_write(
     conn: &mut rusqlite::Connection,
     job: &db::ClaimedJob,
+    source_root: Option<&Path>,
     content_hash: &str,
     features: &db::CachedFeatures,
     embedding: &db::CachedEmbedding,
@@ -253,7 +260,18 @@ fn persist_cached_analysis_write(
     )?;
     telemetry::commit_transaction(tx, "analysis_persist_cached")
         .map_err(|err| format!("Failed to commit cached analysis transaction: {err}"))?;
+    maybe_checkpoint_source_db(source_root);
     Ok(true)
+}
+
+fn maybe_checkpoint_source_db(source_root: Option<&Path>) {
+    let Some(source_root) = source_root else {
+        return;
+    };
+    crate::sample_sources::SourceDatabase::maybe_checkpoint_wal(
+        source_root,
+        crate::sample_sources::SourceDatabaseConnectionRole::JobWorker,
+    );
 }
 
 fn upsert_ann_with_recovery(
@@ -352,7 +370,7 @@ mod tests {
         insert_sample(&conn, "source::one.wav", "h1");
         let write = test_write("source::one.wav", "h1");
 
-        let err = persist_decoded_analysis_write(&mut conn, &write).unwrap_err();
+        let err = persist_decoded_analysis_write(&mut conn, None, &write).unwrap_err();
 
         assert!(err.contains("analysis_cache_embeddings"));
         assert_eq!(
@@ -381,7 +399,7 @@ mod tests {
             test_write("source::two.wav", "h2"),
         ];
 
-        let err = persist_decoded_analysis_batch(&mut conn, &writes).unwrap_err();
+        let err = persist_decoded_analysis_batch(&mut conn, None, &writes).unwrap_err();
 
         assert!(err.contains("synthetic cache failure"));
         assert_eq!(

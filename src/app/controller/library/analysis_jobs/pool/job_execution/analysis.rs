@@ -183,15 +183,19 @@ pub(crate) fn run_analysis_jobs_with_decoded_batch(
         batch_jobs.push(item);
     }
     let _ = heartbeat.touch_jobs(conn, &job_ids);
-    let persisted = match super::analysis_db::persist_decoded_analysis_batch(conn, &writes) {
-        Ok(persisted) => Some(persisted),
-        Err(err) => {
-            return batch_jobs
-                .into_iter()
-                .map(|item| (item.job, Err(err.clone())))
-                .collect();
-        }
-    };
+    let source_root = batch_jobs
+        .first()
+        .map(|item| item.job.source_root.as_path());
+    let persisted =
+        match super::analysis_db::persist_decoded_analysis_batch(conn, source_root, &writes) {
+            Ok(persisted) => Some(persisted),
+            Err(err) => {
+                return batch_jobs
+                    .into_iter()
+                    .map(|item| (item.job, Err(err.clone())))
+                    .collect();
+            }
+        };
     let mut outcomes = Vec::with_capacity(batch_jobs.len());
     for item in batch_jobs {
         let _ = heartbeat.touch_jobs(conn, &job_ids);

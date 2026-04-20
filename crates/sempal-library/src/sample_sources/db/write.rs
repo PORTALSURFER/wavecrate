@@ -119,7 +119,9 @@ impl SourceDatabase {
             .map_err(map_sql_error)?;
         Ok(SourceWriteBatch {
             tx,
+            db_path: self.db_path.clone(),
             paths_revision_dirty: false,
+            telemetry_label: self.telemetry_label,
         })
     }
 
@@ -347,6 +349,11 @@ impl<'conn> SourceWriteBatch<'conn> {
             SourceDatabase::bump_wav_paths_revision(&self.tx)?;
         }
         self.tx.commit().map_err(map_sql_error)?;
+        crate::sqlite_wal::maybe_checkpoint_database_file(
+            &self.db_path,
+            "source_db",
+            self.telemetry_label,
+        );
         Ok(())
     }
 }
