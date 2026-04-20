@@ -1,5 +1,11 @@
 use super::*;
 
+fn schema_version(connection: &Connection) -> i64 {
+    connection
+        .query_row("PRAGMA user_version", [], |row| row.get(0))
+        .unwrap()
+}
+
 #[test]
 fn read_only_open_reads_existing_entries() {
     let dir = tempdir().unwrap();
@@ -212,4 +218,25 @@ fn applies_workload_pragmas_and_indices() {
         .optional()
         .unwrap();
     assert_eq!(idx.as_deref(), Some("idx_wav_files_missing"));
+    assert_eq!(schema_version(&conn), 1);
+}
+
+#[test]
+fn stale_schema_stamp_reassures_legacy_files_on_open() {
+    let dir = tempdir().unwrap();
+    let db_file = dir.path().join(DB_FILE_NAME);
+    let conn = Connection::open(&db_file).unwrap();
+    conn.execute_batch(
+        "CREATE TABLE wav_files (
+             path TEXT PRIMARY KEY,
+             file_size INTEGER NOT NULL,
+             modified_ns INTEGER NOT NULL
+         );
+         PRAGMA user_version = 0;",
+    )
+    .unwrap();
+    drop(conn);
+
+    let reopened = SourceDatabase::open(dir.path()).unwrap();
+    assert_eq!(schema_version(&reopened.connection), 1);
 }

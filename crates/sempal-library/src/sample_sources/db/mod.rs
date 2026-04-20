@@ -410,11 +410,11 @@ impl SourceDatabase {
     }
 
     fn apply_schema(&self) -> Result<(), SourceDbError> {
-        schema::apply_schema(&self.connection)
+        schema::apply_schema(&self.connection).map(|_| ())
     }
 
     fn apply_schema_fast(&self) -> Result<(), SourceDbError> {
-        schema::apply_schema_fast(&self.connection)
+        schema::apply_schema_fast(&self.connection).map(|_| ())
     }
 
     fn into_connection(self) -> Connection {
