@@ -7,7 +7,6 @@ mod pool;
 mod types;
 mod wakeup;
 
-pub(crate) use db::{open_source_db, open_source_db_maintenance, open_source_db_ui_read};
 pub(crate) use db::purge_orphaned_samples;
 #[cfg(test)]
 pub(crate) use db::sample_bpm;
@@ -17,6 +16,7 @@ pub(crate) use db::{
     SampleMetadata, build_sample_id, parse_sample_id, update_sample_bpms, update_sample_duration,
     update_sample_long_mark, upsert_samples,
 };
+pub(crate) use db::{open_source_db, open_source_db_maintenance, open_source_db_ui_read};
 pub(crate) use enqueue::enqueue_jobs_for_source;
 pub(crate) use enqueue::enqueue_jobs_for_source_backfill;
 pub(crate) use enqueue::enqueue_jobs_for_source_backfill_full;

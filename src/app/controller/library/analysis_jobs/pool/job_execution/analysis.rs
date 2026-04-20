@@ -16,7 +16,7 @@ pub(crate) struct AnalysisContext<'a> {
 }
 
 pub(crate) fn run_analysis_job(
-    conn: &rusqlite::Connection,
+    conn: &mut rusqlite::Connection,
     job: &db::ClaimedJob,
     context: &AnalysisContext<'_>,
 ) -> Result<(), String> {
@@ -75,7 +75,7 @@ pub(crate) fn run_analysis_job(
 }
 
 pub(crate) fn run_analysis_job_with_decoded(
-    conn: &rusqlite::Connection,
+    conn: &mut rusqlite::Connection,
     job: &db::ClaimedJob,
     decoded: crate::analysis::audio::AnalysisAudio,
     context: &AnalysisContext<'_>,
@@ -96,27 +96,26 @@ pub(crate) fn run_analysis_job_with_decoded(
 }
 
 pub(crate) fn run_analysis_jobs_with_decoded_batch(
-    conn: &rusqlite::Connection,
+    conn: &mut rusqlite::Connection,
     jobs: Vec<(db::ClaimedJob, crate::analysis::audio::AnalysisAudio)>,
     context: &AnalysisContext<'_>,
 ) -> Vec<(db::ClaimedJob, Result<(), String>)> {
     struct BatchJob {
         job: db::ClaimedJob,
-        decoded: crate::analysis::audio::AnalysisAudio,
-        needs_embedding_upsert: bool,
+        write_index: Option<usize>,
         error: Option<String>,
     }
 
     let job_ids: Vec<i64> = jobs.iter().map(|(job, _)| job.id).collect();
     let mut heartbeat = JobHeartbeat::new(std::time::Duration::from_secs(4));
     let mut batch_jobs = Vec::with_capacity(jobs.len());
+    let mut writes = Vec::with_capacity(jobs.len());
     let _ = heartbeat.touch_jobs(conn, &job_ids);
     for (job, decoded) in jobs {
         let sample_id = job.sample_id.clone();
         let mut item = BatchJob {
             job,
-            decoded,
-            needs_embedding_upsert: false,
+            write_index: None,
             error: None,
         };
         if item.job.content_hash.as_deref().is_none() {
@@ -130,35 +129,89 @@ pub(crate) fn run_analysis_jobs_with_decoded_batch(
         if context.use_cache {
             match load_existing_embedding(conn, &sample_id) {
                 Ok(Some(_cached)) => {
-                    item.needs_embedding_upsert = false;
+                    match super::analysis_db::build_decoded_analysis_write(
+                        &item.job,
+                        decoded,
+                        context.analysis_version,
+                        false,
+                    ) {
+                        Ok(write) => {
+                            item.write_index = Some(writes.len());
+                            writes.push(write);
+                        }
+                        Err(err) => {
+                            item.error = Some(err);
+                        }
+                    }
                 }
                 Ok(None) => {
-                    item.needs_embedding_upsert = true;
+                    match super::analysis_db::build_decoded_analysis_write(
+                        &item.job,
+                        decoded,
+                        context.analysis_version,
+                        true,
+                    ) {
+                        Ok(write) => {
+                            item.write_index = Some(writes.len());
+                            writes.push(write);
+                        }
+                        Err(err) => {
+                            item.error = Some(err);
+                        }
+                    }
                 }
                 Err(err) => {
                     item.error = Some(err);
                 }
             }
         } else {
-            item.needs_embedding_upsert = true;
+            match super::analysis_db::build_decoded_analysis_write(
+                &item.job,
+                decoded,
+                context.analysis_version,
+                true,
+            ) {
+                Ok(write) => {
+                    item.write_index = Some(writes.len());
+                    writes.push(write);
+                }
+                Err(err) => {
+                    item.error = Some(err);
+                }
+            }
         }
         batch_jobs.push(item);
     }
     let _ = heartbeat.touch_jobs(conn, &job_ids);
+    let persisted = match super::analysis_db::persist_decoded_analysis_batch(conn, &writes) {
+        Ok(persisted) => Some(persisted),
+        Err(err) => {
+            return batch_jobs
+                .into_iter()
+                .map(|item| (item.job, Err(err.clone())))
+                .collect();
+        }
+    };
     let mut outcomes = Vec::with_capacity(batch_jobs.len());
     for item in batch_jobs {
         let _ = heartbeat.touch_jobs(conn, &job_ids);
         let result = if let Some(err) = item.error {
             Err(err)
-        } else {
-            finalize_analysis_job(
+        } else if let Some(index) = item.write_index {
+            let persisted = persisted
+                .as_ref()
+                .and_then(|items| items.get(index))
+                .copied()
+                .unwrap_or(false);
+            super::analysis_db::finish_decoded_analysis_write(
                 conn,
                 &item.job,
-                item.decoded,
-                context.analysis_version,
-                item.needs_embedding_upsert,
+                &writes[index],
+                persisted,
                 true,
             )
+        } else {
+            Ok(())
         };
         outcomes.push((item.job, result));
     }

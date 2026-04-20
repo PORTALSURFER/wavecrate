@@ -15,7 +15,7 @@ pub(crate) use analysis::{AnalysisContext, run_analysis_jobs_with_decoded_batch}
 pub(crate) use status::update_job_status_with_retry;
 
 pub(crate) fn run_job(
-    conn: &rusqlite::Connection,
+    conn: &mut rusqlite::Connection,
     job: &db::ClaimedJob,
     use_cache: bool,
     max_analysis_duration_seconds: f32,
