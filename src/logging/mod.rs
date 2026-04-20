@@ -11,7 +11,10 @@ pub use contract::{
     ACTION_EVENT_TARGET, ActionDebugEvent, DB_EVENT_TARGET, DbDebugEvent, emit_action_debug_event,
     emit_db_debug_event,
 };
-pub use policy::{DEBUG_LOGGING_ENV_VAR, DebugLoggingMode, DebugLoggingSettings};
+pub use policy::{
+    DEBUG_LOGGING_ARG, DEBUG_LOGGING_ENV_VAR, DEBUG_LOGGING_SHORT_ARG, DebugLoggingMode,
+    DebugLoggingSettings,
+};
 
 use std::{
     backtrace::Backtrace,
@@ -91,12 +94,15 @@ pub enum LoggingError {
 ///
 /// Subsequent calls are no-ops. Failures are returned so callers can degrade
 /// gracefully without aborting startup.
-pub fn init() -> Result<(), LoggingError> {
+pub fn init<I>(args: I) -> Result<(), LoggingError>
+where
+    I: IntoIterator<Item = std::ffi::OsString>,
+{
     if LOG_GUARD.get().is_some() {
         return Ok(());
     }
 
-    let settings = DebugLoggingSettings::from_environment();
+    let settings = DebugLoggingSettings::from_process(args);
     let log_dir = log_directory()?;
     let log_file_name = format_log_file_name(now_local_or_utc())?;
     let log_path = log_dir.join(&log_file_name);
@@ -127,6 +133,7 @@ pub fn init() -> Result<(), LoggingError> {
     tracing::info!(
         log_path = %log_path.display(),
         debug_logging_mode = settings.mode().as_str(),
+        debug_logging_launch_arg = settings.enabled_by_launch_arg(),
         debug_logging_filter_source = settings.filter_source(),
         debug_logging_filter = settings.filter_description(),
         "Logging initialized"
@@ -146,7 +153,7 @@ pub fn init() -> Result<(), LoggingError> {
 /// Rich action/database diagnostics should use this gate instead of treating a
 /// broad `RUST_LOG` override as product intent.
 pub fn debug_logging_enabled() -> bool {
-    *DEBUG_LOGGING_ENABLED.get_or_init(|| DebugLoggingSettings::from_environment().mode().enabled())
+    *DEBUG_LOGGING_ENABLED.get_or_init(|| false)
 }
 
 /// Install a panic hook that writes panic context and backtrace to logs.

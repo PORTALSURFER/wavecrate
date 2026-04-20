@@ -26,9 +26,9 @@ Use this when you need a richer reconstruction of runtime actions or DB work.
 
 - enable Sempal-owned debug diagnostics for one run:
   - Windows PowerShell:
-    `$env:SEMPAL_DEBUG_LOGGING=1`
+    `cargo run --release -- --log`
   - macOS/Linux/WSL:
-    `export SEMPAL_DEBUG_LOGGING=1`
+    `cargo run --release -- --log`
 - keep using the normal latest-log helper afterward:
   - Windows PowerShell:
     `powershell -ExecutionPolicy Bypass -File scripts/run.ps1 logs`
@@ -37,6 +37,8 @@ Use this when you need a richer reconstruction of runtime actions or DB work.
 - if you also set `RUST_LOG`, remember that it overrides the default filter;
   leave it unset for the standard debug contract unless you intentionally need a
   custom filter
+- use `SEMPAL_DEBUG_LOGGING=1` only for non-interactive launch surfaces where
+  adding `--log` is awkward
 - do not log secrets, tokens, auth headers, raw credentials, or large
   unredacted user payloads while extending diagnostics coverage
 

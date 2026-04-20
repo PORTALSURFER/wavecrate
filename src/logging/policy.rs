@@ -4,10 +4,16 @@
 //! narrow and explicit so later instrumentation can rely on one Sempal-owned
 //! switch instead of subsystem-specific ad-hoc toggles.
 
+use std::ffi::OsString;
+
 use tracing_subscriber::EnvFilter;
 
 /// Environment variable that opt-ins Sempal-owned debug diagnostics.
 pub const DEBUG_LOGGING_ENV_VAR: &str = "SEMPAL_DEBUG_LOGGING";
+/// Command-line argument that opt-ins Sempal-owned debug diagnostics.
+pub const DEBUG_LOGGING_ARG: &str = "--log";
+/// Legacy short command-line argument that opt-ins Sempal-owned debug diagnostics.
+pub const DEBUG_LOGGING_SHORT_ARG: &str = "-log";
 const RUST_LOG_ENV_VAR: &str = "RUST_LOG";
 const DEFAULT_FILTER: &str = "info";
 const DEBUG_FILTER: &str = "sempal=debug,info";
@@ -43,13 +49,18 @@ pub struct DebugLoggingSettings {
     env_filter: EnvFilter,
     filter_source: &'static str,
     filter_description: String,
+    enabled_by_launch_arg: bool,
     invalid_debug_value: Option<String>,
 }
 
 impl DebugLoggingSettings {
-    /// Resolve settings from the current process environment.
-    pub fn from_environment() -> Self {
+    /// Resolve settings from launch arguments plus the current process environment.
+    pub fn from_process<I>(args: I) -> Self
+    where
+        I: IntoIterator<Item = OsString>,
+    {
         Self::from_values(
+            launch_arg_present(args),
             std::env::var(DEBUG_LOGGING_ENV_VAR).ok(),
             std::env::var(RUST_LOG_ENV_VAR).ok(),
         )
@@ -75,14 +86,23 @@ impl DebugLoggingSettings {
         &self.filter_description
     }
 
+    /// Returns `true` when a launch argument enabled debug diagnostics.
+    pub const fn enabled_by_launch_arg(&self) -> bool {
+        self.enabled_by_launch_arg
+    }
+
     /// Returns the rejected debug env value when parsing fell back to disabled.
     pub fn invalid_debug_value(&self) -> Option<&str> {
         self.invalid_debug_value.as_deref()
     }
 
-    fn from_values(debug_value: Option<String>, rust_log_value: Option<String>) -> Self {
+    fn from_values(
+        enabled_by_launch_arg: bool,
+        debug_value: Option<String>,
+        rust_log_value: Option<String>,
+    ) -> Self {
         let debug_flag = parse_debug_logging_flag(debug_value.as_deref());
-        let mode = if debug_flag.enabled {
+        let mode = if enabled_by_launch_arg || debug_flag.enabled {
             DebugLoggingMode::Enabled
         } else {
             DebugLoggingMode::Standard
@@ -93,6 +113,7 @@ impl DebugLoggingSettings {
                 env_filter: EnvFilter::new(raw_filter.clone()),
                 filter_source: RUST_LOG_ENV_VAR,
                 filter_description: raw_filter,
+                enabled_by_launch_arg,
                 invalid_debug_value: debug_flag.invalid_value,
             };
         }
@@ -107,6 +128,7 @@ impl DebugLoggingSettings {
             env_filter: EnvFilter::new(filter_description),
             filter_source: "default",
             filter_description: filter_description.to_string(),
+            enabled_by_launch_arg,
             invalid_debug_value: debug_flag.invalid_value,
         }
     }
@@ -151,22 +173,54 @@ fn is_falsy(value: &str) -> bool {
     )
 }
 
+fn launch_arg_present<I>(args: I) -> bool
+where
+    I: IntoIterator<Item = OsString>,
+{
+    args.into_iter().any(|arg| {
+        arg == OsString::from(DEBUG_LOGGING_ARG) || arg == OsString::from(DEBUG_LOGGING_SHORT_ARG)
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{DEBUG_FILTER, DEFAULT_FILTER, DebugLoggingMode, DebugLoggingSettings};
+    use super::{
+        DEBUG_FILTER, DEBUG_LOGGING_SHORT_ARG, DEFAULT_FILTER, DebugLoggingMode,
+        DebugLoggingSettings,
+    };
+    use std::ffi::OsString;
 
     #[test]
     fn defaults_to_standard_info_logging() {
-        let settings = DebugLoggingSettings::from_values(None, None);
+        let settings = DebugLoggingSettings::from_values(false, None, None);
         assert_eq!(settings.mode(), DebugLoggingMode::Standard);
         assert_eq!(settings.filter_source(), "default");
         assert_eq!(settings.filter_description(), DEFAULT_FILTER);
+        assert!(!settings.enabled_by_launch_arg());
         assert!(settings.invalid_debug_value().is_none());
     }
 
     #[test]
-    fn enables_debug_mode_with_sempal_owned_filter() {
-        let settings = DebugLoggingSettings::from_values(Some("1".to_string()), None);
+    fn launch_arg_enables_debug_mode_with_sempal_owned_filter() {
+        let settings = DebugLoggingSettings::from_values(true, None, None);
+        assert_eq!(settings.mode(), DebugLoggingMode::Enabled);
+        assert_eq!(settings.filter_description(), DEBUG_FILTER);
+        assert!(settings.enabled_by_launch_arg());
+    }
+
+    #[test]
+    fn legacy_short_launch_arg_enables_debug_mode() {
+        let settings = DebugLoggingSettings::from_process([
+            OsString::from("sempal"),
+            OsString::from(DEBUG_LOGGING_SHORT_ARG),
+        ]);
+        assert_eq!(settings.mode(), DebugLoggingMode::Enabled);
+        assert!(settings.enabled_by_launch_arg());
+    }
+
+    #[test]
+    fn env_var_enables_debug_mode_with_sempal_owned_filter() {
+        let settings = DebugLoggingSettings::from_values(false, Some("1".to_string()), None);
         assert_eq!(settings.mode(), DebugLoggingMode::Enabled);
         assert_eq!(settings.filter_description(), DEBUG_FILTER);
     }
@@ -174,6 +228,7 @@ mod tests {
     #[test]
     fn keeps_debug_mode_when_rust_log_overrides_filter() {
         let settings = DebugLoggingSettings::from_values(
+            false,
             Some("yes".to_string()),
             Some("warn,wgpu=error".to_string()),
         );
@@ -184,7 +239,7 @@ mod tests {
 
     #[test]
     fn rejects_unknown_debug_logging_values_without_enabling_mode() {
-        let settings = DebugLoggingSettings::from_values(Some("verbose".to_string()), None);
+        let settings = DebugLoggingSettings::from_values(false, Some("verbose".to_string()), None);
         assert_eq!(settings.mode(), DebugLoggingMode::Standard);
         assert_eq!(settings.invalid_debug_value(), Some("verbose"));
     }

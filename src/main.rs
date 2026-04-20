@@ -13,6 +13,7 @@ use sempal::gui_runtime::{NativeRunOptions, run_native_vello_app_declarative};
 use sempal::gui_test::{GuiFixtureBridge, GuiTestModeConfig};
 use sempal::logging;
 use std::any::Any;
+use std::ffi::OsString;
 use std::panic::{self, AssertUnwindSafe};
 use std::process;
 use std::time::SystemTime;
@@ -29,13 +30,14 @@ mod run_contract;
 
 fn main() -> Result<(), String> {
     logging::install_panic_hook();
+    let args: Vec<OsString> = std::env::args_os().collect();
 
     #[cfg(all(target_os = "windows", not(debug_assertions)))]
-    if log_console_requested() {
+    if log_console_requested(&args) {
         enable_windows_console();
     }
 
-    if let Err(err) = logging::init() {
+    if let Err(err) = logging::init(args.iter().cloned()) {
         error!("logging disabled: {err}");
     }
 
@@ -46,8 +48,6 @@ fn main() -> Result<(), String> {
     let cwd = std::env::current_dir()
         .map(|cwd| cwd.to_string_lossy().into_owned())
         .unwrap_or_else(|_| String::from("<unknown>"));
-    let args: Vec<_> = std::env::args_os().collect();
-
     let mut contract = start_contract(&exe, &cwd, args.len(), cfg!(debug_assertions));
     let now = SystemTime::now();
     info!(
@@ -189,8 +189,11 @@ fn panic_payload_to_string(panic_payload: Box<dyn Any + Send>) -> String {
 }
 
 #[cfg(all(target_os = "windows", not(debug_assertions)))]
-fn log_console_requested() -> bool {
-    std::env::args_os().any(|arg| arg == "-log" || arg == "--log")
+fn log_console_requested(args: &[OsString]) -> bool {
+    args.iter().any(|arg| {
+        arg == &OsString::from(logging::DEBUG_LOGGING_SHORT_ARG)
+            || arg == &OsString::from(logging::DEBUG_LOGGING_ARG)
+    })
 }
 
 #[cfg(all(target_os = "windows", not(debug_assertions)))]
