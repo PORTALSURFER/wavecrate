@@ -20,7 +20,7 @@ use model::BackfillPlan;
 /// remaining embeddings in worker threads, persists the results, and refreshes
 /// the ANN index in chunked batches.
 pub(crate) fn run_embedding_backfill_job(
-    conn: &rusqlite::Connection,
+    conn: &mut rusqlite::Connection,
     job: &db::ClaimedJob,
     use_cache: bool,
     analysis_sample_rate: u32,
@@ -36,7 +36,7 @@ pub(crate) fn run_embedding_backfill_job(
 }
 
 fn finalize_backfill_job(
-    conn: &rusqlite::Connection,
+    conn: &mut rusqlite::Connection,
     job: &db::ClaimedJob,
     plan: BackfillPlan,
     analysis_sample_rate: u32,

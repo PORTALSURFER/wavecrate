@@ -1,7 +1,9 @@
 //! Persistence, ANN refresh, and retry helpers for embedding backfill results.
 
 use crate::app::controller::library::analysis_jobs::db;
+use crate::app::controller::library::analysis_jobs::db::telemetry;
 use crate::app::controller::library::analysis_jobs::pool::job_execution::support::now_epoch_seconds;
+use std::path::Path;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -11,7 +13,7 @@ const ANN_UPDATE_RETRIES: usize = 4;
 const ANN_UPDATE_BACKOFF_BASE: Duration = Duration::from_millis(50);
 
 pub(super) fn write_backfill_results(
-    conn: &rusqlite::Connection,
+    conn: &mut rusqlite::Connection,
     job: &db::ClaimedJob,
     results: &[EmbeddingResult],
     analysis_version: &str,
@@ -19,6 +21,8 @@ pub(super) fn write_backfill_results(
     const INSERT_BATCH: usize = 128;
     for chunk in results.chunks(INSERT_BATCH) {
         retry_backfill_write_with(
+            &job.source_root,
+            "embedding_backfill_write",
             || write_backfill_chunk(conn, chunk, analysis_version),
             3,
             Duration::from_millis(50),
@@ -27,7 +31,7 @@ pub(super) fn write_backfill_results(
             &job.source_root,
             crate::sample_sources::SourceDatabaseConnectionRole::JobWorker,
         );
-        if let Err(err) = update_ann_index_with_retry(conn, chunk) {
+        if let Err(err) = update_ann_index_with_retry(conn, &job.source_root, chunk) {
             let rebuild_result = handle_ann_update_failure(conn, job, &err);
             return Err(format_ann_update_error(err, rebuild_result));
         }
@@ -36,6 +40,8 @@ pub(super) fn write_backfill_results(
 }
 
 pub(super) fn retry_backfill_write_with<F>(
+    source_root: &Path,
+    operation: &'static str,
     mut op: F,
     retries: usize,
     delay: Duration,
@@ -46,7 +52,10 @@ where
     for attempt in 0..retries {
         match op() {
             Ok(()) => return Ok(()),
-            Err(_err) if attempt + 1 < retries => sleep_if_needed(delay),
+            Err(err) if attempt + 1 < retries => {
+                telemetry::record_retry(operation, source_root, attempt + 1, retries, delay, &err);
+                sleep_if_needed(delay);
+            }
             Err(err) => return Err(err),
         }
     }
@@ -54,6 +63,8 @@ where
 }
 
 pub(super) fn retry_ann_update_with<F>(
+    source_root: &Path,
+    operation: &'static str,
     mut op: F,
     retries: usize,
     base_delay: Duration,
@@ -66,8 +77,17 @@ where
         match op() {
             Ok(()) => return Ok(()),
             Err(err) if attempt + 1 < retries => {
+                let delay = ann_update_backoff(base_delay, attempt);
+                telemetry::record_retry(
+                    operation,
+                    source_root,
+                    attempt + 1,
+                    retries,
+                    delay,
+                    &err,
+                );
                 last_err = Some(err);
-                sleep_if_needed(ann_update_backoff(base_delay, attempt));
+                sleep_if_needed(delay);
             }
             Err(err) => return Err(err),
         }
@@ -82,16 +102,16 @@ pub(super) fn ann_update_backoff(base_delay: Duration, attempt: usize) -> Durati
 }
 
 fn write_backfill_chunk(
-    conn: &rusqlite::Connection,
+    conn: &mut rusqlite::Connection,
     chunk: &[EmbeddingResult],
     analysis_version: &str,
 ) -> Result<(), String> {
-    conn.execute_batch("BEGIN IMMEDIATE")
+    let tx = telemetry::begin_immediate_transaction(conn, "embedding_backfill_chunk")
         .map_err(|err| format!("Begin embedding backfill tx failed: {err}"))?;
     for result in chunk {
         let embedding_blob = crate::analysis::vector::encode_f32_le_blob(&result.embedding);
-        if let Err(err) = db::upsert_embedding(
-            conn,
+        db::upsert_embedding(
+            &tx,
             db::EmbeddingUpsert {
                 sample_id: &result.sample_id,
                 model_id: crate::analysis::similarity::SIMILARITY_MODEL_ID,
@@ -101,12 +121,9 @@ fn write_backfill_chunk(
                 vec_blob: &embedding_blob,
                 created_at: result.created_at,
             },
-        ) {
-            let _ = conn.execute_batch("ROLLBACK");
-            return Err(err);
-        }
+        )?;
         db::upsert_cached_embedding(
-            conn,
+            &tx,
             db::CachedEmbeddingUpsert {
                 content_hash: &result.content_hash,
                 analysis_version,
@@ -119,16 +136,19 @@ fn write_backfill_chunk(
             },
         )?;
     }
-    conn.execute_batch("COMMIT")
+    telemetry::commit_transaction(tx, "embedding_backfill_chunk")
         .map_err(|err| format!("Commit embedding backfill tx failed: {err}"))?;
     Ok(())
 }
 
 fn update_ann_index_with_retry(
     conn: &rusqlite::Connection,
+    source_root: &Path,
     chunk: &[EmbeddingResult],
 ) -> Result<(), String> {
     retry_ann_update_with(
+        source_root,
+        "embedding_backfill_ann_update",
         || update_ann_index_batch(conn, chunk),
         ANN_UPDATE_RETRIES,
         ANN_UPDATE_BACKOFF_BASE,

@@ -45,7 +45,7 @@ fn conn_with_schema() -> Connection {
             computed_at INTEGER NOT NULL,
             duration_seconds REAL NOT NULL,
             sr_used INTEGER NOT NULL,
-            PRIMARY KEY (content_hash, analysis_version, feat_version)
+            PRIMARY KEY (content_hash)
         );
         CREATE TABLE analysis_cache_embeddings (
             content_hash TEXT NOT NULL,
@@ -56,7 +56,7 @@ fn conn_with_schema() -> Connection {
             l2_normed INTEGER NOT NULL,
             vec BLOB NOT NULL,
             created_at INTEGER NOT NULL,
-            PRIMARY KEY (content_hash, analysis_version, model_id)
+            PRIMARY KEY (content_hash, model_id)
         );
         CREATE TABLE metadata (
             key TEXT PRIMARY KEY,
@@ -149,6 +149,8 @@ fn collect_results_limits_error_list() {
 fn backfill_retry_succeeds_after_failures() {
     let mut attempts = 0;
     let result = super::persistence::retry_backfill_write_with(
+        Path::new("/tmp"),
+        "test_backfill_retry",
         || {
             attempts += 1;
             if attempts < 3 {
@@ -168,6 +170,8 @@ fn backfill_retry_succeeds_after_failures() {
 fn backfill_retry_stops_after_limit() {
     let mut attempts = 0;
     let result = super::persistence::retry_backfill_write_with(
+        Path::new("/tmp"),
+        "test_backfill_retry",
         || {
             attempts += 1;
             Err("nope".to_string())
@@ -183,6 +187,8 @@ fn backfill_retry_stops_after_limit() {
 fn ann_update_retry_succeeds_after_failures() {
     let mut attempts = 0;
     let result = super::persistence::retry_ann_update_with(
+        Path::new("/tmp"),
+        "test_ann_retry",
         || {
             attempts += 1;
             if attempts < 2 {
@@ -202,6 +208,8 @@ fn ann_update_retry_succeeds_after_failures() {
 fn ann_update_retry_returns_last_error() {
     let mut attempts = 0;
     let result = super::persistence::retry_ann_update_with(
+        Path::new("/tmp"),
+        "test_ann_retry",
         || {
             attempts += 1;
             Err(format!("nope-{attempts}"))
@@ -283,4 +291,48 @@ fn plan_reuses_content_hash_for_work() {
     assert!(plan.ready.is_empty());
     assert_eq!(plan.work[0].content_hash, "hash-a");
     assert_eq!(plan.work[0].sample_ids.len(), 2);
+}
+
+#[test]
+fn write_backfill_results_rolls_back_chunk_on_late_failure() {
+    let mut conn = conn_with_schema();
+    insert_sample(&conn, "s::a.wav", "hash-a");
+    insert_sample(&conn, "s::b.wav", "hash-b");
+    conn.execute_batch(
+        "CREATE TRIGGER fail_second_backfill_embedding
+         BEFORE INSERT ON analysis_cache_embeddings
+         WHEN NEW.content_hash = 'hash-b'
+         BEGIN
+             SELECT RAISE(ABORT, 'synthetic backfill cache failure');
+         END;",
+    )
+    .unwrap();
+    let temp = tempfile::TempDir::new().unwrap();
+    let job = make_job(&["s::a.wav", "s::b.wav"], temp.path());
+    let results = vec![
+        super::model::EmbeddingResult {
+            sample_id: "s::a.wav".to_string(),
+            content_hash: "hash-a".to_string(),
+            embedding: vec![0.0; crate::analysis::similarity::SIMILARITY_DIM],
+            created_at: 1,
+        },
+        super::model::EmbeddingResult {
+            sample_id: "s::b.wav".to_string(),
+            content_hash: "hash-b".to_string(),
+            embedding: vec![0.0; crate::analysis::similarity::SIMILARITY_DIM],
+            created_at: 2,
+        },
+    ];
+
+    let err = super::persistence::write_backfill_results(&mut conn, &job, &results, "v1")
+        .unwrap_err();
+
+    assert!(err.contains("synthetic backfill cache failure"));
+    assert_eq!(count_rows(&conn, "embeddings"), 0);
+    assert_eq!(count_rows(&conn, "analysis_cache_embeddings"), 0);
+}
+
+fn count_rows(conn: &Connection, table: &str) -> i64 {
+    let sql = format!("SELECT COUNT(*) FROM {table}");
+    conn.query_row(&sql, [], |row| row.get(0)).unwrap()
 }
