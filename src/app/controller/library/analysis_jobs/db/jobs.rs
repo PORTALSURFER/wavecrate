@@ -77,9 +77,21 @@ pub(crate) fn update_sample_bpms(
         .map(|value| value as f64);
     let tx = telemetry::begin_immediate_transaction(conn, "analysis_update_bpms")
         .map_err(|err| format!("Failed to start BPM update transaction: {err}"))?;
+    let updated = update_sample_bpms_in_tx(&tx, sample_ids, bpm)?;
+    telemetry::commit_transaction(tx, "analysis_update_bpms")
+        .map_err(|err| format!("Failed to commit BPM updates: {err}"))?;
+    Ok(updated)
+}
+
+/// Update stored BPM values for multiple samples inside an existing write transaction.
+pub(crate) fn update_sample_bpms_in_tx(
+    conn: &rusqlite::Transaction<'_>,
+    sample_ids: &[String],
+    bpm: Option<f64>,
+) -> Result<usize, String> {
     let mut updated = 0usize;
     for sample_id in sample_ids {
-        let count = tx
+        let count = conn
             .execute(
                 "UPDATE samples SET bpm = ?2 WHERE sample_id = ?1",
                 params![sample_id, bpm],
@@ -90,8 +102,6 @@ pub(crate) fn update_sample_bpms(
         }
         updated = updated.saturating_add(count);
     }
-    telemetry::commit_transaction(tx, "analysis_update_bpms")
-        .map_err(|err| format!("Failed to commit BPM updates: {err}"))?;
     Ok(updated)
 }
 

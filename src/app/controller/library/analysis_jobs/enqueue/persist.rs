@@ -1,4 +1,5 @@
 use crate::app::controller::library::analysis_jobs::db;
+use crate::app::controller::library::analysis_jobs::db::telemetry;
 use crate::app::controller::library::analysis_jobs::types::AnalysisProgress;
 
 pub(crate) fn write_changed_samples(
@@ -10,17 +11,21 @@ pub(crate) fn write_changed_samples(
     source_id: &str,
     created_at: i64,
 ) -> Result<(usize, AnalysisProgress), String> {
-    db::upsert_samples(conn, sample_metadata)?;
+    let tx = telemetry::begin_immediate_transaction(conn, "analysis_enqueue_changed_samples")
+        .map_err(|err| format!("Failed to start changed-sample enqueue transaction: {err}"))?;
+    db::upsert_samples_in_tx(&tx, sample_metadata)?;
     if !invalidate.is_empty() {
-        db::invalidate_analysis_artifacts(conn, invalidate)?;
+        db::invalidate_analysis_artifacts_in_tx(&tx, invalidate)?;
     }
-    let inserted = db::enqueue_jobs(
-        conn,
+    let inserted = db::enqueue_jobs_in_tx(
+        &tx,
         jobs,
         db::ANALYZE_SAMPLE_JOB_TYPE,
         created_at,
         source_id,
     )?;
+    telemetry::commit_transaction(tx, "analysis_enqueue_changed_samples")
+        .map_err(|err| format!("Failed to commit changed-sample enqueue transaction: {err}"))?;
     let progress = db::current_progress(conn, source_root)?;
     Ok((inserted, progress))
 }
@@ -35,11 +40,15 @@ pub(crate) fn write_backfill_samples(
     source_id: &str,
     created_at: i64,
 ) -> Result<(usize, AnalysisProgress), String> {
+    let tx = telemetry::begin_immediate_transaction(conn, "analysis_enqueue_backfill_samples")
+        .map_err(|err| format!("Failed to start backfill enqueue transaction: {err}"))?;
     if !invalidate.is_empty() {
-        db::invalidate_analysis_artifacts(conn, invalidate)?;
+        db::invalidate_analysis_artifacts_in_tx(&tx, invalidate)?;
     }
-    db::upsert_samples(conn, sample_metadata)?;
-    let inserted = db::enqueue_jobs(conn, jobs, job_type, created_at, source_id)?;
+    db::upsert_samples_in_tx(&tx, sample_metadata)?;
+    let inserted = db::enqueue_jobs_in_tx(&tx, jobs, job_type, created_at, source_id)?;
+    telemetry::commit_transaction(tx, "analysis_enqueue_backfill_samples")
+        .map_err(|err| format!("Failed to commit backfill enqueue transaction: {err}"))?;
     let progress = db::current_progress(conn, source_root)?;
     Ok((inserted, progress))
 }

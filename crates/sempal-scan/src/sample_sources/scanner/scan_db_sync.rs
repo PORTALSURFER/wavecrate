@@ -8,7 +8,7 @@ use super::scan::{ScanContext, ScanError, ScanMode};
 use super::scan_diff::mark_missing;
 
 pub(super) fn db_sync_phase(
-    db: &SourceDatabase,
+    _db: &SourceDatabase,
     batch: SourceWriteBatch<'_>,
     context: &mut ScanContext,
 ) -> Result<(), ScanError> {
@@ -18,12 +18,12 @@ pub(super) fn db_sync_phase(
     if context.mode == ScanMode::Hard {
         batch.clear_all_pending_renames()?;
     }
-    batch.commit()?;
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
         .to_string();
-    db.set_metadata(META_LAST_SCAN_COMPLETED_AT, &timestamp)?;
+    batch.set_metadata(META_LAST_SCAN_COMPLETED_AT, &timestamp)?;
+    batch.commit()?;
     Ok(())
 }

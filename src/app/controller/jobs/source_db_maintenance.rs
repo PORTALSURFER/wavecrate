@@ -6,6 +6,7 @@ use super::{SourceDbMaintenanceJob, SourceDbMaintenanceOutcome};
 use crate::app::controller::library::analysis_jobs;
 use crate::sample_sources::db::file_ops_journal;
 use crate::sample_sources::scanner::{scan_once, schedule_deep_hash_scan};
+use rusqlite::TransactionBehavior;
 
 /// Run one deferred source-db maintenance job with fixed-delay retries.
 pub(super) fn run_source_db_maintenance_job(
@@ -166,8 +167,13 @@ fn run_source_db_maintenance_once(
     revision: u64,
 ) -> Result<usize, String> {
     let mut conn = analysis_jobs::open_source_db_maintenance(&job.source_root)?;
-    let removed = analysis_jobs::purge_orphaned_samples(&mut conn)?;
-    update_deferred_maintenance_markers(&conn, revision)?;
+    let tx = conn
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(|err| format!("Start deferred maintenance transaction failed: {err}"))?;
+    let removed = analysis_jobs::db::purge_orphaned_samples_in_tx(&tx)?;
+    update_deferred_maintenance_markers(&tx, revision)?;
+    tx.commit()
+        .map_err(|err| format!("Commit deferred maintenance transaction failed: {err}"))?;
     Ok(removed)
 }
 

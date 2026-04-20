@@ -123,6 +123,16 @@ pub(crate) fn prune_jobs_for_missing_sources(conn: &Connection) -> Result<usize,
 pub(crate) fn purge_orphaned_samples(conn: &mut Connection) -> Result<usize, String> {
     let tx = telemetry::begin_immediate_transaction(conn, "analysis_purge_orphans")
         .map_err(|err| format!("Failed to start purge transaction: {err}"))?;
+    let removed = purge_orphaned_samples_in_tx(&tx)?;
+    telemetry::commit_transaction(tx, "analysis_purge_orphans")
+        .map_err(|err| format!("Failed to commit purge transaction: {err}"))?;
+    Ok(removed)
+}
+
+/// Purge orphaned analysis rows inside an existing write transaction.
+pub(crate) fn purge_orphaned_samples_in_tx(
+    tx: &rusqlite::Transaction<'_>,
+) -> Result<usize, String> {
     let mut removed = 0usize;
     for table in [
         "analysis_jobs",
@@ -160,7 +170,5 @@ pub(crate) fn purge_orphaned_samples(conn: &mut Connection) -> Result<usize, Str
             .execute(&sql, params)
             .map_err(|err| format!("Failed to purge {table}: {err}"))?;
     }
-    telemetry::commit_transaction(tx, "analysis_purge_orphans")
-        .map_err(|err| format!("Failed to commit purge transaction: {err}"))?;
     Ok(removed)
 }

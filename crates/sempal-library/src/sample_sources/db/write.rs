@@ -170,6 +170,19 @@ impl SourceDatabase {
 }
 
 impl<'conn> SourceWriteBatch<'conn> {
+    /// Insert or update a metadata key/value pair within the active batch.
+    pub fn set_metadata(&mut self, key: &str, value: &str) -> Result<(), SourceDbError> {
+        self.tx
+            .execute(
+                "INSERT INTO metadata (key, value)
+                 VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                params![key, value],
+            )
+            .map_err(map_sql_error)?;
+        Ok(())
+    }
+
     /// Insert or update a wav row, resetting the tag to neutral on first insert.
     pub fn upsert_file(
         &mut self,

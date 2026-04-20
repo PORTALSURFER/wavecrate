@@ -74,6 +74,17 @@ pub(crate) fn invalidate_analysis_artifacts(
     }
     let tx = telemetry::begin_immediate_transaction(conn, "analysis_invalidation")
         .map_err(|err| format!("Failed to start analysis invalidation transaction: {err}"))?;
+    invalidate_analysis_artifacts_in_tx(&tx, sample_ids)?;
+    telemetry::commit_transaction(tx, "analysis_invalidation")
+        .map_err(|err| format!("Failed to commit analysis invalidation transaction: {err}"))?;
+    Ok(())
+}
+
+/// Remove persisted analysis artifacts inside an existing write transaction.
+pub(crate) fn invalidate_analysis_artifacts_in_tx(
+    tx: &rusqlite::Transaction<'_>,
+    sample_ids: &[String],
+) -> Result<(), String> {
     let mut stmt_features = tx
         .prepare("DELETE FROM features WHERE sample_id = ?1")
         .map_err(|err| format!("Failed to prepare analysis invalidation statement: {err}"))?;
@@ -97,8 +108,6 @@ pub(crate) fn invalidate_analysis_artifacts(
     drop(stmt_features);
     drop(stmt_embeddings);
     drop(stmt_legacy_features);
-    telemetry::commit_transaction(tx, "analysis_invalidation")
-        .map_err(|err| format!("Failed to commit analysis invalidation transaction: {err}"))?;
     Ok(())
 }
 

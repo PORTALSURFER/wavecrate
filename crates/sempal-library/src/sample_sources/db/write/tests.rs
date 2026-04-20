@@ -238,3 +238,18 @@ fn batch_errors_roll_back_prior_mutations() {
     assert_eq!(row_snapshot(&db), before);
     assert_eq!(revision_value(&db), before_revision);
 }
+
+#[test]
+fn metadata_written_inside_batch_commits_with_other_changes() {
+    let dir = tempdir().unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+
+    let mut batch = db.write_batch().unwrap();
+    batch.upsert_file(Path::new("one.wav"), 10, 5).unwrap();
+    batch.set_metadata("custom_key", "custom_value").unwrap();
+    batch.commit().unwrap();
+
+    let metadata = db.get_metadata("custom_key").unwrap();
+    assert_eq!(metadata.as_deref(), Some("custom_value"));
+    assert_eq!(revision_value(&db), 1);
+}

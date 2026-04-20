@@ -17,13 +17,14 @@ pub(crate) fn enqueue_jobs(
     }
     let tx = telemetry::begin_immediate_transaction(conn, "analysis_enqueue")
         .map_err(|err| format!("Failed to start analysis enqueue transaction: {err}"))?;
-    let inserted = enqueue_jobs_tx(&tx, jobs, job_type, created_at, source_id)?;
+    let inserted = enqueue_jobs_in_tx(&tx, jobs, job_type, created_at, source_id)?;
     telemetry::commit_transaction(tx, "analysis_enqueue")
         .map_err(|err| format!("Failed to commit analysis enqueue transaction: {err}"))?;
     Ok(inserted)
 }
 
-fn enqueue_jobs_tx(
+/// Enqueue one analysis job batch inside an existing write transaction.
+pub(crate) fn enqueue_jobs_in_tx(
     tx: &rusqlite::Transaction<'_>,
     jobs: &[(String, String)],
     job_type: &str,
@@ -110,13 +111,14 @@ pub(crate) fn upsert_samples(
     }
     let tx = telemetry::begin_immediate_transaction(conn, "analysis_samples_upsert")
         .map_err(|err| format!("Failed to start samples upsert transaction: {err}"))?;
-    let changed = upsert_samples_tx(&tx, samples)?;
+    let changed = upsert_samples_in_tx(&tx, samples)?;
     telemetry::commit_transaction(tx, "analysis_samples_upsert")
         .map_err(|err| format!("Failed to commit samples upsert transaction: {err}"))?;
     Ok(changed)
 }
 
-fn upsert_samples_tx(
+/// Upsert sample rows inside an existing write transaction.
+pub(crate) fn upsert_samples_in_tx(
     tx: &rusqlite::Transaction<'_>,
     samples: &[SampleMetadata],
 ) -> Result<usize, String> {

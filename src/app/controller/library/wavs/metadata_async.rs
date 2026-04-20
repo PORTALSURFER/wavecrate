@@ -7,6 +7,7 @@ use crate::app::controller::jobs::{
 };
 use crate::app::controller::state::runtime::{MetadataRollback, PendingMetadataMutation};
 use crate::sample_sources::SourceDatabase;
+use rusqlite::TransactionBehavior;
 use std::collections::BTreeSet;
 use std::time::Instant;
 
@@ -273,6 +274,10 @@ fn run_source_metadata_ops(
 
 fn run_analysis_metadata_ops(job: &MetadataMutationJob) -> Result<(), String> {
     let mut conn = analysis_jobs::open_source_db(&job.source_root)?;
+    let duration_updates = collect_loaded_duration_updates(job)?;
+    let tx = conn
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(|err| format!("Failed to start analysis metadata transaction: {err}"))?;
     let bpm_ops: Vec<_> = job
         .analysis_ops
         .iter()
@@ -289,8 +294,43 @@ fn run_analysis_metadata_ops(job: &MetadataMutationJob) -> Result<(), String> {
             })
             .collect();
         let bpm = bpm_ops.first().and_then(|(_, bpm)| **bpm);
-        analysis_jobs::update_sample_bpms(&mut conn, &sample_ids, bpm)?;
+        analysis_jobs::db::update_sample_bpms_in_tx(&tx, &sample_ids, bpm.map(f64::from))?;
     }
+    for update in &duration_updates {
+        analysis_jobs::db::upsert_samples_in_tx(
+            &tx,
+            std::slice::from_ref(&update.sample_metadata),
+        )?;
+        analysis_jobs::update_sample_duration(
+            &tx,
+            &update.sample_metadata.sample_id,
+            update.duration_seconds,
+            update.sample_rate,
+        )?;
+        if let Some(long_sample_mark) = update.long_sample_mark {
+            analysis_jobs::update_sample_long_mark(
+                &tx,
+                &update.sample_metadata.sample_id,
+                long_sample_mark,
+            )?;
+        }
+    }
+    tx.commit()
+        .map_err(|err| format!("Failed to commit analysis metadata transaction: {err}"))?;
+    Ok(())
+}
+
+struct LoadedDurationUpdate {
+    sample_metadata: analysis_jobs::SampleMetadata,
+    duration_seconds: f32,
+    sample_rate: u32,
+    long_sample_mark: Option<bool>,
+}
+
+fn collect_loaded_duration_updates(
+    job: &MetadataMutationJob,
+) -> Result<Vec<LoadedDurationUpdate>, String> {
+    let mut updates = Vec::new();
     for op in &job.analysis_ops {
         if let AnalysisMetadataMutationOp::SetLoadedDuration {
             relative_path,
@@ -299,36 +339,25 @@ fn run_analysis_metadata_ops(job: &MetadataMutationJob) -> Result<(), String> {
             long_sample_mark,
         } = op
         {
-            let source = SampleSource {
-                id: job.source_id.clone(),
-                root: job.source_root.clone(),
-            };
-            let (file_size, modified_ns) = crate::app::controller::library::wav_io::file_metadata(
-                &source.root.join(relative_path),
-            )?;
-            let sample_id = analysis_jobs::build_sample_id(source.id.as_str(), relative_path);
+            let absolute = job.source_root.join(relative_path);
+            let (file_size, modified_ns) =
+                crate::app::controller::library::wav_io::file_metadata(&absolute)?;
+            let sample_id = analysis_jobs::build_sample_id(job.source_id.as_str(), relative_path);
             let content_hash = analysis_jobs::fast_content_hash(file_size, modified_ns);
-            analysis_jobs::upsert_samples(
-                &mut conn,
-                &[analysis_jobs::SampleMetadata {
-                    sample_id: sample_id.clone(),
+            updates.push(LoadedDurationUpdate {
+                sample_metadata: analysis_jobs::SampleMetadata {
+                    sample_id,
                     content_hash,
                     size: file_size,
                     mtime_ns: modified_ns,
-                }],
-            )?;
-            analysis_jobs::update_sample_duration(
-                &conn,
-                &sample_id,
-                *duration_seconds,
-                *sample_rate,
-            )?;
-            if let Some(long_sample_mark) = long_sample_mark {
-                analysis_jobs::update_sample_long_mark(&conn, &sample_id, *long_sample_mark)?;
-            }
+                },
+                duration_seconds: *duration_seconds,
+                sample_rate: *sample_rate,
+                long_sample_mark: *long_sample_mark,
+            });
         }
     }
-    Ok(())
+    Ok(updates)
 }
 
 #[cfg(test)]
