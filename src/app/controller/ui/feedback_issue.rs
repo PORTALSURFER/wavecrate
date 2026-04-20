@@ -1,7 +1,10 @@
 use super::*;
+use crate::logging::{ActionDebugEvent, emit_action_debug_event};
+use std::time::Instant;
 
 impl AppController {
     pub(crate) fn open_feedback_issue_prompt(&mut self) {
+        let started_at = Instant::now();
         self.ui.feedback_issue.open = true;
         self.ui.feedback_issue.focus_title_requested = true;
         self.ui.feedback_issue.last_error = None;
@@ -11,9 +14,18 @@ impl AppController {
         self.ui.feedback_issue.token_status = crate::app::state::IssueTokenStatus::Unknown;
         self.ui.feedback_issue.token_cached = None;
         self.start_issue_token_load();
+        emit_action_debug_event(ActionDebugEvent {
+            action: "feedback_issue.open_prompt",
+            pane: Some("prompt"),
+            source: None,
+            outcome: "success",
+            elapsed: started_at.elapsed(),
+            error: None,
+        });
     }
 
     pub(crate) fn close_feedback_issue_prompt(&mut self) {
+        let started_at = Instant::now();
         self.ui.feedback_issue.open = false;
         self.ui.feedback_issue.submitting = false;
         self.ui.feedback_issue.focus_title_requested = false;
@@ -24,10 +36,27 @@ impl AppController {
         self.ui.feedback_issue.last_error = None;
         self.ui.feedback_issue.last_success_url = None;
         self.runtime.jobs.clear_issue_gateway_poll();
+        emit_action_debug_event(ActionDebugEvent {
+            action: "feedback_issue.close_prompt",
+            pane: Some("prompt"),
+            source: None,
+            outcome: "success",
+            elapsed: started_at.elapsed(),
+            error: None,
+        });
     }
 
     pub(crate) fn connect_github_issue_reporting(&mut self) {
+        let started_at = Instant::now();
         if self.ui.feedback_issue.connecting {
+            emit_action_debug_event(ActionDebugEvent {
+                action: "feedback_issue.connect_github",
+                pane: Some("prompt"),
+                source: None,
+                outcome: "short_circuit",
+                elapsed: started_at.elapsed(),
+                error: Some("already_connecting"),
+            });
             return;
         }
         self.ui.feedback_issue.connecting = true;
@@ -51,11 +80,28 @@ impl AppController {
             self.ui.feedback_issue.connecting = false;
             self.ui.feedback_issue.token_modal_open = true;
             self.ui.feedback_issue.focus_token_requested = true;
+            let error = err.to_string();
+            emit_action_debug_event(ActionDebugEvent {
+                action: "feedback_issue.connect_github",
+                pane: Some("prompt"),
+                source: None,
+                outcome: "error",
+                elapsed: started_at.elapsed(),
+                error: Some(&error),
+            });
         } else {
             // Start polling in the background
             self.runtime
                 .jobs
                 .begin_issue_gateway_poll(super::jobs::IssueGatewayPollJob { request_id });
+            emit_action_debug_event(ActionDebugEvent {
+                action: "feedback_issue.connect_github",
+                pane: Some("prompt"),
+                source: None,
+                outcome: "polling",
+                elapsed: started_at.elapsed(),
+                error: None,
+            });
         }
     }
 
@@ -64,21 +110,55 @@ impl AppController {
     }
 
     pub(crate) fn disconnect_github_issue_reporting(&mut self) {
+        let started_at = Instant::now();
         if self.ui.feedback_issue.token_deleting {
+            emit_action_debug_event(ActionDebugEvent {
+                action: "feedback_issue.disconnect_github",
+                pane: Some("prompt"),
+                source: None,
+                outcome: "short_circuit",
+                elapsed: started_at.elapsed(),
+                error: Some("delete_in_progress"),
+            });
             return;
         }
         self.ui.feedback_issue.token_deleting = true;
         self.ui.feedback_issue.last_error = None;
         self.runtime.jobs.begin_issue_token_delete();
+        emit_action_debug_event(ActionDebugEvent {
+            action: "feedback_issue.disconnect_github",
+            pane: Some("prompt"),
+            source: None,
+            outcome: "queued",
+            elapsed: started_at.elapsed(),
+            error: None,
+        });
     }
 
     pub(crate) fn submit_feedback_issue(&mut self, kind: crate::issue_gateway::api::IssueKind) {
+        let started_at = Instant::now();
         if self.ui.feedback_issue.submitting {
+            emit_action_debug_event(ActionDebugEvent {
+                action: "feedback_issue.submit",
+                pane: Some("prompt"),
+                source: Some(kind.title_prefix()),
+                outcome: "short_circuit",
+                elapsed: started_at.elapsed(),
+                error: Some("already_submitting"),
+            });
             return;
         }
         let title = self.ui.feedback_issue.title.trim();
         if title.len() < 3 || title.len() > 200 {
             self.ui.feedback_issue.last_error = Some("Title must be 3–200 characters.".to_string());
+            emit_action_debug_event(ActionDebugEvent {
+                action: "feedback_issue.submit",
+                pane: Some("prompt"),
+                source: Some(kind.title_prefix()),
+                outcome: "validation_error",
+                elapsed: started_at.elapsed(),
+                error: Some("invalid_title"),
+            });
             return;
         }
         let token = match self.ui.feedback_issue.token_cached.clone() {
@@ -90,10 +170,26 @@ impl AppController {
                 if loading {
                     self.ui.feedback_issue.last_error =
                         Some("GitHub token is still loading. Try again.".to_string());
+                    emit_action_debug_event(ActionDebugEvent {
+                        action: "feedback_issue.submit",
+                        pane: Some("prompt"),
+                        source: Some(kind.title_prefix()),
+                        outcome: "validation_error",
+                        elapsed: started_at.elapsed(),
+                        error: Some("token_loading"),
+                    });
                 } else {
                     self.ui.feedback_issue.last_error = Some("Connect GitHub first.".to_string());
                     self.ui.feedback_issue.token_modal_open = true;
                     self.ui.feedback_issue.focus_token_requested = true;
+                    emit_action_debug_event(ActionDebugEvent {
+                        action: "feedback_issue.submit",
+                        pane: Some("prompt"),
+                        source: Some(kind.title_prefix()),
+                        outcome: "validation_error",
+                        elapsed: started_at.elapsed(),
+                        error: Some("token_missing"),
+                    });
                 }
                 return;
             }
@@ -118,6 +214,14 @@ impl AppController {
                     body,
                 },
             });
+        emit_action_debug_event(ActionDebugEvent {
+            action: "feedback_issue.submit",
+            pane: Some("prompt"),
+            source: Some(kind.title_prefix()),
+            outcome: "queued",
+            elapsed: started_at.elapsed(),
+            error: None,
+        });
     }
 
     pub(crate) fn complete_issue_gateway_auth(
@@ -188,11 +292,28 @@ impl AppController {
     }
 
     fn start_issue_token_load(&mut self) {
+        let started_at = Instant::now();
         if self.ui.feedback_issue.token_loading {
+            emit_action_debug_event(ActionDebugEvent {
+                action: "feedback_issue.load_token",
+                pane: Some("prompt"),
+                source: None,
+                outcome: "short_circuit",
+                elapsed: started_at.elapsed(),
+                error: Some("already_loading"),
+            });
             return;
         }
         self.ui.feedback_issue.token_loading = true;
         self.runtime.jobs.begin_issue_token_load();
+        emit_action_debug_event(ActionDebugEvent {
+            action: "feedback_issue.load_token",
+            pane: Some("prompt"),
+            source: None,
+            outcome: "queued",
+            elapsed: started_at.elapsed(),
+            error: None,
+        });
     }
 }
 

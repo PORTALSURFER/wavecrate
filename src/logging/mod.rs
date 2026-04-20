@@ -129,6 +129,7 @@ where
     tracing::subscriber::set_global_default(subscriber).map_err(LoggingError::SetGlobal)?;
     let _ = LOG_GUARD.set(guard);
     let _ = DEBUG_LOGGING_ENABLED.set(settings.mode().enabled());
+    sempal_library::diagnostics::set_debug_logging_enabled(settings.mode().enabled());
 
     tracing::info!(
         log_path = %log_path.display(),

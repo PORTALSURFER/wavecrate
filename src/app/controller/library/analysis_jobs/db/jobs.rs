@@ -1,10 +1,11 @@
 use super::progress_snapshot::{self, SnapshotJobState};
 use super::telemetry;
 use super::types::ClaimedJob;
+use crate::logging::{ActionDebugEvent, emit_action_debug_event};
 use rusqlite::{Connection, OptionalExtension, params, params_from_iter};
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 /// Cached analysis state for a sample row.
 pub(crate) struct SampleAnalysisState {
@@ -194,6 +195,7 @@ pub(crate) fn claim_next_jobs(
     source_root: &Path,
     limit: usize,
 ) -> Result<Vec<ClaimedJob>, String> {
+    let started_at = Instant::now();
     if limit == 0 {
         return Ok(Vec::new());
     }
@@ -262,6 +264,15 @@ pub(crate) fn claim_next_jobs(
     if jobs.is_empty() {
         telemetry::commit_transaction(tx, "analysis_claim_jobs_empty")
             .map_err(|err| format!("Failed to commit empty analysis claim transaction: {err}"))?;
+        let source = source_root.display().to_string();
+        emit_action_debug_event(ActionDebugEvent {
+            action: "analysis.job.claim",
+            pane: Some("background"),
+            source: Some(&source),
+            outcome: "short_circuit",
+            elapsed: started_at.elapsed(),
+            error: Some("no_pending_jobs"),
+        });
         return Ok(Vec::new());
     }
     let mut after_by_sample = HashMap::new();
@@ -290,6 +301,15 @@ pub(crate) fn claim_next_jobs(
     progress_snapshot::apply_state_transitions(&tx, transitions)?;
     telemetry::commit_transaction(tx, "analysis_claim_jobs")
         .map_err(|err| format!("Failed to commit analysis claim transaction: {err}"))?;
+    let source = source_root.display().to_string();
+    emit_action_debug_event(ActionDebugEvent {
+        action: "analysis.job.claim",
+        pane: Some("background"),
+        source: Some(&source),
+        outcome: "success",
+        elapsed: started_at.elapsed(),
+        error: None,
+    });
     Ok(jobs)
 }
 

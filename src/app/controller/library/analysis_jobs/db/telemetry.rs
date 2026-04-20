@@ -8,6 +8,8 @@ use rusqlite::{Connection, Transaction, TransactionBehavior};
 use std::path::Path;
 use std::time::{Duration, Instant};
 
+use crate::logging::{DbDebugEvent, emit_db_debug_event};
+
 const SLOW_QUERY_THRESHOLD: Duration = Duration::from_millis(15);
 const SLOW_TRANSACTION_BEGIN_THRESHOLD: Duration = Duration::from_millis(10);
 const SLOW_TRANSACTION_COMMIT_THRESHOLD: Duration = Duration::from_millis(10);
@@ -20,8 +22,20 @@ pub(crate) fn begin_immediate_transaction<'conn>(
     let started_at = Instant::now();
     let result = conn.transaction_with_behavior(TransactionBehavior::Immediate);
     let elapsed = started_at.elapsed();
+    let debug_operation = format!("{operation}.transaction_begin");
     match result {
         Ok(tx) => {
+            emit_db_debug_event(DbDebugEvent {
+                operation: &debug_operation,
+                source: None,
+                outcome: if elapsed >= SLOW_TRANSACTION_BEGIN_THRESHOLD {
+                    "slow"
+                } else {
+                    "success"
+                },
+                elapsed,
+                error: None,
+            });
             record_slow_success(
                 "transaction_begin",
                 operation,
@@ -32,14 +46,16 @@ pub(crate) fn begin_immediate_transaction<'conn>(
             Ok(tx)
         }
         Err(err) => {
-            record_failure(
-                "transaction_begin",
-                operation,
-                None,
+            let error = err.to_string();
+            emit_db_debug_event(DbDebugEvent {
+                operation: &debug_operation,
+                source: None,
+                outcome: "error",
                 elapsed,
-                &err.to_string(),
-            );
-            Err(err.to_string())
+                error: Some(&error),
+            });
+            record_failure("transaction_begin", operation, None, elapsed, &error);
+            Err(error)
         }
     }
 }
@@ -52,8 +68,20 @@ pub(crate) fn commit_transaction(
     let started_at = Instant::now();
     let result = tx.commit();
     let elapsed = started_at.elapsed();
+    let debug_operation = format!("{operation}.transaction_commit");
     match result {
         Ok(()) => {
+            emit_db_debug_event(DbDebugEvent {
+                operation: &debug_operation,
+                source: None,
+                outcome: if elapsed >= SLOW_TRANSACTION_COMMIT_THRESHOLD {
+                    "slow"
+                } else {
+                    "success"
+                },
+                elapsed,
+                error: None,
+            });
             record_slow_success(
                 "transaction_commit",
                 operation,
@@ -64,14 +92,16 @@ pub(crate) fn commit_transaction(
             Ok(())
         }
         Err(err) => {
-            record_failure(
-                "transaction_commit",
-                operation,
-                None,
+            let error = err.to_string();
+            emit_db_debug_event(DbDebugEvent {
+                operation: &debug_operation,
+                source: None,
+                outcome: "error",
                 elapsed,
-                &err.to_string(),
-            );
-            Err(err.to_string())
+                error: Some(&error),
+            });
+            record_failure("transaction_commit", operation, None, elapsed, &error);
+            Err(error)
         }
     }
 }
@@ -84,8 +114,21 @@ pub(crate) fn finish_query<T>(
     result: Result<T, String>,
 ) -> Result<T, String> {
     let elapsed = started_at.elapsed();
+    let source = source_root.display().to_string();
+    let debug_operation = format!("{operation}.query");
     match result {
         Ok(value) => {
+            emit_db_debug_event(DbDebugEvent {
+                operation: &debug_operation,
+                source: Some(&source),
+                outcome: if elapsed >= SLOW_QUERY_THRESHOLD {
+                    "slow"
+                } else {
+                    "success"
+                },
+                elapsed,
+                error: None,
+            });
             record_slow_success(
                 "query",
                 operation,
@@ -96,6 +139,13 @@ pub(crate) fn finish_query<T>(
             Ok(value)
         }
         Err(err) => {
+            emit_db_debug_event(DbDebugEvent {
+                operation: &debug_operation,
+                source: Some(&source),
+                outcome: "error",
+                elapsed,
+                error: Some(&err),
+            });
             record_failure("query", operation, Some(source_root), elapsed, &err);
             Err(err)
         }
@@ -111,6 +161,8 @@ pub(crate) fn record_retry(
     delay: Duration,
     err: &str,
 ) {
+    let source = source_root.display().to_string();
+    let debug_operation = format!("{operation}.retry");
     tracing::info!(
         target: "perf::source_db",
         action = "retry",
@@ -123,6 +175,13 @@ pub(crate) fn record_retry(
         source_root = %source_root.display(),
         "Retrying source DB work after failure"
     );
+    emit_db_debug_event(DbDebugEvent {
+        operation: &debug_operation,
+        source: Some(&source),
+        outcome: "retry",
+        elapsed: delay,
+        error: Some(err),
+    });
 }
 
 fn record_slow_success(

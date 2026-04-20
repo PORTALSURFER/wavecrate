@@ -3,7 +3,9 @@ use super::{invalidate, persist, scan};
 use crate::app::controller::library::analysis_jobs::db;
 use crate::app::controller::library::analysis_jobs::types::AnalysisProgress;
 use crate::app::controller::library::analysis_jobs::wakeup;
+use crate::logging::{ActionDebugEvent, emit_action_debug_event};
 use rusqlite::params;
+use std::time::Instant;
 use tracing::{info, warn};
 
 struct EnqueueSamplesRequest<'a> {
@@ -35,13 +37,24 @@ pub(crate) fn update_missing_durations_for_source(
 fn enqueue_samples(
     request: EnqueueSamplesRequest<'_>,
 ) -> Result<(usize, AnalysisProgress), String> {
+    let started_at = Instant::now();
+    let source_id = request.source.id.as_str();
     if request.changed_samples.is_empty() {
         let conn = db::open_source_db(&request.source.root)?;
         info!(
             "Analysis enqueue skipped: no changed samples (source_id={})",
-            request.source.id.as_str()
+            source_id
         );
-        return Ok((0, db::current_progress(&conn, &request.source.root)?));
+        let progress = db::current_progress(&conn, &request.source.root)?;
+        emit_action_debug_event(ActionDebugEvent {
+            action: "analysis.enqueue.changed_samples",
+            pane: Some("background"),
+            source: Some(source_id),
+            outcome: "short_circuit",
+            elapsed: started_at.elapsed(),
+            error: Some("no_changed_samples"),
+        });
+        return Ok((0, progress));
     }
 
     let sample_metadata =
@@ -78,6 +91,18 @@ fn enqueue_samples(
             "Failed to update sample durations after scan: {err}"
         );
     }
+    emit_action_debug_event(ActionDebugEvent {
+        action: "analysis.enqueue.changed_samples",
+        pane: Some("background"),
+        source: Some(source_id),
+        outcome: if inserted > 0 {
+            "success"
+        } else {
+            "short_circuit"
+        },
+        elapsed: started_at.elapsed(),
+        error: (inserted == 0).then_some("no_jobs_inserted"),
+    });
     Ok((inserted, progress))
 }
 
@@ -103,6 +128,8 @@ fn enqueue_source_backfill(
     request: EnqueueSourceRequest<'_>,
     force_full: bool,
 ) -> Result<(usize, AnalysisProgress), String> {
+    let started_at = Instant::now();
+    let source_id = request.source.id.as_str();
     let mut conn = db::open_source_db(&request.source.root)?;
     let existing_jobs_total: i64 = conn
         .query_row(
@@ -123,32 +150,61 @@ fn enqueue_source_backfill(
         if active_jobs > 0 {
             info!(
                 "Analysis backfill skipped: active jobs exist (active={}, total={}, source_id={}, force_full={})",
-                active_jobs,
-                existing_jobs_total,
-                request.source.id.as_str(),
-                force_full
+                active_jobs, existing_jobs_total, source_id, force_full
             );
-            return Ok((0, db::current_progress(&conn, &request.source.root)?));
+            let progress = db::current_progress(&conn, &request.source.root)?;
+            emit_action_debug_event(ActionDebugEvent {
+                action: "analysis.enqueue.backfill",
+                pane: Some("background"),
+                source: Some(source_id),
+                outcome: "short_circuit",
+                elapsed: started_at.elapsed(),
+                error: Some("active_jobs_exist"),
+            });
+            return Ok((0, progress));
         }
     }
     let staged_samples = scan::stage_samples_for_source(request.source, true)?;
     if staged_samples.is_empty() {
         info!(
             "Analysis backfill skipped: no staged samples (source_id={}, force_full={})",
-            request.source.id.as_str(),
-            force_full
+            source_id, force_full
         );
-        return Ok((0, db::current_progress(&conn, &request.source.root)?));
+        let progress = db::current_progress(&conn, &request.source.root)?;
+        emit_action_debug_event(ActionDebugEvent {
+            action: "analysis.enqueue.backfill",
+            pane: Some("background"),
+            source: Some(source_id),
+            outcome: "short_circuit",
+            elapsed: started_at.elapsed(),
+            error: Some("no_staged_samples"),
+        });
+        return Ok((0, progress));
     }
-    enqueue_from_staged_samples(
+    let result = enqueue_from_staged_samples(
         &mut conn,
         request.source,
         staged_samples,
         db::ANALYZE_SAMPLE_JOB_TYPE,
         force_full,
         false,
-        request.source.id.as_str(),
-    )
+        source_id,
+    );
+    if let Ok((inserted, _)) = &result {
+        emit_action_debug_event(ActionDebugEvent {
+            action: "analysis.enqueue.backfill",
+            pane: Some("background"),
+            source: Some(source_id),
+            outcome: if *inserted > 0 {
+                "success"
+            } else {
+                "short_circuit"
+            },
+            elapsed: started_at.elapsed(),
+            error: (*inserted == 0).then_some("no_jobs_inserted"),
+        });
+    }
+    result
 }
 
 struct EnqueueMissingFeaturesRequest<'a> {
@@ -165,21 +221,47 @@ pub(crate) fn enqueue_jobs_for_source_missing_features(
 fn enqueue_missing_features(
     request: EnqueueMissingFeaturesRequest<'_>,
 ) -> Result<(usize, AnalysisProgress), String> {
+    let started_at = Instant::now();
+    let source_id = request.source.id.as_str();
     let mut conn = db::open_source_db(&request.source.root)?;
 
     let staged_samples = scan::stage_samples_for_source(request.source, false)?;
     if staged_samples.is_empty() {
-        return Ok((0, db::current_progress(&conn, &request.source.root)?));
+        let progress = db::current_progress(&conn, &request.source.root)?;
+        emit_action_debug_event(ActionDebugEvent {
+            action: "analysis.enqueue.missing_features",
+            pane: Some("background"),
+            source: Some(source_id),
+            outcome: "short_circuit",
+            elapsed: started_at.elapsed(),
+            error: Some("no_staged_samples"),
+        });
+        return Ok((0, progress));
     }
-    enqueue_from_staged_samples(
+    let result = enqueue_from_staged_samples(
         &mut conn,
         request.source,
         staged_samples,
         db::ANALYZE_SAMPLE_JOB_TYPE,
         false,
         true,
-        request.source.id.as_str(),
-    )
+        source_id,
+    );
+    if let Ok((inserted, _)) = &result {
+        emit_action_debug_event(ActionDebugEvent {
+            action: "analysis.enqueue.missing_features",
+            pane: Some("background"),
+            source: Some(source_id),
+            outcome: if *inserted > 0 {
+                "success"
+            } else {
+                "short_circuit"
+            },
+            elapsed: started_at.elapsed(),
+            error: (*inserted == 0).then_some("no_jobs_inserted"),
+        });
+    }
+    result
 }
 
 fn enqueue_from_staged_samples(

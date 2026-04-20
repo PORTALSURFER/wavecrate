@@ -6,6 +6,8 @@
 use std::path::Path;
 use std::time::Duration;
 
+use crate::diagnostics::{DbDebugEvent, emit_db_debug_event};
+
 use super::SourceDbError;
 
 const SLOW_SOURCE_DB_OPEN_STEP: Duration = Duration::from_millis(15);
@@ -22,9 +24,26 @@ pub(super) fn record_open_phase(
     result: Result<(), &SourceDbError>,
 ) {
     let elapsed_ms = elapsed.as_millis() as u64;
+    let source = source_root.display().to_string();
+    let operation = format!("source_db.open.{phase}");
     match result {
-        Ok(()) if elapsed < SLOW_SOURCE_DB_OPEN_STEP => {}
+        Ok(()) if elapsed < SLOW_SOURCE_DB_OPEN_STEP => {
+            emit_db_debug_event(DbDebugEvent {
+                operation: &operation,
+                source: Some(&source),
+                outcome: "success",
+                elapsed,
+                error: None,
+            });
+        }
         Ok(()) => {
+            emit_db_debug_event(DbDebugEvent {
+                operation: &operation,
+                source: Some(&source),
+                outcome: "slow",
+                elapsed,
+                error: None,
+            });
             tracing::info!(
                 target: "perf::source_db",
                 action = "open_phase",
@@ -38,6 +57,14 @@ pub(super) fn record_open_phase(
             );
         }
         Err(err) => {
+            let error = err.to_string();
+            emit_db_debug_event(DbDebugEvent {
+                operation: &operation,
+                source: Some(&source),
+                outcome: "error",
+                elapsed,
+                error: Some(&error),
+            });
             tracing::warn!(
                 target: "perf::source_db",
                 action = "open_phase",
@@ -65,9 +92,26 @@ pub(super) fn record_open_total(
     result: Result<(), &SourceDbError>,
 ) {
     let elapsed_ms = elapsed.as_millis() as u64;
+    let source = source_root.display().to_string();
+    let operation = "source_db.open_total";
     match result {
-        Ok(()) if elapsed < SLOW_SOURCE_DB_OPEN_TOTAL => {}
+        Ok(()) if elapsed < SLOW_SOURCE_DB_OPEN_TOTAL => {
+            emit_db_debug_event(DbDebugEvent {
+                operation,
+                source: Some(&source),
+                outcome: "success",
+                elapsed,
+                error: None,
+            });
+        }
         Ok(()) => {
+            emit_db_debug_event(DbDebugEvent {
+                operation,
+                source: Some(&source),
+                outcome: "slow",
+                elapsed,
+                error: None,
+            });
             tracing::info!(
                 target: "perf::source_db",
                 action = "open_total",
@@ -80,6 +124,14 @@ pub(super) fn record_open_total(
             );
         }
         Err(err) => {
+            let error = err.to_string();
+            emit_db_debug_event(DbDebugEvent {
+                operation,
+                source: Some(&source),
+                outcome: "error",
+                elapsed,
+                error: Some(&error),
+            });
             tracing::warn!(
                 target: "perf::source_db",
                 action = "open_total",

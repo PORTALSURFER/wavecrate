@@ -5,6 +5,7 @@ use super::queue::DecodedQueue;
 use crate::app::controller::jobs::{JobMessage, JobMessageSender};
 use crate::app::controller::library::analysis_jobs::db as analysis_db;
 use crate::app::controller::library::analysis_jobs::types::AnalysisJobMessage;
+use crate::logging::{ActionDebugEvent, emit_action_debug_event};
 use rusqlite::Connection;
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
@@ -36,6 +37,8 @@ impl FinalizeJobContext<'_> {
         job: analysis_db::ClaimedJob,
         outcome: Result<(), String>,
     ) -> Option<DeferredJobUpdate> {
+        let started_at = Instant::now();
+        let source = job.source_root.display().to_string();
         if self.log_jobs {
             match &outcome {
                 Ok(()) => {
@@ -56,12 +59,22 @@ impl FinalizeJobContext<'_> {
             Err(err) => {
                 warn!(sample_id = %job.sample_id, error = %err, "Analysis job DB open failed");
                 self.decode_queue.clear_inflight(job.id);
+                emit_action_debug_event(ActionDebugEvent {
+                    action: "analysis.job.finalize",
+                    pane: Some("background"),
+                    source: Some(&source),
+                    outcome: "deferred",
+                    elapsed: started_at.elapsed(),
+                    error: Some("db_open_failed"),
+                });
                 return Some(DeferredJobUpdate {
                     job,
                     error: error_for_open,
                 });
             }
         };
+        let final_outcome = if outcome.is_ok() { "success" } else { "error" };
+        let final_error = outcome.as_ref().err().cloned();
         match outcome {
             Ok(()) => {
                 update_job_status_with_retry(&job.source_root, "analysis_mark_done", || {
@@ -92,6 +105,14 @@ impl FinalizeJobContext<'_> {
                 }));
             self.progress_wakeup.notify();
         }
+        emit_action_debug_event(ActionDebugEvent {
+            action: "analysis.job.finalize",
+            pane: Some("background"),
+            source: Some(&source),
+            outcome: final_outcome,
+            elapsed: started_at.elapsed(),
+            error: final_error.as_deref(),
+        });
         None
     }
 

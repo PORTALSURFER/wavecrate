@@ -1,4 +1,6 @@
 use crate::app::controller::library::analysis_jobs::db;
+use crate::logging::{ActionDebugEvent, emit_action_debug_event};
+use std::time::Instant;
 
 mod analysis;
 mod analysis_cache;
@@ -22,7 +24,9 @@ pub(crate) fn run_job(
     analysis_sample_rate: u32,
     analysis_version: &str,
 ) -> Result<(), String> {
-    match job.job_type.as_str() {
+    let started_at = Instant::now();
+    let source = job.source_root.display().to_string();
+    let result = match job.job_type.as_str() {
         db::ANALYZE_SAMPLE_JOB_TYPE => {
             let context = analysis::AnalysisContext {
                 use_cache,
@@ -41,5 +45,24 @@ pub(crate) fn run_job(
         ),
         db::REBUILD_INDEX_JOB_TYPE => rebuild::run_rebuild_index_job(conn, job),
         _ => Err(format!("Unknown job type: {}", job.job_type)),
+    };
+    let error = result.as_ref().err().cloned();
+    emit_action_debug_event(ActionDebugEvent {
+        action: analysis_job_action_name(job.job_type.as_str()),
+        pane: Some("background"),
+        source: Some(&source),
+        outcome: if result.is_ok() { "success" } else { "error" },
+        elapsed: started_at.elapsed(),
+        error: error.as_deref(),
+    });
+    result
+}
+
+fn analysis_job_action_name(job_type: &str) -> &'static str {
+    match job_type {
+        db::ANALYZE_SAMPLE_JOB_TYPE => "analysis.job.execute.analyze_sample",
+        db::EMBEDDING_BACKFILL_JOB_TYPE => "analysis.job.execute.embedding_backfill",
+        db::REBUILD_INDEX_JOB_TYPE => "analysis.job.execute.rebuild_index",
+        _ => "analysis.job.execute.unknown",
     }
 }

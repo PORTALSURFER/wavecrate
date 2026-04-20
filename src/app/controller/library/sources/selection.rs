@@ -1,6 +1,8 @@
 use super::super::*;
 use crate::app::state::FolderPaneId;
+use crate::logging::{ActionDebugEvent, emit_action_debug_event};
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 impl AppController {
     /// Return the folder pane that currently owns the browser/waveform source.
@@ -121,7 +123,17 @@ impl AppController {
 
     /// Change the selected source by id and refresh dependent state.
     pub fn select_source(&mut self, id: Option<SourceId>) {
+        let started_at = Instant::now();
+        let source = id.as_ref().map(|id| id.as_str().to_string());
         self.select_source_internal(id, None);
+        emit_action_debug_event(ActionDebugEvent {
+            action: "sources.select",
+            pane: Some("sources"),
+            source: source.as_deref(),
+            outcome: "success",
+            elapsed: started_at.elapsed(),
+            error: None,
+        });
     }
 
     /// Select a source by its root path.
@@ -142,7 +154,17 @@ impl AppController {
 
     /// Refresh the wav list for the selected source (delegates to background load).
     pub fn refresh_wavs(&mut self) -> Result<(), SourceDbError> {
+        let started_at = Instant::now();
+        let selected_source = self.selected_source_id();
         self.queue_wav_load();
+        emit_action_debug_event(ActionDebugEvent {
+            action: "sources.refresh_wavs",
+            pane: Some("browser"),
+            source: selected_source.as_ref().map(SourceId::as_str),
+            outcome: "queued",
+            elapsed: started_at.elapsed(),
+            error: None,
+        });
         Ok(())
     }
 
@@ -178,6 +200,8 @@ impl AppController {
         id: Option<SourceId>,
         pending_path: Option<PathBuf>,
     ) {
+        let started_at = Instant::now();
+        let source = id.as_ref().map(|id| id.as_str().to_string());
         let same_source = self.selection_state.ctx.selected_source == id;
         self.runtime
             .jobs
@@ -200,6 +224,14 @@ impl AppController {
                     self.queue_wav_load();
                 }
             }
+            emit_action_debug_event(ActionDebugEvent {
+                action: "sources.select_internal",
+                pane: Some("sources"),
+                source: source.as_deref(),
+                outcome: "refresh",
+                elapsed: started_at.elapsed(),
+                error: None,
+            });
             return;
         }
         if let Some(ref source_id) = id
@@ -239,6 +271,14 @@ impl AppController {
         );
         self.refresh_sources_ui();
         let _ = self.persist_config("Failed to save selection");
+        emit_action_debug_event(ActionDebugEvent {
+            action: "sources.select_internal",
+            pane: Some("sources"),
+            source: source.as_deref(),
+            outcome: "hydration_queued",
+            elapsed: started_at.elapsed(),
+            error: None,
+        });
     }
 
     pub(crate) fn select_source_in_pane_internal(

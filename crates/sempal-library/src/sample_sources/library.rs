@@ -2,6 +2,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, Mutex};
+use std::time::Instant;
 
 use rusqlite::{Connection, Transaction, params};
 use serde::{Deserialize, Serialize};
@@ -14,6 +15,7 @@ mod schema_defs;
 
 use super::{SampleSource, SourceId};
 use crate::app_dirs;
+use crate::diagnostics::{DbDebugEvent, emit_db_debug_event};
 use crate::sample_sources::normalize_path;
 
 /// Filename for the global library database stored under the user app directory.
@@ -60,23 +62,47 @@ pub enum LibraryError {
 
 /// Load all sources from the global library database, creating it if missing.
 pub fn load() -> Result<LibraryState, LibraryError> {
+    let started_at = Instant::now();
     let _guard = lock_library();
     let db = LibraryDatabase::open()?;
-    db.load_state()
+    let result = db.load_state();
+    record_library_db_event(
+        "library.load",
+        started_at,
+        result.as_ref().map(|_| ()).map_err(|err| err),
+    );
+    result
 }
 
 /// Persist sources to the global library database, replacing existing rows.
 pub fn save(state: &LibraryState) -> Result<(), LibraryError> {
+    let started_at = Instant::now();
     let _guard = lock_library();
     let mut db = LibraryDatabase::open()?;
-    db.replace_state(state)
+    let result = db.replace_state(state);
+    record_library_db_event(
+        "library.save",
+        started_at,
+        result.as_ref().map(|_| ()).map_err(|err| err),
+    );
+    result
 }
 
 /// Open a connection to the library DB with schema + migrations applied.
 pub fn open_connection() -> Result<Connection, LibraryError> {
+    let started_at = Instant::now();
     let _guard = lock_library();
     let db = LibraryDatabase::open()?;
-    Ok(db.into_connection())
+    let result = Ok(db.into_connection());
+    record_library_db_event(
+        "library.open_connection",
+        started_at,
+        result
+            .as_ref()
+            .map(|_| ())
+            .map_err(|err: &LibraryError| err),
+    );
+    result
 }
 
 /// Attempt to reuse a historical source id for the given root folder.
@@ -84,9 +110,16 @@ pub fn open_connection() -> Result<Connection, LibraryError> {
 /// This allows removing and re-adding a source without creating a new `source_id::...` namespace
 /// (and therefore avoids re-analysis when files are unchanged).
 pub fn lookup_source_id_for_root(root: &Path) -> Result<Option<SourceId>, LibraryError> {
+    let started_at = Instant::now();
     let _guard = lock_library();
     let db = LibraryDatabase::open()?;
-    db.lookup_known_source_id(root)
+    let result = db.lookup_known_source_id(root);
+    record_library_db_event(
+        "library.lookup_source_id_for_root",
+        started_at,
+        result.as_ref().map(|_| ()).map_err(|err| err),
+    );
+    result
 }
 
 fn lock_library() -> std::sync::MutexGuard<'static, ()> {
@@ -126,19 +159,25 @@ impl LibraryDatabase {
     }
 
     fn load_state(&self) -> Result<LibraryState, LibraryError> {
+        let started_at = Instant::now();
         let sources = self.load_sources()?;
-        Ok(LibraryState { sources })
+        let state = LibraryState { sources };
+        record_library_db_event("library.load_state", started_at, Ok(()));
+        Ok(state)
     }
 
     fn replace_state(&mut self, state: &LibraryState) -> Result<(), LibraryError> {
+        let started_at = Instant::now();
         let tx = self.connection.transaction().map_err(map_sql_error)?;
         Self::replace_sources(&tx, &state.sources)?;
         tx.commit().map_err(map_sql_error)?;
         self.remember_known_sources(&state.sources)?;
+        record_library_db_event("library.replace_state", started_at, Ok(()));
         Ok(())
     }
 
     fn load_sources(&self) -> Result<Vec<SampleSource>, LibraryError> {
+        let started_at = Instant::now();
         let mut stmt = self
             .connection
             .prepare(
@@ -159,6 +198,7 @@ impl LibraryDatabase {
             .map_err(map_sql_error)?
             .collect::<Result<Vec<_>, _>>()
             .map_err(map_sql_error)?;
+        record_library_db_event("library.load_sources", started_at, Ok(()));
         Ok(rows)
     }
 
@@ -183,16 +223,20 @@ impl LibraryDatabase {
     }
 
     fn lookup_known_source_id(&self, root: &Path) -> Result<Option<SourceId>, LibraryError> {
+        let started_at = Instant::now();
         let normalized = normalize_path(root);
         let needle = normalized.to_string_lossy().to_string();
         let mappings = self.load_known_sources()?;
-        Ok(mappings
+        let result = mappings
             .into_iter()
             .find(|entry| entry.root == needle)
-            .map(|entry| SourceId::from_string(entry.source_id)))
+            .map(|entry| SourceId::from_string(entry.source_id));
+        record_library_db_event("library.lookup_known_source_id", started_at, Ok(()));
+        Ok(result)
     }
 
     fn remember_known_sources(&mut self, sources: &[SampleSource]) -> Result<(), LibraryError> {
+        let started_at = Instant::now();
         let mut mappings = self.load_known_sources()?;
         for source in sources {
             let normalized = normalize_path(&source.root);
@@ -208,14 +252,20 @@ impl LibraryDatabase {
         }
         mappings.sort_by(|a, b| a.root.cmp(&b.root));
         self.set_metadata(KNOWN_SOURCES_KEY, &serde_json::to_string(&mappings)?)?;
+        record_library_db_event("library.remember_known_sources", started_at, Ok(()));
         Ok(())
     }
 
     fn load_known_sources(&self) -> Result<Vec<KnownSourceMapping>, LibraryError> {
+        let started_at = Instant::now();
         let Some(value) = self.get_metadata(KNOWN_SOURCES_KEY)? else {
+            record_library_db_event("library.load_known_sources", started_at, Ok(()));
             return Ok(Vec::new());
         };
-        serde_json::from_str::<Vec<KnownSourceMapping>>(&value).or_else(|_| Ok(Vec::new()))
+        let mappings =
+            serde_json::from_str::<Vec<KnownSourceMapping>>(&value).unwrap_or_else(|_| Vec::new());
+        record_library_db_event("library.load_known_sources", started_at, Ok(()));
+        Ok(mappings)
     }
 }
 
@@ -255,6 +305,26 @@ fn map_app_dir_error(error: app_dirs::AppDirError) -> LibraryError {
             LibraryError::InvalidProfile { profile }
         }
     }
+}
+
+fn record_library_db_event(
+    operation: &str,
+    started_at: Instant,
+    result: Result<(), &LibraryError>,
+) {
+    let elapsed = started_at.elapsed();
+    let error = result.as_ref().err().map(ToString::to_string);
+    let outcome = match result {
+        Ok(()) => "success",
+        Err(_) => "error",
+    };
+    emit_db_debug_event(DbDebugEvent {
+        operation,
+        source: Some("library"),
+        outcome,
+        elapsed,
+        error: error.as_deref(),
+    });
 }
 
 #[cfg(test)]

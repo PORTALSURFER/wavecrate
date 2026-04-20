@@ -33,13 +33,13 @@ pub const DB_EVENT_TARGET: &str = "sempal::debug::db";
 #[derive(Clone, Copy, Debug)]
 pub struct ActionDebugEvent<'a> {
     /// Stable action name such as `browser.focus_preview`.
-    pub action: &'static str,
+    pub action: &'a str,
     /// Optional UI pane or surface that handled the action.
     pub pane: Option<&'a str>,
     /// Optional source context such as a fixture tag or source root alias.
     pub source: Option<&'a str>,
     /// Outcome classification such as `success`, `error`, or `cancelled`.
-    pub outcome: &'static str,
+    pub outcome: &'a str,
     /// Wall-clock elapsed time for the action.
     pub elapsed: Duration,
     /// Sanitized failure text when the action failed.
@@ -65,11 +65,11 @@ pub struct ActionDebugEvent<'a> {
 #[derive(Clone, Copy, Debug)]
 pub struct DbDebugEvent<'a> {
     /// Stable database operation name such as `transaction_begin`.
-    pub operation: &'static str,
+    pub operation: &'a str,
     /// Optional source context such as a source-root display string or profile.
     pub source: Option<&'a str>,
     /// Outcome classification such as `success`, `error`, or `retry`.
-    pub outcome: &'static str,
+    pub outcome: &'a str,
     /// Wall-clock elapsed time for the DB work.
     pub elapsed: Duration,
     /// Sanitized failure text when the operation failed.

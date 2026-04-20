@@ -35,10 +35,12 @@ pub(crate) type ProjectedSelectedPathsLookup =
 /// Map-point query payload alias used by native-shell map projection.
 pub(crate) type UmapPointQuery<'a> = crate::app_core::app_api::controller::UmapPointQuery<'a>;
 
+use std::time::Instant;
 use std::{cell::RefCell, rc::Rc};
 
 use crate::app_core::actions::{NativeAppModel, NativeUiAction};
 use crate::app_core::app_api::controller_state::DerivedNodeId;
+use crate::logging::{ActionDebugEvent, emit_action_debug_event};
 use crate::{audio::AudioPlayer, waveform::WaveformRenderer};
 use browser_actions::apply_browser_native_ui_action;
 use map_actions::apply_map_native_ui_action;
@@ -147,10 +149,14 @@ impl AppControllerNativeRuntimeExt for AppController {
     }
 
     fn apply_native_ui_action(&mut self, action: NativeUiAction) -> bool {
+        let started_at = Instant::now();
+        let action_id = native_action_id(&action);
+        let pane = native_action_pane(&action);
         self.begin_waveform_refresh_batch();
         let action = match apply_transport_native_ui_action(self, action) {
             Ok(()) => {
                 self.end_waveform_refresh_batch();
+                record_native_action(action_id, pane, "success", started_at, None);
                 return true;
             }
             Err(action) => action,
@@ -158,6 +164,7 @@ impl AppControllerNativeRuntimeExt for AppController {
         let action = match apply_browser_native_ui_action(self, action) {
             Ok(()) => {
                 self.end_waveform_refresh_batch();
+                record_native_action(action_id, pane, "success", started_at, None);
                 return true;
             }
             Err(action) => action,
@@ -165,6 +172,7 @@ impl AppControllerNativeRuntimeExt for AppController {
         let action = match apply_map_native_ui_action(self, action) {
             Ok(()) => {
                 self.end_waveform_refresh_batch();
+                record_native_action(action_id, pane, "success", started_at, None);
                 return true;
             }
             Err(action) => action,
@@ -172,6 +180,7 @@ impl AppControllerNativeRuntimeExt for AppController {
         let action = match apply_waveform_native_ui_action(self, action) {
             Ok(()) => {
                 self.end_waveform_refresh_batch();
+                record_native_action(action_id, pane, "success", started_at, None);
                 return true;
             }
             Err(action) => action,
@@ -187,6 +196,13 @@ impl AppControllerNativeRuntimeExt for AppController {
             }
         };
         self.end_waveform_refresh_batch();
+        record_native_action(
+            action_id,
+            pane,
+            if handled { "success" } else { "unhandled" },
+            started_at,
+            (!handled).then_some("unhandled"),
+        );
         handled
     }
 }
@@ -390,6 +406,41 @@ fn apply_transport_native_ui_action(
         action => return Err(action),
     }
     Ok(())
+}
+
+fn native_action_id(action: &NativeUiAction) -> &'static str {
+    crate::app_core::actions::action_catalog_entry(action).action_id
+}
+
+fn native_action_pane(action: &NativeUiAction) -> Option<&'static str> {
+    let entry = crate::app_core::actions::action_catalog_entry(action);
+    Some(match entry.surface {
+        crate::app_core::actions::GuiSurface::Browser => "browser",
+        crate::app_core::actions::GuiSurface::Sources => "sources",
+        crate::app_core::actions::GuiSurface::Waveform => "waveform",
+        crate::app_core::actions::GuiSurface::Transport => "transport",
+        crate::app_core::actions::GuiSurface::Map => "map",
+        crate::app_core::actions::GuiSurface::Options => "options",
+        crate::app_core::actions::GuiSurface::Prompt => "prompt",
+        crate::app_core::actions::GuiSurface::Update => "update",
+    })
+}
+
+fn record_native_action(
+    action: &'static str,
+    pane: Option<&'static str>,
+    outcome: &'static str,
+    started_at: Instant,
+    error: Option<&'static str>,
+) {
+    emit_action_debug_event(ActionDebugEvent {
+        action,
+        pane,
+        source: None,
+        outcome,
+        elapsed: started_at.elapsed(),
+        error,
+    });
 }
 
 #[cfg(test)]

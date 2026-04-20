@@ -1,10 +1,11 @@
 use super::*;
 pub(crate) use super::{AppController, BPM_MIN_SELECTION_DIVISOR, StatusTone};
+use crate::logging::{ActionDebugEvent, emit_action_debug_event};
 pub(crate) use crate::sample_sources::*;
 pub(crate) use crate::selection::SelectionRange;
 
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 pub(crate) mod audio_cache;
 pub(crate) mod audio_loader;
@@ -59,6 +60,23 @@ const WAVEFORM_ANCHOR_RATIO_MICROS_SCALE: f64 = 1_000_000.0;
 /// Debounce duration for deferred playback-age database writes.
 const DEFERRED_PLAYBACK_AGE_COMMIT_DELAY: Duration = Duration::from_millis(160);
 
+fn record_playback_action(
+    controller: &AppController,
+    action: &'static str,
+    started_at: Instant,
+    played: bool,
+) {
+    let selected_source = controller.selected_source_id();
+    emit_action_debug_event(ActionDebugEvent {
+        action,
+        pane: Some("transport"),
+        source: selected_source.as_ref().map(SourceId::as_str),
+        outcome: if played { "success" } else { "short_circuit" },
+        elapsed: started_at.elapsed(),
+        error: (!played).then_some("not_playable"),
+    });
+}
+
 impl AppController {
     /// Returns the duration in seconds for the currently loaded audio, if any.
     pub(crate) fn loaded_audio_duration_seconds(&self) -> Option<f32> {
@@ -71,12 +89,18 @@ impl AppController {
 
     /// Start playback from the beginning of the selected sample.
     pub fn play_from_start(&mut self) -> bool {
-        transport::play_from_start(self)
+        let started_at = Instant::now();
+        let played = transport::play_from_start(self);
+        record_playback_action(self, "playback.play_from_start", started_at, played);
+        played
     }
 
     /// Start playback from the current playhead/cursor position.
     pub fn play_from_current_playhead(&mut self) -> bool {
-        transport::play_from_current_playhead(self)
+        let started_at = Instant::now();
+        let played = transport::play_from_current_playhead(self);
+        record_playback_action(self, "playback.play_from_playhead", started_at, played);
+        played
     }
 
     /// Restart playback from the last recorded start position.
@@ -86,7 +110,10 @@ impl AppController {
 
     /// Start playback from the current cursor position.
     pub fn play_from_cursor(&mut self) -> bool {
-        transport::play_from_cursor(self)
+        let started_at = Instant::now();
+        let played = transport::play_from_cursor(self);
+        record_playback_action(self, "playback.play_from_cursor", started_at, played);
+        played
     }
 
     /// Record the most recent play start position.
@@ -101,7 +128,17 @@ impl AppController {
 
     /// Persist the current output volume setting if a live change is pending.
     pub fn commit_volume_setting(&mut self) {
+        let started_at = Instant::now();
+        let selected_source = self.selected_source_id();
         transport::commit_volume_setting(self);
+        emit_action_debug_event(ActionDebugEvent {
+            action: "playback.commit_volume_setting",
+            pane: Some("transport"),
+            source: selected_source.as_ref().map(SourceId::as_str),
+            outcome: "success",
+            elapsed: started_at.elapsed(),
+            error: None,
+        });
     }
 
     /// Flush a pending debounced volume-setting persistence if due.
@@ -132,7 +169,21 @@ impl AppController {
 
     /// Toggle between play and pause.
     pub fn toggle_play_pause(&mut self) {
+        let started_at = Instant::now();
+        let selected_source = self.selected_source_id();
         transport::toggle_play_pause(self);
+        emit_action_debug_event(ActionDebugEvent {
+            action: "playback.toggle_play_pause",
+            pane: Some("transport"),
+            source: selected_source.as_ref().map(SourceId::as_str),
+            outcome: if self.is_playing() {
+                "playing"
+            } else {
+                "paused"
+            },
+            elapsed: started_at.elapsed(),
+            error: None,
+        });
     }
 
     /// Stop playback if it is currently active.
@@ -265,7 +316,17 @@ impl AppController {
 
     /// Jump to a random visible sample in the browser and start playback.
     pub fn play_random_visible_sample(&mut self) {
+        let started_at = Instant::now();
+        let selected_source = self.selected_source_id();
         random_nav::play_random_visible_sample(self);
+        emit_action_debug_event(ActionDebugEvent {
+            action: "playback.play_random_visible_sample",
+            pane: Some("browser"),
+            source: selected_source.as_ref().map(SourceId::as_str),
+            outcome: "success",
+            elapsed: started_at.elapsed(),
+            error: None,
+        });
     }
 
     #[cfg(test)]
@@ -294,7 +355,17 @@ impl AppController {
 
     /// Play the previous entry from the random history stack.
     pub fn play_previous_random_sample(&mut self) {
+        let started_at = Instant::now();
+        let selected_source = self.selected_source_id();
         random_nav::play_previous_random_sample(self);
+        emit_action_debug_event(ActionDebugEvent {
+            action: "playback.play_previous_random_sample",
+            pane: Some("browser"),
+            source: selected_source.as_ref().map(SourceId::as_str),
+            outcome: "success",
+            elapsed: started_at.elapsed(),
+            error: None,
+        });
     }
 
     /// Toggle sticky random navigation for Up/Down in the browser.
