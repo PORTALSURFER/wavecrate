@@ -35,14 +35,15 @@ fn row_snapshot(
         .unwrap()
         .into_iter()
         .map(|row| {
+            let relative_path = row.relative_path;
             (
-                row.relative_path,
+                relative_path.clone(),
                 row.tag,
                 row.looped,
                 row.locked,
                 row.missing,
                 row.last_played_at,
-                db.sound_type_for_path(&row.relative_path).unwrap(),
+                db.sound_type_for_path(&relative_path).unwrap(),
             )
         })
         .collect()

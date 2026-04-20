@@ -84,14 +84,33 @@ fn fail_stale_running_jobs_marks_failed() {
 fn prune_jobs_for_missing_sources_removes_orphans() {
     let db = TestDb::new();
     db.insert_wav_file("a.wav");
-    db.insert_job(JobRow::new("s::a.wav", ANALYZE_SAMPLE_JOB_TYPE, "pending"));
-    db.insert_job(JobRow::new(
-        "missing::b.wav",
-        ANALYZE_SAMPLE_JOB_TYPE,
-        "pending",
-    ));
+    db.insert_job(
+        JobRow::new("s::a.wav", ANALYZE_SAMPLE_JOB_TYPE, "pending").with_source("s", "a.wav"),
+    );
+    db.insert_job(
+        JobRow::new("missing::b.wav", ANALYZE_SAMPLE_JOB_TYPE, "pending")
+            .with_source("missing", "b.wav"),
+    );
     let removed = prune_jobs_for_missing_sources(&db.conn).unwrap();
     assert_eq!(removed, 1);
+    let remaining: i64 = db
+        .conn
+        .query_row("SELECT COUNT(*) FROM analysis_jobs", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(remaining, 1);
+}
+
+#[test]
+fn prune_jobs_for_missing_sources_uses_relative_path_over_sample_id() {
+    let db = TestDb::new();
+    db.insert_wav_file("a.wav");
+    db.insert_job(
+        JobRow::new("s::wrong.wav", ANALYZE_SAMPLE_JOB_TYPE, "pending").with_source("s", "a.wav"),
+    );
+
+    let removed = prune_jobs_for_missing_sources(&db.conn).unwrap();
+
+    assert_eq!(removed, 0);
     let remaining: i64 = db
         .conn
         .query_row("SELECT COUNT(*) FROM analysis_jobs", [], |row| row.get(0))
@@ -103,9 +122,15 @@ fn prune_jobs_for_missing_sources_removes_orphans() {
 fn purge_orphaned_samples_removes_rows_from_all_tables() {
     let mut db = TestDb::new();
     db.insert_wav_file("a.wav");
-    for sample_id in ["s::a.wav", "missing::b.wav"] {
+    for (sample_id, source_id, relative_path) in [
+        ("s::a.wav", "s", "a.wav"),
+        ("missing::b.wav", "missing", "b.wav"),
+    ] {
         db.insert_sample(SampleRow::new(sample_id, "h"));
-        db.insert_job(JobRow::new(sample_id, ANALYZE_SAMPLE_JOB_TYPE, "pending"));
+        db.insert_job(
+            JobRow::new(sample_id, ANALYZE_SAMPLE_JOB_TYPE, "pending")
+                .with_source(source_id, relative_path),
+        );
         db.insert_orphaned_artifacts(sample_id);
     }
     let removed = purge_orphaned_samples(&mut db.conn).unwrap();

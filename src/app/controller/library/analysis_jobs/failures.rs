@@ -14,45 +14,44 @@ fn failed_samples_for_source_conn(
     conn: &Connection,
     source_id: &crate::sample_sources::SourceId,
 ) -> Result<HashMap<PathBuf, String>, String> {
-    let prefix = format!("{}::%", source_id.as_str());
     let embedding_model = crate::analysis::similarity::SIMILARITY_MODEL_ID;
     let analysis_version = crate::analysis::version::analysis_version();
     let mut stmt = conn
         .prepare(
-            "SELECT aj.sample_id, aj.last_error
+            "SELECT aj.relative_path, aj.last_error
              FROM analysis_jobs aj
              LEFT JOIN samples s ON s.sample_id = aj.sample_id
              LEFT JOIN features f
                 ON f.sample_id = aj.sample_id AND f.feat_version = ?2
              LEFT JOIN embeddings e
                 ON e.sample_id = aj.sample_id AND e.model_id = ?3
-             WHERE aj.status = 'failed' AND aj.sample_id LIKE ?1
+             WHERE aj.status = 'failed'
+               AND aj.source_id = ?1
                AND (
                   f.sample_id IS NULL
                   OR s.analysis_version IS NULL
                   OR s.analysis_version != ?4
                   OR e.sample_id IS NULL
                )
-             ORDER BY aj.sample_id ASC",
+             ORDER BY aj.relative_path ASC",
         )
         .map_err(|err| format!("Failed to query failed analysis jobs: {err}"))?;
     let mut out = HashMap::new();
     let rows = stmt
         .query_map(
-            params![prefix, 1i64, embedding_model, analysis_version],
+            params![source_id.as_str(), 1i64, embedding_model, analysis_version],
             |row| {
-                let sample_id: String = row.get(0)?;
+                let relative_path: String = row.get(0)?;
                 let last_error: Option<String> = row.get(1)?;
-                Ok((sample_id, last_error))
+                Ok((relative_path, last_error))
             },
         )
         .map_err(|err| format!("Failed to query failed analysis jobs: {err}"))?;
     for row in rows {
-        let (sample_id, last_error) =
+        let (relative_path, last_error) =
             row.map_err(|err| format!("Failed to decode failed analysis job row: {err}"))?;
-        let (_source, relative_path) = db::parse_sample_id(&sample_id)?;
         out.insert(
-            relative_path,
+            PathBuf::from(relative_path),
             last_error.unwrap_or_else(|| "Analysis failed".to_string()),
         );
     }
@@ -83,20 +82,20 @@ mod tests {
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO analysis_jobs (sample_id, job_type, status, attempts, created_at, last_error)
-             VALUES ('s1::Pack/a.wav', 'x', 'failed', 1, 0, 'boom')",
+            "INSERT INTO analysis_jobs (sample_id, source_id, relative_path, job_type, status, attempts, created_at, last_error)
+             VALUES ('s1::Pack/a.wav', 's1', 'Pack/a.wav', 'x', 'failed', 1, 0, 'boom')",
             [],
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO analysis_jobs (sample_id, job_type, status, attempts, created_at)
-             VALUES ('s1::Pack/b.wav', 'x', 'failed', 1, 0)",
+            "INSERT INTO analysis_jobs (sample_id, source_id, relative_path, job_type, status, attempts, created_at)
+             VALUES ('s1::Pack/b.wav', 's1', 'Pack/b.wav', 'x', 'failed', 1, 0)",
             [],
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO analysis_jobs (sample_id, job_type, status, attempts, created_at, last_error)
-             VALUES ('s2::Other/c.wav', 'x', 'failed', 1, 0, 'nope')",
+            "INSERT INTO analysis_jobs (sample_id, source_id, relative_path, job_type, status, attempts, created_at, last_error)
+             VALUES ('s2::Other/c.wav', 's2', 'Other/c.wav', 'x', 'failed', 1, 0, 'nope')",
             [],
         )
         .unwrap();
