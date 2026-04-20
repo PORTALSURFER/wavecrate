@@ -1,3 +1,4 @@
+use super::progress_snapshot::{self, SnapshotJobState};
 use super::telemetry;
 use super::types::ClaimedJob;
 use rusqlite::{Connection, OptionalExtension, params, params_from_iter};
@@ -188,6 +189,7 @@ pub(crate) fn claim_next_jobs(
     }
     let tx = telemetry::begin_immediate_transaction(conn, "analysis_claim_jobs")
         .map_err(|err| format!("Failed to start analysis claim transaction: {err}"))?;
+    progress_snapshot::ensure_all_progress_snapshot_rows(&tx)?;
     let running_at = now_epoch_seconds();
     let mut jobs = Vec::new();
     {
@@ -252,12 +254,38 @@ pub(crate) fn claim_next_jobs(
             .map_err(|err| format!("Failed to commit empty analysis claim transaction: {err}"))?;
         return Ok(Vec::new());
     }
+    let mut after_by_sample = HashMap::new();
+    for (job_type, sample_ids) in jobs_by_job_type(&jobs) {
+        for (sample_id, state) in
+            progress_snapshot::sample_states_for_job_type(&tx, &job_type, &sample_ids)?
+        {
+            after_by_sample.insert(sample_id, state);
+        }
+    }
+    let transitions = jobs.iter().filter_map(|job| {
+        let after = after_by_sample.get(&job.sample_id)?.clone();
+        Some((
+            Some(SnapshotJobState {
+                job_type: after.job_type.clone(),
+                status: "pending".to_string(),
+                countable: after.countable,
+            }),
+            Some(SnapshotJobState {
+                job_type: after.job_type,
+                status: "running".to_string(),
+                countable: after.countable,
+            }),
+        ))
+    });
+    progress_snapshot::apply_state_transitions(&tx, transitions)?;
     telemetry::commit_transaction(tx, "analysis_claim_jobs")
         .map_err(|err| format!("Failed to commit analysis claim transaction: {err}"))?;
     Ok(jobs)
 }
 
 pub(crate) fn mark_done(conn: &Connection, job_id: i64) -> Result<(), String> {
+    progress_snapshot::ensure_all_progress_snapshot_rows(conn)?;
+    let before = progress_snapshot::job_state_by_id(conn, job_id)?;
     conn.execute(
         "UPDATE analysis_jobs
          SET status = 'done', last_error = NULL, running_at = NULL
@@ -265,6 +293,8 @@ pub(crate) fn mark_done(conn: &Connection, job_id: i64) -> Result<(), String> {
         params![job_id],
     )
     .map_err(|err| format!("Failed to mark analysis job done: {err}"))?;
+    let after = progress_snapshot::job_state_by_id(conn, job_id)?;
+    progress_snapshot::apply_state_transitions(conn, [(before, after)])?;
     Ok(())
 }
 
@@ -273,6 +303,8 @@ pub(crate) fn mark_failed_with_reason(
     job_id: i64,
     error: &str,
 ) -> Result<(), String> {
+    progress_snapshot::ensure_all_progress_snapshot_rows(conn)?;
+    let before = progress_snapshot::job_state_by_id(conn, job_id)?;
     conn.execute(
         "UPDATE analysis_jobs
          SET status = 'failed', last_error = ?2, running_at = NULL
@@ -280,10 +312,14 @@ pub(crate) fn mark_failed_with_reason(
         params![job_id, error],
     )
     .map_err(|err| format!("Failed to mark analysis job failed: {err}"))?;
+    let after = progress_snapshot::job_state_by_id(conn, job_id)?;
+    progress_snapshot::apply_state_transitions(conn, [(before, after)])?;
     Ok(())
 }
 
 pub(crate) fn mark_pending(conn: &Connection, job_id: i64) -> Result<(), String> {
+    progress_snapshot::ensure_all_progress_snapshot_rows(conn)?;
+    let before = progress_snapshot::job_state_by_id(conn, job_id)?;
     conn.execute(
         "UPDATE analysis_jobs
          SET status = 'pending', running_at = NULL
@@ -291,6 +327,8 @@ pub(crate) fn mark_pending(conn: &Connection, job_id: i64) -> Result<(), String>
         params![job_id],
     )
     .map_err(|err| format!("Failed to mark analysis job pending: {err}"))?;
+    let after = progress_snapshot::job_state_by_id(conn, job_id)?;
+    progress_snapshot::apply_state_transitions(conn, [(before, after)])?;
     Ok(())
 }
 
@@ -321,4 +359,15 @@ fn now_epoch_seconds() -> i64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_else(|_| Duration::from_secs(0))
         .as_secs() as i64
+}
+
+fn jobs_by_job_type(jobs: &[ClaimedJob]) -> HashMap<String, Vec<String>> {
+    let mut grouped = HashMap::<String, Vec<String>>::new();
+    for job in jobs {
+        grouped
+            .entry(job.job_type.clone())
+            .or_default()
+            .push(job.sample_id.clone());
+    }
+    grouped
 }

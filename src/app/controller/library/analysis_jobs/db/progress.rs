@@ -1,5 +1,6 @@
 use super::super::types::{AnalysisProgress, RunningJobInfo};
 use super::constants::{ANALYZE_SAMPLE_JOB_TYPE, EMBEDDING_BACKFILL_JOB_TYPE};
+use super::progress_snapshot;
 use super::telemetry;
 use rusqlite::Connection;
 use std::path::Path;
@@ -64,6 +65,11 @@ fn current_progress_for_job_type(
     job_type: &str,
     filter_missing: bool,
 ) -> Result<AnalysisProgress, String> {
+    if let Some(progress) = progress_snapshot::read_progress_snapshot(conn, job_type)
+        .map_err(|err| format!("Failed to load analysis progress snapshot for {job_type}: {err}"))?
+    {
+        return Ok(progress);
+    }
     let (status_sql, total_sql, pending_sql) = if filter_missing {
         (
             "SELECT aj.status, COUNT(*)
@@ -147,5 +153,7 @@ fn current_progress_for_job_type(
             .map(|count| count.max(0) as usize)
             .map_err(|err| format!("Failed to query analysis sample pending/running: {err}")),
     )?;
+    progress_snapshot::write_progress_snapshot(conn, job_type, progress)
+        .map_err(|err| format!("Failed to persist analysis progress snapshot: {err}"))?;
     Ok(progress)
 }

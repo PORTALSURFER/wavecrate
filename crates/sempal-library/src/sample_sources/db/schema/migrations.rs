@@ -13,6 +13,7 @@ pub(super) fn apply_optional_migrations(connection: &Connection) -> Result<(), S
     ensure_wav_files_optional_columns(connection)?;
     ensure_file_ops_journal_optional_columns(connection)?;
     ensure_analysis_jobs_optional_columns(connection)?;
+    ensure_analysis_job_progress_snapshots(connection)?;
     ensure_samples_optional_columns(connection)?;
     ensure_feature_metric_columns(connection, "features")?;
     ensure_feature_metric_columns(connection, "analysis_cache_features")?;
@@ -147,19 +148,8 @@ fn ensure_analysis_jobs_optional_columns(connection: &Connection) -> Result<(), 
                 [],
             )
             .map_err(map_sql_error)?;
-        connection
-            .execute(
-                "UPDATE analysis_jobs
-                 SET source_id = CASE
-                     WHEN instr(sample_id, '::') > 0
-                     THEN substr(sample_id, 1, instr(sample_id, '::') - 1)
-                     ELSE source_id
-                 END
-                 WHERE source_id = '' OR source_id IS NULL",
-                [],
-            )
-            .map_err(map_sql_error)?;
     }
+    backfill_analysis_jobs_source_id(connection)?;
     if !columns.contains("relative_path") {
         connection
             .execute(
@@ -167,19 +157,98 @@ fn ensure_analysis_jobs_optional_columns(connection: &Connection) -> Result<(), 
                 [],
             )
             .map_err(map_sql_error)?;
-        connection
-            .execute(
-                "UPDATE analysis_jobs
-                 SET relative_path = CASE
-                     WHEN instr(sample_id, '::') > 0
-                     THEN substr(sample_id, instr(sample_id, '::') + 2)
-                     ELSE relative_path
-                 END
-                 WHERE relative_path = '' OR relative_path IS NULL",
-                [],
-            )
-            .map_err(map_sql_error)?;
     }
+    backfill_analysis_jobs_relative_path(connection)?;
+    Ok(())
+}
+
+fn ensure_analysis_job_progress_snapshots(connection: &Connection) -> Result<(), SourceDbError> {
+    connection
+        .execute_batch(
+            "CREATE TABLE IF NOT EXISTS analysis_job_progress_snapshots (
+                job_type TEXT PRIMARY KEY,
+                pending INTEGER NOT NULL DEFAULT 0,
+                running INTEGER NOT NULL DEFAULT 0,
+                done INTEGER NOT NULL DEFAULT 0,
+                failed INTEGER NOT NULL DEFAULT 0
+            ) WITHOUT ROWID;",
+        )
+        .map_err(map_sql_error)?;
+    connection
+        .execute(
+            "INSERT INTO analysis_job_progress_snapshots (job_type, pending, running, done, failed)
+             SELECT
+                 aj.job_type,
+                 SUM(CASE WHEN aj.status = 'pending' AND (
+                     aj.job_type != ?1
+                     OR EXISTS(
+                         SELECT 1
+                         FROM wav_files wf
+                         WHERE wf.path = aj.relative_path
+                     )
+                 ) THEN 1 ELSE 0 END),
+                 SUM(CASE WHEN aj.status = 'running' AND (
+                     aj.job_type != ?1
+                     OR EXISTS(
+                         SELECT 1
+                         FROM wav_files wf
+                         WHERE wf.path = aj.relative_path
+                     )
+                 ) THEN 1 ELSE 0 END),
+                 SUM(CASE WHEN aj.status = 'done' AND (
+                     aj.job_type != ?1
+                     OR EXISTS(
+                         SELECT 1
+                         FROM wav_files wf
+                         WHERE wf.path = aj.relative_path
+                     )
+                 ) THEN 1 ELSE 0 END),
+                 SUM(CASE WHEN aj.status = 'failed' AND (
+                     aj.job_type != ?1
+                     OR EXISTS(
+                         SELECT 1
+                         FROM wav_files wf
+                         WHERE wf.path = aj.relative_path
+                     )
+                 ) THEN 1 ELSE 0 END)
+             FROM analysis_jobs aj
+             GROUP BY aj.job_type
+             ON CONFLICT(job_type) DO NOTHING",
+            ["analyze_sample"],
+        )
+        .map_err(map_sql_error)?;
+    Ok(())
+}
+
+fn backfill_analysis_jobs_source_id(connection: &Connection) -> Result<(), SourceDbError> {
+    connection
+        .execute(
+            "UPDATE analysis_jobs
+             SET source_id = CASE
+                 WHEN instr(sample_id, '::') > 0
+                 THEN substr(sample_id, 1, instr(sample_id, '::') - 1)
+                 ELSE source_id
+             END
+             WHERE source_id = '' OR source_id IS NULL",
+            [],
+        )
+        .map_err(map_sql_error)?;
+    Ok(())
+}
+
+fn backfill_analysis_jobs_relative_path(connection: &Connection) -> Result<(), SourceDbError> {
+    connection
+        .execute(
+            "UPDATE analysis_jobs
+             SET relative_path = CASE
+                 WHEN instr(sample_id, '::') > 0
+                 THEN substr(sample_id, instr(sample_id, '::') + 2)
+                 ELSE relative_path
+             END
+             WHERE relative_path = '' OR relative_path IS NULL",
+            [],
+        )
+        .map_err(map_sql_error)?;
     Ok(())
 }
 
@@ -266,4 +335,44 @@ fn now_epoch_seconds() -> i64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_else(|_| Duration::from_secs(0))
         .as_secs() as i64
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn analysis_jobs_backfill_blank_identity_columns() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE analysis_jobs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sample_id TEXT NOT NULL,
+                source_id TEXT NOT NULL DEFAULT '',
+                relative_path TEXT NOT NULL DEFAULT '',
+                job_type TEXT NOT NULL,
+                status TEXT NOT NULL,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                created_at INTEGER NOT NULL
+            );
+            INSERT INTO analysis_jobs (
+                sample_id, source_id, relative_path, job_type, status, attempts, created_at
+            ) VALUES (
+                'source-a::Pack/a.wav', '', '', 'analyze_sample', 'pending', 0, 0
+            );",
+        )
+        .unwrap();
+
+        ensure_analysis_jobs_optional_columns(&conn).unwrap();
+
+        let row: (String, String) = conn
+            .query_row(
+                "SELECT source_id, relative_path FROM analysis_jobs",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(row.0, "source-a");
+        assert_eq!(row.1, "Pack/a.wav");
+    }
 }

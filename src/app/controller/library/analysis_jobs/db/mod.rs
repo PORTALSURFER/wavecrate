@@ -8,6 +8,7 @@ mod enqueue;
 mod ids;
 mod jobs;
 mod progress;
+mod progress_snapshot;
 pub(crate) mod telemetry;
 mod types;
 

@@ -1,31 +1,80 @@
+use super::progress_snapshot;
 use super::telemetry;
 use rusqlite::{Connection, params};
 
 pub(crate) fn reset_running_to_pending(conn: &Connection) -> Result<usize, String> {
-    conn.execute(
-        "UPDATE analysis_jobs
+    progress_snapshot::ensure_all_progress_snapshot_rows(conn)?;
+    let counts = progress_snapshot::running_counts_by_job_type(conn, "1 = 1", Vec::new())?;
+    let changed = conn
+        .execute(
+            "UPDATE analysis_jobs
          SET status = 'pending', running_at = NULL
          WHERE status = 'running'",
-        [],
-    )
-    .map_err(|err| format!("Failed to reset running analysis jobs: {err}"))
+            [],
+        )
+        .map_err(|err| format!("Failed to reset running analysis jobs: {err}"))?;
+    let mut transitions = Vec::new();
+    for (job_type, count) in counts {
+        for _ in 0..count {
+            transitions.push((
+                Some(super::progress_snapshot::SnapshotJobState {
+                    job_type: job_type.clone(),
+                    status: "running".to_string(),
+                    countable: true,
+                }),
+                Some(super::progress_snapshot::SnapshotJobState {
+                    job_type: job_type.clone(),
+                    status: "pending".to_string(),
+                    countable: true,
+                }),
+            ));
+        }
+    }
+    progress_snapshot::apply_state_transitions(conn, transitions)?;
+    Ok(changed)
 }
 
 pub(crate) fn fail_stale_running_jobs(
     conn: &Connection,
     stale_before_epoch: i64,
 ) -> Result<usize, String> {
-    conn.execute(
-        "UPDATE analysis_jobs
+    progress_snapshot::ensure_all_progress_snapshot_rows(conn)?;
+    let counts = progress_snapshot::running_counts_by_job_type(
+        conn,
+        "running_at IS NOT NULL AND running_at <= ?1",
+        vec![rusqlite::types::Value::from(stale_before_epoch)],
+    )?;
+    let changed = conn
+        .execute(
+            "UPDATE analysis_jobs
          SET status = 'failed',
              last_error = 'Timed out while running',
              running_at = NULL
          WHERE status = 'running'
            AND running_at IS NOT NULL
            AND running_at <= ?1",
-        rusqlite::params![stale_before_epoch],
-    )
-    .map_err(|err| format!("Failed to fail stale analysis jobs: {err}"))
+            rusqlite::params![stale_before_epoch],
+        )
+        .map_err(|err| format!("Failed to fail stale analysis jobs: {err}"))?;
+    let mut transitions = Vec::new();
+    for (job_type, count) in counts {
+        for _ in 0..count {
+            transitions.push((
+                Some(super::progress_snapshot::SnapshotJobState {
+                    job_type: job_type.clone(),
+                    status: "running".to_string(),
+                    countable: true,
+                }),
+                Some(super::progress_snapshot::SnapshotJobState {
+                    job_type: job_type.clone(),
+                    status: "failed".to_string(),
+                    countable: true,
+                }),
+            ));
+        }
+    }
+    progress_snapshot::apply_state_transitions(conn, transitions)?;
+    Ok(changed)
 }
 
 pub(crate) fn fail_stale_running_jobs_with_sources(
@@ -64,7 +113,7 @@ pub(crate) fn prune_jobs_for_missing_sources(conn: &Connection) -> Result<usize,
            AND NOT EXISTS (
             SELECT 1
             FROM wav_files wf
-            WHERE wf.path = substr(analysis_jobs.sample_id, instr(analysis_jobs.sample_id, '::') + 2)
+            WHERE wf.path = analysis_jobs.relative_path
          )",
         params![super::ANALYZE_SAMPLE_JOB_TYPE],
     )
@@ -89,9 +138,9 @@ pub(crate) fn purge_orphaned_samples(conn: &mut Connection) -> Result<usize, Str
                    AND NOT EXISTS (
                       SELECT 1
                       FROM wav_files wf
-                      WHERE wf.path = substr(analysis_jobs.sample_id, instr(analysis_jobs.sample_id, '::') + 2)
+                      WHERE wf.path = analysis_jobs.relative_path
                    )"
-                    .to_string(),
+                .to_string(),
                 params![super::ANALYZE_SAMPLE_JOB_TYPE],
             )
         } else {

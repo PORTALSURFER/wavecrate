@@ -1,3 +1,4 @@
+use super::progress_snapshot;
 use super::telemetry;
 use super::types::SampleMetadata;
 use rusqlite::Connection;
@@ -30,6 +31,14 @@ fn enqueue_jobs_tx(
     source_id: &str,
 ) -> Result<usize, String> {
     let mut inserted = 0usize;
+    progress_snapshot::ensure_all_progress_snapshot_rows(tx)?;
+    let sample_ids: Vec<String> = jobs
+        .iter()
+        .map(|(sample_id, _)| sample_id.clone())
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let before = progress_snapshot::sample_states_for_job_type(tx, job_type, &sample_ids)?;
     const BATCH_SIZE: usize = 200;
     for chunk in jobs.chunks(BATCH_SIZE) {
         let mut sql = String::from(
@@ -74,6 +83,16 @@ fn enqueue_jobs_tx(
             .map_err(|err| format!("Failed to enqueue analysis jobs: {err}"))?;
         inserted += changed as usize;
     }
+    let after = progress_snapshot::sample_states_for_job_type(tx, job_type, &sample_ids)?;
+    progress_snapshot::apply_state_transitions(
+        tx,
+        sample_ids.iter().map(|sample_id| {
+            (
+                before.get(sample_id).cloned(),
+                after.get(sample_id).cloned(),
+            )
+        }),
+    )?;
     Ok(inserted)
 }
 

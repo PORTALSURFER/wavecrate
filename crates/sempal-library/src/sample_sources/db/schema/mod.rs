@@ -13,7 +13,7 @@ mod migrations;
 /// A matching stamp means the base DDL, additive migrations, and indices have
 /// already been assured for this file, so steady-state opens can skip that
 /// one-time work.
-const SOURCE_DB_SCHEMA_VERSION: i64 = 1;
+const SOURCE_DB_SCHEMA_VERSION: i64 = 2;
 
 /// Apply the full source-database schema, including deferred cleanup work.
 pub(super) fn apply_schema(connection: &Connection) -> Result<SchemaApplyOutcome, SourceDbError> {

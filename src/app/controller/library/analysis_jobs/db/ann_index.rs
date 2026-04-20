@@ -1,3 +1,4 @@
+use super::progress_snapshot;
 use rusqlite::{Connection, params};
 
 use super::constants::REBUILD_INDEX_JOB_TYPE;
@@ -55,7 +56,11 @@ pub(crate) fn enqueue_rebuild_ann_index_job(
     if existing > 0 {
         return Ok(0);
     }
+    progress_snapshot::ensure_all_progress_snapshot_rows(conn)?;
     let sample_id = format!("{source_id}::{ANN_INDEX_REBUILD_PATH}");
+    let sample_ids = vec![sample_id.clone()];
+    let before =
+        progress_snapshot::sample_states_for_job_type(conn, REBUILD_INDEX_JOB_TYPE, &sample_ids)?;
     let inserted = conn
         .execute(
             "INSERT INTO analysis_jobs (
@@ -80,6 +85,15 @@ pub(crate) fn enqueue_rebuild_ann_index_job(
             ],
         )
         .map_err(|err| format!("Failed to enqueue ANN rebuild job: {err}"))?;
+    let after =
+        progress_snapshot::sample_states_for_job_type(conn, REBUILD_INDEX_JOB_TYPE, &sample_ids)?;
+    progress_snapshot::apply_state_transitions(
+        conn,
+        [(
+            before.get(&sample_id).cloned(),
+            after.get(&sample_id).cloned(),
+        )],
+    )?;
     Ok(inserted)
 }
 

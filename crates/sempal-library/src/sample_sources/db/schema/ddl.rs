@@ -40,6 +40,13 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         ON analysis_jobs (status, created_at, id);
     CREATE INDEX IF NOT EXISTS idx_analysis_jobs_status_sample_id
         ON analysis_jobs (status, sample_id);
+    CREATE TABLE IF NOT EXISTS analysis_job_progress_snapshots (
+        job_type TEXT PRIMARY KEY,
+        pending INTEGER NOT NULL DEFAULT 0,
+        running INTEGER NOT NULL DEFAULT 0,
+        done INTEGER NOT NULL DEFAULT 0,
+        failed INTEGER NOT NULL DEFAULT 0
+    ) WITHOUT ROWID;
     CREATE TABLE IF NOT EXISTS samples (
         sample_id TEXT PRIMARY KEY,
         content_hash TEXT NOT NULL,
@@ -169,6 +176,8 @@ const INDEX_SQL: &str = "CREATE INDEX IF NOT EXISTS idx_wav_files_missing
          ON pending_wav_renames (file_size, modified_ns);
      CREATE INDEX IF NOT EXISTS idx_analysis_jobs_source_job_status_created
          ON analysis_jobs (source_id, job_type, status, created_at);
+     CREATE INDEX IF NOT EXISTS idx_analysis_jobs_job_relative_path_status
+         ON analysis_jobs (job_type, relative_path, status);
      CREATE INDEX IF NOT EXISTS idx_analysis_jobs_job_status
          ON analysis_jobs (job_type, status);
      CREATE INDEX IF NOT EXISTS idx_file_ops_journal_stage

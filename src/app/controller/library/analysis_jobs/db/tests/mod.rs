@@ -5,3 +5,4 @@ mod cleanup;
 mod fixtures;
 mod jobs;
 mod samples;
+mod snapshot;
