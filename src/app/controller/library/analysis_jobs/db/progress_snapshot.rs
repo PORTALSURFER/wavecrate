@@ -1,5 +1,6 @@
 use super::constants::ANALYZE_SAMPLE_JOB_TYPE;
 use crate::app::controller::library::analysis_jobs::types::AnalysisProgress;
+use crate::sample_sources::db::META_WAV_PATHS_REVISION;
 use rusqlite::{Connection, OptionalExtension, params, params_from_iter, types::Value};
 use std::collections::HashMap;
 
@@ -10,6 +11,8 @@ const SNAPSHOT_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS analysis_job_progr
         done INTEGER NOT NULL DEFAULT 0,
         failed INTEGER NOT NULL DEFAULT 0
     ) WITHOUT ROWID;";
+const ANALYZE_SNAPSHOT_WAV_PATHS_REVISION_KEY: &str =
+    "analysis_progress_snapshot_wav_paths_revision_v1";
 
 /// Persisted progress state for one analysis-job row while computing snapshot deltas.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -25,15 +28,23 @@ pub(crate) fn read_progress_snapshot(
     job_type: &str,
 ) -> Result<Option<AnalysisProgress>, String> {
     ensure_snapshot_schema(conn)?;
-    conn.query_row(
-        "SELECT pending, running, done, failed
+    let snapshot = conn
+        .query_row(
+            "SELECT pending, running, done, failed
          FROM analysis_job_progress_snapshots
          WHERE job_type = ?1",
-        params![job_type],
-        decode_progress_row,
-    )
-    .optional()
-    .map_err(|err| err.to_string())
+            params![job_type],
+            decode_progress_row,
+        )
+        .optional()
+        .map_err(|err| err.to_string())?;
+    if job_type != ANALYZE_SAMPLE_JOB_TYPE || snapshot.is_none() {
+        return Ok(snapshot);
+    }
+    if read_analyze_snapshot_wav_paths_revision(conn)? == current_wav_paths_revision(conn)? {
+        return Ok(snapshot);
+    }
+    Ok(None)
 }
 
 /// Seed missing snapshot rows from the current on-disk job state before a mutation.
@@ -108,6 +119,9 @@ pub(crate) fn write_progress_snapshot(
         ],
     )
     .map_err(|err| err.to_string())?;
+    if job_type == ANALYZE_SAMPLE_JOB_TYPE {
+        store_analyze_snapshot_wav_paths_revision(conn)?;
+    }
     Ok(())
 }
 
@@ -284,6 +298,45 @@ fn grouped_counts(
 fn ensure_snapshot_schema(conn: &Connection) -> Result<(), String> {
     conn.execute_batch(SNAPSHOT_SCHEMA_SQL)
         .map_err(|err| err.to_string())
+}
+
+fn read_analyze_snapshot_wav_paths_revision(conn: &Connection) -> Result<Option<String>, String> {
+    conn.query_row(
+        "SELECT value FROM metadata WHERE key = ?1",
+        params![ANALYZE_SNAPSHOT_WAV_PATHS_REVISION_KEY],
+        |row| row.get(0),
+    )
+    .optional()
+    .map_err(|err| err.to_string())
+}
+
+fn current_wav_paths_revision(conn: &Connection) -> Result<Option<String>, String> {
+    conn.query_row(
+        "SELECT value FROM metadata WHERE key = ?1",
+        params![META_WAV_PATHS_REVISION],
+        |row| row.get(0),
+    )
+    .optional()
+    .map_err(|err| err.to_string())
+}
+
+fn store_analyze_snapshot_wav_paths_revision(conn: &Connection) -> Result<(), String> {
+    let Some(revision) = current_wav_paths_revision(conn)? else {
+        conn.execute(
+            "DELETE FROM metadata WHERE key = ?1",
+            params![ANALYZE_SNAPSHOT_WAV_PATHS_REVISION_KEY],
+        )
+        .map_err(|err| err.to_string())?;
+        return Ok(());
+    };
+    conn.execute(
+        "INSERT INTO metadata (key, value)
+         VALUES (?1, ?2)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        params![ANALYZE_SNAPSHOT_WAV_PATHS_REVISION_KEY, revision],
+    )
+    .map_err(|err| err.to_string())?;
+    Ok(())
 }
 
 fn decode_progress_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<AnalysisProgress> {

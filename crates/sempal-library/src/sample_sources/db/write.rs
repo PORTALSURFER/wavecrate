@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use rusqlite::params;
+use rusqlite::{Transaction, TransactionBehavior, params};
 
 use super::util::map_sql_error;
 use super::{
@@ -113,9 +113,9 @@ impl SourceDatabase {
 
     /// Start a write batch that wraps related mutations in a single transaction.
     pub fn write_batch(&self) -> Result<SourceWriteBatch<'_>, SourceDbError> {
-        let tx = self
-            .connection
-            .unchecked_transaction()
+        // Acquire the writer lock up front so mixed scan/metadata workloads wait
+        // on SQLite's busy timeout instead of failing partway through the batch.
+        let tx = Transaction::new_unchecked(&self.connection, TransactionBehavior::Immediate)
             .map_err(map_sql_error)?;
         Ok(SourceWriteBatch {
             tx,
