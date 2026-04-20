@@ -1,3 +1,9 @@
+param(
+  [int]$Logs = 5,
+  [string]$OutDir = "dist\\bug_bundles",
+  [switch]$Sandbox
+)
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
@@ -14,12 +20,6 @@ Bundle contents are intentionally limited:
 Note: logs and config may contain local paths. Review before sharing.
 #>
 
-param(
-  [int]$Logs = 5,
-  [string]$OutDir = "dist\\bug_bundles",
-  [switch]$Sandbox
-)
-
 function Get-SandboxConfigBase {
   $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
   return (Join-Path $rootDir ".sandbox\\sempal")
@@ -30,7 +30,7 @@ function Get-DefaultConfigBase {
     return $env:SEMPAL_CONFIG_HOME
   }
   $sandboxBase = Get-SandboxConfigBase
-  if ($Sandbox -or (Test-Path -LiteralPath $sandboxBase -PathType Container)) {
+  if ($script:Sandbox -or (Test-Path -LiteralPath $sandboxBase -PathType Container)) {
     return $sandboxBase
   }
   if ($IsWindows) {
@@ -49,10 +49,13 @@ function Get-DefaultConfigBase {
 }
 
 function Get-PersistenceProfile {
-  if ([string]::IsNullOrWhiteSpace($env:SEMPAL_CONFIG_PROFILE)) {
-    return "live"
+  if (-not [string]::IsNullOrWhiteSpace($env:SEMPAL_CONFIG_PROFILE)) {
+    return $env:SEMPAL_CONFIG_PROFILE.Trim()
   }
-  return $env:SEMPAL_CONFIG_PROFILE.Trim()
+  if ($script:Sandbox) {
+    return "sandbox"
+  }
+  return "live"
 }
 
 function Get-AppDataDirOverrideFromConfig {
@@ -65,7 +68,7 @@ function Get-AppDataDirOverrideFromConfig {
     return $null
   }
 
-  $line = (Select-String -Path $ConfigPath -Pattern '^\s*app_data_dir\s*=' -SimpleMatch | Select-Object -First 1)
+  $line = (Select-String -LiteralPath $ConfigPath -Pattern '^\s*app_data_dir\s*=' | Select-Object -First 1)
   if ($null -eq $line) {
     return $null
   }
@@ -133,20 +136,20 @@ function Try-Cmd([string]$Exe, [string[]]$Args) {
 }
 
 @(
-  "timestamp_utc=$timestamp"
-  "repo_root=$rootDir"
-  "config_base_dir=$configBase"
-  ("persistence_profile=" + (Get-PersistenceProfile))
-  "preferred_sandbox_config_home=$sandboxBase"
-  ("used_sandbox_config_home=" + $usedSandbox.ToString().ToLowerInvariant())
-  "app_root=$appRoot"
-  "logs_dir=$logsDir"
-  "config_path=$configPath"
-  ""
-  ("rustc_version=" + (Try-Cmd "rustc" @("--version")))
-  ("cargo_version=" + (Try-Cmd "cargo" @("--version")))
-  ("git_version=" + (Try-Cmd "git" @("--version")))
-  ("os=" + $env:OS)
+  "timestamp_utc=$timestamp",
+  "repo_root=$rootDir",
+  "config_base_dir=$configBase",
+  ("persistence_profile=" + (Get-PersistenceProfile)),
+  "preferred_sandbox_config_home=$sandboxBase",
+  ("used_sandbox_config_home=" + $usedSandbox.ToString().ToLowerInvariant()),
+  "app_root=$appRoot",
+  "logs_dir=$logsDir",
+  "config_path=$configPath",
+  "",
+  ("rustc_version=" + (Try-Cmd "rustc" @("--version"))),
+  ("cargo_version=" + (Try-Cmd "cargo" @("--version"))),
+  ("git_version=" + (Try-Cmd "git" @("--version"))),
+  ("os=" + $env:OS),
   ("ps_version=" + $PSVersionTable.PSVersion)
 ) | Set-Content -LiteralPath $infoPath -Encoding UTF8
 

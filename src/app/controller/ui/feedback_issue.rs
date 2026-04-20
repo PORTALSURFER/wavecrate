@@ -163,9 +163,7 @@ impl AppController {
             .ok()
             .map(|p| p.display().to_string())
             .unwrap_or_else(|| "n/a".to_string());
-        format!(
-            "---\n\nDiagnostics\n- App version: {version}\n- OS: {os} ({arch})\n- Build: {build_type}\n- Logs: {logs}"
-        )
+        format_feedback_diagnostics_block(version, build_type, os, arch, &logs)
     }
 
     fn persist_issue_token(&mut self, token: &str, reopen_modal: bool) -> bool {
@@ -195,5 +193,36 @@ impl AppController {
         }
         self.ui.feedback_issue.token_loading = true;
         self.runtime.jobs.begin_issue_token_load();
+    }
+}
+
+fn format_feedback_diagnostics_block(
+    version: &str,
+    build_type: &str,
+    os: &str,
+    arch: &str,
+    logs_dir: &str,
+) -> String {
+    format!(
+        "---\n\nDiagnostics\n- App version: {version}\n- OS: {os} ({arch})\n- Build: {build_type}\n- Logs dir: {logs_dir}\n- Latest run log: newest `*.log` file in Logs dir"
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::format_feedback_diagnostics_block;
+
+    #[test]
+    fn diagnostics_block_points_to_log_directory_and_latest_log_hint() {
+        let block = format_feedback_diagnostics_block(
+            "1.2.3",
+            "release",
+            "windows",
+            "x86_64",
+            "C:\\Users\\me\\AppData\\Roaming\\.sempal\\logs",
+        );
+
+        assert!(block.contains("Logs dir: C:\\Users\\me\\AppData\\Roaming\\.sempal\\logs"));
+        assert!(block.contains("Latest run log: newest `*.log` file in Logs dir"));
     }
 }

@@ -34,6 +34,21 @@ Use this when you need a richer reconstruction of runtime actions or DB work.
     `powershell -ExecutionPolicy Bypass -File scripts/run.ps1 logs`
   - macOS/Linux/WSL:
     `bash scripts/run.sh logs`
+- for sandbox/manual QA runs created through `scripts/run.ps1 sandbox`, use the
+  matching sandbox retrieval path so the helper resolves
+  `<config-base>/.sempal/profiles/sandbox/logs` instead of the live profile:
+  - Windows PowerShell:
+    `powershell -ExecutionPolicy Bypass -File scripts/run.ps1 logs -Sandbox`
+  - macOS/Linux/WSL:
+    `bash scripts/run.sh logs --sandbox`
+- when collecting a report bundle from that same sandbox profile, use:
+  - Windows PowerShell:
+    `powershell -ExecutionPolicy Bypass -File scripts/run.ps1 bug-bundle -Sandbox`
+  - macOS/Linux/WSL:
+    `bash scripts/run.sh bug-bundle --sandbox`
+- the log file captures startup metadata plus structured debug events from the
+  run you reproduced with `--log`; it does not replace the manual reproduction
+  step for an incident that already happened in an earlier session
 - if you also set `RUST_LOG`, remember that it overrides the default filter;
   leave it unset for the standard debug contract unless you intentionally need a
   custom filter

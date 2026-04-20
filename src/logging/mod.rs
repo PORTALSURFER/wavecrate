@@ -303,4 +303,56 @@ mod tests {
             .count();
         assert_eq!(remaining, 10);
     }
+
+    #[test]
+    fn prune_keeps_newest_log_files() {
+        let dir = tempdir().unwrap();
+        for idx in 0..12 {
+            let path = dir.path().join(format!("sempal_{idx}.log"));
+            ensure_file_exists(&path).unwrap();
+            thread::sleep(Duration::from_millis(10));
+        }
+
+        prune_old_logs(dir.path(), 10).unwrap();
+
+        let mut remaining = fs::read_dir(dir.path())
+            .unwrap()
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.file_name().to_string_lossy().to_string())
+            .filter(|name| name.ends_with(".log"))
+            .collect::<Vec<_>>();
+        remaining.sort();
+
+        assert_eq!(
+            remaining,
+            vec![
+                "sempal_10.log".to_string(),
+                "sempal_11.log".to_string(),
+                "sempal_2.log".to_string(),
+                "sempal_3.log".to_string(),
+                "sempal_4.log".to_string(),
+                "sempal_5.log".to_string(),
+                "sempal_6.log".to_string(),
+                "sempal_7.log".to_string(),
+                "sempal_8.log".to_string(),
+                "sempal_9.log".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn prune_ignores_non_log_files() {
+        let dir = tempdir().unwrap();
+        for idx in 0..12 {
+            let path = dir.path().join(format!("sempal_{idx}.log"));
+            ensure_file_exists(&path).unwrap();
+            thread::sleep(Duration::from_millis(10));
+        }
+        let non_log_path = dir.path().join("keep.txt");
+        ensure_file_exists(&non_log_path).unwrap();
+
+        prune_old_logs(dir.path(), 10).unwrap();
+
+        assert!(non_log_path.exists());
+    }
 }

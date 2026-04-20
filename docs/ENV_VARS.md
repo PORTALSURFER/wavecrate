@@ -222,6 +222,31 @@ Sempal defaults to `info`, or to `sempal=debug,info` when the Sempal-owned
 debug feature is enabled via `--log`, `-log`, or `SEMPAL_DEBUG_LOGGING`.
 `RUST_LOG` overrides that default filter when it is set.
 
+### Debug log workflow
+
+- local release debugging:
+  - live profile:
+    `cargo run --release -- --log`
+  - sandbox/manual QA profile:
+    `powershell -ExecutionPolicy Bypass -File scripts/run.ps1 sandbox -- --log`
+- newest log retrieval:
+  - live profile:
+    `powershell -ExecutionPolicy Bypass -File scripts/run.ps1 logs`
+  - sandbox/manual QA profile:
+    `powershell -ExecutionPolicy Bypass -File scripts/run.ps1 logs -Sandbox`
+- bug-report collection:
+  - live profile:
+    `powershell -ExecutionPolicy Bypass -File scripts/run.ps1 bug-bundle`
+  - sandbox/manual QA profile:
+    `powershell -ExecutionPolicy Bypass -File scripts/run.ps1 bug-bundle -Sandbox`
+- what the log captures automatically:
+  - startup metadata, warnings/errors, and the structured Sempal-owned debug
+    action/DB events emitted during the reproduced run
+- what still requires manual reproduction:
+  - you still need to rerun the failing scenario with `--log`; the file records
+    what happened during that run, but it does not retroactively reconstruct an
+    earlier session that was not logged
+
 ## Headless audio
 
 - `ALSA_CONFIG_PATH`

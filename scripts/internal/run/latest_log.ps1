@@ -1,3 +1,8 @@
+param(
+  [int]$Lines = 200,
+  [switch]$Sandbox
+)
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
@@ -15,11 +20,6 @@ Resolution order for the `.sempal` root:
 This is best-effort and intended for quick diagnostics (humans + agents).
 #>
 
-param(
-  [int]$Lines = 200,
-  [switch]$Sandbox
-)
-
 function Get-SandboxConfigBase {
   $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
   return (Join-Path $rootDir ".sandbox\\sempal")
@@ -30,7 +30,7 @@ function Get-DefaultConfigBase {
     return $env:SEMPAL_CONFIG_HOME
   }
   $sandboxBase = Get-SandboxConfigBase
-  if ($Sandbox -or (Test-Path -LiteralPath $sandboxBase -PathType Container)) {
+  if ($script:Sandbox -or (Test-Path -LiteralPath $sandboxBase -PathType Container)) {
     return $sandboxBase
   }
   if ($IsWindows) {
@@ -49,10 +49,13 @@ function Get-DefaultConfigBase {
 }
 
 function Get-PersistenceProfile {
-  if ([string]::IsNullOrWhiteSpace($env:SEMPAL_CONFIG_PROFILE)) {
-    return "live"
+  if (-not [string]::IsNullOrWhiteSpace($env:SEMPAL_CONFIG_PROFILE)) {
+    return $env:SEMPAL_CONFIG_PROFILE.Trim()
   }
-  return $env:SEMPAL_CONFIG_PROFILE.Trim()
+  if ($script:Sandbox) {
+    return "sandbox"
+  }
+  return "live"
 }
 
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
@@ -73,7 +76,7 @@ function Get-AppDataDirOverrideFromConfig {
     return $null
   }
 
-  $line = (Select-String -Path $ConfigPath -Pattern '^\s*app_data_dir\s*=' -SimpleMatch | Select-Object -First 1)
+  $line = (Select-String -LiteralPath $ConfigPath -Pattern '^\s*app_data_dir\s*=' | Select-Object -First 1)
   if ($null -eq $line) {
     return $null
   }

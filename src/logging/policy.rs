@@ -219,10 +219,34 @@ mod tests {
     }
 
     #[test]
+    fn canonical_launch_arg_enables_debug_mode() {
+        let settings =
+            DebugLoggingSettings::from_process([OsString::from("sempal"), OsString::from("--log")]);
+        assert_eq!(settings.mode(), DebugLoggingMode::Enabled);
+        assert!(settings.enabled_by_launch_arg());
+    }
+
+    #[test]
     fn env_var_enables_debug_mode_with_sempal_owned_filter() {
         let settings = DebugLoggingSettings::from_values(false, Some("1".to_string()), None);
         assert_eq!(settings.mode(), DebugLoggingMode::Enabled);
         assert_eq!(settings.filter_description(), DEBUG_FILTER);
+    }
+
+    #[test]
+    fn launch_arg_still_enables_debug_mode_when_env_var_is_false() {
+        let settings = DebugLoggingSettings::from_values(true, Some("off".to_string()), None);
+        assert_eq!(settings.mode(), DebugLoggingMode::Enabled);
+        assert_eq!(settings.filter_description(), DEBUG_FILTER);
+        assert!(settings.enabled_by_launch_arg());
+        assert!(settings.invalid_debug_value().is_none());
+    }
+
+    #[test]
+    fn explicit_false_env_var_keeps_standard_mode() {
+        let settings = DebugLoggingSettings::from_values(false, Some("false".to_string()), None);
+        assert_eq!(settings.mode(), DebugLoggingMode::Standard);
+        assert_eq!(settings.filter_description(), DEFAULT_FILTER);
     }
 
     #[test]

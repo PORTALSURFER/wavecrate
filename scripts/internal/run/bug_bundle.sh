@@ -80,9 +80,13 @@ default_config_base_dir() {
 current_persistence_profile() {
   if [[ -n "${SEMPAL_CONFIG_PROFILE:-}" ]]; then
     printf "%s" "${SEMPAL_CONFIG_PROFILE}"
-  else
-    printf "%s" "live"
+    return 0
   fi
+  if (( USE_SANDBOX == 1 )); then
+    printf "%s" "sandbox"
+    return 0
+  fi
+  printf "%s" "live"
 }
 
 config_base_dir="$(default_config_base_dir)"

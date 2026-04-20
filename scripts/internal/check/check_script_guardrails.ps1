@@ -136,7 +136,7 @@ function Invoke-ExpectOutput {
   }
 
   $text = if ($null -eq $output) { "" } else { ($output | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine }
-  $missing = @($ExpectedSubstrings | Where-Object { $text -notlike "*$_*" })
+  $missing = @($ExpectedSubstrings | Where-Object { -not $text.Contains($_) })
   if ($exitCode -eq $ExpectedCode -and $missing.Count -eq 0) {
     Write-Pass $Label
     return
@@ -200,6 +200,8 @@ try {
     (Join-Path $scriptsDir "ci.ps1"),
     (Join-Path $scriptsDir "check.ps1"),
     (Join-Path $scriptsDir "run.ps1"),
+    (Join-Path $scriptsDir "internal/run/latest_log.ps1"),
+    (Join-Path $scriptsDir "internal/run/bug_bundle.ps1"),
     (Join-Path $scriptsDir "internal/agent/run_agent_request.ps1"),
     (Join-Path $scriptsDir "internal/agent/run_agent_ci_checks.ps1"),
     (Join-Path $scriptsDir "internal/agent/run_agent_preflight.ps1"),
@@ -391,6 +393,64 @@ try {
     Invoke-ExpectExitCode -Label "docs index fixture rejects duplicated mutable audit status" -ExpectedCode 1 -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/internal/check/check_docs_index.ps1")
   } finally {
     Remove-Item -Recurse -Force $docsIndexFixtureDir -ErrorAction SilentlyContinue
+  }
+
+  $runHelperFixtureDir = New-TempDir
+  try {
+    $repoDir = Join-Path $runHelperFixtureDir "repo"
+    New-Item -ItemType Directory -Path $repoDir | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $repoDir "scripts/internal/run") -Force | Out-Null
+
+    Copy-Item (Join-Path $scriptsDir "run.ps1") (Join-Path $repoDir "scripts/run.ps1")
+    Copy-Item (Join-Path $scriptsDir "internal/run/latest_log.ps1") (Join-Path $repoDir "scripts/internal/run/latest_log.ps1")
+
+    $configBase = Join-Path $repoDir "fixture-config"
+    $liveLogsDir = Join-Path $configBase ".sempal/logs"
+    New-Item -ItemType Directory -Path $liveLogsDir -Force | Out-Null
+    Set-Content -Path (Join-Path $liveLogsDir "older.log") -Value "older live log"
+    Start-Sleep -Milliseconds 20
+    $newestLiveLog = Join-Path $liveLogsDir "newer.log"
+    Set-Content -Path $newestLiveLog -Value "newer live log"
+
+    Invoke-ExpectOutput -Label "latest log helper resolves live profile log file" -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/run.ps1") -Arguments @("logs") -EnvVars @{
+      APPDATA = $configBase
+      SEMPAL_CONFIG_HOME = ""
+      SEMPAL_CONFIG_PROFILE = ""
+    } -ExpectedSubstrings @(
+      "[latest_log] persistence_profile=live",
+      "[latest_log] logs_dir=$liveLogsDir",
+      "[latest_log] newest_log=$newestLiveLog",
+      "newer live log"
+    )
+
+    $sandboxBase = Join-Path $repoDir ".sandbox/sempal"
+    $sandboxDefaultRoot = Join-Path $sandboxBase ".sempal/profiles/sandbox"
+    New-Item -ItemType Directory -Path $sandboxDefaultRoot -Force | Out-Null
+    $overrideRoot = Join-Path $repoDir "sandbox-override"
+    $overrideLogsDir = Join-Path $overrideRoot "logs"
+    New-Item -ItemType Directory -Path $overrideLogsDir -Force | Out-Null
+    Set-Content -Path (Join-Path $sandboxDefaultRoot "config.toml") -Value @(
+      ('app_data_dir = "{0}"' -f $overrideRoot.Replace('\', '/'))
+    )
+    $overrideRootConfigStyle = $overrideRoot.Replace('\', '/')
+    Set-Content -Path (Join-Path $overrideLogsDir "old.log") -Value "older sandbox log"
+    Start-Sleep -Milliseconds 20
+    $newestSandboxLog = Join-Path $overrideLogsDir "new.log"
+    Set-Content -Path $newestSandboxLog -Value "newest sandbox log"
+
+    Invoke-ExpectOutput -Label "latest log helper resolves sandbox profile and app_data_dir override" -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/run.ps1") -Arguments @("logs", "-Sandbox") -EnvVars @{
+      APPDATA = $configBase
+      SEMPAL_CONFIG_HOME = ""
+      SEMPAL_CONFIG_PROFILE = ""
+    } -ExpectedSubstrings @(
+      "[latest_log] persistence_profile=sandbox",
+      "[latest_log] app_root=$overrideRootConfigStyle",
+      "[latest_log] logs_dir=$overrideLogsDir",
+      "[latest_log] newest_log=$newestSandboxLog",
+      "newest sandbox log"
+    )
+  } finally {
+    Remove-Item -Recurse -Force $runHelperFixtureDir -ErrorAction SilentlyContinue
   }
 
   $migrationFixtureDir = New-TempDir
