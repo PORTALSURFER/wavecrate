@@ -57,6 +57,7 @@ impl BrowserController<'_> {
         let was_playing = self.is_playing();
         let was_looping = self.ui.waveform.loop_enabled;
         let playhead_position = self.ui.waveform.playhead.position;
+        let fallback_sound_type = ctx.entry.sound_type;
         let is_currently_loaded = self
             .sample_view
             .wav
@@ -71,6 +72,7 @@ impl BrowserController<'_> {
                 ctx,
                 new_relative,
                 tag,
+                fallback_sound_type,
                 is_currently_loaded && was_playing,
                 was_looping,
                 playhead_position
@@ -93,6 +95,7 @@ impl BrowserController<'_> {
                 ctx,
                 new_relative,
                 tag,
+                fallback_sound_type,
                 is_currently_loaded && was_playing,
                 was_looping,
                 playhead_position
@@ -113,6 +116,9 @@ pub(crate) struct SampleAutoRenameRequest {
     pub(crate) old_relative: PathBuf,
     pub(crate) new_relative: PathBuf,
     pub(crate) tag: crate::sample_sources::Rating,
+    /// Sound type inferred during controller-side request preparation when the
+    /// source DB row does not already store one.
+    pub(crate) sound_type: Option<crate::sample_sources::SampleSoundType>,
     pub(crate) resume_playback: bool,
     pub(crate) resume_looped: bool,
     pub(crate) resume_start_override: Option<f64>,
@@ -122,6 +128,7 @@ fn run_sample_rename_job(
     ctx: TriageSampleContext,
     new_relative: PathBuf,
     tag: crate::sample_sources::Rating,
+    fallback_sound_type: Option<crate::sample_sources::SampleSoundType>,
     resume_playback: bool,
     resume_looped: bool,
     resume_start_override: Option<f64>,
@@ -149,6 +156,7 @@ fn run_sample_rename_job(
         ctx.entry.looped,
         ctx.entry.locked,
         ctx.entry.last_played_at,
+        fallback_sound_type,
     );
     SampleRenameResult {
         source_id: ctx.source.id,
@@ -197,6 +205,7 @@ pub(crate) fn run_sample_auto_rename_job(
             false,
             false,
             None,
+            request.sound_type,
         ) {
             Ok(entry) => renamed.push(SampleAutoRenameSuccess {
                 old_relative: request.old_relative,
@@ -228,6 +237,7 @@ pub(super) fn perform_sample_rename(
     fallback_looped: bool,
     fallback_locked: bool,
     fallback_last_played_at: Option<i64>,
+    fallback_sound_type: Option<crate::sample_sources::SampleSoundType>,
 ) -> Result<WavEntry, String> {
     let new_absolute = source.root.join(new_relative);
     std::fs::rename(old_absolute, &new_absolute)
@@ -249,7 +259,8 @@ pub(super) fn perform_sample_rename(
             .unwrap_or(fallback_locked);
         let sound_type = db
             .sound_type_for_path(old_relative)
-            .map_err(|err| format!("Failed to load sound type: {err}"))?;
+            .map_err(|err| format!("Failed to load sound type: {err}"))?
+            .or(fallback_sound_type);
         let user_tag = db
             .user_tag_for_path(old_relative)
             .map_err(|err| format!("Failed to load custom tag: {err}"))?;

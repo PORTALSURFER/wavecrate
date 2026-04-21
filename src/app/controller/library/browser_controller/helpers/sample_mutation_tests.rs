@@ -31,6 +31,7 @@ fn sample_rename_rolls_back_file_when_db_write_cannot_start() {
         false,
         false,
         None,
+        Some(SampleSoundType::Kick),
     );
 
     release_db_lock(lock_release_tx, lock_done_rx);
@@ -88,6 +89,7 @@ fn sample_rename_preserves_locked_and_metadata_on_success() {
         false,
         false,
         None,
+        Some(SampleSoundType::Kick),
     )
     .expect("rename should succeed");
 
@@ -171,6 +173,45 @@ fn sample_auto_rename_rolls_back_each_failed_file_when_db_is_busy() {
     }
 }
 
+#[test]
+/// Auto-rename persists inferred sound type in the worker when the old DB row is missing it.
+fn sample_auto_rename_persists_inferred_sound_type_without_controller_db_write() {
+    let temp = tempdir().expect("create temp dir");
+    let source = SampleSource::new(temp.path().join("source"));
+    std::fs::create_dir_all(&source.root).expect("create source root");
+    let relative = Path::new("mystery.wav");
+    let absolute = source.root.join(relative);
+    write_test_wav(&absolute, &[0.0, 0.1, -0.1]);
+    let metadata = std::fs::metadata(&absolute).expect("read file metadata");
+    let db = SourceDatabase::open(&source.root).expect("open source db");
+    db.upsert_file(relative, metadata.len(), 0)
+        .expect("insert db row");
+    db.set_tag(relative, Rating::KEEP_3).expect("set tag");
+
+    let result = run_sample_auto_rename_job(
+        source.clone(),
+        vec![SampleAutoRenameRequest {
+            old_relative: relative.to_path_buf(),
+            new_relative: PathBuf::from("portal_SS_kick.wav"),
+            tag: Rating::KEEP_3,
+            sound_type: Some(SampleSoundType::Kick),
+            resume_playback: false,
+            resume_looped: false,
+            resume_start_override: None,
+        }],
+        Arc::new(AtomicBool::new(false)),
+    );
+
+    assert!(result.errors.is_empty());
+    assert_eq!(result.renamed.len(), 1);
+    let renamed = Path::new("portal_SS_kick.wav");
+    let db = SourceDatabase::open(&source.root).expect("reopen source db");
+    assert_eq!(
+        db.sound_type_for_path(renamed).expect("renamed sound type"),
+        Some(SampleSoundType::Kick)
+    );
+}
+
 fn setup_fixture(names: &[&str]) -> (TempDir, SampleSource) {
     let temp = tempdir().expect("create temp dir");
     let source = SampleSource::new(temp.path().join("source"));
@@ -201,6 +242,7 @@ fn rename_request(old_relative: &str, new_relative: &str) -> SampleAutoRenameReq
         old_relative: PathBuf::from(old_relative),
         new_relative: PathBuf::from(new_relative),
         tag: Rating::KEEP_3,
+        sound_type: Some(SampleSoundType::Kick),
         resume_playback: false,
         resume_looped: false,
         resume_start_override: None,

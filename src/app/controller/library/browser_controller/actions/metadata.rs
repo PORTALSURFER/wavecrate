@@ -1,7 +1,7 @@
 use super::super::helpers::TriageSampleContext;
 use super::super::{
-    auto_rename::{AutoRenameInput, build_auto_rename_stem},
-    helpers::{SampleAutoRenameRequest, run_sample_auto_rename_job},
+    auto_rename::{build_auto_rename_stem, AutoRenameInput},
+    helpers::{run_sample_auto_rename_job, SampleAutoRenameRequest},
 };
 use super::common::format_bpm_label;
 use super::*;
@@ -9,7 +9,8 @@ use crate::app::controller::jobs::{AnalysisMetadataMutationOp, FileOpResult};
 use crate::app::controller::state::runtime::MetadataRollback;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, atomic::AtomicBool};
+use std::sync::{atomic::AtomicBool, Arc};
+use std::time::Instant;
 use tracing::{info, warn};
 
 impl BrowserController<'_> {
@@ -251,67 +252,8 @@ impl BrowserController<'_> {
         if self.runtime.jobs.file_ops_in_progress() {
             return Err("File operation already in progress".to_string());
         }
-        let db = self
-            .database_for(&source)
-            .map_err(|err| format!("Database unavailable: {err}"))?;
-        let mut requests = Vec::new();
-        let mut reserved_targets = HashSet::new();
-        let identifier = self.settings.default_identifier.clone();
         self.preload_bpm_values_for_paths(paths);
-        for relative_path in paths {
-            let tag = self.sample_tag_for(&source, relative_path)?;
-            let looped = self.sample_looped_for(&source, relative_path)?;
-            let sound_type = self
-                .live_sound_type_for_path(&source, relative_path)
-                .or(db
-                    .sound_type_for_path(relative_path)
-                    .map_err(|err| format!("Failed to read sound type: {err}"))?)
-                .or_else(|| {
-                    relative_path
-                        .file_stem()
-                        .and_then(|stem| stem.to_str())
-                        .and_then(crate::sample_sources::SampleSoundType::infer_from_name)
-                });
-            if let Some(sound_type) = sound_type {
-                let _ = db.set_sound_type(relative_path, Some(sound_type));
-            }
-            let user_tag = self.live_user_tag_for_path(&source, relative_path).or(db
-                .user_tag_for_path(relative_path)
-                .map_err(|err| format!("Failed to read custom tag: {err}"))?);
-            let stem = build_auto_rename_stem(&AutoRenameInput {
-                identifier: identifier.clone(),
-                looped,
-                sound_type,
-                user_tag,
-                bpm: self.bpm_value_for_path(relative_path),
-            });
-            let new_relative = self.resolve_auto_rename_target(
-                &source.root,
-                relative_path,
-                stem.tagged_basename.as_deref(),
-                &stem.fallback_identifier,
-                &mut reserved_targets,
-            )?;
-            let is_currently_loaded =
-                self.sample_view
-                    .wav
-                    .loaded_audio
-                    .as_ref()
-                    .is_some_and(|audio| {
-                        audio.source_id == source.id && audio.relative_path == *relative_path
-                    });
-            let playhead_position = self.ui.waveform.playhead.position;
-            requests.push(SampleAutoRenameRequest {
-                old_relative: relative_path.clone(),
-                new_relative,
-                tag,
-                resume_playback: is_currently_loaded && self.is_playing(),
-                resume_looped: self.ui.waveform.loop_enabled,
-                resume_start_override: playhead_position
-                    .is_finite()
-                    .then(|| f64::from(playhead_position.clamp(0.0, 1.0))),
-            });
-        }
+        let requests = self.prepare_auto_rename_requests(&source, paths)?;
         let requested_paths = requests
             .iter()
             .map(|request| request.old_relative.clone())
@@ -338,6 +280,92 @@ impl BrowserController<'_> {
             return Err(err);
         }
         Ok(())
+    }
+
+    /// Build auto-rename requests without taking a source-db write lock on the
+    /// controller thread.
+    pub(crate) fn prepare_auto_rename_requests(
+        &mut self,
+        source: &SampleSource,
+        paths: &[PathBuf],
+    ) -> Result<Vec<SampleAutoRenameRequest>, String> {
+        let started_at = Instant::now();
+        let db = crate::sample_sources::SourceDatabase::open_read_only(&source.root)
+            .map_err(|err| format!("Database unavailable: {err}"))?;
+        let mut requests = Vec::with_capacity(paths.len());
+        let mut reserved_targets = HashSet::new();
+        let identifier = self.settings.default_identifier.clone();
+        let playhead_position = self.ui.waveform.playhead.position;
+        let is_playing = self.is_playing();
+        let resume_looped = self.ui.waveform.loop_enabled;
+        for relative_path in paths {
+            let tag = self.sample_tag_for(source, relative_path)?;
+            let looped = self.sample_looped_for(source, relative_path)?;
+            let sound_type = self
+                .live_sound_type_for_path(source, relative_path)
+                .or(db
+                    .sound_type_for_path(relative_path)
+                    .map_err(|err| format!("Failed to read sound type: {err}"))?)
+                .or_else(|| {
+                    relative_path
+                        .file_stem()
+                        .and_then(|stem| stem.to_str())
+                        .and_then(crate::sample_sources::SampleSoundType::infer_from_name)
+                });
+            let user_tag = self.live_user_tag_for_path(source, relative_path).or(db
+                .user_tag_for_path(relative_path)
+                .map_err(|err| format!("Failed to read custom tag: {err}"))?);
+            let stem = build_auto_rename_stem(&AutoRenameInput {
+                identifier: identifier.clone(),
+                looped,
+                sound_type,
+                user_tag,
+                bpm: self.bpm_value_for_path(relative_path),
+            });
+            let new_relative = self.resolve_auto_rename_target(
+                &source.root,
+                relative_path,
+                stem.tagged_basename.as_deref(),
+                &stem.fallback_identifier,
+                &mut reserved_targets,
+            )?;
+            let is_currently_loaded =
+                self.sample_view
+                    .wav
+                    .loaded_audio
+                    .as_ref()
+                    .is_some_and(|audio| {
+                        audio.source_id == source.id && audio.relative_path == *relative_path
+                    });
+            requests.push(SampleAutoRenameRequest {
+                old_relative: relative_path.clone(),
+                new_relative,
+                tag,
+                sound_type,
+                resume_playback: is_currently_loaded && is_playing,
+                resume_looped,
+                resume_start_override: playhead_position
+                    .is_finite()
+                    .then(|| f64::from(playhead_position.clamp(0.0, 1.0))),
+            });
+        }
+        let elapsed = started_at.elapsed();
+        if elapsed.as_millis() >= 100 {
+            warn!(
+                source_id = %source.id,
+                request_count = requests.len(),
+                elapsed_ms = elapsed.as_millis() as u64,
+                "auto rename: slow controller request preparation"
+            );
+        } else {
+            info!(
+                source_id = %source.id,
+                request_count = requests.len(),
+                elapsed_ms = elapsed.as_millis() as u64,
+                "auto rename: prepared controller requests"
+            );
+        }
+        Ok(requests)
     }
 
     fn resolve_auto_rename_target(
