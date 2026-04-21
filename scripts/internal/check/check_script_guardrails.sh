@@ -144,6 +144,7 @@ run_docs_index_fixture() {
     docs/plans/index.md \
     docs/plans/TEMPLATE_execution_plan.md \
     docs/plans/TEMPLATE_investigation.md \
+    docs/plans/active/todo.md \
     tmp/improvement_audit_plan.md
   do
     mkdir -p "$repo_dir/$(dirname "$path")"
@@ -161,6 +162,7 @@ run_docs_index_fixture() {
 - `docs/plans/index.md`
 - `docs/plans/TEMPLATE_execution_plan.md`
 - `docs/plans/TEMPLATE_investigation.md`
+- `docs/plans/active/todo.md`
 - `tmp/improvement_audit_plan.md` - current evidence-driven ROI-ranked improvement backlog and execution record for the live codebase; use it as the canonical source for the current audit lane status and execution order
 EOF
 
@@ -181,6 +183,7 @@ EOF
 - `docs/plans/index.md`
 - `docs/plans/TEMPLATE_execution_plan.md`
 - `docs/plans/TEMPLATE_investigation.md`
+- `docs/plans/active/todo.md`
 - `tmp/improvement_audit_plan.md` - current evidence-driven ROI-ranked improvement backlog and execution record for the live codebase (refreshed on 2026-03-31; Phase 2 is active and item 2 is next)
 EOF
 

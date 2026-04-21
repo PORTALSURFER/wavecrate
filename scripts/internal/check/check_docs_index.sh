@@ -24,6 +24,7 @@ required=(
   "docs/plans/index.md"
   "docs/plans/TEMPLATE_execution_plan.md"
   "docs/plans/TEMPLATE_investigation.md"
+  "docs/plans/active/todo.md"
 )
 required_pointers=(
   "tmp/improvement_audit_plan.md"

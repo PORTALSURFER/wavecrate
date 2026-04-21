@@ -34,15 +34,13 @@ Machine-consumed check allowlists do not live here anymore. They now live under
 - `docs/plans/TEMPLATE_investigation.md`
   - reusable template for investigation writeups
 - `docs/plans/active/todo.md`
-  - short ordered queue for the active lane
+  - short ordered queue for the active lane and current docs-side wake-up path
 - `tmp/improvement_audit_plan.md`
   - canonical source for the current audit lane status and execution order
-- `tmp/perf_plan.md`
-  - runtime-performance backlog and execution record for the live tree
-- `tmp/cleanup_plan.md`
-  - parked cleanup backlog
-- `tmp/bug_audit_plan.md`
-  - latest bug-audit snapshot
+- `tmp/database_system_audit_plan.md`
+  - database-system audit notes and follow-up context
+- `tmp/source_runtime_test_isolation_audit_plan.md`
+  - source-runtime test-isolation audit notes and follow-up context
 
 ## Default workflow
 

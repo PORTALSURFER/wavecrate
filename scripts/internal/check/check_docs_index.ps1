@@ -30,6 +30,7 @@ try {
     "docs/plans/index.md"
     "docs/plans/TEMPLATE_execution_plan.md"
     "docs/plans/TEMPLATE_investigation.md"
+    "docs/plans/active/todo.md"
 )
   $requiredPointers = @(
     "tmp/improvement_audit_plan.md"

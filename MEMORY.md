@@ -15,42 +15,32 @@ Updated By: Codex
 - The current workspace is dirty with unrelated user edits; I must not overwrite them while executing the perf lane.
 - The user explicitly reopened the improvement-audit lane on 2026-04-19.
 - `tmp/improvement_audit_plan.md` is now refreshed as the active Phase 1 evidence-driven audit backlog for the current live tree.
-- `tmp/perf_plan.md` is the active source of truth for the rebuilt 2026-04-17 follow-up runtime performance backlog.
-- Phase 2 is complete on 2026-04-17. Items 1-8 are complete, including item 6 in `vendor/radiant` (`6784636f`, `perf(text-cache): retain native frame text payloads`), item 7 in the root repo (`1a025192`, `perf(similarity): persist lightweight feature metrics`), and item 8 in `vendor/radiant` (`00156ef1`, `perf(startup): reveal presented placeholder frame immediately`).
-- Fresh evidence captured on 2026-04-17:
-  - `powershell -ExecutionPolicy Bypass -File scripts/perf/run_perf_guard.ps1`
-  - `target/perf/bench.json` with `controller_app_model_projection.p95_us = 2826`, `retained_app_model_projection_p95_us = 5`, `browser_filter_churn_latency.p95_us = 38`, `browser_query_churn_latency.p95_us = 65`, `wheel_latency.p95_us = 419`, `waveform_interaction_latency.p95_us = 108`, and `feature_blob_decode.total_elapsed_ms = 433` for `320000` lightweight blobs.
-  - `SEMPAL_PERF_GUARD_STARTUP_PROFILE=1 powershell -ExecutionPolicy Bypass -File scripts/perf/run_perf_guard.ps1`
-  - `target/perf/bench..startup_summary.json` with `first_present_ms = 1691.321`, `surface_ready_ms = 880.581`, `renderer_ready_ms = 1203.259`, `first_scene_ready_ms = 1205.161`, and `deferred_model_refresh_ms = 420.733`.
-  - Waveform preview A/B: `target/perf/bench_default_preview.json` vs `target/perf/bench_preview_off.json` shows disabling immediate waveform preview regresses `waveform_interaction_latency` (`p95 158us -> 1304us`, `p99 215us -> 13518us`).
-- The current ordered follow-up backlog in `tmp/perf_plan.md` now has items 1-8 complete. The only remaining follow-up is manual visual review of the earlier startup placeholder reveal on a slow and a fast machine.
+- `docs/plans/index.md` and `docs/plans/active/todo.md` now exist as the stable docs-side plan navigation layer.
+- Runtime-performance follow-up history is no longer anchored by a live `tmp/perf_plan.md` file in this checkout; do not point wake-up docs or guardrails at that removed path.
 - The current ordered improvement backlog is:
   - `OPT-52` restore script entrypoint and guardrail path consistency after the `scripts/internal` migration
   - `OPT-50` reuse the existing controller job-DTO split
   - `OPT-54` split file-op apply flows from folder mutation execution/recovery paths
   - `OPT-53` split browser visible-row pipeline stages into focused modules
 - The Windows Cargo wrapper lane is still trustworthy in this environment because `scripts/internal/use_cargo_cache.ps1` falls back to a local passthrough `rustc` wrapper when user-level Cargo config forces a broken `sccache`.
-- `tmp/improvement_audit_plan.md` and `tmp/cleanup_plan.md` remain parked unless the user explicitly reopens those lanes.
+- `tmp/improvement_audit_plan.md` remains the active improvement lane source of truth unless the user redirects to another issue or plan.
 - Future Windows sessions must use the PowerShell wrappers in `scripts/*.ps1` unless the user explicitly overrides that rule.
 - Rust tests must run serially in one cargo process at a time; do not run multiple Rust test processes concurrently.
 
 ## Immediate Next Actions
 
-1. Treat `tmp/perf_plan.md` as the active Phase 2 runtime-performance source of truth.
-2. Treat `tmp/perf_plan.md` as the completed runtime-performance record for this Phase 2 run and preserve the results for follow-up work.
-3. Treat `tmp/improvement_audit_plan.md` as the active Phase 1 audit source of truth until the user confirms implementation order.
-4. Preserve the Windows PowerShell wrapper path for future validation runs in this environment.
-5. Keep `tmp/cleanup_plan.md` parked unless the user explicitly reopens that lane.
+1. Treat `tmp/improvement_audit_plan.md` as the active audit source of truth until the user confirms a different lane.
+2. Use `docs/plans/index.md` and `docs/plans/active/todo.md` as the durable plan-navigation layer.
+3. Preserve the Windows PowerShell wrapper path for future validation runs in this environment.
 
 ## Work Notes
 
-- Active audit plan: `tmp/perf_plan.md` (Phase 2 complete on 2026-04-17; items 1-8 complete, manual startup visual review still recommended)
+- Active audit plan: `tmp/improvement_audit_plan.md`
 - Active short queue: `docs/plans/active/todo.md`
 - Dual-lane validation reference: `docs/TEST.md`
-- Parked cleanup backlog: `tmp/cleanup_plan.md`
-- Parked improvement backlog: `tmp/improvement_audit_plan.md`
+- Database-system audit notes: `tmp/database_system_audit_plan.md`
+- Source-runtime test-isolation audit notes: `tmp/source_runtime_test_isolation_audit_plan.md`
 - GUI automation/test design: `docs/SYSTEMS.md`
-- GUI automation/test rollout plan: `docs/plans/active/gui_test_platform_exec_plan.md`
 
 
 
