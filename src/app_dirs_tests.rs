@@ -34,6 +34,43 @@ fn dependency_live_profile_override_keeps_live_root_shape() {
 }
 
 #[test]
+fn dependency_live_logs_dir_stays_under_live_app_root() {
+    if explicit_persistence_env_present() {
+        return;
+    }
+    let base = tempdir().expect("create base dir");
+    let _base_guard = ConfigBaseGuard::set(base.path().to_path_buf());
+    let _profile_guard = PersistenceProfileGuard::live();
+
+    let logs_dir = app_dirs::logs_dir().expect("resolve live logs dir");
+
+    assert_eq!(logs_dir, base.path().join(".sempal").join("logs"));
+    assert!(logs_dir.is_dir());
+}
+
+#[test]
+fn dependency_sandbox_logs_dir_stays_under_sandbox_profile_root() {
+    if explicit_persistence_env_present() {
+        return;
+    }
+    let base = tempdir().expect("create base dir");
+    let _base_guard = ConfigBaseGuard::set(base.path().to_path_buf());
+    let _profile_guard = PersistenceProfileGuard::sandbox();
+
+    let logs_dir = app_dirs::logs_dir().expect("resolve sandbox logs dir");
+
+    assert_eq!(
+        logs_dir,
+        base.path()
+            .join(".sempal")
+            .join("profiles")
+            .join("sandbox")
+            .join("logs")
+    );
+    assert!(logs_dir.is_dir());
+}
+
+#[test]
 fn dependency_explicit_app_root_override_wins_over_test_default() {
     if explicit_persistence_env_present() {
         return;

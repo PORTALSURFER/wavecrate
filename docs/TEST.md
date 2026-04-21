@@ -140,6 +140,24 @@ that validation did not leak fixture sources into the real startup profile.
    so the session writes to the dedicated `sandbox` profile instead of the live
    profile.
 
+### Debug log workflow
+
+Use this when reproducing a release/manual bug that needs the richer
+per-launch diagnostics trail.
+
+1. Start a repro run with the Sempal-owned debug flag:
+   `cargo run --release -- --log`
+2. For isolated manual QA, use the sandbox profile instead:
+   `powershell -ExecutionPolicy Bypass -File scripts/run.ps1 sandbox -- --log`
+3. Retrieve the newest log quickly:
+   `powershell -ExecutionPolicy Bypass -File scripts/run.ps1 logs`
+4. Retrieve the sandbox run log the same way:
+   `powershell -ExecutionPolicy Bypass -File scripts/run.ps1 logs -Sandbox`
+5. Remember the boundary:
+   the log captures startup metadata plus structured action/DB diagnostics for
+   the current reproduced run only; earlier sessions still require a fresh repro
+   with `--log` enabled.
+
 ### Benchmarks and perf checks
 
 - `cargo bench`

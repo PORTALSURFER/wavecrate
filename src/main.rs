@@ -11,12 +11,12 @@ use sempal::app_core::ui::MIN_VIEWPORT_SIZE;
 use sempal::app_dirs;
 use sempal::gui_runtime::{NativeRunOptions, run_native_vello_app_declarative};
 use sempal::gui_test::{GuiFixtureBridge, GuiTestModeConfig};
-use sempal::logging;
+use sempal::logging::{self, ActionDebugEvent, emit_action_debug_event};
 use std::any::Any;
 use std::ffi::OsString;
 use std::panic::{self, AssertUnwindSafe};
 use std::process;
-use std::time::SystemTime;
+use std::time::{Instant, SystemTime};
 use tracing::{error, info};
 
 use run_contract::{
@@ -31,6 +31,7 @@ mod run_contract;
 fn main() -> Result<(), String> {
     logging::install_panic_hook();
     let args: Vec<OsString> = std::env::args_os().collect();
+    let startup_started_at = Instant::now();
 
     #[cfg(all(target_os = "windows", not(debug_assertions)))]
     if log_console_requested(&args) {
@@ -61,13 +62,35 @@ fn main() -> Result<(), String> {
     );
     info!("sempal startup: logging initialized");
     match app_dirs::resolve_persistence() {
-        Ok(persistence) => info!(
-            persistence_mode = %persistence.mode,
-            config_base = %persistence.config_base.display(),
-            app_root = %persistence.app_root.display(),
-            "sempal startup: persistence profile resolved"
-        ),
-        Err(err) => error!(err = %err, "sempal startup: failed to resolve persistence profile"),
+        Ok(persistence) => {
+            info!(
+                persistence_mode = %persistence.mode,
+                config_base = %persistence.config_base.display(),
+                app_root = %persistence.app_root.display(),
+                "sempal startup: persistence profile resolved"
+            );
+            let mode = persistence.mode.to_string();
+            emit_action_debug_event(ActionDebugEvent {
+                action: "runtime.startup.resolve_persistence",
+                pane: Some("background"),
+                source: Some(&mode),
+                outcome: "success",
+                elapsed: startup_started_at.elapsed(),
+                error: None,
+            });
+        }
+        Err(err) => {
+            error!(err = %err, "sempal startup: failed to resolve persistence profile");
+            let error = err.to_string();
+            emit_action_debug_event(ActionDebugEvent {
+                action: "runtime.startup.resolve_persistence",
+                pane: Some("background"),
+                source: None,
+                outcome: "error",
+                elapsed: startup_started_at.elapsed(),
+                error: Some(&error),
+            });
+        }
     }
 
     let mut runtime_started = false;
@@ -98,6 +121,7 @@ fn run_application(
     contract: &mut Option<run_contract::RunContract>,
     runtime_started: &mut bool,
 ) -> Result<(), String> {
+    let startup_started_at = Instant::now();
     if let Some(contract) = contract {
         contract.record(RUN_PHASE_STARTUP, MILESTONE_STARTUP_BEGIN, "running");
     }
@@ -125,8 +149,8 @@ fn run_application(
 
     let fixture_tag = gui_test_mode
         .as_ref()
-        .map(|config| config.fixture_tag.as_str())
-        .unwrap_or("live");
+        .map(|config| config.fixture_tag.clone())
+        .unwrap_or_else(|| String::from("live"));
     let viewport = gui_test_mode
         .as_ref()
         .map(|config| config.viewport)
@@ -136,10 +160,26 @@ fn run_application(
         ?viewport,
         "sempal startup: preparing GUI bridge"
     );
-    let mut bridge = match GuiFixtureBridge::new_with_viewport(fixture_tag, viewport) {
+    emit_action_debug_event(ActionDebugEvent {
+        action: "runtime.startup.prepare_gui_bridge",
+        pane: Some("background"),
+        source: Some(&fixture_tag),
+        outcome: "running",
+        elapsed: startup_started_at.elapsed(),
+        error: None,
+    });
+    let mut bridge = match GuiFixtureBridge::new_with_viewport(&fixture_tag, viewport) {
         Ok(bridge) => bridge,
         Err(err) => {
             error!(err = %err, "sempal startup: failed to construct native bridge");
+            emit_action_debug_event(ActionDebugEvent {
+                action: "runtime.startup.prepare_gui_bridge",
+                pane: Some("background"),
+                source: Some(&fixture_tag),
+                outcome: "error",
+                elapsed: startup_started_at.elapsed(),
+                error: Some(&err),
+            });
             if let Some(contract) = contract {
                 contract.record(RUN_PHASE_STARTUP, MILESTONE_STARTUP_FAILED, "error");
                 contract.finish("error");
@@ -152,19 +192,44 @@ fn run_application(
     }
 
     info!("sempal startup: native bridge constructed");
+    emit_action_debug_event(ActionDebugEvent {
+        action: "runtime.startup.prepare_gui_bridge",
+        pane: Some("background"),
+        source: Some(&fixture_tag),
+        outcome: "success",
+        elapsed: startup_started_at.elapsed(),
+        error: None,
+    });
     if let Some(contract) = contract {
         contract.record(RUN_PHASE_RUNTIME, MILESTONE_RUNTIME_STARTED, "running");
     }
     *runtime_started = true;
 
     let result = run_native_vello_app_declarative(options, bridge);
+    let runtime_elapsed = startup_started_at.elapsed();
     let exit_status = match &result {
         Ok(_) => {
             info!("sempal startup: native runtime exited normally");
+            emit_action_debug_event(ActionDebugEvent {
+                action: "runtime.exit.native_runtime",
+                pane: Some("background"),
+                source: Some(&fixture_tag),
+                outcome: "success",
+                elapsed: runtime_elapsed,
+                error: None,
+            });
             String::from("success")
         }
         Err(err) => {
             error!(err = %err, "sempal startup: runtime exited with error");
+            emit_action_debug_event(ActionDebugEvent {
+                action: "runtime.exit.native_runtime",
+                pane: Some("background"),
+                source: Some(&fixture_tag),
+                outcome: "error",
+                elapsed: runtime_elapsed,
+                error: Some(err),
+            });
             String::from("error")
         }
     };
