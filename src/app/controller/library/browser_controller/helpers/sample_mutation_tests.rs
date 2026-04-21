@@ -1,0 +1,233 @@
+use super::sample_mutation::perform_sample_rename;
+use super::{run_sample_auto_rename_job, SampleAutoRenameRequest};
+use crate::app::controller::test_support::write_test_wav;
+use crate::sample_sources::db::DB_FILE_NAME;
+use crate::sample_sources::{Rating, SampleSoundType, SampleSource, SourceDatabase};
+use std::path::{Path, PathBuf};
+use std::sync::{
+    atomic::AtomicBool,
+    mpsc::{Receiver, Sender},
+    Arc,
+};
+use std::time::Duration;
+use tempfile::{tempdir, TempDir};
+
+#[test]
+/// Single-sample rename restores the old path when the source DB is locked.
+fn sample_rename_rolls_back_file_when_db_write_cannot_start() {
+    let (_temp, source) = setup_fixture(&["old.wav"]);
+    let old_relative = Path::new("old.wav");
+    let new_relative = Path::new("renamed.wav");
+    let old_absolute = source.root.join(old_relative);
+    let new_absolute = source.root.join(new_relative);
+    let (lock_release_tx, lock_done_rx) = lock_db_until_released(&source.root);
+
+    let result = perform_sample_rename(
+        &source,
+        &old_absolute,
+        old_relative,
+        new_relative,
+        Rating::KEEP_3,
+        false,
+        false,
+        None,
+    );
+
+    release_db_lock(lock_release_tx, lock_done_rx);
+
+    let err = result.expect_err("locked DB should fail rename");
+    assert!(err.contains("Failed to start database update"));
+    assert!(old_absolute.is_file());
+    assert!(!new_absolute.exists());
+
+    let db = SourceDatabase::open(&source.root).expect("open source db");
+    assert_eq!(
+        db.tag_for_path(old_relative).expect("old tag"),
+        Some(Rating::KEEP_3)
+    );
+    assert_eq!(
+        db.looped_for_path(old_relative).expect("old looped"),
+        Some(true)
+    );
+    assert_eq!(
+        db.locked_for_path(old_relative).expect("old locked"),
+        Some(true)
+    );
+    assert_eq!(
+        db.sound_type_for_path(old_relative)
+            .expect("old sound type"),
+        Some(SampleSoundType::Kick)
+    );
+    assert_eq!(
+        db.user_tag_for_path(old_relative).expect("old user tag"),
+        Some(String::from("Vintage"))
+    );
+    assert_eq!(
+        db.last_played_at_for_path(old_relative)
+            .expect("old playback age"),
+        Some(42)
+    );
+    assert!(db.tag_for_path(new_relative).expect("new tag").is_none());
+}
+
+#[test]
+/// Successful sample rename keeps the locked flag and other metadata on the new DB row.
+fn sample_rename_preserves_locked_and_metadata_on_success() {
+    let (_temp, source) = setup_fixture(&["old.wav"]);
+    let old_relative = Path::new("old.wav");
+    let new_relative = Path::new("renamed.wav");
+    let old_absolute = source.root.join(old_relative);
+    let new_absolute = source.root.join(new_relative);
+
+    let entry = perform_sample_rename(
+        &source,
+        &old_absolute,
+        old_relative,
+        new_relative,
+        Rating::KEEP_3,
+        false,
+        false,
+        None,
+    )
+    .expect("rename should succeed");
+
+    assert_eq!(entry.relative_path, PathBuf::from("renamed.wav"));
+    assert!(entry.looped);
+    assert!(entry.locked);
+    assert_eq!(entry.sound_type, Some(SampleSoundType::Kick));
+    assert_eq!(entry.user_tag.as_deref(), Some("Vintage"));
+    assert_eq!(entry.last_played_at, Some(42));
+    assert!(!old_absolute.exists());
+    assert!(new_absolute.is_file());
+
+    let db = SourceDatabase::open(&source.root).expect("open source db");
+    assert!(db.tag_for_path(old_relative).expect("old tag").is_none());
+    assert_eq!(
+        db.tag_for_path(new_relative).expect("new tag"),
+        Some(Rating::KEEP_3)
+    );
+    assert_eq!(
+        db.looped_for_path(new_relative).expect("new looped"),
+        Some(true)
+    );
+    assert_eq!(
+        db.locked_for_path(new_relative).expect("new locked"),
+        Some(true)
+    );
+    assert_eq!(
+        db.sound_type_for_path(new_relative)
+            .expect("new sound type"),
+        Some(SampleSoundType::Kick)
+    );
+    assert_eq!(
+        db.user_tag_for_path(new_relative).expect("new user tag"),
+        Some(String::from("Vintage"))
+    );
+    assert_eq!(
+        db.last_played_at_for_path(new_relative)
+            .expect("new playback age"),
+        Some(42)
+    );
+}
+
+#[test]
+/// Auto-rename leaves every file at its original path when each DB rewrite attempt hits a busy lock.
+fn sample_auto_rename_rolls_back_each_failed_file_when_db_is_busy() {
+    let (_temp, source) = setup_fixture(&["alpha.wav", "beta.wav"]);
+    let requests = vec![
+        rename_request("alpha.wav", "alpha_renamed.wav"),
+        rename_request("beta.wav", "beta_renamed.wav"),
+    ];
+    let (lock_release_tx, lock_done_rx) = lock_db_until_released(&source.root);
+
+    let result =
+        run_sample_auto_rename_job(source.clone(), requests, Arc::new(AtomicBool::new(false)));
+
+    release_db_lock(lock_release_tx, lock_done_rx);
+
+    assert!(result.renamed.is_empty());
+    assert!(result.skipped.is_empty());
+    assert_eq!(result.errors.len(), 2);
+    assert!(result
+        .errors
+        .iter()
+        .all(|(_, err)| err.contains("Failed to start database update")));
+    assert!(source.root.join("alpha.wav").is_file());
+    assert!(source.root.join("beta.wav").is_file());
+    assert!(!source.root.join("alpha_renamed.wav").exists());
+    assert!(!source.root.join("beta_renamed.wav").exists());
+
+    let db = SourceDatabase::open(&source.root).expect("open source db");
+    for relative in [Path::new("alpha.wav"), Path::new("beta.wav")] {
+        assert_eq!(
+            db.tag_for_path(relative).expect("tag"),
+            Some(Rating::KEEP_3)
+        );
+        assert_eq!(db.locked_for_path(relative).expect("locked"), Some(true));
+        assert_eq!(
+            db.user_tag_for_path(relative).expect("user tag"),
+            Some(String::from("Vintage"))
+        );
+    }
+}
+
+fn setup_fixture(names: &[&str]) -> (TempDir, SampleSource) {
+    let temp = tempdir().expect("create temp dir");
+    let source = SampleSource::new(temp.path().join("source"));
+    std::fs::create_dir_all(&source.root).expect("create source root");
+    let db = SourceDatabase::open(&source.root).expect("open source db");
+    for name in names {
+        let relative = Path::new(name);
+        let absolute = source.root.join(relative);
+        write_test_wav(&absolute, &[0.0, 0.1, -0.1]);
+        let metadata = std::fs::metadata(&absolute).expect("read file metadata");
+        db.upsert_file(relative, metadata.len(), 0)
+            .expect("insert db row");
+        db.set_tag(relative, Rating::KEEP_3).expect("set tag");
+        db.set_looped(relative, true).expect("set looped");
+        db.set_locked(relative, true).expect("set locked");
+        db.set_sound_type(relative, Some(SampleSoundType::Kick))
+            .expect("set sound type");
+        db.set_user_tag(relative, Some("Vintage"))
+            .expect("set user tag");
+        db.set_last_played_at(relative, 42)
+            .expect("set playback age");
+    }
+    (temp, source)
+}
+
+fn rename_request(old_relative: &str, new_relative: &str) -> SampleAutoRenameRequest {
+    SampleAutoRenameRequest {
+        old_relative: PathBuf::from(old_relative),
+        new_relative: PathBuf::from(new_relative),
+        tag: Rating::KEEP_3,
+        resume_playback: false,
+        resume_looped: false,
+        resume_start_override: None,
+    }
+}
+
+fn lock_db_until_released(source_root: &Path) -> (Sender<()>, Receiver<()>) {
+    let (lock_release_tx, lock_release_rx) = std::sync::mpsc::channel();
+    let (lock_done_tx, lock_done_rx) = std::sync::mpsc::channel();
+    let (locked_tx, locked_rx) = std::sync::mpsc::channel();
+    let db_file = source_root.join(DB_FILE_NAME);
+    std::thread::spawn(move || {
+        let conn = rusqlite::Connection::open(db_file).expect("open sqlite lock connection");
+        conn.execute_batch("BEGIN IMMEDIATE")
+            .expect("start immediate transaction");
+        let _ = locked_tx.send(());
+        let _ = lock_release_rx.recv();
+        let _ = conn.execute_batch("COMMIT");
+        let _ = lock_done_tx.send(());
+    });
+    locked_rx.recv().expect("wait for sqlite lock");
+    (lock_release_tx, lock_done_rx)
+}
+
+fn release_db_lock(lock_release_tx: Sender<()>, lock_done_rx: Receiver<()>) {
+    let _ = lock_release_tx.send(());
+    lock_done_rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("wait for sqlite lock release");
+}
