@@ -1,6 +1,59 @@
 use super::fixtures::{JobRow, TestDb};
 use super::*;
 use rusqlite::OptionalExtension;
+use std::io;
+use std::path::Path;
+use std::sync::{Arc, Mutex};
+use tracing_subscriber::fmt::MakeWriter;
+
+#[derive(Clone, Default)]
+struct SharedBuffer(Arc<Mutex<Vec<u8>>>);
+
+impl SharedBuffer {
+    fn captured(&self) -> String {
+        String::from_utf8(self.0.lock().unwrap().clone()).unwrap()
+    }
+}
+
+impl<'a> MakeWriter<'a> for SharedBuffer {
+    type Writer = SharedBufferWriter;
+
+    fn make_writer(&'a self) -> Self::Writer {
+        SharedBufferWriter(self.0.clone())
+    }
+}
+
+struct SharedBufferWriter(Arc<Mutex<Vec<u8>>>);
+
+impl io::Write for SharedBufferWriter {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.lock().unwrap().extend_from_slice(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+fn capture_debug_logs<F>(run: F) -> String
+where
+    F: FnOnce(),
+{
+    let buffer = SharedBuffer::default();
+    let subscriber = tracing_subscriber::fmt()
+        .with_ansi(false)
+        .without_time()
+        .with_max_level(tracing::Level::DEBUG)
+        .with_writer(buffer.clone())
+        .finish();
+    crate::logging::set_debug_logging_enabled_for_tests(true);
+    sempal_library::diagnostics::set_debug_logging_enabled(true);
+    tracing::subscriber::with_default(subscriber, run);
+    sempal_library::diagnostics::set_debug_logging_enabled(false);
+    crate::logging::set_debug_logging_enabled_for_tests(false);
+    buffer.captured()
+}
 
 #[test]
 fn enqueue_jobs_dedupes_by_sample_and_type() {
@@ -78,7 +131,7 @@ fn claim_next_job_marks_running_and_increments_attempts() {
     let mut db = TestDb::new();
     let jobs = vec![("s::a.wav".to_string(), "h1".to_string())];
     enqueue_jobs(&mut db.conn, &jobs, DEFAULT_JOB_TYPE, 123, "s").unwrap();
-    let job = claim_next_job(&mut db.conn, std::path::Path::new("/tmp"))
+    let job = claim_next_job(&mut db.conn, Path::new("/tmp"))
         .unwrap()
         .expect("job claimed");
     assert_eq!(job.sample_id, "s::a.wav");
@@ -94,6 +147,56 @@ fn claim_next_job_marks_running_and_increments_attempts() {
         .unwrap();
     assert_eq!(status, "running");
     assert_eq!(attempts, 1);
+}
+
+#[test]
+fn empty_claim_path_stays_quiet_in_debug_logs() {
+    let mut db = TestDb::new();
+
+    let captured = capture_debug_logs(|| {
+        let jobs = claim_next_jobs(&mut db.conn, Path::new("/tmp"), 1).unwrap();
+        assert!(jobs.is_empty(), "expected no jobs to be claimable");
+    });
+
+    assert!(
+        !captured.contains("analysis_claim_jobs"),
+        "empty claim path should not emit claim transaction spam: {captured}"
+    );
+    assert!(
+        !captured.contains("analysis.job.claim"),
+        "empty claim path should not emit success claim actions: {captured}"
+    );
+    assert!(
+        !captured.contains("source_db.open_total"),
+        "empty claim path should not reopen source DBs during idle polling: {captured}"
+    );
+}
+
+#[test]
+fn retry_evidence_stays_visible_in_debug_logs() {
+    let captured = capture_debug_logs(|| {
+        telemetry::record_retry(
+            "analysis_claim_jobs",
+            Path::new("C:/tmp/source"),
+            2,
+            4,
+            std::time::Duration::from_millis(75),
+            "database is locked",
+        );
+    });
+
+    assert!(
+        captured.contains("analysis_claim_jobs.retry"),
+        "retry path should stay visible in debug logs: {captured}"
+    );
+    assert!(
+        captured.contains("outcome=\"retry\""),
+        "retry path should preserve its structured outcome: {captured}"
+    );
+    assert!(
+        captured.contains("error=\"database is locked\""),
+        "retry path should preserve the lock error evidence: {captured}"
+    );
 }
 
 #[test]

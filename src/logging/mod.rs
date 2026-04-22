@@ -8,12 +8,12 @@ mod contract;
 mod policy;
 
 pub use contract::{
-    ACTION_EVENT_TARGET, ActionDebugEvent, DB_EVENT_TARGET, DbDebugEvent, emit_action_debug_event,
-    emit_db_debug_event,
+    emit_action_debug_event, emit_db_debug_event, ActionDebugEvent, DbDebugEvent,
+    ACTION_EVENT_TARGET, DB_EVENT_TARGET,
 };
 pub use policy::{
-    DEBUG_LOGGING_ARG, DEBUG_LOGGING_ENV_VAR, DEBUG_LOGGING_SHORT_ARG, DebugLoggingMode,
-    DebugLoggingSettings,
+    DebugLoggingMode, DebugLoggingSettings, DEBUG_LOGGING_ARG, DEBUG_LOGGING_ENV_VAR,
+    DEBUG_LOGGING_SHORT_ARG,
 };
 
 use std::{
@@ -21,13 +21,16 @@ use std::{
     fs::{self, OpenOptions},
     panic,
     path::{Path, PathBuf},
-    sync::OnceLock,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        OnceLock,
+    },
     time::SystemTime,
 };
 
-use time::{OffsetDateTime, UtcOffset, format_description::FormatItem, macros::format_description};
+use time::{format_description::FormatItem, macros::format_description, OffsetDateTime, UtcOffset};
 use tracing_appender::{non_blocking::WorkerGuard, rolling};
-use tracing_subscriber::{Registry, fmt, prelude::*};
+use tracing_subscriber::{fmt, prelude::*, Registry};
 
 use crate::app_dirs;
 
@@ -36,7 +39,7 @@ const MAX_LOG_FILES: usize = 10;
 const LOG_FILE_PREFIX: &str = "sempal";
 
 static LOG_GUARD: OnceLock<WorkerGuard> = OnceLock::new();
-static DEBUG_LOGGING_ENABLED: OnceLock<bool> = OnceLock::new();
+static DEBUG_LOGGING_ENABLED: AtomicBool = AtomicBool::new(false);
 
 /// Errors that may occur while initializing logging.
 #[derive(Debug, thiserror::Error)]
@@ -128,7 +131,7 @@ where
         .with(file_layer);
     tracing::subscriber::set_global_default(subscriber).map_err(LoggingError::SetGlobal)?;
     let _ = LOG_GUARD.set(guard);
-    let _ = DEBUG_LOGGING_ENABLED.set(settings.mode().enabled());
+    DEBUG_LOGGING_ENABLED.store(settings.mode().enabled(), Ordering::Relaxed);
     sempal_library::diagnostics::set_debug_logging_enabled(settings.mode().enabled());
 
     tracing::info!(
@@ -154,7 +157,12 @@ where
 /// Rich action/database diagnostics should use this gate instead of treating a
 /// broad `RUST_LOG` override as product intent.
 pub fn debug_logging_enabled() -> bool {
-    *DEBUG_LOGGING_ENABLED.get_or_init(|| false)
+    DEBUG_LOGGING_ENABLED.load(Ordering::Relaxed)
+}
+
+#[cfg(test)]
+pub(crate) fn set_debug_logging_enabled_for_tests(enabled: bool) {
+    DEBUG_LOGGING_ENABLED.store(enabled, Ordering::Relaxed);
 }
 
 /// Install a panic hook that writes panic context and backtrace to logs.
