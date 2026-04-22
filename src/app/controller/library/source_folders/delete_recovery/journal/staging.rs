@@ -1,74 +1,12 @@
-//! Journal-backed staging helpers for folder-delete crash recovery.
-//!
-//! The on-disk journal records the delete lifecycle as
-//! `Intent -> Staged -> Deleted -> RestorePendingDb`.
-//! Recovery uses that contract to decide whether a folder should be restored back into the
-//! source tree after a crash or retained inside the app-owned trash area.
-
+use super::super::DELETE_STAGING_DIR;
+use super::load_journal;
+use super::remove_entry;
+use super::store::{insert_entry, update_entry, update_journal_stage};
+use super::{DeleteJournal, DeleteJournalEntry, DeleteJournalStage, DeleteStagingInfo};
 use crate::sample_sources::WavEntry;
-use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
-
-const DELETE_JOURNAL_FILE: &str = "delete_journal.json";
-
-/// Journal stage for a staged folder delete.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub(crate) enum DeleteJournalStage {
-    /// Intent was recorded before the filesystem rename completed.
-    Intent,
-    /// Folder data has been moved into the staging area.
-    Staged,
-    /// Database state was committed, so the staged folder now represents an app-owned delete.
-    #[serde(alias = "db_committed")]
-    Deleted,
-    /// Filesystem restore started and DB metadata replay still needs durable completion.
-    RestorePendingDb,
-}
-
-/// Metadata for a folder staged for deletion.
-#[derive(Debug, Clone)]
-pub(crate) struct DeleteStagingInfo {
-    /// Unique journal identifier for this staged delete.
-    pub(crate) id: String,
-    /// Relative path of the original folder within the source.
-    pub(crate) original_relative: PathBuf,
-    /// Relative path inside the staging root.
-    pub(crate) staged_relative: PathBuf,
-    /// Absolute staged path on disk.
-    pub(crate) staged_absolute: PathBuf,
-}
-
-/// Persistent journal entry for a staged folder delete.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(super) struct DeleteJournalEntry {
-    pub(super) id: String,
-    pub(super) original_relative: String,
-    pub(super) staged_relative: String,
-    #[serde(default)]
-    pub(super) deleted_entries: Vec<WavEntry>,
-    pub(super) stage: DeleteJournalStage,
-    #[serde(default)]
-    pub(super) restore_stamp: Option<String>,
-    pub(super) created_at: i64,
-}
-
-/// Journal container stored on disk for one source root.
-#[derive(Debug, Default, Serialize, Deserialize)]
-pub(super) struct DeleteJournal {
-    pub(super) entries: Vec<DeleteJournalEntry>,
-}
-
-#[cfg(test)]
-use std::sync::{Mutex, OnceLock};
-
-#[cfg(test)]
-fn fail_save_target() -> &'static Mutex<Option<PathBuf>> {
-    static TARGET: OnceLock<Mutex<Option<PathBuf>>> = OnceLock::new();
-    TARGET.get_or_init(|| Mutex::new(None))
-}
 
 /// Stage a folder for deletion and record it in the journal.
 pub(crate) fn stage_folder_for_delete(
@@ -236,162 +174,11 @@ pub(crate) fn rollback_staged_folder(
 
 /// Remove the staging root if it is now empty.
 pub(crate) fn cleanup_staging_root(staging_root: &Path) {
-    if let Ok(mut entries) = fs::read_dir(staging_root)
-        && entries.next().is_none()
-    {
-        let _ = fs::remove_dir(staging_root);
-    }
-}
-
-pub(super) fn load_journal(staging_root: &Path) -> Result<DeleteJournal, String> {
-    let path = journal_path(staging_root);
-    if !path.exists() {
-        return Ok(DeleteJournal::default());
-    }
-    let bytes = fs::read(&path).map_err(|err| format!("Failed to read delete journal: {err}"))?;
-    serde_json::from_slice(&bytes).map_err(|err| format!("Failed to parse delete journal: {err}"))
-}
-
-pub(super) fn remove_entry(staging_root: &Path, id: &str) -> Result<(), String> {
-    let mut journal = load_journal(staging_root)?;
-    let before = journal.entries.len();
-    journal.entries.retain(|entry| entry.id != id);
-    if journal.entries.len() == before {
-        return Err("Delete journal entry missing".into());
-    }
-    save_journal(staging_root, &journal)
-}
-
-#[cfg(test)]
-pub(super) fn update_entry_stage(
-    staging_root: &Path,
-    id: &str,
-    stage: DeleteJournalStage,
-) -> Result<(), String> {
-    update_journal_stage(staging_root, id, stage)
-}
-
-fn update_journal_stage(
-    staging_root: &Path,
-    id: &str,
-    stage: DeleteJournalStage,
-) -> Result<(), String> {
-    update_entry(staging_root, id, |entry| {
-        entry.stage = stage;
-        if !matches!(stage, DeleteJournalStage::RestorePendingDb) {
-            entry.restore_stamp = None;
+    if let Ok(mut entries) = fs::read_dir(staging_root) {
+        if entries.next().is_none() {
+            let _ = fs::remove_dir(staging_root);
         }
-    })
-}
-
-fn insert_entry(staging_root: &Path, entry: DeleteJournalEntry) -> Result<(), String> {
-    let mut journal = load_journal(staging_root)?;
-    if journal
-        .entries
-        .iter()
-        .any(|existing| existing.id == entry.id)
-    {
-        return Err("Delete journal entry already exists".into());
     }
-    journal.entries.push(entry);
-    save_journal(staging_root, &journal)
-}
-
-fn update_entry(
-    staging_root: &Path,
-    id: &str,
-    mutate: impl FnOnce(&mut DeleteJournalEntry),
-) -> Result<(), String> {
-    let mut journal = load_journal(staging_root)?;
-    let entry = journal
-        .entries
-        .iter_mut()
-        .find(|entry| entry.id == id)
-        .ok_or_else(|| "Delete journal entry missing".to_string())?;
-    mutate(entry);
-    save_journal(staging_root, &journal)
-}
-
-fn save_journal(staging_root: &Path, journal: &DeleteJournal) -> Result<(), String> {
-    fs::create_dir_all(staging_root)
-        .map_err(|err| format!("Failed to prepare delete journal: {err}"))?;
-    let path = journal_path(staging_root);
-    if journal.entries.is_empty() {
-        if path.exists() {
-            fs::remove_file(&path)
-                .map_err(|err| format!("Failed to clear delete journal: {err}"))?;
-        }
-        cleanup_staging_root(staging_root);
-        return Ok(());
-    }
-    let bytes = serde_json::to_vec_pretty(journal)
-        .map_err(|err| format!("Failed to serialize delete journal: {err}"))?;
-    let tmp_path = path.with_extension("tmp");
-    fs::write(&tmp_path, bytes).map_err(|err| format!("Failed to write delete journal: {err}"))?;
-    fail_save_before_replace(&path)?;
-    replace_journal_file(&tmp_path, &path)?;
-    Ok(())
-}
-
-fn replace_journal_file(tmp_path: &Path, path: &Path) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    {
-        use windows::{
-            Win32::Storage::FileSystem::{
-                MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
-            },
-            core::PCWSTR,
-        };
-
-        let from = wide_path(tmp_path);
-        let to = wide_path(path);
-        let flags = MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH;
-        unsafe { MoveFileExW(PCWSTR(from.as_ptr()), PCWSTR(to.as_ptr()), flags) }
-            .map_err(|err| format!("Failed to save delete journal: {err}"))?;
-        Ok(())
-    }
-    #[cfg(not(target_os = "windows"))]
-    {
-        fs::rename(tmp_path, path).map_err(|err| format!("Failed to save delete journal: {err}"))
-    }
-}
-
-#[cfg(target_os = "windows")]
-fn wide_path(path: &Path) -> Vec<u16> {
-    let mut wide: Vec<u16> =
-        <std::ffi::OsStr as std::os::windows::ffi::OsStrExt>::encode_wide(path.as_os_str())
-            .collect();
-    wide.push(0);
-    wide
-}
-
-#[cfg(not(test))]
-fn fail_save_before_replace(_path: &Path) -> Result<(), String> {
-    Ok(())
-}
-
-#[cfg(test)]
-fn fail_save_before_replace(path: &Path) -> Result<(), String> {
-    let mut guard = fail_save_target()
-        .lock()
-        .map_err(|_| "Delete journal test hook lock poisoned".to_string())?;
-    if guard.as_ref().is_some_and(|target| target == path) {
-        *guard = None;
-        return Err("Injected delete journal save failure before replace".into());
-    }
-    Ok(())
-}
-
-#[cfg(test)]
-pub(super) fn fail_next_save_before_replace_for_tests(staging_root: &Path) {
-    let mut guard = fail_save_target()
-        .lock()
-        .expect("delete journal test hook lock");
-    *guard = Some(journal_path(staging_root));
-}
-
-fn journal_path(staging_root: &Path) -> PathBuf {
-    staging_root.join(DELETE_JOURNAL_FILE)
 }
 
 fn unique_staging_relative(
@@ -444,14 +231,14 @@ fn mark_staging_root_hidden(staging_root: &Path) {
     #[cfg(target_os = "windows")]
     {
         use windows::{
-            Win32::Storage::FileSystem::{FILE_ATTRIBUTE_HIDDEN, SetFileAttributesW},
             core::PCWSTR,
+            Win32::Storage::FileSystem::{SetFileAttributesW, FILE_ATTRIBUTE_HIDDEN},
         };
 
         if staging_root
             .file_name()
             .and_then(|value| value.to_str())
-            .is_some_and(|value| value == super::DELETE_STAGING_DIR)
+            .is_some_and(|value| value == DELETE_STAGING_DIR)
         {
             let mut wide: Vec<u16> =
                 <std::ffi::OsStr as std::os::windows::ffi::OsStrExt>::encode_wide(
@@ -476,7 +263,3 @@ fn now_epoch_seconds() -> Result<i64, String> {
         .map_err(|err| format!("System time error: {err}"))?;
     Ok(now.as_secs() as i64)
 }
-
-#[cfg(test)]
-#[path = "tests.rs"]
-mod tests;
