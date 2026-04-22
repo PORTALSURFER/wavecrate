@@ -1,11 +1,11 @@
 # Active Todo
 
-This file is the short ordered queue for the current lane. Keep it brief and
-point to the deeper source-of-truth documents instead of duplicating them.
+This file is deprecated for active planning.
 
-1. Execute the current user-confirmed issue or task with the smallest durable
-   change that keeps docs, guardrails, and workflow entrypoints aligned.
-2. If the user resumes the repo-wide improvement lane without naming a
-   different issue, continue from `tmp/improvement_audit_plan.md`.
-3. Keep `docs/plans/index.md` updated whenever the durable docs-side plan
-   navigation changes.
+Use Linear for the ordered queue, task hierarchy, and dependency graph.
+
+1. Open the repo Linear project named in `AGENTS.md`.
+2. Continue from the highest-priority unblocked issue unless the user directs
+   a different task.
+3. Keep issue descriptions implementation-ready and update dependencies in
+   Linear rather than here.

@@ -1,8 +1,9 @@
 # Developer Docs
 
 This directory now keeps a deliberately small set of canonical developer
-documents. Anything that is narrow, historical, or fast-moving should live in
-`tmp/` or `docs/plans/` instead of growing the long-term docs set again.
+documents. Planning and backlog state now live in Linear rather than Markdown
+plan files. Anything narrow, historical, or investigatory should live in `tmp/`
+only when a durable canonical doc is not the right fit.
 
 Machine-consumed check allowlists do not live here anymore. They now live under
 `scripts/internal/check/allowlists/` so `docs/` stays human-facing.
@@ -24,17 +25,10 @@ Machine-consumed check allowlists do not live here anymore. They now live under
 ## Live operational files
 
 - `AGENTS.md`
-  - repo-specific workflow rules, validation entrypoints, and branch policy
-- `docs/plans/index.md`
-  - stable map for active plan artifacts and templates
-- `docs/plans/TEMPLATE_execution_plan.md`
-  - reusable template for execution plans
-- `docs/plans/TEMPLATE_investigation.md`
-  - reusable template for investigation writeups
-- `docs/plans/active/todo.md`
-  - short ordered queue for the active lane
-- `tmp/improvement_audit_plan.md`
-  - canonical source for the current audit lane status and execution order
+  - repo-specific workflow rules, validation entrypoints, branch policy, and
+    repo-to-Linear project mapping
+- Planning and backlog
+  - live in Linear project `Sempal` under team `PORTALSURFER`
 - `tmp/database_system_audit_plan.md`
   - database-system audit notes and follow-up context
 - `tmp/source_runtime_test_isolation_audit_plan.md`
@@ -57,5 +51,6 @@ Machine-consumed check allowlists do not live here anymore. They now live under
 
 - Prefer a few strong documents over many narrow notes.
 - Prefer current contracts over historical execution diaries.
-- Put detailed plans in `docs/plans/` or `tmp/`, not in the canonical docs.
+- Keep active planning and task hierarchy in Linear, not Markdown plan files.
+- Use `tmp/` only for narrow investigations or temporary implementation notes.
 - Delete stale docs instead of keeping them as archaeological layers.

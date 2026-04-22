@@ -8,9 +8,22 @@ validation expectations for `C:\dev\sempal`.
 - Repository: `C:\dev\sempal`
 - Product: Sempal
 - Branch: `next`
+- Linear team: `PORTALSURFER`
+- Linear project: `Sempal` — https://linear.app/boostnlvp/project/sempal-7230ebfad82d
 - Primary docs entrypoint: `docs/README.md`
-- Active plan/navigation layer: `docs/plans/index.md`, `docs/plans/active/todo.md`
-- Audit backlog source of truth: `tmp/improvement_audit_plan.md`
+
+## Planning System
+- Linear is the source of truth for planning and backlog state in this repo.
+- When a plan is needed, create or update Linear issues in the `Sempal` project under the `PORTALSURFER` team.
+- Each planning issue must be implementation-ready in isolation:
+  - clear problem statement
+  - concrete scope and non-goals
+  - explicit constraints and risks
+  - validation steps
+  - a clear definition of done
+- Encode execution order in Linear with `blockedBy` / `blocks`. Use parent-child hierarchy only when it improves navigation.
+- Do not use Markdown plan files such as `tmp/*.md` or `docs/plans/*` as the active plan or backlog source of truth.
+- If a codebase does not yet have a Linear project, create one in `PORTALSURFER` using the codebase or crate name.
 
 ## Quick Start
 1. Run repo preflight:
@@ -19,9 +32,7 @@ validation expectations for `C:\dev\sempal`.
 2. Read the relevant repo docs for the current task:
    - `docs/README.md`
    - `docs/TEST.md`
-   - `docs/plans/index.md`
-   - `docs/plans/active/todo.md`
-   - `tmp/improvement_audit_plan.md`
+   - `AGENTS.md`
 3. If the environment looks broken:
    - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/doctor.ps1`
    - macOS/Linux/WSL: `bash scripts/doctor.sh`

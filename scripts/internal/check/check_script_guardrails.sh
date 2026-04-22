@@ -131,7 +131,7 @@ run_docs_index_fixture() {
 
   local repo_dir="$fixture_dir/repo"
   local script_path="$repo_dir/scripts/internal/check/check_docs_index.sh"
-  mkdir -p "$repo_dir/docs/plans/active" "$repo_dir/scripts/internal/check" "$repo_dir/tmp"
+  mkdir -p "$repo_dir/scripts/internal/check"
   cp "scripts/internal/check/check_docs_index.sh" "$script_path"
   chmod +x "$script_path"
 
@@ -140,12 +140,7 @@ run_docs_index_fixture() {
     docs/ENV_VARS.md \
     docs/TEST.md \
     docs/SYSTEMS.md \
-    docs/TROUBLESHOOTING.md \
-    docs/plans/index.md \
-    docs/plans/TEMPLATE_execution_plan.md \
-    docs/plans/TEMPLATE_investigation.md \
-    docs/plans/active/todo.md \
-    tmp/improvement_audit_plan.md
+    docs/TROUBLESHOOTING.md
   do
     mkdir -p "$repo_dir/$(dirname "$path")"
     : >"$repo_dir/$path"
@@ -159,15 +154,13 @@ run_docs_index_fixture() {
 - `docs/TEST.md`
 - `docs/SYSTEMS.md`
 - `docs/TROUBLESHOOTING.md`
-- `docs/plans/index.md`
-- `docs/plans/TEMPLATE_execution_plan.md`
-- `docs/plans/TEMPLATE_investigation.md`
-- `docs/plans/active/todo.md`
-- `tmp/improvement_audit_plan.md` - current evidence-driven ROI-ranked improvement backlog and execution record for the live codebase; use it as the canonical source for the current audit lane status and execution order
+- `AGENTS.md`
+- Planning and backlog
+  - live in Linear project `Sempal` under team `PORTALSURFER`
 EOF
 
   run_expect_exit_code \
-    "docs-index fixture accepts canonical audit-plan pointer" \
+    "docs-index fixture accepts Linear planning pointer" \
     0 \
     "$repo_dir" \
     "$script_path"
@@ -180,15 +173,12 @@ EOF
 - `docs/TEST.md`
 - `docs/SYSTEMS.md`
 - `docs/TROUBLESHOOTING.md`
+- `AGENTS.md`
 - `docs/plans/index.md`
-- `docs/plans/TEMPLATE_execution_plan.md`
-- `docs/plans/TEMPLATE_investigation.md`
-- `docs/plans/active/todo.md`
-- `tmp/improvement_audit_plan.md` - current evidence-driven ROI-ranked improvement backlog and execution record for the live codebase (refreshed on 2026-03-31; Phase 2 is active and item 2 is next)
 EOF
 
   run_expect_exit_code \
-    "docs-index fixture rejects duplicated mutable audit status" \
+    "docs-index fixture rejects legacy markdown planning entrypoints" \
     1 \
     "$repo_dir" \
     "$script_path"

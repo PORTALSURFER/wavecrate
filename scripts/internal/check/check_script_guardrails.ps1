@@ -339,9 +339,7 @@ try {
   try {
     $repoDir = Join-Path $docsIndexFixtureDir "repo"
     New-Item -ItemType Directory -Path $repoDir | Out-Null
-    New-Item -ItemType Directory -Path (Join-Path $repoDir "docs/plans/active") -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $repoDir "scripts/internal/check") -Force | Out-Null
-    New-Item -ItemType Directory -Path (Join-Path $repoDir "tmp") | Out-Null
 
     Copy-Item (Join-Path $scriptsDir "internal/check/check_docs_index.ps1") (Join-Path $repoDir "scripts/internal/check/check_docs_index.ps1")
 
@@ -350,12 +348,7 @@ try {
         "docs/ENV_VARS.md",
         "docs/TEST.md",
         "docs/SYSTEMS.md",
-        "docs/TROUBLESHOOTING.md",
-        "docs/plans/index.md",
-        "docs/plans/TEMPLATE_execution_plan.md",
-        "docs/plans/TEMPLATE_investigation.md",
-        "docs/plans/active/todo.md",
-        "tmp/improvement_audit_plan.md"
+        "docs/TROUBLESHOOTING.md"
       )) {
       New-Item -ItemType File -Path (Join-Path $repoDir $path) -Force | Out-Null
     }
@@ -368,14 +361,12 @@ try {
       '- `docs/TEST.md`',
       '- `docs/SYSTEMS.md`',
       '- `docs/TROUBLESHOOTING.md`',
-      '- `docs/plans/index.md`',
-      '- `docs/plans/TEMPLATE_execution_plan.md`',
-      '- `docs/plans/TEMPLATE_investigation.md`',
-      '- `docs/plans/active/todo.md`',
-      '- `tmp/improvement_audit_plan.md` - current evidence-driven ROI-ranked improvement backlog and execution record for the live codebase; use it as the canonical source for the current audit lane status and execution order'
+      '- `AGENTS.md`',
+      '- Planning and backlog',
+      '  - live in Linear project `Sempal` under team `PORTALSURFER`'
     )
 
-    Invoke-ExpectExitCode -Label "docs index fixture accepts canonical audit-plan pointer" -ExpectedCode 0 -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/internal/check/check_docs_index.ps1")
+    Invoke-ExpectExitCode -Label "docs index fixture accepts Linear planning pointer" -ExpectedCode 0 -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/internal/check/check_docs_index.ps1")
 
     Set-Content -Path (Join-Path $repoDir "docs/README.md") -Value @(
       "# Developer documentation",
@@ -385,14 +376,11 @@ try {
       '- `docs/TEST.md`',
       '- `docs/SYSTEMS.md`',
       '- `docs/TROUBLESHOOTING.md`',
-      '- `docs/plans/index.md`',
-      '- `docs/plans/TEMPLATE_execution_plan.md`',
-      '- `docs/plans/TEMPLATE_investigation.md`',
-      '- `docs/plans/active/todo.md`',
-      '- `tmp/improvement_audit_plan.md` - current evidence-driven ROI-ranked improvement backlog and execution record for the live codebase (refreshed on 2026-03-31; Phase 2 is active and item 2 is next)'
+      '- `AGENTS.md`',
+      '- `docs/plans/index.md`'
     )
 
-    Invoke-ExpectExitCode -Label "docs index fixture rejects duplicated mutable audit status" -ExpectedCode 1 -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/internal/check/check_docs_index.ps1")
+    Invoke-ExpectExitCode -Label "docs index fixture rejects legacy markdown planning entrypoints" -ExpectedCode 1 -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/internal/check/check_docs_index.ps1")
   } finally {
     Remove-Item -Recurse -Force $docsIndexFixtureDir -ErrorAction SilentlyContinue
   }

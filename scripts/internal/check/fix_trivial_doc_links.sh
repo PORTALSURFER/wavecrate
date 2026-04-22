@@ -46,11 +46,11 @@ declare -a REWRITES=(
   "manual/styleguide.md" "docs/ARCHITECTURE.md"
   "manual/icon_assets.md" "docs/SYSTEMS.md"
   "manual/hints.md" "docs/SYSTEMS.md"
-  "manual/plan.md" "docs/plans/index.md"
-  "manual/todo.md" "docs/plans/active/todo.md"
-  "manual/transient_plan.md" "docs/plans/index.md"
-  "manual/transient_audit.md" "docs/plans/index.md"
-  "manual/drag_audit.md" "docs/plans/index.md"
+  "manual/plan.md" "AGENTS.md"
+  "manual/todo.md" "AGENTS.md"
+  "manual/transient_plan.md" "AGENTS.md"
+  "manual/transient_audit.md" "AGENTS.md"
+  "manual/drag_audit.md" "AGENTS.md"
 )
 
 changed=0

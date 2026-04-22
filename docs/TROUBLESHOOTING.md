@@ -142,5 +142,6 @@ When a check fails:
 Usually, do not.
 
 Add a new long-lived doc only when the information cannot fit cleanly into one
-of the canonical docs without making that file misleading. Historical plans,
-audits, and temporary investigations should go to `docs/plans/` or `tmp/`.
+of the canonical docs without making that file misleading. Active plans and
+backlog structure belong in Linear. Temporary investigations or supporting
+notes can go to `tmp/` when a canonical doc is not appropriate.

@@ -29,11 +29,11 @@ $rewrites = @(
   @{ From = "manual/styleguide.md"; To = "docs/ARCHITECTURE.md" },
   @{ From = "manual/icon_assets.md"; To = "docs/SYSTEMS.md" },
   @{ From = "manual/hints.md"; To = "docs/SYSTEMS.md" },
-  @{ From = "manual/plan.md"; To = "docs/plans/index.md" },
-  @{ From = "manual/todo.md"; To = "docs/plans/active/todo.md" },
-  @{ From = "manual/transient_plan.md"; To = "docs/plans/index.md" },
-  @{ From = "manual/transient_audit.md"; To = "docs/plans/index.md" },
-  @{ From = "manual/drag_audit.md"; To = "docs/plans/index.md" }
+  @{ From = "manual/plan.md"; To = "AGENTS.md" },
+  @{ From = "manual/todo.md"; To = "AGENTS.md" },
+  @{ From = "manual/transient_plan.md"; To = "AGENTS.md" },
+  @{ From = "manual/transient_audit.md"; To = "AGENTS.md" },
+  @{ From = "manual/drag_audit.md"; To = "AGENTS.md" }
 )
 
 $targets = @("docs") | ForEach-Object { Join-Path $root $_ }

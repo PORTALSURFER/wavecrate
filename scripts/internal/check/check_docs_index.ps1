@@ -9,8 +9,8 @@ Ensures `docs/README.md` remains a reliable system-of-record landing page.
 Checks:
 - Required docs are referenced by path in `docs/README.md`
 - Any `docs/*.md` path referenced in `docs/README.md` exists on disk
-- The improvement-audit plan entry stays phase-neutral and points readers to
-  `tmp/improvement_audit_plan.md` as the canonical audit-lane status source
+- `docs/README.md` points readers at `AGENTS.md` for repo workflow and
+  indicates that planning/backlog live in Linear
 #>
 
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
@@ -27,27 +27,30 @@ try {
     "docs/TEST.md"
     "docs/SYSTEMS.md"
     "docs/TROUBLESHOOTING.md"
-    "docs/plans/index.md"
-    "docs/plans/TEMPLATE_execution_plan.md"
-    "docs/plans/TEMPLATE_investigation.md"
-    "docs/plans/active/todo.md"
-)
-  $requiredPointers = @(
-    "tmp/improvement_audit_plan.md"
   )
-  $canonicalAuditPhrase = "canonical source for the current audit lane status and execution order"
+  $requiredNonDocRefs = @(
+    "AGENTS.md"
+  )
+  $requiredPhrases = @(
+    'Linear project `Sempal` under team `PORTALSURFER`'
+  )
 
   $text = Get-Content -LiteralPath $docsReadme -Raw
 
   $missingRefs = @()
-  foreach ($path in ($required + $requiredPointers)) {
-    if (-not ($text -like "*$path*")) {
+  foreach ($path in ($required + $requiredNonDocRefs)) {
+    if (-not $text.Contains($path)) {
       $missingRefs += $path
     }
   }
   foreach ($path in $required) {
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
       throw ("[docs_index] Required file missing on disk: {0}" -f $path)
+    }
+  }
+  foreach ($phrase in $requiredPhrases) {
+    if (-not $text.Contains($phrase)) {
+      $missingRefs += $phrase
     }
   }
   if ($missingRefs.Count -gt 0) {
@@ -78,22 +81,19 @@ try {
     exit 1
   }
 
-  $auditBullet = [regex]::Match($text, '(?ms)- `tmp/improvement_audit_plan\.md`(?<body>.*?)(?:\r?\n- |\r?\n## |\z)')
-  if (-not $auditBullet.Success) {
-    Write-Error "[docs_index] docs/README.md is missing the improvement-audit plan bullet."
-    exit 1
-  }
-
-  $normalizedAuditBullet = ($auditBullet.Value -replace '\s+', ' ').Trim()
-  if (-not ($normalizedAuditBullet -like "*$canonicalAuditPhrase*")) {
-    Write-Error "[docs_index] docs/README.md must describe tmp/improvement_audit_plan.md as the canonical audit-lane status source."
-    exit 1
-  }
-
-  if ($normalizedAuditBullet -match 'Phase\s+[0-9]+' -or
-      $normalizedAuditBullet -match 'item\s+[0-9]+' -or
-      $normalizedAuditBullet -match 'waiting\s+for\s+explicit\s+confirmation') {
-    Write-Error "[docs_index] docs/README.md should not duplicate mutable phase/item/waiting status for tmp/improvement_audit_plan.md."
+  $legacyPlanRefs = @(
+    "docs/plans/index.md"
+    "docs/plans/TEMPLATE_execution_plan.md"
+    "docs/plans/TEMPLATE_investigation.md"
+    "docs/plans/active/todo.md"
+    "tmp/improvement_audit_plan.md"
+  )
+  $legacyHits = @($legacyPlanRefs | Where-Object { $text -like "*$_*" })
+  if ($legacyHits.Count -gt 0) {
+    Write-Error "[docs_index] docs/README.md should not present Markdown plan files as live workflow entrypoints:"
+    foreach ($hit in $legacyHits) {
+      Write-Host (" - {0}" -f $hit)
+    }
     exit 1
   }
 
