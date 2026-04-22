@@ -319,6 +319,37 @@ fn focus_browser_row_and_play_preserves_transport_until_new_audio_is_ready() {
 }
 
 #[test]
+/// Re-previewing the already loaded sample should preserve active transport position.
+fn focus_browser_row_and_play_keeps_playhead_for_loaded_playing_sample() {
+    let Some(player) = crate::audio::AudioPlayer::playing_for_tests() else {
+        return;
+    };
+    let (mut controller, source) =
+        prepare_with_source_and_wav_entries(vec![sample_entry("one.wav", Rating::NEUTRAL)]);
+    controller.audio.player = Some(Rc::new(RefCell::new(player)));
+    controller.settings.feature_flags.autoplay_selection = false;
+    load_waveform_selection(
+        &mut controller,
+        &source,
+        "one.wav",
+        &[0.0, 0.1, -0.1, 0.2],
+        SelectionRange::new(0.2, 0.8),
+    );
+    controller.focus_browser_row_only(0);
+    controller
+        .play_audio(false, None)
+        .expect("start one.wav playback");
+    controller.ui.waveform.playhead.position = 0.5;
+
+    controller.focus_browser_row_and_play_action(0);
+
+    assert!(controller.is_playing());
+    assert!((controller.ui.waveform.playhead.position - 0.5).abs() < 1.0e-6);
+    assert!(controller.runtime.jobs.pending_audio.is_none());
+    assert!(controller.runtime.jobs.pending_playback.is_none());
+}
+
+#[test]
 /// Selected-index cache should rebuild when unrelated source entries shift absolute indices.
 fn browser_selected_indices_rebuild_after_source_entry_shift() {
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![

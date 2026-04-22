@@ -294,16 +294,32 @@ impl AppController {
                 audio.source_id == source.id && audio.relative_path == relative_path
             });
         if is_loaded {
-            self.runtime.jobs.set_pending_audio(None);
-            self.runtime.jobs.set_pending_playback(None);
-            self.clear_browser_selection_transition(&source.id, &relative_path);
-            self.stop_playback_if_active();
-            let _ = self.play_audio(looped, None);
+            self.finish_loaded_preview_request(&source.id, &relative_path, looped);
             return;
         }
         if let Err(err) = self.queue_browser_preview_audio_load(&source, &relative_path, looped) {
             self.set_status(err, StatusTone::Error);
         }
+    }
+
+    /// Finish a preview request when the focused browser row already matches the loaded sample.
+    ///
+    /// Preview navigation should cancel stale pending browser-transition work for
+    /// the current row, but it must not tear down active transport just to
+    /// restart the same sample from the default start position.
+    fn finish_loaded_preview_request(
+        &mut self,
+        source_id: &SourceId,
+        relative_path: &Path,
+        looped: bool,
+    ) {
+        self.runtime.jobs.set_pending_audio(None);
+        self.runtime.jobs.set_pending_playback(None);
+        self.clear_browser_selection_transition(source_id, relative_path);
+        if self.is_playing() {
+            return;
+        }
+        let _ = self.play_audio(looped, None);
     }
 
     /// Apply one post-mutation browser review follow-up using shared preview/commit semantics.
