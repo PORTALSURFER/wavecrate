@@ -1,8 +1,9 @@
 use super::super::types::{AnalysisProgress, RunningJobInfo};
+use super::connection::open_source_db_maintenance;
 use super::constants::{ANALYZE_SAMPLE_JOB_TYPE, EMBEDDING_BACKFILL_JOB_TYPE};
-use super::progress_snapshot;
+use super::progress_snapshot::CachedProgressSnapshot;
 use super::telemetry;
-use rusqlite::Connection;
+use rusqlite::{Connection, MAIN_DB};
 use std::path::Path;
 use std::time::Instant;
 
@@ -65,11 +66,42 @@ fn current_progress_for_job_type(
     job_type: &str,
     filter_missing: bool,
 ) -> Result<AnalysisProgress, String> {
-    if let Some(progress) = progress_snapshot::read_progress_snapshot(conn, job_type)
-        .map_err(|err| format!("Failed to load analysis progress snapshot for {job_type}: {err}"))?
-    {
+    let cached =
+        super::progress_snapshot::read_progress_snapshot(conn, job_type).map_err(|err| {
+            format!("Failed to load analysis progress snapshot for {job_type}: {err}")
+        })?;
+    if let CachedProgressSnapshot::Fresh(progress) = cached {
         return Ok(progress);
     }
+    let progress = recount_progress_for_job_type(conn, source_root, job_type, filter_missing)?;
+    if conn
+        .is_readonly(MAIN_DB)
+        .map_err(|err| format!("Failed to inspect analysis progress connection mode: {err}"))?
+    {
+        if matches!(cached, CachedProgressSnapshot::Stale) {
+            telemetry::record_progress_snapshot_repair(source_root, "stale_recount", None);
+        }
+        if let Err(err) = repair_progress_snapshot(source_root, job_type, filter_missing) {
+            if matches!(cached, CachedProgressSnapshot::Stale) {
+                telemetry::record_progress_snapshot_repair(source_root, "error", Some(&err));
+            }
+        }
+        return Ok(progress);
+    }
+    super::progress_snapshot::write_progress_snapshot(conn, job_type, progress)
+        .map_err(|err| format!("Failed to persist analysis progress snapshot: {err}"))?;
+    if matches!(cached, CachedProgressSnapshot::Stale) {
+        telemetry::record_progress_snapshot_repair(source_root, "repaired", None);
+    }
+    Ok(progress)
+}
+
+fn recount_progress_for_job_type(
+    conn: &Connection,
+    source_root: &Path,
+    job_type: &str,
+    filter_missing: bool,
+) -> Result<AnalysisProgress, String> {
     let (status_sql, total_sql, pending_sql) = if filter_missing {
         (
             "SELECT aj.status, COUNT(*)
@@ -153,7 +185,16 @@ fn current_progress_for_job_type(
             .map(|count| count.max(0) as usize)
             .map_err(|err| format!("Failed to query analysis sample pending/running: {err}")),
     )?;
-    progress_snapshot::write_progress_snapshot(conn, job_type, progress)
-        .map_err(|err| format!("Failed to persist analysis progress snapshot: {err}"))?;
     Ok(progress)
+}
+
+fn repair_progress_snapshot(
+    source_root: &Path,
+    job_type: &str,
+    filter_missing: bool,
+) -> Result<(), String> {
+    let conn = open_source_db_maintenance(source_root)?;
+    let progress = recount_progress_for_job_type(&conn, source_root, job_type, filter_missing)?;
+    super::progress_snapshot::write_progress_snapshot(&conn, job_type, progress)
+        .map_err(|err| format!("Failed to persist analysis progress snapshot: {err}"))
 }

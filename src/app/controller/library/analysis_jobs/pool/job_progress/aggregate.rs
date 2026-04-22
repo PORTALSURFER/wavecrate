@@ -22,14 +22,24 @@ pub(super) fn current_progress_all(
         let mut total = AnalysisProgress::default();
         let mut updates = Vec::new();
         for source in sources {
-            if let Ok(progress) = db::current_progress(&source.conn, &source.source_root) {
-                total.pending += progress.pending;
-                total.running += progress.running;
-                total.done += progress.done;
-                total.failed += progress.failed;
-                total.samples_total += progress.samples_total;
-                total.samples_pending_or_running += progress.samples_pending_or_running;
-                updates.push((source.source_id.clone(), progress));
+            match db::current_progress(&source.conn, &source.source_root) {
+                Ok(progress) => {
+                    total.pending += progress.pending;
+                    total.running += progress.running;
+                    total.done += progress.done;
+                    total.failed += progress.failed;
+                    total.samples_total += progress.samples_total;
+                    total.samples_pending_or_running += progress.samples_pending_or_running;
+                    updates.push((source.source_id.clone(), progress));
+                }
+                Err(err) => {
+                    tracing::warn!(
+                        source_id = %source.source_id,
+                        source_root = %source.source_root.display(),
+                        error = %err,
+                        "Failed to refresh analysis progress for source"
+                    );
+                }
             }
         }
         if let Ok(mut cache) = progress_cache.write() {

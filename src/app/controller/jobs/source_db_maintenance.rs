@@ -174,6 +174,7 @@ fn run_source_db_maintenance_once(
     update_deferred_maintenance_markers(&tx, revision)?;
     tx.commit()
         .map_err(|err| format!("Commit deferred maintenance transaction failed: {err}"))?;
+    analysis_jobs::db::current_progress(&conn, &job.source_root)?;
     Ok(removed)
 }
 

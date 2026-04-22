@@ -191,6 +191,32 @@ pub(crate) fn record_retry(
     });
 }
 
+/// Emit one targeted event when progress snapshot reads must fall back or repair fails.
+pub(crate) fn record_progress_snapshot_repair(
+    source_root: &Path,
+    outcome: &'static str,
+    error: Option<&str>,
+) {
+    let source = source_root.display().to_string();
+    emit_db_debug_event(DbDebugEvent {
+        operation: "analysis_progress_snapshot.reconcile",
+        source: Some(&source),
+        outcome,
+        elapsed: Duration::default(),
+        error,
+    });
+    if let Some(error) = error {
+        tracing::warn!(
+            target: "perf::source_db",
+            action = "progress_snapshot_reconcile",
+            outcome,
+            error,
+            source_root = %source_root.display(),
+            "Analysis progress snapshot reconciliation failed"
+        );
+    }
+}
+
 fn record_slow_success(
     action: &'static str,
     operation: &'static str,

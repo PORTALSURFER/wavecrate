@@ -14,6 +14,13 @@ const SNAPSHOT_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS analysis_job_progr
 const ANALYZE_SNAPSHOT_WAV_PATHS_REVISION_KEY: &str =
     "analysis_progress_snapshot_wav_paths_revision_v1";
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum CachedProgressSnapshot {
+    Fresh(AnalysisProgress),
+    Missing,
+    Stale,
+}
+
 /// Persisted progress state for one analysis-job row while computing snapshot deltas.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SnapshotJobState {
@@ -26,7 +33,7 @@ pub(crate) struct SnapshotJobState {
 pub(crate) fn read_progress_snapshot(
     conn: &Connection,
     job_type: &str,
-) -> Result<Option<AnalysisProgress>, String> {
+) -> Result<CachedProgressSnapshot, String> {
     ensure_snapshot_schema(conn)?;
     let snapshot = conn
         .query_row(
@@ -38,13 +45,16 @@ pub(crate) fn read_progress_snapshot(
         )
         .optional()
         .map_err(|err| err.to_string())?;
-    if job_type != ANALYZE_SAMPLE_JOB_TYPE || snapshot.is_none() {
-        return Ok(snapshot);
+    let Some(snapshot) = snapshot else {
+        return Ok(CachedProgressSnapshot::Missing);
+    };
+    if job_type != ANALYZE_SAMPLE_JOB_TYPE {
+        return Ok(CachedProgressSnapshot::Fresh(snapshot));
     }
     if read_analyze_snapshot_wav_paths_revision(conn)? == current_wav_paths_revision(conn)? {
-        return Ok(snapshot);
+        return Ok(CachedProgressSnapshot::Fresh(snapshot));
     }
-    Ok(None)
+    Ok(CachedProgressSnapshot::Stale)
 }
 
 /// Seed missing snapshot rows from the current on-disk job state before a mutation.

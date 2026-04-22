@@ -38,8 +38,16 @@ pub(super) fn cleanup_stale_jobs(
         if !touched_sources.contains(&source.source_id) {
             continue;
         }
-        if let Ok(progress) = db::current_progress(&source.conn, &source.source_root) {
-            updates.push((source.source_id.clone(), progress));
+        match db::current_progress(&source.conn, &source.source_root) {
+            Ok(progress) => updates.push((source.source_id.clone(), progress)),
+            Err(err) => {
+                tracing::warn!(
+                    source_id = %source.source_id,
+                    source_root = %source.source_root.display(),
+                    error = %err,
+                    "Failed to refresh touched analysis progress for source"
+                );
+            }
         }
     }
     if let Ok(mut cache) = progress_cache.write() {
