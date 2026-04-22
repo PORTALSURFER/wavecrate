@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
-use rusqlite::{params, Connection, Transaction};
+use rusqlite::{Connection, Transaction, params};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::warn;
@@ -15,7 +15,7 @@ mod schema_defs;
 
 use super::{SampleSource, SourceId};
 use crate::app_dirs;
-use crate::diagnostics::{emit_db_debug_event, DbDebugEvent};
+use crate::diagnostics::{DbDebugEvent, emit_db_debug_event};
 use crate::sample_sources::normalize_path;
 
 /// Filename for the global library database stored under the user app directory.
@@ -341,7 +341,7 @@ mod tests;
 
 #[cfg(test)]
 mod telemetry_tests {
-    use super::{library_db_debug_outcome, SLOW_LIBRARY_DB_EVENT_THRESHOLD};
+    use super::{SLOW_LIBRARY_DB_EVENT_THRESHOLD, library_db_debug_outcome};
     use std::time::Duration;
 
     #[test]

@@ -8,12 +8,12 @@ mod contract;
 mod policy;
 
 pub use contract::{
-    emit_action_debug_event, emit_db_debug_event, ActionDebugEvent, DbDebugEvent,
-    ACTION_EVENT_TARGET, DB_EVENT_TARGET,
+    ACTION_EVENT_TARGET, ActionDebugEvent, DB_EVENT_TARGET, DbDebugEvent, emit_action_debug_event,
+    emit_db_debug_event,
 };
 pub use policy::{
-    DebugLoggingMode, DebugLoggingSettings, DEBUG_LOGGING_ARG, DEBUG_LOGGING_ENV_VAR,
-    DEBUG_LOGGING_SHORT_ARG,
+    DEBUG_LOGGING_ARG, DEBUG_LOGGING_ENV_VAR, DEBUG_LOGGING_SHORT_ARG, DebugLoggingMode,
+    DebugLoggingSettings,
 };
 
 use std::{
@@ -22,15 +22,15 @@ use std::{
     panic,
     path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicBool, Ordering},
         OnceLock,
+        atomic::{AtomicBool, Ordering},
     },
     time::SystemTime,
 };
 
-use time::{format_description::FormatItem, macros::format_description, OffsetDateTime, UtcOffset};
+use time::{OffsetDateTime, UtcOffset, format_description::FormatItem, macros::format_description};
 use tracing_appender::{non_blocking::WorkerGuard, rolling};
-use tracing_subscriber::{fmt, prelude::*, Registry};
+use tracing_subscriber::{Registry, fmt, prelude::*};
 
 use crate::app_dirs;
 

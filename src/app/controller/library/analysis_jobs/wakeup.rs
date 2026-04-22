@@ -85,7 +85,10 @@ impl ClaimWakeup {
 
     #[cfg(test)]
     pub(crate) fn probe_inflight(&self) -> bool {
-        self.state.lock().expect("claim wakeup poisoned").probe_inflight
+        self.state
+            .lock()
+            .expect("claim wakeup poisoned")
+            .probe_inflight
     }
 }
 

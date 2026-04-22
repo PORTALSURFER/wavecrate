@@ -6,7 +6,7 @@
 use std::path::Path;
 use std::time::Duration;
 
-use crate::diagnostics::{emit_db_debug_event, DbDebugEvent};
+use crate::diagnostics::{DbDebugEvent, emit_db_debug_event};
 
 use super::SourceDbError;
 
@@ -142,7 +142,7 @@ pub(super) fn record_open_total(
 
 #[cfg(test)]
 mod tests {
-    use super::{slow_success_outcome, SLOW_SOURCE_DB_OPEN_STEP, SLOW_SOURCE_DB_OPEN_TOTAL};
+    use super::{SLOW_SOURCE_DB_OPEN_STEP, SLOW_SOURCE_DB_OPEN_TOTAL, slow_success_outcome};
     use std::time::Duration;
 
     #[test]
