@@ -49,6 +49,7 @@ impl AppController {
         let paths = metadata_mutation_paths(&source_ops, &analysis_ops);
         if cfg!(test) {
             let request_id = self.runtime.jobs.next_metadata_request_id();
+            let blocks_file_mutation = !source_ops.is_empty();
             let result = run_metadata_mutation_job(MetadataMutationJob {
                 request_id,
                 source_id: source.id.clone(),
@@ -64,14 +65,17 @@ impl AppController {
                     request_id,
                     source_id: source.id.clone(),
                     paths: result.paths.clone(),
+                    blocks_file_mutation,
                     rollback,
                     refresh_browser_projection,
                 });
             self.extend_selected_source_mutation_claim_grace(&source.id);
+            self.runtime.analysis.pause_claiming();
             self.handle_metadata_mutation_finished_message(result);
             return;
         }
         let request_id = self.runtime.jobs.next_metadata_request_id();
+        let blocks_file_mutation = !source_ops.is_empty();
         self.runtime
             .source_lane
             .mutations
@@ -79,10 +83,12 @@ impl AppController {
                 request_id,
                 source_id: source.id.clone(),
                 paths: paths.clone(),
+                blocks_file_mutation,
                 rollback,
                 refresh_browser_projection,
             });
         self.extend_selected_source_mutation_claim_grace(&source.id);
+        self.runtime.analysis.pause_claiming();
         let job = MetadataMutationJob {
             request_id,
             source_id: source.id.clone(),

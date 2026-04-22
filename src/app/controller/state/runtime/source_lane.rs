@@ -93,6 +93,9 @@ pub(crate) struct SourceMutationRuntime {
     pending_metadata_mutations: HashMap<u64, PendingMetadataMutation>,
     /// Relative sample paths currently carrying optimistic metadata writes.
     pending_metadata_paths: HashSet<(SourceId, PathBuf)>,
+    /// Relative sample paths whose optimistic metadata writes should block
+    /// browser file mutations until the source metadata commit settles.
+    pending_file_blocking_metadata_paths: HashSet<(SourceId, PathBuf)>,
     /// Short source-scoped grace window that keeps analysis claiming paused
     /// across adjacent quick edits on the same selected source.
     claim_pause_grace_until: HashMap<SourceId, Instant>,
@@ -109,6 +112,10 @@ impl SourceMutationRuntime {
         for path in &pending.paths {
             self.pending_metadata_paths
                 .insert((source_id.clone(), path.clone()));
+            if pending.blocks_file_mutation {
+                self.pending_file_blocking_metadata_paths
+                    .insert((source_id.clone(), path.clone()));
+            }
         }
         self.pending_metadata_mutations
             .insert(pending.request_id, pending);
@@ -123,6 +130,10 @@ impl SourceMutationRuntime {
         for path in &pending.paths {
             self.pending_metadata_paths
                 .remove(&(pending.source_id.clone(), path.clone()));
+            if pending.blocks_file_mutation {
+                self.pending_file_blocking_metadata_paths
+                    .remove(&(pending.source_id.clone(), path.clone()));
+            }
         }
         Some(pending)
     }
@@ -133,7 +144,7 @@ impl SourceMutationRuntime {
         source_id: &SourceId,
         relative_path: &std::path::Path,
     ) -> bool {
-        self.pending_metadata_paths
+        self.pending_file_blocking_metadata_paths
             .contains(&(source_id.clone(), relative_path.to_path_buf()))
     }
 
@@ -244,6 +255,9 @@ pub(crate) struct PendingMetadataMutation {
     pub(crate) source_id: SourceId,
     /// Paths touched by this request for pending-state cleanup.
     pub(crate) paths: BTreeSet<PathBuf>,
+    /// Whether this mutation must settle before browser file mutations like
+    /// rename/auto-rename are allowed to proceed.
+    pub(crate) blocks_file_mutation: bool,
     /// Rollback entries applied only when the background write fails.
     pub(crate) rollback: Vec<MetadataRollback>,
     /// Whether the browser filter/sort projection should refresh when the write completes.
