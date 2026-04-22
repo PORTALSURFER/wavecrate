@@ -14,6 +14,28 @@ const SLOW_QUERY_THRESHOLD: Duration = Duration::from_millis(15);
 const SLOW_TRANSACTION_BEGIN_THRESHOLD: Duration = Duration::from_millis(10);
 const SLOW_TRANSACTION_COMMIT_THRESHOLD: Duration = Duration::from_millis(10);
 
+fn success_debug_outcome(elapsed: Duration, threshold: Duration) -> Option<&'static str> {
+    (elapsed >= threshold).then_some("slow")
+}
+
+fn emit_db_debug_success_if_slow(
+    operation: &str,
+    source: Option<&str>,
+    elapsed: Duration,
+    threshold: Duration,
+) {
+    let Some(outcome) = success_debug_outcome(elapsed, threshold) else {
+        return;
+    };
+    emit_db_debug_event(DbDebugEvent {
+        operation,
+        source,
+        outcome,
+        elapsed,
+        error: None,
+    });
+}
+
 /// Time one immediate transaction begin so lock waits show up in structured logs.
 pub(crate) fn begin_immediate_transaction<'conn>(
     conn: &'conn mut Connection,
@@ -25,17 +47,12 @@ pub(crate) fn begin_immediate_transaction<'conn>(
     let debug_operation = format!("{operation}.transaction_begin");
     match result {
         Ok(tx) => {
-            emit_db_debug_event(DbDebugEvent {
-                operation: &debug_operation,
-                source: None,
-                outcome: if elapsed >= SLOW_TRANSACTION_BEGIN_THRESHOLD {
-                    "slow"
-                } else {
-                    "success"
-                },
+            emit_db_debug_success_if_slow(
+                &debug_operation,
+                None,
                 elapsed,
-                error: None,
-            });
+                SLOW_TRANSACTION_BEGIN_THRESHOLD,
+            );
             record_slow_success(
                 "transaction_begin",
                 operation,
@@ -71,17 +88,12 @@ pub(crate) fn commit_transaction(
     let debug_operation = format!("{operation}.transaction_commit");
     match result {
         Ok(()) => {
-            emit_db_debug_event(DbDebugEvent {
-                operation: &debug_operation,
-                source: None,
-                outcome: if elapsed >= SLOW_TRANSACTION_COMMIT_THRESHOLD {
-                    "slow"
-                } else {
-                    "success"
-                },
+            emit_db_debug_success_if_slow(
+                &debug_operation,
+                None,
                 elapsed,
-                error: None,
-            });
+                SLOW_TRANSACTION_COMMIT_THRESHOLD,
+            );
             record_slow_success(
                 "transaction_commit",
                 operation,
@@ -118,17 +130,12 @@ pub(crate) fn finish_query<T>(
     let debug_operation = format!("{operation}.query");
     match result {
         Ok(value) => {
-            emit_db_debug_event(DbDebugEvent {
-                operation: &debug_operation,
-                source: Some(&source),
-                outcome: if elapsed >= SLOW_QUERY_THRESHOLD {
-                    "slow"
-                } else {
-                    "success"
-                },
+            emit_db_debug_success_if_slow(
+                &debug_operation,
+                Some(&source),
                 elapsed,
-                error: None,
-            });
+                SLOW_QUERY_THRESHOLD,
+            );
             record_slow_success(
                 "query",
                 operation,
@@ -234,12 +241,32 @@ fn is_busy_error(err: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::is_busy_error;
+    use super::{SLOW_QUERY_THRESHOLD, is_busy_error, success_debug_outcome};
+    use std::time::Duration;
 
     #[test]
     fn busy_error_detection_matches_busy_and_locked_text() {
         assert!(is_busy_error("database is busy"));
         assert!(is_busy_error("database is locked"));
         assert!(!is_busy_error("constraint failed"));
+    }
+
+    #[test]
+    fn fast_success_debug_outcome_is_suppressed() {
+        assert_eq!(
+            success_debug_outcome(
+                SLOW_QUERY_THRESHOLD.saturating_sub(Duration::from_millis(1)),
+                SLOW_QUERY_THRESHOLD,
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn slow_success_debug_outcome_is_marked_slow() {
+        assert_eq!(
+            success_debug_outcome(SLOW_QUERY_THRESHOLD, SLOW_QUERY_THRESHOLD,),
+            Some("slow")
+        );
     }
 }

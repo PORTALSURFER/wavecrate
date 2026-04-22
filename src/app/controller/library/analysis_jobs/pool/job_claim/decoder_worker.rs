@@ -15,6 +15,8 @@ use super::queue::DecodedWork;
 use super::selection;
 use super::{DecodeOutcome, DecoderWorkerContext};
 
+const IDLE_CLAIM_WAIT_INTERVAL: Duration = Duration::from_secs(1);
+
 /// Spawns one decoder worker that claims analysis jobs and optionally decodes audio.
 pub(crate) fn spawn_decoder_worker(
     _worker_index: usize,
@@ -121,7 +123,7 @@ fn claim_next_job(
             None
         }
         selection::ClaimSelection::Idle => {
-            let _ = claim_wakeup.wait_for(wake_counter, Duration::from_millis(200));
+            let _ = claim_wakeup.wait_for(wake_counter, IDLE_CLAIM_WAIT_INTERVAL);
             None
         }
     }

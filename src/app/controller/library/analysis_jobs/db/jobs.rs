@@ -264,15 +264,6 @@ pub(crate) fn claim_next_jobs(
     if jobs.is_empty() {
         telemetry::commit_transaction(tx, "analysis_claim_jobs_empty")
             .map_err(|err| format!("Failed to commit empty analysis claim transaction: {err}"))?;
-        let source = source_root.display().to_string();
-        emit_action_debug_event(ActionDebugEvent {
-            action: "analysis.job.claim",
-            pane: Some("background"),
-            source: Some(&source),
-            outcome: "short_circuit",
-            elapsed: started_at.elapsed(),
-            error: Some("no_pending_jobs"),
-        });
         return Ok(Vec::new());
     }
     let mut after_by_sample = HashMap::new();
