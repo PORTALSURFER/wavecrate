@@ -1,6 +1,12 @@
 //! Browser sample delete, rename, and auto-rename execution helpers.
 
 use super::*;
+use crate::app::controller::library::analysis_jobs::db::telemetry;
+use std::thread::sleep;
+use std::time::Duration;
+
+const SAMPLE_RENAME_DB_RETRIES: usize = 4;
+const SAMPLE_RENAME_DB_RETRY_DELAY: Duration = Duration::from_millis(50);
 
 impl BrowserController<'_> {
     /// Delete the resolved browser sample immediately in the current thread.
@@ -242,74 +248,17 @@ pub(super) fn perform_sample_rename(
     let new_absolute = source.root.join(new_relative);
     std::fs::rename(old_absolute, &new_absolute)
         .map_err(|err| format!("Failed to rename file: {err}"))?;
-    let result = (|| {
-        let (file_size, modified_ns) = file_metadata(&new_absolute)?;
-        let db = crate::sample_sources::SourceDatabase::open(&source.root)
-            .map_err(|err| format!("Database unavailable: {err}"))?;
-        let last_played_at = db
-            .last_played_at_for_path(old_relative)
-            .map_err(|err| format!("Failed to load playback age: {err}"))?;
-        let looped = db
-            .looped_for_path(old_relative)
-            .map_err(|err| format!("Failed to load loop marker: {err}"))?
-            .unwrap_or(fallback_looped);
-        let locked = db
-            .locked_for_path(old_relative)
-            .map_err(|err| format!("Failed to load lock marker: {err}"))?
-            .unwrap_or(fallback_locked);
-        let sound_type = db
-            .sound_type_for_path(old_relative)
-            .map_err(|err| format!("Failed to load sound type: {err}"))?
-            .or(fallback_sound_type);
-        let user_tag = db
-            .user_tag_for_path(old_relative)
-            .map_err(|err| format!("Failed to load custom tag: {err}"))?;
-        let mut batch = db
-            .write_batch()
-            .map_err(|err| format!("Failed to start database update: {err}"))?;
-        batch
-            .remove_file(old_relative)
-            .map_err(|err| format!("Failed to drop old entry: {err}"))?;
-        batch
-            .upsert_file(new_relative, file_size, modified_ns)
-            .map_err(|err| format!("Failed to register renamed file: {err}"))?;
-        batch
-            .set_tag(new_relative, tag)
-            .map_err(|err| format!("Failed to copy tag: {err}"))?;
-        batch
-            .set_looped(new_relative, looped)
-            .map_err(|err| format!("Failed to copy loop marker: {err}"))?;
-        batch
-            .set_locked(new_relative, locked)
-            .map_err(|err| format!("Failed to copy keep lock: {err}"))?;
-        batch
-            .set_sound_type(new_relative, sound_type)
-            .map_err(|err| format!("Failed to copy sound type: {err}"))?;
-        batch
-            .set_user_tag(new_relative, user_tag.as_deref())
-            .map_err(|err| format!("Failed to copy custom tag: {err}"))?;
-        if let Some(last_played_at) = last_played_at {
-            batch
-                .set_last_played_at(new_relative, last_played_at)
-                .map_err(|err| format!("Failed to copy playback age: {err}"))?;
-        }
-        batch
-            .commit()
-            .map_err(|err| format!("Failed to save rename: {err}"))?;
-        Ok(WavEntry {
-            relative_path: new_relative.to_path_buf(),
-            file_size,
-            modified_ns,
-            content_hash: None,
-            tag,
-            looped,
-            sound_type,
-            locked,
-            missing: false,
-            last_played_at: last_played_at.or(fallback_last_played_at),
-            user_tag,
-        })
-    })();
+    let result = persist_sample_rename_with_retry(
+        source,
+        old_relative,
+        new_relative,
+        &new_absolute,
+        tag,
+        fallback_looped,
+        fallback_locked,
+        fallback_last_played_at,
+        fallback_sound_type,
+    );
     match result {
         Ok(entry) => Ok(entry),
         Err(err) => rollback_sample_rename(old_absolute, &new_absolute, err),
@@ -325,4 +274,133 @@ fn rollback_sample_rename(
     std::fs::rename(new_absolute, old_absolute)
         .map_err(|err| format!("{message}; rollback failed: {err}"))?;
     Err(message)
+}
+
+/// Retry the source-db rewrite briefly so a just-queued metadata write can
+/// finish before the rename gives up and rolls the filesystem change back.
+fn persist_sample_rename_with_retry(
+    source: &SampleSource,
+    old_relative: &Path,
+    new_relative: &Path,
+    new_absolute: &Path,
+    tag: crate::sample_sources::Rating,
+    fallback_looped: bool,
+    fallback_locked: bool,
+    fallback_last_played_at: Option<i64>,
+    fallback_sound_type: Option<crate::sample_sources::SampleSoundType>,
+) -> Result<WavEntry, String> {
+    let mut last_err = None;
+    for attempt in 0..SAMPLE_RENAME_DB_RETRIES {
+        match persist_sample_rename_once(
+            source,
+            old_relative,
+            new_relative,
+            new_absolute,
+            tag,
+            fallback_looped,
+            fallback_locked,
+            fallback_last_played_at,
+            fallback_sound_type,
+        ) {
+            Ok(entry) => return Ok(entry),
+            Err(err) if attempt + 1 < SAMPLE_RENAME_DB_RETRIES && is_busy_lock_error(&err) => {
+                telemetry::record_retry(
+                    "browser_sample_rename",
+                    &source.root,
+                    attempt + 1,
+                    SAMPLE_RENAME_DB_RETRIES,
+                    SAMPLE_RENAME_DB_RETRY_DELAY,
+                    &err,
+                );
+                last_err = Some(err);
+                sleep(SAMPLE_RENAME_DB_RETRY_DELAY);
+            }
+            Err(err) => return Err(err),
+        }
+    }
+    Err(last_err.unwrap_or_else(|| "Rename retries exhausted".to_string()))
+}
+
+fn persist_sample_rename_once(
+    source: &SampleSource,
+    old_relative: &Path,
+    new_relative: &Path,
+    new_absolute: &Path,
+    tag: crate::sample_sources::Rating,
+    fallback_looped: bool,
+    fallback_locked: bool,
+    fallback_last_played_at: Option<i64>,
+    fallback_sound_type: Option<crate::sample_sources::SampleSoundType>,
+) -> Result<WavEntry, String> {
+    let (file_size, modified_ns) = file_metadata(new_absolute)?;
+    let db = crate::sample_sources::SourceDatabase::open(&source.root)
+        .map_err(|err| format!("Database unavailable: {err}"))?;
+    let last_played_at = db
+        .last_played_at_for_path(old_relative)
+        .map_err(|err| format!("Failed to load playback age: {err}"))?;
+    let looped = db
+        .looped_for_path(old_relative)
+        .map_err(|err| format!("Failed to load loop marker: {err}"))?
+        .unwrap_or(fallback_looped);
+    let locked = db
+        .locked_for_path(old_relative)
+        .map_err(|err| format!("Failed to load lock marker: {err}"))?
+        .unwrap_or(fallback_locked);
+    let sound_type = db
+        .sound_type_for_path(old_relative)
+        .map_err(|err| format!("Failed to load sound type: {err}"))?
+        .or(fallback_sound_type);
+    let user_tag = db
+        .user_tag_for_path(old_relative)
+        .map_err(|err| format!("Failed to load custom tag: {err}"))?;
+    let mut batch = db
+        .write_batch()
+        .map_err(|err| format!("Failed to start database update: {err}"))?;
+    batch
+        .remove_file(old_relative)
+        .map_err(|err| format!("Failed to drop old entry: {err}"))?;
+    batch
+        .upsert_file(new_relative, file_size, modified_ns)
+        .map_err(|err| format!("Failed to register renamed file: {err}"))?;
+    batch
+        .set_tag(new_relative, tag)
+        .map_err(|err| format!("Failed to copy tag: {err}"))?;
+    batch
+        .set_looped(new_relative, looped)
+        .map_err(|err| format!("Failed to copy loop marker: {err}"))?;
+    batch
+        .set_locked(new_relative, locked)
+        .map_err(|err| format!("Failed to copy keep lock: {err}"))?;
+    batch
+        .set_sound_type(new_relative, sound_type)
+        .map_err(|err| format!("Failed to copy sound type: {err}"))?;
+    batch
+        .set_user_tag(new_relative, user_tag.as_deref())
+        .map_err(|err| format!("Failed to copy custom tag: {err}"))?;
+    if let Some(last_played_at) = last_played_at {
+        batch
+            .set_last_played_at(new_relative, last_played_at)
+            .map_err(|err| format!("Failed to copy playback age: {err}"))?;
+    }
+    batch
+        .commit()
+        .map_err(|err| format!("Failed to save rename: {err}"))?;
+    Ok(WavEntry {
+        relative_path: new_relative.to_path_buf(),
+        file_size,
+        modified_ns,
+        content_hash: None,
+        tag,
+        looped,
+        sound_type,
+        locked,
+        missing: false,
+        last_played_at: last_played_at.or(fallback_last_played_at),
+        user_tag,
+    })
+}
+
+fn is_busy_lock_error(err: &str) -> bool {
+    let lowered = err.to_ascii_lowercase();
+    lowered.contains("busy") || lowered.contains("locked")
 }

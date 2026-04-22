@@ -174,6 +174,47 @@ fn sample_auto_rename_rolls_back_each_failed_file_when_db_is_busy() {
 }
 
 #[test]
+/// Auto-rename waits through a short source-db write lock instead of rolling back the file rename.
+fn sample_auto_rename_retries_until_short_db_lock_clears() {
+    let (_temp, source) = setup_fixture(&["alpha.wav"]);
+    let requests = vec![rename_request("alpha.wav", "alpha_renamed.wav")];
+    let (lock_release_tx, lock_done_rx) = lock_db_until_released(&source.root);
+
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(80));
+        release_db_lock(lock_release_tx, lock_done_rx);
+    });
+
+    let result =
+        run_sample_auto_rename_job(source.clone(), requests, Arc::new(AtomicBool::new(false)));
+
+    assert!(
+        result.errors.is_empty(),
+        "rename should retry through short lock"
+    );
+    assert!(result.skipped.is_empty());
+    assert_eq!(result.renamed.len(), 1);
+    assert!(!source.root.join("alpha.wav").exists());
+    assert!(source.root.join("alpha_renamed.wav").is_file());
+
+    let db = SourceDatabase::open(&source.root).expect("open source db");
+    assert!(db
+        .tag_for_path(Path::new("alpha.wav"))
+        .expect("old tag")
+        .is_none());
+    assert_eq!(
+        db.tag_for_path(Path::new("alpha_renamed.wav"))
+            .expect("renamed tag"),
+        Some(Rating::KEEP_3)
+    );
+    assert_eq!(
+        db.locked_for_path(Path::new("alpha_renamed.wav"))
+            .expect("renamed locked"),
+        Some(true)
+    );
+}
+
+#[test]
 /// Auto-rename persists inferred sound type in the worker when the old DB row is missing it.
 fn sample_auto_rename_persists_inferred_sound_type_without_controller_db_write() {
     let temp = tempdir().expect("create temp dir");
