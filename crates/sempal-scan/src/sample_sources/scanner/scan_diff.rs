@@ -150,11 +150,17 @@ fn apply_rename(
     if entry.looped {
         batch.set_looped(new_path, entry.looped)?;
     }
+    if entry.sound_type.is_some() {
+        batch.set_sound_type(new_path, entry.sound_type)?;
+    }
     if entry.locked {
         batch.set_locked(new_path, entry.locked)?;
     }
     if let Some(last_played_at) = entry.last_played_at {
         batch.set_last_played_at(new_path, last_played_at)?;
+    }
+    if entry.user_tag.is_some() {
+        batch.set_user_tag(new_path, entry.user_tag.as_deref())?;
     }
     Ok(())
 }
@@ -171,11 +177,17 @@ fn apply_rename_without_hash(
     if entry.looped {
         batch.set_looped(new_path, entry.looped)?;
     }
+    if entry.sound_type.is_some() {
+        batch.set_sound_type(new_path, entry.sound_type)?;
+    }
     if entry.locked {
         batch.set_locked(new_path, entry.locked)?;
     }
     if let Some(last_played_at) = entry.last_played_at {
         batch.set_last_played_at(new_path, last_played_at)?;
+    }
+    if entry.user_tag.is_some() {
+        batch.set_user_tag(new_path, entry.user_tag.as_deref())?;
     }
     Ok(())
 }
@@ -258,9 +270,11 @@ mod tests {
             content_hash: None,
             tag: Rating::NEUTRAL,
             looped: false,
+            sound_type: None,
             locked: false,
             missing: false,
             last_played_at: None,
+            user_tag: None,
         }
     }
 

@@ -8,6 +8,8 @@ use super::util::map_sql_error;
 mod ddl;
 mod migrations;
 
+pub(crate) use migrations::table_columns;
+
 /// SQLite `user_version` value for the current source-db schema shape.
 ///
 /// A matching stamp means the base DDL, additive migrations, and indices have

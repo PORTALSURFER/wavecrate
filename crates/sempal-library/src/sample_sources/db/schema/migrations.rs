@@ -11,6 +11,7 @@ use super::super::util::{map_sql_error, parse_relative_path_from_db};
 /// Apply additive column migrations needed by older source databases.
 pub(super) fn apply_optional_migrations(connection: &Connection) -> Result<(), SourceDbError> {
     ensure_wav_files_optional_columns(connection)?;
+    ensure_pending_rename_optional_columns(connection)?;
     ensure_file_ops_journal_optional_columns(connection)?;
     ensure_analysis_jobs_optional_columns(connection)?;
     ensure_analysis_job_progress_snapshots(connection)?;
@@ -117,6 +118,33 @@ fn ensure_wav_files_optional_columns(connection: &Connection) -> Result<(), Sour
         connection
             .execute(
                 "ALTER TABLE wav_files ADD COLUMN last_played_at INTEGER",
+                [],
+            )
+            .map_err(map_sql_error)?;
+    }
+    Ok(())
+}
+
+fn ensure_pending_rename_optional_columns(connection: &Connection) -> Result<(), SourceDbError> {
+    let columns = table_columns(connection, "pending_wav_renames")?;
+    if columns.is_empty() {
+        return Ok(());
+    }
+    // Older quick-scan rename rows predate the extended metadata contract.
+    // Additive columns keep startup-safe replay compatible while legacy rows
+    // continue decoding as `None` for sound_type and user_tag.
+    if !columns.contains("sound_type") {
+        connection
+            .execute(
+                "ALTER TABLE pending_wav_renames ADD COLUMN sound_type TEXT",
+                [],
+            )
+            .map_err(map_sql_error)?;
+    }
+    if !columns.contains("user_tag") {
+        connection
+            .execute(
+                "ALTER TABLE pending_wav_renames ADD COLUMN user_tag TEXT",
                 [],
             )
             .map_err(map_sql_error)?;
@@ -316,7 +344,7 @@ fn ensure_feature_metric_columns(
     Ok(())
 }
 
-fn table_columns(
+pub(crate) fn table_columns(
     connection: &Connection,
     table_name: &str,
 ) -> Result<HashSet<String>, SourceDbError> {
@@ -374,5 +402,29 @@ mod tests {
             .unwrap();
         assert_eq!(row.0, "source-a");
         assert_eq!(row.1, "Pack/a.wav");
+    }
+
+    #[test]
+    fn pending_rename_migration_adds_sound_type_and_user_tag() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE pending_wav_renames (
+                path TEXT PRIMARY KEY,
+                file_size INTEGER NOT NULL,
+                modified_ns INTEGER NOT NULL,
+                content_hash TEXT,
+                tag INTEGER NOT NULL,
+                looped INTEGER NOT NULL,
+                locked INTEGER NOT NULL,
+                last_played_at INTEGER
+            );",
+        )
+        .unwrap();
+
+        ensure_pending_rename_optional_columns(&conn).unwrap();
+
+        let columns = table_columns(&conn, "pending_wav_renames").unwrap();
+        assert!(columns.contains("sound_type"));
+        assert!(columns.contains("user_tag"));
     }
 }

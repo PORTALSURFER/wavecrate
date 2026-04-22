@@ -129,11 +129,20 @@ fn apply_deep_rename(
     if pending_entry.looped {
         batch.set_looped(&present_entry.relative_path, pending_entry.looped)?;
     }
+    if pending_entry.sound_type.is_some() {
+        batch.set_sound_type(&present_entry.relative_path, pending_entry.sound_type)?;
+    }
     if pending_entry.locked {
         batch.set_locked(&present_entry.relative_path, pending_entry.locked)?;
     }
     if let Some(last_played_at) = pending_entry.last_played_at {
         batch.set_last_played_at(&present_entry.relative_path, last_played_at)?;
+    }
+    if pending_entry.user_tag.is_some() {
+        batch.set_user_tag(
+            &present_entry.relative_path,
+            pending_entry.user_tag.as_deref(),
+        )?;
     }
     Ok(())
 }

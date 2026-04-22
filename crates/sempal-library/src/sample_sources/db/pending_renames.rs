@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use rusqlite::params;
 
 use super::util::{map_sql_error, normalize_relative_path, parse_relative_path_from_db};
-use super::{Rating, SourceDatabase, SourceDbError, SourceWriteBatch, WavEntry};
+use super::{Rating, SampleSoundType, SourceDatabase, SourceDbError, SourceWriteBatch, WavEntry};
 
 const DELETE_PENDING_RENAME_SQL: &str = "DELETE FROM pending_wav_renames WHERE path = ?1";
 
@@ -23,10 +23,14 @@ pub struct PendingRenameEntry {
     pub tag: Rating,
     /// Whether the sample was marked looped.
     pub looped: bool,
+    /// Last known canonical sound classification, if present.
+    pub sound_type: Option<SampleSoundType>,
     /// Whether the sample was marked locked.
     pub locked: bool,
     /// Epoch seconds of the most recent playback, if available.
     pub last_played_at: Option<i64>,
+    /// Last known user-authored custom tag, if present.
+    pub user_tag: Option<String>,
 }
 
 impl PendingRenameEntry {
@@ -39,11 +43,11 @@ impl PendingRenameEntry {
             content_hash: self.content_hash,
             tag: self.tag,
             looped: self.looped,
-            sound_type: None,
+            sound_type: self.sound_type,
             locked: self.locked,
             missing: false,
             last_played_at: self.last_played_at,
-            user_tag: None,
+            user_tag: self.user_tag,
         }
     }
 }
@@ -51,14 +55,8 @@ impl PendingRenameEntry {
 impl SourceDatabase {
     /// List pending rename candidates retained after immediate pruning.
     pub fn list_pending_renames(&self) -> Result<Vec<PendingRenameEntry>, SourceDbError> {
-        let mut stmt = self
-            .connection
-            .prepare(
-                "SELECT path, file_size, modified_ns, content_hash, tag, looped, locked, last_played_at
-                 FROM pending_wav_renames
-                 ORDER BY path ASC",
-            )
-            .map_err(map_sql_error)?;
+        let query = pending_rename_select_query(&self.connection)?;
+        let mut stmt = self.connection.prepare(&query).map_err(map_sql_error)?;
         let rows = stmt
             .query_map([], |row| {
                 let stored_path: String = row.get(0)?;
@@ -86,8 +84,13 @@ impl SourceDatabase {
                     content_hash: row.get(3)?,
                     tag: Rating::from_i64(row.get::<_, i64>(4)?),
                     looped: row.get::<_, i64>(5)? != 0,
-                    locked: row.get::<_, i64>(6)? != 0,
-                    last_played_at: row.get(7)?,
+                    sound_type: row
+                        .get::<_, Option<String>>(6)?
+                        .as_deref()
+                        .and_then(SampleSoundType::from_token),
+                    locked: row.get::<_, i64>(7)? != 0,
+                    last_played_at: row.get(8)?,
+                    user_tag: row.get(9)?,
                 }))
             })
             .map_err(map_sql_error)?
@@ -107,16 +110,18 @@ impl<'conn> SourceWriteBatch<'conn> {
         self.tx
             .prepare_cached(
                 "INSERT INTO pending_wav_renames (
-                     path, file_size, modified_ns, content_hash, tag, looped, locked, last_played_at
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+                     path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, user_tag
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
                  ON CONFLICT(path) DO UPDATE SET
                      file_size = excluded.file_size,
                      modified_ns = excluded.modified_ns,
                      content_hash = excluded.content_hash,
                      tag = excluded.tag,
                      looped = excluded.looped,
+                     sound_type = excluded.sound_type,
                      locked = excluded.locked,
-                     last_played_at = excluded.last_played_at",
+                     last_played_at = excluded.last_played_at,
+                     user_tag = excluded.user_tag",
             )
             .map_err(map_sql_error)?
             .execute(params![
@@ -126,8 +131,10 @@ impl<'conn> SourceWriteBatch<'conn> {
                 entry.content_hash.as_deref(),
                 entry.tag.as_i64(),
                 entry.looped as i64,
+                entry.sound_type.map(SampleSoundType::token),
                 entry.locked as i64,
                 entry.last_played_at,
+                entry.user_tag.as_deref(),
             ])
             .map_err(map_sql_error)?;
         Ok(())
@@ -168,13 +175,8 @@ impl<'conn> SourceWriteBatch<'conn> {
         &mut self,
         hash: &str,
     ) -> Result<Option<PendingRenameEntry>, SourceDbError> {
-        self.take_unique_pending_rename(
-            "SELECT path, file_size, modified_ns, content_hash, tag, looped, locked, last_played_at
-             FROM pending_wav_renames
-             WHERE content_hash = ?1
-             LIMIT 2",
-            params![hash],
-        )
+        let sql = pending_rename_select_with_where(&self.tx, "content_hash = ?1 LIMIT 2")?;
+        self.take_unique_pending_rename(&sql, params![hash])
     }
 
     /// Claim one unique retained rename candidate by file facts.
@@ -183,13 +185,11 @@ impl<'conn> SourceWriteBatch<'conn> {
         file_size: u64,
         modified_ns: i64,
     ) -> Result<Option<PendingRenameEntry>, SourceDbError> {
-        self.take_unique_pending_rename(
-            "SELECT path, file_size, modified_ns, content_hash, tag, looped, locked, last_played_at
-             FROM pending_wav_renames
-             WHERE file_size = ?1 AND modified_ns = ?2
-             LIMIT 2",
-            params![file_size as i64, modified_ns],
-        )
+        let sql = pending_rename_select_with_where(
+            &self.tx,
+            "file_size = ?1 AND modified_ns = ?2 LIMIT 2",
+        )?;
+        self.take_unique_pending_rename(&sql, params![file_size as i64, modified_ns])
     }
 
     fn take_unique_pending_rename(
@@ -226,8 +226,13 @@ impl<'conn> SourceWriteBatch<'conn> {
                     content_hash: row.get(3)?,
                     tag: Rating::from_i64(row.get::<_, i64>(4)?),
                     looped: row.get::<_, i64>(5)? != 0,
-                    locked: row.get::<_, i64>(6)? != 0,
-                    last_played_at: row.get(7)?,
+                    sound_type: row
+                        .get::<_, Option<String>>(6)?
+                        .as_deref()
+                        .and_then(SampleSoundType::from_token),
+                    locked: row.get::<_, i64>(7)? != 0,
+                    last_played_at: row.get(8)?,
+                    user_tag: row.get(9)?,
                 })
             })
             .map_err(map_sql_error)?
@@ -241,4 +246,30 @@ impl<'conn> SourceWriteBatch<'conn> {
         self.clear_pending_rename(&entry.relative_path)?;
         Ok(Some(entry))
     }
+}
+
+fn pending_rename_select_query(connection: &rusqlite::Connection) -> Result<String, SourceDbError> {
+    pending_rename_select_with_where(connection, "1 = 1 ORDER BY path ASC")
+}
+
+fn pending_rename_select_with_where(
+    connection: &rusqlite::Connection,
+    predicate_sql: &str,
+) -> Result<String, SourceDbError> {
+    let columns = super::schema::table_columns(connection, "pending_wav_renames")?;
+    let sound_type_column = if columns.contains("sound_type") {
+        "sound_type".to_string()
+    } else {
+        "NULL AS sound_type".to_string()
+    };
+    let user_tag_column = if columns.contains("user_tag") {
+        "user_tag".to_string()
+    } else {
+        "NULL AS user_tag".to_string()
+    };
+    Ok(format!(
+        "SELECT path, file_size, modified_ns, content_hash, tag, looped, {sound_type_column}, locked, last_played_at, {user_tag_column}
+         FROM pending_wav_renames
+         WHERE {predicate_sql}"
+    ))
 }

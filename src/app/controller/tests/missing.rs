@@ -140,6 +140,15 @@ fn prune_missing_sample_removes_cache_and_db_entry_when_inactive() {
             false,
         )
         .unwrap();
+    batch
+        .set_sound_type(
+            Path::new("one.wav"),
+            Some(crate::sample_sources::SampleSoundType::Seq),
+        )
+        .unwrap();
+    batch
+        .set_user_tag(Path::new("one.wav"), Some("Recovered Tag"))
+        .unwrap();
     batch.commit().unwrap();
     let mut cache = WavEntriesState::new(1, controller.wav_entries.page_size);
     cache.insert_page(
@@ -183,6 +192,11 @@ fn prune_missing_sample_removes_cache_and_db_entry_when_inactive() {
     assert_eq!(pending.len(), 1);
     assert_eq!(pending[0].relative_path, PathBuf::from("one.wav"));
     assert_eq!(pending[0].tag, crate::sample_sources::Rating::KEEP_1);
+    assert_eq!(
+        pending[0].sound_type,
+        Some(crate::sample_sources::SampleSoundType::Seq)
+    );
+    assert_eq!(pending[0].user_tag.as_deref(), Some("Recovered Tag"));
 }
 
 #[test]
