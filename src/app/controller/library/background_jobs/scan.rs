@@ -87,6 +87,9 @@ fn handle_successful_scan(
         &stats,
     );
     invalidate_scan_caches(controller, source_id, is_selected_source);
+    if is_selected_source {
+        controller.refresh_selected_source_similarity_prep_status();
+    }
 
     let source = controller
         .library

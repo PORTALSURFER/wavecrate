@@ -253,19 +253,7 @@ impl AppController {
         self.ui.map.cached_points_umap_version = None;
         self.mark_map_dataset_projection_revision_dirty();
         self.mark_map_query_projection_revision_dirty();
-        self.ui.map.outdated = if let Some(source) = self.current_source() {
-            let scan_at =
-                crate::app::controller::library::similarity_prep::db::read_source_scan_timestamp(
-                    &source,
-                );
-            let prep_at =
-                crate::app::controller::library::similarity_prep::db::read_source_prep_timestamp(
-                    &source,
-                );
-            scan_at.is_some() && scan_at != prep_at
-        } else {
-            false
-        };
+        self.refresh_selected_source_similarity_prep_status();
         self.queue_source_hydration(
             self.active_folder_pane(),
             crate::app::controller::jobs::SourceHydrationKind::ActiveSelection,

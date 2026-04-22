@@ -2,6 +2,29 @@ use super::UiPoint;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+/// Operator-facing similarity-prep availability for the selected source.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MapSimilarityPrepStatus {
+    /// Similarity prep timestamps and artifacts match the current source scan.
+    UpToDate,
+    /// The source changed after the last successful prep run.
+    Outdated,
+    /// Similarity prep cannot advance until failed analysis rows are addressed.
+    Blocked {
+        /// Total failed prerequisite rows still missing usable artifacts.
+        failed_count: usize,
+        /// Failed rows whose error suggests unsupported media/codec input.
+        unsupported_count: usize,
+    },
+    /// Required similarity artifacts do not exist for the selected source yet.
+    MissingArtifacts {
+        /// True when embeddings for the source are still missing.
+        missing_embeddings: bool,
+        /// True when the selected UMAP layout has not been built yet.
+        missing_layout: bool,
+    },
+}
+
 /// UI state for the map view and its caches.
 #[derive(Clone, Debug)]
 pub struct MapUiState {
@@ -73,8 +96,8 @@ pub struct MapUiState {
     pub last_points_rendered: usize,
     /// Last render mode used.
     pub last_render_mode: MapRenderMode,
-    /// Whether the map data is out of date.
-    pub outdated: bool,
+    /// Resolved similarity-prep availability for the selected source, when any.
+    pub similarity_prep_status: Option<MapSimilarityPrepStatus>,
 }
 
 impl Default for MapUiState {
@@ -114,7 +137,7 @@ impl Default for MapUiState {
             last_draw_calls: 0,
             last_points_rendered: 0,
             last_render_mode: MapRenderMode::Points,
-            outdated: false,
+            similarity_prep_status: None,
         }
     }
 }

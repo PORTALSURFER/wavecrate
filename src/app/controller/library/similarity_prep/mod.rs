@@ -4,6 +4,7 @@ mod plan;
 mod progress;
 mod runtime;
 mod state;
+mod status;
 mod store;
 mod transitions;
 mod ui;

@@ -154,6 +154,9 @@ impl AppController {
                 );
             }
         }
+        if self.selection_state.ctx.selected_source.as_ref() == Some(&message.source_id) {
+            self.refresh_selected_source_similarity_prep_status();
+        }
     }
 
     /// Apply one streamed selection-export worker message.

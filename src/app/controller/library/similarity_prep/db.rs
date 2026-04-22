@@ -51,6 +51,17 @@ pub(crate) fn source_has_embeddings(source: &SampleSource) -> bool {
         .unwrap_or(false)
 }
 
+pub(crate) fn source_has_layout(source: &SampleSource, umap_version: &str) -> bool {
+    let Ok(conn) = analysis_jobs::open_source_db(&source.root) else {
+        return false;
+    };
+    let model_id = crate::analysis::similarity::SIMILARITY_MODEL_ID;
+    let sample_id_prefix = format!("{}::%", source.id.as_str());
+    count_umap_layout_rows(&conn, model_id, umap_version, &sample_id_prefix)
+        .map(|count| count > 0)
+        .unwrap_or(false)
+}
+
 pub(crate) fn count_umap_layout_rows(
     conn: &rusqlite::Connection,
     model_id: &str,

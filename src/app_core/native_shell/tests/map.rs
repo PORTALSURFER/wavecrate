@@ -1,4 +1,19 @@
 use super::*;
+use crate::app::state::MapSimilarityPrepStatus;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+fn add_selected_source(controller: &mut AppController) {
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock")
+        .as_nanos();
+    let root = std::env::temp_dir().join(format!("sempal-map-projection-{unique}"));
+    std::fs::create_dir_all(&root).expect("create source root");
+    controller
+        .add_source_from_path(root)
+        .expect("add selected source");
+    controller.select_first_source();
+}
 
 /// Map projection should expose legend, selection, hover, cluster, and viewport summary text.
 #[test]
@@ -167,5 +182,56 @@ fn map_projection_reuses_retained_points_for_selection_overlay_changes() {
     assert_eq!(
         second.selected_sample_id.as_deref(),
         Some("source::kick.wav")
+    );
+}
+
+#[test]
+fn map_projection_surfaces_outdated_similarity_prep_reason() {
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+    controller.ui.browser.active_tab = SampleBrowserTab::Map;
+    add_selected_source(&mut controller);
+    controller.ui.map.similarity_prep_status = Some(MapSimilarityPrepStatus::Outdated);
+
+    let projected = project_map_model(&mut controller);
+
+    assert_eq!(projected.summary, "Similarity prep is out of date");
+    assert_eq!(
+        projected.selection_label,
+        "Action: rerun similarity prep for this source"
+    );
+    assert_eq!(
+        projected.hover_label,
+        "Reason: source changed after the last prep run"
+    );
+    assert_eq!(projected.cluster_label, "State: waiting for operator retry");
+}
+
+#[test]
+fn map_projection_surfaces_blocked_similarity_prep_reason() {
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+    controller.ui.browser.active_tab = SampleBrowserTab::Map;
+    add_selected_source(&mut controller);
+    controller.ui.map.similarity_prep_status = Some(MapSimilarityPrepStatus::Blocked {
+        failed_count: 4,
+        unsupported_count: 1,
+    });
+
+    let projected = project_map_model(&mut controller);
+
+    assert_eq!(
+        projected.summary,
+        "Similarity prep blocked by 4 failed files"
+    );
+    assert_eq!(
+        projected.selection_label,
+        "Action: inspect failed rows, then retry similarity prep"
+    );
+    assert_eq!(
+        projected.hover_label,
+        "Failures: 4 total (1 unsupported stay excluded)"
+    );
+    assert_eq!(
+        projected.cluster_label,
+        "State: prerequisite analysis incomplete"
     );
 }

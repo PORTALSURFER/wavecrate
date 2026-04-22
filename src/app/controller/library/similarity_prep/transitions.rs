@@ -118,6 +118,7 @@ impl AppController {
         self.restore_similarity_prep_full_analysis();
         self.restore_similarity_prep_worker_count();
         self.clear_progress_task(ProgressTaskKind::Analysis);
+        self.refresh_selected_source_similarity_prep_status();
     }
 }
 
