@@ -24,9 +24,7 @@ Machine-consumed check allowlists do not live here anymore. They now live under
 ## Live operational files
 
 - `AGENTS.md`
-  - wake-up portal and current mission
-- `MEMORY.md`
-  - present-tense session snapshot
+  - repo-specific workflow rules, validation entrypoints, and branch policy
 - `docs/plans/index.md`
   - stable map for active plan artifacts and templates
 - `docs/plans/TEMPLATE_execution_plan.md`
@@ -34,7 +32,7 @@ Machine-consumed check allowlists do not live here anymore. They now live under
 - `docs/plans/TEMPLATE_investigation.md`
   - reusable template for investigation writeups
 - `docs/plans/active/todo.md`
-  - short ordered queue for the active lane and current docs-side wake-up path
+  - short ordered queue for the active lane
 - `tmp/improvement_audit_plan.md`
   - canonical source for the current audit lane status and execution order
 - `tmp/database_system_audit_plan.md`

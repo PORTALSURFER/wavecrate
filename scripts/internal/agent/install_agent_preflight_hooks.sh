@@ -111,10 +111,7 @@ fi
 
 preflight_script="$repo_root/scripts/internal/agent/run_agent_preflight.sh"
 if [[ -x "$preflight_script" ]]; then
-  "$preflight_script" \
-    --updater "${AGENT_PREFLIGHT_UPDATER:-Codex}" \
-    --memory-max-age-hours "${AGENT_PREFLIGHT_MEMORY_MAX_AGE_HOURS:-1}" \
-    --refresh-memory
+  "$preflight_script"
 else
   echo "[agent_preflight_hook] ERROR: missing $preflight_script" >&2
   exit 1
@@ -140,10 +137,7 @@ fi
 
 preflight_script="$repo_root/scripts/internal/agent/run_agent_preflight.sh"
 if [[ -x "$preflight_script" ]]; then
-  "$preflight_script" \
-    --updater "${AGENT_PREFLIGHT_UPDATER:-Codex}" \
-    --memory-max-age-hours "${AGENT_PREFLIGHT_MEMORY_MAX_AGE_HOURS:-1}" \
-    --refresh-memory
+  "$preflight_script"
 else
   echo "[agent_preflight_hook] ERROR: missing $preflight_script" >&2
   exit 1

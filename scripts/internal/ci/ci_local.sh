@@ -18,8 +18,6 @@ source "$ROOT_DIR/scripts/internal/use_cargo_cache.sh"
 sempal_enable_cargo_cache
 
 SKIP_AGENT_PREFLIGHT=0
-MEMORY_MAX_AGE_HOURS="${AGENT_CI_MEMORY_MAX_AGE_HOURS:-24}"
-REQUIRED_UPDATER="${AGENT_CI_REQUIRED_UPDATER:-}"
 
 while (( $# > 0 )); do
   case "$1" in
@@ -51,14 +49,7 @@ cargo fmt --all -- --check
 
 if (( SKIP_AGENT_PREFLIGHT == 0 )); then
   echo "[ci_local] scripts/internal/agent/run_agent_ci_checks.sh"
-  if [[ -n "$REQUIRED_UPDATER" ]]; then
-    ./scripts/internal/agent/run_agent_ci_checks.sh \
-      --required-updater "$REQUIRED_UPDATER" \
-      --memory-max-age-hours "$MEMORY_MAX_AGE_HOURS"
-  else
-    ./scripts/internal/agent/run_agent_ci_checks.sh \
-      --memory-max-age-hours "$MEMORY_MAX_AGE_HOURS"
-  fi
+  ./scripts/internal/agent/run_agent_ci_checks.sh
 fi
 
 echo "[ci_local] cargo clippy --workspace --all-targets"

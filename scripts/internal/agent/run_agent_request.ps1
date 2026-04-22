@@ -4,12 +4,10 @@
 Run the mandatory agent preflight and local CI contract.
 
 .DESCRIPTION
-Refreshes MEMORY.md, runs mandatory guardrails, then optionally runs local CI.
+Runs mandatory guardrails, then optionally runs local CI.
 #>
 
 param(
-  [string]$Updater = "Codex",
-  [int]$MemoryMaxAgeHours = 1,
   [switch]$SkipCi,
   [switch]$QuickCi,
   [switch]$FullCi,
@@ -21,7 +19,7 @@ $ErrorActionPreference = "Stop"
 
 
 if ($Help) {
-  Write-Host "Usage: run_agent_request.ps1 [-Updater Codex] [-MemoryMaxAgeHours 1] [-SkipCi] [-QuickCi] [-FullCi]"
+  Write-Host "Usage: run_agent_request.ps1 [-SkipCi] [-QuickCi] [-FullCi]"
   Write-Host ""
   Write-Host "Run the mandatory agent preflight and optional local development checks."
   Write-Host "Default CI path: `./scripts/ci.ps1 smoke`."
@@ -31,19 +29,15 @@ if ($Help) {
   exit 0
 }
 
-if ($MemoryMaxAgeHours -lt 0) {
-  throw "MemoryMaxAgeHours must be >= 0."
-}
-
 if ($QuickCi -and $FullCi) {
   throw "QuickCi and FullCi are mutually exclusive."
 }
 
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
 
-Write-Host "[agent_request] updater=$Updater memory_max_age_hours=$MemoryMaxAgeHours"
+Write-Host "[agent_request] preflight"
 
-& (Join-Path $rootDir "scripts/internal/agent/run_agent_preflight.ps1") -RefreshMemory -Updater "$Updater" -MemoryMaxAgeHours "$MemoryMaxAgeHours"
+& (Join-Path $rootDir "scripts/internal/agent/run_agent_preflight.ps1")
 
 if (-not $SkipCi) {
   if ($FullCi) {

@@ -31,7 +31,6 @@ case "$command" in
   legacy-app-coupling) exec "$script_dir/check_legacy_app_coupling.sh" "$@" ;;
   manual-docs-scope) exec "$script_dir/check_manual_docs_scope.sh" "$@" ;;
   markdown-links) exec "$script_dir/check_markdown_links.sh" "$@" ;;
-  memory-log) exec "$script_dir/check_memory_log.sh" "$@" ;;
   migration-boundary) exec "$script_dir/check_migration_boundary.sh" "$@" ;;
   next-branch) exec "$script_dir/check_next_branch.sh" "$@" ;;
   private-docs) exec "$script_dir/check_rust_private_docs.sh" "$@" ;;

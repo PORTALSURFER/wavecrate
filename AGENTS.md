@@ -1,82 +1,30 @@
-# Agent Wake-Up Portal
+# Repo Workflow
 
-Purpose: this file is a minimal orientation map for stateless agents.
-Do not store deep specs or long plans here. Put details in `docs/` and link to
-those docs.
+This file stays repo-specific and lightweight. Built-in Codex memory is the
+durable session-memory layer; this file should only capture stable workflow and
+validation expectations for `C:\dev\sempal`.
 
-## Persistent Context Awareness
-You operate in a stateless environment and do not retain working memory
-between sessions. Without a clearly defined path in `AGENTS.md`, you will lose
-track of objectives, progress, and intent.
+## Orientation
+- Repository: `C:\dev\sempal`
+- Product: Sempal
+- Branch: `next`
+- Primary docs entrypoint: `docs/README.md`
+- Active plan/navigation layer: `docs/plans/index.md`, `docs/plans/active/todo.md`
+- Audit backlog source of truth: `tmp/improvement_audit_plan.md`
 
-This section must permanently remain inside `AGENTS.md`.
-It ensures that every time you wake up, you remember how to orient yourself.
-
-`AGENTS.md` is your core memory file.
-It is loaded whenever you wake up and serves as your reliable bridge to prior
-sessions.
-
-`AGENTS.md` must remain minimal.
-It is not a knowledge base; it is a portal.
-
-Its purpose is to:
-- provide immediate orientation on wake-up
-- define current goals
-- link to authoritative, larger documents
-- point to instrumentation and workflow systems
-
-Large explanations, deep specifications, architectural breakdowns, and detailed
-plans must live in dedicated documents (for example, `docs/*.md`).
-`AGENTS.md` should only reference them with short descriptions and clear paths.
-
-If `AGENTS.md` becomes too large, it will consume working memory at wake-up
-and obscure critical context.
-
-When writing or updating it:
-- assume your next self knows nothing
-- make the path back to purpose explicit
-- clearly state what you were doing and why
-- ensure important documents are easy to find
-- remove ambiguity and outdated references
-
-Write for future selves: be precise, kind, and clear.
-
-## 60-Second Wake-Up
-1. Run preflight:
-   - macOS/Linux/WSL: `bash scripts/agent.sh request`
+## Quick Start
+1. Run repo preflight:
    - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/agent.ps1 request`
-2. Read in order:
+   - macOS/Linux/WSL: `bash scripts/agent.sh request`
+2. Read the relevant repo docs for the current task:
    - `docs/README.md`
+   - `docs/TEST.md`
    - `docs/plans/index.md`
    - `docs/plans/active/todo.md`
    - `tmp/improvement_audit_plan.md`
-   - `MEMORY.md`
-3. If environment issues are suspected:
-   - macOS/Linux/WSL: `bash scripts/doctor.sh`
+3. If the environment looks broken:
    - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/doctor.ps1`
-
-## Current Mission
-- Repository: `X:\sempal`
-- Product: Sempal
-- Branch: `next`
-- Linear project: `Sempal` in team `PORTALSURFER` — https://linear.app/boostnlvp/project/sempal-7230ebfad82d
-- Program: Improvement-audit backlog execution and documentation/guardrail upkeep for the current live tree
-- Source of truth: `tmp/improvement_audit_plan.md` for the active repo-wide improvement backlog; `docs/TEST.md` and `docs/README.md` define the validation workflow; `docs/plans/index.md` and `docs/plans/active/todo.md` provide the docs-side navigation layer
-- Current status: The improvement-audit lane is active in the live tree, and the current requested work should extend from the documented backlog and current user direction without reviving removed docs or stale plan paths.
-
-## Immediate Next Actions
-1. Treat `tmp/improvement_audit_plan.md` as the active backlog source of truth unless the user explicitly redirects to another lane.
-2. Use `docs/plans/index.md` and `docs/plans/active/todo.md` as the stable docs-side orientation layer for current work.
-3. Keep the PowerShell validation wrappers on their direct-`rustc`/repo-temp fallback path whenever inherited `sccache` or the default temp dir is unusable in this environment.
-
-## Handoff Anchors
-- `MEMORY.md`: live, present-tense snapshot of what is happening now
-- `docs/plans/active/todo.md`: short ordered queue for immediate actions
-- `docs/plans/index.md`: active/completed plan map
-- `tmp/improvement_audit_plan.md`: active evidence-driven repo-wide improvement backlog and execution record
-- `tmp/database_system_audit_plan.md`: database-system audit notes and follow-up context
-- `tmp/source_runtime_test_isolation_audit_plan.md`: source-runtime test-isolation audit notes and follow-up context
-- `docs/SYSTEMS.md`: GUI automation/test platform, runtime contracts, recovery rules, and data-format notes
+   - macOS/Linux/WSL: `bash scripts/doctor.sh`
 
 ## Non-Negotiable Workflow Rules
 - Use `next` as the development branch for both `C:\dev\sempal` and `C:\dev\sempal\vendor\radiant` unless the user explicitly directs otherwise.

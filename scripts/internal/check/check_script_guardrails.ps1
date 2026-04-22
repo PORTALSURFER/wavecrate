@@ -210,8 +210,7 @@ try {
     (Join-Path $scriptsDir "internal/ci/ci_quick.ps1"),
     (Join-Path $scriptsDir "internal/ci/ci_local.ps1"),
     (Join-Path $scriptsDir "internal/check/audit_cleanup_hotspots.ps1"),
-    (Join-Path $scriptsDir "internal/check/check_docs_index.ps1"),
-    (Join-Path $scriptsDir "internal/agent/refresh_memory_md.ps1")
+    (Join-Path $scriptsDir "internal/check/check_docs_index.ps1")
   )
   foreach ($scriptPath in $scriptsToParse) {
     Assert-ScriptParses -Path $scriptPath
@@ -494,28 +493,6 @@ try {
     Remove-Item -Recurse -Force $migrationFixtureDir -ErrorAction SilentlyContinue
   }
 
-  $memoryFixtureDir = New-TempDir
-  try {
-    $repoDir = Join-Path $memoryFixtureDir "repo"
-    New-Item -ItemType Directory -Path $repoDir | Out-Null
-    New-Item -ItemType Directory -Path (Join-Path $repoDir "scripts/internal/check") -Force | Out-Null
-    Copy-Item (Join-Path $scriptsDir "internal/check/check_memory_log.ps1") (Join-Path $repoDir "scripts/internal/check/check_memory_log.ps1")
-    $timestamp = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-    Set-Content -Path (Join-Path $repoDir "MEMORY.md") -Value @(
-      "# MEMORY",
-      "Last Updated: $timestamp",
-      "Updated By: Codex"
-    )
-
-    Invoke-ExpectExitCode -Label "memory log passes with matching required updater" -ExpectedCode 0 -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/internal/check/check_memory_log.ps1") -EnvVars @{
-      MEMORY_REQUIRED_UPDATER = "Codex"
-    }
-    Invoke-ExpectExitCode -Label "memory log fails with mismatched required updater" -ExpectedCode 1 -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/internal/check/check_memory_log.ps1") -EnvVars @{
-      MEMORY_REQUIRED_UPDATER = "Human"
-    }
-  } finally {
-    Remove-Item -Recurse -Force $memoryFixtureDir -ErrorAction SilentlyContinue
-  }
 } finally {
   Pop-Location
 }

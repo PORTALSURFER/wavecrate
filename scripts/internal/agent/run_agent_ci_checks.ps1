@@ -5,15 +5,10 @@ Runs mandatory agent-request readiness checks in PowerShell.
 
 .DESCRIPTION
 PowerShell equivalent of `scripts/internal/agent/run_agent_ci_checks.sh`.
-Runs guardrail checks, optionally refreshes MEMORY.md, and validates
-MEMORY.md freshness/updater ownership.
+Runs the agent-facing guardrail checks.
 #>
 
 param(
-  [switch]$RefreshMemory,
-  [string]$Updater = "Codex",
-  [string]$RequiredUpdater = "",
-  [int]$MemoryMaxAgeHours = 24,
   [switch]$Help
 )
 
@@ -22,38 +17,13 @@ $ErrorActionPreference = "Stop"
 
 
 if ($Help) {
-  Write-Host "Usage: scripts/internal/agent/run_agent_ci_checks.ps1 [-RefreshMemory] [-Updater Codex] [-RequiredUpdater <name>] [-MemoryMaxAgeHours 24]"
+  Write-Host "Usage: scripts/internal/agent/run_agent_ci_checks.ps1"
   Write-Host ""
   Write-Host "Run agent-request readiness checks used by local CI conventions."
   exit 0
 }
 
-if (-not $PSBoundParameters.ContainsKey("MemoryMaxAgeHours")) {
-  $envMaxAge = [Environment]::GetEnvironmentVariable("AGENT_CI_MEMORY_MAX_AGE_HOURS")
-  if (-not [string]::IsNullOrWhiteSpace($envMaxAge)) {
-    $parsedMaxAge = 0
-    if (-not [int]::TryParse($envMaxAge, [ref]$parsedMaxAge)) {
-      throw "[agent_ci] AGENT_CI_MEMORY_MAX_AGE_HOURS must be a non-negative integer."
-    }
-    $MemoryMaxAgeHours = $parsedMaxAge
-  }
-}
-if (-not $PSBoundParameters.ContainsKey("RequiredUpdater")) {
-  $RequiredUpdater = [Environment]::GetEnvironmentVariable("AGENT_CI_REQUIRED_UPDATER")
-  if ($null -eq $RequiredUpdater) {
-    $RequiredUpdater = ""
-  }
-}
-
-if ([string]::IsNullOrWhiteSpace($Updater)) {
-  throw "[agent_ci] Updater must be non-empty."
-}
-if ($MemoryMaxAgeHours -lt 0) {
-  throw "[agent_ci] MemoryMaxAgeHours must be >= 0."
-}
-
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
-$agentDir = Join-Path $rootDir "scripts/agent"
 $checkDir = Join-Path $rootDir "scripts/check"
 
 $psRunner = Get-Command pwsh -ErrorAction SilentlyContinue
@@ -78,19 +48,7 @@ function Invoke-Check {
     throw "[agent_ci] Missing check script: $ScriptPath"
   }
 
-  $details = @()
-  if ($EnvVars.ContainsKey("MEMORY_MAX_AGE_HOURS")) {
-    $details += "max_age=$($EnvVars["MEMORY_MAX_AGE_HOURS"])h"
-  }
-  if ($EnvVars.ContainsKey("MEMORY_REQUIRED_UPDATER") -and -not [string]::IsNullOrWhiteSpace($EnvVars["MEMORY_REQUIRED_UPDATER"])) {
-    $details += "required_updater=$($EnvVars["MEMORY_REQUIRED_UPDATER"])"
-  }
-
-  if ($details.Count -gt 0) {
-    Write-Host ("[agent_ci] {0} ({1})" -f $Label, ($details -join " "))
-  } else {
-    Write-Host ("[agent_ci] {0}" -f $Label)
-  }
+  Write-Host ("[agent_ci] {0}" -f $Label)
 
   $previous = @{}
   foreach ($key in $EnvVars.Keys) {
@@ -112,17 +70,6 @@ function Invoke-Check {
 
 Push-Location $rootDir
 try {
-  if ($RefreshMemory) {
-    & $psExe -NoProfile -File (Join-Path $agentDir "refresh_memory_md.ps1") -Updater $Updater
-    if ($LASTEXITCODE -ne 0) {
-      throw "[agent_ci] refresh_memory_md.ps1 failed with exit code $LASTEXITCODE."
-    }
-  }
-
-  Invoke-Check -Label "memory log must be fresh (agent mode)" -ScriptPath (Join-Path $checkDir "check_memory_log.ps1") -EnvVars @{
-    MEMORY_MAX_AGE_HOURS = "$MemoryMaxAgeHours"
-    MEMORY_REQUIRED_UPDATER = "$RequiredUpdater"
-  }
   Invoke-Check -Label "development branch policy" -ScriptPath (Join-Path $checkDir "check_next_branch.ps1")
   Invoke-Check -Label "migration boundary guardrails" -ScriptPath (Join-Path $checkDir "check_migration_boundary.ps1")
   Invoke-Check -Label "script guardrails" -ScriptPath (Join-Path $checkDir "check_script_guardrails.ps1")

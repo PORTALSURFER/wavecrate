@@ -42,42 +42,12 @@ certificate bundle.
 Password for `SEMPAL_WINDOWS_SIGN_PFX_BASE64`, consumed by the Windows signing
 step in `.github/workflows/release-build.yml`.
 
-## Agent hand-off guardrails
-
-- `AGENT_PREFLIGHT_UPDATER`
-Default updater name used by `run_agent_preflight.sh` when it is refreshing
-`MEMORY.md`, and the default required value for the preflight freshness check.
-Precedence (highest to lowest):
-1) `run_agent_preflight.sh --updater`
-2) `AGENT_PREFLIGHT_UPDATER` (default `Codex`).
-
-- `AGENT_PREFLIGHT_MEMORY_MAX_AGE_HOURS`
-Freshness horizon (in hours) used by `run_agent_preflight.sh` unless overridden by
-`run_agent_preflight.sh --memory-max-age-hours`.
-Precedence (highest to lowest):
-1) `run_agent_preflight.sh --memory-max-age-hours`
-2) `AGENT_PREFLIGHT_MEMORY_MAX_AGE_HOURS` (default `1`).
+## Agent workflow
 
 - `SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK_INSTALL`
 Set to `1` to skip automatic preflight hook installation in bootstrap.
 Hook execution for existing hook setups is separately controlled by
 `SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK=1`.
-
-- `MEMORY_MAX_AGE_HOURS`
-Override for `scripts/check.sh memory-log` freshness checks (hours). Defaults to
-`24`. `0` is allowed (requires a timestamp no older than the current hour).
-
-- `MEMORY_REQUIRED_UPDATER`
-If set, `scripts/check.sh memory-log` requires `Updated By:` in `MEMORY.md` to
-match this exact value.
-
-- `AGENT_CI_MEMORY_MAX_AGE_HOURS`
-Default freshness for `run_agent_ci_checks.sh`/`ci_local.sh` when
-`--memory-max-age-hours` is not provided. Defaults to `24`.
-
-- `AGENT_CI_REQUIRED_UPDATER`
-Optional required updater for `run_agent_ci_checks.sh` and `ci_local.sh` when
-`--required-updater` is not provided.
 
 - `SEMPAL_DEAD_SWEEP_STRICT`
 When set to `1`/`true`/`yes`/`on`, `scripts/check.sh dead-deps`
