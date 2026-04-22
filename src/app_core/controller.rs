@@ -6,15 +6,23 @@
 
 /// Browser, source, and folder native action dispatch helpers.
 mod browser_actions;
+/// Native runtime action dispatch orchestration and telemetry helpers.
+mod action_dispatch;
+/// Native frame-preparation planning and maintenance helpers.
+mod frame_preparation;
 /// Map-tab and map-point native action dispatch helpers.
 mod map_actions;
 /// Prompt, progress, and update native action dispatch helpers.
 mod prompt_update_actions;
+/// Native-runtime controller startup helpers.
+mod startup;
 /// Focused waveform-native action dispatch extracted from the main controller shim.
 mod waveform_actions;
 
 use crate::app_core::app_api::controller::AppController as LegacyAppController;
 pub(crate) use crate::app_core::app_api::controller::build_named_gui_fixture_controller;
+pub(crate) use frame_preparation::NativeFramePreparationPlan;
+pub use startup::build_native_app_controller;
 /// Runtime-facing app controller type used by migration hosts.
 pub type AppController = LegacyAppController;
 /// Retained browser preload-window cache type used by native-shell projection helpers.
@@ -35,71 +43,14 @@ pub(crate) type ProjectedSelectedPathsLookup =
 /// Map-point query payload alias used by native-shell map projection.
 pub(crate) type UmapPointQuery<'a> = crate::app_core::app_api::controller::UmapPointQuery<'a>;
 
-use std::time::Instant;
-use std::{cell::RefCell, rc::Rc};
-
 use crate::app_core::actions::{NativeAppModel, NativeUiAction};
-use crate::app_core::app_api::controller_state::DerivedNodeId;
-use crate::logging::{ActionDebugEvent, emit_action_debug_event};
-use crate::{audio::AudioPlayer, waveform::WaveformRenderer};
 use browser_actions::apply_browser_native_ui_action;
+use action_dispatch::apply_native_ui_action;
 use map_actions::apply_map_native_ui_action;
 use prompt_update_actions::apply_prompt_and_update_native_ui_action;
-use tracing::{error, info};
 use waveform_actions::apply_waveform_native_ui_action;
-
-/// Internal frame-preparation plans used by the native bridge.
-///
-/// The controller still exposes `prepare_native_frame(bool)` as the stable runtime
-/// API, but bridge pulls can choose a narrower maintenance lane when the pending
-/// state shows that only browser-local work needs to run before projection.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum NativeFramePreparationPlan {
-    /// Run the full maintenance pass before projecting a model pull.
-    Full,
-    /// Run only the browser/status-safe subset for retained browser pulls.
-    BrowserRetainedPull,
-    /// Run browser plus deferred transport/status maintenance without the full pass.
-    TransportRetainedPull,
-    /// Run browser plus deferred metadata maintenance without the full pass.
-    MetadataRetainedPull,
-    /// Run browser plus deferred startup maintenance without the full pass.
-    StartupRetainedPull,
-    /// Run the animation-only maintenance pass for motion-model pulls.
-    MotionOnly,
-}
-
-/// Build a configured migration-facing controller for native runtime hosts.
-///
-/// This centralizes controller creation and config loading so native hosts need not
-/// depend directly on legacy initialization details.
-pub fn build_native_app_controller(
-    renderer: WaveformRenderer,
-    player: Option<Rc<RefCell<AudioPlayer>>>,
-) -> Result<AppController, String> {
-    info!("Loading startup configuration for native app controller");
-    let cfg = crate::sample_sources::config::load_or_default().map_err(|err| {
-        let message = format!("Failed to load config: {err}");
-        error!(err = %err, "Failed to load config for native app controller");
-        message
-    })?;
-    info!("Startup config loaded");
-    let mut controller = AppController::new_with_job_message_queue_capacity(
-        renderer,
-        player,
-        cfg.core.job_message_queue_capacity as usize,
-    );
-    info!("AppController created, applying startup configuration");
-    controller.apply_configuration(cfg).map_err(|err| {
-        let message = format!("Failed to load config: {err}");
-        error!(err = %err, "Failed to apply startup configuration");
-        message
-    })?;
-    info!("Startup configuration applied");
-    controller.select_first_source();
-    info!("Selected initial source during startup");
-    Ok(controller)
-}
+#[cfg(test)]
+use crate::waveform::WaveformRenderer;
 
 /// Backend-neutral native-runtime orchestration helpers.
 pub trait AppControllerNativeRuntimeExt {
@@ -149,298 +100,8 @@ impl AppControllerNativeRuntimeExt for AppController {
     }
 
     fn apply_native_ui_action(&mut self, action: NativeUiAction) -> bool {
-        let started_at = Instant::now();
-        let action_id = native_action_id(&action);
-        let pane = native_action_pane(&action);
-        self.begin_waveform_refresh_batch();
-        let action = match apply_transport_native_ui_action(self, action) {
-            Ok(()) => {
-                self.end_waveform_refresh_batch();
-                record_native_action(action_id, pane, "success", started_at, None);
-                return true;
-            }
-            Err(action) => action,
-        };
-        let action = match apply_browser_native_ui_action(self, action) {
-            Ok(()) => {
-                self.end_waveform_refresh_batch();
-                record_native_action(action_id, pane, "success", started_at, None);
-                return true;
-            }
-            Err(action) => action,
-        };
-        let action = match apply_map_native_ui_action(self, action) {
-            Ok(()) => {
-                self.end_waveform_refresh_batch();
-                record_native_action(action_id, pane, "success", started_at, None);
-                return true;
-            }
-            Err(action) => action,
-        };
-        let action = match apply_waveform_native_ui_action(self, action) {
-            Ok(()) => {
-                self.end_waveform_refresh_batch();
-                record_native_action(action_id, pane, "success", started_at, None);
-                return true;
-            }
-            Err(action) => action,
-        };
-        let handled = match apply_prompt_and_update_native_ui_action(self, action) {
-            Ok(()) => true,
-            Err(unhandled) => {
-                error!(
-                    ?unhandled,
-                    "native ui action was not handled by any dispatcher group"
-                );
-                false
-            }
-        };
-        self.end_waveform_refresh_batch();
-        record_native_action(
-            action_id,
-            pane,
-            if handled { "success" } else { "unhandled" },
-            started_at,
-            (!handled).then_some("unhandled"),
-        );
-        handled
+        apply_native_ui_action(self, action)
     }
-}
-
-impl AppController {
-    /// Execute one internal native-frame preparation plan.
-    pub(crate) fn prepare_native_frame_with_plan(&mut self, plan: NativeFramePreparationPlan) {
-        self.poll_background_jobs();
-        match plan {
-            NativeFramePreparationPlan::Full => {
-                self.flush_transport_native_frame_lane();
-                self.flush_browser_native_frame_lane();
-                self.flush_metadata_native_frame_lane();
-                self.flush_waveform_native_frame_lane();
-                self.flush_startup_native_frame_lane();
-                self.tick_playhead();
-                self.finish_non_motion_native_frame_preparation();
-            }
-            NativeFramePreparationPlan::BrowserRetainedPull => {
-                self.flush_browser_native_frame_lane();
-                self.finish_non_motion_native_frame_preparation();
-            }
-            NativeFramePreparationPlan::TransportRetainedPull => {
-                self.flush_transport_native_frame_lane();
-                self.flush_browser_native_frame_lane();
-                self.finish_non_motion_native_frame_preparation();
-            }
-            NativeFramePreparationPlan::MetadataRetainedPull => {
-                self.flush_browser_native_frame_lane();
-                self.flush_metadata_native_frame_lane();
-                self.finish_non_motion_native_frame_preparation();
-            }
-            NativeFramePreparationPlan::StartupRetainedPull => {
-                self.flush_browser_native_frame_lane();
-                self.flush_startup_native_frame_lane();
-                self.finish_non_motion_native_frame_preparation();
-            }
-            NativeFramePreparationPlan::MotionOnly => {
-                self.record_frame_timing_for_fps();
-                if !self.is_playing() {
-                    let _ = self.refresh_projection_revision_bus();
-                    return;
-                }
-                self.tick_playhead();
-                let _ = self.refresh_projection_revision_bus();
-            }
-        }
-    }
-
-    /// Return whether the bridge may use the browser-retained maintenance lane.
-    ///
-    /// This path is intentionally conservative: any queued transport, waveform,
-    /// metadata, startup, map, or playback-sensitive work keeps the next pull on
-    /// the full preparation lane.
-    pub(crate) fn can_prepare_browser_retained_pull(&self) -> bool {
-        self.can_prepare_retained_pull_base()
-            && !self.has_transport_native_frame_work()
-            && !self.has_metadata_native_frame_work()
-            && !self.has_startup_native_frame_work()
-    }
-
-    /// Return whether the bridge may use the transport-retained maintenance lane.
-    pub(crate) fn can_prepare_transport_retained_pull(&self) -> bool {
-        self.can_prepare_retained_pull_base()
-            && self.has_transport_native_frame_work()
-            && !self.has_metadata_native_frame_work()
-            && !self.has_startup_native_frame_work()
-    }
-
-    /// Return whether the bridge may use the metadata-retained maintenance lane.
-    pub(crate) fn can_prepare_metadata_retained_pull(&self) -> bool {
-        self.can_prepare_retained_pull_base()
-            && self.has_metadata_native_frame_work()
-            && !self.has_transport_native_frame_work()
-            && !self.has_startup_native_frame_work()
-    }
-
-    /// Return whether the bridge may use the startup-retained maintenance lane.
-    pub(crate) fn can_prepare_startup_retained_pull(&self) -> bool {
-        self.can_prepare_retained_pull_base()
-            && self.has_startup_native_frame_work()
-            && !self.has_transport_native_frame_work()
-            && !self.has_metadata_native_frame_work()
-    }
-
-    /// Flush native-frame transport maintenance that can affect persisted runtime state.
-    fn flush_transport_native_frame_lane(&mut self) {
-        if self.has_pending_volume_setting_flush() {
-            self.flush_pending_volume_setting();
-        }
-    }
-
-    /// Flush native-frame browser/status maintenance needed by retained browser pulls.
-    fn flush_browser_native_frame_lane(&mut self) {
-        if self.has_pending_age_update_commit() {
-            self.flush_pending_age_update_commit();
-        }
-        if self.has_pending_browser_focus_commit() {
-            self.flush_pending_browser_focus_commit();
-        }
-        if self.has_pending_focused_similarity_highlight_refresh() {
-            self.flush_pending_focused_similarity_highlight_refresh();
-        }
-    }
-
-    /// Flush deferred metadata writes owned by the controller.
-    fn flush_metadata_native_frame_lane(&mut self) {
-        if self.has_pending_loaded_duration_metadata_write() {
-            self.flush_pending_loaded_duration_metadata_write();
-        }
-    }
-
-    /// Flush waveform work that can change rendered pixels or playback targets.
-    fn flush_waveform_native_frame_lane(&mut self) {
-        if self.has_pending_waveform_seek_commit() {
-            self.flush_pending_waveform_seek_commit();
-        }
-        if self.has_pending_waveform_image_refresh() {
-            self.flush_pending_waveform_image_refresh();
-        }
-    }
-
-    /// Flush deferred startup work once the runtime is ready to expose it.
-    fn flush_startup_native_frame_lane(&mut self) {
-        if self.has_pending_startup_source_db_maintenance() {
-            self.flush_deferred_startup_source_db_maintenance();
-        }
-        if self.has_pending_startup_audio_refresh() {
-            self.flush_deferred_startup_audio_refresh();
-        }
-    }
-
-    /// Finish a non-motion native frame preparation pass.
-    fn finish_non_motion_native_frame_preparation(&mut self) {
-        let _ = self.refresh_projection_revision_bus();
-        self.update_performance_governor(false);
-    }
-
-    /// Return true when a retained pull may skip full playhead, waveform, and map work.
-    fn can_prepare_retained_pull_base(&self) -> bool {
-        !self.is_playing()
-            && !self.has_waveform_native_frame_work()
-            && !self.is_derived_node_dirty(DerivedNodeId::MapState)
-    }
-
-    /// Return true when queued transport work still needs a frame-time flush.
-    fn has_transport_native_frame_work(&self) -> bool {
-        self.has_pending_volume_setting_flush()
-            || self.is_derived_node_dirty(DerivedNodeId::TransportState)
-    }
-
-    /// Return true when queued metadata work still needs a frame-time flush.
-    fn has_metadata_native_frame_work(&self) -> bool {
-        self.has_pending_loaded_duration_metadata_write()
-    }
-
-    /// Return true when queued waveform work still needs a frame-time flush.
-    fn has_waveform_native_frame_work(&self) -> bool {
-        self.has_pending_waveform_seek_commit()
-            || self.has_pending_waveform_image_refresh()
-            || self.is_derived_node_dirty(DerivedNodeId::WaveformState)
-    }
-
-    /// Return true when queued startup work still needs a frame-time flush.
-    fn has_startup_native_frame_work(&self) -> bool {
-        self.has_pending_startup_source_db_maintenance() || self.has_pending_startup_audio_refresh()
-    }
-}
-
-/// Try to dispatch transport-oriented native actions.
-fn apply_transport_native_ui_action(
-    controller: &mut AppController,
-    action: NativeUiAction,
-) -> Result<(), NativeUiAction> {
-    match action {
-        NativeUiAction::SelectColumn { index } => controller.select_column_by_index(index),
-        NativeUiAction::MoveColumn { delta } => controller.move_selection_column(delta as isize),
-        NativeUiAction::PlayFromStart => {
-            controller.play_from_start();
-        }
-        NativeUiAction::PlayFromCurrentPlayhead => {
-            controller.play_from_current_playhead();
-        }
-        NativeUiAction::PlayFromWaveformCursor => {
-            controller.play_from_cursor();
-        }
-        NativeUiAction::PlayWaveformAtPrecise { position_nanos } => {
-            controller.seek_waveform_nanos(position_nanos);
-        }
-        NativeUiAction::ToggleTransport => controller.toggle_play_pause(),
-        NativeUiAction::PlayCompareAnchor => controller.play_compare_anchor(),
-        NativeUiAction::HandleEscape => controller.handle_escape(),
-        NativeUiAction::ToggleLoopPlayback => controller.toggle_loop(),
-        NativeUiAction::ToggleLoopLock => controller.toggle_loop_lock(),
-        NativeUiAction::SetVolume { value_milli } => {
-            controller.set_volume_live((f32::from(value_milli.min(1000)) / 1000.0).clamp(0.0, 1.0))
-        }
-        NativeUiAction::CommitVolumeSetting => controller.commit_volume_setting(),
-        NativeUiAction::Undo => controller.undo(),
-        NativeUiAction::Redo => controller.redo(),
-        action => return Err(action),
-    }
-    Ok(())
-}
-
-fn native_action_id(action: &NativeUiAction) -> &'static str {
-    crate::app_core::actions::action_catalog_entry(action).action_id
-}
-
-fn native_action_pane(action: &NativeUiAction) -> Option<&'static str> {
-    let entry = crate::app_core::actions::action_catalog_entry(action);
-    Some(match entry.surface {
-        crate::app_core::actions::GuiSurface::Browser => "browser",
-        crate::app_core::actions::GuiSurface::Sources => "sources",
-        crate::app_core::actions::GuiSurface::Waveform => "waveform",
-        crate::app_core::actions::GuiSurface::Transport => "transport",
-        crate::app_core::actions::GuiSurface::Map => "map",
-        crate::app_core::actions::GuiSurface::Options => "options",
-        crate::app_core::actions::GuiSurface::Prompt => "prompt",
-        crate::app_core::actions::GuiSurface::Update => "update",
-    })
-}
-
-fn record_native_action(
-    action: &'static str,
-    pane: Option<&'static str>,
-    outcome: &'static str,
-    started_at: Instant,
-    error: Option<&'static str>,
-) {
-    emit_action_debug_event(ActionDebugEvent {
-        action,
-        pane,
-        source: None,
-        outcome,
-        elapsed: started_at.elapsed(),
-        error,
-    });
 }
 
 #[cfg(test)]
