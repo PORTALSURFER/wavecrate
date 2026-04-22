@@ -13,6 +13,7 @@ use crate::logging::{DbDebugEvent, emit_db_debug_event};
 const SLOW_QUERY_THRESHOLD: Duration = Duration::from_millis(15);
 const SLOW_TRANSACTION_BEGIN_THRESHOLD: Duration = Duration::from_millis(10);
 const SLOW_TRANSACTION_COMMIT_THRESHOLD: Duration = Duration::from_millis(10);
+const SLOW_TRANSACTION_BEGIN_NOISY_ANALYSIS_THRESHOLD: Duration = Duration::from_millis(250);
 
 fn success_debug_outcome(elapsed: Duration, threshold: Duration) -> Option<&'static str> {
     (elapsed >= threshold).then_some("slow")
@@ -36,6 +37,15 @@ fn emit_db_debug_success_if_slow(
     });
 }
 
+fn slow_transaction_begin_threshold(operation: &str) -> Duration {
+    match operation {
+        "analysis_claim_jobs" | "analysis_persist_decoded_batch" => {
+            SLOW_TRANSACTION_BEGIN_NOISY_ANALYSIS_THRESHOLD
+        }
+        _ => SLOW_TRANSACTION_BEGIN_THRESHOLD,
+    }
+}
+
 /// Time one immediate transaction begin so lock waits show up in structured logs.
 pub(crate) fn begin_immediate_transaction<'conn>(
     conn: &'conn mut Connection,
@@ -45,20 +55,16 @@ pub(crate) fn begin_immediate_transaction<'conn>(
     let result = conn.transaction_with_behavior(TransactionBehavior::Immediate);
     let elapsed = started_at.elapsed();
     let debug_operation = format!("{operation}.transaction_begin");
+    let slow_threshold = slow_transaction_begin_threshold(operation);
     match result {
         Ok(tx) => {
-            emit_db_debug_success_if_slow(
-                &debug_operation,
-                None,
-                elapsed,
-                SLOW_TRANSACTION_BEGIN_THRESHOLD,
-            );
+            emit_db_debug_success_if_slow(&debug_operation, None, elapsed, slow_threshold);
             record_slow_success(
                 "transaction_begin",
                 operation,
                 None,
                 elapsed,
-                SLOW_TRANSACTION_BEGIN_THRESHOLD,
+                slow_threshold,
             );
             Ok(tx)
         }
@@ -267,7 +273,11 @@ fn is_busy_error(err: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{SLOW_QUERY_THRESHOLD, is_busy_error, success_debug_outcome};
+    use super::{
+        SLOW_QUERY_THRESHOLD, SLOW_TRANSACTION_BEGIN_NOISY_ANALYSIS_THRESHOLD,
+        SLOW_TRANSACTION_BEGIN_THRESHOLD, is_busy_error, slow_transaction_begin_threshold,
+        success_debug_outcome,
+    };
     use std::time::Duration;
 
     #[test]
@@ -293,6 +303,26 @@ mod tests {
         assert_eq!(
             success_debug_outcome(SLOW_QUERY_THRESHOLD, SLOW_QUERY_THRESHOLD,),
             Some("slow")
+        );
+    }
+
+    #[test]
+    fn noisy_analysis_transaction_begin_uses_higher_threshold() {
+        assert_eq!(
+            slow_transaction_begin_threshold("analysis_claim_jobs"),
+            SLOW_TRANSACTION_BEGIN_NOISY_ANALYSIS_THRESHOLD
+        );
+        assert_eq!(
+            slow_transaction_begin_threshold("analysis_persist_decoded_batch"),
+            SLOW_TRANSACTION_BEGIN_NOISY_ANALYSIS_THRESHOLD
+        );
+    }
+
+    #[test]
+    fn other_transaction_begin_operations_keep_default_threshold() {
+        assert_eq!(
+            slow_transaction_begin_threshold("analysis_enqueue"),
+            SLOW_TRANSACTION_BEGIN_THRESHOLD
         );
     }
 }

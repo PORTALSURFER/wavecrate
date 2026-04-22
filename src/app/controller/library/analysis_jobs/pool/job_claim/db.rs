@@ -105,14 +105,16 @@ impl FinalizeJobContext<'_> {
                 }));
             self.progress_wakeup.notify();
         }
-        emit_action_debug_event(ActionDebugEvent {
-            action: "analysis.job.finalize",
-            pane: Some("background"),
-            source: Some(&source),
-            outcome: final_outcome,
-            elapsed: started_at.elapsed(),
-            error: final_error.as_deref(),
-        });
+        if should_emit_finalize_debug_event(final_outcome) {
+            emit_action_debug_event(ActionDebugEvent {
+                action: "analysis.job.finalize",
+                pane: Some("background"),
+                source: Some(&source),
+                outcome: final_outcome,
+                elapsed: started_at.elapsed(),
+                error: final_error.as_deref(),
+            });
+        }
         None
     }
 
@@ -128,6 +130,26 @@ impl FinalizeJobContext<'_> {
             }
         }
         *deferred_updates = remaining;
+    }
+}
+
+fn should_emit_finalize_debug_event(outcome: &str) -> bool {
+    outcome != "success"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_emit_finalize_debug_event;
+
+    #[test]
+    fn finalize_success_debug_event_is_suppressed() {
+        assert!(!should_emit_finalize_debug_event("success"));
+    }
+
+    #[test]
+    fn finalize_error_debug_event_is_kept() {
+        assert!(should_emit_finalize_debug_event("error"));
+        assert!(should_emit_finalize_debug_event("deferred"));
     }
 }
 
