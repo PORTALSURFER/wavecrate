@@ -146,6 +146,7 @@ impl AnalysisWorkerPool {
                     Some(claim_wakeup.clone()),
                 ));
                 let reset_done = Arc::new(Mutex::new(HashSet::new()));
+                let selector = job_claim::shared_claim_selector(reset_done);
                 info!(
                     "Analysis workers starting: compute={}, decode={}, queue_target={}, queue_max={}",
                     worker_count,
@@ -166,7 +167,7 @@ impl AnalysisWorkerPool {
                             analysis_sample_rate: self.analysis_sample_rate.clone(),
                             decode_queue_target,
                             claim_wakeup: claim_wakeup.clone(),
-                            reset_done: reset_done.clone(),
+                            selector: selector.clone(),
                         },
                     ));
                 }

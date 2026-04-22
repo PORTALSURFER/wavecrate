@@ -27,6 +27,8 @@ pub(crate) use context::{ComputeWorkerContext, DecoderWorkerContext};
 pub(crate) use decoder_worker::spawn_decoder_worker;
 #[cfg(not(test))]
 pub(crate) use queue::DecodeOutcome;
+#[cfg(not(test))]
+pub(crate) use selection::shared as shared_claim_selector;
 pub(crate) use queue::DecodedQueue;
 
 #[cfg(test)]

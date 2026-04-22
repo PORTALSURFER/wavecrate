@@ -36,11 +36,10 @@ fn run_decoder_worker(context: DecoderWorkerContext) {
         analysis_sample_rate,
         decode_queue_target,
         claim_wakeup,
-        reset_done,
+        selector,
     } = context;
     lower_worker_priority();
     let log_jobs = logging::analysis_log_enabled();
-    let mut selector = selection::ClaimSelector::new(reset_done);
     let decode_queue_target = decode_queue_target.max(1);
     let mut connections: HashMap<std::path::PathBuf, Connection> = HashMap::new();
     let mut wake_counter = 0u64;
@@ -63,7 +62,7 @@ fn run_decoder_worker(context: DecoderWorkerContext) {
             .ok()
             .and_then(|guard| guard.clone());
         let Some(job) = claim_next_job(
-            &mut selector,
+            selector.as_ref(),
             allowed.as_ref(),
             &claim_wakeup,
             &mut wake_counter,
@@ -111,17 +110,21 @@ fn should_wait_for_work(
 }
 
 fn claim_next_job(
-    selector: &mut selection::ClaimSelector,
+    selector: &std::sync::Mutex<selection::ClaimSelector>,
     allowed: Option<&std::collections::HashSet<crate::sample_sources::SourceId>>,
     claim_wakeup: &crate::app::controller::library::analysis_jobs::wakeup::ClaimWakeup,
     wake_counter: &mut u64,
 ) -> Option<analysis_db::ClaimedJob> {
+    let selector = selector
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     if !selector.has_local_jobs()
         && let Some(wait) = claim_wakeup.acquire_probe_or_wait(wake_counter)
     {
         let _ = claim_wakeup.wait_for(wake_counter, wait.max(Duration::from_millis(50)));
         return None;
     }
+    let mut selector = selector;
     match selector.select_next(allowed, claim_wakeup) {
         selection::ClaimSelection::Job(job) => Some(job),
         selection::ClaimSelection::NoSources => {

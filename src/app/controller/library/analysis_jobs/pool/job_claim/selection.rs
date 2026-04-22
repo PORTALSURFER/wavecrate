@@ -1,8 +1,8 @@
 //! Claim selection helpers for analysis jobs.
 
 use super::claim::{SourceClaimDb, claim_batch_size, refresh_sources};
-use crate::app::controller::library::analysis_jobs::wakeup::ClaimWakeup;
 use crate::app::controller::library::analysis_jobs::db;
+use crate::app::controller::library::analysis_jobs::wakeup::ClaimWakeup;
 use crate::sample_sources::SourceId;
 use std::collections::{HashSet, VecDeque};
 use std::path::PathBuf;
@@ -28,7 +28,11 @@ pub(crate) struct ClaimSelector {
     claim_batch: usize,
     reset_done: Arc<Mutex<HashSet<PathBuf>>>,
     last_source_count: usize,
+    #[cfg(test)]
+    refresh_count: usize,
 }
+
+pub(crate) type SharedClaimSelector = Arc<Mutex<ClaimSelector>>;
 
 impl ClaimSelector {
     /// Creates a new claim selector for decoding workers.
@@ -41,6 +45,8 @@ impl ClaimSelector {
             claim_batch: claim_batch_size(),
             reset_done,
             last_source_count: 0,
+            #[cfg(test)]
+            refresh_count: 0,
         }
     }
 
@@ -58,6 +64,8 @@ impl ClaimSelector {
             local_queue: VecDeque::new(),
             claim_batch: claim_batch.max(1),
             reset_done,
+            #[cfg(test)]
+            refresh_count: 0,
         }
     }
 
@@ -83,12 +91,18 @@ impl ClaimSelector {
     }
 
     fn refresh_sources_if_needed(&mut self, allowed_source_ids: Option<&HashSet<SourceId>>) {
+        #[cfg(test)]
+        let should_refresh = self.last_refresh.elapsed() >= super::claim::SOURCE_REFRESH_INTERVAL;
         refresh_sources(
             &mut self.sources,
             &mut self.last_refresh,
             &self.reset_done,
             allowed_source_ids,
         );
+        #[cfg(test)]
+        if should_refresh {
+            self.refresh_count = self.refresh_count.saturating_add(1);
+        }
         if self.sources.len() != self.last_source_count {
             self.last_source_count = self.sources.len();
             tracing::debug!(
@@ -133,4 +147,13 @@ impl ClaimSelector {
             None => ClaimSelection::Idle,
         }
     }
+
+    #[cfg(test)]
+    pub(crate) fn refresh_count(&self) -> usize {
+        self.refresh_count
+    }
+}
+
+pub(crate) fn shared(reset_done: Arc<Mutex<HashSet<PathBuf>>>) -> SharedClaimSelector {
+    Arc::new(Mutex::new(ClaimSelector::new(reset_done)))
 }

@@ -5,11 +5,12 @@ use crate::gui::repaint::SharedRepaintSignal;
 use crate::sample_sources::SourceId;
 use std::collections::HashSet;
 use std::sync::{
-    Arc, Mutex, RwLock,
+    Arc, RwLock,
     atomic::{AtomicBool, AtomicU32},
 };
 
 use super::DecodedQueue;
+use super::selection::SharedClaimSelector;
 
 /// Shared inputs for one decoder worker thread.
 pub(crate) struct DecoderWorkerContext {
@@ -22,7 +23,7 @@ pub(crate) struct DecoderWorkerContext {
     pub(crate) analysis_sample_rate: Arc<AtomicU32>,
     pub(crate) decode_queue_target: usize,
     pub(crate) claim_wakeup: Arc<ClaimWakeup>,
-    pub(crate) reset_done: Arc<Mutex<HashSet<std::path::PathBuf>>>,
+    pub(crate) selector: SharedClaimSelector,
 }
 
 /// Shared inputs for one compute worker thread.

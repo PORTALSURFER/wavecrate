@@ -63,16 +63,20 @@ fn claim_selection_orders_sources_round_robin() {
         reset_done,
     );
     let mut wake_counter = 0;
-    assert!(claim_wakeup
-        .acquire_probe_or_wait(&mut wake_counter)
-        .is_none());
+    assert!(
+        claim_wakeup
+            .acquire_probe_or_wait(&mut wake_counter)
+            .is_none()
+    );
     let first = match selector.select_next(None, &claim_wakeup) {
         selection::ClaimSelection::Job(job) => job,
         _ => panic!("expected a job from first source"),
     };
-    assert!(claim_wakeup
-        .acquire_probe_or_wait(&mut wake_counter)
-        .is_none());
+    assert!(
+        claim_wakeup
+            .acquire_probe_or_wait(&mut wake_counter)
+            .is_none()
+    );
     let second = match selector.select_next(None, &claim_wakeup) {
         selection::ClaimSelection::Job(job) => job,
         _ => panic!("expected a job from second source"),
@@ -106,6 +110,41 @@ fn claim_wakeup_allows_only_one_idle_probe_per_backoff_window() {
 }
 
 #[test]
+fn shared_selector_refreshes_sources_once_across_idle_probes() {
+    let dir = TempDir::new().unwrap();
+    let source = SampleSource::new(dir.path().to_path_buf());
+    let state = crate::sample_sources::library::LibraryState {
+        sources: vec![source.clone()],
+    };
+    crate::sample_sources::library::save(&state).unwrap();
+    let reset_done = Arc::new(Mutex::new(HashSet::new()));
+    let shared = selection::shared(reset_done);
+    let claim_wakeup = ClaimWakeup::new();
+
+    {
+        let mut selector = shared.lock().unwrap();
+        assert!(matches!(
+            selector.select_next(None, &claim_wakeup),
+            selection::ClaimSelection::Idle
+        ));
+        assert_eq!(selector.refresh_count(), 1);
+    }
+
+    {
+        let mut selector = shared.lock().unwrap();
+        assert!(matches!(
+            selector.select_next(None, &claim_wakeup),
+            selection::ClaimSelection::Idle
+        ));
+        assert_eq!(
+            selector.refresh_count(),
+            1,
+            "shared selector should reuse the first refresh during idle backoff"
+        );
+    }
+}
+
+#[test]
 fn notified_claim_wakeup_immediately_rechecks_sources_after_idle_backoff() {
     let dir = TempDir::new().unwrap();
     let source = SampleSource::new(dir.path().to_path_buf());
@@ -122,9 +161,11 @@ fn notified_claim_wakeup_immediately_rechecks_sources_after_idle_backoff() {
     );
     let mut wake_counter = 0u64;
 
-    assert!(claim_wakeup
-        .acquire_probe_or_wait(&mut wake_counter)
-        .is_none());
+    assert!(
+        claim_wakeup
+            .acquire_probe_or_wait(&mut wake_counter)
+            .is_none()
+    );
     assert!(matches!(
         selector.select_next(None, &claim_wakeup),
         selection::ClaimSelection::Idle
