@@ -1,7 +1,7 @@
 use rusqlite::OptionalExtension;
 use std::collections::HashSet;
 
-use super::{LibraryDatabase, LibraryError, map_sql_error};
+use super::{map_sql_error, LibraryDatabase, LibraryError};
 
 impl LibraryDatabase {
     pub(super) fn table_exists(&self, table: &str) -> Result<bool, LibraryError> {

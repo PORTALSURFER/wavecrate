@@ -1,4 +1,4 @@
-use super::{LibraryDatabase, LibraryError, map_sql_error};
+use super::{map_sql_error, LibraryDatabase, LibraryError};
 
 impl LibraryDatabase {
     pub(super) fn apply_pragmas(&self) -> Result<(), LibraryError> {

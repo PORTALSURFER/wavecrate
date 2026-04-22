@@ -16,10 +16,10 @@ pub(super) fn replace_journal_file(tmp_path: &Path, path: &Path) -> Result<(), S
     #[cfg(target_os = "windows")]
     {
         use windows::{
-            core::PCWSTR,
             Win32::Storage::FileSystem::{
-                MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
+                MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH, MoveFileExW,
             },
+            core::PCWSTR,
         };
 
         let from = wide_path(tmp_path);

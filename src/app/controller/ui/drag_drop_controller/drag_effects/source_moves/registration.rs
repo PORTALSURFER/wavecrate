@@ -14,8 +14,7 @@ pub(in crate::app::controller::ui::drag_drop_controller::drag_effects) struct Mo
         Option<i64>,
     pub(in crate::app::controller::ui::drag_drop_controller::drag_effects) sound_type:
         Option<crate::sample_sources::SampleSoundType>,
-    pub(in crate::app::controller::ui::drag_drop_controller::drag_effects) user_tag:
-        Option<String>,
+    pub(in crate::app::controller::ui::drag_drop_controller::drag_effects) user_tag: Option<String>,
 }
 
 impl AppController {

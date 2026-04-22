@@ -231,8 +231,8 @@ fn mark_staging_root_hidden(staging_root: &Path) {
     #[cfg(target_os = "windows")]
     {
         use windows::{
+            Win32::Storage::FileSystem::{FILE_ATTRIBUTE_HIDDEN, SetFileAttributesW},
             core::PCWSTR,
-            Win32::Storage::FileSystem::{SetFileAttributesW, FILE_ATTRIBUTE_HIDDEN},
         };
 
         if staging_root

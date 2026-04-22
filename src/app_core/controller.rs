@@ -4,10 +4,10 @@
 //! controller API remains sourced from the legacy `app` implementation during
 //! migration.
 
-/// Browser, source, and folder native action dispatch helpers.
-mod browser_actions;
 /// Native runtime action dispatch orchestration and telemetry helpers.
 mod action_dispatch;
+/// Browser, source, and folder native action dispatch helpers.
+mod browser_actions;
 /// Native frame-preparation planning and maintenance helpers.
 mod frame_preparation;
 /// Map-tab and map-point native action dispatch helpers.
@@ -44,13 +44,13 @@ pub(crate) type ProjectedSelectedPathsLookup =
 pub(crate) type UmapPointQuery<'a> = crate::app_core::app_api::controller::UmapPointQuery<'a>;
 
 use crate::app_core::actions::{NativeAppModel, NativeUiAction};
-use browser_actions::apply_browser_native_ui_action;
+#[cfg(test)]
+use crate::waveform::WaveformRenderer;
 use action_dispatch::apply_native_ui_action;
+use browser_actions::apply_browser_native_ui_action;
 use map_actions::apply_map_native_ui_action;
 use prompt_update_actions::apply_prompt_and_update_native_ui_action;
 use waveform_actions::apply_waveform_native_ui_action;
-#[cfg(test)]
-use crate::waveform::WaveformRenderer;
 
 /// Backend-neutral native-runtime orchestration helpers.
 pub trait AppControllerNativeRuntimeExt {

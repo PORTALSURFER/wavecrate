@@ -34,7 +34,8 @@ fn upsert_source_db_entry(controller: &mut AppController, source: &SampleSource,
             .unwrap();
     }
     if let Some(user_tag) = entry.user_tag.as_deref() {
-        db.set_user_tag(&entry.relative_path, Some(user_tag)).unwrap();
+        db.set_user_tag(&entry.relative_path, Some(user_tag))
+            .unwrap();
     }
 }
 
@@ -136,7 +137,11 @@ fn apply_source_move_result_invalidates_touched_sources_and_selected_target_stat
         .wav_index_for_path(&PathBuf::from("moved.wav"))
         .unwrap();
     assert_eq!(
-        controller.wav_entry(moved_index).unwrap().user_tag.as_deref(),
+        controller
+            .wav_entry(moved_index)
+            .unwrap()
+            .user_tag
+            .as_deref(),
         Some("Vintage FX")
     );
     assert_eq!(

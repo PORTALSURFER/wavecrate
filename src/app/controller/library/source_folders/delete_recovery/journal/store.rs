@@ -1,8 +1,8 @@
-use super::atomic_save::{fail_save_before_replace, replace_journal_file};
-use super::cleanup_staging_root;
 use super::DeleteJournal;
 use super::DeleteJournalEntry;
 use super::DeleteJournalStage;
+use super::atomic_save::{fail_save_before_replace, replace_journal_file};
+use super::cleanup_staging_root;
 use std::fs;
 use std::path::{Path, PathBuf};
 

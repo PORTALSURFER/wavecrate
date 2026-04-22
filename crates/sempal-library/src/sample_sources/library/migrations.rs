@@ -1,4 +1,4 @@
-use super::{LibraryDatabase, LibraryError, map_sql_error};
+use super::{map_sql_error, LibraryDatabase, LibraryError};
 
 impl LibraryDatabase {
     pub(super) fn migrate_analysis_jobs_content_hash(&mut self) -> Result<(), LibraryError> {

@@ -13,7 +13,10 @@ fn decoded_analysis_write_rolls_back_on_late_failure() {
     let err = persist_decoded_analysis_write(&mut conn, None, &write).unwrap_err();
 
     assert!(err.contains("analysis_cache_embeddings"));
-    assert_eq!(sample_analysis_state(&conn, "source::one.wav"), (None, None));
+    assert_eq!(
+        sample_analysis_state(&conn, "source::one.wav"),
+        (None, None)
+    );
     assert_eq!(count_rows(&conn, "features"), 0);
     assert_eq!(count_rows(&conn, "embeddings"), 0);
     assert_eq!(count_rows(&conn, "analysis_cache_features"), 0);
@@ -39,8 +42,14 @@ fn decoded_analysis_batch_rolls_back_all_items_on_second_item_failure() {
     let err = persist_decoded_analysis_batch(&mut conn, None, &writes).unwrap_err();
 
     assert!(err.contains("synthetic cache failure"));
-    assert_eq!(sample_analysis_state(&conn, "source::one.wav"), (None, None));
-    assert_eq!(sample_analysis_state(&conn, "source::two.wav"), (None, None));
+    assert_eq!(
+        sample_analysis_state(&conn, "source::one.wav"),
+        (None, None)
+    );
+    assert_eq!(
+        sample_analysis_state(&conn, "source::two.wav"),
+        (None, None)
+    );
     assert_eq!(count_rows(&conn, "features"), 0);
     assert_eq!(count_rows(&conn, "embeddings"), 0);
     assert_eq!(count_rows(&conn, "analysis_cache_features"), 0);

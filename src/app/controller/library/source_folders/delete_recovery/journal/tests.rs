@@ -1,7 +1,7 @@
 use super::super::DELETE_STAGING_DIR;
 use super::{
-    fail_next_save_before_replace_for_tests, load_journal, mark_delete_retained,
-    stage_folder_for_delete, DeleteJournalStage,
+    DeleteJournalStage, fail_next_save_before_replace_for_tests, load_journal,
+    mark_delete_retained, stage_folder_for_delete,
 };
 use std::fs;
 use std::path::Path;
@@ -53,13 +53,17 @@ fn stage_folder_for_delete_skips_stale_journal_reserved_path() -> Result<(), Str
 
     let journal = load_journal(&staging_root)?;
     assert_eq!(journal.entries.len(), 2);
-    assert!(journal
-        .entries
-        .iter()
-        .any(|entry| entry.staged_relative == "gone"));
-    assert!(journal
-        .entries
-        .iter()
-        .any(|entry| entry.staged_relative == "gone.staged-1"));
+    assert!(
+        journal
+            .entries
+            .iter()
+            .any(|entry| entry.staged_relative == "gone")
+    );
+    assert!(
+        journal
+            .entries
+            .iter()
+            .any(|entry| entry.staged_relative == "gone.staged-1")
+    );
     Ok(())
 }

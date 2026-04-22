@@ -61,7 +61,8 @@ fn seed_source_sample(controller: &mut AppController, source: &SampleSource, rel
     db.set_looped(Path::new(relative), true).must();
     db.set_locked(Path::new(relative), true).must();
     db.set_last_played_at(Path::new(relative), 42).must();
-    db.set_user_tag(Path::new(relative), Some("Vintage FX")).must();
+    db.set_user_tag(Path::new(relative), Some("Vintage FX"))
+        .must();
     controller.set_wav_entries_for_tests(vec![WavEntry {
         relative_path: PathBuf::from(relative),
         file_size: metadata.len(),
@@ -110,7 +111,8 @@ fn set_source_samples_for_tests(
         db.set_looped(Path::new(relative), true).must();
         db.set_locked(Path::new(relative), true).must();
         db.set_last_played_at(Path::new(relative), 42).must();
-        db.set_user_tag(Path::new(relative), Some("Vintage FX")).must();
+        db.set_user_tag(Path::new(relative), Some("Vintage FX"))
+            .must();
     }
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
