@@ -25,6 +25,16 @@ impl AppController {
         self.extend_selected_source_mutation_claim_grace(&pending.source_id);
         if let Err(err) = message.result {
             self.rollback_metadata_mutation(&pending.rollback);
+            if !pending.blocks_file_mutation && is_busy_lock_error_message(&err) {
+                warn!(
+                    source_id = %pending.source_id,
+                    request_id = message.request_id,
+                    elapsed_ms = message.elapsed.as_millis(),
+                    error = %err,
+                    "background analysis metadata mutation hit busy lock"
+                );
+                return;
+            }
             self.set_status(format!("Metadata update failed: {err}"), StatusTone::Error);
             return;
         }
@@ -239,7 +249,7 @@ impl AppController {
                 .find(|source| source.id == source_id)
                 .cloned()
             {
-                self.invalidate_wav_entries_for_source(&source);
+                self.refresh_wav_entries_for_source(&source);
             }
         }
         if failed > 0 {
@@ -398,4 +408,9 @@ impl AppController {
             self.rebuild_browser_lists();
         }
     }
+}
+
+fn is_busy_lock_error_message(err: &str) -> bool {
+    let lowered = err.to_ascii_lowercase();
+    lowered.contains("busy") || lowered.contains("locked")
 }

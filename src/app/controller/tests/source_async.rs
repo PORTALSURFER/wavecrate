@@ -1,12 +1,13 @@
 use super::super::jobs::{
-    JobMessage, SourceDbMaintenanceOutcome, SourceDbMaintenanceResult, SourceHydrationKind,
-    SourceHydrationResult, SourceHydrationSnapshot,
+    JobMessage, MetadataMutationResult, SourceDbMaintenanceOutcome, SourceDbMaintenanceResult,
+    SourceHydrationKind, SourceHydrationResult, SourceHydrationSnapshot,
 };
 use super::super::library::source_folders::with_folder_projection_async_enabled_for_tests;
 use super::super::library::sources::hydration::with_source_hydration_async_enabled_for_tests;
 use super::super::library::wavs::with_browser_async_pipeline_enabled_for_tests;
 use super::super::test_support::sample_entry;
 use super::super::*;
+use crate::app::controller::state::runtime::PendingMetadataMutation;
 use super::common::visible_indices;
 use crate::app::state::FolderPaneId;
 use crate::sample_sources::Rating;
@@ -516,4 +517,40 @@ fn deferred_source_db_maintenance_refreshes_selected_source_when_required() {
     assert_eq!(controller.selected_source_id(), Some(source.id.clone()));
     assert_eq!(controller.wav_entries.total, 2);
     assert_eq!(visible_indices(&controller), vec![0, 1]);
+}
+
+#[test]
+fn analysis_only_busy_metadata_failure_does_not_overwrite_status() {
+    let (mut controller, sources) = build_controller_with_sources(&["source-a"]);
+    let source = sources[0].clone();
+    controller.ui.status.text = String::from("Auto Rename: renamed 1, skipped 0, failed 0");
+    controller
+        .runtime
+        .source_lane
+        .mutations
+        .insert_metadata_mutation(PendingMetadataMutation {
+            request_id: 7,
+            source_id: source.id.clone(),
+            paths: [PathBuf::from("alpha.wav")].into_iter().collect(),
+            blocks_file_mutation: false,
+            rollback: Vec::new(),
+            refresh_browser_projection: false,
+        });
+
+    controller.apply_background_job_message_for_tests(JobMessage::MetadataMutationFinished(
+        MetadataMutationResult {
+            request_id: 7,
+            source_id: source.id,
+            paths: [PathBuf::from("alpha.wav")].into_iter().collect(),
+            elapsed: std::time::Duration::from_millis(5),
+            result: Err(String::from(
+                "Failed to start analysis metadata transaction: database is locked",
+            )),
+        },
+    ));
+
+    assert_eq!(
+        controller.ui.status.text,
+        "Auto Rename: renamed 1, skipped 0, failed 0"
+    );
 }

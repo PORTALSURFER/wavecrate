@@ -265,6 +265,24 @@ impl AppController {
         self.rebuild_missing_lookup_for_source(&source.id);
     }
 
+    /// Refresh one source's wav-entry cache without clearing the current visible
+    /// browser rows first. This keeps the browser stable while a new page load
+    /// is queued in the background.
+    pub(crate) fn refresh_wav_entries_for_source(&mut self, source: &SampleSource) {
+        self.cache.wav.entries.remove(&source.id);
+        if self.selection_state.ctx.selected_source.as_ref() == Some(&source.id) {
+            self.ui_cache.browser.labels.remove(&source.id);
+            self.ui_cache.browser.bpm_values.remove(&source.id);
+            self.ui_cache.browser.search.invalidate();
+            self.ui_cache.browser.pipeline.invalidate();
+            self.queue_wav_load();
+        } else {
+            self.ui_cache.browser.labels.remove(&source.id);
+            self.ui_cache.browser.bpm_values.remove(&source.id);
+        }
+        self.rebuild_missing_lookup_for_source(&source.id);
+    }
+
     /// Invalidate one source's wav entries while preserving existing folder-selection state.
     pub(crate) fn invalidate_wav_entries_for_source_preserve_folders(
         &mut self,
