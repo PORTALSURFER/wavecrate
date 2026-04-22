@@ -1,17 +1,6 @@
 use super::*;
 
 impl BrowserController<'_> {
-    fn first_pending_auto_rename_metadata_path(
-        &self,
-        source_id: &SourceId,
-        paths: &[PathBuf],
-    ) -> Option<PathBuf> {
-        paths.iter().find_map(|path| {
-            self.metadata_mutation_pending_for(source_id, path)
-                .then(|| path.clone())
-        })
-    }
-
     pub(in crate::app::controller::library::browser_controller::actions) fn rename_browser_sample_action(
         &mut self,
         row: usize,
@@ -40,12 +29,6 @@ impl BrowserController<'_> {
         };
         if self.runtime.jobs.file_ops_in_progress() {
             return Err("File operation already in progress".to_string());
-        }
-        if let Some(path) = self.first_pending_auto_rename_metadata_path(&source.id, paths) {
-            return Err(format!(
-                "Metadata update still in progress for {}; wait for it to finish before auto rename",
-                path.display()
-            ));
         }
         self.preload_bpm_values_for_paths(paths);
         let requests = self.prepare_auto_rename_requests(&source, paths)?;

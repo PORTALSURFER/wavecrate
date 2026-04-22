@@ -32,6 +32,7 @@ fn sample_rename_rolls_back_file_when_db_write_cannot_start() {
         false,
         None,
         Some(SampleSoundType::Kick),
+        Some(String::from("Vintage")),
     );
 
     release_db_lock(lock_release_tx, lock_done_rx);
@@ -90,6 +91,7 @@ fn sample_rename_preserves_locked_and_metadata_on_success() {
         false,
         None,
         Some(SampleSoundType::Kick),
+        Some(String::from("Vintage")),
     )
     .expect("rename should succeed");
 
@@ -238,7 +240,11 @@ fn sample_auto_rename_persists_inferred_sound_type_without_controller_db_write()
             old_relative: relative.to_path_buf(),
             new_relative: PathBuf::from("portal_SS_kick.wav"),
             tag: Rating::KEEP_3,
+            looped: false,
+            locked: false,
             sound_type: Some(SampleSoundType::Kick),
+            user_tag: None,
+            last_played_at: None,
             resume_playback: false,
             resume_looped: false,
             resume_start_override: None,
@@ -286,7 +292,11 @@ fn rename_request(old_relative: &str, new_relative: &str) -> SampleAutoRenameReq
         old_relative: PathBuf::from(old_relative),
         new_relative: PathBuf::from(new_relative),
         tag: Rating::KEEP_3,
+        looped: true,
+        locked: true,
         sound_type: Some(SampleSoundType::Kick),
+        user_tag: Some(String::from("Vintage")),
+        last_played_at: Some(42),
         resume_playback: false,
         resume_looped: false,
         resume_start_override: None,

@@ -385,7 +385,7 @@ fn auto_rename_uses_live_sidebar_loop_and_sound_type_without_bpm() {
 }
 
 #[test]
-fn auto_rename_refuses_paths_with_pending_metadata_mutations() {
+fn auto_rename_allows_paths_with_pending_metadata_mutations() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
     controller.select_source_by_index(0);
@@ -416,12 +416,8 @@ fn auto_rename_refuses_paths_with_pending_metadata_mutations() {
 
     controller.auto_rename_browser_selection_action(Some(0));
 
-    assert!(source.root.join("raw.wav").exists());
-    assert!(!source.root.join("portal_SS.wav").exists());
-    assert_eq!(
-        controller.ui.status.text,
-        "Metadata update still in progress for raw.wav; wait for it to finish before auto rename"
-    );
+    assert!(!source.root.join("raw.wav").exists());
+    assert!(source.root.join("portal_SS.wav").exists());
 }
 
 #[test]

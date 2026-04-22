@@ -20,6 +20,8 @@ impl BrowserController<'_> {
         for relative_path in paths {
             let tag = self.sample_tag_for(source, relative_path)?;
             let looped = self.sample_looped_for(source, relative_path)?;
+            let locked = self.locked_for_path(source, relative_path)?;
+            let last_played_at = self.sample_last_played_for(source, relative_path)?;
             let sound_type = self
                 .live_sound_type_for_path(source, relative_path)
                 .or(db
@@ -38,7 +40,7 @@ impl BrowserController<'_> {
                 identifier: identifier.clone(),
                 looped,
                 sound_type,
-                user_tag,
+                user_tag: user_tag.clone(),
                 bpm: self.bpm_value_for_path(relative_path),
             });
             let new_relative = self.resolve_auto_rename_target(
@@ -60,7 +62,11 @@ impl BrowserController<'_> {
                 old_relative: relative_path.clone(),
                 new_relative,
                 tag,
+                looped,
+                locked,
                 sound_type,
+                user_tag,
+                last_played_at,
                 resume_playback: is_currently_loaded && is_playing,
                 resume_looped,
                 resume_start_override: playhead_position
@@ -202,5 +208,32 @@ impl BrowserController<'_> {
                     .and_then(|index| self.cache.wav.entries.get(&source.id)?.entry(index))
                     .and_then(|entry| entry.user_tag.clone())
             })
+    }
+
+    fn locked_for_path(
+        &mut self,
+        source: &SampleSource,
+        relative_path: &Path,
+    ) -> Result<bool, String> {
+        self.wav_index_for_path(relative_path)
+            .and_then(|index| {
+                let _ = self.ensure_wav_page_loaded(index);
+                self.wav_entry(index).map(|entry| entry.locked)
+            })
+            .or_else(|| {
+                self.cache
+                    .wav
+                    .entries
+                    .get(&source.id)
+                    .and_then(|cache| cache.lookup.get(relative_path).copied())
+                    .and_then(|index| self.cache.wav.entries.get(&source.id)?.entry(index))
+                    .map(|entry| entry.locked)
+            })
+            .or(self
+                .database_for(source)
+                .map_err(|err| err.to_string())?
+                .locked_for_path(relative_path)
+                .map_err(|err| err.to_string())?)
+            .ok_or_else(|| format!("Sample not found: {}", relative_path.display()))
     }
 }
