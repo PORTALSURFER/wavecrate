@@ -1,10 +1,19 @@
 use super::super::test_support::{
-    dummy_controller, prepare_with_source_and_wav_entries, sample_entry,
+    dummy_controller, prepare_with_source_and_wav_entries, sample_entry, write_test_wav,
 };
 use super::super::*;
 use crate::app::controller::jobs::{FileOpResult, UndoFileJob, UndoFileOpResult, UndoFileOutcome};
 use crate::app::controller::undo::{DeferredUndo, UndoDirection, UndoEntry, UndoExecution};
+use crate::app::controller::undo_jobs::run_undo_file_job;
+use crate::sample_sources::SourceDatabase;
 use std::path::{Path, PathBuf};
+use std::sync::{
+    Arc,
+    atomic::AtomicBool,
+    mpsc::{Receiver, Sender},
+};
+use std::time::Duration;
+use tempfile::tempdir;
 
 fn deferred_test_entry(
     label: &str,
@@ -120,4 +129,149 @@ fn deferred_redo_failure_restores_redo_entry() {
 
     controller.redo();
     assert!(controller.settings.controls.advance_after_rating);
+}
+
+#[test]
+fn remove_sample_job_treats_missing_file_as_idempotent_when_db_cleanup_succeeds() {
+    let (temp, source, relative_path, absolute_path) = remove_sample_fixture("missing.wav");
+    std::fs::remove_file(&absolute_path).expect("remove fixture file before job");
+
+    let result = run_undo_file_job(
+        UndoFileJob::RemoveSample {
+            source_id: source.id.clone(),
+            source_root: source.root.clone(),
+            relative_path: relative_path.clone(),
+            absolute_path: absolute_path.clone(),
+        },
+        Arc::new(AtomicBool::new(false)),
+        None,
+    );
+
+    assert!(
+        matches!(
+            &result.result,
+            Ok(UndoFileOutcome::Removed {
+                source_id,
+                relative_path: outcome_path,
+            }) if *source_id == source.id && *outcome_path == relative_path
+        ),
+        "missing file should be an idempotent success: {:?}",
+        result.result
+    );
+    let db = SourceDatabase::open(&source.root).expect("open source db");
+    assert!(
+        db.tag_for_path(&relative_path)
+            .expect("lookup removed row")
+            .is_none()
+    );
+
+    drop(temp);
+}
+
+#[test]
+fn remove_sample_job_fails_when_filesystem_delete_fails() {
+    let (temp, source, relative_path, absolute_path) = remove_sample_fixture("locked.wav");
+    std::fs::remove_file(&absolute_path).expect("remove fixture file");
+    std::fs::create_dir(&absolute_path).expect("create directory at sample path");
+
+    let result = run_undo_file_job(
+        UndoFileJob::RemoveSample {
+            source_id: source.id.clone(),
+            source_root: source.root.clone(),
+            relative_path: relative_path.clone(),
+            absolute_path: absolute_path.clone(),
+        },
+        Arc::new(AtomicBool::new(false)),
+        None,
+    );
+
+    let err = result.result.expect_err("directory delete should fail");
+    assert!(err.contains("Failed to delete sample"));
+    assert!(
+        absolute_path.is_dir(),
+        "failed delete must leave path in place"
+    );
+    let db = SourceDatabase::open(&source.root).expect("open source db");
+    assert_eq!(
+        db.tag_for_path(&relative_path)
+            .expect("db row should remain"),
+        Some(crate::sample_sources::Rating::NEUTRAL)
+    );
+
+    drop(temp);
+}
+
+#[test]
+fn remove_sample_job_fails_when_db_cleanup_fails() {
+    let (temp, source, relative_path, absolute_path) = remove_sample_fixture("db-lock.wav");
+    let (lock_release_tx, lock_done_rx) = lock_db_until_released(&source.root);
+
+    let result = run_undo_file_job(
+        UndoFileJob::RemoveSample {
+            source_id: source.id.clone(),
+            source_root: source.root.clone(),
+            relative_path: relative_path.clone(),
+            absolute_path: absolute_path.clone(),
+        },
+        Arc::new(AtomicBool::new(false)),
+        None,
+    );
+
+    release_db_lock(lock_release_tx, lock_done_rx);
+
+    let err = result.result.expect_err("locked db cleanup should fail");
+    assert!(err.contains("Failed to drop database row"));
+    assert!(
+        !absolute_path.exists(),
+        "file delete happens before the db cleanup failure is surfaced"
+    );
+    let db = SourceDatabase::open(&source.root).expect("open source db");
+    assert_eq!(
+        db.tag_for_path(&relative_path)
+            .expect("db row should remain"),
+        Some(crate::sample_sources::Rating::NEUTRAL)
+    );
+
+    drop(temp);
+}
+
+fn remove_sample_fixture(sample_name: &str) -> (tempfile::TempDir, SampleSource, PathBuf, PathBuf) {
+    let temp = tempdir().expect("create temp dir");
+    let source = SampleSource::new(temp.path().join("source"));
+    std::fs::create_dir_all(&source.root).expect("create source root");
+    let relative_path = PathBuf::from(sample_name);
+    let absolute_path = source.root.join(&relative_path);
+    write_test_wav(&absolute_path, &[0.0, 0.1, -0.1]);
+    let metadata = std::fs::metadata(&absolute_path).expect("read sample metadata");
+    let db = SourceDatabase::open(&source.root).expect("open source db");
+    db.upsert_file(&relative_path, metadata.len(), 0)
+        .expect("insert db row");
+    db.set_tag(&relative_path, crate::sample_sources::Rating::NEUTRAL)
+        .expect("set tag");
+    (temp, source, relative_path, absolute_path)
+}
+
+fn lock_db_until_released(source_root: &Path) -> (Sender<()>, Receiver<()>) {
+    let (lock_release_tx, lock_release_rx) = std::sync::mpsc::channel();
+    let (lock_done_tx, lock_done_rx) = std::sync::mpsc::channel();
+    let (locked_tx, locked_rx) = std::sync::mpsc::channel();
+    let db_file = source_root.join(crate::sample_sources::db::DB_FILE_NAME);
+    std::thread::spawn(move || {
+        let conn = rusqlite::Connection::open(db_file).expect("open sqlite lock connection");
+        conn.execute_batch("BEGIN IMMEDIATE")
+            .expect("start immediate transaction");
+        let _ = locked_tx.send(());
+        let _ = lock_release_rx.recv();
+        let _ = conn.execute_batch("COMMIT");
+        let _ = lock_done_tx.send(());
+    });
+    locked_rx.recv().expect("wait for sqlite lock");
+    (lock_release_tx, lock_done_rx)
+}
+
+fn release_db_lock(lock_release_tx: Sender<()>, lock_done_rx: Receiver<()>) {
+    let _ = lock_release_tx.send(());
+    lock_done_rx
+        .recv_timeout(Duration::from_secs(1))
+        .expect("wait for sqlite lock release");
 }

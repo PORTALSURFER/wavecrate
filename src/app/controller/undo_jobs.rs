@@ -3,6 +3,7 @@
 use crate::app::controller::jobs::{FileOpMessage, UndoFileJob, UndoFileOpResult, UndoFileOutcome};
 use crate::app::controller::library::wav_io::file_metadata;
 use crate::sample_sources::SourceDatabase;
+use std::io::ErrorKind;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
@@ -83,8 +84,28 @@ pub(crate) fn run_undo_file_job(
                     };
                 }
             };
-            let _ = std::fs::remove_file(&absolute_path);
-            let _ = db.remove_file(&relative_path);
+            match std::fs::remove_file(&absolute_path) {
+                Ok(()) => {}
+                Err(err) if err.kind() == ErrorKind::NotFound => {}
+                Err(err) => {
+                    return UndoFileOpResult {
+                        result: Err(format!(
+                            "Failed to delete sample {}: {err}",
+                            absolute_path.display()
+                        )),
+                        cancelled: false,
+                    };
+                }
+            }
+            if let Err(err) = db.remove_file(&relative_path) {
+                return UndoFileOpResult {
+                    result: Err(format!(
+                        "Failed to drop database row for {}: {err}",
+                        relative_path.display()
+                    )),
+                    cancelled: false,
+                };
+            }
             Ok(UndoFileOutcome::Removed {
                 source_id,
                 relative_path,
