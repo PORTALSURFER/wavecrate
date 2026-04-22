@@ -54,7 +54,7 @@ impl AppController {
         if self.ui.sources.active_folder_pane == pane {
             return;
         }
-        if let Some(pending) = self.runtime.pending_active_source_hydration.clone() {
+        if let Some(pending) = self.runtime.source_lane.hydration.pending_active.clone() {
             self.finish_source_loading(pending.kind, pending.pane);
         }
         self.sync_active_folder_ui_to_pane();
@@ -214,7 +214,9 @@ impl AppController {
                     self.select_wav_by_path(&path);
                 } else if self
                     .runtime
-                    .pending_active_source_hydration
+                    .source_lane
+                    .hydration
+                    .pending_active
                     .as_ref()
                     .is_none_or(|pending| {
                         Some(&pending.source_id)

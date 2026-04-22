@@ -16,16 +16,12 @@ impl AppController {
     ) {
         let Some(pending) = self
             .runtime
-            .pending_metadata_mutations
-            .remove(&message.request_id)
+            .source_lane
+            .mutations
+            .finish_metadata_mutation(message.request_id)
         else {
             return;
         };
-        for path in &pending.paths {
-            self.runtime
-                .pending_metadata_paths
-                .remove(&(pending.source_id.clone(), path.clone()));
-        }
         if let Err(err) = message.result {
             self.rollback_metadata_mutation(&pending.rollback);
             self.set_status(format!("Metadata update failed: {err}"), StatusTone::Error);

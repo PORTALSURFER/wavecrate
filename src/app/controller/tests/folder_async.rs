@@ -58,7 +58,9 @@ fn nested_folder_controller() -> (AppController, SampleSource) {
 fn pending_projection_request_id(controller: &AppController) -> u64 {
     controller
         .runtime
-        .pending_folder_projections
+        .source_lane
+        .folder_projection
+        .pending
         .get(&crate::app::state::FolderPaneId::Upper)
         .expect("pending folder projection")
         .request_id
@@ -163,7 +165,14 @@ fn focus_and_selection_patch_rows_immediately_without_queueing_projection() {
         controller.focus_folder_row(drums_index);
 
         assert_eq!(controller.ui.sources.folders.focused, Some(drums_index));
-        assert!(controller.runtime.pending_folder_projections.is_empty());
+        assert!(
+            controller
+                .runtime
+                .source_lane
+                .folder_projection
+                .pending
+                .is_empty()
+        );
         assert!(
             !controller
                 .ui
@@ -175,7 +184,14 @@ fn focus_and_selection_patch_rows_immediately_without_queueing_projection() {
         controller.replace_folder_selection(drums_index);
 
         assert!(controller.ui.sources.folders.rows[drums_index].selected);
-        assert!(controller.runtime.pending_folder_projections.is_empty());
+        assert!(
+            controller
+                .runtime
+                .source_lane
+                .folder_projection
+                .pending
+                .is_empty()
+        );
     });
 }
 

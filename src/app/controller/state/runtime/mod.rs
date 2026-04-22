@@ -4,12 +4,11 @@ mod deferred;
 /// Incremental derived-state dirty graph model used by native projection paths.
 mod derived_graph;
 mod performance;
+mod source_lane;
 
 use crate::app::controller::jobs;
 use crate::app::controller::library::analysis_jobs;
 use crate::app::controller::state::audio::PendingAgeUpdate;
-use crate::app::state::FolderPaneId;
-use crate::sample_sources::Rating;
 use crate::sample_sources::db::SourceDbError;
 use crate::sample_sources::{ScanMode, SourceId, WavEntry};
 pub(crate) use deferred::{
@@ -23,7 +22,11 @@ pub(crate) use deferred::{
 pub(crate) use derived_graph::{DerivedNodeId, DerivedStateGraph, DirtyReason};
 pub(crate) use performance::PerformanceGovernorState;
 use rusqlite::Connection;
-use std::collections::{BTreeSet, HashMap, HashSet};
+pub(crate) use source_lane::{
+    MetadataRollback, PendingFolderProjection, PendingMetadataMutation, PendingSourceHydration,
+    SourceLaneRuntimeState,
+};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -144,20 +147,8 @@ pub(crate) struct ControllerRuntimeState {
     pub(crate) startup_frame_prepare_count: u32,
     /// Startup audio refresh deferred until after the first presented frame.
     pub(crate) deferred_startup_audio_refresh: DeferredStartupAudioRefreshState,
-    /// Active source hydration currently preparing the browser-driving source snapshot.
-    pub(crate) pending_active_source_hydration: Option<PendingSourceHydration>,
-    /// Inactive-pane source hydration currently preparing one retained folder snapshot.
-    pub(crate) pending_inactive_source_hydration: Option<PendingSourceHydration>,
-    /// Pending pane-scoped folder projection jobs keyed by owning sidebar pane.
-    pub(crate) pending_folder_projections: HashMap<FolderPaneId, PendingFolderProjection>,
-    /// Controller-owned metadata writes awaiting background completion by request id.
-    pub(crate) pending_metadata_mutations: HashMap<u64, PendingMetadataMutation>,
-    /// Relative sample paths currently carrying optimistic metadata writes.
-    pub(crate) pending_metadata_paths: HashSet<(SourceId, PathBuf)>,
-    /// Source ids currently owning background file or folder mutations.
-    pub(crate) pending_file_mutation_sources: HashSet<SourceId>,
-    /// Relative paths currently carrying background file or folder mutations.
-    pub(crate) pending_file_mutation_paths: HashSet<(SourceId, PathBuf)>,
+    /// Source-specific runtime state for hydration, folder projection, and mutations.
+    pub(crate) source_lane: SourceLaneRuntimeState,
     #[cfg(test)]
     pub(crate) progress_cancel_after: Option<usize>,
     #[cfg(test)]
@@ -219,13 +210,7 @@ impl ControllerRuntimeState {
             deferred_startup_source_db_maintenance_armed: false,
             startup_frame_prepare_count: 0,
             deferred_startup_audio_refresh: DeferredStartupAudioRefreshState::default(),
-            pending_active_source_hydration: None,
-            pending_inactive_source_hydration: None,
-            pending_folder_projections: HashMap::new(),
-            pending_metadata_mutations: HashMap::new(),
-            pending_metadata_paths: HashSet::new(),
-            pending_file_mutation_sources: HashSet::new(),
-            pending_file_mutation_paths: HashSet::new(),
+            source_lane: SourceLaneRuntimeState::default(),
             #[cfg(test)]
             progress_cancel_after: None,
             #[cfg(test)]
@@ -251,84 +236,6 @@ impl ControllerRuntimeState {
     pub(crate) fn waveform_refresh_batch_active(&self) -> bool {
         self.waveform_refresh_batch_depth > 0
     }
-}
-
-/// One optimistic metadata request awaiting background persistence.
-#[derive(Clone, Debug)]
-pub(crate) struct PendingMetadataMutation {
-    /// Request id used to match completion messages.
-    pub(crate) request_id: u64,
-    /// Source that owns the optimistic metadata updates.
-    pub(crate) source_id: SourceId,
-    /// Paths touched by this request for pending-state cleanup.
-    pub(crate) paths: BTreeSet<PathBuf>,
-    /// Rollback entries applied only when the background write fails.
-    pub(crate) rollback: Vec<MetadataRollback>,
-    /// Whether the browser filter/sort projection should refresh when the write completes.
-    pub(crate) refresh_browser_projection: bool,
-}
-
-/// Rollback payload for one optimistic metadata update.
-#[derive(Clone, Debug)]
-pub(crate) enum MetadataRollback {
-    /// Restore one tag plus keep-lock state if the optimistic value is still current.
-    TagAndLocked {
-        /// Relative sample path within the source root.
-        relative_path: PathBuf,
-        /// Value before the optimistic mutation.
-        before_tag: Rating,
-        /// Lock state before the optimistic mutation.
-        before_locked: bool,
-        /// Value written optimistically before persistence completed.
-        expected_tag: Rating,
-        /// Lock state written optimistically before persistence completed.
-        expected_locked: bool,
-    },
-    /// Restore one loop-marker state if the optimistic value is still current.
-    Looped {
-        /// Relative sample path within the source root.
-        relative_path: PathBuf,
-        /// Value before the optimistic mutation.
-        before_looped: bool,
-        /// Value written optimistically before persistence completed.
-        expected_looped: bool,
-    },
-    /// Restore one sound-type value if the optimistic value is still current.
-    SoundType {
-        /// Relative sample path within the source root.
-        relative_path: PathBuf,
-        /// Value before the optimistic mutation.
-        before_sound_type: Option<crate::sample_sources::SampleSoundType>,
-        /// Value written optimistically before persistence completed.
-        expected_sound_type: Option<crate::sample_sources::SampleSoundType>,
-    },
-    /// Restore one custom user-tag value if the optimistic value is still current.
-    UserTag {
-        /// Relative sample path within the source root.
-        relative_path: PathBuf,
-        /// Value before the optimistic mutation.
-        before_user_tag: Option<String>,
-        /// Value written optimistically before persistence completed.
-        expected_user_tag: Option<String>,
-    },
-    /// Restore one playback-age value if the optimistic value is still current.
-    LastPlayedAt {
-        /// Relative sample path within the source root.
-        relative_path: PathBuf,
-        /// Value before the optimistic mutation.
-        before_last_played_at: Option<i64>,
-        /// Value written optimistically before persistence completed.
-        expected_last_played_at: Option<i64>,
-    },
-    /// Restore one BPM value if the optimistic value is still current.
-    Bpm {
-        /// Relative sample path within the source root.
-        relative_path: PathBuf,
-        /// Value before the optimistic mutation.
-        before_bpm: Option<f32>,
-        /// Value written optimistically before persistence completed.
-        expected_bpm: Option<f32>,
-    },
 }
 
 /// Active deferred configuration persistence request.
@@ -361,36 +268,6 @@ pub(crate) struct PendingWaveformTransientCompute {
     /// Decode cache token used for staleness checks.
     pub(crate) cache_token: u64,
     /// Time when the transient request was queued.
-    pub(crate) queued_at: Instant,
-}
-
-/// Active controller-side tracking for one source hydration request.
-#[derive(Clone, Debug)]
-pub(crate) struct PendingSourceHydration {
-    /// Monotonic request identifier used to discard stale results.
-    pub(crate) request_id: u64,
-    /// Sidebar pane that owns the source assignment.
-    pub(crate) pane: FolderPaneId,
-    /// Hydrated source identifier.
-    pub(crate) source_id: SourceId,
-    /// Logical hydration lane for result application.
-    pub(crate) kind: jobs::SourceHydrationKind,
-    /// Search request queued after hydration apply, when active-source projection is pending.
-    pub(crate) search_request_id: Option<u64>,
-    /// Time when the hydration request was queued on the controller thread.
-    pub(crate) queued_at: Instant,
-}
-
-/// Active controller-side tracking for one pane-scoped folder projection request.
-#[derive(Clone, Debug)]
-pub(crate) struct PendingFolderProjection {
-    /// Monotonic request identifier used to discard stale results.
-    pub(crate) request_id: u64,
-    /// Sidebar pane whose folder browser rows are being projected.
-    pub(crate) pane: FolderPaneId,
-    /// Source identifier that owns the folder browser state.
-    pub(crate) source_id: SourceId,
-    /// Time when the projection request was queued on the controller thread.
     pub(crate) queued_at: Instant,
 }
 

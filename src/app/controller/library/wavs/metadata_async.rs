@@ -35,40 +35,30 @@ impl AppController {
                 source_ops,
                 analysis_ops,
             });
-            self.runtime.pending_metadata_mutations.insert(
-                request_id,
-                PendingMetadataMutation {
+            self.runtime
+                .source_lane
+                .mutations
+                .insert_metadata_mutation(PendingMetadataMutation {
                     request_id,
                     source_id: source.id.clone(),
                     paths: result.paths.clone(),
                     rollback,
                     refresh_browser_projection,
-                },
-            );
-            for path in &result.paths {
-                self.runtime
-                    .pending_metadata_paths
-                    .insert((source.id.clone(), path.clone()));
-            }
+                });
             self.handle_metadata_mutation_finished_message(result);
             return;
         }
         let request_id = self.runtime.jobs.next_metadata_request_id();
-        for path in &paths {
-            self.runtime
-                .pending_metadata_paths
-                .insert((source.id.clone(), path.clone()));
-        }
-        self.runtime.pending_metadata_mutations.insert(
-            request_id,
-            PendingMetadataMutation {
+        self.runtime
+            .source_lane
+            .mutations
+            .insert_metadata_mutation(PendingMetadataMutation {
                 request_id,
                 source_id: source.id.clone(),
                 paths: paths.clone(),
                 rollback,
                 refresh_browser_projection,
-            },
-        );
+            });
         let job = MetadataMutationJob {
             request_id,
             source_id: source.id.clone(),
@@ -91,17 +81,18 @@ impl AppController {
         relative_path: &Path,
     ) -> bool {
         self.runtime
-            .pending_metadata_paths
-            .contains(&(source_id.clone(), relative_path.to_path_buf()))
+            .source_lane
+            .mutations
+            .metadata_path_pending(source_id, relative_path)
     }
 
     /// Return whether the currently selected source still has optimistic metadata writes pending.
     pub(crate) fn selected_source_has_pending_metadata_mutations(&self) -> bool {
         self.selected_source_id().is_some_and(|source_id| {
             self.runtime
-                .pending_metadata_paths
-                .iter()
-                .any(|(pending_source_id, _)| pending_source_id == &source_id)
+                .source_lane
+                .mutations
+                .source_has_pending_metadata(&source_id)
         })
     }
 
@@ -109,8 +100,9 @@ impl AppController {
     pub(crate) fn selected_source_has_pending_file_mutations(&self) -> bool {
         self.selected_source_id().is_some_and(|source_id| {
             self.runtime
-                .pending_file_mutation_sources
-                .contains(&source_id)
+                .source_lane
+                .mutations
+                .source_has_pending_file_mutations(&source_id)
         })
     }
 
@@ -127,8 +119,9 @@ impl AppController {
     /// Return whether one source currently owns a background file mutation.
     pub(crate) fn source_has_pending_file_mutations(&self, source_id: &SourceId) -> bool {
         self.runtime
-            .pending_file_mutation_sources
-            .contains(source_id)
+            .source_lane
+            .mutations
+            .source_has_pending_file_mutations(source_id)
     }
 
     /// Mark one source/path batch as owned by a background file mutation.
@@ -138,13 +131,9 @@ impl AppController {
         paths: impl IntoIterator<Item = PathBuf>,
     ) {
         self.runtime
-            .pending_file_mutation_sources
-            .insert(source_id.clone());
-        for path in paths {
-            self.runtime
-                .pending_file_mutation_paths
-                .insert((source_id.clone(), path));
-        }
+            .source_lane
+            .mutations
+            .begin_file_mutation(source_id, paths);
     }
 
     /// Clear one source/path batch from background file-mutation tracking.
@@ -153,19 +142,10 @@ impl AppController {
         source_id: &SourceId,
         paths: impl IntoIterator<Item = PathBuf>,
     ) {
-        for path in paths {
-            self.runtime
-                .pending_file_mutation_paths
-                .remove(&(source_id.clone(), path));
-        }
-        let still_has_paths = self
-            .runtime
-            .pending_file_mutation_paths
-            .iter()
-            .any(|(pending_source_id, _)| pending_source_id == source_id);
-        if !still_has_paths {
-            self.runtime.pending_file_mutation_sources.remove(source_id);
-        }
+        self.runtime
+            .source_lane
+            .mutations
+            .finish_file_mutation(source_id, paths);
     }
 }
 

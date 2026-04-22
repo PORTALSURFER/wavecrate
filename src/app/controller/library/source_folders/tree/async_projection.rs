@@ -140,13 +140,17 @@ impl AppController {
 
     /// Clear any in-flight folder projection state owned by `pane`.
     pub(crate) fn clear_folder_projection_state(&mut self, pane: FolderPaneId) {
-        self.runtime.pending_folder_projections.remove(&pane);
+        self.runtime
+            .source_lane
+            .folder_projection
+            .pending
+            .remove(&pane);
         self.ui.sources.folder_pane_mut(pane).projecting = false;
     }
 
     /// Clear all folder projection state and stale flags during source clear/loading flows.
     pub(crate) fn clear_all_folder_projection_state(&mut self) {
-        self.runtime.pending_folder_projections.clear();
+        self.runtime.source_lane.folder_projection.pending.clear();
         for pane in [FolderPaneId::Upper, FolderPaneId::Lower] {
             self.ui.sources.folder_pane_mut(pane).projecting = false;
         }
@@ -154,7 +158,11 @@ impl AppController {
 
     /// Mark the pane projection as finished when the latest matching result lands.
     pub(crate) fn finish_folder_projecting(&mut self, pane: FolderPaneId) {
-        self.runtime.pending_folder_projections.remove(&pane);
+        self.runtime
+            .source_lane
+            .folder_projection
+            .pending
+            .remove(&pane);
         self.ui.sources.folder_pane_mut(pane).projecting = false;
     }
 
@@ -166,7 +174,7 @@ impl AppController {
         work: FolderProjectionWork,
     ) {
         let request_id = self.runtime.jobs.next_folder_projection_request_id();
-        self.runtime.pending_folder_projections.insert(
+        self.runtime.source_lane.folder_projection.pending.insert(
             pane,
             PendingFolderProjection {
                 request_id,
@@ -217,7 +225,9 @@ impl AppController {
 
     fn folder_projection_matches(&self, message: &FolderProjectionResult) -> bool {
         self.runtime
-            .pending_folder_projections
+            .source_lane
+            .folder_projection
+            .pending
             .get(&message.pane)
             .is_some_and(|pending| {
                 pending.request_id == message.request_id

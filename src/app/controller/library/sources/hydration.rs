@@ -57,11 +57,11 @@ impl AppController {
         };
         match kind {
             SourceHydrationKind::ActiveSelection => {
-                self.runtime.pending_active_source_hydration = Some(pending);
+                self.runtime.source_lane.hydration.pending_active = Some(pending);
                 self.ui.browser.search.source_loading = true;
             }
             SourceHydrationKind::InactivePane => {
-                self.runtime.pending_inactive_source_hydration = Some(pending);
+                self.runtime.source_lane.hydration.pending_inactive = Some(pending);
             }
         }
         self.ui.sources.folder_pane_mut(pane).loading = true;
@@ -163,7 +163,9 @@ impl AppController {
                 self.finish_source_hydration_metadata(&source_id, from_cache, elapsed);
                 if self.should_rebuild_browser_lists_async() {
                     self.dispatch_search_job();
-                    if let Some(pending) = self.runtime.pending_active_source_hydration.as_mut() {
+                    if let Some(pending) =
+                        self.runtime.source_lane.hydration.pending_active.as_mut()
+                    {
                         pending.search_request_id =
                             Some(self.ui.browser.search.latest_search_request_id);
                     }
@@ -357,11 +359,11 @@ impl AppController {
     pub(crate) fn finish_source_loading(&mut self, kind: SourceHydrationKind, pane: FolderPaneId) {
         match kind {
             SourceHydrationKind::ActiveSelection => {
-                self.runtime.pending_active_source_hydration = None;
+                self.runtime.source_lane.hydration.pending_active = None;
                 self.ui.browser.search.source_loading = false;
             }
             SourceHydrationKind::InactivePane => {
-                self.runtime.pending_inactive_source_hydration = None;
+                self.runtime.source_lane.hydration.pending_inactive = None;
             }
         }
         self.ui.sources.folder_pane_mut(pane).loading = false;
@@ -369,28 +371,11 @@ impl AppController {
     }
 
     fn sync_loading_source_row(&mut self) {
-        self.ui.sources.loading_source_id = self
-            .runtime
-            .pending_active_source_hydration
-            .as_ref()
-            .map(|pending| pending.source_id.clone())
-            .or_else(|| {
-                self.runtime
-                    .pending_inactive_source_hydration
-                    .as_ref()
-                    .map(|pending| pending.source_id.clone())
-            });
+        self.ui.sources.loading_source_id = self.runtime.source_lane.hydration.loading_source_id();
     }
 
     fn source_hydration_matches(&self, message: &SourceHydrationResult) -> bool {
-        let pending = match message.kind {
-            SourceHydrationKind::ActiveSelection => {
-                self.runtime.pending_active_source_hydration.as_ref()
-            }
-            SourceHydrationKind::InactivePane => {
-                self.runtime.pending_inactive_source_hydration.as_ref()
-            }
-        };
+        let pending = self.runtime.source_lane.hydration.pending(message.kind);
         pending.is_some_and(|pending| {
             pending.request_id == message.request_id
                 && pending.pane == message.pane

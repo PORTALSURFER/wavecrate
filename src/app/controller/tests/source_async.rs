@@ -166,7 +166,9 @@ fn selecting_cached_source_clears_browser_until_async_hydration_applies() {
 
         let request_id = controller
             .runtime
-            .pending_active_source_hydration
+            .source_lane
+            .hydration
+            .pending_active
             .as_ref()
             .expect("pending source hydration")
             .request_id;
@@ -219,7 +221,9 @@ fn stale_uncached_source_hydration_result_is_dropped() {
         controller.select_source_by_index(1);
         let first_request_id = controller
             .runtime
-            .pending_active_source_hydration
+            .source_lane
+            .hydration
+            .pending_active
             .as_ref()
             .expect("first pending hydration")
             .request_id;
@@ -227,7 +231,9 @@ fn stale_uncached_source_hydration_result_is_dropped() {
         controller.select_source_by_index(2);
         let second_request_id = controller
             .runtime
-            .pending_active_source_hydration
+            .source_lane
+            .hydration
+            .pending_active
             .as_ref()
             .expect("second pending hydration")
             .request_id;
@@ -307,7 +313,9 @@ fn inactive_pane_source_hydration_keeps_active_browser_state_stable() {
 
         let request_id = controller
             .runtime
-            .pending_inactive_source_hydration
+            .source_lane
+            .hydration
+            .pending_inactive
             .as_ref()
             .expect("inactive pane hydration")
             .request_id;
@@ -361,7 +369,9 @@ fn async_source_hydration_keeps_loading_until_async_browser_projection_applies()
             controller.select_source_by_index(1);
             let request_id = controller
                 .runtime
-                .pending_active_source_hydration
+                .source_lane
+                .hydration
+                .pending_active
                 .as_ref()
                 .expect("pending hydration")
                 .request_id;
@@ -382,7 +392,9 @@ fn async_source_hydration_keeps_loading_until_async_browser_projection_applies()
 
             let search_request_id = controller
                 .runtime
-                .pending_active_source_hydration
+                .source_lane
+                .hydration
+                .pending_active
                 .as_ref()
                 .and_then(|pending| pending.search_request_id)
                 .expect("queued browser search request");
@@ -425,7 +437,9 @@ fn startup_active_source_hydration_defers_follow_up_work_after_first_paint() {
             controller.select_source_by_index(1);
             let request_id = controller
                 .runtime
-                .pending_active_source_hydration
+                .source_lane
+                .hydration
+                .pending_active
                 .as_ref()
                 .expect("pending source hydration")
                 .request_id;
@@ -451,7 +465,9 @@ fn startup_active_source_hydration_defers_follow_up_work_after_first_paint() {
     assert!(
         controller
             .runtime
-            .pending_folder_projections
+            .source_lane
+            .folder_projection
+            .pending
             .contains_key(&FolderPaneId::Upper)
     );
     assert!(

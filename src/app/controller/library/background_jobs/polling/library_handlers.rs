@@ -127,7 +127,9 @@ impl AppController {
             self.ui.browser.search.search_busy = false;
             let pending_pane = self
                 .runtime
-                .pending_active_source_hydration
+                .source_lane
+                .hydration
+                .pending_active
                 .as_ref()
                 .and_then(|pending| {
                     (pending.source_id == message.source_id
