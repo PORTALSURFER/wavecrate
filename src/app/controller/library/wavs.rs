@@ -5,8 +5,10 @@ use std::time::Duration;
 
 mod audio_loading;
 mod browser_actions;
-/// High-level browser/search/selection facade methods on `AppController`.
+/// High-level browser search, similarity, and sidebar facade methods on `AppController`.
 mod browser_facade;
+/// High-level browser selection/focus facade methods on `AppController`.
+mod browser_selection_facade;
 mod browser_history;
 mod browser_lists;
 mod browser_marks;
