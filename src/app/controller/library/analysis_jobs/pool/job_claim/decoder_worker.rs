@@ -116,7 +116,13 @@ fn claim_next_job(
     claim_wakeup: &crate::app::controller::library::analysis_jobs::wakeup::ClaimWakeup,
     wake_counter: &mut u64,
 ) -> Option<analysis_db::ClaimedJob> {
-    match selector.select_next(allowed) {
+    if !selector.has_local_jobs()
+        && let Some(wait) = claim_wakeup.acquire_probe_or_wait(wake_counter)
+    {
+        let _ = claim_wakeup.wait_for(wake_counter, wait.max(Duration::from_millis(50)));
+        return None;
+    }
+    match selector.select_next(allowed, claim_wakeup) {
         selection::ClaimSelection::Job(job) => Some(job),
         selection::ClaimSelection::NoSources => {
             let _ = claim_wakeup.wait_for(wake_counter, claim::SOURCE_REFRESH_INTERVAL);

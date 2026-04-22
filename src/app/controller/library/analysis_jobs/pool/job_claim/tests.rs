@@ -2,6 +2,7 @@ use super::super::job_progress::ProgressPollerWakeup;
 use super::*;
 use crate::app::controller::jobs::{JobMessage, JobMessageSender};
 use crate::app::controller::library::analysis_jobs::db as analysis_db;
+use crate::app::controller::library::analysis_jobs::wakeup::ClaimWakeup;
 use crate::sample_sources::SampleSource;
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc;
@@ -46,6 +47,7 @@ fn claim_selection_orders_sources_round_robin() {
         )
         .unwrap();
     let reset_done = Arc::new(Mutex::new(HashSet::new()));
+    let claim_wakeup = ClaimWakeup::new();
     let mut selector = selection::ClaimSelector::with_sources_for_tests(
         vec![
             super::claim::SourceClaimDb {
@@ -60,17 +62,43 @@ fn claim_selection_orders_sources_round_robin() {
         1,
         reset_done,
     );
-    let first = match selector.select_next(None) {
+    let mut wake_counter = 0;
+    assert!(claim_wakeup.acquire_probe_or_wait(&mut wake_counter).is_none());
+    let first = match selector.select_next(None, &claim_wakeup) {
         selection::ClaimSelection::Job(job) => job,
         _ => panic!("expected a job from first source"),
     };
-    let second = match selector.select_next(None) {
+    assert!(claim_wakeup.acquire_probe_or_wait(&mut wake_counter).is_none());
+    let second = match selector.select_next(None, &claim_wakeup) {
         selection::ClaimSelection::Job(job) => job,
         _ => panic!("expected a job from second source"),
     };
 
     assert!(first.sample_id.ends_with("a.wav"));
     assert!(second.sample_id.ends_with("b.wav"));
+}
+
+#[test]
+fn claim_wakeup_allows_only_one_idle_probe_per_backoff_window() {
+    let wakeup = ClaimWakeup::new();
+    let mut worker_a = 0;
+    let mut worker_b = 0;
+
+    assert!(wakeup.acquire_probe_or_wait(&mut worker_a).is_none());
+    let wait = wakeup
+        .acquire_probe_or_wait(&mut worker_b)
+        .expect("second worker should back off");
+    assert!(wait <= Duration::from_millis(5));
+    assert!(wakeup.probe_inflight());
+
+    wakeup.finish_probe(Duration::from_millis(200));
+    let wait = wakeup
+        .acquire_probe_or_wait(&mut worker_b)
+        .expect("backoff should remain active");
+    assert!(wait > Duration::from_millis(0));
+
+    wakeup.notify();
+    assert!(wakeup.acquire_probe_or_wait(&mut worker_b).is_none());
 }
 
 #[test]

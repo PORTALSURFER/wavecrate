@@ -1,12 +1,13 @@
 //! Claim selection helpers for analysis jobs.
 
 use super::claim::{SourceClaimDb, claim_batch_size, refresh_sources};
+use crate::app::controller::library::analysis_jobs::wakeup::ClaimWakeup;
 use crate::app::controller::library::analysis_jobs::db;
 use crate::sample_sources::SourceId;
 use std::collections::{HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 /// A selection outcome from the claim pool.
 pub(crate) enum ClaimSelection {
@@ -64,15 +65,21 @@ impl ClaimSelector {
     pub(crate) fn select_next(
         &mut self,
         allowed_source_ids: Option<&HashSet<SourceId>>,
+        claim_wakeup: &ClaimWakeup,
     ) -> ClaimSelection {
+        if let Some(job) = self.local_queue.pop_front() {
+            return ClaimSelection::Job(job);
+        }
         self.refresh_sources_if_needed(allowed_source_ids);
         if self.sources.is_empty() {
+            claim_wakeup.finish_probe(super::claim::SOURCE_REFRESH_INTERVAL);
             return ClaimSelection::NoSources;
         }
-        if self.local_queue.is_empty() && !self.fill_local_queue() {
+        if !self.fill_local_queue() {
+            claim_wakeup.finish_probe(Duration::from_secs(1));
             return ClaimSelection::Idle;
         }
-        self.pop_local()
+        self.pop_local(claim_wakeup)
     }
 
     fn refresh_sources_if_needed(&mut self, allowed_source_ids: Option<&HashSet<SourceId>>) {
@@ -113,9 +120,16 @@ impl ClaimSelector {
         false
     }
 
-    fn pop_local(&mut self) -> ClaimSelection {
+    pub(crate) fn has_local_jobs(&self) -> bool {
+        !self.local_queue.is_empty()
+    }
+
+    fn pop_local(&mut self, claim_wakeup: &ClaimWakeup) -> ClaimSelection {
         match self.local_queue.pop_front() {
-            Some(job) => ClaimSelection::Job(job),
+            Some(job) => {
+                claim_wakeup.finish_probe(Duration::ZERO);
+                ClaimSelection::Job(job)
+            }
             None => ClaimSelection::Idle,
         }
     }

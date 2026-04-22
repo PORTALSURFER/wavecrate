@@ -1,10 +1,12 @@
 //! Shared wakeup helpers for analysis job claiming.
 
 use std::sync::{Arc, Condvar, LazyLock, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 struct ClaimWakeupState {
     counter: u64,
+    probe_inflight: bool,
+    next_probe_at: Instant,
 }
 
 /// Condvar-backed wakeup used to notify analysis job claimers.
@@ -17,7 +19,11 @@ impl ClaimWakeup {
     /// Create a new wakeup handle for analysis job claimers.
     pub(crate) fn new() -> Self {
         Self {
-            state: Mutex::new(ClaimWakeupState { counter: 0 }),
+            state: Mutex::new(ClaimWakeupState {
+                counter: 0,
+                probe_inflight: false,
+                next_probe_at: Instant::now(),
+            }),
             ready: Condvar::new(),
         }
     }
@@ -26,6 +32,30 @@ impl ClaimWakeup {
     pub(crate) fn notify(&self) {
         let mut state = self.state.lock().expect("claim wakeup poisoned");
         state.counter = state.counter.wrapping_add(1);
+        state.probe_inflight = false;
+        state.next_probe_at = Instant::now();
+        self.ready.notify_all();
+    }
+
+    /// Acquire the shared idle probe permit or return the remaining backoff.
+    pub(crate) fn acquire_probe_or_wait(&self, seen: &mut u64) -> Option<Duration> {
+        let mut state = self.state.lock().expect("claim wakeup poisoned");
+        if state.counter != *seen {
+            *seen = state.counter;
+        }
+        let now = Instant::now();
+        if !state.probe_inflight && now >= state.next_probe_at {
+            state.probe_inflight = true;
+            return None;
+        }
+        Some(state.next_probe_at.saturating_duration_since(now))
+    }
+
+    /// Release the shared idle probe permit and set the next probe backoff.
+    pub(crate) fn finish_probe(&self, backoff: Duration) {
+        let mut state = self.state.lock().expect("claim wakeup poisoned");
+        state.probe_inflight = false;
+        state.next_probe_at = Instant::now() + backoff;
         self.ready.notify_all();
     }
 
@@ -51,6 +81,11 @@ impl ClaimWakeup {
     #[cfg(test)]
     pub(crate) fn snapshot(&self) -> u64 {
         self.state.lock().expect("claim wakeup poisoned").counter
+    }
+
+    #[cfg(test)]
+    pub(crate) fn probe_inflight(&self) -> bool {
+        self.state.lock().expect("claim wakeup poisoned").probe_inflight
     }
 }
 
