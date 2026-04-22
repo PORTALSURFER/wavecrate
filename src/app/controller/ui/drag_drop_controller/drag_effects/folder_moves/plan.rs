@@ -191,9 +191,7 @@ impl DragDropController<'_> {
             if let FileOpMessage::Finished(FileOpResult::FolderMove(result)) = message {
                 self.apply_folder_move_result(result);
             }
-            if self.ui.progress.task == Some(ProgressTaskKind::FileOps) {
-                self.clear_progress();
-            }
+            self.clear_progress_task(ProgressTaskKind::FileOps);
         }
         #[cfg(not(test))]
         {
@@ -299,9 +297,7 @@ impl DragDropController<'_> {
             if let FileOpMessage::Finished(FileOpResult::FolderSampleMove(result)) = message {
                 self.apply_folder_sample_move_result(result);
             }
-            if self.ui.progress.task == Some(ProgressTaskKind::FileOps) {
-                self.clear_progress();
-            }
+            self.clear_progress_task(ProgressTaskKind::FileOps);
         }
         #[cfg(not(test))]
         {

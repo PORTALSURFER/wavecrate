@@ -94,7 +94,7 @@ fn handle_successful_scan(
         .iter()
         .find(|source| source.id == *source_id)
         .cloned();
-    let keep_footer_progress = controller.ui.progress.task == Some(ProgressTaskKind::Scan)
+    let keep_footer_progress = controller.ui.progress.has_task(ProgressTaskKind::Scan)
         && matches!(kind, ScanKind::Manual)
         && source.is_some();
 
@@ -248,13 +248,11 @@ fn spawn_duration_refresh(controller: &mut AppController, source: SampleSource) 
 
 fn begin_follow_up_analysis_progress(controller: &mut AppController) {
     controller.show_status_progress(ProgressTaskKind::Analysis, "Analyzing samples", 0, true);
-    controller.update_progress_detail(ANALYSIS_QUEUE_DETAIL);
+    controller.update_progress_detail_for_task(ProgressTaskKind::Analysis, ANALYSIS_QUEUE_DETAIL);
 }
 
 fn clear_scan_progress_if_active(controller: &mut AppController) {
-    if controller.ui.progress.task == Some(ProgressTaskKind::Scan) {
-        controller.clear_progress();
-    }
+    controller.clear_progress_task(ProgressTaskKind::Scan);
 }
 
 fn handle_scan_failure(

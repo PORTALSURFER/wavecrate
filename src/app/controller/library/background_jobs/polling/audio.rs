@@ -41,9 +41,7 @@ impl AppController {
             Err(err) => self.handle_wav_load_error(&message.source_id, err),
         }
         self.runtime.jobs.clear_wav_load_pending();
-        if self.ui.progress.task == Some(ProgressTaskKind::WavLoad) {
-            self.clear_progress();
-        }
+        self.clear_progress_task(ProgressTaskKind::WavLoad);
     }
 
     /// Apply one completed audio-load worker message if it still matches the current request.

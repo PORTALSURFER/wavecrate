@@ -85,9 +85,7 @@ impl AppController {
         self.restore_similarity_prep_fast_mode();
         self.restore_similarity_prep_full_analysis();
         self.restore_similarity_prep_worker_count();
-        if self.ui.progress.task == Some(ProgressTaskKind::Analysis) {
-            self.clear_progress();
-        }
+        self.clear_progress_task(ProgressTaskKind::Analysis);
         match result.result {
             Ok(outcome) => {
                 if let Some(scan_completed_at) = state.as_ref().and_then(|s| s.scan_completed_at)
@@ -119,9 +117,7 @@ impl AppController {
         self.restore_similarity_prep_fast_mode();
         self.restore_similarity_prep_full_analysis();
         self.restore_similarity_prep_worker_count();
-        if self.ui.progress.task == Some(ProgressTaskKind::Analysis) {
-            self.clear_progress();
-        }
+        self.clear_progress_task(ProgressTaskKind::Analysis);
     }
 }
 

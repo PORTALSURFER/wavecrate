@@ -154,9 +154,7 @@ impl DragDropController<'_> {
         if let FileOpMessage::Finished(FileOpResult::SourceMove(result)) = message {
             self.apply_source_move_result(result);
         }
-        if self.ui.progress.task == Some(ProgressTaskKind::FileOps) {
-            self.clear_progress();
-        }
+        self.clear_progress_task(ProgressTaskKind::FileOps);
     }
 }
 

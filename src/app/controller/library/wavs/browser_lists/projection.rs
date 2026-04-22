@@ -74,6 +74,7 @@ impl AppController {
         self.ui.browser.viewport.visible.clear_to_list();
         self.ui.browser.selection.selected_visible = None;
         self.ui.browser.search.search_busy = false;
+        self.clear_progress_task(crate::app::state::ProgressTaskKind::Search);
         self.ui.browser.selection.selected = None;
         self.ui.browser.selection.loaded = None;
         self.ui.browser.selection.loaded_visible = None;
@@ -99,6 +100,7 @@ impl AppController {
         self.ui.browser.copy_flash_paths.clear();
         self.ui.browser.copy_flash_at = None;
         self.ui.browser.search.search_busy = false;
+        self.clear_progress_task(crate::app::state::ProgressTaskKind::Search);
         self.ui_cache.browser.search.scores = std::sync::Arc::from([]);
         self.invalidate_browser_lookup_maps();
         self.set_ui_loaded_wav(None);

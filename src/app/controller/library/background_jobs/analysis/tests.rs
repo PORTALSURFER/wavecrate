@@ -100,6 +100,32 @@ fn progress_message_updates_snapshot_and_detail() {
 }
 
 #[test]
+fn analysis_progress_preempts_lower_priority_footer_tasks() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.show_status_progress(ProgressTaskKind::WavLoad, "Loading samples", 0, false);
+    controller.show_status_progress(ProgressTaskKind::Search, "Filtering samples", 0, false);
+
+    handle_analysis_message(
+        &mut controller,
+        AnalysisJobMessage::Progress {
+            source_id: Some(source.id),
+            progress: sample_progress(),
+        },
+    );
+
+    assert_eq!(
+        controller.ui.progress.task,
+        Some(ProgressTaskKind::Analysis)
+    );
+    assert_eq!(controller.ui.progress.title, "Analyzing samples");
+    assert_eq!(
+        controller.ui.progress.detail.as_deref(),
+        Some("Jobs 4/7 • Samples 3/5 • 1 failed")
+    );
+}
+
+#[test]
 fn enqueue_finished_keeps_selected_source_feature_cache_and_queues_refresh() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());

@@ -117,15 +117,16 @@ impl AppController {
             request.entries.len(),
             false,
         );
-        self.update_progress_detail(mode.progress_title());
+        self.update_progress_detail_for_task(
+            crate::app::state::ProgressTaskKind::FileOps,
+            mode.progress_title(),
+        );
 
         #[cfg(test)]
         {
             let result = run_retained_delete_resolution_job(request, None);
             self.apply_retained_delete_resolution_result(result);
-            if self.ui.progress.task == Some(crate::app::state::ProgressTaskKind::FileOps) {
-                self.clear_progress();
-            }
+            self.clear_progress_task(crate::app::state::ProgressTaskKind::FileOps);
         }
 
         #[cfg(not(test))]

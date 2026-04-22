@@ -1,6 +1,7 @@
 //! Async/offload policy and worker-dispatch helpers for browser search.
 
 use super::*;
+use crate::app::state::ProgressTaskKind;
 use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 #[cfg(test)]
@@ -47,6 +48,7 @@ impl AppController {
         let Some(source) = self.current_source() else {
             self.mark_browser_search_projection_revision_dirty();
             self.ui.browser.search.search_busy = false;
+            self.clear_progress_task(ProgressTaskKind::Search);
             return;
         };
         self.ui.browser.search.latest_search_request_id = self
@@ -75,6 +77,18 @@ impl AppController {
 
         self.mark_browser_search_projection_revision_dirty();
         self.ui.browser.search.search_busy = true;
+        self.show_status_progress(ProgressTaskKind::Search, "Filtering samples", 0, false);
+        if query.trim().is_empty() {
+            self.update_progress_detail_for_task(
+                ProgressTaskKind::Search,
+                format!("Rebuilding browser rows for {}", source.root.display()),
+            );
+        } else {
+            self.update_progress_detail_for_task(
+                ProgressTaskKind::Search,
+                format!("Filtering '{query}' in {}", source.root.display()),
+            );
+        }
         self.runtime
             .jobs
             .send_search_job(crate::app::controller::jobs::SearchJob {

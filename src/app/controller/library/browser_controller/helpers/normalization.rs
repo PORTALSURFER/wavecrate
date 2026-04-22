@@ -40,7 +40,12 @@ impl BrowserController<'_> {
             absolute_path: ctx.absolute_path.clone(),
         };
 
-        if self.controller.ui.progress.task != Some(ProgressTaskKind::Normalization) {
+        if !self
+            .controller
+            .ui
+            .progress
+            .has_task(ProgressTaskKind::Normalization)
+        {
             self.controller.show_status_progress(
                 ProgressTaskKind::Normalization,
                 format!("Normalizing {}", ctx.entry.relative_path.display()),

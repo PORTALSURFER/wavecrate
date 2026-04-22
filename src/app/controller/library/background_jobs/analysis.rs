@@ -161,20 +161,13 @@ fn finalize_selected_source_analysis_progress(controller: &mut AppController) {
 }
 
 fn clear_analysis_progress_if_active(controller: &mut AppController) {
-    if controller.ui.progress.task == Some(ProgressTaskKind::Analysis) {
-        controller.clear_progress();
-    }
+    controller.clear_progress_task(ProgressTaskKind::Analysis);
 }
 
 fn update_analysis_progress_ui(
     controller: &mut AppController,
     progress: &analysis_jobs::AnalysisProgress,
 ) {
-    if controller.ui.progress.task.is_some()
-        && controller.ui.progress.task != Some(ProgressTaskKind::Analysis)
-    {
-        return;
-    }
     progress::ensure_progress_visible(
         controller,
         ProgressTaskKind::Analysis,
@@ -185,8 +178,9 @@ fn update_analysis_progress_ui(
     let samples_completed = progress.samples_completed();
     let samples_total = progress.samples_total;
     let running_jobs = current_source_running_job_snapshots(controller, progress.running > 0);
-    controller.ui.progress.set_analysis_snapshot(Some(
-        crate::app::state::AnalysisProgressSnapshot {
+    controller.ui.progress.set_task_analysis_snapshot(
+        ProgressTaskKind::Analysis,
+        Some(crate::app::state::AnalysisProgressSnapshot {
             pending: progress.pending,
             running: progress.running,
             failed: progress.failed,
@@ -194,8 +188,8 @@ fn update_analysis_progress_ui(
             samples_total,
             running_jobs,
             stale_after_secs: Some(analysis_jobs::stale_running_job_seconds()),
-        },
-    ));
+        }),
+    );
     progress::update_progress_totals(
         controller,
         ProgressTaskKind::Analysis,

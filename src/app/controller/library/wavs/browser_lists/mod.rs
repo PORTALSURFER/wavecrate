@@ -47,6 +47,7 @@ impl AppController {
             self.ui_cache.browser.pipeline.keep_rows.clone().into(),
         );
         self.ui.browser.search.search_busy = false;
+        self.clear_progress_task(crate::app::state::ProgressTaskKind::Search);
     }
 
     pub(crate) fn selected_row_index(&mut self) -> Option<usize> {

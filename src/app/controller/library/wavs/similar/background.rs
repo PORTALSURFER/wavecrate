@@ -8,6 +8,7 @@ use crate::app::controller::jobs::{FocusedSimilarityPaths, JobMessage};
 use crate::app::controller::state::runtime::{
     PendingFocusedSimilarityQuery, PendingFocusedSimilarityRefresh, PendingLoadedSimilarityQuery,
 };
+use crate::app::state::ProgressTaskKind;
 use crate::sample_sources::SourceId;
 use rusqlite::{OptionalExtension, params};
 use std::{path::PathBuf, sync::Arc};
@@ -130,6 +131,7 @@ pub(crate) fn queue_loaded_similarity_query_refresh(
     ) {
         controller.runtime.pending_loaded_similarity_query = None;
         controller.ui.browser.search.search_busy = false;
+        controller.clear_progress_task(ProgressTaskKind::Search);
         controller.ui.browser.search.similar_query = Some(query);
         if controller.should_dispatch_browser_search_async() {
             controller.dispatch_search_job();
@@ -147,6 +149,14 @@ pub(crate) fn queue_loaded_similarity_query_refresh(
     });
     controller.ui.browser.search.search_busy = true;
     controller.mark_browser_search_projection_revision_dirty();
+    controller.show_status_progress(ProgressTaskKind::Search, "Filtering samples", 0, false);
+    controller.update_progress_detail_for_task(
+        ProgressTaskKind::Search,
+        format!(
+            "Refreshing similarity ordering for {}",
+            loaded_relative_path.display()
+        ),
+    );
     let job = LoadedSimilarityQueryJob {
         request_id,
         source_id: source.id.clone(),

@@ -35,15 +35,27 @@ impl AppController {
     pub(super) fn handle_trash_move_message(&mut self, message: TrashMoveMessage) {
         match message {
             TrashMoveMessage::SetTotal(total) => {
+                let completed = self
+                    .ui
+                    .progress
+                    .task_completed(ProgressTaskKind::TrashMove)
+                    .unwrap_or(0);
                 self.ui
                     .progress
-                    .set_counts(total, self.ui.progress.completed);
+                    .set_task_counts(ProgressTaskKind::TrashMove, total, completed);
             }
             TrashMoveMessage::Progress { completed, detail } => {
+                let total = self
+                    .ui
+                    .progress
+                    .task_total(ProgressTaskKind::TrashMove)
+                    .unwrap_or(0);
                 self.ui
                     .progress
-                    .set_counts(self.ui.progress.total, completed);
-                self.ui.progress.set_detail(detail);
+                    .set_task_counts(ProgressTaskKind::TrashMove, total, completed);
+                self.ui
+                    .progress
+                    .set_task_detail(ProgressTaskKind::TrashMove, detail);
             }
             TrashMoveMessage::Finished(result) => {
                 self.runtime.jobs.clear_trash_move();
@@ -66,9 +78,7 @@ impl AppController {
             FileOpMessage::Finished(result) => {
                 self.runtime.jobs.clear_file_ops();
                 self.apply_file_op_result(result);
-                if self.ui.progress.task == Some(ProgressTaskKind::FileOps) {
-                    self.clear_progress();
-                }
+                self.clear_progress_task(ProgressTaskKind::FileOps);
             }
         }
     }
@@ -125,6 +135,7 @@ impl AppController {
             self.ui_cache.browser.search.scores = message.scores;
             self.ui.browser.search.latest_applied_search_request_id = message.request_id;
             self.ui.browser.search.search_busy = false;
+            self.clear_progress_task(ProgressTaskKind::Search);
             let pending_pane = self
                 .runtime
                 .source_lane
@@ -208,9 +219,7 @@ impl AppController {
                 request_id,
                 result: Ok(success),
             } => {
-                if self.ui.progress.task == Some(ProgressTaskKind::SelectionExport) {
-                    self.clear_progress();
-                }
+                self.clear_progress_task(ProgressTaskKind::SelectionExport);
                 self.runtime
                     .jobs
                     .clear_pending_slice_batch_export(request_id);
@@ -246,9 +255,7 @@ impl AppController {
                 request_id,
                 result: Err(err),
             } => {
-                if self.ui.progress.task == Some(ProgressTaskKind::SelectionExport) {
-                    self.clear_progress();
-                }
+                self.clear_progress_task(ProgressTaskKind::SelectionExport);
                 self.runtime
                     .jobs
                     .clear_pending_slice_batch_export(request_id);
@@ -374,10 +381,23 @@ impl AppController {
                 self.set_status(format!("Normalization failed: {err}"), StatusTone::Error);
             }
         }
-        if self.ui.progress.task == Some(ProgressTaskKind::Normalization) {
-            self.ui.progress.completed = self.ui.progress.completed.saturating_add(1);
-            if self.ui.progress.completed >= self.ui.progress.total {
-                self.clear_progress();
+        if self.ui.progress.has_task(ProgressTaskKind::Normalization) {
+            let completed = self
+                .ui
+                .progress
+                .task_completed(ProgressTaskKind::Normalization)
+                .unwrap_or(0)
+                .saturating_add(1);
+            let total = self
+                .ui
+                .progress
+                .task_total(ProgressTaskKind::Normalization)
+                .unwrap_or(0);
+            self.ui
+                .progress
+                .set_task_counts(ProgressTaskKind::Normalization, total, completed);
+            if completed >= total {
+                self.clear_progress_task(ProgressTaskKind::Normalization);
             }
         }
     }

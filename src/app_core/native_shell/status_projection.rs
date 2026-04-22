@@ -8,8 +8,47 @@ pub(crate) fn project_status_model(
     selected_column: usize,
 ) -> StatusBarModel {
     let left = controller.ui.status.text.clone();
+    let busy_segment = if controller.ui.progress.visible && !controller.ui.progress.modal {
+        let detail = controller.ui.progress.detail.as_deref().unwrap_or_default();
+        if detail.is_empty() {
+            format!(" | {}", controller.ui.progress.title)
+        } else {
+            format!(" | {}: {}", controller.ui.progress.title, detail)
+        }
+    } else {
+        format!(
+            "{}{}{}{}{}",
+            if controller.ui.browser.search.source_loading {
+                " | loading source…"
+            } else {
+                ""
+            },
+            if controller.selected_source_has_pending_metadata_mutations() {
+                " | saving metadata…"
+            } else {
+                ""
+            },
+            if controller.selected_source_has_pending_file_mutations()
+                || controller.file_ops_in_progress_for_projection()
+            {
+                " | file op…"
+            } else {
+                ""
+            },
+            if controller.ui.browser.search.search_busy {
+                " | filtering…"
+            } else {
+                ""
+            },
+            if controller.waveform_render_in_progress_for_projection() {
+                " | rendering waveform…"
+            } else {
+                ""
+            }
+        )
+    };
     let center = format!(
-        "rows: {} | selected: {} | anchor: {} | search: {}{}{}{}{}{}",
+        "rows: {} | selected: {} | anchor: {} | search: {}{}",
         controller.ui.browser.viewport.visible.len(),
         controller.ui.browser.selection.selected_paths.len(),
         controller
@@ -24,33 +63,7 @@ pub(crate) fn project_status_model(
         } else {
             controller.ui.browser.search.search_query.as_str()
         },
-        if controller.ui.browser.search.source_loading {
-            " | loading source…"
-        } else {
-            ""
-        },
-        if controller.selected_source_has_pending_metadata_mutations() {
-            " | saving metadata…"
-        } else {
-            ""
-        },
-        if controller.selected_source_has_pending_file_mutations()
-            || controller.file_ops_in_progress_for_projection()
-        {
-            " | file op…"
-        } else {
-            ""
-        },
-        if controller.ui.browser.search.search_busy {
-            " | filtering…"
-        } else {
-            ""
-        },
-        if controller.waveform_render_in_progress_for_projection() {
-            " | rendering waveform…"
-        } else {
-            ""
-        }
+        busy_segment
     );
     let right = status_bar_right_text(selected_column);
     StatusBarModel {

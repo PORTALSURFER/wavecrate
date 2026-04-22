@@ -9,12 +9,15 @@ pub(crate) fn ensure_progress_visible(
     total: usize,
     cancellable: bool,
 ) {
-    if !controller.ui.progress.visible || controller.ui.progress.task != Some(task) {
+    if !controller.ui.progress.has_task(task) {
         controller.show_status_progress(task, label, total, cancellable);
         return;
     }
     controller.update_status_progress_title(task, label);
-    controller.ui.progress.cancelable = cancellable;
+    controller
+        .ui
+        .progress
+        .set_task_cancelable(task, cancellable);
 }
 
 /// Update detail text for an active progress task without changing total counts.
@@ -24,12 +27,13 @@ pub(crate) fn update_progress_detail(
     completed: usize,
     detail: Option<String>,
 ) {
-    if controller.ui.progress.task == Some(task) {
+    if controller.ui.progress.has_task(task) {
+        let total = controller.ui.progress.task_total(task).unwrap_or(0);
         controller
             .ui
             .progress
-            .set_counts(controller.ui.progress.total, completed);
-        controller.ui.progress.set_detail(detail);
+            .set_task_counts(task, total, completed);
+        controller.ui.progress.set_task_detail(task, detail);
     }
 }
 
@@ -41,8 +45,11 @@ pub(crate) fn update_progress_totals(
     completed: usize,
     detail: Option<String>,
 ) {
-    if controller.ui.progress.task == Some(task) {
-        controller.ui.progress.set_counts(total, completed);
-        controller.ui.progress.set_detail(detail);
+    if controller.ui.progress.has_task(task) {
+        controller
+            .ui
+            .progress
+            .set_task_counts(task, total, completed);
+        controller.ui.progress.set_task_detail(task, detail);
     }
 }

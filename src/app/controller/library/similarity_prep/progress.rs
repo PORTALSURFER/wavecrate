@@ -80,9 +80,11 @@ impl AppController {
                     if embed_progress.pending > 0 || embed_progress.running > 0 {
                         self.ensure_similarity_prep_progress(embed_progress.total(), true);
                         self.set_similarity_embedding_detail();
-                        self.ui
-                            .progress
-                            .set_counts(embed_progress.total(), embed_progress.completed());
+                        self.ui.progress.set_task_counts(
+                            crate::app::state::ProgressTaskKind::Analysis,
+                            embed_progress.total(),
+                            embed_progress.completed(),
+                        );
                         let jobs_completed = embed_progress.completed();
                         let jobs_total = embed_progress.total();
                         let mut detail =
@@ -90,8 +92,14 @@ impl AppController {
                         if embed_progress.failed > 0 {
                             detail.push_str(&format!(" • {} failed", embed_progress.failed));
                         }
-                        self.ui.progress.set_detail(Some(detail));
-                        self.ui.progress.set_analysis_snapshot(None);
+                        self.ui.progress.set_task_detail(
+                            crate::app::state::ProgressTaskKind::Analysis,
+                            Some(detail),
+                        );
+                        self.ui.progress.set_task_analysis_snapshot(
+                            crate::app::state::ProgressTaskKind::Analysis,
+                            None,
+                        );
                         return;
                     }
                     if !store.source_has_embeddings(&source) {
@@ -108,9 +116,11 @@ impl AppController {
                     return;
                 }
                 self.ensure_similarity_prep_progress(progress.total(), true);
-                self.ui
-                    .progress
-                    .set_counts(progress.total(), progress.completed());
+                self.ui.progress.set_task_counts(
+                    crate::app::state::ProgressTaskKind::Analysis,
+                    progress.total(),
+                    progress.completed(),
+                );
                 let jobs_completed = progress.completed();
                 let jobs_total = progress.total();
                 let samples_completed = progress.samples_completed();
@@ -124,10 +134,12 @@ impl AppController {
                 if progress.failed > 0 {
                     detail.push_str(&format!(" • {} failed", progress.failed));
                 }
-                self.ui.progress.set_detail(Some(detail));
                 self.ui
                     .progress
-                    .set_analysis_snapshot(Some(AnalysisProgressSnapshot {
+                    .set_task_detail(crate::app::state::ProgressTaskKind::Analysis, Some(detail));
+                self.ui.progress.set_task_analysis_snapshot(
+                    crate::app::state::ProgressTaskKind::Analysis,
+                    Some(AnalysisProgressSnapshot {
                     pending: progress.pending,
                     running: progress.running,
                     failed: progress.failed,
@@ -137,7 +149,8 @@ impl AppController {
                     stale_after_secs: Some(
                         crate::app::controller::library::analysis_jobs::stale_running_job_seconds(),
                     ),
-                }));
+                }),
+                );
             }
             SimilarityPrepStage::Finalizing => {
                 info!(

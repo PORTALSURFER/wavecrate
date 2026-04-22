@@ -4,7 +4,7 @@ use crate::app::controller::state::cache::FolderBrowserCacheKey;
 use crate::app::controller::test_support::{
     dummy_controller, prepare_with_source_and_wav_entries, sample_entry,
 };
-use crate::app::state::{FolderPaneId, TriageFlagColumn, VisibleRows};
+use crate::app::state::{FolderPaneId, ProgressTaskKind, TriageFlagColumn, VisibleRows};
 use crate::sample_sources::Rating;
 use std::collections::BTreeSet;
 use std::path::PathBuf;
@@ -63,6 +63,8 @@ fn matching_browser_search_message_refreshes_visible_rows_and_clears_busy_state(
     controller.sample_view.wav.loaded_wav = Some(PathBuf::from("snare.wav"));
     controller.ui.browser.search.search_query = "hat".into();
     controller.ui.browser.search.search_busy = true;
+    controller.show_status_progress(ProgressTaskKind::Search, "Filtering samples", 0, false);
+    controller.update_progress_detail_for_task(ProgressTaskKind::Search, "Filtering 'hat'");
     controller.ui.browser.search.latest_search_request_id = 9;
     controller
         .ui
@@ -100,6 +102,8 @@ fn matching_browser_search_message_refreshes_visible_rows_and_clears_busy_state(
         9
     );
     assert!(!controller.ui.browser.search.search_busy);
+    assert_eq!(controller.ui.progress.task, None);
+    assert!(!controller.ui.progress.visible);
     assert!(controller.ui.browser.selection.marker_cache.is_none());
     assert_eq!(controller.ui.browser.selection.selected_visible, Some(0));
     assert_eq!(controller.ui.browser.selection.loaded_visible, None);

@@ -261,8 +261,6 @@ impl DragDropController<'_> {
         if let FileOpMessage::Finished(FileOpResult::DropTargetTransfer(result)) = message {
             self.apply_drop_target_transfer_result(result);
         }
-        if self.ui.progress.task == Some(ProgressTaskKind::FileOps) {
-            self.clear_progress();
-        }
+        self.clear_progress_task(ProgressTaskKind::FileOps);
     }
 }

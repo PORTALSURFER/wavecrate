@@ -54,6 +54,6 @@ impl AppController {
         for err in result.errors {
             warn!(error = %err, moved = result.moved, total = result.total, "Trash move error");
         }
-        self.clear_progress();
+        self.clear_progress_task(crate::app::state::ProgressTaskKind::TrashMove);
     }
 }

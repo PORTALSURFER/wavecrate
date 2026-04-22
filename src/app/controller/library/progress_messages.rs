@@ -35,24 +35,29 @@ impl AppController {
         mode: ScanMode,
         source: &SampleSource,
     ) {
-        let should_seed_detail =
-            !self.ui.progress.visible || self.ui.progress.task != Some(ProgressTaskKind::Scan);
+        let should_seed_detail = !self.ui.progress.has_task(ProgressTaskKind::Scan);
         if should_seed_detail {
             self.show_status_progress(ProgressTaskKind::Scan, SCAN_PROGRESS_LABEL, 0, true);
-            self.update_progress_detail(format!(
-                "{} • {}",
-                Self::scan_status_label(mode),
-                source.root.display()
-            ));
+            self.update_progress_detail_for_task(
+                ProgressTaskKind::Scan,
+                format!(
+                    "{} • {}",
+                    Self::scan_status_label(mode),
+                    source.root.display()
+                ),
+            );
             return;
         }
         self.update_status_progress_title(ProgressTaskKind::Scan, SCAN_PROGRESS_LABEL);
     }
 
     pub(crate) fn ensure_wav_load_progress(&mut self, source: &SampleSource) {
-        if !self.ui.progress.visible || self.ui.progress.task == Some(ProgressTaskKind::WavLoad) {
+        if !self.ui.progress.has_task(ProgressTaskKind::WavLoad) {
             self.show_status_progress(ProgressTaskKind::WavLoad, WAV_LOAD_LABEL, 0, false);
-            self.update_progress_detail(format!("Loading wavs for {}", source.root.display()));
+            self.update_progress_detail_for_task(
+                ProgressTaskKind::WavLoad,
+                format!("Loading wavs for {}", source.root.display()),
+            );
         }
         self.set_status(
             format!("Loading wavs for {}", source.root.display()),
@@ -71,39 +76,52 @@ impl AppController {
 
     pub(crate) fn set_similarity_scan_detail(&mut self) {
         self.update_status_progress_title(ProgressTaskKind::Scan, SCAN_PROGRESS_LABEL);
-        if self.ui.progress.task == Some(ProgressTaskKind::Scan)
-            && self.ui.progress.detail.is_none()
+        if self.ui.progress.has_task(ProgressTaskKind::Scan)
+            && self
+                .ui
+                .progress
+                .task_detail(ProgressTaskKind::Scan)
+                .is_none()
         {
-            self.update_progress_detail(SIMILARITY_SCAN_DETAIL);
+            self.update_progress_detail_for_task(ProgressTaskKind::Scan, SIMILARITY_SCAN_DETAIL);
         }
     }
 
     pub(crate) fn set_similarity_embedding_detail(&mut self) {
-        if self.ui.progress.task == Some(ProgressTaskKind::Analysis) {
+        if self.ui.progress.has_task(ProgressTaskKind::Analysis) {
             self.update_status_progress_title(
                 ProgressTaskKind::Analysis,
                 SIMILARITY_EMBEDDING_LABEL,
             );
-            self.update_progress_detail(SIMILARITY_EMBEDDING_DETAIL);
+            self.update_progress_detail_for_task(
+                ProgressTaskKind::Analysis,
+                SIMILARITY_EMBEDDING_DETAIL,
+            );
         }
     }
 
     pub(crate) fn set_similarity_analysis_detail(&mut self) {
-        if self.ui.progress.task == Some(ProgressTaskKind::Analysis) {
+        if self.ui.progress.has_task(ProgressTaskKind::Analysis) {
             self.update_status_progress_title(
                 ProgressTaskKind::Analysis,
                 SIMILARITY_ANALYSIS_LABEL,
             );
-            self.update_progress_detail(SIMILARITY_ANALYSIS_DETAIL);
+            self.update_progress_detail_for_task(
+                ProgressTaskKind::Analysis,
+                SIMILARITY_ANALYSIS_DETAIL,
+            );
         }
     }
 
     pub(crate) fn set_similarity_finalize_detail(&mut self) {
-        self.update_progress_detail(SIMILARITY_FINALIZE_DETAIL);
+        self.update_progress_detail_for_task(
+            ProgressTaskKind::Analysis,
+            SIMILARITY_FINALIZE_DETAIL,
+        );
     }
 
     pub(crate) fn ensure_similarity_prep_progress(&mut self, total: usize, cancelable: bool) {
-        if !self.ui.progress.visible || self.ui.progress.task != Some(ProgressTaskKind::Analysis) {
+        if !self.ui.progress.has_task(ProgressTaskKind::Analysis) {
             self.show_similarity_prep_progress(total, cancelable);
         }
     }
@@ -118,7 +136,7 @@ impl AppController {
     }
 
     pub(crate) fn ensure_similarity_finalize_progress(&mut self) {
-        if !self.ui.progress.visible || self.ui.progress.task != Some(ProgressTaskKind::Analysis) {
+        if !self.ui.progress.has_task(ProgressTaskKind::Analysis) {
             self.show_similarity_finalize_progress();
         }
     }

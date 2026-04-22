@@ -41,7 +41,10 @@ impl AppController {
             0,
             true,
         );
-        self.update_progress_detail("Scanning for trashed samples...");
+        self.update_progress_detail_for_task(
+            ProgressTaskKind::TrashMove,
+            "Scanning for trashed samples...",
+        );
 
         let cancel = Arc::new(AtomicBool::new(false));
         let sources = self.library.sources.clone();
@@ -55,15 +58,31 @@ impl AppController {
                 cancel.clone(),
                 |message| match message {
                     TrashMoveMessage::SetTotal(total) => {
-                        self.ui
+                        let completed = self
+                            .ui
                             .progress
-                            .set_counts(total, self.ui.progress.completed);
+                            .task_completed(ProgressTaskKind::TrashMove)
+                            .unwrap_or(0);
+                        self.ui.progress.set_task_counts(
+                            ProgressTaskKind::TrashMove,
+                            total,
+                            completed,
+                        );
                     }
                     TrashMoveMessage::Progress { completed, detail } => {
+                        let total = self
+                            .ui
+                            .progress
+                            .task_total(ProgressTaskKind::TrashMove)
+                            .unwrap_or(0);
+                        self.ui.progress.set_task_counts(
+                            ProgressTaskKind::TrashMove,
+                            total,
+                            completed,
+                        );
                         self.ui
                             .progress
-                            .set_counts(self.ui.progress.total, completed);
-                        self.ui.progress.set_detail(detail);
+                            .set_task_detail(ProgressTaskKind::TrashMove, detail);
                         if let Some(cancel_after) = cancel_after
                             && completed >= cancel_after
                         {
