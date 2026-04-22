@@ -19,9 +19,12 @@ impl AppController {
     }
 
     pub(crate) fn update_performance_governor(&mut self, user_active: bool) {
+        self.update_performance_governor_at(Instant::now(), user_active);
+    }
+
+    fn update_performance_governor_at(&mut self, now: Instant, user_active: bool) {
         const ACTIVE_WINDOW: Duration = Duration::from_millis(300);
         const IDLE_WINDOW: Duration = Duration::from_secs(2);
-        let now = Instant::now();
         self.observe_frame_timing_for_fps(now, user_active);
         let recent_input = self
             .runtime
@@ -42,7 +45,8 @@ impl AppController {
             .is_some_and(|snapshot| snapshot.pending > 0 || snapshot.running > 0);
         let pause_claiming = ((self.is_playing() || recent_input) && !analysis_active)
             || self.selected_source_has_pending_metadata_mutations()
-            || self.selected_source_has_pending_file_mutations();
+            || self.selected_source_has_pending_file_mutations()
+            || self.selected_source_claim_pause_grace_active(now);
         let last_activity_at = match (
             self.runtime.performance.last_user_activity_at,
             self.runtime.performance.last_slow_frame_at,
@@ -91,6 +95,8 @@ impl AppController {
 
 #[cfg(test)]
 mod tests {
+    use std::time::{Duration, Instant};
+
     #[test]
     fn pending_selected_source_metadata_pauses_analysis_claiming() {
         let (mut controller, source) = crate::app::controller::test_support::dummy_controller();
@@ -113,5 +119,41 @@ mod tests {
         controller.update_performance_governor(false);
 
         assert!(controller.runtime.analysis.claiming_paused());
+    }
+
+    #[test]
+    fn selected_source_metadata_completion_keeps_claiming_paused_briefly() {
+        let (mut controller, source) = crate::app::controller::test_support::dummy_controller();
+        controller.library.sources.push(source.clone());
+        controller.select_source_by_index(0);
+        controller
+            .runtime
+            .source_lane
+            .mutations
+            .insert_metadata_mutation(
+                crate::app::controller::state::runtime::PendingMetadataMutation {
+                    request_id: 1,
+                    source_id: source.id.clone(),
+                    paths: [std::path::PathBuf::from("raw.wav")].into_iter().collect(),
+                    rollback: Vec::new(),
+                    refresh_browser_projection: false,
+                },
+            );
+        let now = Instant::now();
+        controller.handle_metadata_mutation_finished_message(
+            crate::app::controller::jobs::MetadataMutationResult {
+                request_id: 1,
+                source_id: source.id.clone(),
+                paths: [std::path::PathBuf::from("raw.wav")].into_iter().collect(),
+                elapsed: Duration::from_millis(10),
+                result: Ok(()),
+            },
+        );
+
+        controller.update_performance_governor_at(now, false);
+        assert!(controller.runtime.analysis.claiming_paused());
+
+        controller.update_performance_governor_at(now + Duration::from_secs(1), false);
+        assert!(!controller.runtime.analysis.claiming_paused());
     }
 }

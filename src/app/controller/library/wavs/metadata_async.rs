@@ -9,9 +9,31 @@ use crate::app::controller::state::runtime::{MetadataRollback, PendingMetadataMu
 use crate::sample_sources::SourceDatabase;
 use rusqlite::TransactionBehavior;
 use std::collections::BTreeSet;
-use std::time::Instant;
+use std::time::{Duration, Instant};
+
+const SELECTED_SOURCE_MUTATION_CLAIM_GRACE: Duration = Duration::from_millis(750);
 
 impl AppController {
+    pub(crate) fn selected_source_claim_pause_grace_active(&mut self, now: Instant) -> bool {
+        let Some(source_id) = self.selected_source_id() else {
+            return false;
+        };
+        self.runtime
+            .source_lane
+            .mutations
+            .claim_pause_grace_active(&source_id, now)
+    }
+
+    pub(crate) fn extend_selected_source_mutation_claim_grace(&mut self, source_id: &SourceId) {
+        if self.selected_source_id().as_ref() != Some(source_id) {
+            return;
+        }
+        self.runtime.source_lane.mutations.extend_claim_pause_grace(
+            source_id,
+            Instant::now() + SELECTED_SOURCE_MUTATION_CLAIM_GRACE,
+        );
+    }
+
     /// Queue one metadata mutation batch on a worker thread after optimistic UI updates.
     pub(crate) fn queue_metadata_mutation(
         &mut self,
@@ -45,6 +67,7 @@ impl AppController {
                     rollback,
                     refresh_browser_projection,
                 });
+            self.extend_selected_source_mutation_claim_grace(&source.id);
             self.handle_metadata_mutation_finished_message(result);
             return;
         }
@@ -59,6 +82,7 @@ impl AppController {
                 rollback,
                 refresh_browser_projection,
             });
+        self.extend_selected_source_mutation_claim_grace(&source.id);
         let job = MetadataMutationJob {
             request_id,
             source_id: source.id.clone(),
@@ -134,6 +158,7 @@ impl AppController {
             .source_lane
             .mutations
             .begin_file_mutation(source_id, paths);
+        self.extend_selected_source_mutation_claim_grace(source_id);
     }
 
     /// Clear one source/path batch from background file-mutation tracking.
@@ -146,6 +171,7 @@ impl AppController {
             .source_lane
             .mutations
             .finish_file_mutation(source_id, paths);
+        self.extend_selected_source_mutation_claim_grace(source_id);
     }
 }
 

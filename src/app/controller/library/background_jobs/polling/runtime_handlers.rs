@@ -22,6 +22,7 @@ impl AppController {
         else {
             return;
         };
+        self.extend_selected_source_mutation_claim_grace(&pending.source_id);
         if let Err(err) = message.result {
             self.rollback_metadata_mutation(&pending.rollback);
             self.set_status(format!("Metadata update failed: {err}"), StatusTone::Error);

@@ -93,6 +93,9 @@ pub(crate) struct SourceMutationRuntime {
     pending_metadata_mutations: HashMap<u64, PendingMetadataMutation>,
     /// Relative sample paths currently carrying optimistic metadata writes.
     pending_metadata_paths: HashSet<(SourceId, PathBuf)>,
+    /// Short source-scoped grace window that keeps analysis claiming paused
+    /// across adjacent quick edits on the same selected source.
+    claim_pause_grace_until: HashMap<SourceId, Instant>,
     /// Source ids currently owning background file or folder mutations.
     pending_file_mutation_sources: HashSet<SourceId>,
     /// Relative paths currently carrying background file or folder mutations.
@@ -139,6 +142,29 @@ impl SourceMutationRuntime {
         self.pending_metadata_paths
             .iter()
             .any(|(pending_source_id, _)| pending_source_id == source_id)
+    }
+
+    /// Extend the source-scoped claim-pause grace window through `until`.
+    pub(crate) fn extend_claim_pause_grace(&mut self, source_id: &SourceId, until: Instant) {
+        let entry = self
+            .claim_pause_grace_until
+            .entry(source_id.clone())
+            .or_insert(until);
+        if *entry < until {
+            *entry = until;
+        }
+    }
+
+    /// Return whether the source-scoped claim-pause grace window is still active.
+    pub(crate) fn claim_pause_grace_active(&mut self, source_id: &SourceId, now: Instant) -> bool {
+        match self.claim_pause_grace_until.get(source_id).copied() {
+            Some(until) if until > now => true,
+            Some(_) => {
+                self.claim_pause_grace_until.remove(source_id);
+                false
+            }
+            None => false,
+        }
     }
 
     /// Return whether one source currently owns a background file mutation.
