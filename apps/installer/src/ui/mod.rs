@@ -51,7 +51,7 @@ impl NativeAppBridge for InstallerNativeBridge {
                     self.advance_step();
                 }
             }
-            UiAction::SelectSourceRow { index } => {
+            UiAction::SelectSourceRow { index, .. } => {
                 if index == 0 && matches!(self.step, state::InstallStep::Location) {
                     self.browse_install_dir();
                 }
