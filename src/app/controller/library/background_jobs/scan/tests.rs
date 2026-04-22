@@ -34,6 +34,23 @@ where
     }
 }
 
+fn assert_no_analysis_message(controller: &mut AppController) {
+    let deadline = Instant::now() + Duration::from_millis(150);
+    loop {
+        match controller.runtime.jobs.try_recv_message() {
+            Ok(JobMessage::Analysis(message)) => {
+                panic!("unexpected analysis message: {message:?}");
+            }
+            Ok(_) => {}
+            Err(std::sync::mpsc::TryRecvError::Empty) if Instant::now() < deadline => {
+                thread::sleep(Duration::from_millis(10));
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => return,
+            Err(err) => panic!("unexpected receive error: {err:?}"),
+        }
+    }
+}
+
 fn scan_result(
     source_id: SourceId,
     mode: ScanMode,
@@ -158,6 +175,60 @@ fn unchanged_scan_backfills_when_similarity_prep_is_idle() {
         AnalysisJobMessage::EnqueueFinished { .. } => {}
         other => panic!("unexpected analysis message: {other:?}"),
     }
+}
+
+#[test]
+fn auto_changed_scan_refreshes_selected_source_without_enqueueing_analysis() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    controller.cache_db(&source).expect("cache db");
+    let wav_path = source.root.join("kick.wav");
+    write_test_wav(&wav_path, &[0.1, -0.1, 0.2, -0.2]);
+    controller
+        .ensure_sample_db_entry(&source, Path::new("kick.wav"))
+        .expect("sample db entry");
+
+    handle_scan_finished(
+        &mut controller,
+        scan_result(
+            source.id.clone(),
+            ScanMode::Quick,
+            ScanKind::Auto,
+            Ok(ScanStats {
+                added: 1,
+                changed_samples: vec![changed_sample("kick.wav")],
+                ..ScanStats::default()
+            }),
+        ),
+    );
+
+    assert_eq!(controller.ui.progress.task, None);
+    assert_no_analysis_message(&mut controller);
+}
+
+#[test]
+fn auto_unchanged_scan_does_not_backfill_analysis() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.cache_db(&source).expect("cache db");
+    let wav_path = source.root.join("snare.wav");
+    write_test_wav(&wav_path, &[0.3, -0.3, 0.2, -0.2]);
+    controller
+        .ensure_sample_db_entry(&source, Path::new("snare.wav"))
+        .expect("sample db entry");
+
+    handle_scan_finished(
+        &mut controller,
+        scan_result(
+            source.id.clone(),
+            ScanMode::Quick,
+            ScanKind::Auto,
+            Ok(ScanStats::default()),
+        ),
+    );
+
+    assert_no_analysis_message(&mut controller);
 }
 
 #[test]

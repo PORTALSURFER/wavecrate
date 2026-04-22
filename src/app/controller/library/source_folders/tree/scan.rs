@@ -8,8 +8,6 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-const AUTO_SYNC_INTERVAL: Duration = Duration::from_secs(10);
-
 impl AppController {
     /// Queue a disk scan when the active source needs an updated empty-folder snapshot.
     pub(super) fn request_folder_browser_disk_scan_if_needed(
@@ -66,7 +64,6 @@ impl AppController {
         self.runtime
             .jobs
             .request_folder_scan(source_id.clone(), source_root.to_path_buf());
-        self.request_auto_quick_sync_if_due(AUTO_SYNC_INTERVAL);
     }
 
     /// Apply a completed disk scan result to the folder browser cache.

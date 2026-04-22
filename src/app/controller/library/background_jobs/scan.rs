@@ -72,6 +72,7 @@ fn handle_successful_scan(
 ) {
     let changed_samples = stats.changed_samples.clone();
     let scan_changed = !changed_samples.is_empty();
+    let analysis_follow_up_allowed = matches!(kind, ScanKind::Manual);
     let similarity_prep_active = controller
         .runtime
         .similarity_prep
@@ -101,15 +102,15 @@ fn handle_successful_scan(
         && matches!(kind, ScanKind::Manual)
         && source.is_some();
 
-    if keep_footer_progress {
+    if keep_footer_progress && analysis_follow_up_allowed {
         begin_follow_up_analysis_progress(controller);
     }
 
-    if scan_changed {
+    if analysis_follow_up_allowed && scan_changed {
         if let Some(source) = source.clone() {
             spawn_changed_scan_enqueue(controller, source, changed_samples);
         }
-    } else if let Some(source) = source.clone() {
+    } else if analysis_follow_up_allowed && let Some(source) = source.clone() {
         if similarity_prep_active {
             controller.handle_similarity_scan_finished(source_id, false);
             return;

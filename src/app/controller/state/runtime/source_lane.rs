@@ -99,6 +99,9 @@ pub(crate) struct SourceMutationRuntime {
     /// Short source-scoped grace window that keeps analysis claiming paused
     /// across adjacent quick edits on the same selected source.
     claim_pause_grace_until: HashMap<SourceId, Instant>,
+    /// Short source-scoped grace window that suppresses auto sync after
+    /// controller-owned file mutations already updated the browser state.
+    auto_sync_grace_until: HashMap<SourceId, Instant>,
     /// Source ids currently owning background file or folder mutations.
     pending_file_mutation_sources: HashSet<SourceId>,
     /// Relative paths currently carrying background file or folder mutations.
@@ -172,6 +175,29 @@ impl SourceMutationRuntime {
             Some(until) if until > now => true,
             Some(_) => {
                 self.claim_pause_grace_until.remove(source_id);
+                false
+            }
+            None => false,
+        }
+    }
+
+    /// Extend the source-scoped auto-sync suppression window through `until`.
+    pub(crate) fn extend_auto_sync_grace(&mut self, source_id: &SourceId, until: Instant) {
+        let entry = self
+            .auto_sync_grace_until
+            .entry(source_id.clone())
+            .or_insert(until);
+        if *entry < until {
+            *entry = until;
+        }
+    }
+
+    /// Return whether the source-scoped auto-sync suppression window is active.
+    pub(crate) fn auto_sync_grace_active(&mut self, source_id: &SourceId, now: Instant) -> bool {
+        match self.auto_sync_grace_until.get(source_id).copied() {
+            Some(until) if until > now => true,
+            Some(_) => {
+                self.auto_sync_grace_until.remove(source_id);
                 false
             }
             None => false,

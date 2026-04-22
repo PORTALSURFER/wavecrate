@@ -12,6 +12,7 @@ use std::collections::BTreeSet;
 use std::time::{Duration, Instant};
 
 const SELECTED_SOURCE_MUTATION_CLAIM_GRACE: Duration = Duration::from_millis(750);
+const SELECTED_SOURCE_MUTATION_AUTO_SYNC_GRACE: Duration = Duration::from_secs(5);
 
 impl AppController {
     pub(crate) fn selected_source_claim_pause_grace_active(&mut self, now: Instant) -> bool {
@@ -31,6 +32,40 @@ impl AppController {
         self.runtime.source_lane.mutations.extend_claim_pause_grace(
             source_id,
             Instant::now() + SELECTED_SOURCE_MUTATION_CLAIM_GRACE,
+        );
+    }
+
+    pub(crate) fn selected_source_auto_sync_grace_active(&mut self, now: Instant) -> bool {
+        let Some(source_id) = self.selected_source_id() else {
+            return false;
+        };
+        self.runtime
+            .source_lane
+            .mutations
+            .auto_sync_grace_active(&source_id, now)
+    }
+
+    pub(crate) fn source_auto_sync_grace_active(
+        &mut self,
+        source_id: &SourceId,
+        now: Instant,
+    ) -> bool {
+        self.runtime
+            .source_lane
+            .mutations
+            .auto_sync_grace_active(source_id, now)
+    }
+
+    pub(crate) fn extend_selected_source_mutation_auto_sync_grace(
+        &mut self,
+        source_id: &SourceId,
+    ) {
+        if self.selected_source_id().as_ref() != Some(source_id) {
+            return;
+        }
+        self.runtime.source_lane.mutations.extend_auto_sync_grace(
+            source_id,
+            Instant::now() + SELECTED_SOURCE_MUTATION_AUTO_SYNC_GRACE,
         );
     }
 
@@ -165,6 +200,7 @@ impl AppController {
             .mutations
             .begin_file_mutation(source_id, paths);
         self.extend_selected_source_mutation_claim_grace(source_id);
+        self.extend_selected_source_mutation_auto_sync_grace(source_id);
     }
 
     /// Clear one source/path batch from background file-mutation tracking.
@@ -178,6 +214,7 @@ impl AppController {
             .mutations
             .finish_file_mutation(source_id, paths);
         self.extend_selected_source_mutation_claim_grace(source_id);
+        self.extend_selected_source_mutation_auto_sync_grace(source_id);
     }
 }
 

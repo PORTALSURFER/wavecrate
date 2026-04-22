@@ -82,7 +82,13 @@ impl AppController {
         if self.library.missing.sources.contains(&source.id) {
             return;
         }
+        if self.source_has_pending_file_mutations(&source.id) {
+            return;
+        }
         let now = Instant::now();
+        if self.source_auto_sync_grace_active(&source.id, now) {
+            return;
+        }
         let last_sync = self
             .runtime
             .auto_sync_last_by_source
@@ -174,6 +180,8 @@ fn auto_sync_due(last_sync: Option<Instant>, now: Instant, min_interval: Duratio
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::controller::test_support::dummy_controller;
+    use std::path::PathBuf;
 
     #[test]
     fn auto_sync_due_respects_interval() {
@@ -189,5 +197,30 @@ mod tests {
             now + Duration::from_secs(6),
             Duration::from_secs(5)
         ));
+    }
+
+    #[test]
+    fn auto_quick_sync_skips_sources_with_pending_file_mutations() {
+        let (mut controller, source) = dummy_controller();
+        controller.library.sources.push(source.clone());
+        controller.selection_state.ctx.selected_source = Some(source.id.clone());
+        controller.begin_pending_file_mutation(&source.id, [PathBuf::from("kick.wav")]);
+
+        controller.request_auto_quick_sync_for_source_if_due(&source.id, Duration::from_secs(0));
+
+        assert!(!controller.runtime.jobs.scan_in_progress());
+    }
+
+    #[test]
+    fn auto_quick_sync_respects_recent_internal_file_mutation_grace() {
+        let (mut controller, source) = dummy_controller();
+        controller.library.sources.push(source.clone());
+        controller.selection_state.ctx.selected_source = Some(source.id.clone());
+        controller.begin_pending_file_mutation(&source.id, [PathBuf::from("kick.wav")]);
+        controller.finish_pending_file_mutation(&source.id, [PathBuf::from("kick.wav")]);
+
+        controller.request_auto_quick_sync_for_source_if_due(&source.id, Duration::from_secs(0));
+
+        assert!(!controller.runtime.jobs.scan_in_progress());
     }
 }
