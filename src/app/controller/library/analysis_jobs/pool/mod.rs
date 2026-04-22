@@ -125,6 +125,11 @@ impl AnalysisWorkerPool {
         wakeup::notify_claim_wakeup();
     }
 
+    #[cfg(test)]
+    pub(crate) fn claiming_paused(&self) -> bool {
+        self.pause_claiming.load(Ordering::Relaxed)
+    }
+
     pub(crate) fn start(&mut self, message_tx: JobMessageSender) {
         let _ = &message_tx;
         if self.threads.is_empty() {

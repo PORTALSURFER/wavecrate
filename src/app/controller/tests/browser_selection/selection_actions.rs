@@ -55,16 +55,12 @@ fn folder_hotkey_moves_selected_samples() {
     assert!(destination.join("two.wav").exists());
     assert!(!source.root.join("one.wav").exists());
     assert!(!source.root.join("two.wav").exists());
-    assert!(
-        controller
-            .wav_index_for_path(&PathBuf::from("dest/one.wav"))
-            .is_some()
-    );
-    assert!(
-        controller
-            .wav_index_for_path(&PathBuf::from("dest/two.wav"))
-            .is_some()
-    );
+    assert!(controller
+        .wav_index_for_path(&PathBuf::from("dest/one.wav"))
+        .is_some());
+    assert!(controller
+        .wav_index_for_path(&PathBuf::from("dest/two.wav"))
+        .is_some());
 }
 
 #[test]
@@ -122,16 +118,12 @@ fn update_cached_entry_replaces_old_path_in_lookup() {
     updated.modified_ns = 7;
     controller.update_cached_entry(&source, Path::new("old.wav"), updated);
 
-    assert!(
-        controller
-            .wav_index_for_path(Path::new("old.wav"))
-            .is_none()
-    );
-    assert!(
-        controller
-            .wav_index_for_path(Path::new("new.wav"))
-            .is_some()
-    );
+    assert!(controller
+        .wav_index_for_path(Path::new("old.wav"))
+        .is_none());
+    assert!(controller
+        .wav_index_for_path(Path::new("new.wav"))
+        .is_some());
     assert_eq!(
         controller.ui.browser.selection.selected_paths,
         vec![PathBuf::from("new.wav")]
@@ -390,6 +382,45 @@ fn auto_rename_uses_live_sidebar_loop_and_sound_type_without_bpm() {
     controller.auto_rename_browser_selection_action(Some(0));
 
     assert!(source.root.join("portal_loop_SEQ.wav").exists());
+}
+
+#[test]
+fn auto_rename_refuses_paths_with_pending_metadata_mutations() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.select_source_by_index(0);
+    controller.cache_db(&source).unwrap();
+    write_test_wav(&source.root.join("raw.wav"), &[0.0]);
+    controller.set_wav_entries_for_tests(vec![sample_entry(
+        "raw.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.focus_browser_row_only(0);
+
+    controller
+        .runtime
+        .source_lane
+        .mutations
+        .insert_metadata_mutation(
+            crate::app::controller::state::runtime::PendingMetadataMutation {
+                request_id: 1,
+                source_id: source.id.clone(),
+                paths: [PathBuf::from("raw.wav")].into_iter().collect(),
+                rollback: Vec::new(),
+                refresh_browser_projection: false,
+            },
+        );
+
+    controller.auto_rename_browser_selection_action(Some(0));
+
+    assert!(source.root.join("raw.wav").exists());
+    assert!(!source.root.join("portal_SS.wav").exists());
+    assert_eq!(
+        controller.ui.status.text,
+        "Metadata update still in progress for raw.wav; wait for it to finish before auto rename"
+    );
 }
 
 #[test]
