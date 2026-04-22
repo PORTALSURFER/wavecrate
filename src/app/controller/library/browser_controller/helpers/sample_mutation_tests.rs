@@ -1,16 +1,16 @@
 use super::sample_mutation::perform_sample_rename;
-use super::{run_sample_auto_rename_job, SampleAutoRenameRequest};
+use super::{SampleAutoRenameRequest, run_sample_auto_rename_job};
 use crate::app::controller::test_support::write_test_wav;
 use crate::sample_sources::db::DB_FILE_NAME;
 use crate::sample_sources::{Rating, SampleSoundType, SampleSource, SourceDatabase};
 use std::path::{Path, PathBuf};
 use std::sync::{
+    Arc,
     atomic::AtomicBool,
     mpsc::{Receiver, Sender},
-    Arc,
 };
 use std::time::Duration;
-use tempfile::{tempdir, TempDir};
+use tempfile::{TempDir, tempdir};
 
 #[test]
 /// Single-sample rename restores the old path when the source DB is locked.
@@ -150,10 +150,12 @@ fn sample_auto_rename_rolls_back_each_failed_file_when_db_is_busy() {
     assert!(result.renamed.is_empty());
     assert!(result.skipped.is_empty());
     assert_eq!(result.errors.len(), 2);
-    assert!(result
-        .errors
-        .iter()
-        .all(|(_, err)| err.contains("Failed to start database update")));
+    assert!(
+        result
+            .errors
+            .iter()
+            .all(|(_, err)| err.contains("Failed to start database update"))
+    );
     assert!(source.root.join("alpha.wav").is_file());
     assert!(source.root.join("beta.wav").is_file());
     assert!(!source.root.join("alpha_renamed.wav").exists());
@@ -198,10 +200,11 @@ fn sample_auto_rename_retries_until_short_db_lock_clears() {
     assert!(source.root.join("alpha_renamed.wav").is_file());
 
     let db = SourceDatabase::open(&source.root).expect("open source db");
-    assert!(db
-        .tag_for_path(Path::new("alpha.wav"))
-        .expect("old tag")
-        .is_none());
+    assert!(
+        db.tag_for_path(Path::new("alpha.wav"))
+            .expect("old tag")
+            .is_none()
+    );
     assert_eq!(
         db.tag_for_path(Path::new("alpha_renamed.wav"))
             .expect("renamed tag"),

@@ -41,7 +41,7 @@ pub(super) fn prepare_source_move_transaction<'a>(
         &request.relative_path,
         target_root,
         &target_relative,
-        metadata,
+        metadata.clone(),
     )?;
     Ok(SourceMoveTransaction {
         request,
@@ -135,6 +135,17 @@ impl SourceMoveTransaction<'_> {
             );
             return false;
         }
+        if let Some(user_tag) = self.metadata.user_tag.as_deref()
+            && let Err(err) = batch.set_user_tag(&self.target_relative, Some(user_tag))
+        {
+            report_staged_move_failure(
+                errors,
+                self.target_db,
+                &self.prepared,
+                format!("Failed to copy custom tag: {err}"),
+            );
+            return false;
+        }
         if let Err(err) = batch.commit() {
             report_staged_move_failure(
                 errors,
@@ -200,6 +211,7 @@ impl SourceMoveTransaction<'_> {
             locked: self.metadata.locked,
             last_played_at: self.metadata.last_played_at,
             sound_type: self.metadata.sound_type,
+            user_tag: self.metadata.user_tag,
         }
     }
 }

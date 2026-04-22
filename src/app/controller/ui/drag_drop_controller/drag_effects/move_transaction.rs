@@ -6,7 +6,7 @@ use crate::sample_sources::{Rating, SampleSoundType, SourceDatabase};
 use std::path::{Path, PathBuf};
 
 /// Metadata copied from the source DB row while moving a sample file.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct SampleMoveMetadata {
     /// Triage tag associated with the sample.
     pub(super) tag: Rating,
@@ -18,6 +18,8 @@ pub(super) struct SampleMoveMetadata {
     pub(super) last_played_at: Option<i64>,
     /// Canonical sound classification, if any.
     pub(super) sound_type: Option<SampleSoundType>,
+    /// Operator-authored custom tag, if any.
+    pub(super) user_tag: Option<String>,
 }
 
 /// Filesystem/journal state prepared before DB mutation and finalization.
@@ -78,12 +80,16 @@ pub(super) fn load_sample_move_metadata(
     let sound_type = db
         .sound_type_for_path(relative_path)
         .map_err(|err| format!("Failed to read database: {err}"))?;
+    let user_tag = db
+        .user_tag_for_path(relative_path)
+        .map_err(|err| format!("Failed to read database: {err}"))?;
     Ok(SampleMoveMetadata {
         tag,
         looped,
         locked,
         last_played_at,
         sound_type,
+        user_tag,
     })
 }
 

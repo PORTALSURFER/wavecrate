@@ -13,10 +13,14 @@ fn folder_drop_to_folder_moves_tree() {
     std::fs::create_dir_all(&dest_folder).unwrap();
     write_test_wav(&src_folder.join("clip.wav"), &[0.1, 0.2]);
 
-    controller.set_wav_entries_for_tests(vec![sample_entry(
-        "one/clip.wav",
-        crate::sample_sources::Rating::NEUTRAL,
-    )]);
+    let mut entry = sample_entry("one/clip.wav", crate::sample_sources::Rating::NEUTRAL);
+    entry.user_tag = Some("Vintage FX".into());
+    controller.set_wav_entries_for_tests(vec![entry]);
+    controller
+        .database_for(&source)
+        .unwrap()
+        .set_user_tag(Path::new("one/clip.wav"), Some("Vintage FX"))
+        .unwrap();
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
     controller.refresh_folder_browser_for_tests();
@@ -39,6 +43,19 @@ fn folder_drop_to_folder_moves_tree() {
     assert_eq!(
         controller.wav_entry(0).unwrap().relative_path,
         PathBuf::from("dest/one/clip.wav")
+    );
+    assert_eq!(
+        controller.wav_entry(0).unwrap().user_tag.as_deref(),
+        Some("Vintage FX")
+    );
+    assert_eq!(
+        controller
+            .database_for(&source)
+            .unwrap()
+            .user_tag_for_path(Path::new("dest/one/clip.wav"))
+            .unwrap()
+            .as_deref(),
+        Some("Vintage FX")
     );
 }
 

@@ -29,6 +29,10 @@ fn setup_cross_source_drop_fixture(
     controller.selection_state.ctx.selected_source = Some(source.id.clone());
     controller.cache_db(&source).must();
     controller.cache_db(&target).must();
+    controller
+        .cache
+        .wav
+        .insert_page(target.id.clone(), 0, 1, 0, Vec::new());
     (controller, source, target, target_drop)
 }
 
@@ -55,7 +59,9 @@ fn seed_source_sample(controller: &mut AppController, source: &SampleSource, rel
         .must();
     db.set_tag(Path::new(relative), Rating::KEEP_1).must();
     db.set_looped(Path::new(relative), true).must();
+    db.set_locked(Path::new(relative), true).must();
     db.set_last_played_at(Path::new(relative), 42).must();
+    db.set_user_tag(Path::new(relative), Some("Vintage FX")).must();
     controller.set_wav_entries_for_tests(vec![WavEntry {
         relative_path: PathBuf::from(relative),
         file_size: metadata.len(),
@@ -67,7 +73,7 @@ fn seed_source_sample(controller: &mut AppController, source: &SampleSource, rel
         locked: true,
         missing: false,
         last_played_at: Some(42),
-        user_tag: None,
+        user_tag: Some("Vintage FX".into()),
     }]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
@@ -94,7 +100,7 @@ fn set_source_samples_for_tests(
                 locked: true,
                 missing: false,
                 last_played_at: Some(42),
-                user_tag: None,
+                user_tag: Some("Vintage FX".into()),
             }
         })
         .collect();
@@ -104,6 +110,7 @@ fn set_source_samples_for_tests(
         db.set_looped(Path::new(relative), true).must();
         db.set_locked(Path::new(relative), true).must();
         db.set_last_played_at(Path::new(relative), 42).must();
+        db.set_user_tag(Path::new(relative), Some("Vintage FX")).must();
     }
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
@@ -213,6 +220,7 @@ fn transferred_sample(
         locked: true,
         last_played_at: Some(42),
         sound_type: None,
+        user_tag: Some("Vintage FX".into()),
     }
 }
 

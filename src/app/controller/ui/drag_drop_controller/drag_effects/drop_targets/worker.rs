@@ -163,6 +163,7 @@ fn run_drop_target_transfer_request(
     };
     let metadata = match request
         .metadata
+        .clone()
         .map(drop_target_metadata_from_request)
         .map(Ok)
         .unwrap_or_else(|| load_dropped_sample_metadata(source_db, &request.relative_path))
@@ -220,6 +221,7 @@ fn drop_target_metadata_from_request(
         locked: metadata.locked,
         last_played_at: metadata.last_played_at,
         sound_type: metadata.sound_type,
+        user_tag: metadata.user_tag,
     }
 }
 
@@ -255,6 +257,7 @@ fn load_dropped_sample_metadata(
         locked: metadata.locked,
         last_played_at: metadata.last_played_at,
         sound_type: metadata.sound_type,
+        user_tag: metadata.user_tag,
     })
 }
 
@@ -281,7 +284,7 @@ fn run_drop_target_copy(
         &source_absolute,
         target_root,
         &target_relative,
-        sample_move_metadata(metadata),
+        sample_move_metadata(&metadata),
     ) {
         Ok(prepared) => prepared,
         Err(err) => {
@@ -294,7 +297,7 @@ fn run_drop_target_copy(
         &target_relative,
         prepared.file_size,
         prepared.modified_ns,
-        metadata,
+        &metadata,
     ) {
         rollback_staged_copy(target_db, &prepared);
         errors.push(err);
@@ -321,6 +324,7 @@ fn run_drop_target_copy(
         locked: metadata.locked,
         last_played_at: metadata.last_played_at,
         sound_type: metadata.sound_type,
+        user_tag: metadata.user_tag.clone(),
     })
 }
 
@@ -340,7 +344,7 @@ fn run_drop_target_move(
         &request.relative_path,
         target_root,
         &target_relative,
-        sample_move_metadata(metadata),
+        sample_move_metadata(&metadata),
     ) {
         Ok(prepared) => prepared,
         Err(err) => {
@@ -353,7 +357,7 @@ fn run_drop_target_move(
         &target_relative,
         prepared.file_size,
         prepared.modified_ns,
-        metadata,
+        &metadata,
     ) {
         rollback_staged_move(target_db, &prepared);
         errors.push(err);
@@ -390,5 +394,6 @@ fn run_drop_target_move(
         locked: metadata.locked,
         last_played_at: metadata.last_played_at,
         sound_type: metadata.sound_type,
+        user_tag: metadata.user_tag.clone(),
     })
 }

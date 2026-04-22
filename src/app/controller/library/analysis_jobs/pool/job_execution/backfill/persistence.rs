@@ -78,14 +78,7 @@ where
             Ok(()) => return Ok(()),
             Err(err) if attempt + 1 < retries => {
                 let delay = ann_update_backoff(base_delay, attempt);
-                telemetry::record_retry(
-                    operation,
-                    source_root,
-                    attempt + 1,
-                    retries,
-                    delay,
-                    &err,
-                );
+                telemetry::record_retry(operation, source_root, attempt + 1, retries, delay, &err);
                 last_err = Some(err);
                 sleep_if_needed(delay);
             }

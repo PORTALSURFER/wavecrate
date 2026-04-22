@@ -95,6 +95,7 @@ fn apply_folder_move_result_remaps_folder_state_and_focuses_destination() {
                 locked: false,
                 last_played_at: None,
                 sound_type: None,
+                user_tag: Some("Vintage FX".into()),
             }],
             errors: Vec::new(),
             cancelled: false,

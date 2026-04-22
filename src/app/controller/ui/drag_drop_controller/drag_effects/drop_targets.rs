@@ -24,13 +24,14 @@ use paths::progress_title;
 use worker::run_drop_target_transfer_task;
 
 /// Metadata copied from the source DB row onto the copied or moved target entry.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub(super) struct DroppedSampleMetadata {
     tag: Rating,
     looped: bool,
     locked: bool,
     last_played_at: Option<i64>,
     sound_type: Option<crate::sample_sources::SampleSoundType>,
+    user_tag: Option<String>,
 }
 
 impl DragDropController<'_> {

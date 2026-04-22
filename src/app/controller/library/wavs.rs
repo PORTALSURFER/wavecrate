@@ -7,8 +7,6 @@ mod audio_loading;
 mod browser_actions;
 /// High-level browser search, similarity, and sidebar facade methods on `AppController`.
 mod browser_facade;
-/// High-level browser selection/focus facade methods on `AppController`.
-mod browser_selection_facade;
 mod browser_history;
 mod browser_lists;
 mod browser_marks;
@@ -16,6 +14,8 @@ mod browser_marks;
 mod browser_pipeline;
 mod browser_search;
 pub(crate) mod browser_search_worker;
+/// High-level browser selection/focus facade methods on `AppController`.
+mod browser_selection_facade;
 /// Shared browser tag-sidebar target snapshots for mutation and projection.
 mod browser_tag_sidebar_targets;
 mod browser_viewport;

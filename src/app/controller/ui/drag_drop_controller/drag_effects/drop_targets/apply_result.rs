@@ -41,7 +41,7 @@ impl DragDropController<'_> {
                     locked: entry.locked,
                     missing: false,
                     last_played_at: entry.last_played_at,
-                    user_tag: None,
+                    user_tag: entry.user_tag.clone(),
                 },
             );
         }

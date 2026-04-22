@@ -324,8 +324,8 @@ fn write_backfill_results_rolls_back_chunk_on_late_failure() {
         },
     ];
 
-    let err = super::persistence::write_backfill_results(&mut conn, &job, &results, "v1")
-        .unwrap_err();
+    let err =
+        super::persistence::write_backfill_results(&mut conn, &job, &results, "v1").unwrap_err();
 
     assert!(err.contains("synthetic backfill cache failure"));
     assert_eq!(count_rows(&conn, "embeddings"), 0);

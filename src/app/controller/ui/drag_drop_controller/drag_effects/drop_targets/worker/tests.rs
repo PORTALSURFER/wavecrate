@@ -63,6 +63,7 @@ impl DropTargetRecoveryFixture {
             locked: true,
             last_played_at: Some(42),
             sound_type: None,
+            user_tag: Some("Vintage FX".into()),
         }
     }
 }
@@ -87,7 +88,7 @@ fn journal_entry(db: &SourceDatabase) -> file_ops_journal::FileOpJournalEntry {
 fn assert_target_metadata(
     db: &SourceDatabase,
     target_relative: &Path,
-    metadata: DroppedSampleMetadata,
+    metadata: &DroppedSampleMetadata,
 ) {
     assert_eq!(
         db.tag_for_path(target_relative).unwrap(),
@@ -104,6 +105,10 @@ fn assert_target_metadata(
     assert_eq!(
         db.last_played_at_for_path(target_relative).unwrap(),
         metadata.last_played_at
+    );
+    assert_eq!(
+        db.user_tag_for_path(target_relative).unwrap(),
+        metadata.user_tag.clone()
     );
 }
 
@@ -123,7 +128,7 @@ fn copy_finalize_failure_keeps_target_db_stage_until_reconcile() {
         &fixture.source_absolute,
         &fixture.target_root,
         &target_relative,
-        sample_move_metadata(metadata),
+        sample_move_metadata(&metadata),
     )
     .unwrap();
     register_drop_target_target_entry(
@@ -131,7 +136,7 @@ fn copy_finalize_failure_keeps_target_db_stage_until_reconcile() {
         &target_relative,
         prepared.file_size,
         prepared.modified_ns,
-        metadata,
+        &metadata,
     )
     .unwrap();
     file_ops_journal::update_stage(
@@ -153,7 +158,7 @@ fn copy_finalize_failure_keeps_target_db_stage_until_reconcile() {
     let staged_absolute = prepared.staged_absolute.clone();
     assert!(staged_absolute.is_file());
     assert!(!fixture.target_root.join(&target_relative).is_file());
-    assert_target_metadata(&fixture.target_db, &target_relative, metadata);
+    assert_target_metadata(&fixture.target_db, &target_relative, &metadata);
     assert!(fixture.source_absolute.is_file());
 
     std::fs::remove_dir(&prepared.target_absolute).unwrap();
@@ -162,7 +167,7 @@ fn copy_finalize_failure_keeps_target_db_stage_until_reconcile() {
     assert!(summary.errors.is_empty());
     assert!(fixture.target_root.join(&target_relative).is_file());
     assert!(!staged_absolute.exists());
-    assert_target_metadata(&fixture.target_db, &target_relative, metadata);
+    assert_target_metadata(&fixture.target_db, &target_relative, &metadata);
     assert_no_journal_entries(&fixture.target_db);
 }
 
@@ -177,7 +182,7 @@ fn move_finalize_failure_keeps_source_db_stage_until_reconcile() {
         &fixture.source_relative,
         &fixture.target_root,
         &target_relative,
-        sample_move_metadata(metadata),
+        sample_move_metadata(&metadata),
     )
     .unwrap();
     register_drop_target_target_entry(
@@ -185,7 +190,7 @@ fn move_finalize_failure_keeps_source_db_stage_until_reconcile() {
         &target_relative,
         prepared.file_size,
         prepared.modified_ns,
-        metadata,
+        &metadata,
     )
     .unwrap();
     fixture
@@ -219,7 +224,7 @@ fn move_finalize_failure_keeps_source_db_stage_until_reconcile() {
             .unwrap()
             .is_none()
     );
-    assert_target_metadata(&fixture.target_db, &target_relative, metadata);
+    assert_target_metadata(&fixture.target_db, &target_relative, &metadata);
 
     std::fs::remove_dir(&prepared.target_absolute).unwrap();
     let summary = file_ops_journal::reconcile_pending_ops(&fixture.target_db).unwrap();
@@ -234,6 +239,6 @@ fn move_finalize_failure_keeps_source_db_stage_until_reconcile() {
             .unwrap()
             .is_none()
     );
-    assert_target_metadata(&fixture.target_db, &target_relative, metadata);
+    assert_target_metadata(&fixture.target_db, &target_relative, &metadata);
     assert_no_journal_entries(&fixture.target_db);
 }

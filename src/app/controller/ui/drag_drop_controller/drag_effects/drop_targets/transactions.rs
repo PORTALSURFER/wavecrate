@@ -7,13 +7,14 @@ use std::path::Path;
 use tracing::warn;
 
 /// Convert controller-copied sample metadata into journal metadata fields.
-pub(super) fn sample_move_metadata(metadata: DroppedSampleMetadata) -> SampleMoveMetadata {
+pub(super) fn sample_move_metadata(metadata: &DroppedSampleMetadata) -> SampleMoveMetadata {
     SampleMoveMetadata {
         tag: metadata.tag,
         looped: metadata.looped,
         locked: metadata.locked,
         last_played_at: metadata.last_played_at,
         sound_type: metadata.sound_type,
+        user_tag: metadata.user_tag.clone(),
     }
 }
 
@@ -23,7 +24,7 @@ pub(super) fn register_drop_target_target_entry(
     relative_path: &Path,
     file_size: u64,
     modified_ns: i64,
-    metadata: DroppedSampleMetadata,
+    metadata: &DroppedSampleMetadata,
 ) -> Result<(), String> {
     let mut batch = target_db
         .write_batch()
@@ -49,6 +50,11 @@ pub(super) fn register_drop_target_target_entry(
         batch
             .set_sound_type(relative_path, Some(sound_type))
             .map_err(|err| format!("Failed to copy sound type: {err}"))?;
+    }
+    if let Some(user_tag) = metadata.user_tag.as_deref() {
+        batch
+            .set_user_tag(relative_path, Some(user_tag))
+            .map_err(|err| format!("Failed to copy custom tag: {err}"))?;
     }
     batch
         .commit()

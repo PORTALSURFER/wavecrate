@@ -32,6 +32,8 @@ pub(crate) struct FolderEntryMove {
     pub(crate) last_played_at: Option<i64>,
     /// Canonical sound classification, if any.
     pub(crate) sound_type: Option<crate::sample_sources::SampleSoundType>,
+    /// Operator-authored custom tag, if any.
+    pub(crate) user_tag: Option<String>,
 }
 
 /// Result of a background in-source folder sample move operation.

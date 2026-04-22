@@ -29,6 +29,13 @@ fn upsert_source_db_entry(controller: &mut AppController, source: &SampleSource,
         db.set_last_played_at(&entry.relative_path, last_played_at)
             .unwrap();
     }
+    if let Some(sound_type) = entry.sound_type {
+        db.set_sound_type(&entry.relative_path, Some(sound_type))
+            .unwrap();
+    }
+    if let Some(user_tag) = entry.user_tag.as_deref() {
+        db.set_user_tag(&entry.relative_path, Some(user_tag)).unwrap();
+    }
 }
 
 #[test]
@@ -53,6 +60,7 @@ fn apply_source_move_result_invalidates_touched_sources_and_selected_target_stat
     source_entry.looped = true;
     source_entry.locked = true;
     source_entry.last_played_at = Some(42);
+    source_entry.user_tag = Some("Vintage FX".into());
     upsert_source_db_entry(&mut controller, &source, &source_entry);
 
     let mut existing_target_entry = sample_entry("existing.wav", Rating::NEUTRAL);
@@ -66,6 +74,7 @@ fn apply_source_move_result_invalidates_touched_sources_and_selected_target_stat
     moved_target_entry.looped = true;
     moved_target_entry.locked = true;
     moved_target_entry.last_played_at = Some(42);
+    moved_target_entry.user_tag = Some("Vintage FX".into());
     upsert_source_db_entry(&mut controller, &target, &moved_target_entry);
     controller
         .database_for(&source)
@@ -104,6 +113,7 @@ fn apply_source_move_result_invalidates_touched_sources_and_selected_target_stat
                 locked: true,
                 last_played_at: Some(42),
                 sound_type: None,
+                user_tag: Some("Vintage FX".into()),
             }],
             errors: vec!["secondary move failed".into()],
             cancelled: false,
@@ -121,6 +131,22 @@ fn apply_source_move_result_invalidates_touched_sources_and_selected_target_stat
         controller
             .wav_index_for_path(&PathBuf::from("moved.wav"))
             .is_some()
+    );
+    let moved_index = controller
+        .wav_index_for_path(&PathBuf::from("moved.wav"))
+        .unwrap();
+    assert_eq!(
+        controller.wav_entry(moved_index).unwrap().user_tag.as_deref(),
+        Some("Vintage FX")
+    );
+    assert_eq!(
+        controller
+            .database_for(&target)
+            .unwrap()
+            .user_tag_for_path(&PathBuf::from("moved.wav"))
+            .unwrap()
+            .as_deref(),
+        Some("Vintage FX")
     );
     assert!(!controller.ui_cache.browser.labels.contains_key(&source.id));
     assert!(!controller.ui_cache.browser.labels.contains_key(&target.id));

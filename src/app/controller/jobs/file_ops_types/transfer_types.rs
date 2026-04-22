@@ -43,7 +43,7 @@ pub(crate) struct DropTargetTransferRequest {
 }
 
 /// Metadata snapshot captured before a drop-target transfer starts.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub(crate) struct DropTargetTransferMetadata {
     /// Tag associated with the sample.
     pub(crate) tag: crate::sample_sources::Rating,
@@ -55,6 +55,8 @@ pub(crate) struct DropTargetTransferMetadata {
     pub(crate) last_played_at: Option<i64>,
     /// Canonical sound classification, if any.
     pub(crate) sound_type: Option<crate::sample_sources::SampleSoundType>,
+    /// Operator-authored custom tag, if any.
+    pub(crate) user_tag: Option<String>,
 }
 
 /// Result of a background drop-target copy or move operation.
@@ -97,6 +99,8 @@ pub(crate) struct DropTargetTransferSuccess {
     pub(crate) last_played_at: Option<i64>,
     /// Canonical sound classification, if any.
     pub(crate) sound_type: Option<crate::sample_sources::SampleSoundType>,
+    /// Operator-authored custom tag, if any.
+    pub(crate) user_tag: Option<String>,
 }
 
 /// Successful paste into a source folder with metadata for follow-up updates.
@@ -186,4 +190,6 @@ pub(crate) struct SourceMoveSuccess {
     pub(crate) last_played_at: Option<i64>,
     /// Canonical sound classification, if any.
     pub(crate) sound_type: Option<crate::sample_sources::SampleSoundType>,
+    /// Operator-authored custom tag, if any.
+    pub(crate) user_tag: Option<String>,
 }

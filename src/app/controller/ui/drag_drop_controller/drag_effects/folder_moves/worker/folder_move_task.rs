@@ -268,6 +268,26 @@ fn rewrite_entry(
                 )
             })?;
     }
+    if let Some(user_tag) = entry.user_tag.as_deref() {
+        batch.set_user_tag(&updated_path, Some(user_tag)).map_err(|err| {
+            rollback_and_error_result(
+                request,
+                prepared,
+                format!("Failed to copy custom tag: {err}"),
+            )
+        })?;
+    }
+    if let Some(sound_type) = entry.sound_type {
+        batch
+            .set_sound_type(&updated_path, Some(sound_type))
+            .map_err(|err| {
+                rollback_and_error_result(
+                    request,
+                    prepared,
+                    format!("Failed to copy sound type: {err}"),
+                )
+            })?;
+    }
     Ok(FolderEntryMove {
         old_relative: entry.relative_path.clone(),
         new_relative: updated_path,
@@ -277,7 +297,8 @@ fn rewrite_entry(
         looped: entry.looped,
         locked: entry.locked,
         last_played_at: entry.last_played_at,
-        sound_type: None,
+        sound_type: entry.sound_type,
+        user_tag: entry.user_tag.clone(),
     })
 }
 

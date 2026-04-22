@@ -78,6 +78,13 @@ fn cross_source_drop_target_move_preserves_metadata() {
     assert!(moved.looped);
     assert!(moved.locked);
     assert_eq!(moved.last_played_at, Some(42));
+    assert_eq!(moved.user_tag.as_deref(), Some("Vintage FX"));
+    let target_cache = controller.cache.wav.entries.get(&target.id).must();
+    let moved_index = target_cache.lookup.get(Path::new("dest/one.wav")).copied().must();
+    assert_eq!(
+        target_cache.entry(moved_index).must().user_tag.as_deref(),
+        Some("Vintage FX")
+    );
 }
 
 #[test]

@@ -14,6 +14,8 @@ pub(in crate::app::controller::ui::drag_drop_controller::drag_effects) struct Mo
         Option<i64>,
     pub(in crate::app::controller::ui::drag_drop_controller::drag_effects) sound_type:
         Option<crate::sample_sources::SampleSoundType>,
+    pub(in crate::app::controller::ui::drag_drop_controller::drag_effects) user_tag:
+        Option<String>,
 }
 
 impl AppController {
@@ -46,6 +48,10 @@ impl AppController {
         if let Some(sound_type) = registration.sound_type {
             db.set_sound_type(relative_path, Some(sound_type))
                 .map_err(|err| format!("Failed to copy sound type: {err}"))?;
+        }
+        if let Some(user_tag) = registration.user_tag.as_deref() {
+            db.set_user_tag(relative_path, Some(user_tag))
+                .map_err(|err| format!("Failed to copy custom tag: {err}"))?;
         }
         Ok(())
     }
@@ -82,7 +88,7 @@ impl AppController {
                 locked: entry.locked,
                 missing: false,
                 last_played_at: entry.last_played_at,
-                user_tag: None,
+                user_tag: entry.user_tag.clone(),
             },
         );
     }
