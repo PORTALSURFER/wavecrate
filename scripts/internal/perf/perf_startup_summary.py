@@ -13,6 +13,7 @@ from pathlib import Path
 from statistics import median
 
 LOG_PREFIX = "[native-vello-startup]"
+STATUS_REASON_RE = re.compile(r"status=failed reason=([a-z_]+)")
 EXPECTED_METRICS = (
     "window_create_ms",
     "surface_ready_ms",
@@ -108,12 +109,18 @@ def parse_startup_line(line: str) -> dict[str, float] | None:
 def classify_missing_reason(lines: list[str]) -> str:
     """Classify why a startup profile line is missing from one log."""
     text = "\n".join(lines)
+    for line in reversed(lines):
+        if LOG_PREFIX not in line:
+            continue
+        match = STATUS_REASON_RE.search(line)
+        if match is not None:
+            return match.group(1)
     if "Could not find wayland compositor" in text:
         return "no_wayland_compositor"
     if "no X server" in text or "DISPLAY" in text and "error" in text.lower():
         return "display_backend_error"
     if "native vello" in text or "runtime_started" in text:
-        return "startup_summary_not_emitted"
+        return "startup_profile_missing_after_runtime_start"
     if "The system cannot find the file specified" in text:
         return "launch_path_error"
     if "Running `target/debug/sempal`" not in text:
