@@ -64,7 +64,7 @@ fn stale_waveform_render_request_returns_none() {
     };
 
     let result =
-        super::render_apply::run_waveform_render_job(job, meta, Arc::new(AtomicU64::new(9)));
+        super::worker_jobs::run_waveform_render_job(job, meta, Arc::new(AtomicU64::new(9)));
 
     assert!(result.is_none());
 }

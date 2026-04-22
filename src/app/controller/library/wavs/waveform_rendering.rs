@@ -4,13 +4,17 @@ use crate::gui::types::ImageRgba;
 use crate::waveform::{DecodedWaveform, WaveformChannelView, WaveformImage, WaveformRenderer};
 use std::sync::Arc;
 
+mod apply_state;
+mod file_io;
 mod initial;
 mod refresh_policy;
-mod render_apply;
 #[cfg(test)]
 mod render_apply_tests;
+mod render_requests;
 /// Waveform render-cache reuse and translation helpers.
 mod reuse;
+mod transients;
+mod worker_jobs;
 
 const MIN_VIEW_WIDTH_BASE: f64 = 1e-9;
 const MIN_SAMPLES_PER_PIXEL: f32 = 1.0;
