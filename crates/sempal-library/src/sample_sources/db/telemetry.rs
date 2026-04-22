@@ -6,12 +6,16 @@
 use std::path::Path;
 use std::time::Duration;
 
-use crate::diagnostics::{DbDebugEvent, emit_db_debug_event};
+use crate::diagnostics::{emit_db_debug_event, DbDebugEvent};
 
 use super::SourceDbError;
 
 const SLOW_SOURCE_DB_OPEN_STEP: Duration = Duration::from_millis(15);
 const SLOW_SOURCE_DB_OPEN_TOTAL: Duration = Duration::from_millis(40);
+
+fn slow_success_outcome(elapsed: Duration, threshold: Duration) -> Option<&'static str> {
+    (elapsed >= threshold).then_some("slow")
+}
 
 /// Emit a structured event for one source-db open phase when it is slow or fails.
 pub(super) fn record_open_phase(
@@ -27,20 +31,14 @@ pub(super) fn record_open_phase(
     let source = source_root.display().to_string();
     let operation = format!("source_db.open.{phase}");
     match result {
-        Ok(()) if elapsed < SLOW_SOURCE_DB_OPEN_STEP => {
-            emit_db_debug_event(DbDebugEvent {
-                operation: &operation,
-                source: Some(&source),
-                outcome: "success",
-                elapsed,
-                error: None,
-            });
-        }
         Ok(()) => {
+            let Some(outcome) = slow_success_outcome(elapsed, SLOW_SOURCE_DB_OPEN_STEP) else {
+                return;
+            };
             emit_db_debug_event(DbDebugEvent {
                 operation: &operation,
                 source: Some(&source),
-                outcome: "slow",
+                outcome,
                 elapsed,
                 error: None,
             });
@@ -95,20 +93,14 @@ pub(super) fn record_open_total(
     let source = source_root.display().to_string();
     let operation = "source_db.open_total";
     match result {
-        Ok(()) if elapsed < SLOW_SOURCE_DB_OPEN_TOTAL => {
-            emit_db_debug_event(DbDebugEvent {
-                operation,
-                source: Some(&source),
-                outcome: "success",
-                elapsed,
-                error: None,
-            });
-        }
         Ok(()) => {
+            let Some(outcome) = slow_success_outcome(elapsed, SLOW_SOURCE_DB_OPEN_TOTAL) else {
+                return;
+            };
             emit_db_debug_event(DbDebugEvent {
                 operation,
                 source: Some(&source),
-                outcome: "slow",
+                outcome,
                 elapsed,
                 error: None,
             });
@@ -145,5 +137,41 @@ pub(super) fn record_open_total(
                 "Source DB open failed"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{slow_success_outcome, SLOW_SOURCE_DB_OPEN_STEP, SLOW_SOURCE_DB_OPEN_TOTAL};
+    use std::time::Duration;
+
+    #[test]
+    fn fast_open_phase_success_is_suppressed() {
+        assert_eq!(
+            slow_success_outcome(
+                SLOW_SOURCE_DB_OPEN_STEP.saturating_sub(Duration::from_millis(1)),
+                SLOW_SOURCE_DB_OPEN_STEP,
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn slow_open_phase_success_is_kept() {
+        assert_eq!(
+            slow_success_outcome(SLOW_SOURCE_DB_OPEN_STEP, SLOW_SOURCE_DB_OPEN_STEP),
+            Some("slow")
+        );
+    }
+
+    #[test]
+    fn fast_open_total_success_is_suppressed() {
+        assert_eq!(
+            slow_success_outcome(
+                SLOW_SOURCE_DB_OPEN_TOTAL.saturating_sub(Duration::from_millis(1)),
+                SLOW_SOURCE_DB_OPEN_TOTAL,
+            ),
+            None
+        );
     }
 }

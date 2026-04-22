@@ -2,9 +2,9 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
-use rusqlite::{Connection, Transaction, params};
+use rusqlite::{params, Connection, Transaction};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::warn;
@@ -15,7 +15,7 @@ mod schema_defs;
 
 use super::{SampleSource, SourceId};
 use crate::app_dirs;
-use crate::diagnostics::{DbDebugEvent, emit_db_debug_event};
+use crate::diagnostics::{emit_db_debug_event, DbDebugEvent};
 use crate::sample_sources::normalize_path;
 
 /// Filename for the global library database stored under the user app directory.
@@ -31,6 +31,7 @@ pub struct LibraryState {
 const KNOWN_SOURCES_KEY: &str = "known_sources_v1";
 
 static LIBRARY_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+const SLOW_LIBRARY_DB_EVENT_THRESHOLD: Duration = Duration::from_millis(15);
 
 /// Errors returned when operating on the library database.
 #[derive(Debug, Error)]
@@ -313,11 +314,11 @@ fn record_library_db_event(
     result: Result<(), &LibraryError>,
 ) {
     let elapsed = started_at.elapsed();
-    let error = result.as_ref().err().map(ToString::to_string);
-    let outcome = match result {
-        Ok(()) => "success",
-        Err(_) => "error",
+    let outcome = match library_db_debug_outcome(result.is_ok(), elapsed) {
+        Some(outcome) => outcome,
+        None => return,
     };
+    let error = result.as_ref().err().map(ToString::to_string);
     emit_db_debug_event(DbDebugEvent {
         operation,
         source: Some("library"),
@@ -327,5 +328,46 @@ fn record_library_db_event(
     });
 }
 
+fn library_db_debug_outcome(success: bool, elapsed: Duration) -> Option<&'static str> {
+    if success {
+        (elapsed >= SLOW_LIBRARY_DB_EVENT_THRESHOLD).then_some("slow")
+    } else {
+        Some("error")
+    }
+}
+
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod telemetry_tests {
+    use super::{library_db_debug_outcome, SLOW_LIBRARY_DB_EVENT_THRESHOLD};
+    use std::time::Duration;
+
+    #[test]
+    fn fast_successful_library_events_are_suppressed() {
+        assert_eq!(
+            library_db_debug_outcome(
+                true,
+                SLOW_LIBRARY_DB_EVENT_THRESHOLD.saturating_sub(Duration::from_millis(1)),
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn slow_successful_library_events_are_marked_slow() {
+        assert_eq!(
+            library_db_debug_outcome(true, SLOW_LIBRARY_DB_EVENT_THRESHOLD),
+            Some("slow")
+        );
+    }
+
+    #[test]
+    fn failed_library_events_are_kept() {
+        assert_eq!(
+            library_db_debug_outcome(false, Duration::from_millis(1)),
+            Some("error")
+        );
+    }
+}

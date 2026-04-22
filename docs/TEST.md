@@ -157,6 +157,10 @@ per-launch diagnostics trail.
    the log captures startup metadata plus structured action/DB diagnostics for
    the current reproduced run only; earlier sessions still require a fresh repro
    with `--log` enabled.
+6. Extra-verbose hot-path traces are separate:
+   default `--log` keeps routine loop-cycle and similar hot-path chatter out of
+   the file; only enable `SEMPAL_HOTPATH_TELEMETRY=1` when you deliberately need
+   developer-level loop/hot-path tracing during a focused repro.
 
 ### Benchmarks and perf checks
 
