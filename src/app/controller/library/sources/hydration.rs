@@ -320,7 +320,6 @@ impl AppController {
             StatusTone::Info,
         );
         crate::app::controller::library::wavs::apply_pending_similarity_filter_rebuild(self);
-        self.maybe_refresh_source_db_in_background(source_id, from_cache);
     }
 
     pub(crate) fn clear_active_source_for_loading(&mut self) {

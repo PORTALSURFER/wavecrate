@@ -1,4 +1,33 @@
 use super::*;
+use crate::app::controller::ui::loading::ApplyWavEntriesParams;
+use crate::sample_sources::SourceDatabase;
+
+#[test]
+fn cached_wav_apply_does_not_launch_passive_background_scan() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    controller.cache_db(&source).unwrap();
+    write_test_wav(&source.root.join("cached.wav"), &[0.0, 0.1]);
+
+    controller.apply_wav_entries_with_params(ApplyWavEntriesParams {
+        entries: vec![sample_entry(
+            "cached.wav",
+            crate::sample_sources::Rating::NEUTRAL,
+        )],
+        total: 1,
+        page_size: controller.wav_entries.page_size,
+        page_index: 0,
+        from_cache: true,
+        source_id: Some(source.id.clone()),
+        elapsed: None,
+    });
+
+    std::thread::sleep(std::time::Duration::from_millis(100));
+
+    let db = SourceDatabase::open(&source.root).unwrap();
+    assert_eq!(db.count_files().unwrap(), 0);
+}
 
 #[test]
 fn missing_source_is_marked_during_load() {
