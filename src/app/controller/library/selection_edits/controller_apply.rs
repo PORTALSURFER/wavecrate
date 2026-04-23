@@ -129,6 +129,7 @@ impl AppController {
         preserve_selection: bool,
         entry: WavEntry,
     ) -> Result<(), String> {
+        self.trigger_analysis_for_changed_entry(&session.target.source, &entry, false);
         self.update_cached_entry(&session.target.source, &session.target.relative_path, entry);
         self.clear_loaded_waveform_after_disk_edit();
         self.refresh_waveform_for_sample(&session.target.source, &session.target.relative_path);

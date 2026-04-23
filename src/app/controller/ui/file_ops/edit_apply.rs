@@ -18,6 +18,7 @@ impl AppController {
                     return;
                 };
                 if let Some(entry) = result.entry {
+                    self.trigger_analysis_for_changed_entry(&source, &entry, false);
                     self.update_cached_entry(&source, &result.relative_path, entry);
                 }
                 self.clear_loaded_waveform_after_disk_edit();
@@ -80,6 +81,7 @@ impl AppController {
                     return;
                 };
                 if let Some(entry) = result.entry {
+                    self.trigger_analysis_for_changed_entry(&source, &entry, false);
                     self.update_cached_entry(&source, &result.relative_path, entry);
                 }
                 self.refresh_waveform_for_sample(&source, &result.relative_path);

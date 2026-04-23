@@ -268,6 +268,7 @@ impl AppController {
             last_played_at,
             user_tag: None,
         };
+        self.trigger_analysis_for_changed_entry(&state.source, &entry, false);
         self.update_cached_entry(&state.source, &state.relative_path, entry);
         self.refresh_waveform_for_sample(&state.source, &state.relative_path);
         self.push_undo_entry(self.selection_edit_undo_entry(

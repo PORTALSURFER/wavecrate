@@ -2,6 +2,8 @@ use super::super::super::test_support::{
     load_waveform_selection, prepare_with_source_and_wav_entries, sample_entry, write_test_wav,
 };
 use crate::app::controller::library::selection_edits::SelectionEditRequest;
+use crate::app::controller::jobs::JobMessage;
+use crate::app::controller::library::analysis_jobs::AnalysisJobMessage;
 use crate::app::state::{DestructiveSelectionEdit, WaveformView};
 use crate::app_core::state::StatusTone;
 use crate::selection::SelectionRange;
@@ -22,6 +24,25 @@ fn pump_background_jobs_until(
         std::thread::sleep(Duration::from_millis(10));
     }
     panic!("timed out waiting for background job condition");
+}
+
+fn wait_for_analysis_enqueue_finished(
+    controller: &mut crate::app::controller::AppController,
+) -> AnalysisJobMessage {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while Instant::now() < deadline {
+        match controller.runtime.jobs.try_recv_message() {
+            Ok(JobMessage::Analysis(message @ AnalysisJobMessage::EnqueueFinished { .. })) => {
+                return message
+            }
+            Ok(_) => {}
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Err(err) => panic!("unexpected receive error: {err:?}"),
+        }
+    }
+    panic!("timed out waiting for analysis enqueue message");
 }
 
 #[test]
@@ -133,6 +154,34 @@ fn trimming_selection_removes_span() {
     assert!(controller.ui.waveform.selection.is_none());
     let entry = controller.wav_entry(0).unwrap();
     assert!(entry.file_size > 0);
+}
+
+#[test]
+fn cropping_selection_enqueues_reanalysis_without_overwriting_status() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "edit.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    load_waveform_selection(
+        &mut controller,
+        &source,
+        "edit.wav",
+        &[0.1, 0.2, 0.3, 0.4],
+        SelectionRange::new(0.25, 0.75),
+    );
+
+    controller.crop_waveform_selection().unwrap();
+
+    match wait_for_analysis_enqueue_finished(&mut controller) {
+        AnalysisJobMessage::EnqueueFinished {
+            inserted, announce, ..
+        } => {
+            assert!(inserted >= 1);
+            assert!(!announce);
+        }
+        other => panic!("unexpected analysis message: {other:?}"),
+    }
+    assert_eq!(controller.ui.status.text, "Cropped selection edit.wav");
 }
 
 #[test]
@@ -342,4 +391,31 @@ fn clean_exact_duplicate_beats_overwrites_file_and_clears_cleanup_batch() {
             .text
             .contains("Removed 1 duplicate window(s)")
     );
+}
+
+#[test]
+fn align_waveform_start_enqueues_reanalysis_for_overwrite_in_place() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "align.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    let wav_path = source.root.join("align.wav");
+    write_test_wav(&wav_path, &[1.0, 2.0, 3.0, 4.0]);
+    controller
+        .load_waveform_for_selection(&source, Path::new("align.wav"))
+        .unwrap();
+    controller.set_waveform_cursor_from_hover(0.5);
+
+    controller.align_waveform_start_to_last_marker().unwrap();
+
+    match wait_for_analysis_enqueue_finished(&mut controller) {
+        AnalysisJobMessage::EnqueueFinished {
+            inserted, announce, ..
+        } => {
+            assert!(inserted >= 1);
+            assert!(!announce);
+        }
+        other => panic!("unexpected analysis message: {other:?}"),
+    }
+    assert_eq!(controller.ui.status.text, "Slid sample align.wav");
 }

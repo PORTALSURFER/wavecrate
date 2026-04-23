@@ -144,6 +144,20 @@ impl AppController {
         });
     }
 
+    /// Enqueue analysis for one overwritten sample using the shared content-change trigger.
+    pub(crate) fn trigger_analysis_for_changed_entry(
+        &mut self,
+        source: &SampleSource,
+        entry: &WavEntry,
+        announce: bool,
+    ) {
+        self.trigger_analysis_for_content_change(
+            source,
+            vec![ChangedSampleInput::from_entry(entry)],
+            announce,
+        );
+    }
+
     /// Queue analysis jobs to backfill missing features for the selected source.
     pub fn backfill_missing_features_for_selected_source(&mut self) {
         let Some(source) = self.current_source() else {

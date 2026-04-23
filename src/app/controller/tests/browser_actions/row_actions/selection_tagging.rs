@@ -1,4 +1,14 @@
 use super::*;
+use crate::app::controller::jobs::JobMessage;
+
+fn assert_no_analysis_message(controller: &mut crate::app::controller::AppController) {
+    match controller.runtime.jobs.try_recv_message() {
+        Ok(JobMessage::Analysis(message)) => panic!("unexpected analysis message: {message:?}"),
+        Ok(_) => {}
+        Err(std::sync::mpsc::TryRecvError::Empty) => {}
+        Err(err) => panic!("unexpected receive error: {err:?}"),
+    }
+}
 
 #[test]
 fn hotkey_tagging_applies_to_all_selected_rows() {
@@ -74,6 +84,20 @@ fn tag_actions_apply_to_all_selected_rows() {
 
     assert_eq!(controller.wav_entry(0).unwrap().tag, Rating::KEEP_1);
     assert_eq!(controller.wav_entry(1).unwrap().tag, Rating::KEEP_1);
+}
+
+#[test]
+fn metadata_only_tagging_does_not_enqueue_analysis() {
+    let (mut controller, _source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "one.wav",
+        Rating::NEUTRAL,
+    )]);
+
+    controller.focus_browser_row(0);
+    controller.tag_selected_left();
+
+    assert_eq!(controller.wav_entry(0).unwrap().tag, Rating::TRASH_3);
+    assert_no_analysis_message(&mut controller);
 }
 
 #[test]
