@@ -395,6 +395,9 @@ fn persist_sample_rename_once(
             .map_err(|err| format!("Failed to copy playback age: {err}"))?;
     }
     batch
+        .remap_analysis_sample_identity(old_relative, new_relative)
+        .map_err(|err| format!("Failed to preserve analysis artifacts: {err}"))?;
+    batch
         .commit()
         .map_err(|err| format!("Failed to save rename: {err}"))?;
     Ok(WavEntry {

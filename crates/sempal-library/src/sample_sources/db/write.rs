@@ -18,8 +18,8 @@ mod upsert;
 mod tests;
 
 use mutation::{
-    delete_path_statement, update_flag_statement, update_path_i64_statement,
-    update_path_null_statement, update_path_text_statement,
+    delete_path_statement, remap_analysis_sample_identity_statement, update_flag_statement,
+    update_path_i64_statement, update_path_null_statement, update_path_text_statement,
 };
 use upsert::{ContentHashPolicy, TagPolicy, WavFileWriteSpec, execute_wav_upsert};
 
@@ -393,6 +393,15 @@ impl<'conn> SourceWriteBatch<'conn> {
     pub fn remove_file(&mut self, relative_path: &Path) -> Result<(), SourceDbError> {
         self.paths_revision_dirty = true;
         delete_path_statement(&self.tx, relative_path)
+    }
+
+    /// Remap path-derived analysis rows after a rename-only sample identity change.
+    pub fn remap_analysis_sample_identity(
+        &mut self,
+        old_relative_path: &Path,
+        new_relative_path: &Path,
+    ) -> Result<(), SourceDbError> {
+        remap_analysis_sample_identity_statement(&self.tx, old_relative_path, new_relative_path)
     }
 
     /// Commit all batched operations atomically.

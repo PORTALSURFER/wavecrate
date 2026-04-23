@@ -144,5 +144,9 @@ fn apply_deep_rename(
             pending_entry.user_tag.as_deref(),
         )?;
     }
+    batch.remap_analysis_sample_identity(
+        &pending_entry.relative_path,
+        &present_entry.relative_path,
+    )?;
     Ok(())
 }

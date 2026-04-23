@@ -15,6 +15,7 @@ fn scan_detects_rename_and_preserves_tag() {
         .unwrap();
     db.set_user_tag(Path::new("one.wav"), Some("Vintage FX"))
         .unwrap();
+    insert_analysis_artifacts(dir.path(), "source::one.wav", "one.wav");
 
     std::fs::rename(&first_path, &second_path).unwrap();
     let stats = scan_once(&db).unwrap();
@@ -31,6 +32,18 @@ fn scan_detects_rename_and_preserves_tag() {
     assert_eq!(rows[0].sound_type, Some(SampleSoundType::Kick));
     assert_eq!(rows[0].user_tag.as_deref(), Some("Vintage FX"));
     assert!(!rows[0].missing);
+    assert_eq!(
+        sample_id_count(dir.path(), "features", "source::one.wav"),
+        0
+    );
+    assert_eq!(
+        sample_id_count(dir.path(), "features", "source::two.wav"),
+        1
+    );
+    assert_eq!(
+        analysis_job_relative_path(dir.path(), "source::two.wav"),
+        "two.wav"
+    );
 }
 
 #[test]
@@ -176,4 +189,54 @@ fn quick_scan_avoids_ambiguous_large_rename() {
     assert!(pending
         .iter()
         .any(|entry| entry.relative_path == Path::new("one.wav") && entry.tag == Rating::KEEP_1));
+}
+
+fn insert_analysis_artifacts(root: &Path, sample_id: &str, relative_path: &str) {
+    let conn = SourceDatabase::open_connection(root).unwrap();
+    conn.execute(
+        "INSERT INTO samples (
+             sample_id, content_hash, size, mtime_ns, duration_seconds, sr_used, analysis_version
+         ) VALUES (?1, 'hash-a', 1, 1, 1.0, 48000, 'analysis_v1_test')",
+        [sample_id],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO features (sample_id, feat_version, vec_blob, light_dsp_blob, rms, computed_at)
+         VALUES (?1, 1, x'00', x'00', 0.0, 1)",
+        [sample_id],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO embeddings (sample_id, model_id, dim, dtype, l2_normed, vec, created_at)
+         VALUES (?1, 'model', 1, 'f32', 1, x'00', 1)",
+        [sample_id],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO analysis_jobs (
+             sample_id, source_id, relative_path, job_type, content_hash, status, attempts, created_at
+         ) VALUES (?1, 'source', ?2, 'analyze_sample', 'hash-a', 'done', 0, 1)",
+        [sample_id, relative_path],
+    )
+    .unwrap();
+}
+
+fn sample_id_count(root: &Path, table: &str, sample_id: &str) -> i64 {
+    let conn = SourceDatabase::open_connection(root).unwrap();
+    conn.query_row(
+        &format!("SELECT COUNT(*) FROM {table} WHERE sample_id = ?1"),
+        [sample_id],
+        |row| row.get(0),
+    )
+    .unwrap()
+}
+
+fn analysis_job_relative_path(root: &Path, sample_id: &str) -> String {
+    let conn = SourceDatabase::open_connection(root).unwrap();
+    conn.query_row(
+        "SELECT relative_path FROM analysis_jobs WHERE sample_id = ?1",
+        [sample_id],
+        |row| row.get(0),
+    )
+    .unwrap()
 }

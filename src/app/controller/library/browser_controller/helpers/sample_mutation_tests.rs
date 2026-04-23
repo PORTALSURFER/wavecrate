@@ -262,6 +262,62 @@ fn sample_auto_rename_persists_inferred_sound_type_without_controller_db_write()
     );
 }
 
+#[test]
+fn repeated_sample_auto_rename_preserves_analysis_artifacts() {
+    let (_temp, source) = setup_fixture(&["alpha.wav"]);
+    let first = run_sample_auto_rename_job(
+        source.clone(),
+        vec![rename_request("alpha.wav", "alpha_renamed.wav")],
+        Arc::new(AtomicBool::new(false)),
+    );
+    assert!(first.errors.is_empty());
+
+    let second = run_sample_auto_rename_job(
+        source.clone(),
+        vec![rename_request("alpha_renamed.wav", "alpha_final.wav")],
+        Arc::new(AtomicBool::new(false)),
+    );
+    assert!(second.errors.is_empty());
+
+    let conn = rusqlite::Connection::open(source.root.join(DB_FILE_NAME)).expect("open sqlite");
+    let old_sample_id = format!("{}::alpha.wav", source.id);
+    let first_sample_id = format!("{}::alpha_renamed.wav", source.id);
+    let final_sample_id = format!("{}::alpha_final.wav", source.id);
+    for table in ["samples", "features", "embeddings", "analysis_jobs"] {
+        assert_eq!(
+            sample_id_count(&conn, table, &old_sample_id),
+            0,
+            "{table} retained old identity"
+        );
+        assert_eq!(
+            sample_id_count(&conn, table, &first_sample_id),
+            0,
+            "{table} retained intermediate identity"
+        );
+        assert_eq!(
+            sample_id_count(&conn, table, &final_sample_id),
+            1,
+            "{table} did not remap to final identity"
+        );
+    }
+    let pending_jobs: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM analysis_jobs WHERE status = 'pending'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(pending_jobs, 0);
+    let job_relative: String = conn
+        .query_row(
+            "SELECT relative_path FROM analysis_jobs WHERE sample_id = ?1",
+            [&final_sample_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(job_relative, "alpha_final.wav");
+}
+
 fn setup_fixture(names: &[&str]) -> (TempDir, SampleSource) {
     let temp = tempdir().expect("create temp dir");
     let source = SampleSource::new(temp.path().join("source"));
@@ -283,8 +339,53 @@ fn setup_fixture(names: &[&str]) -> (TempDir, SampleSource) {
             .expect("set user tag");
         db.set_last_played_at(relative, 42)
             .expect("set playback age");
+        insert_analysis_artifacts(&source, relative);
     }
     (temp, source)
+}
+
+fn insert_analysis_artifacts(source: &SampleSource, relative: &Path) {
+    let conn = rusqlite::Connection::open(source.root.join(DB_FILE_NAME)).expect("open sqlite");
+    let sample_id = format!(
+        "{}::{}",
+        source.id,
+        relative.to_string_lossy().replace('\\', "/")
+    );
+    conn.execute(
+        "INSERT INTO samples (
+             sample_id, content_hash, size, mtime_ns, duration_seconds, sr_used, analysis_version
+         ) VALUES (?1, 'hash-a', 1, 1, 1.0, 48000, 'analysis_v1_test')",
+        [&sample_id],
+    )
+    .expect("insert sample analysis row");
+    conn.execute(
+        "INSERT INTO features (sample_id, feat_version, vec_blob, light_dsp_blob, rms, computed_at)
+         VALUES (?1, 1, x'00', x'00', 0.0, 1)",
+        [&sample_id],
+    )
+    .expect("insert features");
+    conn.execute(
+        "INSERT INTO embeddings (sample_id, model_id, dim, dtype, l2_normed, vec, created_at)
+         VALUES (?1, 'model', 1, 'f32', 1, x'00', 1)",
+        [&sample_id],
+    )
+    .expect("insert embeddings");
+    conn.execute(
+        "INSERT INTO analysis_jobs (
+             sample_id, source_id, relative_path, job_type, content_hash, status, attempts, created_at
+         ) VALUES (?1, ?2, ?3, 'analyze_sample', 'hash-a', 'done', 0, 1)",
+        rusqlite::params![sample_id, source.id.as_str(), relative.to_string_lossy()],
+    )
+    .expect("insert analysis job");
+}
+
+fn sample_id_count(conn: &rusqlite::Connection, table: &str, sample_id: &str) -> i64 {
+    conn.query_row(
+        &format!("SELECT COUNT(*) FROM {table} WHERE sample_id = ?1"),
+        [sample_id],
+        |row| row.get(0),
+    )
+    .unwrap()
 }
 
 fn rename_request(old_relative: &str, new_relative: &str) -> SampleAutoRenameRequest {

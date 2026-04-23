@@ -162,6 +162,7 @@ fn apply_rename(
     if entry.user_tag.is_some() {
         batch.set_user_tag(new_path, entry.user_tag.as_deref())?;
     }
+    batch.remap_analysis_sample_identity(&entry.relative_path, new_path)?;
     Ok(())
 }
 
@@ -189,6 +190,7 @@ fn apply_rename_without_hash(
     if entry.user_tag.is_some() {
         batch.set_user_tag(new_path, entry.user_tag.as_deref())?;
     }
+    batch.remap_analysis_sample_identity(&entry.relative_path, new_path)?;
     Ok(())
 }
 
