@@ -89,12 +89,13 @@ impl GuiFixtureBridge {
     }
 
     /// Flush one bridge shutdown hook exactly once before fixture teardown.
-    fn emit_runtime_exit(&mut self) {
+    fn emit_runtime_exit(&mut self) -> Option<crate::gui_runtime::NativeShutdownTimingArtifact> {
         if self.shutdown_emitted {
-            return;
+            return None;
         }
-        self.bridge.on_runtime_exit();
+        let timing = self.bridge.on_runtime_exit();
         self.shutdown_emitted = true;
+        timing
     }
 }
 
@@ -150,8 +151,8 @@ impl NativeAppBridge for GuiFixtureBridge {
         self.bridge.observe_frame_result(result);
     }
 
-    fn on_runtime_exit(&mut self) {
-        self.emit_runtime_exit();
+    fn on_runtime_exit(&mut self) -> Option<crate::gui_runtime::NativeShutdownTimingArtifact> {
+        self.emit_runtime_exit()
     }
 }
 

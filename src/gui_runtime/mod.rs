@@ -23,7 +23,8 @@ use crate::app_core::actions::{NativeAppModel, NativeGuiAutomationSnapshot};
 use tracing::{error, info};
 
 pub use radiant::compat::sempal_shell::{
-    NativeRunReport, NativeRuntimeArtifacts, NativeStartupTimingArtifact,
+    NativeRunReport, NativeRuntimeArtifacts, NativeShutdownTimingArtifact,
+    NativeStartupTimingArtifact,
 };
 
 /// RGBA icon payload used by native runtime hosts.

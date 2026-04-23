@@ -58,7 +58,12 @@ use crate::{
     audio::AudioPlayer,
     waveform::WaveformRenderer,
 };
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{
+    cell::RefCell,
+    rc::Rc,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 use tracing::{error, info};
 
 pub use self::projection_cache::{
@@ -250,19 +255,45 @@ impl NativeAppBridge for SempalNativeBridge {
     }
 
     /// Flush pending work and persist config during runtime shutdown.
-    fn on_runtime_exit(&mut self) {
+    fn on_runtime_exit(&mut self) -> Option<crate::gui_runtime::NativeShutdownTimingArtifact> {
         if self.runtime_exit_emitted {
-            return;
+            return None;
         }
         self.runtime_exit_emitted = true;
+        let runtime_exit_started = Instant::now();
+        let flush_started = Instant::now();
         self.flush_pending_input_actions();
-        if let Err(err) = self.controller.persist_native_exit_config() {
+        let bridge_exit_flush_ms = ms_duration(flush_started.elapsed());
+        let config_started = Instant::now();
+        let config_result = self.controller.persist_native_exit_config();
+        let config_persist_ms = ms_duration(config_started.elapsed());
+        let failure_reason = if let Err(err) = config_result {
             error!(err = %err, "Failed to persist config on native exit");
+            Some(String::from("config_persist_failed"))
         } else {
             info!("Persisted config on native exit");
-        }
-        self.controller.shutdown();
+            None
+        };
+        let controller_timing = self.controller.shutdown_with_timing();
+        Some(crate::gui_runtime::NativeShutdownTimingArtifact {
+            status: if failure_reason.is_some() {
+                String::from("error")
+            } else {
+                String::from("complete")
+            },
+            failure_reason,
+            bridge_exit_flush_ms: Some(bridge_exit_flush_ms),
+            config_persist_ms: Some(config_persist_ms),
+            controller_jobs_shutdown_ms: Some(ms_duration(controller_timing.jobs_shutdown)),
+            analysis_shutdown_ms: Some(ms_duration(controller_timing.analysis_shutdown)),
+            controller_shutdown_ms: Some(ms_duration(controller_timing.total)),
+            runtime_exit_total_ms: Some(ms_duration(runtime_exit_started.elapsed())),
+        })
     }
+}
+
+fn ms_duration(duration: Duration) -> f64 {
+    duration.as_secs_f64() * 1000.0
 }
 
 /// Construct a native runtime bridge for the current `sempal` controller stack.

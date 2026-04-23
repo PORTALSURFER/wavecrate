@@ -1,7 +1,7 @@
 //! Run contract and startup milestone recording for machine-readable run artifacts.
 
 use sempal::app_dirs;
-use sempal::gui_runtime::NativeStartupTimingArtifact;
+use sempal::gui_runtime::{NativeShutdownTimingArtifact, NativeStartupTimingArtifact};
 use serde::Serialize;
 use std::{
     fmt,
@@ -29,6 +29,8 @@ pub(crate) const MILESTONE_STARTUP_BEGIN: &str = "startup_begin";
 pub(crate) const MILESTONE_STARTUP_FAILED: &str = "startup_failed";
 /// Startup milestone emitted when detailed native startup timing is exported.
 pub(crate) const MILESTONE_NATIVE_STARTUP_TIMING: &str = "native_startup_timing";
+/// Shutdown milestone emitted when detailed native shutdown timing is exported.
+pub(crate) const MILESTONE_NATIVE_SHUTDOWN_TIMING: &str = "native_shutdown_timing";
 const BUILD_GIT_SHA: Option<&str> = option_env!("SEMPAL_BUILD_GIT_SHA");
 
 #[derive(Serialize)]
@@ -47,6 +49,8 @@ struct RunContractEvent {
     artifact_path: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     startup_timing: Option<RunContractStartupTiming>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    shutdown_timing: Option<RunContractShutdownTiming>,
 }
 
 #[derive(Clone, Serialize)]
@@ -77,6 +81,8 @@ struct RunContractManifest {
     milestones: Vec<RunContractMilestone>,
     #[serde(skip_serializing_if = "Option::is_none")]
     startup_timing: Option<RunContractStartupTiming>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    shutdown_timing: Option<RunContractShutdownTiming>,
 }
 
 #[derive(Clone, Serialize)]
@@ -98,6 +104,18 @@ struct RunContractStartupTiming {
     deferred_model_refresh_total_ms: Option<f64>,
 }
 
+#[derive(Clone, Serialize)]
+struct RunContractShutdownTiming {
+    status: String,
+    failure_reason: Option<String>,
+    bridge_exit_flush_ms: Option<f64>,
+    config_persist_ms: Option<f64>,
+    controller_jobs_shutdown_ms: Option<f64>,
+    analysis_shutdown_ms: Option<f64>,
+    controller_shutdown_ms: Option<f64>,
+    runtime_exit_total_ms: Option<f64>,
+}
+
 /// Writable manifest and event trace writer for a single application run.
 pub(crate) struct RunContract {
     run_id: String,
@@ -115,6 +133,7 @@ pub(crate) struct RunContract {
     manifest_path: PathBuf,
     milestones: Vec<RunContractMilestone>,
     startup_timing: Option<RunContractStartupTiming>,
+    shutdown_timing: Option<RunContractShutdownTiming>,
 }
 
 impl From<&NativeStartupTimingArtifact> for RunContractStartupTiming {
@@ -135,6 +154,21 @@ impl From<&NativeStartupTimingArtifact> for RunContractStartupTiming {
             first_present_ms: value.first_present_ms,
             deferred_model_refresh_ms: value.deferred_model_refresh_ms,
             deferred_model_refresh_total_ms: value.deferred_model_refresh_total_ms,
+        }
+    }
+}
+
+impl From<&NativeShutdownTimingArtifact> for RunContractShutdownTiming {
+    fn from(value: &NativeShutdownTimingArtifact) -> Self {
+        Self {
+            status: value.status.clone(),
+            failure_reason: value.failure_reason.clone(),
+            bridge_exit_flush_ms: value.bridge_exit_flush_ms,
+            config_persist_ms: value.config_persist_ms,
+            controller_jobs_shutdown_ms: value.controller_jobs_shutdown_ms,
+            analysis_shutdown_ms: value.analysis_shutdown_ms,
+            controller_shutdown_ms: value.controller_shutdown_ms,
+            runtime_exit_total_ms: value.runtime_exit_total_ms,
         }
     }
 }
@@ -171,6 +205,7 @@ impl RunContract {
             manifest_path,
             milestones: Vec::new(),
             startup_timing: None,
+            shutdown_timing: None,
             started_utc: UtcTimestamp::now().to_string(),
             process_id: process::id(),
             executable_path: executable_path.to_string(),
@@ -183,7 +218,15 @@ impl RunContract {
     /// Records a milestone event into the NDJSON artifact.
     pub(crate) fn record(&mut self, startup_phase: &str, milestone: &str, exit_status: &str) {
         let timestamp = UtcTimestamp::now().to_string();
-        self.write_event(startup_phase, milestone, exit_status, timestamp, None, true);
+        self.write_event(
+            startup_phase,
+            milestone,
+            exit_status,
+            timestamp,
+            None,
+            None,
+            true,
+        );
     }
 
     /// Records the structured native startup timing payload into the NDJSON artifact.
@@ -201,6 +244,27 @@ impl RunContract {
             exit_status,
             timestamp,
             Some(startup_timing),
+            None,
+            false,
+        );
+    }
+
+    /// Records the structured native shutdown timing payload into the NDJSON artifact.
+    pub(crate) fn record_shutdown_timing(
+        &mut self,
+        shutdown_timing: &NativeShutdownTimingArtifact,
+        exit_status: &str,
+    ) {
+        let timestamp = UtcTimestamp::now().to_string();
+        let shutdown_timing = RunContractShutdownTiming::from(shutdown_timing);
+        self.shutdown_timing = Some(shutdown_timing.clone());
+        self.write_event(
+            RUN_PHASE_SHUTDOWN,
+            MILESTONE_NATIVE_SHUTDOWN_TIMING,
+            exit_status,
+            timestamp,
+            None,
+            Some(shutdown_timing),
             false,
         );
     }
@@ -212,6 +276,7 @@ impl RunContract {
         exit_status: &str,
         timestamp: String,
         startup_timing: Option<RunContractStartupTiming>,
+        shutdown_timing: Option<RunContractShutdownTiming>,
         track_milestone: bool,
     ) {
         let event = RunContractEvent {
@@ -228,6 +293,7 @@ impl RunContract {
             manifest_path: self.manifest_path.to_string_lossy().into_owned(),
             artifact_path: self.artifact_path.to_string_lossy().into_owned(),
             startup_timing,
+            shutdown_timing,
         };
 
         self.append_event(&event);
@@ -261,6 +327,7 @@ impl RunContract {
             manifest_path: self.manifest_path.to_string_lossy().into_owned(),
             milestones: self.milestones.clone(),
             startup_timing: self.startup_timing.clone(),
+            shutdown_timing: self.shutdown_timing.clone(),
         };
 
         let Ok(serialized) = serde_json::to_string_pretty(&manifest) else {
@@ -400,7 +467,7 @@ pub(crate) fn start_contract(
 mod tests {
     use super::RunContract;
     use sempal::app_dirs::{ConfigBaseGuard, PersistenceProfileGuard};
-    use sempal::gui_runtime::NativeStartupTimingArtifact;
+    use sempal::gui_runtime::{NativeShutdownTimingArtifact, NativeStartupTimingArtifact};
     use serde_json::Value;
     use std::fs;
     use tempfile::tempdir;
@@ -519,5 +586,78 @@ mod tests {
             "startup_exited_before_first_present"
         );
         assert!(manifest["startup_timing"]["first_present_ms"].is_null());
+    }
+
+    #[test]
+    fn successful_shutdown_timing_is_written_into_contract_artifacts() {
+        let base = tempdir().expect("create temp config dir");
+        let _base_guard = ConfigBaseGuard::set(base.path().to_path_buf());
+        let _profile_guard = PersistenceProfileGuard::live();
+        let mut contract =
+            RunContract::start("./target/app", "/tmp", 0, true).expect("contract should start");
+        contract.record_shutdown_timing(
+            &NativeShutdownTimingArtifact {
+                status: String::from("complete"),
+                failure_reason: None,
+                bridge_exit_flush_ms: Some(1.0),
+                config_persist_ms: Some(2.0),
+                controller_jobs_shutdown_ms: Some(3.0),
+                analysis_shutdown_ms: Some(4.0),
+                controller_shutdown_ms: Some(7.0),
+                runtime_exit_total_ms: Some(8.0),
+            },
+            "success",
+        );
+        let artifact_path = contract.artifact_path.clone();
+        let manifest_path = contract.manifest_path.clone();
+        contract.finish("success");
+
+        let manifest: Value =
+            serde_json::from_str(&fs::read_to_string(manifest_path).expect("read manifest"))
+                .expect("parse manifest");
+        assert_eq!(manifest["shutdown_timing"]["status"], "complete");
+        assert_eq!(manifest["shutdown_timing"]["controller_shutdown_ms"], 7.0);
+
+        let events = fs::read_to_string(artifact_path).expect("read artifact");
+        let timing_event = events
+            .lines()
+            .map(|line| serde_json::from_str::<Value>(line).expect("parse event"))
+            .find(|event| event["milestone"] == super::MILESTONE_NATIVE_SHUTDOWN_TIMING)
+            .expect("shutdown timing event");
+        assert_eq!(timing_event["shutdown_timing"]["analysis_shutdown_ms"], 4.0);
+    }
+
+    #[test]
+    fn degraded_shutdown_timing_preserves_failure_reason_and_skipped_phases() {
+        let base = tempdir().expect("create temp config dir");
+        let _base_guard = ConfigBaseGuard::set(base.path().to_path_buf());
+        let _profile_guard = PersistenceProfileGuard::live();
+        let mut contract =
+            RunContract::start("./target/app", "/tmp", 0, true).expect("contract should start");
+        contract.record_shutdown_timing(
+            &NativeShutdownTimingArtifact {
+                status: String::from("error"),
+                failure_reason: Some(String::from("config_persist_failed")),
+                bridge_exit_flush_ms: Some(1.0),
+                config_persist_ms: Some(2.0),
+                controller_jobs_shutdown_ms: None,
+                analysis_shutdown_ms: None,
+                controller_shutdown_ms: None,
+                runtime_exit_total_ms: Some(3.0),
+            },
+            "error",
+        );
+        let manifest_path = contract.manifest_path.clone();
+        contract.finish("error");
+
+        let manifest: Value =
+            serde_json::from_str(&fs::read_to_string(manifest_path).expect("read manifest"))
+                .expect("parse manifest");
+        assert_eq!(manifest["shutdown_timing"]["status"], "error");
+        assert_eq!(
+            manifest["shutdown_timing"]["failure_reason"],
+            "config_persist_failed"
+        );
+        assert!(manifest["shutdown_timing"]["analysis_shutdown_ms"].is_null());
     }
 }

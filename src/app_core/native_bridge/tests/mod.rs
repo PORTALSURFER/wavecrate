@@ -15,6 +15,7 @@ use crate::app_core::state::{
 use crate::waveform::WaveformRenderer;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tempfile::tempdir;
 
 use super::{
     PendingModelPullPreparation, PendingWaveformActions, SempalNativeBridge,
@@ -65,4 +66,26 @@ fn test_bridge(size: u32) -> SempalNativeBridge {
         last_action_handled: None,
         runtime_exit_emitted: false,
     }
+}
+
+#[test]
+fn runtime_exit_returns_structured_shutdown_timing_once() {
+    let base = tempdir().expect("create temp config dir");
+    let _base_guard = crate::app_dirs::ConfigBaseGuard::set(base.path().to_path_buf());
+    let _profile_guard = crate::app_dirs::PersistenceProfileGuard::live();
+    let mut bridge = test_bridge(32);
+
+    let artifact = bridge
+        .on_runtime_exit()
+        .expect("first runtime exit should emit timing");
+
+    assert_eq!(artifact.status, "complete");
+    assert!(artifact.failure_reason.is_none());
+    assert!(artifact.bridge_exit_flush_ms.is_some());
+    assert!(artifact.config_persist_ms.is_some());
+    assert!(artifact.controller_jobs_shutdown_ms.is_some());
+    assert!(artifact.analysis_shutdown_ms.is_some());
+    assert!(artifact.controller_shutdown_ms.is_some());
+    assert!(artifact.runtime_exit_total_ms.is_some());
+    assert!(bridge.on_runtime_exit().is_none());
 }

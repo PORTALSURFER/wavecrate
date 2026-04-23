@@ -2,6 +2,18 @@
 
 use super::*;
 use crate::app::controller::AppController;
+use std::time::{Duration, Instant};
+
+/// Phase timings captured while draining controller-owned shutdown work.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct ControllerShutdownTiming {
+    /// Time spent shutting down non-analysis controller workers.
+    pub(crate) jobs_shutdown: Duration,
+    /// Time spent shutting down analysis workers.
+    pub(crate) analysis_shutdown: Duration,
+    /// Time spent inside the full controller shutdown boundary.
+    pub(crate) total: Duration,
+}
 
 impl ControllerJobs {
     /// Build controller job orchestration from pre-spawned worker channels/handles.
@@ -184,7 +196,22 @@ impl AppController {
 
     /// Shut down background workers owned by the controller.
     pub(crate) fn shutdown(&mut self) {
+        let _ = self.shutdown_with_timing();
+    }
+
+    /// Shut down background workers and return phase timings for run artifacts.
+    pub(crate) fn shutdown_with_timing(&mut self) -> ControllerShutdownTiming {
+        let total_started = Instant::now();
+        let jobs_started = Instant::now();
         self.runtime.jobs.shutdown();
+        let jobs_shutdown = jobs_started.elapsed();
+        let analysis_started = Instant::now();
         self.runtime.analysis.shutdown();
+        let analysis_shutdown = analysis_started.elapsed();
+        ControllerShutdownTiming {
+            jobs_shutdown,
+            analysis_shutdown,
+            total: total_started.elapsed(),
+        }
     }
 }

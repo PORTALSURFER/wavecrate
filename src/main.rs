@@ -238,6 +238,9 @@ fn run_application(
         if let Some(startup_timing) = report.artifacts.startup_timing.as_ref() {
             contract.record_startup_timing(startup_timing, &exit_status);
         }
+        if let Some(shutdown_timing) = report.artifacts.shutdown_timing.as_ref() {
+            contract.record_shutdown_timing(shutdown_timing, &exit_status);
+        }
         contract.record(RUN_PHASE_SHUTDOWN, MILESTONE_RUNTIME_EXIT, &exit_status);
         contract.finish(&exit_status);
     }
