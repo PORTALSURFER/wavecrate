@@ -2,8 +2,9 @@
 
 use super::*;
 use crate::app::controller::jobs::{
-    ConfigPersistJob, ConfigPersistResult, MetadataMutationResult, SourceDbMaintenanceResult,
-    UmapBuildResult, UmapClusterBuildResult, WaveformRenderResult, WaveformTransientResult,
+    ConfigPersistJob, ConfigPersistResult, MetadataMutationResult, SourceDbMaintenanceRefresh,
+    SourceDbMaintenanceResult, UmapBuildResult, UmapClusterBuildResult, WaveformRenderResult,
+    WaveformTransientResult,
 };
 use crate::app::controller::state::runtime::MetadataRollback;
 use tracing::{info, warn};
@@ -226,10 +227,17 @@ impl AppController {
     ) {
         self.runtime.jobs.clear_source_db_maintenance();
         let mut failed = 0usize;
-        let mut sources_to_refresh = Vec::new();
+        let mut sources_to_reconcile = Vec::new();
+        let mut sources_to_reload = Vec::new();
         for outcome in message.outcomes {
-            if outcome.refresh_required {
-                sources_to_refresh.push(outcome.source_id.clone());
+            match outcome.refresh {
+                SourceDbMaintenanceRefresh::None => {}
+                SourceDbMaintenanceRefresh::FileOpReconcile => {
+                    sources_to_reconcile.push(outcome.source_id.clone());
+                }
+                SourceDbMaintenanceRefresh::FullSourceReload => {
+                    sources_to_reload.push(outcome.source_id.clone());
+                }
             }
             if let Some(err) = outcome.error {
                 failed = failed.saturating_add(1);
@@ -241,7 +249,10 @@ impl AppController {
                 );
             }
         }
-        for source_id in sources_to_refresh {
+        for source_id in sources_to_reconcile {
+            self.apply_source_db_maintenance_file_op_reconcile(&source_id);
+        }
+        for source_id in sources_to_reload {
             if let Some(source) = self
                 .library
                 .sources
@@ -258,6 +269,33 @@ impl AppController {
                 format!("Deferred source DB maintenance failed for {failed} source{suffix}"),
                 StatusTone::Warning,
             );
+        }
+    }
+
+    fn apply_source_db_maintenance_file_op_reconcile(&mut self, source_id: &SourceId) {
+        self.rebuild_missing_lookup_for_source(source_id);
+        if self.selection_state.ctx.selected_source.as_ref() != Some(source_id) {
+            return;
+        }
+        let source = self
+            .library
+            .sources
+            .iter()
+            .find(|source| &source.id == source_id)
+            .cloned();
+        let source_revision = source
+            .as_ref()
+            .and_then(|source| self.database_for(source).ok())
+            .and_then(|db| db.get_revision().ok());
+        self.ui_cache
+            .browser
+            .pipeline
+            .sync_source_revision(source_revision);
+        self.mark_browser_search_projection_revision_dirty();
+        if self.should_dispatch_browser_search_async() {
+            self.dispatch_search_job();
+        } else {
+            self.rebuild_browser_lists();
         }
     }
 

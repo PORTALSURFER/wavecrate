@@ -2,7 +2,7 @@ use super::retry_policy::{
     DEFERRED_MAINTENANCE_MAX_ATTEMPTS, DEFERRED_MAINTENANCE_RETRY_DELAY,
     DEFERRED_MAINTENANCE_SCHEMA_TOKEN,
 };
-use super::{SourceDbMaintenanceJob, SourceDbMaintenanceOutcome};
+use super::{SourceDbMaintenanceJob, SourceDbMaintenanceOutcome, SourceDbMaintenanceRefresh};
 use crate::app::controller::library::analysis_jobs;
 use crate::sample_sources::db::file_ops_journal;
 use crate::sample_sources::scanner::{scan_once, schedule_deep_hash_scan};
@@ -23,7 +23,7 @@ pub(super) fn run_source_db_maintenance_job(
                 source_root: job.source_root,
                 skipped: false,
                 orphan_rows_removed: 0,
-                refresh_required: false,
+                refresh: SourceDbMaintenanceRefresh::None,
                 error: Some(format!("Open source DB failed: {err}")),
             };
         }
@@ -46,7 +46,7 @@ pub(super) fn run_source_db_maintenance_job(
                 source_root: job.source_root,
                 skipped: false,
                 orphan_rows_removed: 0,
-                refresh_required: false,
+                refresh: SourceDbMaintenanceRefresh::None,
                 error: Some(format!("Deferred file-op recovery failed: {err}")),
             };
         }
@@ -66,7 +66,7 @@ pub(super) fn run_source_db_maintenance_job(
                     source_root: job.source_root,
                     skipped: false,
                     orphan_rows_removed: 0,
-                    refresh_required: reconcile_summary.completed > 0,
+                    refresh: maintenance_refresh(&reconcile_summary, empty_source_rescanned),
                     error: Some(format!("Deferred empty-source scan failed: {err}")),
                 };
             }
@@ -78,7 +78,7 @@ pub(super) fn run_source_db_maintenance_job(
                 source_root: job.source_root,
                 skipped: false,
                 orphan_rows_removed: 0,
-                refresh_required: reconcile_summary.completed > 0,
+                refresh: maintenance_refresh(&reconcile_summary, empty_source_rescanned),
                 error: Some(format!("Read source DB count failed: {err}")),
             };
         }
@@ -91,7 +91,7 @@ pub(super) fn run_source_db_maintenance_job(
                 source_root: job.source_root,
                 skipped: false,
                 orphan_rows_removed: 0,
-                refresh_required: reconcile_summary.completed > 0 || empty_source_rescanned,
+                refresh: maintenance_refresh(&reconcile_summary, empty_source_rescanned),
                 error: Some(format!("Read source DB revision failed: {err}")),
             };
         }
@@ -104,7 +104,7 @@ pub(super) fn run_source_db_maintenance_job(
                 source_root: job.source_root,
                 skipped: false,
                 orphan_rows_removed: 0,
-                refresh_required: reconcile_summary.completed > 0 || empty_source_rescanned,
+                refresh: maintenance_refresh(&reconcile_summary, empty_source_rescanned),
                 error: Some(err),
             };
         }
@@ -116,7 +116,7 @@ pub(super) fn run_source_db_maintenance_job(
             source_root: job.source_root,
             skipped: true,
             orphan_rows_removed: 0,
-            refresh_required: reconcile_summary.completed > 0 || empty_source_rescanned,
+            refresh: maintenance_refresh(&reconcile_summary, empty_source_rescanned),
             error: None,
         };
     }
@@ -130,7 +130,7 @@ pub(super) fn run_source_db_maintenance_job(
                     source_root: job.source_root,
                     skipped: false,
                     orphan_rows_removed,
-                    refresh_required: reconcile_summary.completed > 0 || empty_source_rescanned,
+                    refresh: maintenance_refresh(&reconcile_summary, empty_source_rescanned),
                     error: None,
                 };
             }
@@ -148,9 +148,16 @@ pub(super) fn run_source_db_maintenance_job(
         source_root: job.source_root,
         skipped: false,
         orphan_rows_removed: 0,
-        refresh_required: reconcile_summary.completed > 0 || empty_source_rescanned,
+        refresh: maintenance_refresh(&reconcile_summary, empty_source_rescanned),
         error: last_error,
     }
+}
+
+fn maintenance_refresh(
+    reconcile_summary: &file_ops_journal::FileOpReconcileSummary,
+    empty_source_rescanned: bool,
+) -> SourceDbMaintenanceRefresh {
+    SourceDbMaintenanceRefresh::from_parts(reconcile_summary.completed > 0, empty_source_rescanned)
 }
 
 fn scan_changed_source(stats: &crate::sample_sources::scanner::ScanStats) -> bool {
