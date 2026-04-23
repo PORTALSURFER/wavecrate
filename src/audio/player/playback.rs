@@ -289,4 +289,64 @@ impl AudioPlayer {
         }
         (track_frames, start_frame, end_frame)
     }
+
+    #[cfg(test)]
+    pub(crate) fn loop_cycle_sample_count_for_tests(
+        bytes: std::sync::Arc<[u8]>,
+        start_seconds: f32,
+        end_seconds: f32,
+        offset_seconds: Option<f32>,
+    ) -> Result<(usize, usize, u32, u16), String> {
+        let duration = super::super::mixer::decoder_duration(&bytes)
+            .or_else(|| super::super::mixer::wav_header_duration(&bytes))
+            .ok_or_else(|| "Load a .wav file first".to_string())?;
+        if duration <= 0.0 {
+            return Err("Load a .wav file first".into());
+        }
+
+        let mut source = decoder_from_bytes(bytes)?;
+        let sample_rate = source.sample_rate().max(1);
+        let channels = source.channels().max(1);
+        let (_, start_frame, end_frame) =
+            Self::quantize_span_bounds(start_seconds, end_seconds, duration, sample_rate);
+        let span_frames = end_frame.saturating_sub(start_frame).max(1);
+        let span_samples = span_frames.saturating_mul(channels as u64);
+
+        source
+            .try_seek(duration_for_frames(start_frame, sample_rate))
+            .map_err(map_seek_error)?;
+
+        let mut limited = source.take_samples(span_samples as usize);
+        let mut samples = Vec::with_capacity(span_samples as usize);
+        for _ in 0..span_samples {
+            if let Some(sample) = limited.next() {
+                samples.push(sample);
+            } else {
+                break;
+            }
+        }
+        while samples.len() < span_samples as usize {
+            samples.push(0.0);
+        }
+
+        let offset_frames = offset_seconds
+            .map(|seconds| seconds_to_frames_round(seconds, sample_rate) % span_frames)
+            .unwrap_or(0);
+        let offset_samples = offset_frames.saturating_mul(channels as u64) as usize;
+        let buffer = SamplesBuffer::new(channels, sample_rate, samples);
+        let mut looped: Box<dyn Source<Item = f32>> = if offset_seconds.is_some() {
+            Box::new(buffer.repeat_infinite().skip_samples(offset_samples))
+        } else {
+            Box::new(buffer.repeat_infinite())
+        };
+
+        let mut emitted = 0usize;
+        for _ in 0..span_samples as usize {
+            if looped.next().is_none() {
+                break;
+            }
+            emitted = emitted.saturating_add(1);
+        }
+        Ok((emitted, span_frames as usize, sample_rate, channels))
+    }
 }
