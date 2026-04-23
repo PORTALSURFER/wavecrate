@@ -22,6 +22,10 @@ use crate::app_core::actions::NativeAppBridge;
 use crate::app_core::actions::{NativeAppModel, NativeGuiAutomationSnapshot};
 use tracing::{error, info};
 
+pub use radiant::compat::sempal_shell::{
+    NativeRunReport, NativeRuntimeArtifacts, NativeStartupTimingArtifact,
+};
+
 /// RGBA icon payload used by native runtime hosts.
 #[derive(Clone, Debug)]
 pub struct WindowIconRgba {
@@ -108,6 +112,23 @@ pub fn run_native_vello_app<B: NativeAppBridge>(
     result
 }
 
+/// Run the native Vello backend with a host-provided application bridge and
+/// return the structured runtime artifacts captured during the run.
+pub fn run_native_vello_app_with_artifacts<B: NativeAppBridge>(
+    options: NativeRunOptions,
+    bridge: B,
+) -> NativeRunReport {
+    info!("Launching radiant native Vello runtime");
+    let report =
+        radiant::compat::sempal_shell::run_native_vello_app_with_artifacts(options.into(), bridge);
+    if let Err(err) = &report.result {
+        error!(%err, "radiant native Vello runtime returned error");
+    } else {
+        info!("Radiant native Vello runtime returned successfully");
+    }
+    report
+}
+
 /// Run the native Vello backend with a declarative host bridge.
 ///
 /// This entrypoint is equivalent to [`run_native_vello_app`] and is provided to
@@ -117,17 +138,37 @@ pub fn run_native_vello_app_declarative<B: NativeAppBridge>(
     bridge: B,
 ) -> Result<(), String> {
     info!("Launching radiant native Vello runtime (declarative host)");
-    let result = radiant::compat::sempal_shell::run_native_vello_app(options.into(), bridge)
-        .map_err(|err| {
-            error!(%err, "radiant native Vello runtime returned error");
-            err
-        });
+    let result =
+        radiant::compat::sempal_shell::run_native_vello_app_declarative(options.into(), bridge)
+            .map_err(|err| {
+                error!(%err, "radiant native Vello runtime returned error");
+                err
+            });
 
     if result.is_ok() {
         info!("Radiant native Vello runtime returned successfully");
     }
 
     result
+}
+
+/// Run the native Vello backend with a declarative host bridge and return the
+/// structured runtime artifacts captured during the run.
+pub fn run_native_vello_app_declarative_with_artifacts<B: NativeAppBridge>(
+    options: NativeRunOptions,
+    bridge: B,
+) -> NativeRunReport {
+    info!("Launching radiant native Vello runtime (declarative host)");
+    let report = radiant::compat::sempal_shell::run_native_vello_app_declarative_with_artifacts(
+        options.into(),
+        bridge,
+    );
+    if let Err(err) = &report.result {
+        error!(%err, "radiant native Vello runtime returned error");
+    } else {
+        info!("Radiant native Vello runtime returned successfully");
+    }
+    report
 }
 
 /// Run the native Vello backend preview shell for backend smoke testing.

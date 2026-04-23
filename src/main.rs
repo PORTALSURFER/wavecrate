@@ -9,7 +9,7 @@
 
 use sempal::app_core::ui::MIN_VIEWPORT_SIZE;
 use sempal::app_dirs;
-use sempal::gui_runtime::{NativeRunOptions, run_native_vello_app_declarative};
+use sempal::gui_runtime::{NativeRunOptions, run_native_vello_app_declarative_with_artifacts};
 use sempal::gui_test::{GuiFixtureBridge, GuiTestModeConfig};
 use sempal::logging::{self, ActionDebugEvent, emit_action_debug_event};
 use std::any::Any;
@@ -205,9 +205,9 @@ fn run_application(
     }
     *runtime_started = true;
 
-    let result = run_native_vello_app_declarative(options, bridge);
+    let report = run_native_vello_app_declarative_with_artifacts(options, bridge);
     let runtime_elapsed = startup_started_at.elapsed();
-    let exit_status = match &result {
+    let exit_status = match &report.result {
         Ok(_) => {
             info!("sempal startup: native runtime exited normally");
             emit_action_debug_event(ActionDebugEvent {
@@ -235,11 +235,14 @@ fn run_application(
     };
 
     if let Some(contract) = contract {
+        if let Some(startup_timing) = report.artifacts.startup_timing.as_ref() {
+            contract.record_startup_timing(startup_timing, &exit_status);
+        }
         contract.record(RUN_PHASE_SHUTDOWN, MILESTONE_RUNTIME_EXIT, &exit_status);
         contract.finish(&exit_status);
     }
 
-    result
+    report.result
 }
 
 fn panic_payload_to_string(panic_payload: Box<dyn Any + Send>) -> String {
