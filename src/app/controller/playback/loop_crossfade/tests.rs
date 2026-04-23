@@ -1,10 +1,12 @@
 use super::*;
-use crate::app::controller::jobs::UndoFileJob;
+use crate::app::controller::jobs::{FileOpResult, UndoFileJob};
 use crate::app::controller::test_support;
 use crate::app::controller::undo::{UndoOutcome, UndoStack};
+use crate::app::controller::undo_jobs::run_undo_file_job;
 use crate::sample_sources::Rating;
 use std::mem;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, atomic::AtomicBool};
 
 fn prepare_loop_crossfade_controller(
     relative_path: &str,
@@ -95,6 +97,23 @@ fn apply_loop_crossfade_prompt_creates_suffixed_copy_preserves_tag_and_selects_r
             .expect("copied tag"),
         Rating::KEEP_1
     );
+    assert_eq!(
+        controller
+            .database_for(&source)
+            .expect("source db")
+            .looped_for_path(&expected_relative)
+            .expect("copied looped metadata"),
+        Some(true)
+    );
+    let copied_index = controller
+        .wav_index_for_path(&expected_relative)
+        .expect("copied wav index");
+    assert!(
+        controller
+            .wav_entry(copied_index)
+            .expect("copied wav entry")
+            .looped
+    );
     assert!(!controller.selection_state.suppress_autoplay_once);
 
     let mut stack = mem::replace(&mut controller.history.undo_stack, UndoStack::new(32));
@@ -115,4 +134,42 @@ fn apply_loop_crossfade_prompt_creates_suffixed_copy_preserves_tag_and_selects_r
         UndoOutcome::Applied(label) => panic!("expected deferred undo, got applied {label}"),
         UndoOutcome::Empty => panic!("expected deferred undo entry"),
     }
+}
+
+#[test]
+fn loop_crossfade_undo_removes_looped_metadata_for_generated_copy() {
+    let (mut controller, source, _absolute_path) =
+        prepare_loop_crossfade_controller("clip.wav", Rating::KEEP_1);
+    controller.ui.loop_crossfade_prompt = Some(LoopCrossfadePrompt {
+        source_id: source.id.clone(),
+        relative_path: PathBuf::from("clip.wav"),
+        settings: LoopCrossfadeSettings::default(),
+    });
+
+    controller
+        .apply_loop_crossfade_prompt()
+        .expect("loop crossfade should apply");
+
+    let expected_relative = PathBuf::from("clip_fade5ms.wav");
+    controller.undo();
+    let undo_job = match controller
+        .history
+        .pending_undo
+        .as_ref()
+        .map(|pending| &pending.job)
+    {
+        Some(job) => job.clone(),
+        None => panic!("expected deferred undo entry"),
+    };
+    let undo_result = run_undo_file_job(undo_job, Arc::new(AtomicBool::new(false)), None);
+    controller.apply_file_op_result(FileOpResult::UndoFile(undo_result));
+    assert_eq!(
+        controller
+            .database_for(&source)
+            .expect("source db")
+            .looped_for_path(&expected_relative)
+            .expect("looped lookup after undo"),
+        None
+    );
+    assert!(controller.wav_index_for_path(&expected_relative).is_none());
 }

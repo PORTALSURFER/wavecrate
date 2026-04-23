@@ -251,6 +251,67 @@ fn remove_sample_fixture(sample_name: &str) -> (tempfile::TempDir, SampleSource,
     (temp, source, relative_path, absolute_path)
 }
 
+#[test]
+fn restore_sample_job_reapplies_looped_metadata() {
+    let temp = tempdir().expect("create temp dir");
+    let source = SampleSource::new(temp.path().join("source"));
+    std::fs::create_dir_all(&source.root).expect("create source root");
+    let relative_path = PathBuf::from("loop.wav");
+    let absolute_path = source.root.join(&relative_path);
+    let backup_path = source.root.join("loop-backup.wav");
+    write_test_wav(&backup_path, &[0.0, 0.1, -0.1]);
+
+    let result = run_undo_file_job(
+        UndoFileJob::RestoreSample {
+            source_id: source.id.clone(),
+            source_root: source.root.clone(),
+            relative_path: relative_path.clone(),
+            absolute_path: absolute_path.clone(),
+            backup_path: backup_path.clone(),
+            tag: crate::sample_sources::Rating::KEEP_1,
+            looped: true,
+        },
+        Arc::new(AtomicBool::new(false)),
+        None,
+    );
+
+    assert!(
+        matches!(
+            &result.result,
+            Ok(UndoFileOutcome::Restored {
+                source_id,
+                relative_path: outcome_path,
+                tag,
+                looped,
+                last_played_at,
+                ..
+            }) if *source_id == source.id
+                && *outcome_path == relative_path
+                && *tag == crate::sample_sources::Rating::KEEP_1
+                && *looped
+                && last_played_at.is_none()
+        ),
+        "restore sample should keep looped metadata: {:?}",
+        result.result
+    );
+
+    let db = SourceDatabase::open(&source.root).expect("open source db");
+    assert_eq!(
+        db.tag_for_path(&relative_path)
+            .expect("lookup restored tag"),
+        Some(crate::sample_sources::Rating::KEEP_1)
+    );
+    assert_eq!(
+        db.looped_for_path(&relative_path)
+            .expect("lookup restored looped metadata"),
+        Some(true)
+    );
+    assert!(
+        absolute_path.exists(),
+        "restore should recreate sample file"
+    );
+}
+
 fn lock_db_until_released(source_root: &Path) -> (Sender<()>, Receiver<()>) {
     let (lock_release_tx, lock_release_rx) = std::sync::mpsc::channel();
     let (lock_done_tx, lock_done_rx) = std::sync::mpsc::channel();

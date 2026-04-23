@@ -118,6 +118,7 @@ pub(crate) fn run_undo_file_job(
             absolute_path,
             backup_path,
             tag,
+            looped,
         } => {
             if let Some(parent) = absolute_path.parent()
                 && let Err(err) = std::fs::create_dir_all(parent)
@@ -140,13 +141,17 @@ pub(crate) fn run_undo_file_job(
                         .map_err(|err| format!("Failed to sync database entry: {err}"))?;
                     db.set_tag(&relative_path, tag)
                         .map_err(|err| format!("Failed to sync tag: {err}"))?;
+                    if looped {
+                        db.set_looped(&relative_path, true)
+                            .map_err(|err| format!("Failed to sync loop metadata: {err}"))?;
+                    }
                     Ok(UndoFileOutcome::Restored {
                         source_id,
                         relative_path,
                         file_size,
                         modified_ns,
                         tag,
-                        looped: false,
+                        looped,
                         last_played_at: None,
                     })
                 })

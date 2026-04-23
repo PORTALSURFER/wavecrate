@@ -43,6 +43,8 @@ pub(crate) enum UndoFileJob {
         backup_path: PathBuf,
         /// Tag to apply after restoration.
         tag: crate::sample_sources::Rating,
+        /// Loop marker state to restore with the sample.
+        looped: bool,
     },
 }
 

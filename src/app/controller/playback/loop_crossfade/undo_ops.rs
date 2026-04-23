@@ -63,6 +63,7 @@ fn loop_crossfade_undo_entry(
                 absolute_path: redo_absolute.clone(),
                 backup_path: after.clone(),
                 tag,
+                looped: true,
             }))
         },
     )

@@ -42,6 +42,8 @@ pub(super) fn register_loop_crossfade_entry(
         .map_err(|err| format!("Failed to sync database entry: {err}"))?;
     db.set_tag(&output.relative_path, tag)
         .map_err(|err| format!("Failed to sync tag: {err}"))?;
+    db.set_looped(&output.relative_path, true)
+        .map_err(|err| format!("Failed to sync loop metadata: {err}"))?;
     controller.insert_cached_entry(
         source,
         WavEntry {
@@ -50,7 +52,7 @@ pub(super) fn register_loop_crossfade_entry(
             modified_ns,
             content_hash: None,
             tag,
-            looped: false,
+            looped: true,
             sound_type: None,
             locked: false,
             missing: false,

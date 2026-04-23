@@ -108,6 +108,7 @@ impl AppController {
                     absolute_path: redo_absolute.clone(),
                     backup_path: after.clone(),
                     tag,
+                    looped: false,
                 }))
             },
         )
