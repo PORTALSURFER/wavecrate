@@ -65,7 +65,7 @@ pub(crate) fn register_recording_in_browser(
         .map_err(|err| format!("Database unavailable: {err}"))?;
     db.upsert_file(&relative_path, file_size, modified_ns)
         .map_err(|err| format!("Failed to register recording: {err}"))?;
-    controller.enqueue_similarity_for_new_sample(&source, &relative_path, file_size, modified_ns);
+    controller.trigger_analysis_for_added_sample(&source, &relative_path, file_size, modified_ns);
     controller.selection_state.suppress_autoplay_once = true;
     controller.ui.browser.selection.autoscroll = true;
     controller.focus_browser_context();

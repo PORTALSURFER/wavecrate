@@ -1,9 +1,6 @@
 use super::progress;
 use super::*;
 use crate::app::state::ProgressTaskKind;
-use crate::sample_sources::scanner::ChangedSample;
-
-const ANALYSIS_QUEUE_DETAIL: &str = "Queueing analysis follow-up…";
 
 /// Apply incremental scan progress to the shared progress UI.
 pub(crate) fn handle_scan_progress(
@@ -67,12 +64,11 @@ fn handle_successful_scan(
     label: &str,
     is_selected_source: bool,
     is_auto: bool,
-    kind: ScanKind,
+    _kind: ScanKind,
     stats: ScanStats,
 ) {
     let changed_samples = stats.changed_samples.clone();
     let scan_changed = !changed_samples.is_empty();
-    let analysis_follow_up_allowed = matches!(kind, ScanKind::Manual);
     let similarity_prep_active = controller
         .runtime
         .similarity_prep
@@ -98,30 +94,13 @@ fn handle_successful_scan(
         .iter()
         .find(|source| source.id == *source_id)
         .cloned();
-    let keep_footer_progress = controller.ui.progress.has_task(ProgressTaskKind::Scan)
-        && matches!(kind, ScanKind::Manual)
-        && source.is_some();
-
-    if keep_footer_progress && analysis_follow_up_allowed {
-        begin_follow_up_analysis_progress(controller);
-    }
-
-    if analysis_follow_up_allowed && scan_changed {
-        if let Some(source) = source.clone() {
-            spawn_changed_scan_enqueue(controller, source, changed_samples);
-        }
-    } else if analysis_follow_up_allowed && let Some(source) = source.clone() {
-        if similarity_prep_active {
-            controller.handle_similarity_scan_finished(source_id, false);
-            return;
-        }
-        spawn_unchanged_scan_backfill(controller, source);
-    }
 
     if let Some(source) = source {
         spawn_duration_refresh(controller, source);
     }
-    controller.handle_similarity_scan_finished(source_id, scan_changed);
+    if similarity_prep_active {
+        controller.handle_similarity_scan_finished(source_id);
+    }
     clear_scan_progress_if_active(controller);
 }
 
@@ -160,72 +139,6 @@ fn invalidate_scan_caches(
     }
 }
 
-fn spawn_changed_scan_enqueue(
-    controller: &mut AppController,
-    source: SampleSource,
-    changed_samples: Vec<ChangedSample>,
-) {
-    let tx = controller.runtime.jobs.message_sender();
-    std::thread::spawn(move || {
-        match analysis_jobs::enqueue_jobs_for_source(&source, &changed_samples) {
-            Ok((inserted, progress)) => {
-                let _ = tx.send(JobMessage::Analysis(
-                    super::AnalysisJobMessage::EnqueueFinished {
-                        inserted,
-                        progress,
-                        announce: true,
-                    },
-                ));
-            }
-            Err(err) => {
-                let _ = tx.send(JobMessage::Analysis(
-                    super::AnalysisJobMessage::EnqueueFailed(err),
-                ));
-            }
-        }
-    });
-}
-
-fn spawn_unchanged_scan_backfill(controller: &mut AppController, source: SampleSource) {
-    let tx = controller.runtime.jobs.message_sender();
-    std::thread::spawn(move || {
-        match analysis_jobs::enqueue_jobs_for_source_backfill(&source) {
-            Ok((inserted, progress)) => {
-                let _ = tx.send(JobMessage::Analysis(
-                    super::AnalysisJobMessage::EnqueueFinished {
-                        inserted,
-                        progress,
-                        announce: true,
-                    },
-                ));
-            }
-            Err(err) => {
-                let _ = tx.send(JobMessage::Analysis(
-                    super::AnalysisJobMessage::EnqueueFailed(err),
-                ));
-            }
-        }
-        match analysis_jobs::enqueue_jobs_for_embedding_backfill(&source) {
-            Ok((inserted, progress)) => {
-                if inserted > 0 {
-                    let _ = tx.send(JobMessage::Analysis(
-                        super::AnalysisJobMessage::EmbeddingBackfillEnqueueFinished {
-                            inserted,
-                            progress,
-                            announce: true,
-                        },
-                    ));
-                }
-            }
-            Err(err) => {
-                let _ = tx.send(JobMessage::Analysis(
-                    super::AnalysisJobMessage::EmbeddingBackfillEnqueueFailed(err),
-                ));
-            }
-        }
-    });
-}
-
 fn spawn_duration_refresh(controller: &mut AppController, source: SampleSource) {
     let tx = controller.runtime.jobs.message_sender();
     std::thread::spawn(
@@ -248,11 +161,6 @@ fn spawn_duration_refresh(controller: &mut AppController, source: SampleSource) 
             }
         },
     );
-}
-
-fn begin_follow_up_analysis_progress(controller: &mut AppController) {
-    controller.show_status_progress(ProgressTaskKind::Analysis, "Analyzing samples", 0, true);
-    controller.update_progress_detail_for_task(ProgressTaskKind::Analysis, ANALYSIS_QUEUE_DETAIL);
 }
 
 fn clear_scan_progress_if_active(controller: &mut AppController) {

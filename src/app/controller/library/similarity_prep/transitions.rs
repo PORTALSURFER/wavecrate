@@ -26,11 +26,7 @@ fn matches_similarity_stage(
 }
 
 impl AppController {
-    pub(crate) fn handle_similarity_scan_finished(
-        &mut self,
-        source_id: &SourceId,
-        scan_changed: bool,
-    ) {
+    pub(crate) fn handle_similarity_scan_finished(&mut self, source_id: &SourceId) {
         if !matches_similarity_stage(
             &self.runtime.similarity_prep,
             source_id,
@@ -42,7 +38,7 @@ impl AppController {
             let store = DbSimilarityPrepStore;
             let scan_completed_at = store.read_scan_timestamp(&source);
             let transition = if let Some(state) = self.runtime.similarity_prep.as_mut() {
-                state::apply_scan_finished(state, scan_completed_at, scan_changed)
+                state::apply_scan_finished(state, scan_completed_at)
             } else {
                 return;
             };

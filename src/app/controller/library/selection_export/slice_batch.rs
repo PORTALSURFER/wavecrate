@@ -114,7 +114,7 @@ impl AppController {
         };
         for entry in &success.entries {
             self.insert_cached_entry(&source, entry.clone());
-            self.enqueue_similarity_for_new_sample(
+            self.trigger_analysis_for_added_sample(
                 &source,
                 &entry.relative_path,
                 entry.file_size,

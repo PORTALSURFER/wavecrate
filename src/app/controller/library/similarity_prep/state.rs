@@ -41,14 +41,14 @@ pub(crate) fn build_initial_state(init: SimilarityPrepInit) -> SimilarityPrepSta
 pub(crate) fn apply_scan_finished(
     state: &mut SimilarityPrepState,
     scan_completed_at: Option<i64>,
-    scan_changed: bool,
 ) -> SimilarityScanTransition {
+    let should_enqueue_embeddings = !state.skip_backfill || state.force_full_analysis;
     state.stage = SimilarityPrepStage::AwaitEmbeddings;
     state.scan_completed_at = scan_completed_at;
-    state.skip_backfill = !scan_changed && !state.force_full_analysis;
+    state.skip_backfill = !should_enqueue_embeddings;
     SimilarityScanTransition {
         force_full: state.force_full_analysis,
-        should_enqueue_embeddings: scan_changed || state.force_full_analysis,
+        should_enqueue_embeddings,
     }
 }
 
@@ -102,24 +102,25 @@ mod tests {
     #[test]
     fn scan_transition_controls_backfill() {
         let mut state = build_initial_state(build_init(false, false, false));
-        let transition = apply_scan_finished(&mut state, Some(12), false);
+        let transition = apply_scan_finished(&mut state, Some(12));
+        assert_eq!(state.stage, SimilarityPrepStage::AwaitEmbeddings);
+        assert!(!state.skip_backfill);
+        assert!(transition.should_enqueue_embeddings);
+        assert!(!transition.force_full);
+
+        let mut state = build_initial_state(build_init(false, true, false));
+        let transition = apply_scan_finished(&mut state, Some(12));
         assert_eq!(state.stage, SimilarityPrepStage::AwaitEmbeddings);
         assert!(state.skip_backfill);
         assert!(!transition.should_enqueue_embeddings);
         assert!(!transition.force_full);
 
-        let mut state = build_initial_state(build_init(false, false, true));
-        let transition = apply_scan_finished(&mut state, Some(12), false);
+        let mut state = build_initial_state(build_init(false, true, true));
+        let transition = apply_scan_finished(&mut state, Some(12));
         assert_eq!(state.stage, SimilarityPrepStage::AwaitEmbeddings);
         assert!(!state.skip_backfill);
         assert!(transition.should_enqueue_embeddings);
         assert!(transition.force_full);
-
-        let mut state = build_initial_state(build_init(false, false, false));
-        let transition = apply_scan_finished(&mut state, Some(12), true);
-        assert_eq!(state.stage, SimilarityPrepStage::AwaitEmbeddings);
-        assert!(!state.skip_backfill);
-        assert!(transition.should_enqueue_embeddings);
     }
 
     #[test]

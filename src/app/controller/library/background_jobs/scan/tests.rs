@@ -75,7 +75,7 @@ fn changed_sample(relative_path: &str) -> ChangedSample {
 }
 
 #[test]
-fn changed_scan_refreshes_selected_source_and_enqueues_follow_up_analysis() {
+fn changed_scan_refreshes_selected_source_without_enqueuing_follow_up_analysis() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
     controller.selection_state.ctx.selected_source = Some(source.id.clone());
@@ -114,16 +114,8 @@ fn changed_scan_refreshes_selected_source_and_enqueues_follow_up_analysis() {
         ),
     );
 
-    assert_eq!(
-        controller.ui.progress.task,
-        Some(ProgressTaskKind::Analysis)
-    );
-    assert!(controller.ui.progress.visible);
-    assert_eq!(controller.ui.progress.title, "Analyzing samples");
-    assert_eq!(
-        controller.ui.progress.detail.as_deref(),
-        Some("Queueing analysis follow-up…")
-    );
+    assert_eq!(controller.ui.progress.task, None);
+    assert!(!controller.ui.progress.visible);
     assert!(
         !controller
             .ui_cache
@@ -133,21 +125,11 @@ fn changed_scan_refreshes_selected_source_and_enqueues_follow_up_analysis() {
     );
     assert!(controller.wav_entries.source_id.as_ref() == Some(&source.id));
     assert_eq!(controller.wav_entries.total, 1);
-
-    match wait_for_analysis_message(&mut controller, |message| {
-        matches!(message, AnalysisJobMessage::EnqueueFinished { .. })
-    }) {
-        AnalysisJobMessage::EnqueueFinished {
-            inserted: _,
-            progress: _,
-            announce: true,
-        } => {}
-        other => panic!("unexpected analysis message: {other:?}"),
-    }
+    assert_no_analysis_message(&mut controller);
 }
 
 #[test]
-fn unchanged_scan_backfills_when_similarity_prep_is_idle() {
+fn unchanged_scan_stays_analysis_free_when_similarity_prep_is_idle() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
     controller.cache_db(&source).expect("cache db");
@@ -169,12 +151,7 @@ fn unchanged_scan_backfills_when_similarity_prep_is_idle() {
 
     assert!(controller.wav_entries.source_id.as_ref() == Some(&source.id));
     assert_eq!(controller.wav_entries.total, 1);
-    match wait_for_analysis_message(&mut controller, |message| {
-        matches!(message, AnalysisJobMessage::EnqueueFinished { .. })
-    }) {
-        AnalysisJobMessage::EnqueueFinished { .. } => {}
-        other => panic!("unexpected analysis message: {other:?}"),
-    }
+    assert_no_analysis_message(&mut controller);
 }
 
 #[test]
@@ -232,7 +209,7 @@ fn auto_unchanged_scan_does_not_backfill_analysis() {
 }
 
 #[test]
-fn unchanged_scan_finishes_similarity_prep_without_backfill_enqueue() {
+fn unchanged_scan_finishes_similarity_prep_with_explicit_bootstrap_enqueue() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());
     controller.runtime.similarity_prep = Some(SimilarityPrepState {
@@ -264,12 +241,18 @@ fn unchanged_scan_finishes_similarity_prep_without_backfill_enqueue() {
         prep.stage,
         SimilarityPrepStage::AwaitEmbeddings | SimilarityPrepStage::Finalizing
     ));
-    assert!(prep.skip_backfill);
+    assert!(!prep.skip_backfill);
     assert_eq!(
         controller.ui.progress.task,
         Some(ProgressTaskKind::Analysis)
     );
     assert!(controller.ui.progress.visible);
+    match wait_for_analysis_message(&mut controller, |message| {
+        matches!(message, AnalysisJobMessage::EnqueueFinished { .. })
+    }) {
+        AnalysisJobMessage::EnqueueFinished { announce: true, .. } => {}
+        other => panic!("unexpected analysis message: {other:?}"),
+    }
 }
 
 #[test]

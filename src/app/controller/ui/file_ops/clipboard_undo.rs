@@ -22,7 +22,7 @@ impl AppController {
                         self.invalidate_wav_entries_for_source(&source);
                     }
                     for sample in added {
-                        self.enqueue_similarity_for_new_sample(
+                        self.trigger_analysis_for_added_sample(
                             &source,
                             &sample.relative_path,
                             sample.file_size,

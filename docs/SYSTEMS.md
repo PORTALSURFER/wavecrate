@@ -79,6 +79,30 @@ Durability rules:
    blindly
 4. prefer data preservation when observed state is ambiguous
 
+## Analysis enqueue triggers
+
+`src/app/controller/library/analysis_backfill.rs` owns the explicit controller
+contract for scheduling analysis work.
+
+Allowed enqueue reasons:
+
+- sample added to a source
+- destructive audio-content edit
+- user-requested reanalysis
+- explicit similarity-prep bootstrap
+
+Forbidden implicit reasons:
+
+- scan completion
+- watcher or auto-sync follow-up
+- deferred maintenance or startup catch-up
+- rename or move without audio-byte changes
+- similarity browsing or read-path resolution
+
+When analysis-trigger behavior changes, update the shared contract here and
+route controller call sites through that module instead of adding a new direct
+enqueue path.
+
 ## Folder-delete recovery
 
 `src/app/controller/library/source_folders/delete_recovery/**` owns retained

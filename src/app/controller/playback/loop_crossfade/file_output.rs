@@ -58,7 +58,7 @@ pub(super) fn register_loop_crossfade_entry(
             user_tag: None,
         },
     );
-    controller.enqueue_similarity_for_new_sample(
+    controller.trigger_analysis_for_added_sample(
         source,
         &output.relative_path,
         file_size,

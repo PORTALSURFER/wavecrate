@@ -25,7 +25,7 @@ impl AppController {
             root: success.source_root.clone(),
         };
         self.insert_cached_entry(&source, success.entry.clone());
-        self.enqueue_similarity_for_new_sample(
+        self.trigger_analysis_for_added_sample(
             &source,
             &success.entry.relative_path,
             success.entry.file_size,
@@ -94,7 +94,7 @@ impl AppController {
             root: success.source_root.clone(),
         };
         self.insert_cached_entry(&source, success.entry.clone());
-        self.enqueue_similarity_for_new_sample(
+        self.trigger_analysis_for_added_sample(
             &source,
             &success.entry.relative_path,
             success.entry.file_size,
