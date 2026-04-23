@@ -1,6 +1,6 @@
 use super::*;
 use crate::app::controller::jobs::JobMessage;
-use crate::app::controller::library::analysis_jobs::AnalysisJobMessage;
+use crate::app::controller::library::analysis_jobs::{self, AnalysisJobMessage};
 use crate::app::controller::state::cache::{FeatureCache, FeatureCacheKey};
 use crate::app::controller::test_support::{dummy_controller, write_test_wav};
 use crate::app::controller::{SimilarityPrepStage, SimilarityPrepState};
@@ -49,6 +49,24 @@ fn assert_no_analysis_message(controller: &mut AppController) {
             Err(err) => panic!("unexpected receive error: {err:?}"),
         }
     }
+}
+
+fn assert_no_analysis_jobs_inserted(source: &SampleSource) {
+    let conn = crate::sample_sources::SourceDatabase::open_connection(&source.root)
+        .expect("open source db");
+    let count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*)
+             FROM analysis_jobs
+             WHERE job_type IN (?1, ?2)",
+            rusqlite::params![
+                analysis_jobs::db::ANALYZE_SAMPLE_JOB_TYPE,
+                analysis_jobs::db::EMBEDDING_BACKFILL_JOB_TYPE,
+            ],
+            |row| row.get(0),
+        )
+        .expect("count analysis jobs");
+    assert_eq!(count, 0, "scan completion inserted analysis jobs");
 }
 
 fn scan_result(
@@ -126,6 +144,7 @@ fn changed_scan_refreshes_selected_source_without_enqueuing_follow_up_analysis()
     assert!(controller.wav_entries.source_id.as_ref() == Some(&source.id));
     assert_eq!(controller.wav_entries.total, 1);
     assert_no_analysis_message(&mut controller);
+    assert_no_analysis_jobs_inserted(&source);
 }
 
 #[test]
@@ -152,6 +171,7 @@ fn unchanged_scan_stays_analysis_free_when_similarity_prep_is_idle() {
     assert!(controller.wav_entries.source_id.as_ref() == Some(&source.id));
     assert_eq!(controller.wav_entries.total, 1);
     assert_no_analysis_message(&mut controller);
+    assert_no_analysis_jobs_inserted(&source);
 }
 
 #[test]
@@ -182,6 +202,7 @@ fn auto_changed_scan_refreshes_selected_source_without_enqueueing_analysis() {
 
     assert_eq!(controller.ui.progress.task, None);
     assert_no_analysis_message(&mut controller);
+    assert_no_analysis_jobs_inserted(&source);
 }
 
 #[test]
@@ -206,6 +227,7 @@ fn auto_unchanged_scan_does_not_backfill_analysis() {
     );
 
     assert_no_analysis_message(&mut controller);
+    assert_no_analysis_jobs_inserted(&source);
 }
 
 #[test]

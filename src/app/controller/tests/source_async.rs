@@ -136,6 +136,19 @@ fn maintenance_result(
     })
 }
 
+fn assert_no_analysis_message(controller: &mut AppController) {
+    loop {
+        match controller.runtime.jobs.try_recv_message() {
+            Ok(JobMessage::Analysis(message)) => {
+                panic!("unexpected analysis message: {message:?}");
+            }
+            Ok(_) => {}
+            Err(std::sync::mpsc::TryRecvError::Empty) => return,
+            Err(err) => panic!("unexpected receive error: {err:?}"),
+        }
+    }
+}
+
 #[test]
 fn selecting_cached_source_clears_browser_until_async_hydration_applies() {
     let (mut controller, sources) = build_controller_with_sources(&["source-a", "source-b"]);
@@ -517,6 +530,7 @@ fn deferred_source_db_maintenance_refreshes_selected_source_when_required() {
     assert_eq!(controller.selected_source_id(), Some(source.id.clone()));
     assert_eq!(controller.wav_entries.total, 2);
     assert_eq!(visible_indices(&controller), vec![0, 1]);
+    assert_no_analysis_message(&mut controller);
 }
 
 #[test]

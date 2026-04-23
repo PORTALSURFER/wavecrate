@@ -15,7 +15,7 @@ pub(crate) fn handle_scan_progress(
     progress::update_progress_detail(controller, ProgressTaskKind::Scan, completed, detail);
 }
 
-/// Finalize scan state, refresh caches, and queue analysis follow-up work.
+/// Finalize scan state, refresh caches, and narrowly scoped metadata probes.
 pub(crate) fn handle_scan_finished(controller: &mut AppController, result: ScanResult) {
     controller.runtime.jobs.clear_scan();
     let is_selected_source =
@@ -32,7 +32,6 @@ pub(crate) fn handle_scan_finished(controller: &mut AppController, result: ScanR
             label,
             is_selected_source,
             is_auto,
-            result.kind,
             stats,
         ),
         Err(crate::sample_sources::scanner::ScanError::Canceled) => {
@@ -64,7 +63,6 @@ fn handle_successful_scan(
     label: &str,
     is_selected_source: bool,
     is_auto: bool,
-    _kind: ScanKind,
     stats: ScanStats,
 ) {
     let changed_samples = stats.changed_samples.clone();
