@@ -277,10 +277,19 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
 pub(crate) fn project_browser_actions_model(ui: &UiState) -> BrowserActionsModel {
     let has_focus = ui.browser.selection.selected_visible.is_some();
     let has_selection = has_focus || !ui.browser.selection.selected_paths.is_empty();
+    let focused_path = ui.browser.selection.selected_paths.first().or(ui
+        .browser
+        .selection
+        .last_focused_path
+        .as_ref());
+    let can_apply_wav_destructive_edit = focused_path
+        .is_some_and(|path| crate::app::controller::supports_wav_destructive_edits(path));
     BrowserActionsModel {
         can_rename: has_focus,
         can_delete: has_selection,
         can_tag: has_selection,
+        can_normalize_focused_sample: has_focus && can_apply_wav_destructive_edit,
+        can_loop_crossfade_focused_sample: has_focus && can_apply_wav_destructive_edit,
         random_navigation_enabled: ui.browser.search.random_navigation_mode,
         duplicate_cleanup_active: ui.browser.duplicate_cleanup.is_some(),
         tag_sidebar_open: ui.browser.tag_sidebar_open

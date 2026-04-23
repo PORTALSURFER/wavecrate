@@ -67,6 +67,26 @@ fn request_loop_crossfade_prompt_for_browser_row_sets_prompt_context() {
 }
 
 #[test]
+fn request_loop_crossfade_prompt_rejects_non_wav_targets_with_explicit_message() {
+    let (mut controller, source) =
+        test_support::prepare_with_source_and_wav_entries(vec![test_support::sample_entry(
+            "clip.flac",
+            Rating::NEUTRAL,
+        )]);
+    std::fs::write(source.root.join("clip.flac"), b"not-a-wav").expect("write flac fixture");
+
+    let err = controller
+        .request_loop_crossfade_prompt_for_browser_row(0)
+        .expect_err("non-wav loop crossfade should fail");
+
+    assert_eq!(
+        err,
+        "Seamless loop crossfade only supports WAV files; .flac is not supported"
+    );
+    assert!(controller.ui.loop_crossfade_prompt.is_none());
+}
+
+#[test]
 fn apply_loop_crossfade_prompt_creates_suffixed_copy_preserves_tag_and_selects_result() {
     let (mut controller, source, _absolute_path) =
         prepare_loop_crossfade_controller("clip.wav", Rating::KEEP_1);

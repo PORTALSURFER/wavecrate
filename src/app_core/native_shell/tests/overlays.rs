@@ -8,15 +8,20 @@ fn browser_actions_require_focus_or_selection() {
     assert!(!projected.can_rename);
     assert!(!projected.can_delete);
     assert!(!projected.can_tag);
+    assert!(!projected.can_normalize_focused_sample);
+    assert!(!projected.can_loop_crossfade_focused_sample);
     assert!(!projected.random_navigation_enabled);
     assert!(!projected.duplicate_cleanup_active);
 
     ui.browser.selection.selected_visible = Some(0);
+    ui.browser.selection.last_focused_path = Some(std::path::PathBuf::from("focused.wav"));
     ui.browser.search.random_navigation_mode = true;
     let projected = project_browser_actions_model(&ui);
     assert!(projected.can_rename);
     assert!(projected.can_delete);
     assert!(projected.can_tag);
+    assert!(projected.can_normalize_focused_sample);
+    assert!(projected.can_loop_crossfade_focused_sample);
     assert!(projected.random_navigation_enabled);
     assert!(!projected.duplicate_cleanup_active);
 
@@ -31,6 +36,22 @@ fn browser_actions_require_focus_or_selection() {
     ));
     let projected = project_browser_actions_model(&ui);
     assert!(projected.duplicate_cleanup_active);
+}
+
+/// Focused browser destructive actions should stay disabled for non-WAV paths.
+#[test]
+fn browser_actions_disable_wav_only_edits_for_non_wav_focus() {
+    let mut ui = UiState::default();
+    ui.browser.selection.selected_visible = Some(0);
+    ui.browser.selection.last_focused_path = Some(std::path::PathBuf::from("focused.flac"));
+
+    let projected = project_browser_actions_model(&ui);
+
+    assert!(projected.can_rename);
+    assert!(projected.can_delete);
+    assert!(projected.can_tag);
+    assert!(!projected.can_normalize_focused_sample);
+    assert!(!projected.can_loop_crossfade_focused_sample);
 }
 
 /// Browser rename prompts should win over destructive waveform prompts when both are present.

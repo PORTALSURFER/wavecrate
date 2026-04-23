@@ -1,6 +1,7 @@
 //! Browser normalization entrypoints and sync-test helpers.
 
 use super::*;
+use crate::app::controller::library::wav_io::ensure_wav_destructive_edit_target;
 
 impl BrowserController<'_> {
     /// Normalize the browser row at `row`, preserving undo and playback resume semantics.
@@ -14,6 +15,7 @@ impl BrowserController<'_> {
         &mut self,
         ctx: &TriageSampleContext,
     ) -> Result<(), String> {
+        ensure_wav_destructive_edit_target(&ctx.absolute_path, "Normalize overwrite")?;
         if self.controller.warn_if_retained_delete_path_busy(
             &ctx.source.id,
             &ctx.entry.relative_path,

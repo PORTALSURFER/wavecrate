@@ -1,4 +1,5 @@
 use super::*;
+use crate::app::controller::library::wav_io::ensure_wav_destructive_edit_target;
 use crate::app::state::{LoopCrossfadePrompt, LoopCrossfadeSettings};
 use std::path::{Path, PathBuf};
 
@@ -16,6 +17,7 @@ impl AppController {
         row: usize,
     ) -> Result<(), String> {
         let ctx = self.resolve_browser_sample(row)?;
+        ensure_wav_destructive_edit_target(&ctx.absolute_path, "Seamless loop crossfade")?;
         self.ui.loop_crossfade_prompt = Some(LoopCrossfadePrompt {
             source_id: ctx.source.id,
             relative_path: ctx.entry.relative_path,
@@ -79,6 +81,7 @@ impl AppController {
         absolute_path: &Path,
         settings: &LoopCrossfadeSettings,
     ) -> Result<PathBuf, String> {
+        ensure_wav_destructive_edit_target(absolute_path, "Seamless loop crossfade")?;
         let rendered = audio::render_loop_crossfade(absolute_path, settings)?;
         let tag = self.sample_tag_for(source, relative_path)?;
         let output =

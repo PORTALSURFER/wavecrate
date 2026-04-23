@@ -43,6 +43,7 @@ pub(crate) use gui_fixtures::build_named_gui_fixture_controller;
 pub(crate) use history::catalog_history_handler_supported;
 pub(in crate::app::controller) use library::analysis_jobs::AnalysisJobMessage;
 use library::analysis_jobs::AnalysisWorkerPool;
+pub(crate) use library::wav_io::supports_wav_destructive_edits;
 use open;
 use playback::audio_loader::{AudioLoadError, AudioLoadJob, AudioLoadOutcome};
 use rfd::FileDialog;

@@ -18,6 +18,7 @@ mod delete_similarity;
 mod read_only_similarity;
 mod retained_recovery;
 mod selection_tagging;
+mod wav_only_edits;
 
 fn normalize_embedding(values: &mut [f32]) {
     let norm = values.iter().map(|value| value * value).sum::<f32>().sqrt();
