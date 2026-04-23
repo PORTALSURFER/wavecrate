@@ -19,7 +19,6 @@ pub(crate) use db::{open_source_db, open_source_db_maintenance, open_source_db_u
 pub(crate) use enqueue::enqueue_jobs_for_source;
 pub(crate) use enqueue::enqueue_jobs_for_source_backfill;
 pub(crate) use enqueue::enqueue_jobs_for_source_backfill_full;
-pub(crate) use enqueue::enqueue_jobs_for_source_missing_features;
 pub(crate) use enqueue::fast_content_hash;
 pub(crate) use enqueue::update_missing_durations_for_source;
 pub(crate) use enqueue::{enqueue_jobs_for_embedding_backfill, enqueue_jobs_for_embedding_samples};
