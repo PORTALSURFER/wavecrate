@@ -27,6 +27,11 @@ pub(super) fn release_disallowed_work(
     work: &DecodedWork,
     log_jobs: bool,
     decode_queue: &super::super::DecodedQueue,
+    heartbeat_tracker: &std::sync::Arc<super::super::heartbeat::DecodeHeartbeatTracker>,
+    progress_cache: &std::sync::Arc<
+        std::sync::RwLock<crate::app::controller::library::analysis_jobs::pool::progress_cache::ProgressCache>,
+    >,
+    progress_wakeup: &crate::app::controller::library::analysis_jobs::pool::job_progress::ProgressPollerWakeup,
 ) {
     match db::open_connection_with_retry(connections, &work.job.source_root) {
         Ok(conn) => lease::release_claim(conn, work.job.id),
@@ -41,6 +46,17 @@ pub(super) fn release_disallowed_work(
         }
     }
     decode_queue.clear_inflight(work.job.id);
+    heartbeat_tracker.unregister(&work.job.source_root, work.job.id);
+    if let Ok((source_id, _)) = analysis_db::parse_sample_id(&work.job.sample_id)
+        && let Ok(mut cache) = progress_cache.write()
+    {
+        cache.apply_job_transition(
+            &crate::sample_sources::SourceId::from_string(source_id),
+            "running",
+            "pending",
+        );
+        progress_wakeup.notify();
+    }
 }
 
 pub(super) fn log_queue_state(

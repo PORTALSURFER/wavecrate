@@ -7,12 +7,9 @@ mod wakeup;
 
 use std::time::Duration;
 
-const POLL_INTERVAL_ACTIVE: Duration = Duration::from_millis(500);
-const POLL_INTERVAL_IDLE: Duration = Duration::from_millis(1500);
 const SOURCE_REFRESH_INTERVAL: Duration = Duration::from_secs(5);
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(2);
 const STALE_CLEANUP_INTERVAL: Duration = Duration::from_secs(10);
-const DB_REFRESH_INTERVAL: Duration = Duration::from_secs(5);
 
 pub(crate) use wakeup::ProgressPollerWakeup;
 
@@ -21,7 +18,7 @@ pub(crate) use poller::spawn_progress_poller;
 
 #[cfg(test)]
 mod tests {
-    use super::aggregate::{current_progress_all, should_refresh_db};
+    use super::aggregate::{current_progress_all, seed_missing_progress};
     use super::cleanup::{cleanup_stale_jobs, now_epoch_seconds};
     use super::source_discovery::ProgressSourceDb;
     use crate::app::controller::jobs::{JobMessage, JobMessageSender};
@@ -31,11 +28,10 @@ mod tests {
     };
     use crate::gui::repaint::SharedRepaintSignal;
     use std::sync::{Arc, RwLock};
-    use std::time::{Duration, Instant};
+    use std::time::Duration;
     use tempfile::TempDir;
 
     use super::super::progress_cache::ProgressCache;
-    use super::DB_REFRESH_INTERVAL;
     use super::wakeup::ProgressPollerWakeup;
 
     #[test]
@@ -133,7 +129,7 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let conn = db::open_source_db(dir.path()).unwrap();
         let source_id = crate::sample_sources::SourceId::from_string("source".to_string());
-        let mut sources = vec![ProgressSourceDb {
+        let sources = vec![ProgressSourceDb {
             source_id: source_id.clone(),
             source_root: dir.path().to_path_buf(),
             conn,
@@ -151,7 +147,7 @@ mod tests {
             },
         );
 
-        let progress = current_progress_all(&mut sources, &cache, false);
+        let progress = current_progress_all(&sources, &cache);
 
         assert_eq!(progress.pending, 3);
         assert_eq!(progress.running, 1);
@@ -162,22 +158,37 @@ mod tests {
     }
 
     #[test]
-    fn should_refresh_db_when_cache_empty_or_stale() {
+    fn seed_missing_progress_populates_only_missing_sources() {
+        let dir = TempDir::new().unwrap();
+        let conn = db::open_source_db(dir.path()).unwrap();
+        conn.execute(
+            "INSERT INTO wav_files (path, file_size, modified_ns, missing)
+             VALUES (?1, 1, 0, 0)",
+            rusqlite::params!["a.wav"],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO analysis_jobs (sample_id, source_id, relative_path, job_type, status, attempts, created_at)
+             VALUES (?1, ?2, ?3, ?4, 'pending', 0, 0)",
+            rusqlite::params!["source::a.wav", "source", "a.wav", db::ANALYZE_SAMPLE_JOB_TYPE],
+        )
+        .unwrap();
+        let source_id = crate::sample_sources::SourceId::from_string("source".to_string());
+        let sources = vec![ProgressSourceDb {
+            source_id: source_id.clone(),
+            source_root: dir.path().to_path_buf(),
+            conn,
+        }];
         let cache = Arc::new(RwLock::new(ProgressCache::default()));
-        assert!(should_refresh_db(Instant::now(), &cache));
 
-        let mut cache_guard = cache.write().unwrap();
-        cache_guard.update(
-            crate::sample_sources::SourceId::from_string("source".to_string()),
-            AnalysisProgress::default(),
-        );
-        drop(cache_guard);
+        assert!(seed_missing_progress(&sources, &cache));
+        assert!(!seed_missing_progress(&sources, &cache));
 
-        assert!(!should_refresh_db(Instant::now(), &cache));
-        assert!(should_refresh_db(
-            Instant::now() - DB_REFRESH_INTERVAL - Duration::from_millis(1),
-            &cache
-        ));
+        let progress = cache
+            .read()
+            .unwrap()
+            .total_for_sources(std::iter::once(&source_id));
+        assert_eq!(progress.pending, 1);
     }
 
     #[test]

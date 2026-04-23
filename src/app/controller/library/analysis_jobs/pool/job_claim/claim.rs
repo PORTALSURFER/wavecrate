@@ -1,8 +1,7 @@
 use crate::app::controller::library::analysis_jobs::db;
-use crate::app::controller::library::analysis_jobs::stale_running_job_seconds;
 use std::collections::HashSet;
 use std::path::PathBuf;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 
 pub(crate) struct SourceClaimDb {
     pub(crate) source: crate::sample_sources::SampleSource,
@@ -41,8 +40,6 @@ pub(crate) fn refresh_sources(
                 continue;
             }
         };
-        let stale_before = now_epoch_seconds().saturating_sub(stale_running_job_seconds());
-        let _ = db::fail_stale_running_jobs(&conn, stale_before);
         let should_reset = match reset_done.lock() {
             Ok(mut guard) => guard.insert(source.root.clone()),
             Err(mut guard) => guard.get_mut().insert(source.root.clone()),
@@ -107,13 +104,6 @@ pub(crate) fn decode_queue_target(embedding_batch_max: usize, worker_count: usiz
         return parsed;
     }
     (embedding_batch_max.saturating_mul(worker_count)).max(4)
-}
-
-fn now_epoch_seconds() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_else(|_| Duration::from_secs(0))
-        .as_secs() as i64
 }
 
 #[cfg(test)]

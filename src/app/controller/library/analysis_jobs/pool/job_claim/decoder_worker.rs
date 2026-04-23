@@ -37,6 +37,9 @@ fn run_decoder_worker(context: DecoderWorkerContext) {
         decode_queue_target,
         claim_wakeup,
         selector,
+        heartbeat_tracker,
+        progress_cache,
+        progress_wakeup,
     } = context;
     lower_worker_priority();
     let log_jobs = logging::analysis_log_enabled();
@@ -77,14 +80,29 @@ fn run_decoder_worker(context: DecoderWorkerContext) {
             log_inflight_skip(log_jobs, &job.sample_id);
             continue;
         }
+        if job.job_type == analysis_db::ANALYZE_SAMPLE_JOB_TYPE {
+            heartbeat_tracker.register(&job.source_root, job.id);
+        }
+        if let Ok((source_id, _)) = analysis_db::parse_sample_id(&job.sample_id)
+            && let Ok(mut cache) = progress_cache.write()
+        {
+            cache.apply_job_transition(
+                &crate::sample_sources::SourceId::from_string(source_id),
+                "pending",
+                "running",
+            );
+            progress_wakeup.notify();
+        }
         log_decode_start(log_jobs, &job);
-        let outcome = decode_job_with_heartbeat(&job, &max_duration_bits, &analysis_sample_rate);
+        let outcome = decode_job(&job, &max_duration_bits, &analysis_sample_rate);
         log_decode_outcome(log_jobs, &job.sample_id, &outcome);
         let job_id = job.id;
         let job_sample_id = job.sample_id.clone();
+        let job_source_root = job.source_root.clone();
         let queued = decode_queue.push(DecodedWork { job, outcome }, shutdown.as_ref());
         if !queued {
             decode_queue.clear_inflight(job_id);
+            heartbeat_tracker.unregister(&job_source_root, job_id);
             log_duplicate_skip(log_jobs, shutdown.load(Ordering::Relaxed), &job_sample_id);
         }
     }
@@ -147,29 +165,16 @@ fn release_disallowed_job(
     }
 }
 
-fn decode_job_with_heartbeat(
+fn decode_job(
     job: &analysis_db::ClaimedJob,
     max_duration_bits: &AtomicU32,
     analysis_sample_rate: &AtomicU32,
 ) -> DecodeOutcome {
-    let heartbeat = if job.job_type == analysis_db::ANALYZE_SAMPLE_JOB_TYPE {
-        Some(db::spawn_decode_heartbeat(
-            job.source_root.clone(),
-            job.id,
-            Duration::from_secs(4),
-        ))
-    } else {
-        None
-    };
     let outcome = if job.job_type == analysis_db::ANALYZE_SAMPLE_JOB_TYPE {
         decode_analysis_job(job, max_duration_bits, analysis_sample_rate)
     } else {
         DecodeOutcome::NotNeeded
     };
-    if let Some((stop, handle)) = heartbeat {
-        stop.store(true, Ordering::Relaxed);
-        let _ = handle.join();
-    }
     outcome
 }
 

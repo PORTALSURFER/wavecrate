@@ -63,20 +63,16 @@ fn claim_selection_orders_sources_round_robin() {
         reset_done,
     );
     let mut wake_counter = 0;
-    assert!(
-        claim_wakeup
-            .acquire_probe_or_wait(&mut wake_counter)
-            .is_none()
-    );
+    assert!(claim_wakeup
+        .acquire_probe_or_wait(&mut wake_counter)
+        .is_none());
     let first = match selector.select_next(None, &claim_wakeup) {
         selection::ClaimSelection::Job(job) => job,
         _ => panic!("expected a job from first source"),
     };
-    assert!(
-        claim_wakeup
-            .acquire_probe_or_wait(&mut wake_counter)
-            .is_none()
-    );
+    assert!(claim_wakeup
+        .acquire_probe_or_wait(&mut wake_counter)
+        .is_none());
     let second = match selector.select_next(None, &claim_wakeup) {
         selection::ClaimSelection::Job(job) => job,
         _ => panic!("expected a job from second source"),
@@ -161,11 +157,9 @@ fn notified_claim_wakeup_immediately_rechecks_sources_after_idle_backoff() {
     );
     let mut wake_counter = 0u64;
 
-    assert!(
-        claim_wakeup
-            .acquire_probe_or_wait(&mut wake_counter)
-            .is_none()
-    );
+    assert!(claim_wakeup
+        .acquire_probe_or_wait(&mut wake_counter)
+        .is_none());
     assert!(matches!(
         selector.select_next(None, &claim_wakeup),
         selection::ClaimSelection::Idle
@@ -221,6 +215,9 @@ fn clears_inflight_when_db_open_fails() {
     let mut connections = HashMap::new();
     let progress_cache = Arc::new(RwLock::new(ProgressCache::default()));
     let progress_wakeup = ProgressPollerWakeup::new();
+    let heartbeat_tracker = Arc::new(heartbeat::DecodeHeartbeatTracker::new(
+        Duration::from_millis(10),
+    ));
     let deferred = {
         let mut finalize = db::FinalizeJobContext {
             connections: &mut connections,
@@ -228,6 +225,7 @@ fn clears_inflight_when_db_open_fails() {
             tx: &tx,
             progress_cache: &progress_cache,
             progress_wakeup: &progress_wakeup,
+            heartbeat_tracker: &heartbeat_tracker,
             log_jobs: false,
         };
         db::finalize_immediate_job(&mut finalize, job, Err("failed".to_string()))
@@ -239,7 +237,7 @@ fn clears_inflight_when_db_open_fails() {
 }
 
 #[test]
-fn decode_heartbeat_keeps_running_job_fresh() {
+fn shared_decode_heartbeat_keeps_running_job_fresh() {
     let dir = TempDir::new().unwrap();
     let conn = analysis_db::open_source_db(dir.path()).unwrap();
     let now = SystemTime::now()
@@ -265,8 +263,11 @@ fn decode_heartbeat_keeps_running_job_fresh() {
         )
         .unwrap();
 
-    let (stop, handle) =
-        db::spawn_decode_heartbeat(dir.path().to_path_buf(), job_id, Duration::from_millis(10));
+    let tracker = Arc::new(heartbeat::DecodeHeartbeatTracker::new(
+        Duration::from_millis(10),
+    ));
+    let handle = heartbeat::spawn_decode_heartbeat_worker(tracker.clone());
+    tracker.register(dir.path(), job_id);
     let deadline = Instant::now() + Duration::from_secs(2);
     let heartbeat_observed = loop {
         let running_at: Option<i64> = conn
@@ -286,7 +287,8 @@ fn decode_heartbeat_keeps_running_job_fresh() {
     };
     let stale_before = now - 1;
     let changed = analysis_db::fail_stale_running_jobs(&conn, stale_before).unwrap();
-    stop.store(true, std::sync::atomic::Ordering::Relaxed);
+    tracker.unregister(dir.path(), job_id);
+    tracker.close();
     let _ = handle.join();
 
     assert!(
@@ -334,6 +336,9 @@ fn mid_loop_db_open_failure_clears_inflight_and_marks_failed() {
     let tx = JobMessageSender::new(tx);
     let progress_cache = Arc::new(RwLock::new(ProgressCache::default()));
     let progress_wakeup = ProgressPollerWakeup::new();
+    let heartbeat_tracker = Arc::new(heartbeat::DecodeHeartbeatTracker::new(
+        Duration::from_millis(10),
+    ));
     let mut connections = HashMap::new();
 
     let backup_root = dir.path().join("source_backup");
@@ -345,6 +350,7 @@ fn mid_loop_db_open_failure_clears_inflight_and_marks_failed() {
             tx: &tx,
             progress_cache: &progress_cache,
             progress_wakeup: &progress_wakeup,
+            heartbeat_tracker: &heartbeat_tracker,
             log_jobs: false,
         };
         db::finalize_immediate_job(
@@ -364,6 +370,7 @@ fn mid_loop_db_open_failure_clears_inflight_and_marks_failed() {
         tx: &tx,
         progress_cache: &progress_cache,
         progress_wakeup: &progress_wakeup,
+        heartbeat_tracker: &heartbeat_tracker,
         log_jobs: false,
     };
     db::flush_deferred_updates(&mut finalize, &mut deferred_updates);

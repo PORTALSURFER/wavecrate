@@ -36,6 +36,8 @@ pub(crate) struct AnalysisWorkerPool {
     decode_worker_count_override: Arc<AtomicU32>,
     _progress_cache: Arc<RwLock<ProgressCache>>,
     #[cfg(not(test))]
+    decode_heartbeat: Arc<job_claim::DecodeHeartbeatTracker>,
+    #[cfg(not(test))]
     progress_wakeup: Arc<job_progress::ProgressPollerWakeup>,
     repaint_signal: Arc<SharedRepaintSignal>,
     threads: Vec<JoinHandle<()>>,
@@ -58,6 +60,10 @@ impl AnalysisWorkerPool {
             #[cfg(not(test))]
             decode_worker_count_override: Arc::new(AtomicU32::new(0)),
             _progress_cache: Arc::new(RwLock::new(ProgressCache::default())),
+            #[cfg(not(test))]
+            decode_heartbeat: Arc::new(job_claim::DecodeHeartbeatTracker::new(
+                std::time::Duration::from_secs(4),
+            )),
             #[cfg(not(test))]
             progress_wakeup: Arc::new(job_progress::ProgressPollerWakeup::new()),
             repaint_signal: Arc::new(SharedRepaintSignal::default()),
@@ -108,6 +114,8 @@ impl AnalysisWorkerPool {
             }
         }
         wakeup::notify_claim_wakeup();
+        #[cfg(not(test))]
+        self.progress_wakeup.notify();
     }
 
     pub(crate) fn pause_claiming(&self) {
@@ -123,6 +131,8 @@ impl AnalysisWorkerPool {
             tracing::debug!("Analysis job claiming resumed");
         }
         wakeup::notify_claim_wakeup();
+        #[cfg(not(test))]
+        self.progress_wakeup.notify();
     }
 
     #[cfg(test)]
@@ -146,6 +156,9 @@ impl AnalysisWorkerPool {
                 let decode_queue_target =
                     job_claim::decode_queue_target(embedding_batch_max, worker_count);
                 let claim_wakeup = wakeup::claim_wakeup_handle();
+                self.threads.push(job_claim::spawn_decode_heartbeat_worker(
+                    self.decode_heartbeat.clone(),
+                ));
                 let queue = std::sync::Arc::new(job_claim::DecodedQueue::new_with_wakeup(
                     decode_queue_target,
                     Some(claim_wakeup.clone()),
@@ -173,6 +186,9 @@ impl AnalysisWorkerPool {
                             decode_queue_target,
                             claim_wakeup: claim_wakeup.clone(),
                             selector: selector.clone(),
+                            heartbeat_tracker: self.decode_heartbeat.clone(),
+                            progress_cache: self._progress_cache.clone(),
+                            progress_wakeup: self.progress_wakeup.clone(),
                         },
                     ));
                 }
@@ -192,6 +208,7 @@ impl AnalysisWorkerPool {
                             analysis_version_override: self.analysis_version_override.clone(),
                             progress_cache: self._progress_cache.clone(),
                             progress_wakeup: self.progress_wakeup.clone(),
+                            heartbeat_tracker: self.decode_heartbeat.clone(),
                         },
                     ));
                 }
@@ -212,11 +229,21 @@ impl AnalysisWorkerPool {
         self.cancel.store(true, Ordering::Relaxed);
         let _ = job_cleanup::reset_running_jobs();
         wakeup::notify_claim_wakeup();
+        #[cfg(not(test))]
+        {
+            if let Ok(mut cache) = self._progress_cache.write() {
+                *cache = ProgressCache::default();
+            }
+            self.decode_heartbeat.clear();
+            self.progress_wakeup.notify();
+        }
     }
 
     pub(crate) fn resume(&self) {
         self.cancel.store(false, Ordering::Relaxed);
         wakeup::notify_claim_wakeup();
+        #[cfg(not(test))]
+        self.progress_wakeup.notify();
     }
 
     pub(crate) fn shutdown(&mut self) {
@@ -224,6 +251,15 @@ impl AnalysisWorkerPool {
         self.cancel.store(true, Ordering::Relaxed);
         let _ = job_cleanup::reset_running_jobs();
         wakeup::notify_claim_wakeup();
+        #[cfg(not(test))]
+        {
+            if let Ok(mut cache) = self._progress_cache.write() {
+                *cache = ProgressCache::default();
+            }
+            self.decode_heartbeat.clear();
+            self.decode_heartbeat.close();
+            self.progress_wakeup.notify();
+        }
         for handle in self.threads.drain(..) {
             let _ = handle.join();
         }

@@ -9,6 +9,7 @@ mod db;
 #[cfg(not(test))]
 mod decoder_worker;
 mod dedup;
+mod heartbeat;
 mod lease;
 mod logging;
 mod priority;
@@ -23,6 +24,8 @@ pub(crate) use claim::{
 pub(crate) use compute_worker::spawn_compute_worker;
 #[cfg(not(test))]
 pub(crate) use context::{ComputeWorkerContext, DecoderWorkerContext};
+#[cfg(not(test))]
+pub(crate) use heartbeat::{DecodeHeartbeatTracker, spawn_decode_heartbeat_worker};
 #[cfg(not(test))]
 pub(crate) use decoder_worker::spawn_decoder_worker;
 #[cfg(not(test))]

@@ -36,6 +36,7 @@ fn run_compute_worker(context: ComputeWorkerContext) {
         analysis_version_override,
         progress_cache,
         progress_wakeup,
+        heartbeat_tracker,
     } = context;
     lower_worker_priority();
     let log_jobs = logging::analysis_log_enabled();
@@ -60,6 +61,7 @@ fn run_compute_worker(context: ComputeWorkerContext) {
                 tx: &tx,
                 progress_cache: &progress_cache,
                 progress_wakeup: &progress_wakeup,
+                heartbeat_tracker: &heartbeat_tracker,
                 log_jobs,
             };
             finalization::flush_deferred_updates(&mut finalize, &mut deferred_updates);
@@ -78,6 +80,7 @@ fn run_compute_worker(context: ComputeWorkerContext) {
             max_duration_bits.as_ref(),
             analysis_sample_rate.as_ref(),
             &analysis_version_override,
+            &heartbeat_tracker,
         );
         let (decoded_batches, mut immediate_jobs) = execution::process_batch(
             batch,
@@ -86,6 +89,8 @@ fn run_compute_worker(context: ComputeWorkerContext) {
             log_jobs,
             &settings,
             &decode_queue,
+            &progress_cache,
+            &progress_wakeup,
         );
         immediate_jobs.extend(execution::immediate_jobs_with_decoded_batches(
             decoded_batches,
@@ -98,6 +103,7 @@ fn run_compute_worker(context: ComputeWorkerContext) {
             tx: &tx,
             progress_cache: &progress_cache,
             progress_wakeup: &progress_wakeup,
+            heartbeat_tracker: &heartbeat_tracker,
             log_jobs,
         };
         finalization::finalize_immediate_jobs(

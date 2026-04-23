@@ -1,6 +1,7 @@
 use super::super::job_execution::update_job_status_with_retry;
 use super::super::job_progress::ProgressPollerWakeup;
 use super::super::progress_cache::ProgressCache;
+use super::heartbeat::DecodeHeartbeatTracker;
 use super::queue::DecodedQueue;
 use crate::app::controller::jobs::{JobMessage, JobMessageSender};
 use crate::app::controller::library::analysis_jobs::db as analysis_db;
@@ -8,9 +9,8 @@ use crate::app::controller::library::analysis_jobs::types::AnalysisJobMessage;
 use crate::logging::{ActionDebugEvent, emit_action_debug_event};
 use rusqlite::Connection;
 use std::collections::HashMap;
-use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, RwLock};
-use std::thread::{JoinHandle, sleep};
+use std::thread::sleep;
 use std::time::{Duration, Instant};
 use tracing::{info, warn};
 
@@ -27,6 +27,7 @@ pub(crate) struct FinalizeJobContext<'a> {
     pub(crate) tx: &'a JobMessageSender,
     pub(crate) progress_cache: &'a Arc<RwLock<ProgressCache>>,
     pub(crate) progress_wakeup: &'a ProgressPollerWakeup,
+    pub(crate) heartbeat_tracker: &'a Arc<DecodeHeartbeatTracker>,
     pub(crate) log_jobs: bool,
 }
 
@@ -88,6 +89,7 @@ impl FinalizeJobContext<'_> {
             }
         }
         self.decode_queue.clear_inflight(job.id);
+        self.heartbeat_tracker.unregister(&job.source_root, job.id);
         if let Ok(progress) = analysis_db::current_progress(conn, &job.source_root) {
             let source_id = analysis_db::parse_sample_id(&job.sample_id)
                 .ok()
@@ -200,43 +202,4 @@ pub(crate) fn open_connection_with_retry<'a>(
             Err(last_err.unwrap_or_else(|| "Failed to open source DB".to_string()))
         }
     }
-}
-
-pub(crate) fn spawn_decode_heartbeat(
-    source_root: std::path::PathBuf,
-    job_id: i64,
-    interval: Duration,
-) -> (Arc<AtomicBool>, JoinHandle<()>) {
-    let stop = Arc::new(AtomicBool::new(false));
-    let stop_worker = Arc::clone(&stop);
-    let handle = std::thread::spawn(move || {
-        let mut connections = HashMap::new();
-        let conn = match open_connection_with_retry(&mut connections, &source_root) {
-            Ok(conn) => conn,
-            Err(err) => {
-                warn!(
-                    source_root = %source_root.display(),
-                    error = %err,
-                    "Analysis decode heartbeat failed to open DB"
-                );
-                return;
-            }
-        };
-        let _ = analysis_db::touch_running_at(conn, &[job_id]);
-        let mut last_touch = Instant::now() - interval;
-        let poll = interval
-            .min(Duration::from_millis(200))
-            .max(Duration::from_millis(10));
-        loop {
-            if stop_worker.load(std::sync::atomic::Ordering::Relaxed) {
-                break;
-            }
-            if last_touch.elapsed() >= interval {
-                let _ = analysis_db::touch_running_at(conn, &[job_id]);
-                last_touch = Instant::now();
-            }
-            sleep(poll);
-        }
-    });
-    (stop, handle)
 }

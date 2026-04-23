@@ -1,5 +1,5 @@
 use super::*;
-use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use tracing::warn;
 
 use crate::app::controller::library::analysis_jobs::pool::job_claim::lease;
@@ -15,6 +15,7 @@ pub(super) struct BatchSettings {
     pub(super) max_analysis_duration_seconds: f32,
     pub(super) analysis_sample_rate: u32,
     pub(super) analysis_version: String,
+    pub(super) heartbeat_tracker: std::sync::Arc<super::super::heartbeat::DecodeHeartbeatTracker>,
 }
 
 pub(super) type DecodedBatchMap = HashMap<
@@ -31,6 +32,8 @@ struct BatchProcessContext<'a> {
     log_jobs: bool,
     settings: &'a BatchSettings,
     decode_queue: &'a super::super::DecodedQueue,
+    progress_cache: &'a std::sync::Arc<std::sync::RwLock<super::super::super::ProgressCache>>,
+    progress_wakeup: &'a std::sync::Arc<super::super::super::job_progress::ProgressPollerWakeup>,
     decoded_batches: &'a mut DecodedBatchMap,
     immediate_jobs: &'a mut Vec<ImmediateJob>,
 }
@@ -40,6 +43,7 @@ pub(super) fn current_batch_settings(
     max_duration_bits: &std::sync::atomic::AtomicU32,
     analysis_sample_rate: &std::sync::atomic::AtomicU32,
     analysis_version_override: &std::sync::Arc<std::sync::RwLock<Option<String>>>,
+    heartbeat_tracker: &std::sync::Arc<super::super::heartbeat::DecodeHeartbeatTracker>,
 ) -> BatchSettings {
     BatchSettings {
         use_cache: use_cache.load(std::sync::atomic::Ordering::Relaxed),
@@ -54,6 +58,7 @@ pub(super) fn current_batch_settings(
             .ok()
             .and_then(|guard| guard.clone())
             .unwrap_or_else(|| crate::analysis::version::analysis_version().to_string()),
+        heartbeat_tracker: heartbeat_tracker.clone(),
     }
 }
 
@@ -64,6 +69,8 @@ pub(super) fn process_batch(
     log_jobs: bool,
     settings: &BatchSettings,
     decode_queue: &super::super::DecodedQueue,
+    progress_cache: &std::sync::Arc<std::sync::RwLock<super::super::super::ProgressCache>>,
+    progress_wakeup: &std::sync::Arc<super::super::super::job_progress::ProgressPollerWakeup>,
 ) -> (DecodedBatchMap, Vec<ImmediateJob>) {
     let mut decoded_batches: DecodedBatchMap = HashMap::new();
     let mut immediate_jobs = Vec::new();
@@ -73,6 +80,8 @@ pub(super) fn process_batch(
         log_jobs,
         settings,
         decode_queue,
+        progress_cache,
+        progress_wakeup,
         decoded_batches: &mut decoded_batches,
         immediate_jobs: &mut immediate_jobs,
     };
@@ -95,6 +104,9 @@ impl BatchProcessContext<'_> {
                 &work,
                 self.log_jobs,
                 self.decode_queue,
+                &self.settings.heartbeat_tracker,
+                self.progress_cache,
+                self.progress_wakeup.as_ref(),
             );
             return;
         }
