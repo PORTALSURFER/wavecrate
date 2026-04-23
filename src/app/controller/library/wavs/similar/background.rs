@@ -10,7 +10,6 @@ use crate::app::controller::state::runtime::{
 };
 use crate::app::state::ProgressTaskKind;
 use crate::sample_sources::SourceId;
-use rusqlite::{OptionalExtension, params};
 use std::{path::PathBuf, sync::Arc};
 
 /// Background request to refresh focused near-duplicate highlights.
@@ -28,10 +27,6 @@ pub(crate) struct FocusedSimilarityJob {
     pub(crate) relative_path: PathBuf,
     /// Focused browser entry index captured at queue time.
     pub(crate) anchor_index: Option<usize>,
-    /// Whether fast similarity-prep mode is enabled.
-    pub(crate) fast_mode_enabled: bool,
-    /// Fast-prep sample rate used to detect partial analysis rows.
-    pub(crate) fast_sample_rate: u32,
 }
 
 /// Background request to rebuild follow-loaded similarity ordering.
@@ -72,8 +67,6 @@ pub(crate) fn queue_focused_similarity_highlight_refresh(
         sample_id: pending.sample_id.clone(),
         relative_path: pending.relative_path.clone(),
         anchor_index: pending.anchor_index,
-        fast_mode_enabled: controller.similarity_prep_fast_mode_enabled(),
-        fast_sample_rate: controller.similarity_prep_fast_sample_rate(),
     };
     controller.runtime.jobs.spawn_one_shot_job(
         true,
@@ -186,14 +179,7 @@ pub(crate) fn queue_loaded_similarity_query_refresh(
 pub(crate) fn compute_focused_similarity(
     job: FocusedSimilarityJob,
 ) -> Result<Option<FocusedSimilarityPaths>, String> {
-    let mut conn =
-        crate::app::controller::library::analysis_jobs::open_source_db(&job.source_root)?;
-    maybe_enqueue_full_analysis_for_request(
-        &mut conn,
-        &job.sample_id,
-        job.fast_mode_enabled,
-        job.fast_sample_rate,
-    )?;
+    let conn = crate::app::controller::library::analysis_jobs::open_source_db(&job.source_root)?;
     let neighbours = crate::analysis::ann_index::find_similar(
         &conn,
         &job.sample_id,
@@ -240,78 +226,6 @@ pub(crate) fn compute_loaded_similarity_query(
         &job.entry_paths,
     );
     loaded::build_loaded_similarity_query_data_with_cache(&conn, &request)
-}
-
-fn maybe_enqueue_full_analysis_for_request(
-    conn: &mut rusqlite::Connection,
-    sample_id: &str,
-    fast_mode_enabled: bool,
-    fast_sample_rate: u32,
-) -> Result<(), String> {
-    if !fast_mode_enabled {
-        return Ok(());
-    }
-    let row: Option<(String, Option<String>)> = conn
-        .query_row(
-            "SELECT content_hash, analysis_version FROM samples WHERE sample_id = ?1",
-            params![sample_id],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )
-        .optional()
-        .map_err(|err| format!("Load analysis version failed: {err}"))?;
-    let Some((content_hash, analysis_version)) = row else {
-        return Ok(());
-    };
-    if content_hash.trim().is_empty() {
-        return Ok(());
-    }
-    let fast_version = crate::analysis::version::analysis_version_for_sample_rate(fast_sample_rate);
-    if analysis_version.as_deref() != Some(fast_version.as_str()) {
-        return Ok(());
-    }
-    let active: i64 = conn
-        .query_row(
-            "SELECT COUNT(*)
-             FROM analysis_jobs
-             WHERE sample_id = ?1 AND job_type = ?2 AND status IN ('pending','running')",
-            params![sample_id, "wav_metadata_v1"],
-            |row| row.get(0),
-        )
-        .unwrap_or(0);
-    if active > 0 {
-        return Ok(());
-    }
-    let (source_id, relative_path) =
-        crate::app::controller::library::analysis_jobs::parse_sample_id(sample_id)?;
-    let created_at = {
-        use std::time::{SystemTime, UNIX_EPOCH};
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs() as i64
-    };
-    conn.execute(
-        "INSERT INTO analysis_jobs (sample_id, source_id, relative_path, job_type, content_hash, status, attempts, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, 'pending', 0, ?6)
-         ON CONFLICT(sample_id, job_type) DO UPDATE SET
-            source_id = excluded.source_id,
-            relative_path = excluded.relative_path,
-            content_hash = excluded.content_hash,
-            status = 'pending',
-            attempts = 0,
-            created_at = excluded.created_at,
-            last_error = NULL",
-        params![
-            sample_id,
-            source_id,
-            relative_path.to_string_lossy().replace('\\', "/"),
-            "wav_metadata_v1",
-            content_hash,
-            created_at
-        ],
-    )
-    .map_err(|err| format!("Enqueue analysis job failed: {err}"))?;
-    Ok(())
 }
 
 fn filter_ranked_candidate_paths(
@@ -362,4 +276,118 @@ fn filter_ranked_candidate_paths(
         }
     }
     Ok((paths, scores))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::analysis::vector::encode_f32_le_blob;
+    use crate::app::controller::library::analysis_jobs;
+    use crate::app::controller::test_support::{prepare_with_source_and_wav_entries, sample_entry};
+    use crate::sample_sources::Rating;
+    use rusqlite::params;
+    use std::path::Path;
+
+    fn normalize_embedding(values: &mut [f32]) {
+        let norm = values.iter().map(|value| value * value).sum::<f32>().sqrt();
+        if norm > 0.0 {
+            for value in values {
+                *value /= norm;
+            }
+        }
+    }
+
+    fn insert_similarity_embedding(
+        source: &crate::sample_sources::SampleSource,
+        relative_path: &str,
+        x: f32,
+        y: f32,
+    ) {
+        let conn = crate::sample_sources::SourceDatabase::open_connection(&source.root)
+            .expect("open source db");
+        let sample_id = analysis_jobs::build_sample_id(source.id.as_str(), Path::new(relative_path));
+        let mut embedding = vec![0.0_f32; crate::analysis::similarity::SIMILARITY_DIM];
+        embedding[0] = x;
+        embedding[1] = y;
+        normalize_embedding(&mut embedding);
+        let blob = encode_f32_le_blob(&embedding);
+        conn.execute(
+            "DELETE FROM embeddings WHERE sample_id = ?1 AND model_id = ?2",
+            params![sample_id, crate::analysis::similarity::SIMILARITY_MODEL_ID],
+        )
+        .expect("clear embedding");
+        conn.execute(
+            "INSERT INTO embeddings (sample_id, model_id, dim, dtype, l2_normed, vec, created_at)
+             VALUES (?1, ?2, ?3, 'f32', 1, ?4, 0)",
+            params![
+                sample_id,
+                crate::analysis::similarity::SIMILARITY_MODEL_ID,
+                crate::analysis::similarity::SIMILARITY_DIM as i64,
+                blob,
+            ],
+        )
+        .expect("insert embedding");
+        crate::analysis::rebuild_ann_index(&conn).expect("rebuild ann index");
+    }
+
+    fn set_fast_similarity_metadata(
+        source: &crate::sample_sources::SampleSource,
+        relative_path: &str,
+        fast_sample_rate: u32,
+    ) -> String {
+        let conn = analysis_jobs::open_source_db(&source.root).expect("open source db");
+        let sample_id = analysis_jobs::build_sample_id(source.id.as_str(), Path::new(relative_path));
+        let fast_version =
+            crate::analysis::version::analysis_version_for_sample_rate(fast_sample_rate);
+        conn.execute(
+            "UPDATE samples
+             SET content_hash = 'fast-prep-hash',
+                 analysis_version = ?2
+             WHERE sample_id = ?1",
+            params![sample_id, fast_version],
+        )
+        .expect("mark fast metadata");
+        sample_id
+    }
+
+    fn count_analysis_jobs(
+        source: &crate::sample_sources::SampleSource,
+        sample_id: &str,
+    ) -> i64 {
+        let conn = analysis_jobs::open_source_db(&source.root).expect("open source db");
+        conn.query_row(
+            "SELECT COUNT(*)
+             FROM analysis_jobs
+             WHERE sample_id = ?1 AND job_type = 'wav_metadata_v1'",
+            params![sample_id],
+            |row| row.get(0),
+        )
+        .expect("count jobs")
+    }
+
+    #[test]
+    fn compute_focused_similarity_stays_read_only_with_fast_prep_rows() {
+        let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+            sample_entry("anchor.wav", Rating::NEUTRAL),
+            sample_entry("near.wav", Rating::NEUTRAL),
+        ]);
+        controller.set_similarity_prep_fast_mode_enabled(true);
+        let fast_sample_rate = controller.similarity_prep_fast_sample_rate();
+        insert_similarity_embedding(&source, "anchor.wav", 1.0, 0.0);
+        insert_similarity_embedding(&source, "near.wav", 0.95, 0.05);
+        let sample_id = set_fast_similarity_metadata(&source, "anchor.wav", fast_sample_rate);
+
+        let result = compute_focused_similarity(FocusedSimilarityJob {
+            request_id: 1,
+            source_id: source.id.clone(),
+            source_root: source.root.clone(),
+            sample_id: sample_id.clone(),
+            relative_path: Path::new("anchor.wav").to_path_buf(),
+            anchor_index: Some(0),
+        })
+        .expect("focused similarity");
+
+        assert!(result.is_some());
+        assert_eq!(count_analysis_jobs(&source, &sample_id), 0);
+    }
 }

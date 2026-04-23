@@ -2,8 +2,6 @@
 
 use super::*;
 use std::path::PathBuf;
-
-mod job_enqueue;
 mod ranking;
 mod repository;
 
@@ -37,10 +35,7 @@ pub(crate) fn resolve_similarity_for_sample_id(
     if controller.selection_state.ctx.selected_source.as_ref() != Some(&source_id) {
         controller.select_source(Some(source_id.clone()));
     }
-    let mut conn = open_source_db_for_id(controller, &source_id)?;
-    if let Err(err) = job_enqueue::maybe_enqueue_full_analysis(controller, &mut conn, sample_id) {
-        tracing::debug!("Fast prep refine enqueue failed: {err}");
-    }
+    let conn = open_source_db_for_id(controller, &source_id)?;
     let neighbours =
         crate::analysis::ann_index::find_similar(&conn, sample_id, SIMILAR_RE_RANK_CANDIDATES)?;
     let query = load_query_similarity_inputs(&conn, sample_id)?;

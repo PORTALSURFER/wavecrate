@@ -15,6 +15,7 @@ use std::path::{Path, PathBuf};
 use tempfile::tempdir;
 
 mod delete_similarity;
+mod read_only_similarity;
 mod retained_recovery;
 mod selection_tagging;
 
@@ -64,4 +65,35 @@ fn visible_browser_paths(controller: &mut crate::app::controller::AppController)
     (0..controller.visible_browser_len())
         .filter_map(|row| controller.browser_path_for_visible(row))
         .collect()
+}
+
+fn set_fast_similarity_metadata(
+    source: &crate::sample_sources::SampleSource,
+    relative_path: &str,
+    fast_sample_rate: u32,
+) -> String {
+    let conn = analysis_jobs::open_source_db(&source.root).expect("open source db");
+    let sample_id = analysis_jobs::build_sample_id(source.id.as_str(), Path::new(relative_path));
+    let fast_version = crate::analysis::version::analysis_version_for_sample_rate(fast_sample_rate);
+    conn.execute(
+        "UPDATE samples
+         SET content_hash = 'fast-prep-hash',
+             analysis_version = ?2
+         WHERE sample_id = ?1",
+        params![sample_id, fast_version],
+    )
+    .expect("mark fast metadata");
+    sample_id
+}
+
+fn count_analysis_jobs(source: &crate::sample_sources::SampleSource, sample_id: &str) -> i64 {
+    let conn = analysis_jobs::open_source_db(&source.root).expect("open source db");
+    conn.query_row(
+        "SELECT COUNT(*)
+         FROM analysis_jobs
+         WHERE sample_id = ?1 AND job_type = 'wav_metadata_v1'",
+        params![sample_id],
+        |row| row.get(0),
+    )
+    .expect("count jobs")
 }
