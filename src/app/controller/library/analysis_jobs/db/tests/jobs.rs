@@ -186,12 +186,16 @@ fn retry_evidence_stays_visible_in_debug_logs() {
     });
 
     assert!(
-        captured.contains("analysis_claim_jobs.retry"),
+        captured.contains("Retrying source DB work after failure"),
         "retry path should stay visible in debug logs: {captured}"
     );
     assert!(
-        captured.contains("outcome=\"retry\""),
-        "retry path should preserve its structured outcome: {captured}"
+        captured.contains("action=\"retry\""),
+        "retry path should preserve its retry classification: {captured}"
+    );
+    assert!(
+        captured.contains("operation=\"analysis_claim_jobs\""),
+        "retry path should preserve the operation name: {captured}"
     );
     assert!(
         captured.contains("error=\"database is locked\""),

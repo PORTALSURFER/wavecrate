@@ -1,5 +1,5 @@
 use super::*;
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use tracing::warn;
 
 use crate::app::controller::library::analysis_jobs::pool::job_claim::lease;

@@ -29,7 +29,9 @@ pub(super) fn release_disallowed_work(
     decode_queue: &super::super::DecodedQueue,
     heartbeat_tracker: &std::sync::Arc<super::super::heartbeat::DecodeHeartbeatTracker>,
     progress_cache: &std::sync::Arc<
-        std::sync::RwLock<crate::app::controller::library::analysis_jobs::pool::progress_cache::ProgressCache>,
+        std::sync::RwLock<
+            crate::app::controller::library::analysis_jobs::pool::progress_cache::ProgressCache,
+        >,
     >,
     progress_wakeup: &crate::app::controller::library::analysis_jobs::pool::job_progress::ProgressPollerWakeup,
 ) {

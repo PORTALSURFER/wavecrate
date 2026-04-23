@@ -55,12 +55,16 @@ fn folder_hotkey_moves_selected_samples() {
     assert!(destination.join("two.wav").exists());
     assert!(!source.root.join("one.wav").exists());
     assert!(!source.root.join("two.wav").exists());
-    assert!(controller
-        .wav_index_for_path(&PathBuf::from("dest/one.wav"))
-        .is_some());
-    assert!(controller
-        .wav_index_for_path(&PathBuf::from("dest/two.wav"))
-        .is_some());
+    assert!(
+        controller
+            .wav_index_for_path(&PathBuf::from("dest/one.wav"))
+            .is_some()
+    );
+    assert!(
+        controller
+            .wav_index_for_path(&PathBuf::from("dest/two.wav"))
+            .is_some()
+    );
 }
 
 #[test]
@@ -118,12 +122,16 @@ fn update_cached_entry_replaces_old_path_in_lookup() {
     updated.modified_ns = 7;
     controller.update_cached_entry(&source, Path::new("old.wav"), updated);
 
-    assert!(controller
-        .wav_index_for_path(Path::new("old.wav"))
-        .is_none());
-    assert!(controller
-        .wav_index_for_path(Path::new("new.wav"))
-        .is_some());
+    assert!(
+        controller
+            .wav_index_for_path(Path::new("old.wav"))
+            .is_none()
+    );
+    assert!(
+        controller
+            .wav_index_for_path(Path::new("new.wav"))
+            .is_some()
+    );
     assert_eq!(
         controller.ui.browser.selection.selected_paths,
         vec![PathBuf::from("new.wav")]

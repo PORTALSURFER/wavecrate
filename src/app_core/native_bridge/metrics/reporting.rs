@@ -48,6 +48,7 @@ pub(crate) fn format_bridge_profile_message(snapshot: &BridgeMetricsSnapshot) ->
          waveform_image_refresh apply={} skip={} \
          derived_flush_ms={:.3} derived_dirty_sources={:.2} derived_dirty_computed={:.2} \
          avg_primitives_per_frame={:.2} avg_text_runs_per_frame={:.2} \
+         rebuilds layout={} static={} state_overlay={} motion_overlay={} overlay_only={} \
          frame_avg_ms={:.3} present_avg_ms={:.3} frame_budget_us={} \
          browser_row_cache hits={} misses={} \
          projection_key_assert_count={} projection_key_assert_stale_count={} \
@@ -99,6 +100,11 @@ pub(crate) fn format_bridge_profile_message(snapshot: &BridgeMetricsSnapshot) ->
         ),
         avg_value(snapshot.primitive_sum, snapshot.frame_count),
         avg_value(snapshot.text_run_sum, snapshot.frame_count),
+        snapshot.layout_rebuild_count,
+        snapshot.static_rebuild_count,
+        snapshot.state_overlay_rebuild_count,
+        snapshot.motion_overlay_rebuild_count,
+        snapshot.overlay_only_count,
         avg_value(snapshot.frame_total_us, snapshot.frame_count) / 1000.0,
         avg_value(snapshot.present_total_us, snapshot.presented_frame_count) / 1000.0,
         snapshot.frame_budget_us,
@@ -186,6 +192,11 @@ mod tests {
             frame_count: 10,
             jank_count: 2,
             missed_present_count: 1,
+            layout_rebuild_count: 4,
+            static_rebuild_count: 6,
+            state_overlay_rebuild_count: 9,
+            motion_overlay_rebuild_count: 7,
+            overlay_only_count: 3,
             ..baseline
         };
 
@@ -195,6 +206,9 @@ mod tests {
             "segments status(h/m)=3/1 browser_frame(h/m)=5/2 browser_tag_sidebar(h/m)=6/3 browser_rows(h/m)=7/4 map(h/m)=9/6 waveform(h/m)=11/8"
         ));
         assert!(message.contains("browser_row_cache hits=9 misses=2"));
+        assert!(message.contains(
+            "rebuilds layout=4 static=6 state_overlay=9 motion_overlay=7 overlay_only=3"
+        ));
         assert!(
             message.contains("projection_key_assert_count=12 projection_key_assert_stale_count=3")
         );

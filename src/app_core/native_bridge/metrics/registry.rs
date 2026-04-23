@@ -3,8 +3,8 @@
 #[cfg(feature = "native-bridge-metrics")]
 use std::{
     sync::{
-        OnceLock,
         atomic::{AtomicU64, Ordering},
+        OnceLock,
     },
     time::Duration,
 };
@@ -75,6 +75,11 @@ pub(crate) struct BridgeMetrics {
     pub(super) frame_result_animation_count: AtomicU64,
     pub(super) frame_result_primitives_total: AtomicU64,
     pub(super) frame_result_text_runs_total: AtomicU64,
+    pub(super) frame_result_layout_rebuild_count: AtomicU64,
+    pub(super) frame_result_static_rebuild_count: AtomicU64,
+    pub(super) frame_result_state_overlay_rebuild_count: AtomicU64,
+    pub(super) frame_result_motion_overlay_rebuild_count: AtomicU64,
+    pub(super) frame_result_overlay_only_count: AtomicU64,
     pub(super) frame_result_presented_count: AtomicU64,
     pub(super) frame_result_missed_present_count: AtomicU64,
     pub(super) frame_result_jank_count: AtomicU64,
@@ -129,6 +134,11 @@ impl BridgeMetrics {
             frame_result_animation_count: AtomicU64::new(0),
             frame_result_primitives_total: AtomicU64::new(0),
             frame_result_text_runs_total: AtomicU64::new(0),
+            frame_result_layout_rebuild_count: AtomicU64::new(0),
+            frame_result_static_rebuild_count: AtomicU64::new(0),
+            frame_result_state_overlay_rebuild_count: AtomicU64::new(0),
+            frame_result_motion_overlay_rebuild_count: AtomicU64::new(0),
+            frame_result_overlay_only_count: AtomicU64::new(0),
             frame_result_presented_count: AtomicU64::new(0),
             frame_result_missed_present_count: AtomicU64::new(0),
             frame_result_jank_count: AtomicU64::new(0),

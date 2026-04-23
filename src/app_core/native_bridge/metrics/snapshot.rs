@@ -56,6 +56,11 @@ pub(crate) struct BridgeMetricsSnapshot {
     pub(super) frame_anim_count: u64,
     pub(super) primitive_sum: u64,
     pub(super) text_run_sum: u64,
+    pub(super) layout_rebuild_count: u64,
+    pub(super) static_rebuild_count: u64,
+    pub(super) state_overlay_rebuild_count: u64,
+    pub(super) motion_overlay_rebuild_count: u64,
+    pub(super) overlay_only_count: u64,
     pub(super) presented_frame_count: u64,
     pub(super) missed_present_count: u64,
     pub(super) jank_count: u64,
@@ -171,6 +176,21 @@ impl BridgeMetricsSnapshot {
                 .load(Ordering::Relaxed),
             text_run_sum: BRIDGE_METRICS
                 .frame_result_text_runs_total
+                .load(Ordering::Relaxed),
+            layout_rebuild_count: BRIDGE_METRICS
+                .frame_result_layout_rebuild_count
+                .load(Ordering::Relaxed),
+            static_rebuild_count: BRIDGE_METRICS
+                .frame_result_static_rebuild_count
+                .load(Ordering::Relaxed),
+            state_overlay_rebuild_count: BRIDGE_METRICS
+                .frame_result_state_overlay_rebuild_count
+                .load(Ordering::Relaxed),
+            motion_overlay_rebuild_count: BRIDGE_METRICS
+                .frame_result_motion_overlay_rebuild_count
+                .load(Ordering::Relaxed),
+            overlay_only_count: BRIDGE_METRICS
+                .frame_result_overlay_only_count
                 .load(Ordering::Relaxed),
             presented_frame_count: BRIDGE_METRICS
                 .frame_result_presented_count

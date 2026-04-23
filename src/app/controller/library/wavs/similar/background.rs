@@ -305,7 +305,8 @@ mod tests {
     ) {
         let conn = crate::sample_sources::SourceDatabase::open_connection(&source.root)
             .expect("open source db");
-        let sample_id = analysis_jobs::build_sample_id(source.id.as_str(), Path::new(relative_path));
+        let sample_id =
+            analysis_jobs::build_sample_id(source.id.as_str(), Path::new(relative_path));
         let mut embedding = vec![0.0_f32; crate::analysis::similarity::SIMILARITY_DIM];
         embedding[0] = x;
         embedding[1] = y;
@@ -336,7 +337,8 @@ mod tests {
         fast_sample_rate: u32,
     ) -> String {
         let conn = analysis_jobs::open_source_db(&source.root).expect("open source db");
-        let sample_id = analysis_jobs::build_sample_id(source.id.as_str(), Path::new(relative_path));
+        let sample_id =
+            analysis_jobs::build_sample_id(source.id.as_str(), Path::new(relative_path));
         let fast_version =
             crate::analysis::version::analysis_version_for_sample_rate(fast_sample_rate);
         conn.execute(
@@ -350,10 +352,7 @@ mod tests {
         sample_id
     }
 
-    fn count_analysis_jobs(
-        source: &crate::sample_sources::SampleSource,
-        sample_id: &str,
-    ) -> i64 {
+    fn count_analysis_jobs(source: &crate::sample_sources::SampleSource, sample_id: &str) -> i64 {
         let conn = analysis_jobs::open_source_db(&source.root).expect("open source db");
         conn.query_row(
             "SELECT COUNT(*)

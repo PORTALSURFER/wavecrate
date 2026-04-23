@@ -88,10 +88,8 @@ fn tag_actions_apply_to_all_selected_rows() {
 
 #[test]
 fn metadata_only_tagging_does_not_enqueue_analysis() {
-    let (mut controller, _source) = prepare_with_source_and_wav_entries(vec![sample_entry(
-        "one.wav",
-        Rating::NEUTRAL,
-    )]);
+    let (mut controller, _source) =
+        prepare_with_source_and_wav_entries(vec![sample_entry("one.wav", Rating::NEUTRAL)]);
 
     controller.focus_browser_row(0);
     controller.tag_selected_left();

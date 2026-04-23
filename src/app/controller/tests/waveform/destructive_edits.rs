@@ -1,9 +1,9 @@
 use super::super::super::test_support::{
     load_waveform_selection, prepare_with_source_and_wav_entries, sample_entry, write_test_wav,
 };
-use crate::app::controller::library::selection_edits::SelectionEditRequest;
 use crate::app::controller::jobs::JobMessage;
 use crate::app::controller::library::analysis_jobs::AnalysisJobMessage;
+use crate::app::controller::library::selection_edits::SelectionEditRequest;
 use crate::app::state::{DestructiveSelectionEdit, WaveformView};
 use crate::app_core::state::StatusTone;
 use crate::selection::SelectionRange;
@@ -33,7 +33,7 @@ fn wait_for_analysis_enqueue_finished(
     while Instant::now() < deadline {
         match controller.runtime.jobs.try_recv_message() {
             Ok(JobMessage::Analysis(message @ AnalysisJobMessage::EnqueueFinished { .. })) => {
-                return message
+                return message;
             }
             Ok(_) => {}
             Err(std::sync::mpsc::TryRecvError::Empty) => {

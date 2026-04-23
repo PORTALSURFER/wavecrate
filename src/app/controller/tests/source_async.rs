@@ -7,8 +7,8 @@ use super::super::library::sources::hydration::with_source_hydration_async_enabl
 use super::super::library::wavs::with_browser_async_pipeline_enabled_for_tests;
 use super::super::test_support::sample_entry;
 use super::super::*;
-use crate::app::controller::state::runtime::PendingMetadataMutation;
 use super::common::visible_indices;
+use crate::app::controller::state::runtime::PendingMetadataMutation;
 use crate::app::state::FolderPaneId;
 use crate::sample_sources::Rating;
 use std::collections::{BTreeSet, HashMap};

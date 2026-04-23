@@ -63,16 +63,20 @@ fn claim_selection_orders_sources_round_robin() {
         reset_done,
     );
     let mut wake_counter = 0;
-    assert!(claim_wakeup
-        .acquire_probe_or_wait(&mut wake_counter)
-        .is_none());
+    assert!(
+        claim_wakeup
+            .acquire_probe_or_wait(&mut wake_counter)
+            .is_none()
+    );
     let first = match selector.select_next(None, &claim_wakeup) {
         selection::ClaimSelection::Job(job) => job,
         _ => panic!("expected a job from first source"),
     };
-    assert!(claim_wakeup
-        .acquire_probe_or_wait(&mut wake_counter)
-        .is_none());
+    assert!(
+        claim_wakeup
+            .acquire_probe_or_wait(&mut wake_counter)
+            .is_none()
+    );
     let second = match selector.select_next(None, &claim_wakeup) {
         selection::ClaimSelection::Job(job) => job,
         _ => panic!("expected a job from second source"),
@@ -157,9 +161,11 @@ fn notified_claim_wakeup_immediately_rechecks_sources_after_idle_backoff() {
     );
     let mut wake_counter = 0u64;
 
-    assert!(claim_wakeup
-        .acquire_probe_or_wait(&mut wake_counter)
-        .is_none());
+    assert!(
+        claim_wakeup
+            .acquire_probe_or_wait(&mut wake_counter)
+            .is_none()
+    );
     assert!(matches!(
         selector.select_next(None, &claim_wakeup),
         selection::ClaimSelection::Idle

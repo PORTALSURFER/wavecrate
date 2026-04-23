@@ -56,10 +56,7 @@ impl AppController {
             .auto_sync_grace_active(source_id, now)
     }
 
-    pub(crate) fn extend_selected_source_mutation_auto_sync_grace(
-        &mut self,
-        source_id: &SourceId,
-    ) {
+    pub(crate) fn extend_selected_source_mutation_auto_sync_grace(&mut self, source_id: &SourceId) {
         if self.selected_source_id().as_ref() != Some(source_id) {
             return;
         }

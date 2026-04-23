@@ -26,10 +26,10 @@ pub(crate) use ann_index::{
     clear_ann_index_dirty, enqueue_rebuild_ann_index_job, mark_ann_index_dirty,
 };
 #[cfg(test)]
+pub(crate) use cleanup::fail_stale_running_jobs;
+#[cfg(test)]
 pub(crate) use cleanup::purge_orphaned_samples;
 pub(crate) use cleanup::purge_orphaned_samples_in_tx;
-#[cfg(test)]
-pub(crate) use cleanup::fail_stale_running_jobs;
 pub(crate) use cleanup::{
     fail_stale_running_jobs_with_sources, prune_jobs_for_missing_sources, reset_running_to_pending,
 };

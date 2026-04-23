@@ -1,6 +1,6 @@
 use super::aggregate::{current_progress_all, seed_missing_progress};
 use super::cleanup::{cleanup_stale_jobs, now_epoch_seconds};
-use super::source_discovery::{refresh_sources, ProgressSourceDb};
+use super::source_discovery::{ProgressSourceDb, refresh_sources};
 use super::wakeup::ProgressPollerWakeup;
 use super::{HEARTBEAT_INTERVAL, SOURCE_REFRESH_INTERVAL, STALE_CLEANUP_INTERVAL};
 use crate::app::controller::jobs::{JobMessage, JobMessageSender};

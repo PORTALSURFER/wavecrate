@@ -5,13 +5,13 @@ use crate::gui::repaint::SharedRepaintSignal;
 use crate::sample_sources::SourceId;
 use std::collections::HashSet;
 use std::sync::{
-    atomic::{AtomicBool, AtomicU32},
     Arc, RwLock,
+    atomic::{AtomicBool, AtomicU32},
 };
 
+use super::DecodedQueue;
 use super::heartbeat::DecodeHeartbeatTracker;
 use super::selection::SharedClaimSelector;
-use super::DecodedQueue;
 
 /// Shared inputs for one decoder worker thread.
 pub(crate) struct DecoderWorkerContext {
