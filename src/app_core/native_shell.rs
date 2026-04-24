@@ -100,7 +100,9 @@ use status_projection::status_bar_right_text;
 pub(crate) use status_projection::{project_status_model, selected_column_index};
 pub(crate) use update_projection::project_update_model;
 pub(crate) use waveform_image_translation::waveform_image_to_native_rgba;
-pub(crate) use waveform_projection::{project_waveform_chrome_model, project_waveform_model};
+pub(crate) use waveform_projection::{
+    effective_waveform_image_signature, project_waveform_chrome_model, project_waveform_model,
+};
 
 static PROJECT_APP_MODEL_CALLS: AtomicU64 = AtomicU64::new(0);
 #[cfg(feature = "native-bridge-metrics")]
@@ -251,7 +253,9 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
                 .round()
                 .clamp(100.0, 9999.0)
         )),
-        waveform_image_signature: controller.ui.waveform.waveform_image_signature,
+        waveform_image_signature: waveform_projection::effective_waveform_image_signature(
+            controller,
+        ),
         waveform_loaded_label: waveform_projection::project_waveform_target_label(&controller.ui),
         waveform_loading: controller.ui.waveform.loading.is_some(),
         waveform_transport_hint: waveform_projection::waveform_transport_hint(&controller.ui),

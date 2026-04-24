@@ -94,6 +94,11 @@ impl AppController {
         if pending.request_id != message.request_id || pending.key != message.key {
             return;
         }
+        if !self.waveform_render_key_matches_current_view(message.key) {
+            self.runtime.pending_waveform_render = None;
+            self.refresh_waveform_image();
+            return;
+        }
         self.runtime.pending_waveform_render = None;
         match message.result {
             Ok(visual) => {

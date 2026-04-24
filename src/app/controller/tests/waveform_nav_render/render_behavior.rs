@@ -72,7 +72,7 @@ fn waveform_render_meta_rejects_small_shifts_when_zoomed_in() {
 }
 
 #[test]
-fn waveform_render_meta_allows_small_shifts_on_full_view() {
+fn waveform_render_meta_rejects_small_shifts_on_full_view() {
     let base = wavs::WaveformRenderMeta {
         view_start: 0.0,
         view_end: 1.0,
@@ -89,7 +89,7 @@ fn waveform_render_meta_allows_small_shifts_on_full_view() {
         view_end: 1.0005,
         ..base
     };
-    assert!(base.matches(&minor_shift));
+    assert!(!base.matches(&minor_shift));
 }
 
 #[test]
@@ -193,6 +193,74 @@ fn adjacent_pan_translation_matches_full_render_output() {
         mismatch_ratio <= 0.25,
         "expected translated pan render to stay close to full render; mismatch ratio={mismatch_ratio:.3}"
     );
+}
+
+#[test]
+/// Zoom changes alter the view scale, so the cached raster must not be translated.
+fn zoom_change_uses_full_render_instead_of_translation_reuse() {
+    let (mut controller, _source) = dummy_controller();
+    controller.sample_view.waveform.size = [200, 24];
+    controller.ui.waveform.view = WaveformView {
+        start: 0.20,
+        end: 0.60,
+    };
+    controller.sample_view.waveform.decoded = Some(std::sync::Arc::new(DecodedWaveform {
+        cache_token: 1,
+        samples: std::sync::Arc::from(
+            (0..2_000)
+                .map(|index| ((index as f32 * 0.017).sin() * 0.9).clamp(-1.0, 1.0))
+                .collect::<Vec<_>>(),
+        ),
+        analysis_samples: std::sync::Arc::from(Vec::new()),
+        analysis_sample_rate: 0,
+        analysis_stride: 1,
+        peaks: None,
+        duration_seconds: 1.0,
+        sample_rate: 48_000,
+        channels: 1,
+    }));
+
+    controller.refresh_waveform_image();
+    controller.ui.waveform.view = WaveformView {
+        start: 0.25,
+        end: 0.45,
+    };
+    controller.refresh_waveform_image();
+
+    let render_meta = *controller
+        .sample_view
+        .waveform
+        .render_meta
+        .as_ref()
+        .expect("render metadata");
+    assert!(render_meta.matches_view_identity(controller.ui.waveform.view));
+    let actual = controller
+        .ui
+        .waveform
+        .image
+        .as_ref()
+        .expect("waveform image")
+        .clone();
+    let decoded = controller
+        .sample_view
+        .waveform
+        .decoded
+        .as_ref()
+        .expect("decoded waveform");
+    let expected = controller
+        .sample_view
+        .renderer
+        .render_color_image_for_view_with_size_and_fade(
+            decoded,
+            controller.ui.waveform.channel_view,
+            crate::waveform::WaveformRenderViewport {
+                size: [render_meta.texture_width, render_meta.size[1]],
+                view_start: controller.ui.waveform.view.start as f32,
+                view_end: controller.ui.waveform.view.end as f32,
+                edit_fade: render_meta.edit_fade,
+            },
+        );
+    assert_eq!(actual.pixels, expected.pixels);
 }
 
 #[test]

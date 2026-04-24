@@ -32,6 +32,19 @@ fn bridge_reprojects_after_async_waveform_image_arrival() {
         vec![crate::waveform::WaveformRgba::from_rgb(12, 34, 56)],
     ));
     bridge.controller.ui.waveform.waveform_image_signature = Some(1);
+    bridge.controller.set_waveform_render_meta_for_tests(Some(
+        crate::app::controller::WaveformRenderMeta {
+            view_start: bridge.controller.ui.waveform.view.start,
+            view_end: bridge.controller.ui.waveform.view.end,
+            size: [1, 1],
+            samples_len: 1,
+            texture_width: 1,
+            channel_view: bridge.controller.ui.waveform.channel_view,
+            channels: 1,
+            edit_fade: None,
+            transient_visual_token: None,
+        },
+    ));
     bridge.controller.projected_waveform_image = None;
     bridge.controller.projected_waveform_image_signature = None;
     bridge.controller.mark_waveform_projection_dirty();

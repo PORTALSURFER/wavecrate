@@ -1,5 +1,6 @@
 use super::*;
 use crate::app::controller::state::runtime::WaveformRefreshReason;
+use crate::app::state::WaveformView;
 use crate::gui::types::ImageRgba;
 use crate::waveform::{DecodedWaveform, WaveformChannelView, WaveformImage, WaveformRenderer};
 use std::sync::Arc;
@@ -74,21 +75,23 @@ pub(crate) struct WaveformRenderMeta {
 }
 
 impl WaveformRenderMeta {
+    /// Check whether this raster was rendered for exactly the supplied view.
+    pub(crate) fn matches_view_identity(&self, view: WaveformView) -> bool {
+        let view = view.clamp();
+        self.view_start.to_bits() == view.start.to_bits()
+            && self.view_end.to_bits() == view.end.to_bits()
+    }
+
     /// Check whether two render targets describe the same view and layout.
     pub(crate) fn matches(&self, other: &WaveformRenderMeta) -> bool {
-        let (self_frame_bucket, self_start_bucket, self_end_bucket) =
-            reuse::quantized_view_window(self);
-        let (other_frame_bucket, other_start_bucket, other_end_bucket) =
-            reuse::quantized_view_window(other);
         let fade_eps = (1.0 / self.size[0].max(1) as f32).max(1e-6);
         self.samples_len == other.samples_len
             && self.size == other.size
             && self.texture_width == other.texture_width
             && self.channel_view == other.channel_view
             && self.channels == other.channels
-            && self_frame_bucket == other_frame_bucket
-            && self_start_bucket == other_start_bucket
-            && self_end_bucket == other_end_bucket
+            && self.view_start.to_bits() == other.view_start.to_bits()
+            && self.view_end.to_bits() == other.view_end.to_bits()
             && edit_fade_matches(self.edit_fade, other.edit_fade, fade_eps)
             && self.transient_visual_token == other.transient_visual_token
     }

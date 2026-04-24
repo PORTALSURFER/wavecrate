@@ -37,6 +37,7 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
     let zoom_percent = (100.0 / view_span).round().clamp(100.0, 9999.0);
     let fade_overlay = project_waveform_edit_fade_overlay_model(ui);
     let projected_playhead = projected_playhead_ratio(controller);
+    let waveform_image_signature = effective_waveform_image_signature(controller);
     WaveformPanelModel {
         loaded_label: project_waveform_target_label(ui),
         loading: ui.waveform.loading.is_some(),
@@ -76,8 +77,8 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
         loop_enabled: ui.waveform.loop_enabled,
         tempo_label: ui.waveform.bpm_value.map(|bpm| format!("{bpm:.1} BPM")),
         zoom_label: Some(format!("{zoom_percent:.0}%")),
-        waveform_image_signature: ui.waveform.waveform_image_signature,
-        waveform_image: project_waveform_image(controller),
+        waveform_image_signature,
+        waveform_image: project_waveform_image(controller, waveform_image_signature),
     }
 }
 
@@ -155,12 +156,17 @@ fn project_waveform_bpm_grid_origin_micros(ui: &UiState) -> u32 {
 }
 
 /// Reuse or rebuild the projected waveform raster payload for the native model.
-fn project_waveform_image(controller: &mut AppController) -> Option<Arc<ImageRgba>> {
-    let signature = controller.ui.waveform.waveform_image_signature;
+fn project_waveform_image(
+    controller: &mut AppController,
+    signature: Option<u64>,
+) -> Option<Arc<ImageRgba>> {
+    if controller.ui.waveform.waveform_image_signature.is_some() && signature.is_none() {
+        controller.projected_waveform_image_signature = None;
+        return None;
+    }
     let has_source_image = controller.ui.waveform.image.is_some();
     let has_cached_image = controller.projected_waveform_image.is_some();
-    if signature.is_some()
-        && controller.projected_waveform_image_signature == signature
+    if controller.projected_waveform_image_signature == signature
         && has_source_image == has_cached_image
     {
         return controller.projected_waveform_image.clone();
@@ -178,6 +184,15 @@ fn project_waveform_image(controller: &mut AppController) -> Option<Arc<ImageRgb
     controller.projected_waveform_image_signature = signature;
     controller.projected_waveform_image = projected_waveform_image.clone();
     projected_waveform_image
+}
+
+/// Return the image signature only when the stored raster and current overlays share a view.
+pub(crate) fn effective_waveform_image_signature(controller: &AppController) -> Option<u64> {
+    let signature = controller.ui.waveform.waveform_image_signature?;
+    let meta = controller.waveform_render_meta()?;
+    (controller.ui.waveform.image.is_some()
+        && meta.matches_view_identity(controller.ui.waveform.view))
+    .then_some(signature)
 }
 
 /// Project waveform chrome labels and action-hint copy.

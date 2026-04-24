@@ -144,6 +144,25 @@ fn waveform_projection_key_changes_when_view_milli_changes() {
 }
 
 #[test]
+/// Deep-zoom view changes below micro precision must still invalidate waveform keys.
+fn waveform_projection_key_changes_when_view_nanos_change() {
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    controller.ui.waveform.view.start = 0.500_000_001;
+    controller.ui.waveform.view.end = 0.500_000_201;
+    let first = build_waveform_projection_key(&controller);
+
+    controller.ui.waveform.view.start = 0.500_000_002;
+    controller.ui.waveform.view.end = 0.500_000_202;
+    let second = build_waveform_projection_key(&controller);
+
+    assert_eq!(
+        first.waveform_view_start_micros,
+        second.waveform_view_start_micros
+    );
+    assert_ne!(first, second);
+}
+
+#[test]
 /// Waveform option toggles must invalidate both full and waveform segment projection keys.
 fn waveform_option_toggles_change_projection_and_waveform_keys() {
     let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);

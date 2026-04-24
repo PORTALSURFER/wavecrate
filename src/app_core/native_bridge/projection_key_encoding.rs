@@ -74,3 +74,8 @@ pub(super) fn normalized_f32_to_micros(value: f32) -> u32 {
 pub(super) fn normalized_f64_to_micros(value: f64) -> u32 {
     (value.clamp(0.0, 1.0) * 1_000_000.0).round() as u32
 }
+
+/// Convert a normalized `f64` scalar into clamped nano-space (`0..=1_000_000_000`).
+pub(super) fn normalized_f64_to_nanos(value: f64) -> u32 {
+    (value.clamp(0.0, 1.0) * 1_000_000_000.0).round() as u32
+}

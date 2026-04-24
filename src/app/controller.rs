@@ -44,6 +44,7 @@ pub(crate) use history::catalog_history_handler_supported;
 pub(in crate::app::controller) use library::analysis_jobs::AnalysisJobMessage;
 use library::analysis_jobs::AnalysisWorkerPool;
 pub(crate) use library::wav_io::supports_wav_destructive_edits;
+pub(crate) use library::wavs::WaveformRenderMeta;
 use open;
 use playback::audio_loader::{AudioLoadError, AudioLoadJob, AudioLoadOutcome};
 use rfd::FileDialog;
@@ -273,6 +274,17 @@ impl AppController {
 
     pub(crate) fn waveform(&mut self) -> ui::waveform_controller::WaveformController<'_> {
         ui::waveform_controller::WaveformController::new(self)
+    }
+
+    /// Return metadata for the currently stored waveform raster, when any.
+    pub(crate) fn waveform_render_meta(&self) -> Option<&WaveformRenderMeta> {
+        self.sample_view.waveform.render_meta.as_ref()
+    }
+
+    #[cfg(test)]
+    /// Override waveform render metadata for projection-focused tests.
+    pub(crate) fn set_waveform_render_meta_for_tests(&mut self, meta: Option<WaveformRenderMeta>) {
+        self.sample_view.waveform.render_meta = meta;
     }
 
     pub(crate) fn drag_drop(&mut self) -> ui::drag_drop_controller::DragDropController<'_> {

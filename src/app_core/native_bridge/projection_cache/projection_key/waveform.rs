@@ -1,6 +1,6 @@
 use super::super::super::projection_key_encoding::{
     normalized_f32_to_micros, normalized_f32_to_milli, normalized_f64_to_micros,
-    normalized_f64_to_milli,
+    normalized_f64_to_milli, normalized_f64_to_nanos,
 };
 use super::super::WaveformProjectionCacheKey;
 use crate::app_core::controller::AppController;
@@ -11,7 +11,9 @@ pub(super) fn build_waveform_projection_key(
 ) -> WaveformProjectionCacheKey {
     let scalars = derive_waveform_projection_scalars(controller);
     WaveformProjectionCacheKey {
-        waveform_signature: controller.ui.waveform.waveform_image_signature,
+        waveform_signature: crate::app_core::native_shell::effective_waveform_image_signature(
+            controller,
+        ),
         waveform_selection_start_milli: scalars.selection_start_milli,
         waveform_selection_end_milli: scalars.selection_end_milli,
         waveform_selection_start_micros: scalars.selection_start_micros,
@@ -34,6 +36,8 @@ pub(super) fn build_waveform_projection_key(
         waveform_view_end_milli: scalars.view_end_milli,
         waveform_view_start_micros: scalars.view_start_micros,
         waveform_view_end_micros: scalars.view_end_micros,
+        waveform_view_start_nanos: scalars.view_start_nanos,
+        waveform_view_end_nanos: scalars.view_end_nanos,
         waveform_loop_enabled: controller.ui.waveform.loop_enabled,
         waveform_loop_lock_enabled: controller.ui.waveform.loop_lock_enabled,
         waveform_bpm_bits: controller.ui.waveform.bpm_value.map(f32::to_bits),
@@ -74,6 +78,8 @@ struct WaveformProjectionScalars {
     view_end_milli: u16,
     view_start_micros: u32,
     view_end_micros: u32,
+    view_start_nanos: u32,
+    view_end_nanos: u32,
 }
 
 /// Derive normalized waveform projection key fields once for cache-key builders.
@@ -211,6 +217,8 @@ fn derive_waveform_projection_scalars(controller: &AppController) -> WaveformPro
         view_end_milli: normalized_f64_to_milli(controller.ui.waveform.view.end),
         view_start_micros: normalized_f64_to_micros(controller.ui.waveform.view.start),
         view_end_micros: normalized_f64_to_micros(controller.ui.waveform.view.end),
+        view_start_nanos: normalized_f64_to_nanos(controller.ui.waveform.view.start),
+        view_end_nanos: normalized_f64_to_nanos(controller.ui.waveform.view.end),
     }
 }
 

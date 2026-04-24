@@ -86,16 +86,20 @@ impl AppController {
         {
             return;
         }
+        if let (Some(previous_meta), Some(previous_image)) = (
+            self.sample_view.waveform.render_meta.as_ref(),
+            self.ui.waveform.image.as_ref(),
+        ) && let Some(translated) = self.translate_waveform_image_if_possible(
+            &request.decoded,
+            previous_meta,
+            previous_image,
+            &request.meta,
+        ) {
+            self.store_waveform_image(translated, request.meta);
+            return;
+        }
         let request_id = self.runtime.jobs.next_waveform_render_request_id();
-        let key = WaveformRenderKey {
-            cache_token: request.decoded.cache_token,
-            texture_width: request.effective_width,
-            height: request.meta.size[1],
-            channel_view: self.ui.waveform.channel_view,
-            view_start_bits: request.view.start.to_bits(),
-            view_end_bits: request.view.end.to_bits(),
-            transient_visual_token: request.meta.transient_visual_token,
-        };
+        let key = request.key();
         if self
             .runtime
             .pending_waveform_render
@@ -201,6 +205,14 @@ impl AppController {
         })
     }
 
+    pub(crate) fn waveform_render_key_matches_current_view(
+        &mut self,
+        key: WaveformRenderKey,
+    ) -> bool {
+        self.plan_waveform_render_request()
+            .is_some_and(|request| request.key() == key)
+    }
+
     fn clear_waveform_render_state(&mut self) {
         self.ui.waveform.image = None;
         self.ui.waveform.waveform_image_signature = None;
@@ -208,6 +220,20 @@ impl AppController {
         self.projected_waveform_image = None;
         self.runtime.pending_waveform_render = None;
         self.mark_waveform_projection_dirty();
+    }
+}
+
+impl WaveformRenderRequest {
+    fn key(&self) -> WaveformRenderKey {
+        WaveformRenderKey {
+            cache_token: self.decoded.cache_token,
+            texture_width: self.effective_width,
+            height: self.meta.size[1],
+            channel_view: self.meta.channel_view,
+            view_start_bits: self.view.start.to_bits(),
+            view_end_bits: self.view.end.to_bits(),
+            transient_visual_token: self.meta.transient_visual_token,
+        }
     }
 }
 

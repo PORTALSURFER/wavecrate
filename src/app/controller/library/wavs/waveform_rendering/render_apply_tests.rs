@@ -1,8 +1,11 @@
 use super::*;
-use crate::app::controller::jobs::{WaveformRenderJob, WaveformRenderKey};
+use crate::app::controller::jobs::{JobMessage, WaveformRenderJob, WaveformRenderKey};
+use crate::app::controller::state::runtime::PendingWaveformRender;
 use crate::app::controller::test_support::dummy_controller;
+use crate::app::state::WaveformView;
 use crate::waveform::{DecodedWaveform, WaveformChannelView, WaveformRenderViewport};
 use std::sync::{Arc, atomic::AtomicU64};
+use std::time::{Duration, Instant};
 
 #[test]
 /// Deferred transient work should be queued instead of running synchronously on apply.
@@ -67,6 +70,79 @@ fn stale_waveform_render_request_returns_none() {
         super::worker_jobs::run_waveform_render_job(job, meta, Arc::new(AtomicU64::new(9)));
 
     assert!(result.is_none());
+}
+
+#[test]
+/// Async render apply must reject results whose exact f64 view identity is no longer current.
+fn async_waveform_render_apply_discards_deep_zoom_stale_view_identity() {
+    let (mut controller, _) = dummy_controller();
+    let decoded = Arc::new(decoded_waveform(13));
+    controller.sample_view.waveform.size = [32, 16];
+    controller.sample_view.waveform.decoded = Some(Arc::clone(&decoded));
+    controller.ui.waveform.view = WaveformView {
+        start: 0.500_000_001,
+        end: 0.500_000_201,
+    };
+    let stale_key = WaveformRenderKey {
+        cache_token: decoded.cache_token,
+        texture_width: 32,
+        height: 16,
+        channel_view: WaveformChannelView::Mono,
+        view_start_bits: controller.ui.waveform.view.start.to_bits(),
+        view_end_bits: controller.ui.waveform.view.end.to_bits(),
+        transient_visual_token: None,
+    };
+    controller.runtime.pending_waveform_render = Some(PendingWaveformRender {
+        request_id: 3,
+        key: stale_key,
+        queued_at: Instant::now(),
+    });
+    controller.ui.waveform.view = WaveformView {
+        start: 0.500_000_002,
+        end: 0.500_000_202,
+    };
+    let stale_meta = WaveformRenderMeta {
+        view_start: 0.500_000_001,
+        view_end: 0.500_000_201,
+        size: [32, 16],
+        samples_len: decoded.frame_count(),
+        texture_width: 32,
+        channel_view: WaveformChannelView::Mono,
+        channels: 1,
+        edit_fade: None,
+        transient_visual_token: None,
+    };
+
+    controller.apply_background_job_message_for_tests(JobMessage::WaveformRendered(
+        crate::app::controller::jobs::WaveformRenderResult {
+            request_id: 3,
+            key: stale_key,
+            elapsed: Duration::from_millis(1),
+            result: Ok(PreparedWaveformVisual {
+                image: Some(crate::waveform::WaveformImage {
+                    size: [32, 16],
+                    pixels: vec![
+                        crate::waveform::WaveformRgba::from_rgba_unmultiplied(1, 2, 3, 4);
+                        32 * 16
+                    ],
+                }),
+                projected_image: None,
+                render_meta: Some(stale_meta),
+            }),
+        },
+    ));
+
+    let applied_meta = controller
+        .sample_view
+        .waveform
+        .render_meta
+        .as_ref()
+        .expect("current render after stale discard");
+    assert!(applied_meta.matches_view_identity(controller.ui.waveform.view));
+    assert_ne!(
+        applied_meta.view_start.to_bits(),
+        stale_meta.view_start.to_bits()
+    );
 }
 
 fn decoded_waveform(cache_token: u64) -> DecodedWaveform {

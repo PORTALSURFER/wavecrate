@@ -60,6 +60,40 @@ fn waveform_projection_passes_raster_image_payload() {
 }
 
 #[test]
+/// Projection must not publish a cached raster signature for a different waveform view.
+fn waveform_projection_withholds_stale_raster_for_changed_view() {
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+    controller.ui.waveform.image = Some(crate::waveform::WaveformImage {
+        size: [2, 1],
+        pixels: vec![
+            crate::waveform::WaveformRgba::from_rgba_unmultiplied(10, 20, 30, 40),
+            crate::waveform::WaveformRgba::from_rgba_unmultiplied(11, 21, 31, 41),
+        ],
+    });
+    controller.ui.waveform.waveform_image_signature = Some(7);
+    controller.set_waveform_render_meta_for_tests(Some(
+        crate::app::controller::WaveformRenderMeta {
+            view_start: 0.20,
+            view_end: 0.60,
+            size: [32, 32],
+            samples_len: 2_000,
+            texture_width: 32,
+            channel_view: crate::waveform::WaveformChannelView::Mono,
+            channels: 1,
+            edit_fade: None,
+            transient_visual_token: None,
+        },
+    ));
+    controller.ui.waveform.view.start = 0.25;
+    controller.ui.waveform.view.end = 0.45;
+
+    let projected = project_waveform_model(&mut controller);
+
+    assert_eq!(projected.waveform_image_signature, None);
+    assert!(projected.waveform_image.is_none());
+}
+
+#[test]
 fn waveform_projection_marks_loading_state_for_native_shell() {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
     controller.ui.waveform.loading = Some(std::path::PathBuf::from("pending.wav"));

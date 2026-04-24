@@ -107,6 +107,8 @@ pub(super) fn derive_projection_key_parts(controller: &AppController) -> Derived
         waveform_view_end_milli: waveform_key.waveform_view_end_milli,
         waveform_view_start_micros: waveform_key.waveform_view_start_micros,
         waveform_view_end_micros: waveform_key.waveform_view_end_micros,
+        waveform_view_start_nanos: waveform_key.waveform_view_start_nanos,
+        waveform_view_end_nanos: waveform_key.waveform_view_end_nanos,
         waveform_loop_enabled: waveform_key.waveform_loop_enabled,
         waveform_loop_lock_enabled: waveform_key.waveform_loop_lock_enabled,
         waveform_bpm_bits: waveform_key.waveform_bpm_bits,
