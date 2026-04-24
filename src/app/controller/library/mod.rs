@@ -22,6 +22,7 @@ pub(crate) mod similarity_prep;
 pub(crate) mod slices;
 pub(crate) mod source_cache_invalidator;
 pub(crate) mod source_folders;
+pub(crate) mod source_write_priority;
 pub(crate) mod sources;
 pub(crate) mod trash;
 pub(crate) mod trash_move;

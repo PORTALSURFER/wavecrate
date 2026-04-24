@@ -192,10 +192,16 @@ impl AppController {
         source_id: &SourceId,
         paths: impl IntoIterator<Item = PathBuf>,
     ) {
-        self.runtime
+        let source_became_active = self
+            .runtime
             .source_lane
             .mutations
             .begin_file_mutation(source_id, paths);
+        if source_became_active {
+            crate::app::controller::library::source_write_priority::begin_file_op_write_priority(
+                source_id,
+            );
+        }
         self.extend_selected_source_mutation_claim_grace(source_id);
         self.extend_selected_source_mutation_auto_sync_grace(source_id);
     }
@@ -206,10 +212,16 @@ impl AppController {
         source_id: &SourceId,
         paths: impl IntoIterator<Item = PathBuf>,
     ) {
-        self.runtime
+        let source_became_inactive = self
+            .runtime
             .source_lane
             .mutations
             .finish_file_mutation(source_id, paths);
+        if source_became_inactive {
+            crate::app::controller::library::source_write_priority::finish_file_op_write_priority(
+                source_id,
+            );
+        }
         self.extend_selected_source_mutation_claim_grace(source_id);
         self.extend_selected_source_mutation_auto_sync_grace(source_id);
     }

@@ -64,6 +64,12 @@ impl AppController {
         let Some(pending) = self.runtime.pending_loaded_duration_metadata.take() else {
             return;
         };
+        if self.source_has_pending_file_mutations(&pending.source_id) {
+            self.runtime.pending_loaded_duration_metadata = Some(pending);
+            self.runtime.pending_loaded_duration_metadata_not_before =
+                Some(Instant::now() + LOADED_DURATION_METADATA_DEBOUNCE);
+            return;
+        }
         let source = SampleSource {
             id: pending.source_id.clone(),
             root: pending.source_root.clone(),

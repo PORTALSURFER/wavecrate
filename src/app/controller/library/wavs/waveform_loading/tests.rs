@@ -3,7 +3,7 @@ use crate::app::controller::test_support::{
     prepare_with_source_and_wav_entries, sample_entry, write_test_wav,
 };
 use crate::selection::SelectionRange;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Decode one test waveform into the shared finalize payload shape used by load completion paths.
 fn decode_payload(
@@ -135,4 +135,39 @@ fn loaded_duration_metadata_flush_respects_deadline() {
 
     assert!(controller.has_pending_loaded_duration_metadata_write());
     assert!(sample_duration_seconds(&source, relative_path).is_none());
+}
+
+#[test]
+/// Same-source browser file ops keep analysis metadata writes queued until rename work settles.
+fn loaded_duration_metadata_flush_defers_during_same_source_file_op() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "quiet.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    let relative_path = Path::new("quiet.wav");
+    let wav_path = source.root.join(relative_path);
+    write_test_wav(&wav_path, &[0.0, 0.1, 0.2, 0.3]);
+
+    let loaded = controller.load_waveform_for_selection(&source, relative_path);
+    assert!(loaded.is_ok(), "waveform load failed: {loaded:?}");
+    controller
+        .runtime
+        .pending_loaded_duration_metadata_not_before =
+        Some(Instant::now() - Duration::from_millis(1));
+
+    controller.begin_pending_file_mutation(&source.id, [PathBuf::from("quiet.wav")]);
+    controller.flush_pending_loaded_duration_metadata_write();
+
+    assert!(controller.has_pending_loaded_duration_metadata_write());
+    assert!(sample_duration_seconds(&source, relative_path).is_none());
+
+    controller.finish_pending_file_mutation(&source.id, [PathBuf::from("quiet.wav")]);
+    controller
+        .runtime
+        .pending_loaded_duration_metadata_not_before =
+        Some(Instant::now() - Duration::from_millis(1));
+    controller.flush_pending_loaded_duration_metadata_write();
+
+    assert!(!controller.has_pending_loaded_duration_metadata_write());
+    assert!(sample_duration_seconds(&source, relative_path).is_some());
 }

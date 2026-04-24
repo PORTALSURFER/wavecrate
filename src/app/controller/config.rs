@@ -229,9 +229,23 @@ impl AppController {
         if self.runtime.jobs.source_db_maintenance_in_progress() {
             return;
         }
-        let jobs = std::mem::take(&mut self.runtime.deferred_startup_source_db_maintenance_jobs);
-        self.runtime.deferred_startup_source_db_maintenance_armed = false;
-        self.runtime.jobs.begin_source_db_maintenance(jobs);
+        let mut ready = Vec::new();
+        let mut deferred = Vec::new();
+        for job in std::mem::take(&mut self.runtime.deferred_startup_source_db_maintenance_jobs) {
+            if self.source_has_pending_file_mutations(&job.source_id) {
+                deferred.push(job);
+            } else {
+                ready.push(job);
+            }
+        }
+        // Browser file ops own the source write lane briefly; maintenance is
+        // recoverable and can wait for the same source while other sources run.
+        self.runtime.deferred_startup_source_db_maintenance_jobs = deferred;
+        self.runtime.deferred_startup_source_db_maintenance_armed = !self
+            .runtime
+            .deferred_startup_source_db_maintenance_jobs
+            .is_empty();
+        self.runtime.jobs.begin_source_db_maintenance(ready);
     }
 
     /// Return true when startup-deferred source-db maintenance is armed.

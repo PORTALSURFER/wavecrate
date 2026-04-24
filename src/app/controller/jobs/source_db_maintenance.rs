@@ -12,6 +12,9 @@ use rusqlite::TransactionBehavior;
 pub(super) fn run_source_db_maintenance_job(
     job: SourceDbMaintenanceJob,
 ) -> SourceDbMaintenanceOutcome {
+    if source_file_op_active(&job) {
+        return deferred_for_file_op(job);
+    }
     let probe = match crate::sample_sources::SourceDatabase::open_with_role(
         &job.source_root,
         crate::sample_sources::SourceDatabaseConnectionRole::Maintenance,
@@ -22,6 +25,7 @@ pub(super) fn run_source_db_maintenance_job(
                 source_id: job.source_id,
                 source_root: job.source_root,
                 skipped: false,
+                deferred_due_to_file_op: false,
                 orphan_rows_removed: 0,
                 refresh: SourceDbMaintenanceRefresh::None,
                 error: Some(format!("Open source DB failed: {err}")),
@@ -45,6 +49,7 @@ pub(super) fn run_source_db_maintenance_job(
                 source_id: job.source_id,
                 source_root: job.source_root,
                 skipped: false,
+                deferred_due_to_file_op: false,
                 orphan_rows_removed: 0,
                 refresh: SourceDbMaintenanceRefresh::None,
                 error: Some(format!("Deferred file-op recovery failed: {err}")),
@@ -65,6 +70,7 @@ pub(super) fn run_source_db_maintenance_job(
                     source_id: job.source_id,
                     source_root: job.source_root,
                     skipped: false,
+                    deferred_due_to_file_op: false,
                     orphan_rows_removed: 0,
                     refresh: maintenance_refresh(&reconcile_summary, empty_source_rescanned),
                     error: Some(format!("Deferred empty-source scan failed: {err}")),
@@ -77,6 +83,7 @@ pub(super) fn run_source_db_maintenance_job(
                 source_id: job.source_id,
                 source_root: job.source_root,
                 skipped: false,
+                deferred_due_to_file_op: false,
                 orphan_rows_removed: 0,
                 refresh: maintenance_refresh(&reconcile_summary, empty_source_rescanned),
                 error: Some(format!("Read source DB count failed: {err}")),
@@ -90,6 +97,7 @@ pub(super) fn run_source_db_maintenance_job(
                 source_id: job.source_id,
                 source_root: job.source_root,
                 skipped: false,
+                deferred_due_to_file_op: false,
                 orphan_rows_removed: 0,
                 refresh: maintenance_refresh(&reconcile_summary, empty_source_rescanned),
                 error: Some(format!("Read source DB revision failed: {err}")),
@@ -103,6 +111,7 @@ pub(super) fn run_source_db_maintenance_job(
                 source_id: job.source_id,
                 source_root: job.source_root,
                 skipped: false,
+                deferred_due_to_file_op: false,
                 orphan_rows_removed: 0,
                 refresh: maintenance_refresh(&reconcile_summary, empty_source_rescanned),
                 error: Some(err),
@@ -115,6 +124,19 @@ pub(super) fn run_source_db_maintenance_job(
             source_id: job.source_id,
             source_root: job.source_root,
             skipped: true,
+            deferred_due_to_file_op: false,
+            orphan_rows_removed: 0,
+            refresh: maintenance_refresh(&reconcile_summary, empty_source_rescanned),
+            error: None,
+        };
+    }
+
+    if source_file_op_active(&job) {
+        return SourceDbMaintenanceOutcome {
+            source_id: job.source_id,
+            source_root: job.source_root,
+            skipped: false,
+            deferred_due_to_file_op: true,
             orphan_rows_removed: 0,
             refresh: maintenance_refresh(&reconcile_summary, empty_source_rescanned),
             error: None,
@@ -123,12 +145,24 @@ pub(super) fn run_source_db_maintenance_job(
 
     let mut last_error: Option<String> = None;
     for attempt in 1..=DEFERRED_MAINTENANCE_MAX_ATTEMPTS {
+        if source_file_op_active(&job) {
+            return SourceDbMaintenanceOutcome {
+                source_id: job.source_id,
+                source_root: job.source_root,
+                skipped: false,
+                deferred_due_to_file_op: true,
+                orphan_rows_removed: 0,
+                refresh: maintenance_refresh(&reconcile_summary, empty_source_rescanned),
+                error: None,
+            };
+        }
         match run_source_db_maintenance_once(&job, revision) {
             Ok(orphan_rows_removed) => {
                 return SourceDbMaintenanceOutcome {
                     source_id: job.source_id,
                     source_root: job.source_root,
                     skipped: false,
+                    deferred_due_to_file_op: false,
                     orphan_rows_removed,
                     refresh: maintenance_refresh(&reconcile_summary, empty_source_rescanned),
                     error: None,
@@ -147,9 +181,28 @@ pub(super) fn run_source_db_maintenance_job(
         source_id: job.source_id,
         source_root: job.source_root,
         skipped: false,
+        deferred_due_to_file_op: false,
         orphan_rows_removed: 0,
         refresh: maintenance_refresh(&reconcile_summary, empty_source_rescanned),
         error: last_error,
+    }
+}
+
+fn source_file_op_active(job: &SourceDbMaintenanceJob) -> bool {
+    crate::app::controller::library::source_write_priority::file_op_write_priority_active(
+        &job.source_id,
+    )
+}
+
+fn deferred_for_file_op(job: SourceDbMaintenanceJob) -> SourceDbMaintenanceOutcome {
+    SourceDbMaintenanceOutcome {
+        source_id: job.source_id,
+        source_root: job.source_root,
+        skipped: false,
+        deferred_due_to_file_op: true,
+        orphan_rows_removed: 0,
+        refresh: SourceDbMaintenanceRefresh::None,
+        error: None,
     }
 }
 
@@ -228,4 +281,31 @@ fn update_deferred_maintenance_markers(
     )
     .map_err(|err| format!("Update deferred maintenance schema marker failed: {err}"))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::controller::library::source_write_priority::FileOpWritePriorityGuard;
+    use crate::sample_sources::SampleSource;
+    use tempfile::tempdir;
+
+    #[test]
+    fn source_db_maintenance_defers_quietly_during_same_source_file_op() {
+        let temp = tempdir().expect("create temp dir");
+        let source = SampleSource::new(temp.path().join("source"));
+        std::fs::create_dir_all(&source.root).expect("create source root");
+        let _db = crate::sample_sources::SourceDatabase::open(&source.root).expect("open db");
+        let _guard = FileOpWritePriorityGuard::new(&source.id);
+
+        let outcome = run_source_db_maintenance_job(SourceDbMaintenanceJob {
+            source_id: source.id.clone(),
+            source_root: source.root.clone(),
+        });
+
+        assert!(outcome.deferred_due_to_file_op);
+        assert_eq!(outcome.source_id, source.id);
+        assert!(outcome.error.is_none());
+        assert_eq!(outcome.refresh, SourceDbMaintenanceRefresh::None);
+    }
 }

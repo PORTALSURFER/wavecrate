@@ -46,6 +46,8 @@ pub(crate) struct SourceDbMaintenanceOutcome {
     pub(crate) source_root: PathBuf,
     /// Whether this source was skipped due to unchanged revision/schema token.
     pub(crate) skipped: bool,
+    /// Whether same-source browser file-op write priority deferred this job.
+    pub(crate) deferred_due_to_file_op: bool,
     /// Number of orphaned analysis rows removed.
     pub(crate) orphan_rows_removed: usize,
     /// Browser refresh work required by source-visible maintenance changes.

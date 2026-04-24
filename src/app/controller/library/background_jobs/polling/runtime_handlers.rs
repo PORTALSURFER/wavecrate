@@ -227,9 +227,17 @@ impl AppController {
     ) {
         self.runtime.jobs.clear_source_db_maintenance();
         let mut failed = 0usize;
+        let mut deferred = Vec::new();
         let mut sources_to_reconcile = Vec::new();
         let mut sources_to_reload = Vec::new();
         for outcome in message.outcomes {
+            if outcome.deferred_due_to_file_op {
+                deferred.push(crate::app::controller::jobs::SourceDbMaintenanceJob {
+                    source_id: outcome.source_id.clone(),
+                    source_root: outcome.source_root.clone(),
+                });
+                continue;
+            }
             match outcome.refresh {
                 SourceDbMaintenanceRefresh::None => {}
                 SourceDbMaintenanceRefresh::FileOpReconcile => {
@@ -262,6 +270,12 @@ impl AppController {
             {
                 self.refresh_wav_entries_for_source(&source);
             }
+        }
+        if !deferred.is_empty() {
+            self.runtime
+                .deferred_startup_source_db_maintenance_jobs
+                .extend(deferred);
+            self.runtime.deferred_startup_source_db_maintenance_armed = true;
         }
         if failed > 0 {
             let suffix = if failed == 1 { "" } else { "s" };

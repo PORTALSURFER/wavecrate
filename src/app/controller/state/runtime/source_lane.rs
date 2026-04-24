@@ -214,12 +214,13 @@ impl SourceMutationRuntime {
         &mut self,
         source_id: &SourceId,
         paths: impl IntoIterator<Item = PathBuf>,
-    ) {
-        self.pending_file_mutation_sources.insert(source_id.clone());
+    ) -> bool {
+        let source_was_inactive = self.pending_file_mutation_sources.insert(source_id.clone());
         for path in paths {
             self.pending_file_mutation_paths
                 .insert((source_id.clone(), path));
         }
+        source_was_inactive
     }
 
     /// Clear one source/path batch from background file-mutation tracking.
@@ -227,7 +228,7 @@ impl SourceMutationRuntime {
         &mut self,
         source_id: &SourceId,
         paths: impl IntoIterator<Item = PathBuf>,
-    ) {
+    ) -> bool {
         for path in paths {
             self.pending_file_mutation_paths
                 .remove(&(source_id.clone(), path));
@@ -237,8 +238,9 @@ impl SourceMutationRuntime {
             .iter()
             .any(|(pending_source_id, _)| pending_source_id == source_id);
         if !still_has_paths {
-            self.pending_file_mutation_sources.remove(source_id);
+            return self.pending_file_mutation_sources.remove(source_id);
         }
+        false
     }
 }
 
