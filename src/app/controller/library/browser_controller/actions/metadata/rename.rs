@@ -27,15 +27,48 @@ impl BrowserController<'_> {
         let Some(source) = self.current_source() else {
             return Err(String::from("No source selected"));
         };
-        if self.runtime.jobs.file_ops_in_progress() {
-            return Err("File operation already in progress".to_string());
-        }
         self.preload_bpm_values_for_paths(paths);
         let requests = self.prepare_auto_rename_requests(&source, paths)?;
+        if requests.is_empty() {
+            return Ok(());
+        }
+        let intent_key = auto_rename_intent_key(&source.id, &requests);
+        if self.runtime.jobs.file_ops_in_progress() {
+            let pending = PendingBrowserAutoRenameIntent {
+                key: intent_key.clone(),
+                source_id: source.id.clone(),
+                paths: paths.to_vec(),
+            };
+            return match self
+                .runtime
+                .source_lane
+                .mutations
+                .handle_busy_browser_auto_rename_intent(intent_key, pending)
+            {
+                BrowserRenameBusyDecision::Collapsed => {
+                    self.set_status("Auto rename already in progress...", StatusTone::Busy);
+                    Ok(())
+                }
+                BrowserRenameBusyDecision::Queued => {
+                    self.set_status(
+                        "Auto rename queued after current rename...",
+                        StatusTone::Busy,
+                    );
+                    Ok(())
+                }
+                BrowserRenameBusyDecision::UnrelatedFileOp => {
+                    Err("File operation already in progress".to_string())
+                }
+            };
+        }
         let requested_paths = requests
             .iter()
             .map(|request| request.old_relative.clone())
             .collect::<Vec<_>>();
+        self.runtime
+            .source_lane
+            .mutations
+            .begin_browser_rename_intent(intent_key);
         self.begin_pending_file_mutation(&source.id, requested_paths.clone());
         if cfg!(test) {
             let result = run_sample_auto_rename_job(
@@ -54,9 +87,26 @@ impl BrowserController<'_> {
         if let Err(err) = self.runtime.jobs.begin_one_shot_file_op(move |cancel| {
             FileOpResult::SampleAutoRename(run_sample_auto_rename_job(source, requests, cancel))
         }) {
+            self.runtime
+                .source_lane
+                .mutations
+                .clear_browser_rename_intent();
             self.finish_pending_file_mutation(&pending_source_id, requested_paths);
             return Err(err);
         }
         Ok(())
     }
+}
+
+fn auto_rename_intent_key(
+    source_id: &crate::sample_sources::SourceId,
+    requests: &[SampleAutoRenameRequest],
+) -> BrowserRenameIntentKey {
+    BrowserRenameIntentKey::new(
+        source_id.clone(),
+        requests
+            .iter()
+            .map(|request| (request.old_relative.clone(), request.new_relative.clone()))
+            .collect(),
+    )
 }

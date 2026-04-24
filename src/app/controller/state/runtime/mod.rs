@@ -23,8 +23,9 @@ pub(crate) use derived_graph::{DerivedNodeId, DerivedStateGraph, DirtyReason};
 pub(crate) use performance::PerformanceGovernorState;
 use rusqlite::Connection;
 pub(crate) use source_lane::{
-    MetadataRollback, PendingFolderProjection, PendingMetadataMutation, PendingSourceHydration,
-    SourceLaneRuntimeState,
+    BrowserRenameBusyDecision, BrowserRenameIntentKey, MetadataRollback,
+    PendingBrowserAutoRenameIntent, PendingFolderProjection, PendingMetadataMutation,
+    PendingSourceHydration, SourceLaneRuntimeState,
 };
 use std::collections::HashMap;
 use std::path::PathBuf;

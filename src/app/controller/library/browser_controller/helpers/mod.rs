@@ -5,8 +5,9 @@ use crate::app::controller::jobs::{
     FileOpResult, NormalizationJob, SampleAutoRenameResult, SampleAutoRenameSuccess,
     SampleRenameResult,
 };
+use crate::app::controller::state::runtime::BrowserRenameIntentKey;
 use crate::app::controller::undo;
-use std::sync::{Arc, atomic::AtomicBool};
+use std::sync::{atomic::AtomicBool, Arc};
 
 mod controller;
 mod focus;
@@ -16,4 +17,4 @@ mod sample_mutation;
 mod sample_mutation_tests;
 
 pub(crate) use controller::{BrowserController, DeleteBrowserFocusPlan, TriageSampleContext};
-pub(crate) use sample_mutation::{SampleAutoRenameRequest, run_sample_auto_rename_job};
+pub(crate) use sample_mutation::{run_sample_auto_rename_job, SampleAutoRenameRequest};

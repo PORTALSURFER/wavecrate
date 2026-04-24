@@ -40,6 +40,11 @@ impl AppController {
 
     pub(super) fn apply_sample_rename_result(&mut self, result: SampleRenameResult) {
         self.finish_pending_file_mutation(&result.source_id, [result.old_relative.clone()]);
+        let mut queued_auto_rename = self
+            .runtime
+            .source_lane
+            .mutations
+            .finish_browser_rename_intent();
         match result.result {
             Ok(()) => {
                 let Some(source) = self
@@ -50,11 +55,17 @@ impl AppController {
                     .cloned()
                 else {
                     self.set_status("Source not available for rename", StatusTone::Error);
+                    self.dispatch_queued_browser_auto_rename(queued_auto_rename);
                     return;
                 };
                 if let Some(entry) = result.entry {
                     self.update_cached_entry(&source, &result.old_relative, entry);
                 }
+                remap_queued_browser_auto_rename_path(
+                    &mut queued_auto_rename,
+                    &result.old_relative,
+                    &result.new_relative,
+                );
                 if result.resume_playback {
                     self.runtime
                         .jobs
@@ -78,10 +89,16 @@ impl AppController {
             }
             Err(err) => self.set_status(err, StatusTone::Error),
         }
+        self.dispatch_queued_browser_auto_rename(queued_auto_rename);
     }
 
     pub(super) fn apply_sample_auto_rename_result(&mut self, result: SampleAutoRenameResult) {
         self.finish_pending_file_mutation(&result.source_id, result.requested_paths.clone());
+        let mut queued_auto_rename = self
+            .runtime
+            .source_lane
+            .mutations
+            .finish_browser_rename_intent();
         let Some(source) = self
             .library
             .sources
@@ -90,10 +107,16 @@ impl AppController {
             .cloned()
         else {
             self.set_status("Source not available for auto rename", StatusTone::Error);
+            self.dispatch_queued_browser_auto_rename(queued_auto_rename);
             return;
         };
         for renamed in &result.renamed {
             self.update_cached_entry(&source, &renamed.old_relative, renamed.entry.clone());
+            remap_queued_browser_auto_rename_path(
+                &mut queued_auto_rename,
+                &renamed.old_relative,
+                &renamed.new_relative,
+            );
             if renamed.resume_playback {
                 self.runtime
                     .jobs
@@ -119,5 +142,46 @@ impl AppController {
             format!("Auto Rename: renamed {renamed}, skipped {skipped}, failed {failed}"),
             tone,
         );
+        self.dispatch_queued_browser_auto_rename(queued_auto_rename);
+    }
+
+    fn dispatch_queued_browser_auto_rename(
+        &mut self,
+        queued: Option<crate::app::controller::state::runtime::PendingBrowserAutoRenameIntent>,
+    ) {
+        let Some(queued) = queued else {
+            return;
+        };
+        if self.selected_source_id().as_ref() != Some(&queued.source_id) {
+            self.set_status(
+                "Queued auto rename skipped; source changed",
+                StatusTone::Info,
+            );
+            return;
+        }
+        if let Err(err) = self
+            .browser()
+            .auto_rename_browser_sample_paths_action(&queued.paths)
+        {
+            self.set_status(
+                format!("Queued auto rename failed: {err}"),
+                StatusTone::Error,
+            );
+        }
+    }
+}
+
+fn remap_queued_browser_auto_rename_path(
+    queued: &mut Option<crate::app::controller::state::runtime::PendingBrowserAutoRenameIntent>,
+    old_relative: &std::path::Path,
+    new_relative: &std::path::Path,
+) {
+    let Some(queued) = queued.as_mut() else {
+        return;
+    };
+    for path in &mut queued.paths {
+        if path == old_relative {
+            *path = new_relative.to_path_buf();
+        }
     }
 }

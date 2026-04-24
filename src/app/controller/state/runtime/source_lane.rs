@@ -106,6 +106,10 @@ pub(crate) struct SourceMutationRuntime {
     pending_file_mutation_sources: HashSet<SourceId>,
     /// Relative paths currently carrying background file or folder mutations.
     pending_file_mutation_paths: HashSet<(SourceId, PathBuf)>,
+    /// Active browser rename/auto-rename request currently owning the file-op lane.
+    active_browser_rename_intent: Option<BrowserRenameIntentKey>,
+    /// One deferred browser auto-rename request captured while browser rename work is active.
+    queued_browser_auto_rename_intent: Option<PendingBrowserAutoRenameIntent>,
 }
 
 impl SourceMutationRuntime {
@@ -242,6 +246,84 @@ impl SourceMutationRuntime {
         }
         false
     }
+
+    /// Mark one browser rename or auto-rename intent as the file-op lane owner.
+    pub(crate) fn begin_browser_rename_intent(&mut self, key: BrowserRenameIntentKey) {
+        self.active_browser_rename_intent = Some(key);
+    }
+
+    /// Drop the active browser rename owner and return any queued follow-up.
+    pub(crate) fn finish_browser_rename_intent(
+        &mut self,
+    ) -> Option<PendingBrowserAutoRenameIntent> {
+        self.active_browser_rename_intent = None;
+        self.queued_browser_auto_rename_intent.take()
+    }
+
+    /// Forget active browser rename ownership when dispatch fails before work starts.
+    pub(crate) fn clear_browser_rename_intent(&mut self) {
+        self.active_browser_rename_intent = None;
+    }
+
+    /// Apply the OPT-135 policy for repeat auto-rename input while a file op is active.
+    pub(crate) fn handle_busy_browser_auto_rename_intent(
+        &mut self,
+        key: BrowserRenameIntentKey,
+        pending: PendingBrowserAutoRenameIntent,
+    ) -> BrowserRenameBusyDecision {
+        let Some(active) = self.active_browser_rename_intent.as_ref() else {
+            return BrowserRenameBusyDecision::UnrelatedFileOp;
+        };
+        if active == &key
+            || self
+                .queued_browser_auto_rename_intent
+                .as_ref()
+                .is_some_and(|queued| queued.key == key)
+        {
+            return BrowserRenameBusyDecision::Collapsed;
+        }
+        self.queued_browser_auto_rename_intent = Some(pending);
+        BrowserRenameBusyDecision::Queued
+    }
+
+    /// Return whether the same browser rename request is already active.
+    pub(crate) fn browser_rename_intent_is_active(&self, key: &BrowserRenameIntentKey) -> bool {
+        self.active_browser_rename_intent.as_ref() == Some(key)
+    }
+}
+
+/// Decision for browser rename input received while the generic file-op lane is busy.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BrowserRenameBusyDecision {
+    /// The same rename target is already active or already queued; keep one coherent operation.
+    Collapsed,
+    /// A materially different auto-rename request was retained for one follow-up pass.
+    Queued,
+    /// The active file op was not started by browser rename dispatch.
+    UnrelatedFileOp,
+}
+
+/// Stable browser rename intent key scoped by source and requested old/new paths.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct BrowserRenameIntentKey {
+    pub(crate) source_id: SourceId,
+    pub(crate) targets: Vec<(PathBuf, PathBuf)>,
+}
+
+impl BrowserRenameIntentKey {
+    pub(crate) fn new(source_id: SourceId, mut targets: Vec<(PathBuf, PathBuf)>) -> Self {
+        targets.sort();
+        targets.dedup();
+        Self { source_id, targets }
+    }
+}
+
+/// One deferred auto-rename request to replay after active browser rename work settles.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct PendingBrowserAutoRenameIntent {
+    pub(crate) key: BrowserRenameIntentKey,
+    pub(crate) source_id: SourceId,
+    pub(crate) paths: Vec<PathBuf>,
 }
 
 /// Active controller-side tracking for one source hydration request.

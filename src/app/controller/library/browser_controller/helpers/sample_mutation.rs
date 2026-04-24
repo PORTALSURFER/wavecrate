@@ -57,7 +57,20 @@ impl BrowserController<'_> {
             &ctx.source.root,
             &full_name,
         )?;
+        let intent_key = BrowserRenameIntentKey::new(
+            ctx.source.id.clone(),
+            vec![(ctx.entry.relative_path.clone(), new_relative.clone())],
+        );
         if self.runtime.jobs.file_ops_in_progress() {
+            if self
+                .runtime
+                .source_lane
+                .mutations
+                .browser_rename_intent_is_active(&intent_key)
+            {
+                self.set_status("Rename already in progress...", StatusTone::Busy);
+                return Ok(());
+            }
             return Err("File operation already in progress".to_string());
         }
         let was_playing = self.is_playing();
@@ -73,6 +86,10 @@ impl BrowserController<'_> {
                 audio.source_id == ctx.source.id && audio.relative_path == ctx.entry.relative_path
             });
         if cfg!(test) {
+            self.runtime
+                .source_lane
+                .mutations
+                .begin_browser_rename_intent(intent_key);
             self.begin_pending_file_mutation(&ctx.source.id, [ctx.entry.relative_path.clone()]);
             let result = run_sample_rename_job(
                 ctx,
@@ -89,6 +106,10 @@ impl BrowserController<'_> {
             self.apply_file_op_result(FileOpResult::SampleRename(result));
             return Ok(());
         }
+        self.runtime
+            .source_lane
+            .mutations
+            .begin_browser_rename_intent(intent_key);
         self.begin_pending_file_mutation(&ctx.source.id, [ctx.entry.relative_path.clone()]);
         self.set_status(
             format!("Renaming {}...", ctx.entry.relative_path.display()),
@@ -110,6 +131,10 @@ impl BrowserController<'_> {
                 cancel,
             ))
         }) {
+            self.runtime
+                .source_lane
+                .mutations
+                .clear_browser_rename_intent();
             self.finish_pending_file_mutation(&pending_source_id, [pending_path]);
             return Err(err);
         }
