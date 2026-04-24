@@ -4,11 +4,13 @@ use std::{
     sync::atomic::AtomicBool,
 };
 
-use crate::sample_sources::SourceDatabase;
 use crate::sample_sources::db::{SourceWriteBatch, WavEntry};
+use crate::sample_sources::SourceDatabase;
 
-use super::scan::{ChangedSample, ScanContext, ScanError, ScanMode, ScanStats};
-use super::scan_fs::{FileFacts, compute_content_hash};
+use super::scan::{
+    ChangedSample, RenamedSample, ScanContext, ScanError, ScanMode, ScanStats, UpdatedSample,
+};
+use super::scan_fs::{compute_content_hash, FileFacts};
 
 const QUICK_HASH_MAX_BYTES: u64 = 8 * 1024 * 1024;
 
@@ -45,6 +47,12 @@ pub(super) fn apply_diff(
                 let hash = compute_content_hash(&absolute, cancel)?;
                 batch.upsert_file_with_hash(&path, facts.size, facts.modified_ns, &hash)?;
                 context.stats.hashes_computed += 1;
+                context.stats.updated_samples.push(UpdatedSample {
+                    relative_path: path.clone(),
+                    file_size: facts.size,
+                    modified_ns: facts.modified_ns,
+                    content_hash: Some(hash.clone()),
+                });
                 if previous_hash != Some(hash.as_str()) {
                     context.stats.content_changed += 1;
                     context.stats.changed_samples.push(ChangedSample {
@@ -57,6 +65,12 @@ pub(super) fn apply_diff(
             } else {
                 batch.upsert_file_without_hash(&path, facts.size, facts.modified_ns)?;
                 context.stats.hashes_pending += 1;
+                context.stats.updated_samples.push(UpdatedSample {
+                    relative_path: path.clone(),
+                    file_size: facts.size,
+                    modified_ns: facts.modified_ns,
+                    content_hash: None,
+                });
             }
             context.stats.updated += 1;
         }
@@ -65,16 +79,33 @@ pub(super) fn apply_diff(
             if should_hash {
                 let hash = compute_content_hash(&absolute, cancel)?;
                 if let Some(entry) = take_rename_candidate_by_hash(db, context, &hash)? {
+                    let old_relative_path = entry.relative_path.clone();
                     apply_rename(batch, &path, &facts, &hash, entry)?;
                     context.stats.updated += 1;
                     context.stats.renames_reconciled += 1;
+                    context.stats.renamed_samples.push(RenamedSample {
+                        old_relative_path,
+                        new_relative_path: path.clone(),
+                        file_size: facts.size,
+                        modified_ns: facts.modified_ns,
+                        content_hash: Some(hash),
+                    });
                     return Ok(());
                 }
                 if let Some(entry) = batch.take_pending_rename_by_hash(&hash)? {
-                    apply_rename(batch, &path, &facts, &hash, entry.into_wav_entry())?;
+                    let entry = entry.into_wav_entry();
+                    let old_relative_path = entry.relative_path.clone();
+                    apply_rename(batch, &path, &facts, &hash, entry)?;
                     context.stats.updated += 1;
                     context.stats.renames_reconciled += 1;
                     context.stats.hashes_computed += 1;
+                    context.stats.renamed_samples.push(RenamedSample {
+                        old_relative_path,
+                        new_relative_path: path.clone(),
+                        file_size: facts.size,
+                        modified_ns: facts.modified_ns,
+                        content_hash: Some(hash),
+                    });
                     return Ok(());
                 }
                 batch.upsert_file_with_hash(&path, facts.size, facts.modified_ns, &hash)?;
@@ -91,19 +122,36 @@ pub(super) fn apply_diff(
                 if let Some(entry) =
                     take_rename_candidate_by_facts(db, context, facts.size, facts.modified_ns)?
                 {
+                    let old_relative_path = entry.relative_path.clone();
                     apply_rename_without_hash(batch, &path, &facts, entry)?;
                     context.stats.updated += 1;
                     context.stats.renames_reconciled += 1;
                     context.stats.hashes_pending += 1;
+                    context.stats.renamed_samples.push(RenamedSample {
+                        old_relative_path,
+                        new_relative_path: path.clone(),
+                        file_size: facts.size,
+                        modified_ns: facts.modified_ns,
+                        content_hash: None,
+                    });
                     return Ok(());
                 }
                 if let Some(entry) =
                     batch.take_pending_rename_by_facts(facts.size, facts.modified_ns)?
                 {
-                    apply_rename_without_hash(batch, &path, &facts, entry.into_wav_entry())?;
+                    let entry = entry.into_wav_entry();
+                    let old_relative_path = entry.relative_path.clone();
+                    apply_rename_without_hash(batch, &path, &facts, entry)?;
                     context.stats.updated += 1;
                     context.stats.renames_reconciled += 1;
                     context.stats.hashes_pending += 1;
+                    context.stats.renamed_samples.push(RenamedSample {
+                        old_relative_path,
+                        new_relative_path: path.clone(),
+                        file_size: facts.size,
+                        modified_ns: facts.modified_ns,
+                        content_hash: None,
+                    });
                     return Ok(());
                 }
                 batch.upsert_file_without_hash(&path, facts.size, facts.modified_ns)?;

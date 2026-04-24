@@ -81,7 +81,9 @@ fn handle_successful_scan(
         scan_changed,
         &stats,
     );
-    invalidate_scan_caches(controller, source_id, is_selected_source);
+    if !apply_selected_source_scan_deltas(controller, source_id, is_selected_source, &stats) {
+        invalidate_scan_caches(controller, source_id, is_selected_source);
+    }
     if is_selected_source {
         controller.refresh_selected_source_similarity_prep_status();
     }
@@ -135,6 +137,91 @@ fn invalidate_scan_caches(
     if is_selected_source {
         controller.queue_wav_load();
     }
+}
+
+fn apply_selected_source_scan_deltas(
+    controller: &mut AppController,
+    source_id: &SourceId,
+    is_selected_source: bool,
+    stats: &ScanStats,
+) -> bool {
+    if !is_selected_source || !scan_is_small_known_delta(stats) {
+        return false;
+    }
+    let Some(source) = controller
+        .library
+        .sources
+        .iter()
+        .find(|source| source.id == *source_id)
+        .cloned()
+    else {
+        return false;
+    };
+    let Ok(db) = controller.database_for(&source) else {
+        return false;
+    };
+    let mut updates = Vec::new();
+    for renamed in &stats.renamed_samples {
+        if !source_has_cached_path(controller, source_id, &renamed.old_relative_path) {
+            continue;
+        }
+        let Ok(Some(entry)) = db.entry_for_path(&renamed.new_relative_path) else {
+            return false;
+        };
+        updates.push((renamed.old_relative_path.clone(), entry));
+    }
+    for updated in &stats.updated_samples {
+        if !source_has_cached_path(controller, source_id, &updated.relative_path) {
+            continue;
+        }
+        let Ok(Some(entry)) = db.entry_for_path(&updated.relative_path) else {
+            return false;
+        };
+        updates.push((updated.relative_path.clone(), entry));
+    }
+    drop(db);
+    for (old_path, entry) in updates {
+        controller.update_cached_entry(&source, &old_path, entry);
+    }
+    if !stats.updated_samples.is_empty() || stats.content_changed > 0 {
+        controller.ui_cache.browser.features.remove(source_id);
+        controller.ui_cache.browser.durations.remove(source_id);
+        controller
+            .ui_cache
+            .browser
+            .analysis_failures
+            .remove(source_id);
+    }
+    controller.rebuild_missing_lookup_for_source(source_id);
+    true
+}
+
+fn scan_is_small_known_delta(stats: &ScanStats) -> bool {
+    let known_changes = stats.updated_samples.len() + stats.renamed_samples.len();
+    if known_changes == 0 {
+        return false;
+    }
+    if stats.added > 0 || stats.missing > 0 {
+        return false;
+    }
+    if stats.renames_reconciled != stats.renamed_samples.len() {
+        return false;
+    }
+    stats.updated <= known_changes
+}
+
+fn source_has_cached_path(
+    controller: &AppController,
+    source_id: &SourceId,
+    path: &std::path::Path,
+) -> bool {
+    controller.wav_entries.lookup.contains_key(path)
+        || controller
+            .cache
+            .wav
+            .entries
+            .get(source_id)
+            .is_some_and(|cache| cache.lookup.contains_key(path))
 }
 
 fn spawn_duration_refresh(controller: &mut AppController, source: SampleSource) {

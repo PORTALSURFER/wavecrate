@@ -16,7 +16,7 @@ pub mod library {
 }
 
 pub use scan_state::ScanTracker;
-pub use scanner::{ChangedSample, ScanError, ScanMode, ScanStats};
+pub use scanner::{ChangedSample, RenamedSample, ScanError, ScanMode, ScanStats, UpdatedSample};
 pub(crate) use sempal_library::sample_sources::is_supported_audio;
 pub use sempal_library::sample_sources::normalize_relative_path;
 pub use sempal_library::sample_sources::{

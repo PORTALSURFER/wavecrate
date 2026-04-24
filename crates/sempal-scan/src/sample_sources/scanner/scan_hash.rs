@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::sample_sources::SourceDatabase;
 use crate::sample_sources::db::{PendingRenameEntry, SourceWriteBatch, WavEntry};
 
-use super::scan::{ScanError, ScanStats};
+use super::scan::{RenamedSample, ScanError, ScanStats};
 use super::scan_fs::{compute_content_hash, ensure_root_dir, read_facts};
 
 pub(super) fn deep_hash_scan(
@@ -69,12 +69,14 @@ pub(super) fn deep_hash_scan(
         stats.hashes_computed += 1;
     }
 
-    stats.renames_reconciled = reconcile_missing_renames(
+    let renamed_samples = reconcile_missing_renames(
         &mut batch,
         &entries_by_path,
         &present_by_hash,
         &pending_by_hash,
     )?;
+    stats.renames_reconciled = renamed_samples.len();
+    stats.renamed_samples = renamed_samples;
 
     batch.commit()?;
     Ok(stats)
@@ -85,8 +87,8 @@ fn reconcile_missing_renames(
     entries_by_path: &HashMap<PathBuf, WavEntry>,
     present_by_hash: &HashMap<String, Vec<PathBuf>>,
     pending_by_hash: &HashMap<String, Vec<PendingRenameEntry>>,
-) -> Result<usize, ScanError> {
-    let mut reconciled = 0;
+) -> Result<Vec<RenamedSample>, ScanError> {
+    let mut reconciled = Vec::new();
     for (hash, pending_entries) in pending_by_hash {
         if pending_entries.len() != 1 {
             continue;
@@ -106,7 +108,13 @@ fn reconcile_missing_renames(
             continue;
         };
         apply_deep_rename(batch, present_entry, pending_entry, hash)?;
-        reconciled += 1;
+        reconciled.push(RenamedSample {
+            old_relative_path: pending_entry.relative_path.clone(),
+            new_relative_path: present_entry.relative_path.clone(),
+            file_size: present_entry.file_size,
+            modified_ns: present_entry.modified_ns,
+            content_hash: Some(hash.clone()),
+        });
     }
     Ok(reconciled)
 }

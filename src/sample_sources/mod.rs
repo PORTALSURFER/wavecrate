@@ -28,4 +28,6 @@ pub use sempal_library::sample_sources::{
     database_path_for, normalize_path,
 };
 pub use sempal_scan::sample_sources::ScanTracker;
-pub use sempal_scan::sample_sources::{ChangedSample, ScanError, ScanMode, ScanStats};
+pub use sempal_scan::sample_sources::{
+    ChangedSample, RenamedSample, ScanError, ScanMode, ScanStats, UpdatedSample,
+};

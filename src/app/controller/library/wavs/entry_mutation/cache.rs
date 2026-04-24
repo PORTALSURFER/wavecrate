@@ -10,6 +10,7 @@ pub(crate) fn update_cached_entry(
 ) {
     update_selection_paths(controller, source, old_path, &new_entry.relative_path);
     controller.invalidate_cached_audio(&source.id, old_path);
+    remap_path_scoped_browser_caches(controller, &source.id, old_path, &new_entry.relative_path);
     if let Some(missing) = controller.library.missing.wavs.get_mut(&source.id) {
         let removed = missing.remove(old_path);
         if removed && new_entry.missing {
@@ -100,9 +101,23 @@ pub(crate) fn update_cached_entry(
     }
     if updated {
         if controller.selection_state.ctx.selected_source.as_ref() == Some(&source.id) {
-            controller.ui_cache.browser.search.invalidate();
-            controller.ui_cache.browser.pipeline.invalidate();
-            controller.rebuild_browser_lists();
+            let keep_visible_order = same_parent(old_path, &new_entry.relative_path)
+                && controller.active_search_query().is_none()
+                && controller.ui.browser.search.similar_query.is_none();
+            if keep_visible_order {
+                if let Some(index) = selected_index {
+                    controller.update_cached_browser_label_for_index(
+                        &source.id,
+                        index,
+                        &new_entry.relative_path,
+                    );
+                }
+                controller.refresh_browser_selection_markers();
+            } else {
+                controller.ui_cache.browser.search.invalidate();
+                controller.ui_cache.browser.pipeline.invalidate();
+                controller.rebuild_browser_lists();
+            }
         }
         if old_path != new_entry.relative_path
             && let Some(index) = selected_index
@@ -117,6 +132,41 @@ pub(crate) fn update_cached_entry(
         controller.invalidate_wav_entries_for_source_preserve_folders(source);
     }
     controller.invalidate_cached_audio(&source.id, &new_entry.relative_path);
+}
+
+fn same_parent(left: &Path, right: &Path) -> bool {
+    left.parent().unwrap_or_else(|| Path::new(""))
+        == right.parent().unwrap_or_else(|| Path::new(""))
+}
+
+fn remap_path_scoped_browser_caches(
+    controller: &mut AppController,
+    source_id: &SourceId,
+    old_path: &Path,
+    new_path: &Path,
+) {
+    if old_path == new_path {
+        return;
+    }
+    if let Some(cache) = controller.ui_cache.browser.bpm_values.get_mut(source_id)
+        && let Some(value) = cache.remove(old_path)
+    {
+        cache.insert(new_path.to_path_buf(), value);
+    }
+    if let Some(cache) = controller.ui_cache.browser.durations.get_mut(source_id)
+        && let Some(value) = cache.remove(old_path)
+    {
+        cache.insert(new_path.to_path_buf(), value);
+    }
+    if let Some(cache) = controller
+        .ui_cache
+        .browser
+        .analysis_failures
+        .get_mut(source_id)
+        && let Some(value) = cache.remove(old_path)
+    {
+        cache.insert(new_path.to_path_buf(), value);
+    }
 }
 
 /// Invalidate caches after inserting a new entry for a source.
