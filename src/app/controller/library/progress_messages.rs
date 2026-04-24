@@ -59,7 +59,7 @@ impl AppController {
                 format!("Loading wavs for {}", source.root.display()),
             );
         }
-        self.set_status(
+        self.set_background_status(
             format!("Loading wavs for {}", source.root.display()),
             StatusTone::Info,
         );

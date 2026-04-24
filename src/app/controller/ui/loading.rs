@@ -197,7 +197,7 @@ impl AppController {
         let suffix = elapsed
             .map(|d| format!(" in {} ms", d.as_millis()))
             .unwrap_or_default();
-        self.set_status(
+        self.set_background_status(
             format!("{prefix} {} wav files{suffix}", self.wav_entries.total),
             StatusTone::Info,
         );

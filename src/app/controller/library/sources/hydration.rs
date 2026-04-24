@@ -311,7 +311,7 @@ impl AppController {
             }
         }
         self.sync_missing_from_db(source_id);
-        self.set_status(
+        self.set_background_status(
             format!(
                 "Loaded {} wav files in {} ms",
                 self.wav_entries.total,

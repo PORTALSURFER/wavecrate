@@ -113,7 +113,7 @@ fn report_successful_scan_status(
     stats: &ScanStats,
 ) {
     if is_selected_source && (!is_auto || scan_changed) {
-        controller.set_status(
+        controller.set_background_status(
             format!(
                 "{label} complete: {} added, {} updated, {} missing",
                 stats.added, stats.updated, stats.missing
@@ -269,7 +269,7 @@ fn handle_scan_failure(
         } else {
             StatusTone::Error
         };
-        controller.set_status(message, tone);
+        controller.set_background_status(message, tone);
     }
     controller.cancel_similarity_prep(source_id);
 }

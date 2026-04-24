@@ -28,13 +28,13 @@ impl AppController {
             crate::app::controller::library::wavs::apply_pending_similarity_filter_rebuild(self);
             self.browser()
                 .restore_browser_focus_after_delete(result.next_focus);
-            self.set_status(
+            self.complete_file_op_status(
                 format!("Deleted {} sample(s)", result.deleted_paths.len()),
                 StatusTone::Info,
             );
         }
         if let Some(err) = result.last_error {
-            self.set_status(format!("Delete failed: {err}"), StatusTone::Error);
+            self.complete_file_op_status(format!("Delete failed: {err}"), StatusTone::Error);
         }
     }
 
@@ -54,7 +54,10 @@ impl AppController {
                     .find(|source| source.id == result.source_id)
                     .cloned()
                 else {
-                    self.set_status("Source not available for rename", StatusTone::Error);
+                    self.complete_file_op_status(
+                        "Source not available for rename",
+                        StatusTone::Error,
+                    );
                     self.dispatch_queued_browser_auto_rename(queued_auto_rename);
                     return;
                 };
@@ -78,7 +81,7 @@ impl AppController {
                         }));
                 }
                 self.refresh_waveform_for_sample(&source, &result.new_relative);
-                self.set_status(
+                self.complete_file_op_status(
                     format!(
                         "Renamed {} to {}",
                         result.old_relative.display(),
@@ -87,7 +90,7 @@ impl AppController {
                     StatusTone::Info,
                 );
             }
-            Err(err) => self.set_status(err, StatusTone::Error),
+            Err(err) => self.complete_file_op_status(err, StatusTone::Error),
         }
         self.dispatch_queued_browser_auto_rename(queued_auto_rename);
     }
@@ -106,7 +109,7 @@ impl AppController {
             .find(|source| source.id == result.source_id)
             .cloned()
         else {
-            self.set_status("Source not available for auto rename", StatusTone::Error);
+            self.complete_file_op_status("Source not available for auto rename", StatusTone::Error);
             self.dispatch_queued_browser_auto_rename(queued_auto_rename);
             return;
         };
@@ -138,7 +141,7 @@ impl AppController {
         } else {
             StatusTone::Warning
         };
-        self.set_status(
+        self.complete_file_op_status(
             format!("Auto Rename: renamed {renamed}, skipped {skipped}, failed {failed}"),
             tone,
         );

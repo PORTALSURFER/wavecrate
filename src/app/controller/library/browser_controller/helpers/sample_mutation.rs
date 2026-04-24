@@ -68,7 +68,7 @@ impl BrowserController<'_> {
                 .mutations
                 .browser_rename_intent_is_active(&intent_key)
             {
-                self.set_status("Rename already in progress...", StatusTone::Busy);
+                self.set_file_op_status("Rename already in progress...", StatusTone::Busy);
                 return Ok(());
             }
             return Err("File operation already in progress".to_string());
@@ -111,7 +111,7 @@ impl BrowserController<'_> {
             .mutations
             .begin_browser_rename_intent(intent_key);
         self.begin_pending_file_mutation(&ctx.source.id, [ctx.entry.relative_path.clone()]);
-        self.set_status(
+        self.set_file_op_status(
             format!("Renaming {}...", ctx.entry.relative_path.display()),
             StatusTone::Busy,
         );

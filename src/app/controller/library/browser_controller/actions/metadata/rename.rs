@@ -46,11 +46,11 @@ impl BrowserController<'_> {
                 .handle_busy_browser_auto_rename_intent(intent_key, pending)
             {
                 BrowserRenameBusyDecision::Collapsed => {
-                    self.set_status("Auto rename already in progress...", StatusTone::Busy);
+                    self.set_file_op_status("Auto rename already in progress...", StatusTone::Busy);
                     Ok(())
                 }
                 BrowserRenameBusyDecision::Queued => {
-                    self.set_status(
+                    self.set_file_op_status(
                         "Auto rename queued after current rename...",
                         StatusTone::Busy,
                     );
@@ -79,7 +79,7 @@ impl BrowserController<'_> {
             self.apply_file_op_result(FileOpResult::SampleAutoRename(result));
             return Ok(());
         }
-        self.set_status(
+        self.set_file_op_status(
             format!("Auto renaming {} sample(s)...", requested_paths.len()),
             StatusTone::Busy,
         );
