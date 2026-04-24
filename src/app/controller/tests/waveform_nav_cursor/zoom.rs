@@ -1,4 +1,6 @@
 use super::*;
+use crate::app_core::actions::NativeUiAction;
+use crate::app_core::controller::AppControllerNativeRuntimeExt;
 
 #[test]
 fn batched_zoom_matches_sequential_steps() {
@@ -74,4 +76,88 @@ fn mouse_zoom_prefers_pointer_over_playhead() {
         "zoom centered closer to playhead ({playhead_dist}) than pointer ({pointer_dist}), center {center}"
     );
     assert!(controller.ui.waveform.view.start < controller.ui.waveform.view.end);
+}
+
+#[test]
+fn selection_action_resolves_to_stable_frame_bounds_across_zoom_levels() {
+    let cases = [
+        (0.0, 1.0, 0.125, 0.875),
+        (0.2, 0.6, 0.333_333, 0.666_667),
+        (0.500_1, 0.500_4, 0.25, 0.75),
+    ];
+
+    for (view_start, view_end, start_ratio, end_ratio) in cases {
+        let (mut controller, _source) = dummy_controller();
+        install_decoded_waveform(&mut controller);
+        controller.ui.waveform.view = crate::app::state::WaveformView {
+            start: view_start,
+            end: view_end,
+        };
+        let start_micros = view_pointer_micros(view_start, view_end, start_ratio);
+        let end_micros = view_pointer_micros(view_start, view_end, end_ratio);
+
+        controller.apply_native_ui_action(NativeUiAction::SetWaveformSelectionRange {
+            start_micros,
+            end_micros,
+            snap_override: true,
+            preserve_view_edge: false,
+        });
+        let selection = controller.ui.waveform.selection.expect("selection");
+        let first_bounds = selection.frame_bounds(10_000);
+
+        controller.zoom_waveform_steps(true, 8, Some(selection.start_f64()));
+
+        assert_eq!(controller.ui.waveform.selection, Some(selection));
+        assert_eq!(selection.frame_bounds(10_000), first_bounds);
+        assert_eq!(
+            first_bounds,
+            expected_frame_bounds(start_micros, end_micros, 10_000)
+        );
+    }
+}
+
+#[test]
+fn edit_selection_action_resolves_to_stable_frame_bounds_at_deep_zoom() {
+    let (mut controller, _source) = dummy_controller();
+    install_decoded_waveform(&mut controller);
+    controller.ui.waveform.view = crate::app::state::WaveformView {
+        start: 0.812_345,
+        end: 0.812_745,
+    };
+    let start_micros = view_pointer_micros(0.812_345, 0.812_745, 0.2);
+    let end_micros = view_pointer_micros(0.812_345, 0.812_745, 0.8);
+
+    controller.apply_native_ui_action(NativeUiAction::SetWaveformEditSelectionRange {
+        start_micros,
+        end_micros,
+        preserve_view_edge: false,
+    });
+
+    let selection = controller
+        .ui
+        .waveform
+        .edit_selection
+        .expect("edit selection");
+    assert_eq!(
+        selection.frame_bounds(10_000),
+        expected_frame_bounds(start_micros, end_micros, 10_000)
+    );
+}
+
+fn view_pointer_micros(view_start: f64, view_end: f64, pointer_ratio: f64) -> u32 {
+    ((view_start + ((view_end - view_start) * pointer_ratio)).clamp(0.0, 1.0) * 1_000_000.0).round()
+        as u32
+}
+
+fn expected_frame_bounds(
+    start_micros: u32,
+    end_micros: u32,
+    total_frames: usize,
+) -> crate::selection::SampleFrameRange {
+    crate::selection::SelectionRange::from_precise_normalized_frame_bounds(
+        total_frames,
+        f64::from(start_micros) / 1_000_000.0,
+        f64::from(end_micros) / 1_000_000.0,
+    )
+    .frame_bounds(total_frames)
 }

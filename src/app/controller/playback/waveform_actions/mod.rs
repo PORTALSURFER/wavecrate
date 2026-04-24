@@ -30,6 +30,11 @@ pub(in crate::app::controller::playback) fn normalized_from_micros(value: u32) -
     shared::normalized_from_micros(value)
 }
 
+/// Convert one UI waveform micro value (`0..=1_000_000`) back into normalized space as `f64`.
+pub(in crate::app::controller::playback) fn normalized64_from_micros(value: u32) -> f64 {
+    shared::normalized64_from_micros(value)
+}
+
 /// Convert one UI waveform nanounit value (`0..=1_000_000_000`) back into normalized space.
 pub(in crate::app::controller::playback) fn normalized64_from_nanos(value: u32) -> f64 {
     shared::normalized64_from_nanos(value)

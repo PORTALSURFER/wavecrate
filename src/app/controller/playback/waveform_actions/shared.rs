@@ -37,6 +37,11 @@ pub(in crate::app::controller::playback) fn normalized_from_micros(value: u32) -
     (value.min(1_000_000) as f32) / 1_000_000.0
 }
 
+/// Convert one UI waveform micro value (`0..=1_000_000`) back into normalized space as `f64`.
+pub(in crate::app::controller::playback) fn normalized64_from_micros(value: u32) -> f64 {
+    f64::from(value.min(1_000_000)) / 1_000_000.0
+}
+
 /// Convert one UI waveform nanounit value (`0..=1_000_000_000`) back into normalized space.
 pub(in crate::app::controller::playback) fn normalized64_from_nanos(value: u32) -> f64 {
     f64::from(value.min(1_000_000_000)) / WAVEFORM_POSITION_NANOS_SCALE
@@ -65,9 +70,9 @@ pub(in crate::app::controller::playback) fn selection_range_from_micros(
     start_micros: u32,
     end_micros: u32,
 ) -> SelectionRange {
-    SelectionRange::new(
-        normalized_from_micros(start_micros),
-        normalized_from_micros(end_micros),
+    SelectionRange::new_precise(
+        normalized64_from_micros(start_micros),
+        normalized64_from_micros(end_micros),
     )
 }
 

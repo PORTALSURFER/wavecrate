@@ -49,15 +49,26 @@ impl FadeParams {
     }
 }
 
+/// Inclusive/exclusive decoded sample-frame bounds for one waveform range.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SampleFrameRange {
+    /// First decoded frame included in the range.
+    pub start_frame: usize,
+    /// First decoded frame after the range.
+    pub end_frame: usize,
+    /// Total decoded frames in the loaded sample used for the conversion.
+    pub total_frames: usize,
+}
+
 /// Normalized selection bounds and edit parameters over a waveform (`0.0..=1.0`).
 ///
 /// The range carries the geometry and edit-state needed by waveform selection,
 /// fade preview, and destructive edit flows so those surfaces all evaluate the
 /// same normalized selection contract.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug)]
 pub struct SelectionRange {
-    start: f32,
-    end: f32,
+    start: f64,
+    end: f64,
     /// Gain applied across the selection (1.0 = unity).
     gain: f32,
     /// Fade-in parameters (length and curve).
@@ -66,11 +77,26 @@ pub struct SelectionRange {
     fade_out: Option<FadeParams>,
 }
 
+impl PartialEq for SelectionRange {
+    fn eq(&self, other: &Self) -> bool {
+        (self.start - other.start).abs() <= 1.0e-6
+            && (self.end - other.end).abs() <= 1.0e-6
+            && self.gain == other.gain
+            && self.fade_in == other.fade_in
+            && self.fade_out == other.fade_out
+    }
+}
+
 impl SelectionRange {
     /// Create a clamped range, ensuring `start` is not greater than `end`.
     pub fn new(start: f32, end: f32) -> Self {
-        let a = clamp01(start);
-        let b = clamp01(end);
+        Self::new_precise(f64::from(start), f64::from(end))
+    }
+
+    /// Create a clamped range from high-precision normalized bounds.
+    pub fn new_precise(start: f64, end: f64) -> Self {
+        let a = clamp01_f64(start);
+        let b = clamp01_f64(end);
         if a <= b {
             Self {
                 start: a,
@@ -90,18 +116,82 @@ impl SelectionRange {
         }
     }
 
+    /// Create a normalized range whose endpoints exactly represent decoded frame bounds.
+    pub fn from_frame_bounds(total_frames: usize, start_frame: usize, end_frame: usize) -> Self {
+        if total_frames == 0 {
+            return Self::new_precise(0.0, 0.0);
+        }
+        let start_frame = start_frame.min(total_frames.saturating_sub(1));
+        let mut end_frame = end_frame.min(total_frames);
+        if end_frame <= start_frame {
+            end_frame = (start_frame + 1).min(total_frames);
+        }
+        Self::new_precise(
+            start_frame as f64 / total_frames as f64,
+            end_frame as f64 / total_frames as f64,
+        )
+    }
+
+    /// Convert normalized bounds to decoded sample-frame bounds.
+    ///
+    /// The start is floored and the end is ceiled so a non-empty authored range
+    /// always covers the frames touched by that range.
+    pub fn frame_bounds(&self, total_frames: usize) -> SampleFrameRange {
+        if total_frames == 0 {
+            return SampleFrameRange {
+                start_frame: 0,
+                end_frame: 0,
+                total_frames,
+            };
+        }
+        let start_frame = (self.start * total_frames as f64).floor() as usize;
+        let start_frame = start_frame.min(total_frames.saturating_sub(1));
+        let mut end_frame = (self.end * total_frames as f64).ceil() as usize;
+        end_frame = end_frame.min(total_frames);
+        if end_frame <= start_frame {
+            end_frame = (start_frame + 1).min(total_frames);
+        }
+        SampleFrameRange {
+            start_frame,
+            end_frame,
+            total_frames,
+        }
+    }
+
+    /// Create a range by resolving high-precision normalized bounds to decoded frames first.
+    pub fn from_precise_normalized_frame_bounds(total_frames: usize, start: f64, end: f64) -> Self {
+        let range = Self::new_precise(start, end);
+        let frames = range.frame_bounds(total_frames);
+        Self::from_frame_bounds(total_frames, frames.start_frame, frames.end_frame)
+    }
+
     /// Start position within the waveform.
     pub fn start(&self) -> f32 {
-        self.start
+        self.start as f32
     }
 
     /// End position within the waveform.
     pub fn end(&self) -> f32 {
+        self.end as f32
+    }
+
+    /// Start position within the waveform as high-precision normalized scalar.
+    pub fn start_f64(&self) -> f64 {
+        self.start
+    }
+
+    /// End position within the waveform as high-precision normalized scalar.
+    pub fn end_f64(&self) -> f64 {
         self.end
     }
 
     /// Width of the selection.
     pub fn width(&self) -> f32 {
+        self.width_f64() as f32
+    }
+
+    /// Width of the selection as high-precision normalized scalar.
+    pub fn width_f64(&self) -> f64 {
         (self.end - self.start).abs()
     }
 
@@ -228,7 +318,7 @@ impl SelectionRange {
         if width <= 0.0 {
             return 0.0;
         }
-        (self.start / width).max(0.0)
+        (self.start() / width).max(0.0)
     }
 
     /// Maximum fade-out mute length based on distance to the sample end.
@@ -237,7 +327,7 @@ impl SelectionRange {
         if width <= 0.0 {
             return 0.0;
         }
-        ((1.0 - self.end) / width).max(0.0)
+        ((1.0 - self.end()) / width).max(0.0)
     }
 
     /// Set the selection gain (0.0-4.0).
@@ -274,6 +364,7 @@ impl SelectionRange {
             range.gain = self.gain;
             return range;
         }
+        let delta = f64::from(delta);
         let mut start = self.start + delta;
         let mut end = self.end + delta;
         if start < 0.0 {
@@ -285,7 +376,7 @@ impl SelectionRange {
             start -= over;
             end = 1.0;
         }
-        let mut result = SelectionRange::new(start, end);
+        let mut result = SelectionRange::new_precise(start, end);
         result.fade_in = self.fade_in;
         result.fade_out = self.fade_out;
         result.gain = self.gain;
@@ -382,7 +473,7 @@ pub(crate) fn fade_curve_value(t: f32, curve: f32) -> f32 {
     t * (1.0 - curve) + smootherstep * curve
 }
 
-fn clamp01(value: f32) -> f32 {
+fn clamp01_f64(value: f64) -> f64 {
     value.clamp(0.0, 1.0)
 }
 

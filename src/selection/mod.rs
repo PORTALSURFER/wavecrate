@@ -7,7 +7,7 @@ mod range;
 mod state;
 
 pub(crate) use range::fade_gain_at_position;
-pub use range::{FadeParams, SelectionRange};
+pub use range::{FadeParams, SampleFrameRange, SelectionRange};
 pub use state::{SelectionEdge, SelectionState};
 
 #[cfg(test)]
