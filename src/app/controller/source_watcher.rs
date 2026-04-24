@@ -35,14 +35,34 @@ pub(crate) enum SourceWatchCommand {
     ReplaceSources(Vec<SourceWatchEntry>),
     /// Tell the watcher whether a scan job is currently running.
     SetScanInProgress { in_progress: bool },
+    /// Mark source-local paths currently owned by controller-dispatched file operations.
+    BeginControllerFileOp {
+        source_id: SourceId,
+        relative_paths: Vec<PathBuf>,
+    },
+    /// Clear source-local paths after controller-dispatched file operations finish.
+    FinishControllerFileOp {
+        source_id: SourceId,
+        relative_paths: Vec<PathBuf>,
+    },
     /// Signal the watcher thread to exit.
     Shutdown,
+}
+
+/// Why the source watcher believes a source changed.
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub(crate) enum SourceWatchCause {
+    /// Disk changed outside a controller-owned file operation.
+    ExternalFileChange,
+    /// The watched change matches a controller-owned file operation.
+    ControllerFileOp,
 }
 
 /// Event emitted when a watched source sees an on-disk change worth syncing.
 #[derive(Debug, Clone)]
 pub(crate) struct SourceWatchEvent {
     pub(crate) source_id: SourceId,
+    pub(crate) cause: SourceWatchCause,
 }
 
 /// Join handle and command sender for the source watcher thread.
@@ -90,6 +110,7 @@ fn run_source_watcher(command_rx: Receiver<SourceWatchCommand>, message_tx: JobM
     let mut watched_roots: HashSet<PathBuf> = HashSet::new();
     let mut sources: Vec<SourceWatchEntry> = Vec::new();
     let mut pending: HashMap<SourceId, PendingSourceWatch> = HashMap::new();
+    let mut controller_file_ops: HashMap<SourceId, HashSet<PathBuf>> = HashMap::new();
     let mut scan_in_progress = false;
 
     loop {
@@ -102,6 +123,28 @@ fn run_source_watcher(command_rx: Receiver<SourceWatchCommand>, message_tx: JobM
                 }
                 SourceWatchCommand::SetScanInProgress { in_progress } => {
                     scan_in_progress = in_progress;
+                }
+                SourceWatchCommand::BeginControllerFileOp {
+                    source_id,
+                    relative_paths,
+                } => {
+                    controller_file_ops
+                        .entry(source_id)
+                        .or_default()
+                        .extend(relative_paths);
+                }
+                SourceWatchCommand::FinishControllerFileOp {
+                    source_id,
+                    relative_paths,
+                } => {
+                    if let Some(paths) = controller_file_ops.get_mut(&source_id) {
+                        for path in relative_paths {
+                            paths.remove(&path);
+                        }
+                        if paths.is_empty() {
+                            controller_file_ops.remove(&source_id);
+                        }
+                    }
                 }
                 SourceWatchCommand::Shutdown => break,
             },
@@ -120,17 +163,23 @@ fn run_source_watcher(command_rx: Receiver<SourceWatchCommand>, message_tx: JobM
             if !event_triggers_sync(&event) {
                 continue;
             }
-            let mut impacted = HashSet::new();
+            let mut impacted = HashMap::new();
             for path in &event.paths {
                 if !path_is_candidate(path) {
                     continue;
                 }
-                if let Some(source_id) = select_source_for_path(&sources, path) {
-                    impacted.insert(source_id);
+                if let Some(source) = select_source_entry_for_path(&sources, path) {
+                    let cause = source_watch_cause_for_path(&controller_file_ops, source, path);
+                    impacted
+                        .entry(source.source_id.clone())
+                        .and_modify(|pending_cause| {
+                            *pending_cause = combine_source_watch_causes(*pending_cause, cause);
+                        })
+                        .or_insert(cause);
                 }
             }
-            for source_id in impacted {
-                update_pending_watch(&mut pending, source_id, Instant::now());
+            for (source_id, cause) in impacted {
+                update_pending_watch(&mut pending, source_id, cause, Instant::now());
             }
         }
 
@@ -140,8 +189,8 @@ fn run_source_watcher(command_rx: Receiver<SourceWatchCommand>, message_tx: JobM
             SOURCE_WATCH_DEBOUNCE,
             scan_in_progress,
         );
-        for source_id in ready {
-            let _ = message_tx.send(JobMessage::SourceWatch(SourceWatchEvent { source_id }));
+        for event in ready {
+            let _ = message_tx.send(JobMessage::SourceWatch(event));
         }
     }
 }
@@ -149,14 +198,25 @@ fn run_source_watcher(command_rx: Receiver<SourceWatchCommand>, message_tx: JobM
 #[derive(Debug, Copy, Clone)]
 struct PendingSourceWatch {
     last_event: Instant,
+    cause: SourceWatchCause,
 }
 
 fn update_pending_watch(
     pending: &mut HashMap<SourceId, PendingSourceWatch>,
     source_id: SourceId,
+    cause: SourceWatchCause,
     now: Instant,
 ) {
-    pending.insert(source_id, PendingSourceWatch { last_event: now });
+    pending
+        .entry(source_id)
+        .and_modify(|entry| {
+            entry.last_event = now;
+            entry.cause = combine_source_watch_causes(entry.cause, cause);
+        })
+        .or_insert(PendingSourceWatch {
+            last_event: now,
+            cause,
+        });
 }
 
 fn drain_ready_sources(
@@ -164,17 +224,20 @@ fn drain_ready_sources(
     now: Instant,
     debounce: Duration,
     scan_in_progress: bool,
-) -> Vec<SourceId> {
+) -> Vec<SourceWatchEvent> {
     if scan_in_progress {
         return Vec::new();
     }
-    let ready: Vec<SourceId> = pending
+    let ready: Vec<SourceWatchEvent> = pending
         .iter()
         .filter(|&(_source_id, entry)| now.saturating_duration_since(entry.last_event) >= debounce)
-        .map(|(source_id, _entry)| source_id.clone())
+        .map(|(source_id, entry)| SourceWatchEvent {
+            source_id: source_id.clone(),
+            cause: entry.cause,
+        })
         .collect();
-    for source_id in &ready {
-        pending.remove(source_id);
+    for event in &ready {
+        pending.remove(&event.source_id);
     }
     ready
 }
@@ -228,11 +291,52 @@ fn event_triggers_sync(event: &Event) -> bool {
 }
 
 fn select_source_for_path(sources: &[SourceWatchEntry], path: &Path) -> Option<SourceId> {
+    select_source_entry_for_path(sources, path).map(|entry| entry.source_id.clone())
+}
+
+fn select_source_entry_for_path<'a>(
+    sources: &'a [SourceWatchEntry],
+    path: &Path,
+) -> Option<&'a SourceWatchEntry> {
     sources
         .iter()
         .filter(|entry| path.starts_with(&entry.root))
         .max_by_key(|entry| entry.root.as_os_str().len())
-        .map(|entry| entry.source_id.clone())
+}
+
+fn source_watch_cause_for_path(
+    controller_file_ops: &HashMap<SourceId, HashSet<PathBuf>>,
+    source: &SourceWatchEntry,
+    path: &Path,
+) -> SourceWatchCause {
+    let Some(owned_paths) = controller_file_ops.get(&source.source_id) else {
+        return SourceWatchCause::ExternalFileChange;
+    };
+    let Ok(relative_path) = path.strip_prefix(&source.root) else {
+        return SourceWatchCause::ExternalFileChange;
+    };
+    if owned_paths
+        .iter()
+        .any(|owned| relative_path == owned || relative_path.starts_with(owned))
+    {
+        SourceWatchCause::ControllerFileOp
+    } else {
+        SourceWatchCause::ExternalFileChange
+    }
+}
+
+fn combine_source_watch_causes(
+    current: SourceWatchCause,
+    next: SourceWatchCause,
+) -> SourceWatchCause {
+    match (current, next) {
+        (SourceWatchCause::ExternalFileChange, _) | (_, SourceWatchCause::ExternalFileChange) => {
+            SourceWatchCause::ExternalFileChange
+        }
+        (SourceWatchCause::ControllerFileOp, SourceWatchCause::ControllerFileOp) => {
+            SourceWatchCause::ControllerFileOp
+        }
+    }
 }
 
 fn path_is_candidate(path: &Path) -> bool {
@@ -303,7 +407,12 @@ mod tests {
         let mut pending = HashMap::new();
         let source_id = SourceId::from_string("a");
         let start = Instant::now();
-        update_pending_watch(&mut pending, source_id.clone(), start);
+        update_pending_watch(
+            &mut pending,
+            source_id.clone(),
+            SourceWatchCause::ExternalFileChange,
+            start,
+        );
         assert!(
             drain_ready_sources(
                 &mut pending,
@@ -319,7 +428,9 @@ mod tests {
             Duration::from_millis(400),
             false,
         );
-        assert_eq!(ready, vec![source_id]);
+        assert_eq!(ready.len(), 1);
+        assert_eq!(ready[0].source_id, source_id);
+        assert_eq!(ready[0].cause, SourceWatchCause::ExternalFileChange);
     }
 
     #[test]
@@ -327,7 +438,12 @@ mod tests {
         let mut pending = HashMap::new();
         let source_id = SourceId::from_string("a");
         let start = Instant::now();
-        update_pending_watch(&mut pending, source_id, start);
+        update_pending_watch(
+            &mut pending,
+            source_id,
+            SourceWatchCause::ExternalFileChange,
+            start,
+        );
         let ready = drain_ready_sources(
             &mut pending,
             start + Duration::from_millis(500),
@@ -336,5 +452,71 @@ mod tests {
         );
         assert!(ready.is_empty());
         assert_eq!(pending.len(), 1);
+    }
+
+    #[test]
+    fn controller_owned_path_is_classified_as_controller_file_op() {
+        let source = SourceWatchEntry::new(SourceId::from_string("a"), PathBuf::from("/music"));
+        let mut controller_file_ops = HashMap::new();
+        controller_file_ops.insert(
+            source.source_id.clone(),
+            HashSet::from([PathBuf::from("drums/kick.wav")]),
+        );
+
+        let cause = source_watch_cause_for_path(
+            &controller_file_ops,
+            &source,
+            Path::new("/music/drums/kick.wav"),
+        );
+
+        assert_eq!(cause, SourceWatchCause::ControllerFileOp);
+    }
+
+    #[test]
+    fn unowned_path_during_controller_file_op_falls_back_to_external() {
+        let source = SourceWatchEntry::new(SourceId::from_string("a"), PathBuf::from("/music"));
+        let mut controller_file_ops = HashMap::new();
+        controller_file_ops.insert(
+            source.source_id.clone(),
+            HashSet::from([PathBuf::from("drums/kick.wav")]),
+        );
+
+        let cause = source_watch_cause_for_path(
+            &controller_file_ops,
+            &source,
+            Path::new("/music/drums/snare.wav"),
+        );
+
+        assert_eq!(cause, SourceWatchCause::ExternalFileChange);
+    }
+
+    #[test]
+    fn pending_source_watch_prefers_external_fallback() {
+        let mut pending = HashMap::new();
+        let source_id = SourceId::from_string("a");
+        let start = Instant::now();
+        update_pending_watch(
+            &mut pending,
+            source_id.clone(),
+            SourceWatchCause::ControllerFileOp,
+            start,
+        );
+        update_pending_watch(
+            &mut pending,
+            source_id.clone(),
+            SourceWatchCause::ExternalFileChange,
+            start + Duration::from_millis(1),
+        );
+
+        let ready = drain_ready_sources(
+            &mut pending,
+            start + Duration::from_millis(500),
+            Duration::from_millis(400),
+            false,
+        );
+
+        assert_eq!(ready.len(), 1);
+        assert_eq!(ready[0].source_id, source_id);
+        assert_eq!(ready[0].cause, SourceWatchCause::ExternalFileChange);
     }
 }

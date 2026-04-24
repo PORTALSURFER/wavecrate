@@ -382,6 +382,32 @@ impl ControllerJobs {
             .send(SourceWatchCommand::SetScanInProgress { in_progress });
     }
 
+    /// Notify the source watcher that controller-owned file-op paths are active.
+    pub(in super::super) fn begin_source_watch_file_op(
+        &self,
+        source_id: SourceId,
+        relative_paths: Vec<PathBuf>,
+    ) {
+        self.source_watcher
+            .send(SourceWatchCommand::BeginControllerFileOp {
+                source_id,
+                relative_paths,
+            });
+    }
+
+    /// Notify the source watcher that controller-owned file-op paths are complete.
+    pub(in super::super) fn finish_source_watch_file_op(
+        &self,
+        source_id: SourceId,
+        relative_paths: Vec<PathBuf>,
+    ) {
+        self.source_watcher
+            .send(SourceWatchCommand::FinishControllerFileOp {
+                source_id,
+                relative_paths,
+            });
+    }
+
     /// Return whether a trash-move job is currently running.
     pub(in super::super) fn trash_move_in_progress(&self) -> bool {
         self.in_progress.trash_move

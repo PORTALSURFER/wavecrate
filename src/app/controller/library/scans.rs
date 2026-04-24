@@ -1,4 +1,5 @@
 use super::*;
+use crate::app::controller::source_watcher::SourceWatchCause;
 use crate::sample_sources::scanner::ScanMode;
 use std::sync::{Arc, atomic::AtomicBool};
 use std::time::{Duration, Instant};
@@ -53,8 +54,22 @@ impl AppController {
     }
 
     /// Trigger a quick sync for a source based on a file watcher event.
-    pub(crate) fn handle_source_watch_event(&mut self, source_id: &SourceId) {
-        self.request_auto_quick_sync_for_source_if_due(source_id, WATCHER_SYNC_INTERVAL);
+    pub(crate) fn handle_source_watch_event(
+        &mut self,
+        source_id: &SourceId,
+        cause: SourceWatchCause,
+    ) {
+        match cause {
+            SourceWatchCause::ExternalFileChange => {
+                self.request_auto_quick_sync_for_source_if_due(source_id, WATCHER_SYNC_INTERVAL);
+            }
+            SourceWatchCause::ControllerFileOp => {
+                tracing::debug!(
+                    source_id = %source_id,
+                    "source watch event matched controller file-op paths"
+                );
+            }
+        }
     }
 
     /// Trigger a quick sync for a specific source when the debounce interval elapses.
@@ -220,6 +235,17 @@ mod tests {
         controller.finish_pending_file_mutation(&source.id, [PathBuf::from("kick.wav")]);
 
         controller.request_auto_quick_sync_for_source_if_due(&source.id, Duration::from_secs(0));
+
+        assert!(!controller.runtime.jobs.scan_in_progress());
+    }
+
+    #[test]
+    fn controller_file_op_source_watch_event_does_not_launch_auto_sync() {
+        let (mut controller, source) = dummy_controller();
+        controller.library.sources.push(source.clone());
+        controller.selection_state.ctx.selected_source = Some(source.id.clone());
+
+        controller.handle_source_watch_event(&source.id, SourceWatchCause::ControllerFileOp);
 
         assert!(!controller.runtime.jobs.scan_in_progress());
     }
