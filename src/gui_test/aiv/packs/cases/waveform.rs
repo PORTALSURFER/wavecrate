@@ -37,6 +37,24 @@ pub(crate) fn waveform_transport_cursor_selection_zoom_case() -> GuiAivCase {
                 "selection_micros",
                 "560000-690000",
             )),
+            scroll_in_node("waveform.region", 240, Some(20), Some(50)),
+            assert_step(GuiAivAssertion::AssertActionRecorded {
+                action_id: String::from("zoom_waveform"),
+            }),
+            assert_step(assert_metadata_contains(
+                "waveform.selection",
+                "selection_micros",
+                "560000-690000",
+            )),
+            scroll_in_node("waveform.region", -120, Some(50), Some(50)),
+            assert_step(GuiAivAssertion::AssertActionRecorded {
+                action_id: String::from("zoom_waveform"),
+            }),
+            assert_step(assert_metadata_contains(
+                "waveform.selection",
+                "selection_micros",
+                "560000-690000",
+            )),
             screenshot("waveform-transport-cursor-selection-zoom"),
         ],
         expected_assertions: vec![

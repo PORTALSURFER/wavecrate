@@ -29,6 +29,24 @@ pub(super) fn waveform_seek_zoom_selection_scenario() -> GuiScenario {
                 },
             },
             GuiScenarioStep::DispatchAction {
+                action: NativeUiAction::ZoomWaveformFull,
+            },
+            GuiScenarioStep::DispatchAction {
+                action: NativeUiAction::SetWaveformSelectionRange {
+                    start_micros: 180_000,
+                    end_micros: 420_000,
+                    snap_override: true,
+                    preserve_view_edge: false,
+                },
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodeMetadataContains {
+                    node_id: String::from("waveform.selection"),
+                    key: String::from("selection_micros"),
+                    needle: String::from("180000-420000"),
+                },
+            },
+            GuiScenarioStep::DispatchAction {
                 action: NativeUiAction::ZoomWaveform {
                     zoom_in: true,
                     steps: 2,
@@ -43,6 +61,13 @@ pub(super) fn waveform_seek_zoom_selection_scenario() -> GuiScenario {
                 },
             },
             GuiScenarioStep::DispatchAction {
+                action: NativeUiAction::ZoomWaveform {
+                    zoom_in: true,
+                    steps: 2,
+                    anchor_ratio_micros: Some(500_000),
+                },
+            },
+            GuiScenarioStep::DispatchAction {
                 action: NativeUiAction::SetWaveformViewCenter {
                     center_micros: 500_000,
                     center_nanos: Some(500_000_050),
@@ -52,7 +77,49 @@ pub(super) fn waveform_seek_zoom_selection_scenario() -> GuiScenario {
                 assertion: GuiAssertion::NodeMetadataContains {
                     node_id: String::from("waveform.selection"),
                     key: String::from("selection_micros"),
-                    needle: String::from("350000-450000"),
+                    needle: String::from("180000-420000"),
+                },
+            },
+            GuiScenarioStep::DispatchAction {
+                action: NativeUiAction::SetWaveformSelectionRange {
+                    start_micros: 500_180,
+                    end_micros: 500_420,
+                    snap_override: true,
+                    preserve_view_edge: false,
+                },
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodeMetadataContains {
+                    node_id: String::from("waveform.selection"),
+                    key: String::from("selection_micros"),
+                    needle: String::from("500180-500420"),
+                },
+            },
+            GuiScenarioStep::DispatchAction {
+                action: NativeUiAction::ZoomWaveform {
+                    zoom_in: true,
+                    steps: 3,
+                    anchor_ratio_micros: Some(100_000),
+                },
+            },
+            GuiScenarioStep::DispatchAction {
+                action: NativeUiAction::ZoomWaveform {
+                    zoom_in: false,
+                    steps: 1,
+                    anchor_ratio_micros: Some(900_000),
+                },
+            },
+            GuiScenarioStep::DispatchAction {
+                action: NativeUiAction::SetWaveformViewCenter {
+                    center_micros: 500_300,
+                    center_nanos: Some(500_300_000),
+                },
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodeMetadataContains {
+                    node_id: String::from("waveform.selection"),
+                    key: String::from("selection_micros"),
+                    needle: String::from("500180-500420"),
                 },
             },
             GuiScenarioStep::DispatchAction {
