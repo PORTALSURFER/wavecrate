@@ -1,7 +1,10 @@
 use crate::gui_test::{GuiAivAssertion, GuiAivCase};
 
 use super::super::super::{DEFAULT_VIEWPORT, GUI_TEST_WINDOW_TITLE};
-use super::{assert_step, click_node, drag_in_node, screenshot, scroll_in_node, wait_for_node};
+use super::{
+    assert_metadata_contains, assert_step, click_node, drag_in_node, screenshot, scroll_in_node,
+    wait_for_node,
+};
 
 pub(crate) fn waveform_transport_cursor_selection_zoom_case() -> GuiAivCase {
     GuiAivCase {
@@ -20,16 +23,29 @@ pub(crate) fn waveform_transport_cursor_selection_zoom_case() -> GuiAivCase {
             assert_step(GuiAivAssertion::AssertActionRecorded {
                 action_id: String::from("set_waveform_selection_range"),
             }),
+            assert_step(assert_metadata_contains(
+                "waveform.selection",
+                "selection_micros",
+                "560000-690000",
+            )),
             scroll_in_node("waveform.region", 240, Some(80), Some(50)),
             assert_step(GuiAivAssertion::AssertActionRecorded {
                 action_id: String::from("zoom_waveform"),
             }),
+            assert_step(assert_metadata_contains(
+                "waveform.selection",
+                "selection_micros",
+                "560000-690000",
+            )),
             screenshot("waveform-transport-cursor-selection-zoom"),
         ],
-        expected_assertions: vec![GuiAivAssertion::AssertNodeSelected {
-            node_id: String::from("waveform.toolbar.loop"),
-            selected: true,
-        }],
+        expected_assertions: vec![
+            GuiAivAssertion::AssertNodeSelected {
+                node_id: String::from("waveform.toolbar.loop"),
+                selected: true,
+            },
+            assert_metadata_contains("waveform.selection", "selection_micros", "560000-690000"),
+        ],
     }
 }
 

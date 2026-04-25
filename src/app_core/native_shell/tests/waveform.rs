@@ -154,6 +154,43 @@ fn waveform_projection_preserves_selection_micro_precision() {
 }
 
 #[test]
+fn waveform_projection_keeps_selection_overlay_absolute_after_view_refresh() {
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+    controller.ui.waveform.image = Some(crate::waveform::WaveformImage {
+        size: [2, 1],
+        pixels: vec![
+            crate::waveform::WaveformRgba::from_rgba_unmultiplied(10, 20, 30, 40),
+            crate::waveform::WaveformRgba::from_rgba_unmultiplied(11, 21, 31, 41),
+        ],
+    });
+    controller.ui.waveform.selection = Some(
+        crate::selection::SelectionRange::from_precise_normalized_frame_bounds(
+            10_000, 0.350_123, 0.450_987,
+        ),
+    );
+    controller.ui.waveform.view.start = 0.0;
+    controller.ui.waveform.view.end = 1.0;
+    controller.ui.waveform.waveform_image_signature = Some(7);
+    controller.set_waveform_render_meta_for_tests(Some(waveform_render_meta(0.0, 1.0)));
+
+    let projected_full = project_waveform_model(&mut controller);
+    let selection_full = projected_full.selection_milli.expect("selection");
+    assert_eq!(projected_full.waveform_image_signature, Some(7));
+
+    controller.ui.waveform.view.start = 0.34;
+    controller.ui.waveform.view.end = 0.47;
+    controller.ui.waveform.waveform_image_signature = Some(8);
+    controller.set_waveform_render_meta_for_tests(Some(waveform_render_meta(0.34, 0.47)));
+
+    let projected_zoomed = project_waveform_model(&mut controller);
+
+    assert_eq!(projected_zoomed.selection_milli, Some(selection_full));
+    assert_eq!(projected_zoomed.waveform_image_signature, Some(8));
+    assert_eq!(projected_zoomed.view_start_micros, 340_000);
+    assert_eq!(projected_zoomed.view_end_micros, 470_000);
+}
+
+#[test]
 fn waveform_projection_falls_back_to_persisted_bpm_grid_origin_without_selection() {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
     controller.ui.waveform.relative_bpm_grid_enabled = true;
@@ -250,4 +287,21 @@ fn waveform_chrome_projection_marks_exact_duplicate_cleanup_availability() {
     let projected = project_waveform_chrome_model(&ui);
 
     assert!(projected.exact_duplicate_cleanup_available);
+}
+
+fn waveform_render_meta(
+    view_start: f64,
+    view_end: f64,
+) -> crate::app::controller::WaveformRenderMeta {
+    crate::app::controller::WaveformRenderMeta {
+        view_start,
+        view_end,
+        size: [32, 32],
+        samples_len: 2_000,
+        texture_width: 32,
+        channel_view: crate::waveform::WaveformChannelView::Mono,
+        channels: 1,
+        edit_fade: None,
+        transient_visual_token: None,
+    }
 }

@@ -21,6 +21,40 @@ pub(super) fn waveform_seek_zoom_selection_scenario() -> GuiScenario {
                     needle: String::from("200%"),
                 },
             },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodeMetadataContains {
+                    node_id: String::from("waveform.selection"),
+                    key: String::from("selection_micros"),
+                    needle: String::from("350000-450000"),
+                },
+            },
+            GuiScenarioStep::DispatchAction {
+                action: NativeUiAction::ZoomWaveform {
+                    zoom_in: true,
+                    steps: 2,
+                    anchor_ratio_micros: Some(200_000),
+                },
+            },
+            GuiScenarioStep::DispatchAction {
+                action: NativeUiAction::ZoomWaveform {
+                    zoom_in: true,
+                    steps: 2,
+                    anchor_ratio_micros: Some(800_000),
+                },
+            },
+            GuiScenarioStep::DispatchAction {
+                action: NativeUiAction::SetWaveformViewCenter {
+                    center_micros: 500_000,
+                    center_nanos: Some(500_000_050),
+                },
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodeMetadataContains {
+                    node_id: String::from("waveform.selection"),
+                    key: String::from("selection_micros"),
+                    needle: String::from("350000-450000"),
+                },
+            },
             GuiScenarioStep::DispatchAction {
                 action: NativeUiAction::SetWaveformCursor {
                     position_milli: 500,

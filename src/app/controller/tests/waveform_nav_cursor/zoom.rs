@@ -117,6 +117,69 @@ fn selection_action_resolves_to_stable_frame_bounds_across_zoom_levels() {
 }
 
 #[test]
+fn selection_frame_bounds_survive_pointer_zoom_pan_and_projection_refreshes() {
+    let cases = [
+        ("full", 0.0, 1.0, 0.18, 0.42),
+        ("zoomed", 0.2, 0.7, 0.25, 0.55),
+        ("deep", 0.500_100, 0.500_700, 0.2, 0.8),
+    ];
+
+    for (label, view_start, view_end, start_ratio, end_ratio) in cases {
+        let (mut controller, _source) = dummy_controller();
+        install_decoded_waveform(&mut controller);
+        controller.ui.waveform.view = crate::app::state::WaveformView {
+            start: view_start,
+            end: view_end,
+        };
+        let start_micros = view_pointer_micros(view_start, view_end, start_ratio);
+        let end_micros = view_pointer_micros(view_start, view_end, end_ratio);
+
+        controller.apply_native_ui_action(NativeUiAction::SetWaveformSelectionRange {
+            start_micros,
+            end_micros,
+            snap_override: true,
+            preserve_view_edge: false,
+        });
+
+        let expected = expected_frame_bounds(start_micros, end_micros, 10_000);
+        assert_selection_frame_bounds(&controller, expected, label);
+        let selection = controller.ui.waveform.selection.expect("selection");
+
+        for anchor_ratio_micros in [100_000, 500_000, 900_000] {
+            controller.apply_native_ui_action(NativeUiAction::ZoomWaveform {
+                zoom_in: true,
+                steps: 2,
+                anchor_ratio_micros: Some(anchor_ratio_micros),
+            });
+            assert_selection_frame_bounds(&controller, expected, label);
+
+            controller.apply_native_ui_action(NativeUiAction::ZoomWaveform {
+                zoom_in: false,
+                steps: 1,
+                anchor_ratio_micros: Some(anchor_ratio_micros),
+            });
+            assert_selection_frame_bounds(&controller, expected, label);
+        }
+
+        for center_nanos in [250_000_000, 500_000_050, 750_000_000] {
+            controller.apply_native_ui_action(NativeUiAction::SetWaveformViewCenter {
+                center_micros: (center_nanos / 1_000).min(1_000_000),
+                center_nanos: Some(center_nanos),
+            });
+            assert_selection_frame_bounds(&controller, expected, label);
+        }
+
+        controller.refresh_waveform_image();
+        assert_eq!(
+            controller.ui.waveform.selection,
+            Some(selection),
+            "{label}: projection refresh should not rewrite selection endpoints"
+        );
+        assert_selection_frame_bounds(&controller, expected, label);
+    }
+}
+
+#[test]
 fn edit_selection_action_resolves_to_stable_frame_bounds_at_deep_zoom() {
     let (mut controller, _source) = dummy_controller();
     install_decoded_waveform(&mut controller);
@@ -141,6 +204,19 @@ fn edit_selection_action_resolves_to_stable_frame_bounds_at_deep_zoom() {
     assert_eq!(
         selection.frame_bounds(10_000),
         expected_frame_bounds(start_micros, end_micros, 10_000)
+    );
+}
+
+fn assert_selection_frame_bounds(
+    controller: &AppController,
+    expected: crate::selection::SampleFrameRange,
+    label: &str,
+) {
+    let selection = controller.ui.waveform.selection.expect("selection");
+    assert_eq!(
+        selection.frame_bounds(10_000),
+        expected,
+        "{label}: selection frame bounds changed after viewport interaction"
     );
 }
 
