@@ -55,12 +55,16 @@ fn folder_hotkey_moves_selected_samples() {
     assert!(destination.join("two.wav").exists());
     assert!(!source.root.join("one.wav").exists());
     assert!(!source.root.join("two.wav").exists());
-    assert!(controller
-        .wav_index_for_path(&PathBuf::from("dest/one.wav"))
-        .is_some());
-    assert!(controller
-        .wav_index_for_path(&PathBuf::from("dest/two.wav"))
-        .is_some());
+    assert!(
+        controller
+            .wav_index_for_path(&PathBuf::from("dest/one.wav"))
+            .is_some()
+    );
+    assert!(
+        controller
+            .wav_index_for_path(&PathBuf::from("dest/two.wav"))
+            .is_some()
+    );
 }
 
 #[test]
@@ -118,12 +122,16 @@ fn update_cached_entry_replaces_old_path_in_lookup() {
     updated.modified_ns = 7;
     controller.update_cached_entry(&source, Path::new("old.wav"), updated);
 
-    assert!(controller
-        .wav_index_for_path(Path::new("old.wav"))
-        .is_none());
-    assert!(controller
-        .wav_index_for_path(Path::new("new.wav"))
-        .is_some());
+    assert!(
+        controller
+            .wav_index_for_path(Path::new("old.wav"))
+            .is_none()
+    );
+    assert!(
+        controller
+            .wav_index_for_path(Path::new("new.wav"))
+            .is_some()
+    );
     assert_eq!(
         controller.ui.browser.selection.selected_paths,
         vec![PathBuf::from("new.wav")]
@@ -617,7 +625,11 @@ fn queued_auto_rename_replays_against_active_rename_success_path() {
     controller.auto_rename_browser_selection_action(Some(0));
 
     let first_relative = Path::new("portal_SS.wav");
-    std::fs::rename(source.root.join("raw.wav"), source.root.join(first_relative)).unwrap();
+    std::fs::rename(
+        source.root.join("raw.wav"),
+        source.root.join(first_relative),
+    )
+    .unwrap();
     let db = controller.database_for(&source).unwrap();
     db.remove_file(Path::new("raw.wav")).unwrap();
     db.upsert_file(first_relative, 0, 0).unwrap();
@@ -632,22 +644,24 @@ fn queued_auto_rename_replays_against_active_rename_success_path() {
     entry.sound_type = Some(crate::sample_sources::SampleSoundType::Kick);
 
     controller.runtime.jobs.clear_file_ops();
-    controller.apply_file_op_result(crate::app::controller::jobs::FileOpResult::SampleAutoRename(
-        crate::app::controller::jobs::SampleAutoRenameResult {
-            source_id: source.id.clone(),
-            requested_paths: vec![PathBuf::from("raw.wav")],
-            renamed: vec![crate::app::controller::jobs::SampleAutoRenameSuccess {
-                old_relative: PathBuf::from("raw.wav"),
-                new_relative: PathBuf::from("portal_SS.wav"),
-                entry,
-                resume_playback: false,
-                resume_looped: false,
-                resume_start_override: None,
-            }],
-            skipped: Vec::new(),
-            errors: Vec::new(),
-        },
-    ));
+    controller.apply_file_op_result(
+        crate::app::controller::jobs::FileOpResult::SampleAutoRename(
+            crate::app::controller::jobs::SampleAutoRenameResult {
+                source_id: source.id.clone(),
+                requested_paths: vec![PathBuf::from("raw.wav")],
+                renamed: vec![crate::app::controller::jobs::SampleAutoRenameSuccess {
+                    old_relative: PathBuf::from("raw.wav"),
+                    new_relative: PathBuf::from("portal_SS.wav"),
+                    entry,
+                    resume_playback: false,
+                    resume_looped: false,
+                    resume_start_override: None,
+                }],
+                skipped: Vec::new(),
+                errors: Vec::new(),
+            },
+        ),
+    );
 
     assert!(!source.root.join("raw.wav").exists());
     assert!(!source.root.join("portal_SS.wav").exists());

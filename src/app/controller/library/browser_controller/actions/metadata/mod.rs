@@ -12,8 +12,8 @@ mod tests;
 
 use super::super::helpers::TriageSampleContext;
 use super::super::{
-    auto_rename::{build_auto_rename_stem, AutoRenameInput},
-    helpers::{run_sample_auto_rename_job, SampleAutoRenameRequest},
+    auto_rename::{AutoRenameInput, build_auto_rename_stem},
+    helpers::{SampleAutoRenameRequest, run_sample_auto_rename_job},
 };
 use super::common::format_bpm_label;
 use super::*;
@@ -24,6 +24,6 @@ use crate::app::controller::state::runtime::{
 };
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::{atomic::AtomicBool, Arc};
+use std::sync::{Arc, atomic::AtomicBool};
 use std::time::Instant;
 use tracing::{info, warn};

@@ -3,8 +3,8 @@
 #[cfg(feature = "native-bridge-metrics")]
 use std::{
     sync::{
-        atomic::{AtomicU64, Ordering},
         OnceLock,
+        atomic::{AtomicU64, Ordering},
     },
     time::Duration,
 };

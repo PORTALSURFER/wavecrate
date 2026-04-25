@@ -9,7 +9,7 @@ mod reporting;
 mod snapshot;
 
 #[cfg(feature = "native-bridge-metrics")]
-use self::registry::{saturating_add_duration, BRIDGE_METRICS};
+use self::registry::{BRIDGE_METRICS, saturating_add_duration};
 use super::action_classification::InteractionActionClass;
 use super::projection_cache::ProjectionSegment;
 use crate::app_core::actions::NativeFrameBuildResult;
@@ -19,15 +19,15 @@ use std::sync::atomic::Ordering;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-#[cfg(not(feature = "native-bridge-metrics"))]
-pub(super) use self::registry::{
-    bridge_profiling_enabled, projection_key_assertions_enabled, BRIDGE_PROFILE_INTERVAL,
-};
 #[cfg(feature = "native-bridge-metrics")]
 pub(super) use self::registry::{
-    bridge_profiling_enabled, projection_key_assertions_enabled, BRIDGE_PROFILE_INTERVAL,
-    PROJECTION_CACHE_HIT_COUNT, PROJECTION_CACHE_MISS_COUNT, WAVEFORM_IMAGE_REFRESH_APPLY_COUNT,
-    WAVEFORM_IMAGE_REFRESH_SKIP_COUNT,
+    BRIDGE_PROFILE_INTERVAL, PROJECTION_CACHE_HIT_COUNT, PROJECTION_CACHE_MISS_COUNT,
+    WAVEFORM_IMAGE_REFRESH_APPLY_COUNT, WAVEFORM_IMAGE_REFRESH_SKIP_COUNT,
+    bridge_profiling_enabled, projection_key_assertions_enabled,
+};
+#[cfg(not(feature = "native-bridge-metrics"))]
+pub(super) use self::registry::{
+    BRIDGE_PROFILE_INTERVAL, bridge_profiling_enabled, projection_key_assertions_enabled,
 };
 pub(super) use self::reporting::maybe_log_bridge_profile;
 

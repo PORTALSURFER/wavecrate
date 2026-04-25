@@ -4,13 +4,13 @@ use std::{
     sync::atomic::AtomicBool,
 };
 
-use crate::sample_sources::db::{SourceWriteBatch, WavEntry};
 use crate::sample_sources::SourceDatabase;
+use crate::sample_sources::db::{SourceWriteBatch, WavEntry};
 
 use super::scan::{
     ChangedSample, RenamedSample, ScanContext, ScanError, ScanMode, ScanStats, UpdatedSample,
 };
-use super::scan_fs::{compute_content_hash, FileFacts};
+use super::scan_fs::{FileFacts, compute_content_hash};
 
 const QUICK_HASH_MAX_BYTES: u64 = 8 * 1024 * 1024;
 
