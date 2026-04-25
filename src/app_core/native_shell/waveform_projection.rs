@@ -46,9 +46,9 @@ pub(crate) fn project_waveform_model(controller: &mut AppController) -> Waveform
         playhead_milli: projected_playhead.map(normalized_to_milli),
         playhead_micros: projected_playhead.map(normalized_to_micros),
         selection_milli: ui.waveform.selection.map(|selection| {
-            NormalizedRangeModel::from_micros(
-                normalized64_to_micros(selection.start_f64()),
-                normalized64_to_micros(selection.end_f64()),
+            NormalizedRangeModel::from_nanos(
+                normalized64_to_nanos(selection.start_f64()),
+                normalized64_to_nanos(selection.end_f64()),
             )
         }),
         slices: project_waveform_slice_previews(ui),
@@ -228,9 +228,9 @@ pub(crate) fn waveform_transport_hint(ui: &UiState) -> String {
 /// Project edit-selection bounds into normalized milli-space.
 pub(super) fn project_waveform_edit_selection_milli(ui: &UiState) -> Option<NormalizedRangeModel> {
     ui.waveform.edit_selection.map(|selection| {
-        NormalizedRangeModel::from_micros(
-            normalized64_to_micros(selection.start_f64()),
-            normalized64_to_micros(selection.end_f64()),
+        NormalizedRangeModel::from_nanos(
+            normalized64_to_nanos(selection.start_f64()),
+            normalized64_to_nanos(selection.end_f64()),
         )
     })
 }
@@ -245,9 +245,9 @@ pub(super) fn project_waveform_slice_previews(
         .iter()
         .enumerate()
         .map(|(index, slice)| radiant::app::WaveformSlicePreviewModel {
-            range: NormalizedRangeModel::from_micros(
-                normalized64_to_micros(slice.start_f64()),
-                normalized64_to_micros(slice.end_f64()),
+            range: NormalizedRangeModel::from_nanos(
+                normalized64_to_nanos(slice.start_f64()),
+                normalized64_to_nanos(slice.end_f64()),
             ),
             selected: ui.waveform.selected_slices.contains(&index),
             focused: ui.waveform.slice_review.focused_index == Some(index),

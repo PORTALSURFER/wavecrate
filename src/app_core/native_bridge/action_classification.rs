@@ -37,9 +37,13 @@ pub(super) fn classify_action_interaction(
         | NativeUiAction::FinishWaveformCircularSlide
         | NativeUiAction::SetWaveformViewCenter { .. }
         | NativeUiAction::BeginWaveformSelectionAt { .. }
+        | NativeUiAction::BeginWaveformSelectionAtPrecise { .. }
         | NativeUiAction::SetWaveformSelectionRange { .. }
+        | NativeUiAction::SetWaveformSelectionRangePrecise { .. }
         | NativeUiAction::SetWaveformSelectionRangeSmartScale { .. }
+        | NativeUiAction::SetWaveformSelectionRangeSmartScalePrecise { .. }
         | NativeUiAction::SetWaveformEditSelectionRange { .. }
+        | NativeUiAction::SetWaveformEditSelectionRangePrecise { .. }
         | NativeUiAction::SetWaveformEditFadeInEnd { .. }
         | NativeUiAction::SetWaveformEditFadeInMuteStart { .. }
         | NativeUiAction::SetWaveformEditFadeInCurve { .. }
@@ -102,7 +106,9 @@ pub(super) fn is_immediate_waveform_preview_action(action: &NativeUiAction) -> b
             | NativeUiAction::UpdateWaveformCircularSlide { .. }
             | NativeUiAction::FinishWaveformCircularSlide
             | NativeUiAction::BeginWaveformSelectionAt { .. }
+            | NativeUiAction::BeginWaveformSelectionAtPrecise { .. }
             | NativeUiAction::SetWaveformEditSelectionRange { .. }
+            | NativeUiAction::SetWaveformEditSelectionRangePrecise { .. }
             | NativeUiAction::SetWaveformEditFadeInEnd { .. }
             | NativeUiAction::SetWaveformEditFadeInMuteStart { .. }
             | NativeUiAction::SetWaveformEditFadeInCurve { .. }

@@ -352,12 +352,20 @@ pub enum GuiActionKind {
     FinishWaveformCircularSlide,
     /// Begin a new waveform selection from one exact anchor point.
     BeginWaveformSelectionAt,
+    /// Begin a new waveform selection from one nanounit anchor point.
+    BeginWaveformSelectionAtPrecise,
     /// Set the playback selection range directly.
     SetWaveformSelectionRange,
+    /// Set the playback selection range directly with nanounit precision.
+    SetWaveformSelectionRangePrecise,
     /// Set the playback selection range while applying BPM smart-scale behavior.
     SetWaveformSelectionRangeSmartScale,
+    /// Set the playback selection range with nanounit precision and BPM smart-scale behavior.
+    SetWaveformSelectionRangeSmartScalePrecise,
     /// Set the edit selection range directly.
     SetWaveformEditSelectionRange,
+    /// Set the edit selection range directly with nanounit precision.
+    SetWaveformEditSelectionRangePrecise,
     /// Set the edit fade-in end handle.
     SetWaveformEditFadeInEnd,
     /// Set the edit fade-in mute start handle.
@@ -384,8 +392,12 @@ pub enum GuiActionKind {
     FinishWaveformSelectionSmartScaleDrag,
     /// Begin shifting the playback selection without resizing it.
     BeginWaveformSelectionShift,
+    /// Begin shifting the playback selection without resizing it using nanounit precision.
+    BeginWaveformSelectionShiftPrecise,
     /// Begin shifting the edit selection without resizing it.
     BeginWaveformEditSelectionShift,
+    /// Begin shifting the edit selection without resizing it using nanounit precision.
+    BeginWaveformEditSelectionShiftPrecise,
     /// Finish an interactive edit-selection range drag.
     FinishWaveformEditSelectionDrag,
     /// Clear the active playback selection.

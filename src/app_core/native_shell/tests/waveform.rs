@@ -118,19 +118,19 @@ fn waveform_projection_uses_loading_sample_label_before_decode_finishes() {
 /// Waveform projection should expose edit fade handle positions when fades are configured.
 fn waveform_projection_includes_edit_fade_handles() {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
-    controller.ui.waveform.edit_selection = Some(
-        crate::selection::SelectionRange::new(0.2, 0.8)
-            .with_fade_in(0.25, 0.75)
-            .with_fade_in_mute(0.1)
-            .with_fade_out(0.5, 0.25)
-            .with_fade_out_mute(0.2),
+    let edit_selection = crate::selection::SelectionRange::new(0.2, 0.8)
+        .with_fade_in(0.25, 0.75)
+        .with_fade_in_mute(0.1)
+        .with_fade_out(0.5, 0.25)
+        .with_fade_out_mute(0.2);
+    let expected_selection = NormalizedRangeModel::from_nanos(
+        waveform_projection::normalized64_to_nanos(edit_selection.start_f64()),
+        waveform_projection::normalized64_to_nanos(edit_selection.end_f64()),
     );
+    controller.ui.waveform.edit_selection = Some(edit_selection);
 
     let projected = project_waveform_model(&mut controller);
-    assert_eq!(
-        projected.edit_selection_milli,
-        Some(NormalizedRangeModel::new(200, 800))
-    );
+    assert_eq!(projected.edit_selection_milli, Some(expected_selection));
     assert_eq!(projected.edit_fade_in_end_milli, Some(350));
     assert_eq!(projected.edit_fade_in_mute_start_milli, Some(140));
     assert_eq!(projected.edit_fade_in_curve_milli, Some(750));

@@ -10,6 +10,14 @@ impl AppController {
         transport::start_selection_drag(self, position);
     }
 
+    /// Begin a selection drag gesture at the given nanounit position.
+    pub fn start_selection_drag_nanos(&mut self, position_nanos: u32) {
+        transport::start_selection_drag(
+            self,
+            normalized64_from_nanos(position_nanos).clamp(0.0, 1.0) as f32,
+        );
+    }
+
     /// Begin dragging a selection edge, optionally scaling for BPM.
     pub fn start_selection_edge_drag(
         &mut self,
@@ -113,6 +121,42 @@ impl AppController {
         self.focus_waveform_context();
     }
 
+    /// Set waveform selection range from UI nanounit positions with drag-specific snap policies.
+    pub(crate) fn set_waveform_selection_range_nanos_with_drag_policy(
+        &mut self,
+        start_nanos: u32,
+        end_nanos: u32,
+        snap_override: bool,
+        preserve_view_edge: bool,
+    ) {
+        let existing_range = if self.selection_state.range.is_creating() {
+            None
+        } else {
+            current_playback_selection(self)
+        };
+        let start_micros = normalized_to_micros(normalized64_from_nanos(start_nanos) as f32);
+        let end_micros = normalized_to_micros(normalized64_from_nanos(end_nanos) as f32);
+        let (start_micros, end_micros) = selection_updates::snap_waveform_selection_range_micros(
+            self,
+            start_micros,
+            end_micros,
+            existing_range,
+            snap_override,
+            preserve_view_edge,
+        );
+        let next_range = if snap_override || waveform_bpm_snap_step(self).is_none() {
+            selection_range_from_nanos(start_nanos, end_nanos)
+        } else {
+            selection_range_from_micros(start_micros, end_micros)
+        };
+        if existing_range == Some(next_range) && waveform_focus_active(self) {
+            return;
+        }
+        self.begin_selection_undo("Selection");
+        self.set_selection_range(next_range);
+        self.focus_waveform_context();
+    }
+
     /// Set waveform selection range without BPM snapping and recalculate BPM for a 4-beat span.
     pub fn set_waveform_selection_range_milli_smart_scale(
         &mut self,
@@ -151,6 +195,18 @@ impl AppController {
             self.update_selection_drag(micros_to_ratio(end_micros), false);
         }
         self.focus_waveform_context();
+    }
+
+    /// Set waveform selection range from UI nanounit positions and recalculate BPM for a 4-beat span.
+    pub fn set_waveform_selection_range_nanos_smart_scale(
+        &mut self,
+        start_nanos: u32,
+        end_nanos: u32,
+    ) {
+        self.set_waveform_selection_range_micros_smart_scale(
+            normalized_to_micros(normalized64_from_nanos(start_nanos) as f32),
+            normalized_to_micros(normalized64_from_nanos(end_nanos) as f32),
+        );
     }
 
     /// Clear waveform selection and keep waveform focus active.

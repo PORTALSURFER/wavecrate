@@ -16,9 +16,13 @@ pub(super) fn action_requires_projection_cache_invalidation(action: &NativeUiAct
             | NativeUiAction::FinishWaveformCircularSlide
             | NativeUiAction::SetWaveformViewCenter { .. }
             | NativeUiAction::BeginWaveformSelectionAt { .. }
+            | NativeUiAction::BeginWaveformSelectionAtPrecise { .. }
             | NativeUiAction::SetWaveformSelectionRange { .. }
+            | NativeUiAction::SetWaveformSelectionRangePrecise { .. }
             | NativeUiAction::SetWaveformSelectionRangeSmartScale { .. }
+            | NativeUiAction::SetWaveformSelectionRangeSmartScalePrecise { .. }
             | NativeUiAction::SetWaveformEditSelectionRange { .. }
+            | NativeUiAction::SetWaveformEditSelectionRangePrecise { .. }
             | NativeUiAction::SetWaveformEditFadeInEnd { .. }
             | NativeUiAction::SetWaveformEditFadeInMuteStart { .. }
             | NativeUiAction::SetWaveformEditFadeInCurve { .. }
@@ -117,8 +121,11 @@ pub(super) fn classify_dirty_source(
         | NativeUiAction::SeekWaveform { .. }
         | NativeUiAction::SetWaveformCursor { .. }
         | NativeUiAction::BeginWaveformSelectionAt { .. }
+        | NativeUiAction::BeginWaveformSelectionAtPrecise { .. }
         | NativeUiAction::SetWaveformSelectionRange { .. }
+        | NativeUiAction::SetWaveformSelectionRangePrecise { .. }
         | NativeUiAction::SetWaveformEditSelectionRange { .. }
+        | NativeUiAction::SetWaveformEditSelectionRangePrecise { .. }
         | NativeUiAction::SetWaveformEditFadeInEnd { .. }
         | NativeUiAction::SetWaveformEditFadeInMuteStart { .. }
         | NativeUiAction::SetWaveformEditFadeInCurve { .. }
@@ -147,6 +154,7 @@ pub(super) fn classify_dirty_source(
         | NativeUiAction::SetWaveformBpmValue { .. }
         | NativeUiAction::AdjustWaveformBpm { .. }
         | NativeUiAction::SetWaveformSelectionRangeSmartScale { .. }
+        | NativeUiAction::SetWaveformSelectionRangeSmartScalePrecise { .. }
         | NativeUiAction::FinishWaveformSelectionSmartScaleDrag
         | NativeUiAction::CommitWaveformEditFades
         | NativeUiAction::CropWaveformSelection

@@ -48,8 +48,10 @@ pub(super) struct PendingWaveformActions {
     pub(super) seek_nanos: Option<u32>,
     /// Latest cursor target in normalized nanounits.
     pub(super) cursor_nanos: Option<u32>,
-    /// Latest explicit selection range in normalized milli space.
+    /// Latest explicit selection range in normalized micro space.
     pub(super) selection_range_micros: Option<(u32, u32)>,
+    /// Latest explicit selection range in normalized nanounits.
+    pub(super) selection_range_nanos: Option<(u32, u32)>,
     /// Whether the queued selection range should preserve an out-of-bounds view edge.
     pub(super) selection_preserve_view_edge: bool,
     /// Whether the queued selection range should bypass BPM snapping.
@@ -130,6 +132,24 @@ impl PendingWaveformActions {
             } => {
                 self.note_selection_action();
                 self.selection_range_micros = Some((*start_micros, *end_micros));
+                self.selection_range_nanos = None;
+                self.selection_preserve_view_edge = *preserve_view_edge;
+                self.selection_snap_override = *snap_override;
+                self.selection_smart_scale = false;
+                self.clear_selection = false;
+                true
+            }
+            NativeUiAction::SetWaveformSelectionRangePrecise {
+                start_nanos,
+                end_nanos,
+                snap_override,
+                preserve_view_edge,
+            } => {
+                self.note_selection_action();
+                let start = (*start_nanos).min(1_000_000_000);
+                let end = (*end_nanos).min(1_000_000_000);
+                self.selection_range_micros = Some((start / 1000, end / 1000));
+                self.selection_range_nanos = Some((start, end));
                 self.selection_preserve_view_edge = *preserve_view_edge;
                 self.selection_snap_override = *snap_override;
                 self.selection_smart_scale = false;
@@ -142,6 +162,22 @@ impl PendingWaveformActions {
             } => {
                 self.note_selection_action();
                 self.selection_range_micros = Some((*start_micros, *end_micros));
+                self.selection_range_nanos = None;
+                self.selection_preserve_view_edge = false;
+                self.selection_snap_override = false;
+                self.selection_smart_scale = true;
+                self.clear_selection = false;
+                true
+            }
+            NativeUiAction::SetWaveformSelectionRangeSmartScalePrecise {
+                start_nanos,
+                end_nanos,
+            } => {
+                self.note_selection_action();
+                let start = (*start_nanos).min(1_000_000_000);
+                let end = (*end_nanos).min(1_000_000_000);
+                self.selection_range_micros = Some((start / 1000, end / 1000));
+                self.selection_range_nanos = Some((start, end));
                 self.selection_preserve_view_edge = false;
                 self.selection_snap_override = false;
                 self.selection_smart_scale = true;
@@ -151,6 +187,7 @@ impl PendingWaveformActions {
             NativeUiAction::ClearWaveformSelection => {
                 self.note_selection_action();
                 self.selection_range_micros = None;
+                self.selection_range_nanos = None;
                 self.selection_preserve_view_edge = false;
                 self.selection_snap_override = false;
                 self.selection_smart_scale = false;
@@ -257,6 +294,21 @@ impl PendingWaveformActions {
 
     /// Build the highest-priority selection action for this pending batch, if any.
     pub(super) fn selection_action(&self) -> Option<NativeUiAction> {
+        if let Some((start_nanos, end_nanos)) = self.selection_range_nanos {
+            return Some(if self.selection_smart_scale {
+                NativeUiAction::SetWaveformSelectionRangeSmartScalePrecise {
+                    start_nanos,
+                    end_nanos,
+                }
+            } else {
+                NativeUiAction::SetWaveformSelectionRangePrecise {
+                    start_nanos,
+                    end_nanos,
+                    snap_override: self.selection_snap_override,
+                    preserve_view_edge: self.selection_preserve_view_edge,
+                }
+            });
+        }
         if let Some((start_micros, end_micros)) = self.selection_range_micros {
             return Some(if self.selection_smart_scale {
                 NativeUiAction::SetWaveformSelectionRangeSmartScale {

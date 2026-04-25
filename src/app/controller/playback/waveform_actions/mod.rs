@@ -76,6 +76,14 @@ pub(in crate::app::controller::playback) fn selection_range_from_micros(
     shared::selection_range_from_micros(start_micros, end_micros)
 }
 
+/// Build a normalized selection range from two UI waveform nanounit values (`0..=1_000_000_000`).
+pub(in crate::app::controller::playback) fn selection_range_from_nanos(
+    start_nanos: u32,
+    end_nanos: u32,
+) -> SelectionRange {
+    shared::selection_range_from_nanos(start_nanos, end_nanos)
+}
+
 /// Clamp UI-provided waveform zoom steps to at least one step.
 pub(in crate::app::controller::playback) fn zoom_steps_from_ui(steps: u8) -> u32 {
     shared::zoom_steps_from_ui(steps)

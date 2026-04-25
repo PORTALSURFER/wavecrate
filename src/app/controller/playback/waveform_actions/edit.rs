@@ -10,6 +10,14 @@ impl AppController {
         transport::start_edit_selection_drag(self, position);
     }
 
+    /// Begin a right-click edit selection drag at the given nanounit position.
+    pub fn start_edit_selection_drag_nanos(&mut self, position_nanos: u32) {
+        transport::start_edit_selection_drag(
+            self,
+            normalized64_from_nanos(position_nanos).clamp(0.0, 1.0) as f32,
+        );
+    }
+
     /// Update the in-progress edit selection drag with the latest cursor position.
     pub fn update_edit_selection_drag(&mut self, position: f32, snap_override: bool) {
         transport::update_edit_selection_drag(self, position, snap_override);
@@ -85,6 +93,38 @@ impl AppController {
                 )
             })
             .unwrap_or_else(|| selection_range_from_micros(start_micros, end_micros));
+        if existing_range != Some(next_range) {
+            self.begin_edit_selection_undo("Edit selection");
+        }
+        apply_edit_selection_update(self, existing_range, next_range);
+    }
+
+    /// Set waveform edit selection range from UI nanounit positions.
+    pub(crate) fn set_waveform_edit_selection_range_nanos_with_edge_policy(
+        &mut self,
+        start_nanos: u32,
+        end_nanos: u32,
+        preserve_view_edge: bool,
+    ) {
+        let existing_range = current_edit_selection(self);
+        let start_micros = normalized_to_micros(normalized64_from_nanos(start_nanos) as f32);
+        let end_micros = normalized_to_micros(normalized64_from_nanos(end_nanos) as f32);
+        let (start_micros, end_micros) = selection_updates::snap_edit_selection_range_micros(
+            self,
+            start_micros,
+            end_micros,
+            existing_range,
+            preserve_view_edge,
+        );
+        let next_range = existing_range
+            .map(|existing| {
+                edit_selection::update_edit_selection_range_from_micros(
+                    existing,
+                    start_micros,
+                    end_micros,
+                )
+            })
+            .unwrap_or_else(|| selection_range_from_nanos(start_nanos, end_nanos));
         if existing_range != Some(next_range) {
             self.begin_edit_selection_undo("Edit selection");
         }

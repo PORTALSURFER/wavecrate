@@ -15,6 +15,10 @@ pub(super) fn apply_waveform_selection_action(
             controller.start_selection_drag(normalize_waveform_micros(anchor_micros));
             controller.focus_waveform_context();
         }
+        NativeUiAction::BeginWaveformSelectionAtPrecise { anchor_nanos } => {
+            controller.start_selection_drag_nanos(anchor_nanos);
+            controller.focus_waveform_context();
+        }
         NativeUiAction::SetWaveformSelectionRange {
             start_micros,
             end_micros,
@@ -26,10 +30,25 @@ pub(super) fn apply_waveform_selection_action(
             snap_override,
             preserve_view_edge,
         ),
+        NativeUiAction::SetWaveformSelectionRangePrecise {
+            start_nanos,
+            end_nanos,
+            snap_override,
+            preserve_view_edge,
+        } => controller.set_waveform_selection_range_nanos_with_drag_policy(
+            start_nanos,
+            end_nanos,
+            snap_override,
+            preserve_view_edge,
+        ),
         NativeUiAction::SetWaveformSelectionRangeSmartScale {
             start_micros,
             end_micros,
         } => controller.set_waveform_selection_range_micros_smart_scale(start_micros, end_micros),
+        NativeUiAction::SetWaveformSelectionRangeSmartScalePrecise {
+            start_nanos,
+            end_nanos,
+        } => controller.set_waveform_selection_range_nanos_smart_scale(start_nanos, end_nanos),
         NativeUiAction::SetWaveformEditSelectionRange {
             start_micros,
             end_micros,
@@ -37,6 +56,15 @@ pub(super) fn apply_waveform_selection_action(
         } => controller.set_waveform_edit_selection_range_micros_with_edge_policy(
             start_micros,
             end_micros,
+            preserve_view_edge,
+        ),
+        NativeUiAction::SetWaveformEditSelectionRangePrecise {
+            start_nanos,
+            end_nanos,
+            preserve_view_edge,
+        } => controller.set_waveform_edit_selection_range_nanos_with_edge_policy(
+            start_nanos,
+            end_nanos,
             preserve_view_edge,
         ),
         NativeUiAction::SetWaveformEditFadeInEnd { position_micros } => {
