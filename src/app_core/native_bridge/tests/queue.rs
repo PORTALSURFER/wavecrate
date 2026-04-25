@@ -107,6 +107,125 @@ fn waveform_action_queue_emits_mixed_actions_in_order() {
 }
 
 #[test]
+fn waveform_action_queue_commits_selection_before_later_zoom() {
+    let mut queue = PendingWaveformActions::default();
+    assert!(queue.enqueue(&NativeUiAction::SetWaveformSelectionRange {
+        start_micros: 120_000,
+        end_micros: 640_000,
+        snap_override: false,
+        preserve_view_edge: false,
+    }));
+    assert!(queue.enqueue(&NativeUiAction::ZoomWaveform {
+        zoom_in: true,
+        steps: 2,
+        anchor_ratio_micros: Some(250_000),
+    }));
+
+    let mut emitted = Vec::new();
+    let count = queue.emit_actions(|action| emitted.push(action));
+
+    assert_eq!(count, 2);
+    assert_eq!(
+        emitted,
+        vec![
+            NativeUiAction::SetWaveformSelectionRange {
+                start_micros: 120_000,
+                end_micros: 640_000,
+                snap_override: false,
+                preserve_view_edge: false,
+            },
+            NativeUiAction::ZoomWaveform {
+                zoom_in: true,
+                steps: 2,
+                anchor_ratio_micros: Some(250_000),
+            },
+        ]
+    );
+}
+
+#[test]
+fn waveform_action_queue_applies_zoom_before_later_selection() {
+    let mut queue = PendingWaveformActions::default();
+    assert!(queue.enqueue(&NativeUiAction::ZoomWaveform {
+        zoom_in: true,
+        steps: 2,
+        anchor_ratio_micros: Some(250_000),
+    }));
+    assert!(queue.enqueue(&NativeUiAction::SetWaveformSelectionRange {
+        start_micros: 120_000,
+        end_micros: 640_000,
+        snap_override: false,
+        preserve_view_edge: false,
+    }));
+
+    let mut emitted = Vec::new();
+    let count = queue.emit_actions(|action| emitted.push(action));
+
+    assert_eq!(count, 2);
+    assert_eq!(
+        emitted,
+        vec![
+            NativeUiAction::ZoomWaveform {
+                zoom_in: true,
+                steps: 2,
+                anchor_ratio_micros: Some(250_000),
+            },
+            NativeUiAction::SetWaveformSelectionRange {
+                start_micros: 120_000,
+                end_micros: 640_000,
+                snap_override: false,
+                preserve_view_edge: false,
+            },
+        ]
+    );
+}
+
+#[test]
+fn waveform_action_queue_preserves_view_center_order_around_selection() {
+    let mut queue = PendingWaveformActions::default();
+    assert!(queue.enqueue(&NativeUiAction::ZoomWaveform {
+        zoom_in: false,
+        steps: 1,
+        anchor_ratio_micros: Some(750_000),
+    }));
+    assert!(queue.enqueue(&NativeUiAction::SetWaveformSelectionRange {
+        start_micros: 200_000,
+        end_micros: 500_000,
+        snap_override: true,
+        preserve_view_edge: false,
+    }));
+    assert!(queue.enqueue(&NativeUiAction::SetWaveformViewCenter {
+        center_micros: 350_000,
+        center_nanos: Some(350_000_000),
+    }));
+
+    let mut emitted = Vec::new();
+    let count = queue.emit_actions(|action| emitted.push(action));
+
+    assert_eq!(count, 3);
+    assert_eq!(
+        emitted,
+        vec![
+            NativeUiAction::ZoomWaveform {
+                zoom_in: false,
+                steps: 1,
+                anchor_ratio_micros: Some(750_000),
+            },
+            NativeUiAction::SetWaveformSelectionRange {
+                start_micros: 200_000,
+                end_micros: 500_000,
+                snap_override: true,
+                preserve_view_edge: false,
+            },
+            NativeUiAction::SetWaveformViewCenter {
+                center_micros: 350_000,
+                center_nanos: Some(350_000_000),
+            },
+        ]
+    );
+}
+
+#[test]
 fn waveform_action_queue_keeps_latest_view_center() {
     let mut queue = PendingWaveformActions::default();
     assert!(queue.enqueue(&NativeUiAction::SetWaveformViewCenter {

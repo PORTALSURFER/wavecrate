@@ -48,6 +48,8 @@ impl SempalNativeBridge {
     ) -> bool {
         let use_local_pull_fast_path =
             force_local_pull_fast_path || uses_local_model_pull_fast_path(&action);
+        let pending_waveform_requires_full_pull =
+            self.pending_waveform_actions.requires_full_model_pull();
         let before_key = use_local_pull_fast_path.then(|| self.projection_key_snapshot());
         if !use_local_pull_fast_path {
             self.mark_dirty_for_action(&action);
@@ -56,6 +58,11 @@ impl SempalNativeBridge {
         let handled = self.controller.apply_native_ui_action(action);
         self.invalidate_projection_key_snapshot();
         if !use_local_pull_fast_path {
+            self.schedule_full_model_pull_preparation();
+            return handled;
+        }
+        if pending_waveform_requires_full_pull {
+            self.projection_cache.invalidate_key_only();
             self.schedule_full_model_pull_preparation();
             return handled;
         }

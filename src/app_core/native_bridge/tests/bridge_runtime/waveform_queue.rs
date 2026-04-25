@@ -145,3 +145,68 @@ fn flush_pending_waveform_actions_reuses_derived_snapshot_for_view_updates() {
     };
     assert_eq!(snapshot_key, &derived.app_key);
 }
+
+fn assert_pending_zoom_flush_before_immediate_action(action: NativeUiAction) {
+    let mut bridge = test_bridge(16);
+
+    bridge.on_action(NativeUiAction::ZoomWaveform {
+        zoom_in: true,
+        steps: 1,
+        anchor_ratio_micros: Some(400_000),
+    });
+    assert!(bridge.pending_waveform_actions.has_pending());
+
+    bridge.on_action(action);
+
+    assert!(!bridge.pending_waveform_actions.has_pending());
+    assert_eq!(
+        bridge.pending_model_pull_preparation,
+        PendingModelPullPreparation::Full
+    );
+    assert!(
+        bridge
+            .controller
+            .is_derived_node_dirty_for_test(DerivedNodeId::WaveformState)
+    );
+}
+
+#[test]
+fn immediate_edit_selection_flushes_pending_zoom_without_downgrading_model_pull() {
+    assert_pending_zoom_flush_before_immediate_action(
+        NativeUiAction::SetWaveformEditSelectionRange {
+            start_micros: 120_000,
+            end_micros: 640_000,
+            preserve_view_edge: false,
+        },
+    );
+}
+
+#[test]
+fn immediate_fade_handle_drag_flushes_pending_zoom_without_downgrading_model_pull() {
+    assert_pending_zoom_flush_before_immediate_action(NativeUiAction::SetWaveformEditFadeInEnd {
+        position_micros: 300_000,
+    });
+}
+
+#[test]
+fn immediate_selection_export_drag_flushes_pending_zoom_without_downgrading_model_pull() {
+    assert_pending_zoom_flush_before_immediate_action(
+        NativeUiAction::UpdateWaveformSelectionDrag {
+            pointer_x: 320,
+            pointer_y: 240,
+            hovered_folder_pane: None,
+            hovered_folder_row: None,
+            over_folder_panel: None,
+            over_browser_list: true,
+            shift_down: false,
+            alt_down: false,
+        },
+    );
+}
+
+#[test]
+fn finish_range_action_flushes_pending_zoom_without_downgrading_model_pull() {
+    assert_pending_zoom_flush_before_immediate_action(
+        NativeUiAction::FinishWaveformSelectionRangeDrag,
+    );
+}

@@ -36,6 +36,14 @@ pub(super) enum PendingModelPullPreparation {
 /// Queue of high-frequency waveform actions that can be coalesced per pull frame.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) struct PendingWaveformActions {
+    /// Monotonic order counter for cross-lane waveform actions in this batch.
+    action_order: u64,
+    /// Order of the latest queued playback-selection endpoint mutation.
+    selection_order: Option<u64>,
+    /// Order of the latest queued waveform zoom mutation.
+    zoom_order: Option<u64>,
+    /// Order of the latest queued waveform center mutation.
+    view_center_order: Option<u64>,
     /// Latest seek target in normalized nanounits.
     pub(super) seek_nanos: Option<u32>,
     /// Latest cursor target in normalized nanounits.
@@ -65,6 +73,23 @@ pub(super) struct PendingWaveformActions {
 }
 
 impl PendingWaveformActions {
+    fn next_action_order(&mut self) -> u64 {
+        self.action_order = self.action_order.saturating_add(1);
+        self.action_order
+    }
+
+    fn note_selection_action(&mut self) {
+        self.selection_order = Some(self.next_action_order());
+    }
+
+    fn note_zoom_action(&mut self) {
+        self.zoom_order = Some(self.next_action_order());
+    }
+
+    fn note_view_center_action(&mut self) {
+        self.view_center_order = Some(self.next_action_order());
+    }
+
     /// Return true when at least one queued waveform action is present.
     pub(super) fn has_pending(&self) -> bool {
         self.seek_nanos.is_some()
@@ -103,6 +128,7 @@ impl PendingWaveformActions {
                 snap_override,
                 preserve_view_edge,
             } => {
+                self.note_selection_action();
                 self.selection_range_micros = Some((*start_micros, *end_micros));
                 self.selection_preserve_view_edge = *preserve_view_edge;
                 self.selection_snap_override = *snap_override;
@@ -114,6 +140,7 @@ impl PendingWaveformActions {
                 start_micros,
                 end_micros,
             } => {
+                self.note_selection_action();
                 self.selection_range_micros = Some((*start_micros, *end_micros));
                 self.selection_preserve_view_edge = false;
                 self.selection_snap_override = false;
@@ -122,6 +149,7 @@ impl PendingWaveformActions {
                 true
             }
             NativeUiAction::ClearWaveformSelection => {
+                self.note_selection_action();
                 self.selection_range_micros = None;
                 self.selection_preserve_view_edge = false;
                 self.selection_snap_override = false;
@@ -133,6 +161,7 @@ impl PendingWaveformActions {
                 center_micros,
                 center_nanos,
             } => {
+                self.note_view_center_action();
                 self.view_center_micros = Some((*center_micros).min(1_000_000));
                 self.view_center_nanos = center_nanos.map(|nanos| nanos.min(1_000_000_000));
                 true
@@ -145,6 +174,7 @@ impl PendingWaveformActions {
                 if self.zoom_full || self.zoom_to_selection {
                     return true;
                 }
+                self.note_zoom_action();
                 let signed_steps = if *zoom_in {
                     i16::from(*steps)
                 } else {
@@ -159,6 +189,7 @@ impl PendingWaveformActions {
                 true
             }
             NativeUiAction::ZoomWaveformToSelection => {
+                self.note_zoom_action();
                 self.zoom_steps_delta = 0;
                 self.zoom_anchor_ratio_micros = None;
                 self.zoom_to_selection = true;
@@ -166,6 +197,7 @@ impl PendingWaveformActions {
                 true
             }
             NativeUiAction::ZoomWaveformFull => {
+                self.note_zoom_action();
                 self.zoom_steps_delta = 0;
                 self.zoom_anchor_ratio_micros = None;
                 self.zoom_to_selection = false;
@@ -247,19 +279,28 @@ impl PendingWaveformActions {
     /// Emit queued waveform actions in deterministic application order.
     pub(super) fn emit_actions(&self, mut emit: impl FnMut(NativeUiAction)) -> u64 {
         let mut emitted_actions = 0u64;
-        if let Some(action) = self.zoom_action() {
+        let mut ordered_actions = [
+            self.zoom_order
+                .map(|order| (order, self.zoom_action()))
+                .and_then(|(order, action)| action.map(|action| (order, action))),
+            self.selection_order
+                .map(|order| (order, self.selection_action()))
+                .and_then(|(order, action)| action.map(|action| (order, action))),
+            self.view_center_order.and_then(|order| {
+                self.view_center_micros.map(|center_micros| {
+                    (
+                        order,
+                        NativeUiAction::SetWaveformViewCenter {
+                            center_micros,
+                            center_nanos: self.view_center_nanos,
+                        },
+                    )
+                })
+            }),
+        ];
+        ordered_actions.sort_by_key(|entry| entry.as_ref().map(|(order, _)| *order));
+        for (_, action) in ordered_actions.into_iter().flatten() {
             emit(action);
-            emitted_actions = emitted_actions.saturating_add(1);
-        }
-        if let Some(action) = self.selection_action() {
-            emit(action);
-            emitted_actions = emitted_actions.saturating_add(1);
-        }
-        if let Some(center_micros) = self.view_center_micros {
-            emit(NativeUiAction::SetWaveformViewCenter {
-                center_micros,
-                center_nanos: self.view_center_nanos,
-            });
             emitted_actions = emitted_actions.saturating_add(1);
         }
         if let Some(position_nanos) = self.deduped_cursor_nanos() {
