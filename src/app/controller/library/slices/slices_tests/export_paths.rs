@@ -1,4 +1,5 @@
 use super::*;
+use crate::sample_sources::DB_FILE_NAME;
 
 #[test]
 fn accept_waveform_slices_exports_files() {
@@ -59,4 +60,34 @@ fn accept_waveform_slices_uses_silence_split_suffix() {
     );
     assert!(controller.ui.waveform.slices.is_empty());
     assert!(controller.ui.waveform.selected_slices.is_empty());
+}
+
+#[test]
+fn accept_waveform_slices_removes_written_slice_when_source_db_registration_fails() {
+    let (_temp, root) = prepare_source_dir();
+    let source_root = root.join("source");
+    std::fs::create_dir_all(&source_root).unwrap();
+    let (mut controller, source) = make_controller(&source_root);
+
+    let wav_path = write_clip(&source_root, "clip.wav", &[0.2, 0.2, 0.0, 0.0]);
+    controller
+        .load_waveform_for_selection(&source, wav_path.strip_prefix(&source_root).unwrap())
+        .unwrap();
+    controller.ui.waveform.slices = vec![SelectionRange::new(0.0, 0.5)];
+    controller.cache.db.clear();
+    let db_path = source_root.join(DB_FILE_NAME);
+    if db_path.exists() {
+        std::fs::remove_file(&db_path).unwrap();
+    }
+    std::fs::create_dir(&db_path).unwrap();
+
+    let err = controller
+        .accept_waveform_slices()
+        .expect_err("source DB registration should fail");
+
+    assert!(
+        err.contains("Database unavailable"),
+        "error should surface registration failure, got '{err}'"
+    );
+    assert!(!source_root.join("clip_slice001.wav").exists());
 }

@@ -3,6 +3,7 @@
 use super::background_recording::{
     next_clip_export_path, record_clip_entry, record_crop_entry, record_slice_batch_entry,
 };
+use super::helpers::cleanup_written_export_after_registration_failure;
 use super::*;
 use crate::app::controller::jobs::{
     SelectionClipDestination, SelectionClipExportSuccess, SelectionCropExportSuccess,
@@ -96,7 +97,8 @@ fn run_clip_export_job(
     let write = write_started.elapsed();
 
     let register_started = Instant::now();
-    let entry = record_clip_entry(&snapshot, &destination, target_relative.clone())?;
+    let entry = record_clip_entry(&snapshot, &destination, target_relative.clone())
+        .map_err(|err| cleanup_written_export_after_registration_failure(&absolute_path, err))?;
     let register = register_started.elapsed();
     let backup = crate::app::controller::undo::OverwriteBackup::capture_before(&absolute_path)?;
     backup.capture_after(&absolute_path)?;
@@ -136,7 +138,8 @@ fn run_crop_export_job(
     let write = write_started.elapsed();
 
     let register_started = Instant::now();
-    let entry = record_crop_entry(&snapshot, new_relative.clone())?;
+    let entry = record_crop_entry(&snapshot, new_relative.clone())
+        .map_err(|err| cleanup_written_export_after_registration_failure(&absolute_path, err))?;
     let register = register_started.elapsed();
     let backup = crate::app::controller::undo::OverwriteBackup::capture_before(&absolute_path)?;
     backup.capture_after(&absolute_path)?;
@@ -216,7 +219,12 @@ fn run_slice_batch_export(
         let register_started = Instant::now();
         match record_slice_batch_entry(&snapshot, target_relative) {
             Ok(entry) => entries.push(entry),
-            Err(err) => errors.push(err),
+            Err(err) => {
+                errors.push(cleanup_written_export_after_registration_failure(
+                    &absolute_path,
+                    err,
+                ));
+            }
         }
         register += register_started.elapsed();
 

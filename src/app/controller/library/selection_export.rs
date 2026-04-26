@@ -15,7 +15,11 @@ mod slice_batch;
 
 pub(crate) use self::background::run_selection_export_job;
 pub(crate) use self::background::run_slice_batch_export_job;
-use self::helpers::{crop_selection_samples, next_selection_path_in_dir};
+pub(crate) use self::helpers::cleanup_written_export_after_registration_failure as cleanup_unregistered_source_export;
+use self::helpers::{
+    cleanup_written_export_after_registration_failure, crop_selection_samples,
+    next_selection_path_in_dir,
+};
 pub(crate) use self::requests::{SelectionClipExportRequest, SelectionEntryRecordRequest};
 use super::selection_edits::apply_short_edge_fades_to_clip;
 use super::*;
@@ -108,6 +112,7 @@ impl AppController {
             looped,
             bpm,
         })
+        .map_err(|err| cleanup_written_export_after_registration_failure(&target_abs, err))
     }
 
     pub(crate) fn export_selection_clip_in_folder(
@@ -149,6 +154,7 @@ impl AppController {
             looped,
             bpm,
         })
+        .map_err(|err| cleanup_written_export_after_registration_failure(&target_abs, err))
     }
 
     pub(crate) fn save_waveform_selection_to_browser(

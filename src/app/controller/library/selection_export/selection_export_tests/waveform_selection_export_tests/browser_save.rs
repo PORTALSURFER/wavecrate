@@ -1,4 +1,5 @@
 use super::super::*;
+use crate::sample_sources::DB_FILE_NAME;
 
 #[test]
 /// Saving from the waveform should accept deep, narrow selections on long files.
@@ -256,4 +257,47 @@ fn save_waveform_selection_to_browser_records_failure_flash_when_worker_fails() 
     );
     assert_eq!(controller.ui.status.status_tone, StatusTone::Error);
     assert_eq!(controller.ui.status.text, "Selection export failed");
+}
+
+#[test]
+fn save_waveform_selection_to_browser_removes_clip_when_source_db_registration_fails() {
+    let temp = tempdir().unwrap();
+    let source_root = temp.path().join("source");
+    std::fs::create_dir_all(&source_root).unwrap();
+
+    let renderer = crate::waveform::WaveformRenderer::new(12, 12);
+    let mut controller = AppController::new(renderer, None);
+    let source = SampleSource::new(source_root.clone());
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+
+    let wav_path = source_root.join("clip.wav");
+    write_test_wav(&wav_path, &[0.1, 0.2, 0.3, 0.4]);
+    controller
+        .load_waveform_for_selection(&source, Path::new("clip.wav"))
+        .unwrap();
+    let selection = SelectionRange::new(0.25, 0.75);
+    controller.selection_state.range.set_range(Some(selection));
+    controller.ui.waveform.selection = Some(selection);
+    controller.cache.db.clear();
+    let db_path = source_root.join(DB_FILE_NAME);
+    if db_path.exists() {
+        std::fs::remove_file(&db_path).unwrap();
+    }
+    std::fs::create_dir(&db_path).unwrap();
+
+    controller
+        .save_waveform_selection_to_browser(true)
+        .expect("selection export should queue");
+
+    pump_background_jobs_until(&mut controller, |controller| {
+        controller.ui.status.status_tone == StatusTone::Error
+    });
+
+    assert!(
+        controller.ui.status.text.contains("Database unavailable"),
+        "status should surface registration failure, got '{}'",
+        controller.ui.status.text
+    );
+    assert!(!source_root.join("clip_selection_001.wav").exists());
 }

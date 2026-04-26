@@ -1,5 +1,6 @@
 use super::*;
 use crate::app::controller::library::selection_export::SelectionEntryRecordRequest;
+use crate::app::controller::library::selection_export::cleanup_unregistered_source_export;
 use crate::app::controller::playback::audio_samples::{
     DecodedSamples, crop_samples, decode_samples_from_bytes, write_wav,
 };
@@ -72,7 +73,8 @@ impl AppController {
             register_in_source: true,
             looped: false,
             bpm: None,
-        })?;
+        })
+        .map_err(|err| cleanup_unregistered_source_export(&target_abs, err))?;
         Ok(())
     }
 
