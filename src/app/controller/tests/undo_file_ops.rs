@@ -252,7 +252,7 @@ fn remove_sample_fixture(sample_name: &str) -> (tempfile::TempDir, SampleSource,
 }
 
 #[test]
-fn restore_sample_job_reapplies_looped_metadata() {
+fn restore_sample_job_reapplies_looped_and_playback_metadata() {
     let temp = tempdir().expect("create temp dir");
     let source = SampleSource::new(temp.path().join("source"));
     std::fs::create_dir_all(&source.root).expect("create source root");
@@ -270,6 +270,7 @@ fn restore_sample_job_reapplies_looped_metadata() {
             backup_path: backup_path.clone(),
             tag: crate::sample_sources::Rating::KEEP_1,
             looped: true,
+            last_played_at: Some(42),
         },
         Arc::new(AtomicBool::new(false)),
         None,
@@ -289,9 +290,9 @@ fn restore_sample_job_reapplies_looped_metadata() {
                 && *outcome_path == relative_path
                 && *tag == crate::sample_sources::Rating::KEEP_1
                 && *looped
-                && last_played_at.is_none()
+                && *last_played_at == Some(42)
         ),
-        "restore sample should keep looped metadata: {:?}",
+        "restore sample should keep looped and playback metadata: {:?}",
         result.result
     );
 
@@ -305,6 +306,11 @@ fn restore_sample_job_reapplies_looped_metadata() {
         db.looped_for_path(&relative_path)
             .expect("lookup restored looped metadata"),
         Some(true)
+    );
+    assert_eq!(
+        db.last_played_at_for_path(&relative_path)
+            .expect("lookup restored playback metadata"),
+        Some(42)
     );
     assert!(
         absolute_path.exists(),

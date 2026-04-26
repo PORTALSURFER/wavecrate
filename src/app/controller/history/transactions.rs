@@ -89,6 +89,8 @@ impl AppController {
         relative_path: PathBuf,
         absolute_path: PathBuf,
         tag: crate::sample_sources::Rating,
+        looped: bool,
+        last_played_at: Option<i64>,
         backup: undo::OverwriteBackup,
         label_override: Option<String>,
     ) -> Result<(), String> {
@@ -104,6 +106,8 @@ impl AppController {
             relative_path,
             absolute_path,
             tag,
+            looped,
+            last_played_at,
             backup,
         );
         self.push_undo_entry(Self::attach_meaningful_ui_restore(

@@ -342,6 +342,7 @@ fn deferred_meaningful_ui_restore_hooks_reapply_before_and_after_snapshots() {
                     backup_path: backup_path.clone(),
                     tag: crate::sample_sources::Rating::KEEP_1,
                     looped: false,
+                    last_played_at: None,
                 }))
             },
         ),

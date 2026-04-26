@@ -18,6 +18,8 @@ impl AppController {
         let history_relative_path = success.entry.relative_path.clone();
         let history_absolute_path = success.absolute_path.clone();
         let history_tag = success.entry.tag;
+        let history_looped = success.entry.looped;
+        let history_last_played_at = success.entry.last_played_at;
         let history_backup = success.backup.clone();
         self.record_selection_export_timings("clip", &success.entry.relative_path, success.timings);
         let source = SampleSource {
@@ -60,6 +62,8 @@ impl AppController {
             history_relative_path,
             history_absolute_path,
             history_tag,
+            history_looped,
+            history_last_played_at,
             history_backup,
             None,
         ) {
@@ -83,6 +87,8 @@ impl AppController {
         let history_relative_path = success.entry.relative_path.clone();
         let history_absolute_path = success.absolute_path.clone();
         let history_tag = success.tag;
+        let history_looped = success.entry.looped;
+        let history_last_played_at = success.entry.last_played_at;
         let history_backup = success.backup.clone();
         self.record_selection_export_timings(
             "crop_new_sample",
@@ -128,6 +134,8 @@ impl AppController {
             history_relative_path.clone(),
             history_absolute_path,
             history_tag,
+            history_looped,
+            history_last_played_at,
             history_backup,
             Some(format!(
                 "Cropped to new sample {}",

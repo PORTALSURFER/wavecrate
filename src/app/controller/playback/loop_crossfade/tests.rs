@@ -193,3 +193,78 @@ fn loop_crossfade_undo_removes_looped_metadata_for_generated_copy() {
     );
     assert!(controller.wav_index_for_path(&expected_relative).is_none());
 }
+
+#[test]
+fn loop_crossfade_redo_restores_cached_looped_and_playback_metadata() {
+    let (mut controller, source, _absolute_path) =
+        prepare_loop_crossfade_controller("clip.wav", Rating::KEEP_1);
+    controller.ui.loop_crossfade_prompt = Some(LoopCrossfadePrompt {
+        source_id: source.id.clone(),
+        relative_path: PathBuf::from("clip.wav"),
+        settings: LoopCrossfadeSettings::default(),
+    });
+
+    controller
+        .apply_loop_crossfade_prompt()
+        .expect("loop crossfade should apply");
+
+    let expected_relative = PathBuf::from("clip_fade5ms.wav");
+    controller
+        .database_for(&source)
+        .expect("source db")
+        .set_last_played_at(&expected_relative, 42)
+        .expect("set restored playback age");
+    let entry_index = controller
+        .wav_index_for_path(&expected_relative)
+        .expect("generated wav index");
+    controller
+        .wav_entries
+        .entry_mut(entry_index)
+        .expect("generated wav entry")
+        .last_played_at = Some(42);
+
+    let mut stack = mem::replace(&mut controller.history.undo_stack, UndoStack::new(32));
+    let undo_pending = match stack.undo(&mut controller).expect("undo should queue") {
+        UndoOutcome::Deferred(pending) => *pending,
+        UndoOutcome::Applied(label) => panic!("expected deferred undo, got applied {label}"),
+        UndoOutcome::Empty => panic!("expected deferred undo entry"),
+    };
+    controller.history.undo_stack = stack;
+    let undo_job = undo_pending.job.clone();
+    controller.history.pending_undo = Some(undo_pending);
+    let undo_result = run_undo_file_job(undo_job, Arc::new(AtomicBool::new(false)), None);
+    controller.apply_file_op_result(FileOpResult::UndoFile(undo_result));
+    assert!(controller.wav_index_for_path(&expected_relative).is_none());
+
+    let mut stack = mem::replace(&mut controller.history.undo_stack, UndoStack::new(32));
+    let redo_pending = match stack.redo(&mut controller).expect("redo should queue") {
+        UndoOutcome::Deferred(pending) => *pending,
+        UndoOutcome::Applied(label) => panic!("expected deferred redo, got applied {label}"),
+        UndoOutcome::Empty => panic!("expected deferred redo entry"),
+    };
+    controller.history.undo_stack = stack;
+    let redo_job = redo_pending.job.clone();
+    controller.history.pending_undo = Some(redo_pending);
+    let redo_result = run_undo_file_job(redo_job, Arc::new(AtomicBool::new(false)), None);
+    controller.apply_file_op_result(FileOpResult::UndoFile(redo_result));
+
+    let db = controller.database_for(&source).expect("source db");
+    assert_eq!(
+        db.looped_for_path(&expected_relative)
+            .expect("looped lookup after redo"),
+        Some(true)
+    );
+    assert_eq!(
+        db.last_played_at_for_path(&expected_relative)
+            .expect("playback lookup after redo"),
+        Some(42)
+    );
+    let restored_index = controller
+        .wav_index_for_path(&expected_relative)
+        .expect("restored wav index");
+    let restored_entry = controller
+        .wav_entry(restored_index)
+        .expect("restored entry");
+    assert!(restored_entry.looped);
+    assert_eq!(restored_entry.last_played_at, Some(42));
+}

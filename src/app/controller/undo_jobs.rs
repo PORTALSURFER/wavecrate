@@ -119,6 +119,7 @@ pub(crate) fn run_undo_file_job(
             backup_path,
             tag,
             looped,
+            last_played_at,
         } => {
             if let Some(parent) = absolute_path.parent()
                 && let Err(err) = std::fs::create_dir_all(parent)
@@ -141,9 +142,14 @@ pub(crate) fn run_undo_file_job(
                         .map_err(|err| format!("Failed to sync database entry: {err}"))?;
                     db.set_tag(&relative_path, tag)
                         .map_err(|err| format!("Failed to sync tag: {err}"))?;
-                    if looped {
-                        db.set_looped(&relative_path, true)
-                            .map_err(|err| format!("Failed to sync loop metadata: {err}"))?;
+                    db.set_looped(&relative_path, looped)
+                        .map_err(|err| format!("Failed to sync loop metadata: {err}"))?;
+                    if let Some(last_played_at) = last_played_at {
+                        db.set_last_played_at(&relative_path, last_played_at)
+                            .map_err(|err| format!("Failed to sync playback age: {err}"))?;
+                    } else {
+                        db.clear_last_played_at(&relative_path)
+                            .map_err(|err| format!("Failed to sync playback age: {err}"))?;
                     }
                     Ok(UndoFileOutcome::Restored {
                         source_id,
@@ -152,7 +158,7 @@ pub(crate) fn run_undo_file_job(
                         modified_ns,
                         tag,
                         looped,
-                        last_played_at: None,
+                        last_played_at,
                     })
                 })
         }

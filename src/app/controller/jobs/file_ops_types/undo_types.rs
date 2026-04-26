@@ -45,6 +45,8 @@ pub(crate) enum UndoFileJob {
         tag: crate::sample_sources::Rating,
         /// Loop marker state to restore with the sample.
         looped: bool,
+        /// Last played timestamp to restore with the sample.
+        last_played_at: Option<i64>,
     },
 }
 
