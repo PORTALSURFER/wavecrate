@@ -32,8 +32,17 @@ pub(super) fn run_folder_move_task(
 type BeforeFolderSampleBatchHook = Box<dyn FnMut() + Send>;
 
 #[cfg(test)]
+/// Optional one-shot hook used by tests to force deterministic finalization failures.
+type BeforeFolderSampleFinalizeHook = Box<dyn FnMut() + Send>;
+
+#[cfg(test)]
 /// Global storage for the optional pre-batch hook used by folder-sample move tests.
 static BEFORE_FOLDER_SAMPLE_BATCH_HOOK: OnceLock<Mutex<Option<BeforeFolderSampleBatchHook>>> =
+    OnceLock::new();
+
+#[cfg(test)]
+/// Global storage for the optional pre-finalize hook used by folder-sample move tests.
+static BEFORE_FOLDER_SAMPLE_FINALIZE_HOOK: OnceLock<Mutex<Option<BeforeFolderSampleFinalizeHook>>> =
     OnceLock::new();
 
 #[cfg(test)]
@@ -47,10 +56,30 @@ fn run_before_folder_sample_batch_hook() {
     }
 }
 
+#[cfg(test)]
+/// Invoke and clear the one-shot pre-finalize hook when tests configure one.
+fn run_before_folder_sample_finalize_hook() {
+    if let Some(hook_slot) = BEFORE_FOLDER_SAMPLE_FINALIZE_HOOK.get()
+        && let Ok(mut guard) = hook_slot.lock()
+        && let Some(mut hook) = guard.take()
+    {
+        hook();
+    }
+}
+
 /// Configure an optional test hook invoked immediately before folder-sample DB writes.
 #[cfg(test)]
 pub(super) fn set_before_folder_sample_batch_hook(hook: Option<BeforeFolderSampleBatchHook>) {
     let hook_slot = BEFORE_FOLDER_SAMPLE_BATCH_HOOK.get_or_init(|| Mutex::new(None));
+    if let Ok(mut guard) = hook_slot.lock() {
+        *guard = hook;
+    }
+}
+
+/// Configure an optional test hook invoked immediately before folder-sample finalization.
+#[cfg(test)]
+pub(super) fn set_before_folder_sample_finalize_hook(hook: Option<BeforeFolderSampleFinalizeHook>) {
+    let hook_slot = BEFORE_FOLDER_SAMPLE_FINALIZE_HOOK.get_or_init(|| Mutex::new(None));
     if let Ok(mut guard) = hook_slot.lock() {
         *guard = hook;
     }
@@ -111,6 +140,8 @@ pub(super) fn run_folder_sample_move_task(
             report_progress(sender, completed, detail);
             continue;
         }
+        #[cfg(test)]
+        run_before_folder_sample_finalize_hook();
         if !transaction.finalize_filesystem_stage(&mut errors) {
             completed += 1;
             report_progress(sender, completed, detail);

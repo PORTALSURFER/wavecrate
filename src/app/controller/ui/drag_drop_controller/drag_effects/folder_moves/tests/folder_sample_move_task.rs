@@ -1,4 +1,7 @@
-use super::super::worker::{run_folder_sample_move_task, set_before_folder_sample_batch_hook};
+use super::super::worker::{
+    run_folder_sample_move_task, set_before_folder_sample_batch_hook,
+    set_before_folder_sample_finalize_hook,
+};
 use super::support::{Must, folder_move_test_guard, read_file_metadata};
 use crate::app::controller::jobs::FolderSampleMoveRequest;
 use crate::app::controller::test_support::write_test_wav;
@@ -14,6 +17,7 @@ use tempfile::tempdir;
 fn folder_sample_move_updates_db_entry() {
     let _guard = folder_move_test_guard();
     set_before_folder_sample_batch_hook(None);
+    set_before_folder_sample_finalize_hook(None);
     let temp = tempdir().must();
     let source_root = temp.path().join("source");
     let target_dir = source_root.join("folder");
@@ -79,6 +83,7 @@ fn folder_sample_move_updates_db_entry() {
 fn folder_sample_move_cancelled_before_processing_keeps_source_unchanged() {
     let _guard = folder_move_test_guard();
     set_before_folder_sample_batch_hook(None);
+    set_before_folder_sample_finalize_hook(None);
     let temp = tempdir().must();
     let source_root = temp.path().join("source");
     let target_dir = source_root.join("folder");
@@ -127,6 +132,7 @@ fn folder_sample_move_cancelled_before_processing_keeps_source_unchanged() {
 fn folder_sample_move_db_write_failure_rolls_back_source_and_keeps_journal_for_recovery() {
     let _guard = folder_move_test_guard();
     set_before_folder_sample_batch_hook(None);
+    set_before_folder_sample_finalize_hook(None);
     let temp = tempdir().must();
     let source_root = temp.path().join("source");
     let target_dir = source_root.join("folder");
@@ -212,4 +218,77 @@ fn folder_sample_move_db_write_failure_rolls_back_source_and_keeps_journal_for_r
         entries.entries[0].target_relative,
         PathBuf::from("folder/one.wav")
     );
+}
+
+#[test]
+/// A final rename failure after DB commit rolls the DB and staged file back immediately.
+fn folder_sample_move_finalize_failure_rolls_back_db_file_and_journal() {
+    let _guard = folder_move_test_guard();
+    set_before_folder_sample_batch_hook(None);
+    set_before_folder_sample_finalize_hook(None);
+    let temp = tempdir().must();
+    let source_root = temp.path().join("source");
+    let target_dir = source_root.join("folder");
+    std::fs::create_dir_all(&target_dir).must();
+    let source = SampleSource::new(source_root.clone());
+    let wav_path = source_root.join("one.wav");
+    write_test_wav(&wav_path, &[0.0, 0.1, -0.1]);
+    let (file_size, modified_ns) = read_file_metadata(&wav_path);
+    let db = SourceDatabase::open(&source_root).must();
+    let mut batch = db.write_batch().must();
+    batch
+        .upsert_file(Path::new("one.wav"), file_size, modified_ns)
+        .must();
+    batch.set_tag(Path::new("one.wav"), Rating::KEEP_1).must();
+    batch.set_looped(Path::new("one.wav"), true).must();
+    batch.set_locked(Path::new("one.wav"), true).must();
+    batch.set_last_played_at(Path::new("one.wav"), 42).must();
+    batch.commit().must();
+
+    let target_blocker = source_root.join("folder/one.wav");
+    set_before_folder_sample_finalize_hook(Some(Box::new(move || {
+        std::fs::create_dir(&target_blocker).must();
+    })));
+
+    let result = run_folder_sample_move_task(
+        source.id.clone(),
+        source_root.clone(),
+        vec![FolderSampleMoveRequest {
+            relative_path: PathBuf::from("one.wav"),
+            target_relative: PathBuf::from("folder/one.wav"),
+        }],
+        Vec::new(),
+        Arc::new(AtomicBool::new(false)),
+        None,
+    );
+    set_before_folder_sample_finalize_hook(None);
+
+    assert!(result.moved.is_empty());
+    assert!(
+        result
+            .errors
+            .iter()
+            .any(|err| err.contains("Failed to finalize move"))
+    );
+    assert!(source_root.join("one.wav").is_file());
+    assert!(source_root.join("folder/one.wav").is_dir());
+    let db = SourceDatabase::open(&source_root).must();
+    assert_eq!(
+        db.tag_for_path(Path::new("one.wav")).must(),
+        Some(Rating::KEEP_1)
+    );
+    assert_eq!(db.looped_for_path(Path::new("one.wav")).must(), Some(true));
+    assert_eq!(db.locked_for_path(Path::new("one.wav")).must(), Some(true));
+    assert_eq!(
+        db.last_played_at_for_path(Path::new("one.wav")).must(),
+        Some(42)
+    );
+    assert!(
+        db.tag_for_path(Path::new("folder/one.wav"))
+            .must()
+            .is_none()
+    );
+    let entries = file_ops_journal::list_entries(&db).must();
+    assert!(entries.entries.is_empty());
+    assert!(entries.malformed.is_empty());
 }
