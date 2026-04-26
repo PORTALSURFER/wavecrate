@@ -27,6 +27,6 @@ single-purpose entrypoints:
 Those wrappers delegate to `ci.ps1` and `run.ps1` so existing docs, local
 muscle memory, and agent instructions still resolve during the migration.
 
-Everything else under `scripts/internal/` is implementation detail. Tracked
-training dataset artifacts that used to live under `scripts/` now live under
-`testdata/training_dataset/scripts_dataset/`.
+Everything else under `scripts/internal/` is implementation detail. Generated
+training dataset artifacts should stay under ignored workspace paths such as
+`tmp/training_dataset/`.
