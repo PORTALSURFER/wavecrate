@@ -13,8 +13,6 @@ pub(crate) struct SelectionEditWriteRequest<'a> {
     pub(crate) target: &'a SelectionTarget,
     pub(crate) db: &'a SourceDatabase,
     pub(crate) tag: Rating,
-    pub(crate) last_played_at: Option<i64>,
-    pub(crate) looped: bool,
 }
 
 /// Persisted metadata produced after rewriting one sample file in place.
@@ -57,8 +55,6 @@ where
         &request.target.relative_path,
         &request.target.absolute_path,
         request.tag,
-        request.last_played_at,
-        request.looped,
     )?;
     Ok(SelectionEditWriteOutcome { entry })
 }
@@ -88,8 +84,6 @@ pub(crate) fn crop_selection_to_new_sample_write(
         &request.new_relative,
         &new_absolute,
         request.tag,
-        None,
-        false,
     )?;
     Ok(CropNewSampleWriteOutcome {
         entry,
@@ -115,25 +109,18 @@ pub(crate) fn sync_sample_entry(
     relative_path: &std::path::Path,
     absolute_path: &std::path::Path,
     tag: Rating,
-    last_played_at: Option<i64>,
-    looped: bool,
 ) -> Result<WavEntry, String> {
     let (file_size, modified_ns) = file_metadata(absolute_path)?;
     db.upsert_file(relative_path, file_size, modified_ns)
         .map_err(|err| format!("Failed to sync database entry: {err}"))?;
     db.set_tag(relative_path, tag)
         .map_err(|err| format!("Failed to sync tag: {err}"))?;
-    Ok(WavEntry {
-        relative_path: relative_path.to_path_buf(),
-        file_size,
-        modified_ns,
-        content_hash: None,
-        tag,
-        looped,
-        sound_type: None,
-        locked: false,
-        missing: false,
-        last_played_at,
-        user_tag: None,
-    })
+    db.entry_for_path(relative_path)
+        .map_err(|err| format!("Failed to reload synced database entry: {err}"))?
+        .ok_or_else(|| {
+            format!(
+                "Synced sample missing from database: {}",
+                relative_path.display()
+            )
+        })
 }

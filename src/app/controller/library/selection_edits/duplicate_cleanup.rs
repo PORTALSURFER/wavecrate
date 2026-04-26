@@ -75,8 +75,6 @@ impl AppController {
             .database_for(&target.source)
             .map_err(|err| format!("Database unavailable: {err}"))?;
         let tag = self.sample_tag_for(&target.source, &target.relative_path)?;
-        let last_played_at = self.sample_last_played_for(&target.source, &target.relative_path)?;
-        let looped = self.sample_looped_for(&target.source, &target.relative_path)?;
         let visual = self.capture_selection_edit_visual_state();
         let playback = self.capture_playback_resume_state();
         let write_outcome = apply_selection_edit_write(
@@ -84,8 +82,6 @@ impl AppController {
                 target: &target,
                 db: &db,
                 tag,
-                last_played_at,
-                looped,
             },
             |buffer| trim_cleanup_ranges_from_buffer(buffer, &cleanup_ranges),
         )?;

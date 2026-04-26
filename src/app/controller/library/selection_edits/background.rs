@@ -165,13 +165,6 @@ fn run_selection_edit_commit_job(
             .tag_for_path(&target.relative_path)
             .map_err(|err| format!("Failed to read tag: {err}"))?
             .ok_or_else(|| "Sample not found in database".to_string())?;
-        let last_played_at = db
-            .last_played_at_for_path(&target.relative_path)
-            .map_err(|err| format!("Failed to read playback age: {err}"))?;
-        let looped = db
-            .looped_for_path(&target.relative_path)
-            .map_err(|err| format!("Failed to read loop marker: {err}"))?
-            .unwrap_or(false);
         let mut buffer = load_selection_buffer(&target.absolute_path, target.selection)?;
         op.apply(&mut buffer)?;
         if buffer.samples.is_empty() {
@@ -183,8 +176,6 @@ fn run_selection_edit_commit_job(
             &target.relative_path,
             &target.absolute_path,
             tag,
-            last_played_at,
-            looped,
         )?;
         backup.capture_after(&target.absolute_path)?;
         Ok((entry, backup))

@@ -5,7 +5,9 @@ use crate::app::controller::jobs::JobMessage;
 use crate::app::controller::library::analysis_jobs::AnalysisJobMessage;
 use crate::app::controller::library::selection_edits::SelectionEditRequest;
 use crate::app::state::{DestructiveSelectionEdit, WaveformView};
+use crate::app_core::native_shell::project_browser_model;
 use crate::app_core::state::StatusTone;
+use crate::sample_sources::SampleSoundType;
 use crate::selection::SelectionRange;
 use hound::WavReader;
 use std::path::Path;
@@ -127,6 +129,62 @@ fn cropping_selection_overwrites_file() {
     assert_eq!(samples, vec![0.2, 0.3]);
     assert!(controller.ui.waveform.selection.is_none());
     assert_eq!(controller.ui.status.status_tone, StatusTone::Info);
+}
+
+#[test]
+fn destructive_edit_preserves_cached_browser_metadata() {
+    let mut entry = sample_entry("rich.wav", crate::sample_sources::Rating::KEEP_3);
+    entry.looped = true;
+    entry.locked = true;
+    entry.sound_type = Some(SampleSoundType::Kick);
+    entry.user_tag = Some(String::from("Vintage FX"));
+    entry.last_played_at = Some(1_234);
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![entry]);
+    let wav_path = source.root.join("rich.wav");
+    write_test_wav(&wav_path, &[0.1, 0.2, 0.3, 0.4]);
+    let db = controller.database_for(&source).unwrap();
+    db.set_looped(Path::new("rich.wav"), true).unwrap();
+    db.set_locked(Path::new("rich.wav"), true).unwrap();
+    db.set_sound_type(Path::new("rich.wav"), Some(SampleSoundType::Kick))
+        .unwrap();
+    db.set_user_tag(Path::new("rich.wav"), Some("Vintage FX"))
+        .unwrap();
+    db.set_last_played_at(Path::new("rich.wav"), 1_234).unwrap();
+    controller
+        .load_waveform_for_selection(&source, Path::new("rich.wav"))
+        .unwrap();
+    controller.ui.waveform.selection = Some(SelectionRange::new(0.25, 0.75));
+
+    controller.crop_waveform_selection().unwrap();
+
+    let cached = controller.wav_entry(0).unwrap().clone();
+    let persisted = db.entry_for_path(Path::new("rich.wav")).unwrap().unwrap();
+    for row in [&cached, &persisted] {
+        assert_eq!(row.tag, crate::sample_sources::Rating::KEEP_3);
+        assert!(row.looped);
+        assert!(row.locked);
+        assert_eq!(row.sound_type, Some(SampleSoundType::Kick));
+        assert_eq!(row.user_tag.as_deref(), Some("Vintage FX"));
+        assert_eq!(row.last_played_at, Some(1_234));
+    }
+    controller.focus_browser_row_only(0);
+    controller.ui.browser.tag_sidebar_open = true;
+    let projected = project_browser_model(&mut controller);
+    assert!(projected.rows[0].locked);
+    assert_eq!(projected.rows[0].bucket_label.as_deref(), Some("LOOP"));
+    assert_eq!(
+        projected
+            .tag_sidebar
+            .sound_type_pills
+            .iter()
+            .find(|pill| pill.id == "kick")
+            .map(|pill| pill.state),
+        Some(radiant::app::BrowserTagState::On)
+    );
+    assert_eq!(
+        projected.tag_sidebar.custom_tag_pill.map(|pill| pill.label),
+        Some(String::from("Vintage FX"))
+    );
 }
 
 #[test]

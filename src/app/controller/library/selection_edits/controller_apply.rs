@@ -21,8 +21,6 @@ pub(super) struct SelectionEditSession {
     pub(super) db: std::rc::Rc<SourceDatabase>,
     pub(super) backup: undo::OverwriteBackup,
     pub(super) tag: Rating,
-    pub(super) last_played_at: Option<i64>,
-    pub(super) looped: bool,
     pub(super) visual: SelectionEditVisualState,
     pub(super) playback: PlaybackResumeState,
 }
@@ -50,8 +48,6 @@ impl AppController {
                 target: &session.target,
                 db: &session.db,
                 tag: session.tag,
-                last_played_at: session.last_played_at,
-                looped: session.looped,
             },
             edit,
         )?;
@@ -94,15 +90,11 @@ impl AppController {
             .database_for(&target.source)
             .map_err(|err| format!("Database unavailable: {err}"))?;
         let tag = self.sample_tag_for(&target.source, &target.relative_path)?;
-        let last_played_at = self.sample_last_played_for(&target.source, &target.relative_path)?;
-        let looped = self.sample_looped_for(&target.source, &target.relative_path)?;
         Ok(SelectionEditSession {
             target,
             db,
             backup,
             tag,
-            last_played_at,
-            looped,
             visual: self.capture_selection_edit_visual_state(),
             playback: self.capture_playback_resume_state(),
         })
