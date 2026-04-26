@@ -139,14 +139,13 @@ impl AppController {
             }
             match trash_move::move_to_trash(&source, &entry, &trash_root) {
                 Ok(()) => {
+                    moved += 1;
+                    affected_sources.insert(source.id.clone());
                     if let Err(err) = db.remove_file(&entry.relative_path) {
                         errors.push(format!(
-                            "Failed to drop database row for {}: {err}",
+                            "Moved {} to trash but retained it as missing because the database row could not be dropped: {err}",
                             entry.relative_path.display()
                         ));
-                    } else {
-                        moved += 1;
-                        affected_sources.insert(source.id.clone());
                     }
                 }
                 Err(err) => {

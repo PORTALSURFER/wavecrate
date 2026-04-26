@@ -142,16 +142,14 @@ where
             // 2. Perform filesystem move
             match mover(&source, &entry, &trash_root) {
                 Ok(()) => {
+                    moved += 1;
+                    affected_sources.insert(source.id.clone());
                     // 3. Remove from database
                     if let Err(err) = db.remove_file(&entry.relative_path) {
                         errors.push(format!(
-                            "Failed to drop database row for {}: {err}",
+                            "Moved {} to trash but retained it as missing because the database row could not be dropped: {err}",
                             entry.relative_path.display()
                         ));
-                        // Even if drop fails, the file is moved and marked missing, so it's safer.
-                    } else {
-                        moved += 1;
-                        affected_sources.insert(source.id.clone());
                     }
                 }
                 Err(err) => {
@@ -315,5 +313,58 @@ mod tests {
 
         let files = db.list_files().unwrap();
         assert_eq!(files.len(), 0, "Should remove file from DB on success");
+    }
+
+    #[test]
+    fn post_move_remove_failure_refreshes_source_and_keeps_missing_row() {
+        let dir = tempdir().unwrap();
+        let source_root = dir.path().to_path_buf();
+        let db = make_test_db(&source_root, "locked.wav");
+        fs::write(source_root.join("locked.wav"), b"wav").unwrap();
+
+        let source = SampleSource {
+            id: SourceId::new(),
+            root: source_root.clone(),
+        };
+        let source_id = source.id.clone();
+
+        let trash_root = dir.path().join("trash");
+        let cancel = Arc::new(AtomicBool::new(false));
+        let mut write_lock = None;
+
+        let finished = run_trash_move_task_with_progress(
+            vec![source],
+            trash_root,
+            cancel,
+            |_| {},
+            |source, entry, root| {
+                move_to_trash(source, entry, root)?;
+                let conn =
+                    SourceDatabase::open_connection(&source.root).map_err(|err| err.to_string())?;
+                conn.execute_batch("BEGIN IMMEDIATE")
+                    .map_err(|err| err.to_string())?;
+                write_lock = Some(conn);
+                Ok(())
+            },
+        );
+
+        assert_eq!(finished.moved, 1);
+        assert_eq!(finished.affected_sources, vec![source_id]);
+        assert_eq!(finished.errors.len(), 1);
+        assert!(
+            finished.errors[0].contains("retained it as missing"),
+            "error should explain the retained missing-row state: {:?}",
+            finished.errors
+        );
+
+        drop(write_lock);
+
+        let files = db.list_files().unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].relative_path, PathBuf::from("locked.wav"));
+        assert!(
+            files[0].missing,
+            "post-move DB removal failure should not keep showing the moved file as available"
+        );
     }
 }
