@@ -70,10 +70,7 @@ impl AppController {
         let cursor_focus = if let Some(anchor_ratio_micros) = anchor_ratio_micros {
             let ratio =
                 f64::from(anchor_ratio_micros.min(1_000_000)) / WAVEFORM_ANCHOR_RATIO_MICROS_SCALE;
-            let focus =
-                (before_view.start + (before_view.end - before_view.start) * ratio).clamp(0.0, 1.0);
-            self.set_waveform_cursor_from_hover(focus as f32);
-            focus
+            (before_view.start + (before_view.end - before_view.start) * ratio).clamp(0.0, 1.0)
         } else if let Some(cursor) = self.ui.waveform.cursor {
             f64::from(cursor)
         } else {

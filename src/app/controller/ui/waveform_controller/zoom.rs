@@ -1,4 +1,4 @@
-use super::helpers::{CursorUpdateSource, MIN_VIEW_WIDTH_BASE, VIEW_EPSILON, views_differ};
+use super::helpers::{CursorUpdateSource, VIEW_EPSILON, views_differ};
 use super::*;
 
 impl WaveformController<'_> {
@@ -76,7 +76,7 @@ impl WaveformController<'_> {
         } else {
             focus.unwrap_or_else(|| self.waveform_focus_point())
         };
-        let width = (original.width() * width_factor.max(0.0)).clamp(MIN_VIEW_WIDTH_BASE, 1.0);
+        let width = (original.width() * width_factor.max(0.0)).clamp(self.min_view_width(), 1.0);
         if (width - original.width()).abs() <= VIEW_EPSILON {
             return false;
         }

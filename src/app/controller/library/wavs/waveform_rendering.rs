@@ -26,6 +26,18 @@ const MIN_SAMPLES_PER_PIXEL: f32 = 1.0;
 const WAVEFORM_RENDER_SUPERSAMPLE_X: u32 = 4;
 pub(crate) const DEFAULT_TRANSIENT_SENSITIVITY: f32 = 0.6;
 
+pub(crate) fn minimum_useful_view_width_for_frames(frame_count: usize, width_px: u32) -> f64 {
+    if frame_count == 0 {
+        return 1.0;
+    }
+    let render_width = width_px
+        .max(1)
+        .saturating_mul(WAVEFORM_RENDER_SUPERSAMPLE_X)
+        .min(super::MAX_TEXTURE_WIDTH) as f64;
+    let samples = frame_count as f64;
+    (render_width * MIN_SAMPLES_PER_PIXEL as f64 / samples).clamp(MIN_VIEW_WIDTH_BASE, 1.0)
+}
+
 /// Immutable inputs required to build the initial full-view waveform visual.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct InitialWaveformRenderSpec {

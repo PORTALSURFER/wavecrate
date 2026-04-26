@@ -3,19 +3,13 @@ use crate::app::state::WaveformView;
 use crate::waveform::DecodedWaveform;
 use std::sync::Arc;
 
-fn min_view_width_for_frames(frame_count: usize, width_px: u32) -> f64 {
-    if frame_count == 0 {
-        return 1.0;
-    }
-    let samples = frame_count as f64;
-    let pixels = width_px.max(1) as f64;
-    (pixels * MIN_SAMPLES_PER_PIXEL as f64 / samples).clamp(MIN_VIEW_WIDTH_BASE, 1.0)
-}
-
 impl AppController {
     pub(crate) fn min_view_width(&self) -> f64 {
         if let Some(decoded) = self.sample_view.waveform.decoded.as_ref() {
-            min_view_width_for_frames(decoded.frame_count(), self.sample_view.waveform.size[0])
+            minimum_useful_view_width_for_frames(
+                decoded.frame_count(),
+                self.sample_view.waveform.size[0],
+            )
         } else {
             MIN_VIEW_WIDTH_BASE
         }

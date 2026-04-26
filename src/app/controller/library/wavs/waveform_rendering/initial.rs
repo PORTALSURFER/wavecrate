@@ -1,18 +1,9 @@
 use super::{
-    InitialWaveformRenderSpec, MIN_SAMPLES_PER_PIXEL, MIN_VIEW_WIDTH_BASE, PreparedWaveformVisual,
-    WAVEFORM_RENDER_SUPERSAMPLE_X, WaveformRenderMeta, reuse, waveform_image_to_native_rgba,
+    InitialWaveformRenderSpec, PreparedWaveformVisual, WAVEFORM_RENDER_SUPERSAMPLE_X,
+    WaveformRenderMeta, minimum_useful_view_width_for_frames, reuse, waveform_image_to_native_rgba,
 };
 use crate::app::controller::library::wavs::MAX_TEXTURE_WIDTH;
 use crate::waveform::{DecodedWaveform, WaveformRenderViewport, WaveformRenderer};
-
-fn min_view_width_for_frames(frame_count: usize, width_px: u32) -> f64 {
-    if frame_count == 0 {
-        return 1.0;
-    }
-    let samples = frame_count as f64;
-    let pixels = width_px.max(1) as f64;
-    (pixels * MIN_SAMPLES_PER_PIXEL as f64 / samples).clamp(MIN_VIEW_WIDTH_BASE, 1.0)
-}
 
 /// Render the initial full-view waveform payload without controller access.
 pub(crate) fn prepare_initial_waveform_visual(
@@ -46,7 +37,7 @@ pub(crate) fn prepare_initial_waveform_visual(
     );
     let render_meta = WaveformRenderMeta {
         view_start: 0.0,
-        view_end: 1.0_f64.max(min_view_width_for_frames(total_frames, width)),
+        view_end: 1.0_f64.max(minimum_useful_view_width_for_frames(total_frames, width)),
         size: [width.max(1), height.max(1)],
         samples_len: total_frames,
         texture_width: effective_width,

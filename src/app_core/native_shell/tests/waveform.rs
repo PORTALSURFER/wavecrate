@@ -35,6 +35,17 @@ fn waveform_projection_exposes_tempo_and_zoom_labels() {
     assert!(projected.waveform_image.is_none());
 }
 
+#[test]
+fn waveform_projection_zoom_label_reflects_actual_deep_zoom_span() {
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+    controller.ui.waveform.view.start = 0.5;
+    controller.ui.waveform.view.end = 0.500_02;
+
+    let projected = project_waveform_model(&mut controller);
+
+    assert_eq!(projected.zoom_label.as_deref(), Some("5000000%"));
+}
+
 /// Waveform projection should pass through raster payload bytes unchanged when present.
 #[test]
 fn waveform_projection_passes_raster_image_payload() {

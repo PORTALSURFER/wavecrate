@@ -180,6 +180,63 @@ fn selection_frame_bounds_survive_pointer_zoom_pan_and_projection_refreshes() {
 }
 
 #[test]
+fn repeated_pointer_zoom_at_minimum_view_width_is_a_noop_for_selection_and_view() {
+    let (mut controller, _source) = dummy_controller();
+    install_decoded_waveform(&mut controller);
+    controller.update_waveform_size(240, 24);
+    controller.ui.controls.keyboard_zoom_factor = 0.5;
+    controller.ui.waveform.view = crate::app::state::WaveformView {
+        start: 0.45,
+        end: 0.57,
+    };
+
+    controller.apply_native_ui_action(NativeUiAction::SetWaveformSelectionRange {
+        start_micros: 480_000,
+        end_micros: 520_000,
+        snap_override: true,
+        preserve_view_edge: false,
+    });
+    let expected_selection = controller.ui.waveform.selection.expect("selection");
+    let expected_bounds = expected_selection.frame_bounds(10_000);
+
+    controller.apply_native_ui_action(NativeUiAction::ZoomWaveform {
+        zoom_in: true,
+        steps: 1,
+        anchor_ratio_micros: Some(250_000),
+    });
+
+    let clamped_view = controller.ui.waveform.view;
+    assert!(
+        (clamped_view.width() - 0.096).abs() < 1.0e-9,
+        "240px waveform with 4x render target over 10k frames should clamp to 960 frames, got {}",
+        clamped_view.width()
+    );
+    let anchor = 0.48;
+    let after_ratio = (anchor - clamped_view.start) / clamped_view.width();
+    assert!((after_ratio - 0.25).abs() < 1.0e-9);
+
+    for _ in 0..12 {
+        controller.apply_native_ui_action(NativeUiAction::ZoomWaveform {
+            zoom_in: true,
+            steps: 1,
+            anchor_ratio_micros: Some(250_000),
+        });
+    }
+
+    assert_eq!(controller.ui.waveform.view, clamped_view);
+    assert_eq!(controller.ui.waveform.selection, Some(expected_selection));
+    assert_eq!(
+        controller
+            .ui
+            .waveform
+            .selection
+            .expect("selection")
+            .frame_bounds(10_000),
+        expected_bounds
+    );
+}
+
+#[test]
 fn edit_selection_action_resolves_to_stable_frame_bounds_at_deep_zoom() {
     let (mut controller, _source) = dummy_controller();
     install_decoded_waveform(&mut controller);

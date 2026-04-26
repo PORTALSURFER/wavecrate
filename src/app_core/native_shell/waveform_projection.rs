@@ -33,8 +33,8 @@ pub(super) struct WaveformEditFadeOverlayModel {
 /// by honoring waveform image signatures when available.
 pub(crate) fn project_waveform_model(controller: &mut AppController) -> WaveformPanelModel {
     let ui = &controller.ui;
-    let view_span = (ui.waveform.view.end - ui.waveform.view.start).clamp(0.000_1, 1.0) as f32;
-    let zoom_percent = (100.0 / view_span).round().clamp(100.0, 9999.0);
+    let view_span = (ui.waveform.view.end - ui.waveform.view.start).clamp(1.0e-9, 1.0);
+    let zoom_percent = (100.0 / view_span).round().max(100.0);
     let fade_overlay = project_waveform_edit_fade_overlay_model(ui);
     let projected_playhead = projected_playhead_ratio(controller);
     let waveform_image_signature = effective_waveform_image_signature(controller);
