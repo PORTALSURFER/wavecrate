@@ -32,6 +32,7 @@ pub(crate) struct NativeProjectionCacheKey {
     pub(crate) browser_similarity_filtered: bool,
     pub(crate) browser_duplicate_cleanup_active: bool,
     pub(crate) browser_tag_sidebar_open: bool,
+    pub(crate) browser_tag_sidebar_auto_rename: bool,
     pub(crate) browser_filter: u8,
     pub(crate) browser_sort: u8,
     pub(crate) browser_tab: u8,
@@ -140,6 +141,7 @@ pub(crate) struct BrowserTagSidebarProjectionCacheKey {
     pub(crate) browser_tag_sidebar_target_hash: u64,
     pub(crate) browser_tag_sidebar_input_hash: u64,
     pub(crate) browser_tag_sidebar_open: bool,
+    pub(crate) browser_tag_sidebar_auto_rename: bool,
     pub(crate) browser_tab: u8,
 }
 

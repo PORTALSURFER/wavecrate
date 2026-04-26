@@ -46,6 +46,7 @@ pub(super) fn build_browser_tag_sidebar_projection_key(
             &controller.ui.browser.tag_sidebar_input,
         ),
         browser_tag_sidebar_open: controller.ui.browser.tag_sidebar_open,
+        browser_tag_sidebar_auto_rename: controller.ui.browser.tag_sidebar_auto_rename,
         browser_tab: encode_browser_tab(controller.ui.browser.active_tab),
     }
 }

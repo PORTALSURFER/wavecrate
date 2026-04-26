@@ -294,6 +294,17 @@ impl AppController {
         self.ui.browser.tag_sidebar_open = is_list_tab && !self.ui.browser.tag_sidebar_open;
     }
 
+    /// Toggle whether sidebar metadata edits should auto-rename edited samples.
+    pub(crate) fn toggle_browser_tag_sidebar_auto_rename(&mut self) {
+        self.ui.browser.tag_sidebar_auto_rename = !self.ui.browser.tag_sidebar_auto_rename;
+        let label = if self.ui.browser.tag_sidebar_auto_rename {
+            "Auto rename on"
+        } else {
+            "Auto rename off"
+        };
+        self.set_status(label, StatusTone::Info);
+    }
+
     /// Store the current draft value for the browser metadata custom-tag input.
     pub(crate) fn set_browser_tag_sidebar_input(&mut self, value: String) {
         self.ui.browser.tag_sidebar_input = value;
@@ -314,9 +325,11 @@ impl AppController {
         let Some(source) = self.current_source() else {
             return Err(String::from("No source selected"));
         };
-        for path in self.browser_tag_sidebar_target_paths() {
+        let target_paths = self.browser_tag_sidebar_target_paths();
+        for path in &target_paths {
             self.set_sample_looped_for_source(&source, &path, looped, false)?;
         }
+        self.auto_rename_after_tag_sidebar_change(&target_paths)?;
         Ok(())
     }
 
@@ -328,9 +341,11 @@ impl AppController {
         let Some(source) = self.current_source() else {
             return Err(String::from("No source selected"));
         };
-        for path in self.browser_tag_sidebar_target_paths() {
+        let target_paths = self.browser_tag_sidebar_target_paths();
+        for path in &target_paths {
             self.set_sample_sound_type_for_source(&source, &path, sound_type)?;
         }
+        self.auto_rename_after_tag_sidebar_change(&target_paths)?;
         Ok(())
     }
 
@@ -342,9 +357,22 @@ impl AppController {
         let Some(source) = self.current_source() else {
             return Err(String::from("No source selected"));
         };
-        for path in self.browser_tag_sidebar_target_paths() {
+        let target_paths = self.browser_tag_sidebar_target_paths();
+        for path in &target_paths {
             self.set_sample_user_tag_for_source(&source, &path, user_tag.clone())?;
         }
+        self.auto_rename_after_tag_sidebar_change(&target_paths)?;
         Ok(())
+    }
+
+    fn auto_rename_after_tag_sidebar_change(
+        &mut self,
+        target_paths: &[std::path::PathBuf],
+    ) -> Result<(), String> {
+        if !self.ui.browser.tag_sidebar_auto_rename || target_paths.is_empty() {
+            return Ok(());
+        }
+        self.browser()
+            .auto_rename_browser_sample_paths_action(target_paths)
     }
 }

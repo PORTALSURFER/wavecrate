@@ -115,6 +115,9 @@ pub(super) fn apply_browser_list_native_ui_action(
         }
         NativeUiAction::ToggleRandomNavigationMode => controller.toggle_random_navigation_mode(),
         NativeUiAction::ToggleBrowserTagSidebar => controller.toggle_browser_tag_sidebar(),
+        NativeUiAction::ToggleBrowserTagSidebarAutoRename => {
+            controller.toggle_browser_tag_sidebar_auto_rename()
+        }
         NativeUiAction::ToggleBrowserDuplicateCleanupMode => {
             controller.toggle_browser_duplicate_cleanup_mode()
         }

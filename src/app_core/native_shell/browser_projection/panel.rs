@@ -185,6 +185,7 @@ pub(crate) fn project_browser_tag_sidebar_model(
         open: is_list_tab && controller.ui.browser.tag_sidebar_open,
         selected_count,
         header_label,
+        auto_rename_enabled: controller.ui.browser.tag_sidebar_auto_rename,
         input_value: controller.ui.browser.tag_sidebar_input.clone(),
         input_placeholder: String::from("Add tag"),
         playback_type_pills,

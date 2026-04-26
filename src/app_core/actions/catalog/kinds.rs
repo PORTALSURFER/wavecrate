@@ -198,6 +198,8 @@ pub enum GuiActionKind {
     ToggleRandomNavigationMode,
     /// Toggle the browser-local metadata tag sidebar.
     ToggleBrowserTagSidebar,
+    /// Toggle auto-rename for browser metadata sidebar edits.
+    ToggleBrowserTagSidebarAutoRename,
     /// Toggle browser duplicate-cleanup mode for the focused browser sample.
     ToggleBrowserDuplicateCleanupMode,
     /// Focus the previous sample from browser history.

@@ -182,6 +182,10 @@ fn browser_projection_sidebar_uses_selected_visible_target_snapshot_fallback() {
 
     assert_eq!(projected.tag_sidebar.selected_count, 1);
     assert_eq!(projected.tag_sidebar.header_label.as_str(), "second.wav");
+    assert!(!projected.tag_sidebar.auto_rename_enabled);
+    controller.ui.browser.tag_sidebar_auto_rename = true;
+    let projected = project_browser_panel_frame_model(&mut controller);
+    assert!(projected.tag_sidebar.auto_rename_enabled);
 }
 
 /// Browser projection should expose manual viewport state for native scrollbar rendering.
