@@ -176,6 +176,7 @@ fn run_selection_edit_commit_job(
             &target.relative_path,
             &target.absolute_path,
             tag,
+            write_service::SyncContentHash::Clear,
         )?;
         backup.capture_after(&target.absolute_path)?;
         Ok((entry, backup))

@@ -35,6 +35,11 @@ pub(crate) struct CropNewSampleWriteOutcome {
     pub(crate) new_absolute: PathBuf,
 }
 
+pub(super) enum SyncContentHash {
+    Preserve,
+    Clear,
+}
+
 /// Rewrite one existing sample file after applying `edit` to its loaded selection buffer.
 pub(crate) fn apply_selection_edit_write<F>(
     request: SelectionEditWriteRequest<'_>,
@@ -55,6 +60,7 @@ where
         &request.target.relative_path,
         &request.target.absolute_path,
         request.tag,
+        SyncContentHash::Clear,
     )?;
     Ok(SelectionEditWriteOutcome { entry })
 }
@@ -84,6 +90,7 @@ pub(crate) fn crop_selection_to_new_sample_write(
         &request.new_relative,
         &new_absolute,
         request.tag,
+        SyncContentHash::Preserve,
     )?;
     Ok(CropNewSampleWriteOutcome {
         entry,
@@ -104,17 +111,30 @@ pub(crate) fn write_buffer_to_path(
     write_selection_wav(&target.to_path_buf(), &buffer.samples, spec)
 }
 
-pub(crate) fn sync_sample_entry(
+pub(super) fn sync_sample_entry(
     db: &SourceDatabase,
     relative_path: &std::path::Path,
     absolute_path: &std::path::Path,
     tag: Rating,
+    content_hash: SyncContentHash,
 ) -> Result<WavEntry, String> {
     let (file_size, modified_ns) = file_metadata(absolute_path)?;
-    db.upsert_file(relative_path, file_size, modified_ns)
+    let mut batch = db
+        .write_batch()
         .map_err(|err| format!("Failed to sync database entry: {err}"))?;
-    db.set_tag(relative_path, tag)
+    match content_hash {
+        SyncContentHash::Preserve => batch.upsert_file(relative_path, file_size, modified_ns),
+        SyncContentHash::Clear => {
+            batch.upsert_file_without_hash(relative_path, file_size, modified_ns)
+        }
+    }
+    .map_err(|err| format!("Failed to sync database entry: {err}"))?;
+    batch
+        .set_tag(relative_path, tag)
         .map_err(|err| format!("Failed to sync tag: {err}"))?;
+    batch
+        .commit()
+        .map_err(|err| format!("Failed to sync database entry: {err}"))?;
     db.entry_for_path(relative_path)
         .map_err(|err| format!("Failed to reload synced database entry: {err}"))?
         .ok_or_else(|| {

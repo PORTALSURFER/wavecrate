@@ -188,6 +188,40 @@ fn destructive_edit_preserves_cached_browser_metadata() {
 }
 
 #[test]
+fn destructive_edit_clears_stale_content_hash() {
+    let mut entry = sample_entry("hash.wav", crate::sample_sources::Rating::KEEP_1);
+    entry.content_hash = Some(String::from("old-content-hash"));
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![entry]);
+    let wav_path = source.root.join("hash.wav");
+    write_test_wav(&wav_path, &[0.1, 0.2, 0.3, 0.4]);
+    let db = controller.database_for(&source).unwrap();
+    let mut batch = db.write_batch().unwrap();
+    batch
+        .upsert_file_with_hash_and_tag(
+            Path::new("hash.wav"),
+            4,
+            1,
+            "old-content-hash",
+            crate::sample_sources::Rating::KEEP_1,
+            false,
+        )
+        .unwrap();
+    batch.commit().unwrap();
+    controller
+        .load_waveform_for_selection(&source, Path::new("hash.wav"))
+        .unwrap();
+    controller.ui.waveform.selection = Some(SelectionRange::new(0.25, 0.75));
+
+    controller.crop_waveform_selection().unwrap();
+
+    let cached = controller.wav_entry(0).unwrap();
+    let persisted = db.entry_for_path(Path::new("hash.wav")).unwrap().unwrap();
+    assert_eq!(cached.content_hash, None);
+    assert_eq!(persisted.content_hash, None);
+    assert_eq!(persisted.tag, crate::sample_sources::Rating::KEEP_1);
+}
+
+#[test]
 fn trimming_selection_removes_span() {
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
         "trim.wav",
