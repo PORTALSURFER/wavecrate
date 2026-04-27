@@ -2,6 +2,7 @@ use super::super::source_move_test_guard;
 use super::*;
 use crate::app::controller::jobs::SourceMoveRequest;
 use crate::app::controller::test_support::write_test_wav;
+use crate::sample_sources::db::file_ops_journal;
 use crate::sample_sources::{SampleSource, SourceDatabase};
 use std::path::Path;
 use tempfile::tempdir;
@@ -10,6 +11,7 @@ use tempfile::tempdir;
 fn source_move_task_uses_unique_target_name_on_collision() {
     let _guard = source_move_test_guard();
     set_before_source_move_target_db_stage_hook(None);
+    set_before_source_move_finalize_hook(None);
     set_after_source_move_progress_hook(None);
     let temp = tempdir().unwrap();
     let source_root = temp.path().join("source_a");
@@ -79,6 +81,7 @@ fn source_move_task_uses_unique_target_name_on_collision() {
 fn source_move_task_rolls_back_when_target_db_stage_fails() {
     let _guard = source_move_test_guard();
     set_before_source_move_target_db_stage_hook(None);
+    set_before_source_move_finalize_hook(None);
     set_after_source_move_progress_hook(None);
     let temp = tempdir().unwrap();
     let source_root = temp.path().join("source_a");
@@ -117,9 +120,95 @@ fn source_move_task_rolls_back_when_target_db_stage_fails() {
 }
 
 #[test]
+fn source_move_task_finalize_failure_rolls_back_dbs_file_and_journal() {
+    let _guard = source_move_test_guard();
+    set_before_source_move_target_db_stage_hook(None);
+    set_before_source_move_finalize_hook(None);
+    set_after_source_move_progress_hook(None);
+    let temp = tempdir().unwrap();
+    let source_root = temp.path().join("source_a");
+    let target_root = temp.path().join("source_b");
+    std::fs::create_dir_all(&source_root).unwrap();
+    std::fs::create_dir_all(&target_root).unwrap();
+    let source = SampleSource::new(source_root.clone());
+    write_test_wav(&source_root.join("one.wav"), &[0.0, 0.1, -0.1]);
+    let source_db = SourceDatabase::open(&source_root).unwrap();
+    source_db.upsert_file(Path::new("one.wav"), 3, 1).unwrap();
+    source_db
+        .set_tag(Path::new("one.wav"), crate::sample_sources::Rating::KEEP_1)
+        .unwrap();
+    source_db.set_looped(Path::new("one.wav"), true).unwrap();
+    source_db.set_locked(Path::new("one.wav"), true).unwrap();
+    source_db
+        .set_last_played_at(Path::new("one.wav"), 42)
+        .unwrap();
+
+    let target_blocker = target_root.join("one.wav");
+    set_before_source_move_finalize_hook(Some(Box::new(move || {
+        std::fs::create_dir(&target_blocker).unwrap();
+    })));
+
+    let result = run_source_move_task(
+        SourceId::from_string("target"),
+        target_root.clone(),
+        vec![SourceMoveRequest {
+            source_id: source.id,
+            source_root: source_root.clone(),
+            relative_path: PathBuf::from("one.wav"),
+        }],
+        Vec::new(),
+        Arc::new(AtomicBool::new(false)),
+        None,
+    );
+    set_before_source_move_finalize_hook(None);
+
+    assert!(result.moved.is_empty());
+    assert!(
+        result
+            .errors
+            .iter()
+            .any(|error| error.contains("Failed to finalize move"))
+    );
+    assert!(source_root.join("one.wav").is_file());
+    assert!(target_root.join("one.wav").is_dir());
+
+    let source_db = SourceDatabase::open(&source_root).unwrap();
+    assert_eq!(
+        source_db.tag_for_path(Path::new("one.wav")).unwrap(),
+        Some(crate::sample_sources::Rating::KEEP_1)
+    );
+    assert_eq!(
+        source_db.looped_for_path(Path::new("one.wav")).unwrap(),
+        Some(true)
+    );
+    assert_eq!(
+        source_db.locked_for_path(Path::new("one.wav")).unwrap(),
+        Some(true)
+    );
+    assert_eq!(
+        source_db
+            .last_played_at_for_path(Path::new("one.wav"))
+            .unwrap(),
+        Some(42)
+    );
+
+    let target_db = SourceDatabase::open(&target_root).unwrap();
+    assert!(
+        target_db
+            .tag_for_path(Path::new("one.wav"))
+            .unwrap()
+            .is_none()
+    );
+    let entries = file_ops_journal::list_entries(&target_db).unwrap();
+    assert!(entries.entries.is_empty());
+    assert!(entries.malformed.is_empty());
+}
+
+#[test]
 fn source_move_task_reports_progress_once_for_missing_file_request() {
     let _guard = source_move_test_guard();
     set_before_source_move_target_db_stage_hook(None);
+    set_before_source_move_finalize_hook(None);
     set_after_source_move_progress_hook(None);
     let temp = tempdir().unwrap();
     let source_root = temp.path().join("source_a");
@@ -157,6 +246,7 @@ fn source_move_task_reports_progress_once_for_missing_file_request() {
 fn source_move_task_cancels_after_first_completed_request() {
     let _guard = source_move_test_guard();
     set_before_source_move_target_db_stage_hook(None);
+    set_before_source_move_finalize_hook(None);
     set_after_source_move_progress_hook(None);
     let temp = tempdir().unwrap();
     let source_root = temp.path().join("source_a");

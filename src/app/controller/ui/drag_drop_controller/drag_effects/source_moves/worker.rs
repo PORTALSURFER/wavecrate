@@ -23,12 +23,17 @@ use transaction::prepare_source_move_transaction;
 #[cfg(test)]
 type BeforeSourceMoveTargetDbStageHook = Box<dyn FnMut() -> Result<(), String> + Send>;
 #[cfg(test)]
+type BeforeSourceMoveFinalizeHook = Box<dyn FnMut() + Send>;
+#[cfg(test)]
 type AfterSourceMoveProgressHook = Box<dyn FnMut(usize) + Send>;
 
 #[cfg(test)]
 static BEFORE_SOURCE_MOVE_TARGET_DB_STAGE_HOOK: OnceLock<
     Mutex<Option<BeforeSourceMoveTargetDbStageHook>>,
 > = OnceLock::new();
+#[cfg(test)]
+static BEFORE_SOURCE_MOVE_FINALIZE_HOOK: OnceLock<Mutex<Option<BeforeSourceMoveFinalizeHook>>> =
+    OnceLock::new();
 #[cfg(test)]
 static AFTER_SOURCE_MOVE_PROGRESS_HOOK: OnceLock<Mutex<Option<AfterSourceMoveProgressHook>>> =
     OnceLock::new();
@@ -166,6 +171,14 @@ pub(super) fn set_before_source_move_target_db_stage_hook(
     }
 }
 
+#[cfg(test)]
+pub(super) fn set_before_source_move_finalize_hook(hook: Option<BeforeSourceMoveFinalizeHook>) {
+    let hook_slot = BEFORE_SOURCE_MOVE_FINALIZE_HOOK.get_or_init(|| Mutex::new(None));
+    if let Ok(mut guard) = hook_slot.lock() {
+        *guard = hook;
+    }
+}
+
 /// Test-only hook runner invoked immediately before the target-db stage begins.
 #[cfg(test)]
 pub(super) fn run_before_source_move_target_db_stage_hook() -> Result<(), String> {
@@ -176,6 +189,16 @@ pub(super) fn run_before_source_move_target_db_stage_hook() -> Result<(), String
         return hook();
     }
     Ok(())
+}
+
+#[cfg(test)]
+pub(super) fn run_before_source_move_finalize_hook() {
+    if let Some(hook_slot) = BEFORE_SOURCE_MOVE_FINALIZE_HOOK.get()
+        && let Ok(mut guard) = hook_slot.lock()
+        && let Some(mut hook) = guard.take()
+    {
+        hook();
+    }
 }
 
 /// Configure a test-only hook invoked after each completed source-move request.
