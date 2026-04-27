@@ -2,16 +2,22 @@
 
 use sempal::app_dirs;
 use sempal::gui_runtime::{NativeShutdownTimingArtifact, NativeStartupTimingArtifact};
-use serde::Serialize;
 use std::{
-    fmt,
-    fs::{self, OpenOptions},
-    io::Write,
+    fmt, fs,
     path::{Path, PathBuf},
     process,
     time::{SystemTime, UNIX_EPOCH},
 };
-use tracing::error;
+
+mod artifacts;
+mod storage;
+#[cfg(test)]
+mod tests;
+
+use artifacts::{
+    RunContractEvent, RunContractManifest, RunContractMilestone, RunContractShutdownTiming,
+    RunContractStartupTiming,
+};
 
 /// Startup phase used in run-contract milestones.
 pub(crate) const RUN_PHASE_RUNTIME: &str = "runtime";
@@ -33,89 +39,6 @@ pub(crate) const MILESTONE_NATIVE_STARTUP_TIMING: &str = "native_startup_timing"
 pub(crate) const MILESTONE_NATIVE_SHUTDOWN_TIMING: &str = "native_shutdown_timing";
 const BUILD_GIT_SHA: Option<&str> = option_env!("SEMPAL_BUILD_GIT_SHA");
 
-#[derive(Serialize)]
-struct RunContractEvent {
-    run_id: String,
-    git_sha: String,
-    persistence_mode: String,
-    cfg_path: String,
-    log_path: String,
-    startup_phase: String,
-    milestone: String,
-    exit_status: String,
-    timestamp_utc: String,
-    process_id: u32,
-    manifest_path: String,
-    artifact_path: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    startup_timing: Option<RunContractStartupTiming>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    shutdown_timing: Option<RunContractShutdownTiming>,
-}
-
-#[derive(Clone, Serialize)]
-struct RunContractMilestone {
-    name: String,
-    startup_phase: String,
-    status: String,
-    timestamp_utc: String,
-}
-
-#[derive(Serialize)]
-struct RunContractManifest {
-    run_id: String,
-    git_sha: String,
-    persistence_mode: String,
-    cfg_path: String,
-    log_path: String,
-    process_id: u32,
-    executable_path: String,
-    working_directory: String,
-    arg_count: usize,
-    debug: bool,
-    started_utc: String,
-    completed_utc: String,
-    exit_status: String,
-    artifact_path: String,
-    manifest_path: String,
-    milestones: Vec<RunContractMilestone>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    startup_timing: Option<RunContractStartupTiming>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    shutdown_timing: Option<RunContractShutdownTiming>,
-}
-
-#[derive(Clone, Serialize)]
-struct RunContractStartupTiming {
-    status: String,
-    failure_reason: Option<String>,
-    window_create_ms: Option<f64>,
-    window_revealed_ms: Option<f64>,
-    wgpu_surface_create_ms: Option<f64>,
-    wgpu_device_ready_ms: Option<f64>,
-    surface_ready_ms: Option<f64>,
-    renderer_build_ms: Option<f64>,
-    renderer_ready_ms: Option<f64>,
-    first_scene_ready_ms: Option<f64>,
-    first_redraw_started_ms: Option<f64>,
-    first_present_draw_ms: Option<f64>,
-    first_present_ms: Option<f64>,
-    deferred_model_refresh_ms: Option<f64>,
-    deferred_model_refresh_total_ms: Option<f64>,
-}
-
-#[derive(Clone, Serialize)]
-struct RunContractShutdownTiming {
-    status: String,
-    failure_reason: Option<String>,
-    bridge_exit_flush_ms: Option<f64>,
-    config_persist_ms: Option<f64>,
-    controller_jobs_shutdown_ms: Option<f64>,
-    analysis_shutdown_ms: Option<f64>,
-    controller_shutdown_ms: Option<f64>,
-    runtime_exit_total_ms: Option<f64>,
-}
-
 /// Writable manifest and event trace writer for a single application run.
 pub(crate) struct RunContract {
     run_id: String,
@@ -134,43 +57,6 @@ pub(crate) struct RunContract {
     milestones: Vec<RunContractMilestone>,
     startup_timing: Option<RunContractStartupTiming>,
     shutdown_timing: Option<RunContractShutdownTiming>,
-}
-
-impl From<&NativeStartupTimingArtifact> for RunContractStartupTiming {
-    fn from(value: &NativeStartupTimingArtifact) -> Self {
-        Self {
-            status: value.status.clone(),
-            failure_reason: value.failure_reason.clone(),
-            window_create_ms: value.window_create_ms,
-            window_revealed_ms: value.window_revealed_ms,
-            wgpu_surface_create_ms: value.wgpu_surface_create_ms,
-            wgpu_device_ready_ms: value.wgpu_device_ready_ms,
-            surface_ready_ms: value.surface_ready_ms,
-            renderer_build_ms: value.renderer_build_ms,
-            renderer_ready_ms: value.renderer_ready_ms,
-            first_scene_ready_ms: value.first_scene_ready_ms,
-            first_redraw_started_ms: value.first_redraw_started_ms,
-            first_present_draw_ms: value.first_present_draw_ms,
-            first_present_ms: value.first_present_ms,
-            deferred_model_refresh_ms: value.deferred_model_refresh_ms,
-            deferred_model_refresh_total_ms: value.deferred_model_refresh_total_ms,
-        }
-    }
-}
-
-impl From<&NativeShutdownTimingArtifact> for RunContractShutdownTiming {
-    fn from(value: &NativeShutdownTimingArtifact) -> Self {
-        Self {
-            status: value.status.clone(),
-            failure_reason: value.failure_reason.clone(),
-            bridge_exit_flush_ms: value.bridge_exit_flush_ms,
-            config_persist_ms: value.config_persist_ms,
-            controller_jobs_shutdown_ms: value.controller_jobs_shutdown_ms,
-            analysis_shutdown_ms: value.analysis_shutdown_ms,
-            controller_shutdown_ms: value.controller_shutdown_ms,
-            runtime_exit_total_ms: value.runtime_exit_total_ms,
-        }
-    }
 }
 
 impl RunContract {
@@ -296,7 +182,7 @@ impl RunContract {
             shutdown_timing,
         };
 
-        self.append_event(&event);
+        storage::append_event(&self.artifact_path, &self.run_id, &event);
         if track_milestone {
             self.milestones.push(RunContractMilestone {
                 name: milestone.to_string(),
@@ -330,30 +216,7 @@ impl RunContract {
             shutdown_timing: self.shutdown_timing.clone(),
         };
 
-        let Ok(serialized) = serde_json::to_string_pretty(&manifest) else {
-            error!(
-                "[run_contract] failed to serialize run manifest for run_id {}",
-                self.run_id
-            );
-            return;
-        };
-
-        if let Some(parent) = self.manifest_path.parent()
-            && let Err(err) = fs::create_dir_all(parent)
-        {
-            error!(
-                "[run_contract] failed to ensure manifest directory {}: {err}",
-                parent.display()
-            );
-            return;
-        }
-
-        if let Err(err) = fs::write(&self.manifest_path, serialized) {
-            error!(
-                "[run_contract] failed to write {}: {err}",
-                self.manifest_path.display()
-            );
-        }
+        storage::write_manifest(&self.manifest_path, &self.run_id, &manifest);
     }
 
     /// Return the stable run identifier for this contract instance.
@@ -364,41 +227,6 @@ impl RunContract {
     /// Return the manifest path written by this contract instance.
     pub(crate) fn manifest_path(&self) -> &Path {
         &self.manifest_path
-    }
-
-    fn append_event(&self, event: &RunContractEvent) {
-        let Ok(serialized) = serde_json::to_string(event) else {
-            error!(
-                "[run_contract] failed to serialize run contract event for run_id {}",
-                self.run_id
-            );
-            return;
-        };
-
-        if let Some(parent) = self.artifact_path.parent()
-            && let Err(err) = fs::create_dir_all(parent)
-        {
-            error!(
-                "[run_contract] failed to ensure artifact directory {}: {err}",
-                parent.display()
-            );
-            return;
-        }
-
-        match OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&self.artifact_path)
-            .and_then(|mut file| writeln!(file, "{serialized}"))
-        {
-            Ok(()) => {}
-            Err(err) => {
-                error!(
-                    "[run_contract] failed to write {}: {err}",
-                    self.artifact_path.display()
-                );
-            }
-        }
     }
 }
 
@@ -461,203 +289,4 @@ pub(crate) fn start_contract(
     debug: bool,
 ) -> Option<RunContract> {
     RunContract::start(executable_path, working_directory, arg_count, debug).ok()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::RunContract;
-    use sempal::app_dirs::{ConfigBaseGuard, PersistenceProfileGuard};
-    use sempal::gui_runtime::{NativeShutdownTimingArtifact, NativeStartupTimingArtifact};
-    use serde_json::Value;
-    use std::fs;
-    use tempfile::tempdir;
-
-    #[test]
-    fn run_contract_id_is_nonempty() {
-        let id = super::make_run_contract_id();
-        assert!(!id.trim().is_empty());
-    }
-
-    #[test]
-    fn can_start_contract_in_test_dir() {
-        let base = match tempdir() {
-            Ok(base) => base,
-            Err(err) => panic!("create temp config dir: {err}"),
-        };
-        let _base_guard = ConfigBaseGuard::set(base.path().to_path_buf());
-        let _profile_guard = PersistenceProfileGuard::live();
-        let contract =
-            RunContract::start("./target/app", "/tmp", 0, true).expect("contract should start");
-        assert!(!contract.run_id.is_empty());
-    }
-
-    #[test]
-    fn successful_startup_timing_is_written_into_contract_artifacts() {
-        let base = tempdir().expect("create temp config dir");
-        let _base_guard = ConfigBaseGuard::set(base.path().to_path_buf());
-        let _profile_guard = PersistenceProfileGuard::live();
-        let mut contract =
-            RunContract::start("./target/app", "/tmp", 0, true).expect("contract should start");
-        contract.record(
-            super::RUN_PHASE_STARTUP,
-            super::MILESTONE_STARTUP_BEGIN,
-            "running",
-        );
-        contract.record_startup_timing(
-            &NativeStartupTimingArtifact {
-                status: String::from("complete"),
-                failure_reason: None,
-                window_create_ms: Some(10.0),
-                window_revealed_ms: Some(14.0),
-                wgpu_surface_create_ms: Some(3.0),
-                wgpu_device_ready_ms: Some(4.0),
-                surface_ready_ms: Some(18.0),
-                renderer_build_ms: Some(5.0),
-                renderer_ready_ms: Some(23.0),
-                first_scene_ready_ms: Some(30.0),
-                first_redraw_started_ms: Some(31.0),
-                first_present_draw_ms: Some(2.0),
-                first_present_ms: Some(33.0),
-                deferred_model_refresh_ms: Some(0.0),
-                deferred_model_refresh_total_ms: Some(33.0),
-            },
-            "success",
-        );
-        contract.record(
-            super::RUN_PHASE_SHUTDOWN,
-            super::MILESTONE_RUNTIME_EXIT,
-            "success",
-        );
-        let artifact_path = contract.artifact_path.clone();
-        let manifest_path = contract.manifest_path.clone();
-        contract.finish("success");
-
-        let manifest: Value =
-            serde_json::from_str(&fs::read_to_string(manifest_path).expect("read manifest"))
-                .expect("parse manifest");
-        assert_eq!(manifest["startup_timing"]["status"], "complete");
-        assert_eq!(manifest["startup_timing"]["first_present_ms"], 33.0);
-
-        let events = fs::read_to_string(artifact_path).expect("read artifact");
-        let timing_event = events
-            .lines()
-            .map(|line| serde_json::from_str::<Value>(line).expect("parse event"))
-            .find(|event| event["milestone"] == super::MILESTONE_NATIVE_STARTUP_TIMING)
-            .expect("startup timing event");
-        assert_eq!(timing_event["startup_timing"]["window_revealed_ms"], 14.0);
-    }
-
-    #[test]
-    fn incomplete_startup_timing_preserves_failure_reason_in_contract_artifacts() {
-        let base = tempdir().expect("create temp config dir");
-        let _base_guard = ConfigBaseGuard::set(base.path().to_path_buf());
-        let _profile_guard = PersistenceProfileGuard::live();
-        let mut contract =
-            RunContract::start("./target/app", "/tmp", 0, true).expect("contract should start");
-        contract.record_startup_timing(
-            &NativeStartupTimingArtifact {
-                status: String::from("incomplete"),
-                failure_reason: Some(String::from("startup_exited_before_first_present")),
-                window_create_ms: Some(8.0),
-                window_revealed_ms: None,
-                wgpu_surface_create_ms: Some(1.5),
-                wgpu_device_ready_ms: Some(3.0),
-                surface_ready_ms: Some(12.0),
-                renderer_build_ms: None,
-                renderer_ready_ms: None,
-                first_scene_ready_ms: None,
-                first_redraw_started_ms: None,
-                first_present_draw_ms: None,
-                first_present_ms: None,
-                deferred_model_refresh_ms: None,
-                deferred_model_refresh_total_ms: None,
-            },
-            "error",
-        );
-        let manifest_path = contract.manifest_path.clone();
-        contract.finish("error");
-
-        let manifest: Value =
-            serde_json::from_str(&fs::read_to_string(manifest_path).expect("read manifest"))
-                .expect("parse manifest");
-        assert_eq!(manifest["startup_timing"]["status"], "incomplete");
-        assert_eq!(
-            manifest["startup_timing"]["failure_reason"],
-            "startup_exited_before_first_present"
-        );
-        assert!(manifest["startup_timing"]["first_present_ms"].is_null());
-    }
-
-    #[test]
-    fn successful_shutdown_timing_is_written_into_contract_artifacts() {
-        let base = tempdir().expect("create temp config dir");
-        let _base_guard = ConfigBaseGuard::set(base.path().to_path_buf());
-        let _profile_guard = PersistenceProfileGuard::live();
-        let mut contract =
-            RunContract::start("./target/app", "/tmp", 0, true).expect("contract should start");
-        contract.record_shutdown_timing(
-            &NativeShutdownTimingArtifact {
-                status: String::from("complete"),
-                failure_reason: None,
-                bridge_exit_flush_ms: Some(1.0),
-                config_persist_ms: Some(2.0),
-                controller_jobs_shutdown_ms: Some(3.0),
-                analysis_shutdown_ms: Some(4.0),
-                controller_shutdown_ms: Some(7.0),
-                runtime_exit_total_ms: Some(8.0),
-            },
-            "success",
-        );
-        let artifact_path = contract.artifact_path.clone();
-        let manifest_path = contract.manifest_path.clone();
-        contract.finish("success");
-
-        let manifest: Value =
-            serde_json::from_str(&fs::read_to_string(manifest_path).expect("read manifest"))
-                .expect("parse manifest");
-        assert_eq!(manifest["shutdown_timing"]["status"], "complete");
-        assert_eq!(manifest["shutdown_timing"]["controller_shutdown_ms"], 7.0);
-
-        let events = fs::read_to_string(artifact_path).expect("read artifact");
-        let timing_event = events
-            .lines()
-            .map(|line| serde_json::from_str::<Value>(line).expect("parse event"))
-            .find(|event| event["milestone"] == super::MILESTONE_NATIVE_SHUTDOWN_TIMING)
-            .expect("shutdown timing event");
-        assert_eq!(timing_event["shutdown_timing"]["analysis_shutdown_ms"], 4.0);
-    }
-
-    #[test]
-    fn degraded_shutdown_timing_preserves_failure_reason_and_skipped_phases() {
-        let base = tempdir().expect("create temp config dir");
-        let _base_guard = ConfigBaseGuard::set(base.path().to_path_buf());
-        let _profile_guard = PersistenceProfileGuard::live();
-        let mut contract =
-            RunContract::start("./target/app", "/tmp", 0, true).expect("contract should start");
-        contract.record_shutdown_timing(
-            &NativeShutdownTimingArtifact {
-                status: String::from("error"),
-                failure_reason: Some(String::from("config_persist_failed")),
-                bridge_exit_flush_ms: Some(1.0),
-                config_persist_ms: Some(2.0),
-                controller_jobs_shutdown_ms: None,
-                analysis_shutdown_ms: None,
-                controller_shutdown_ms: None,
-                runtime_exit_total_ms: Some(3.0),
-            },
-            "error",
-        );
-        let manifest_path = contract.manifest_path.clone();
-        contract.finish("error");
-
-        let manifest: Value =
-            serde_json::from_str(&fs::read_to_string(manifest_path).expect("read manifest"))
-                .expect("parse manifest");
-        assert_eq!(manifest["shutdown_timing"]["status"], "error");
-        assert_eq!(
-            manifest["shutdown_timing"]["failure_reason"],
-            "config_persist_failed"
-        );
-        assert!(manifest["shutdown_timing"]["analysis_shutdown_ms"].is_null());
-    }
 }
