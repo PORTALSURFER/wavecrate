@@ -161,6 +161,9 @@ pub(crate) struct ControllerRuntimeState {
     #[cfg(test)]
     /// Simulate a crash after committing the folder delete DB update.
     pub(crate) fail_after_folder_delete_db_commit: bool,
+    #[cfg(test)]
+    /// Force the next waveform-to-browser copy registration to fail after the file copy.
+    pub(crate) fail_next_waveform_copy_registration: bool,
 }
 
 impl ControllerRuntimeState {
@@ -220,6 +223,8 @@ impl ControllerRuntimeState {
             fail_after_folder_delete_stage: false,
             #[cfg(test)]
             fail_after_folder_delete_db_commit: false,
+            #[cfg(test)]
+            fail_next_waveform_copy_registration: false,
         }
     }
 

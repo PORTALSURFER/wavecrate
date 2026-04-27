@@ -6,6 +6,7 @@ use crate::app_core::actions::NativeUiAction;
 use crate::app_core::controller::AppControllerNativeRuntimeExt;
 use crate::app_core::state::StatusTone;
 use crate::selection::SelectionRange;
+use std::path::Path;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 use tempfile::tempdir;
@@ -23,6 +24,20 @@ fn pump_background_jobs_until(
         std::thread::sleep(Duration::from_millis(10));
     }
     panic!("timed out waiting for background job condition");
+}
+
+fn analysis_job_exists(root: &Path, relative_path: &str) -> bool {
+    let Ok(conn) = crate::sample_sources::SourceDatabase::open_connection(root) else {
+        return false;
+    };
+    let count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM analysis_jobs WHERE relative_path = ?1",
+            [relative_path],
+            |row| row.get(0),
+        )
+        .unwrap();
+    count > 0
 }
 
 #[test]
@@ -57,7 +72,76 @@ fn waveform_sample_drop_copies_and_registers() {
     controller.finish_active_drag();
 
     assert!(root.join("one_copy001.wav").is_file());
+    let rows = controller
+        .database_for(&source)
+        .unwrap()
+        .list_files()
+        .unwrap();
+    assert!(
+        rows.iter()
+            .any(|row| row.relative_path == PathBuf::from("one_copy001.wav"))
+    );
+    assert_eq!(
+        controller.sample_view.wav.selected_wav,
+        Some(PathBuf::from("one_copy001.wav"))
+    );
+    assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
     assert!(controller.ui.status.text.contains("Copied sample"));
+    pump_background_jobs_until(&mut controller, |_| {
+        analysis_job_exists(&root, "one_copy001.wav")
+    });
+}
+
+#[test]
+fn waveform_sample_drop_removes_copy_when_registration_fails() {
+    let temp = tempdir().unwrap();
+    let root = temp.path().join("source");
+    std::fs::create_dir_all(&root).unwrap();
+    let renderer = WaveformRenderer::new(12, 12);
+    let mut controller = AppController::new(renderer, None);
+    let source = SampleSource::new(root.clone());
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    controller.cache_db(&source).unwrap();
+
+    write_test_wav(&root.join("one.wav"), &[0.1, 0.2]);
+    controller.set_wav_entries_for_tests(vec![sample_entry(
+        "one.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.runtime.fail_next_waveform_copy_registration = true;
+
+    controller.ui.drag.payload = Some(DragPayload::Sample {
+        source_id: source.id.clone(),
+        relative_path: PathBuf::from("one.wav"),
+    });
+    controller.ui.drag.origin_source = Some(DragSource::Waveform);
+    controller.ui.drag.set_target(
+        DragSource::Browser,
+        DragTarget::BrowserTriage(TriageFlagColumn::Keep),
+    );
+    controller.finish_active_drag();
+
+    assert!(!root.join("one_copy001.wav").exists());
+    let rows = controller
+        .database_for(&source)
+        .unwrap()
+        .list_files()
+        .unwrap();
+    assert!(
+        rows.iter()
+            .all(|row| row.relative_path != PathBuf::from("one_copy001.wav"))
+    );
+    assert_eq!(controller.runtime.jobs.pending_select_path(), None);
+    assert!(
+        controller
+            .ui
+            .status
+            .text
+            .contains("Failed to register copy")
+    );
 }
 
 #[test]

@@ -2,8 +2,28 @@ use super::super::{DragDropController, file_metadata};
 use crate::app::controller::StatusTone;
 use crate::sample_sources::SourceId;
 use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
-use tracing::info;
+use tracing::{info, warn};
+
+fn remove_copied_sample(copy_absolute: &Path) -> Result<(), String> {
+    fs::remove_file(copy_absolute).map_err(|err| {
+        format!(
+            "cleanup failed for copied sample {}: {err}",
+            copy_absolute.display()
+        )
+    })
+}
+
+fn registration_failure_status(message: String, copy_absolute: &Path) -> String {
+    match remove_copied_sample(copy_absolute) {
+        Ok(()) => message,
+        Err(cleanup_err) => {
+            warn!("{cleanup_err}");
+            format!("{message}; {cleanup_err}")
+        }
+    }
+}
 
 impl DragDropController<'_> {
     pub(crate) fn handle_waveform_sample_drop_to_browser(
@@ -99,7 +119,10 @@ impl DragDropController<'_> {
         let (file_size, modified_ns) = match file_metadata(&copy_absolute) {
             Ok(meta) => meta,
             Err(err) => {
-                self.set_status(err, StatusTone::Error);
+                self.set_status(
+                    registration_failure_status(err, &copy_absolute),
+                    StatusTone::Error,
+                );
                 return;
             }
         };
@@ -107,14 +130,36 @@ impl DragDropController<'_> {
             Ok(db) => db,
             Err(err) => {
                 self.set_status(
-                    format!("Failed to open source DB: {err}"),
+                    registration_failure_status(
+                        format!("Failed to open source DB: {err}"),
+                        &copy_absolute,
+                    ),
                     StatusTone::Error,
                 );
                 return;
             }
         };
+        #[cfg(test)]
+        if self.runtime.fail_next_waveform_copy_registration {
+            self.runtime.fail_next_waveform_copy_registration = false;
+            self.set_status(
+                registration_failure_status(
+                    "Failed to register copy: Injected waveform copy registration failure"
+                        .to_string(),
+                    &copy_absolute,
+                ),
+                StatusTone::Error,
+            );
+            return;
+        }
         if let Err(err) = db.upsert_file(&copy_relative, file_size, modified_ns) {
-            self.set_status(format!("Failed to register copy: {err}"), StatusTone::Error);
+            self.set_status(
+                registration_failure_status(
+                    format!("Failed to register copy: {err}"),
+                    &copy_absolute,
+                ),
+                StatusTone::Error,
+            );
             return;
         }
         self.trigger_analysis_for_added_sample(&source, &copy_relative, file_size, modified_ns);
