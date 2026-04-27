@@ -254,6 +254,129 @@ tma_supp_files="$(wc -l <"$tmp_tma_counts" | tr -d '[:space:]')"
 test_gap_count="$(wc -l <"$tmp_test_gaps" | tr -d '[:space:]')"
 function_span_count="$(wc -l <"$tmp_function_spans" | tr -d '[:space:]')"
 
+count_rows_for_scope() {
+  local path="$1"
+  local scope="$2"
+  local file_column="$3"
+  awk -F'\t' -v scope="$scope" -v file_column="$file_column" '
+    function in_scope(file) {
+      if (scope == "vendor") {
+        return file ~ /^vendor\/radiant\//
+      }
+      return file !~ /^vendor\/radiant\//
+    }
+    in_scope($file_column) { count++ }
+    END { print count + 0 }
+  ' "$path"
+}
+
+emit_line_table_for_scope() {
+  local path="$1"
+  local scope="$2"
+  local limit="$3"
+  awk -F'\t' -v scope="$scope" -v limit="$limit" '
+    function in_scope(file) {
+      if (scope == "vendor") {
+        return file ~ /^vendor\/radiant\//
+      }
+      return file !~ /^vendor\/radiant\//
+    }
+    BEGIN {
+      emitted = 0
+      seen = 0
+    }
+    in_scope($2) {
+      seen++
+      if (limit == 0 || seen <= limit) {
+        if (emitted == 0) {
+          print "| Lines | File |"
+          print "| ---: | --- |"
+        }
+        printf "| %s | `%s` |\n", $1, $2
+        emitted++
+      }
+    }
+    END {
+      if (seen == 0) {
+        print "None."
+      }
+    }
+  ' "$path"
+}
+
+emit_count_table_for_scope() {
+  local path="$1"
+  local scope="$2"
+  local limit="$3"
+  awk -F'\t' -v scope="$scope" -v limit="$limit" '
+    function in_scope(file) {
+      if (scope == "vendor") {
+        return file ~ /^vendor\/radiant\//
+      }
+      return file !~ /^vendor\/radiant\//
+    }
+    BEGIN {
+      emitted = 0
+      seen = 0
+    }
+    in_scope($2) {
+      seen++
+      if (limit == 0 || seen <= limit) {
+        if (emitted == 0) {
+          print "| Occurrences | File |"
+          print "| ---: | --- |"
+        }
+        printf "| %s | `%s` |\n", $1, $2
+        emitted++
+      }
+    }
+    END {
+      if (seen == 0) {
+        print "None."
+      }
+    }
+  ' "$path"
+}
+
+emit_function_table_for_scope() {
+  local path="$1"
+  local scope="$2"
+  local limit="$3"
+  awk -F'\t' -v scope="$scope" -v limit="$limit" '
+    function in_scope(file) {
+      if (scope == "vendor") {
+        return file ~ /^vendor\/radiant\//
+      }
+      return file !~ /^vendor\/radiant\//
+    }
+    BEGIN {
+      emitted = 0
+      seen = 0
+    }
+    in_scope($2) {
+      seen++
+      if (limit == 0 || seen <= limit) {
+        if (emitted == 0) {
+          print "| Span (lines) | Function |"
+          print "| ---: | --- |"
+        }
+        printf "| %s | `%s` (`%s`) |\n", $1, $3, $2
+        emitted++
+      }
+    }
+    END {
+      if (seen == 0) {
+        print "None."
+      }
+    }
+  ' "$path"
+}
+
+root_rust_files="$(count_rows_for_scope "$tmp_line_counts" root 2)"
+vendor_rust_files="$(count_rows_for_scope "$tmp_line_counts" vendor 2)"
+root_over_budget_count="$(count_rows_for_scope "$tmp_over_limit" root 2)"
+vendor_over_budget_count="$(count_rows_for_scope "$tmp_over_limit" vendor 2)"
+
 {
   echo "# Cleanup Hotspot Audit Snapshot"
   echo
@@ -270,92 +393,87 @@ function_span_count="$(wc -l <"$tmp_function_spans" | tr -d '[:space:]')"
   echo "- Files with \`dead_code\` suppressions: $dead_supp_files"
   echo "- Files with \`clippy::too_many_arguments\` suppressions: $tma_supp_files"
   echo "- Likely large-file test-gap hotspots (heuristic): $test_gap_count"
+  echo "- Sempal-root Rust files scanned: $root_rust_files"
+  echo "- Vendor/Radiant Rust files scanned: $vendor_rust_files"
+  echo "- Sempal-root files over budget: $root_over_budget_count"
+  echo "- Vendor/Radiant files over budget: $vendor_over_budget_count"
   echo
 
-  echo "## Largest Rust files"
+  echo "## Sempal-root largest Rust files"
   echo
-  echo "| Lines | File |"
-  echo "| ---: | --- |"
   LC_ALL=C sort -t$'\t' -k1,1nr -k2,2 "$tmp_line_counts" \
-    | awk -F'\t' -v limit="$TOP_FILES" 'NR <= limit' \
-    | while IFS=$'\t' read -r line_count file; do
-        echo "| $line_count | \`$file\` |"
-      done
+    | emit_line_table_for_scope /dev/stdin root "$TOP_FILES"
   echo
 
-  echo "## Largest function spans (heuristic)"
+  echo "## Vendor/Radiant largest Rust files"
   echo
-  echo "| Span (lines) | Function |"
-  echo "| ---: | --- |"
+  LC_ALL=C sort -t$'\t' -k1,1nr -k2,2 "$tmp_line_counts" \
+    | emit_line_table_for_scope /dev/stdin vendor "$TOP_FILES"
+  echo
+
+  echo "## Sempal-root largest function spans (heuristic)"
+  echo
   LC_ALL=C sort -t$'\t' -k1,1nr -k2,2 "$tmp_function_spans" \
-    | awk -F'\t' -v limit="$TOP_FUNCTION_SPANS" 'NR <= limit' \
-    | while IFS=$'\t' read -r span location fn_name; do
-        echo "| $span | \`$fn_name\` (\`$location\`) |"
-      done
+    | emit_function_table_for_scope /dev/stdin root "$TOP_FUNCTION_SPANS"
   echo
 
-  echo "## Over file-size budget"
+  echo "## Vendor/Radiant largest function spans (heuristic)"
   echo
-  if (( over_budget_count == 0 )); then
-    echo "None."
-  else
-    echo "| Lines | File |"
-    echo "| ---: | --- |"
-    LC_ALL=C sort -t$'\t' -k1,1nr -k2,2 "$tmp_over_limit" \
-      | while IFS=$'\t' read -r line_count file; do
-          echo "| $line_count | \`$file\` |"
-        done
-  fi
+  LC_ALL=C sort -t$'\t' -k1,1nr -k2,2 "$tmp_function_spans" \
+    | emit_function_table_for_scope /dev/stdin vendor "$TOP_FUNCTION_SPANS"
   echo
 
-  echo "## dead_code suppression density"
+  echo "## Sempal-root files over budget"
   echo
-  if (( dead_supp_files == 0 )); then
-    echo "None."
-  else
-    echo "| Occurrences | File |"
-    echo "| ---: | --- |"
-    head -n "$TOP_SUPPRESSIONS" "$tmp_dead_counts" \
-      | while IFS=$'\t' read -r count file; do
-          echo "| $count | \`$file\` |"
-        done
-  fi
+  LC_ALL=C sort -t$'\t' -k1,1nr -k2,2 "$tmp_over_limit" \
+    | emit_line_table_for_scope /dev/stdin root 0
   echo
 
-  echo "## too_many_arguments suppression density"
+  echo "## Vendor/Radiant files over budget"
   echo
-  if (( tma_supp_files == 0 )); then
-    echo "None."
-  else
-    echo "| Occurrences | File |"
-    echo "| ---: | --- |"
-    head -n "$TOP_SUPPRESSIONS" "$tmp_tma_counts" \
-      | while IFS=$'\t' read -r count file; do
-          echo "| $count | \`$file\` |"
-        done
-  fi
+  LC_ALL=C sort -t$'\t' -k1,1nr -k2,2 "$tmp_over_limit" \
+    | emit_line_table_for_scope /dev/stdin vendor 0
   echo
 
-  echo "## Likely test-gap hotspots (heuristic)"
+  echo "## Sempal-root dead_code suppression density"
+  echo
+  emit_count_table_for_scope "$tmp_dead_counts" root "$TOP_SUPPRESSIONS"
+  echo
+
+  echo "## Vendor/Radiant dead_code suppression density"
+  echo
+  emit_count_table_for_scope "$tmp_dead_counts" vendor "$TOP_SUPPRESSIONS"
+  echo
+
+  echo "## Sempal-root too_many_arguments suppression density"
+  echo
+  emit_count_table_for_scope "$tmp_tma_counts" root "$TOP_SUPPRESSIONS"
+  echo
+
+  echo "## Vendor/Radiant too_many_arguments suppression density"
+  echo
+  emit_count_table_for_scope "$tmp_tma_counts" vendor "$TOP_SUPPRESSIONS"
+  echo
+
+  echo "## Sempal-root likely test-gap hotspots (heuristic)"
   echo
   echo "Files with at least \`$TEST_GAP_MIN_LINES\` lines and no local \`#[cfg(test)]\` or \`mod tests\` marker."
   echo "Skips dedicated test modules/paths (\`tests/**\`, \`tests.rs\`, \`*_test.rs\`, \`*_tests.rs\`) and sibling module tests declared through \`mod.rs\` + \`tests.rs\`."
   echo
-  if (( test_gap_count == 0 )); then
-    echo "None."
-  else
-    echo "| Lines | File |"
-    echo "| ---: | --- |"
-    head -n "$TOP_FILES" "$tmp_test_gaps" \
-      | while IFS=$'\t' read -r line_count file; do
-          echo "| $line_count | \`$file\` |"
-        done
-  fi
+  emit_line_table_for_scope "$tmp_test_gaps" root "$TOP_FILES"
+  echo
+
+  echo "## Vendor/Radiant likely test-gap hotspots (heuristic)"
+  echo
+  echo "Files with at least \`$TEST_GAP_MIN_LINES\` lines and no local \`#[cfg(test)]\` or \`mod tests\` marker."
+  echo "Skips dedicated test modules/paths (\`tests/**\`, \`tests.rs\`, \`*_test.rs\`, \`*_tests.rs\`) and sibling module tests declared through \`mod.rs\` + \`tests.rs\`."
+  echo
+  emit_line_table_for_scope "$tmp_test_gaps" vendor "$TOP_FILES"
   echo
 
   echo "## Suggested follow-up"
   echo
-  echo "1. Triage top over-budget files and plan behavior-preserving splits."
+  echo "1. Triage Sempal-root and Vendor/Radiant candidates as separate issue tracks."
   echo "2. Remove or test-gate high-density suppressions after each refactor slice."
   echo "3. Add focused tests for top heuristic gaps where behavior is non-trivial."
 } >"$OUTPUT_PATH"

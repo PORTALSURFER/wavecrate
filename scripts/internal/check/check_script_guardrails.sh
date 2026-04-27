@@ -45,7 +45,7 @@ run_cleanup_audit_fixture() {
   local repo_dir="$fixture_dir/repo"
   local script_path="$repo_dir/scripts/internal/check/audit_cleanup_hotspots.sh"
   local output_path="$repo_dir/tmp/cleanup.md"
-  mkdir -p "$repo_dir/src/analysis" "$repo_dir/src/selection" "$repo_dir/scripts/internal/check" "$repo_dir/tmp"
+  mkdir -p "$repo_dir/src/analysis" "$repo_dir/src/selection" "$repo_dir/vendor/radiant/src" "$repo_dir/scripts/internal/check" "$repo_dir/tmp"
   cp "scripts/internal/check/audit_cleanup_hotspots.sh" "$script_path"
   chmod +x "$script_path"
 
@@ -72,11 +72,22 @@ pub fn one() {}
 pub fn two() {}
 pub fn three() {}
 EOF
+  cat >"$repo_dir/vendor/radiant/src/vendor_gap.rs" <<'EOF'
+pub fn vendor_one() {}
+pub fn vendor_two() {}
+pub fn vendor_three() {}
+EOF
+
+  git -C "$repo_dir/vendor/radiant" init -q
+  git -C "$repo_dir/vendor/radiant" config user.name "sempal-ci"
+  git -C "$repo_dir/vendor/radiant" config user.email "ci@sempal.test"
+  git -C "$repo_dir/vendor/radiant" add .
+  git -C "$repo_dir/vendor/radiant" commit -qm "seed"
 
   git -C "$repo_dir" init -q
   git -C "$repo_dir" config user.name "sempal-ci"
   git -C "$repo_dir" config user.email "ci@sempal.test"
-  git -C "$repo_dir" add .
+  git -C "$repo_dir" add src scripts
   git -C "$repo_dir" commit -qm "seed"
 
   run_expect_exit_code \
@@ -91,15 +102,26 @@ EOF
     --top-files \
     10
 
-  if grep -Fq 'Likely large-file test-gap hotspots (heuristic): 1' "$output_path"; then
-    echo "[guardrails] PASS: cleanup-audit fixture reports only one heuristic gap"
+  root_gap_section="$(sed -n '/^## Sempal-root likely test-gap hotspots (heuristic)/,/^## Vendor\/Radiant likely test-gap hotspots (heuristic)/p' "$output_path")"
+  vendor_gap_section="$(sed -n '/^## Vendor\/Radiant likely test-gap hotspots (heuristic)/,/^## Suggested follow-up/p' "$output_path")"
+
+  if grep -Fq 'Likely large-file test-gap hotspots (heuristic): 2' "$output_path"; then
+    echo "[guardrails] PASS: cleanup-audit fixture reports two scoped heuristic gaps"
   else
     echo "[guardrails] FAIL: cleanup-audit fixture reports unexpected heuristic gap count" >&2
     cat "$output_path" >&2
     failures=$((failures + 1))
   fi
 
-  if grep -Fq '`src/real_gap.rs`' "$output_path"; then
+  if grep -Fq '## Sempal-root largest Rust files' "$output_path" && grep -Fq '## Vendor/Radiant largest Rust files' "$output_path"; then
+    echo "[guardrails] PASS: cleanup-audit fixture emits root/vendor sections"
+  else
+    echo "[guardrails] FAIL: cleanup-audit fixture did not emit root/vendor sections" >&2
+    cat "$output_path" >&2
+    failures=$((failures + 1))
+  fi
+
+  if grep -Fq '`src/real_gap.rs`' <<<"$root_gap_section"; then
     echo "[guardrails] PASS: cleanup-audit fixture keeps the real gap"
   else
     echo "[guardrails] FAIL: cleanup-audit fixture missed the real gap" >&2
@@ -107,7 +129,15 @@ EOF
     failures=$((failures + 1))
   fi
 
-  if grep -Fq '`src/analysis/ann_index_tests.rs`' "$output_path"; then
+  if grep -Fq '`vendor/radiant/src/vendor_gap.rs`' <<<"$vendor_gap_section" && ! grep -Fq '`vendor/radiant/src/vendor_gap.rs`' <<<"$root_gap_section"; then
+    echo "[guardrails] PASS: cleanup-audit fixture keeps the vendor gap separate"
+  else
+    echo "[guardrails] FAIL: cleanup-audit fixture did not keep the vendor gap separate" >&2
+    cat "$output_path" >&2
+    failures=$((failures + 1))
+  fi
+
+  if grep -Fq '`src/analysis/ann_index_tests.rs`' <<<"$root_gap_section"; then
     echo "[guardrails] FAIL: cleanup-audit fixture still flags *_tests.rs files" >&2
     cat "$output_path" >&2
     failures=$((failures + 1))
@@ -115,7 +145,7 @@ EOF
     echo "[guardrails] PASS: cleanup-audit fixture skips *_tests.rs files"
   fi
 
-  if grep -Fq '`src/selection/range.rs`' "$output_path"; then
+  if grep -Fq '`src/selection/range.rs`' <<<"$root_gap_section"; then
     echo "[guardrails] FAIL: cleanup-audit fixture still flags sibling module tests" >&2
     cat "$output_path" >&2
     failures=$((failures + 1))

@@ -414,6 +414,7 @@ try {
     New-Item -ItemType Directory -Path $repoDir | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $repoDir "src/analysis") -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $repoDir "src/selection") -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $repoDir "vendor/radiant/src") -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $repoDir "scripts/internal/check") -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $repoDir "tmp") | Out-Null
 
@@ -442,25 +443,48 @@ try {
       "pub fn two() {}",
       "pub fn three() {}"
     )
+    Set-Content -Path (Join-Path $repoDir "vendor/radiant/src/vendor_gap.rs") -Value @(
+      "pub fn vendor_one() {}",
+      "pub fn vendor_two() {}",
+      "pub fn vendor_three() {}"
+    )
+
+    $vendorRepoDir = Join-Path $repoDir "vendor/radiant"
+    git -C $vendorRepoDir init -q
+    git -C $vendorRepoDir config user.name "sempal-ci"
+    git -C $vendorRepoDir config user.email "ci@sempal.test"
+    git -C $vendorRepoDir add .
+    git -C $vendorRepoDir commit -qm "seed"
 
     git -C $repoDir init -q
     git -C $repoDir config user.name "sempal-ci"
     git -C $repoDir config user.email "ci@sempal.test"
-    git -C $repoDir add .
+    git -C $repoDir add src scripts
     git -C $repoDir commit -qm "seed"
 
     $outputPath = Join-Path $repoDir "tmp/cleanup.md"
     Invoke-ExpectExitCode -Label "cleanup audit fixture succeeds" -ExpectedCode 0 -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/internal/check/audit_cleanup_hotspots.ps1") -Arguments @("-Output", $outputPath, "-TestGapMinLines", "3", "-TopFiles", "10")
     $reportText = Get-Content -Path $outputPath -Raw
-    $sectionStart = $reportText.IndexOf("## Likely test-gap hotspots (heuristic)")
-    $sectionEnd = $reportText.IndexOf("## Suggested follow-up")
+    $sectionStart = $reportText.IndexOf("## Sempal-root likely test-gap hotspots (heuristic)")
+    $sectionEnd = $reportText.IndexOf("## Vendor/Radiant likely test-gap hotspots (heuristic)")
     $testGapSection = if ($sectionStart -ge 0 -and $sectionEnd -gt $sectionStart) {
       $reportText.Substring($sectionStart, $sectionEnd - $sectionStart)
     } else {
       $reportText
     }
-    Assert-TextContains -Label "cleanup audit fixture reports only one heuristic gap" -Text $reportText -Fragment "Likely large-file test-gap hotspots (heuristic): 1"
+    $vendorSectionStart = $reportText.IndexOf("## Vendor/Radiant likely test-gap hotspots (heuristic)")
+    $vendorSectionEnd = $reportText.IndexOf("## Suggested follow-up")
+    $vendorTestGapSection = if ($vendorSectionStart -ge 0 -and $vendorSectionEnd -gt $vendorSectionStart) {
+      $reportText.Substring($vendorSectionStart, $vendorSectionEnd - $vendorSectionStart)
+    } else {
+      $reportText
+    }
+    Assert-TextContains -Label "cleanup audit fixture reports two heuristic gaps across scopes" -Text $reportText -Fragment "Likely large-file test-gap hotspots (heuristic): 2"
+    Assert-TextContains -Label "cleanup audit fixture emits root section" -Text $reportText -Fragment "## Sempal-root largest Rust files"
+    Assert-TextContains -Label "cleanup audit fixture emits vendor section" -Text $reportText -Fragment "## Vendor/Radiant largest Rust files"
     Assert-TextContains -Label "cleanup audit fixture keeps the real gap" -Text $testGapSection -Fragment 'src/real_gap.rs'
+    Assert-TextContains -Label "cleanup audit fixture keeps the vendor gap separate" -Text $vendorTestGapSection -Fragment 'vendor/radiant/src/vendor_gap.rs'
+    Assert-TextNotContains -Label "cleanup audit fixture keeps vendor gap out of root section" -Text $testGapSection -Fragment 'vendor/radiant/src/vendor_gap.rs'
     Assert-TextNotContains -Label "cleanup audit fixture skips *_tests.rs files" -Text $testGapSection -Fragment 'src/analysis/ann_index_tests.rs'
     Assert-TextNotContains -Label "cleanup audit fixture skips sibling module tests" -Text $testGapSection -Fragment 'src/selection/range.rs'
   } finally {

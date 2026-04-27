@@ -110,6 +110,19 @@ function Format-Code {
   return ('`{0}`' -f $Text)
 }
 
+function Test-IsVendorPath {
+  param([string]$FilePath)
+  return $FilePath.StartsWith("vendor/radiant/")
+}
+
+function Get-ScopeLabel {
+  param([string]$FilePath)
+  if (Test-IsVendorPath -FilePath $FilePath) {
+    return "Vendor/Radiant"
+  }
+  return "Sempal root"
+}
+
 function Get-SuppressionCounts {
   param(
     [object[]]$FileEntries,
@@ -127,6 +140,7 @@ function Get-SuppressionCounts {
       [pscustomobject]@{
         Count = $count
         File = $entry.File
+        Scope = $entry.Scope
       }
     }
   }
@@ -202,6 +216,27 @@ function Write-MarkdownTable {
   $Writer.WriteLine()
 }
 
+function Write-RankedSection {
+  param(
+    [System.IO.StreamWriter]$Writer,
+    [string]$Title,
+    [string[]]$Headers,
+    [object[]]$Rows
+  )
+
+  if (-not [string]::IsNullOrWhiteSpace($Title)) {
+    $Writer.WriteLine($Title)
+    $Writer.WriteLine()
+  }
+  if (($Rows | Measure-Object).Count -eq 0) {
+    $Writer.WriteLine("None.")
+    $Writer.WriteLine()
+    return
+  }
+
+  Write-MarkdownTable -Writer $Writer -Headers $Headers -Rows $Rows
+}
+
 foreach ($value in @(
     @{ Name = "TopFiles"; Value = $TopFiles }
     @{ Name = "TopSuppressions"; Value = $TopSuppressions }
@@ -238,6 +273,7 @@ try {
       File = $file
       LineCount = $lines.Count
       Lines = $lines
+      Scope = Get-ScopeLabel -FilePath $file
     }
     $fileEntries.Add($entry)
     foreach ($span in (Get-FunctionSpans -FilePath $file -Lines $lines)) {
@@ -264,6 +300,18 @@ try {
   if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($commit)) {
     $commit = "unknown"
   }
+  $rootEntries = @($fileEntries | Where-Object { $_.Scope -eq "Sempal root" })
+  $vendorEntries = @($fileEntries | Where-Object { $_.Scope -eq "Vendor/Radiant" })
+  $rootOverLimit = @($overLimit | Where-Object { $_.Scope -eq "Sempal root" })
+  $vendorOverLimit = @($overLimit | Where-Object { $_.Scope -eq "Vendor/Radiant" })
+  $rootFunctionSpans = @($functionSpans | Where-Object { -not (Test-IsVendorPath -FilePath $_.Location) })
+  $vendorFunctionSpans = @($functionSpans | Where-Object { Test-IsVendorPath -FilePath $_.Location })
+  $rootDeadCounts = @($deadCounts | Where-Object { $_.Scope -eq "Sempal root" })
+  $vendorDeadCounts = @($deadCounts | Where-Object { $_.Scope -eq "Vendor/Radiant" })
+  $rootTmaCounts = @($tmaCounts | Where-Object { $_.Scope -eq "Sempal root" })
+  $vendorTmaCounts = @($tmaCounts | Where-Object { $_.Scope -eq "Vendor/Radiant" })
+  $rootTestGaps = @($testGaps | Where-Object { $_.Scope -eq "Sempal root" })
+  $vendorTestGaps = @($testGaps | Where-Object { $_.Scope -eq "Vendor/Radiant" })
 
   $writer = [System.IO.StreamWriter]::new((Resolve-Path -LiteralPath (New-Item -ItemType File -Path $Output -Force)).Path, $false, [System.Text.UTF8Encoding]::new($false))
   try {
@@ -283,81 +331,97 @@ try {
     $writer.WriteLine(("- Files with {0} suppressions: {1}" -f (Format-Code "dead_code"), ($deadCounts | Measure-Object | Select-Object -ExpandProperty Count)))
     $writer.WriteLine(("- Files with {0} suppressions: {1}" -f (Format-Code "clippy::too_many_arguments"), ($tmaCounts | Measure-Object | Select-Object -ExpandProperty Count)))
     $writer.WriteLine(("- Likely large-file test-gap hotspots (heuristic): {0}" -f ($testGaps | Measure-Object | Select-Object -ExpandProperty Count)))
+    $writer.WriteLine(("- Sempal-root Rust files scanned: {0}" -f ($rootEntries | Measure-Object | Select-Object -ExpandProperty Count)))
+    $writer.WriteLine(("- Vendor/Radiant Rust files scanned: {0}" -f ($vendorEntries | Measure-Object | Select-Object -ExpandProperty Count)))
+    $writer.WriteLine(("- Sempal-root files over budget: {0}" -f ($rootOverLimit | Measure-Object | Select-Object -ExpandProperty Count)))
+    $writer.WriteLine(("- Vendor/Radiant files over budget: {0}" -f ($vendorOverLimit | Measure-Object | Select-Object -ExpandProperty Count)))
     $writer.WriteLine()
 
-    $writer.WriteLine("## Largest Rust files")
-    $writer.WriteLine()
-    Write-MarkdownTable -Writer $writer -Headers @("Lines", "File") -Rows (
-      $sortedFileEntries |
+    Write-RankedSection -Writer $writer -Title "## Sempal-root largest Rust files" -Headers @("Lines", "File") -Rows (
+      $rootEntries |
+        Sort-Object LineCount, File -Descending |
         Select-Object -First $TopFiles |
         ForEach-Object { [pscustomobject]@{ Cells = @($_.LineCount, (Format-Code $_.File)) } }
     )
 
-    $writer.WriteLine("## Largest function spans (heuristic)")
-    $writer.WriteLine()
-    Write-MarkdownTable -Writer $writer -Headers @("Span (lines)", "Function") -Rows (
-      $functionSpans |
+    Write-RankedSection -Writer $writer -Title "## Vendor/Radiant largest Rust files" -Headers @("Lines", "File") -Rows (
+      $vendorEntries |
+        Sort-Object LineCount, File -Descending |
+        Select-Object -First $TopFiles |
+        ForEach-Object { [pscustomobject]@{ Cells = @($_.LineCount, (Format-Code $_.File)) } }
+    )
+
+    Write-RankedSection -Writer $writer -Title "## Sempal-root largest function spans (heuristic)" -Headers @("Span (lines)", "Function") -Rows (
+      $rootFunctionSpans |
         Sort-Object Span, Location -Descending |
         Select-Object -First $TopFunctionSpans |
         ForEach-Object { [pscustomobject]@{ Cells = @($_.Span, ("{0} ({1})" -f (Format-Code $_.Name), (Format-Code $_.Location))) } }
     )
 
-    $writer.WriteLine("## Over file-size budget")
-    $writer.WriteLine()
-    if (($overLimit | Measure-Object).Count -eq 0) {
-      $writer.WriteLine("None.")
-      $writer.WriteLine()
-    } else {
-      Write-MarkdownTable -Writer $writer -Headers @("Lines", "File") -Rows (
-        $overLimit | ForEach-Object { [pscustomobject]@{ Cells = @($_.LineCount, (Format-Code $_.File)) } }
-      )
-    }
+    Write-RankedSection -Writer $writer -Title "## Vendor/Radiant largest function spans (heuristic)" -Headers @("Span (lines)", "Function") -Rows (
+      $vendorFunctionSpans |
+        Sort-Object Span, Location -Descending |
+        Select-Object -First $TopFunctionSpans |
+        ForEach-Object { [pscustomobject]@{ Cells = @($_.Span, ("{0} ({1})" -f (Format-Code $_.Name), (Format-Code $_.Location))) } }
+    )
 
-    $writer.WriteLine("## dead_code suppression density")
-    $writer.WriteLine()
-    if (($deadCounts | Measure-Object).Count -eq 0) {
-      $writer.WriteLine("None.")
-      $writer.WriteLine()
-    } else {
-      Write-MarkdownTable -Writer $writer -Headers @("Occurrences", "File") -Rows (
-        $deadCounts |
-          Select-Object -First $TopSuppressions |
-          ForEach-Object { [pscustomobject]@{ Cells = @($_.Count, (Format-Code $_.File)) } }
-      )
-    }
+    Write-RankedSection -Writer $writer -Title "## Sempal-root files over budget" -Headers @("Lines", "File") -Rows (
+      $rootOverLimit | ForEach-Object { [pscustomobject]@{ Cells = @($_.LineCount, (Format-Code $_.File)) } }
+    )
 
-    $writer.WriteLine("## too_many_arguments suppression density")
-    $writer.WriteLine()
-    if (($tmaCounts | Measure-Object).Count -eq 0) {
-      $writer.WriteLine("None.")
-      $writer.WriteLine()
-    } else {
-      Write-MarkdownTable -Writer $writer -Headers @("Occurrences", "File") -Rows (
-        $tmaCounts |
-          Select-Object -First $TopSuppressions |
-          ForEach-Object { [pscustomobject]@{ Cells = @($_.Count, (Format-Code $_.File)) } }
-      )
-    }
+    Write-RankedSection -Writer $writer -Title "## Vendor/Radiant files over budget" -Headers @("Lines", "File") -Rows (
+      $vendorOverLimit | ForEach-Object { [pscustomobject]@{ Cells = @($_.LineCount, (Format-Code $_.File)) } }
+    )
 
-    $writer.WriteLine("## Likely test-gap hotspots (heuristic)")
+    Write-RankedSection -Writer $writer -Title "## Sempal-root dead_code suppression density" -Headers @("Occurrences", "File") -Rows (
+      $rootDeadCounts |
+        Select-Object -First $TopSuppressions |
+        ForEach-Object { [pscustomobject]@{ Cells = @($_.Count, (Format-Code $_.File)) } }
+    )
+
+    Write-RankedSection -Writer $writer -Title "## Vendor/Radiant dead_code suppression density" -Headers @("Occurrences", "File") -Rows (
+      $vendorDeadCounts |
+        Select-Object -First $TopSuppressions |
+        ForEach-Object { [pscustomobject]@{ Cells = @($_.Count, (Format-Code $_.File)) } }
+    )
+
+    Write-RankedSection -Writer $writer -Title "## Sempal-root too_many_arguments suppression density" -Headers @("Occurrences", "File") -Rows (
+      $rootTmaCounts |
+        Select-Object -First $TopSuppressions |
+        ForEach-Object { [pscustomobject]@{ Cells = @($_.Count, (Format-Code $_.File)) } }
+    )
+
+    Write-RankedSection -Writer $writer -Title "## Vendor/Radiant too_many_arguments suppression density" -Headers @("Occurrences", "File") -Rows (
+      $vendorTmaCounts |
+        Select-Object -First $TopSuppressions |
+        ForEach-Object { [pscustomobject]@{ Cells = @($_.Count, (Format-Code $_.File)) } }
+    )
+
+    $writer.WriteLine("## Sempal-root likely test-gap hotspots (heuristic)")
     $writer.WriteLine()
     $writer.WriteLine(("Files with at least {0} lines and no local {1} or {2} marker." -f (Format-Code ([string]$TestGapMinLines)), (Format-Code "#[cfg(test)]"), (Format-Code "mod tests")))
     $writer.WriteLine(("Skips dedicated test modules/paths ({0}, {1}, {2}, {3}) and sibling module tests declared through {4} + {5}." -f (Format-Code "tests/**"), (Format-Code "tests.rs"), (Format-Code "*_test.rs"), (Format-Code "*_tests.rs"), (Format-Code "mod.rs"), (Format-Code "tests.rs")))
     $writer.WriteLine()
-    if (($testGaps | Measure-Object).Count -eq 0) {
-      $writer.WriteLine("None.")
-      $writer.WriteLine()
-    } else {
-      Write-MarkdownTable -Writer $writer -Headers @("Lines", "File") -Rows (
-        $testGaps |
-          Select-Object -First $TopFiles |
-          ForEach-Object { [pscustomobject]@{ Cells = @($_.LineCount, (Format-Code $_.File)) } }
-      )
-    }
+    Write-RankedSection -Writer $writer -Title "" -Headers @("Lines", "File") -Rows (
+      $rootTestGaps |
+        Select-Object -First $TopFiles |
+        ForEach-Object { [pscustomobject]@{ Cells = @($_.LineCount, (Format-Code $_.File)) } }
+    )
+
+    $writer.WriteLine("## Vendor/Radiant likely test-gap hotspots (heuristic)")
+    $writer.WriteLine()
+    $writer.WriteLine(("Files with at least {0} lines and no local {1} or {2} marker." -f (Format-Code ([string]$TestGapMinLines)), (Format-Code "#[cfg(test)]"), (Format-Code "mod tests")))
+    $writer.WriteLine(("Skips dedicated test modules/paths ({0}, {1}, {2}, {3}) and sibling module tests declared through {4} + {5}." -f (Format-Code "tests/**"), (Format-Code "tests.rs"), (Format-Code "*_test.rs"), (Format-Code "*_tests.rs"), (Format-Code "mod.rs"), (Format-Code "tests.rs")))
+    $writer.WriteLine()
+    Write-RankedSection -Writer $writer -Title "" -Headers @("Lines", "File") -Rows (
+      $vendorTestGaps |
+        Select-Object -First $TopFiles |
+        ForEach-Object { [pscustomobject]@{ Cells = @($_.LineCount, (Format-Code $_.File)) } }
+    )
 
     $writer.WriteLine("## Suggested follow-up")
     $writer.WriteLine()
-    $writer.WriteLine("1. Triage top over-budget files and plan behavior-preserving splits.")
+    $writer.WriteLine("1. Triage Sempal-root and Vendor/Radiant candidates as separate issue tracks.")
     $writer.WriteLine("2. Remove or test-gate high-density suppressions after each refactor slice.")
     $writer.WriteLine("3. Add focused tests for top heuristic gaps where behavior is non-trivial.")
   } finally {
