@@ -67,15 +67,23 @@ Use for tooling, fixtures, and numerical-reference flows.
 - `cargo nextest run golden_log_mel_matches_python`
 - `cargo nextest run golden_embedding_matches_python`
 
-### Radiant native-shell tests
+### Sempal native-shell tests
 
-Use for compatibility-shell visual and behavior changes.
+Use for compatibility-shell visual and behavior changes that are Sempal-owned.
 
-- `cargo nextest run --manifest-path vendor/radiant/Cargo.toml`
 - targeted snapshot suites:
   - `startup_shot_matches_fixture`
   - `browser_dense_shot_matches_fixture`
   - `waveform_selection_shot_matches_fixture`
+  - update fixtures with
+    `cargo test -p sempal --lib update_shot_fixtures -- --ignored`
+
+### Radiant native-shell tests
+
+Use for generic Radiant behavior and explicit compatibility coverage while
+`compat::sempal_shell` exists.
+
+- `cargo nextest run --manifest-path vendor/radiant/Cargo.toml`
 
 ### GUI test platform
 
