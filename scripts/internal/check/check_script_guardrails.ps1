@@ -201,6 +201,124 @@ function Assert-AgentCiCheckDirectory {
   Assert-TextNotContains -Label "agent ci PowerShell does not use stale scripts/check directory" -Text $text -Fragment '"scripts/check"'
 }
 
+function Get-Inventory {
+  $inventoryPath = Join-Path $scriptsDir "command-inventory.json"
+  if (-not (Test-Path -LiteralPath $inventoryPath)) {
+    Add-Failure "script command inventory is missing"
+    return $null
+  }
+
+  try {
+    return (Get-Content -Path $inventoryPath -Raw | ConvertFrom-Json)
+  } catch {
+    Add-Failure "script command inventory is not valid JSON: $($_.Exception.Message)"
+    return $null
+  }
+}
+
+function Add-InventoryPath {
+  param(
+    [System.Collections.Generic.HashSet[string]]$Set,
+    [string]$Path
+  )
+
+  if ([string]::IsNullOrWhiteSpace($Path)) {
+    Add-Failure "script inventory contains an empty path"
+    return
+  }
+  [void]$Set.Add($Path.Replace("\", "/"))
+}
+
+function Assert-ScriptInventoryClassifiesTopLevel {
+  param([object]$Inventory)
+
+  if ($null -eq $Inventory) { return }
+
+  $classified = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+  foreach ($entry in @($Inventory.public_entrypoints)) {
+    Add-InventoryPath -Set $classified -Path $entry.path
+  }
+  foreach ($entry in @($Inventory.compatibility_wrappers)) {
+    Add-InventoryPath -Set $classified -Path $entry.path
+  }
+  foreach ($path in @($Inventory.top_level_non_commands)) {
+    Add-InventoryPath -Set $classified -Path $path
+  }
+
+  $topLevelFiles = Get-ChildItem -LiteralPath $scriptsDir -File |
+    Where-Object { $_.Name -ne "README.md" } |
+    ForEach-Object { ("scripts/{0}" -f $_.Name) } |
+    Sort-Object
+
+  $missing = @($topLevelFiles | Where-Object { -not $classified.Contains($_) })
+  $unexpected = @($classified | Where-Object {
+      $_ -like "scripts/*" -and
+      $_.Substring("scripts/".Length).Contains("/") -eq $false -and
+      -not (Test-Path -LiteralPath (Join-Path $rootDir $_))
+    })
+
+  if ($missing.Count -eq 0 -and $unexpected.Count -eq 0) {
+    Write-Pass "script inventory classifies every top-level scripts/ file"
+  } else {
+    foreach ($path in $missing) {
+      Add-Failure "script inventory does not classify $path"
+    }
+    foreach ($path in $unexpected) {
+      Add-Failure "script inventory references missing top-level file $path"
+    }
+  }
+}
+
+function Assert-CompatibilityWrappers {
+  param([object]$Inventory)
+
+  if ($null -eq $Inventory) { return }
+
+  foreach ($wrapper in @($Inventory.compatibility_wrappers)) {
+    $path = Join-Path $rootDir $wrapper.path
+    if (-not (Test-Path -LiteralPath $path)) {
+      Add-Failure "compatibility wrapper is missing: $($wrapper.path)"
+      continue
+    }
+
+    $canonicalParts = @([string]$wrapper.canonical -split "\s+")
+    if ($canonicalParts.Count -lt 2) {
+      Add-Failure "compatibility wrapper $($wrapper.path) has invalid canonical command: $($wrapper.canonical)"
+      continue
+    }
+
+    $text = Get-Content -Path $path -Raw
+    $dispatcher = Split-Path -Leaf $canonicalParts[0]
+    $command = $canonicalParts[1]
+    Assert-TextContains -Label "compatibility wrapper $($wrapper.path) points at $($wrapper.canonical)" -Text $text -Fragment $dispatcher
+    Assert-TextContains -Label "compatibility wrapper $($wrapper.path) passes canonical subcommand $command" -Text $text -Fragment $command
+  }
+}
+
+function Assert-DispatcherInventory {
+  param([object]$Inventory)
+
+  if ($null -eq $Inventory) { return }
+
+  foreach ($dispatcher in @($Inventory.dispatchers)) {
+    if ($dispatcher.kind -ne "powershell") {
+      continue
+    }
+
+    $path = Join-Path $rootDir $dispatcher.path
+    if (-not (Test-Path -LiteralPath $path)) {
+      Add-Failure "dispatcher is missing: $($dispatcher.path)"
+      continue
+    }
+
+    $text = Get-Content -Path $path -Raw
+    foreach ($command in @($dispatcher.commands)) {
+      $fragment = ('"{0}" = "{1}"' -f $command.name, $command.target)
+      Assert-TextContains -Label "dispatcher map $($dispatcher.path) includes $($command.name)" -Text $text -Fragment $fragment
+    }
+  }
+}
+
 Push-Location $rootDir
 try {
   $scriptsToParse = @(
@@ -225,6 +343,10 @@ try {
   }
 
   Assert-AgentCiCheckDirectory -Path (Join-Path $scriptsDir "internal/agent/run_agent_ci_checks.ps1")
+  $inventory = Get-Inventory
+  Assert-ScriptInventoryClassifiesTopLevel -Inventory $inventory
+  Assert-CompatibilityWrappers -Inventory $inventory
+  Assert-DispatcherInventory -Inventory $inventory
 
   Invoke-ExpectExitCode -Label "agent request --Help" -ExpectedCode 0 -WorkDir $rootDir -ScriptPath (Join-Path $scriptsDir "agent.ps1") -Arguments @("request", "-Help")
   Invoke-ExpectExitCode -Label "run_agent_preflight --Help" -ExpectedCode 0 -WorkDir $rootDir -ScriptPath (Join-Path $scriptsDir "internal/agent/run_agent_preflight.ps1") -Arguments @("-Help")

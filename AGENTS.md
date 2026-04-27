@@ -54,7 +54,7 @@ validation expectations for `C:\dev\sempal`.
 - On Windows, do not run the Bash workflow scripts. Use only the PowerShell wrappers (`scripts/*.ps1`) for preflight/CI/devcheck unless the user explicitly overrides this.
 - After code changes: commit and push
 - In constrained agent environments, do not push unless `ci_agent` is green; report whether `ci_quick` or `ci_local` still need a user-run confirmation pass
-- Run full CI in the platform wrapper before pushing broader validation/tooling/perf/dependency changes or when you need full CI parity (`ci_local.ps1` on Windows, `ci_local.sh` elsewhere)
+- Run full CI in the platform wrapper before pushing broader validation/tooling/perf/dependency changes or when you need full CI parity (`scripts/ci.ps1 local` on Windows, `scripts/ci.sh local` elsewhere)
 
 ## Golden Commands
 - Bootstrap:

@@ -139,6 +139,6 @@ When ownership boundaries change, update both:
 - `.github/CODEOWNERS`
 - the relevant architecture notes in this file
 
-Guardrail scripts in `scripts/check_*.{sh,ps1}` enforce several of these
-boundaries. When one fires, fix the ownership violation before considering an
-allowlist.
+Guardrails run through `scripts/check.{sh,ps1}` subcommands backed by
+`scripts/internal/check/`. When one fires, fix the ownership violation before
+considering an allowlist.
