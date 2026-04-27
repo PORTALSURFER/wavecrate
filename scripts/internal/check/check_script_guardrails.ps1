@@ -193,6 +193,14 @@ function Assert-TextNotContains {
   Add-Failure "$Label (unexpected fragment: $Fragment)"
 }
 
+function Assert-AgentCiCheckDirectory {
+  param([string]$Path)
+
+  $text = Get-Content -Path $Path -Raw
+  Assert-TextContains -Label "agent ci PowerShell uses canonical internal check directory" -Text $text -Fragment '"scripts/internal/check"'
+  Assert-TextNotContains -Label "agent ci PowerShell does not use stale scripts/check directory" -Text $text -Fragment '"scripts/check"'
+}
+
 Push-Location $rootDir
 try {
   $scriptsToParse = @(
@@ -215,6 +223,8 @@ try {
   foreach ($scriptPath in $scriptsToParse) {
     Assert-ScriptParses -Path $scriptPath
   }
+
+  Assert-AgentCiCheckDirectory -Path (Join-Path $scriptsDir "internal/agent/run_agent_ci_checks.ps1")
 
   Invoke-ExpectExitCode -Label "agent request --Help" -ExpectedCode 0 -WorkDir $rootDir -ScriptPath (Join-Path $scriptsDir "agent.ps1") -Arguments @("request", "-Help")
   Invoke-ExpectExitCode -Label "run_agent_preflight --Help" -ExpectedCode 0 -WorkDir $rootDir -ScriptPath (Join-Path $scriptsDir "internal/agent/run_agent_preflight.ps1") -Arguments @("-Help")

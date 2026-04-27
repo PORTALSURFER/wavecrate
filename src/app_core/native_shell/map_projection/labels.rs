@@ -1,5 +1,5 @@
 use super::*;
-use crate::app::state::MapSimilarityPrepStatus;
+use crate::app_core::app_api::state::MapSimilarityPrepStatus;
 use std::{path::Path, sync::Arc};
 
 /// Resolve the projected native-shell render mode and its label.

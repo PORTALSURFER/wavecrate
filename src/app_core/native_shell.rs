@@ -28,6 +28,7 @@ use crate::app_core::actions::{
     NativeWaveformChromeModel as WaveformChromeModel,
     NativeWaveformPanelModel as WaveformPanelModel,
 };
+use crate::app_core::app_api::controller::supports_wav_destructive_edits;
 use crate::app_core::app_api::state::DragPayload;
 use crate::app_core::app_api::state::FocusContext;
 use crate::app_core::app_api::state::UiPoint;
@@ -286,8 +287,8 @@ pub(crate) fn project_browser_actions_model(ui: &UiState) -> BrowserActionsModel
         .selection
         .last_focused_path
         .as_ref());
-    let can_apply_wav_destructive_edit = focused_path
-        .is_some_and(|path| crate::app::controller::supports_wav_destructive_edits(path));
+    let can_apply_wav_destructive_edit =
+        focused_path.is_some_and(|path| supports_wav_destructive_edits(path));
     BrowserActionsModel {
         can_rename: has_focus,
         can_delete: has_selection,

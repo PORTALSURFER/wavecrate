@@ -24,7 +24,7 @@ if ($Help) {
 }
 
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
-$checkDir = Join-Path $rootDir "scripts/check"
+$checkDir = Join-Path $rootDir "scripts/internal/check"
 
 $psRunner = Get-Command pwsh -ErrorAction SilentlyContinue
 if ($null -eq $psRunner) {

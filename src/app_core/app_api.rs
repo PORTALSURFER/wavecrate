@@ -19,6 +19,8 @@ pub(crate) mod controller {
     pub(crate) use crate::app::controller::UmapPointQuery;
     /// Legacy GUI fixture builder used by migration-facing controller tests.
     pub(crate) use crate::app::controller::build_named_gui_fixture_controller;
+    /// Legacy browser edit support predicate used by native-shell projections.
+    pub(crate) use crate::app::controller::supports_wav_destructive_edits;
 }
 
 /// Legacy controller-internal state types needed by migration glue.
