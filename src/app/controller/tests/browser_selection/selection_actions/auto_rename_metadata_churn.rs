@@ -1,0 +1,249 @@
+use super::*;
+#[test]
+fn multi_step_auto_rename_stays_stable_under_metadata_and_maintenance_churn() {
+    let (mut controller, source) = dummy_controller();
+    controller.settings.default_identifier = String::from("Artist Name");
+    controller.ui.options_panel.default_identifier = String::from("Artist Name");
+    controller.library.sources.push(source.clone());
+    controller.select_source_by_index(0);
+    controller.cache_db(&source).unwrap();
+
+    let mut kick = sample_entry("raw_kick.wav", crate::sample_sources::Rating::NEUTRAL);
+    kick.sound_type = Some(crate::sample_sources::SampleSoundType::Kick);
+    let mut snare = sample_entry("raw_snare.wav", crate::sample_sources::Rating::NEUTRAL);
+    snare.sound_type = Some(crate::sample_sources::SampleSoundType::Snare);
+    let hat = sample_entry("raw_hat.wav", crate::sample_sources::Rating::NEUTRAL);
+    let entries = vec![kick, snare, hat];
+    for entry in &entries {
+        write_test_wav(&source.root.join(&entry.relative_path), &[0.0]);
+        register_entry_metadata(&mut controller, &source, entry);
+    }
+    controller.set_wav_entries_for_tests(entries);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+
+    controller.focus_browser_row_only(0);
+    controller.toggle_browser_row_selection(1);
+    controller.auto_rename_browser_selection_action(Some(0));
+
+    assert_eq!(
+        controller.ui.status.text,
+        "Auto Rename: renamed 2, skipped 0, failed 0"
+    );
+    assert_eq!(
+        controller.ui.status.status_tone,
+        crate::app::state::StatusTone::Info
+    );
+    assert!(source.root.join("artistname_SS_kick.wav").exists());
+    assert!(source.root.join("artistname_SS_snare.wav").exists());
+    assert_eq!(
+        controller.ui.browser.selection.selected_paths,
+        vec![
+            PathBuf::from("artistname_SS_kick.wav"),
+            PathBuf::from("artistname_SS_snare.wav")
+        ]
+    );
+    assert_eq!(controller.wav_entries.total, 3);
+
+    controller.set_browser_selected_paths(Vec::new());
+    controller.focus_browser_row_only(2);
+    controller
+        .apply_browser_tag_sidebar_user_tag(Some(String::from("Vintage FX")))
+        .expect("custom tag should apply");
+    controller
+        .apply_browser_tag_sidebar_sound_type(Some(crate::sample_sources::SampleSoundType::Hat))
+        .expect("sound type should apply");
+    controller
+        .apply_browser_tag_sidebar_looped(true)
+        .expect("loop tag should apply");
+    controller
+        .runtime
+        .source_lane
+        .mutations
+        .insert_metadata_mutation(
+            crate::app::controller::state::runtime::PendingMetadataMutation {
+                request_id: 99,
+                source_id: source.id.clone(),
+                paths: [PathBuf::from("raw_hat.wav")].into_iter().collect(),
+                blocks_file_mutation: false,
+                rollback: Vec::new(),
+                refresh_browser_projection: false,
+            },
+        );
+
+    controller
+        .runtime
+        .source_lane
+        .mutations
+        .begin_browser_rename_intent(
+            crate::app::controller::state::runtime::BrowserRenameIntentKey::new(
+                source.id.clone(),
+                vec![(
+                    PathBuf::from("raw_hat.wav"),
+                    PathBuf::from("artistname_loop_hat_vintagefx.wav"),
+                )],
+            ),
+        );
+    let (_file_op_tx, file_op_rx) =
+        std::sync::mpsc::channel::<crate::app::controller::jobs::FileOpMessage>();
+    controller.runtime.jobs.start_file_ops(
+        file_op_rx,
+        std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+    );
+    controller
+        .runtime
+        .deferred_startup_source_db_maintenance_jobs =
+        vec![crate::app::controller::jobs::SourceDbMaintenanceJob {
+            source_id: source.id.clone(),
+            source_root: source.root.clone(),
+        }];
+    controller
+        .runtime
+        .deferred_startup_source_db_maintenance_armed = true;
+    controller.runtime.startup_frame_prepare_count = 1;
+    controller.begin_pending_file_mutation(&source.id, [PathBuf::from("raw_hat.wav")]);
+    controller.flush_deferred_startup_source_db_maintenance();
+
+    assert!(controller.has_pending_startup_source_db_maintenance());
+    controller.auto_rename_browser_selection_action(Some(2));
+    controller.auto_rename_browser_selection_action(Some(2));
+    assert_eq!(
+        controller.ui.status.text,
+        "Auto rename already in progress..."
+    );
+    assert!(source.root.join("raw_hat.wav").exists());
+    assert!(
+        !source
+            .root
+            .join("artistname_loop_hat_vintagefx.wav")
+            .exists()
+    );
+
+    controller.runtime.jobs.clear_file_ops();
+    let _ = controller
+        .runtime
+        .source_lane
+        .mutations
+        .finish_browser_rename_intent();
+    controller.finish_pending_file_mutation(&source.id, [PathBuf::from("raw_hat.wav")]);
+    controller.flush_deferred_startup_source_db_maintenance();
+    assert!(!controller.has_pending_startup_source_db_maintenance());
+    controller.set_browser_selected_paths(Vec::new());
+
+    let (lock_release_tx, lock_done_rx) = lock_source_db_until_released(&source.root);
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(80));
+        release_source_db_lock(lock_release_tx, lock_done_rx);
+    });
+    controller.auto_rename_browser_selection_action(Some(2));
+
+    let final_hat = PathBuf::from("artistname_loop_hat_vintagefx.wav");
+    assert_eq!(
+        controller.ui.status.text,
+        "Auto Rename: renamed 1, skipped 0, failed 0"
+    );
+    assert_eq!(
+        controller.ui.status.status_tone,
+        crate::app::state::StatusTone::Info
+    );
+    assert!(!source.root.join("raw_hat.wav").exists());
+    assert!(source.root.join(&final_hat).exists());
+    assert_eq!(
+        controller.sample_view.wav.selected_wav.as_deref(),
+        Some(final_hat.as_path())
+    );
+    assert!(controller.ui.browser.selection.selected_paths.is_empty());
+    assert_eq!(controller.wav_entries.total, 3);
+
+    controller.apply_background_job_message_for_tests(
+        crate::app::controller::jobs::JobMessage::SourceDbMaintenanceFinished(
+            crate::app::controller::jobs::SourceDbMaintenanceResult {
+                outcomes: vec![crate::app::controller::jobs::SourceDbMaintenanceOutcome {
+                    source_id: source.id.clone(),
+                    source_root: source.root.clone(),
+                    skipped: false,
+                    deferred_due_to_file_op: true,
+                    orphan_rows_removed: 0,
+                    refresh:
+                        crate::app::controller::jobs::SourceDbMaintenanceRefresh::FileOpReconcile,
+                    error: None,
+                }],
+            },
+        ),
+    );
+    assert_eq!(controller.wav_entries.total, 3);
+    assert_eq!(
+        controller.sample_view.wav.selected_wav.as_deref(),
+        Some(final_hat.as_path())
+    );
+
+    controller.apply_background_job_message_for_tests(
+        crate::app::controller::jobs::JobMessage::MetadataMutationFinished(
+            crate::app::controller::jobs::MetadataMutationResult {
+                request_id: 99,
+                source_id: source.id.clone(),
+                paths: [PathBuf::from("raw_hat.wav")].into_iter().collect(),
+                elapsed: std::time::Duration::from_millis(5),
+                result: Err(String::from(
+                    "Failed to start analysis metadata transaction: database is locked",
+                )),
+            },
+        ),
+    );
+    assert_eq!(
+        controller.ui.status.text,
+        "Auto Rename: renamed 1, skipped 0, failed 0"
+    );
+    assert_eq!(
+        controller.ui.status.status_tone,
+        crate::app::state::StatusTone::Info
+    );
+}
+
+fn register_entry_metadata(
+    controller: &mut AppController,
+    source: &SampleSource,
+    entry: &crate::sample_sources::WavEntry,
+) {
+    let metadata = std::fs::metadata(source.root.join(&entry.relative_path)).unwrap();
+    let db = controller.database_for(source).unwrap();
+    db.upsert_file(&entry.relative_path, metadata.len(), 0)
+        .unwrap();
+    db.set_tag(&entry.relative_path, entry.tag).unwrap();
+    db.set_looped(&entry.relative_path, entry.looped).unwrap();
+    db.set_locked(&entry.relative_path, entry.locked).unwrap();
+    db.set_sound_type(&entry.relative_path, entry.sound_type)
+        .unwrap();
+    db.set_user_tag(&entry.relative_path, entry.user_tag.as_deref())
+        .unwrap();
+}
+
+fn lock_source_db_until_released(
+    source_root: &Path,
+) -> (std::sync::mpsc::Sender<()>, std::sync::mpsc::Receiver<()>) {
+    let (lock_release_tx, lock_release_rx) = std::sync::mpsc::channel();
+    let (lock_done_tx, lock_done_rx) = std::sync::mpsc::channel();
+    let (locked_tx, locked_rx) = std::sync::mpsc::channel();
+    let db_file = source_root.join(crate::sample_sources::db::DB_FILE_NAME);
+    std::thread::spawn(move || {
+        let conn = rusqlite::Connection::open(db_file).expect("open sqlite lock connection");
+        conn.execute_batch("BEGIN IMMEDIATE")
+            .expect("start immediate transaction");
+        let _ = locked_tx.send(());
+        let _ = lock_release_rx.recv();
+        let _ = conn.execute_batch("COMMIT");
+        let _ = lock_done_tx.send(());
+    });
+    locked_rx.recv().expect("wait for sqlite lock");
+    (lock_release_tx, lock_done_rx)
+}
+
+fn release_source_db_lock(
+    lock_release_tx: std::sync::mpsc::Sender<()>,
+    lock_done_rx: std::sync::mpsc::Receiver<()>,
+) {
+    let _ = lock_release_tx.send(());
+    lock_done_rx
+        .recv_timeout(std::time::Duration::from_secs(1))
+        .expect("wait for sqlite lock release");
+}
