@@ -5,7 +5,6 @@ use super::*;
 #[path = "browser.rs"]
 mod browser;
 mod focus;
-#[path = "../../../../../../../vendor/radiant/src/gui/native_shell/state/frame_build/overlay/waveform.rs"]
 mod waveform;
 
 use self::{
