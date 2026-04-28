@@ -109,28 +109,52 @@ pub(crate) fn decode_queue_target(embedding_batch_max: usize, worker_count: usiz
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, MutexGuard};
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn claim_batch_size_respects_env_override() {
-        unsafe {
-            std::env::set_var("SEMPAL_ANALYSIS_CLAIM_BATCH", "7");
-        }
+        let _env = ClaimBatchEnv::set("7");
         let value = claim_batch_size();
-        unsafe {
-            std::env::remove_var("SEMPAL_ANALYSIS_CLAIM_BATCH");
-        }
         assert_eq!(value, 7);
     }
 
     #[test]
     fn claim_batch_size_defaults_when_invalid() {
-        unsafe {
-            std::env::set_var("SEMPAL_ANALYSIS_CLAIM_BATCH", "0");
-        }
+        let _env = ClaimBatchEnv::set("0");
         let value = claim_batch_size();
-        unsafe {
-            std::env::remove_var("SEMPAL_ANALYSIS_CLAIM_BATCH");
-        }
         assert_eq!(value, 64);
+    }
+
+    struct ClaimBatchEnv {
+        _guard: MutexGuard<'static, ()>,
+        previous: Option<String>,
+    }
+
+    impl ClaimBatchEnv {
+        fn set(value: &str) -> Self {
+            let guard = ENV_LOCK.lock().expect("claim batch env lock poisoned");
+            let previous = std::env::var("SEMPAL_ANALYSIS_CLAIM_BATCH").ok();
+            unsafe {
+                std::env::set_var("SEMPAL_ANALYSIS_CLAIM_BATCH", value);
+            }
+            Self {
+                _guard: guard,
+                previous,
+            }
+        }
+    }
+
+    impl Drop for ClaimBatchEnv {
+        fn drop(&mut self) {
+            unsafe {
+                if let Some(previous) = self.previous.as_ref() {
+                    std::env::set_var("SEMPAL_ANALYSIS_CLAIM_BATCH", previous);
+                } else {
+                    std::env::remove_var("SEMPAL_ANALYSIS_CLAIM_BATCH");
+                }
+            }
+        }
     }
 }
