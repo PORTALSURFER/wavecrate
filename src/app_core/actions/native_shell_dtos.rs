@@ -7,11 +7,12 @@
 //! Sempal projection types.
 
 use radiant::compat::sempal_shell as compat;
+use radiant::gui::types::ImageRgba;
+use std::sync::Arc;
 
 use super::{
     NativeBrowserActionsModel, NativeBrowserChromeModel, NativeBrowserPanelModel,
     NativeColumnModel, NativeFocusContextModel, NativeMapPanelModel, NativeSourcesPanelModel,
-    NativeWaveformChromeModel, NativeWaveformPanelModel,
 };
 
 /// Structured footer status content for left/center/right status segments.
@@ -260,6 +261,273 @@ pub struct DragOverlayModel {
     pub pointer_y: Option<u16>,
 }
 
+/// Normalized waveform range with deterministic milli, micro, and nano projections.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct NormalizedRangeModel {
+    /// Start position in normalized milli-units.
+    pub start_milli: u16,
+    /// End position in normalized milli-units.
+    pub end_milli: u16,
+    /// Start position in normalized micro-units (`0..=1_000_000`).
+    pub start_micros: u32,
+    /// End position in normalized micro-units (`0..=1_000_000`).
+    pub end_micros: u32,
+    /// Start position in normalized nanounits (`0..=1_000_000_000`).
+    pub start_nanos: u32,
+    /// End position in normalized nanounits (`0..=1_000_000_000`).
+    pub end_nanos: u32,
+}
+
+impl NormalizedRangeModel {
+    /// Build a normalized range, clamping bounds to `0..=1000` and ordering them.
+    pub fn new(start_milli: u16, end_milli: u16) -> Self {
+        Self::from_micros(
+            u32::from(start_milli.min(1000)) * 1000,
+            u32::from(end_milli.min(1000)) * 1000,
+        )
+    }
+
+    /// Build a normalized range from micro precision while preserving ordered milli mirrors.
+    pub fn from_micros(start_micros: u32, end_micros: u32) -> Self {
+        Self::from_nanos(
+            start_micros.min(1_000_000).saturating_mul(1000),
+            end_micros.min(1_000_000).saturating_mul(1000),
+        )
+    }
+
+    /// Build a normalized range from nano precision while preserving ordered mirrors.
+    pub fn from_nanos(start_nanos: u32, end_nanos: u32) -> Self {
+        let start = start_nanos.min(1_000_000_000);
+        let end = end_nanos.min(1_000_000_000);
+        let ordered_start = start.min(end);
+        let ordered_end = end.max(start);
+        Self {
+            start_milli: nanos_to_milli(ordered_start),
+            end_milli: nanos_to_milli(ordered_end),
+            start_micros: nanos_to_micros(ordered_start),
+            end_micros: nanos_to_micros(ordered_end),
+            start_nanos: ordered_start,
+            end_nanos: ordered_end,
+        }
+    }
+}
+
+/// One detected waveform slice preview exposed to the native shell.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WaveformSlicePreviewModel {
+    /// Detected slice range in normalized milli, micro, and nano precision.
+    pub range: NormalizedRangeModel,
+    /// Whether this slice is currently selected for slice-edit operations.
+    pub selected: bool,
+    /// Whether this slice is focused for keyboard review audition.
+    pub focused: bool,
+    /// Whether this slice is marked for export.
+    pub marked_for_export: bool,
+    /// Whether this slice belongs to a duplicate-cleanup preview batch.
+    pub duplicate_cleanup_candidate: bool,
+    /// Whether this duplicate preview is currently exempted from cleanup.
+    pub duplicate_cleanup_exempted: bool,
+}
+
+/// Waveform preview metadata consumed by the native shell.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WaveformPanelModel {
+    /// Display label for the loaded sample, when any.
+    pub loaded_label: Option<String>,
+    /// Whether a newly focused sample is still loading waveform data.
+    pub loading: bool,
+    /// Whether a replacement waveform image is still rendering in the background.
+    pub image_rendering: bool,
+    /// Cursor position in normalized milli-units.
+    pub cursor_milli: Option<u16>,
+    /// Playhead position in normalized milli-units.
+    pub playhead_milli: Option<u16>,
+    /// Playhead position in normalized micro-units (`0..=1_000_000`).
+    pub playhead_micros: Option<u32>,
+    /// Current waveform selection bounds.
+    pub selection_milli: Option<NormalizedRangeModel>,
+    /// Preview slices detected from silence-splitting the loaded waveform.
+    pub slices: Vec<WaveformSlicePreviewModel>,
+    /// One-shot token incremented when a waveform-selection export is queued.
+    pub selection_export_flash_nonce: u64,
+    /// One-shot token incremented when a queued waveform-selection export fails.
+    pub selection_export_failure_flash_nonce: u64,
+    /// One-shot token incremented when preview edit fades are committed.
+    pub edit_selection_apply_flash_nonce: u64,
+    /// Current waveform edit-selection bounds.
+    pub edit_selection_milli: Option<NormalizedRangeModel>,
+    /// End position for the edit fade-in region in normalized milli-units.
+    pub edit_fade_in_end_milli: Option<u16>,
+    /// End position for the edit fade-in region in normalized micro-units.
+    pub edit_fade_in_end_micros: Option<u32>,
+    /// Start position for the edit fade-in mute region in normalized milli-units.
+    pub edit_fade_in_mute_start_milli: Option<u16>,
+    /// Start position for the edit fade-in mute region in normalized micro-units.
+    pub edit_fade_in_mute_start_micros: Option<u32>,
+    /// Fade-in curve tension in normalized milli-units (`0..=1000`).
+    pub edit_fade_in_curve_milli: Option<u16>,
+    /// Start position for the edit fade-out region in normalized milli-units.
+    pub edit_fade_out_start_milli: Option<u16>,
+    /// Start position for the edit fade-out region in normalized micro-units.
+    pub edit_fade_out_start_micros: Option<u32>,
+    /// End position for the edit fade-out mute region in normalized milli-units.
+    pub edit_fade_out_mute_end_milli: Option<u16>,
+    /// End position for the edit fade-out mute region in normalized micro-units.
+    pub edit_fade_out_mute_end_micros: Option<u32>,
+    /// Fade-out curve tension in normalized milli-units (`0..=1000`).
+    pub edit_fade_out_curve_milli: Option<u16>,
+    /// Visible view start in normalized milli-units.
+    pub view_start_milli: u16,
+    /// Visible view end in normalized milli-units.
+    pub view_end_milli: u16,
+    /// Visible view start in normalized micro-units (`0..=1_000_000`).
+    pub view_start_micros: u32,
+    /// Visible view end in normalized micro-units (`0..=1_000_000`).
+    pub view_end_micros: u32,
+    /// Visible view start in normalized nanounits (`0..=1_000_000_000`).
+    pub view_start_nanos: u32,
+    /// Visible view end in normalized nanounits (`0..=1_000_000_000`).
+    pub view_end_nanos: u32,
+    /// Quarter-note beat spacing in normalized micro-units when BPM/grid data is available.
+    pub beat_step_micros: Option<u32>,
+    /// BPM grid origin in normalized micro-units.
+    pub bpm_grid_origin_micros: u32,
+    /// Whether loop playback is enabled.
+    pub loop_enabled: bool,
+    /// Optional tempo label rendered in waveform metadata.
+    pub tempo_label: Option<String>,
+    /// Optional zoom label rendered in waveform metadata.
+    pub zoom_label: Option<String>,
+    /// Cached signature for waveform image updates.
+    pub waveform_image_signature: Option<u64>,
+    /// Optional rasterized waveform payload for rendering the waveform preview.
+    pub waveform_image: Option<Arc<ImageRgba>>,
+}
+
+impl Default for WaveformPanelModel {
+    fn default() -> Self {
+        Self {
+            loaded_label: None,
+            loading: false,
+            image_rendering: false,
+            cursor_milli: None,
+            playhead_milli: None,
+            playhead_micros: None,
+            selection_milli: None,
+            slices: Vec::new(),
+            selection_export_flash_nonce: 0,
+            selection_export_failure_flash_nonce: 0,
+            edit_selection_apply_flash_nonce: 0,
+            edit_selection_milli: None,
+            edit_fade_in_end_milli: None,
+            edit_fade_in_end_micros: None,
+            edit_fade_in_mute_start_milli: None,
+            edit_fade_in_mute_start_micros: None,
+            edit_fade_in_curve_milli: None,
+            edit_fade_out_start_milli: None,
+            edit_fade_out_start_micros: None,
+            edit_fade_out_mute_end_milli: None,
+            edit_fade_out_mute_end_micros: None,
+            edit_fade_out_curve_milli: None,
+            view_start_milli: 0,
+            view_end_milli: 1000,
+            view_start_micros: 0,
+            view_end_micros: 1_000_000,
+            view_start_nanos: 0,
+            view_end_nanos: 1_000_000_000,
+            beat_step_micros: None,
+            bpm_grid_origin_micros: 0,
+            loop_enabled: false,
+            tempo_label: None,
+            zoom_label: None,
+            waveform_image_signature: None,
+            waveform_image: None,
+        }
+    }
+}
+
+/// Waveform channel-view mode used by waveform rendering.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WaveformChannelViewModel {
+    /// Collapse channels into one mono envelope.
+    Mono,
+    /// Render left/right channels in split stereo mode.
+    Stereo,
+}
+
+/// Waveform chrome copy used by metadata lines and control surfaces.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WaveformChromeModel {
+    /// Extra transport metadata hint shown alongside waveform labels.
+    pub transport_hint: String,
+    /// Whether compare-anchor replay is currently available.
+    pub compare_anchor_available: bool,
+    /// Label for the stored compare anchor, when available.
+    pub compare_anchor_label: Option<String>,
+    /// Whether loop state is locked against sample-driven auto-updates.
+    pub loop_lock_enabled: bool,
+    /// Current channel-view mode used by waveform rendering.
+    pub channel_view: WaveformChannelViewModel,
+    /// Whether normalized audition playback is enabled.
+    pub normalized_audition_enabled: bool,
+    /// Whether BPM snapping is enabled for waveform edits.
+    pub bpm_snap_enabled: bool,
+    /// Whether playback BPM grids and snapping use selection-relative anchors.
+    pub relative_bpm_grid_enabled: bool,
+    /// Whether transient snapping is enabled for waveform edits.
+    pub transient_snap_enabled: bool,
+    /// Whether transient markers are visible on the waveform.
+    pub transient_markers_enabled: bool,
+    /// Whether slice mode is currently active.
+    pub slice_mode_enabled: bool,
+    /// Whether the current slice batch is an exact-duplicate cleanup preview.
+    pub exact_duplicate_cleanup_available: bool,
+}
+
+impl Default for WaveformChromeModel {
+    fn default() -> Self {
+        Self {
+            transport_hint: String::from("transport idle"),
+            compare_anchor_available: false,
+            compare_anchor_label: None,
+            loop_lock_enabled: false,
+            channel_view: WaveformChannelViewModel::Mono,
+            normalized_audition_enabled: false,
+            bpm_snap_enabled: false,
+            relative_bpm_grid_enabled: false,
+            transient_snap_enabled: false,
+            transient_markers_enabled: true,
+            slice_mode_enabled: false,
+            exact_duplicate_cleanup_available: false,
+        }
+    }
+}
+
+/// Extract the numeric BPM portion from one projected tempo label.
+pub fn parse_waveform_tempo_number_text(label: &str) -> Option<String> {
+    let number = label.split_ascii_whitespace().next()?.trim();
+    if number.is_empty() {
+        return None;
+    }
+    let parsed = number.parse::<f32>().ok()?;
+    if !parsed.is_finite() || parsed <= 0.0 {
+        return None;
+    }
+    Some(number.to_string())
+}
+
+fn micros_to_milli(value_micros: u32) -> u16 {
+    ((value_micros.min(1_000_000) + 500) / 1000) as u16
+}
+
+fn nanos_to_micros(value_nanos: u32) -> u32 {
+    ((value_nanos.min(1_000_000_000) + 500) / 1000).min(1_000_000)
+}
+
+fn nanos_to_milli(value_nanos: u32) -> u16 {
+    micros_to_milli(nanos_to_micros(value_nanos))
+}
+
 /// Snapshot of Sempal state required by the native shell renderer.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AppModel {
@@ -302,9 +570,9 @@ pub struct AppModel {
     /// Map panel summary consumed by the native renderer.
     pub map: NativeMapPanelModel,
     /// Waveform panel summary consumed by the native renderer.
-    pub waveform: NativeWaveformPanelModel,
+    pub waveform: WaveformPanelModel,
     /// Waveform chrome labels consumed by the native waveform header.
-    pub waveform_chrome: NativeWaveformChromeModel,
+    pub waveform_chrome: WaveformChromeModel,
     /// Update surface summary consumed by the native top bar.
     pub update: UpdatePanelModel,
     /// Current keyboard focus bucket used for contextual native key routing.
@@ -781,6 +1049,210 @@ impl From<&DragOverlayModel> for compat::DragOverlayModel {
     }
 }
 
+impl From<compat::NormalizedRangeModel> for NormalizedRangeModel {
+    fn from(value: compat::NormalizedRangeModel) -> Self {
+        Self {
+            start_milli: value.start_milli,
+            end_milli: value.end_milli,
+            start_micros: value.start_micros,
+            end_micros: value.end_micros,
+            start_nanos: value.start_nanos,
+            end_nanos: value.end_nanos,
+        }
+    }
+}
+
+impl From<NormalizedRangeModel> for compat::NormalizedRangeModel {
+    fn from(value: NormalizedRangeModel) -> Self {
+        Self {
+            start_milli: value.start_milli,
+            end_milli: value.end_milli,
+            start_micros: value.start_micros,
+            end_micros: value.end_micros,
+            start_nanos: value.start_nanos,
+            end_nanos: value.end_nanos,
+        }
+    }
+}
+
+impl From<compat::WaveformSlicePreviewModel> for WaveformSlicePreviewModel {
+    fn from(value: compat::WaveformSlicePreviewModel) -> Self {
+        Self {
+            range: value.range.into(),
+            selected: value.selected,
+            focused: value.focused,
+            marked_for_export: value.marked_for_export,
+            duplicate_cleanup_candidate: value.duplicate_cleanup_candidate,
+            duplicate_cleanup_exempted: value.duplicate_cleanup_exempted,
+        }
+    }
+}
+
+impl From<WaveformSlicePreviewModel> for compat::WaveformSlicePreviewModel {
+    fn from(value: WaveformSlicePreviewModel) -> Self {
+        Self {
+            range: value.range.into(),
+            selected: value.selected,
+            focused: value.focused,
+            marked_for_export: value.marked_for_export,
+            duplicate_cleanup_candidate: value.duplicate_cleanup_candidate,
+            duplicate_cleanup_exempted: value.duplicate_cleanup_exempted,
+        }
+    }
+}
+
+impl From<compat::WaveformPanelModel> for WaveformPanelModel {
+    fn from(value: compat::WaveformPanelModel) -> Self {
+        Self {
+            loaded_label: value.loaded_label,
+            loading: value.loading,
+            image_rendering: value.image_rendering,
+            cursor_milli: value.cursor_milli,
+            playhead_milli: value.playhead_milli,
+            playhead_micros: value.playhead_micros,
+            selection_milli: value.selection_milli.map(Into::into),
+            slices: value.slices.into_iter().map(Into::into).collect(),
+            selection_export_flash_nonce: value.selection_export_flash_nonce,
+            selection_export_failure_flash_nonce: value.selection_export_failure_flash_nonce,
+            edit_selection_apply_flash_nonce: value.edit_selection_apply_flash_nonce,
+            edit_selection_milli: value.edit_selection_milli.map(Into::into),
+            edit_fade_in_end_milli: value.edit_fade_in_end_milli,
+            edit_fade_in_end_micros: value.edit_fade_in_end_micros,
+            edit_fade_in_mute_start_milli: value.edit_fade_in_mute_start_milli,
+            edit_fade_in_mute_start_micros: value.edit_fade_in_mute_start_micros,
+            edit_fade_in_curve_milli: value.edit_fade_in_curve_milli,
+            edit_fade_out_start_milli: value.edit_fade_out_start_milli,
+            edit_fade_out_start_micros: value.edit_fade_out_start_micros,
+            edit_fade_out_mute_end_milli: value.edit_fade_out_mute_end_milli,
+            edit_fade_out_mute_end_micros: value.edit_fade_out_mute_end_micros,
+            edit_fade_out_curve_milli: value.edit_fade_out_curve_milli,
+            view_start_milli: value.view_start_milli,
+            view_end_milli: value.view_end_milli,
+            view_start_micros: value.view_start_micros,
+            view_end_micros: value.view_end_micros,
+            view_start_nanos: value.view_start_nanos,
+            view_end_nanos: value.view_end_nanos,
+            beat_step_micros: value.beat_step_micros,
+            bpm_grid_origin_micros: value.bpm_grid_origin_micros,
+            loop_enabled: value.loop_enabled,
+            tempo_label: value.tempo_label,
+            zoom_label: value.zoom_label,
+            waveform_image_signature: value.waveform_image_signature,
+            waveform_image: value.waveform_image,
+        }
+    }
+}
+
+impl From<WaveformPanelModel> for compat::WaveformPanelModel {
+    fn from(value: WaveformPanelModel) -> Self {
+        Self {
+            loaded_label: value.loaded_label,
+            loading: value.loading,
+            image_rendering: value.image_rendering,
+            cursor_milli: value.cursor_milli,
+            playhead_milli: value.playhead_milli,
+            playhead_micros: value.playhead_micros,
+            selection_milli: value.selection_milli.map(Into::into),
+            slices: value.slices.into_iter().map(Into::into).collect(),
+            selection_export_flash_nonce: value.selection_export_flash_nonce,
+            selection_export_failure_flash_nonce: value.selection_export_failure_flash_nonce,
+            edit_selection_apply_flash_nonce: value.edit_selection_apply_flash_nonce,
+            edit_selection_milli: value.edit_selection_milli.map(Into::into),
+            edit_fade_in_end_milli: value.edit_fade_in_end_milli,
+            edit_fade_in_end_micros: value.edit_fade_in_end_micros,
+            edit_fade_in_mute_start_milli: value.edit_fade_in_mute_start_milli,
+            edit_fade_in_mute_start_micros: value.edit_fade_in_mute_start_micros,
+            edit_fade_in_curve_milli: value.edit_fade_in_curve_milli,
+            edit_fade_out_start_milli: value.edit_fade_out_start_milli,
+            edit_fade_out_start_micros: value.edit_fade_out_start_micros,
+            edit_fade_out_mute_end_milli: value.edit_fade_out_mute_end_milli,
+            edit_fade_out_mute_end_micros: value.edit_fade_out_mute_end_micros,
+            edit_fade_out_curve_milli: value.edit_fade_out_curve_milli,
+            view_start_milli: value.view_start_milli,
+            view_end_milli: value.view_end_milli,
+            view_start_micros: value.view_start_micros,
+            view_end_micros: value.view_end_micros,
+            view_start_nanos: value.view_start_nanos,
+            view_end_nanos: value.view_end_nanos,
+            beat_step_micros: value.beat_step_micros,
+            bpm_grid_origin_micros: value.bpm_grid_origin_micros,
+            loop_enabled: value.loop_enabled,
+            tempo_label: value.tempo_label,
+            zoom_label: value.zoom_label,
+            waveform_image_signature: value.waveform_image_signature,
+            waveform_image: value.waveform_image,
+        }
+    }
+}
+
+impl From<&WaveformPanelModel> for compat::WaveformPanelModel {
+    fn from(value: &WaveformPanelModel) -> Self {
+        value.clone().into()
+    }
+}
+
+impl From<compat::WaveformChannelViewModel> for WaveformChannelViewModel {
+    fn from(value: compat::WaveformChannelViewModel) -> Self {
+        match value {
+            compat::WaveformChannelViewModel::Mono => Self::Mono,
+            compat::WaveformChannelViewModel::Stereo => Self::Stereo,
+        }
+    }
+}
+
+impl From<WaveformChannelViewModel> for compat::WaveformChannelViewModel {
+    fn from(value: WaveformChannelViewModel) -> Self {
+        match value {
+            WaveformChannelViewModel::Mono => Self::Mono,
+            WaveformChannelViewModel::Stereo => Self::Stereo,
+        }
+    }
+}
+
+impl From<compat::WaveformChromeModel> for WaveformChromeModel {
+    fn from(value: compat::WaveformChromeModel) -> Self {
+        Self {
+            transport_hint: value.transport_hint,
+            compare_anchor_available: value.compare_anchor_available,
+            compare_anchor_label: value.compare_anchor_label,
+            loop_lock_enabled: value.loop_lock_enabled,
+            channel_view: value.channel_view.into(),
+            normalized_audition_enabled: value.normalized_audition_enabled,
+            bpm_snap_enabled: value.bpm_snap_enabled,
+            relative_bpm_grid_enabled: value.relative_bpm_grid_enabled,
+            transient_snap_enabled: value.transient_snap_enabled,
+            transient_markers_enabled: value.transient_markers_enabled,
+            slice_mode_enabled: value.slice_mode_enabled,
+            exact_duplicate_cleanup_available: value.exact_duplicate_cleanup_available,
+        }
+    }
+}
+
+impl From<WaveformChromeModel> for compat::WaveformChromeModel {
+    fn from(value: WaveformChromeModel) -> Self {
+        Self {
+            transport_hint: value.transport_hint,
+            compare_anchor_available: value.compare_anchor_available,
+            compare_anchor_label: value.compare_anchor_label,
+            loop_lock_enabled: value.loop_lock_enabled,
+            channel_view: value.channel_view.into(),
+            normalized_audition_enabled: value.normalized_audition_enabled,
+            bpm_snap_enabled: value.bpm_snap_enabled,
+            relative_bpm_grid_enabled: value.relative_bpm_grid_enabled,
+            transient_snap_enabled: value.transient_snap_enabled,
+            transient_markers_enabled: value.transient_markers_enabled,
+            slice_mode_enabled: value.slice_mode_enabled,
+            exact_duplicate_cleanup_available: value.exact_duplicate_cleanup_available,
+        }
+    }
+}
+
+impl From<&WaveformChromeModel> for compat::WaveformChromeModel {
+    fn from(value: &WaveformChromeModel) -> Self {
+        value.clone().into()
+    }
+}
+
 impl From<compat::AppModel> for AppModel {
     fn from(value: compat::AppModel) -> Self {
         Self {
@@ -803,8 +1275,8 @@ impl From<compat::AppModel> for AppModel {
             browser: value.browser,
             browser_chrome: value.browser_chrome,
             map: value.map,
-            waveform: value.waveform,
-            waveform_chrome: value.waveform_chrome,
+            waveform: value.waveform.into(),
+            waveform_chrome: value.waveform_chrome.into(),
             update: value.update.into(),
             focus_context: value.focus_context,
         }
@@ -833,8 +1305,8 @@ impl From<AppModel> for compat::AppModel {
             browser: value.browser,
             browser_chrome: value.browser_chrome,
             map: value.map,
-            waveform: value.waveform,
-            waveform_chrome: value.waveform_chrome,
+            waveform: value.waveform.into(),
+            waveform_chrome: value.waveform_chrome.into(),
             update: value.update.into(),
             focus_context: value.focus_context,
         }
@@ -844,5 +1316,35 @@ impl From<AppModel> for compat::AppModel {
 impl From<&AppModel> for compat::AppModel {
     fn from(value: &AppModel) -> Self {
         value.clone().into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{WaveformPanelModel, parse_waveform_tempo_number_text};
+
+    #[test]
+    fn waveform_panel_default_bpm_grid_origin_is_zero() {
+        assert_eq!(WaveformPanelModel::default().bpm_grid_origin_micros, 0);
+    }
+
+    #[test]
+    fn parse_waveform_tempo_number_text_accepts_integer_and_fractional_labels() {
+        assert_eq!(
+            parse_waveform_tempo_number_text("128 BPM"),
+            Some(String::from("128"))
+        );
+        assert_eq!(
+            parse_waveform_tempo_number_text("128.5 BPM"),
+            Some(String::from("128.5"))
+        );
+    }
+
+    #[test]
+    fn parse_waveform_tempo_number_text_rejects_empty_and_invalid_labels() {
+        assert_eq!(parse_waveform_tempo_number_text(""), None);
+        assert_eq!(parse_waveform_tempo_number_text("0 BPM"), None);
+        assert_eq!(parse_waveform_tempo_number_text("-1 BPM"), None);
+        assert_eq!(parse_waveform_tempo_number_text("fast BPM"), None);
     }
 }

@@ -238,7 +238,7 @@ fn waveform_chrome_projection_reflects_loop_hint() {
     assert!(!projected.loop_lock_enabled);
     assert_eq!(
         projected.channel_view,
-        radiant::app::WaveformChannelViewModel::Mono
+        crate::app_core::actions::NativeWaveformChannelViewModel::Mono
     );
     assert!(!projected.normalized_audition_enabled);
     assert!(!projected.bpm_snap_enabled);
@@ -270,7 +270,7 @@ fn waveform_chrome_projection_reflects_loop_hint() {
     assert_eq!(projected.transport_hint, "Loop locked on");
     assert_eq!(
         projected.channel_view,
-        radiant::app::WaveformChannelViewModel::Stereo
+        crate::app_core::actions::NativeWaveformChannelViewModel::Stereo
     );
     assert!(projected.compare_anchor_available);
     assert_eq!(

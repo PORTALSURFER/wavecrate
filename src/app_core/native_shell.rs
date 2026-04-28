@@ -190,8 +190,12 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
                 waveform_projection::normalized_to_micros(selection.start()),
                 waveform_projection::normalized_to_micros(selection.end()),
             )
+            .into()
         }),
-        waveform_slices: waveform_projection::project_waveform_slice_previews(&controller.ui),
+        waveform_slices: waveform_projection::project_waveform_slice_previews(&controller.ui)
+            .into_iter()
+            .map(Into::into)
+            .collect(),
         waveform_selection_export_flash_nonce: controller.ui.waveform.selection_export_flash_nonce,
         waveform_selection_export_failure_flash_nonce: controller
             .ui
@@ -203,7 +207,8 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
             .edit_selection_apply_flash_nonce,
         waveform_edit_selection_milli: waveform_projection::project_waveform_edit_selection_milli(
             &controller.ui,
-        ),
+        )
+        .map(Into::into),
         waveform_edit_fade_in_end_milli: fade_overlay.fade_in_end_milli,
         waveform_edit_fade_in_end_micros: fade_overlay.fade_in_end_micros,
         waveform_edit_fade_in_mute_start_milli: fade_overlay.fade_in_mute_start_milli,
@@ -264,7 +269,8 @@ pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionMode
         waveform_compare_anchor_label: controller.ui.waveform.compare_anchor_label.clone(),
         waveform_channel_view: waveform_projection::project_waveform_channel_view_model(
             controller.ui.waveform.channel_view,
-        ),
+        )
+        .into(),
         waveform_normalized_audition_enabled: controller.ui.waveform.normalized_audition_enabled,
         waveform_bpm_snap_enabled: controller.ui.waveform.bpm_snap_enabled,
         waveform_relative_bpm_grid_enabled: controller.ui.waveform.relative_bpm_grid_enabled,

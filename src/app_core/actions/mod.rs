@@ -126,7 +126,7 @@ pub type NativeMapRenderModeModel = radiant::compat::sempal_shell::MapRenderMode
 pub type NativeOptionsPanelModel = self::native_shell_dtos::OptionsPanelModel;
 
 /// Native runtime normalized range model.
-pub type NativeNormalizedRangeModel = radiant::compat::sempal_shell::NormalizedRangeModel;
+pub type NativeNormalizedRangeModel = self::native_shell_dtos::NormalizedRangeModel;
 
 /// Native runtime progress overlay model.
 pub type NativeProgressOverlayModel = self::native_shell_dtos::ProgressOverlayModel;
@@ -147,10 +147,19 @@ pub type NativeUpdatePanelModel = self::native_shell_dtos::UpdatePanelModel;
 pub type NativeUpdateStatusModel = self::native_shell_dtos::UpdateStatusModel;
 
 /// Native runtime waveform chrome model.
-pub type NativeWaveformChromeModel = radiant::compat::sempal_shell::WaveformChromeModel;
+pub type NativeWaveformChromeModel = self::native_shell_dtos::WaveformChromeModel;
 
 /// Native runtime waveform panel model.
-pub type NativeWaveformPanelModel = radiant::compat::sempal_shell::WaveformPanelModel;
+pub type NativeWaveformPanelModel = self::native_shell_dtos::WaveformPanelModel;
+
+/// Native runtime waveform channel-view model.
+pub type NativeWaveformChannelViewModel = self::native_shell_dtos::WaveformChannelViewModel;
+
+/// Native runtime waveform slice preview model.
+pub type NativeWaveformSlicePreviewModel = self::native_shell_dtos::WaveformSlicePreviewModel;
+
+/// Extract the numeric BPM token from a native waveform tempo label.
+pub use self::native_shell_dtos::parse_waveform_tempo_number_text;
 
 /// Native runtime bridge trait used by host launchers.
 pub use radiant::compat::sempal_shell::NativeAppBridge;

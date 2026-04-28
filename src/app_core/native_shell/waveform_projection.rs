@@ -238,26 +238,28 @@ pub(super) fn project_waveform_edit_selection_milli(ui: &UiState) -> Option<Norm
 /// Project waveform slice previews into the native runtime model.
 pub(super) fn project_waveform_slice_previews(
     ui: &UiState,
-) -> Vec<radiant::app::WaveformSlicePreviewModel> {
+) -> Vec<crate::app_core::actions::NativeWaveformSlicePreviewModel> {
     let duplicate_cleanup = ui.waveform.duplicate_cleanup.as_ref();
     ui.waveform
         .slices
         .iter()
         .enumerate()
-        .map(|(index, slice)| radiant::app::WaveformSlicePreviewModel {
-            range: NormalizedRangeModel::from_nanos(
-                normalized64_to_nanos(slice.start_f64()),
-                normalized64_to_nanos(slice.end_f64()),
-            ),
-            selected: ui.waveform.selected_slices.contains(&index),
-            focused: ui.waveform.slice_review.focused_index == Some(index),
-            marked_for_export: ui.waveform.slice_review.marked_indices.contains(&index),
-            duplicate_cleanup_candidate: ui.waveform.slice_batch_profile
-                == WaveformSliceBatchProfile::ExactDuplicateBeats,
-            duplicate_cleanup_exempted: duplicate_cleanup
-                .and_then(|cleanup| cleanup.previews.get(index))
-                .is_some_and(|preview| preview.exempted),
-        })
+        .map(
+            |(index, slice)| crate::app_core::actions::NativeWaveformSlicePreviewModel {
+                range: NormalizedRangeModel::from_nanos(
+                    normalized64_to_nanos(slice.start_f64()),
+                    normalized64_to_nanos(slice.end_f64()),
+                ),
+                selected: ui.waveform.selected_slices.contains(&index),
+                focused: ui.waveform.slice_review.focused_index == Some(index),
+                marked_for_export: ui.waveform.slice_review.marked_indices.contains(&index),
+                duplicate_cleanup_candidate: ui.waveform.slice_batch_profile
+                    == WaveformSliceBatchProfile::ExactDuplicateBeats,
+                duplicate_cleanup_exempted: duplicate_cleanup
+                    .and_then(|cleanup| cleanup.previews.get(index))
+                    .is_some_and(|preview| preview.exempted),
+            },
+        )
         .collect()
 }
 
@@ -345,11 +347,13 @@ pub(super) fn project_waveform_edit_fade_overlay_model(
 /// Translate local waveform channel-view settings into native runtime model enums.
 pub(super) fn project_waveform_channel_view_model(
     channel_view: crate::waveform::WaveformChannelView,
-) -> radiant::app::WaveformChannelViewModel {
+) -> crate::app_core::actions::NativeWaveformChannelViewModel {
     match channel_view {
-        crate::waveform::WaveformChannelView::Mono => radiant::app::WaveformChannelViewModel::Mono,
+        crate::waveform::WaveformChannelView::Mono => {
+            crate::app_core::actions::NativeWaveformChannelViewModel::Mono
+        }
         crate::waveform::WaveformChannelView::SplitStereo => {
-            radiant::app::WaveformChannelViewModel::Stereo
+            crate::app_core::actions::NativeWaveformChannelViewModel::Stereo
         }
     }
 }
