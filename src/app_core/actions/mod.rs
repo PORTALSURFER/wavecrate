@@ -15,25 +15,34 @@ pub use self::catalog::{
 };
 
 /// Native runtime browser action metadata model.
-pub type NativeBrowserActionsModel = radiant::compat::sempal_shell::BrowserActionsModel;
+pub type NativeBrowserActionsModel = self::native_shell_dtos::BrowserActionsModel;
 
 /// Native runtime browser chrome model.
-pub type NativeBrowserChromeModel = radiant::compat::sempal_shell::BrowserChromeModel;
+pub type NativeBrowserChromeModel = self::native_shell_dtos::BrowserChromeModel;
 
 /// Native runtime browser panel model.
-pub type NativeBrowserPanelModel = radiant::compat::sempal_shell::BrowserPanelModel;
+pub type NativeBrowserPanelModel = self::native_shell_dtos::BrowserPanelModel;
 
 /// Native runtime browser tag-sidebar model.
-pub type NativeBrowserTagSidebarModel = radiant::compat::sempal_shell::BrowserTagSidebarModel;
+pub type NativeBrowserTagSidebarModel = self::native_shell_dtos::BrowserTagSidebarModel;
+
+/// Native runtime browser tag pill model.
+pub type NativeBrowserTagPillModel = self::native_shell_dtos::BrowserTagPillModel;
+
+/// Native runtime browser tag pill state.
+pub type NativeBrowserTagState = self::native_shell_dtos::BrowserTagState;
 
 /// Native runtime browser playback-age row bucket model.
-pub type NativePlaybackAgeBucket = radiant::compat::sempal_shell::PlaybackAgeBucket;
+pub type NativePlaybackAgeBucket = self::native_shell_dtos::PlaybackAgeBucket;
 
-/// Native runtime browser playback-age toolbar chip model.
+/// Native runtime browser playback-age toolbar action payload.
 pub type NativePlaybackAgeFilterChip = radiant::compat::sempal_shell::PlaybackAgeFilterChip;
 
 /// Native runtime browser row model.
-pub type NativeBrowserRowModel = radiant::compat::sempal_shell::BrowserRowModel;
+pub type NativeBrowserRowModel = self::native_shell_dtos::BrowserRowModel;
+
+/// Native runtime retained vector used by Sempal-owned projection DTOs.
+pub type NativeRetainedVec<T> = self::native_shell_dtos::RetainedVec<T>;
 
 /// Native runtime automation node identifier.
 pub type NativeAutomationNodeId = radiant::compat::sempal_shell::AutomationNodeId;
@@ -114,13 +123,13 @@ pub type NativeFolderRowModel = radiant::compat::sempal_shell::FolderRowModel;
 pub type NativeFolderRowKind = radiant::compat::sempal_shell::FolderRowKind;
 
 /// Native runtime map panel model.
-pub type NativeMapPanelModel = radiant::compat::sempal_shell::MapPanelModel;
+pub type NativeMapPanelModel = self::native_shell_dtos::MapPanelModel;
 
 /// Native runtime map point model.
-pub type NativeMapPointModel = radiant::compat::sempal_shell::MapPointModel;
+pub type NativeMapPointModel = self::native_shell_dtos::MapPointModel;
 
 /// Native runtime map render mode model.
-pub type NativeMapRenderModeModel = radiant::compat::sempal_shell::MapRenderModeModel;
+pub type NativeMapRenderModeModel = self::native_shell_dtos::MapRenderModeModel;
 
 /// Native runtime options panel model.
 pub type NativeOptionsPanelModel = self::native_shell_dtos::OptionsPanelModel;

@@ -8,12 +8,444 @@
 
 use radiant::compat::sempal_shell as compat;
 use radiant::gui::types::ImageRgba;
-use std::sync::Arc;
+use std::{ops::Deref, sync::Arc};
 
-use super::{
-    NativeBrowserActionsModel, NativeBrowserChromeModel, NativeBrowserPanelModel,
-    NativeColumnModel, NativeFocusContextModel, NativeMapPanelModel, NativeSourcesPanelModel,
-};
+use super::{NativeColumnModel, NativeFocusContextModel, NativeSourcesPanelModel};
+
+/// Shared storage used by retained app-model snapshots.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RetainedVec<T>(Arc<Vec<T>>);
+
+impl<T> RetainedVec<T> {
+    /// Build an empty retained vector.
+    pub fn new() -> Self {
+        Self(Arc::new(Vec::new()))
+    }
+
+    /// Append one element, cloning the backing vector only when aliased.
+    pub fn push(&mut self, value: T)
+    where
+        T: Clone,
+    {
+        Arc::make_mut(&mut self.0).push(value);
+    }
+
+    /// Clear all elements, preserving retained storage when possible.
+    pub fn clear(&mut self)
+    where
+        T: Clone,
+    {
+        Arc::make_mut(&mut self.0).clear();
+    }
+
+    /// Truncate the vector to `len`.
+    pub fn truncate(&mut self, len: usize)
+    where
+        T: Clone,
+    {
+        Arc::make_mut(&mut self.0).truncate(len);
+    }
+
+    /// Return the number of retained elements.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Return whether the retained vector is empty.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Borrow the retained contents as a slice.
+    pub fn as_slice(&self) -> &[T] {
+        self.0.as_slice()
+    }
+
+    /// Borrow one retained element by index.
+    pub fn get(&self, index: usize) -> Option<&T> {
+        self.0.get(index)
+    }
+
+    /// Borrow one retained element mutably, cloning the backing vector only when aliased.
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut T>
+    where
+        T: Clone,
+    {
+        Arc::make_mut(&mut self.0).get_mut(index)
+    }
+
+    /// Borrow the backing vector mutably for batched updates.
+    pub fn make_mut(&mut self) -> &mut Vec<T>
+    where
+        T: Clone,
+    {
+        Arc::make_mut(&mut self.0)
+    }
+}
+
+impl<T> Default for RetainedVec<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T> Deref for RetainedVec<T> {
+    type Target = [T];
+
+    fn deref(&self) -> &Self::Target {
+        self.as_slice()
+    }
+}
+
+impl<T> From<Vec<T>> for RetainedVec<T> {
+    fn from(value: Vec<T>) -> Self {
+        Self(Arc::new(value))
+    }
+}
+
+/// Browser playback-age filter chips shown in the native toolbar.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PlaybackAgeFilterChip {
+    /// Samples that have never been played.
+    NeverPlayed,
+    /// Samples whose last playback was at least 30 days ago.
+    OlderThanMonth,
+    /// Samples whose last playback was at least 7 days ago but less than 30 days ago.
+    OlderThanWeek,
+}
+
+/// Visual playback-age buckets derived from sample playback history.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum PlaybackAgeBucket {
+    /// Samples played within the last 7 days, including future-skewed timestamps.
+    #[default]
+    Fresh,
+    /// Samples last played at least 7 days ago but less than 30 days ago.
+    OlderThanWeek,
+    /// Samples last played at least 30 days ago.
+    OlderThanMonth,
+    /// Samples with no recorded playback timestamp.
+    NeverPlayed,
+}
+
+/// Summary of one browser/list row consumed by the native shell.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BrowserRowModel {
+    /// Visible row index in the filtered browser list.
+    pub visible_row: usize,
+    /// Display label for the row.
+    pub label: Arc<str>,
+    /// Triage column index (`0..=2`) that currently owns the row.
+    pub column: usize,
+    /// Signed keep/trash rating level shown alongside the row label (`-3..=3`).
+    pub rating_level: i8,
+    /// Visual playback-age bucket used to render the browser row age marker.
+    pub playback_age_bucket: PlaybackAgeBucket,
+    /// Optional inline metadata label rendered at the right edge of the sample lane.
+    pub bucket_label: Option<Arc<str>>,
+    /// Optional normalized similarity fill amount encoded in the inclusive `0..=255` range.
+    pub similarity_display_strength: Option<u8>,
+    /// Whether this row is currently selected in multi-selection state.
+    pub selected: bool,
+    /// Whether this row currently has focus/caret.
+    pub focused: bool,
+    /// Whether the backing sample file is missing on disk.
+    pub missing: bool,
+    /// Whether the backing sample is marked as a confirmed keep lock.
+    pub locked: bool,
+    /// Whether the backing sample is session-marked for later review.
+    pub marked: bool,
+}
+
+impl BrowserRowModel {
+    /// Build a row model, clamping the column into `0..=2`.
+    pub fn new(
+        visible_row: usize,
+        label: impl Into<String>,
+        column: usize,
+        selected: bool,
+        focused: bool,
+    ) -> Self {
+        Self {
+            visible_row,
+            label: Arc::<str>::from(label.into()),
+            column: column.min(2),
+            rating_level: 0,
+            playback_age_bucket: PlaybackAgeBucket::Fresh,
+            bucket_label: None,
+            similarity_display_strength: None,
+            selected,
+            focused,
+            missing: false,
+            locked: false,
+            marked: false,
+        }
+    }
+
+    /// Attach a signed keep/trash rating level for inline row indicators.
+    pub fn with_rating_level(mut self, rating_level: i8) -> Self {
+        self.rating_level = rating_level.clamp(-3, 3);
+        self
+    }
+
+    /// Attach the playback-age bucket used for row aging treatment.
+    pub fn with_playback_age_bucket(mut self, playback_age_bucket: PlaybackAgeBucket) -> Self {
+        self.playback_age_bucket = playback_age_bucket;
+        self
+    }
+
+    /// Attach an explicit inline metadata label for this row.
+    pub fn with_bucket_label(mut self, label: impl Into<String>) -> Self {
+        self.bucket_label = Some(Arc::<str>::from(label.into()));
+        self
+    }
+
+    /// Attach a normalized similarity display strength for the compact row bar.
+    pub fn with_similarity_display_strength(mut self, display_strength: f32) -> Self {
+        self.similarity_display_strength =
+            Some(Self::encode_similarity_display_strength(display_strength));
+        self
+    }
+
+    /// Encode one normalized similarity display strength into the stored byte range.
+    pub fn encode_similarity_display_strength(display_strength: f32) -> u8 {
+        (display_strength.clamp(0.0, 1.0) * 255.0).round() as u8
+    }
+
+    /// Decode the stored similarity display strength into a normalized fill amount.
+    pub fn similarity_display_strength_ratio(&self) -> Option<f32> {
+        self.similarity_display_strength
+            .map(|strength| f32::from(strength) / 255.0)
+    }
+
+    /// Mark whether the backing sample file is missing on disk.
+    pub fn with_missing(mut self, missing: bool) -> Self {
+        self.missing = missing;
+        self
+    }
+
+    /// Mark whether the backing sample should render with the keep-lock highlight.
+    pub fn with_locked(mut self, locked: bool) -> Self {
+        self.locked = locked;
+        self
+    }
+
+    /// Mark whether the backing sample should render with the session mark treatment.
+    pub fn with_marked(mut self, marked: bool) -> Self {
+        self.marked = marked;
+        self
+    }
+}
+
+/// Summary of browser/list state consumed by the native shell.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct BrowserPanelModel {
+    /// Number of rows currently visible in the browser.
+    pub visible_count: usize,
+    /// Focused visible row index, if any.
+    pub selected_visible_row: Option<usize>,
+    /// Whether selection-driven browser autoscroll is currently enabled.
+    pub autoscroll: bool,
+    /// Requested top visible-row index for manual browser viewport scrolling.
+    pub view_start_row: usize,
+    /// Number of rows currently in multi-selection.
+    pub selected_path_count: usize,
+    /// Active browser search query.
+    pub search_query: String,
+    /// Active rating-filter chip states for levels `-3..=3`, plus `4` for locked keeps.
+    pub active_rating_filters: [bool; 8],
+    /// Active playback-age filter chip states ordered as `Never`, `Month`, `Week`.
+    pub active_playback_age_filters: [bool; 3],
+    /// Whether the browser is currently filtering down to only marked rows.
+    pub marked_filter_active: bool,
+    /// Placeholder shown when the browser search query is empty.
+    pub search_placeholder: Option<String>,
+    /// Whether browser search/filter work is still running in the background.
+    pub busy: bool,
+    /// Whether the selected source is still hydrating before browser rows can project.
+    pub source_loading: bool,
+    /// Whether optimistic metadata writes are still pending background persistence.
+    pub metadata_pending: bool,
+    /// Whether file or folder mutations are still running in the background.
+    pub file_op_pending: bool,
+    /// Whether the browser is currently showing a similarity-filtered result set.
+    pub similarity_filtered: bool,
+    /// Whether browser duplicate cleanup mode is currently active.
+    pub duplicate_cleanup_active: bool,
+    /// Display label for the active browser sort mode.
+    pub sort_label: Option<String>,
+    /// Display label for the currently active browser tab.
+    pub active_tab_label: Option<String>,
+    /// Display label for the currently focused sample, when known.
+    pub focused_sample_label: Option<String>,
+    /// Metadata-tag editor sidebar projection scoped to the list tab.
+    pub tag_sidebar: BrowserTagSidebarModel,
+    /// Selection anchor in visible-row space.
+    pub anchor_visible_row: Option<usize>,
+    /// Visible rows rendered by the native browser panel.
+    pub rows: RetainedVec<BrowserRowModel>,
+}
+
+/// Browser chrome copy used by the native shell toolbar and tab strip.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BrowserChromeModel {
+    /// Label for the list tab.
+    pub samples_tab_label: String,
+    /// Label for the map tab.
+    pub map_tab_label: String,
+    /// Prefix label shown before active search queries.
+    pub search_prefix_label: String,
+    /// Placeholder label shown when no search query is active.
+    pub search_placeholder: String,
+    /// Status label shown when browser background work is idle.
+    pub activity_ready_label: String,
+    /// Status label shown when browser background work is running.
+    pub activity_busy_label: String,
+    /// Prefix label shown before active sort order labels.
+    pub sort_prefix_label: String,
+    /// Label describing the active sort order.
+    pub sort_order_label: String,
+    /// Label describing similarity mode in the map/header chrome.
+    pub similarity_toggle_label: String,
+    /// Footer/status label for total browser item counts.
+    pub item_count_label: String,
+}
+
+impl Default for BrowserChromeModel {
+    fn default() -> Self {
+        Self {
+            samples_tab_label: String::from("Samples"),
+            map_tab_label: String::from("Similarity map"),
+            search_prefix_label: String::from("Search"),
+            search_placeholder: String::from("Search samples (Ctrl+F)"),
+            activity_ready_label: String::from("Ready"),
+            activity_busy_label: String::from("Filtering"),
+            sort_prefix_label: String::from("Sort"),
+            sort_order_label: String::from("List order"),
+            similarity_toggle_label: String::from("points"),
+            item_count_label: String::from("0 items"),
+        }
+    }
+}
+
+/// Browser action availability consumed by the native shell action strip.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct BrowserActionsModel {
+    /// Whether rename can be started for the focused row.
+    pub can_rename: bool,
+    /// Whether delete can be applied to focused/selected rows.
+    pub can_delete: bool,
+    /// Whether tag actions can be applied to focused/selected rows.
+    pub can_tag: bool,
+    /// Whether the focused browser row can be normalized in place.
+    pub can_normalize_focused_sample: bool,
+    /// Whether the focused browser row can open the seamless loop-crossfade flow.
+    pub can_loop_crossfade_focused_sample: bool,
+    /// Whether sticky random navigation mode is currently enabled.
+    pub random_navigation_enabled: bool,
+    /// Whether browser duplicate cleanup mode is currently enabled.
+    pub duplicate_cleanup_active: bool,
+    /// Whether the browser-local tag sidebar is currently open.
+    pub tag_sidebar_open: bool,
+}
+
+/// Tri-state pill state used by the browser metadata editor.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum BrowserTagState {
+    /// No selected rows currently carry the value.
+    #[default]
+    Off,
+    /// Every selected row currently carries the value.
+    On,
+    /// Selected rows disagree about the value.
+    Mixed,
+}
+
+/// One clickable tag pill projected into the browser metadata sidebar.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct BrowserTagPillModel {
+    /// Stable identifier for hit testing and automation.
+    pub id: String,
+    /// User-facing pill label.
+    pub label: String,
+    /// Tri-state selection value for the current browser target set.
+    pub state: BrowserTagState,
+}
+
+/// Browser-local metadata sidebar shown beside the sample list.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct BrowserTagSidebarModel {
+    /// Whether the sidebar should render in the current browser view.
+    pub open: bool,
+    /// Count of selected rows represented by the sidebar target set.
+    pub selected_count: usize,
+    /// Header line describing the current selection/focus context.
+    pub header_label: String,
+    /// Whether sidebar metadata edits should trigger auto-rename.
+    pub auto_rename_enabled: bool,
+    /// Current custom-tag input value.
+    pub input_value: String,
+    /// Placeholder shown for the custom-tag input when empty.
+    pub input_placeholder: String,
+    /// Exclusive playback-type pills.
+    pub playback_type_pills: [BrowserTagPillModel; 2],
+    /// Exclusive sound-type pills.
+    pub sound_type_pills: Vec<BrowserTagPillModel>,
+    /// Active custom-tag pill when present in the selection.
+    pub custom_tag_pill: Option<BrowserTagPillModel>,
+}
+
+/// Render mode label for the map panel.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum MapRenderModeModel {
+    /// Rendered as a density heatmap.
+    Heatmap,
+    /// Rendered as individual points.
+    #[default]
+    Points,
+}
+
+/// Render data for one map point shown in the native map canvas.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MapPointModel {
+    /// Stable sample id used to route click actions back to the host.
+    pub sample_id: Arc<str>,
+    /// X position normalized to milli-units (`0..=1000`) across map bounds.
+    pub x_milli: u16,
+    /// Y position normalized to milli-units (`0..=1000`) across map bounds.
+    pub y_milli: u16,
+    /// Optional cluster id for color grouping.
+    pub cluster_id: Option<i32>,
+}
+
+/// Summary of map state consumed by the native shell map tab.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct MapPanelModel {
+    /// Whether the map tab is currently active in the browser panel.
+    pub active: bool,
+    /// Human-readable map summary line.
+    pub summary: String,
+    /// Legend/status label for map render mode and point density.
+    pub legend_label: String,
+    /// Selection/focus label for the currently highlighted map sample.
+    pub selection_label: String,
+    /// Hover label for the currently hovered map sample, when any.
+    pub hover_label: String,
+    /// Cluster summary label for projected map points.
+    pub cluster_label: String,
+    /// Viewport label describing zoom/pan state.
+    pub viewport_label: String,
+    /// Optional error text shown when map data cannot be loaded.
+    pub error: Option<String>,
+    /// Current map render mode.
+    pub render_mode: MapRenderModeModel,
+    /// Sample id currently selected in map state, when any.
+    pub selected_sample_id: Option<String>,
+    /// Sample id currently focused from the browser list, when any.
+    pub focused_sample_id: Option<String>,
+    /// Points available for rendering in normalized map space.
+    pub points: Arc<[MapPointModel]>,
+}
 
 /// Structured footer status content for left/center/right status segments.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
@@ -544,7 +976,7 @@ pub struct AppModel {
     /// Output/input audio engine state rendered in the top-right chrome and options panel.
     pub audio_engine: AudioEngineModel,
     /// Browser action availability for native action surfaces.
-    pub browser_actions: NativeBrowserActionsModel,
+    pub browser_actions: BrowserActionsModel,
     /// Options-panel overlay projection.
     pub options_panel: OptionsPanelModel,
     /// Progress overlay projection.
@@ -564,11 +996,11 @@ pub struct AppModel {
     /// Source panel model consumed by the native renderer.
     pub sources: NativeSourcesPanelModel,
     /// Browser panel summary consumed by the native renderer.
-    pub browser: NativeBrowserPanelModel,
+    pub browser: BrowserPanelModel,
     /// Browser chrome labels consumed by native tabs/toolbar/footer text.
-    pub browser_chrome: NativeBrowserChromeModel,
+    pub browser_chrome: BrowserChromeModel,
     /// Map panel summary consumed by the native renderer.
-    pub map: NativeMapPanelModel,
+    pub map: MapPanelModel,
     /// Waveform panel summary consumed by the native renderer.
     pub waveform: WaveformPanelModel,
     /// Waveform chrome labels consumed by the native waveform header.
@@ -582,6 +1014,430 @@ pub struct AppModel {
 impl Default for AppModel {
     fn default() -> Self {
         Self::from(compat::AppModel::default())
+    }
+}
+
+impl<T, U> From<compat::RetainedVec<T>> for RetainedVec<U>
+where
+    T: Clone + Into<U>,
+{
+    fn from(value: compat::RetainedVec<T>) -> Self {
+        value
+            .as_slice()
+            .iter()
+            .cloned()
+            .map(Into::into)
+            .collect::<Vec<_>>()
+            .into()
+    }
+}
+
+impl<T, U> From<RetainedVec<T>> for compat::RetainedVec<U>
+where
+    T: Clone + Into<U>,
+{
+    fn from(value: RetainedVec<T>) -> Self {
+        value
+            .as_slice()
+            .iter()
+            .cloned()
+            .map(Into::into)
+            .collect::<Vec<_>>()
+            .into()
+    }
+}
+
+impl From<compat::PlaybackAgeFilterChip> for PlaybackAgeFilterChip {
+    fn from(value: compat::PlaybackAgeFilterChip) -> Self {
+        match value {
+            compat::PlaybackAgeFilterChip::NeverPlayed => Self::NeverPlayed,
+            compat::PlaybackAgeFilterChip::OlderThanMonth => Self::OlderThanMonth,
+            compat::PlaybackAgeFilterChip::OlderThanWeek => Self::OlderThanWeek,
+        }
+    }
+}
+
+impl From<PlaybackAgeFilterChip> for compat::PlaybackAgeFilterChip {
+    fn from(value: PlaybackAgeFilterChip) -> Self {
+        match value {
+            PlaybackAgeFilterChip::NeverPlayed => Self::NeverPlayed,
+            PlaybackAgeFilterChip::OlderThanMonth => Self::OlderThanMonth,
+            PlaybackAgeFilterChip::OlderThanWeek => Self::OlderThanWeek,
+        }
+    }
+}
+
+impl From<compat::PlaybackAgeBucket> for PlaybackAgeBucket {
+    fn from(value: compat::PlaybackAgeBucket) -> Self {
+        match value {
+            compat::PlaybackAgeBucket::Fresh => Self::Fresh,
+            compat::PlaybackAgeBucket::OlderThanWeek => Self::OlderThanWeek,
+            compat::PlaybackAgeBucket::OlderThanMonth => Self::OlderThanMonth,
+            compat::PlaybackAgeBucket::NeverPlayed => Self::NeverPlayed,
+        }
+    }
+}
+
+impl From<PlaybackAgeBucket> for compat::PlaybackAgeBucket {
+    fn from(value: PlaybackAgeBucket) -> Self {
+        match value {
+            PlaybackAgeBucket::Fresh => Self::Fresh,
+            PlaybackAgeBucket::OlderThanWeek => Self::OlderThanWeek,
+            PlaybackAgeBucket::OlderThanMonth => Self::OlderThanMonth,
+            PlaybackAgeBucket::NeverPlayed => Self::NeverPlayed,
+        }
+    }
+}
+
+impl From<compat::BrowserRowModel> for BrowserRowModel {
+    fn from(value: compat::BrowserRowModel) -> Self {
+        Self {
+            visible_row: value.visible_row,
+            label: value.label,
+            column: value.column,
+            rating_level: value.rating_level,
+            playback_age_bucket: value.playback_age_bucket.into(),
+            bucket_label: value.bucket_label,
+            similarity_display_strength: value.similarity_display_strength,
+            selected: value.selected,
+            focused: value.focused,
+            missing: value.missing,
+            locked: value.locked,
+            marked: value.marked,
+        }
+    }
+}
+
+impl From<BrowserRowModel> for compat::BrowserRowModel {
+    fn from(value: BrowserRowModel) -> Self {
+        Self {
+            visible_row: value.visible_row,
+            label: value.label,
+            column: value.column,
+            rating_level: value.rating_level,
+            playback_age_bucket: value.playback_age_bucket.into(),
+            bucket_label: value.bucket_label,
+            similarity_display_strength: value.similarity_display_strength,
+            selected: value.selected,
+            focused: value.focused,
+            missing: value.missing,
+            locked: value.locked,
+            marked: value.marked,
+        }
+    }
+}
+
+impl From<compat::BrowserPanelModel> for BrowserPanelModel {
+    fn from(value: compat::BrowserPanelModel) -> Self {
+        Self {
+            visible_count: value.visible_count,
+            selected_visible_row: value.selected_visible_row,
+            autoscroll: value.autoscroll,
+            view_start_row: value.view_start_row,
+            selected_path_count: value.selected_path_count,
+            search_query: value.search_query,
+            active_rating_filters: value.active_rating_filters,
+            active_playback_age_filters: value.active_playback_age_filters,
+            marked_filter_active: value.marked_filter_active,
+            search_placeholder: value.search_placeholder,
+            busy: value.busy,
+            source_loading: value.source_loading,
+            metadata_pending: value.metadata_pending,
+            file_op_pending: value.file_op_pending,
+            similarity_filtered: value.similarity_filtered,
+            duplicate_cleanup_active: value.duplicate_cleanup_active,
+            sort_label: value.sort_label,
+            active_tab_label: value.active_tab_label,
+            focused_sample_label: value.focused_sample_label,
+            tag_sidebar: value.tag_sidebar.into(),
+            anchor_visible_row: value.anchor_visible_row,
+            rows: value.rows.into(),
+        }
+    }
+}
+
+impl From<BrowserPanelModel> for compat::BrowserPanelModel {
+    fn from(value: BrowserPanelModel) -> Self {
+        Self {
+            visible_count: value.visible_count,
+            selected_visible_row: value.selected_visible_row,
+            autoscroll: value.autoscroll,
+            view_start_row: value.view_start_row,
+            selected_path_count: value.selected_path_count,
+            search_query: value.search_query,
+            active_rating_filters: value.active_rating_filters,
+            active_playback_age_filters: value.active_playback_age_filters,
+            marked_filter_active: value.marked_filter_active,
+            search_placeholder: value.search_placeholder,
+            busy: value.busy,
+            source_loading: value.source_loading,
+            metadata_pending: value.metadata_pending,
+            file_op_pending: value.file_op_pending,
+            similarity_filtered: value.similarity_filtered,
+            duplicate_cleanup_active: value.duplicate_cleanup_active,
+            sort_label: value.sort_label,
+            active_tab_label: value.active_tab_label,
+            focused_sample_label: value.focused_sample_label,
+            tag_sidebar: value.tag_sidebar.into(),
+            anchor_visible_row: value.anchor_visible_row,
+            rows: value.rows.into(),
+        }
+    }
+}
+
+impl From<&BrowserPanelModel> for compat::BrowserPanelModel {
+    fn from(value: &BrowserPanelModel) -> Self {
+        value.clone().into()
+    }
+}
+
+impl From<compat::BrowserChromeModel> for BrowserChromeModel {
+    fn from(value: compat::BrowserChromeModel) -> Self {
+        Self {
+            samples_tab_label: value.samples_tab_label,
+            map_tab_label: value.map_tab_label,
+            search_prefix_label: value.search_prefix_label,
+            search_placeholder: value.search_placeholder,
+            activity_ready_label: value.activity_ready_label,
+            activity_busy_label: value.activity_busy_label,
+            sort_prefix_label: value.sort_prefix_label,
+            sort_order_label: value.sort_order_label,
+            similarity_toggle_label: value.similarity_toggle_label,
+            item_count_label: value.item_count_label,
+        }
+    }
+}
+
+impl From<BrowserChromeModel> for compat::BrowserChromeModel {
+    fn from(value: BrowserChromeModel) -> Self {
+        Self {
+            samples_tab_label: value.samples_tab_label,
+            map_tab_label: value.map_tab_label,
+            search_prefix_label: value.search_prefix_label,
+            search_placeholder: value.search_placeholder,
+            activity_ready_label: value.activity_ready_label,
+            activity_busy_label: value.activity_busy_label,
+            sort_prefix_label: value.sort_prefix_label,
+            sort_order_label: value.sort_order_label,
+            similarity_toggle_label: value.similarity_toggle_label,
+            item_count_label: value.item_count_label,
+        }
+    }
+}
+
+impl From<&BrowserChromeModel> for compat::BrowserChromeModel {
+    fn from(value: &BrowserChromeModel) -> Self {
+        value.clone().into()
+    }
+}
+
+impl From<compat::BrowserActionsModel> for BrowserActionsModel {
+    fn from(value: compat::BrowserActionsModel) -> Self {
+        Self {
+            can_rename: value.can_rename,
+            can_delete: value.can_delete,
+            can_tag: value.can_tag,
+            can_normalize_focused_sample: value.can_normalize_focused_sample,
+            can_loop_crossfade_focused_sample: value.can_loop_crossfade_focused_sample,
+            random_navigation_enabled: value.random_navigation_enabled,
+            duplicate_cleanup_active: value.duplicate_cleanup_active,
+            tag_sidebar_open: value.tag_sidebar_open,
+        }
+    }
+}
+
+impl From<BrowserActionsModel> for compat::BrowserActionsModel {
+    fn from(value: BrowserActionsModel) -> Self {
+        Self {
+            can_rename: value.can_rename,
+            can_delete: value.can_delete,
+            can_tag: value.can_tag,
+            can_normalize_focused_sample: value.can_normalize_focused_sample,
+            can_loop_crossfade_focused_sample: value.can_loop_crossfade_focused_sample,
+            random_navigation_enabled: value.random_navigation_enabled,
+            duplicate_cleanup_active: value.duplicate_cleanup_active,
+            tag_sidebar_open: value.tag_sidebar_open,
+        }
+    }
+}
+
+impl From<&BrowserActionsModel> for compat::BrowserActionsModel {
+    fn from(value: &BrowserActionsModel) -> Self {
+        value.clone().into()
+    }
+}
+
+impl From<compat::BrowserTagState> for BrowserTagState {
+    fn from(value: compat::BrowserTagState) -> Self {
+        match value {
+            compat::BrowserTagState::Off => Self::Off,
+            compat::BrowserTagState::On => Self::On,
+            compat::BrowserTagState::Mixed => Self::Mixed,
+        }
+    }
+}
+
+impl From<BrowserTagState> for compat::BrowserTagState {
+    fn from(value: BrowserTagState) -> Self {
+        match value {
+            BrowserTagState::Off => Self::Off,
+            BrowserTagState::On => Self::On,
+            BrowserTagState::Mixed => Self::Mixed,
+        }
+    }
+}
+
+impl From<compat::BrowserTagPillModel> for BrowserTagPillModel {
+    fn from(value: compat::BrowserTagPillModel) -> Self {
+        Self {
+            id: value.id,
+            label: value.label,
+            state: value.state.into(),
+        }
+    }
+}
+
+impl From<BrowserTagPillModel> for compat::BrowserTagPillModel {
+    fn from(value: BrowserTagPillModel) -> Self {
+        Self {
+            id: value.id,
+            label: value.label,
+            state: value.state.into(),
+        }
+    }
+}
+
+impl From<compat::BrowserTagSidebarModel> for BrowserTagSidebarModel {
+    fn from(value: compat::BrowserTagSidebarModel) -> Self {
+        Self {
+            open: value.open,
+            selected_count: value.selected_count,
+            header_label: value.header_label,
+            auto_rename_enabled: value.auto_rename_enabled,
+            input_value: value.input_value,
+            input_placeholder: value.input_placeholder,
+            playback_type_pills: value.playback_type_pills.map(Into::into),
+            sound_type_pills: value.sound_type_pills.into_iter().map(Into::into).collect(),
+            custom_tag_pill: value.custom_tag_pill.map(Into::into),
+        }
+    }
+}
+
+impl From<BrowserTagSidebarModel> for compat::BrowserTagSidebarModel {
+    fn from(value: BrowserTagSidebarModel) -> Self {
+        Self {
+            open: value.open,
+            selected_count: value.selected_count,
+            header_label: value.header_label,
+            auto_rename_enabled: value.auto_rename_enabled,
+            input_value: value.input_value,
+            input_placeholder: value.input_placeholder,
+            playback_type_pills: value.playback_type_pills.map(Into::into),
+            sound_type_pills: value.sound_type_pills.into_iter().map(Into::into).collect(),
+            custom_tag_pill: value.custom_tag_pill.map(Into::into),
+        }
+    }
+}
+
+impl From<&BrowserTagSidebarModel> for compat::BrowserTagSidebarModel {
+    fn from(value: &BrowserTagSidebarModel) -> Self {
+        value.clone().into()
+    }
+}
+
+impl From<compat::MapRenderModeModel> for MapRenderModeModel {
+    fn from(value: compat::MapRenderModeModel) -> Self {
+        match value {
+            compat::MapRenderModeModel::Heatmap => Self::Heatmap,
+            compat::MapRenderModeModel::Points => Self::Points,
+        }
+    }
+}
+
+impl From<MapRenderModeModel> for compat::MapRenderModeModel {
+    fn from(value: MapRenderModeModel) -> Self {
+        match value {
+            MapRenderModeModel::Heatmap => Self::Heatmap,
+            MapRenderModeModel::Points => Self::Points,
+        }
+    }
+}
+
+impl From<compat::MapPointModel> for MapPointModel {
+    fn from(value: compat::MapPointModel) -> Self {
+        Self {
+            sample_id: value.sample_id,
+            x_milli: value.x_milli,
+            y_milli: value.y_milli,
+            cluster_id: value.cluster_id,
+        }
+    }
+}
+
+impl From<MapPointModel> for compat::MapPointModel {
+    fn from(value: MapPointModel) -> Self {
+        Self {
+            sample_id: value.sample_id,
+            x_milli: value.x_milli,
+            y_milli: value.y_milli,
+            cluster_id: value.cluster_id,
+        }
+    }
+}
+
+impl From<compat::MapPanelModel> for MapPanelModel {
+    fn from(value: compat::MapPanelModel) -> Self {
+        Self {
+            active: value.active,
+            summary: value.summary,
+            legend_label: value.legend_label,
+            selection_label: value.selection_label,
+            hover_label: value.hover_label,
+            cluster_label: value.cluster_label,
+            viewport_label: value.viewport_label,
+            error: value.error,
+            render_mode: value.render_mode.into(),
+            selected_sample_id: value.selected_sample_id,
+            focused_sample_id: value.focused_sample_id,
+            points: value
+                .points
+                .iter()
+                .cloned()
+                .map(Into::into)
+                .collect::<Vec<_>>()
+                .into(),
+        }
+    }
+}
+
+impl From<MapPanelModel> for compat::MapPanelModel {
+    fn from(value: MapPanelModel) -> Self {
+        Self {
+            active: value.active,
+            summary: value.summary,
+            legend_label: value.legend_label,
+            selection_label: value.selection_label,
+            hover_label: value.hover_label,
+            cluster_label: value.cluster_label,
+            viewport_label: value.viewport_label,
+            error: value.error,
+            render_mode: value.render_mode.into(),
+            selected_sample_id: value.selected_sample_id,
+            focused_sample_id: value.focused_sample_id,
+            points: value
+                .points
+                .iter()
+                .cloned()
+                .map(Into::into)
+                .collect::<Vec<_>>()
+                .into(),
+        }
+    }
+}
+
+impl From<&MapPanelModel> for compat::MapPanelModel {
+    fn from(value: &MapPanelModel) -> Self {
+        value.clone().into()
     }
 }
 
@@ -1262,7 +2118,7 @@ impl From<compat::AppModel> for AppModel {
             status_text: value.status_text,
             status: value.status.into(),
             audio_engine: value.audio_engine.into(),
-            browser_actions: value.browser_actions,
+            browser_actions: value.browser_actions.into(),
             options_panel: value.options_panel.into(),
             progress_overlay: value.progress_overlay.into(),
             confirm_prompt: value.confirm_prompt.into(),
@@ -1272,9 +2128,9 @@ impl From<compat::AppModel> for AppModel {
             volume: value.volume,
             transport_running: value.transport_running,
             sources: value.sources,
-            browser: value.browser,
-            browser_chrome: value.browser_chrome,
-            map: value.map,
+            browser: value.browser.into(),
+            browser_chrome: value.browser_chrome.into(),
+            map: value.map.into(),
             waveform: value.waveform.into(),
             waveform_chrome: value.waveform_chrome.into(),
             update: value.update.into(),
@@ -1292,7 +2148,7 @@ impl From<AppModel> for compat::AppModel {
             status_text: value.status_text,
             status: value.status.into(),
             audio_engine: value.audio_engine.into(),
-            browser_actions: value.browser_actions,
+            browser_actions: value.browser_actions.into(),
             options_panel: value.options_panel.into(),
             progress_overlay: value.progress_overlay.into(),
             confirm_prompt: value.confirm_prompt.into(),
@@ -1302,9 +2158,9 @@ impl From<AppModel> for compat::AppModel {
             volume: value.volume,
             transport_running: value.transport_running,
             sources: value.sources,
-            browser: value.browser,
-            browser_chrome: value.browser_chrome,
-            map: value.map,
+            browser: value.browser.into(),
+            browser_chrome: value.browser_chrome.into(),
+            map: value.map.into(),
             waveform: value.waveform.into(),
             waveform_chrome: value.waveform_chrome.into(),
             update: value.update.into(),

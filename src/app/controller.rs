@@ -144,7 +144,7 @@ pub(crate) struct ProjectedMapPointsCacheKey {
 }
 
 /// Retained immutable map-point payload reused across native map projections.
-pub(crate) type ProjectedMapPointCacheEntry = radiant::app::MapPointModel;
+pub(crate) type ProjectedMapPointCacheEntry = crate::app_core::actions::NativeMapPointModel;
 
 /// Retained selected-row lookup representation for browser projections.
 #[derive(Clone, Debug, PartialEq, Eq)]

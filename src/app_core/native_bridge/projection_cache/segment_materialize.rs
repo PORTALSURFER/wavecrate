@@ -123,7 +123,7 @@ fn apply_browser_frame(model: &mut NativeAppModel, frame: NativeBrowserPanelMode
 fn apply_browser_tag_sidebar(
     model: &mut NativeAppModel,
     focused_sample_label: Option<String>,
-    tag_sidebar: radiant::app::BrowserTagSidebarModel,
+    tag_sidebar: crate::app_core::actions::NativeBrowserTagSidebarModel,
 ) {
     model.browser.focused_sample_label = focused_sample_label;
     model.browser.tag_sidebar = tag_sidebar;

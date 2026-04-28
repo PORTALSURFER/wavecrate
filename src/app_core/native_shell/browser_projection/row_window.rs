@@ -19,8 +19,8 @@ pub(crate) fn project_browser_rows_model(
     visible_count: usize,
     selected_visible_row: Option<usize>,
     anchor_visible_row: Option<usize>,
-) -> radiant::app::RetainedVec<BrowserRowModel> {
-    let mut rows = radiant::app::RetainedVec::from(Vec::with_capacity(
+) -> RetainedVec<BrowserRowModel> {
+    let mut rows = RetainedVec::from(Vec::with_capacity(
         visible_count.min(MAX_RENDERED_BROWSER_ROWS),
     ));
     project_browser_rows_model_into(
@@ -42,7 +42,7 @@ pub(crate) fn project_browser_rows_model_into(
     visible_count: usize,
     selected_visible_row: Option<usize>,
     anchor_visible_row: Option<usize>,
-    rows: &mut radiant::app::RetainedVec<BrowserRowModel>,
+    rows: &mut RetainedVec<BrowserRowModel>,
 ) {
     if controller.ui.browser.active_tab == SampleBrowserTab::Map {
         clear_projected_browser_row_cache(controller);
@@ -250,7 +250,7 @@ fn native_playback_age_bucket(
 
 /// Write one browser row into `rows[offset]`, reusing existing `String` buffers.
 fn write_browser_row_into_slot(
-    rows: &mut radiant::app::RetainedVec<BrowserRowModel>,
+    rows: &mut RetainedVec<BrowserRowModel>,
     offset: usize,
     projection: (
         usize,

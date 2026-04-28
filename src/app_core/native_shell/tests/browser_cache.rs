@@ -380,7 +380,7 @@ fn browser_rows_projection_reuses_provided_buffer_capacity() {
     }]);
     controller.ui.browser.viewport.visible =
         crate::app_core::app_api::state::VisibleRows::List(vec![0usize].into());
-    let mut rows = radiant::app::RetainedVec::new();
+    let mut rows = crate::app_core::actions::NativeRetainedVec::new();
 
     project_browser_rows_model_into(&mut controller, 1, Some(0), None, &mut rows);
     let first_capacity = rows.make_mut().capacity();
@@ -473,7 +473,7 @@ fn browser_rows_projection_uses_pipeline_snapshot_when_pages_are_unloaded() {
     controller.rebuild_browser_lists();
     controller.clear_loaded_wav_pages_for_tests();
 
-    let mut rows = radiant::app::RetainedVec::new();
+    let mut rows = crate::app_core::actions::NativeRetainedVec::new();
     project_browser_rows_model_into(&mut controller, 1, Some(0), None, &mut rows);
 
     assert_eq!(rows.len(), 1);
@@ -504,7 +504,7 @@ fn browser_rows_projection_does_not_queue_feature_cache_refresh() {
         crate::app_core::app_api::state::VisibleRows::List(vec![0usize].into());
     controller.clear_pending_browser_feature_cache_refresh_for_tests();
 
-    let mut rows = radiant::app::RetainedVec::new();
+    let mut rows = crate::app_core::actions::NativeRetainedVec::new();
     project_browser_rows_model_into(&mut controller, 1, Some(0), None, &mut rows);
 
     assert_eq!(rows.len(), 1);

@@ -181,7 +181,7 @@ fn projection_segment_browser_tag_sidebar_refreshes_pills_after_metadata_edit() 
     let _ = cache.take_segment_lookup_counts();
     assert_eq!(
         first_model.browser.tag_sidebar.playback_type_pills[0].state,
-        radiant::app::BrowserTagState::Off
+        crate::app_core::actions::NativeBrowserTagState::Off
     );
 
     controller
@@ -201,11 +201,11 @@ fn projection_segment_browser_tag_sidebar_refreshes_pills_after_metadata_edit() 
     assert_segment_lookup_counts(lookup_counts.browser_rows_window, 0, 1);
     assert_eq!(
         second_model.browser.tag_sidebar.playback_type_pills[0].state,
-        radiant::app::BrowserTagState::On
+        crate::app_core::actions::NativeBrowserTagState::On
     );
     assert_eq!(
         second_model.browser.tag_sidebar.playback_type_pills[1].state,
-        radiant::app::BrowserTagState::Off
+        crate::app_core::actions::NativeBrowserTagState::Off
     );
 }
 
@@ -254,7 +254,7 @@ fn projection_segment_browser_tag_sidebar_refreshes_for_same_count_selection_swa
     );
     assert_eq!(
         first_model.browser.tag_sidebar.playback_type_pills[0].state,
-        radiant::app::BrowserTagState::Off
+        crate::app_core::actions::NativeBrowserTagState::Off
     );
 
     controller.ui.browser.selection.selected_paths = vec![PathBuf::from("second.wav")];
@@ -277,7 +277,7 @@ fn projection_segment_browser_tag_sidebar_refreshes_for_same_count_selection_swa
     );
     assert_eq!(
         second_model.browser.tag_sidebar.playback_type_pills[0].state,
-        radiant::app::BrowserTagState::On
+        crate::app_core::actions::NativeBrowserTagState::On
     );
 }
 

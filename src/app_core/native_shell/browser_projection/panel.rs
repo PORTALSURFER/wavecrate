@@ -84,7 +84,7 @@ pub(crate) fn project_browser_panel_frame_model(
         focused_sample_label,
         tag_sidebar,
         anchor_visible_row: row_inputs.anchor_visible_row,
-        rows: radiant::app::RetainedVec::new(),
+        rows: RetainedVec::new(),
     }
 }
 
@@ -152,7 +152,7 @@ pub(crate) fn project_browser_focused_sample_label(controller: &AppController) -
 /// not depend on unrelated browser chrome churn.
 pub(crate) fn project_browser_tag_sidebar_model(
     controller: &mut AppController,
-) -> radiant::app::BrowserTagSidebarModel {
+) -> BrowserTagSidebarModel {
     let is_list_tab = matches!(controller.ui.browser.active_tab, SampleBrowserTab::List);
     let sidebar_targets = controller.browser_tag_sidebar_target_snapshot();
     let target_entries = sidebar_targets.resolve_entries(controller);
@@ -181,7 +181,7 @@ pub(crate) fn project_browser_tag_sidebar_model(
     ];
     let sound_type_pills = canonical_sound_type_pills(&target_entries);
     let custom_tag_state = string_tag_summary(&target_entries, |entry| entry.user_tag.as_deref());
-    radiant::app::BrowserTagSidebarModel {
+    BrowserTagSidebarModel {
         open: is_list_tab && controller.ui.browser.tag_sidebar_open,
         selected_count,
         header_label,
@@ -196,34 +196,27 @@ pub(crate) fn project_browser_tag_sidebar_model(
     }
 }
 
-fn pill_model(
-    id: &str,
-    label: &str,
-    state: radiant::app::BrowserTagState,
-) -> radiant::app::BrowserTagPillModel {
-    radiant::app::BrowserTagPillModel {
+fn pill_model(id: &str, label: &str, state: BrowserTagState) -> BrowserTagPillModel {
+    BrowserTagPillModel {
         id: id.to_string(),
         label: label.to_string(),
         state,
     }
 }
 
-fn bool_tag_state(
-    entries: &[WavEntry],
-    predicate: impl Fn(&WavEntry) -> bool,
-) -> radiant::app::BrowserTagState {
+fn bool_tag_state(entries: &[WavEntry], predicate: impl Fn(&WavEntry) -> bool) -> BrowserTagState {
     if entries.is_empty() {
-        return radiant::app::BrowserTagState::Off;
+        return BrowserTagState::Off;
     }
     let on_count = entries.iter().filter(|entry| predicate(entry)).count();
     match on_count {
-        0 => radiant::app::BrowserTagState::Off,
-        count if count == entries.len() => radiant::app::BrowserTagState::On,
-        _ => radiant::app::BrowserTagState::Mixed,
+        0 => BrowserTagState::Off,
+        count if count == entries.len() => BrowserTagState::On,
+        _ => BrowserTagState::Mixed,
     }
 }
 
-fn canonical_sound_type_pills(entries: &[WavEntry]) -> Vec<radiant::app::BrowserTagPillModel> {
+fn canonical_sound_type_pills(entries: &[WavEntry]) -> Vec<BrowserTagPillModel> {
     [
         (SampleSoundType::Kick, "Kick"),
         (SampleSoundType::Snare, "Snare"),
@@ -259,27 +252,27 @@ fn option_tag_state<T: Copy + PartialEq>(
     entries: &[WavEntry],
     value_of: impl Fn(&WavEntry) -> Option<T>,
     expected: T,
-) -> radiant::app::BrowserTagState {
+) -> BrowserTagState {
     if entries.is_empty() {
-        return radiant::app::BrowserTagState::Off;
+        return BrowserTagState::Off;
     }
     let on_count = entries
         .iter()
         .filter(|entry| value_of(entry) == Some(expected))
         .count();
     match on_count {
-        0 => radiant::app::BrowserTagState::Off,
-        count if count == entries.len() => radiant::app::BrowserTagState::On,
-        _ => radiant::app::BrowserTagState::Mixed,
+        0 => BrowserTagState::Off,
+        count if count == entries.len() => BrowserTagState::On,
+        _ => BrowserTagState::Mixed,
     }
 }
 
 fn string_tag_summary<'a>(
     entries: &'a [WavEntry],
     value_of: impl Fn(&'a WavEntry) -> Option<&'a str>,
-) -> (radiant::app::BrowserTagState, Option<String>) {
+) -> (BrowserTagState, Option<String>) {
     if entries.is_empty() {
-        return (radiant::app::BrowserTagState::Off, None);
+        return (BrowserTagState::Off, None);
     }
     let mut values = entries
         .iter()
@@ -288,22 +281,19 @@ fn string_tag_summary<'a>(
     values.sort_unstable();
     values.dedup();
     match values.len() {
-        0 => (radiant::app::BrowserTagState::Off, None),
+        0 => (BrowserTagState::Off, None),
         1 => {
             let on_count = entries
                 .iter()
                 .filter(|entry| value_of(entry) == values.first().copied())
                 .count();
             let state = if on_count == entries.len() {
-                radiant::app::BrowserTagState::On
+                BrowserTagState::On
             } else {
-                radiant::app::BrowserTagState::Mixed
+                BrowserTagState::Mixed
             };
             (state, values.first().map(|value| (*value).to_string()))
         }
-        _ => (
-            radiant::app::BrowserTagState::Mixed,
-            Some(String::from("Custom")),
-        ),
+        _ => (BrowserTagState::Mixed, Some(String::from("Custom"))),
     }
 }

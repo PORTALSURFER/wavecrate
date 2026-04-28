@@ -179,7 +179,7 @@ fn destructive_edit_preserves_cached_browser_metadata() {
             .iter()
             .find(|pill| pill.id == "kick")
             .map(|pill| pill.state),
-        Some(radiant::app::BrowserTagState::On)
+        Some(crate::app_core::actions::NativeBrowserTagState::On)
     );
     assert_eq!(
         projected.tag_sidebar.custom_tag_pill.map(|pill| pill.label),
