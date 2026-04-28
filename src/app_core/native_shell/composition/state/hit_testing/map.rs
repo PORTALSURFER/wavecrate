@@ -1,15 +1,17 @@
+use self::sempal_crate::app as native_model;
 use super::*;
+use crate as sempal_crate;
 
 pub(in crate::gui::native_shell::state) fn map_point_is_selected(
     model: &AppModel,
-    point: &crate::app::MapPointModel,
+    point: &native_model::MapPointModel,
 ) -> bool {
     model.map.selected_sample_id.as_deref() == Some(point.sample_id.as_ref())
 }
 
 pub(in crate::gui::native_shell::state) fn map_point_is_focused(
     model: &AppModel,
-    point: &crate::app::MapPointModel,
+    point: &native_model::MapPointModel,
 ) -> bool {
     model.map.focused_sample_id.as_deref() == Some(point.sample_id.as_ref())
 }
@@ -17,7 +19,7 @@ pub(in crate::gui::native_shell::state) fn map_point_is_focused(
 pub(in crate::gui::native_shell::state) fn map_point_color(
     style: &StyleTokens,
     model: &AppModel,
-    point: &crate::app::MapPointModel,
+    point: &native_model::MapPointModel,
 ) -> Rgba8 {
     if map_point_is_focused(model, point) {
         return style.accent_warning;

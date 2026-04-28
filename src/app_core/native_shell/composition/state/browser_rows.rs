@@ -1,9 +1,11 @@
 //! Browser-row caches plus focused geometry, truncation, and visual helper modules.
 
+use self::sempal_crate::app as native_model;
 use super::svg_icons::WaveformToolbarIcon;
 use super::*;
-use crate::app::FolderPaneIdModel;
+use crate as sempal_crate;
 use crate::gui::native_shell::layout_adapter::BrowserRowTextLayout;
+use native_model::FolderPaneIdModel;
 
 #[path = "browser_rows/sidebar.rs"]
 mod sidebar;
@@ -30,7 +32,7 @@ pub(super) struct CachedBrowserRow {
     pub(super) label_rendered_width: f32,
     pub(super) column: usize,
     pub(super) rating_level: i8,
-    pub(super) playback_age_bucket: crate::app::PlaybackAgeBucket,
+    pub(super) playback_age_bucket: native_model::PlaybackAgeBucket,
     pub(super) similarity_display_strength: Option<u8>,
     pub(super) selected: bool,
     pub(super) focused: bool,

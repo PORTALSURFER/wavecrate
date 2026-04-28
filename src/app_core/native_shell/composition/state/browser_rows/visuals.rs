@@ -1,6 +1,8 @@
 //! Visual fill, pulse, and meter helpers shared by native shell lists and toolbars.
 
+use self::sempal_crate::app as native_model;
 use super::*;
+use crate as sempal_crate;
 
 pub(in crate::gui::native_shell::state) fn volume_action_for_meter(
     volume_meter: Rect,
@@ -139,13 +141,13 @@ pub(in crate::gui::native_shell::state) fn similarity_anchor_browser_index_fill(
 /// Return the left-edge browser age marker color for the playback-age bucket.
 pub(in crate::gui::native_shell::state) fn browser_playback_age_marker_color(
     style: &StyleTokens,
-    bucket: crate::app::PlaybackAgeBucket,
+    bucket: native_model::PlaybackAgeBucket,
 ) -> Rgba8 {
     match bucket {
-        crate::app::PlaybackAgeBucket::Fresh => style.text_primary,
-        crate::app::PlaybackAgeBucket::OlderThanWeek => style.text_muted,
-        crate::app::PlaybackAgeBucket::OlderThanMonth => style.border_emphasis,
-        crate::app::PlaybackAgeBucket::NeverPlayed => style.grid_soft,
+        native_model::PlaybackAgeBucket::Fresh => style.text_primary,
+        native_model::PlaybackAgeBucket::OlderThanWeek => style.text_muted,
+        native_model::PlaybackAgeBucket::OlderThanMonth => style.border_emphasis,
+        native_model::PlaybackAgeBucket::NeverPlayed => style.grid_soft,
     }
 }
 

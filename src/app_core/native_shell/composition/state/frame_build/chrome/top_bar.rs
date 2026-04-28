@@ -1,5 +1,7 @@
+use self::sempal_crate::app as native_model;
 use super::*;
-use crate::app::AudioEngineChipStateModel;
+use crate as sempal_crate;
+use native_model::AudioEngineChipStateModel;
 
 pub(super) fn render_top_bar_controls(
     state: &NativeShellState,

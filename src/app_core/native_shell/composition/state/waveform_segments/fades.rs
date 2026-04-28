@@ -1,4 +1,6 @@
+use self::sempal_crate::app as native_model;
 use super::*;
+use crate as sempal_crate;
 
 /// Width in logical pixels for edit-fade drag handles.
 const EDIT_FADE_HANDLE_WIDTH: f32 = 3.0;
@@ -11,7 +13,7 @@ pub(super) fn emit_edit_fade_overlays(
     style: &StyleTokens,
     waveform_plot: Rect,
     edit_selection_rect: Rect,
-    edit_selection: crate::app::NormalizedRangeModel,
+    edit_selection: native_model::NormalizedRangeModel,
     fade_in_end_milli: Option<u16>,
     fade_in_end_micros: Option<u32>,
     fade_in_mute_start_milli: Option<u16>,

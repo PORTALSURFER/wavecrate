@@ -1,6 +1,8 @@
 //! Options-panel action definitions and audio picker helpers.
 
+use self::sempal_crate::app as native_model;
 use super::*;
+use crate as sempal_crate;
 
 pub(super) fn audio_overview_button_defs(model: &AppModel) -> Vec<(String, UiAction)> {
     vec![
@@ -123,48 +125,51 @@ pub(super) fn options_panel_title(model: &AppModel) -> String {
 
 pub(super) fn picker_options(
     model: &AppModel,
-    target: crate::app::AudioPickerTargetModel,
-) -> &[crate::app::AudioOptionItemModel] {
+    target: native_model::AudioPickerTargetModel,
+) -> &[native_model::AudioOptionItemModel] {
     match target {
-        crate::app::AudioPickerTargetModel::OutputHost => &model.audio_engine.output_host_options,
-        crate::app::AudioPickerTargetModel::OutputDevice => {
+        native_model::AudioPickerTargetModel::OutputHost => &model.audio_engine.output_host_options,
+        native_model::AudioPickerTargetModel::OutputDevice => {
             &model.audio_engine.output_device_options
         }
-        crate::app::AudioPickerTargetModel::OutputSampleRate => {
+        native_model::AudioPickerTargetModel::OutputSampleRate => {
             &model.audio_engine.output_sample_rate_options
         }
-        crate::app::AudioPickerTargetModel::InputHost => &model.audio_engine.input_host_options,
-        crate::app::AudioPickerTargetModel::InputDevice => &model.audio_engine.input_device_options,
-        crate::app::AudioPickerTargetModel::InputSampleRate => {
+        native_model::AudioPickerTargetModel::InputHost => &model.audio_engine.input_host_options,
+        native_model::AudioPickerTargetModel::InputDevice => {
+            &model.audio_engine.input_device_options
+        }
+        native_model::AudioPickerTargetModel::InputSampleRate => {
             &model.audio_engine.input_sample_rate_options
         }
     }
 }
 
-pub(super) fn picker_action(value: &crate::app::AudioOptionValueModel) -> UiAction {
+/// Map one projected audio picker option into the native action it emits.
+pub(super) fn picker_action(value: &native_model::AudioOptionValueModel) -> UiAction {
     match value {
-        crate::app::AudioOptionValueModel::OutputHost(host_id) => UiAction::SetAudioOutputHost {
+        native_model::AudioOptionValueModel::OutputHost(host_id) => UiAction::SetAudioOutputHost {
             host_id: host_id.clone(),
         },
-        crate::app::AudioOptionValueModel::OutputDevice(device_name) => {
+        native_model::AudioOptionValueModel::OutputDevice(device_name) => {
             UiAction::SetAudioOutputDevice {
                 device_name: device_name.clone(),
             }
         }
-        crate::app::AudioOptionValueModel::OutputSampleRate(sample_rate) => {
+        native_model::AudioOptionValueModel::OutputSampleRate(sample_rate) => {
             UiAction::SetAudioOutputSampleRate {
                 sample_rate: *sample_rate,
             }
         }
-        crate::app::AudioOptionValueModel::InputHost(host_id) => UiAction::SetAudioInputHost {
+        native_model::AudioOptionValueModel::InputHost(host_id) => UiAction::SetAudioInputHost {
             host_id: host_id.clone(),
         },
-        crate::app::AudioOptionValueModel::InputDevice(device_name) => {
+        native_model::AudioOptionValueModel::InputDevice(device_name) => {
             UiAction::SetAudioInputDevice {
                 device_name: device_name.clone(),
             }
         }
-        crate::app::AudioOptionValueModel::InputSampleRate(sample_rate) => {
+        native_model::AudioOptionValueModel::InputSampleRate(sample_rate) => {
             UiAction::SetAudioInputSampleRate {
                 sample_rate: *sample_rate,
             }
@@ -172,14 +177,17 @@ pub(super) fn picker_action(value: &crate::app::AudioOptionValueModel) -> UiActi
     }
 }
 
-fn audio_picker_title(target: crate::app::AudioPickerTargetModel) -> String {
+/// Return the title text for the active audio picker target.
+fn audio_picker_title(target: native_model::AudioPickerTargetModel) -> String {
     match target {
-        crate::app::AudioPickerTargetModel::OutputHost => String::from("Output Host"),
-        crate::app::AudioPickerTargetModel::OutputDevice => String::from("Output Device"),
-        crate::app::AudioPickerTargetModel::OutputSampleRate => String::from("Output Sample Rate"),
-        crate::app::AudioPickerTargetModel::InputHost => String::from("Input Host"),
-        crate::app::AudioPickerTargetModel::InputDevice => String::from("Input Device"),
-        crate::app::AudioPickerTargetModel::InputSampleRate => String::from("Input Sample Rate"),
+        native_model::AudioPickerTargetModel::OutputHost => String::from("Output Host"),
+        native_model::AudioPickerTargetModel::OutputDevice => String::from("Output Device"),
+        native_model::AudioPickerTargetModel::OutputSampleRate => {
+            String::from("Output Sample Rate")
+        }
+        native_model::AudioPickerTargetModel::InputHost => String::from("Input Host"),
+        native_model::AudioPickerTargetModel::InputDevice => String::from("Input Device"),
+        native_model::AudioPickerTargetModel::InputSampleRate => String::from("Input Sample Rate"),
     }
 }
 

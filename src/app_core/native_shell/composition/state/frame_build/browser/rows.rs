@@ -1,4 +1,6 @@
+use self::sempal_crate::app as native_model;
 use super::*;
+use crate as sempal_crate;
 
 pub(super) fn render_browser_rows_window(
     ctx: &StaticFrameCtx<'_>,
@@ -477,20 +479,20 @@ fn render_sidebar_tag_pill(
     text_runs: &mut impl TextRunSink,
     ctx: &StaticFrameCtx<'_>,
     rect: Rect,
-    pill: &crate::app::BrowserTagPillModel,
+    pill: &native_model::BrowserTagPillModel,
 ) {
     let (fill, border, text) = match pill.state {
-        crate::app::BrowserTagState::Off => (
+        native_model::BrowserTagState::Off => (
             ctx.style.surface_base,
             ctx.style.border,
             ctx.style.text_muted,
         ),
-        crate::app::BrowserTagState::On => (
+        native_model::BrowserTagState::On => (
             blend_color(ctx.style.highlight_cyan, ctx.style.surface_overlay, 0.24),
             blend_color(ctx.style.highlight_cyan, ctx.style.text_primary, 0.32),
             ctx.style.text_primary,
         ),
-        crate::app::BrowserTagState::Mixed => (
+        native_model::BrowserTagState::Mixed => (
             blend_color(
                 ctx.style.highlight_orange_soft,
                 ctx.style.surface_overlay,

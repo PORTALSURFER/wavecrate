@@ -1,4 +1,6 @@
+use self::sempal_crate::app as native_model;
 use super::*;
+use crate as sempal_crate;
 
 pub(in crate::gui::native_shell::state) fn waveform_toolbar_hit_test_cache_key(
     layout: &ShellLayout,
@@ -26,7 +28,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_model_flags(
     model: &NativeMotionModel,
 ) -> u16 {
     let mut bits = 0u16;
-    if model.waveform_channel_view == crate::app::WaveformChannelViewModel::Stereo {
+    if model.waveform_channel_view == native_model::WaveformChannelViewModel::Stereo {
         bits |= 1 << 0;
     }
     if model.waveform_normalized_audition_enabled {

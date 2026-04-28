@@ -1,10 +1,12 @@
 //! Waveform toolbar layout and button rendering helpers.
 
+use self::sempal_crate::app as native_model;
 use super::super::*;
 use super::{
     waveform_toolbar_icon_rect, waveform_toolbar_overlay_icon_color,
     waveform_toolbar_overlay_icon_rect, waveform_toolbar_visual_color,
 };
+use crate as sempal_crate;
 
 pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
     layout: &ShellLayout,
@@ -34,7 +36,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         (
             "Channel",
             Some(
-                if model.waveform_channel_view == crate::app::WaveformChannelViewModel::Stereo {
+                if model.waveform_channel_view == native_model::WaveformChannelViewModel::Stereo {
                     WaveformToolbarIcon::Stereo
                 } else {
                     WaveformToolbarIcon::Mono
@@ -45,7 +47,8 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
             true,
             false,
             Some(UiAction::SetWaveformChannelView {
-                stereo: model.waveform_channel_view != crate::app::WaveformChannelViewModel::Stereo,
+                stereo: model.waveform_channel_view
+                    != native_model::WaveformChannelViewModel::Stereo,
             }),
             style.text_primary,
         ),
@@ -305,7 +308,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_bpm_value_label(
     model
         .waveform_tempo_label
         .as_deref()
-        .and_then(crate::app::parse_waveform_tempo_number_text)
+        .and_then(native_model::parse_waveform_tempo_number_text)
         .unwrap_or_else(|| String::from("120.0"))
 }
 

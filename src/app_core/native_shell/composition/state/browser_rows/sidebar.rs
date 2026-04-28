@@ -1,7 +1,9 @@
 //! Sidebar/source-row geometry helpers shared by the native shell.
 
+use self::sempal_crate::app as native_model;
 use super::*;
-use crate::app::{FolderPaneIdModel, FolderPaneModel};
+use crate as sempal_crate;
+use native_model::{FolderPaneIdModel, FolderPaneModel};
 
 pub(in crate::gui::native_shell::state) fn rendered_source_rows(
     style: &StyleTokens,

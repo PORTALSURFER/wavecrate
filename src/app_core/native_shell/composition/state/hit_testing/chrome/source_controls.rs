@@ -1,4 +1,6 @@
+use self::sempal_crate::app as native_model;
 use super::*;
+use crate as sempal_crate;
 
 impl NativeShellState {
     /// Resolve a rendered source-row index for a point within the sidebar.
@@ -7,7 +9,7 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
         point: Point,
-    ) -> Option<(crate::app::FolderPaneIdModel, usize)> {
+    ) -> Option<(native_model::FolderPaneIdModel, usize)> {
         let style = style_for_layout(layout);
         self.cached_source_rows(layout, &style, model)
             .iter()
@@ -64,7 +66,7 @@ impl NativeShellState {
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
-        pane: crate::app::FolderPaneIdModel,
+        pane: native_model::FolderPaneIdModel,
     ) -> Vec<Rect> {
         let style = style_for_layout(layout);
         self.cached_source_rows(layout, &style, model)
@@ -207,8 +209,8 @@ impl NativeShellState {
         let style = style_for_layout(layout);
         let sections = sidebar_sections(layout, &style, model);
         for pane in [
-            crate::app::FolderPaneIdModel::Upper,
-            crate::app::FolderPaneIdModel::Lower,
+            native_model::FolderPaneIdModel::Upper,
+            native_model::FolderPaneIdModel::Lower,
         ] {
             if sections.source_rows(pane).contains(point) {
                 return Some(UiAction::FocusSourcesPanel);

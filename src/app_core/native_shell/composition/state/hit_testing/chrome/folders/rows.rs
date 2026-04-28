@@ -1,5 +1,7 @@
+use self::sempal_crate::app as native_model;
 use super::*;
-use crate::app::{FolderPaneIdModel, FolderRowKind, FolderRowModel};
+use crate as sempal_crate;
+use native_model::{FolderPaneIdModel, FolderRowKind, FolderRowModel};
 
 impl NativeShellState {
     /// Resolve a rendered folder-row index for a point within the sidebar.

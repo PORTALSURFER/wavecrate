@@ -6,7 +6,11 @@
 //! so toolbar controls can render iconography without adding a new primitive
 //! kind.
 
+#[cfg(test)]
+use self::sempal_crate::app as native_model;
 use super::*;
+#[cfg(test)]
+use crate as sempal_crate;
 use std::sync::Arc;
 
 #[path = "../../../../../vendor/radiant/src/gui/native_shell/state/svg_icons/parser.rs"]
@@ -210,8 +214,8 @@ fn icon_svg_asset(icon: WaveformToolbarIcon) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app::UiAction;
     use crate::gui::types::{Point, Rect, Rgba8};
+    use native_model::UiAction;
 
     fn waveform_toolbar_button(label: &'static str, active: bool) -> WaveformToolbarButton {
         WaveformToolbarButton {

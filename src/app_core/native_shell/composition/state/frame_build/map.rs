@@ -1,5 +1,7 @@
+use self::sempal_crate::app as native_model;
 use super::StaticFrameCtx;
 use super::*;
+use crate as sempal_crate;
 
 pub(super) fn render_map_panel(ctx: &StaticFrameCtx<'_>, primitives: &mut impl PrimitiveSink) {
     let canvas = compute_browser_map_canvas_rect(ctx.layout.browser_rows, ctx.sizing);
@@ -39,8 +41,8 @@ pub(super) fn render_map_panel(ctx: &StaticFrameCtx<'_>, primitives: &mut impl P
 
 pub(super) fn render_map_header(ctx: &StaticFrameCtx<'_>, text_runs: &mut impl TextRunSink) {
     let mode_label = match ctx.model.map.render_mode {
-        crate::app::MapRenderModeModel::Heatmap => "heatmap",
-        crate::app::MapRenderModeModel::Points => "points",
+        native_model::MapRenderModeModel::Heatmap => "heatmap",
+        native_model::MapRenderModeModel::Points => "points",
     };
     let legend_text = if ctx.model.map.legend_label.is_empty() {
         format!(

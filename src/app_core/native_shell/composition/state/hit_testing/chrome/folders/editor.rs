@@ -1,5 +1,7 @@
+use self::sempal_crate::app as native_model;
 use super::*;
-use crate::app::FolderRowKind;
+use crate as sempal_crate;
+use native_model::FolderRowKind;
 
 impl NativeShellState {
     /// Return the projected inline folder-edit row index in the active pane, when present.

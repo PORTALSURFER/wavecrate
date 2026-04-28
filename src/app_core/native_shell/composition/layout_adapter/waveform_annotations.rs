@@ -1,7 +1,9 @@
 //! Slotized waveform annotation geometry for selection, slice previews, cursor, and playhead.
 
-use crate::app::{NormalizedRangeModel, WaveformSlicePreviewModel};
+use self::sempal_crate::app as native_model;
+use crate as sempal_crate;
 use crate::gui::types::{Point, Rect};
+use native_model::{NormalizedRangeModel, WaveformSlicePreviewModel};
 
 #[cfg(test)]
 #[path = "waveform_annotations/tests.rs"]

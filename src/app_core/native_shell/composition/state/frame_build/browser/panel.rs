@@ -1,4 +1,6 @@
+use self::sempal_crate::app as native_model;
 use super::*;
+use crate as sempal_crate;
 
 pub(super) fn render_browser_frame(
     state: &mut NativeShellState,
@@ -324,14 +326,14 @@ fn centered_button_icon_rect(button_rect: Rect, sizing: SizingTokens) -> Rect {
 }
 
 fn browser_playback_age_filter_icon(
-    chip: crate::app::PlaybackAgeFilterChip,
+    chip: native_model::PlaybackAgeFilterChip,
 ) -> WaveformToolbarIcon {
     match chip {
-        crate::app::PlaybackAgeFilterChip::NeverPlayed => WaveformToolbarIcon::BrowserNeverPlayed,
-        crate::app::PlaybackAgeFilterChip::OlderThanMonth => {
+        native_model::PlaybackAgeFilterChip::NeverPlayed => WaveformToolbarIcon::BrowserNeverPlayed,
+        native_model::PlaybackAgeFilterChip::OlderThanMonth => {
             WaveformToolbarIcon::BrowserOlderThanMonth
         }
-        crate::app::PlaybackAgeFilterChip::OlderThanWeek => {
+        native_model::PlaybackAgeFilterChip::OlderThanWeek => {
             WaveformToolbarIcon::BrowserOlderThanWeek
         }
     }
