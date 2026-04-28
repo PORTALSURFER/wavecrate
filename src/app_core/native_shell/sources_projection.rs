@@ -2,7 +2,6 @@
 
 use super::*;
 use crate::app_core::app_api::state::{FolderBrowserUiState, FolderPaneId};
-use radiant::app::{FolderPaneIdModel, FolderPaneModel};
 use std::path::{Path, PathBuf};
 
 /// Project source/folder panel data for the native sidebar.
@@ -172,9 +171,7 @@ fn project_folder_pane_id(pane: FolderPaneId) -> FolderPaneIdModel {
     }
 }
 
-fn project_folder_rows(
-    folder_ui: &FolderBrowserUiState,
-) -> radiant::app::RetainedVec<FolderRowModel> {
+fn project_folder_rows(folder_ui: &FolderBrowserUiState) -> RetainedVec<FolderRowModel> {
     let mut projected: Vec<FolderRowModel> = folder_ui
         .rows
         .iter()

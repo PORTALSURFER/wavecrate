@@ -84,7 +84,7 @@ pub type NativeAudioOptionValueModel = self::native_shell_dtos::AudioOptionValue
 pub type NativeAudioPickerTargetModel = self::native_shell_dtos::AudioPickerTargetModel;
 
 /// Native runtime focus-context model used for contextual input routing.
-pub type NativeFocusContextModel = radiant::compat::sempal_shell::FocusContextModel;
+pub type NativeFocusContextModel = self::native_shell_dtos::FocusContextModel;
 
 /// Native runtime frame build result payload.
 pub type NativeFrameBuildResult = radiant::compat::sempal_shell::FrameBuildResult;
@@ -99,7 +99,7 @@ pub type NativeSegmentRevisions = radiant::compat::sempal_shell::SegmentRevision
 pub type NativeMotionModel = radiant::compat::sempal_shell::NativeMotionModel;
 
 /// Native runtime table column summary model.
-pub type NativeColumnModel = radiant::compat::sempal_shell::ColumnModel;
+pub type NativeColumnModel = self::native_shell_dtos::ColumnModel;
 
 /// Native runtime confirm prompt kind descriptor.
 pub type NativeConfirmPromptKind = self::native_shell_dtos::ConfirmPromptKind;
@@ -111,16 +111,22 @@ pub type NativeConfirmPromptModel = self::native_shell_dtos::ConfirmPromptModel;
 pub type NativeDragOverlayModel = self::native_shell_dtos::DragOverlayModel;
 
 /// Native runtime folder actions model.
-pub type NativeFolderActionsModel = radiant::compat::sempal_shell::FolderActionsModel;
+pub type NativeFolderActionsModel = self::native_shell_dtos::FolderActionsModel;
+
+/// Native runtime folder pane identifier.
+pub type NativeFolderPaneIdModel = self::native_shell_dtos::FolderPaneIdModel;
+
+/// Native runtime folder pane model.
+pub type NativeFolderPaneModel = self::native_shell_dtos::FolderPaneModel;
 
 /// Native runtime folder recovery model.
-pub type NativeFolderRecoveryModel = radiant::compat::sempal_shell::FolderRecoveryModel;
+pub type NativeFolderRecoveryModel = self::native_shell_dtos::FolderRecoveryModel;
 
 /// Native runtime folder row model.
-pub type NativeFolderRowModel = radiant::compat::sempal_shell::FolderRowModel;
+pub type NativeFolderRowModel = self::native_shell_dtos::FolderRowModel;
 
 /// Native runtime folder row kind.
-pub type NativeFolderRowKind = radiant::compat::sempal_shell::FolderRowKind;
+pub type NativeFolderRowKind = self::native_shell_dtos::FolderRowKind;
 
 /// Native runtime map panel model.
 pub type NativeMapPanelModel = self::native_shell_dtos::MapPanelModel;
@@ -141,10 +147,10 @@ pub type NativeNormalizedRangeModel = self::native_shell_dtos::NormalizedRangeMo
 pub type NativeProgressOverlayModel = self::native_shell_dtos::ProgressOverlayModel;
 
 /// Native runtime source row model.
-pub type NativeSourceRowModel = radiant::compat::sempal_shell::SourceRowModel;
+pub type NativeSourceRowModel = self::native_shell_dtos::SourceRowModel;
 
 /// Native runtime sources panel model.
-pub type NativeSourcesPanelModel = radiant::compat::sempal_shell::SourcesPanelModel;
+pub type NativeSourcesPanelModel = self::native_shell_dtos::SourcesPanelModel;
 
 /// Native runtime status bar model.
 pub type NativeStatusBarModel = self::native_shell_dtos::StatusBarModel;

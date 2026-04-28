@@ -8,7 +8,7 @@ mod overlays;
 mod status_motion;
 mod waveform;
 
-fn project_sources_for_ui(ui: &UiState) -> radiant::app::SourcesPanelModel {
+fn project_sources_for_ui(ui: &UiState) -> SourcesPanelModel {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(8, 8), None);
     controller.ui = ui.clone();
     project_sources_model(&controller)
