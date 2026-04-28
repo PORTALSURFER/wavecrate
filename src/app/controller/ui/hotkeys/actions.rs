@@ -102,24 +102,34 @@ mod tests {
     use crate::app::state::FocusContext;
     use crate::gui::input::KeyCode;
 
-    fn map_focus_context(focus: radiant::app::FocusContextModel) -> FocusContext {
+    fn map_focus_context(
+        focus: radiant::compat::sempal_shell::FocusContextModel,
+    ) -> FocusContext {
         match focus {
-            radiant::app::FocusContextModel::None => FocusContext::None,
-            radiant::app::FocusContextModel::Waveform => FocusContext::Waveform,
-            radiant::app::FocusContextModel::SampleBrowser => FocusContext::SampleBrowser,
-            radiant::app::FocusContextModel::SourceFolders => FocusContext::SourceFolders,
-            radiant::app::FocusContextModel::SourcesList => FocusContext::SourcesList,
+            radiant::compat::sempal_shell::FocusContextModel::None => FocusContext::None,
+            radiant::compat::sempal_shell::FocusContextModel::Waveform => FocusContext::Waveform,
+            radiant::compat::sempal_shell::FocusContextModel::SampleBrowser => {
+                FocusContext::SampleBrowser
+            }
+            radiant::compat::sempal_shell::FocusContextModel::SourceFolders => {
+                FocusContext::SourceFolders
+            }
+            radiant::compat::sempal_shell::FocusContextModel::SourcesList => {
+                FocusContext::SourcesList
+            }
         }
     }
 
-    fn map_scope(scope: radiant::app::HotkeyScope) -> HotkeyScope {
+    fn map_scope(scope: radiant::compat::sempal_shell::HotkeyScope) -> HotkeyScope {
         match scope {
-            radiant::app::HotkeyScope::Global => HotkeyScope::Global,
-            radiant::app::HotkeyScope::Focus(focus) => HotkeyScope::Focus(map_focus_context(focus)),
+            radiant::compat::sempal_shell::HotkeyScope::Global => HotkeyScope::Global,
+            radiant::compat::sempal_shell::HotkeyScope::Focus(focus) => {
+                HotkeyScope::Focus(map_focus_context(focus))
+            }
         }
     }
 
-    fn map_keypress(press: radiant::app::KeyPress) -> KeyPress {
+    fn map_keypress(press: radiant::compat::sempal_shell::KeyPress) -> KeyPress {
         KeyPress {
             key: press.key,
             command: press.command,
@@ -128,7 +138,7 @@ mod tests {
         }
     }
 
-    fn map_gesture(gesture: radiant::app::HotkeyGesture) -> HotkeyGesture {
+    fn map_gesture(gesture: radiant::compat::sempal_shell::HotkeyGesture) -> HotkeyGesture {
         HotkeyGesture {
             first: map_keypress(gesture.first),
             chord: gesture.chord.map(map_keypress),
@@ -189,7 +199,7 @@ mod tests {
 
     #[test]
     fn sempal_catalog_preserves_legacy_radiant_binding_contract() {
-        let legacy: Vec<_> = radiant::app::iter_hotkey_bindings().collect();
+        let legacy: Vec<_> = radiant::compat::sempal_shell::iter_hotkey_bindings().collect();
         assert_eq!(HOTKEY_ACTIONS.len(), legacy.len());
 
         for (action, binding) in HOTKEY_ACTIONS.iter().zip(legacy) {

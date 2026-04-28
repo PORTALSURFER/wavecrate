@@ -130,27 +130,27 @@ impl GuiFixtureBridge {
 }
 
 impl NativeAppBridge for GuiFixtureBridge {
-    fn project_model(&mut self) -> Arc<radiant::app::AppModel> {
+    fn project_model(&mut self) -> Arc<radiant::compat::sempal_shell::AppModel> {
         <SempalNativeBridge as NativeAppBridge>::project_model(&mut self.bridge)
     }
 
-    fn pull_model(&mut self) -> radiant::app::AppModel {
+    fn pull_model(&mut self) -> radiant::compat::sempal_shell::AppModel {
         <SempalNativeBridge as NativeAppBridge>::pull_model(&mut self.bridge)
     }
 
-    fn pull_model_arc(&mut self) -> Arc<radiant::app::AppModel> {
+    fn pull_model_arc(&mut self) -> Arc<radiant::compat::sempal_shell::AppModel> {
         <SempalNativeBridge as NativeAppBridge>::pull_model_arc(&mut self.bridge)
     }
 
-    fn project_motion_model(&mut self) -> Option<radiant::app::NativeMotionModel> {
+    fn project_motion_model(&mut self) -> Option<radiant::compat::sempal_shell::NativeMotionModel> {
         GuiFixtureBridge::project_motion_model(self).map(Into::into)
     }
 
-    fn take_dirty_segments(&mut self) -> radiant::app::DirtySegments {
+    fn take_dirty_segments(&mut self) -> radiant::compat::sempal_shell::DirtySegments {
         GuiFixtureBridge::take_dirty_segments(self).into()
     }
 
-    fn take_segment_revisions(&mut self) -> radiant::app::SegmentRevisions {
+    fn take_segment_revisions(&mut self) -> radiant::compat::sempal_shell::SegmentRevisions {
         GuiFixtureBridge::take_segment_revisions(self).into()
     }
 
@@ -177,7 +177,7 @@ impl NativeAppBridge for GuiFixtureBridge {
             .maybe_launch_external_drag(pointer_outside, pointer_left)
     }
 
-    fn observe_frame_result(&mut self, result: radiant::app::FrameBuildResult) {
+    fn observe_frame_result(&mut self, result: radiant::compat::sempal_shell::FrameBuildResult) {
         GuiFixtureBridge::observe_frame_result(self, result.into());
     }
 
