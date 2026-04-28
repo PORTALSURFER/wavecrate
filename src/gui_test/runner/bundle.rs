@@ -1,7 +1,9 @@
 //! Bundle capture helpers for the in-process GUI scenario runner.
 
 use crate::{
-    app_core::actions::{GUI_ACTION_CATALOG, NativeAppBridge, NativeGuiAutomationSnapshot},
+    app_core::actions::{
+        GUI_ACTION_CATALOG, NativeAppBridge, NativeAppModel, NativeGuiAutomationSnapshot,
+    },
     gui_runtime::capture_gui_automation_snapshot,
     gui_test::{
         GuiActionTraceEvent, GuiStepTimingSample, GuiTestArtifactBundle, GuiTestModeConfig,
@@ -17,7 +19,8 @@ pub(super) fn snapshot_bundle(
     failure_summary: Option<String>,
     step_timings_ms: Vec<GuiStepTimingSample>,
 ) -> GuiTestArtifactBundle {
-    let model = bridge.project_model();
+    let compat_model = bridge.project_model();
+    let model = NativeAppModel::from(compat_model.as_ref().clone());
     GuiTestArtifactBundle {
         schema_version: 1,
         scenario_name: config.scenario_name.clone(),
@@ -27,9 +30,9 @@ pub(super) fn snapshot_bundle(
             .run_manifest_path
             .as_ref()
             .map(|path| path.to_string_lossy().into_owned()),
-        automation_snapshot: capture_gui_automation_snapshot(config.viewport_f32(), model.as_ref()),
+        automation_snapshot: capture_gui_automation_snapshot(config.viewport_f32(), &model),
         action_trace: trace,
-        model_summary: build_model_summary(model.as_ref()),
+        model_summary: build_model_summary(&model),
         action_catalog: GUI_ACTION_CATALOG.to_vec(),
         screenshot_before_failure: None,
         screenshot_after_failure: None,
@@ -43,6 +46,7 @@ pub(super) fn current_snapshot(
     config: &GuiTestModeConfig,
     bridge: &mut impl NativeAppBridge,
 ) -> NativeGuiAutomationSnapshot {
-    let model = bridge.project_model();
-    capture_gui_automation_snapshot(config.viewport_f32(), model.as_ref())
+    let compat_model = bridge.project_model();
+    let model = NativeAppModel::from(compat_model.as_ref().clone());
+    capture_gui_automation_snapshot(config.viewport_f32(), &model)
 }

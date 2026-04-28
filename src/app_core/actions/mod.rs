@@ -2,11 +2,11 @@
 //!
 //! These aliases centralize runtime-facing type dependencies in `app_core`,
 //! so bridge/controller glue does not import concrete runtime types directly.
-//! They intentionally point at `radiant::compat::sempal_shell` because the
-//! current shell contract is compatibility infrastructure, not the preferred
-//! generic Radiant API.
+//! Sempal-owned projection DTOs live here while Radiant-specific compatibility
+//! types remain isolated to the runtime boundary.
 
 mod catalog;
+mod native_shell_dtos;
 
 pub use self::catalog::{
     GUI_ACTION_CATALOG, GuiActionCatalogEntry, GuiActionKind, GuiCoverageLayer, GuiDispatchPolicy,
@@ -54,25 +54,25 @@ pub type NativeBrowserTagTarget = radiant::compat::sempal_shell::BrowserTagTarge
 pub type NativeUiAction = radiant::compat::sempal_shell::UiAction;
 
 /// Native runtime projected app model.
-pub type NativeAppModel = radiant::compat::sempal_shell::AppModel;
+pub type NativeAppModel = self::native_shell_dtos::AppModel;
 
 /// Native runtime audio-engine chip state.
-pub type NativeAudioEngineChipStateModel = radiant::compat::sempal_shell::AudioEngineChipStateModel;
+pub type NativeAudioEngineChipStateModel = self::native_shell_dtos::AudioEngineChipStateModel;
 
 /// Native runtime audio-engine projection model.
-pub type NativeAudioEngineModel = radiant::compat::sempal_shell::AudioEngineModel;
+pub type NativeAudioEngineModel = self::native_shell_dtos::AudioEngineModel;
 
 /// Native runtime audio-field summary model.
-pub type NativeAudioFieldModel = radiant::compat::sempal_shell::AudioFieldModel;
+pub type NativeAudioFieldModel = self::native_shell_dtos::AudioFieldModel;
 
 /// Native runtime audio picker option item.
-pub type NativeAudioOptionItemModel = radiant::compat::sempal_shell::AudioOptionItemModel;
+pub type NativeAudioOptionItemModel = self::native_shell_dtos::AudioOptionItemModel;
 
 /// Native runtime audio picker option raw value.
-pub type NativeAudioOptionValueModel = radiant::compat::sempal_shell::AudioOptionValueModel;
+pub type NativeAudioOptionValueModel = self::native_shell_dtos::AudioOptionValueModel;
 
 /// Native runtime audio picker target.
-pub type NativeAudioPickerTargetModel = radiant::compat::sempal_shell::AudioPickerTargetModel;
+pub type NativeAudioPickerTargetModel = self::native_shell_dtos::AudioPickerTargetModel;
 
 /// Native runtime focus-context model used for contextual input routing.
 pub type NativeFocusContextModel = radiant::compat::sempal_shell::FocusContextModel;
@@ -93,13 +93,13 @@ pub type NativeMotionModel = radiant::compat::sempal_shell::NativeMotionModel;
 pub type NativeColumnModel = radiant::compat::sempal_shell::ColumnModel;
 
 /// Native runtime confirm prompt kind descriptor.
-pub type NativeConfirmPromptKind = radiant::compat::sempal_shell::ConfirmPromptKind;
+pub type NativeConfirmPromptKind = self::native_shell_dtos::ConfirmPromptKind;
 
 /// Native runtime confirm prompt model.
-pub type NativeConfirmPromptModel = radiant::compat::sempal_shell::ConfirmPromptModel;
+pub type NativeConfirmPromptModel = self::native_shell_dtos::ConfirmPromptModel;
 
 /// Native runtime drag overlay model.
-pub type NativeDragOverlayModel = radiant::compat::sempal_shell::DragOverlayModel;
+pub type NativeDragOverlayModel = self::native_shell_dtos::DragOverlayModel;
 
 /// Native runtime folder actions model.
 pub type NativeFolderActionsModel = radiant::compat::sempal_shell::FolderActionsModel;
@@ -123,13 +123,13 @@ pub type NativeMapPointModel = radiant::compat::sempal_shell::MapPointModel;
 pub type NativeMapRenderModeModel = radiant::compat::sempal_shell::MapRenderModeModel;
 
 /// Native runtime options panel model.
-pub type NativeOptionsPanelModel = radiant::compat::sempal_shell::OptionsPanelModel;
+pub type NativeOptionsPanelModel = self::native_shell_dtos::OptionsPanelModel;
 
 /// Native runtime normalized range model.
 pub type NativeNormalizedRangeModel = radiant::compat::sempal_shell::NormalizedRangeModel;
 
 /// Native runtime progress overlay model.
-pub type NativeProgressOverlayModel = radiant::compat::sempal_shell::ProgressOverlayModel;
+pub type NativeProgressOverlayModel = self::native_shell_dtos::ProgressOverlayModel;
 
 /// Native runtime source row model.
 pub type NativeSourceRowModel = radiant::compat::sempal_shell::SourceRowModel;
@@ -138,13 +138,13 @@ pub type NativeSourceRowModel = radiant::compat::sempal_shell::SourceRowModel;
 pub type NativeSourcesPanelModel = radiant::compat::sempal_shell::SourcesPanelModel;
 
 /// Native runtime status bar model.
-pub type NativeStatusBarModel = radiant::compat::sempal_shell::StatusBarModel;
+pub type NativeStatusBarModel = self::native_shell_dtos::StatusBarModel;
 
 /// Native runtime update panel model.
-pub type NativeUpdatePanelModel = radiant::compat::sempal_shell::UpdatePanelModel;
+pub type NativeUpdatePanelModel = self::native_shell_dtos::UpdatePanelModel;
 
 /// Native runtime update status indicator model.
-pub type NativeUpdateStatusModel = radiant::compat::sempal_shell::UpdateStatusModel;
+pub type NativeUpdateStatusModel = self::native_shell_dtos::UpdateStatusModel;
 
 /// Native runtime waveform chrome model.
 pub type NativeWaveformChromeModel = radiant::compat::sempal_shell::WaveformChromeModel;

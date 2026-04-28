@@ -49,8 +49,7 @@ use crate::{
     app_core::actions::NativeAppBridge,
     app_core::actions::NativeMotionModel,
     app_core::actions::{
-        NativeAppModel, NativeDirtySegments, NativeFrameBuildResult, NativeSegmentRevisions,
-        NativeUiAction,
+        NativeDirtySegments, NativeFrameBuildResult, NativeSegmentRevisions, NativeUiAction,
     },
     app_core::controller::{
         AppController, AppControllerNativeRuntimeExt, build_native_app_controller,
@@ -151,29 +150,35 @@ impl SempalNativeBridge {
         self.schedule_full_model_pull_preparation();
         result
     }
+
+    #[cfg(test)]
+    /// Project the latest Sempal-owned app model snapshot for app-core tests.
+    pub(crate) fn project_model(&mut self) -> Arc<crate::app_core::actions::NativeAppModel> {
+        self.pull_model_arc_snapshot()
+    }
 }
 
 impl NativeAppBridge for SempalNativeBridge {
     /// Project the latest app model snapshot as a shared immutable arc.
-    fn project_model(&mut self) -> Arc<NativeAppModel> {
+    fn project_model(&mut self) -> Arc<radiant::compat::sempal_shell::AppModel> {
         let model = self.pull_model_arc_snapshot();
         if let Some(recorder) = self.gui_test_recorder.as_mut() {
             recorder.record_projected_model(model.as_ref());
         }
-        model
+        Arc::new(model.as_ref().into())
     }
 
     /// Project the latest app model snapshot by value.
-    fn pull_model(&mut self) -> NativeAppModel {
-        self.pull_model_arc_snapshot().as_ref().clone()
+    fn pull_model(&mut self) -> radiant::compat::sempal_shell::AppModel {
+        self.pull_model_arc_snapshot().as_ref().into()
     }
 
     /// Project the latest app model snapshot as a shared immutable arc.
     ///
     /// Returning shared ownership lets retained projection caches reuse model
     /// snapshots across pulls without cloning the full `AppModel`.
-    fn pull_model_arc(&mut self) -> Arc<NativeAppModel> {
-        self.pull_model_arc_snapshot()
+    fn pull_model_arc(&mut self) -> Arc<radiant::compat::sempal_shell::AppModel> {
+        Arc::new(self.pull_model_arc_snapshot().as_ref().into())
     }
 
     /// Return and clear the bridge segment mask from the most recent model pull.

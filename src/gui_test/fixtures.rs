@@ -101,15 +101,15 @@ impl GuiFixtureBridge {
 
 impl NativeAppBridge for GuiFixtureBridge {
     fn project_model(&mut self) -> Arc<radiant::app::AppModel> {
-        self.bridge.project_model()
+        <SempalNativeBridge as NativeAppBridge>::project_model(&mut self.bridge)
     }
 
     fn pull_model(&mut self) -> radiant::app::AppModel {
-        self.bridge.pull_model()
+        <SempalNativeBridge as NativeAppBridge>::pull_model(&mut self.bridge)
     }
 
     fn pull_model_arc(&mut self) -> Arc<radiant::app::AppModel> {
-        self.bridge.pull_model_arc()
+        <SempalNativeBridge as NativeAppBridge>::pull_model_arc(&mut self.bridge)
     }
 
     fn project_motion_model(&mut self) -> Option<NativeMotionModel> {

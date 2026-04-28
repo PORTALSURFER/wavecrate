@@ -196,7 +196,8 @@ pub fn capture_gui_automation_snapshot(
     viewport: [f32; 2],
     model: &NativeAppModel,
 ) -> NativeGuiAutomationSnapshot {
-    radiant::compat::sempal_shell::capture_gui_automation_snapshot(viewport, model)
+    let compat_model = radiant::compat::sempal_shell::AppModel::from(model);
+    radiant::compat::sempal_shell::capture_gui_automation_snapshot(viewport, &compat_model)
 }
 
 /// Capture a deterministic compatibility native-shell visual snapshot.
@@ -206,5 +207,6 @@ pub(crate) fn capture_native_shell_shot_snapshot(
     viewport: [f32; 2],
     model: &NativeAppModel,
 ) -> impl serde::Serialize {
-    radiant::compat::sempal_shell::capture_native_shell_shot_snapshot(name, viewport, model)
+    let compat_model = radiant::compat::sempal_shell::AppModel::from(model);
+    radiant::compat::sempal_shell::capture_native_shell_shot_snapshot(name, viewport, &compat_model)
 }
