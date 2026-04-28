@@ -102,12 +102,12 @@ fn find_node_recursive<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app_core::actions::NativeAutomationBounds as AutomationBounds;
     use crate::app_core::actions::{
         NativeAutomationNodeId, NativeAutomationNodeSnapshot, NativeAutomationRole,
         NativeGuiAutomationSnapshot,
     };
     use crate::gui_test::capture_default_bundle;
-    use radiant::app::AutomationBounds;
     use std::collections::BTreeMap;
     use tempfile::tempdir;
 

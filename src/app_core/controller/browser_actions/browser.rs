@@ -1,12 +1,12 @@
 //! Browser-list routing for native browser actions.
 
 use super::super::AppController;
+use crate::app_core::actions::NativeFolderPaneIdModel as FolderPaneIdModel;
 use crate::app_core::actions::NativeUiAction;
 use crate::app_core::app_api::state::{
     DragSource, DragTarget, FocusContext, FolderBrowserUiState, FolderPaneId, UiPoint,
 };
 use crate::app_core::state::{PlaybackAgeFilterChip, StatusTone};
-use radiant::app::FolderPaneIdModel;
 
 /// Try to dispatch browser-list native actions.
 pub(super) fn apply_browser_list_native_ui_action(
@@ -89,13 +89,13 @@ pub(super) fn apply_browser_list_native_ui_action(
         NativeUiAction::ToggleBrowserPlaybackAgeFilter { bucket, invert } => {
             controller.focus_browser_list();
             let chip = match bucket {
-                radiant::app::PlaybackAgeFilterChip::NeverPlayed => {
+                crate::app_core::actions::NativePlaybackAgeFilterChip::NeverPlayed => {
                     PlaybackAgeFilterChip::NeverPlayed
                 }
-                radiant::app::PlaybackAgeFilterChip::OlderThanMonth => {
+                crate::app_core::actions::NativePlaybackAgeFilterChip::OlderThanMonth => {
                     PlaybackAgeFilterChip::OlderThanMonth
                 }
-                radiant::app::PlaybackAgeFilterChip::OlderThanWeek => {
+                crate::app_core::actions::NativePlaybackAgeFilterChip::OlderThanWeek => {
                     PlaybackAgeFilterChip::OlderThanWeek
                 }
             };

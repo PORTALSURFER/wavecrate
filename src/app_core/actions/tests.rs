@@ -10,6 +10,8 @@ use crate::app_core::native_bridge::{
 };
 use crate::gui_test::{GuiAivAssertion, GuiAivStep, gui_aiv_suite_manifest};
 use std::collections::BTreeSet;
+use std::fs;
+use std::path::Path;
 
 #[test]
 fn catalog_contains_every_action_kind_exactly_once() {
@@ -204,6 +206,58 @@ fn runtime_internal_waveform_shift_actions_are_not_public_dispatch() {
     ] {
         let entry = action_catalog_entry_by_id(action_id).expect("catalog entry");
         assert_eq!(entry.dispatch_policy, GuiDispatchPolicy::RuntimeInternal);
+    }
+}
+
+#[test]
+fn native_action_exports_are_owned_in_app_core() {
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let actions_mod =
+        fs::read_to_string(manifest_dir.join("src/app_core/actions/mod.rs")).expect("actions mod");
+
+    assert!(
+        !actions_mod.contains("pub type NativeUiAction = radiant::compat::sempal_shell"),
+        "NativeUiAction must stay Sempal-owned, with compatibility conversion at the runtime boundary"
+    );
+    assert!(
+        !actions_mod.contains("pub type NativeAppModel = radiant::compat::sempal_shell"),
+        "NativeAppModel must stay Sempal-owned, with compatibility conversion at the runtime boundary"
+    );
+    assert!(
+        !actions_mod.contains("pub type NativeDirtySegments = radiant::compat::sempal_shell"),
+        "NativeDirtySegments must stay Sempal-owned, with compatibility conversion at the runtime boundary"
+    );
+    assert!(
+        actions_mod.contains("mod native_shell_actions;")
+            && actions_mod.contains("mod native_shell_dtos;"),
+        "Sempal-owned action and projection DTO modules must remain explicit"
+    );
+
+    let radiant_app_sources = [
+        "actions/mod.rs",
+        "dirty_segments.rs",
+        "motion.rs",
+        "shell.rs",
+    ]
+    .into_iter()
+    .map(|file| manifest_dir.join("vendor/radiant/src/app").join(file));
+    let forbidden_native_exports = [
+        "pub type NativeUiAction",
+        "pub enum NativeUiAction",
+        "pub type NativeAppModel",
+        "pub struct NativeAppModel",
+        "pub type NativeDirtySegments",
+        "pub struct NativeDirtySegments",
+    ];
+    for source_path in radiant_app_sources {
+        let source = fs::read_to_string(&source_path).expect("radiant app source");
+        for forbidden in forbidden_native_exports {
+            assert!(
+                !source.contains(forbidden),
+                "{} must not define Sempal-owned {forbidden}",
+                source_path.display()
+            );
+        }
     }
 }
 

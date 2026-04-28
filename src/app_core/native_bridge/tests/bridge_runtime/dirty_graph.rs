@@ -135,7 +135,7 @@ fn mark_dirty_for_browser_review_actions_marks_waveform_state_too() {
         NativeUiAction::ToggleBrowserSampleMark,
         NativeUiAction::AdjustSelectedBrowserRating { delta: 1 },
         NativeUiAction::TagBrowserSelection {
-            target: radiant::app::BrowserTagTarget::Keep,
+            target: crate::app_core::actions::NativeBrowserTagTarget::Keep,
         },
     ];
 

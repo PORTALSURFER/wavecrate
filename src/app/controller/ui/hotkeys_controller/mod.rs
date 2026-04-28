@@ -60,7 +60,9 @@ mod tests {
     use crate::waveform::WaveformRenderer;
     use std::path::{Path, PathBuf};
 
-    fn action_for(predicate: impl Fn(&radiant::app::UiAction) -> bool) -> HotkeyAction {
+    fn action_for(
+        predicate: impl Fn(&crate::app_core::actions::NativeUiAction) -> bool,
+    ) -> HotkeyAction {
         hotkeys::find_action(predicate).expect("missing hotkey action")
     }
 
@@ -102,8 +104,12 @@ mod tests {
             &[0.1, -0.2, 0.3, -0.4],
             SelectionRange::new(0.0, 0.5),
         );
-        let action =
-            action_for(|action| matches!(action, radiant::app::UiAction::CropWaveformSelection));
+        let action = action_for(|action| {
+            matches!(
+                action,
+                crate::app_core::actions::NativeUiAction::CropWaveformSelection
+            )
+        });
 
         controller.handle_hotkey(action.clone(), FocusContext::Waveform);
         assert!(controller.ui.waveform.pending_destructive.is_some());
@@ -129,13 +135,23 @@ mod tests {
         controller.ui.waveform.cursor = Some(0.22);
 
         controller.handle_hotkey(
-            action_for(|action| matches!(action, radiant::app::UiAction::PlayFromStart)),
+            action_for(|action| {
+                matches!(
+                    action,
+                    crate::app_core::actions::NativeUiAction::PlayFromStart
+                )
+            }),
             FocusContext::SampleBrowser,
         );
         assert_eq!(controller.ui.waveform.last_start_marker, Some(0.0));
 
         controller.handle_hotkey(
-            action_for(|action| matches!(action, radiant::app::UiAction::PlayFromCurrentPlayhead)),
+            action_for(|action| {
+                matches!(
+                    action,
+                    crate::app_core::actions::NativeUiAction::PlayFromCurrentPlayhead
+                )
+            }),
             FocusContext::SampleBrowser,
         );
         assert_eq!(controller.ui.waveform.last_start_marker, Some(0.37));
@@ -152,7 +168,10 @@ mod tests {
 
         controller.handle_hotkey(
             action_for(|action| {
-                matches!(action, radiant::app::UiAction::FocusLoadedSampleInBrowser)
+                matches!(
+                    action,
+                    crate::app_core::actions::NativeUiAction::FocusLoadedSampleInBrowser
+                )
             }),
             FocusContext::SampleBrowser,
         );
@@ -176,7 +195,7 @@ mod tests {
             action_for(|action| {
                 matches!(
                     action,
-                    radiant::app::UiAction::SetCompareAnchorFromFocusedBrowserSample
+                    crate::app_core::actions::NativeUiAction::SetCompareAnchorFromFocusedBrowserSample
                 )
             }),
             FocusContext::SampleBrowser,
@@ -212,7 +231,12 @@ mod tests {
         controller.runtime.jobs.pending_playback = None;
 
         controller.handle_hotkey(
-            action_for(|action| matches!(action, radiant::app::UiAction::PlayCompareAnchor)),
+            action_for(|action| {
+                matches!(
+                    action,
+                    crate::app_core::actions::NativeUiAction::PlayCompareAnchor
+                )
+            }),
             FocusContext::Waveform,
         );
 
@@ -239,7 +263,7 @@ mod tests {
             action_for(|action| {
                 matches!(
                     action,
-                    radiant::app::UiAction::ToggleFocusedBrowserRowSelection
+                    crate::app_core::actions::NativeUiAction::ToggleFocusedBrowserRowSelection
                 )
             }),
             FocusContext::None,
@@ -260,7 +284,7 @@ mod tests {
             action_for(|action| {
                 matches!(
                     action,
-                    radiant::app::UiAction::MoveBrowserFocus { delta: 1 }
+                    crate::app_core::actions::NativeUiAction::MoveBrowserFocus { delta: 1 }
                 )
             }),
             FocusContext::SampleBrowser,
@@ -279,7 +303,7 @@ mod tests {
         let action = action_for(|action| {
             matches!(
                 action,
-                radiant::app::UiAction::ToggleFindSimilarFocusedSample
+                crate::app_core::actions::NativeUiAction::ToggleFindSimilarFocusedSample
             )
         });
         let mut hotkey_bundle =

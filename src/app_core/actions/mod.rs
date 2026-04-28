@@ -6,6 +6,7 @@
 //! types remain isolated to the runtime boundary.
 
 mod catalog;
+mod native_shell_actions;
 mod native_shell_dtos;
 
 pub use self::catalog::{
@@ -36,7 +37,7 @@ pub type NativeBrowserTagState = self::native_shell_dtos::BrowserTagState;
 pub type NativePlaybackAgeBucket = self::native_shell_dtos::PlaybackAgeBucket;
 
 /// Native runtime browser playback-age toolbar action payload.
-pub type NativePlaybackAgeFilterChip = radiant::compat::sempal_shell::PlaybackAgeFilterChip;
+pub type NativePlaybackAgeFilterChip = self::native_shell_dtos::PlaybackAgeFilterChip;
 
 /// Native runtime browser row model.
 pub type NativeBrowserRowModel = self::native_shell_dtos::BrowserRowModel;
@@ -45,22 +46,25 @@ pub type NativeBrowserRowModel = self::native_shell_dtos::BrowserRowModel;
 pub type NativeRetainedVec<T> = self::native_shell_dtos::RetainedVec<T>;
 
 /// Native runtime automation node identifier.
-pub type NativeAutomationNodeId = radiant::compat::sempal_shell::AutomationNodeId;
+pub type NativeAutomationNodeId = self::native_shell_dtos::AutomationNodeId;
 
 /// Native runtime automation node role.
-pub type NativeAutomationRole = radiant::compat::sempal_shell::AutomationRole;
+pub type NativeAutomationRole = self::native_shell_dtos::AutomationRole;
+
+/// Native runtime automation node bounds.
+pub type NativeAutomationBounds = self::native_shell_dtos::AutomationBounds;
 
 /// Native runtime automation node snapshot.
-pub type NativeAutomationNodeSnapshot = radiant::compat::sempal_shell::AutomationNodeSnapshot;
+pub type NativeAutomationNodeSnapshot = self::native_shell_dtos::AutomationNodeSnapshot;
 
 /// Native runtime GUI automation snapshot.
-pub type NativeGuiAutomationSnapshot = radiant::compat::sempal_shell::GuiAutomationSnapshot;
+pub type NativeGuiAutomationSnapshot = self::native_shell_dtos::GuiAutomationSnapshot;
 
 /// Native runtime browser tag target used by keyboard and pointer triage actions.
-pub type NativeBrowserTagTarget = radiant::compat::sempal_shell::BrowserTagTarget;
+pub type NativeBrowserTagTarget = self::native_shell_actions::BrowserTagTarget;
 
 /// Native runtime UI action payload.
-pub type NativeUiAction = radiant::compat::sempal_shell::UiAction;
+pub type NativeUiAction = self::native_shell_actions::UiAction;
 
 /// Native runtime projected app model.
 pub type NativeAppModel = self::native_shell_dtos::AppModel;
@@ -87,16 +91,16 @@ pub type NativeAudioPickerTargetModel = self::native_shell_dtos::AudioPickerTarg
 pub type NativeFocusContextModel = self::native_shell_dtos::FocusContextModel;
 
 /// Native runtime frame build result payload.
-pub type NativeFrameBuildResult = radiant::compat::sempal_shell::FrameBuildResult;
+pub type NativeFrameBuildResult = self::native_shell_dtos::FrameBuildResult;
 
 /// Native runtime projection-dirty segment mask.
-pub type NativeDirtySegments = radiant::compat::sempal_shell::DirtySegments;
+pub type NativeDirtySegments = self::native_shell_dtos::DirtySegments;
 
 /// Native runtime static-segment revision snapshot.
-pub type NativeSegmentRevisions = radiant::compat::sempal_shell::SegmentRevisions;
+pub type NativeSegmentRevisions = self::native_shell_dtos::SegmentRevisions;
 
 /// Native runtime motion-only model payload.
-pub type NativeMotionModel = radiant::compat::sempal_shell::NativeMotionModel;
+pub type NativeMotionModel = self::native_shell_dtos::NativeMotionModel;
 
 /// Native runtime table column summary model.
 pub type NativeColumnModel = self::native_shell_dtos::ColumnModel;

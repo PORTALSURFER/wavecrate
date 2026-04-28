@@ -32,7 +32,7 @@ fn reload_source_row_action_assigns_target_pane_without_changing_active_browser_
         .source_id_for_index(1)
         .expect("source-b id should exist");
     controller.apply_native_ui_action(NativeUiAction::ReloadSourceRow {
-        pane: Some(radiant::app::FolderPaneIdModel::Lower),
+        pane: Some(crate::app_core::actions::NativeFolderPaneIdModel::Lower),
         index: 1,
     });
 
@@ -74,7 +74,7 @@ fn remove_source_row_action_removes_clicked_pane_source_without_activating_it() 
     controller.select_source_by_index_in_pane(FolderPaneId::Lower, 1);
 
     controller.apply_native_ui_action(NativeUiAction::RemoveSourceRow {
-        pane: Some(radiant::app::FolderPaneIdModel::Lower),
+        pane: Some(crate::app_core::actions::NativeFolderPaneIdModel::Lower),
         index: 1,
     });
 
@@ -108,7 +108,7 @@ fn focus_source_row_action_assigns_target_pane_and_focuses_sources_list() {
     controller.ui.focus.context = FocusContext::Waveform;
 
     controller.apply_native_ui_action(NativeUiAction::FocusSourceRow {
-        pane: Some(radiant::app::FolderPaneIdModel::Lower),
+        pane: Some(crate::app_core::actions::NativeFolderPaneIdModel::Lower),
         index: 1,
     });
 

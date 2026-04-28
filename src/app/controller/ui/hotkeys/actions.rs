@@ -166,11 +166,10 @@ mod tests {
         let global = hotkeys::global_actions();
         assert!(!global.is_empty());
         assert!(global.iter().all(HotkeyAction::is_global));
-        assert!(
-            global
-                .iter()
-                .any(|action| matches!(action.action, radiant::app::UiAction::FocusBrowserPanel))
-        );
+        assert!(global.iter().any(|action| matches!(
+            action.action,
+            crate::app_core::actions::NativeUiAction::FocusBrowserPanel
+        )));
 
         let folder_focus = hotkeys::focused_actions(FocusContext::SourceFolders);
         assert!(!folder_focus.is_empty());
@@ -180,13 +179,12 @@ mod tests {
         )));
         assert!(folder_focus.iter().any(|action| matches!(
             action.action,
-            radiant::app::UiAction::FocusFolderSearch { .. }
+            crate::app_core::actions::NativeUiAction::FocusFolderSearch { .. }
         )));
-        assert!(
-            folder_focus
-                .iter()
-                .all(|action| !matches!(action.action, radiant::app::UiAction::FocusBrowserPanel))
-        );
+        assert!(folder_focus.iter().all(|action| !matches!(
+            action.action,
+            crate::app_core::actions::NativeUiAction::FocusBrowserPanel
+        )));
     }
 
     #[test]
@@ -199,7 +197,7 @@ mod tests {
             assert_eq!(action.label, binding.label);
             assert_eq!(action.gesture, map_gesture(binding.gesture));
             assert_eq!(action.scope, map_scope(binding.scope));
-            assert_eq!(action.action, binding.action);
+            assert_eq!(action.action, binding.action.clone().into());
         }
     }
 
@@ -208,13 +206,13 @@ mod tests {
         let source_focus = hotkeys::focused_actions(FocusContext::SourcesList);
         assert!(source_focus.iter().any(|action| matches!(
             action.action,
-            radiant::app::UiAction::ReloadFocusedSourceRow
+            crate::app_core::actions::NativeUiAction::ReloadFocusedSourceRow
         )));
         assert!(source_focus.iter().any(|action| {
             action.gesture == HotkeyGesture::new(KeyCode::D)
                 && matches!(
                     action.action,
-                    radiant::app::UiAction::RemoveFocusedSourceRow
+                    crate::app_core::actions::NativeUiAction::RemoveFocusedSourceRow
                 )
         }));
     }

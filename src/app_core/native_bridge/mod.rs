@@ -156,6 +156,60 @@ impl SempalNativeBridge {
     pub(crate) fn project_model(&mut self) -> Arc<crate::app_core::actions::NativeAppModel> {
         self.pull_model_arc_snapshot()
     }
+
+    /// Project motion-only fields for Sempal-owned app-core callers.
+    pub(crate) fn project_motion_model(&mut self) -> Option<NativeMotionModel> {
+        self.project_motion_model_snapshot()
+    }
+
+    /// Return and clear the Sempal-owned bridge segment mask from the most recent model pull.
+    pub(crate) fn take_dirty_segments(&mut self) -> NativeDirtySegments {
+        std::mem::replace(&mut self.last_dirty_segments, NativeDirtySegments::empty())
+    }
+
+    /// Return the latest Sempal-owned static-segment revision snapshot.
+    pub(crate) fn take_segment_revisions(&mut self) -> NativeSegmentRevisions {
+        self.segment_revisions
+    }
+
+    /// Reduce one Sempal-owned runtime UI action into controller state.
+    pub(crate) fn reduce_action(&mut self, action: NativeUiAction) {
+        let handled = if let NativeUiAction::MoveBrowserFocus { delta } = action.clone() {
+            self.reduce_browser_focus_action(delta);
+            true
+        } else if action_classification::is_immediate_waveform_preview_action(&action)
+            && immediate_waveform_preview_enabled()
+        {
+            self.reduce_immediate_waveform_preview_action(action.clone())
+        } else if !self.reduce_queued_waveform_action(&action) {
+            self.reduce_default_action(action.clone())
+        } else {
+            true
+        };
+        self.last_action_handled = Some(handled);
+        let should_record_gui_test = self.gui_test_recorder.is_some();
+        let model = should_record_gui_test.then(|| self.pull_model_arc_snapshot());
+        if let (Some(recorder), Some(model)) = (self.gui_test_recorder.as_mut(), model) {
+            recorder.record_action(&action, handled, model.as_ref());
+        }
+    }
+
+    #[cfg(test)]
+    /// Handle one Sempal-owned action emitted by app-core tests.
+    pub(crate) fn on_action(&mut self, action: NativeUiAction) {
+        self.reduce_action(action);
+    }
+
+    /// Observe one Sempal-owned frame-build result for optional profiling telemetry.
+    pub(crate) fn observe_frame_result(&mut self, result: NativeFrameBuildResult) {
+        if !bridge_profiling_enabled() {
+            return;
+        }
+        let frame_count = trace_frame_result(&result);
+        if frame_count.is_multiple_of(metrics::BRIDGE_PROFILE_INTERVAL) {
+            maybe_log_bridge_profile();
+        }
+    }
 }
 
 impl NativeAppBridge for SempalNativeBridge {
@@ -182,13 +236,13 @@ impl NativeAppBridge for SempalNativeBridge {
     }
 
     /// Return and clear the bridge segment mask from the most recent model pull.
-    fn take_dirty_segments(&mut self) -> NativeDirtySegments {
-        std::mem::replace(&mut self.last_dirty_segments, NativeDirtySegments::empty())
+    fn take_dirty_segments(&mut self) -> radiant::compat::sempal_shell::DirtySegments {
+        SempalNativeBridge::take_dirty_segments(self).into()
     }
 
     /// Return the latest static-segment revision snapshot.
-    fn take_segment_revisions(&mut self) -> NativeSegmentRevisions {
-        self.segment_revisions
+    fn take_segment_revisions(&mut self) -> radiant::compat::sempal_shell::SegmentRevisions {
+        SempalNativeBridge::take_segment_revisions(self).into()
     }
 
     /// Install runtime repaint signal for async job completion wakeups.
@@ -218,30 +272,13 @@ impl NativeAppBridge for SempalNativeBridge {
     }
 
     /// Project motion-only fields for animation-only redraw phases.
-    fn project_motion_model(&mut self) -> Option<NativeMotionModel> {
-        self.project_motion_model_snapshot()
+    fn project_motion_model(&mut self) -> Option<radiant::compat::sempal_shell::NativeMotionModel> {
+        SempalNativeBridge::project_motion_model(self).map(Into::into)
     }
 
     /// Reduce one runtime UI action into controller state.
-    fn reduce_action(&mut self, action: NativeUiAction) {
-        let handled = if let NativeUiAction::MoveBrowserFocus { delta } = action.clone() {
-            self.reduce_browser_focus_action(delta);
-            true
-        } else if action_classification::is_immediate_waveform_preview_action(&action)
-            && immediate_waveform_preview_enabled()
-        {
-            self.reduce_immediate_waveform_preview_action(action.clone())
-        } else if !self.reduce_queued_waveform_action(&action) {
-            self.reduce_default_action(action.clone())
-        } else {
-            true
-        };
-        self.last_action_handled = Some(handled);
-        let should_record_gui_test = self.gui_test_recorder.is_some();
-        let model = should_record_gui_test.then(|| self.pull_model_arc_snapshot());
-        if let (Some(recorder), Some(model)) = (self.gui_test_recorder.as_mut(), model) {
-            recorder.record_action(&action, handled, model.as_ref());
-        }
+    fn reduce_action(&mut self, action: radiant::compat::sempal_shell::UiAction) {
+        SempalNativeBridge::reduce_action(self, action.into());
     }
 
     fn take_last_action_handled(&mut self) -> Option<bool> {
@@ -249,14 +286,8 @@ impl NativeAppBridge for SempalNativeBridge {
     }
 
     /// Observe one frame-build result for optional profiling telemetry.
-    fn observe_frame_result(&mut self, result: NativeFrameBuildResult) {
-        if !bridge_profiling_enabled() {
-            return;
-        }
-        let frame_count = trace_frame_result(&result);
-        if frame_count.is_multiple_of(metrics::BRIDGE_PROFILE_INTERVAL) {
-            maybe_log_bridge_profile();
-        }
+    fn observe_frame_result(&mut self, result: radiant::compat::sempal_shell::FrameBuildResult) {
+        SempalNativeBridge::observe_frame_result(self, result.into());
     }
 
     /// Flush pending work and persist config during runtime shutdown.

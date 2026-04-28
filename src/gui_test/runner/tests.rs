@@ -1,11 +1,11 @@
 use super::assertions::assert_scenario_state;
 use super::*;
+use crate::app_core::actions::NativeAutomationBounds as AutomationBounds;
 use crate::app_core::actions::{
     GUI_ACTION_CATALOG, NativeAutomationNodeId, NativeAutomationNodeSnapshot, NativeAutomationRole,
     NativeGuiAutomationSnapshot, action_catalog_entry_by_id,
 };
 use crate::gui_test::{GuiActionTraceEvent, GuiAssertion, GuiScenario, GuiScenarioStep};
-use radiant::app::AutomationBounds;
 use std::collections::BTreeMap;
 
 mod action_parity;
@@ -136,7 +136,7 @@ fn scenario_runner_accepts_root_presence_assertion() {
 fn dispatch_action_bundle_rejects_runtime_internal_actions() {
     let err = dispatch_action_bundle(
         &deterministic_test_config("waveform"),
-        radiant::app::UiAction::BeginWaveformSelectionShift {
+        crate::app_core::actions::NativeUiAction::BeginWaveformSelectionShift {
             pointer_micros: 200_000,
             start_micros: 100_000,
             end_micros: 300_000,
@@ -153,7 +153,7 @@ fn scenario_runner_rejects_runtime_internal_actions() {
         name: String::from("reject-runtime-internal"),
         fixture_tag: String::from("waveform"),
         steps: vec![GuiScenarioStep::DispatchAction {
-            action: radiant::app::UiAction::BeginWaveformEditSelectionShift {
+            action: crate::app_core::actions::NativeUiAction::BeginWaveformEditSelectionShift {
                 pointer_micros: 200_000,
                 start_micros: 100_000,
                 end_micros: 300_000,

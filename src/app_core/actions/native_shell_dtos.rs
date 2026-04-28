@@ -9,7 +9,7 @@
 use radiant::compat::sempal_shell as compat;
 use radiant::gui::types::ImageRgba;
 use serde::{Deserialize, Serialize};
-use std::{ops::Deref, sync::Arc};
+use std::{collections::BTreeMap, ops::Deref, sync::Arc};
 
 /// Shared storage used by retained app-model snapshots.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -103,7 +103,7 @@ impl<T> From<Vec<T>> for RetainedVec<T> {
 }
 
 /// Browser playback-age filter chips shown in the native toolbar.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum PlaybackAgeFilterChip {
     /// Samples that have never been played.
     NeverPlayed,
@@ -111,6 +111,453 @@ pub enum PlaybackAgeFilterChip {
     OlderThanMonth,
     /// Samples whose last playback was at least 7 days ago but less than 30 days ago.
     OlderThanWeek,
+}
+
+// Sempal-owned GUI automation snapshot DTOs.
+
+/// Stable semantic identifier for one automation node in the native shell tree.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct AutomationNodeId(pub String);
+
+impl AutomationNodeId {
+    /// Create a new automation node identifier from an owned string.
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(id.into())
+    }
+}
+
+/// Semantic role describing how an automation node behaves in the GUI.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AutomationRole {
+    /// Synthetic root of the automation snapshot tree.
+    Root,
+    /// Grouping container such as a panel or composite section.
+    Group,
+    /// Major panel surface.
+    Panel,
+    /// Toolbar or action strip.
+    Toolbar,
+    /// Tab-strip container.
+    TabList,
+    /// Toggleable tab node.
+    Tab,
+    /// Clickable button.
+    Button,
+    /// Search or text-entry field.
+    SearchField,
+    /// Slider or continuous meter interaction surface.
+    Slider,
+    /// Row in a list or table.
+    Row,
+    /// Table or row-hosting list surface.
+    Table,
+    /// Waveform interaction canvas.
+    WaveformRegion,
+    /// Map interaction canvas.
+    MapCanvas,
+    /// Focusable point inside the map canvas.
+    MapPoint,
+    /// Status/readout region.
+    Readout,
+    /// Dialog or modal container.
+    Dialog,
+}
+
+/// Quantized window-space bounds for one automation node.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AutomationBounds {
+    /// Left edge in logical window coordinates.
+    pub x: f32,
+    /// Top edge in logical window coordinates.
+    pub y: f32,
+    /// Width in logical window coordinates.
+    pub width: f32,
+    /// Height in logical window coordinates.
+    pub height: f32,
+}
+
+/// One node in the GUI automation tree.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AutomationNodeSnapshot {
+    /// Stable semantic identifier for this node.
+    pub id: AutomationNodeId,
+    /// Behavioral role for this node.
+    pub role: AutomationRole,
+    /// Optional human-readable label shown by the GUI.
+    pub label: Option<String>,
+    /// Quantized window-space bounds.
+    pub bounds: AutomationBounds,
+    /// Optional current value or summary text.
+    pub value: Option<String>,
+    /// Whether the node is currently enabled.
+    pub enabled: bool,
+    /// Whether the node is currently selected or active.
+    pub selected: bool,
+    /// Stable action identifiers that this node can trigger.
+    pub available_actions: Vec<String>,
+    /// Additional deterministic metadata for AI/test consumers.
+    pub metadata: BTreeMap<String, String>,
+    /// Child nodes in semantic tree order.
+    pub children: Vec<AutomationNodeSnapshot>,
+}
+
+/// Full deterministic automation snapshot emitted for one GUI frame/state.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct GuiAutomationSnapshot {
+    /// Schema version for forward-compatible artifact readers.
+    pub schema_version: u32,
+    /// Quantized viewport width for the captured shell layout.
+    pub viewport_width: u32,
+    /// Quantized viewport height for the captured shell layout.
+    pub viewport_height: u32,
+    /// Root semantic automation node.
+    pub root: AutomationNodeSnapshot,
+}
+
+// Sempal-owned retained-render segment invalidation DTOs.
+
+/// Frame-level feedback from renderer to host bridge.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FrameBuildResult {
+    /// Number of generated shape primitives.
+    pub primitive_count: usize,
+    /// Number of generated text runs.
+    pub text_run_count: usize,
+    /// Whether this redraw included a layout-driven static rebuild.
+    pub layout_rebuild: bool,
+    /// Whether this redraw rebuilt any static scene content.
+    pub static_rebuild: bool,
+    /// Whether this redraw rebuilt any state-overlay scene content.
+    pub state_overlay_rebuild: bool,
+    /// Whether this redraw rebuilt any motion-overlay scene content.
+    pub motion_overlay_rebuild: bool,
+    /// Whether runtime should keep animating while idle.
+    pub needs_animation: bool,
+    /// End-to-end frame time in microseconds for the redraw pass.
+    pub frame_total_us: u32,
+    /// Present-stage duration in microseconds for the redraw pass.
+    pub present_us: u32,
+    /// Frame-time budget used to classify redraw jank.
+    pub frame_budget_us: u32,
+    /// Whether the frame exceeded the configured frame-time budget.
+    pub jank: bool,
+    /// Whether the redraw produced a successful surface present.
+    pub presented: bool,
+    /// Whether a present was expected but not completed for this redraw.
+    pub missed_present: bool,
+}
+
+/// Bitmask describing which projection segments changed during the last model pull.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DirtySegments {
+    bits: u16,
+}
+
+impl DirtySegments {
+    /// Status-bar content segment.
+    pub const STATUS_BAR: u16 = 1 << 0;
+    /// Browser metadata/chrome segment.
+    pub const BROWSER_FRAME: u16 = 1 << 1;
+    /// Browser row-window segment.
+    pub const BROWSER_ROWS_WINDOW: u16 = 1 << 2;
+    /// Map-panel segment.
+    pub const MAP_PANEL: u16 = 1 << 3;
+    /// Waveform panel/chrome segment.
+    pub const WAVEFORM_OVERLAY: u16 = 1 << 4;
+    /// Static content that is outside explicit segment buckets.
+    pub const GLOBAL_STATIC: u16 = 1 << 5;
+    /// State-overlay model fields.
+    pub const STATE_OVERLAY: u16 = 1 << 6;
+    /// Motion-overlay model fields.
+    pub const MOTION_OVERLAY: u16 = 1 << 7;
+
+    const STATIC_MASK: u16 = Self::STATUS_BAR
+        | Self::BROWSER_FRAME
+        | Self::BROWSER_ROWS_WINDOW
+        | Self::MAP_PANEL
+        | Self::WAVEFORM_OVERLAY
+        | Self::GLOBAL_STATIC;
+    const OVERLAY_MASK: u16 = Self::STATE_OVERLAY | Self::MOTION_OVERLAY;
+
+    /// Return an empty segment mask.
+    pub const fn empty() -> Self {
+        Self { bits: 0 }
+    }
+
+    /// Return a full segment mask.
+    pub const fn all() -> Self {
+        Self {
+            bits: Self::STATIC_MASK | Self::OVERLAY_MASK,
+        }
+    }
+
+    /// Construct a segment mask from raw bits.
+    pub const fn from_bits(bits: u16) -> Self {
+        Self {
+            bits: bits & (Self::STATIC_MASK | Self::OVERLAY_MASK),
+        }
+    }
+
+    /// Return raw bit contents for diagnostics and tests.
+    pub const fn bits(self) -> u16 {
+        self.bits
+    }
+
+    /// Return `true` when the mask contains no segments.
+    pub const fn is_empty(self) -> bool {
+        self.bits == 0
+    }
+
+    /// Return `true` when any static segment requires rebuild.
+    pub const fn requires_static_rebuild(self) -> bool {
+        (self.bits & Self::STATIC_MASK) != 0
+    }
+
+    /// Return `true` when any overlay segment requires rebuild.
+    pub const fn requires_overlay_rebuild(self) -> bool {
+        (self.bits & Self::OVERLAY_MASK) != 0
+    }
+
+    /// Insert one or more segment bits into this mask.
+    pub fn insert(&mut self, bits: u16) {
+        self.bits |= bits & (Self::STATIC_MASK | Self::OVERLAY_MASK);
+    }
+}
+
+/// Monotonic revision counters for static projection segments.
+///
+/// Bridges bump the counters for segments whose projected model slices changed on
+/// the most recent `pull_model`. Runtimes use these revisions in retained-scene
+/// cache keys to avoid expensive segment hashing on every frame.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SegmentRevisions {
+    /// Status-bar projection revision.
+    pub status_bar: u64,
+    /// Browser metadata/chrome projection revision.
+    pub browser_frame: u64,
+    /// Browser visible-row window projection revision.
+    pub browser_rows_window: u64,
+    /// Map-panel projection revision.
+    pub map_panel: u64,
+    /// Waveform panel/chrome projection revision.
+    pub waveform_overlay: u64,
+    /// Global static fields projection revision.
+    pub global_static: u64,
+}
+
+impl SegmentRevisions {
+    /// Return whether any static-segment revision is non-zero.
+    pub const fn has_static_revisions(self) -> bool {
+        self.status_bar != 0
+            || self.browser_frame != 0
+            || self.browser_rows_window != 0
+            || self.map_panel != 0
+            || self.waveform_overlay != 0
+            || self.global_static != 0
+    }
+
+    /// Bump revisions for the static segments flagged in `dirty_segments`.
+    pub fn bump_for_dirty_segments(&mut self, dirty_segments: DirtySegments) {
+        let bits = dirty_segments.bits();
+        if (bits & DirtySegments::STATUS_BAR) != 0 {
+            self.status_bar = self.status_bar.saturating_add(1);
+        }
+        if (bits & DirtySegments::BROWSER_FRAME) != 0 {
+            self.browser_frame = self.browser_frame.saturating_add(1);
+        }
+        if (bits & DirtySegments::BROWSER_ROWS_WINDOW) != 0 {
+            self.browser_rows_window = self.browser_rows_window.saturating_add(1);
+        }
+        if (bits & DirtySegments::MAP_PANEL) != 0 {
+            self.map_panel = self.map_panel.saturating_add(1);
+        }
+        if (bits & DirtySegments::WAVEFORM_OVERLAY) != 0 {
+            self.waveform_overlay = self.waveform_overlay.saturating_add(1);
+        }
+        if (bits & DirtySegments::GLOBAL_STATIC) != 0 {
+            self.global_static = self.global_static.saturating_add(1);
+        }
+    }
+}
+
+// Sempal-owned motion-only projection DTOs.
+
+/// Motion-sensitive slice of the app model used for incremental overlay rendering.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NativeMotionModel {
+    /// Transport animation state used by motion overlays.
+    pub transport_running: bool,
+    /// Whether map mode is active for tab overlay tinting.
+    pub map_active: bool,
+    /// Active browser rating-filter chip states for levels `-3..=3`, plus `4` for locked keeps.
+    pub active_rating_filters: [bool; 8],
+    /// Active browser playback-age filter chip states ordered as `Never`, `Month`, `Week`.
+    pub active_playback_age_filters: [bool; 3],
+    /// Whether the browser is currently filtering down to session-marked rows.
+    pub marked_filter_active: bool,
+    /// Waveform selected playback window with milli and micro precision.
+    pub waveform_selection_milli: Option<NormalizedRangeModel>,
+    /// Preview slices detected from silence-splitting the loaded waveform.
+    pub waveform_slices: Vec<WaveformSlicePreviewModel>,
+    /// One-shot token incremented when a waveform-selection export is queued.
+    pub waveform_selection_export_flash_nonce: u64,
+    /// One-shot token incremented when a queued waveform-selection export fails.
+    pub waveform_selection_export_failure_flash_nonce: u64,
+    /// One-shot token incremented when preview edit fades are committed.
+    pub waveform_edit_selection_apply_flash_nonce: u64,
+    /// Waveform edit-selection window with milli and micro precision.
+    pub waveform_edit_selection_milli: Option<NormalizedRangeModel>,
+    /// Waveform edit fade-in end handle in normalized milliseconds.
+    pub waveform_edit_fade_in_end_milli: Option<u16>,
+    /// Waveform edit fade-in end handle in normalized micro-units.
+    pub waveform_edit_fade_in_end_micros: Option<u32>,
+    /// Waveform edit fade-in mute-start handle in normalized milliseconds.
+    pub waveform_edit_fade_in_mute_start_milli: Option<u16>,
+    /// Waveform edit fade-in mute-start handle in normalized micro-units.
+    pub waveform_edit_fade_in_mute_start_micros: Option<u32>,
+    /// Waveform edit fade-in curve tension in normalized milliseconds.
+    pub waveform_edit_fade_in_curve_milli: Option<u16>,
+    /// Waveform edit fade-out start handle in normalized milliseconds.
+    pub waveform_edit_fade_out_start_milli: Option<u16>,
+    /// Waveform edit fade-out start handle in normalized micro-units.
+    pub waveform_edit_fade_out_start_micros: Option<u32>,
+    /// Waveform edit fade-out mute-end handle in normalized milliseconds.
+    pub waveform_edit_fade_out_mute_end_milli: Option<u16>,
+    /// Waveform edit fade-out mute-end handle in normalized micro-units.
+    pub waveform_edit_fade_out_mute_end_micros: Option<u32>,
+    /// Waveform edit fade-out curve tension in normalized milliseconds.
+    pub waveform_edit_fade_out_curve_milli: Option<u16>,
+    /// Whether loop playback is enabled for the active waveform selection.
+    pub waveform_loop_enabled: bool,
+    /// Whether loop playback is currently locked against sample-driven updates.
+    pub waveform_loop_lock_enabled: bool,
+    /// Waveform cursor position in normalized milliseconds.
+    pub waveform_cursor_milli: Option<u16>,
+    /// Waveform playhead position in normalized milliseconds.
+    pub waveform_playhead_milli: Option<u16>,
+    /// Waveform playhead position in normalized micro-units (`0..=1_000_000`).
+    pub waveform_playhead_micros: Option<u32>,
+    /// Current waveform view start in normalized milliseconds.
+    pub waveform_view_start_milli: u16,
+    /// Current waveform view end in normalized milliseconds.
+    pub waveform_view_end_milli: u16,
+    /// Current waveform view start in normalized micro-units (`0..=1_000_000`).
+    pub waveform_view_start_micros: u32,
+    /// Current waveform view end in normalized micro-units (`0..=1_000_000`).
+    pub waveform_view_end_micros: u32,
+    /// Current waveform view start in normalized nanounits (`0..=1_000_000_000`).
+    ///
+    /// Motion overlays use nanosecond bounds so rendered selection edges and
+    /// playhead markers stay aligned with deep-zoom pointer geometry.
+    pub waveform_view_start_nanos: u32,
+    /// Current waveform view end in normalized nanounits (`0..=1_000_000_000`).
+    ///
+    /// Motion overlays use nanosecond bounds so rendered selection edges and
+    /// playhead markers stay aligned with deep-zoom pointer geometry.
+    pub waveform_view_end_nanos: u32,
+    /// Human-readable tempo metadata.
+    pub waveform_tempo_label: Option<String>,
+    /// Human-readable zoom metadata.
+    pub waveform_zoom_label: Option<String>,
+    /// Loaded waveform label shown in the waveform overlay header.
+    pub waveform_loaded_label: Option<String>,
+    /// Whether the waveform plot is currently waiting for a new sample to load.
+    pub waveform_loading: bool,
+    /// Stable image signature for detecting waveform image updates during motion-only frames.
+    pub waveform_image_signature: Option<u64>,
+    /// Transport hint rendered with waveform metadata.
+    pub waveform_transport_hint: String,
+    /// Whether compare-anchor replay is currently available.
+    pub waveform_compare_anchor_available: bool,
+    /// Label for the stored compare anchor, when available.
+    pub waveform_compare_anchor_label: Option<String>,
+    /// Current waveform channel-view mode.
+    pub waveform_channel_view: WaveformChannelViewModel,
+    /// Whether normalized audition playback is enabled.
+    pub waveform_normalized_audition_enabled: bool,
+    /// Whether BPM snapping is enabled.
+    pub waveform_bpm_snap_enabled: bool,
+    /// Whether playback BPM grids and snapping use selection-relative anchors.
+    pub waveform_relative_bpm_grid_enabled: bool,
+    /// Whether transient snapping is enabled.
+    pub waveform_transient_snap_enabled: bool,
+    /// Whether transient markers are visible.
+    pub waveform_transient_markers_enabled: bool,
+    /// Whether slice mode is active.
+    pub waveform_slice_mode_enabled: bool,
+    /// Whether exact-duplicate cleanup can be applied from the waveform toolbar.
+    pub waveform_exact_duplicate_cleanup_available: bool,
+    /// Right-aligned status-bar text rendered in the motion overlay.
+    pub status_right: String,
+}
+
+impl NativeMotionModel {
+    /// Build a motion model from a full application model snapshot.
+    pub fn from_app_model(model: &AppModel) -> Self {
+        Self {
+            transport_running: model.transport_running,
+            map_active: model.map.active,
+            active_rating_filters: model.browser.active_rating_filters,
+            active_playback_age_filters: model.browser.active_playback_age_filters,
+            marked_filter_active: model.browser.marked_filter_active,
+            waveform_selection_milli: model.waveform.selection_milli,
+            waveform_slices: model.waveform.slices.clone(),
+            waveform_selection_export_flash_nonce: model.waveform.selection_export_flash_nonce,
+            waveform_selection_export_failure_flash_nonce: model
+                .waveform
+                .selection_export_failure_flash_nonce,
+            waveform_edit_selection_apply_flash_nonce: model
+                .waveform
+                .edit_selection_apply_flash_nonce,
+            waveform_edit_selection_milli: model.waveform.edit_selection_milli,
+            waveform_edit_fade_in_end_milli: model.waveform.edit_fade_in_end_milli,
+            waveform_edit_fade_in_end_micros: model.waveform.edit_fade_in_end_micros,
+            waveform_edit_fade_in_mute_start_milli: model.waveform.edit_fade_in_mute_start_milli,
+            waveform_edit_fade_in_mute_start_micros: model.waveform.edit_fade_in_mute_start_micros,
+            waveform_edit_fade_in_curve_milli: model.waveform.edit_fade_in_curve_milli,
+            waveform_edit_fade_out_start_milli: model.waveform.edit_fade_out_start_milli,
+            waveform_edit_fade_out_start_micros: model.waveform.edit_fade_out_start_micros,
+            waveform_edit_fade_out_mute_end_milli: model.waveform.edit_fade_out_mute_end_milli,
+            waveform_edit_fade_out_mute_end_micros: model.waveform.edit_fade_out_mute_end_micros,
+            waveform_edit_fade_out_curve_milli: model.waveform.edit_fade_out_curve_milli,
+            waveform_loop_enabled: model.waveform.loop_enabled,
+            waveform_loop_lock_enabled: model.waveform_chrome.loop_lock_enabled,
+            waveform_cursor_milli: model.waveform.cursor_milli,
+            waveform_playhead_milli: model.waveform.playhead_milli,
+            waveform_playhead_micros: model.waveform.playhead_micros.or_else(|| {
+                model
+                    .waveform
+                    .playhead_milli
+                    .map(|milli| u32::from(milli) * 1000)
+            }),
+            waveform_view_start_milli: model.waveform.view_start_milli,
+            waveform_view_end_milli: model.waveform.view_end_milli,
+            waveform_view_start_micros: model.waveform.view_start_micros,
+            waveform_view_end_micros: model.waveform.view_end_micros,
+            waveform_view_start_nanos: model.waveform.view_start_nanos,
+            waveform_view_end_nanos: model.waveform.view_end_nanos,
+            waveform_tempo_label: model.waveform.tempo_label.clone(),
+            waveform_zoom_label: model.waveform.zoom_label.clone(),
+            waveform_loaded_label: model.waveform.loaded_label.clone(),
+            waveform_loading: model.waveform.loading,
+            waveform_image_signature: model.waveform.waveform_image_signature,
+            waveform_transport_hint: model.waveform_chrome.transport_hint.clone(),
+            waveform_compare_anchor_available: model.waveform_chrome.compare_anchor_available,
+            waveform_compare_anchor_label: model.waveform_chrome.compare_anchor_label.clone(),
+            waveform_channel_view: model.waveform_chrome.channel_view,
+            waveform_normalized_audition_enabled: model.waveform_chrome.normalized_audition_enabled,
+            waveform_bpm_snap_enabled: model.waveform_chrome.bpm_snap_enabled,
+            waveform_relative_bpm_grid_enabled: model.waveform_chrome.relative_bpm_grid_enabled,
+            waveform_transient_snap_enabled: model.waveform_chrome.transient_snap_enabled,
+            waveform_transient_markers_enabled: model.waveform_chrome.transient_markers_enabled,
+            waveform_slice_mode_enabled: model.waveform_chrome.slice_mode_enabled,
+            waveform_exact_duplicate_cleanup_available: model
+                .waveform_chrome
+                .exact_duplicate_cleanup_available,
+            status_right: model.status.right.clone(),
+        }
+    }
 }
 
 /// Visual playback-age buckets derived from sample playback history.
@@ -2847,6 +3294,338 @@ impl From<AppModel> for compat::AppModel {
 impl From<&AppModel> for compat::AppModel {
     fn from(value: &AppModel) -> Self {
         value.clone().into()
+    }
+}
+
+impl From<compat::AutomationNodeId> for AutomationNodeId {
+    fn from(value: compat::AutomationNodeId) -> Self {
+        Self(value.0)
+    }
+}
+
+impl From<AutomationNodeId> for compat::AutomationNodeId {
+    fn from(value: AutomationNodeId) -> Self {
+        Self(value.0)
+    }
+}
+
+impl From<compat::AutomationRole> for AutomationRole {
+    fn from(value: compat::AutomationRole) -> Self {
+        match value {
+            compat::AutomationRole::Root => Self::Root,
+            compat::AutomationRole::Group => Self::Group,
+            compat::AutomationRole::Panel => Self::Panel,
+            compat::AutomationRole::Toolbar => Self::Toolbar,
+            compat::AutomationRole::TabList => Self::TabList,
+            compat::AutomationRole::Tab => Self::Tab,
+            compat::AutomationRole::Button => Self::Button,
+            compat::AutomationRole::SearchField => Self::SearchField,
+            compat::AutomationRole::Slider => Self::Slider,
+            compat::AutomationRole::Row => Self::Row,
+            compat::AutomationRole::Table => Self::Table,
+            compat::AutomationRole::WaveformRegion => Self::WaveformRegion,
+            compat::AutomationRole::MapCanvas => Self::MapCanvas,
+            compat::AutomationRole::MapPoint => Self::MapPoint,
+            compat::AutomationRole::Readout => Self::Readout,
+            compat::AutomationRole::Dialog => Self::Dialog,
+        }
+    }
+}
+
+impl From<AutomationRole> for compat::AutomationRole {
+    fn from(value: AutomationRole) -> Self {
+        match value {
+            AutomationRole::Root => Self::Root,
+            AutomationRole::Group => Self::Group,
+            AutomationRole::Panel => Self::Panel,
+            AutomationRole::Toolbar => Self::Toolbar,
+            AutomationRole::TabList => Self::TabList,
+            AutomationRole::Tab => Self::Tab,
+            AutomationRole::Button => Self::Button,
+            AutomationRole::SearchField => Self::SearchField,
+            AutomationRole::Slider => Self::Slider,
+            AutomationRole::Row => Self::Row,
+            AutomationRole::Table => Self::Table,
+            AutomationRole::WaveformRegion => Self::WaveformRegion,
+            AutomationRole::MapCanvas => Self::MapCanvas,
+            AutomationRole::MapPoint => Self::MapPoint,
+            AutomationRole::Readout => Self::Readout,
+            AutomationRole::Dialog => Self::Dialog,
+        }
+    }
+}
+
+impl From<compat::AutomationBounds> for AutomationBounds {
+    fn from(value: compat::AutomationBounds) -> Self {
+        Self {
+            x: value.x,
+            y: value.y,
+            width: value.width,
+            height: value.height,
+        }
+    }
+}
+
+impl From<AutomationBounds> for compat::AutomationBounds {
+    fn from(value: AutomationBounds) -> Self {
+        Self {
+            x: value.x,
+            y: value.y,
+            width: value.width,
+            height: value.height,
+        }
+    }
+}
+
+impl From<compat::AutomationNodeSnapshot> for AutomationNodeSnapshot {
+    fn from(value: compat::AutomationNodeSnapshot) -> Self {
+        Self {
+            id: value.id.into(),
+            role: value.role.into(),
+            label: value.label,
+            bounds: value.bounds.into(),
+            value: value.value,
+            enabled: value.enabled,
+            selected: value.selected,
+            available_actions: value.available_actions,
+            metadata: value.metadata,
+            children: value.children.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<AutomationNodeSnapshot> for compat::AutomationNodeSnapshot {
+    fn from(value: AutomationNodeSnapshot) -> Self {
+        Self {
+            id: value.id.into(),
+            role: value.role.into(),
+            label: value.label,
+            bounds: value.bounds.into(),
+            value: value.value,
+            enabled: value.enabled,
+            selected: value.selected,
+            available_actions: value.available_actions,
+            metadata: value.metadata,
+            children: value.children.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<compat::GuiAutomationSnapshot> for GuiAutomationSnapshot {
+    fn from(value: compat::GuiAutomationSnapshot) -> Self {
+        Self {
+            schema_version: value.schema_version,
+            viewport_width: value.viewport_width,
+            viewport_height: value.viewport_height,
+            root: value.root.into(),
+        }
+    }
+}
+
+impl From<GuiAutomationSnapshot> for compat::GuiAutomationSnapshot {
+    fn from(value: GuiAutomationSnapshot) -> Self {
+        Self {
+            schema_version: value.schema_version,
+            viewport_width: value.viewport_width,
+            viewport_height: value.viewport_height,
+            root: value.root.into(),
+        }
+    }
+}
+
+impl From<compat::FrameBuildResult> for FrameBuildResult {
+    fn from(value: compat::FrameBuildResult) -> Self {
+        Self {
+            primitive_count: value.primitive_count,
+            text_run_count: value.text_run_count,
+            layout_rebuild: value.layout_rebuild,
+            static_rebuild: value.static_rebuild,
+            state_overlay_rebuild: value.state_overlay_rebuild,
+            motion_overlay_rebuild: value.motion_overlay_rebuild,
+            needs_animation: value.needs_animation,
+            frame_total_us: value.frame_total_us,
+            present_us: value.present_us,
+            frame_budget_us: value.frame_budget_us,
+            jank: value.jank,
+            presented: value.presented,
+            missed_present: value.missed_present,
+        }
+    }
+}
+
+impl From<FrameBuildResult> for compat::FrameBuildResult {
+    fn from(value: FrameBuildResult) -> Self {
+        Self {
+            primitive_count: value.primitive_count,
+            text_run_count: value.text_run_count,
+            layout_rebuild: value.layout_rebuild,
+            static_rebuild: value.static_rebuild,
+            state_overlay_rebuild: value.state_overlay_rebuild,
+            motion_overlay_rebuild: value.motion_overlay_rebuild,
+            needs_animation: value.needs_animation,
+            frame_total_us: value.frame_total_us,
+            present_us: value.present_us,
+            frame_budget_us: value.frame_budget_us,
+            jank: value.jank,
+            presented: value.presented,
+            missed_present: value.missed_present,
+        }
+    }
+}
+
+impl From<compat::DirtySegments> for DirtySegments {
+    fn from(value: compat::DirtySegments) -> Self {
+        Self::from_bits(value.bits())
+    }
+}
+
+impl From<DirtySegments> for compat::DirtySegments {
+    fn from(value: DirtySegments) -> Self {
+        Self::from_bits(value.bits())
+    }
+}
+
+impl From<compat::SegmentRevisions> for SegmentRevisions {
+    fn from(value: compat::SegmentRevisions) -> Self {
+        Self {
+            status_bar: value.status_bar,
+            browser_frame: value.browser_frame,
+            browser_rows_window: value.browser_rows_window,
+            map_panel: value.map_panel,
+            waveform_overlay: value.waveform_overlay,
+            global_static: value.global_static,
+        }
+    }
+}
+
+impl From<SegmentRevisions> for compat::SegmentRevisions {
+    fn from(value: SegmentRevisions) -> Self {
+        Self {
+            status_bar: value.status_bar,
+            browser_frame: value.browser_frame,
+            browser_rows_window: value.browser_rows_window,
+            map_panel: value.map_panel,
+            waveform_overlay: value.waveform_overlay,
+            global_static: value.global_static,
+        }
+    }
+}
+
+impl From<compat::NativeMotionModel> for NativeMotionModel {
+    fn from(value: compat::NativeMotionModel) -> Self {
+        Self {
+            transport_running: value.transport_running,
+            map_active: value.map_active,
+            active_rating_filters: value.active_rating_filters,
+            active_playback_age_filters: value.active_playback_age_filters,
+            marked_filter_active: value.marked_filter_active,
+            waveform_selection_milli: value.waveform_selection_milli.map(Into::into),
+            waveform_slices: value.waveform_slices.into_iter().map(Into::into).collect(),
+            waveform_selection_export_flash_nonce: value.waveform_selection_export_flash_nonce,
+            waveform_selection_export_failure_flash_nonce: value
+                .waveform_selection_export_failure_flash_nonce,
+            waveform_edit_selection_apply_flash_nonce: value
+                .waveform_edit_selection_apply_flash_nonce,
+            waveform_edit_selection_milli: value.waveform_edit_selection_milli.map(Into::into),
+            waveform_edit_fade_in_end_milli: value.waveform_edit_fade_in_end_milli,
+            waveform_edit_fade_in_end_micros: value.waveform_edit_fade_in_end_micros,
+            waveform_edit_fade_in_mute_start_milli: value.waveform_edit_fade_in_mute_start_milli,
+            waveform_edit_fade_in_mute_start_micros: value.waveform_edit_fade_in_mute_start_micros,
+            waveform_edit_fade_in_curve_milli: value.waveform_edit_fade_in_curve_milli,
+            waveform_edit_fade_out_start_milli: value.waveform_edit_fade_out_start_milli,
+            waveform_edit_fade_out_start_micros: value.waveform_edit_fade_out_start_micros,
+            waveform_edit_fade_out_mute_end_milli: value.waveform_edit_fade_out_mute_end_milli,
+            waveform_edit_fade_out_mute_end_micros: value.waveform_edit_fade_out_mute_end_micros,
+            waveform_edit_fade_out_curve_milli: value.waveform_edit_fade_out_curve_milli,
+            waveform_loop_enabled: value.waveform_loop_enabled,
+            waveform_loop_lock_enabled: value.waveform_loop_lock_enabled,
+            waveform_cursor_milli: value.waveform_cursor_milli,
+            waveform_playhead_milli: value.waveform_playhead_milli,
+            waveform_playhead_micros: value.waveform_playhead_micros,
+            waveform_view_start_milli: value.waveform_view_start_milli,
+            waveform_view_end_milli: value.waveform_view_end_milli,
+            waveform_view_start_micros: value.waveform_view_start_micros,
+            waveform_view_end_micros: value.waveform_view_end_micros,
+            waveform_view_start_nanos: value.waveform_view_start_nanos,
+            waveform_view_end_nanos: value.waveform_view_end_nanos,
+            waveform_tempo_label: value.waveform_tempo_label,
+            waveform_zoom_label: value.waveform_zoom_label,
+            waveform_loaded_label: value.waveform_loaded_label,
+            waveform_loading: value.waveform_loading,
+            waveform_image_signature: value.waveform_image_signature,
+            waveform_transport_hint: value.waveform_transport_hint,
+            waveform_compare_anchor_available: value.waveform_compare_anchor_available,
+            waveform_compare_anchor_label: value.waveform_compare_anchor_label,
+            waveform_channel_view: value.waveform_channel_view.into(),
+            waveform_normalized_audition_enabled: value.waveform_normalized_audition_enabled,
+            waveform_bpm_snap_enabled: value.waveform_bpm_snap_enabled,
+            waveform_relative_bpm_grid_enabled: value.waveform_relative_bpm_grid_enabled,
+            waveform_transient_snap_enabled: value.waveform_transient_snap_enabled,
+            waveform_transient_markers_enabled: value.waveform_transient_markers_enabled,
+            waveform_slice_mode_enabled: value.waveform_slice_mode_enabled,
+            waveform_exact_duplicate_cleanup_available: value
+                .waveform_exact_duplicate_cleanup_available,
+            status_right: value.status_right,
+        }
+    }
+}
+
+impl From<NativeMotionModel> for compat::NativeMotionModel {
+    fn from(value: NativeMotionModel) -> Self {
+        Self {
+            transport_running: value.transport_running,
+            map_active: value.map_active,
+            active_rating_filters: value.active_rating_filters,
+            active_playback_age_filters: value.active_playback_age_filters,
+            marked_filter_active: value.marked_filter_active,
+            waveform_selection_milli: value.waveform_selection_milli.map(Into::into),
+            waveform_slices: value.waveform_slices.into_iter().map(Into::into).collect(),
+            waveform_selection_export_flash_nonce: value.waveform_selection_export_flash_nonce,
+            waveform_selection_export_failure_flash_nonce: value
+                .waveform_selection_export_failure_flash_nonce,
+            waveform_edit_selection_apply_flash_nonce: value
+                .waveform_edit_selection_apply_flash_nonce,
+            waveform_edit_selection_milli: value.waveform_edit_selection_milli.map(Into::into),
+            waveform_edit_fade_in_end_milli: value.waveform_edit_fade_in_end_milli,
+            waveform_edit_fade_in_end_micros: value.waveform_edit_fade_in_end_micros,
+            waveform_edit_fade_in_mute_start_milli: value.waveform_edit_fade_in_mute_start_milli,
+            waveform_edit_fade_in_mute_start_micros: value.waveform_edit_fade_in_mute_start_micros,
+            waveform_edit_fade_in_curve_milli: value.waveform_edit_fade_in_curve_milli,
+            waveform_edit_fade_out_start_milli: value.waveform_edit_fade_out_start_milli,
+            waveform_edit_fade_out_start_micros: value.waveform_edit_fade_out_start_micros,
+            waveform_edit_fade_out_mute_end_milli: value.waveform_edit_fade_out_mute_end_milli,
+            waveform_edit_fade_out_mute_end_micros: value.waveform_edit_fade_out_mute_end_micros,
+            waveform_edit_fade_out_curve_milli: value.waveform_edit_fade_out_curve_milli,
+            waveform_loop_enabled: value.waveform_loop_enabled,
+            waveform_loop_lock_enabled: value.waveform_loop_lock_enabled,
+            waveform_cursor_milli: value.waveform_cursor_milli,
+            waveform_playhead_milli: value.waveform_playhead_milli,
+            waveform_playhead_micros: value.waveform_playhead_micros,
+            waveform_view_start_milli: value.waveform_view_start_milli,
+            waveform_view_end_milli: value.waveform_view_end_milli,
+            waveform_view_start_micros: value.waveform_view_start_micros,
+            waveform_view_end_micros: value.waveform_view_end_micros,
+            waveform_view_start_nanos: value.waveform_view_start_nanos,
+            waveform_view_end_nanos: value.waveform_view_end_nanos,
+            waveform_tempo_label: value.waveform_tempo_label,
+            waveform_zoom_label: value.waveform_zoom_label,
+            waveform_loaded_label: value.waveform_loaded_label,
+            waveform_loading: value.waveform_loading,
+            waveform_image_signature: value.waveform_image_signature,
+            waveform_transport_hint: value.waveform_transport_hint,
+            waveform_compare_anchor_available: value.waveform_compare_anchor_available,
+            waveform_compare_anchor_label: value.waveform_compare_anchor_label,
+            waveform_channel_view: value.waveform_channel_view.into(),
+            waveform_normalized_audition_enabled: value.waveform_normalized_audition_enabled,
+            waveform_bpm_snap_enabled: value.waveform_bpm_snap_enabled,
+            waveform_relative_bpm_grid_enabled: value.waveform_relative_bpm_grid_enabled,
+            waveform_transient_snap_enabled: value.waveform_transient_snap_enabled,
+            waveform_transient_markers_enabled: value.waveform_transient_markers_enabled,
+            waveform_slice_mode_enabled: value.waveform_slice_mode_enabled,
+            waveform_exact_duplicate_cleanup_available: value
+                .waveform_exact_duplicate_cleanup_available,
+            status_right: value.status_right,
+        }
     }
 }
 

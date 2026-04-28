@@ -197,7 +197,7 @@ pub fn capture_gui_automation_snapshot(
     model: &NativeAppModel,
 ) -> NativeGuiAutomationSnapshot {
     let compat_model = radiant::compat::sempal_shell::AppModel::from(model);
-    radiant::compat::sempal_shell::capture_gui_automation_snapshot(viewport, &compat_model)
+    radiant::compat::sempal_shell::capture_gui_automation_snapshot(viewport, &compat_model).into()
 }
 
 /// Capture a deterministic compatibility native-shell visual snapshot.

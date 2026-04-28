@@ -1,9 +1,9 @@
 //! Waveform selection and drag routing for native actions.
 
 use super::super::AppController;
+use crate::app_core::actions::NativeFolderPaneIdModel as FolderPaneIdModel;
 use crate::app_core::actions::NativeUiAction;
 use crate::app_core::app_api::state::{DragSource, DragTarget, FolderPaneId, UiPoint};
-use radiant::app::FolderPaneIdModel;
 
 /// Try to dispatch waveform selection and edit-selection native actions.
 pub(super) fn apply_waveform_selection_action(

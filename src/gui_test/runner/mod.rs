@@ -9,7 +9,7 @@ use super::{
     GuiScenario, GuiScenarioStep, GuiStepTimingSample, GuiTestArtifactBundle, GuiTestModeConfig,
 };
 use crate::{
-    app_core::actions::{GuiDispatchPolicy, NativeAppBridge, NativeUiAction, action_catalog_entry},
+    app_core::actions::{GuiDispatchPolicy, NativeUiAction, action_catalog_entry},
     gui_test::{GuiFixtureBridge, trace_event_for_action},
 };
 use std::{

@@ -218,7 +218,7 @@ fn f_hotkey_focuses_loaded_sample_in_browser() {
         .find(|action| {
             matches!(
                 action.action,
-                radiant::app::UiAction::FocusLoadedSampleInBrowser
+                crate::app_core::actions::NativeUiAction::FocusLoadedSampleInBrowser
             )
         })
         .expect("missing focus loaded sample hotkey");

@@ -1,9 +1,9 @@
 //! Folder-panel routing for native browser actions.
 
 use super::super::AppController;
+use crate::app_core::actions::NativeFolderPaneIdModel as FolderPaneIdModel;
 use crate::app_core::actions::NativeUiAction;
 use crate::app_core::app_api::state::FolderPaneId;
-use radiant::app::FolderPaneIdModel;
 
 /// Try to dispatch folder-panel native actions.
 pub(super) fn apply_folder_native_ui_action(
