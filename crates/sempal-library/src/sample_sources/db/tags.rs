@@ -62,7 +62,6 @@ impl SourceDatabase {
             Err(SourceDbError::EmptyTagLabel) => return self.most_used_tags(limit),
             Err(err) => return Err(err),
         };
-        let like_pattern = format!("%{}%", escape_like(&identity.normalized_text));
         let limit = query_limit(limit);
         let mut stmt = self
             .connection
@@ -70,22 +69,39 @@ impl SourceDatabase {
                 "SELECT st.id, st.display_label, st.normalized_text, COUNT(wft.path) AS usage_count
                  FROM source_tags st
                  LEFT JOIN wav_file_tags wft ON wft.tag_id = st.id
-                 WHERE st.normalized_text LIKE ?1 ESCAPE '\\'
                  GROUP BY st.id, st.display_label, st.normalized_text
-                 ORDER BY CASE WHEN st.normalized_text = ?2 THEN 0 ELSE 1 END,
-                          usage_count DESC,
+                 ORDER BY usage_count DESC,
                           st.display_label COLLATE NOCASE ASC,
-                          st.normalized_text ASC
-                 LIMIT ?3",
+                          st.normalized_text ASC",
             )
             .map_err(map_sql_error)?;
-        collect_tag_usage(
-            stmt.query_map(
-                params![like_pattern, identity.normalized_text, limit],
-                |row| tag_usage_from_row(row),
-            )
-            .map_err(map_sql_error)?,
-        )
+        let mut matches = collect_tag_usage(
+            stmt.query_map([], tag_usage_from_row)
+                .map_err(map_sql_error)?,
+        )?
+        .into_iter()
+        .filter_map(|usage| {
+            tag_match_rank(&usage.tag.normalized_text, &identity.normalized_text)
+                .map(|rank| (rank, usage))
+        })
+        .collect::<Vec<_>>();
+        matches.sort_by(|(left_rank, left), (right_rank, right)| {
+            left_rank
+                .cmp(right_rank)
+                .then_with(|| right.assignment_count.cmp(&left.assignment_count))
+                .then_with(|| {
+                    left.tag
+                        .display_label
+                        .to_ascii_lowercase()
+                        .cmp(&right.tag.display_label.to_ascii_lowercase())
+                })
+                .then_with(|| left.tag.normalized_text.cmp(&right.tag.normalized_text))
+        });
+        Ok(matches
+            .into_iter()
+            .take(limit as usize)
+            .map(|(_, usage)| usage)
+            .collect())
     }
 
     /// List normal tags assigned to one wav path.
@@ -333,11 +349,21 @@ fn collect_tag_usage(
     rows.collect::<Result<Vec<_>, _>>().map_err(map_sql_error)
 }
 
-fn escape_like(value: &str) -> String {
-    value
-        .replace('\\', "\\\\")
-        .replace('%', "\\%")
-        .replace('_', "\\_")
+fn tag_match_rank(candidate: &str, query: &str) -> Option<u8> {
+    if candidate == query {
+        return Some(0);
+    }
+    if candidate.contains(query) {
+        return Some(1);
+    }
+    fuzzy_subsequence_match(candidate, query).then_some(2)
+}
+
+fn fuzzy_subsequence_match(candidate: &str, query: &str) -> bool {
+    let mut chars = candidate.chars();
+    query
+        .chars()
+        .all(|query_char| chars.any(|candidate_char| candidate_char == query_char))
 }
 
 fn record_tag_db_event(
@@ -467,5 +493,29 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(labels, vec!["kick".to_string(), "deep kick".to_string()]);
+    }
+
+    #[test]
+    fn search_tags_finds_less_common_fuzzy_matches() {
+        let dir = tempdir().unwrap();
+        let db = SourceDatabase::open(dir.path()).unwrap();
+        for path in ["one.wav", "two.wav", "three.wav"] {
+            db.upsert_file(Path::new(path), 10, 5).unwrap();
+        }
+        db.assign_tag_to_path(Path::new("one.wav"), "Texture")
+            .unwrap();
+        db.assign_tag_to_path(Path::new("two.wav"), "Texture")
+            .unwrap();
+        db.assign_tag_to_path(Path::new("three.wav"), "Rare FX")
+            .unwrap();
+
+        let labels = db
+            .search_tags("rfx", 8)
+            .unwrap()
+            .into_iter()
+            .map(|usage| usage.tag.display_label)
+            .collect::<Vec<_>>();
+
+        assert_eq!(labels, vec!["Rare FX".to_string()]);
     }
 }

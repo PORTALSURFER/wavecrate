@@ -118,3 +118,106 @@ pub(super) fn browser_focus_transition_stability_scenario() -> GuiScenario {
         ],
     }
 }
+
+pub(super) fn browser_tag_sidebar_unified_tag_library_scenario() -> GuiScenario {
+    GuiScenario {
+        name: String::from("browser_tag_sidebar_unified_tag_library"),
+        fixture_tag: String::from("browser"),
+        steps: vec![
+            GuiScenarioStep::DispatchAction {
+                action: NativeUiAction::ToggleBrowserTagSidebar,
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodePresent {
+                    node_id: String::from("browser.tag_sidebar"),
+                },
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodeAbsent {
+                    node_id: String::from("browser.tag_sidebar.custom_tag"),
+                },
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodeMetadataEquals {
+                    node_id: String::from("browser.tag_sidebar"),
+                    key: String::from("normal_tag_labels"),
+                    value: String::from("Texture|Deep Kick|Rare FX"),
+                },
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodeSelected {
+                    node_id: String::from("browser.tag_sidebar.normal_tag.texture"),
+                    selected: true,
+                },
+            },
+            GuiScenarioStep::DispatchAction {
+                action: NativeUiAction::SetBrowserTagSidebarInput {
+                    value: String::from("rfx"),
+                },
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodeMetadataEquals {
+                    node_id: String::from("browser.tag_sidebar"),
+                    key: String::from("normal_tag_labels"),
+                    value: String::from("Rare FX"),
+                },
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodeSelected {
+                    node_id: String::from("browser.tag_sidebar.normal_tag.rare_fx"),
+                    selected: false,
+                },
+            },
+            GuiScenarioStep::DispatchAction {
+                action: NativeUiAction::ToggleBrowserSidebarNormalTag {
+                    label: String::from("Rare FX"),
+                },
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodeSelected {
+                    node_id: String::from("browser.tag_sidebar.normal_tag.rare_fx"),
+                    selected: true,
+                },
+            },
+            GuiScenarioStep::DispatchAction {
+                action: NativeUiAction::SetBrowserTagSidebarInput {
+                    value: String::from("vinyl crackle"),
+                },
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodePresent {
+                    node_id: String::from("browser.tag_sidebar.create_tag.vinyl_crackle"),
+                },
+            },
+            GuiScenarioStep::DispatchAction {
+                action: NativeUiAction::CommitBrowserTagSidebarInput,
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodeSelected {
+                    node_id: String::from("browser.tag_sidebar.normal_tag.vinyl_crackle"),
+                    selected: true,
+                },
+            },
+            GuiScenarioStep::DispatchAction {
+                action: NativeUiAction::FocusBrowserRow { visible_row: 1 },
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodeSelected {
+                    node_id: String::from("browser.tag_sidebar.normal_tag.vinyl_crackle"),
+                    selected: false,
+                },
+            },
+            GuiScenarioStep::DispatchAction {
+                action: NativeUiAction::ToggleBrowserSidebarNormalTag {
+                    label: String::from("Vinyl Crackle"),
+                },
+            },
+            GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodeSelected {
+                    node_id: String::from("browser.tag_sidebar.normal_tag.vinyl_crackle"),
+                    selected: true,
+                },
+            },
+        ],
+    }
+}

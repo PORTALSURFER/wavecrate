@@ -30,8 +30,7 @@ fn recovers_from_library_lock_poisoning() {
 fn creates_embedding_tables() {
     let temp = tempdir().unwrap();
     with_config_home(temp.path(), || {
-        let _ = load().unwrap();
-        let conn = Connection::open(database_path().unwrap()).unwrap();
+        let conn = open_connection().unwrap();
         for table in [
             "embeddings",
             "ann_index_meta",
@@ -55,8 +54,7 @@ fn creates_embedding_tables() {
 fn applies_workload_pragmas_and_indices() {
     let temp = tempdir().unwrap();
     with_config_home(temp.path(), || {
-        let _ = load().unwrap();
-        let conn = Connection::open(database_path().unwrap()).unwrap();
+        let conn = open_connection().unwrap();
 
         let journal_mode: String = conn
             .query_row("PRAGMA journal_mode", [], |row| row.get(0))
@@ -66,7 +64,7 @@ fn applies_workload_pragmas_and_indices() {
         let synchronous: i64 = conn
             .query_row("PRAGMA synchronous", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(synchronous, 2, "expected PRAGMA synchronous=NORMAL (2)");
+        assert_eq!(synchronous, 1, "expected PRAGMA synchronous=NORMAL (1)");
 
         let wal_autocheckpoint: i64 = conn
             .query_row("PRAGMA wal_autocheckpoint", [], |row| row.get(0))

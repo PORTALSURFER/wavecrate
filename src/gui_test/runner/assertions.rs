@@ -83,6 +83,26 @@ pub(super) fn assert_scenario_state(
                     )
                 })
         }
+        GuiAssertion::NodeMetadataEquals {
+            node_id,
+            key,
+            value,
+        } => {
+            let node = find_automation_node(snapshot, node_id)
+                .ok_or_else(|| format!("missing automation node {node_id}"))?;
+            let actual = node
+                .metadata
+                .get(key)
+                .map(String::as_str)
+                .unwrap_or_default();
+            if actual == value {
+                Ok(())
+            } else {
+                Err(format!(
+                    "automation node {node_id} metadata {key}='{actual}' expected '{value}'"
+                ))
+            }
+        }
         GuiAssertion::ActionCataloged { action_id } => action_catalog_entry_by_id(action_id)
             .map(|_| ())
             .ok_or_else(|| format!("missing catalog action {action_id}")),

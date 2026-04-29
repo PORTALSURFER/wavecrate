@@ -27,6 +27,13 @@ const PASSIVE_CHECKPOINT_MIN_INTERVAL: Duration = Duration::from_secs(15);
 const CHECKPOINT_BUSY_TIMEOUT: Duration = Duration::from_millis(250);
 const SLOW_CHECKPOINT_THRESHOLD: Duration = Duration::from_millis(50);
 
+/// Apply the shared write-capable WAL policy to one SQLite connection.
+pub(crate) fn apply_workload_wal_pragmas(connection: &Connection) -> rusqlite::Result<()> {
+    connection.execute_batch(WORKLOAD_WAL_PRAGMAS_SQL)?;
+    connection.pragma_update(None, "wal_autocheckpoint", 4096_i64)?;
+    connection.pragma_update(None, "journal_size_limit", 67_108_864_i64)
+}
+
 static LAST_PASSIVE_CHECKPOINT_AT: LazyLock<Mutex<HashMap<PathBuf, Instant>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 

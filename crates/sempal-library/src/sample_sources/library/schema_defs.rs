@@ -5,17 +5,16 @@ impl LibraryDatabase {
         let pragmas = format!(
             "PRAGMA journal_mode=WAL;
                  PRAGMA synchronous = NORMAL;
-                 {}
                  PRAGMA foreign_keys=ON;
                  PRAGMA busy_timeout=5000;
                  PRAGMA temp_store=MEMORY;
                  PRAGMA cache_size=-64000;
-                 PRAGMA mmap_size=268435456;",
-            crate::sqlite_wal::WORKLOAD_WAL_PRAGMAS_SQL
+                 PRAGMA mmap_size=268435456;"
         );
         self.connection
             .execute_batch(&pragmas)
             .map_err(map_sql_error)?;
+        crate::sqlite_wal::apply_workload_wal_pragmas(&self.connection).map_err(map_sql_error)?;
         if let Err(err) = crate::sqlite_ext::try_load_optional_extension(&self.connection) {
             tracing::debug!("SQLite extension not loaded: {err}");
         }

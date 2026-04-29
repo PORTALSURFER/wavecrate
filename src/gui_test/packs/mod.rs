@@ -32,6 +32,7 @@ fn contract_smoke_pack() -> GuiScenarioPack {
         scenarios: vec![
             browser::browser_search_and_commit_scenario(),
             browser::browser_focus_transition_stability_scenario(),
+            browser::browser_tag_sidebar_unified_tag_library_scenario(),
             transport::transport_play_from_selection_start_scenario(),
             transport::transport_volume_slider_scenario(),
             waveform::waveform_seek_zoom_selection_scenario(),

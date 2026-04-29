@@ -85,6 +85,15 @@ pub enum GuiAssertion {
         /// Text fragment expected within the metadata value.
         needle: String,
     },
+    /// Assert that a semantic automation node metadata value exactly matches the requested text.
+    NodeMetadataEquals {
+        /// Stable automation node identifier to inspect.
+        node_id: String,
+        /// Metadata key expected on the node.
+        key: String,
+        /// Exact metadata value expected on the node.
+        value: String,
+    },
     /// Assert that the stable action id is present in the host action catalog.
     ActionCataloged {
         /// Stable action identifier expected in the GUI action catalog.

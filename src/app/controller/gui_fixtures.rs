@@ -122,6 +122,7 @@ fn build_browser_fixture_with_source_id(
     };
     let entries = browser_fixture_entries(&source.root)?;
     seed_source_fixture(&mut controller, &source, entries)?;
+    seed_browser_fixture_tags(&mut controller, &source)?;
     controller.select_wav_by_path(Path::new("kick_one.wav"));
     controller.focus_browser_list();
     Ok(GuiFixtureControllerBundle {
@@ -136,6 +137,31 @@ fn build_transport_fixture(
     let mut bundle = build_waveform_fixture(renderer)?;
     bundle.controller.apply_volume(0.42);
     Ok(bundle)
+}
+
+fn seed_browser_fixture_tags(
+    controller: &mut AppController,
+    source: &SampleSource,
+) -> Result<(), String> {
+    let db = controller
+        .database_for(source)
+        .map_err(|err| format!("open browser fixture source DB for tags: {err}"))?;
+    for path in [
+        "kick_one.wav",
+        "snare_two.wav",
+        "hat_three.wav",
+        "loop_four.wav",
+    ] {
+        db.assign_tag_to_path(Path::new(path), "Texture")
+            .map_err(|err| format!("seed browser fixture Texture tag for {path}: {err}"))?;
+    }
+    for path in ["kick_one.wav", "kick_08.wav"] {
+        db.assign_tag_to_path(Path::new(path), "Deep Kick")
+            .map_err(|err| format!("seed browser fixture Deep Kick tag for {path}: {err}"))?;
+    }
+    db.assign_tag_to_path(Path::new("fx_five.wav"), "Rare FX")
+        .map_err(|err| format!("seed browser fixture Rare FX tag: {err}"))?;
+    Ok(())
 }
 
 fn browser_fixture_entries(root: &Path) -> Result<Vec<WavEntry>, String> {

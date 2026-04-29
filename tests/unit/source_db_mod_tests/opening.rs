@@ -268,8 +268,8 @@ fn missing_columns_are_added_on_open() {
 #[test]
 fn applies_workload_pragmas_and_indices() {
     let dir = tempdir().unwrap();
-    let _db = SourceDatabase::open(dir.path()).unwrap();
-    let conn = Connection::open(dir.path().join(DB_FILE_NAME)).unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    let conn = &db.connection;
 
     let journal_mode: String = conn
         .query_row("PRAGMA journal_mode", [], |row| row.get(0))
@@ -279,7 +279,7 @@ fn applies_workload_pragmas_and_indices() {
     let synchronous: i64 = conn
         .query_row("PRAGMA synchronous", [], |row| row.get(0))
         .unwrap();
-    assert_eq!(synchronous, 2, "expected PRAGMA synchronous=NORMAL (2)");
+    assert_eq!(synchronous, 1, "expected PRAGMA synchronous=NORMAL (1)");
 
     let wal_autocheckpoint: i64 = conn
         .query_row("PRAGMA wal_autocheckpoint", [], |row| row.get(0))
@@ -305,7 +305,7 @@ fn applies_workload_pragmas_and_indices() {
         .optional()
         .unwrap();
     assert_eq!(idx.as_deref(), Some("idx_wav_files_missing"));
-    assert_eq!(schema_version(&conn), 2);
+    assert_eq!(schema_version(conn), 3);
 }
 
 #[test]
@@ -325,7 +325,7 @@ fn stale_schema_stamp_reassures_legacy_files_on_open() {
     drop(conn);
 
     let reopened = SourceDatabase::open(dir.path()).unwrap();
-    assert_eq!(schema_version(&reopened.connection), 2);
+    assert_eq!(schema_version(&reopened.connection), 3);
 }
 
 #[test]
