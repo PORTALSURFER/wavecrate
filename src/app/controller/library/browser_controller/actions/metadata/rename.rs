@@ -1,3 +1,4 @@
+use super::planning::run_background_auto_rename_request;
 use super::*;
 
 impl BrowserController<'_> {
@@ -21,6 +22,22 @@ impl BrowserController<'_> {
         &mut self,
         paths: &[PathBuf],
     ) -> Result<(), String> {
+        self.dispatch_auto_rename_browser_sample_paths_action(paths, cfg!(test))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn auto_rename_browser_sample_paths_background_for_tests(
+        &mut self,
+        paths: &[PathBuf],
+    ) -> Result<(), String> {
+        self.dispatch_auto_rename_browser_sample_paths_action(paths, false)
+    }
+
+    fn dispatch_auto_rename_browser_sample_paths_action(
+        &mut self,
+        paths: &[PathBuf],
+        run_inline: bool,
+    ) -> Result<(), String> {
         #[cfg(test)]
         let dispatch_started_at = std::time::Instant::now();
         if paths.is_empty() {
@@ -29,12 +46,8 @@ impl BrowserController<'_> {
         let Some(source) = self.current_source() else {
             return Err(String::from("No source selected"));
         };
-        self.preload_bpm_values_for_paths(paths);
-        let requests = self.prepare_auto_rename_requests(&source, paths)?;
-        if requests.is_empty() {
-            return Ok(());
-        }
-        let intent_key = auto_rename_intent_key(&source.id, &requests);
+        let snapshot = self.capture_auto_rename_background_request(&source, paths);
+        let intent_key = auto_rename_intent_key(&source.id, paths);
         if self.runtime.jobs.file_ops_in_progress() {
             let pending = PendingBrowserAutoRenameIntent {
                 key: intent_key.clone(),
@@ -63,10 +76,7 @@ impl BrowserController<'_> {
                 }
             };
         }
-        let requested_paths = requests
-            .iter()
-            .map(|request| request.old_relative.clone())
-            .collect::<Vec<_>>();
+        let requested_paths = paths.to_vec();
         self.runtime
             .source_lane
             .mutations
@@ -80,7 +90,27 @@ impl BrowserController<'_> {
                 dispatch_started_at.elapsed(),
             ),
         );
-        if cfg!(test) {
+        if run_inline {
+            self.preload_bpm_values_for_paths(paths);
+            let requests = match self.prepare_auto_rename_requests(&source, paths) {
+                Ok(requests) => requests,
+                Err(err) => {
+                    self.runtime
+                        .source_lane
+                        .mutations
+                        .clear_browser_rename_intent();
+                    self.finish_pending_file_mutation(&source.id, requested_paths);
+                    return Err(err);
+                }
+            };
+            if requests.is_empty() {
+                self.runtime
+                    .source_lane
+                    .mutations
+                    .clear_browser_rename_intent();
+                self.finish_pending_file_mutation(&source.id, requested_paths);
+                return Ok(());
+            }
             let result = run_sample_auto_rename_job(
                 source.clone(),
                 requests,
@@ -89,13 +119,17 @@ impl BrowserController<'_> {
             self.apply_file_op_result(FileOpResult::SampleAutoRename(result));
             return Ok(());
         }
-        self.set_file_op_status(
-            format!("Auto renaming {} sample(s)...", requested_paths.len()),
-            StatusTone::Busy,
+        let title = String::from("Preparing auto rename");
+        self.set_file_op_status(format!("{title}..."), StatusTone::Busy);
+        self.show_status_progress(
+            crate::app::state::ProgressTaskKind::FileOps,
+            title,
+            requested_paths.len().max(1),
+            true,
         );
         let pending_source_id = source.id.clone();
         if let Err(err) = self.runtime.jobs.begin_one_shot_file_op(move |cancel| {
-            FileOpResult::SampleAutoRename(run_sample_auto_rename_job(source, requests, cancel))
+            FileOpResult::SampleAutoRename(run_background_auto_rename_request(snapshot, cancel))
         }) {
             self.runtime
                 .source_lane
@@ -110,13 +144,13 @@ impl BrowserController<'_> {
 
 fn auto_rename_intent_key(
     source_id: &crate::sample_sources::SourceId,
-    requests: &[SampleAutoRenameRequest],
+    paths: &[PathBuf],
 ) -> BrowserRenameIntentKey {
     BrowserRenameIntentKey::new(
         source_id.clone(),
-        requests
+        paths
             .iter()
-            .map(|request| (request.old_relative.clone(), request.new_relative.clone()))
+            .map(|path| (path.clone(), path.clone()))
             .collect(),
     )
 }

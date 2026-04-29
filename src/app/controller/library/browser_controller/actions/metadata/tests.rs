@@ -137,9 +137,13 @@ fn large_tag_sidebar_auto_rename_batch_reports_controller_phase_timings() {
 
     let mut entries = Vec::with_capacity(SAMPLE_COUNT);
     let mut paths = Vec::with_capacity(SAMPLE_COUNT);
+    let db = controller.database_for(&source).unwrap();
     for index in 0..SAMPLE_COUNT {
         let name = format!("sample_{index:03}.wav");
         write_test_wav(&source.root.join(&name), &[0.0, 0.1]);
+        db.upsert_file(Path::new(&name), 0, 0).unwrap();
+        db.set_tag(Path::new(&name), crate::sample_sources::Rating::NEUTRAL)
+            .unwrap();
         entries.push(sample_entry(&name, crate::sample_sources::Rating::NEUTRAL));
         paths.push(PathBuf::from(name));
     }
@@ -204,6 +208,56 @@ fn large_tag_sidebar_auto_rename_batch_reports_controller_phase_timings() {
     );
 }
 
+#[test]
+fn large_auto_rename_background_dispatch_registers_file_ops_before_planning_finishes() {
+    const SAMPLE_COUNT: usize = 64;
+    clear_batch_latency();
+    let (mut controller, source) = dummy_controller();
+    controller.settings.default_identifier = String::from("Artist Name");
+    controller.ui.options_panel.default_identifier = String::from("Artist Name");
+    controller.library.sources.push(source.clone());
+    controller.select_source_by_index(0);
+    controller.cache_db(&source).unwrap();
+
+    let mut entries = Vec::with_capacity(SAMPLE_COUNT);
+    let mut paths = Vec::with_capacity(SAMPLE_COUNT);
+    let db = controller.database_for(&source).unwrap();
+    for index in 0..SAMPLE_COUNT {
+        let name = format!("sample_{index:03}.wav");
+        write_test_wav(&source.root.join(&name), &[0.0, 0.1]);
+        db.upsert_file(Path::new(&name), 0, 0).unwrap();
+        db.set_tag(Path::new(&name), crate::sample_sources::Rating::NEUTRAL)
+            .unwrap();
+        entries.push(sample_entry(&name, crate::sample_sources::Rating::NEUTRAL));
+        paths.push(PathBuf::from(name));
+    }
+    controller.set_wav_entries_for_tests(entries);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+
+    let started_at = Instant::now();
+    BrowserController::new(&mut controller)
+        .auto_rename_browser_sample_paths_background_for_tests(&paths)
+        .expect("background auto rename dispatch should start");
+    let elapsed = started_at.elapsed();
+
+    assert!(
+        elapsed <= LARGE_BROWSER_BATCH_CONTROLLER_BUDGET,
+        "background auto-rename dispatch exceeded {:?}: {elapsed:?}",
+        LARGE_BROWSER_BATCH_CONTROLLER_BUDGET
+    );
+    assert_eq!(
+        controller.ui.progress.task,
+        Some(crate::app::state::ProgressTaskKind::FileOps)
+    );
+    assert_eq!(controller.ui.progress.title, "Preparing auto rename");
+    assert!(controller.ui.progress.cancelable);
+    assert_eq!(controller.ui.progress.total, SAMPLE_COUNT);
+
+    wait_for_background_jobs(&mut controller, Duration::from_secs(2));
+    assert!(source.root.join("artistname_SS.wav").exists());
+}
+
 /// Return a captured phase sample and require it to cover the expected item count.
 fn assert_phase_count_at_least(
     samples: &[crate::app::controller::batch_latency::BatchLatencySample],
@@ -256,4 +310,23 @@ fn release_db_lock(lock_release_tx: Sender<()>, lock_done_rx: Receiver<()>) {
     lock_done_rx
         .recv_timeout(Duration::from_secs(1))
         .expect("wait for sqlite lock release");
+}
+
+fn wait_for_background_jobs(
+    controller: &mut crate::app::controller::AppController,
+    timeout: Duration,
+) {
+    let deadline = Instant::now() + timeout;
+    while Instant::now() < deadline {
+        controller.poll_background_jobs();
+        if !controller
+            .ui
+            .progress
+            .has_task(crate::app::state::ProgressTaskKind::FileOps)
+        {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    panic!("background file-op did not finish within {timeout:?}");
 }

@@ -17,7 +17,9 @@ use super::super::{
 };
 use super::common::format_bpm_label;
 use super::*;
-use crate::app::controller::jobs::{AnalysisMetadataMutationOp, FileOpResult};
+use crate::app::controller::jobs::{
+    AnalysisMetadataMutationOp, FileOpResult, SampleAutoRenameResult,
+};
 use crate::app::controller::state::runtime::{
     BrowserRenameBusyDecision, BrowserRenameIntentKey, MetadataRollback,
     PendingBrowserAutoRenameIntent,
