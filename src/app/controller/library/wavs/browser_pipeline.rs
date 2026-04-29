@@ -138,6 +138,53 @@ impl BrowserPipelineCache {
         true
     }
 
+    /// Update one retained compact browser entry after a path or metadata change.
+    pub(crate) fn update_entry_snapshot(
+        &mut self,
+        index: usize,
+        entry: &crate::sample_sources::WavEntry,
+    ) -> bool {
+        let Some(compact) = self.compact_entries.get_mut(index) else {
+            return false;
+        };
+        let previous_path = compact.relative_path.clone();
+        let previous_tag = compact.tag;
+        let previous_locked = compact.locked;
+        let previous_last_played_at = compact.last_played_at;
+        compact.relative_path = entry.relative_path.clone();
+        compact.tag = entry.tag;
+        compact.looped = entry.looped;
+        compact.locked = entry.locked;
+        compact.missing = entry.missing;
+        compact.last_played_at = entry.last_played_at;
+        if previous_tag != entry.tag {
+            self.update_triage_partition_membership(index, previous_tag, entry.tag);
+        }
+        if previous_path != entry.relative_path
+            && let Some(snapshot) = self.feature_cache_snapshot.as_mut()
+        {
+            let paths = Arc::make_mut(&mut snapshot.entry_paths);
+            if index < paths.len() {
+                paths[index] = entry.relative_path.clone();
+                snapshot.key =
+                    crate::app::controller::library::wavs::feature_cache::feature_cache_key_for_paths(
+                        paths,
+                    );
+            }
+        }
+        if previous_path != entry.relative_path || previous_last_played_at != entry.last_played_at {
+            self.playback_age_token_caches.clear();
+        }
+        if previous_path != entry.relative_path
+            || previous_tag != entry.tag
+            || previous_locked != entry.locked
+            || previous_last_played_at != entry.last_played_at
+        {
+            self.invalidate_filter_and_sort_stages();
+        }
+        true
+    }
+
     /// Sync the retained base-stage revision after metadata-only DB writes finish.
     pub(crate) fn sync_source_revision(&mut self, source_revision: Option<u64>) {
         if let Some(fingerprint) = self.base_fingerprint.as_mut() {

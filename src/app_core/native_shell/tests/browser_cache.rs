@@ -602,6 +602,66 @@ fn browser_rows_projection_refreshes_labels_after_same_length_reload() {
 }
 
 #[test]
+/// Same-folder sample renames should refresh retained row labels without another click.
+fn browser_rows_projection_refreshes_label_after_cached_rename() {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().join("source");
+    std::fs::create_dir_all(&root).unwrap();
+    let source = crate::sample_sources::SampleSource::new(root);
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(16, 16), None);
+    controller.register_source_for_tests(source.clone());
+    controller.select_browser_source_for_tests(source.id.clone());
+    controller.cache_db(&source).unwrap();
+    controller.set_wav_entries_for_tests(vec![crate::sample_sources::WavEntry {
+        relative_path: std::path::PathBuf::from("raw.wav"),
+        file_size: 0,
+        modified_ns: 0,
+        content_hash: Some(String::from("hash")),
+        tag: crate::sample_sources::Rating::NEUTRAL,
+        looped: false,
+        sound_type: None,
+        locked: false,
+        missing: false,
+        last_played_at: None,
+        user_tag: None,
+    }]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.ui.browser.viewport.visible =
+        crate::app_core::app_api::state::VisibleRows::All { total: 1 };
+
+    let projected = project_browser_model(&mut controller);
+    assert_eq!(projected.rows[0].label.as_ref(), "raw");
+    assert!(controller.projected_browser_rows.contains_key(&0));
+
+    let mut updated = crate::sample_sources::WavEntry {
+        relative_path: std::path::PathBuf::from("renamed.wav"),
+        file_size: 10,
+        modified_ns: 20,
+        content_hash: Some(String::from("hash")),
+        tag: crate::sample_sources::Rating::NEUTRAL,
+        looped: false,
+        sound_type: None,
+        locked: false,
+        missing: false,
+        last_played_at: None,
+        user_tag: None,
+    };
+    updated.looped = true;
+    controller.update_cached_entry(&source, std::path::Path::new("raw.wav"), updated);
+    let _ = controller.refresh_projection_revision_bus();
+
+    let projected = project_browser_model(&mut controller);
+    assert_eq!(projected.rows[0].label.as_ref(), "renamed");
+    assert_eq!(
+        controller
+            .browser_projection_entry(0)
+            .map(|entry| entry.relative_path),
+        Some(std::path::Path::new("renamed.wav"))
+    );
+}
+
+#[test]
 /// Label lookup should fill from the retained browser pipeline when wav pages are absent.
 fn label_lookup_uses_pipeline_snapshot_when_pages_are_unloaded() {
     let temp = tempfile::tempdir().unwrap();

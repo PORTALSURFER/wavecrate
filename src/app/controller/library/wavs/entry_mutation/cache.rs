@@ -101,6 +101,28 @@ pub(crate) fn update_cached_entry(
     }
     if updated {
         if controller.selection_state.ctx.selected_source.as_ref() == Some(&source.id) {
+            let source_revision = controller
+                .database_for(source)
+                .ok()
+                .and_then(|db| db.get_revision().ok());
+            let patched_pipeline = selected_index
+                .and_then(|index| {
+                    controller
+                        .ui_cache
+                        .browser
+                        .pipeline
+                        .update_entry_snapshot(index, &new_entry)
+                        .then_some(index)
+                })
+                .is_some();
+            controller
+                .ui_cache
+                .browser
+                .pipeline
+                .sync_source_revision(source_revision);
+            if !patched_pipeline {
+                controller.ui_cache.browser.pipeline.invalidate();
+            }
             let keep_visible_order = same_parent(old_path, &new_entry.relative_path)
                 && controller.active_search_query().is_none()
                 && controller.ui.browser.search.similar_query.is_none();
@@ -111,11 +133,15 @@ pub(crate) fn update_cached_entry(
                         index,
                         &new_entry.relative_path,
                     );
+                    controller.projected_browser_rows.remove(&index);
                 }
                 controller.refresh_browser_selection_markers();
+                controller.mark_browser_row_metadata_projection_revision_dirty();
             } else {
                 controller.ui_cache.browser.search.invalidate();
                 controller.ui_cache.browser.pipeline.invalidate();
+                controller.mark_browser_search_projection_revision_dirty();
+                controller.mark_browser_row_metadata_projection_revision_dirty();
                 controller.rebuild_browser_lists();
             }
         }
