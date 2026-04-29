@@ -412,6 +412,8 @@ fn set_normal_tag_for_source(
         normalize_normal_tag_label(label).ok_or_else(|| "Tag label cannot be empty".to_string())?;
     let before_present =
         normal_tag_assigned_for_source(controller, source, path, &identity.normalized_text)?;
+    #[cfg(test)]
+    let optimistic_started_at = std::time::Instant::now();
     update_normal_tag_cache(
         controller,
         &source.id,
@@ -423,6 +425,14 @@ fn set_normal_tag_for_source(
     controller.ui_cache.browser.pipeline.invalidate();
     controller.mark_browser_row_metadata_projection_revision_dirty();
     controller.mark_browser_search_projection_revision_dirty();
+    #[cfg(test)]
+    crate::app::controller::batch_latency::record(
+        crate::app::controller::batch_latency::BatchLatencySample::new(
+            crate::app::controller::batch_latency::BatchLatencyPhase::TagSidebarOptimisticTag,
+            1,
+            optimistic_started_at.elapsed(),
+        ),
+    );
     let op = if assigned {
         SourceMetadataMutationOp::AssignNormalTag {
             relative_path: path.to_path_buf(),

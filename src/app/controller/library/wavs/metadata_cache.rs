@@ -24,6 +24,8 @@ pub(super) fn bpm_value_for_path(controller: &mut AppController, path: &Path) ->
 
 /// Preload BPM metadata for a visible row window to avoid per-row DB lookups.
 pub(super) fn preload_bpm_values_for_paths(controller: &mut AppController, paths: &[PathBuf]) {
+    #[cfg(test)]
+    let started_at = std::time::Instant::now();
     if paths.is_empty() {
         return;
     }
@@ -47,8 +49,19 @@ pub(super) fn preload_bpm_values_for_paths(controller: &mut AppController, paths
         missing_sample_ids.push(analysis_jobs::build_sample_id(source_id.as_str(), path));
     }
     if missing_paths.is_empty() {
+        #[cfg(test)]
+        crate::app::controller::batch_latency::record(
+            crate::app::controller::batch_latency::BatchLatencySample::new(
+                crate::app::controller::batch_latency::BatchLatencyPhase::BpmPreload,
+                paths.len(),
+                started_at.elapsed(),
+            )
+            .with_detail_count(0),
+        );
         return;
     }
+    #[cfg(test)]
+    let missing_count = missing_paths.len();
     let db = match controller.database_for(&source) {
         Ok(db) => db,
         Err(err) => {
@@ -76,6 +89,15 @@ pub(super) fn preload_bpm_values_for_paths(controller: &mut AppController, paths
         let bpm = bpm_lookup.get(sample_id.as_str()).copied().flatten();
         cache.insert(path, bpm);
     }
+    #[cfg(test)]
+    crate::app::controller::batch_latency::record(
+        crate::app::controller::batch_latency::BatchLatencySample::new(
+            crate::app::controller::batch_latency::BatchLatencyPhase::BpmPreload,
+            paths.len(),
+            started_at.elapsed(),
+        )
+        .with_detail_count(missing_count),
+    );
 }
 
 /// Resolve the tag for a wav entry, falling back to the source database.

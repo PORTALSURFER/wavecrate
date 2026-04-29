@@ -81,6 +81,8 @@ impl AppController {
             return;
         }
         let paths = metadata_mutation_paths(&source_ops, &analysis_ops);
+        #[cfg(test)]
+        let queue_depth_before = self.runtime.source_lane.mutations.pending_metadata_count();
         if cfg!(test) {
             let request_id = self.runtime.jobs.next_metadata_request_id();
             let blocks_file_mutation = !source_ops.is_empty();
@@ -103,6 +105,19 @@ impl AppController {
                     rollback,
                     refresh_browser_projection,
                 });
+            #[cfg(test)]
+            crate::app::controller::batch_latency::record(
+                crate::app::controller::batch_latency::BatchLatencySample::new(
+                    crate::app::controller::batch_latency::BatchLatencyPhase::MetadataMutationQueue,
+                    result.paths.len(),
+                    Duration::ZERO,
+                )
+                .with_detail_count(result.paths.len())
+                .with_queue_depths(
+                    queue_depth_before,
+                    self.runtime.source_lane.mutations.pending_metadata_count(),
+                ),
+            );
             self.extend_selected_source_mutation_claim_grace(&source.id);
             self.runtime.analysis.pause_claiming();
             self.handle_metadata_mutation_finished_message(result);
@@ -110,6 +125,8 @@ impl AppController {
         }
         let request_id = self.runtime.jobs.next_metadata_request_id();
         let blocks_file_mutation = !source_ops.is_empty();
+        #[cfg(test)]
+        let path_count = paths.len();
         self.runtime
             .source_lane
             .mutations
@@ -121,6 +138,19 @@ impl AppController {
                 rollback,
                 refresh_browser_projection,
             });
+        #[cfg(test)]
+        crate::app::controller::batch_latency::record(
+            crate::app::controller::batch_latency::BatchLatencySample::new(
+                crate::app::controller::batch_latency::BatchLatencyPhase::MetadataMutationQueue,
+                path_count,
+                Duration::ZERO,
+            )
+            .with_detail_count(path_count)
+            .with_queue_depths(
+                queue_depth_before,
+                self.runtime.source_lane.mutations.pending_metadata_count(),
+            ),
+        );
         self.extend_selected_source_mutation_claim_grace(&source.id);
         self.runtime.analysis.pause_claiming();
         let job = MetadataMutationJob {

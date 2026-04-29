@@ -128,6 +128,12 @@ impl SourceMutationRuntime {
             .insert(pending.request_id, pending);
     }
 
+    #[cfg(test)]
+    /// Return the number of metadata mutation requests currently awaiting completion.
+    pub(crate) fn pending_metadata_count(&self) -> usize {
+        self.pending_metadata_mutations.len()
+    }
+
     /// Remove one metadata request and clear its tracked pending paths.
     pub(crate) fn finish_metadata_mutation(
         &mut self,

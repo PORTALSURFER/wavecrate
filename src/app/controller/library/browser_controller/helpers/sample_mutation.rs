@@ -224,6 +224,8 @@ pub(crate) fn run_sample_auto_rename_job(
     requests: Vec<SampleAutoRenameRequest>,
     cancel: Arc<AtomicBool>,
 ) -> SampleAutoRenameResult {
+    #[cfg(test)]
+    let started_at = std::time::Instant::now();
     let requested_paths = requests
         .iter()
         .map(|request| request.old_relative.clone())
@@ -282,13 +284,23 @@ pub(crate) fn run_sample_auto_rename_job(
             Err(err) => errors.push((request.old_relative, err)),
         }
     }
-    SampleAutoRenameResult {
+    let result = SampleAutoRenameResult {
         source_id: source.id,
         requested_paths,
         renamed,
         skipped,
         errors,
-    }
+    };
+    #[cfg(test)]
+    crate::app::controller::batch_latency::record(
+        crate::app::controller::batch_latency::BatchLatencySample::new(
+            crate::app::controller::batch_latency::BatchLatencyPhase::AutoRenameWorker,
+            result.requested_paths.len(),
+            started_at.elapsed(),
+        )
+        .with_detail_count(result.renamed.len() + result.skipped.len() + result.errors.len()),
+    );
+    result
 }
 
 pub(super) fn perform_sample_rename(

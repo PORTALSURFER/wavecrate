@@ -80,7 +80,16 @@ impl BrowserController<'_> {
                     .then(|| f64::from(playhead_position.clamp(0.0, 1.0))),
             });
         }
-        self.log_auto_rename_preparation(source, requests.len(), started_at.elapsed());
+        let elapsed = started_at.elapsed();
+        #[cfg(test)]
+        crate::app::controller::batch_latency::record(
+            crate::app::controller::batch_latency::BatchLatencySample::new(
+                crate::app::controller::batch_latency::BatchLatencyPhase::AutoRenamePrepare,
+                requests.len(),
+                elapsed,
+            ),
+        );
+        self.log_auto_rename_preparation(source, requests.len(), elapsed);
         Ok(requests)
     }
 

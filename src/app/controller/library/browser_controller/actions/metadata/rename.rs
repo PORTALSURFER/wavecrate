@@ -21,6 +21,8 @@ impl BrowserController<'_> {
         &mut self,
         paths: &[PathBuf],
     ) -> Result<(), String> {
+        #[cfg(test)]
+        let dispatch_started_at = std::time::Instant::now();
         if paths.is_empty() {
             return Ok(());
         }
@@ -70,6 +72,14 @@ impl BrowserController<'_> {
             .mutations
             .begin_browser_rename_intent(intent_key);
         self.begin_pending_file_mutation(&source.id, requested_paths.clone());
+        #[cfg(test)]
+        crate::app::controller::batch_latency::record(
+            crate::app::controller::batch_latency::BatchLatencySample::new(
+                crate::app::controller::batch_latency::BatchLatencyPhase::AutoRenameDispatch,
+                requested_paths.len(),
+                dispatch_started_at.elapsed(),
+            ),
+        );
         if cfg!(test) {
             let result = run_sample_auto_rename_job(
                 source.clone(),

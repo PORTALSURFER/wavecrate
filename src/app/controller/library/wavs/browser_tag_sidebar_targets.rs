@@ -122,8 +122,22 @@ impl AppController {
 
     /// Resolve sidebar-target paths from the shared snapshot for mutations.
     pub(crate) fn browser_tag_sidebar_target_paths(&mut self) -> Vec<PathBuf> {
-        self.browser_tag_sidebar_target_snapshot()
-            .resolve_paths(self)
+        #[cfg(test)]
+        let started_at = std::time::Instant::now();
+        let snapshot = self.browser_tag_sidebar_target_snapshot();
+        #[cfg(test)]
+        let target_count = snapshot.selected_count();
+        let paths = snapshot.resolve_paths(self);
+        #[cfg(test)]
+        crate::app::controller::batch_latency::record(
+            crate::app::controller::batch_latency::BatchLatencySample::new(
+                crate::app::controller::batch_latency::BatchLatencyPhase::TagSidebarTargetResolution,
+                target_count,
+                started_at.elapsed(),
+            )
+            .with_detail_count(paths.len()),
+        );
+        paths
     }
 
     /// Resolve sidebar-target entries from the shared snapshot for projection.

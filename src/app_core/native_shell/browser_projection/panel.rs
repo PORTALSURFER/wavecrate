@@ -46,11 +46,11 @@ pub(crate) fn project_browser_panel_frame_model(
     let marked_filter_active = controller.ui.browser.search.marked_only;
     let tag_named_filter_active = !matches!(
         controller.ui.browser.search.tag_named_filter,
-        crate::app::state::TagNamedFilter::All
+        crate::app_core::app_api::state::TagNamedFilter::All
     );
     let tag_named_filter_negated = matches!(
         controller.ui.browser.search.tag_named_filter,
-        crate::app::state::TagNamedFilter::NotTagNamed
+        crate::app_core::app_api::state::TagNamedFilter::NotTagNamed
     );
     let search_placeholder = Some(super::browser_search_placeholder(
         controller.ui.browser.search.search_focus_requested,
