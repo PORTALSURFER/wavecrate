@@ -6,7 +6,17 @@ use super::super::util::parse_relative_path_from_db;
 use super::super::{Rating, WavEntry};
 
 /// Shared column list for wav-file queries that hydrate full `WavEntry` rows.
-pub(super) const WAV_FILE_SELECT_COLUMNS: &str = "path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, missing, last_played_at, user_tag";
+pub(super) const WAV_FILE_SELECT_COLUMNS: &str = "path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, missing, last_played_at, user_tag,
+    (
+        SELECT json_group_array(display_label)
+        FROM (
+            SELECT st.display_label
+            FROM source_tags st
+            JOIN wav_file_tags wft ON wft.tag_id = st.id
+            WHERE wft.path = wav_files.path
+            ORDER BY st.display_label COLLATE NOCASE ASC, st.normalized_text ASC
+        )
+    ) AS normal_tags";
 
 /// Decode a persisted relative path, skipping invalid rows without failing the whole query.
 pub(super) fn decode_relative_path(
@@ -51,5 +61,11 @@ pub(super) fn decode_wav_entry_row(
         missing: row.get::<_, i64>(8)? != 0,
         last_played_at: row.get(9)?,
         user_tag: row.get(10)?,
+        normal_tags: decode_normal_tags(row.get(11)?),
     }))
+}
+
+fn decode_normal_tags(raw: Option<String>) -> Vec<String> {
+    raw.and_then(|value| serde_json::from_str::<Vec<String>>(&value).ok())
+        .unwrap_or_default()
 }

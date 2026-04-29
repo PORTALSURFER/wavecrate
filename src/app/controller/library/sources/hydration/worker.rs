@@ -210,6 +210,7 @@ mod tests {
                 missing: false,
                 last_played_at: None,
                 user_tag: None,
+                normal_tags: Vec::new(),
             },
             WavEntry {
                 relative_path: PathBuf::from("kits/perc/snare.wav"),
@@ -223,6 +224,7 @@ mod tests {
                 missing: false,
                 last_played_at: None,
                 user_tag: None,
+                normal_tags: Vec::new(),
             },
         ];
 
@@ -256,6 +258,7 @@ mod tests {
             missing: false,
             last_played_at: None,
             user_tag: None,
+            normal_tags: Vec::new(),
         }];
 
         let maps = build_hydration_entry_maps(temp.path(), &entries, false);
@@ -284,6 +287,7 @@ mod tests {
             missing: false,
             last_played_at: None,
             user_tag: None,
+            normal_tags: Vec::new(),
         }];
 
         let maps = build_hydration_entry_maps(temp.path(), &entries, true);

@@ -20,6 +20,8 @@ pub(super) struct SampleMoveMetadata {
     pub(super) sound_type: Option<SampleSoundType>,
     /// Operator-authored custom tag, if any.
     pub(super) user_tag: Option<String>,
+    /// Normal library tag labels assigned to the sample.
+    pub(super) normal_tags: Vec<String>,
 }
 
 /// Filesystem/journal state prepared before DB mutation and finalization.
@@ -83,6 +85,9 @@ pub(super) fn load_sample_move_metadata(
     let user_tag = db
         .user_tag_for_path(relative_path)
         .map_err(|err| format!("Failed to read database: {err}"))?;
+    let normal_tags = db
+        .tag_labels_for_path(relative_path)
+        .map_err(|err| format!("Failed to read database: {err}"))?;
     Ok(SampleMoveMetadata {
         tag,
         looped,
@@ -90,6 +95,7 @@ pub(super) fn load_sample_move_metadata(
         last_played_at,
         sound_type,
         user_tag,
+        normal_tags,
     })
 }
 

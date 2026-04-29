@@ -195,6 +195,9 @@ fn restore_rows_in_db(source: &SampleSource, entries: &[WavEntry]) -> Result<(),
                 .clear_last_played_at(&entry.relative_path)
                 .map_err(|err| format!("Failed to clear restored playback age: {err}"))?;
         }
+        batch
+            .replace_tags_for_path(&entry.relative_path, &entry.normal_tags)
+            .map_err(|err| format!("Failed to restore normal tags: {err}"))?;
     }
     batch
         .commit()

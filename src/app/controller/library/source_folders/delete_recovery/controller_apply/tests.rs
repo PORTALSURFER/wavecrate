@@ -134,6 +134,7 @@ fn applying_recovery_report_tracks_retained_delete_entries() {
         missing: false,
         last_played_at: Some(12),
         user_tag: None,
+        normal_tags: Vec::new(),
     }];
 
     controller.apply_folder_delete_recovery_report(DeleteRecoveryReport {

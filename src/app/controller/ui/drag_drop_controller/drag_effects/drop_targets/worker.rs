@@ -161,7 +161,7 @@ fn run_drop_target_transfer_request(
             return None;
         }
     };
-    let metadata = match request
+    let mut metadata = match request
         .metadata
         .clone()
         .map(drop_target_metadata_from_request)
@@ -174,6 +174,11 @@ fn run_drop_target_transfer_request(
             return None;
         }
     };
+    if metadata.normal_tags.is_empty() {
+        metadata.normal_tags = source_db
+            .tag_labels_for_path(&request.relative_path)
+            .unwrap_or_default();
+    }
     let target_relative = match kind {
         DropTargetTransferKind::Copy => {
             copy_destination_relative(target_root, target_relative_folder, &file_name)
@@ -222,6 +227,7 @@ fn drop_target_metadata_from_request(
         last_played_at: metadata.last_played_at,
         sound_type: metadata.sound_type,
         user_tag: metadata.user_tag,
+        normal_tags: metadata.normal_tags,
     }
 }
 
@@ -258,6 +264,7 @@ fn load_dropped_sample_metadata(
         last_played_at: metadata.last_played_at,
         sound_type: metadata.sound_type,
         user_tag: metadata.user_tag,
+        normal_tags: metadata.normal_tags,
     })
 }
 
@@ -325,6 +332,7 @@ fn run_drop_target_copy(
         last_played_at: metadata.last_played_at,
         sound_type: metadata.sound_type,
         user_tag: metadata.user_tag.clone(),
+        normal_tags: metadata.normal_tags.clone(),
     })
 }
 
@@ -395,5 +403,6 @@ fn run_drop_target_move(
         last_played_at: metadata.last_played_at,
         sound_type: metadata.sound_type,
         user_tag: metadata.user_tag.clone(),
+        normal_tags: metadata.normal_tags.clone(),
     })
 }

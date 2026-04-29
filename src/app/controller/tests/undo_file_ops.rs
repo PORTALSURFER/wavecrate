@@ -72,6 +72,7 @@ fn deferred_undo_success_updates_entry_and_pushes_redo() {
             tag: crate::sample_sources::Rating::KEEP_1,
             looped: true,
             last_played_at: Some(11),
+            normal_tags: Vec::new(),
         }),
         cancelled: false,
     }));
@@ -271,6 +272,7 @@ fn restore_sample_job_reapplies_looped_and_playback_metadata() {
             tag: crate::sample_sources::Rating::KEEP_1,
             looped: true,
             last_played_at: Some(42),
+            normal_tags: vec![String::from("Loop Texture")],
         },
         Arc::new(AtomicBool::new(false)),
         None,
@@ -285,12 +287,14 @@ fn restore_sample_job_reapplies_looped_and_playback_metadata() {
                 tag,
                 looped,
                 last_played_at,
+                normal_tags,
                 ..
             }) if *source_id == source.id
                 && *outcome_path == relative_path
                 && *tag == crate::sample_sources::Rating::KEEP_1
                 && *looped
                 && *last_played_at == Some(42)
+                && normal_tags == &vec![String::from("Loop Texture")]
         ),
         "restore sample should keep looped and playback metadata: {:?}",
         result.result
@@ -311,6 +315,11 @@ fn restore_sample_job_reapplies_looped_and_playback_metadata() {
         db.last_played_at_for_path(&relative_path)
             .expect("lookup restored playback metadata"),
         Some(42)
+    );
+    assert_eq!(
+        db.tag_labels_for_path(&relative_path)
+            .expect("lookup restored normal tags"),
+        vec![String::from("Loop Texture")]
     );
     assert!(
         absolute_path.exists(),

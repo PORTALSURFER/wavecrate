@@ -232,7 +232,7 @@ fn ensure_pending_rename_optional_columns(connection: &Connection) -> Result<(),
     }
     // Older quick-scan rename rows predate the extended metadata contract.
     // Additive columns keep startup-safe replay compatible while legacy rows
-    // continue decoding as `None` for sound_type and user_tag.
+    // continue decoding as `None`/empty for extended metadata.
     if !columns.contains("sound_type") {
         connection
             .execute(
@@ -245,6 +245,14 @@ fn ensure_pending_rename_optional_columns(connection: &Connection) -> Result<(),
         connection
             .execute(
                 "ALTER TABLE pending_wav_renames ADD COLUMN user_tag TEXT",
+                [],
+            )
+            .map_err(map_sql_error)?;
+    }
+    if !columns.contains("normal_tags") {
+        connection
+            .execute(
+                "ALTER TABLE pending_wav_renames ADD COLUMN normal_tags TEXT",
                 [],
             )
             .map_err(map_sql_error)?;
@@ -505,7 +513,7 @@ mod tests {
     }
 
     #[test]
-    fn pending_rename_migration_adds_sound_type_and_user_tag() {
+    fn pending_rename_migration_adds_extended_metadata_columns() {
         let conn = Connection::open_in_memory().unwrap();
         conn.execute_batch(
             "CREATE TABLE pending_wav_renames (
@@ -526,5 +534,6 @@ mod tests {
         let columns = table_columns(&conn, "pending_wav_renames").unwrap();
         assert!(columns.contains("sound_type"));
         assert!(columns.contains("user_tag"));
+        assert!(columns.contains("normal_tags"));
     }
 }

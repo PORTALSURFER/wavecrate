@@ -204,6 +204,11 @@ fn metadata_delta_refresh_updates_only_targeted_rows() {
 
     db.set_last_played_at(Path::new("drums/snare.wav"), 77)
         .expect("update snare playback age");
+    let mut batch = db.write_batch().expect("open tag batch");
+    batch
+        .replace_tags_for_path(Path::new("drums/snare.wav"), &[String::from("Layer Clap")])
+        .expect("update snare normal tags");
+    batch.commit().expect("commit snare normal tags");
     let delta_job = SearchJob {
         metadata_delta_paths: vec![PathBuf::from("drums/snare.wav")],
         source_id: base_job.source_id.clone(),
@@ -221,6 +226,7 @@ fn metadata_delta_refresh_updates_only_targeted_rows() {
     let refreshed = cache.entries.as_ref().expect("entries refreshed");
     assert_eq!(refreshed[0].last_played_at, None);
     assert_eq!(refreshed[1].last_played_at, Some(77));
+    assert_eq!(refreshed[1].display_label.as_ref(), "snare Layer Clap");
 }
 
 #[test]

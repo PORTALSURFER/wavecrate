@@ -42,8 +42,30 @@ impl DragDropController<'_> {
                     missing: false,
                     last_played_at: entry.last_played_at,
                     user_tag: entry.user_tag.clone(),
+                    normal_tags: entry.normal_tags.clone(),
                 },
             );
+            self.ui_cache
+                .browser
+                .normal_tags
+                .entry(target_source.id.clone())
+                .or_default()
+                .insert(
+                    entry.target_relative.clone(),
+                    entry
+                        .normal_tags
+                        .iter()
+                        .map(|label| crate::sample_sources::db::SourceTag {
+                            id: 0,
+                            display_label: label.clone(),
+                            normalized_text: label
+                                .split_whitespace()
+                                .collect::<Vec<_>>()
+                                .join(" ")
+                                .to_ascii_lowercase(),
+                        })
+                        .collect(),
+                );
         }
         self.set_drop_target_transfer_status(&result);
         for err in &result.errors {

@@ -177,7 +177,8 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         sound_type TEXT,
         locked INTEGER NOT NULL,
         last_played_at INTEGER,
-        user_tag TEXT
+        user_tag TEXT,
+        normal_tags TEXT
     );";
 
 const INDEX_SQL: &str = "CREATE INDEX IF NOT EXISTS idx_wav_files_missing

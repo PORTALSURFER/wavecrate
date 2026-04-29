@@ -55,6 +55,7 @@ fn written_entry(root: &Path, relative_path: &Path, tag: Rating) -> WavEntry {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        normal_tags: Vec::new(),
     }
 }
 

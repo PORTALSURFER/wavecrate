@@ -32,6 +32,7 @@ pub(super) struct DroppedSampleMetadata {
     last_played_at: Option<i64>,
     sound_type: Option<crate::sample_sources::SampleSoundType>,
     user_tag: Option<String>,
+    normal_tags: Vec<String>,
 }
 
 impl DragDropController<'_> {

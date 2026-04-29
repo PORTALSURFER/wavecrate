@@ -15,6 +15,7 @@ pub(super) fn sample_move_metadata(metadata: &DroppedSampleMetadata) -> SampleMo
         last_played_at: metadata.last_played_at,
         sound_type: metadata.sound_type,
         user_tag: metadata.user_tag.clone(),
+        normal_tags: metadata.normal_tags.clone(),
     }
 }
 
@@ -56,6 +57,9 @@ pub(super) fn register_drop_target_target_entry(
             .set_user_tag(relative_path, Some(user_tag))
             .map_err(|err| format!("Failed to copy custom tag: {err}"))?;
     }
+    batch
+        .replace_tags_for_path(relative_path, &metadata.normal_tags)
+        .map_err(|err| format!("Failed to copy normal tags: {err}"))?;
     batch
         .commit()
         .map_err(|err| format!("Failed to commit target DB update: {err}"))

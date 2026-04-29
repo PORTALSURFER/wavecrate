@@ -99,6 +99,7 @@ impl BrowserController<'_> {
             user_tag: entry_index
                 .and_then(|idx| self.wav_entries.entry(idx))
                 .and_then(|entry| entry.user_tag.clone()),
+            normal_tags: ctx.entry.normal_tags.clone(),
         };
 
         let is_currently_loaded = self

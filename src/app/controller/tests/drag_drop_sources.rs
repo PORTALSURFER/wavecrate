@@ -37,6 +37,11 @@ fn upsert_source_db_entry(controller: &mut AppController, source: &SampleSource,
         db.set_user_tag(&entry.relative_path, Some(user_tag))
             .unwrap();
     }
+    let mut batch = db.write_batch().unwrap();
+    batch
+        .replace_tags_for_path(&entry.relative_path, &entry.normal_tags)
+        .unwrap();
+    batch.commit().unwrap();
 }
 
 #[test]
@@ -62,6 +67,7 @@ fn apply_source_move_result_invalidates_touched_sources_and_selected_target_stat
     source_entry.locked = true;
     source_entry.last_played_at = Some(42);
     source_entry.user_tag = Some("Vintage FX".into());
+    source_entry.normal_tags = vec![String::from("Riser FX")];
     upsert_source_db_entry(&mut controller, &source, &source_entry);
 
     let mut existing_target_entry = sample_entry("existing.wav", Rating::NEUTRAL);
@@ -76,6 +82,7 @@ fn apply_source_move_result_invalidates_touched_sources_and_selected_target_stat
     moved_target_entry.locked = true;
     moved_target_entry.last_played_at = Some(42);
     moved_target_entry.user_tag = Some("Vintage FX".into());
+    moved_target_entry.normal_tags = vec![String::from("Riser FX")];
     upsert_source_db_entry(&mut controller, &target, &moved_target_entry);
     controller
         .database_for(&source)
@@ -115,6 +122,7 @@ fn apply_source_move_result_invalidates_touched_sources_and_selected_target_stat
                 last_played_at: Some(42),
                 sound_type: None,
                 user_tag: Some("Vintage FX".into()),
+                normal_tags: vec![String::from("Riser FX")],
             }],
             errors: vec!["secondary move failed".into()],
             cancelled: false,
@@ -145,6 +153,10 @@ fn apply_source_move_result_invalidates_touched_sources_and_selected_target_stat
         Some("Vintage FX")
     );
     assert_eq!(
+        controller.wav_entry(moved_index).unwrap().normal_tags,
+        vec!["Riser FX"]
+    );
+    assert_eq!(
         controller
             .database_for(&target)
             .unwrap()
@@ -152,6 +164,14 @@ fn apply_source_move_result_invalidates_touched_sources_and_selected_target_stat
             .unwrap()
             .as_deref(),
         Some("Vintage FX")
+    );
+    assert_eq!(
+        controller
+            .database_for(&target)
+            .unwrap()
+            .tag_labels_for_path(&PathBuf::from("moved.wav"))
+            .unwrap(),
+        vec![String::from("Riser FX")]
     );
     assert!(!controller.ui_cache.browser.labels.contains_key(&source.id));
     assert!(!controller.ui_cache.browser.labels.contains_key(&target.id));

@@ -77,9 +77,6 @@ fn rewrite_folder_entry(
                 entry.relative_path.display()
             )
         })?);
-    batch
-        .remove_file(&entry.relative_path)
-        .map_err(|err| format!("Failed to drop old entry: {err}"))?;
     if let Some(content_hash) = entry.content_hash.as_deref() {
         batch
             .upsert_file_with_hash(
@@ -117,6 +114,12 @@ fn rewrite_folder_entry(
             .set_last_played_at(&new_relative, last_played_at)
             .map_err(|err| format!("Failed to copy playback age: {err}"))?;
     }
+    batch
+        .copy_tags_between_paths(&entry.relative_path, &new_relative)
+        .map_err(|err| format!("Failed to copy normal tags: {err}"))?;
+    batch
+        .remove_file(&entry.relative_path)
+        .map_err(|err| format!("Failed to drop old entry: {err}"))?;
     batch
         .remap_analysis_sample_identity(&entry.relative_path, &new_relative)
         .map_err(|err| format!("Failed to preserve analysis artifacts: {err}"))?;

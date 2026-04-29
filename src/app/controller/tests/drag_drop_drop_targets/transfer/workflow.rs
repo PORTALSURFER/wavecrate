@@ -79,6 +79,7 @@ fn cross_source_drop_target_move_preserves_metadata() {
     assert!(moved.locked);
     assert_eq!(moved.last_played_at, Some(42));
     assert_eq!(moved.user_tag.as_deref(), Some("Vintage FX"));
+    assert_eq!(moved.normal_tags, vec!["Riser FX"]);
     let target_cache = controller.cache.wav.entries.get(&target.id).must();
     let moved_index = target_cache
         .lookup
@@ -88,6 +89,10 @@ fn cross_source_drop_target_move_preserves_metadata() {
     assert_eq!(
         target_cache.entry(moved_index).must().user_tag.as_deref(),
         Some("Vintage FX")
+    );
+    assert_eq!(
+        target_cache.entry(moved_index).must().normal_tags,
+        vec!["Riser FX"]
     );
 }
 
@@ -115,6 +120,7 @@ fn cross_source_drop_target_copy_uses_collision_suffix() {
     assert!(copied.looped);
     assert!(copied.locked);
     assert_eq!(copied.last_played_at, Some(42));
+    assert_eq!(copied.normal_tags, vec!["Riser FX"]);
 }
 
 #[test]
@@ -152,10 +158,12 @@ fn cross_source_drop_target_multi_copy_batches_samples() {
     assert!(copied_one.looped);
     assert!(copied_one.locked);
     assert_eq!(copied_one.last_played_at, Some(42));
+    assert_eq!(copied_one.normal_tags, vec!["Riser FX"]);
     assert_eq!(copied_two.tag, Rating::KEEP_1);
     assert!(copied_two.looped);
     assert!(copied_two.locked);
     assert_eq!(copied_two.last_played_at, Some(42));
+    assert_eq!(copied_two.normal_tags, vec!["Riser FX"]);
 }
 
 #[test]

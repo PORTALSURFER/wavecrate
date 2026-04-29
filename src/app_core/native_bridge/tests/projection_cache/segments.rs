@@ -174,6 +174,7 @@ fn projection_segment_browser_tag_sidebar_refreshes_pills_after_metadata_edit() 
         missing: false,
         last_played_at: None,
         user_tag: None,
+        normal_tags: Vec::new(),
     }]);
 
     let mut cache = NativeProjectionCache::default();
@@ -227,6 +228,7 @@ fn projection_segment_browser_tag_sidebar_refreshes_for_same_count_selection_swa
             missing: false,
             last_played_at: None,
             user_tag: None,
+            normal_tags: Vec::new(),
         },
         crate::sample_sources::WavEntry {
             relative_path: PathBuf::from("second.wav"),
@@ -240,6 +242,7 @@ fn projection_segment_browser_tag_sidebar_refreshes_for_same_count_selection_swa
             missing: false,
             last_played_at: None,
             user_tag: None,
+            normal_tags: Vec::new(),
         },
     ]);
     controller.ui.browser.selection.selected_paths = vec![PathBuf::from("first.wav")];

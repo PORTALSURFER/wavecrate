@@ -266,6 +266,9 @@ pub struct WavEntry {
     /// Optional single custom tag authored by the user.
     #[serde(default)]
     pub user_tag: Option<String>,
+    /// Normal library tag labels assigned to the sample.
+    #[serde(default)]
+    pub normal_tags: Vec<String>,
 }
 
 /// One normal library tag stored in a source database.

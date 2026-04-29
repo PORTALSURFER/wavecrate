@@ -120,6 +120,7 @@ impl AppController {
                 tag,
                 looped,
                 last_played_at,
+                normal_tags,
             } => {
                 let Some(source) = self
                     .library
@@ -143,6 +144,7 @@ impl AppController {
                     missing: false,
                     last_played_at: *last_played_at,
                     user_tag: None,
+                    normal_tags: normal_tags.clone(),
                 };
                 self.update_cached_entry(&source, relative_path, entry);
                 self.refresh_waveform_for_sample(&source, relative_path);
@@ -171,6 +173,7 @@ impl AppController {
                 tag,
                 looped,
                 last_played_at,
+                normal_tags,
             } => {
                 let Some(source) = self
                     .library
@@ -196,6 +199,7 @@ impl AppController {
                         missing: false,
                         last_played_at: *last_played_at,
                         user_tag: None,
+                        normal_tags: normal_tags.clone(),
                     },
                 );
                 self.refresh_waveform_for_sample(&source, relative_path);

@@ -58,6 +58,9 @@ pub(crate) fn run_undo_file_job(
                     let last_played_at = db
                         .last_played_at_for_path(&relative_path)
                         .map_err(|err| format!("Failed to read database: {err}"))?;
+                    let normal_tags = db
+                        .tag_labels_for_path(&relative_path)
+                        .map_err(|err| format!("Failed to read database: {err}"))?;
                     Ok(UndoFileOutcome::Overwrite {
                         source_id,
                         relative_path,
@@ -66,6 +69,7 @@ pub(crate) fn run_undo_file_job(
                         tag,
                         looped,
                         last_played_at,
+                        normal_tags,
                     })
                 })
         }
@@ -120,6 +124,7 @@ pub(crate) fn run_undo_file_job(
             tag,
             looped,
             last_played_at,
+            normal_tags,
         } => {
             if let Some(parent) = absolute_path.parent()
                 && let Err(err) = std::fs::create_dir_all(parent)
@@ -151,6 +156,15 @@ pub(crate) fn run_undo_file_job(
                         db.clear_last_played_at(&relative_path)
                             .map_err(|err| format!("Failed to sync playback age: {err}"))?;
                     }
+                    let mut batch = db
+                        .write_batch()
+                        .map_err(|err| format!("Failed to sync normal tags: {err}"))?;
+                    batch
+                        .replace_tags_for_path(&relative_path, &normal_tags)
+                        .map_err(|err| format!("Failed to sync normal tags: {err}"))?;
+                    batch
+                        .commit()
+                        .map_err(|err| format!("Failed to sync normal tags: {err}"))?;
                     Ok(UndoFileOutcome::Restored {
                         source_id,
                         relative_path,
@@ -159,6 +173,7 @@ pub(crate) fn run_undo_file_job(
                         tag,
                         looped,
                         last_played_at,
+                        normal_tags,
                     })
                 })
         }

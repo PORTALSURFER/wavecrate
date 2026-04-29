@@ -193,6 +193,11 @@ fn remap_path_scoped_browser_caches(
     {
         cache.insert(new_path.to_path_buf(), value);
     }
+    if let Some(cache) = controller.ui_cache.browser.normal_tags.get_mut(source_id)
+        && let Some(value) = cache.remove(old_path)
+    {
+        cache.insert(new_path.to_path_buf(), value);
+    }
 }
 
 /// Invalidate caches after inserting a new entry for a source.

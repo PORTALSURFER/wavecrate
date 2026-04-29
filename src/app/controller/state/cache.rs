@@ -335,6 +335,7 @@ mod tests {
                 missing: false,
                 last_played_at: None,
                 user_tag: None,
+                normal_tags: Vec::new(),
             }],
         );
 
@@ -350,6 +351,7 @@ mod tests {
             missing: false,
             last_played_at: None,
             user_tag: None,
+            normal_tags: Vec::new(),
         };
 
         // Update using backslash path

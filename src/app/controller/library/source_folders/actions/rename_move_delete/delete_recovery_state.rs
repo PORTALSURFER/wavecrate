@@ -159,6 +159,9 @@ impl AppController {
                     .set_last_played_at(&entry.relative_path, last_played_at)
                     .map_err(|err| format!("Failed to restore playback age: {err}"))?;
             }
+            batch
+                .replace_tags_for_path(&entry.relative_path, &entry.normal_tags)
+                .map_err(|err| format!("Failed to restore normal tags: {err}"))?;
         }
         batch
             .commit()

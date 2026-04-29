@@ -155,6 +155,17 @@ impl FolderSampleMoveTransaction<'_> {
             );
             return false;
         }
+        if let Err(err) =
+            batch.replace_tags_for_path(&self.request.target_relative, &self.metadata.normal_tags)
+        {
+            report_staged_move_failure(
+                errors,
+                self.db,
+                &self.prepared,
+                format!("Failed to copy normal tags: {err}"),
+            );
+            return false;
+        }
         if let Err(err) = batch.commit() {
             report_staged_move_failure(
                 errors,
@@ -270,6 +281,12 @@ impl FolderSampleMoveTransaction<'_> {
             errors.push(format!("Failed to restore custom tag: {err}"));
             return false;
         }
+        if let Err(err) =
+            batch.replace_tags_for_path(&self.request.relative_path, &self.metadata.normal_tags)
+        {
+            errors.push(format!("Failed to restore normal tags: {err}"));
+            return false;
+        }
         if let Err(err) = batch.commit() {
             errors.push(format!("Failed to commit database rollback: {err}"));
             return false;
@@ -291,6 +308,7 @@ impl FolderSampleMoveTransaction<'_> {
             last_played_at: self.metadata.last_played_at,
             sound_type: self.metadata.sound_type,
             user_tag: self.metadata.user_tag,
+            normal_tags: self.metadata.normal_tags,
         }
     }
 }

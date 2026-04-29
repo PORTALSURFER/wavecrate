@@ -68,11 +68,21 @@ fn sample_rename_rolls_back_file_when_db_write_cannot_start() {
         Some(String::from("Vintage"))
     );
     assert_eq!(
+        db.tag_labels_for_path(old_relative)
+            .expect("old normal tags"),
+        vec![String::from("Analog Kick"), String::from("Layer")]
+    );
+    assert_eq!(
         db.last_played_at_for_path(old_relative)
             .expect("old playback age"),
         Some(42)
     );
     assert!(db.tag_for_path(new_relative).expect("new tag").is_none());
+    assert!(
+        db.tag_labels_for_path(new_relative)
+            .expect("new normal tags")
+            .is_empty()
+    );
 }
 
 #[test]
@@ -103,6 +113,7 @@ fn sample_rename_preserves_locked_and_metadata_on_success() {
     assert!(entry.locked);
     assert_eq!(entry.sound_type, Some(SampleSoundType::Kick));
     assert_eq!(entry.user_tag.as_deref(), Some("Vintage"));
+    assert_eq!(entry.normal_tags, vec!["Analog Kick", "Layer"]);
     assert_eq!(entry.last_played_at, Some(42));
     assert!(!old_absolute.exists());
     assert!(new_absolute.is_file());
@@ -129,6 +140,11 @@ fn sample_rename_preserves_locked_and_metadata_on_success() {
     assert_eq!(
         db.user_tag_for_path(new_relative).expect("new user tag"),
         Some(String::from("Vintage"))
+    );
+    assert_eq!(
+        db.tag_labels_for_path(new_relative)
+            .expect("new normal tags"),
+        vec![String::from("Analog Kick"), String::from("Layer")]
     );
     assert_eq!(
         db.last_played_at_for_path(new_relative)
@@ -176,6 +192,10 @@ fn sample_auto_rename_rolls_back_each_failed_file_when_db_is_busy() {
         assert_eq!(
             db.user_tag_for_path(relative).expect("user tag"),
             Some(String::from("Vintage"))
+        );
+        assert_eq!(
+            db.tag_labels_for_path(relative).expect("normal tags"),
+            vec![String::from("Analog Kick"), String::from("Layer")]
         );
     }
 }
@@ -228,6 +248,11 @@ fn sample_auto_rename_retries_until_multi_attempt_db_lock_clears() {
         db.locked_for_path(Path::new("alpha_renamed.wav"))
             .expect("renamed locked"),
         Some(true)
+    );
+    assert_eq!(
+        db.tag_labels_for_path(Path::new("alpha_renamed.wav"))
+            .expect("renamed normal tags"),
+        vec![String::from("Analog Kick"), String::from("Layer")]
     );
 }
 
@@ -351,6 +376,14 @@ fn setup_fixture(names: &[&str]) -> (TempDir, SampleSource) {
             .expect("set user tag");
         db.set_last_played_at(relative, 42)
             .expect("set playback age");
+        let mut batch = db.write_batch().expect("open tag batch");
+        batch
+            .replace_tags_for_path(
+                relative,
+                &[String::from("Analog Kick"), String::from("Layer")],
+            )
+            .expect("set normal tags");
+        batch.commit().expect("commit normal tags");
         insert_analysis_artifacts(&source, relative);
     }
     (temp, source)

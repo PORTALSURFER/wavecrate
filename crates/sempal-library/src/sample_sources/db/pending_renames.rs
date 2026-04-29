@@ -31,6 +31,8 @@ pub struct PendingRenameEntry {
     pub last_played_at: Option<i64>,
     /// Last known user-authored custom tag, if present.
     pub user_tag: Option<String>,
+    /// Last known normal library tag labels assigned to this sample.
+    pub normal_tags: Vec<String>,
 }
 
 impl PendingRenameEntry {
@@ -48,6 +50,7 @@ impl PendingRenameEntry {
             missing: false,
             last_played_at: self.last_played_at,
             user_tag: self.user_tag,
+            normal_tags: self.normal_tags,
         }
     }
 }
@@ -91,6 +94,7 @@ impl SourceDatabase {
                     locked: row.get::<_, i64>(7)? != 0,
                     last_played_at: row.get(8)?,
                     user_tag: row.get(9)?,
+                    normal_tags: decode_normal_tags(row.get(10)?),
                 }))
             })
             .map_err(map_sql_error)?
@@ -107,11 +111,12 @@ impl<'conn> SourceWriteBatch<'conn> {
     /// quick scan can reconcile path changes without losing user metadata.
     pub fn stage_pending_rename(&mut self, entry: &WavEntry) -> Result<(), SourceDbError> {
         let path = normalize_relative_path(&entry.relative_path)?;
+        let normal_tags = encode_normal_tags(&self.tag_labels_for_path(&entry.relative_path)?)?;
         self.tx
             .prepare_cached(
                 "INSERT INTO pending_wav_renames (
-                     path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, user_tag
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+                     path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, user_tag, normal_tags
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
                  ON CONFLICT(path) DO UPDATE SET
                      file_size = excluded.file_size,
                      modified_ns = excluded.modified_ns,
@@ -121,7 +126,8 @@ impl<'conn> SourceWriteBatch<'conn> {
                      sound_type = excluded.sound_type,
                      locked = excluded.locked,
                      last_played_at = excluded.last_played_at,
-                     user_tag = excluded.user_tag",
+                     user_tag = excluded.user_tag,
+                     normal_tags = excluded.normal_tags",
             )
             .map_err(map_sql_error)?
             .execute(params![
@@ -135,6 +141,7 @@ impl<'conn> SourceWriteBatch<'conn> {
                 entry.locked as i64,
                 entry.last_played_at,
                 entry.user_tag.as_deref(),
+                normal_tags.as_deref(),
             ])
             .map_err(map_sql_error)?;
         Ok(())
@@ -233,6 +240,7 @@ impl<'conn> SourceWriteBatch<'conn> {
                     locked: row.get::<_, i64>(7)? != 0,
                     last_played_at: row.get(8)?,
                     user_tag: row.get(9)?,
+                    normal_tags: decode_normal_tags(row.get(10)?),
                 })
             })
             .map_err(map_sql_error)?
@@ -267,9 +275,29 @@ fn pending_rename_select_with_where(
     } else {
         "NULL AS user_tag".to_string()
     };
+    let normal_tags_column = if columns.contains("normal_tags") {
+        "normal_tags".to_string()
+    } else {
+        "NULL AS normal_tags".to_string()
+    };
     Ok(format!(
-        "SELECT path, file_size, modified_ns, content_hash, tag, looped, {sound_type_column}, locked, last_played_at, {user_tag_column}
+        "SELECT path, file_size, modified_ns, content_hash, tag, looped, {sound_type_column}, locked, last_played_at, {user_tag_column}, {normal_tags_column}
          FROM pending_wav_renames
          WHERE {predicate_sql}"
     ))
+}
+
+fn encode_normal_tags(labels: &[String]) -> Result<Option<String>, SourceDbError> {
+    if labels.is_empty() {
+        return Ok(None);
+    }
+    serde_json::to_string(labels)
+        .map(Some)
+        .map_err(|_| SourceDbError::Unexpected)
+}
+
+fn decode_normal_tags(value: Option<String>) -> Vec<String> {
+    value
+        .and_then(|raw| serde_json::from_str::<Vec<String>>(&raw).ok())
+        .unwrap_or_default()
 }

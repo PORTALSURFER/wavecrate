@@ -132,6 +132,7 @@ impl AppController {
                     missing: false,
                     last_played_at: None,
                     user_tag: None,
+                    normal_tags: Vec::new(),
                 },
                 absolute_path,
             };

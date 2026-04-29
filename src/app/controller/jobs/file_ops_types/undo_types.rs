@@ -47,6 +47,8 @@ pub(crate) enum UndoFileJob {
         looped: bool,
         /// Last played timestamp to restore with the sample.
         last_played_at: Option<i64>,
+        /// Normal library tag labels to restore with the sample.
+        normal_tags: Vec<String>,
     },
 }
 
@@ -78,6 +80,8 @@ pub(crate) enum UndoFileOutcome {
         looped: bool,
         /// Last played timestamp, if any.
         last_played_at: Option<i64>,
+        /// Normal library tag labels assigned after overwrite.
+        normal_tags: Vec<String>,
     },
     /// File removal completed.
     Removed {
@@ -102,5 +106,7 @@ pub(crate) enum UndoFileOutcome {
         looped: bool,
         /// Last played timestamp, if any.
         last_played_at: Option<i64>,
+        /// Normal library tag labels restored with the sample.
+        normal_tags: Vec<String>,
     },
 }

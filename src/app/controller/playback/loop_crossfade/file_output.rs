@@ -58,6 +58,7 @@ pub(super) fn register_loop_crossfade_entry(
             missing: false,
             last_played_at: None,
             user_tag: None,
+            normal_tags: Vec::new(),
         },
     );
     controller.trigger_analysis_for_added_sample(

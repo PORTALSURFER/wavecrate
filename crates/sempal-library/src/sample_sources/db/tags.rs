@@ -150,6 +150,15 @@ impl SourceDatabase {
         );
         result
     }
+
+    /// List user-facing normal tag labels assigned to one wav path.
+    pub fn tag_labels_for_path(&self, relative_path: &Path) -> Result<Vec<String>, SourceDbError> {
+        Ok(self
+            .tags_for_path(relative_path)?
+            .into_iter()
+            .map(|tag| tag.display_label)
+            .collect())
+    }
 }
 
 impl<'conn> SourceWriteBatch<'conn> {
@@ -195,6 +204,57 @@ impl<'conn> SourceWriteBatch<'conn> {
             .map_err(map_sql_error)?
             > 0;
         Ok(removed)
+    }
+
+    /// List normal tag display labels for one wav path inside the active batch.
+    pub fn tag_labels_for_path(
+        &mut self,
+        relative_path: &Path,
+    ) -> Result<Vec<String>, SourceDbError> {
+        let path = normalize_relative_path(relative_path)?;
+        let mut stmt = self
+            .tx
+            .prepare_cached(
+                "SELECT st.display_label
+                 FROM source_tags st
+                 JOIN wav_file_tags wft ON wft.tag_id = st.id
+                 WHERE wft.path = ?1
+                 ORDER BY st.display_label COLLATE NOCASE ASC, st.normalized_text ASC",
+            )
+            .map_err(map_sql_error)?;
+        stmt.query_map([path], |row| row.get::<_, String>(0))
+            .map_err(map_sql_error)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(map_sql_error)
+    }
+
+    /// Replace all normal tag assignments for one wav path with labels resolved in this source DB.
+    pub fn replace_tags_for_path(
+        &mut self,
+        relative_path: &Path,
+        labels: &[String],
+    ) -> Result<(), SourceDbError> {
+        let path = normalize_relative_path(relative_path)?;
+        ensure_wav_path_exists(&self.tx, &path)?;
+        self.tx
+            .prepare_cached("DELETE FROM wav_file_tags WHERE path = ?1")
+            .map_err(map_sql_error)?
+            .execute([path.as_str()])
+            .map_err(map_sql_error)?;
+        for label in labels {
+            self.assign_tag_to_path(relative_path, label)?;
+        }
+        Ok(())
+    }
+
+    /// Copy normal tag assignments from one wav path to another inside the same source DB.
+    pub fn copy_tags_between_paths(
+        &mut self,
+        source_relative_path: &Path,
+        target_relative_path: &Path,
+    ) -> Result<(), SourceDbError> {
+        let labels = self.tag_labels_for_path(source_relative_path)?;
+        self.replace_tags_for_path(target_relative_path, &labels)
     }
 }
 

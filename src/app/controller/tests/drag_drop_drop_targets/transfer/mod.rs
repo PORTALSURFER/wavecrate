@@ -63,6 +63,11 @@ fn seed_source_sample(controller: &mut AppController, source: &SampleSource, rel
     db.set_last_played_at(Path::new(relative), 42).must();
     db.set_user_tag(Path::new(relative), Some("Vintage FX"))
         .must();
+    let mut batch = db.write_batch().must();
+    batch
+        .replace_tags_for_path(Path::new(relative), &[String::from("Riser FX")])
+        .must();
+    batch.commit().must();
     controller.set_wav_entries_for_tests(vec![WavEntry {
         relative_path: PathBuf::from(relative),
         file_size: metadata.len(),
@@ -75,6 +80,7 @@ fn seed_source_sample(controller: &mut AppController, source: &SampleSource, rel
         missing: false,
         last_played_at: Some(42),
         user_tag: Some("Vintage FX".into()),
+        normal_tags: vec![String::from("Riser FX")],
     }]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
@@ -102,6 +108,7 @@ fn set_source_samples_for_tests(
                 missing: false,
                 last_played_at: Some(42),
                 user_tag: Some("Vintage FX".into()),
+                normal_tags: vec![String::from("Riser FX")],
             }
         })
         .collect();
@@ -113,6 +120,11 @@ fn set_source_samples_for_tests(
         db.set_last_played_at(Path::new(relative), 42).must();
         db.set_user_tag(Path::new(relative), Some("Vintage FX"))
             .must();
+        let mut batch = db.write_batch().must();
+        batch
+            .replace_tags_for_path(Path::new(relative), &[String::from("Riser FX")])
+            .must();
+        batch.commit().must();
     }
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
@@ -223,6 +235,7 @@ fn transferred_sample(
         last_played_at: Some(42),
         sound_type: None,
         user_tag: Some("Vintage FX".into()),
+        normal_tags: Vec::new(),
     }
 }
 

@@ -411,9 +411,6 @@ fn persist_sample_rename_once(
         .write_batch()
         .map_err(|err| format!("Failed to start database update: {err}"))?;
     batch
-        .remove_file(old_relative)
-        .map_err(|err| format!("Failed to drop old entry: {err}"))?;
-    batch
         .upsert_file(new_relative, file_size, modified_ns)
         .map_err(|err| format!("Failed to register renamed file: {err}"))?;
     batch
@@ -436,6 +433,15 @@ fn persist_sample_rename_once(
             .set_last_played_at(new_relative, last_played_at)
             .map_err(|err| format!("Failed to copy playback age: {err}"))?;
     }
+    let normal_tags = batch
+        .tag_labels_for_path(old_relative)
+        .map_err(|err| format!("Failed to load normal tags: {err}"))?;
+    batch
+        .replace_tags_for_path(new_relative, &normal_tags)
+        .map_err(|err| format!("Failed to copy normal tags: {err}"))?;
+    batch
+        .remove_file(old_relative)
+        .map_err(|err| format!("Failed to drop old entry: {err}"))?;
     batch
         .remap_analysis_sample_identity(old_relative, new_relative)
         .map_err(|err| format!("Failed to preserve analysis artifacts: {err}"))?;
@@ -454,6 +460,7 @@ fn persist_sample_rename_once(
         missing: false,
         last_played_at: last_played_at.or(fallback_last_played_at),
         user_tag,
+        normal_tags,
     })
 }
 

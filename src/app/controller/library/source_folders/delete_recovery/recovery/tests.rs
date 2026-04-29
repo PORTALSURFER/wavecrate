@@ -458,6 +458,7 @@ fn sample_entry(relative_path: &str) -> crate::sample_sources::WavEntry {
         missing: false,
         last_played_at: Some(456),
         user_tag: None,
+        normal_tags: Vec::new(),
     }
 }
 

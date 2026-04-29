@@ -66,7 +66,7 @@ impl DragDropController<'_> {
         let cache = self.cache.wav.entries.get(&source.id)?;
         let index = cache.lookup.get(relative_path).copied()?;
         let entry = cache.entry(index)?;
-        Some(drop_target_metadata(entry))
+        Some(self.drop_target_metadata(source, entry))
     }
 
     fn cached_selected_source_metadata(
@@ -79,17 +79,29 @@ impl DragDropController<'_> {
         }
         let index = self.wav_entries.lookup.get(relative_path).copied()?;
         let entry = self.wav_entries.entry(index)?;
-        Some(drop_target_metadata(entry))
+        Some(self.drop_target_metadata(source, entry))
     }
-}
 
-fn drop_target_metadata(entry: &crate::sample_sources::WavEntry) -> DropTargetTransferMetadata {
-    DropTargetTransferMetadata {
-        tag: entry.tag,
-        looped: entry.looped,
-        locked: entry.locked,
-        last_played_at: entry.last_played_at,
-        sound_type: entry.sound_type,
-        user_tag: entry.user_tag.clone(),
+    fn drop_target_metadata(
+        &self,
+        source: &SampleSource,
+        entry: &crate::sample_sources::WavEntry,
+    ) -> DropTargetTransferMetadata {
+        DropTargetTransferMetadata {
+            tag: entry.tag,
+            looped: entry.looped,
+            locked: entry.locked,
+            last_played_at: entry.last_played_at,
+            sound_type: entry.sound_type,
+            user_tag: entry.user_tag.clone(),
+            normal_tags: self
+                .ui_cache
+                .browser
+                .normal_tags
+                .get(&source.id)
+                .and_then(|tags| tags.get(&entry.relative_path))
+                .map(|tags| tags.iter().map(|tag| tag.display_label.clone()).collect())
+                .unwrap_or_else(|| entry.normal_tags.clone()),
+        }
     }
 }

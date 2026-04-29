@@ -933,6 +933,7 @@ fn search_entry(
         missing: false,
         last_played_at,
         user_tag: None,
+        normal_tags: Vec::new(),
     }
 }
 

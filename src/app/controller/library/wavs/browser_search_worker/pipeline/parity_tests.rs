@@ -281,6 +281,7 @@ fn search_entry(path: &str, tag: Rating) -> WavEntry {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        normal_tags: Vec::new(),
     }
 }
 

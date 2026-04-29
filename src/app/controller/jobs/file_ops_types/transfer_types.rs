@@ -57,6 +57,8 @@ pub(crate) struct DropTargetTransferMetadata {
     pub(crate) sound_type: Option<crate::sample_sources::SampleSoundType>,
     /// Operator-authored custom tag, if any.
     pub(crate) user_tag: Option<String>,
+    /// Normal library tag labels assigned to the sample.
+    pub(crate) normal_tags: Vec<String>,
 }
 
 /// Result of a background drop-target copy or move operation.
@@ -101,6 +103,8 @@ pub(crate) struct DropTargetTransferSuccess {
     pub(crate) sound_type: Option<crate::sample_sources::SampleSoundType>,
     /// Operator-authored custom tag, if any.
     pub(crate) user_tag: Option<String>,
+    /// Normal library tag labels assigned to the sample.
+    pub(crate) normal_tags: Vec<String>,
 }
 
 /// Successful paste into a source folder with metadata for follow-up updates.
@@ -192,4 +196,6 @@ pub(crate) struct SourceMoveSuccess {
     pub(crate) sound_type: Option<crate::sample_sources::SampleSoundType>,
     /// Operator-authored custom tag, if any.
     pub(crate) user_tag: Option<String>,
+    /// Normal library tag labels assigned to the sample.
+    pub(crate) normal_tags: Vec<String>,
 }

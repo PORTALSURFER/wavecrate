@@ -56,6 +56,7 @@ mod tests {
                 missing: false,
                 last_played_at: None,
                 user_tag: None,
+                normal_tags: Vec::new(),
             },
             WavEntry {
                 relative_path: std::path::PathBuf::from("kits/drums/snare.wav"),
@@ -69,6 +70,7 @@ mod tests {
                 missing: false,
                 last_played_at: None,
                 user_tag: None,
+                normal_tags: Vec::new(),
             },
         ];
 

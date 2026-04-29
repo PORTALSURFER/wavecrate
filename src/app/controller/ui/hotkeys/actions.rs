@@ -102,9 +102,7 @@ mod tests {
     use crate::app::state::FocusContext;
     use crate::gui::input::KeyCode;
 
-    fn map_focus_context(
-        focus: radiant::compat::sempal_shell::FocusContextModel,
-    ) -> FocusContext {
+    fn map_focus_context(focus: radiant::compat::sempal_shell::FocusContextModel) -> FocusContext {
         match focus {
             radiant::compat::sempal_shell::FocusContextModel::None => FocusContext::None,
             radiant::compat::sempal_shell::FocusContextModel::Waveform => FocusContext::Waveform,

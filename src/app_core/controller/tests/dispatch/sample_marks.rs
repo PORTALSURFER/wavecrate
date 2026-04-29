@@ -28,6 +28,7 @@ fn apply_native_toggle_browser_sample_mark_marks_focused_browser_row() {
             missing: false,
             last_played_at: None,
             user_tag: None,
+            normal_tags: Vec::new(),
         },
         WavEntry {
             relative_path: PathBuf::from("next.wav"),
@@ -41,6 +42,7 @@ fn apply_native_toggle_browser_sample_mark_marks_focused_browser_row() {
             missing: false,
             last_played_at: None,
             user_tag: None,
+            normal_tags: Vec::new(),
         },
     ]);
     controller.rebuild_wav_lookup();
@@ -89,6 +91,7 @@ fn apply_native_toggle_browser_sample_mark_advances_on_repeated_marks() {
             missing: false,
             last_played_at: None,
             user_tag: None,
+            normal_tags: Vec::new(),
         },
         WavEntry {
             relative_path: PathBuf::from("second.wav"),
@@ -102,6 +105,7 @@ fn apply_native_toggle_browser_sample_mark_advances_on_repeated_marks() {
             missing: false,
             last_played_at: None,
             user_tag: None,
+            normal_tags: Vec::new(),
         },
         WavEntry {
             relative_path: PathBuf::from("third.wav"),
@@ -115,6 +119,7 @@ fn apply_native_toggle_browser_sample_mark_advances_on_repeated_marks() {
             missing: false,
             last_played_at: None,
             user_tag: None,
+            normal_tags: Vec::new(),
         },
     ]);
     controller.rebuild_wav_lookup();

@@ -81,6 +81,7 @@ fn selected_path_lookup_refreshes_for_same_len_path_changes() {
             missing: false,
             last_played_at: None,
             user_tag: None,
+            normal_tags: Vec::new(),
         },
         crate::sample_sources::WavEntry {
             relative_path: std::path::PathBuf::from("second.wav"),
@@ -94,6 +95,7 @@ fn selected_path_lookup_refreshes_for_same_len_path_changes() {
             missing: false,
             last_played_at: None,
             user_tag: None,
+            normal_tags: Vec::new(),
         },
     ]);
     controller.ui.browser.selection.selected_paths = vec![std::path::PathBuf::from("first.wav")];
@@ -133,6 +135,7 @@ fn cached_browser_row_rebuilds_when_stored_tag_column_is_stale() {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        normal_tags: Vec::new(),
     }]);
     controller.projected_browser_rows.insert(
         0,
@@ -178,6 +181,7 @@ fn cached_browser_row_rebuilds_when_stored_missing_state_is_stale() {
         missing: true,
         last_played_at: None,
         user_tag: None,
+        normal_tags: Vec::new(),
     }]);
     controller.projected_browser_rows.insert(
         0,
@@ -224,6 +228,7 @@ fn cached_browser_row_rebuilds_when_stored_mark_state_is_stale() {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        normal_tags: Vec::new(),
     }]);
     controller
         .ui
@@ -273,6 +278,7 @@ fn cached_browser_row_rebuilds_when_stored_playback_age_bucket_is_stale() {
         missing: false,
         last_played_at: Some(1),
         user_tag: None,
+        normal_tags: Vec::new(),
     }]);
     controller.projected_browser_rows.insert(
         0,
@@ -344,6 +350,7 @@ fn browser_row_cache_evicts_one_lru_entry_at_capacity() {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        normal_tags: Vec::new(),
     }]);
 
     let cached_path = {
@@ -377,6 +384,7 @@ fn browser_rows_projection_reuses_provided_buffer_capacity() {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        normal_tags: Vec::new(),
     }]);
     controller.ui.browser.viewport.visible =
         crate::app_core::app_api::state::VisibleRows::List(vec![0usize].into());
@@ -410,6 +418,7 @@ fn browser_rows_state_patch_updates_flags_without_rebuilding_labels() {
             missing: false,
             last_played_at: None,
             user_tag: None,
+            normal_tags: Vec::new(),
         },
         crate::sample_sources::WavEntry {
             relative_path: std::path::PathBuf::from("snare.wav"),
@@ -423,6 +432,7 @@ fn browser_rows_state_patch_updates_flags_without_rebuilding_labels() {
             missing: false,
             last_played_at: None,
             user_tag: None,
+            normal_tags: Vec::new(),
         },
     ]);
     controller.ui.browser.viewport.visible =
@@ -468,6 +478,7 @@ fn browser_rows_projection_uses_pipeline_snapshot_when_pages_are_unloaded() {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        normal_tags: Vec::new(),
     }]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
@@ -499,6 +510,7 @@ fn browser_rows_projection_does_not_queue_feature_cache_refresh() {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        normal_tags: Vec::new(),
     }]);
     controller.ui.browser.viewport.visible =
         crate::app_core::app_api::state::VisibleRows::List(vec![0usize].into());
@@ -535,6 +547,7 @@ fn browser_rows_projection_refreshes_labels_after_same_length_reload() {
             missing: false,
             last_played_at: None,
             user_tag: None,
+            normal_tags: Vec::new(),
         },
         crate::sample_sources::WavEntry {
             relative_path: std::path::PathBuf::from("beta.wav"),
@@ -548,6 +561,7 @@ fn browser_rows_projection_refreshes_labels_after_same_length_reload() {
             missing: false,
             last_played_at: None,
             user_tag: None,
+            normal_tags: Vec::new(),
         },
     ]);
     controller.rebuild_wav_lookup();
@@ -573,6 +587,7 @@ fn browser_rows_projection_refreshes_labels_after_same_length_reload() {
                 missing: false,
                 last_played_at: None,
                 user_tag: None,
+                normal_tags: Vec::new(),
             },
             crate::sample_sources::WavEntry {
                 relative_path: std::path::PathBuf::from("alpha.wav"),
@@ -586,6 +601,7 @@ fn browser_rows_projection_refreshes_labels_after_same_length_reload() {
                 missing: false,
                 last_played_at: None,
                 user_tag: None,
+                normal_tags: Vec::new(),
             },
         ],
         total: 2,
@@ -624,6 +640,7 @@ fn browser_rows_projection_refreshes_label_after_cached_rename() {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        normal_tags: Vec::new(),
     }]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();
@@ -646,6 +663,7 @@ fn browser_rows_projection_refreshes_label_after_cached_rename() {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        normal_tags: Vec::new(),
     };
     updated.looped = true;
     controller.update_cached_entry(&source, std::path::Path::new("raw.wav"), updated);
@@ -684,6 +702,7 @@ fn label_lookup_uses_pipeline_snapshot_when_pages_are_unloaded() {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        normal_tags: Vec::new(),
     }]);
     controller.rebuild_wav_lookup();
     controller.rebuild_browser_lists();

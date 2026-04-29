@@ -80,7 +80,7 @@ pub(super) fn apply_diff(
                 let hash = compute_content_hash(&absolute, cancel)?;
                 if let Some(entry) = take_rename_candidate_by_hash(db, context, &hash)? {
                     let old_relative_path = entry.relative_path.clone();
-                    apply_rename(batch, &path, &facts, &hash, entry)?;
+                    apply_rename(batch, &path, &facts, &hash, entry, None)?;
                     context.stats.updated += 1;
                     context.stats.renames_reconciled += 1;
                     context.stats.renamed_samples.push(RenamedSample {
@@ -93,9 +93,10 @@ pub(super) fn apply_diff(
                     return Ok(());
                 }
                 if let Some(entry) = batch.take_pending_rename_by_hash(&hash)? {
+                    let normal_tags = entry.normal_tags.clone();
                     let entry = entry.into_wav_entry();
                     let old_relative_path = entry.relative_path.clone();
-                    apply_rename(batch, &path, &facts, &hash, entry)?;
+                    apply_rename(batch, &path, &facts, &hash, entry, Some(&normal_tags))?;
                     context.stats.updated += 1;
                     context.stats.renames_reconciled += 1;
                     context.stats.hashes_computed += 1;
@@ -123,7 +124,7 @@ pub(super) fn apply_diff(
                     take_rename_candidate_by_facts(db, context, facts.size, facts.modified_ns)?
                 {
                     let old_relative_path = entry.relative_path.clone();
-                    apply_rename_without_hash(batch, &path, &facts, entry)?;
+                    apply_rename_without_hash(batch, &path, &facts, entry, None)?;
                     context.stats.updated += 1;
                     context.stats.renames_reconciled += 1;
                     context.stats.hashes_pending += 1;
@@ -139,9 +140,10 @@ pub(super) fn apply_diff(
                 if let Some(entry) =
                     batch.take_pending_rename_by_facts(facts.size, facts.modified_ns)?
                 {
+                    let normal_tags = entry.normal_tags.clone();
                     let entry = entry.into_wav_entry();
                     let old_relative_path = entry.relative_path.clone();
-                    apply_rename_without_hash(batch, &path, &facts, entry)?;
+                    apply_rename_without_hash(batch, &path, &facts, entry, Some(&normal_tags))?;
                     context.stats.updated += 1;
                     context.stats.renames_reconciled += 1;
                     context.stats.hashes_pending += 1;
@@ -185,8 +187,8 @@ fn apply_rename(
     facts: &FileFacts,
     hash: &str,
     entry: WavEntry,
+    retained_normal_tags: Option<&[String]>,
 ) -> Result<(), ScanError> {
-    batch.remove_file(&entry.relative_path)?;
     batch.upsert_file_with_hash_and_tag(
         new_path,
         facts.size,
@@ -210,6 +212,12 @@ fn apply_rename(
     if entry.user_tag.is_some() {
         batch.set_user_tag(new_path, entry.user_tag.as_deref())?;
     }
+    if let Some(normal_tags) = retained_normal_tags {
+        batch.replace_tags_for_path(new_path, normal_tags)?;
+    } else {
+        batch.copy_tags_between_paths(&entry.relative_path, new_path)?;
+    }
+    batch.remove_file(&entry.relative_path)?;
     batch.remap_analysis_sample_identity(&entry.relative_path, new_path)?;
     Ok(())
 }
@@ -219,8 +227,8 @@ fn apply_rename_without_hash(
     new_path: &Path,
     facts: &FileFacts,
     entry: WavEntry,
+    retained_normal_tags: Option<&[String]>,
 ) -> Result<(), ScanError> {
-    batch.remove_file(&entry.relative_path)?;
     batch.upsert_file_without_hash(new_path, facts.size, facts.modified_ns)?;
     batch.set_tag(new_path, entry.tag)?;
     if entry.looped {
@@ -238,6 +246,12 @@ fn apply_rename_without_hash(
     if entry.user_tag.is_some() {
         batch.set_user_tag(new_path, entry.user_tag.as_deref())?;
     }
+    if let Some(normal_tags) = retained_normal_tags {
+        batch.replace_tags_for_path(new_path, normal_tags)?;
+    } else {
+        batch.copy_tags_between_paths(&entry.relative_path, new_path)?;
+    }
+    batch.remove_file(&entry.relative_path)?;
     batch.remap_analysis_sample_identity(&entry.relative_path, new_path)?;
     Ok(())
 }
@@ -325,6 +339,7 @@ mod tests {
             missing: false,
             last_played_at: None,
             user_tag: None,
+            normal_tags: Vec::new(),
         }
     }
 

@@ -15,6 +15,8 @@ fn scan_detects_rename_and_preserves_tag() {
         .unwrap();
     db.set_user_tag(Path::new("one.wav"), Some("Vintage FX"))
         .unwrap();
+    db.assign_tag_to_path(Path::new("one.wav"), "Analog Kick")
+        .unwrap();
     insert_analysis_artifacts(dir.path(), "source::one.wav", "one.wav");
 
     std::fs::rename(&first_path, &second_path).unwrap();
@@ -31,6 +33,7 @@ fn scan_detects_rename_and_preserves_tag() {
     assert_eq!(rows[0].tag, Rating::KEEP_1);
     assert_eq!(rows[0].sound_type, Some(SampleSoundType::Kick));
     assert_eq!(rows[0].user_tag.as_deref(), Some("Vintage FX"));
+    assert_eq!(rows[0].normal_tags, vec!["Analog Kick"]);
     assert!(!rows[0].missing);
     assert_eq!(
         sample_id_count(dir.path(), "features", "source::one.wav"),
@@ -76,6 +79,8 @@ fn quick_scan_reconciles_large_rename_and_preserves_tag() {
         .unwrap();
     db.set_user_tag(Path::new("one.wav"), Some("Night Pad"))
         .unwrap();
+    db.assign_tag_to_path(Path::new("one.wav"), "Night Pad")
+        .unwrap();
 
     std::fs::rename(&first_path, &second_path).unwrap();
     let stats = scan_once(&db).unwrap();
@@ -88,6 +93,7 @@ fn quick_scan_reconciles_large_rename_and_preserves_tag() {
     assert_eq!(rows[0].tag, Rating::KEEP_1);
     assert_eq!(rows[0].sound_type, Some(SampleSoundType::Texture));
     assert_eq!(rows[0].user_tag.as_deref(), Some("Night Pad"));
+    assert_eq!(rows[0].normal_tags, vec!["Night Pad"]);
     assert!(!rows[0].missing);
     assert!(rows[0].content_hash.is_none());
 
@@ -101,6 +107,7 @@ fn quick_scan_reconciles_large_rename_and_preserves_tag() {
     assert_eq!(rows[0].tag, Rating::KEEP_1);
     assert_eq!(rows[0].sound_type, Some(SampleSoundType::Texture));
     assert_eq!(rows[0].user_tag.as_deref(), Some("Night Pad"));
+    assert_eq!(rows[0].normal_tags, vec!["Night Pad"]);
     assert!(!rows[0].missing);
     assert!(rows[0].content_hash.is_some());
 }
@@ -118,6 +125,8 @@ fn deep_hash_scan_replays_pending_rename_metadata() {
     db.set_sound_type(Path::new("one.wav"), Some(SampleSoundType::Fx))
         .unwrap();
     db.set_user_tag(Path::new("one.wav"), Some("Sweep"))
+        .unwrap();
+    db.assign_tag_to_path(Path::new("one.wav"), "Sweep")
         .unwrap();
 
     {
@@ -138,6 +147,7 @@ fn deep_hash_scan_replays_pending_rename_metadata() {
     assert_eq!(pending_before_deep.len(), 1);
     assert_eq!(pending_before_deep[0].sound_type, Some(SampleSoundType::Fx));
     assert_eq!(pending_before_deep[0].user_tag.as_deref(), Some("Sweep"));
+    assert_eq!(pending_before_deep[0].normal_tags, vec!["Sweep"]);
 
     let deep_stats = crate::sample_sources::scanner::scan_hash::deep_hash_scan(&db, None).unwrap();
     assert_eq!(deep_stats.renames_reconciled, 1);
@@ -148,6 +158,7 @@ fn deep_hash_scan_replays_pending_rename_metadata() {
     assert_eq!(rows[0].tag, Rating::KEEP_1);
     assert_eq!(rows[0].sound_type, Some(SampleSoundType::Fx));
     assert_eq!(rows[0].user_tag.as_deref(), Some("Sweep"));
+    assert_eq!(rows[0].normal_tags, vec!["Sweep"]);
     assert!(db.list_pending_renames().unwrap().is_empty());
 }
 

@@ -316,6 +316,14 @@ impl AppController {
                             .wav_index_for_path(&message.relative_path)
                             .and_then(|idx| self.wav_entries.entry(idx))
                             .and_then(|e| e.user_tag.clone()),
+                        normal_tags: self
+                            .ui_cache
+                            .browser
+                            .normal_tags
+                            .get(&source.id)
+                            .and_then(|tags| tags.get(&message.relative_path))
+                            .map(|tags| tags.iter().map(|tag| tag.display_label.clone()).collect())
+                            .unwrap_or_default(),
                     };
 
                     let is_currently_loaded = self

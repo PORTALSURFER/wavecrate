@@ -15,6 +15,7 @@ pub(in crate::app::controller::ui::drag_drop_controller::drag_effects) struct Mo
     pub(in crate::app::controller::ui::drag_drop_controller::drag_effects) sound_type:
         Option<crate::sample_sources::SampleSoundType>,
     pub(in crate::app::controller::ui::drag_drop_controller::drag_effects) user_tag: Option<String>,
+    pub(in crate::app::controller::ui::drag_drop_controller::drag_effects) normal_tags: Vec<String>,
 }
 
 impl AppController {
@@ -52,6 +53,15 @@ impl AppController {
             db.set_user_tag(relative_path, Some(user_tag))
                 .map_err(|err| format!("Failed to copy custom tag: {err}"))?;
         }
+        let mut batch = db
+            .write_batch()
+            .map_err(|err| format!("Failed to open tag batch: {err}"))?;
+        batch
+            .replace_tags_for_path(relative_path, &registration.normal_tags)
+            .map_err(|err| format!("Failed to copy normal tags: {err}"))?;
+        batch
+            .commit()
+            .map_err(|err| format!("Failed to commit normal tags: {err}"))?;
         Ok(())
     }
 
@@ -88,7 +98,29 @@ impl AppController {
                 missing: false,
                 last_played_at: entry.last_played_at,
                 user_tag: entry.user_tag.clone(),
+                normal_tags: entry.normal_tags.clone(),
             },
         );
+        self.ui_cache
+            .browser
+            .normal_tags
+            .entry(target_source.id.clone())
+            .or_default()
+            .insert(
+                entry.target_relative.clone(),
+                entry
+                    .normal_tags
+                    .iter()
+                    .map(|label| crate::sample_sources::db::SourceTag {
+                        id: 0,
+                        display_label: label.clone(),
+                        normalized_text: label
+                            .split_whitespace()
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                            .to_ascii_lowercase(),
+                    })
+                    .collect(),
+            );
     }
 }

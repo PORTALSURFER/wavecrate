@@ -311,6 +311,7 @@ fn projection_overlay_only_miss_reuses_browser_row_text_arcs() {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        normal_tags: Vec::new(),
     }]);
     controller.ui.browser.viewport.visible =
         crate::app_core::app_api::state::VisibleRows::List(vec![0usize].into());

@@ -156,6 +156,7 @@ fn projection_cache_key_changes_when_browser_sidebar_selected_visible_target_cha
             missing: false,
             last_played_at: None,
             user_tag: None,
+            normal_tags: Vec::new(),
         },
         crate::sample_sources::WavEntry {
             relative_path: PathBuf::from("second.wav"),
@@ -169,6 +170,7 @@ fn projection_cache_key_changes_when_browser_sidebar_selected_visible_target_cha
             missing: false,
             last_played_at: None,
             user_tag: None,
+            normal_tags: Vec::new(),
         },
     ]);
     let first = build_projection_cache_key(&controller);

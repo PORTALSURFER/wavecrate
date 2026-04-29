@@ -213,6 +213,8 @@ fn refresh_cached_entry_metadata_delta(
         entry.tag = row.metadata.tag;
         entry.locked = row.metadata.locked;
         entry.last_played_at = row.metadata.last_played_at;
+        entry.display_label =
+            compact_search_display_label(&row.relative_path, &row.metadata).into_boxed_str();
         updated = updated.saturating_add(1);
     }
     if updated == 0 {
@@ -267,7 +269,7 @@ fn compact_search_entry_for(
     entry: &crate::sample_sources::db::read::SearchEntryRow,
 ) -> CompactSearchEntry {
     let relative_path: Arc<str> = Arc::from(entry.relative_path.to_string_lossy().into_owned());
-    let display_label = crate::app::view_model::sample_display_label(&entry.relative_path);
+    let display_label = compact_search_display_label(&entry.relative_path, &entry.metadata);
     CompactSearchEntry {
         display_label: display_label.into_boxed_str(),
         relative_path,
@@ -275,4 +277,16 @@ fn compact_search_entry_for(
         locked: entry.metadata.locked,
         last_played_at: entry.metadata.last_played_at,
     }
+}
+
+fn compact_search_display_label(
+    relative_path: &std::path::Path,
+    metadata: &crate::sample_sources::db::read::SearchEntryMetadata,
+) -> String {
+    let mut label = crate::app::view_model::sample_display_label(relative_path);
+    for tag in &metadata.normal_tags {
+        label.push(' ');
+        label.push_str(tag);
+    }
+    label
 }

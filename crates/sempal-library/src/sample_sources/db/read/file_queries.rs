@@ -7,7 +7,7 @@ use super::super::{Rating, SourceDatabase, SourceDbError, WavEntry};
 use super::decode::{WAV_FILE_SELECT_COLUMNS, decode_path_row, decode_wav_entry_row};
 
 /// Search-worker metadata for one ordered wav row.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SearchEntryMetadata {
     /// Current keep/trash tag used by triage filters and badges.
     pub tag: Rating,
@@ -15,6 +15,8 @@ pub struct SearchEntryMetadata {
     pub locked: bool,
     /// Most recent playback timestamp used by playback-age sorting.
     pub last_played_at: Option<i64>,
+    /// Normal library tag labels assigned to the row.
+    pub normal_tags: Vec<String>,
 }
 
 /// Lightweight browser-search row snapshot with only path and worker metadata.
@@ -28,6 +30,21 @@ pub struct SearchEntryRow {
 
 fn supported_audio_filter() -> String {
     crate::sample_sources::supported_audio_where_clause()
+}
+
+fn normal_tags_select_sql(path_expr: &str) -> String {
+    format!(
+        "(
+            SELECT json_group_array(display_label)
+            FROM (
+                SELECT st.display_label
+                FROM source_tags st
+                JOIN wav_file_tags wft ON wft.tag_id = st.id
+                WHERE wft.path = {path_expr}
+                ORDER BY st.display_label COLLATE NOCASE ASC, st.normalized_text ASC
+            )
+        )"
+    )
 }
 
 fn collect_wav_entries(
@@ -80,12 +97,14 @@ fn decode_search_entry_row(
     let tag = Rating::from_i64(row.get::<_, i64>(1)?);
     let locked = row.get::<_, i64>(2)? != 0;
     let last_played_at = row.get::<_, Option<i64>>(3)?;
+    let normal_tags = decode_normal_tag_json(row.get(4)?);
     Ok(Some(SearchEntryRow {
         relative_path,
         metadata: SearchEntryMetadata {
             tag,
             locked,
             last_played_at,
+            normal_tags,
         },
     }))
 }
@@ -97,6 +116,7 @@ fn decode_search_entry_metadata(
         tag: Rating::from_i64(row.get::<_, i64>(0)?),
         locked: row.get::<_, i64>(1)? != 0,
         last_played_at: row.get::<_, Option<i64>>(2)?,
+        normal_tags: decode_normal_tag_json(row.get(3)?),
     })
 }
 
@@ -283,8 +303,9 @@ impl SourceDatabase {
     /// Fetch lightweight browser-search rows ordered by path.
     pub fn list_search_entry_rows(&self) -> Result<Vec<SearchEntryRow>, SourceDbError> {
         let filter = supported_audio_filter();
+        let normal_tags = normal_tags_select_sql("wav_files.path");
         let sql = format!(
-            "SELECT path, tag, locked, last_played_at
+            "SELECT path, tag, locked, last_played_at, {normal_tags}
              FROM wav_files
              WHERE {filter}
              ORDER BY path ASC"
@@ -308,8 +329,9 @@ impl SourceDatabase {
         let filter = supported_audio_filter();
         let mut rows = Vec::new();
         for batch in paths.chunks(900) {
+            let normal_tags = normal_tags_select_sql("wav_files.path");
             let sql = format!(
-                "SELECT path, tag, locked, last_played_at
+                "SELECT path, tag, locked, last_played_at, {normal_tags}
                  FROM wav_files
                  WHERE {filter}
                    AND path IN ({})
@@ -333,12 +355,18 @@ impl SourceDatabase {
     /// Fetch only browser-search metadata ordered to match `list_search_entry_rows`.
     pub fn list_search_entry_metadata(&self) -> Result<Vec<SearchEntryMetadata>, SourceDbError> {
         let filter = supported_audio_filter();
+        let normal_tags = normal_tags_select_sql("wav_files.path");
         let sql = format!(
-            "SELECT tag, locked, last_played_at
+            "SELECT tag, locked, last_played_at, {normal_tags}
              FROM wav_files
              WHERE {filter}
              ORDER BY path ASC"
         );
         collect_search_entry_metadata(self, &sql, [])
     }
+}
+
+fn decode_normal_tag_json(raw: Option<String>) -> Vec<String> {
+    raw.and_then(|value| serde_json::from_str::<Vec<String>>(&value).ok())
+        .unwrap_or_default()
 }

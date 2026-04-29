@@ -96,6 +96,7 @@ fn apply_folder_move_result_remaps_folder_state_and_focuses_destination() {
                 last_played_at: None,
                 sound_type: None,
                 user_tag: Some("Vintage FX".into()),
+                normal_tags: Vec::new(),
             }],
             errors: Vec::new(),
             cancelled: false,

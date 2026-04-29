@@ -5,11 +5,12 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 struct RestoreSampleMetadata {
     tag: crate::sample_sources::Rating,
     looped: bool,
     last_played_at: Option<i64>,
+    normal_tags: Vec<String>,
 }
 
 impl AppController {
@@ -85,6 +86,7 @@ impl AppController {
             tag,
             looped,
             last_played_at,
+            normal_tags: Vec::new(),
         }));
         let undo_restore_metadata = Rc::clone(&restore_metadata);
         let redo_restore_metadata = restore_metadata;
@@ -125,7 +127,7 @@ impl AppController {
                     .find(|s| s.id == redo_source_id)
                     .cloned()
                     .ok_or_else(|| "Source not available".to_string())?;
-                let metadata = *redo_restore_metadata.borrow();
+                let metadata = redo_restore_metadata.borrow().clone();
                 Ok(undo::UndoExecution::Deferred(UndoFileJob::RestoreSample {
                     source_id: redo_source_id.clone(),
                     source_root: source.root,
@@ -135,6 +137,7 @@ impl AppController {
                     tag: metadata.tag,
                     looped: metadata.looped,
                     last_played_at: metadata.last_played_at,
+                    normal_tags: metadata.normal_tags.clone(),
                 }))
             },
         )
@@ -148,7 +151,7 @@ fn capture_current_restore_metadata(
     relative_path: &std::path::Path,
     restore_metadata: &Rc<RefCell<RestoreSampleMetadata>>,
 ) {
-    let mut metadata = *restore_metadata.borrow();
+    let mut metadata = restore_metadata.borrow().clone();
     if controller.selection_state.ctx.selected_source.as_ref() == Some(&source.id)
         && let Some(index) = controller.wav_index_for_path(relative_path)
         && let Some(entry) = controller.wav_entry(index)
@@ -157,6 +160,7 @@ fn capture_current_restore_metadata(
             tag: entry.tag,
             looped: entry.looped,
             last_played_at: entry.last_played_at,
+            normal_tags: entry.normal_tags.clone(),
         };
     }
     if let Ok(db) = crate::sample_sources::SourceDatabase::open_fast(&source.root) {
@@ -168,6 +172,9 @@ fn capture_current_restore_metadata(
         }
         if let Ok(last_played_at) = db.last_played_at_for_path(relative_path) {
             metadata.last_played_at = metadata.last_played_at.or(last_played_at);
+        }
+        if let Ok(normal_tags) = db.tag_labels_for_path(relative_path) {
+            metadata.normal_tags = normal_tags;
         }
     }
     *restore_metadata.borrow_mut() = metadata;
