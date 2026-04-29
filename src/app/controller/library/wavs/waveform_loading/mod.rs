@@ -1,6 +1,6 @@
 use super::*;
 use crate::app::controller::playback::audio_samples::{
-    decode_samples_from_bytes, wav_bytes_from_samples,
+    decode_samples_from_bytes, preview_load_decode_error, wav_bytes_from_samples,
 };
 use crate::app::state::WaveformView;
 use std::sync::Arc;

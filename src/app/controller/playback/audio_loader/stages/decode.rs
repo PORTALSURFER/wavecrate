@@ -1,4 +1,5 @@
 use super::super::{AudioLoadError, AudioLoadJob};
+use crate::app::controller::playback::audio_samples::preview_load_decode_error;
 use crate::waveform::{DecodedWaveform, WaveformRenderer};
 use std::{
     sync::{Arc, atomic::AtomicU64},
@@ -17,9 +18,9 @@ pub(super) fn decode_stage(
     bytes: &[u8],
 ) -> Result<Option<Arc<DecodedWaveform>>, AudioLoadError> {
     let decode_start = audio_loader_telemetry_enabled().then(Instant::now);
-    let decoded = renderer
-        .decode_from_bytes(bytes)
-        .map_err(|err| AudioLoadError::Failed(err.to_string()))?;
+    let decoded = renderer.decode_from_bytes(bytes).map_err(|err| {
+        AudioLoadError::Failed(preview_load_decode_error(&job.relative_path, err))
+    })?;
     if let Some(start) = decode_start {
         record_decode_duration(start.elapsed());
     }

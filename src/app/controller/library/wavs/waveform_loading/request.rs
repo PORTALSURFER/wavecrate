@@ -105,7 +105,7 @@ impl AppController {
                 self.sample_view
                     .renderer
                     .decode_from_bytes(&bytes)
-                    .map_err(|err| err.to_string())?,
+                    .map_err(|err| preview_load_decode_error(relative_path, err))?,
             ),
         };
 
@@ -118,7 +118,7 @@ impl AppController {
                 self.sample_view
                     .renderer
                     .decode_from_bytes(&stretched)
-                    .map_err(|err| err.to_string())?,
+                    .map_err(|err| preview_load_decode_error(relative_path, err))?,
             );
             return Ok((stretched_decoded, stretched, true));
         }

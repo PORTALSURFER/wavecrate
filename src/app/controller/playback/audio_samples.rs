@@ -26,6 +26,19 @@ pub(crate) fn decode_samples_from_bytes(bytes: &[u8]) -> Result<DecodedSamples, 
     })
 }
 
+/// Convert generic decoder failures into browser preview/load wording.
+pub(crate) fn preview_load_decode_error(relative_path: &Path, error: impl ToString) -> String {
+    let error = error.to_string();
+    if is_wav_path(relative_path) {
+        return error;
+    }
+    let file_label = relative_path.display();
+    if decoder_error_mentions_unsupported_codec(&error) {
+        return format!("Unsupported audio codec for {file_label}");
+    }
+    format!("Unable to load audio file {file_label}: unsupported or unreadable audio format")
+}
+
 /// Crop interleaved samples to the provided normalized bounds.
 pub(crate) fn crop_samples(
     samples: &[f32],
@@ -98,6 +111,18 @@ pub(crate) fn wav_bytes_from_samples(
             .map_err(|err| format!("Failed to finalize wav buffer: {err}"))?;
     }
     Ok(cursor.into_inner())
+}
+
+fn is_wav_path(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("wav"))
+}
+
+fn decoder_error_mentions_unsupported_codec(error: &str) -> bool {
+    let error = error.to_ascii_lowercase();
+    error.contains("unsupported codec")
+        || (error.contains("unsupported feature") && error.contains("codec"))
 }
 
 fn decode_samples(

@@ -114,6 +114,35 @@ fn loaded_duration_metadata_write_is_deferred_until_flush() {
 }
 
 #[test]
+fn selection_load_reports_non_wav_decode_failures_as_audio_format_errors() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "unsupported.aif",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    let relative_path = Path::new("unsupported.aif");
+    std::fs::write(source.root.join(relative_path), b"not-a-supported-aif")
+        .expect("write aif fixture");
+
+    let err = controller
+        .load_waveform_for_selection(&source, relative_path)
+        .expect_err("unsupported non-wav decode should fail");
+
+    assert!(
+        !err.starts_with("Invalid wav"),
+        "non-wav load should not surface raw wav wording: {err}"
+    );
+    assert!(
+        !err.contains("Symphonia"),
+        "non-wav load should not lead with decoder internals: {err}"
+    );
+    assert!(
+        err.contains("unsupported or unreadable audio format")
+            || err.contains("Unsupported audio codec"),
+        "expected deliberate audio-format wording, got: {err}"
+    );
+}
+
+#[test]
 /// Deferred metadata flush should wait while its debounce deadline is still active.
 fn loaded_duration_metadata_flush_respects_deadline() {
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
