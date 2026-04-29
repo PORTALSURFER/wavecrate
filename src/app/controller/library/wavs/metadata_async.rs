@@ -363,9 +363,6 @@ fn run_source_metadata_ops(
 fn run_analysis_metadata_ops(job: &MetadataMutationJob) -> Result<(), String> {
     let mut conn = analysis_jobs::open_source_db(&job.source_root)?;
     let duration_updates = collect_loaded_duration_updates(job)?;
-    let tx = conn
-        .transaction_with_behavior(TransactionBehavior::Immediate)
-        .map_err(|err| format!("Failed to start analysis metadata transaction: {err}"))?;
     let bpm_ops: Vec<_> = job
         .analysis_ops
         .iter()
@@ -374,15 +371,22 @@ fn run_analysis_metadata_ops(job: &MetadataMutationJob) -> Result<(), String> {
             AnalysisMetadataMutationOp::SetLoadedDuration { .. } => None,
         })
         .collect();
+    let bpm_sample_ids: Vec<String> = bpm_ops
+        .iter()
+        .map(|(relative_path, _)| {
+            let resolved_path = resolve_stale_browser_rename_path(job, relative_path)?;
+            Ok(analysis_jobs::build_sample_id(
+                job.source_id.as_str(),
+                &resolved_path,
+            ))
+        })
+        .collect::<Result<_, String>>()?;
+    let tx = conn
+        .transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(|err| format!("Failed to start analysis metadata transaction: {err}"))?;
     if !bpm_ops.is_empty() {
-        let sample_ids: Vec<String> = bpm_ops
-            .iter()
-            .map(|(relative_path, _)| {
-                analysis_jobs::build_sample_id(job.source_id.as_str(), relative_path)
-            })
-            .collect();
         let bpm = bpm_ops.first().and_then(|(_, bpm)| **bpm);
-        analysis_jobs::db::update_sample_bpms_in_tx(&tx, &sample_ids, bpm.map(f64::from))?;
+        analysis_jobs::db::update_sample_bpms_in_tx(&tx, &bpm_sample_ids, bpm.map(f64::from))?;
     }
     for update in &duration_updates {
         analysis_jobs::db::upsert_samples_in_tx(
@@ -427,10 +431,11 @@ fn collect_loaded_duration_updates(
             long_sample_mark,
         } = op
         {
-            let absolute = job.source_root.join(relative_path);
+            let resolved_path = resolve_stale_browser_rename_path(job, relative_path)?;
+            let absolute = job.source_root.join(&resolved_path);
             let (file_size, modified_ns) =
                 crate::app::controller::library::wav_io::file_metadata(&absolute)?;
-            let sample_id = analysis_jobs::build_sample_id(job.source_id.as_str(), relative_path);
+            let sample_id = analysis_jobs::build_sample_id(job.source_id.as_str(), &resolved_path);
             let content_hash = analysis_jobs::fast_content_hash(file_size, modified_ns);
             updates.push(LoadedDurationUpdate {
                 sample_metadata: analysis_jobs::SampleMetadata {
@@ -446,6 +451,32 @@ fn collect_loaded_duration_updates(
         }
     }
     Ok(updates)
+}
+
+fn resolve_stale_browser_rename_path(
+    job: &MetadataMutationJob,
+    relative_path: &Path,
+) -> Result<PathBuf, String> {
+    if job.source_root.join(relative_path).exists() {
+        return Ok(relative_path.to_path_buf());
+    }
+    let Some(new_relative) =
+        crate::app::controller::library::source_write_priority::completed_browser_rename_target(
+            &job.source_id,
+            relative_path,
+        )
+    else {
+        return Ok(relative_path.to_path_buf());
+    };
+    if SourceDatabase::open(&job.source_root)
+        .map_err(|err| format!("Database unavailable: {err}"))?
+        .entry_for_path(&new_relative)
+        .map_err(|err| format!("Failed to resolve renamed metadata target: {err}"))?
+        .is_some()
+    {
+        return Ok(new_relative);
+    }
+    Ok(relative_path.to_path_buf())
 }
 
 #[cfg(test)]
@@ -519,6 +550,107 @@ mod tests {
         assert_eq!(
             db.user_tag_for_path(&relative_path).expect("read user tag"),
             Some(String::from("Vintage"))
+        );
+    }
+
+    fn persisted_duration_seconds(source: &SampleSource, relative_path: &Path) -> Option<f64> {
+        let sample_id = analysis_jobs::build_sample_id(source.id.as_str(), relative_path);
+        let conn = analysis_jobs::open_source_db(&source.root).expect("open analysis db");
+        conn.query_row(
+            "SELECT duration_seconds FROM samples WHERE sample_id = ?1",
+            rusqlite::params![sample_id],
+            |row| row.get::<_, Option<f64>>(0),
+        )
+        .ok()
+        .flatten()
+    }
+
+    #[test]
+    fn loaded_duration_metadata_job_follows_completed_browser_rename() {
+        let temp = tempfile::tempdir().expect("create temp dir");
+        let source = SampleSource::new(temp.path().join("source"));
+        std::fs::create_dir_all(&source.root).expect("create source root");
+        let old_relative = PathBuf::from("old-name.wav");
+        let new_relative = PathBuf::from("new-name.wav");
+        let old_absolute = source.root.join(&old_relative);
+        let new_absolute = source.root.join(&new_relative);
+        std::fs::write(&old_absolute, b"metadata-fixture").expect("write fixture");
+
+        let db = SourceDatabase::open(&source.root).expect("open source db");
+        let (old_size, old_modified_ns) =
+            crate::app::controller::library::wav_io::file_metadata(&old_absolute)
+                .expect("old metadata");
+        db.upsert_file(&old_relative, old_size, old_modified_ns)
+            .expect("insert old row");
+        std::fs::rename(&old_absolute, &new_absolute).expect("rename fixture");
+        let (new_size, new_modified_ns) =
+            crate::app::controller::library::wav_io::file_metadata(&new_absolute)
+                .expect("new metadata");
+        let mut batch = db.write_batch().expect("start rename batch");
+        batch.remove_file(&old_relative).expect("remove old row");
+        batch
+            .upsert_file(&new_relative, new_size, new_modified_ns)
+            .expect("insert new row");
+        batch
+            .remap_analysis_sample_identity(&old_relative, &new_relative)
+            .expect("remap analysis identity");
+        batch.commit().expect("commit rename batch");
+        source_write_priority::record_completed_browser_rename(
+            &source.id,
+            &old_relative,
+            &new_relative,
+        );
+
+        let result = run_metadata_mutation_job(MetadataMutationJob {
+            request_id: 11,
+            source_id: source.id.clone(),
+            source_root: source.root.clone(),
+            paths: [old_relative.clone()].into_iter().collect(),
+            source_ops: Vec::new(),
+            analysis_ops: vec![AnalysisMetadataMutationOp::SetLoadedDuration {
+                relative_path: old_relative.clone(),
+                duration_seconds: 2.5,
+                sample_rate: 44_100,
+                long_sample_mark: Some(false),
+            }],
+        });
+
+        assert!(result.result.is_ok(), "{:?}", result.result);
+        assert!(persisted_duration_seconds(&source, &old_relative).is_none());
+        assert_eq!(
+            persisted_duration_seconds(&source, &new_relative),
+            Some(2.5)
+        );
+    }
+
+    #[test]
+    fn loaded_duration_metadata_job_reports_missing_file_without_rename_mapping() {
+        let temp = tempfile::tempdir().expect("create temp dir");
+        let source = SampleSource::new(temp.path().join("source"));
+        std::fs::create_dir_all(&source.root).expect("create source root");
+        let relative_path = PathBuf::from("missing.wav");
+        let db = SourceDatabase::open(&source.root).expect("open source db");
+        db.upsert_file(&relative_path, 1, 1)
+            .expect("insert source row");
+
+        let result = run_metadata_mutation_job(MetadataMutationJob {
+            request_id: 12,
+            source_id: source.id.clone(),
+            source_root: source.root.clone(),
+            paths: [relative_path.clone()].into_iter().collect(),
+            source_ops: Vec::new(),
+            analysis_ops: vec![AnalysisMetadataMutationOp::SetLoadedDuration {
+                relative_path: relative_path.clone(),
+                duration_seconds: 1.0,
+                sample_rate: 44_100,
+                long_sample_mark: None,
+            }],
+        });
+
+        let err = result.result.expect_err("missing file should still fail");
+        assert!(
+            err.contains("Failed to read") && err.contains("missing.wav"),
+            "expected actionable missing-file error, got: {err}"
         );
     }
 }

@@ -1,13 +1,26 @@
 //! Source-local write-priority windows for browser-owned file operations.
 
 use crate::sample_sources::SourceId;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
 static ACTIVE_FILE_OPS: OnceLock<Mutex<HashMap<SourceId, usize>>> = OnceLock::new();
+static COMPLETED_RENAME_REMAPS: OnceLock<Mutex<CompletedRenameRemaps>> = OnceLock::new();
+const MAX_COMPLETED_RENAME_REMAPS: usize = 512;
+
+#[derive(Debug, Default)]
+struct CompletedRenameRemaps {
+    entries: HashMap<(SourceId, PathBuf), PathBuf>,
+    order: VecDeque<(SourceId, PathBuf)>,
+}
 
 fn active_file_ops() -> &'static Mutex<HashMap<SourceId, usize>> {
     ACTIVE_FILE_OPS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn completed_rename_remaps() -> &'static Mutex<CompletedRenameRemaps> {
+    COMPLETED_RENAME_REMAPS.get_or_init(|| Mutex::new(CompletedRenameRemaps::default()))
 }
 
 /// Mark `source_id` as owning a short file-op write-priority window.
@@ -48,6 +61,44 @@ pub(crate) fn active_file_op_write_priority_sources() -> HashSet<SourceId> {
         .keys()
         .cloned()
         .collect()
+}
+
+/// Remember one successful browser rename so stale queued metadata can follow
+/// the path-derived sample identity remap instead of reading the old path.
+pub(crate) fn record_completed_browser_rename(
+    source_id: &SourceId,
+    old_relative: &Path,
+    new_relative: &Path,
+) {
+    if old_relative == new_relative {
+        return;
+    }
+    let key = (source_id.clone(), old_relative.to_path_buf());
+    let mut remaps = completed_rename_remaps()
+        .lock()
+        .expect("completed browser rename remap mutex poisoned");
+    if !remaps.entries.contains_key(&key) {
+        remaps.order.push_back(key.clone());
+    }
+    remaps.entries.insert(key, new_relative.to_path_buf());
+    while remaps.order.len() > MAX_COMPLETED_RENAME_REMAPS {
+        if let Some(expired) = remaps.order.pop_front() {
+            remaps.entries.remove(&expired);
+        }
+    }
+}
+
+/// Return the new path for a recently completed browser rename.
+pub(crate) fn completed_browser_rename_target(
+    source_id: &SourceId,
+    old_relative: &Path,
+) -> Option<PathBuf> {
+    completed_rename_remaps()
+        .lock()
+        .expect("completed browser rename remap mutex poisoned")
+        .entries
+        .get(&(source_id.clone(), old_relative.to_path_buf()))
+        .cloned()
 }
 
 #[cfg(test)]

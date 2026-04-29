@@ -303,7 +303,14 @@ pub(super) fn perform_sample_rename(
         fallback_user_tag,
     );
     match result {
-        Ok(entry) => Ok(entry),
+        Ok(entry) => {
+            crate::app::controller::library::source_write_priority::record_completed_browser_rename(
+                &source.id,
+                old_relative,
+                new_relative,
+            );
+            Ok(entry)
+        }
         Err(err) => rollback_sample_rename(old_absolute, &new_absolute, err),
     }
 }
