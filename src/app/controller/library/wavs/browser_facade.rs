@@ -273,6 +273,23 @@ impl AppController {
         selection_ops::set_sample_looped_for_source(self, source, path, looped, require_present)
     }
 
+    /// Update the loop marker for multiple sample paths within a specific source.
+    pub(crate) fn set_sample_looped_for_source_batch(
+        &mut self,
+        source: &SampleSource,
+        paths: &[std::path::PathBuf],
+        looped: bool,
+        require_present: bool,
+    ) -> Result<usize, String> {
+        selection_ops::set_sample_looped_for_source_batch(
+            self,
+            source,
+            paths,
+            looped,
+            require_present,
+        )
+    }
+
     /// Update the sound-type metadata for a sample path within a specific source.
     pub(crate) fn set_sample_sound_type_for_source(
         &mut self,
@@ -311,6 +328,17 @@ impl AppController {
         label: &str,
     ) -> Result<(), String> {
         selection_ops::remove_normal_tag_for_source(self, source, path, label)
+    }
+
+    /// Assign or remove one normal library tag for multiple sample paths in one source batch.
+    pub(crate) fn set_normal_tag_for_source_batch(
+        &mut self,
+        source: &SampleSource,
+        paths: &[std::path::PathBuf],
+        label: &str,
+        assigned: bool,
+    ) -> Result<usize, String> {
+        selection_ops::set_normal_tag_for_source_batch(self, source, paths, label, assigned)
     }
 
     /// Return normal library tags for a sample path, using the controller cache when available.
@@ -368,9 +396,7 @@ impl AppController {
             return Err(String::from("No source selected"));
         };
         let target_paths = self.browser_tag_sidebar_target_paths();
-        for path in &target_paths {
-            self.set_sample_looped_for_source(&source, &path, looped, false)?;
-        }
+        self.set_sample_looped_for_source_batch(&source, &target_paths, looped, false)?;
         self.auto_rename_after_tag_sidebar_change(&target_paths)?;
         Ok(())
     }
@@ -407,9 +433,7 @@ impl AppController {
         };
         let resolved_label = self.resolve_browser_normal_tag_label(&source, label)?;
         let target_paths = self.browser_tag_sidebar_target_paths();
-        for path in &target_paths {
-            self.apply_normal_tag_for_source(&source, &path, &resolved_label)?;
-        }
+        self.set_normal_tag_for_source_batch(&source, &target_paths, &resolved_label, true)?;
         self.auto_rename_after_tag_sidebar_change(&target_paths)?;
         Ok(())
     }
@@ -423,9 +447,7 @@ impl AppController {
             return Err(String::from("No source selected"));
         };
         let target_paths = self.browser_tag_sidebar_target_paths();
-        for path in &target_paths {
-            self.remove_normal_tag_for_source(&source, &path, label)?;
-        }
+        self.set_normal_tag_for_source_batch(&source, &target_paths, label, false)?;
         self.auto_rename_after_tag_sidebar_change(&target_paths)?;
         Ok(())
     }

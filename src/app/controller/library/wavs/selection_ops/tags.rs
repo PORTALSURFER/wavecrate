@@ -3,6 +3,7 @@ use crate::app::controller::jobs::SourceMetadataMutationOp;
 use crate::app::controller::state::runtime::MetadataRollback;
 use crate::app_core::actions::NativeBrowserTagState;
 use crate::sample_sources::db::SourceTag;
+use std::collections::BTreeSet;
 
 fn sample_locked_for_source(
     controller: &mut AppController,
@@ -194,49 +195,47 @@ pub(crate) fn set_sample_looped_for_source(
     looped: bool,
     _require_present: bool,
 ) -> Result<(), String> {
-    let before_looped = controller
-        .wav_index_for_path(path)
-        .and_then(|index| controller.wav_entry(index).map(|entry| entry.looped))
-        .or_else(|| {
-            controller
-                .cache
-                .wav
-                .entries
-                .get(&source.id)
-                .and_then(|cache| cache.lookup.get(path).copied())
-                .and_then(|index| controller.cache.wav.entries.get(&source.id)?.entry(index))
-                .map(|entry| entry.looped)
-        })
-        .unwrap_or(false);
-    if let Some(index) = controller.wav_index_for_path(path) {
-        let _ = controller.ensure_wav_page_loaded(index);
-        if let Some(entry) = controller.wav_entries.entry_mut(index) {
-            entry.looped = looped;
-        }
+    set_sample_looped_for_source_batch(
+        controller,
+        source,
+        std::slice::from_ref(&path.to_path_buf()),
+        looped,
+        false,
+    )?;
+    Ok(())
+}
+
+/// Persist and propagate a loop-marker update for a batch of paths in one source.
+pub(crate) fn set_sample_looped_for_source_batch(
+    controller: &mut AppController,
+    source: &SampleSource,
+    paths: &[PathBuf],
+    looped: bool,
+    _require_present: bool,
+) -> Result<usize, String> {
+    let paths = unique_paths(paths);
+    if paths.is_empty() {
+        return Ok(0);
     }
-    if let Some(cache) = controller.cache.wav.entries.get_mut(&source.id)
-        && let Some(index) = cache.lookup.get(path).copied()
-        && let Some(entry) = cache.entry_mut(index)
-    {
-        entry.looped = looped;
+    let mut source_ops = Vec::with_capacity(paths.len());
+    let mut rollback = Vec::with_capacity(paths.len());
+    for path in &paths {
+        let before_looped = looped_for_source_from_controller(controller, source, path);
+        update_looped_caches(controller, &source.id, path, looped);
+        source_ops.push(SourceMetadataMutationOp::SetLooped {
+            relative_path: path.clone(),
+            looped,
+        });
+        rollback.push(MetadataRollback::Looped {
+            relative_path: path.clone(),
+            before_looped,
+            expected_looped: looped,
+        });
     }
     controller.ui_cache.browser.pipeline.invalidate();
     controller.mark_browser_row_metadata_projection_revision_dirty();
-    controller.queue_metadata_mutation(
-        source,
-        vec![SourceMetadataMutationOp::SetLooped {
-            relative_path: path.to_path_buf(),
-            looped,
-        }],
-        Vec::new(),
-        vec![MetadataRollback::Looped {
-            relative_path: path.to_path_buf(),
-            before_looped,
-            expected_looped: looped,
-        }],
-        false,
-    );
-    Ok(())
+    controller.queue_metadata_mutation(source, source_ops, Vec::new(), rollback, false);
+    Ok(paths.len())
 }
 
 /// Persist and propagate a sound-type metadata update for a specific source/path.
@@ -408,20 +407,64 @@ fn set_normal_tag_for_source(
     label: &str,
     assigned: bool,
 ) -> Result<(), String> {
+    set_normal_tag_for_source_batch(
+        controller,
+        source,
+        std::slice::from_ref(&path.to_path_buf()),
+        label,
+        assigned,
+    )?;
+    Ok(())
+}
+
+/// Persist and propagate one normal library tag assignment state for a source batch.
+pub(crate) fn set_normal_tag_for_source_batch(
+    controller: &mut AppController,
+    source: &SampleSource,
+    paths: &[PathBuf],
+    label: &str,
+    assigned: bool,
+) -> Result<usize, String> {
     let identity =
         normalize_normal_tag_label(label).ok_or_else(|| "Tag label cannot be empty".to_string())?;
-    let before_present =
-        normal_tag_assigned_for_source(controller, source, path, &identity.normalized_text)?;
+    let paths = unique_paths(paths);
+    if paths.is_empty() {
+        return Ok(0);
+    }
     #[cfg(test)]
     let optimistic_started_at = std::time::Instant::now();
-    update_normal_tag_cache(
-        controller,
-        &source.id,
-        path,
-        &identity.display_label,
-        &identity.normalized_text,
-        assigned,
-    );
+    let mut source_ops = Vec::with_capacity(paths.len());
+    let mut rollback = Vec::with_capacity(paths.len());
+    for path in &paths {
+        let before_present =
+            normal_tag_assigned_for_source(controller, source, path, &identity.normalized_text)?;
+        update_normal_tag_cache(
+            controller,
+            &source.id,
+            path,
+            &identity.display_label,
+            &identity.normalized_text,
+            assigned,
+        );
+        source_ops.push(if assigned {
+            SourceMetadataMutationOp::AssignNormalTag {
+                relative_path: path.clone(),
+                label: identity.display_label.clone(),
+            }
+        } else {
+            SourceMetadataMutationOp::RemoveNormalTag {
+                relative_path: path.clone(),
+                label: identity.display_label.clone(),
+            }
+        });
+        rollback.push(MetadataRollback::NormalTag {
+            relative_path: path.clone(),
+            normalized_text: identity.normalized_text.clone(),
+            display_label: identity.display_label.clone(),
+            before_present,
+            expected_present: assigned,
+        });
+    }
     controller.ui_cache.browser.pipeline.invalidate();
     controller.mark_browser_row_metadata_projection_revision_dirty();
     controller.mark_browser_search_projection_revision_dirty();
@@ -429,35 +472,12 @@ fn set_normal_tag_for_source(
     crate::app::controller::batch_latency::record(
         crate::app::controller::batch_latency::BatchLatencySample::new(
             crate::app::controller::batch_latency::BatchLatencyPhase::TagSidebarOptimisticTag,
-            1,
+            paths.len(),
             optimistic_started_at.elapsed(),
         ),
     );
-    let op = if assigned {
-        SourceMetadataMutationOp::AssignNormalTag {
-            relative_path: path.to_path_buf(),
-            label: identity.display_label.clone(),
-        }
-    } else {
-        SourceMetadataMutationOp::RemoveNormalTag {
-            relative_path: path.to_path_buf(),
-            label: identity.display_label.clone(),
-        }
-    };
-    controller.queue_metadata_mutation(
-        source,
-        vec![op],
-        Vec::new(),
-        vec![MetadataRollback::NormalTag {
-            relative_path: path.to_path_buf(),
-            normalized_text: identity.normalized_text,
-            display_label: identity.display_label,
-            before_present,
-            expected_present: assigned,
-        }],
-        true,
-    );
-    Ok(())
+    controller.queue_metadata_mutation(source, source_ops, Vec::new(), rollback, true);
+    Ok(paths.len())
 }
 
 pub(crate) fn normal_tags_for_path(
@@ -500,6 +520,56 @@ fn normal_tag_assigned_for_source(
         .any(|tag| tag.normalized_text == normalized_text))
 }
 
+fn unique_paths(paths: &[PathBuf]) -> Vec<PathBuf> {
+    paths
+        .iter()
+        .cloned()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn looped_for_source_from_controller(
+    controller: &mut AppController,
+    source: &SampleSource,
+    path: &Path,
+) -> bool {
+    controller
+        .wav_index_for_path(path)
+        .and_then(|index| controller.wav_entry(index).map(|entry| entry.looped))
+        .or_else(|| {
+            controller
+                .cache
+                .wav
+                .entries
+                .get(&source.id)
+                .and_then(|cache| cache.lookup.get(path).copied())
+                .and_then(|index| controller.cache.wav.entries.get(&source.id)?.entry(index))
+                .map(|entry| entry.looped)
+        })
+        .unwrap_or(false)
+}
+
+fn update_looped_caches(
+    controller: &mut AppController,
+    source_id: &SourceId,
+    path: &Path,
+    looped: bool,
+) {
+    if let Some(index) = controller.wav_index_for_path(path) {
+        let _ = controller.ensure_wav_page_loaded(index);
+        if let Some(entry) = controller.wav_entries.entry_mut(index) {
+            entry.looped = looped;
+        }
+    }
+    if let Some(cache) = controller.cache.wav.entries.get_mut(source_id)
+        && let Some(index) = cache.lookup.get(path).copied()
+        && let Some(entry) = cache.entry_mut(index)
+    {
+        entry.looped = looped;
+    }
+}
+
 fn update_normal_tag_cache(
     controller: &mut AppController,
     source_id: &SourceId,
@@ -508,6 +578,28 @@ fn update_normal_tag_cache(
     normalized_text: &str,
     assigned: bool,
 ) {
+    if let Some(index) = controller.wav_index_for_path(path) {
+        let _ = controller.ensure_wav_page_loaded(index);
+        if let Some(entry) = controller.wav_entries.entry_mut(index) {
+            update_normal_tag_labels(
+                &mut entry.normal_tags,
+                display_label,
+                normalized_text,
+                assigned,
+            );
+        }
+    }
+    if let Some(cache) = controller.cache.wav.entries.get_mut(source_id)
+        && let Some(index) = cache.lookup.get(path).copied()
+        && let Some(entry) = cache.entry_mut(index)
+    {
+        update_normal_tag_labels(
+            &mut entry.normal_tags,
+            display_label,
+            normalized_text,
+            assigned,
+        );
+    }
     let tags = controller
         .ui_cache
         .browser
@@ -535,6 +627,25 @@ fn update_normal_tag_cache(
         });
     } else {
         tags.retain(|tag| tag.normalized_text != normalized_text);
+    }
+}
+
+fn update_normal_tag_labels(
+    labels: &mut Vec<String>,
+    display_label: &str,
+    normalized_text: &str,
+    assigned: bool,
+) {
+    if assigned {
+        if !labels
+            .iter()
+            .any(|label| label.to_ascii_lowercase() == normalized_text)
+        {
+            labels.push(display_label.to_string());
+        }
+        labels.sort_by_key(|label| label.to_ascii_lowercase());
+    } else {
+        labels.retain(|label| label.to_ascii_lowercase() != normalized_text);
     }
 }
 

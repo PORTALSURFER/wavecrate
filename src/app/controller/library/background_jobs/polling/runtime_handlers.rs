@@ -422,7 +422,31 @@ impl AppController {
                     before_present,
                     expected_present,
                 } => {
-                    if let Some(source_id) = self.selection_state.ctx.selected_source.as_ref() {
+                    if let Some(source_id) = self.selection_state.ctx.selected_source.clone() {
+                        if let Some(index) = self.wav_index_for_path(relative_path) {
+                            let _ = self.ensure_wav_page_loaded(index);
+                            if let Some(wav) = self.wav_entries.entry_mut(index) {
+                                rollback_normal_tag_labels(
+                                    &mut wav.normal_tags,
+                                    normalized_text,
+                                    display_label,
+                                    *before_present,
+                                    *expected_present,
+                                );
+                            }
+                        }
+                        if let Some(cache) = self.cache.wav.entries.get_mut(&source_id)
+                            && let Some(index) = cache.lookup.get(relative_path).copied()
+                            && let Some(wav) = cache.entry_mut(index)
+                        {
+                            rollback_normal_tag_labels(
+                                &mut wav.normal_tags,
+                                normalized_text,
+                                display_label,
+                                *before_present,
+                                *expected_present,
+                            );
+                        }
                         let tags = self
                             .ui_cache
                             .browser
@@ -512,4 +536,27 @@ impl AppController {
 fn is_busy_lock_error_message(err: &str) -> bool {
     let lowered = err.to_ascii_lowercase();
     lowered.contains("busy") || lowered.contains("locked")
+}
+
+fn rollback_normal_tag_labels(
+    labels: &mut Vec<String>,
+    normalized_text: &str,
+    display_label: &str,
+    before_present: bool,
+    expected_present: bool,
+) {
+    let current_present = labels
+        .iter()
+        .any(|label| label.to_ascii_lowercase() == normalized_text);
+    if current_present != expected_present {
+        return;
+    }
+    if before_present {
+        if !current_present {
+            labels.push(display_label.to_string());
+            labels.sort_by_key(|label| label.to_ascii_lowercase());
+        }
+    } else {
+        labels.retain(|label| label.to_ascii_lowercase() != normalized_text);
+    }
 }

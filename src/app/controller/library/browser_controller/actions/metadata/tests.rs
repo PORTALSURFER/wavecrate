@@ -161,13 +161,18 @@ fn large_tag_sidebar_auto_rename_batch_reports_controller_phase_timings() {
     );
     assert_eq!(
         phase_samples(&samples, BatchLatencyPhase::TagSidebarOptimisticTag).len(),
+        1,
+        "expected one optimistic tag batch for selected paths: {samples:#?}"
+    );
+    assert_phase_count_at_least(
+        &samples,
+        BatchLatencyPhase::TagSidebarOptimisticTag,
         SAMPLE_COUNT,
-        "expected one optimistic tag sample per selected path: {samples:#?}"
     );
     assert_eq!(
         phase_samples(&samples, BatchLatencyPhase::MetadataMutationQueue).len(),
-        SAMPLE_COUNT,
-        "current baseline should show one queued metadata mutation per tag path: {samples:#?}"
+        1,
+        "expected one queued metadata mutation for the tag batch: {samples:#?}"
     );
     assert_phase_count_at_least(&samples, BatchLatencyPhase::BpmPreload, SAMPLE_COUNT);
     let prepare =
@@ -194,8 +199,8 @@ fn large_tag_sidebar_auto_rename_batch_reports_controller_phase_timings() {
     assert!(
         phase_samples(&samples, BatchLatencyPhase::MetadataMutationQueue)
             .iter()
-            .all(|sample| sample.queue_depth_after == Some(1)),
-        "queue depth evidence should capture the per-path baseline before OPT-229: {samples:#?}"
+            .all(|sample| sample.detail_count == SAMPLE_COUNT),
+        "queue evidence should capture the full OPT-229 tag batch: {samples:#?}"
     );
 }
 

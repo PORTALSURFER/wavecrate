@@ -258,6 +258,136 @@ fn browser_tag_sidebar_multi_selection_tracks_mixed_and_removes_normal_tags() {
 }
 
 #[test]
+fn browser_tag_sidebar_multi_selection_queues_one_normal_tag_metadata_batch() {
+    crate::app::controller::batch_latency::clear();
+    let (mut controller, _source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("three.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    let paths = vec![
+        PathBuf::from("one.wav"),
+        PathBuf::from("two.wav"),
+        PathBuf::from("three.wav"),
+    ];
+    controller.set_browser_selected_paths(paths.clone());
+
+    controller
+        .apply_browser_tag_sidebar_normal_tag("Vintage FX")
+        .expect("assignment should batch selected paths");
+
+    let samples = crate::app::controller::batch_latency::snapshot();
+    let queue_samples = samples
+        .iter()
+        .filter(|sample| {
+            sample.phase
+                == crate::app::controller::batch_latency::BatchLatencyPhase::MetadataMutationQueue
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(queue_samples.len(), 1, "{samples:#?}");
+    assert_eq!(queue_samples[0].item_count, paths.len());
+    assert_eq!(queue_samples[0].detail_count, paths.len());
+    for path in &paths {
+        let index = controller.wav_index_for_path(path).unwrap();
+        assert_eq!(
+            controller.wav_entry(index).unwrap().normal_tags,
+            vec![String::from("Vintage FX")]
+        );
+    }
+}
+
+#[test]
+fn browser_tag_sidebar_multi_selection_queues_one_looped_metadata_batch() {
+    crate::app::controller::batch_latency::clear();
+    let (mut controller, _source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    let paths = vec![PathBuf::from("one.wav"), PathBuf::from("two.wav")];
+    controller.set_browser_selected_paths(paths.clone());
+
+    controller
+        .apply_browser_tag_sidebar_looped(true)
+        .expect("loop marker should batch selected paths");
+
+    let samples = crate::app::controller::batch_latency::snapshot();
+    let queue_samples = samples
+        .iter()
+        .filter(|sample| {
+            sample.phase
+                == crate::app::controller::batch_latency::BatchLatencyPhase::MetadataMutationQueue
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(queue_samples.len(), 1, "{samples:#?}");
+    assert_eq!(queue_samples[0].item_count, paths.len());
+    assert_eq!(queue_samples[0].detail_count, paths.len());
+    for path in &paths {
+        let index = controller.wav_index_for_path(path).unwrap();
+        assert!(controller.wav_entry(index).unwrap().looped);
+    }
+}
+
+#[test]
+fn browser_tag_sidebar_batch_failure_rolls_back_each_normal_tag_row() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    let paths = vec![PathBuf::from("one.wav"), PathBuf::from("two.wav")];
+    controller.set_browser_selected_paths(paths.clone());
+    controller
+        .apply_browser_tag_sidebar_normal_tag("Vintage FX")
+        .expect("assignment should apply optimistically");
+    let request_id = 999;
+    controller
+        .runtime
+        .source_lane
+        .mutations
+        .insert_metadata_mutation(
+            crate::app::controller::state::runtime::PendingMetadataMutation {
+                request_id,
+                source_id: source.id.clone(),
+                paths: paths.iter().cloned().collect(),
+                blocks_file_mutation: true,
+                rollback: paths
+                    .iter()
+                    .map(|path| {
+                        crate::app::controller::state::runtime::MetadataRollback::NormalTag {
+                            relative_path: path.clone(),
+                            normalized_text: String::from("vintage fx"),
+                            display_label: String::from("Vintage FX"),
+                            before_present: false,
+                            expected_present: true,
+                        }
+                    })
+                    .collect(),
+                refresh_browser_projection: true,
+            },
+        );
+
+    controller.handle_metadata_mutation_finished_message(
+        crate::app::controller::jobs::MetadataMutationResult {
+            request_id,
+            source_id: source.id.clone(),
+            paths: paths.iter().cloned().collect(),
+            elapsed: std::time::Duration::ZERO,
+            result: Err(String::from("forced metadata failure")),
+        },
+    );
+
+    assert_eq!(
+        controller
+            .normal_tag_state_for_source(&source, &paths, "Vintage FX")
+            .unwrap(),
+        crate::app_core::actions::NativeBrowserTagState::Off
+    );
+    for path in &paths {
+        let index = controller.wav_index_for_path(path).unwrap();
+        assert!(controller.wav_entry(index).unwrap().normal_tags.is_empty());
+    }
+}
+
+#[test]
 fn rating_filter_rating_keeps_focus_on_next_visible_item() {
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
         sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
