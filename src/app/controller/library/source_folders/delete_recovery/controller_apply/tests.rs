@@ -134,6 +134,7 @@ fn applying_recovery_report_tracks_retained_delete_entries() {
         missing: false,
         last_played_at: Some(12),
         user_tag: None,
+        tag_named: false,
         normal_tags: Vec::new(),
     }];
 

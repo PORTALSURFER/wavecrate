@@ -30,6 +30,7 @@ const UPDATE_SOUND_TYPE_SQL: &str = "UPDATE wav_files SET sound_type = ?1 WHERE 
 const CLEAR_SOUND_TYPE_SQL: &str = "UPDATE wav_files SET sound_type = NULL WHERE path = ?1";
 const UPDATE_USER_TAG_SQL: &str = "UPDATE wav_files SET user_tag = ?1 WHERE path = ?2";
 const CLEAR_USER_TAG_SQL: &str = "UPDATE wav_files SET user_tag = NULL WHERE path = ?1";
+const UPDATE_TAG_NAMED_SQL: &str = "UPDATE wav_files SET tag_named = ?1 WHERE path = ?2";
 const UPDATE_MISSING_SQL: &str = "UPDATE wav_files SET missing = ?1 WHERE path = ?2";
 const UPDATE_LAST_PLAYED_AT_SQL: &str = "UPDATE wav_files SET last_played_at = ?1 WHERE path = ?2";
 const CLEAR_LAST_PLAYED_AT_SQL: &str = "UPDATE wav_files SET last_played_at = NULL WHERE path = ?1";
@@ -85,6 +86,17 @@ impl SourceDatabase {
     ) -> Result<(), SourceDbError> {
         self.mutate_with_batch("source_db.set_user_tag", |batch| {
             batch.set_user_tag(relative_path, user_tag)
+        })
+    }
+
+    /// Persist whether a wav file is named from tag metadata.
+    pub fn set_tag_named(
+        &self,
+        relative_path: &Path,
+        tag_named: bool,
+    ) -> Result<(), SourceDbError> {
+        self.mutate_with_batch("source_db.set_tag_named", |batch| {
+            batch.set_tag_named(relative_path, tag_named)
         })
     }
 
@@ -359,6 +371,15 @@ impl<'conn> SourceWriteBatch<'conn> {
             }
             None => update_path_null_statement(&self.tx, CLEAR_USER_TAG_SQL, relative_path),
         }
+    }
+
+    /// Update the tag-derived filename marker for a wav row within the batch.
+    pub fn set_tag_named(
+        &mut self,
+        relative_path: &Path,
+        tag_named: bool,
+    ) -> Result<(), SourceDbError> {
+        update_flag_statement(&self.tx, UPDATE_TAG_NAMED_SQL, relative_path, tag_named)
     }
 
     /// Update the missing flag for a wav row within the batch.

@@ -194,6 +194,8 @@ pub enum GuiActionKind {
     ToggleBrowserSampleMark,
     /// Toggle whether the browser shows only temporary marked rows.
     ToggleBrowserMarkedFilter,
+    /// Toggle whether the browser shows tag-named rows.
+    ToggleBrowserTagNamedFilter,
     /// Toggle random browser-navigation mode.
     ToggleRandomNavigationMode,
     /// Toggle the browser-local metadata tag sidebar.

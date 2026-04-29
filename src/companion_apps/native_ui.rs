@@ -121,6 +121,8 @@ pub fn standard_browser_panel(config: CompanionBrowserPanelConfig) -> BrowserPan
         active_rating_filters: [false; 8],
         active_playback_age_filters: [false; 3],
         marked_filter_active: false,
+        tag_named_filter_active: false,
+        tag_named_filter_negated: false,
         search_placeholder: config.search_placeholder,
         busy: config.busy,
         source_loading: false,

@@ -14,4 +14,5 @@ pub(crate) use mutations::{
     focus_browser_search, invert_browser_playback_age_filter, invert_browser_rating_filter,
     set_browser_filter, set_browser_playback_age_filter, set_browser_rating_filter,
     set_browser_search, set_browser_sort, toggle_browser_marked_filter,
+    toggle_browser_tag_named_filter,
 };

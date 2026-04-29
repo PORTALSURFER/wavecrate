@@ -31,6 +31,18 @@ pub(crate) fn toggle_browser_marked_filter(controller: &mut AppController) {
     refresh_browser_search_results(controller);
 }
 
+/// Cycle the browser tag-derived filename filter through off, positive, and negated states.
+pub(crate) fn toggle_browser_tag_named_filter(controller: &mut AppController, invert: bool) {
+    let next = controller.ui.browser.search.tag_named_filter.next(invert);
+    if controller.ui.browser.search.tag_named_filter == next {
+        return;
+    }
+    controller.ui.browser.search.tag_named_filter = next;
+    crate::app::controller::library::wavs::cancel_pending_similarity_filter_rebuild(controller);
+    controller.mark_browser_search_projection_revision_dirty();
+    refresh_browser_search_results(controller);
+}
+
 /// Update the browser rating filter selection.
 pub(crate) fn set_browser_rating_filter(controller: &mut AppController, level: i8, additive: bool) {
     if !(-3..=4).contains(&level) {

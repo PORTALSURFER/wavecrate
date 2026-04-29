@@ -81,6 +81,8 @@ pub(in super::super) fn filtered_stage_for_job(
             &job.playback_age_filter,
             job.marked_only,
             marked,
+            job.tag_named_filter,
+            entry.tag_named,
             entry.tag,
             entry.locked,
             entry.last_played_at,
@@ -125,6 +127,7 @@ fn filter_stage_required(job: &SearchJob, has_folder_filters: bool) -> bool {
         || !job.rating_filter.is_empty()
         || !job.playback_age_filter.is_empty()
         || job.marked_only
+        || job.tag_named_filter != crate::app::state::TagNamedFilter::All
 }
 
 fn filter_stage_hash(
@@ -143,6 +146,7 @@ fn filter_stage_hash(
         ),
         job.marked_only,
         job.marked_only.then_some(hash_value(&job.marked_paths)),
+        job.tag_named_filter,
         has_folder_filters.then_some(super::super::folder_filter_hash_for_job(job)),
     ))
 }
@@ -228,6 +232,7 @@ mod tests {
                 tag: Rating::NEUTRAL,
                 locked: false,
                 last_played_at: Some(100),
+                tag_named: false,
             }]),
             ..SearchWorkerCache::default()
         };
@@ -253,6 +258,7 @@ mod tests {
                     tag: Rating::KEEP_1,
                     locked: false,
                     last_played_at: None,
+                    tag_named: false,
                 },
                 CompactSearchEntry {
                     display_label: "trash".into(),
@@ -260,6 +266,7 @@ mod tests {
                     tag: Rating::TRASH_1,
                     locked: false,
                     last_played_at: None,
+                    tag_named: false,
                 },
             ]),
             ..SearchWorkerCache::default()
@@ -300,6 +307,7 @@ mod tests {
             rating_filter: BTreeSet::new(),
             playback_age_filter: BTreeSet::new(),
             marked_only: false,
+            tag_named_filter: crate::app::state::TagNamedFilter::All,
             marked_paths: BTreeSet::new(),
             sort: SampleBrowserSort::ListOrder,
             similar_query: None,

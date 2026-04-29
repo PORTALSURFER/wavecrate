@@ -33,6 +33,8 @@ pub struct PendingRenameEntry {
     pub user_tag: Option<String>,
     /// Last known normal library tag labels assigned to this sample.
     pub normal_tags: Vec<String>,
+    /// Whether the sample filename was known to be tag-derived.
+    pub tag_named: bool,
 }
 
 impl PendingRenameEntry {
@@ -51,6 +53,7 @@ impl PendingRenameEntry {
             last_played_at: self.last_played_at,
             user_tag: self.user_tag,
             normal_tags: self.normal_tags,
+            tag_named: self.tag_named,
         }
     }
 }
@@ -95,6 +98,7 @@ impl SourceDatabase {
                     last_played_at: row.get(8)?,
                     user_tag: row.get(9)?,
                     normal_tags: decode_normal_tags(row.get(10)?),
+                    tag_named: row.get::<_, i64>(11)? != 0,
                 }))
             })
             .map_err(map_sql_error)?
@@ -115,8 +119,8 @@ impl<'conn> SourceWriteBatch<'conn> {
         self.tx
             .prepare_cached(
                 "INSERT INTO pending_wav_renames (
-                     path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, user_tag, normal_tags
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+                     path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, last_played_at, user_tag, normal_tags, tag_named
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
                  ON CONFLICT(path) DO UPDATE SET
                      file_size = excluded.file_size,
                      modified_ns = excluded.modified_ns,
@@ -127,7 +131,8 @@ impl<'conn> SourceWriteBatch<'conn> {
                      locked = excluded.locked,
                      last_played_at = excluded.last_played_at,
                      user_tag = excluded.user_tag,
-                     normal_tags = excluded.normal_tags",
+                     normal_tags = excluded.normal_tags,
+                     tag_named = excluded.tag_named",
             )
             .map_err(map_sql_error)?
             .execute(params![
@@ -142,6 +147,7 @@ impl<'conn> SourceWriteBatch<'conn> {
                 entry.last_played_at,
                 entry.user_tag.as_deref(),
                 normal_tags.as_deref(),
+                entry.tag_named as i64,
             ])
             .map_err(map_sql_error)?;
         Ok(())
@@ -241,6 +247,7 @@ impl<'conn> SourceWriteBatch<'conn> {
                     last_played_at: row.get(8)?,
                     user_tag: row.get(9)?,
                     normal_tags: decode_normal_tags(row.get(10)?),
+                    tag_named: row.get::<_, i64>(11)? != 0,
                 })
             })
             .map_err(map_sql_error)?
@@ -280,8 +287,13 @@ fn pending_rename_select_with_where(
     } else {
         "NULL AS normal_tags".to_string()
     };
+    let tag_named_column = if columns.contains("tag_named") {
+        "tag_named".to_string()
+    } else {
+        "0 AS tag_named".to_string()
+    };
     Ok(format!(
-        "SELECT path, file_size, modified_ns, content_hash, tag, looped, {sound_type_column}, locked, last_played_at, {user_tag_column}, {normal_tags_column}
+        "SELECT path, file_size, modified_ns, content_hash, tag, looped, {sound_type_column}, locked, last_played_at, {user_tag_column}, {normal_tags_column}, {tag_named_column}
          FROM pending_wav_renames
          WHERE {predicate_sql}"
     ))

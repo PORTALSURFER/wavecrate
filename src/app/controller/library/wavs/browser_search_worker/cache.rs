@@ -11,6 +11,7 @@ pub(super) struct CompactSearchEntry {
     pub(super) tag: Rating,
     pub(super) locked: bool,
     pub(super) last_played_at: Option<i64>,
+    pub(super) tag_named: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

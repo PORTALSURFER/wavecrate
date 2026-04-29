@@ -269,6 +269,9 @@ pub struct WavEntry {
     /// Normal library tag labels assigned to the sample.
     #[serde(default)]
     pub normal_tags: Vec<String>,
+    /// True when the sample filename is known to have been produced from tag metadata.
+    #[serde(default)]
+    pub tag_named: bool,
 }
 
 /// One normal library tag stored in a source database.

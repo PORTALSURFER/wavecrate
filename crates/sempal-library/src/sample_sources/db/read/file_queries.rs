@@ -17,6 +17,8 @@ pub struct SearchEntryMetadata {
     pub last_played_at: Option<i64>,
     /// Normal library tag labels assigned to the row.
     pub normal_tags: Vec<String>,
+    /// Whether the filename is known to be tag-derived.
+    pub tag_named: bool,
 }
 
 /// Lightweight browser-search row snapshot with only path and worker metadata.
@@ -97,7 +99,8 @@ fn decode_search_entry_row(
     let tag = Rating::from_i64(row.get::<_, i64>(1)?);
     let locked = row.get::<_, i64>(2)? != 0;
     let last_played_at = row.get::<_, Option<i64>>(3)?;
-    let normal_tags = decode_normal_tag_json(row.get(4)?);
+    let tag_named = row.get::<_, i64>(4)? != 0;
+    let normal_tags = decode_normal_tag_json(row.get(5)?);
     Ok(Some(SearchEntryRow {
         relative_path,
         metadata: SearchEntryMetadata {
@@ -105,6 +108,7 @@ fn decode_search_entry_row(
             locked,
             last_played_at,
             normal_tags,
+            tag_named,
         },
     }))
 }
@@ -116,7 +120,8 @@ fn decode_search_entry_metadata(
         tag: Rating::from_i64(row.get::<_, i64>(0)?),
         locked: row.get::<_, i64>(1)? != 0,
         last_played_at: row.get::<_, Option<i64>>(2)?,
-        normal_tags: decode_normal_tag_json(row.get(3)?),
+        tag_named: row.get::<_, i64>(3)? != 0,
+        normal_tags: decode_normal_tag_json(row.get(4)?),
     })
 }
 
@@ -305,7 +310,7 @@ impl SourceDatabase {
         let filter = supported_audio_filter();
         let normal_tags = normal_tags_select_sql("wav_files.path");
         let sql = format!(
-            "SELECT path, tag, locked, last_played_at, {normal_tags}
+            "SELECT path, tag, locked, last_played_at, tag_named, {normal_tags}
              FROM wav_files
              WHERE {filter}
              ORDER BY path ASC"
@@ -331,7 +336,7 @@ impl SourceDatabase {
         for batch in paths.chunks(900) {
             let normal_tags = normal_tags_select_sql("wav_files.path");
             let sql = format!(
-                "SELECT path, tag, locked, last_played_at, {normal_tags}
+                "SELECT path, tag, locked, last_played_at, tag_named, {normal_tags}
                  FROM wav_files
                  WHERE {filter}
                    AND path IN ({})
@@ -357,7 +362,7 @@ impl SourceDatabase {
         let filter = supported_audio_filter();
         let normal_tags = normal_tags_select_sql("wav_files.path");
         let sql = format!(
-            "SELECT tag, locked, last_played_at, {normal_tags}
+            "SELECT tag, locked, last_played_at, tag_named, {normal_tags}
              FROM wav_files
              WHERE {filter}
              ORDER BY path ASC"

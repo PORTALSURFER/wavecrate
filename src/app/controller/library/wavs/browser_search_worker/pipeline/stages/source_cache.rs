@@ -213,6 +213,7 @@ fn refresh_cached_entry_metadata_delta(
         entry.tag = row.metadata.tag;
         entry.locked = row.metadata.locked;
         entry.last_played_at = row.metadata.last_played_at;
+        entry.tag_named = row.metadata.tag_named;
         entry.display_label =
             compact_search_display_label(&row.relative_path, &row.metadata).into_boxed_str();
         updated = updated.saturating_add(1);
@@ -235,6 +236,7 @@ fn refresh_cached_entry_metadata(
         cached.tag = metadata.tag;
         cached.locked = metadata.locked;
         cached.last_played_at = metadata.last_played_at;
+        cached.tag_named = metadata.tag_named;
     }
 }
 
@@ -276,6 +278,7 @@ fn compact_search_entry_for(
         tag: entry.metadata.tag,
         locked: entry.metadata.locked,
         last_played_at: entry.metadata.last_played_at,
+        tag_named: entry.metadata.tag_named,
     }
 }
 

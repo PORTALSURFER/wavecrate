@@ -109,6 +109,8 @@ fn apply_browser_frame(model: &mut NativeAppModel, frame: NativeBrowserPanelMode
     model.browser.active_rating_filters = frame.active_rating_filters;
     model.browser.active_playback_age_filters = frame.active_playback_age_filters;
     model.browser.marked_filter_active = frame.marked_filter_active;
+    model.browser.tag_named_filter_active = frame.tag_named_filter_active;
+    model.browser.tag_named_filter_negated = frame.tag_named_filter_negated;
     model.browser.search_placeholder = frame.search_placeholder;
     model.browser.busy = frame.busy;
     model.browser.similarity_filtered = frame.similarity_filtered;

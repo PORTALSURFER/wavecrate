@@ -44,6 +44,14 @@ pub(crate) fn project_browser_panel_frame_model(
     let active_playback_age_filters =
         browser_playback_age_filter_flags(&controller.ui.browser.search.playback_age_filter);
     let marked_filter_active = controller.ui.browser.search.marked_only;
+    let tag_named_filter_active = !matches!(
+        controller.ui.browser.search.tag_named_filter,
+        crate::app::state::TagNamedFilter::All
+    );
+    let tag_named_filter_negated = matches!(
+        controller.ui.browser.search.tag_named_filter,
+        crate::app::state::TagNamedFilter::NotTagNamed
+    );
     let search_placeholder = Some(super::browser_search_placeholder(
         controller.ui.browser.search.search_focus_requested,
     ));
@@ -71,6 +79,8 @@ pub(crate) fn project_browser_panel_frame_model(
         active_rating_filters,
         active_playback_age_filters,
         marked_filter_active,
+        tag_named_filter_active,
+        tag_named_filter_negated,
         search_placeholder,
         busy,
         source_loading: controller.ui.browser.search.source_loading,

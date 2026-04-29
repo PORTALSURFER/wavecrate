@@ -10,6 +10,7 @@ pub(super) fn ensure_filtered_stage(
     playback_age_filter_hash: u64,
     playback_age_cache_token: Option<i64>,
     marked_only: bool,
+    tag_named_filter: crate::app::state::TagNamedFilter,
     playback_age_now_unix_secs: i64,
     marked_revision: u64,
     selected_source_id: Option<&crate::sample_sources::SourceId>,
@@ -22,6 +23,7 @@ pub(super) fn ensure_filtered_stage(
         playback_age_filter_hash,
         playback_age_cache_token,
         marked_only,
+        tag_named_filter,
         marked_revision,
         folder_hash,
     );
@@ -32,6 +34,7 @@ pub(super) fn ensure_filtered_stage(
             rating_filter,
             playback_age_filter,
             marked_only,
+            tag_named_filter,
         ) {
             controller.ui_cache.browser.pipeline.filtered_rows = retained_rows.to_vec();
             controller.ui_cache.browser.pipeline.filtered_fingerprint = Some(filtered_fingerprint);
@@ -43,7 +46,7 @@ pub(super) fn ensure_filtered_stage(
         let (candidate_rows, needs_folder_check) = filtered_stage_candidates(controller, filter);
         let mut filtered_rows = Vec::with_capacity(candidate_rows.len());
         for &index in candidate_rows {
-            let Some((tag, locked, last_played_at, marked)) = filter_stage_entry(
+            let Some((tag, locked, last_played_at, marked, tag_named)) = filter_stage_entry(
                 controller,
                 index,
                 marked_only.then_some(selected_source_id).flatten(),
@@ -56,6 +59,8 @@ pub(super) fn ensure_filtered_stage(
                 playback_age_filter,
                 marked_only,
                 marked,
+                tag_named_filter,
+                tag_named,
                 tag,
                 locked,
                 last_played_at,
@@ -83,6 +88,7 @@ pub(super) fn filtered_stage_fingerprint(
     playback_age_filter_hash: u64,
     playback_age_cache_token: Option<i64>,
     marked_only: bool,
+    tag_named_filter: crate::app::state::TagNamedFilter,
     marked_revision: u64,
     folder_hash: u64,
 ) -> u64 {
@@ -95,6 +101,7 @@ pub(super) fn filtered_stage_fingerprint(
         playback_age_filter_hash,
         playback_age_cache_token,
         marked_only,
+        tag_named_filter,
         marked_only.then_some(marked_revision),
         folder_hash,
     ))
@@ -106,8 +113,13 @@ fn retained_filter_only_rows<'a>(
     rating_filter: &std::collections::BTreeSet<i8>,
     playback_age_filter: &std::collections::BTreeSet<crate::app::state::PlaybackAgeFilterChip>,
     marked_only: bool,
+    tag_named_filter: crate::app::state::TagNamedFilter,
 ) -> Option<&'a [usize]> {
-    if marked_only || !rating_filter.is_empty() || !playback_age_filter.is_empty() {
+    if marked_only
+        || !rating_filter.is_empty()
+        || !playback_age_filter.is_empty()
+        || tag_named_filter != crate::app::state::TagNamedFilter::All
+    {
         return None;
     }
     let pipeline = &controller.ui_cache.browser.pipeline;
@@ -157,7 +169,7 @@ fn filter_stage_entry(
     controller: &AppController,
     index: usize,
     selected_source_id: Option<&crate::sample_sources::SourceId>,
-) -> Option<(Rating, bool, Option<i64>, bool)> {
+) -> Option<(Rating, bool, Option<i64>, bool, bool)> {
     let entry = controller
         .ui_cache
         .browser
@@ -171,5 +183,11 @@ fn filter_stage_entry(
             .marks
             .contains(source_id, &entry.relative_path)
     });
-    Some((entry.tag, entry.locked, entry.last_played_at, marked))
+    Some((
+        entry.tag,
+        entry.locked,
+        entry.last_played_at,
+        marked,
+        entry.tag_named,
+    ))
 }

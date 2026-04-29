@@ -71,6 +71,7 @@ impl BrowserController<'_> {
                 locked,
                 sound_type,
                 user_tag,
+                tag_named: stem.tag_based,
                 last_played_at,
                 resume_playback: is_currently_loaded && is_playing,
                 resume_looped,

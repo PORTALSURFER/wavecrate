@@ -404,6 +404,11 @@ pub enum UiAction {
     ToggleBrowserSampleMark,
     /// Toggle whether the browser shows only session-marked samples.
     ToggleBrowserMarkedFilter,
+    /// Toggle whether the browser shows samples already named from tags.
+    ToggleBrowserTagNamedFilter {
+        /// Whether the click should show samples not yet named from tags.
+        invert: bool,
+    },
     /// Toggle sticky random navigation mode for browser next/previous stepping.
     ToggleRandomNavigationMode,
     /// Toggle the browser-local metadata tag sidebar.
@@ -1348,6 +1353,9 @@ impl From<compat::UiAction> for UiAction {
             }
             compat::UiAction::ToggleBrowserSampleMark => Self::ToggleBrowserSampleMark,
             compat::UiAction::ToggleBrowserMarkedFilter => Self::ToggleBrowserMarkedFilter,
+            compat::UiAction::ToggleBrowserTagNamedFilter { invert } => {
+                Self::ToggleBrowserTagNamedFilter { invert: invert }
+            }
             compat::UiAction::ToggleRandomNavigationMode => Self::ToggleRandomNavigationMode,
             compat::UiAction::ToggleBrowserTagSidebar => Self::ToggleBrowserTagSidebar,
             compat::UiAction::ToggleBrowserTagSidebarAutoRename => {
@@ -1932,6 +1940,9 @@ impl From<UiAction> for compat::UiAction {
             }
             UiAction::ToggleBrowserSampleMark => Self::ToggleBrowserSampleMark,
             UiAction::ToggleBrowserMarkedFilter => Self::ToggleBrowserMarkedFilter,
+            UiAction::ToggleBrowserTagNamedFilter { invert } => {
+                Self::ToggleBrowserTagNamedFilter { invert: invert }
+            }
             UiAction::ToggleRandomNavigationMode => Self::ToggleRandomNavigationMode,
             UiAction::ToggleBrowserTagSidebar => Self::ToggleBrowserTagSidebar,
             UiAction::ToggleBrowserTagSidebarAutoRename => Self::ToggleBrowserTagSidebarAutoRename,

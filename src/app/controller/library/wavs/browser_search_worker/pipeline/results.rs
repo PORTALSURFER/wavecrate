@@ -123,6 +123,7 @@ mod tests {
                         },
                         locked: false,
                         last_played_at: None,
+                        tag_named: false,
                     })
                     .collect(),
             ),
@@ -152,6 +153,7 @@ mod tests {
             rating_filter: BTreeSet::new(),
             playback_age_filter: BTreeSet::new(),
             marked_only: false,
+            tag_named_filter: crate::app::state::TagNamedFilter::All,
             marked_paths: BTreeSet::new(),
             sort: SampleBrowserSort::ListOrder,
             similar_query: None,

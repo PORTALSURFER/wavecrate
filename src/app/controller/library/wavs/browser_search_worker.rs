@@ -56,6 +56,7 @@ mod tests {
                 missing: false,
                 last_played_at: None,
                 user_tag: None,
+                tag_named: false,
                 normal_tags: Vec::new(),
             },
             WavEntry {
@@ -70,6 +71,7 @@ mod tests {
                 missing: false,
                 last_played_at: None,
                 user_tag: None,
+                tag_named: false,
                 normal_tags: Vec::new(),
             },
         ];
@@ -85,6 +87,7 @@ mod tests {
                     tag: e.tag,
                     locked: e.locked,
                     last_played_at: e.last_played_at,
+                    tag_named: e.tag_named,
                 }
             })
             .collect();
@@ -226,6 +229,7 @@ mod tests {
             tag,
             locked: false,
             last_played_at: None,
+            tag_named: false,
         }
     }
 
@@ -239,6 +243,7 @@ mod tests {
             rating_filter: BTreeSet::new(),
             playback_age_filter: BTreeSet::new(),
             marked_only: false,
+            tag_named_filter: crate::app::state::TagNamedFilter::All,
             marked_paths: BTreeSet::new(),
             sort: SampleBrowserSort::ListOrder,
             similar_query: None,

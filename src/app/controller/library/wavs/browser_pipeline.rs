@@ -118,11 +118,13 @@ impl BrowserPipelineCache {
         let previous_tag = compact.tag;
         let previous_locked = compact.locked;
         let previous_last_played_at = compact.last_played_at;
+        let previous_tag_named = compact.tag_named;
         compact.tag = entry.tag;
         compact.looped = entry.looped;
         compact.locked = entry.locked;
         compact.missing = entry.missing;
         compact.last_played_at = entry.last_played_at;
+        compact.tag_named = entry.tag_named;
         if previous_tag != entry.tag {
             self.update_triage_partition_membership(index, previous_tag, entry.tag);
         }
@@ -132,6 +134,7 @@ impl BrowserPipelineCache {
         if previous_tag != entry.tag
             || previous_locked != entry.locked
             || previous_last_played_at != entry.last_played_at
+            || previous_tag_named != entry.tag_named
         {
             self.invalidate_filter_and_sort_stages();
         }
@@ -151,12 +154,14 @@ impl BrowserPipelineCache {
         let previous_tag = compact.tag;
         let previous_locked = compact.locked;
         let previous_last_played_at = compact.last_played_at;
+        let previous_tag_named = compact.tag_named;
         compact.relative_path = entry.relative_path.clone();
         compact.tag = entry.tag;
         compact.looped = entry.looped;
         compact.locked = entry.locked;
         compact.missing = entry.missing;
         compact.last_played_at = entry.last_played_at;
+        compact.tag_named = entry.tag_named;
         if previous_tag != entry.tag {
             self.update_triage_partition_membership(index, previous_tag, entry.tag);
         }
@@ -179,6 +184,7 @@ impl BrowserPipelineCache {
             || previous_tag != entry.tag
             || previous_locked != entry.locked
             || previous_last_played_at != entry.last_played_at
+            || previous_tag_named != entry.tag_named
         {
             self.invalidate_filter_and_sort_stages();
         }
@@ -318,6 +324,7 @@ struct CompactBrowserEntry {
     locked: bool,
     missing: bool,
     last_played_at: Option<i64>,
+    tag_named: bool,
 }
 
 impl CompactBrowserEntry {
@@ -330,6 +337,7 @@ impl CompactBrowserEntry {
             locked: entry.locked,
             missing: entry.missing,
             last_played_at: entry.last_played_at,
+            tag_named: entry.tag_named,
         }
     }
 }
@@ -349,6 +357,8 @@ pub(crate) struct BrowserProjectionEntryRef<'a> {
     pub(crate) missing: bool,
     /// Last-played timestamp used for playback-age buckets.
     pub(crate) last_played_at: Option<i64>,
+    /// Whether the sample filename is known to be tag-derived.
+    pub(crate) tag_named: bool,
 }
 
 impl<'a> BrowserProjectionEntryRef<'a> {
@@ -361,6 +371,7 @@ impl<'a> BrowserProjectionEntryRef<'a> {
             locked: entry.locked,
             missing: entry.missing,
             last_played_at: entry.last_played_at,
+            tag_named: entry.tag_named,
         }
     }
 
@@ -373,6 +384,7 @@ impl<'a> BrowserProjectionEntryRef<'a> {
             locked: entry.locked,
             missing: entry.missing,
             last_played_at: entry.last_played_at,
+            tag_named: entry.tag_named,
         }
     }
 }

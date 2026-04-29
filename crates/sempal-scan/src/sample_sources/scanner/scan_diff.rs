@@ -212,6 +212,7 @@ fn apply_rename(
     if entry.user_tag.is_some() {
         batch.set_user_tag(new_path, entry.user_tag.as_deref())?;
     }
+    batch.set_tag_named(new_path, entry.tag_named)?;
     if let Some(normal_tags) = retained_normal_tags {
         batch.replace_tags_for_path(new_path, normal_tags)?;
     } else {
@@ -246,6 +247,7 @@ fn apply_rename_without_hash(
     if entry.user_tag.is_some() {
         batch.set_user_tag(new_path, entry.user_tag.as_deref())?;
     }
+    batch.set_tag_named(new_path, entry.tag_named)?;
     if let Some(normal_tags) = retained_normal_tags {
         batch.replace_tags_for_path(new_path, normal_tags)?;
     } else {
@@ -339,6 +341,7 @@ mod tests {
             missing: false,
             last_played_at: None,
             user_tag: None,
+            tag_named: false,
             normal_tags: Vec::new(),
         }
     }

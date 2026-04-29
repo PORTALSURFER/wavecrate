@@ -163,6 +163,7 @@ pub(crate) struct SampleAutoRenameRequest {
     /// source DB row does not already store one.
     pub(crate) sound_type: Option<crate::sample_sources::SampleSoundType>,
     pub(crate) user_tag: Option<String>,
+    pub(crate) tag_named: bool,
     pub(crate) last_played_at: Option<i64>,
     pub(crate) resume_playback: bool,
     pub(crate) resume_looped: bool,
@@ -203,6 +204,7 @@ fn run_sample_rename_job(
         ctx.entry.last_played_at,
         fallback_sound_type,
         ctx.entry.user_tag.clone(),
+        None,
     );
     SampleRenameResult {
         source_id: ctx.source.id,
@@ -236,10 +238,23 @@ pub(crate) fn run_sample_auto_rename_job(
         }
         let old_absolute = source.root.join(&request.old_relative);
         if request.old_relative == request.new_relative {
-            skipped.push((
-                request.old_relative,
-                String::from("Already matches auto-rename format"),
-            ));
+            match mark_sample_tag_named(&source, &request.old_relative, request.tag_named).and_then(
+                |entry| {
+                    entry.ok_or_else(|| {
+                        format!("Sample not found: {}", request.old_relative.display())
+                    })
+                },
+            ) {
+                Ok(entry) => renamed.push(SampleAutoRenameSuccess {
+                    old_relative: request.old_relative.clone(),
+                    new_relative: request.new_relative.clone(),
+                    entry,
+                    resume_playback: request.resume_playback,
+                    resume_looped: request.resume_looped,
+                    resume_start_override: request.resume_start_override,
+                }),
+                Err(err) => errors.push((request.old_relative, err)),
+            }
             continue;
         }
         match perform_sample_rename(
@@ -253,6 +268,7 @@ pub(crate) fn run_sample_auto_rename_job(
             request.last_played_at,
             request.sound_type,
             request.user_tag,
+            Some(request.tag_named),
         ) {
             Ok(entry) => renamed.push(SampleAutoRenameSuccess {
                 old_relative: request.old_relative,
@@ -286,6 +302,7 @@ pub(super) fn perform_sample_rename(
     fallback_last_played_at: Option<i64>,
     fallback_sound_type: Option<crate::sample_sources::SampleSoundType>,
     fallback_user_tag: Option<String>,
+    fallback_tag_named: Option<bool>,
 ) -> Result<WavEntry, String> {
     let new_absolute = source.root.join(new_relative);
     std::fs::rename(old_absolute, &new_absolute)
@@ -301,6 +318,7 @@ pub(super) fn perform_sample_rename(
         fallback_last_played_at,
         fallback_sound_type,
         fallback_user_tag,
+        fallback_tag_named,
     );
     match result {
         Ok(entry) => {
@@ -339,6 +357,7 @@ fn persist_sample_rename_with_retry(
     fallback_last_played_at: Option<i64>,
     fallback_sound_type: Option<crate::sample_sources::SampleSoundType>,
     fallback_user_tag: Option<String>,
+    fallback_tag_named: Option<bool>,
 ) -> Result<WavEntry, String> {
     let mut last_err = None;
     for attempt in 0..SAMPLE_RENAME_DB_RETRIES {
@@ -353,6 +372,7 @@ fn persist_sample_rename_with_retry(
             fallback_last_played_at,
             fallback_sound_type,
             fallback_user_tag.clone(),
+            fallback_tag_named,
         ) {
             Ok(entry) => return Ok(entry),
             Err(err) if attempt + 1 < SAMPLE_RENAME_DB_RETRIES && is_busy_lock_error(&err) => {
@@ -384,6 +404,7 @@ fn persist_sample_rename_once(
     fallback_last_played_at: Option<i64>,
     fallback_sound_type: Option<crate::sample_sources::SampleSoundType>,
     fallback_user_tag: Option<String>,
+    fallback_tag_named: Option<bool>,
 ) -> Result<WavEntry, String> {
     let (file_size, modified_ns) = file_metadata(new_absolute)?;
     let db = crate::sample_sources::SourceDatabase::open(&source.root)
@@ -407,6 +428,11 @@ fn persist_sample_rename_once(
         .user_tag_for_path(old_relative)
         .map_err(|err| format!("Failed to load custom tag: {err}"))?;
     let user_tag = user_tag.or(fallback_user_tag);
+    let tag_named = db
+        .tag_named_for_path(old_relative)
+        .map_err(|err| format!("Failed to load tag-name marker: {err}"))?
+        .or(fallback_tag_named)
+        .unwrap_or(false);
     let mut batch = db
         .write_batch()
         .map_err(|err| format!("Failed to start database update: {err}"))?;
@@ -428,6 +454,9 @@ fn persist_sample_rename_once(
     batch
         .set_user_tag(new_relative, user_tag.as_deref())
         .map_err(|err| format!("Failed to copy custom tag: {err}"))?;
+    batch
+        .set_tag_named(new_relative, tag_named)
+        .map_err(|err| format!("Failed to copy tag-name marker: {err}"))?;
     if let Some(last_played_at) = last_played_at {
         batch
             .set_last_played_at(new_relative, last_played_at)
@@ -461,7 +490,21 @@ fn persist_sample_rename_once(
         last_played_at: last_played_at.or(fallback_last_played_at),
         user_tag,
         normal_tags,
+        tag_named,
     })
+}
+
+fn mark_sample_tag_named(
+    source: &SampleSource,
+    relative_path: &Path,
+    tag_named: bool,
+) -> Result<Option<WavEntry>, String> {
+    let db = crate::sample_sources::SourceDatabase::open(&source.root)
+        .map_err(|err| format!("Database unavailable: {err}"))?;
+    db.set_tag_named(relative_path, tag_named)
+        .map_err(|err| format!("Failed to mark tag-name status: {err}"))?;
+    db.entry_for_path(relative_path)
+        .map_err(|err| format!("Failed to reload tag-name marker: {err}"))
 }
 
 fn is_busy_lock_error(err: &str) -> bool {

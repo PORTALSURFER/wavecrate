@@ -316,6 +316,7 @@ impl AppController {
                             .wav_index_for_path(&message.relative_path)
                             .and_then(|idx| self.wav_entries.entry(idx))
                             .and_then(|e| e.user_tag.clone()),
+                        tag_named: false,
                         normal_tags: self
                             .ui_cache
                             .browser

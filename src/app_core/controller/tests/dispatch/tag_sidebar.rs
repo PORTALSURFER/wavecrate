@@ -86,6 +86,7 @@ fn wav_entry(name: &str) -> WavEntry {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        tag_named: false,
         normal_tags: Vec::new(),
     }
 }

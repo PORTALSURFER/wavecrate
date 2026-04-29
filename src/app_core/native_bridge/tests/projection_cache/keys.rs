@@ -156,6 +156,7 @@ fn projection_cache_key_changes_when_browser_sidebar_selected_visible_target_cha
             missing: false,
             last_played_at: None,
             user_tag: None,
+            tag_named: false,
             normal_tags: Vec::new(),
         },
         crate::sample_sources::WavEntry {
@@ -170,6 +171,7 @@ fn projection_cache_key_changes_when_browser_sidebar_selected_visible_target_cha
             missing: false,
             last_played_at: None,
             user_tag: None,
+            tag_named: false,
             normal_tags: Vec::new(),
         },
     ]);

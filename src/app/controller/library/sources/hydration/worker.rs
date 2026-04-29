@@ -210,6 +210,7 @@ mod tests {
                 missing: false,
                 last_played_at: None,
                 user_tag: None,
+                tag_named: false,
                 normal_tags: Vec::new(),
             },
             WavEntry {
@@ -224,6 +225,7 @@ mod tests {
                 missing: false,
                 last_played_at: None,
                 user_tag: None,
+                tag_named: false,
                 normal_tags: Vec::new(),
             },
         ];
@@ -258,6 +260,7 @@ mod tests {
             missing: false,
             last_played_at: None,
             user_tag: None,
+            tag_named: false,
             normal_tags: Vec::new(),
         }];
 
@@ -287,6 +290,7 @@ mod tests {
             missing: false,
             last_played_at: None,
             user_tag: None,
+            tag_named: false,
             normal_tags: Vec::new(),
         }];
 

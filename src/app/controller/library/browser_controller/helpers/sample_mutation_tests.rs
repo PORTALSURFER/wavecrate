@@ -36,6 +36,7 @@ fn sample_rename_rolls_back_file_when_db_write_cannot_start() {
         None,
         Some(SampleSoundType::Kick),
         Some(String::from("Vintage")),
+        None,
     );
 
     release_db_lock(lock_release_tx, lock_done_rx);
@@ -105,6 +106,7 @@ fn sample_rename_preserves_locked_and_metadata_on_success() {
         None,
         Some(SampleSoundType::Kick),
         Some(String::from("Vintage")),
+        None,
     )
     .expect("rename should succeed");
 
@@ -281,6 +283,7 @@ fn sample_auto_rename_persists_inferred_sound_type_without_controller_db_write()
             locked: false,
             sound_type: Some(SampleSoundType::Kick),
             user_tag: None,
+            tag_named: true,
             last_played_at: None,
             resume_playback: false,
             resume_looped: false,
@@ -296,6 +299,49 @@ fn sample_auto_rename_persists_inferred_sound_type_without_controller_db_write()
     assert_eq!(
         db.sound_type_for_path(renamed).expect("renamed sound type"),
         Some(SampleSoundType::Kick)
+    );
+}
+
+#[test]
+fn sample_auto_rename_marks_already_matching_tag_named_path() {
+    let (_temp, source) = setup_fixture(&["portal_SS_kick.wav"]);
+    let relative = Path::new("portal_SS_kick.wav");
+    let db = SourceDatabase::open(&source.root).expect("open source db");
+    assert_eq!(
+        db.tag_named_for_path(relative).expect("initial marker"),
+        Some(false)
+    );
+
+    let result = run_sample_auto_rename_job(
+        source.clone(),
+        vec![SampleAutoRenameRequest {
+            old_relative: relative.to_path_buf(),
+            new_relative: relative.to_path_buf(),
+            tag: Rating::KEEP_3,
+            looped: true,
+            locked: true,
+            sound_type: Some(SampleSoundType::Kick),
+            user_tag: Some(String::from("Vintage")),
+            tag_named: true,
+            last_played_at: Some(42),
+            resume_playback: false,
+            resume_looped: false,
+            resume_start_override: None,
+        }],
+        Arc::new(AtomicBool::new(false)),
+    );
+
+    assert!(result.errors.is_empty());
+    assert_eq!(result.renamed.len(), 1);
+    assert_eq!(
+        result.renamed[0].old_relative,
+        result.renamed[0].new_relative
+    );
+    assert!(result.renamed[0].entry.tag_named);
+    let db = SourceDatabase::open(&source.root).expect("reopen source db");
+    assert_eq!(
+        db.tag_named_for_path(relative).expect("updated marker"),
+        Some(true)
     );
 }
 
@@ -442,6 +488,7 @@ fn rename_request(old_relative: &str, new_relative: &str) -> SampleAutoRenameReq
         locked: true,
         sound_type: Some(SampleSoundType::Kick),
         user_tag: Some(String::from("Vintage")),
+        tag_named: true,
         last_played_at: Some(42),
         resume_playback: false,
         resume_looped: false,

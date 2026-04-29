@@ -80,6 +80,7 @@ fn seed_source_sample(controller: &mut AppController, source: &SampleSource, rel
         missing: false,
         last_played_at: Some(42),
         user_tag: Some("Vintage FX".into()),
+        tag_named: false,
         normal_tags: vec![String::from("Riser FX")],
     }]);
     controller.rebuild_wav_lookup();
@@ -108,6 +109,7 @@ fn set_source_samples_for_tests(
                 missing: false,
                 last_played_at: Some(42),
                 user_tag: Some("Vintage FX".into()),
+                tag_named: false,
                 normal_tags: vec![String::from("Riser FX")],
             }
         })

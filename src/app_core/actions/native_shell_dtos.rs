@@ -704,6 +704,10 @@ pub struct BrowserPanelModel {
     pub active_playback_age_filters: [bool; 3],
     /// Whether the browser is currently filtering down to only marked rows.
     pub marked_filter_active: bool,
+    /// Whether the browser is currently filtering to tag-named rows.
+    pub tag_named_filter_active: bool,
+    /// Whether the tag-named filter is currently inverted.
+    pub tag_named_filter_negated: bool,
     /// Placeholder shown when the browser search query is empty.
     pub search_placeholder: Option<String>,
     /// Whether browser search/filter work is still running in the background.
@@ -2261,6 +2265,8 @@ impl From<compat::BrowserPanelModel> for BrowserPanelModel {
             active_rating_filters: value.active_rating_filters,
             active_playback_age_filters: value.active_playback_age_filters,
             marked_filter_active: value.marked_filter_active,
+            tag_named_filter_active: value.tag_named_filter_active,
+            tag_named_filter_negated: value.tag_named_filter_negated,
             search_placeholder: value.search_placeholder,
             busy: value.busy,
             source_loading: value.source_loading,
@@ -2290,6 +2296,8 @@ impl From<BrowserPanelModel> for compat::BrowserPanelModel {
             active_rating_filters: value.active_rating_filters,
             active_playback_age_filters: value.active_playback_age_filters,
             marked_filter_active: value.marked_filter_active,
+            tag_named_filter_active: value.tag_named_filter_active,
+            tag_named_filter_negated: value.tag_named_filter_negated,
             search_placeholder: value.search_placeholder,
             busy: value.busy,
             source_loading: value.source_loading,

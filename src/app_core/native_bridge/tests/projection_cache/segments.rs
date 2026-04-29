@@ -174,6 +174,7 @@ fn projection_segment_browser_tag_sidebar_refreshes_pills_after_metadata_edit() 
         missing: false,
         last_played_at: None,
         user_tag: None,
+        tag_named: false,
         normal_tags: Vec::new(),
     }]);
 
@@ -228,6 +229,7 @@ fn projection_segment_browser_tag_sidebar_refreshes_for_same_count_selection_swa
             missing: false,
             last_played_at: None,
             user_tag: None,
+            tag_named: false,
             normal_tags: Vec::new(),
         },
         crate::sample_sources::WavEntry {
@@ -242,6 +244,7 @@ fn projection_segment_browser_tag_sidebar_refreshes_for_same_count_selection_swa
             missing: false,
             last_played_at: None,
             user_tag: None,
+            tag_named: false,
             normal_tags: Vec::new(),
         },
     ]);

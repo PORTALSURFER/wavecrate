@@ -267,6 +267,7 @@ impl AppController {
             missing: false,
             last_played_at,
             user_tag: None,
+            tag_named: false,
             normal_tags: Vec::new(),
         };
         self.trigger_analysis_for_changed_entry(&state.source, &entry, false);
@@ -348,6 +349,7 @@ fn run_waveform_slide_job(
                 missing: false,
                 last_played_at,
                 user_tag: None,
+                tag_named: false,
                 normal_tags: Vec::new(),
             },
             backup,

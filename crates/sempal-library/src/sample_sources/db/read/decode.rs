@@ -6,7 +6,7 @@ use super::super::util::parse_relative_path_from_db;
 use super::super::{Rating, WavEntry};
 
 /// Shared column list for wav-file queries that hydrate full `WavEntry` rows.
-pub(super) const WAV_FILE_SELECT_COLUMNS: &str = "path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, missing, last_played_at, user_tag,
+pub(super) const WAV_FILE_SELECT_COLUMNS: &str = "path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, missing, last_played_at, user_tag, tag_named,
     (
         SELECT json_group_array(display_label)
         FROM (
@@ -61,7 +61,8 @@ pub(super) fn decode_wav_entry_row(
         missing: row.get::<_, i64>(8)? != 0,
         last_played_at: row.get(9)?,
         user_tag: row.get(10)?,
-        normal_tags: decode_normal_tags(row.get(11)?),
+        tag_named: row.get::<_, i64>(11)? != 0,
+        normal_tags: decode_normal_tags(row.get(12)?),
     }))
 }
 

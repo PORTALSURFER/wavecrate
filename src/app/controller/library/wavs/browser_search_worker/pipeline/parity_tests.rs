@@ -263,6 +263,7 @@ fn compact_entries(entries: &[WavEntry]) -> Vec<CompactSearchEntry> {
                 tag: entry.tag,
                 locked: entry.locked,
                 last_played_at: entry.last_played_at,
+                tag_named: false,
             }
         })
         .collect()
@@ -281,6 +282,7 @@ fn search_entry(path: &str, tag: Rating) -> WavEntry {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        tag_named: false,
         normal_tags: Vec::new(),
     }
 }
@@ -301,6 +303,7 @@ fn make_search_job(source: &crate::sample_sources::SampleSource, query: &str) ->
         rating_filter: Default::default(),
         playback_age_filter: Default::default(),
         marked_only: false,
+        tag_named_filter: crate::app::state::TagNamedFilter::All,
         marked_paths: BTreeSet::new(),
         sort: SampleBrowserSort::ListOrder,
         similar_query: None,

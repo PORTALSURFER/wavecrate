@@ -193,6 +193,14 @@ fn ensure_wav_files_optional_columns(connection: &Connection) -> Result<(), Sour
             .execute("ALTER TABLE wav_files ADD COLUMN user_tag TEXT", [])
             .map_err(map_sql_error)?;
     }
+    if !columns.contains("tag_named") {
+        connection
+            .execute(
+                "ALTER TABLE wav_files ADD COLUMN tag_named INTEGER NOT NULL DEFAULT 0",
+                [],
+            )
+            .map_err(map_sql_error)?;
+    }
     if !columns.contains("content_hash") {
         connection
             .execute("ALTER TABLE wav_files ADD COLUMN content_hash TEXT", [])
@@ -253,6 +261,14 @@ fn ensure_pending_rename_optional_columns(connection: &Connection) -> Result<(),
         connection
             .execute(
                 "ALTER TABLE pending_wav_renames ADD COLUMN normal_tags TEXT",
+                [],
+            )
+            .map_err(map_sql_error)?;
+    }
+    if !columns.contains("tag_named") {
+        connection
+            .execute(
+                "ALTER TABLE pending_wav_renames ADD COLUMN tag_named INTEGER NOT NULL DEFAULT 0",
                 [],
             )
             .map_err(map_sql_error)?;

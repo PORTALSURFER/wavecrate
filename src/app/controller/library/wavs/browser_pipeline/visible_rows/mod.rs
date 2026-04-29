@@ -48,6 +48,7 @@ pub(super) fn build_visible_rows_with_now(
         playback_age_now_unix_secs,
     );
     let marked_only = controller.ui.browser.search.marked_only;
+    let tag_named_filter = controller.ui.browser.search.tag_named_filter;
     let marked_revision = controller.ui.browser.marks.revision;
     let selected_source_id = controller.selection_state.ctx.selected_source.clone();
     let folder_selection = controller.folder_selection_for_filter().cloned();
@@ -90,6 +91,7 @@ pub(super) fn build_visible_rows_with_now(
         && controller.ui.browser.search.rating_filter.is_empty()
         && controller.ui.browser.search.playback_age_filter.is_empty()
         && !marked_only
+        && tag_named_filter == crate::app::state::TagNamedFilter::All
         && !has_folder_filters
     {
         let total = controller.ui_cache.browser.pipeline.compact_entries.len();
@@ -103,6 +105,7 @@ pub(super) fn build_visible_rows_with_now(
         playback_age_filter_hash,
         playback_age_cache_token,
         marked_only,
+        tag_named_filter,
         marked_revision,
         folder_hash,
     );
@@ -127,6 +130,7 @@ pub(super) fn build_visible_rows_with_now(
         playback_age_filter_hash,
         playback_age_cache_token,
         marked_only,
+        tag_named_filter,
         playback_age_now_unix_secs,
         marked_revision,
         selected_source_id.as_ref(),

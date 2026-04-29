@@ -144,6 +144,7 @@ impl AppController {
                     missing: false,
                     last_played_at: *last_played_at,
                     user_tag: None,
+                    tag_named: false,
                     normal_tags: normal_tags.clone(),
                 };
                 self.update_cached_entry(&source, relative_path, entry);
@@ -199,6 +200,7 @@ impl AppController {
                         missing: false,
                         last_played_at: *last_played_at,
                         user_tag: None,
+                        tag_named: false,
                         normal_tags: normal_tags.clone(),
                     },
                 );

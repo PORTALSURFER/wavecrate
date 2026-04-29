@@ -15,7 +15,7 @@ pub(crate) use migrations::table_columns;
 /// A matching stamp means the base DDL, additive migrations, and indices have
 /// already been assured for this file, so steady-state opens can skip that
 /// one-time work.
-pub(super) const SOURCE_DB_SCHEMA_VERSION: i64 = 3;
+pub(super) const SOURCE_DB_SCHEMA_VERSION: i64 = 4;
 
 /// Apply the full source-database schema, including deferred cleanup work.
 pub(super) fn apply_schema(connection: &Connection) -> Result<SchemaApplyOutcome, SourceDbError> {

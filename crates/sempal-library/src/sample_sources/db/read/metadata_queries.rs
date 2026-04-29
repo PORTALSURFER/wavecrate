@@ -92,6 +92,14 @@ impl SourceDatabase {
         query_flag_for_path(self, "locked", path_str.as_str())
     }
 
+    /// Fetch whether a wav path is known to have a tag-derived filename.
+    pub fn tag_named_for_path(&self, path: &Path) -> Result<Option<bool>, SourceDbError> {
+        let Some(path_str) = normalize_supported_audio_path(path)? else {
+            return Ok(None);
+        };
+        query_flag_for_path(self, "tag_named", path_str.as_str())
+    }
+
     /// Fetch the canonical sound classification for a specific wav path.
     pub fn sound_type_for_path(
         &self,

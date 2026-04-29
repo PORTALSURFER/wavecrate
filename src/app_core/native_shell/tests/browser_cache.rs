@@ -81,6 +81,7 @@ fn selected_path_lookup_refreshes_for_same_len_path_changes() {
             missing: false,
             last_played_at: None,
             user_tag: None,
+            tag_named: false,
             normal_tags: Vec::new(),
         },
         crate::sample_sources::WavEntry {
@@ -95,6 +96,7 @@ fn selected_path_lookup_refreshes_for_same_len_path_changes() {
             missing: false,
             last_played_at: None,
             user_tag: None,
+            tag_named: false,
             normal_tags: Vec::new(),
         },
     ]);
@@ -135,6 +137,7 @@ fn cached_browser_row_rebuilds_when_stored_tag_column_is_stale() {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        tag_named: false,
         normal_tags: Vec::new(),
     }]);
     controller.projected_browser_rows.insert(
@@ -181,6 +184,7 @@ fn cached_browser_row_rebuilds_when_stored_missing_state_is_stale() {
         missing: true,
         last_played_at: None,
         user_tag: None,
+        tag_named: false,
         normal_tags: Vec::new(),
     }]);
     controller.projected_browser_rows.insert(
@@ -228,6 +232,7 @@ fn cached_browser_row_rebuilds_when_stored_mark_state_is_stale() {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        tag_named: false,
         normal_tags: Vec::new(),
     }]);
     controller
@@ -278,6 +283,7 @@ fn cached_browser_row_rebuilds_when_stored_playback_age_bucket_is_stale() {
         missing: false,
         last_played_at: Some(1),
         user_tag: None,
+        tag_named: false,
         normal_tags: Vec::new(),
     }]);
     controller.projected_browser_rows.insert(
@@ -350,6 +356,7 @@ fn browser_row_cache_evicts_one_lru_entry_at_capacity() {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        tag_named: false,
         normal_tags: Vec::new(),
     }]);
 
@@ -384,6 +391,7 @@ fn browser_rows_projection_reuses_provided_buffer_capacity() {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        tag_named: false,
         normal_tags: Vec::new(),
     }]);
     controller.ui.browser.viewport.visible =
@@ -418,6 +426,7 @@ fn browser_rows_state_patch_updates_flags_without_rebuilding_labels() {
             missing: false,
             last_played_at: None,
             user_tag: None,
+            tag_named: false,
             normal_tags: Vec::new(),
         },
         crate::sample_sources::WavEntry {
@@ -432,6 +441,7 @@ fn browser_rows_state_patch_updates_flags_without_rebuilding_labels() {
             missing: false,
             last_played_at: None,
             user_tag: None,
+            tag_named: false,
             normal_tags: Vec::new(),
         },
     ]);
@@ -478,6 +488,7 @@ fn browser_rows_projection_uses_pipeline_snapshot_when_pages_are_unloaded() {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        tag_named: false,
         normal_tags: Vec::new(),
     }]);
     controller.rebuild_wav_lookup();
@@ -510,6 +521,7 @@ fn browser_rows_projection_does_not_queue_feature_cache_refresh() {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        tag_named: false,
         normal_tags: Vec::new(),
     }]);
     controller.ui.browser.viewport.visible =
@@ -547,6 +559,7 @@ fn browser_rows_projection_refreshes_labels_after_same_length_reload() {
             missing: false,
             last_played_at: None,
             user_tag: None,
+            tag_named: false,
             normal_tags: Vec::new(),
         },
         crate::sample_sources::WavEntry {
@@ -561,6 +574,7 @@ fn browser_rows_projection_refreshes_labels_after_same_length_reload() {
             missing: false,
             last_played_at: None,
             user_tag: None,
+            tag_named: false,
             normal_tags: Vec::new(),
         },
     ]);
@@ -587,6 +601,7 @@ fn browser_rows_projection_refreshes_labels_after_same_length_reload() {
                 missing: false,
                 last_played_at: None,
                 user_tag: None,
+                tag_named: false,
                 normal_tags: Vec::new(),
             },
             crate::sample_sources::WavEntry {
@@ -601,6 +616,7 @@ fn browser_rows_projection_refreshes_labels_after_same_length_reload() {
                 missing: false,
                 last_played_at: None,
                 user_tag: None,
+                tag_named: false,
                 normal_tags: Vec::new(),
             },
         ],
@@ -640,6 +656,7 @@ fn browser_rows_projection_refreshes_label_after_cached_rename() {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        tag_named: false,
         normal_tags: Vec::new(),
     }]);
     controller.rebuild_wav_lookup();
@@ -663,6 +680,7 @@ fn browser_rows_projection_refreshes_label_after_cached_rename() {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        tag_named: false,
         normal_tags: Vec::new(),
     };
     updated.looped = true;
@@ -702,6 +720,7 @@ fn label_lookup_uses_pipeline_snapshot_when_pages_are_unloaded() {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        tag_named: false,
         normal_tags: Vec::new(),
     }]);
     controller.rebuild_wav_lookup();

@@ -152,6 +152,7 @@ fn apply_deep_rename(
             pending_entry.user_tag.as_deref(),
         )?;
     }
+    batch.set_tag_named(&present_entry.relative_path, pending_entry.tag_named)?;
     batch.replace_tags_for_path(&present_entry.relative_path, &pending_entry.normal_tags)?;
     batch.remap_analysis_sample_identity(
         &pending_entry.relative_path,

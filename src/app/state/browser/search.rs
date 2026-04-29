@@ -121,6 +121,8 @@ pub struct BrowserSearchState {
     pub playback_age_filter: BTreeSet<PlaybackAgeFilterChip>,
     /// Whether only session-marked rows should remain visible.
     pub marked_only: bool,
+    /// Optional filter for samples whose filenames are marked as tag-derived.
+    pub tag_named_filter: TagNamedFilter,
     /// Text query applied to visible rows via fuzzy search.
     pub search_query: String,
     /// Flag to request focus for the search field in the UI.
@@ -152,6 +154,7 @@ impl Default for BrowserSearchState {
             rating_filter: BTreeSet::new(),
             playback_age_filter: BTreeSet::new(),
             marked_only: false,
+            tag_named_filter: TagNamedFilter::All,
             search_query: String::new(),
             search_focus_requested: false,
             random_navigation_mode: false,
@@ -256,6 +259,38 @@ impl FocusedSimilarity {
     pub fn score_for_index(&self, entry_index: usize) -> Option<f32> {
         let position = self.indices.iter().position(|idx| *idx == entry_index)?;
         self.scores.get(position).copied()
+    }
+}
+
+/// Filter state for tag-derived sample filenames.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum TagNamedFilter {
+    /// Show both tag-derived and unmarked names.
+    #[default]
+    All,
+    /// Show only samples known to be named from tags.
+    TagNamed,
+    /// Show only samples not yet known to be named from tags.
+    NotTagNamed,
+}
+
+impl TagNamedFilter {
+    /// Return true when one row passes the active tag-name filter.
+    pub fn accepts(self, tag_named: bool) -> bool {
+        match self {
+            Self::All => true,
+            Self::TagNamed => tag_named,
+            Self::NotTagNamed => !tag_named,
+        }
+    }
+
+    /// Advance the toolbar chip through off, positive, and negated states.
+    pub fn next(self, invert: bool) -> Self {
+        match (self, invert) {
+            (Self::TagNamed, false) | (Self::NotTagNamed, true) => Self::All,
+            (_, false) => Self::TagNamed,
+            (_, true) => Self::NotTagNamed,
+        }
     }
 }
 

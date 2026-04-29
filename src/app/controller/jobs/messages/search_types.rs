@@ -17,6 +17,8 @@ pub(crate) struct SearchJob {
     pub(crate) playback_age_filter: BTreeSet<crate::app::state::PlaybackAgeFilterChip>,
     /// Whether the result set should keep only session-marked samples.
     pub(crate) marked_only: bool,
+    /// Filter for samples known to have tag-derived filenames.
+    pub(crate) tag_named_filter: crate::app::state::TagNamedFilter,
     /// Session-marked sample paths for the active source.
     pub(crate) marked_paths: BTreeSet<PathBuf>,
     pub(crate) sort: crate::app::state::SampleBrowserSort,

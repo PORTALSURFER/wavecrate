@@ -429,6 +429,7 @@ fn write_fixture_entry(
         missing: false,
         last_played_at: None,
         user_tag: None,
+        tag_named: false,
         normal_tags: Vec::new(),
     })
 }

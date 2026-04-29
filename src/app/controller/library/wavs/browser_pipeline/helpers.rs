@@ -1,6 +1,6 @@
 use super::*;
 use crate::app::state::{
-    PlaybackAgeBucket, PlaybackAgeFilterChip, SampleBrowserSort, TriageFlagFilter,
+    PlaybackAgeBucket, PlaybackAgeFilterChip, SampleBrowserSort, TagNamedFilter, TriageFlagFilter,
     playback_age_bucket_matches_filters,
 };
 use std::cmp::Ordering;
@@ -69,6 +69,8 @@ pub(super) fn filter_accepts(
     playback_age_filter: &std::collections::BTreeSet<PlaybackAgeFilterChip>,
     marked_only: bool,
     marked: bool,
+    tag_named_filter: TagNamedFilter,
+    tag_named: bool,
     tag: crate::sample_sources::Rating,
     locked: bool,
     last_played_at: Option<i64>,
@@ -87,7 +89,8 @@ pub(super) fn filter_accepts(
     let playback_age_ok =
         playback_age_bucket_matches_filters(playback_age_filter, playback_age_bucket);
     let marked_ok = !marked_only || marked;
-    triage_ok && rating_ok && playback_age_ok && marked_ok
+    let tag_named_ok = tag_named_filter.accepts(tag_named);
+    triage_ok && rating_ok && playback_age_ok && marked_ok && tag_named_ok
 }
 
 /// Return the effective browser rating-filter level for one sample row.

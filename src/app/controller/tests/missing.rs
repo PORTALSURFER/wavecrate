@@ -22,6 +22,7 @@ fn selecting_legacy_missing_sample_prunes_it_and_sets_waveform_notice() {
         missing: true,
         last_played_at: None,
         user_tag: None,
+        tag_named: false,
         normal_tags: Vec::new(),
     }]);
     controller.rebuild_wav_lookup();
@@ -65,6 +66,7 @@ fn read_failure_prunes_sample_row() {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        tag_named: false,
         normal_tags: Vec::new(),
     }]);
     controller.rebuild_wav_lookup();
@@ -167,6 +169,7 @@ fn prune_missing_sample_removes_cache_and_db_entry_when_inactive() {
             missing: false,
             last_played_at: None,
             user_tag: None,
+            tag_named: false,
             normal_tags: Vec::new(),
         }],
     );

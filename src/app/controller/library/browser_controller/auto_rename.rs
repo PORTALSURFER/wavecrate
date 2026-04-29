@@ -27,6 +27,8 @@ pub(crate) struct AutoRenameStem {
     pub(crate) tagged_basename: Option<String>,
     /// Sanitized identifier used for fallback numbering.
     pub(crate) fallback_identifier: String,
+    /// True when the basename includes sample metadata beyond identifier and shot type.
+    pub(crate) tag_based: bool,
 }
 
 /// Canonical fallback identifier used when settings or sanitization produce no
@@ -56,6 +58,7 @@ pub(crate) fn build_auto_rename_stem(input: &AutoRenameInput) -> AutoRenameStem 
         metadata_tokens.push(format!("{:.0}", bpm.round()));
     }
     let shot_type = if input.looped { "loop" } else { "SS" };
+    let tag_based = !metadata_tokens.is_empty();
     let tagged_basename = Some(if metadata_tokens.is_empty() {
         format!("{identifier}_{shot_type}")
     } else {
@@ -64,6 +67,7 @@ pub(crate) fn build_auto_rename_stem(input: &AutoRenameInput) -> AutoRenameStem 
     AutoRenameStem {
         tagged_basename,
         fallback_identifier: identifier,
+        tag_based,
     }
 }
 
@@ -173,6 +177,7 @@ mod tests {
             AutoRenameStem {
                 tagged_basename: Some(String::from("artistname_SS")),
                 fallback_identifier: String::from("artistname"),
+                tag_based: false,
             }
         );
 
@@ -185,6 +190,7 @@ mod tests {
             AutoRenameStem {
                 tagged_basename: Some(String::from("artistname_SS")),
                 fallback_identifier: String::from("artistname"),
+                tag_based: false,
             }
         );
     }
@@ -200,6 +206,7 @@ mod tests {
             AutoRenameStem {
                 tagged_basename: Some(String::from("portal_SS")),
                 fallback_identifier: String::from(DEFAULT_AUTO_RENAME_IDENTIFIER),
+                tag_based: false,
             }
         );
 

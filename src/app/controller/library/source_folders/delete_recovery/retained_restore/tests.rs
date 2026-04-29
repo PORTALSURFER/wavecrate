@@ -199,6 +199,7 @@ fn retained_restore_clears_stale_last_played_at_when_deleted_snapshot_has_none()
         missing: false,
         last_played_at: None,
         user_tag: None,
+        tag_named: false,
         normal_tags: Vec::new(),
     }];
     let original = source.root.join("Pack");
@@ -262,6 +263,7 @@ fn entry(relative: &str, tag: Rating, last_played_at: i64) -> WavEntry {
         missing: false,
         last_played_at: Some(last_played_at),
         user_tag: None,
+        tag_named: false,
         normal_tags: Vec::new(),
     }
 }

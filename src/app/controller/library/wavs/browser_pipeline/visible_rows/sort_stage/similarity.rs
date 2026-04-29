@@ -24,10 +24,11 @@ pub(super) fn ensure_sorted_stage_for_similar(
     let playback_age_filter = controller.ui.browser.search.playback_age_filter.clone();
     let filter = controller.ui.browser.search.filter;
     let marked_only = controller.ui.browser.search.marked_only;
+    let tag_named_filter = controller.ui.browser.search.tag_named_filter;
     let selected_source_id = controller.selection_state.ctx.selected_source.clone();
     let mut visible = Vec::with_capacity(similar.indices.len());
     for index in similar.indices.iter().copied() {
-        let Some((tag, locked, last_played_at, marked)) = filter_stage_entry(
+        let Some((tag, locked, last_played_at, marked, tag_named)) = filter_stage_entry(
             controller,
             index,
             marked_only.then_some(selected_source_id.as_ref()).flatten(),
@@ -40,6 +41,8 @@ pub(super) fn ensure_sorted_stage_for_similar(
             &playback_age_filter,
             marked_only,
             marked,
+            tag_named_filter,
+            tag_named,
             tag,
             locked,
             last_played_at,
@@ -66,7 +69,7 @@ fn filter_stage_entry(
     controller: &AppController,
     index: usize,
     selected_source_id: Option<&crate::sample_sources::SourceId>,
-) -> Option<(Rating, bool, Option<i64>, bool)> {
+) -> Option<(Rating, bool, Option<i64>, bool, bool)> {
     let entry = controller
         .ui_cache
         .browser
@@ -80,5 +83,11 @@ fn filter_stage_entry(
             .marks
             .contains(source_id, &entry.relative_path)
     });
-    Some((entry.tag, entry.locked, entry.last_played_at, marked))
+    Some((
+        entry.tag,
+        entry.locked,
+        entry.last_played_at,
+        marked,
+        entry.tag_named,
+    ))
 }

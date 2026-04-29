@@ -113,6 +113,10 @@ pub(super) fn apply_browser_list_native_ui_action(
             controller.focus_browser_list();
             controller.toggle_browser_marked_filter();
         }
+        NativeUiAction::ToggleBrowserTagNamedFilter { invert } => {
+            controller.focus_browser_list();
+            controller.toggle_browser_tag_named_filter(invert);
+        }
         NativeUiAction::ToggleRandomNavigationMode => controller.toggle_random_navigation_mode(),
         NativeUiAction::ToggleBrowserTagSidebar => controller.toggle_browser_tag_sidebar(),
         NativeUiAction::ToggleBrowserTagSidebarAutoRename => {

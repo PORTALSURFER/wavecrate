@@ -30,6 +30,7 @@ pub(super) fn sample_entry(name: &str, tag: crate::sample_sources::Rating) -> Wa
         missing: false,
         last_played_at: None,
         user_tag: None,
+        tag_named: false,
         normal_tags: Vec::new(),
     }
 }

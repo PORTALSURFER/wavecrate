@@ -21,6 +21,7 @@ fn selection_autoplay_preserves_active_loop_playback() {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        tag_named: false,
         normal_tags: Vec::new(),
     }]);
     controller.rebuild_wav_lookup();
@@ -60,6 +61,7 @@ fn loading_non_looped_sample_preserves_loop_when_locked() {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        tag_named: false,
         normal_tags: Vec::new(),
     }]);
     controller.rebuild_wav_lookup();
@@ -99,6 +101,7 @@ fn loading_looped_sample_preserves_locked_off_override() {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        tag_named: false,
         normal_tags: Vec::new(),
     }]);
     controller.rebuild_wav_lookup();

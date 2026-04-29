@@ -36,12 +36,13 @@ const TOOLBAR_ROW_ID: u64 = 1241;
 const TOOLBAR_RATING_BASE_ID: u64 = 1250;
 const TOOLBAR_PLAYBACK_BASE_ID: u64 = 1260;
 const TOOLBAR_MARKED_ID: u64 = 1270;
-const TOOLBAR_RANDOM_ID: u64 = 1271;
-const TOOLBAR_CLEANUP_ID: u64 = 1272;
-const TOOLBAR_SEARCH_ID: u64 = 1273;
-const TOOLBAR_TAGS_ID: u64 = 1274;
-const TOOLBAR_ACTIVITY_ID: u64 = 1275;
-const TOOLBAR_SORT_ID: u64 = 1276;
+const TOOLBAR_TAG_NAMED_ID: u64 = 1271;
+const TOOLBAR_RANDOM_ID: u64 = 1272;
+const TOOLBAR_CLEANUP_ID: u64 = 1273;
+const TOOLBAR_SEARCH_ID: u64 = 1274;
+const TOOLBAR_TAGS_ID: u64 = 1275;
+const TOOLBAR_ACTIVITY_ID: u64 = 1276;
+const TOOLBAR_SORT_ID: u64 = 1277;
 const TOOLBAR_TRIAGE_BASE_ID: u64 = 1280;
 
 const BROWSER_RATING_FILTER_COUNT: usize = 8;
@@ -88,6 +89,8 @@ pub(crate) struct BrowserToolbarSurfaceLayout {
     pub playback_age_filter_chips: [Rect; BROWSER_PLAYBACK_AGE_FILTER_COUNT],
     /// Marked-filter chip bounds.
     pub marked_filter_chip: Rect,
+    /// Tag-named-filter chip bounds.
+    pub tag_named_filter_chip: Rect,
     /// Toolbar action button bounds in `Random`, `Cleanup`, `Tags` order.
     pub action_slots: [Rect; 3],
     /// Search-field bounds.
@@ -174,6 +177,10 @@ pub(crate) fn resolve_browser_toolbar_surface_layout(
         }),
         marked_filter_chip: clamp_rect_to_bounds(
             rect_for(&output.rects, TOOLBAR_MARKED_ID, empty),
+            toolbar_rect,
+        ),
+        tag_named_filter_chip: clamp_rect_to_bounds(
+            rect_for(&output.rects, TOOLBAR_TAG_NAMED_ID, empty),
             toolbar_rect,
         ),
         action_slots: [

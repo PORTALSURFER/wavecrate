@@ -304,6 +304,7 @@ fn sort_visible_indices_respects_playback_age_and_list_order() {
             tag: Rating::NEUTRAL,
             locked: false,
             last_played_at: Some(20),
+            tag_named: false,
         },
         CompactSearchEntry {
             display_label: "b".into(),
@@ -311,6 +312,7 @@ fn sort_visible_indices_respects_playback_age_and_list_order() {
             tag: Rating::NEUTRAL,
             locked: false,
             last_played_at: Some(10),
+            tag_named: false,
         },
         CompactSearchEntry {
             display_label: "c".into(),
@@ -318,6 +320,7 @@ fn sort_visible_indices_respects_playback_age_and_list_order() {
             tag: Rating::NEUTRAL,
             locked: false,
             last_played_at: None,
+            tag_named: false,
         },
     ];
 
@@ -343,6 +346,7 @@ fn list_order_query_orders_results_by_score() {
             tag: Rating::NEUTRAL,
             locked: false,
             last_played_at: None,
+            tag_named: false,
         },
         CompactSearchEntry {
             display_label: "snare".into(),
@@ -350,6 +354,7 @@ fn list_order_query_orders_results_by_score() {
             tag: Rating::NEUTRAL,
             locked: false,
             last_played_at: None,
+            tag_named: false,
         },
         CompactSearchEntry {
             display_label: "hat".into(),
@@ -357,6 +362,7 @@ fn list_order_query_orders_results_by_score() {
             tag: Rating::NEUTRAL,
             locked: false,
             last_played_at: None,
+            tag_named: false,
         },
     ];
     let mut cache = SearchWorkerCache {
@@ -400,6 +406,7 @@ fn similarity_visible_rows_keep_sparse_lookup_compact() {
             tag: Rating::NEUTRAL,
             locked: false,
             last_played_at: None,
+            tag_named: false,
         },
         CompactSearchEntry {
             display_label: "close".into(),
@@ -407,6 +414,7 @@ fn similarity_visible_rows_keep_sparse_lookup_compact() {
             tag: Rating::NEUTRAL,
             locked: false,
             last_played_at: None,
+            tag_named: false,
         },
         CompactSearchEntry {
             display_label: "missing".into(),
@@ -414,6 +422,7 @@ fn similarity_visible_rows_keep_sparse_lookup_compact() {
             tag: Rating::NEUTRAL,
             locked: false,
             last_played_at: None,
+            tag_named: false,
         },
         CompactSearchEntry {
             display_label: "far".into(),
@@ -421,6 +430,7 @@ fn similarity_visible_rows_keep_sparse_lookup_compact() {
             tag: Rating::NEUTRAL,
             locked: false,
             last_played_at: None,
+            tag_named: false,
         },
     ];
     let mut cache = SearchWorkerCache {
@@ -474,6 +484,7 @@ fn make_search_job(query: &str) -> SearchJob {
         rating_filter: BTreeSet::new(),
         playback_age_filter: BTreeSet::new(),
         marked_only: false,
+        tag_named_filter: crate::app::state::TagNamedFilter::All,
         marked_paths: BTreeSet::new(),
         sort: SampleBrowserSort::ListOrder,
         similar_query: None,

@@ -13,6 +13,7 @@ fn browser_projection_test_entry(name: &str) -> crate::sample_sources::WavEntry 
         missing: false,
         last_played_at: None,
         user_tag: None,
+        tag_named: false,
         normal_tags: Vec::new(),
     }
 }

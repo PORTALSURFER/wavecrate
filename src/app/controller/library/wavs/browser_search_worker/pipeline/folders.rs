@@ -13,6 +13,8 @@ pub(super) fn filter_accepts_tag(
     playback_age_filter: &std::collections::BTreeSet<PlaybackAgeFilterChip>,
     marked_only: bool,
     marked: bool,
+    tag_named_filter: crate::app::state::TagNamedFilter,
+    tag_named: bool,
     tag: Rating,
     locked: bool,
     last_played_at: Option<i64>,
@@ -31,7 +33,8 @@ pub(super) fn filter_accepts_tag(
     let playback_age_ok =
         playback_age_bucket_matches_filters(playback_age_filter, playback_age_bucket);
     let marked_ok = !marked_only || marked;
-    triage_ok && rating_ok && playback_age_ok && marked_ok
+    let tag_named_ok = tag_named_filter.accepts(tag_named);
+    triage_ok && rating_ok && playback_age_ok && marked_ok && tag_named_ok
 }
 
 /// Return the effective browser rating-filter level for one worker entry.
@@ -155,6 +158,8 @@ mod tests {
             &BTreeSet::new(),
             false,
             true,
+            crate::app::state::TagNamedFilter::All,
+            false,
             Rating::KEEP_3,
             true,
             None,
@@ -166,6 +171,8 @@ mod tests {
             &BTreeSet::new(),
             false,
             false,
+            crate::app::state::TagNamedFilter::All,
+            false,
             Rating::KEEP_3,
             false,
             None,
@@ -176,6 +183,8 @@ mod tests {
             &rating_filter,
             &BTreeSet::new(),
             false,
+            false,
+            crate::app::state::TagNamedFilter::All,
             false,
             Rating::TRASH_3,
             true,
@@ -188,6 +197,8 @@ mod tests {
             &BTreeSet::new(),
             false,
             true,
+            crate::app::state::TagNamedFilter::All,
+            false,
             Rating::KEEP_3,
             true,
             None,
@@ -199,6 +210,8 @@ mod tests {
             &BTreeSet::new(),
             false,
             true,
+            crate::app::state::TagNamedFilter::All,
+            false,
             Rating::KEEP_3,
             true,
             None,
@@ -217,6 +230,7 @@ mod tests {
                         tag: Rating::NEUTRAL,
                         locked: false,
                         last_played_at: None,
+                        tag_named: false,
                     })
                     .collect(),
             ),
@@ -253,6 +267,7 @@ mod tests {
             rating_filter: BTreeSet::new(),
             playback_age_filter: BTreeSet::new(),
             marked_only: false,
+            tag_named_filter: crate::app::state::TagNamedFilter::All,
             marked_paths: BTreeSet::new(),
             sort: SampleBrowserSort::ListOrder,
             similar_query: None,

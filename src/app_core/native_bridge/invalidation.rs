@@ -95,6 +95,7 @@ pub(super) fn action_prefers_targeted_invalidation(action: &NativeUiAction) -> b
             | NativeUiAction::TagBrowserSelection { .. }
             | NativeUiAction::ToggleBrowserSampleMark
             | NativeUiAction::ToggleBrowserMarkedFilter
+            | NativeUiAction::ToggleBrowserTagNamedFilter { .. }
             | NativeUiAction::ToggleBrowserTagSidebar
             | NativeUiAction::ToggleBrowserTagSidebarAutoRename
             | NativeUiAction::ToggleBrowserDuplicateCleanupMode
@@ -196,6 +197,7 @@ pub(super) fn classify_dirty_source(
         | NativeUiAction::ToggleBrowserPlaybackAgeFilter { .. }
         | NativeUiAction::ToggleBrowserSampleMark
         | NativeUiAction::ToggleBrowserMarkedFilter
+        | NativeUiAction::ToggleBrowserTagNamedFilter { .. }
         | NativeUiAction::ToggleBrowserTagSidebar
         | NativeUiAction::ToggleBrowserTagSidebarAutoRename
         | NativeUiAction::FocusBrowserPanel

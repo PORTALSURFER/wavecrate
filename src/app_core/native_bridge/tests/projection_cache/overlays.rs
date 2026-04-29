@@ -311,6 +311,7 @@ fn projection_overlay_only_miss_reuses_browser_row_text_arcs() {
         missing: false,
         last_played_at: None,
         user_tag: None,
+        tag_named: false,
         normal_tags: Vec::new(),
     }]);
     controller.ui.browser.viewport.visible =
