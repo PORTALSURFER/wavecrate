@@ -13,6 +13,8 @@ mod pending_renames;
 pub mod read;
 /// SQLite schema management for sample source databases.
 pub mod schema;
+/// Durable per-source tag catalog and sample assignment helpers.
+pub mod tags;
 mod telemetry;
 /// Write-focused database helpers for sample sources.
 pub mod write;
@@ -266,6 +268,26 @@ pub struct WavEntry {
     pub user_tag: Option<String>,
 }
 
+/// One normal library tag stored in a source database.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SourceTag {
+    /// Stable source-local tag row id.
+    pub id: i64,
+    /// User-facing label preserved for display.
+    pub display_label: String,
+    /// Canonical identity used to avoid obvious duplicate tags.
+    pub normalized_text: String,
+}
+
+/// A tag candidate plus persisted assignment usage.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SourceTagUsage {
+    /// Tag metadata.
+    pub tag: SourceTag,
+    /// Number of wav rows currently assigned to this tag.
+    pub assignment_count: u64,
+}
+
 /// Errors returned when managing a source database.
 #[derive(Debug, Error)]
 pub enum SourceDbError {
@@ -295,6 +317,9 @@ pub enum SourceDbError {
     /// SQLite returned an unexpected result.
     #[error("SQLite returned an unexpected result")]
     Unexpected,
+    /// Provided tag text cannot be normalized to a non-empty identity.
+    #[error("Tag label cannot be empty")]
+    EmptyTagLabel,
     /// Read-only mode requires an existing database file.
     #[error("Read-only source DB mode requires an existing database file: {0}")]
     ReadOnlyDatabaseMissing(PathBuf),

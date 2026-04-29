@@ -68,6 +68,62 @@ fn wav_files_migration_adds_optional_columns_and_backfills_extension() {
 }
 
 #[test]
+fn wav_files_migration_backfills_sound_type_and_user_tag_into_normal_tags() {
+    let dir = with_legacy_db(
+        "CREATE TABLE wav_files (
+            path TEXT PRIMARY KEY,
+            file_size INTEGER NOT NULL,
+            modified_ns INTEGER NOT NULL,
+            sound_type TEXT,
+            user_tag TEXT,
+            looped INTEGER NOT NULL DEFAULT 0
+        );
+        INSERT INTO wav_files (path, file_size, modified_ns, sound_type, user_tag, looped)
+        VALUES
+            ('one.wav', 10, 5, 'kick', 'Deep   Kick', 1),
+            ('two.wav', 10, 5, 'KICK', 'deep kick', 0),
+            ('loop.wav', 10, 5, NULL, '', 1);",
+    );
+
+    let db = SourceDatabase::open(dir.path()).unwrap();
+    let tag_columns = column_names(&db.connection, "source_tags");
+    let assignment_columns = column_names(&db.connection, "wav_file_tags");
+    assert!(tag_columns.iter().any(|column| column == "normalized_text"));
+    assert!(tag_columns.iter().any(|column| column == "display_label"));
+    assert!(assignment_columns.iter().any(|column| column == "path"));
+    assert!(assignment_columns.iter().any(|column| column == "tag_id"));
+
+    let labels = db
+        .most_used_tags(8)
+        .unwrap()
+        .into_iter()
+        .map(|usage| {
+            (
+                usage.tag.display_label,
+                usage.tag.normalized_text,
+                usage.assignment_count,
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        labels,
+        vec![
+            ("Deep Kick".to_string(), "deep kick".to_string(), 2),
+            ("kick".to_string(), "kick".to_string(), 2),
+        ]
+    );
+    assert!(
+        db.tags_for_path(std::path::Path::new("loop.wav"))
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(
+        db.looped_for_path(std::path::Path::new("one.wav")).unwrap(),
+        Some(true)
+    );
+}
+
+#[test]
 fn analysis_jobs_migration_backfills_running_rows_and_sample_parts() {
     let dir = with_legacy_db(
         "CREATE TABLE analysis_jobs (
