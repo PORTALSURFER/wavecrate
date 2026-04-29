@@ -106,7 +106,8 @@ function Invoke-ExpectOutput {
     [string]$ScriptPath,
     [string[]]$Arguments = @(),
     [string[]]$ExpectedSubstrings = @(),
-    [hashtable]$EnvVars = @{}
+    [hashtable]$EnvVars = @{},
+    [string]$PowerShellPath = $psExe
   )
 
   $previous = @{}
@@ -121,7 +122,7 @@ function Invoke-ExpectOutput {
       $prevEap = $ErrorActionPreference
       $ErrorActionPreference = "Continue"
       try {
-        $output = & $psExe -NoProfile -File $ScriptPath @Arguments 2>&1
+        $output = & $PowerShellPath -NoProfile -File $ScriptPath @Arguments 2>&1
       } finally {
         $ErrorActionPreference = $prevEap
       }
@@ -568,6 +569,20 @@ try {
       "[latest_log] newest_log=$newestLiveLog",
       "newer live log"
     )
+
+    $windowsPowerShell = Get-Command powershell -ErrorAction SilentlyContinue
+    if ($null -ne $windowsPowerShell) {
+      Invoke-ExpectOutput -Label "latest log helper resolves live profile log file in Windows PowerShell strict mode" -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/run.ps1") -Arguments @("logs") -PowerShellPath $windowsPowerShell.Path -EnvVars @{
+        APPDATA = $configBase
+        SEMPAL_CONFIG_HOME = ""
+        SEMPAL_CONFIG_PROFILE = ""
+      } -ExpectedSubstrings @(
+        "[latest_log] persistence_profile=live",
+        "[latest_log] logs_dir=$liveLogsDir",
+        "[latest_log] newest_log=$newestLiveLog",
+        "newer live log"
+      )
+    }
 
     $sandboxBase = Join-Path $repoDir ".sandbox/sempal"
     $sandboxDefaultRoot = Join-Path $sandboxBase ".sempal/profiles/sandbox"

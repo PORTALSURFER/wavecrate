@@ -25,6 +25,22 @@ function Get-SandboxConfigBase {
   return (Join-Path $rootDir ".sandbox\\sempal")
 }
 
+function Test-IsWindowsPlatform {
+  $isWindowsVariable = Get-Variable -Name IsWindows -ErrorAction SilentlyContinue
+  if ($null -ne $isWindowsVariable) {
+    return [bool]$isWindowsVariable.Value
+  }
+  return [System.Environment]::OSVersion.Platform -eq [System.PlatformID]::Win32NT
+}
+
+function Test-IsMacOSPlatform {
+  $isMacOSVariable = Get-Variable -Name IsMacOS -ErrorAction SilentlyContinue
+  if ($null -ne $isMacOSVariable) {
+    return [bool]$isMacOSVariable.Value
+  }
+  return $false
+}
+
 function Get-DefaultConfigBase {
   if (-not [string]::IsNullOrWhiteSpace($env:SEMPAL_CONFIG_HOME)) {
     return $env:SEMPAL_CONFIG_HOME
@@ -33,13 +49,13 @@ function Get-DefaultConfigBase {
   if ($script:Sandbox -or (Test-Path -LiteralPath $sandboxBase -PathType Container)) {
     return $sandboxBase
   }
-  if ($IsWindows) {
+  if (Test-IsWindowsPlatform) {
     if (-not [string]::IsNullOrWhiteSpace($env:APPDATA)) {
       return $env:APPDATA
     }
     return (Join-Path $env:USERPROFILE "AppData\\Roaming")
   }
-  if ($IsMacOS) {
+  if (Test-IsMacOSPlatform) {
     return (Join-Path $HOME "Library/Application Support")
   }
   if (-not [string]::IsNullOrWhiteSpace($env:XDG_CONFIG_HOME)) {
