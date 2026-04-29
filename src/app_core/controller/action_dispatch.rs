@@ -132,6 +132,9 @@ fn record_native_action(
     started_at: Instant,
     error: Option<&'static str>,
 ) {
+    if !should_record_native_action(action, outcome) {
+        return;
+    }
     emit_action_debug_event(ActionDebugEvent {
         action,
         pane,
@@ -140,4 +143,11 @@ fn record_native_action(
         elapsed: started_at.elapsed(),
         error,
     });
+}
+
+fn should_record_native_action(action: &'static str, outcome: &'static str) -> bool {
+    if action == "set_browser_view_start" && outcome == "success" {
+        return crate::env_flags::env_var_truthy(crate::hotpath_telemetry::HOTPATH_TELEMETRY_ENV);
+    }
+    true
 }
