@@ -313,8 +313,9 @@ pub(super) fn render_browser_rows_window(
             );
         }
     }
+    let list_rect = browser_rows_list_rect(ctx.layout.browser_rows, ctx.sizing, ctx.model);
     if let Some(scrollbar) = browser_scrollbar_layout(
-        ctx.layout.browser_rows,
+        list_rect,
         browser_rows,
         ctx.model.browser.visible_count,
         ctx.sizing,
