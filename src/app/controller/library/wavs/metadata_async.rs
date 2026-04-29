@@ -248,6 +248,8 @@ fn metadata_mutation_paths(
             | SourceMetadataMutationOp::SetLooped { relative_path, .. }
             | SourceMetadataMutationOp::SetSoundType { relative_path, .. }
             | SourceMetadataMutationOp::SetUserTag { relative_path, .. }
+            | SourceMetadataMutationOp::AssignNormalTag { relative_path, .. }
+            | SourceMetadataMutationOp::RemoveNormalTag { relative_path, .. }
             | SourceMetadataMutationOp::SetLastPlayedAt { relative_path, .. } => {
                 paths.insert(relative_path.clone());
             }
@@ -345,6 +347,22 @@ fn run_source_metadata_ops(
             } => {
                 batch
                     .set_user_tag(relative_path, user_tag.as_deref())
+                    .map_err(|err| err.to_string())?;
+            }
+            SourceMetadataMutationOp::AssignNormalTag {
+                relative_path,
+                label,
+            } => {
+                batch
+                    .assign_tag_to_path(relative_path, label)
+                    .map_err(|err| err.to_string())?;
+            }
+            SourceMetadataMutationOp::RemoveNormalTag {
+                relative_path,
+                label,
+            } => {
+                batch
+                    .remove_tag_from_path(relative_path, label)
                     .map_err(|err| err.to_string())?;
             }
             SourceMetadataMutationOp::SetLastPlayedAt {

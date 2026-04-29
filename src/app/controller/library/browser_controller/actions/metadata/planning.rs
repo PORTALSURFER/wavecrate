@@ -36,11 +36,16 @@ impl BrowserController<'_> {
             let user_tag = self.live_user_tag_for_path(source, relative_path).or(db
                 .user_tag_for_path(relative_path)
                 .map_err(|err| format!("Failed to read custom tag: {err}"))?);
+            let normal_tags = self.normal_tags_for_path(source, relative_path)?;
             let stem = build_auto_rename_stem(&AutoRenameInput {
                 identifier: identifier.clone(),
                 looped,
                 sound_type,
                 user_tag: user_tag.clone(),
+                normal_tags: normal_tags
+                    .iter()
+                    .map(|tag| tag.display_label.clone())
+                    .collect(),
                 bpm: self.bpm_value_for_path(relative_path),
             });
             let new_relative = self.resolve_auto_rename_target(

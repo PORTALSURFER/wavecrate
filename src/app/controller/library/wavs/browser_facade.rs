@@ -288,6 +288,45 @@ impl AppController {
         selection_ops::set_sample_user_tag_for_source(self, source, path, user_tag)
     }
 
+    /// Assign one normal library tag for a sample path within a specific source.
+    pub(crate) fn apply_normal_tag_for_source(
+        &mut self,
+        source: &SampleSource,
+        path: &Path,
+        label: &str,
+    ) -> Result<(), String> {
+        selection_ops::apply_normal_tag_for_source(self, source, path, label)
+    }
+
+    /// Remove one normal library tag assignment for a sample path within a specific source.
+    pub(crate) fn remove_normal_tag_for_source(
+        &mut self,
+        source: &SampleSource,
+        path: &Path,
+        label: &str,
+    ) -> Result<(), String> {
+        selection_ops::remove_normal_tag_for_source(self, source, path, label)
+    }
+
+    /// Return normal library tags for a sample path, using the controller cache when available.
+    pub(crate) fn normal_tags_for_path(
+        &mut self,
+        source: &SampleSource,
+        path: &Path,
+    ) -> Result<Vec<crate::sample_sources::db::SourceTag>, String> {
+        selection_ops::normal_tags_for_path(self, source, path)
+    }
+
+    /// Summarize one normal tag across a focused/selected target set.
+    pub(crate) fn normal_tag_state_for_source(
+        &mut self,
+        source: &SampleSource,
+        paths: &[std::path::PathBuf],
+        label: &str,
+    ) -> Result<crate::app_core::actions::NativeBrowserTagState, String> {
+        selection_ops::normal_tag_state_for_source(self, source, paths, label)
+    }
+
     /// Toggle the browser-local metadata sidebar inside the list tab.
     pub(crate) fn toggle_browser_tag_sidebar(&mut self) {
         let is_list_tab = matches!(self.ui.browser.active_tab, SampleBrowserTab::List);
@@ -313,11 +352,7 @@ impl AppController {
     /// Apply the current custom-tag input draft to focused/selected browser rows.
     pub(crate) fn commit_browser_tag_sidebar_input(&mut self) -> Result<(), String> {
         let value = self.ui.browser.tag_sidebar_input.clone();
-        self.apply_browser_tag_sidebar_user_tag(if value.trim().is_empty() {
-            None
-        } else {
-            Some(value)
-        })
+        self.apply_browser_tag_sidebar_normal_tag(&value)
     }
 
     /// Apply one playback-type value to the focused/selected browser rows.
@@ -338,15 +373,10 @@ impl AppController {
         &mut self,
         sound_type: Option<crate::sample_sources::SampleSoundType>,
     ) -> Result<(), String> {
-        let Some(source) = self.current_source() else {
-            return Err(String::from("No source selected"));
-        };
-        let target_paths = self.browser_tag_sidebar_target_paths();
-        for path in &target_paths {
-            self.set_sample_sound_type_for_source(&source, &path, sound_type)?;
+        match sound_type {
+            Some(sound_type) => self.apply_browser_tag_sidebar_normal_tag(sound_type.token()),
+            None => Ok(()),
         }
-        self.auto_rename_after_tag_sidebar_change(&target_paths)?;
-        Ok(())
     }
 
     /// Apply or clear the single custom user tag for the focused/selected browser rows.
@@ -354,15 +384,63 @@ impl AppController {
         &mut self,
         user_tag: Option<String>,
     ) -> Result<(), String> {
+        let Some(user_tag) = user_tag else {
+            return Ok(());
+        };
+        self.apply_browser_tag_sidebar_normal_tag(&user_tag)
+    }
+
+    /// Assign one normal tag to the focused/selected browser rows.
+    pub(crate) fn apply_browser_tag_sidebar_normal_tag(
+        &mut self,
+        label: &str,
+    ) -> Result<(), String> {
+        let Some(source) = self.current_source() else {
+            return Err(String::from("No source selected"));
+        };
+        let resolved_label = self.resolve_browser_normal_tag_label(&source, label)?;
+        let target_paths = self.browser_tag_sidebar_target_paths();
+        for path in &target_paths {
+            self.apply_normal_tag_for_source(&source, &path, &resolved_label)?;
+        }
+        self.auto_rename_after_tag_sidebar_change(&target_paths)?;
+        Ok(())
+    }
+
+    /// Remove one normal tag from the focused/selected browser rows.
+    pub(crate) fn remove_browser_tag_sidebar_normal_tag(
+        &mut self,
+        label: &str,
+    ) -> Result<(), String> {
         let Some(source) = self.current_source() else {
             return Err(String::from("No source selected"));
         };
         let target_paths = self.browser_tag_sidebar_target_paths();
         for path in &target_paths {
-            self.set_sample_user_tag_for_source(&source, &path, user_tag.clone())?;
+            self.remove_normal_tag_for_source(&source, &path, label)?;
         }
         self.auto_rename_after_tag_sidebar_change(&target_paths)?;
         Ok(())
+    }
+
+    fn resolve_browser_normal_tag_label(
+        &mut self,
+        source: &SampleSource,
+        label: &str,
+    ) -> Result<String, String> {
+        let trimmed = label.split_whitespace().collect::<Vec<_>>().join(" ");
+        if trimmed.is_empty() {
+            return Err(String::from("Tag label cannot be empty"));
+        }
+        let matches = self
+            .database_for(source)
+            .map_err(|err| err.to_string())?
+            .search_tags(&trimmed, 1)
+            .map_err(|err| err.to_string())?;
+        Ok(matches
+            .first()
+            .map(|usage| usage.tag.display_label.clone())
+            .unwrap_or(trimmed))
     }
 
     fn auto_rename_after_tag_sidebar_change(

@@ -1,6 +1,8 @@
 use super::*;
 use crate::app::controller::jobs::SourceMetadataMutationOp;
 use crate::app::controller::state::runtime::MetadataRollback;
+use crate::app_core::actions::NativeBrowserTagState;
+use crate::sample_sources::db::SourceTag;
 
 fn sample_locked_for_source(
     controller: &mut AppController,
@@ -351,4 +353,193 @@ pub(crate) fn set_sample_user_tag_for_source(
         false,
     );
     Ok(())
+}
+
+/// Return the selected target-set assignment state for one normal library tag.
+pub(crate) fn normal_tag_state_for_source(
+    controller: &mut AppController,
+    source: &SampleSource,
+    paths: &[PathBuf],
+    label: &str,
+) -> Result<NativeBrowserTagState, String> {
+    let Some(identity) = normalize_normal_tag_label(label) else {
+        return Ok(NativeBrowserTagState::Off);
+    };
+    if paths.is_empty() {
+        return Ok(NativeBrowserTagState::Off);
+    }
+    let mut assigned = 0usize;
+    for path in paths {
+        if normal_tag_assigned_for_source(controller, source, path, &identity.normalized_text)? {
+            assigned += 1;
+        }
+    }
+    Ok(match assigned {
+        0 => NativeBrowserTagState::Off,
+        count if count == paths.len() => NativeBrowserTagState::On,
+        _ => NativeBrowserTagState::Mixed,
+    })
+}
+
+/// Persist and propagate one normal library tag assignment.
+pub(crate) fn apply_normal_tag_for_source(
+    controller: &mut AppController,
+    source: &SampleSource,
+    path: &Path,
+    label: &str,
+) -> Result<(), String> {
+    set_normal_tag_for_source(controller, source, path, label, true)
+}
+
+/// Persist and propagate removal of one normal library tag assignment.
+pub(crate) fn remove_normal_tag_for_source(
+    controller: &mut AppController,
+    source: &SampleSource,
+    path: &Path,
+    label: &str,
+) -> Result<(), String> {
+    set_normal_tag_for_source(controller, source, path, label, false)
+}
+
+fn set_normal_tag_for_source(
+    controller: &mut AppController,
+    source: &SampleSource,
+    path: &Path,
+    label: &str,
+    assigned: bool,
+) -> Result<(), String> {
+    let identity =
+        normalize_normal_tag_label(label).ok_or_else(|| "Tag label cannot be empty".to_string())?;
+    let before_present =
+        normal_tag_assigned_for_source(controller, source, path, &identity.normalized_text)?;
+    update_normal_tag_cache(
+        controller,
+        &source.id,
+        path,
+        &identity.display_label,
+        &identity.normalized_text,
+        assigned,
+    );
+    controller.ui_cache.browser.pipeline.invalidate();
+    controller.mark_browser_row_metadata_projection_revision_dirty();
+    controller.mark_browser_search_projection_revision_dirty();
+    let op = if assigned {
+        SourceMetadataMutationOp::AssignNormalTag {
+            relative_path: path.to_path_buf(),
+            label: identity.display_label.clone(),
+        }
+    } else {
+        SourceMetadataMutationOp::RemoveNormalTag {
+            relative_path: path.to_path_buf(),
+            label: identity.display_label.clone(),
+        }
+    };
+    controller.queue_metadata_mutation(
+        source,
+        vec![op],
+        Vec::new(),
+        vec![MetadataRollback::NormalTag {
+            relative_path: path.to_path_buf(),
+            normalized_text: identity.normalized_text,
+            display_label: identity.display_label,
+            before_present,
+            expected_present: assigned,
+        }],
+        true,
+    );
+    Ok(())
+}
+
+pub(crate) fn normal_tags_for_path(
+    controller: &mut AppController,
+    source: &SampleSource,
+    path: &Path,
+) -> Result<Vec<SourceTag>, String> {
+    if let Some(tags) = controller
+        .ui_cache
+        .browser
+        .normal_tags
+        .get(&source.id)
+        .and_then(|source_tags| source_tags.get(path))
+    {
+        return Ok(tags.clone());
+    }
+    let tags = controller
+        .database_for(source)
+        .map_err(|err| err.to_string())?
+        .tags_for_path(path)
+        .map_err(|err| err.to_string())?;
+    controller
+        .ui_cache
+        .browser
+        .normal_tags
+        .entry(source.id.clone())
+        .or_default()
+        .insert(path.to_path_buf(), tags.clone());
+    Ok(tags)
+}
+
+fn normal_tag_assigned_for_source(
+    controller: &mut AppController,
+    source: &SampleSource,
+    path: &Path,
+    normalized_text: &str,
+) -> Result<bool, String> {
+    Ok(normal_tags_for_path(controller, source, path)?
+        .iter()
+        .any(|tag| tag.normalized_text == normalized_text))
+}
+
+fn update_normal_tag_cache(
+    controller: &mut AppController,
+    source_id: &SourceId,
+    path: &Path,
+    display_label: &str,
+    normalized_text: &str,
+    assigned: bool,
+) {
+    let tags = controller
+        .ui_cache
+        .browser
+        .normal_tags
+        .entry(source_id.clone())
+        .or_default()
+        .entry(path.to_path_buf())
+        .or_default();
+    if assigned {
+        if !tags
+            .iter()
+            .any(|tag| tag.normalized_text == normalized_text)
+        {
+            tags.push(SourceTag {
+                id: 0,
+                display_label: display_label.to_string(),
+                normalized_text: normalized_text.to_string(),
+            });
+        }
+        tags.sort_by(|left, right| {
+            left.display_label
+                .to_ascii_lowercase()
+                .cmp(&right.display_label.to_ascii_lowercase())
+                .then_with(|| left.normalized_text.cmp(&right.normalized_text))
+        });
+    } else {
+        tags.retain(|tag| tag.normalized_text != normalized_text);
+    }
+}
+
+struct NormalTagIdentity {
+    display_label: String,
+    normalized_text: String,
+}
+
+fn normalize_normal_tag_label(label: &str) -> Option<NormalTagIdentity> {
+    let display_label = label.split_whitespace().collect::<Vec<_>>().join(" ");
+    if display_label.is_empty() {
+        return None;
+    }
+    Some(NormalTagIdentity {
+        normalized_text: display_label.to_ascii_lowercase(),
+        display_label,
+    })
 }

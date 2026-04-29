@@ -133,6 +133,129 @@ fn browser_tag_sidebar_mutation_uses_selected_visible_target_snapshot_fallback()
 }
 
 #[test]
+fn browser_tag_sidebar_common_tag_assigns_normal_tag_catalog_entry() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "one.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    controller.focus_browser_row_only(0);
+
+    controller
+        .apply_browser_tag_sidebar_sound_type(Some(crate::sample_sources::SampleSoundType::Kick))
+        .expect("common tag should assign");
+
+    let tags = controller
+        .database_for(&source)
+        .unwrap()
+        .tags_for_path(Path::new("one.wav"))
+        .unwrap();
+    assert_eq!(tag_labels(tags), vec!["kick"]);
+    assert_eq!(
+        controller
+            .database_for(&source)
+            .unwrap()
+            .sound_type_for_path(Path::new("one.wav"))
+            .unwrap(),
+        None
+    );
+}
+
+#[test]
+fn browser_tag_sidebar_typed_input_resolves_existing_fuzzy_tag() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    controller
+        .database_for(&source)
+        .unwrap()
+        .assign_tag_to_path(Path::new("one.wav"), "Deep Kick")
+        .unwrap();
+    controller.focus_browser_row_only(1);
+    controller.set_browser_tag_sidebar_input(String::from("kick"));
+
+    controller
+        .commit_browser_tag_sidebar_input()
+        .expect("typed tag should resolve and assign");
+
+    let tags = controller
+        .database_for(&source)
+        .unwrap()
+        .tags_for_path(Path::new("two.wav"))
+        .unwrap();
+    assert_eq!(tag_labels(tags), vec!["Deep Kick"]);
+}
+
+#[test]
+fn browser_tag_sidebar_typed_input_creates_reusable_normal_tag() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    controller.focus_browser_row_only(0);
+    controller.set_browser_tag_sidebar_input(String::from("  Vintage   FX "));
+
+    controller
+        .commit_browser_tag_sidebar_input()
+        .expect("typed tag should create and assign");
+
+    let db = controller.database_for(&source).unwrap();
+    assert_eq!(
+        tag_labels(db.tags_for_path(Path::new("one.wav")).unwrap()),
+        vec!["Vintage FX"]
+    );
+    controller.focus_browser_row_only(1);
+    controller.set_browser_tag_sidebar_input(String::from("vintage"));
+    controller
+        .commit_browser_tag_sidebar_input()
+        .expect("created tag should be reusable by search");
+    assert_eq!(
+        tag_labels(db.tags_for_path(Path::new("two.wav")).unwrap()),
+        vec!["Vintage FX"]
+    );
+}
+
+#[test]
+fn browser_tag_sidebar_multi_selection_tracks_mixed_and_removes_normal_tags() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    controller
+        .database_for(&source)
+        .unwrap()
+        .assign_tag_to_path(Path::new("one.wav"), "kick")
+        .unwrap();
+    controller.focus_browser_row_only(0);
+    controller.toggle_browser_row_selection(1);
+    let paths = vec![PathBuf::from("one.wav"), PathBuf::from("two.wav")];
+
+    assert_eq!(
+        controller
+            .normal_tag_state_for_source(&source, &paths, "kick")
+            .unwrap(),
+        crate::app_core::actions::NativeBrowserTagState::Mixed
+    );
+
+    controller
+        .apply_browser_tag_sidebar_normal_tag("kick")
+        .expect("assignment should apply to every selected path");
+    assert_eq!(
+        controller
+            .normal_tag_state_for_source(&source, &paths, "kick")
+            .unwrap(),
+        crate::app_core::actions::NativeBrowserTagState::On
+    );
+    controller
+        .remove_browser_tag_sidebar_normal_tag("kick")
+        .expect("removal should apply to every selected path");
+
+    let db = controller.database_for(&source).unwrap();
+    assert!(db.tags_for_path(Path::new("one.wav")).unwrap().is_empty());
+    assert!(db.tags_for_path(Path::new("two.wav")).unwrap().is_empty());
+}
+
+#[test]
 fn rating_filter_rating_keeps_focus_on_next_visible_item() {
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
         sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
@@ -161,6 +284,10 @@ fn rating_filter_rating_keeps_focus_on_next_visible_item() {
         &controller,
         Path::new("three.wav")
     ));
+}
+
+fn tag_labels(tags: Vec<crate::sample_sources::db::SourceTag>) -> Vec<String> {
+    tags.into_iter().map(|tag| tag.display_label).collect()
 }
 
 #[test]

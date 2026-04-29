@@ -180,6 +180,13 @@ pub(crate) fn project_browser_tag_sidebar_model(
         ),
     ];
     let sound_type_pills = canonical_sound_type_pills(&target_entries);
+    let sound_type_pills = if let Some(source) = controller.current_source() {
+        let target_paths = sidebar_targets.resolve_paths(controller);
+        canonical_normal_tag_pills(controller, &source, &target_paths, &target_entries)
+            .unwrap_or(sound_type_pills)
+    } else {
+        sound_type_pills
+    };
     let custom_tag_state = string_tag_summary(&target_entries, |entry| entry.user_tag.as_deref());
     BrowserTagSidebarModel {
         open: is_list_tab && controller.ui.browser.tag_sidebar_open,
@@ -246,6 +253,57 @@ fn canonical_sound_type_pills(entries: &[WavEntry]) -> Vec<BrowserTagPillModel> 
         )
     })
     .collect()
+}
+
+fn canonical_normal_tag_pills(
+    controller: &mut AppController,
+    source: &crate::sample_sources::SampleSource,
+    paths: &[std::path::PathBuf],
+    entries: &[WavEntry],
+) -> Result<Vec<BrowserTagPillModel>, String> {
+    [
+        (SampleSoundType::Kick, "Kick"),
+        (SampleSoundType::Snare, "Snare"),
+        (SampleSoundType::Clap, "Clap"),
+        (SampleSoundType::Hat, "Hi-hat"),
+        (SampleSoundType::Perc, "Perc"),
+        (SampleSoundType::Tom, "Tom"),
+        (SampleSoundType::Rim, "Rim"),
+        (SampleSoundType::Bass, "Bass"),
+        (SampleSoundType::Sub, "Sub"),
+        (SampleSoundType::Chord, "Chord"),
+        (SampleSoundType::Stab, "Stab"),
+        (SampleSoundType::Pad, "Pad"),
+        (SampleSoundType::Lead, "Lead"),
+        (SampleSoundType::Arp, "Arp"),
+        (SampleSoundType::Seq, "Seq"),
+        (SampleSoundType::Vocal, "Vocal"),
+        (SampleSoundType::Fx, "FX"),
+        (SampleSoundType::Texture, "Texture"),
+    ]
+    .into_iter()
+    .map(|(sound_type, label)| {
+        let normal_state =
+            controller.normal_tag_state_for_source(source, paths, sound_type.token())?;
+        let legacy_state = option_tag_state(entries, |entry| entry.sound_type, sound_type);
+        Ok(pill_model(
+            sound_type.token(),
+            label,
+            merge_normal_and_legacy_tag_state(normal_state, legacy_state),
+        ))
+    })
+    .collect()
+}
+
+fn merge_normal_and_legacy_tag_state(
+    normal_state: BrowserTagState,
+    legacy_state: BrowserTagState,
+) -> BrowserTagState {
+    match normal_state {
+        BrowserTagState::On => BrowserTagState::On,
+        BrowserTagState::Mixed => BrowserTagState::Mixed,
+        BrowserTagState::Off => legacy_state,
+    }
 }
 
 fn option_tag_state<T: Copy + PartialEq>(

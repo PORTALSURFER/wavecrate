@@ -417,6 +417,19 @@ pub(crate) enum MetadataRollback {
         /// Value written optimistically before persistence completed.
         expected_user_tag: Option<String>,
     },
+    /// Restore one normal tag assignment state if the optimistic value is still current.
+    NormalTag {
+        /// Relative sample path within the source root.
+        relative_path: PathBuf,
+        /// Normalized tag identity.
+        normalized_text: String,
+        /// Display label to restore when the tag was present before the mutation.
+        display_label: String,
+        /// Whether the assignment existed before the optimistic mutation.
+        before_present: bool,
+        /// Value written optimistically before persistence completed.
+        expected_present: bool,
+    },
     /// Restore one playback-age value if the optimistic value is still current.
     LastPlayedAt {
         /// Relative sample path within the source root.

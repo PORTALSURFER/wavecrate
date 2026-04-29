@@ -7,9 +7,10 @@ mod side_effects;
 mod tags;
 use side_effects::SelectionSideEffects;
 pub(crate) use tags::{
-    set_sample_locked_for_source, set_sample_looped_for_source, set_sample_sound_type_for_source,
-    set_sample_tag, set_sample_tag_and_locked_for_source, set_sample_tag_for_source,
-    set_sample_user_tag_for_source,
+    apply_normal_tag_for_source, normal_tag_state_for_source, normal_tags_for_path,
+    remove_normal_tag_for_source, set_sample_locked_for_source, set_sample_looped_for_source,
+    set_sample_sound_type_for_source, set_sample_tag, set_sample_tag_and_locked_for_source,
+    set_sample_tag_for_source, set_sample_user_tag_for_source,
 };
 
 pub(crate) fn select_wav_by_path(controller: &mut AppController, path: &Path) {

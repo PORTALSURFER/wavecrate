@@ -415,6 +415,48 @@ impl AppController {
                         wav.user_tag = before_user_tag.clone();
                     }
                 }
+                MetadataRollback::NormalTag {
+                    relative_path,
+                    normalized_text,
+                    display_label,
+                    before_present,
+                    expected_present,
+                } => {
+                    if let Some(source_id) = self.selection_state.ctx.selected_source.as_ref() {
+                        let tags = self
+                            .ui_cache
+                            .browser
+                            .normal_tags
+                            .entry(source_id.clone())
+                            .or_default()
+                            .entry(relative_path.clone())
+                            .or_default();
+                        let current_present = tags
+                            .iter()
+                            .any(|tag| tag.normalized_text == *normalized_text);
+                        if current_present == *expected_present {
+                            if *before_present {
+                                if !current_present {
+                                    tags.push(crate::sample_sources::db::SourceTag {
+                                        id: 0,
+                                        display_label: display_label.clone(),
+                                        normalized_text: normalized_text.clone(),
+                                    });
+                                    tags.sort_by(|left, right| {
+                                        left.display_label
+                                            .to_ascii_lowercase()
+                                            .cmp(&right.display_label.to_ascii_lowercase())
+                                            .then_with(|| {
+                                                left.normalized_text.cmp(&right.normalized_text)
+                                            })
+                                    });
+                                }
+                            } else {
+                                tags.retain(|tag| tag.normalized_text != *normalized_text);
+                            }
+                        }
+                    }
+                }
                 MetadataRollback::LastPlayedAt {
                     relative_path,
                     before_last_played_at,

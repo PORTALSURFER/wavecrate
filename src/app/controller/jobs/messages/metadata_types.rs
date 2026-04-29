@@ -35,6 +35,20 @@ pub(crate) enum SourceMetadataMutationOp {
         /// New user tag to store, or `None` to clear it.
         user_tag: Option<String>,
     },
+    /// Assign one normal library tag to one sample.
+    AssignNormalTag {
+        /// Relative sample path within the source root.
+        relative_path: PathBuf,
+        /// Tag label to resolve-or-create and assign.
+        label: String,
+    },
+    /// Remove one normal library tag assignment from one sample.
+    RemoveNormalTag {
+        /// Relative sample path within the source root.
+        relative_path: PathBuf,
+        /// Tag label to resolve and remove.
+        label: String,
+    },
     /// Persist one playback-age timestamp update.
     SetLastPlayedAt {
         /// Relative sample path within the source root.

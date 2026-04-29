@@ -3,6 +3,7 @@
 use super::super::{SampleSource, SourceDatabase, SourceDbError, SourceId, WavEntry};
 use crate::app::controller::library::{source_folders, wavs};
 use crate::app::state::FolderPaneId;
+use crate::sample_sources::db::SourceTag;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -74,6 +75,7 @@ pub(crate) struct BrowserCacheState {
     pub(crate) features: HashMap<SourceId, FeatureCache>,
     pub(crate) bpm_values: HashMap<SourceId, HashMap<PathBuf, Option<f32>>>,
     pub(crate) durations: HashMap<SourceId, HashMap<PathBuf, f32>>,
+    pub(crate) normal_tags: HashMap<SourceId, HashMap<PathBuf, Vec<SourceTag>>>,
 }
 
 /// Retained browser labels aligned to one ordered wav-entry snapshot.
@@ -168,6 +170,7 @@ impl ControllerUiCacheState {
                 features: HashMap::new(),
                 bpm_values: HashMap::new(),
                 durations: HashMap::new(),
+                normal_tags: HashMap::new(),
             },
             folders: FolderBrowsersState {
                 models: HashMap::new(),
