@@ -21,6 +21,12 @@ pub(super) fn apply_optional_migrations(connection: &Connection) -> Result<(), S
     Ok(())
 }
 
+/// Apply low-cost additive repairs that must not be skipped for current stamps.
+pub(super) fn apply_current_stamp_repairs(connection: &Connection) -> Result<(), SourceDbError> {
+    ensure_pending_rename_optional_columns(connection)?;
+    Ok(())
+}
+
 /// Remove persisted rows whose relative path can no longer be normalized safely.
 pub(super) fn remove_invalid_relative_paths(connection: &Connection) -> Result<(), SourceDbError> {
     let mut stmt = connection
