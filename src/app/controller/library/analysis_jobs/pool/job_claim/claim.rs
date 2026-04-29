@@ -1,4 +1,5 @@
 use crate::app::controller::library::analysis_jobs::db;
+use crate::app::controller::library::source_write_priority;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
@@ -26,6 +27,9 @@ pub(crate) fn refresh_sources(
     let mut next = Vec::new();
     for source in state.sources {
         if !source.root.is_dir() {
+            continue;
+        }
+        if source_write_priority::file_op_write_priority_active(&source.id) {
             continue;
         }
         if let Some(allowed) = allowed_source_ids

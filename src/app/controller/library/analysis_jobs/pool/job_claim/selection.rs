@@ -3,6 +3,7 @@
 use super::claim::{SourceClaimDb, claim_batch_size, refresh_sources};
 use crate::app::controller::library::analysis_jobs::db;
 use crate::app::controller::library::analysis_jobs::wakeup::ClaimWakeup;
+use crate::app::controller::library::source_write_priority;
 use crate::sample_sources::SourceId;
 use std::collections::{HashSet, VecDeque};
 use std::path::PathBuf;
@@ -75,7 +76,7 @@ impl ClaimSelector {
         allowed_source_ids: Option<&HashSet<SourceId>>,
         claim_wakeup: &ClaimWakeup,
     ) -> ClaimSelection {
-        if let Some(job) = self.local_queue.pop_front() {
+        if let Some(job) = self.pop_local_job_not_owned_by_file_op() {
             return ClaimSelection::Job(job);
         }
         self.refresh_sources_if_needed(allowed_source_ids);
@@ -118,6 +119,9 @@ impl ClaimSelector {
             let idx = self.next_source % source_count;
             self.next_source = self.next_source.wrapping_add(1);
             let source = &mut self.sources[idx];
+            if source_write_priority::file_op_write_priority_active(&source.source.id) {
+                continue;
+            }
             let jobs = match db::claim_next_jobs(
                 &mut source.conn,
                 &source.source.root,
@@ -132,6 +136,32 @@ impl ClaimSelector {
             }
         }
         false
+    }
+
+    /// Return a buffered claim whose source is not currently owned by a file op.
+    fn pop_local_job_not_owned_by_file_op(&mut self) -> Option<db::ClaimedJob> {
+        let active_sources = source_write_priority::active_file_op_write_priority_sources();
+        if active_sources.is_empty() {
+            return self.local_queue.pop_front();
+        }
+        let len = self.local_queue.len();
+        for _ in 0..len {
+            let job = self.local_queue.pop_front()?;
+            let active = job
+                .sample_id
+                .split_once("::")
+                .is_some_and(|(source_id, _)| {
+                    active_sources
+                        .iter()
+                        .any(|active| active.as_str() == source_id)
+                });
+            if active {
+                self.local_queue.push_back(job);
+                continue;
+            }
+            return Some(job);
+        }
+        None
     }
 
     pub(crate) fn has_local_jobs(&self) -> bool {

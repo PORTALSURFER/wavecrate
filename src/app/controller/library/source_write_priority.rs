@@ -1,7 +1,7 @@
 //! Source-local write-priority windows for browser-owned file operations.
 
 use crate::sample_sources::SourceId;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Mutex, OnceLock};
 
 static ACTIVE_FILE_OPS: OnceLock<Mutex<HashMap<SourceId, usize>>> = OnceLock::new();
@@ -38,6 +38,16 @@ pub(crate) fn file_op_write_priority_active(source_id: &SourceId) -> bool {
         .lock()
         .expect("source file-op write-priority mutex poisoned")
         .contains_key(source_id)
+}
+
+/// Return the source ids currently owning file-op write priority.
+pub(crate) fn active_file_op_write_priority_sources() -> HashSet<SourceId> {
+    active_file_ops()
+        .lock()
+        .expect("source file-op write-priority mutex poisoned")
+        .keys()
+        .cloned()
+        .collect()
 }
 
 #[cfg(test)]

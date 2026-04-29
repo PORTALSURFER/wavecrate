@@ -13,6 +13,8 @@ use std::time::{Duration, Instant};
 
 const SELECTED_SOURCE_MUTATION_CLAIM_GRACE: Duration = Duration::from_millis(750);
 const SELECTED_SOURCE_MUTATION_AUTO_SYNC_GRACE: Duration = Duration::from_secs(5);
+const METADATA_FILE_OP_PRIORITY_WAIT_TIMEOUT: Duration = Duration::from_secs(8);
+const METADATA_FILE_OP_PRIORITY_WAIT_DELAY: Duration = Duration::from_millis(100);
 
 impl AppController {
     pub(crate) fn selected_source_claim_pause_grace_active(&mut self, now: Instant) -> bool {
@@ -266,6 +268,7 @@ fn metadata_mutation_paths(
 pub(crate) fn run_metadata_mutation_job(job: MetadataMutationJob) -> MetadataMutationResult {
     let started_at = Instant::now();
     let mut result = Ok(());
+    wait_for_file_op_priority_to_clear(&job);
     if !job.source_ops.is_empty() {
         result = run_source_metadata_ops(&job.source_root, &job.source_ops);
     }
@@ -278,6 +281,25 @@ pub(crate) fn run_metadata_mutation_job(job: MetadataMutationJob) -> MetadataMut
         paths: job.paths,
         elapsed: started_at.elapsed(),
         result,
+    }
+}
+
+/// Give source-local file operations first chance at their DB rewrite lane.
+fn wait_for_file_op_priority_to_clear(job: &MetadataMutationJob) {
+    let deadline = Instant::now() + METADATA_FILE_OP_PRIORITY_WAIT_TIMEOUT;
+    while crate::app::controller::library::source_write_priority::file_op_write_priority_active(
+        &job.source_id,
+    ) {
+        if Instant::now() >= deadline {
+            tracing::warn!(
+                source_id = %job.source_id,
+                request_id = job.request_id,
+                waited_ms = METADATA_FILE_OP_PRIORITY_WAIT_TIMEOUT.as_millis(),
+                "metadata mutation waited for active source file-op priority"
+            );
+            return;
+        }
+        std::thread::sleep(METADATA_FILE_OP_PRIORITY_WAIT_DELAY);
     }
 }
 
@@ -429,6 +451,7 @@ fn collect_loaded_duration_updates(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::controller::library::source_write_priority;
 
     #[test]
     fn metadata_mutation_paths_dedup_across_source_and_analysis_ops() {
@@ -460,6 +483,42 @@ mod tests {
         assert_eq!(
             paths.into_iter().collect::<Vec<_>>(),
             vec![PathBuf::from("one.wav"), PathBuf::from("two.wav")]
+        );
+    }
+
+    #[test]
+    fn metadata_mutation_waits_behind_same_source_file_op_priority() {
+        let temp = tempfile::tempdir().expect("create temp dir");
+        let source = SampleSource::new(temp.path().join("source"));
+        std::fs::create_dir_all(&source.root).expect("create source root");
+        let relative_path = PathBuf::from("alpha.wav");
+        let db = SourceDatabase::open(&source.root).expect("open source db");
+        db.upsert_file(&relative_path, 1, 1)
+            .expect("insert source row");
+        source_write_priority::begin_file_op_write_priority(&source.id);
+        let release_source_id = source.id.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(260));
+            source_write_priority::finish_file_op_write_priority(&release_source_id);
+        });
+
+        let result = run_metadata_mutation_job(MetadataMutationJob {
+            request_id: 7,
+            source_id: source.id.clone(),
+            source_root: source.root.clone(),
+            paths: [relative_path.clone()].into_iter().collect(),
+            source_ops: vec![SourceMetadataMutationOp::SetUserTag {
+                relative_path: relative_path.clone(),
+                user_tag: Some(String::from("Vintage")),
+            }],
+            analysis_ops: Vec::new(),
+        });
+
+        assert!(result.elapsed >= Duration::from_millis(200));
+        assert!(result.result.is_ok(), "{:?}", result.result);
+        assert_eq!(
+            db.user_tag_for_path(&relative_path).expect("read user tag"),
+            Some(String::from("Vintage"))
         );
     }
 }

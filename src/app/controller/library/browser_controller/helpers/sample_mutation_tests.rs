@@ -1,4 +1,7 @@
 use super::sample_mutation::perform_sample_rename;
+use super::sample_mutation::{
+    SAMPLE_RENAME_DB_RETRIES_PRODUCTION, SAMPLE_RENAME_DB_RETRY_DELAY_PRODUCTION,
+};
 use super::{SampleAutoRenameRequest, run_sample_auto_rename_job};
 use crate::app::controller::test_support::write_test_wav;
 use crate::sample_sources::db::DB_FILE_NAME;
@@ -178,14 +181,23 @@ fn sample_auto_rename_rolls_back_each_failed_file_when_db_is_busy() {
 }
 
 #[test]
-/// Auto-rename waits through a short source-db write lock instead of rolling back the file rename.
-fn sample_auto_rename_retries_until_short_db_lock_clears() {
+fn production_sample_rename_retry_budget_covers_multi_second_busy_windows() {
+    assert!(
+        SAMPLE_RENAME_DB_RETRY_DELAY_PRODUCTION
+            .saturating_mul(SAMPLE_RENAME_DB_RETRIES_PRODUCTION as u32)
+            >= Duration::from_millis(5_500)
+    );
+}
+
+#[test]
+/// Auto-rename waits past the old 200 ms retry budget instead of rolling back the file rename.
+fn sample_auto_rename_retries_until_multi_attempt_db_lock_clears() {
     let (_temp, source) = setup_fixture(&["alpha.wav"]);
     let requests = vec![rename_request("alpha.wav", "alpha_renamed.wav")];
     let (lock_release_tx, lock_done_rx) = lock_db_until_released(&source.root);
 
     std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(80));
+        std::thread::sleep(Duration::from_millis(260));
         release_db_lock(lock_release_tx, lock_done_rx);
     });
 

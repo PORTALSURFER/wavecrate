@@ -5,8 +5,18 @@ use crate::app::controller::library::analysis_jobs::db::telemetry;
 use std::thread::sleep;
 use std::time::Duration;
 
+#[cfg(not(test))]
+const SAMPLE_RENAME_DB_RETRIES: usize = SAMPLE_RENAME_DB_RETRIES_PRODUCTION;
+#[cfg(test)]
 const SAMPLE_RENAME_DB_RETRIES: usize = 4;
+#[cfg(not(test))]
+const SAMPLE_RENAME_DB_RETRY_DELAY: Duration = SAMPLE_RENAME_DB_RETRY_DELAY_PRODUCTION;
+#[cfg(test)]
 const SAMPLE_RENAME_DB_RETRY_DELAY: Duration = Duration::from_millis(50);
+/// Production retry count for browser sample rename DB rewrites.
+pub(super) const SAMPLE_RENAME_DB_RETRIES_PRODUCTION: usize = 80;
+/// Production retry delay for browser sample rename DB rewrites.
+pub(super) const SAMPLE_RENAME_DB_RETRY_DELAY_PRODUCTION: Duration = Duration::from_millis(100);
 
 impl BrowserController<'_> {
     /// Delete the resolved browser sample immediately in the current thread.
