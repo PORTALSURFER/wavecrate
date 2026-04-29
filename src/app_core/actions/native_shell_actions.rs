@@ -439,26 +439,24 @@ pub enum UiAction {
         /// Whether to switch to map tab (`true`) or list tab (`false`).
         map: bool,
     },
-    /// Focus the browser metadata custom-tag input field.
+    /// Focus the browser metadata tag input field.
     FocusBrowserTagSidebarInput,
-    /// Set the browser metadata custom-tag input value.
+    /// Set the browser metadata tag input value.
     SetBrowserTagSidebarInput {
-        /// Full custom-tag input text.
+        /// Full tag input text.
         value: String,
     },
-    /// Commit the browser metadata custom-tag input value.
+    /// Commit the browser metadata tag input value.
     CommitBrowserTagSidebarInput,
-    /// Clear the current custom user tag for the browser selection.
-    ClearBrowserTagSidebarUserTag,
     /// Apply one playback-type value to the browser selection.
     SetBrowserSidebarLooped {
         /// Playback type to apply.
         looped: bool,
     },
-    /// Apply one sound-type value to the browser selection.
-    SetBrowserSidebarSoundType {
-        /// Canonical sound-type token to apply.
-        token: String,
+    /// Toggle one normal tag candidate for the browser selection.
+    ToggleBrowserSidebarNormalTag {
+        /// Normal tag label to assign or remove.
+        label: String,
     },
     /// Focus a specific map sample by stable sample id.
     FocusMapSample {
@@ -1382,12 +1380,11 @@ impl From<compat::UiAction> for UiAction {
                 Self::SetBrowserTagSidebarInput { value: value }
             }
             compat::UiAction::CommitBrowserTagSidebarInput => Self::CommitBrowserTagSidebarInput,
-            compat::UiAction::ClearBrowserTagSidebarUserTag => Self::ClearBrowserTagSidebarUserTag,
             compat::UiAction::SetBrowserSidebarLooped { looped } => {
                 Self::SetBrowserSidebarLooped { looped: looped }
             }
-            compat::UiAction::SetBrowserSidebarSoundType { token } => {
-                Self::SetBrowserSidebarSoundType { token: token }
+            compat::UiAction::ToggleBrowserSidebarNormalTag { label } => {
+                Self::ToggleBrowserSidebarNormalTag { label: label }
             }
             compat::UiAction::FocusMapSample { sample_id } => Self::FocusMapSample {
                 sample_id: sample_id,
@@ -1959,12 +1956,11 @@ impl From<UiAction> for compat::UiAction {
                 Self::SetBrowserTagSidebarInput { value: value }
             }
             UiAction::CommitBrowserTagSidebarInput => Self::CommitBrowserTagSidebarInput,
-            UiAction::ClearBrowserTagSidebarUserTag => Self::ClearBrowserTagSidebarUserTag,
             UiAction::SetBrowserSidebarLooped { looped } => {
                 Self::SetBrowserSidebarLooped { looped: looped }
             }
-            UiAction::SetBrowserSidebarSoundType { token } => {
-                Self::SetBrowserSidebarSoundType { token: token }
+            UiAction::ToggleBrowserSidebarNormalTag { label } => {
+                Self::ToggleBrowserSidebarNormalTag { label: label }
             }
             UiAction::FocusMapSample { sample_id } => Self::FocusMapSample {
                 sample_id: sample_id,

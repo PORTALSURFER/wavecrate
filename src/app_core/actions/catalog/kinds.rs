@@ -220,18 +220,16 @@ pub enum GuiActionKind {
     AdjustSelectedBrowserRating,
     /// Switch the browser between samples and map tabs.
     SetBrowserTab,
-    /// Focus the browser metadata custom-tag input.
+    /// Focus the browser metadata tag input.
     FocusBrowserTagSidebarInput,
-    /// Set the browser metadata custom-tag input value.
+    /// Set the browser metadata tag input value.
     SetBrowserTagSidebarInput,
-    /// Commit the browser metadata custom-tag input value.
+    /// Commit the browser metadata tag input value.
     CommitBrowserTagSidebarInput,
-    /// Clear the browser metadata custom user tag.
-    ClearBrowserTagSidebarUserTag,
     /// Apply one playback-type value in the browser metadata sidebar.
     SetBrowserSidebarLooped,
-    /// Apply one sound-type value in the browser metadata sidebar.
-    SetBrowserSidebarSoundType,
+    /// Toggle one normal tag candidate in the browser metadata sidebar.
+    ToggleBrowserSidebarNormalTag,
     /// Focus one sample in the map view.
     FocusMapSample,
     /// Set the active prompt input text.

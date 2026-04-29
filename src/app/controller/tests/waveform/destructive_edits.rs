@@ -149,6 +149,10 @@ fn destructive_edit_preserves_cached_browser_metadata() {
         .unwrap();
     db.set_user_tag(Path::new("rich.wav"), Some("Vintage FX"))
         .unwrap();
+    db.assign_tag_to_path(Path::new("rich.wav"), "kick")
+        .unwrap();
+    db.assign_tag_to_path(Path::new("rich.wav"), "Vintage FX")
+        .unwrap();
     db.set_last_played_at(Path::new("rich.wav"), 1_234).unwrap();
     controller
         .load_waveform_for_selection(&source, Path::new("rich.wav"))
@@ -175,15 +179,20 @@ fn destructive_edit_preserves_cached_browser_metadata() {
     assert_eq!(
         projected
             .tag_sidebar
-            .sound_type_pills
+            .normal_tag_pills
             .iter()
-            .find(|pill| pill.id == "kick")
+            .find(|pill| pill.label == "kick")
             .map(|pill| pill.state),
         Some(crate::app_core::actions::NativeBrowserTagState::On)
     );
     assert_eq!(
-        projected.tag_sidebar.custom_tag_pill.map(|pill| pill.label),
-        Some(String::from("Vintage FX"))
+        projected
+            .tag_sidebar
+            .normal_tag_pills
+            .iter()
+            .find(|pill| pill.label == "Vintage FX")
+            .map(|pill| pill.state),
+        Some(crate::app_core::actions::NativeBrowserTagState::On)
     );
 }
 

@@ -1,5 +1,5 @@
 use super::*;
-use crate::sample_sources::{SampleSoundType, WavEntry};
+use crate::sample_sources::{WavEntry, db::SourceTagUsage};
 
 /// Scalar inputs needed to project the retained browser row window.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -179,15 +179,12 @@ pub(crate) fn project_browser_tag_sidebar_model(
             bool_tag_state(&target_entries, |entry| !entry.looped),
         ),
     ];
-    let sound_type_pills = canonical_sound_type_pills(&target_entries);
-    let sound_type_pills = if let Some(source) = controller.current_source() {
+    let (normal_tag_pills, create_tag_pill) = if let Some(source) = controller.current_source() {
         let target_paths = sidebar_targets.resolve_paths(controller);
-        canonical_normal_tag_pills(controller, &source, &target_paths, &target_entries)
-            .unwrap_or(sound_type_pills)
+        project_normal_tag_candidates(controller, &source, &target_paths).unwrap_or_default()
     } else {
-        sound_type_pills
+        (Vec::new(), None)
     };
-    let custom_tag_state = string_tag_summary(&target_entries, |entry| entry.user_tag.as_deref());
     BrowserTagSidebarModel {
         open: is_list_tab && controller.ui.browser.tag_sidebar_open,
         selected_count,
@@ -196,10 +193,8 @@ pub(crate) fn project_browser_tag_sidebar_model(
         input_value: controller.ui.browser.tag_sidebar_input.clone(),
         input_placeholder: String::from("Add tag"),
         playback_type_pills,
-        sound_type_pills,
-        custom_tag_pill: custom_tag_state
-            .1
-            .map(|label| pill_model("custom-tag", label.as_str(), custom_tag_state.0)),
+        normal_tag_pills,
+        create_tag_pill,
     }
 }
 
@@ -223,135 +218,57 @@ fn bool_tag_state(entries: &[WavEntry], predicate: impl Fn(&WavEntry) -> bool) -
     }
 }
 
-fn canonical_sound_type_pills(entries: &[WavEntry]) -> Vec<BrowserTagPillModel> {
-    [
-        (SampleSoundType::Kick, "Kick"),
-        (SampleSoundType::Snare, "Snare"),
-        (SampleSoundType::Clap, "Clap"),
-        (SampleSoundType::Hat, "Hi-hat"),
-        (SampleSoundType::Perc, "Perc"),
-        (SampleSoundType::Tom, "Tom"),
-        (SampleSoundType::Rim, "Rim"),
-        (SampleSoundType::Bass, "Bass"),
-        (SampleSoundType::Sub, "Sub"),
-        (SampleSoundType::Chord, "Chord"),
-        (SampleSoundType::Stab, "Stab"),
-        (SampleSoundType::Pad, "Pad"),
-        (SampleSoundType::Lead, "Lead"),
-        (SampleSoundType::Arp, "Arp"),
-        (SampleSoundType::Seq, "Seq"),
-        (SampleSoundType::Vocal, "Vocal"),
-        (SampleSoundType::Fx, "FX"),
-        (SampleSoundType::Texture, "Texture"),
-    ]
-    .into_iter()
-    .map(|(sound_type, label)| {
-        pill_model(
-            sound_type.token(),
-            label,
-            option_tag_state(entries, |entry| entry.sound_type, sound_type),
-        )
-    })
-    .collect()
-}
-
-fn canonical_normal_tag_pills(
+fn project_normal_tag_candidates(
     controller: &mut AppController,
     source: &crate::sample_sources::SampleSource,
     paths: &[std::path::PathBuf],
-    entries: &[WavEntry],
-) -> Result<Vec<BrowserTagPillModel>, String> {
-    [
-        (SampleSoundType::Kick, "Kick"),
-        (SampleSoundType::Snare, "Snare"),
-        (SampleSoundType::Clap, "Clap"),
-        (SampleSoundType::Hat, "Hi-hat"),
-        (SampleSoundType::Perc, "Perc"),
-        (SampleSoundType::Tom, "Tom"),
-        (SampleSoundType::Rim, "Rim"),
-        (SampleSoundType::Bass, "Bass"),
-        (SampleSoundType::Sub, "Sub"),
-        (SampleSoundType::Chord, "Chord"),
-        (SampleSoundType::Stab, "Stab"),
-        (SampleSoundType::Pad, "Pad"),
-        (SampleSoundType::Lead, "Lead"),
-        (SampleSoundType::Arp, "Arp"),
-        (SampleSoundType::Seq, "Seq"),
-        (SampleSoundType::Vocal, "Vocal"),
-        (SampleSoundType::Fx, "FX"),
-        (SampleSoundType::Texture, "Texture"),
-    ]
-    .into_iter()
-    .map(|(sound_type, label)| {
-        let normal_state =
-            controller.normal_tag_state_for_source(source, paths, sound_type.token())?;
-        let legacy_state = option_tag_state(entries, |entry| entry.sound_type, sound_type);
-        Ok(pill_model(
-            sound_type.token(),
-            label,
-            merge_normal_and_legacy_tag_state(normal_state, legacy_state),
-        ))
-    })
-    .collect()
-}
-
-fn merge_normal_and_legacy_tag_state(
-    normal_state: BrowserTagState,
-    legacy_state: BrowserTagState,
-) -> BrowserTagState {
-    match normal_state {
-        BrowserTagState::On => BrowserTagState::On,
-        BrowserTagState::Mixed => BrowserTagState::Mixed,
-        BrowserTagState::Off => legacy_state,
-    }
-}
-
-fn option_tag_state<T: Copy + PartialEq>(
-    entries: &[WavEntry],
-    value_of: impl Fn(&WavEntry) -> Option<T>,
-    expected: T,
-) -> BrowserTagState {
-    if entries.is_empty() {
-        return BrowserTagState::Off;
-    }
-    let on_count = entries
-        .iter()
-        .filter(|entry| value_of(entry) == Some(expected))
-        .count();
-    match on_count {
-        0 => BrowserTagState::Off,
-        count if count == entries.len() => BrowserTagState::On,
-        _ => BrowserTagState::Mixed,
-    }
-}
-
-fn string_tag_summary<'a>(
-    entries: &'a [WavEntry],
-    value_of: impl Fn(&'a WavEntry) -> Option<&'a str>,
-) -> (BrowserTagState, Option<String>) {
-    if entries.is_empty() {
-        return (BrowserTagState::Off, None);
-    }
-    let mut values = entries
-        .iter()
-        .filter_map(|entry| value_of(entry))
-        .collect::<Vec<_>>();
-    values.sort_unstable();
-    values.dedup();
-    match values.len() {
-        0 => (BrowserTagState::Off, None),
-        1 => {
-            let on_count = entries
-                .iter()
-                .filter(|entry| value_of(entry) == values.first().copied())
-                .count();
-            let state = if on_count == entries.len() {
-                BrowserTagState::On
-            } else {
-                BrowserTagState::Mixed
-            };
-            (state, values.first().map(|value| (*value).to_string()))
+) -> Result<(Vec<BrowserTagPillModel>, Option<BrowserTagPillModel>), String> {
+    let input = controller.ui.browser.tag_sidebar_input.clone();
+    let normalized_input = normalize_tag_input(&input);
+    let usages = {
+        let db = controller
+            .database_for(source)
+            .map_err(|err| err.to_string())?;
+        if normalized_input.is_empty() {
+            db.most_used_tags(18).map_err(|err| err.to_string())?
+        } else {
+            db.search_tags(&input, 18).map_err(|err| err.to_string())?
         }
-        _ => (BrowserTagState::Mixed, Some(String::from("Custom"))),
+    };
+    let mut pills = Vec::new();
+    for usage in usages.into_iter().filter(|usage| normal_tag_visible(usage)) {
+        let state =
+            controller.normal_tag_state_for_source(source, paths, &usage.tag.display_label)?;
+        pills.push(pill_model(
+            &usage.tag.display_label,
+            &usage.tag.display_label,
+            state,
+        ));
     }
+    let create_tag_pill = if normalized_input.is_empty() || !pills.is_empty() {
+        None
+    } else {
+        let display_label = display_tag_input(&input);
+        Some(pill_model(
+            &display_label,
+            &format!("Create \"{display_label}\""),
+            BrowserTagState::Off,
+        ))
+    };
+    Ok((pills, create_tag_pill))
+}
+
+fn normal_tag_visible(usage: &SourceTagUsage) -> bool {
+    !matches!(
+        usage.tag.normalized_text.as_str(),
+        "loop" | "looped" | "one-shot" | "one shot" | "oneshot"
+    )
+}
+
+fn normalize_tag_input(input: &str) -> String {
+    display_tag_input(input).to_ascii_lowercase()
+}
+
+fn display_tag_input(input: &str) -> String {
+    input.split_whitespace().collect::<Vec<_>>().join(" ")
 }

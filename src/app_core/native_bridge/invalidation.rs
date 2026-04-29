@@ -105,9 +105,8 @@ pub(super) fn action_prefers_targeted_invalidation(action: &NativeUiAction) -> b
             | NativeUiAction::FocusBrowserTagSidebarInput
             | NativeUiAction::SetBrowserTagSidebarInput { .. }
             | NativeUiAction::CommitBrowserTagSidebarInput
-            | NativeUiAction::ClearBrowserTagSidebarUserTag
             | NativeUiAction::SetBrowserSidebarLooped { .. }
-            | NativeUiAction::SetBrowserSidebarSoundType { .. }
+            | NativeUiAction::ToggleBrowserSidebarNormalTag { .. }
             | NativeUiAction::FocusLoadedSampleInBrowser
     )
 }
@@ -205,9 +204,8 @@ pub(super) fn classify_dirty_source(
         | NativeUiAction::FocusBrowserTagSidebarInput
         | NativeUiAction::SetBrowserTagSidebarInput { .. }
         | NativeUiAction::CommitBrowserTagSidebarInput
-        | NativeUiAction::ClearBrowserTagSidebarUserTag
         | NativeUiAction::SetBrowserSidebarLooped { .. }
-        | NativeUiAction::SetBrowserSidebarSoundType { .. }
+        | NativeUiAction::ToggleBrowserSidebarNormalTag { .. }
         | NativeUiAction::FocusLoadedSampleInBrowser
         | NativeUiAction::ToggleBrowserDuplicateCleanupMode
         | NativeUiAction::ToggleBrowserDuplicateCleanupKeep { .. }

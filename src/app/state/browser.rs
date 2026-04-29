@@ -44,7 +44,7 @@ pub struct SampleBrowserState {
     pub tag_sidebar_open: bool,
     /// Whether sidebar metadata edits should auto-rename the edited samples.
     pub tag_sidebar_auto_rename: bool,
-    /// Draft text for the sidebar custom-tag input.
+    /// Draft text for the sidebar tag search/create input.
     pub tag_sidebar_input: String,
     /// Paths that should flash in the browser list after a copy action.
     pub copy_flash_paths: Vec<PathBuf>,

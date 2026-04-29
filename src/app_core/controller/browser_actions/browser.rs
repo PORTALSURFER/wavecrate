@@ -154,18 +154,7 @@ pub(super) fn apply_browser_list_native_ui_action(
         }
         NativeUiAction::CommitBrowserTagSidebarInput => {
             if let Err(err) = controller.commit_browser_tag_sidebar_input() {
-                controller.set_status(
-                    format!("Could not apply custom tag: {err}"),
-                    StatusTone::Error,
-                );
-            }
-        }
-        NativeUiAction::ClearBrowserTagSidebarUserTag => {
-            if let Err(err) = controller.apply_browser_tag_sidebar_user_tag(None) {
-                controller.set_status(
-                    format!("Could not clear custom tag: {err}"),
-                    StatusTone::Error,
-                );
+                controller.set_status(format!("Could not apply tag: {err}"), StatusTone::Error);
             }
         }
         NativeUiAction::SetBrowserSidebarLooped { looped } => {
@@ -176,13 +165,21 @@ pub(super) fn apply_browser_list_native_ui_action(
                 );
             }
         }
-        NativeUiAction::SetBrowserSidebarSoundType { token } => {
-            let sound_type = crate::sample_sources::SampleSoundType::from_token(&token);
-            if let Err(err) = controller.apply_browser_tag_sidebar_sound_type(sound_type) {
-                controller.set_status(
-                    format!("Could not update sound type: {err}"),
-                    StatusTone::Error,
-                );
+        NativeUiAction::ToggleBrowserSidebarNormalTag { label } => {
+            let result = if let Some(source) = controller.current_source() {
+                let target_paths = controller.browser_tag_sidebar_target_paths();
+                match controller.normal_tag_state_for_source(&source, &target_paths, &label) {
+                    Ok(crate::app_core::actions::NativeBrowserTagState::On) => {
+                        controller.remove_browser_tag_sidebar_normal_tag(&label)
+                    }
+                    Ok(_) => controller.apply_browser_tag_sidebar_normal_tag(&label),
+                    Err(err) => Err(err),
+                }
+            } else {
+                Err(String::from("No source selected"))
+            };
+            if let Err(err) = result {
+                controller.set_status(format!("Could not update tag: {err}"), StatusTone::Error);
             }
         }
         NativeUiAction::StartBrowserRename => controller.start_browser_rename(),

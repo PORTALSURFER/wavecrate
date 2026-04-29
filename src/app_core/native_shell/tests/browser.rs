@@ -188,6 +188,112 @@ fn browser_projection_sidebar_uses_selected_visible_target_snapshot_fallback() {
     assert!(projected.tag_sidebar.auto_rename_enabled);
 }
 
+#[test]
+fn browser_projection_sidebar_projects_common_normal_tags_from_db_usage() {
+    let (mut controller, source) = browser_projection_controller_with_source(vec![
+        browser_projection_test_entry("first.wav"),
+        browser_projection_test_entry("second.wav"),
+    ]);
+    let db = controller.database_for(&source).unwrap();
+    db.assign_tag_to_path(std::path::Path::new("first.wav"), "Texture")
+        .unwrap();
+    db.assign_tag_to_path(std::path::Path::new("second.wav"), "Texture")
+        .unwrap();
+    db.assign_tag_to_path(std::path::Path::new("first.wav"), "Loop")
+        .unwrap();
+    db.assign_tag_to_path(std::path::Path::new("second.wav"), "Rare FX")
+        .unwrap();
+    controller.ui.browser.tag_sidebar_open = true;
+    controller.ui.browser.selection.selected_paths = vec![std::path::PathBuf::from("first.wav")];
+    controller.mark_browser_selected_paths_changed();
+
+    let projected = project_browser_panel_frame_model(&mut controller);
+
+    let labels = projected
+        .tag_sidebar
+        .normal_tag_pills
+        .iter()
+        .map(|pill| pill.label.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(labels, vec!["Texture", "Rare FX"]);
+    assert_eq!(
+        projected.tag_sidebar.normal_tag_pills[0].state,
+        BrowserTagState::On
+    );
+    assert!(projected.tag_sidebar.create_tag_pill.is_none());
+}
+
+#[test]
+fn browser_projection_sidebar_filters_candidates_and_exposes_create_state() {
+    let (mut controller, source) = browser_projection_controller_with_source(vec![
+        browser_projection_test_entry("first.wav"),
+        browser_projection_test_entry("second.wav"),
+    ]);
+    let db = controller.database_for(&source).unwrap();
+    db.assign_tag_to_path(std::path::Path::new("first.wav"), "Deep Kick")
+        .unwrap();
+    db.assign_tag_to_path(std::path::Path::new("second.wav"), "Deep Kick")
+        .unwrap();
+    db.assign_tag_to_path(std::path::Path::new("first.wav"), "Texture")
+        .unwrap();
+    controller.ui.browser.tag_sidebar_open = true;
+    controller.ui.browser.selection.selected_paths = vec![
+        std::path::PathBuf::from("first.wav"),
+        std::path::PathBuf::from("second.wav"),
+    ];
+    controller.mark_browser_selected_paths_changed();
+    controller.ui.browser.tag_sidebar_input = String::from("kick");
+
+    let projected = project_browser_panel_frame_model(&mut controller);
+
+    assert_eq!(projected.tag_sidebar.normal_tag_pills.len(), 1);
+    assert_eq!(
+        projected.tag_sidebar.normal_tag_pills[0].label.as_str(),
+        "Deep Kick"
+    );
+    assert_eq!(
+        projected.tag_sidebar.normal_tag_pills[0].state,
+        BrowserTagState::On
+    );
+    assert!(projected.tag_sidebar.create_tag_pill.is_none());
+    controller.ui.browser.tag_sidebar_input = String::from("vinyl crackle");
+    let projected = project_browser_panel_frame_model(&mut controller);
+    assert_eq!(
+        projected
+            .tag_sidebar
+            .create_tag_pill
+            .as_ref()
+            .map(|pill| pill.label.as_str()),
+        Some("Create \"vinyl crackle\"")
+    );
+}
+
+#[test]
+fn browser_projection_sidebar_projects_mixed_normal_tag_state() {
+    let (mut controller, source) = browser_projection_controller_with_source(vec![
+        browser_projection_test_entry("first.wav"),
+        browser_projection_test_entry("second.wav"),
+    ]);
+    controller
+        .database_for(&source)
+        .unwrap()
+        .assign_tag_to_path(std::path::Path::new("first.wav"), "Texture")
+        .unwrap();
+    controller.ui.browser.tag_sidebar_open = true;
+    controller.ui.browser.selection.selected_paths = vec![
+        std::path::PathBuf::from("first.wav"),
+        std::path::PathBuf::from("second.wav"),
+    ];
+    controller.mark_browser_selected_paths_changed();
+
+    let projected = project_browser_panel_frame_model(&mut controller);
+
+    assert_eq!(
+        projected.tag_sidebar.normal_tag_pills[0].state,
+        BrowserTagState::Mixed
+    );
+}
+
 /// Browser projection should expose manual viewport state for native scrollbar rendering.
 #[test]
 fn browser_projection_exposes_manual_viewport_state() {
@@ -202,6 +308,23 @@ fn browser_projection_exposes_manual_viewport_state() {
     assert!(!projected.autoscroll);
     assert_eq!(projected.view_start_row, 1_470);
     assert_eq!(projected.visible_count, 1_506);
+}
+
+fn browser_projection_controller_with_source(
+    entries: Vec<crate::sample_sources::WavEntry>,
+) -> (AppController, crate::sample_sources::SampleSource) {
+    let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.keep().join("source");
+    std::fs::create_dir_all(&root).unwrap();
+    let source = crate::sample_sources::SampleSource::new(root);
+    controller.register_source_for_tests(source.clone());
+    controller.select_browser_source_for_tests(source.id.clone());
+    controller.cache_db(&source).unwrap();
+    controller.set_wav_entries_for_tests(entries);
+    controller.ui.browser.viewport.visible =
+        crate::app_core::app_api::state::VisibleRows::All { total: 2 };
+    (controller, source)
 }
 
 /// Browser projection should prefer the selected browser sample label over stale loaded state.

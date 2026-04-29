@@ -278,7 +278,7 @@ impl AppController {
         selection_ops::set_sample_sound_type_for_source(self, source, path, sound_type)
     }
 
-    /// Update the custom user tag for a sample path within a specific source.
+    /// Update the legacy `user_tag` column for a sample path within a specific source.
     pub(crate) fn set_sample_user_tag_for_source(
         &mut self,
         source: &SampleSource,
@@ -344,12 +344,12 @@ impl AppController {
         self.set_status(label, StatusTone::Info);
     }
 
-    /// Store the current draft value for the browser metadata custom-tag input.
+    /// Store the current draft value for the browser metadata tag input.
     pub(crate) fn set_browser_tag_sidebar_input(&mut self, value: String) {
         self.ui.browser.tag_sidebar_input = value;
     }
 
-    /// Apply the current custom-tag input draft to focused/selected browser rows.
+    /// Apply the current tag input draft to focused/selected browser rows.
     pub(crate) fn commit_browser_tag_sidebar_input(&mut self) -> Result<(), String> {
         let value = self.ui.browser.tag_sidebar_input.clone();
         self.apply_browser_tag_sidebar_normal_tag(&value)
@@ -379,7 +379,7 @@ impl AppController {
         }
     }
 
-    /// Apply or clear the single custom user tag for the focused/selected browser rows.
+    /// Compatibility path for legacy callers that now assigns a normal tag.
     pub(crate) fn apply_browser_tag_sidebar_user_tag(
         &mut self,
         user_tag: Option<String>,

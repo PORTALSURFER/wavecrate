@@ -445,8 +445,8 @@ struct BrowserTagSidebarLayout {
     input_rect: Rect,
     input_text_rect: Rect,
     playback_rects: [Rect; 2],
-    sound_type_rects: Vec<Rect>,
-    custom_rect: Option<Rect>,
+    normal_tag_rects: Vec<Rect>,
+    create_tag_rect: Option<Rect>,
 }
 
 fn browser_tag_sidebar_rect(
@@ -500,30 +500,27 @@ fn browser_tag_sidebar_layout(
             Point::new(content_max_x, playback_top + field_height),
         ),
     ];
-    let sound_top = playback_rects[0].max.y + 12.0;
-    let sound_cols = 3usize;
-    let sound_width = ((content_max_x - content_min_x - pill_gap * (sound_cols - 1) as f32)
-        / sound_cols as f32)
+    let tags_top = playback_rects[0].max.y + 12.0;
+    let tag_cols = 3usize;
+    let tag_width = ((content_max_x - content_min_x - pill_gap * (tag_cols - 1) as f32)
+        / tag_cols as f32)
         .max(40.0);
-    let mut sound_type_rects = Vec::with_capacity(model.browser.tag_sidebar.sound_type_pills.len());
-    for index in 0..model.browser.tag_sidebar.sound_type_pills.len() {
-        let col = index % sound_cols;
-        let row = index / sound_cols;
-        let min_x = content_min_x + (sound_width + pill_gap) * col as f32;
-        let min_y = sound_top + (field_height + pill_gap) * row as f32;
-        sound_type_rects.push(Rect::from_min_max(
+    let mut normal_tag_rects = Vec::with_capacity(model.browser.tag_sidebar.normal_tag_pills.len());
+    for index in 0..model.browser.tag_sidebar.normal_tag_pills.len() {
+        let col = index % tag_cols;
+        let row = index / tag_cols;
+        let min_x = content_min_x + (tag_width + pill_gap) * col as f32;
+        let min_y = tags_top + (field_height + pill_gap) * row as f32;
+        normal_tag_rects.push(Rect::from_min_max(
             Point::new(min_x, min_y),
-            Point::new(
-                (min_x + sound_width).min(content_max_x),
-                min_y + field_height,
-            ),
+            Point::new((min_x + tag_width).min(content_max_x), min_y + field_height),
         ));
     }
-    let custom_rect = model.browser.tag_sidebar.custom_tag_pill.as_ref().map(|_| {
-        let y = sound_type_rects
+    let create_tag_rect = model.browser.tag_sidebar.create_tag_pill.as_ref().map(|_| {
+        let y = normal_tag_rects
             .last()
             .map(|rect| rect.max.y + 12.0)
-            .unwrap_or(sound_top);
+            .unwrap_or(tags_top);
         Rect::from_min_max(
             Point::new(content_min_x, y),
             Point::new(content_max_x, y + field_height),
@@ -534,8 +531,8 @@ fn browser_tag_sidebar_layout(
         input_rect,
         input_text_rect,
         playback_rects,
-        sound_type_rects,
-        custom_rect,
+        normal_tag_rects,
+        create_tag_rect,
     })
 }
 
@@ -560,18 +557,24 @@ fn browser_tag_sidebar_action_at_point(
     for (pill, rect) in model
         .browser
         .tag_sidebar
-        .sound_type_pills
+        .normal_tag_pills
         .iter()
-        .zip(layout.sound_type_rects.iter())
+        .zip(layout.normal_tag_rects.iter())
     {
         if rect.contains(point) {
-            return Some(UiAction::SetBrowserSidebarSoundType {
-                token: pill.id.clone(),
+            return Some(UiAction::ToggleBrowserSidebarNormalTag {
+                label: pill.label.clone(),
             });
         }
     }
-    if layout.custom_rect.is_some_and(|rect| rect.contains(point)) {
-        return Some(UiAction::ClearBrowserTagSidebarUserTag);
+    if let (Some(pill), Some(rect)) = (
+        model.browser.tag_sidebar.create_tag_pill.as_ref(),
+        layout.create_tag_rect,
+    ) && rect.contains(point)
+    {
+        return Some(UiAction::ToggleBrowserSidebarNormalTag {
+            label: pill.id.clone(),
+        });
     }
     None
 }
