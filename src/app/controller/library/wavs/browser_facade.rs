@@ -352,7 +352,9 @@ impl AppController {
     /// Apply the current tag input draft to focused/selected browser rows.
     pub(crate) fn commit_browser_tag_sidebar_input(&mut self) -> Result<(), String> {
         let value = self.ui.browser.tag_sidebar_input.clone();
-        self.apply_browser_tag_sidebar_normal_tag(&value)
+        self.apply_browser_tag_sidebar_normal_tag(&value)?;
+        self.ui.browser.tag_sidebar_input.clear();
+        Ok(())
     }
 
     /// Apply one playback-type value to the focused/selected browser rows.

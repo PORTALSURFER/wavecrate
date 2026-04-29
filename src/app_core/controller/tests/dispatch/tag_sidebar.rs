@@ -54,6 +54,7 @@ fn apply_native_commit_browser_tag_sidebar_input_creates_normal_tag() {
         ),
         vec!["Vinyl Crackle"]
     );
+    assert_eq!(controller.ui.browser.tag_sidebar_input, "");
 }
 
 fn controller_with_source_entries(

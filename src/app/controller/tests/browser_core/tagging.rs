@@ -184,6 +184,7 @@ fn browser_tag_sidebar_typed_input_resolves_existing_fuzzy_tag() {
         .tags_for_path(Path::new("two.wav"))
         .unwrap();
     assert_eq!(tag_labels(tags), vec!["Deep Kick"]);
+    assert_eq!(controller.ui.browser.tag_sidebar_input, "");
 }
 
 #[test]
@@ -204,6 +205,7 @@ fn browser_tag_sidebar_typed_input_creates_reusable_normal_tag() {
         tag_labels(db.tags_for_path(Path::new("one.wav")).unwrap()),
         vec!["Vintage FX"]
     );
+    assert_eq!(controller.ui.browser.tag_sidebar_input, "");
     controller.focus_browser_row_only(1);
     controller.set_browser_tag_sidebar_input(String::from("vintage"));
     controller
