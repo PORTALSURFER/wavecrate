@@ -212,28 +212,7 @@ fn large_tag_sidebar_auto_rename_batch_reports_controller_phase_timings() {
 fn large_auto_rename_background_dispatch_registers_file_ops_before_planning_finishes() {
     const SAMPLE_COUNT: usize = 64;
     clear_batch_latency();
-    let (mut controller, source) = dummy_controller();
-    controller.settings.default_identifier = String::from("Artist Name");
-    controller.ui.options_panel.default_identifier = String::from("Artist Name");
-    controller.library.sources.push(source.clone());
-    controller.select_source_by_index(0);
-    controller.cache_db(&source).unwrap();
-
-    let mut entries = Vec::with_capacity(SAMPLE_COUNT);
-    let mut paths = Vec::with_capacity(SAMPLE_COUNT);
-    let db = controller.database_for(&source).unwrap();
-    for index in 0..SAMPLE_COUNT {
-        let name = format!("sample_{index:03}.wav");
-        write_test_wav(&source.root.join(&name), &[0.0, 0.1]);
-        db.upsert_file(Path::new(&name), 0, 0).unwrap();
-        db.set_tag(Path::new(&name), crate::sample_sources::Rating::NEUTRAL)
-            .unwrap();
-        entries.push(sample_entry(&name, crate::sample_sources::Rating::NEUTRAL));
-        paths.push(PathBuf::from(name));
-    }
-    controller.set_wav_entries_for_tests(entries);
-    controller.rebuild_wav_lookup();
-    controller.rebuild_browser_lists();
+    let (mut controller, source, paths) = large_auto_rename_fixture(SAMPLE_COUNT);
 
     let started_at = Instant::now();
     BrowserController::new(&mut controller)
@@ -256,6 +235,138 @@ fn large_auto_rename_background_dispatch_registers_file_ops_before_planning_fini
 
     wait_for_background_jobs(&mut controller, Duration::from_secs(2));
     assert!(source.root.join("artistname_SS.wav").exists());
+}
+
+#[test]
+fn large_tag_sidebar_background_auto_rename_streams_file_ops_progress_and_refreshes_rows() {
+    const SAMPLE_COUNT: usize = 64;
+    clear_batch_latency();
+    let (mut controller, source, paths) = large_auto_rename_fixture(SAMPLE_COUNT);
+    controller.set_browser_selected_paths(paths.clone());
+    let visible_before = controller.visible_browser_len();
+
+    controller
+        .apply_browser_tag_sidebar_normal_tag("Vintage FX")
+        .expect("large tag mutation should update selected paths");
+    controller.ui.browser.tag_sidebar_auto_rename = true;
+    BrowserController::new(&mut controller)
+        .auto_rename_browser_sample_paths_background_for_tests(&paths)
+        .expect("background auto rename should start after tag mutation");
+
+    assert_eq!(
+        controller.ui.progress.task,
+        Some(crate::app::state::ProgressTaskKind::FileOps)
+    );
+    assert_eq!(controller.ui.progress.title, "Preparing auto rename");
+    assert_eq!(controller.ui.progress.total, SAMPLE_COUNT);
+    assert!(controller.ui.progress.cancelable);
+
+    wait_for_file_ops_detail(&mut controller, Duration::from_secs(2), |detail| {
+        detail.starts_with("Planning sample_")
+    });
+    assert_eq!(
+        controller.ui.progress.task,
+        Some(crate::app::state::ProgressTaskKind::FileOps)
+    );
+    assert_eq!(controller.ui.progress.completed, 0);
+    assert!(
+        controller
+            .ui
+            .progress
+            .has_task(crate::app::state::ProgressTaskKind::FileOps)
+    );
+
+    wait_for_background_jobs(&mut controller, Duration::from_secs(3));
+
+    assert_eq!(controller.visible_browser_len(), visible_before);
+    assert!(source.root.join("artistname_SS_vintagefx.wav").exists());
+    assert!(source.root.join("artistname_SS_vintagefx_063.wav").exists());
+    assert!(!source.root.join("sample_000.wav").exists());
+    assert!(!controller.ui.progress.visible);
+    assert_eq!(
+        controller.ui.status.text,
+        "Auto Rename: renamed 64, skipped 0, failed 0"
+    );
+
+    let _ = controller.refresh_projection_revision_bus();
+    let projected = crate::app_core::native_shell::project_browser_model(&mut controller);
+    assert_eq!(projected.rows[0].label.as_ref(), "artistname_SS_vintagefx");
+    assert_eq!(
+        controller
+            .browser_projection_entry(0)
+            .map(|entry| entry.relative_path),
+        Some(Path::new("artistname_SS_vintagefx.wav"))
+    );
+}
+
+#[test]
+fn large_background_auto_rename_reports_partial_failure_through_file_ops_progress() {
+    const SAMPLE_COUNT: usize = 48;
+    clear_batch_latency();
+    let (mut controller, source, paths) = large_auto_rename_fixture(SAMPLE_COUNT);
+    std::fs::remove_file(source.root.join("sample_010.wav"))
+        .expect("remove one fixture file after browser snapshot is loaded");
+
+    BrowserController::new(&mut controller)
+        .auto_rename_browser_sample_paths_background_for_tests(&paths)
+        .expect("background auto rename should start");
+    wait_for_file_ops_detail(&mut controller, Duration::from_secs(2), |detail| {
+        detail == "Failed sample_010.wav"
+    });
+
+    assert_eq!(
+        controller.ui.progress.task,
+        Some(crate::app::state::ProgressTaskKind::FileOps)
+    );
+    assert_eq!(controller.ui.progress.completed, 11);
+    assert_eq!(controller.ui.progress.total, SAMPLE_COUNT);
+
+    wait_for_background_jobs(&mut controller, Duration::from_secs(3));
+
+    assert_eq!(
+        controller.ui.status.text,
+        "Auto Rename: renamed 47, skipped 0, failed 1"
+    );
+    assert_eq!(
+        controller.ui.status.status_tone,
+        crate::app::state::StatusTone::Warning
+    );
+    assert!(source.root.join("artistname_SS.wav").exists());
+    assert!(source.root.join("artistname_SS_047.wav").exists());
+    assert!(!source.root.join("artistname_SS_010.wav").exists());
+    assert!(!controller.ui.progress.visible);
+}
+
+fn large_auto_rename_fixture(
+    sample_count: usize,
+) -> (
+    crate::app::controller::AppController,
+    crate::sample_sources::SampleSource,
+    Vec<PathBuf>,
+) {
+    let (mut controller, source) = dummy_controller();
+    controller.settings.default_identifier = String::from("Artist Name");
+    controller.ui.options_panel.default_identifier = String::from("Artist Name");
+    controller.library.sources.push(source.clone());
+    controller.select_source_by_index(0);
+    controller.cache_db(&source).unwrap();
+
+    let mut entries = Vec::with_capacity(sample_count);
+    let mut paths = Vec::with_capacity(sample_count);
+    let db = controller.database_for(&source).unwrap();
+    for index in 0..sample_count {
+        let name = format!("sample_{index:03}.wav");
+        write_test_wav(&source.root.join(&name), &[0.0, 0.1]);
+        db.upsert_file(Path::new(&name), 0, 0).unwrap();
+        db.set_tag(Path::new(&name), crate::sample_sources::Rating::NEUTRAL)
+            .unwrap();
+        entries.push(sample_entry(&name, crate::sample_sources::Rating::NEUTRAL));
+        paths.push(PathBuf::from(name));
+    }
+    controller.set_wav_entries_for_tests(entries);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    (controller, source, paths)
 }
 
 /// Return a captured phase sample and require it to cover the expected item count.
@@ -329,4 +440,31 @@ fn wait_for_background_jobs(
         std::thread::sleep(Duration::from_millis(10));
     }
     panic!("background file-op did not finish within {timeout:?}");
+}
+
+fn wait_for_file_ops_detail(
+    controller: &mut crate::app::controller::AppController,
+    timeout: Duration,
+    matches_detail: impl Fn(&str) -> bool,
+) {
+    let deadline = Instant::now() + timeout;
+    while Instant::now() < deadline {
+        controller.poll_background_jobs();
+        if controller
+            .ui
+            .progress
+            .task_detail(crate::app::state::ProgressTaskKind::FileOps)
+            .is_some_and(&matches_detail)
+        {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    panic!(
+        "file-op progress detail did not match before {timeout:?}; last detail: {:?}",
+        controller
+            .ui
+            .progress
+            .task_detail(crate::app::state::ProgressTaskKind::FileOps)
+    );
 }
