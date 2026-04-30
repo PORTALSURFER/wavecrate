@@ -257,24 +257,19 @@ fn browser_auto_rename_processing_states(
     if snapshot.source_id != selected_source_id {
         return None;
     }
-    Some(
-        snapshot
-            .rows
-            .into_iter()
-            .map(|row| {
-                (
-                    row.current_path,
-                    match row.state {
-                        AutoRenameBatchRowState::Queued => BrowserRowProcessingState::Queued,
-                        AutoRenameBatchRowState::Active => BrowserRowProcessingState::Active,
-                        AutoRenameBatchRowState::Completed => BrowserRowProcessingState::Completed,
-                        AutoRenameBatchRowState::Skipped => BrowserRowProcessingState::Skipped,
-                        AutoRenameBatchRowState::Failed => BrowserRowProcessingState::Failed,
-                    },
-                )
-            })
-            .collect(),
-    )
+    let mut states = HashMap::new();
+    for row in snapshot.rows {
+        let processing_state = match row.state {
+            AutoRenameBatchRowState::Queued => BrowserRowProcessingState::Queued,
+            AutoRenameBatchRowState::Active => BrowserRowProcessingState::Active,
+            AutoRenameBatchRowState::Completed => BrowserRowProcessingState::Completed,
+            AutoRenameBatchRowState::Skipped => BrowserRowProcessingState::Skipped,
+            AutoRenameBatchRowState::Failed => BrowserRowProcessingState::Failed,
+        };
+        states.insert(row.requested_path, processing_state);
+        states.insert(row.current_path, processing_state);
+    }
+    Some(states)
 }
 
 /// Convert one app-core playback-age bucket into the native radiant contract enum.
