@@ -1,4 +1,4 @@
-use super::sample_mutation::perform_sample_rename;
+use super::sample_mutation::{RenameLoopedMetadata, perform_sample_rename};
 use super::sample_mutation::{
     SAMPLE_RENAME_DB_RETRIES_PRODUCTION, SAMPLE_RENAME_DB_RETRY_DELAY_PRODUCTION,
 };
@@ -82,7 +82,7 @@ fn sample_rename_rolls_back_file_when_db_write_cannot_start() {
         old_relative,
         new_relative,
         Rating::KEEP_3,
-        false,
+        RenameLoopedMetadata::DbOrFallback(false),
         false,
         None,
         Some(SampleSoundType::Kick),
@@ -152,7 +152,7 @@ fn sample_rename_preserves_locked_and_metadata_on_success() {
         old_relative,
         new_relative,
         Rating::KEEP_3,
-        false,
+        RenameLoopedMetadata::DbOrFallback(false),
         false,
         None,
         Some(SampleSoundType::Kick),
@@ -248,7 +248,7 @@ fn sample_auto_rename_logs_looped_metadata_provenance() {
             && captured.contains("new_path=renamed.wav")
             && captured.contains("request_looped=true")
             && captured.contains("db_looped=Some(false)")
-            && captured.contains("final_looped=false"),
+            && captured.contains("final_looped=true"),
         "log should identify request, DB, and final loop values: {captured}"
     );
 }

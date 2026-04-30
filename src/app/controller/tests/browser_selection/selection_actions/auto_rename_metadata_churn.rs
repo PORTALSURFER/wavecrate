@@ -187,7 +187,6 @@ fn repeated_loop_sidebar_click_survives_auto_rename_and_stale_metadata_failure()
 }
 
 #[test]
-#[ignore = "OPT-238 should make auto-rename prefer optimistic loop metadata over stale DB values"]
 fn loop_sidebar_auto_rename_keeps_loop_when_source_db_still_has_stale_one_shot() {
     let (mut controller, source) = dummy_controller();
     controller.library.sources.push(source.clone());

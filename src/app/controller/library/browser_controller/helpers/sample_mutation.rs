@@ -171,6 +171,30 @@ pub(crate) struct SampleAutoRenameRequest {
     pub(crate) resume_start_override: Option<f64>,
 }
 
+#[derive(Clone, Copy)]
+pub(super) enum RenameLoopedMetadata {
+    DbOrFallback(bool),
+    RequestSnapshot(bool),
+}
+
+impl RenameLoopedMetadata {
+    fn request_value(self) -> bool {
+        match self {
+            RenameLoopedMetadata::DbOrFallback(looped)
+            | RenameLoopedMetadata::RequestSnapshot(looped) => looped,
+        }
+    }
+
+    fn resolved(self, db_looped: Option<bool>) -> bool {
+        match self {
+            RenameLoopedMetadata::DbOrFallback(fallback_looped) => {
+                db_looped.unwrap_or(fallback_looped)
+            }
+            RenameLoopedMetadata::RequestSnapshot(looped) => looped,
+        }
+    }
+}
+
 fn run_sample_rename_job(
     ctx: TriageSampleContext,
     new_relative: PathBuf,
@@ -200,7 +224,7 @@ fn run_sample_rename_job(
         &old_relative,
         &new_relative,
         tag,
-        ctx.entry.looped,
+        RenameLoopedMetadata::DbOrFallback(ctx.entry.looped),
         ctx.entry.locked,
         ctx.entry.last_played_at,
         fallback_sound_type,
@@ -287,7 +311,7 @@ pub(crate) fn run_sample_auto_rename_job(
             &request.old_relative,
             &request.new_relative,
             request.tag,
-            request.looped,
+            RenameLoopedMetadata::RequestSnapshot(request.looped),
             request.locked,
             request.last_played_at,
             request.sound_type,
@@ -362,7 +386,7 @@ pub(super) fn perform_sample_rename(
     old_relative: &Path,
     new_relative: &Path,
     tag: crate::sample_sources::Rating,
-    fallback_looped: bool,
+    looped_metadata: RenameLoopedMetadata,
     fallback_locked: bool,
     fallback_last_played_at: Option<i64>,
     fallback_sound_type: Option<crate::sample_sources::SampleSoundType>,
@@ -378,7 +402,7 @@ pub(super) fn perform_sample_rename(
         new_relative,
         &new_absolute,
         tag,
-        fallback_looped,
+        looped_metadata,
         fallback_locked,
         fallback_last_played_at,
         fallback_sound_type,
@@ -417,7 +441,7 @@ fn persist_sample_rename_with_retry(
     new_relative: &Path,
     new_absolute: &Path,
     tag: crate::sample_sources::Rating,
-    fallback_looped: bool,
+    looped_metadata: RenameLoopedMetadata,
     fallback_locked: bool,
     fallback_last_played_at: Option<i64>,
     fallback_sound_type: Option<crate::sample_sources::SampleSoundType>,
@@ -432,7 +456,7 @@ fn persist_sample_rename_with_retry(
             new_relative,
             new_absolute,
             tag,
-            fallback_looped,
+            looped_metadata,
             fallback_locked,
             fallback_last_played_at,
             fallback_sound_type,
@@ -464,7 +488,7 @@ fn persist_sample_rename_once(
     new_relative: &Path,
     new_absolute: &Path,
     tag: crate::sample_sources::Rating,
-    fallback_looped: bool,
+    looped_metadata: RenameLoopedMetadata,
     fallback_locked: bool,
     fallback_last_played_at: Option<i64>,
     fallback_sound_type: Option<crate::sample_sources::SampleSoundType>,
@@ -480,7 +504,7 @@ fn persist_sample_rename_once(
     let db_looped = db
         .looped_for_path(old_relative)
         .map_err(|err| format!("Failed to load loop marker: {err}"))?;
-    let looped = db_looped.unwrap_or(fallback_looped);
+    let looped = looped_metadata.resolved(db_looped);
     let locked = db
         .locked_for_path(old_relative)
         .map_err(|err| format!("Failed to load lock marker: {err}"))?
@@ -546,7 +570,7 @@ fn persist_sample_rename_once(
         source_id = %source.id,
         old_path = %old_relative.display(),
         new_path = %new_relative.display(),
-        request_looped = fallback_looped,
+        request_looped = looped_metadata.request_value(),
         db_looped = ?db_looped,
         final_looped = looped,
         "auto rename: persisted loop metadata provenance"
