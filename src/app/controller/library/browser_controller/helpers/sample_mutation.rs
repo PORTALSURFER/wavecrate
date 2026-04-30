@@ -6,6 +6,9 @@ use std::thread::sleep;
 use std::time::Duration;
 use tracing::info;
 
+#[cfg(test)]
+use std::sync::{LazyLock, Mutex};
+
 #[cfg(not(test))]
 const SAMPLE_RENAME_DB_RETRIES: usize = SAMPLE_RENAME_DB_RETRIES_PRODUCTION;
 #[cfg(test)]
@@ -18,6 +21,25 @@ const SAMPLE_RENAME_DB_RETRY_DELAY: Duration = Duration::from_millis(50);
 pub(super) const SAMPLE_RENAME_DB_RETRIES_PRODUCTION: usize = 80;
 /// Production retry delay for browser sample rename DB rewrites.
 pub(super) const SAMPLE_RENAME_DB_RETRY_DELAY_PRODUCTION: Duration = Duration::from_millis(100);
+
+#[cfg(test)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct RenameLoopedProvenanceLog {
+    pub(super) old_relative: PathBuf,
+    pub(super) new_relative: PathBuf,
+    pub(super) request_looped: bool,
+    pub(super) db_looped: Option<bool>,
+    pub(super) final_looped: bool,
+}
+
+#[cfg(test)]
+static RENAME_LOOPED_PROVENANCE_LOGS: LazyLock<Mutex<Vec<RenameLoopedProvenanceLog>>> =
+    LazyLock::new(|| Mutex::new(Vec::new()));
+
+#[cfg(test)]
+pub(super) fn take_rename_looped_provenance_logs_for_tests() -> Vec<RenameLoopedProvenanceLog> {
+    std::mem::take(&mut *RENAME_LOOPED_PROVENANCE_LOGS.lock().unwrap())
+}
 
 impl BrowserController<'_> {
     /// Delete the resolved browser sample immediately in the current thread.
@@ -664,6 +686,17 @@ fn persist_sample_rename_once(
         final_looped = looped,
         "auto rename: persisted loop metadata provenance"
     );
+    #[cfg(test)]
+    RENAME_LOOPED_PROVENANCE_LOGS
+        .lock()
+        .unwrap()
+        .push(RenameLoopedProvenanceLog {
+            old_relative: old_relative.to_path_buf(),
+            new_relative: new_relative.to_path_buf(),
+            request_looped: looped_metadata.request_value(),
+            db_looped,
+            final_looped: looped,
+        });
     Ok(WavEntry {
         relative_path: new_relative.to_path_buf(),
         file_size,

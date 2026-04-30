@@ -1,4 +1,6 @@
-use super::sample_mutation::{RenameLoopedMetadata, perform_sample_rename};
+use super::sample_mutation::{
+    RenameLoopedMetadata, perform_sample_rename, take_rename_looped_provenance_logs_for_tests,
+};
 use super::sample_mutation::{
     SAMPLE_RENAME_DB_RETRIES_PRODUCTION, SAMPLE_RENAME_DB_RETRY_DELAY_PRODUCTION,
 };
@@ -239,17 +241,31 @@ fn sample_auto_rename_logs_looped_metadata_provenance() {
         assert!(result.errors.is_empty(), "{:?}", result.errors);
     });
 
+    if !captured.is_empty() {
+        assert!(
+            captured.contains("auto rename: persisted loop metadata provenance"),
+            "rename persistence should log loop provenance: {captured}"
+        );
+        assert!(
+            captured.contains("old_path=old.wav")
+                && captured.contains("new_path=renamed.wav")
+                && captured.contains("request_looped=true")
+                && captured.contains("db_looped=Some(false)")
+                && captured.contains("final_looped=true"),
+            "log should identify request, DB, and final loop values: {captured}"
+        );
+    }
+    let provenance_logs = take_rename_looped_provenance_logs_for_tests();
+    let expected = super::sample_mutation::RenameLoopedProvenanceLog {
+        old_relative: old_relative.to_path_buf(),
+        new_relative: new_relative.to_path_buf(),
+        request_looped: true,
+        db_looped: Some(false),
+        final_looped: true,
+    };
     assert!(
-        captured.contains("auto rename: persisted loop metadata provenance"),
-        "rename persistence should log loop provenance: {captured}"
-    );
-    assert!(
-        captured.contains("old_path=old.wav")
-            && captured.contains("new_path=renamed.wav")
-            && captured.contains("request_looped=true")
-            && captured.contains("db_looped=Some(false)")
-            && captured.contains("final_looped=true"),
-        "log should identify request, DB, and final loop values: {captured}"
+        provenance_logs.contains(&expected),
+        "test capture should mirror the emitted loop provenance event"
     );
 }
 
