@@ -73,6 +73,7 @@ use std::{
     time::Duration,
 };
 
+pub(crate) use self::file_op_worker::FileOpProgressSender;
 pub(crate) use self::file_ops_types::*;
 pub(crate) use self::messages::*;
 pub(crate) use self::queue_orchestration::JobMessageSender;

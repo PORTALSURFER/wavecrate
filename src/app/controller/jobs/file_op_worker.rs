@@ -1,10 +1,41 @@
-//! Reusable worker lane for one-shot file operations that only emit a final result.
+//! Reusable worker lane for one-shot file operations.
 
 use super::*;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread::JoinHandle;
 
-type FileOpTask = Box<dyn FnOnce(Arc<AtomicBool>) -> FileOpResult + Send + 'static>;
+type FileOpTask =
+    Box<dyn FnOnce(Arc<AtomicBool>, FileOpProgressSender) -> FileOpResult + Send + 'static>;
+
+/// Best-effort progress reporter for one active file operation.
+#[derive(Clone)]
+pub(crate) struct FileOpProgressSender {
+    message_tx: JobMessageSender,
+    repaint_signal: Arc<SharedRepaintSignal>,
+}
+
+impl FileOpProgressSender {
+    pub(crate) fn new(
+        message_tx: JobMessageSender,
+        repaint_signal: Arc<SharedRepaintSignal>,
+    ) -> Self {
+        Self {
+            message_tx,
+            repaint_signal,
+        }
+    }
+
+    /// Publish one low-priority progress update for the active file operation.
+    pub(crate) fn progress(&self, completed: usize, detail: Option<String>) {
+        let _ = self
+            .message_tx
+            .send(JobMessage::FileOps(FileOpMessage::Progress {
+                completed,
+                detail,
+            }));
+        self.repaint_signal.request_repaint();
+    }
+}
 
 /// One queued file-operation task executed by the reusable worker thread.
 pub(super) struct QueuedFileOpTask {
@@ -17,6 +48,17 @@ impl QueuedFileOpTask {
     pub(super) fn new(
         cancel: Arc<AtomicBool>,
         run: impl FnOnce(Arc<AtomicBool>) -> FileOpResult + Send + 'static,
+    ) -> Self {
+        Self {
+            cancel,
+            run: Box::new(move |cancel, _progress| run(cancel)),
+        }
+    }
+
+    /// Capture one background file operation that can stream progress.
+    pub(super) fn new_with_progress(
+        cancel: Arc<AtomicBool>,
+        run: impl FnOnce(Arc<AtomicBool>, FileOpProgressSender) -> FileOpResult + Send + 'static,
     ) -> Self {
         Self {
             cancel,
@@ -69,7 +111,8 @@ fn run_file_op_worker(
     repaint_signal: Arc<SharedRepaintSignal>,
 ) {
     while let Ok(task) = rx.recv() {
-        let result = (task.run)(task.cancel);
+        let progress = FileOpProgressSender::new(message_tx.clone(), repaint_signal.clone());
+        let result = (task.run)(task.cancel, progress);
         let _ = message_tx.send(JobMessage::FileOps(FileOpMessage::Finished(result)));
         repaint_signal.request_repaint();
     }

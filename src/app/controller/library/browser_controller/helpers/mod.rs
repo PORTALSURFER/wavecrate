@@ -2,8 +2,8 @@
 
 use super::*;
 use crate::app::controller::jobs::{
-    FileOpResult, NormalizationJob, SampleAutoRenameResult, SampleAutoRenameSuccess,
-    SampleRenameResult,
+    FileOpProgressSender, FileOpResult, NormalizationJob, SampleAutoRenameResult,
+    SampleAutoRenameSuccess, SampleRenameResult,
 };
 use crate::app::controller::state::runtime::BrowserRenameIntentKey;
 use crate::app::controller::undo;

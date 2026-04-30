@@ -115,6 +115,7 @@ impl BrowserController<'_> {
                 source.clone(),
                 requests,
                 Arc::new(AtomicBool::new(false)),
+                None,
             );
             self.apply_file_op_result(FileOpResult::SampleAutoRename(result));
             return Ok(());
@@ -128,9 +129,15 @@ impl BrowserController<'_> {
             true,
         );
         let pending_source_id = source.id.clone();
-        if let Err(err) = self.runtime.jobs.begin_one_shot_file_op(move |cancel| {
-            FileOpResult::SampleAutoRename(run_background_auto_rename_request(snapshot, cancel))
-        }) {
+        if let Err(err) =
+            self.runtime
+                .jobs
+                .begin_one_shot_file_op_with_progress(move |cancel, progress| {
+                    FileOpResult::SampleAutoRename(run_background_auto_rename_request(
+                        snapshot, cancel, progress,
+                    ))
+                })
+        {
             self.runtime
                 .source_lane
                 .mutations

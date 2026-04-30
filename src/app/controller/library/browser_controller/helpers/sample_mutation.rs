@@ -223,6 +223,7 @@ pub(crate) fn run_sample_auto_rename_job(
     source: SampleSource,
     requests: Vec<SampleAutoRenameRequest>,
     cancel: Arc<AtomicBool>,
+    progress: Option<FileOpProgressSender>,
 ) -> SampleAutoRenameResult {
     #[cfg(test)]
     let started_at = std::time::Instant::now();
@@ -233,8 +234,14 @@ pub(crate) fn run_sample_auto_rename_job(
     let mut renamed = Vec::new();
     let mut skipped = Vec::new();
     let mut errors = Vec::new();
-    for request in requests {
+    for (index, request) in requests.into_iter().enumerate() {
+        let completed = index;
         if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+            emit_auto_rename_progress(
+                progress.as_ref(),
+                completed,
+                format!("Cancelled at {}", request.old_relative.display()),
+            );
             errors.push((request.old_relative, String::from("Rename cancelled")));
             break;
         }
@@ -247,15 +254,29 @@ pub(crate) fn run_sample_auto_rename_job(
                     })
                 },
             ) {
-                Ok(entry) => renamed.push(SampleAutoRenameSuccess {
-                    old_relative: request.old_relative.clone(),
-                    new_relative: request.new_relative.clone(),
-                    entry,
-                    resume_playback: request.resume_playback,
-                    resume_looped: request.resume_looped,
-                    resume_start_override: request.resume_start_override,
-                }),
-                Err(err) => errors.push((request.old_relative, err)),
+                Ok(entry) => {
+                    emit_auto_rename_progress(
+                        progress.as_ref(),
+                        completed + 1,
+                        format!("Renamed {}", request.old_relative.display()),
+                    );
+                    renamed.push(SampleAutoRenameSuccess {
+                        old_relative: request.old_relative.clone(),
+                        new_relative: request.new_relative.clone(),
+                        entry,
+                        resume_playback: request.resume_playback,
+                        resume_looped: request.resume_looped,
+                        resume_start_override: request.resume_start_override,
+                    });
+                }
+                Err(err) => {
+                    emit_auto_rename_progress(
+                        progress.as_ref(),
+                        completed + 1,
+                        format!("Failed {}", request.old_relative.display()),
+                    );
+                    errors.push((request.old_relative, err));
+                }
             }
             continue;
         }
@@ -272,16 +293,37 @@ pub(crate) fn run_sample_auto_rename_job(
             request.user_tag,
             Some(request.tag_named),
         ) {
-            Ok(entry) => renamed.push(SampleAutoRenameSuccess {
-                old_relative: request.old_relative,
-                new_relative: request.new_relative,
-                entry,
-                resume_playback: request.resume_playback,
-                resume_looped: request.resume_looped,
-                resume_start_override: request.resume_start_override,
-            }),
-            Err(err) if err.contains("already exists") => skipped.push((request.old_relative, err)),
-            Err(err) => errors.push((request.old_relative, err)),
+            Ok(entry) => {
+                emit_auto_rename_progress(
+                    progress.as_ref(),
+                    completed + 1,
+                    format!("Renamed {}", request.new_relative.display()),
+                );
+                renamed.push(SampleAutoRenameSuccess {
+                    old_relative: request.old_relative,
+                    new_relative: request.new_relative,
+                    entry,
+                    resume_playback: request.resume_playback,
+                    resume_looped: request.resume_looped,
+                    resume_start_override: request.resume_start_override,
+                });
+            }
+            Err(err) if err.contains("already exists") => {
+                emit_auto_rename_progress(
+                    progress.as_ref(),
+                    completed + 1,
+                    format!("Skipped {}", request.old_relative.display()),
+                );
+                skipped.push((request.old_relative, err));
+            }
+            Err(err) => {
+                emit_auto_rename_progress(
+                    progress.as_ref(),
+                    completed + 1,
+                    format!("Failed {}", request.old_relative.display()),
+                );
+                errors.push((request.old_relative, err));
+            }
         }
     }
     let result = SampleAutoRenameResult {
@@ -301,6 +343,16 @@ pub(crate) fn run_sample_auto_rename_job(
         .with_detail_count(result.renamed.len() + result.skipped.len() + result.errors.len()),
     );
     result
+}
+
+fn emit_auto_rename_progress(
+    progress: Option<&FileOpProgressSender>,
+    completed: usize,
+    detail: String,
+) {
+    if let Some(progress) = progress {
+        progress.progress(completed, Some(detail));
+    }
 }
 
 pub(super) fn perform_sample_rename(

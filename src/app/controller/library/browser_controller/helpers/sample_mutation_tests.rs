@@ -3,13 +3,17 @@ use super::sample_mutation::{
     SAMPLE_RENAME_DB_RETRIES_PRODUCTION, SAMPLE_RENAME_DB_RETRY_DELAY_PRODUCTION,
 };
 use super::{SampleAutoRenameRequest, run_sample_auto_rename_job};
+use crate::app::controller::jobs::{
+    FileOpMessage, FileOpProgressSender, JobMessage, JobMessageSender,
+};
 use crate::app::controller::test_support::write_test_wav;
+use crate::gui::repaint::SharedRepaintSignal;
 use crate::sample_sources::db::DB_FILE_NAME;
 use crate::sample_sources::{Rating, SampleSoundType, SampleSource, SourceDatabase};
 use std::path::{Path, PathBuf};
 use std::sync::{
     Arc,
-    atomic::AtomicBool,
+    atomic::{AtomicBool, Ordering},
     mpsc::{Receiver, Sender},
 };
 use std::time::Duration;
@@ -165,8 +169,12 @@ fn sample_auto_rename_rolls_back_each_failed_file_when_db_is_busy() {
     ];
     let (lock_release_tx, lock_done_rx) = lock_db_until_released(&source.root);
 
-    let result =
-        run_sample_auto_rename_job(source.clone(), requests, Arc::new(AtomicBool::new(false)));
+    let result = run_sample_auto_rename_job(
+        source.clone(),
+        requests,
+        Arc::new(AtomicBool::new(false)),
+        None,
+    );
 
     release_db_lock(lock_release_tx, lock_done_rx);
 
@@ -223,8 +231,12 @@ fn sample_auto_rename_retries_until_multi_attempt_db_lock_clears() {
         release_db_lock(lock_release_tx, lock_done_rx);
     });
 
-    let result =
-        run_sample_auto_rename_job(source.clone(), requests, Arc::new(AtomicBool::new(false)));
+    let result = run_sample_auto_rename_job(
+        source.clone(),
+        requests,
+        Arc::new(AtomicBool::new(false)),
+        None,
+    );
 
     assert!(
         result.errors.is_empty(),
@@ -290,6 +302,7 @@ fn sample_auto_rename_persists_inferred_sound_type_without_controller_db_write()
             resume_start_override: None,
         }],
         Arc::new(AtomicBool::new(false)),
+        None,
     );
 
     assert!(result.errors.is_empty());
@@ -329,6 +342,7 @@ fn sample_auto_rename_marks_already_matching_tag_named_path() {
             resume_start_override: None,
         }],
         Arc::new(AtomicBool::new(false)),
+        None,
     );
 
     assert!(result.errors.is_empty());
@@ -352,6 +366,7 @@ fn repeated_sample_auto_rename_preserves_analysis_artifacts() {
         source.clone(),
         vec![rename_request("alpha.wav", "alpha_renamed.wav")],
         Arc::new(AtomicBool::new(false)),
+        None,
     );
     assert!(first.errors.is_empty());
 
@@ -359,6 +374,7 @@ fn repeated_sample_auto_rename_preserves_analysis_artifacts() {
         source.clone(),
         vec![rename_request("alpha_renamed.wav", "alpha_final.wav")],
         Arc::new(AtomicBool::new(false)),
+        None,
     );
     assert!(second.errors.is_empty());
 
@@ -401,6 +417,93 @@ fn repeated_sample_auto_rename_preserves_analysis_artifacts() {
     assert_eq!(job_relative, "alpha_final.wav");
 }
 
+#[test]
+fn sample_auto_rename_streams_per_item_progress() {
+    let (_temp, source) = setup_fixture(&["alpha.wav", "beta.wav"]);
+    let (progress, rx) = file_op_progress_capture();
+
+    let result = run_sample_auto_rename_job(
+        source,
+        vec![
+            rename_request("alpha.wav", "alpha_renamed.wav"),
+            rename_request("beta.wav", "beta_renamed.wav"),
+        ],
+        Arc::new(AtomicBool::new(false)),
+        Some(progress),
+    );
+
+    assert!(result.errors.is_empty());
+    let messages = drain_file_op_progress(rx);
+    assert!(
+        messages.iter().any(|(completed, detail)| *completed == 1
+            && detail.as_deref() == Some("Renamed alpha_renamed.wav")),
+        "missing first rename progress: {messages:?}"
+    );
+    assert!(
+        messages.iter().any(|(completed, detail)| *completed == 2
+            && detail.as_deref() == Some("Renamed beta_renamed.wav")),
+        "missing second rename progress: {messages:?}"
+    );
+}
+
+#[test]
+fn sample_auto_rename_cancel_stops_after_partial_completion() {
+    let (_temp, source) = setup_fixture(&["alpha.wav", "beta.wav", "gamma.wav"]);
+    let cancel = Arc::new(AtomicBool::new(false));
+    let (progress, rx) = file_op_progress_capture();
+    let worker_cancel = cancel.clone();
+    let worker_source = source.clone();
+    let (result_tx, result_rx) = std::sync::mpsc::channel();
+
+    std::thread::spawn(move || {
+        let result = run_sample_auto_rename_job(
+            worker_source,
+            vec![
+                rename_request("alpha.wav", "alpha_renamed.wav"),
+                rename_request("beta.wav", "beta_renamed.wav"),
+                rename_request("gamma.wav", "gamma_renamed.wav"),
+            ],
+            worker_cancel,
+            Some(progress),
+        );
+        result_tx.send(result).expect("send auto-rename result");
+    });
+
+    loop {
+        match rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("wait for first progress")
+        {
+            JobMessage::FileOps(FileOpMessage::Progress { completed: 1, .. }) => {
+                cancel.store(true, Ordering::Relaxed);
+                break;
+            }
+            _ => {}
+        }
+    }
+
+    let result = result_rx
+        .recv_timeout(Duration::from_secs(2))
+        .expect("worker should stop after cancellation");
+
+    assert!(!result.renamed.is_empty());
+    assert!(
+        result.renamed.len() < result.requested_paths.len(),
+        "cancellation should stop before the full batch completes: {result:?}"
+    );
+    assert_eq!(result.errors.len(), 1);
+    let cancelled_path = result.errors[0].0.clone();
+    assert_eq!(result.errors[0].1, "Rename cancelled");
+    assert!(source.root.join("alpha_renamed.wav").exists());
+    assert!(source.root.join(&cancelled_path).exists());
+    let cancelled_target = match cancelled_path.to_string_lossy().as_ref() {
+        "beta.wav" => "beta_renamed.wav",
+        "gamma.wav" => "gamma_renamed.wav",
+        other => panic!("unexpected cancelled path: {other}"),
+    };
+    assert!(!source.root.join(cancelled_target).exists());
+}
+
 fn setup_fixture(names: &[&str]) -> (TempDir, SampleSource) {
     let temp = tempdir().expect("create temp dir");
     let source = SampleSource::new(temp.path().join("source"));
@@ -433,6 +536,30 @@ fn setup_fixture(names: &[&str]) -> (TempDir, SampleSource) {
         insert_analysis_artifacts(&source, relative);
     }
     (temp, source)
+}
+
+fn file_op_progress_capture() -> (FileOpProgressSender, std::sync::mpsc::Receiver<JobMessage>) {
+    let (tx, rx) = std::sync::mpsc::sync_channel(16);
+    (
+        FileOpProgressSender::new(
+            JobMessageSender::new(tx),
+            Arc::new(SharedRepaintSignal::default()),
+        ),
+        rx,
+    )
+}
+
+fn drain_file_op_progress(
+    rx: std::sync::mpsc::Receiver<JobMessage>,
+) -> Vec<(usize, Option<String>)> {
+    rx.try_iter()
+        .filter_map(|message| match message {
+            JobMessage::FileOps(FileOpMessage::Progress { completed, detail }) => {
+                Some((completed, detail))
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 fn insert_analysis_artifacts(source: &SampleSource, relative: &Path) {

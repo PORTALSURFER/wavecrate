@@ -360,11 +360,14 @@ impl BrowserController<'_> {
 pub(super) fn run_background_auto_rename_request(
     snapshot: AutoRenameBackgroundRequest,
     cancel: Arc<AtomicBool>,
+    progress: FileOpProgressSender,
 ) -> SampleAutoRenameResult {
     let source_id = snapshot.source.id.clone();
     let requested_paths = snapshot.paths.clone();
-    match prepare_auto_rename_requests_from_snapshot(&snapshot, cancel.clone()) {
-        Ok(requests) => run_sample_auto_rename_job(snapshot.source, requests, cancel),
+    match prepare_auto_rename_requests_from_snapshot(&snapshot, cancel.clone(), &progress) {
+        Ok(requests) => {
+            run_sample_auto_rename_job(snapshot.source, requests, cancel, Some(progress))
+        }
         Err(err) => SampleAutoRenameResult {
             source_id,
             requested_paths: requested_paths.clone(),
@@ -384,6 +387,7 @@ pub(super) fn run_background_auto_rename_request(
 fn prepare_auto_rename_requests_from_snapshot(
     snapshot: &AutoRenameBackgroundRequest,
     cancel: Arc<AtomicBool>,
+    progress: &FileOpProgressSender,
 ) -> Result<Vec<SampleAutoRenameRequest>, String> {
     let started_at = Instant::now();
     let db = crate::sample_sources::SourceDatabase::open_read_only(&snapshot.source.root)
@@ -405,8 +409,16 @@ fn prepare_auto_rename_requests_from_snapshot(
     let mut reserved_targets = HashSet::new();
     for (relative_path, sample_id) in snapshot.paths.iter().zip(bpm_sample_ids.iter()) {
         if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+            progress.progress(
+                0,
+                Some(format!(
+                    "Cancelled while planning {}",
+                    relative_path.display()
+                )),
+            );
             return Err(String::from("Rename cancelled"));
         }
+        progress.progress(0, Some(format!("Planning {}", relative_path.display())));
         let overrides = snapshot.metadata.get(relative_path);
         let db_entry = match overrides.and_then(|metadata| metadata.entry.clone()) {
             Some(entry) => entry,

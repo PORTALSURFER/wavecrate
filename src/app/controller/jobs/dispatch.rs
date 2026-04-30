@@ -473,6 +473,30 @@ impl ControllerJobs {
         Ok(())
     }
 
+    /// Queue one one-shot file operation that may stream best-effort progress updates.
+    pub(in super::super) fn begin_one_shot_file_op_with_progress(
+        &mut self,
+        run: impl FnOnce(Arc<AtomicBool>, FileOpProgressSender) -> FileOpResult + Send + 'static,
+    ) -> Result<(), String> {
+        if self.in_progress.file_ops {
+            return Err("File operation already in progress".to_string());
+        }
+        let cancel = Arc::new(AtomicBool::new(false));
+        self.in_progress.file_ops = true;
+        self.cancel_handles.file_ops = Some(cancel.clone());
+        if let Err(err) =
+            self.file_op_worker
+                .send(file_op_worker::QueuedFileOpTask::new_with_progress(
+                    cancel, run,
+                ))
+        {
+            self.in_progress.file_ops = false;
+            self.cancel_handles.file_ops = None;
+            return Err(err);
+        }
+        Ok(())
+    }
+
     /// Return the cooperative cancel handle for the active file operation.
     pub(in super::super) fn file_ops_cancel(&self) -> Option<Arc<AtomicBool>> {
         self.cancel_handles.file_ops.clone()
