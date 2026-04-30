@@ -42,6 +42,9 @@ pub type NativePlaybackAgeFilterChip = self::native_shell_dtos::PlaybackAgeFilte
 /// Native runtime browser row model.
 pub type NativeBrowserRowModel = self::native_shell_dtos::BrowserRowModel;
 
+/// Native runtime browser row processing state.
+pub type NativeBrowserRowProcessingState = self::native_shell_dtos::BrowserRowProcessingState;
+
 /// Native runtime retained vector used by Sempal-owned projection DTOs.
 pub type NativeRetainedVec<T> = self::native_shell_dtos::RetainedVec<T>;
 

@@ -5,6 +5,7 @@ use super::super::{
 };
 use super::shared::hash_string_for_projection_key;
 use crate::app_core::controller::AppController;
+use std::hash::{Hash, Hasher};
 
 /// Build a browser-frame projection key from the current controller snapshot.
 pub(super) fn build_browser_frame_projection_key(
@@ -72,5 +73,34 @@ pub(super) fn build_browser_rows_state_projection_key(
     BrowserRowsStateProjectionCacheKey {
         browser_selected_visible: controller.ui.browser.selection.selected_visible,
         browser_selected_paths_revision: controller.ui.browser.selection.selected_paths_revision,
+        browser_auto_rename_rows_hash: browser_auto_rename_rows_hash(controller),
     }
+}
+
+fn browser_auto_rename_rows_hash(controller: &AppController) -> u64 {
+    let Some(selected_source_id) = controller.selected_source_id() else {
+        return 0;
+    };
+    let Some(snapshot) = controller.active_auto_rename_batch_snapshot_for_projection() else {
+        return 0;
+    };
+    if snapshot.source_id != selected_source_id {
+        return 0;
+    }
+
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    snapshot.source_id.hash(&mut hasher);
+    snapshot.current_path.hash(&mut hasher);
+    for row in snapshot.rows {
+        row.current_path.hash(&mut hasher);
+        match row.state {
+            crate::app_core::controller::AutoRenameBatchRowState::Queued => 1_u8,
+            crate::app_core::controller::AutoRenameBatchRowState::Active => 2,
+            crate::app_core::controller::AutoRenameBatchRowState::Completed => 3,
+            crate::app_core::controller::AutoRenameBatchRowState::Skipped => 4,
+            crate::app_core::controller::AutoRenameBatchRowState::Failed => 5,
+        }
+        .hash(&mut hasher);
+    }
+    hasher.finish()
 }

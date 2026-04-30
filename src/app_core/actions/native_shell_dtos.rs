@@ -574,6 +574,24 @@ pub enum PlaybackAgeBucket {
     NeverPlayed,
 }
 
+/// Transient browser row processing states for batch file operations.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum BrowserRowProcessingState {
+    /// The row is not part of an active row-scoped operation.
+    #[default]
+    None,
+    /// The row is waiting in the current batch.
+    Queued,
+    /// The row is currently being processed.
+    Active,
+    /// The row completed successfully.
+    Completed,
+    /// The row was skipped by the batch.
+    Skipped,
+    /// The row failed during processing.
+    Failed,
+}
+
 /// Summary of one browser/list row consumed by the native shell.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BrowserRowModel {
@@ -601,6 +619,8 @@ pub struct BrowserRowModel {
     pub locked: bool,
     /// Whether the backing sample is session-marked for later review.
     pub marked: bool,
+    /// Transient row-scoped processing state for active batch operations.
+    pub processing_state: BrowserRowProcessingState,
 }
 
 impl BrowserRowModel {
@@ -625,6 +645,7 @@ impl BrowserRowModel {
             missing: false,
             locked: false,
             marked: false,
+            processing_state: BrowserRowProcessingState::None,
         }
     }
 
@@ -679,6 +700,12 @@ impl BrowserRowModel {
     /// Mark whether the backing sample should render with the session mark treatment.
     pub fn with_marked(mut self, marked: bool) -> Self {
         self.marked = marked;
+        self
+    }
+
+    /// Attach a transient row-scoped processing state.
+    pub fn with_processing_state(mut self, processing_state: BrowserRowProcessingState) -> Self {
+        self.processing_state = processing_state;
         self
     }
 }
@@ -2215,6 +2242,32 @@ impl From<PlaybackAgeBucket> for compat::PlaybackAgeBucket {
     }
 }
 
+impl From<compat::BrowserRowProcessingState> for BrowserRowProcessingState {
+    fn from(value: compat::BrowserRowProcessingState) -> Self {
+        match value {
+            compat::BrowserRowProcessingState::None => Self::None,
+            compat::BrowserRowProcessingState::Queued => Self::Queued,
+            compat::BrowserRowProcessingState::Active => Self::Active,
+            compat::BrowserRowProcessingState::Completed => Self::Completed,
+            compat::BrowserRowProcessingState::Skipped => Self::Skipped,
+            compat::BrowserRowProcessingState::Failed => Self::Failed,
+        }
+    }
+}
+
+impl From<BrowserRowProcessingState> for compat::BrowserRowProcessingState {
+    fn from(value: BrowserRowProcessingState) -> Self {
+        match value {
+            BrowserRowProcessingState::None => Self::None,
+            BrowserRowProcessingState::Queued => Self::Queued,
+            BrowserRowProcessingState::Active => Self::Active,
+            BrowserRowProcessingState::Completed => Self::Completed,
+            BrowserRowProcessingState::Skipped => Self::Skipped,
+            BrowserRowProcessingState::Failed => Self::Failed,
+        }
+    }
+}
+
 impl From<compat::BrowserRowModel> for BrowserRowModel {
     fn from(value: compat::BrowserRowModel) -> Self {
         Self {
@@ -2230,6 +2283,7 @@ impl From<compat::BrowserRowModel> for BrowserRowModel {
             missing: value.missing,
             locked: value.locked,
             marked: value.marked,
+            processing_state: value.processing_state.into(),
         }
     }
 }
@@ -2249,6 +2303,7 @@ impl From<BrowserRowModel> for compat::BrowserRowModel {
             missing: value.missing,
             locked: value.locked,
             marked: value.marked,
+            processing_state: value.processing_state.into(),
         }
     }
 }

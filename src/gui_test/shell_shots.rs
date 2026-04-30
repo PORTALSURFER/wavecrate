@@ -1,7 +1,8 @@
 use crate::{
     app_core::actions::{
-        NativeAppModel, NativeBrowserRowModel, NativeFolderRowModel, NativeNormalizedRangeModel,
-        NativeSourceRowModel, NativeUpdateStatusModel,
+        NativeAppModel, NativeBrowserRowModel, NativeBrowserRowProcessingState,
+        NativeFolderRowModel, NativeNormalizedRangeModel, NativeSourceRowModel,
+        NativeUpdateStatusModel,
     },
     gui::types::ImageRgba,
     gui_runtime::capture_native_shell_shot_snapshot,
@@ -291,6 +292,13 @@ fn browser_dense_model() -> NativeAppModel {
         if index % 5 == 0 {
             row = row.with_bucket_label(format!("BPM {index}"));
         }
+        row.processing_state = match index {
+            65 => NativeBrowserRowProcessingState::Queued,
+            72 => NativeBrowserRowProcessingState::Active,
+            73 => NativeBrowserRowProcessingState::Completed,
+            74 => NativeBrowserRowProcessingState::Failed,
+            _ => NativeBrowserRowProcessingState::None,
+        };
         model.browser.rows.push(row);
     }
     model.browser.visible_count = 500;

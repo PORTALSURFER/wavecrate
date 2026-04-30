@@ -23,6 +23,7 @@ pub(crate) struct NativeProjectionCacheKey {
     pub(crate) browser_render_window_start: usize,
     pub(crate) browser_selected_paths_len: usize,
     pub(crate) browser_selected_paths_revision: u64,
+    pub(crate) browser_auto_rename_rows_hash: u64,
     pub(crate) browser_row_metadata_revision: u64,
     pub(crate) browser_tag_sidebar_selected_count: usize,
     pub(crate) browser_tag_sidebar_primary_hash: u64,
@@ -161,6 +162,7 @@ pub(crate) struct BrowserRowsProjectionCacheKey {
 pub(crate) struct BrowserRowsStateProjectionCacheKey {
     pub(crate) browser_selected_visible: Option<usize>,
     pub(crate) browser_selected_paths_revision: u64,
+    pub(crate) browser_auto_rename_rows_hash: u64,
 }
 
 /// Map-panel projection key scoped to similarity-map-affecting state.

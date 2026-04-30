@@ -1,5 +1,8 @@
 use super::*;
+use crate::app_core::actions::NativeBrowserRowProcessingState as BrowserRowProcessingState;
 use crate::app_core::app_api::state::BrowserDuplicateCleanupState;
+use crate::app_core::controller::AutoRenameBatchRowState;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -70,6 +73,7 @@ pub(crate) fn project_browser_rows_model_into(
         .is_none()
         .then(|| controller.ui.browser.search.similar_query.clone())
         .flatten();
+    let processing_states = browser_auto_rename_processing_states(controller);
     if rows.make_mut().capacity() < window_len {
         let additional = window_len.saturating_sub(rows.len());
         rows.make_mut().reserve(additional);
@@ -100,6 +104,7 @@ pub(crate) fn project_browser_rows_model_into(
                     false,
                     false,
                     false,
+                    BrowserRowProcessingState::None,
                     None,
                 ),
             );
@@ -115,6 +120,10 @@ pub(crate) fn project_browser_rows_model_into(
             .as_ref()
             .and_then(|query| query.display_strength_for_index(absolute_index))
             .map(BrowserRowModel::encode_similarity_display_strength);
+        let processing_state = processing_states
+            .as_ref()
+            .and_then(|states| states.get(cached_row.relative_path.as_path()).copied())
+            .unwrap_or(BrowserRowProcessingState::None);
         write_browser_row_into_slot(
             rows,
             offset,
@@ -130,6 +139,7 @@ pub(crate) fn project_browser_rows_model_into(
                 cached_row.missing,
                 cached_row.locked,
                 cached_row.marked,
+                processing_state,
                 similarity_display_strength,
             ),
         );
@@ -148,11 +158,20 @@ pub(crate) fn patch_browser_rows_state(
     rows: &mut [BrowserRowModel],
 ) {
     super::refresh_projected_selected_paths_lookup(controller);
+    let processing_states = browser_auto_rename_processing_states(controller);
     for row in rows {
         let absolute_index = controller.ui.browser.viewport.visible.get(row.visible_row);
         row.focused = selected_visible_row.is_some_and(|focused| focused == row.visible_row);
         row.selected = absolute_index
             .is_some_and(|index| super::selected_index_is_selected(controller, index));
+        row.processing_state = absolute_index
+            .and_then(|index| controller.browser_projection_entry(index))
+            .and_then(|entry| {
+                processing_states
+                    .as_ref()
+                    .and_then(|states| states.get(entry.relative_path).copied())
+            })
+            .unwrap_or(BrowserRowProcessingState::None);
     }
 }
 
@@ -230,6 +249,34 @@ fn browser_duplicate_cleanup_bucket_label(
     tags.join(" · ")
 }
 
+fn browser_auto_rename_processing_states(
+    controller: &AppController,
+) -> Option<HashMap<std::path::PathBuf, BrowserRowProcessingState>> {
+    let selected_source_id = controller.selected_source_id()?;
+    let snapshot = controller.active_auto_rename_batch_snapshot_for_projection()?;
+    if snapshot.source_id != selected_source_id {
+        return None;
+    }
+    Some(
+        snapshot
+            .rows
+            .into_iter()
+            .map(|row| {
+                (
+                    row.current_path,
+                    match row.state {
+                        AutoRenameBatchRowState::Queued => BrowserRowProcessingState::Queued,
+                        AutoRenameBatchRowState::Active => BrowserRowProcessingState::Active,
+                        AutoRenameBatchRowState::Completed => BrowserRowProcessingState::Completed,
+                        AutoRenameBatchRowState::Skipped => BrowserRowProcessingState::Skipped,
+                        AutoRenameBatchRowState::Failed => BrowserRowProcessingState::Failed,
+                    },
+                )
+            })
+            .collect(),
+    )
+}
+
 /// Convert one app-core playback-age bucket into the native radiant contract enum.
 fn native_playback_age_bucket(
     bucket: PlaybackAgeBucket,
@@ -264,6 +311,7 @@ fn write_browser_row_into_slot(
         bool,
         bool,
         bool,
+        BrowserRowProcessingState,
         Option<u8>,
     ),
 ) {
@@ -280,6 +328,7 @@ fn write_browser_row_into_slot(
         missing,
         locked,
         marked,
+        processing_state,
         similarity_display_strength,
     ) = projection;
     let bucket_label = (!bucket_label.is_empty()).then_some(bucket_label);
@@ -292,6 +341,7 @@ fn write_browser_row_into_slot(
             row.missing = missing;
             row.locked = locked;
             row.marked = marked;
+            row.processing_state = processing_state;
             row.similarity_display_strength = similarity_display_strength;
             row.rating_level = rating_level.clamp(-3, 3);
             row.playback_age_bucket = native_playback_age_bucket;
@@ -311,6 +361,7 @@ fn write_browser_row_into_slot(
         row.missing = missing;
         row.locked = locked;
         row.marked = marked;
+        row.processing_state = processing_state;
         row.similarity_display_strength = similarity_display_strength;
         if let Some(bucket_label) = bucket_label {
             let next_bucket_label = Arc::<str>::from(bucket_label);
@@ -327,7 +378,8 @@ fn write_browser_row_into_slot(
         .with_playback_age_bucket(native_playback_age_bucket)
         .with_missing(missing)
         .with_locked(locked)
-        .with_marked(marked);
+        .with_marked(marked)
+        .with_processing_state(processing_state);
     if let Some(similarity_display_strength) = similarity_display_strength {
         row.similarity_display_strength = Some(similarity_display_strength);
     }

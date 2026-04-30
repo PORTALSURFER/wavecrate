@@ -268,6 +268,22 @@ pub(super) fn render_browser_focus_overlay(
                 }),
             );
         }
+        if let Some(color) = browser_processing_marker_color(style, row.processing_state) {
+            let marker_width = (sizing.border_width * 3.0).clamp(2.0, 5.0);
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: Rect::from_min_max(
+                        row.rect.min,
+                        Point::new(
+                            (row.rect.min.x + marker_width).min(row.rect.max.x),
+                            row.rect.max.y,
+                        ),
+                    ),
+                    color,
+                }),
+            );
+        }
         let focus_similarity_reserved_width =
             if row.focused && !model.browser.duplicate_cleanup_active {
                 browser_similarity_button_reserved_width(true, sizing)

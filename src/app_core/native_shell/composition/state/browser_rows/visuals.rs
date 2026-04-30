@@ -115,6 +115,47 @@ pub(in crate::gui::native_shell::state) fn browser_marked_similarity_row_fill(
     )
 }
 
+/// Return a row fill blended with transient auto-rename processing state.
+pub(in crate::gui::native_shell::state) fn browser_processing_row_fill(
+    style: &StyleTokens,
+    base: Rgba8,
+    state: native_model::BrowserRowProcessingState,
+) -> Rgba8 {
+    match state {
+        native_model::BrowserRowProcessingState::None => base,
+        native_model::BrowserRowProcessingState::Queued => {
+            translucent_overlay_color(base, style.highlight_blue, 0.14)
+        }
+        native_model::BrowserRowProcessingState::Active => {
+            translucent_overlay_color(base, style.highlight_orange, 0.28)
+        }
+        native_model::BrowserRowProcessingState::Completed => {
+            translucent_overlay_color(base, style.accent_mint, 0.18)
+        }
+        native_model::BrowserRowProcessingState::Skipped => {
+            translucent_overlay_color(base, style.text_muted, 0.14)
+        }
+        native_model::BrowserRowProcessingState::Failed => {
+            translucent_overlay_color(base, style.accent_trash, 0.24)
+        }
+    }
+}
+
+/// Return the left-edge marker color for transient auto-rename processing state.
+pub(in crate::gui::native_shell::state) fn browser_processing_marker_color(
+    style: &StyleTokens,
+    state: native_model::BrowserRowProcessingState,
+) -> Option<Rgba8> {
+    match state {
+        native_model::BrowserRowProcessingState::None => None,
+        native_model::BrowserRowProcessingState::Queued => Some(style.highlight_blue),
+        native_model::BrowserRowProcessingState::Active => Some(style.highlight_orange),
+        native_model::BrowserRowProcessingState::Completed => Some(style.accent_mint),
+        native_model::BrowserRowProcessingState::Skipped => Some(style.text_muted),
+        native_model::BrowserRowProcessingState::Failed => Some(style.accent_trash),
+    }
+}
+
 /// Return the stronger neutral fill used for selected browser rows.
 pub(in crate::gui::native_shell::state) fn selected_browser_row_fill(style: &StyleTokens) -> Rgba8 {
     translucent_overlay_color(

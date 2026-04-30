@@ -216,6 +216,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
             missing: row.missing,
             locked: row.locked,
             marked: row.marked,
+            processing_state: row.processing_state,
             rect,
         });
     }

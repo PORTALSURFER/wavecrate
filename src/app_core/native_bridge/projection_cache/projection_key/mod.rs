@@ -63,6 +63,7 @@ pub(super) fn derive_projection_key_parts(controller: &AppController) -> Derived
         browser_render_window_start: browser_rows_key.browser_render_window_start,
         browser_selected_paths_len: browser_frame_key.browser_selected_paths_len,
         browser_selected_paths_revision: browser_rows_state_key.browser_selected_paths_revision,
+        browser_auto_rename_rows_hash: browser_rows_state_key.browser_auto_rename_rows_hash,
         browser_row_metadata_revision: browser_rows_key.browser_row_metadata_revision,
         browser_tag_sidebar_selected_count: browser_tag_sidebar_key
             .browser_tag_sidebar_selected_count,

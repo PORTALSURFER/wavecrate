@@ -39,6 +39,7 @@ pub(super) struct CachedBrowserRow {
     pub(super) missing: bool,
     pub(super) locked: bool,
     pub(super) marked: bool,
+    pub(super) processing_state: native_model::BrowserRowProcessingState,
     pub(super) rect: Rect,
 }
 

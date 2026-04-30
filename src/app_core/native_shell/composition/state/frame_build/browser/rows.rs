@@ -34,6 +34,7 @@ pub(super) fn render_browser_rows_window(
         } else {
             browser_row_stripe_fill(ctx.style, row.visible_row)
         };
+        let base_fill = browser_processing_row_fill(ctx.style, base_fill, row.processing_state);
         let age_marker_reserved_width = browser_playback_age_marker_reserved_width(
             row.rect,
             ctx.sizing,
@@ -46,6 +47,7 @@ pub(super) fn render_browser_rows_window(
                 color: base_fill,
             }),
         );
+        render_browser_processing_marker(primitives, row, ctx.style, ctx.sizing);
         if similarity_active && row.visible_row == 0 {
             emit_primitive(
                 primitives,
@@ -336,6 +338,31 @@ pub(super) fn render_browser_rows_window(
         );
     }
     render_browser_tag_sidebar_overlay(ctx, primitives, text_runs);
+}
+
+fn render_browser_processing_marker(
+    primitives: &mut impl PrimitiveSink,
+    row: &CachedBrowserRow,
+    style: &StyleTokens,
+    sizing: SizingTokens,
+) {
+    let Some(color) = browser_processing_marker_color(style, row.processing_state) else {
+        return;
+    };
+    let marker_width = (sizing.border_width * 3.0).clamp(2.0, 5.0);
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: Rect::from_min_max(
+                row.rect.min,
+                Point::new(
+                    (row.rect.min.x + marker_width).min(row.rect.max.x),
+                    row.rect.max.y,
+                ),
+            ),
+            color,
+        }),
+    );
 }
 
 fn render_browser_tag_sidebar_overlay(

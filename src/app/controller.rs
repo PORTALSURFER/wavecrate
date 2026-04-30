@@ -199,6 +199,39 @@ pub struct AppController {
 }
 
 impl AppController {
+    /// Return the active auto-rename batch snapshot for native row projection.
+    pub(crate) fn active_auto_rename_batch_snapshot_for_projection(
+        &self,
+    ) -> Option<state::runtime::ActiveAutoRenameBatchSnapshot> {
+        self.runtime
+            .source_lane
+            .mutations
+            .active_auto_rename_batch_snapshot()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn begin_auto_rename_batch_for_tests(
+        &mut self,
+        source_id: SourceId,
+        paths: Vec<PathBuf>,
+    ) {
+        self.runtime
+            .source_lane
+            .mutations
+            .begin_auto_rename_batch(source_id, paths);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn apply_auto_rename_progress_for_tests(
+        &mut self,
+        progress: jobs::SampleAutoRenameProgress,
+    ) {
+        self.runtime
+            .source_lane
+            .mutations
+            .apply_auto_rename_progress(progress);
+    }
+
     /// Create a controller with shared renderer and optional audio player.
     pub fn new(renderer: WaveformRenderer, player: Option<Rc<RefCell<AudioPlayer>>>) -> Self {
         let default_capacity = crate::sample_sources::config::AppSettingsCore::default()

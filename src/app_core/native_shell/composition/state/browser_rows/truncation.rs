@@ -116,6 +116,7 @@ pub(in crate::gui::native_shell::state) fn browser_row_text_revision(
         row.similarity_display_strength.hash(&mut hasher);
         row.locked.hash(&mut hasher);
         row.marked.hash(&mut hasher);
+        row.processing_state.hash(&mut hasher);
     }
     hasher.finish()
 }

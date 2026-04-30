@@ -23,7 +23,8 @@ pub(crate) use derived_graph::{DerivedNodeId, DerivedStateGraph, DirtyReason};
 pub(crate) use performance::PerformanceGovernorState;
 use rusqlite::Connection;
 #[cfg(test)]
-pub(crate) use source_lane::{AutoRenameBatchRowSnapshot, AutoRenameBatchRowState};
+pub(crate) use source_lane::AutoRenameBatchRowSnapshot;
+pub(crate) use source_lane::{ActiveAutoRenameBatchSnapshot, AutoRenameBatchRowState};
 pub(crate) use source_lane::{
     BrowserRenameBusyDecision, BrowserRenameIntentKey, MetadataRollback,
     PendingBrowserAutoRenameIntent, PendingFolderProjection, PendingMetadataMutation,
