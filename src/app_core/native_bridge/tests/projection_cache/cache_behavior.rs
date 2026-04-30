@@ -211,6 +211,35 @@ fn projection_cache_reuses_model_when_key_unchanged() {
 }
 
 #[test]
+/// Browser metadata/status churn may rebuild retained model segments, but it
+/// must not appear as transport chrome or waveform-motion instability.
+fn browser_metadata_status_churn_does_not_register_motion_chrome_deltas() {
+    let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
+    controller.set_ui_loaded_wav(Some(std::path::PathBuf::from("playing.wav")));
+    controller.ui.waveform.playhead.visible = true;
+    controller.ui.waveform.playhead.position = 0.25;
+
+    let counts = crate::app_core::native_bridge::measure_projection_rebuild_cause_counts(
+        &mut controller,
+        2,
+        8,
+        true,
+        |controller, step| {
+            controller.ui.projection_revisions.browser_row_metadata = controller
+                .ui
+                .projection_revisions
+                .browser_row_metadata
+                .wrapping_add(1);
+            controller.set_status(format!("Auto Rename: renamed {step}"), StatusTone::Info);
+        },
+    );
+
+    assert!(counts.bridge_model_pull_rebuild_count > 0);
+    assert_eq!(counts.waveform_motion_pull_rebuild_count, 0);
+    assert_eq!(counts.chrome_motion_pull_rebuild_count, 0);
+}
+
+#[test]
 fn projection_cache_invalidate_forces_refresh() {
     let mut controller = AppController::new(WaveformRenderer::new(32, 32), None);
     let mut cache = NativeProjectionCache::default();

@@ -69,7 +69,11 @@ impl AppController {
                     &result.old_relative,
                     &result.new_relative,
                 );
-                if result.resume_playback {
+                let active_playback_target = self.renamed_sample_is_active_playback_target(
+                    &result.source_id,
+                    &result.new_relative,
+                );
+                if result.resume_playback && !active_playback_target {
                     self.runtime
                         .jobs
                         .set_pending_playback(Some(PendingPlayback {
@@ -80,7 +84,9 @@ impl AppController {
                             force_loaded_audio: false,
                         }));
                 }
-                self.refresh_waveform_for_sample(&source, &result.new_relative);
+                if !active_playback_target {
+                    self.refresh_waveform_for_sample(&source, &result.new_relative);
+                }
                 self.complete_file_op_status(
                     format!(
                         "Renamed {} to {}",
@@ -120,7 +126,9 @@ impl AppController {
                 &renamed.old_relative,
                 &renamed.new_relative,
             );
-            if renamed.resume_playback {
+            let active_playback_target = self
+                .renamed_sample_is_active_playback_target(&result.source_id, &renamed.new_relative);
+            if renamed.resume_playback && !active_playback_target {
                 self.runtime
                     .jobs
                     .set_pending_playback(Some(PendingPlayback {
@@ -131,7 +139,9 @@ impl AppController {
                         force_loaded_audio: false,
                     }));
             }
-            self.refresh_waveform_for_sample(&source, &renamed.new_relative);
+            if !active_playback_target {
+                self.refresh_waveform_for_sample(&source, &renamed.new_relative);
+            }
         }
         let renamed = result.renamed.len();
         let skipped = result.skipped.len();
@@ -171,6 +181,22 @@ impl AppController {
                 StatusTone::Error,
             );
         }
+    }
+
+    fn renamed_sample_is_active_playback_target(
+        &self,
+        source_id: &crate::sample_sources::SourceId,
+        relative_path: &std::path::Path,
+    ) -> bool {
+        self.is_playing()
+            && self
+                .sample_view
+                .wav
+                .loaded_audio
+                .as_ref()
+                .is_some_and(|audio| {
+                    &audio.source_id == source_id && audio.relative_path == relative_path
+                })
     }
 }
 
