@@ -61,6 +61,7 @@ pub(crate) fn run_retained_delete_resolution_job(
                     entry.source_label,
                     entry.relative_path.display()
                 )),
+                item: None,
             });
         }
     }

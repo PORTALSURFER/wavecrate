@@ -1,4 +1,6 @@
-use super::{FileOpMessage, JobMessage, ScanJobMessage, SelectionExportMessage};
+use super::{
+    FileOpMessage, JobMessage, SampleAutoRenameProgress, ScanJobMessage, SelectionExportMessage,
+};
 use crate::app::controller::library::{analysis_jobs::AnalysisJobMessage, trash_move};
 use std::sync::mpsc::{Receiver, SendError, SyncSender, TrySendError, sync_channel};
 
@@ -40,6 +42,15 @@ fn job_message_delivery(message: &JobMessage) -> JobMessageDelivery {
         JobMessage::TrashMove(trash_move::TrashMoveMessage::Progress { .. }) => {
             JobMessageDelivery::DropIfFull
         }
+        JobMessage::FileOps(FileOpMessage::Progress {
+            item:
+                Some(
+                    SampleAutoRenameProgress::Completed { .. }
+                    | SampleAutoRenameProgress::Skipped { .. }
+                    | SampleAutoRenameProgress::Failed { .. },
+                ),
+            ..
+        }) => JobMessageDelivery::MustDeliver,
         JobMessage::FileOps(FileOpMessage::Progress { .. }) => JobMessageDelivery::DropIfFull,
         JobMessage::SelectionExport(SelectionExportMessage::Progress { .. }) => {
             JobMessageDelivery::DropIfFull

@@ -261,11 +261,23 @@ pub(crate) fn run_sample_auto_rename_job(
     let mut errors = Vec::new();
     for (index, request) in requests.into_iter().enumerate() {
         let completed = index;
+        emit_auto_rename_item_progress(
+            progress.as_ref(),
+            completed,
+            None,
+            SampleAutoRenameProgress::Active {
+                old_relative: request.old_relative.clone(),
+            },
+        );
         if cancel.load(std::sync::atomic::Ordering::Relaxed) {
-            emit_auto_rename_progress(
+            emit_auto_rename_item_progress(
                 progress.as_ref(),
                 completed,
-                format!("Cancelled at {}", request.old_relative.display()),
+                Some(format!("Cancelled at {}", request.old_relative.display())),
+                SampleAutoRenameProgress::Failed {
+                    old_relative: request.old_relative.clone(),
+                    error: String::from("Rename cancelled"),
+                },
             );
             errors.push((request.old_relative, String::from("Rename cancelled")));
             break;
@@ -280,10 +292,14 @@ pub(crate) fn run_sample_auto_rename_job(
                 },
             ) {
                 Ok(entry) => {
-                    emit_auto_rename_progress(
+                    emit_auto_rename_item_progress(
                         progress.as_ref(),
                         completed + 1,
-                        format!("Renamed {}", request.old_relative.display()),
+                        Some(format!("Renamed {}", request.old_relative.display())),
+                        SampleAutoRenameProgress::Completed {
+                            old_relative: request.old_relative.clone(),
+                            new_relative: request.new_relative.clone(),
+                        },
                     );
                     renamed.push(SampleAutoRenameSuccess {
                         old_relative: request.old_relative.clone(),
@@ -295,10 +311,14 @@ pub(crate) fn run_sample_auto_rename_job(
                     });
                 }
                 Err(err) => {
-                    emit_auto_rename_progress(
+                    emit_auto_rename_item_progress(
                         progress.as_ref(),
                         completed + 1,
-                        format!("Failed {}", request.old_relative.display()),
+                        Some(format!("Failed {}", request.old_relative.display())),
+                        SampleAutoRenameProgress::Failed {
+                            old_relative: request.old_relative.clone(),
+                            error: err.clone(),
+                        },
                     );
                     errors.push((request.old_relative, err));
                 }
@@ -319,10 +339,14 @@ pub(crate) fn run_sample_auto_rename_job(
             Some(request.tag_named),
         ) {
             Ok(entry) => {
-                emit_auto_rename_progress(
+                emit_auto_rename_item_progress(
                     progress.as_ref(),
                     completed + 1,
-                    format!("Renamed {}", request.new_relative.display()),
+                    Some(format!("Renamed {}", request.new_relative.display())),
+                    SampleAutoRenameProgress::Completed {
+                        old_relative: request.old_relative.clone(),
+                        new_relative: request.new_relative.clone(),
+                    },
                 );
                 renamed.push(SampleAutoRenameSuccess {
                     old_relative: request.old_relative,
@@ -334,18 +358,26 @@ pub(crate) fn run_sample_auto_rename_job(
                 });
             }
             Err(err) if err.contains("already exists") => {
-                emit_auto_rename_progress(
+                emit_auto_rename_item_progress(
                     progress.as_ref(),
                     completed + 1,
-                    format!("Skipped {}", request.old_relative.display()),
+                    Some(format!("Skipped {}", request.old_relative.display())),
+                    SampleAutoRenameProgress::Skipped {
+                        old_relative: request.old_relative.clone(),
+                        reason: err.clone(),
+                    },
                 );
                 skipped.push((request.old_relative, err));
             }
             Err(err) => {
-                emit_auto_rename_progress(
+                emit_auto_rename_item_progress(
                     progress.as_ref(),
                     completed + 1,
-                    format!("Failed {}", request.old_relative.display()),
+                    Some(format!("Failed {}", request.old_relative.display())),
+                    SampleAutoRenameProgress::Failed {
+                        old_relative: request.old_relative.clone(),
+                        error: err.clone(),
+                    },
                 );
                 errors.push((request.old_relative, err));
             }
@@ -370,13 +402,14 @@ pub(crate) fn run_sample_auto_rename_job(
     result
 }
 
-fn emit_auto_rename_progress(
+fn emit_auto_rename_item_progress(
     progress: Option<&FileOpProgressSender>,
     completed: usize,
-    detail: String,
+    detail: Option<String>,
+    item: SampleAutoRenameProgress,
 ) {
     if let Some(progress) = progress {
-        progress.progress(completed, Some(detail));
+        progress.auto_rename_progress(completed, detail, item);
     }
 }
 

@@ -67,7 +67,36 @@ impl AppController {
     /// Apply one file-operation progress or completion message.
     pub(super) fn handle_file_ops_message(&mut self, message: FileOpMessage) {
         match message {
-            FileOpMessage::Progress { completed, detail } => {
+            FileOpMessage::Progress {
+                completed,
+                mut detail,
+                item,
+            } => {
+                if let Some(item) = item {
+                    let current_detail = self
+                        .ui
+                        .progress
+                        .task_detail(ProgressTaskKind::FileOps)
+                        .map(String::from);
+                    if matches!(
+                        item,
+                        crate::app::controller::jobs::SampleAutoRenameProgress::Active { .. }
+                    ) {
+                        detail = detail.or_else(|| current_detail.clone());
+                    } else if matches!(
+                        item,
+                        crate::app::controller::jobs::SampleAutoRenameProgress::Completed { .. }
+                    ) && current_detail
+                        .as_deref()
+                        .is_some_and(|detail| detail.starts_with("Failed "))
+                    {
+                        detail = current_detail;
+                    }
+                    self.runtime
+                        .source_lane
+                        .mutations
+                        .apply_auto_rename_progress(item);
+                }
                 progress::update_progress_detail(
                     self,
                     ProgressTaskKind::FileOps,

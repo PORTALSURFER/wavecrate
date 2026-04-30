@@ -4,7 +4,7 @@ use super::sample_mutation::{
 };
 use super::{SampleAutoRenameRequest, run_sample_auto_rename_job};
 use crate::app::controller::jobs::{
-    FileOpMessage, FileOpProgressSender, JobMessage, JobMessageSender,
+    FileOpMessage, FileOpProgressSender, JobMessage, JobMessageSender, SampleAutoRenameProgress,
 };
 use crate::app::controller::test_support::write_test_wav;
 use crate::gui::repaint::SharedRepaintSignal;
@@ -529,14 +529,38 @@ fn sample_auto_rename_streams_per_item_progress() {
     assert!(result.errors.is_empty());
     let messages = drain_file_op_progress(rx);
     assert!(
-        messages.iter().any(|(completed, detail)| *completed == 1
-            && detail.as_deref() == Some("Renamed alpha_renamed.wav")),
+        messages
+            .iter()
+            .any(|(completed, detail, item)| *completed == 1
+                && detail.as_deref() == Some("Renamed alpha_renamed.wav")
+                && *item
+                    == Some(SampleAutoRenameProgress::Completed {
+                        old_relative: PathBuf::from("alpha.wav"),
+                        new_relative: PathBuf::from("alpha_renamed.wav"),
+                    })),
         "missing first rename progress: {messages:?}"
     );
     assert!(
-        messages.iter().any(|(completed, detail)| *completed == 2
-            && detail.as_deref() == Some("Renamed beta_renamed.wav")),
+        messages
+            .iter()
+            .any(|(completed, detail, item)| *completed == 2
+                && detail.as_deref() == Some("Renamed beta_renamed.wav")
+                && *item
+                    == Some(SampleAutoRenameProgress::Completed {
+                        old_relative: PathBuf::from("beta.wav"),
+                        new_relative: PathBuf::from("beta_renamed.wav"),
+                    })),
         "missing second rename progress: {messages:?}"
+    );
+    assert!(
+        messages
+            .iter()
+            .any(|(completed, detail, item)| *completed == 0
+                && detail.is_none()
+                && *item
+                    == Some(SampleAutoRenameProgress::Active {
+                        old_relative: PathBuf::from("alpha.wav")
+                    }))
     );
 }
 
@@ -645,12 +669,14 @@ fn file_op_progress_capture() -> (FileOpProgressSender, std::sync::mpsc::Receive
 
 fn drain_file_op_progress(
     rx: std::sync::mpsc::Receiver<JobMessage>,
-) -> Vec<(usize, Option<String>)> {
+) -> Vec<(usize, Option<String>, Option<SampleAutoRenameProgress>)> {
     rx.try_iter()
         .filter_map(|message| match message {
-            JobMessage::FileOps(FileOpMessage::Progress { completed, detail }) => {
-                Some((completed, detail))
-            }
+            JobMessage::FileOps(FileOpMessage::Progress {
+                completed,
+                detail,
+                item,
+            }) => Some((completed, detail, item)),
             _ => None,
         })
         .collect()

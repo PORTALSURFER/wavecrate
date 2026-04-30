@@ -81,6 +81,10 @@ impl BrowserController<'_> {
             .source_lane
             .mutations
             .begin_browser_rename_intent(intent_key);
+        self.runtime
+            .source_lane
+            .mutations
+            .begin_auto_rename_batch(source.id.clone(), requested_paths.clone());
         self.begin_pending_file_mutation(&source.id, requested_paths.clone());
         #[cfg(test)]
         crate::app::controller::batch_latency::record(

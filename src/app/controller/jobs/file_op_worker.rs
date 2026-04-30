@@ -32,6 +32,24 @@ impl FileOpProgressSender {
             .send(JobMessage::FileOps(FileOpMessage::Progress {
                 completed,
                 detail,
+                item: None,
+            }));
+        self.repaint_signal.request_repaint();
+    }
+
+    /// Publish one auto-rename progress update with structured per-item state.
+    pub(crate) fn auto_rename_progress(
+        &self,
+        completed: usize,
+        detail: Option<String>,
+        item: SampleAutoRenameProgress,
+    ) {
+        let _ = self
+            .message_tx
+            .send(JobMessage::FileOps(FileOpMessage::Progress {
+                completed,
+                detail,
+                item: Some(item),
             }));
         self.repaint_signal.request_repaint();
     }

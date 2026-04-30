@@ -23,6 +23,7 @@ fn file_ops_messages_update_progress_and_clear_active_overlay_on_finish() {
     controller.handle_background_job_message(JobMessage::FileOps(FileOpMessage::Progress {
         completed: 2,
         detail: Some("Copying kick.wav".into()),
+        item: None,
     }));
 
     assert_eq!(controller.ui.progress.completed, 2);

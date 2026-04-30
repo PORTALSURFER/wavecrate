@@ -166,6 +166,10 @@ pub(super) fn report_progress(
     detail: Option<String>,
 ) {
     if let Some(tx) = sender {
-        let _ = tx.send(FileOpMessage::Progress { completed, detail });
+        let _ = tx.send(FileOpMessage::Progress {
+            completed,
+            detail,
+            item: None,
+        });
     }
 }

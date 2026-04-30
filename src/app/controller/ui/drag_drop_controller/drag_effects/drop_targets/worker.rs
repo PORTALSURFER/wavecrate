@@ -127,6 +127,7 @@ impl<'a> DropTargetTransferProgress<'a> {
             let _ = tx.send(FileOpMessage::Progress {
                 completed: self.completed,
                 detail,
+                item: None,
             });
         }
     }

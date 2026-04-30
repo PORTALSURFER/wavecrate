@@ -72,6 +72,28 @@ pub(crate) struct SampleAutoRenameResult {
     pub(crate) errors: Vec<(PathBuf, String)>,
 }
 
+/// Structured per-item auto-rename progress emitted by the file-op worker.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum SampleAutoRenameProgress {
+    /// Worker started processing one requested path.
+    Active { old_relative: PathBuf },
+    /// Worker completed one requested path and may have remapped it.
+    Completed {
+        old_relative: PathBuf,
+        new_relative: PathBuf,
+    },
+    /// Worker skipped one requested path without applying a rename.
+    Skipped {
+        old_relative: PathBuf,
+        reason: String,
+    },
+    /// Worker failed one requested path.
+    Failed {
+        old_relative: PathBuf,
+        error: String,
+    },
+}
+
 /// Result of creating one folder in the background.
 #[derive(Debug)]
 pub(crate) struct FolderCreateResult {

@@ -23,6 +23,8 @@ pub(crate) enum FileOpMessage {
         completed: usize,
         /// Optional per-item detail label.
         detail: Option<String>,
+        /// Optional structured item progress for operation-specific UI state.
+        item: Option<SampleAutoRenameProgress>,
     },
     /// Final result for the file operation.
     Finished(FileOpResult),

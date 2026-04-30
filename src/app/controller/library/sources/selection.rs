@@ -207,6 +207,10 @@ impl AppController {
             .jobs
             .set_pending_select_path(pending_path.clone());
         if same_source {
+            self.runtime
+                .source_lane
+                .mutations
+                .clear_auto_rename_batch_for_source_change(id.as_ref());
             self.refresh_sources_ui();
             if let Some(path) = self.runtime.jobs.pending_select_path() {
                 if self.wav_index_for_path(&path).is_some() {
@@ -243,6 +247,12 @@ impl AppController {
         }
         self.assign_source_to_folder_pane(self.active_folder_pane(), id.clone());
         self.selection_state.ctx.selected_source = id;
+        self.runtime
+            .source_lane
+            .mutations
+            .clear_auto_rename_batch_for_source_change(
+                self.selection_state.ctx.selected_source.as_ref(),
+            );
         self.clear_active_source_for_loading();
         self.ui.map.bounds = None;
         self.ui.map.cached_bounds_source_id = None;

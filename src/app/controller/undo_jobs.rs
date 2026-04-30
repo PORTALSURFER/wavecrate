@@ -182,6 +182,7 @@ pub(crate) fn run_undo_file_job(
         let _ = tx.send(FileOpMessage::Progress {
             completed: 1,
             detail: None,
+            item: None,
         });
     }
     UndoFileOpResult {
