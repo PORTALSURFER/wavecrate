@@ -106,6 +106,10 @@ pub(crate) struct SourceMutationRuntime {
     pending_file_mutation_sources: HashSet<SourceId>,
     /// Relative paths currently carrying background file or folder mutations.
     pending_file_mutation_paths: HashSet<(SourceId, PathBuf)>,
+    /// Latest optimistic Loop/One-shot edit owner for each source/path.
+    looped_metadata_intents: HashMap<(SourceId, PathBuf), u64>,
+    /// Monotonic id used to make Loop/One-shot rollback latest-intent aware.
+    next_looped_metadata_intent_id: u64,
     /// Active browser rename/auto-rename request currently owning the file-op lane.
     active_browser_rename_intent: Option<BrowserRenameIntentKey>,
     /// One deferred browser auto-rename request captured while browser rename work is active.
@@ -296,6 +300,63 @@ impl SourceMutationRuntime {
     pub(crate) fn browser_rename_intent_is_active(&self, key: &BrowserRenameIntentKey) -> bool {
         self.active_browser_rename_intent.as_ref() == Some(key)
     }
+
+    /// Record the latest optimistic Loop/One-shot edit for one source/path.
+    pub(crate) fn begin_looped_metadata_intent(
+        &mut self,
+        source_id: &SourceId,
+        relative_path: &std::path::Path,
+    ) -> u64 {
+        self.next_looped_metadata_intent_id =
+            self.next_looped_metadata_intent_id.saturating_add(1).max(1);
+        let intent_id = self.next_looped_metadata_intent_id;
+        self.looped_metadata_intents
+            .insert((source_id.clone(), relative_path.to_path_buf()), intent_id);
+        intent_id
+    }
+
+    /// Return whether a Loop/One-shot completion still owns the current optimistic edit.
+    pub(crate) fn looped_metadata_intent_matches(
+        &self,
+        source_id: &SourceId,
+        relative_path: &std::path::Path,
+        intent_id: u64,
+    ) -> bool {
+        self.looped_metadata_intents
+            .get(&(source_id.clone(), relative_path.to_path_buf()))
+            .copied()
+            == Some(intent_id)
+    }
+
+    /// Clear a completed Loop/One-shot intent only if it is still the current owner.
+    pub(crate) fn finish_looped_metadata_intent(
+        &mut self,
+        source_id: &SourceId,
+        relative_path: &std::path::Path,
+        intent_id: u64,
+    ) {
+        let key = (source_id.clone(), relative_path.to_path_buf());
+        if self.looped_metadata_intents.get(&key).copied() == Some(intent_id) {
+            self.looped_metadata_intents.remove(&key);
+        }
+    }
+
+    /// Follow a successful rename so stale metadata completions check the live path.
+    pub(crate) fn remap_looped_metadata_intent(
+        &mut self,
+        source_id: &SourceId,
+        old_relative: &std::path::Path,
+        new_relative: &std::path::Path,
+    ) {
+        if old_relative == new_relative {
+            return;
+        }
+        let old_key = (source_id.clone(), old_relative.to_path_buf());
+        if let Some(intent_id) = self.looped_metadata_intents.remove(&old_key) {
+            self.looped_metadata_intents
+                .insert((source_id.clone(), new_relative.to_path_buf()), intent_id);
+        }
+    }
 }
 
 /// Decision for browser rename input received while the generic file-op lane is busy.
@@ -400,6 +461,8 @@ pub(crate) enum MetadataRollback {
     Looped {
         /// Relative sample path within the source root.
         relative_path: PathBuf,
+        /// Optimistic edit owner that must still be current before rollback applies.
+        intent_id: u64,
         /// Value before the optimistic mutation.
         before_looped: bool,
         /// Value written optimistically before persistence completed.

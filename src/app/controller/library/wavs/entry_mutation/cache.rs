@@ -174,6 +174,11 @@ fn remap_path_scoped_browser_caches(
     if old_path == new_path {
         return;
     }
+    controller
+        .runtime
+        .source_lane
+        .mutations
+        .remap_looped_metadata_intent(source_id, old_path, new_path);
     if let Some(cache) = controller.ui_cache.browser.bpm_values.get_mut(source_id)
         && let Some(value) = cache.remove(old_path)
     {

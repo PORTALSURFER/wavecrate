@@ -1,4 +1,178 @@
 use super::*;
+
+#[test]
+fn repeated_loop_sidebar_click_survives_auto_rename_and_stale_metadata_failure() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.select_source_by_index(0);
+    controller.cache_db(&source).unwrap();
+    write_test_wav(&source.root.join("raw.wav"), &[0.0]);
+    let entry = sample_entry("raw.wav", crate::sample_sources::Rating::NEUTRAL);
+    register_entry_metadata(&mut controller, &source, &entry);
+    controller.set_wav_entries_for_tests(vec![entry]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.ui.browser.tag_sidebar_open = true;
+    controller.ui.browser.tag_sidebar_auto_rename = true;
+    controller.focus_browser_row_only(0);
+
+    let stale_request_id = 4242;
+    let stale_intent_id = controller
+        .runtime
+        .source_lane
+        .mutations
+        .begin_looped_metadata_intent(&source.id, Path::new("raw.wav"));
+    controller
+        .runtime
+        .source_lane
+        .mutations
+        .insert_metadata_mutation(
+            crate::app::controller::state::runtime::PendingMetadataMutation {
+                request_id: stale_request_id,
+                source_id: source.id.clone(),
+                paths: [PathBuf::from("raw.wav")].into_iter().collect(),
+                blocks_file_mutation: true,
+                rollback: vec![
+                    crate::app::controller::state::runtime::MetadataRollback::Looped {
+                        relative_path: PathBuf::from("raw.wav"),
+                        intent_id: stale_intent_id,
+                        before_looped: false,
+                        expected_looped: true,
+                    },
+                ],
+                refresh_browser_projection: true,
+            },
+        );
+
+    controller
+        .apply_browser_tag_sidebar_looped(true)
+        .expect("loop click should apply optimistically and auto rename");
+
+    let renamed = PathBuf::from("portal_loop.wav");
+    assert!(source.root.join(&renamed).exists());
+    assert!(!source.root.join("raw.wav").exists());
+    assert_sidebar_loop_state(
+        &mut controller,
+        crate::app_core::actions::NativeBrowserTagState::On,
+    );
+    assert_sidebar_one_shot_state(
+        &mut controller,
+        crate::app_core::actions::NativeBrowserTagState::Off,
+    );
+
+    controller
+        .apply_browser_tag_sidebar_looped(true)
+        .expect("repeated loop click should coalesce to latest intent");
+    assert_sidebar_loop_state(
+        &mut controller,
+        crate::app_core::actions::NativeBrowserTagState::On,
+    );
+
+    controller.apply_background_job_message_for_tests(
+        crate::app::controller::jobs::JobMessage::MetadataMutationFinished(
+            crate::app::controller::jobs::MetadataMutationResult {
+                request_id: stale_request_id,
+                source_id: source.id.clone(),
+                paths: [PathBuf::from("raw.wav")].into_iter().collect(),
+                elapsed: std::time::Duration::from_millis(5),
+                result: Err(String::from("forced stale loop metadata failure")),
+            },
+        ),
+    );
+
+    let renamed_index = controller
+        .wav_index_for_path(&renamed)
+        .expect("renamed entry should stay cached");
+    assert!(controller.wav_entry(renamed_index).unwrap().looped);
+    assert_sidebar_loop_state(
+        &mut controller,
+        crate::app_core::actions::NativeBrowserTagState::On,
+    );
+    assert_sidebar_one_shot_state(
+        &mut controller,
+        crate::app_core::actions::NativeBrowserTagState::Off,
+    );
+}
+
+#[test]
+fn stale_loop_failure_does_not_undo_newer_one_shot_selection() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.select_source_by_index(0);
+    controller.cache_db(&source).unwrap();
+    write_test_wav(&source.root.join("raw.wav"), &[0.0]);
+    let mut entry = sample_entry("raw.wav", crate::sample_sources::Rating::NEUTRAL);
+    entry.looped = true;
+    register_entry_metadata(&mut controller, &source, &entry);
+    controller.set_wav_entries_for_tests(vec![entry]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.ui.browser.tag_sidebar_open = true;
+    controller.focus_browser_row_only(0);
+
+    let stale_request_id = 5252;
+    let stale_intent_id = controller
+        .runtime
+        .source_lane
+        .mutations
+        .begin_looped_metadata_intent(&source.id, Path::new("raw.wav"));
+    controller
+        .runtime
+        .source_lane
+        .mutations
+        .insert_metadata_mutation(
+            crate::app::controller::state::runtime::PendingMetadataMutation {
+                request_id: stale_request_id,
+                source_id: source.id.clone(),
+                paths: [PathBuf::from("raw.wav")].into_iter().collect(),
+                blocks_file_mutation: true,
+                rollback: vec![
+                    crate::app::controller::state::runtime::MetadataRollback::Looped {
+                        relative_path: PathBuf::from("raw.wav"),
+                        intent_id: stale_intent_id,
+                        before_looped: false,
+                        expected_looped: true,
+                    },
+                ],
+                refresh_browser_projection: true,
+            },
+        );
+
+    controller
+        .apply_browser_tag_sidebar_looped(false)
+        .expect("newer one-shot click should apply");
+    assert_sidebar_loop_state(
+        &mut controller,
+        crate::app_core::actions::NativeBrowserTagState::Off,
+    );
+    assert_sidebar_one_shot_state(
+        &mut controller,
+        crate::app_core::actions::NativeBrowserTagState::On,
+    );
+
+    controller.apply_background_job_message_for_tests(
+        crate::app::controller::jobs::JobMessage::MetadataMutationFinished(
+            crate::app::controller::jobs::MetadataMutationResult {
+                request_id: stale_request_id,
+                source_id: source.id.clone(),
+                paths: [PathBuf::from("raw.wav")].into_iter().collect(),
+                elapsed: std::time::Duration::from_millis(5),
+                result: Err(String::from("forced stale loop metadata failure")),
+            },
+        ),
+    );
+
+    assert!(!controller.wav_entry(0).unwrap().looped);
+    assert_sidebar_loop_state(
+        &mut controller,
+        crate::app_core::actions::NativeBrowserTagState::Off,
+    );
+    assert_sidebar_one_shot_state(
+        &mut controller,
+        crate::app_core::actions::NativeBrowserTagState::On,
+    );
+}
+
 #[test]
 fn multi_step_auto_rename_stays_stable_under_metadata_and_maintenance_churn() {
     let (mut controller, source) = dummy_controller();
@@ -198,6 +372,22 @@ fn multi_step_auto_rename_stays_stable_under_metadata_and_maintenance_churn() {
         controller.ui.status.status_tone,
         crate::app::state::StatusTone::Info
     );
+}
+
+fn assert_sidebar_loop_state(
+    controller: &mut AppController,
+    expected: crate::app_core::actions::NativeBrowserTagState,
+) {
+    let model = crate::app_core::native_shell::project_browser_tag_sidebar_model(controller);
+    assert_eq!(model.playback_type_pills[0].state, expected);
+}
+
+fn assert_sidebar_one_shot_state(
+    controller: &mut AppController,
+    expected: crate::app_core::actions::NativeBrowserTagState,
+) {
+    let model = crate::app_core::native_shell::project_browser_tag_sidebar_model(controller);
+    assert_eq!(model.playback_type_pills[1].state, expected);
 }
 
 fn register_entry_metadata(

@@ -221,6 +221,11 @@ pub(crate) fn set_sample_looped_for_source_batch(
     let mut rollback = Vec::with_capacity(paths.len());
     for path in &paths {
         let before_looped = looped_for_source_from_controller(controller, source, path);
+        let intent_id = controller
+            .runtime
+            .source_lane
+            .mutations
+            .begin_looped_metadata_intent(&source.id, path);
         update_looped_caches(controller, &source.id, path, looped);
         source_ops.push(SourceMetadataMutationOp::SetLooped {
             relative_path: path.clone(),
@@ -228,6 +233,7 @@ pub(crate) fn set_sample_looped_for_source_batch(
         });
         rollback.push(MetadataRollback::Looped {
             relative_path: path.clone(),
+            intent_id,
             before_looped,
             expected_looped: looped,
         });

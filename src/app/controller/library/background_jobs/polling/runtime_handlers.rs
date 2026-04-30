@@ -25,7 +25,7 @@ impl AppController {
         };
         self.extend_selected_source_mutation_claim_grace(&pending.source_id);
         if let Err(err) = message.result {
-            self.rollback_metadata_mutation(&pending.rollback);
+            self.rollback_metadata_mutation(&pending.source_id, &pending.rollback);
             if !pending.blocks_file_mutation && is_busy_lock_error_message(&err) {
                 warn!(
                     source_id = %pending.source_id,
@@ -39,6 +39,7 @@ impl AppController {
             self.set_status(format!("Metadata update failed: {err}"), StatusTone::Error);
             return;
         }
+        self.finish_metadata_mutation_intents(&pending.source_id, &pending.rollback);
         if pending.refresh_browser_projection
             && self.selection_state.ctx.selected_source.as_ref() == Some(&pending.source_id)
         {
@@ -318,7 +319,7 @@ impl AppController {
         }
     }
 
-    fn rollback_metadata_mutation(&mut self, rollback: &[MetadataRollback]) {
+    fn rollback_metadata_mutation(&mut self, source_id: &SourceId, rollback: &[MetadataRollback]) {
         for entry in rollback {
             match entry {
                 MetadataRollback::TagAndLocked {
@@ -351,10 +352,21 @@ impl AppController {
                 }
                 MetadataRollback::Looped {
                     relative_path,
+                    intent_id,
                     before_looped,
                     expected_looped,
                 } => {
-                    if let Some(index) = self.wav_index_for_path(relative_path) {
+                    let relative_path =
+                        self.resolve_looped_rollback_path(source_id, relative_path, *intent_id);
+                    if !self
+                        .runtime
+                        .source_lane
+                        .mutations
+                        .looped_metadata_intent_matches(source_id, &relative_path, *intent_id)
+                    {
+                        continue;
+                    }
+                    if let Some(index) = self.wav_index_for_path(&relative_path) {
                         let _ = self.ensure_wav_page_loaded(index);
                         if let Some(wav) = self.wav_entries.entry_mut(index)
                             && wav.looped == *expected_looped
@@ -362,14 +374,22 @@ impl AppController {
                             wav.looped = *before_looped;
                         }
                     }
-                    if let Some(source_id) = self.selection_state.ctx.selected_source.as_ref()
+                    if self
+                        .runtime
+                        .source_lane
+                        .mutations
+                        .looped_metadata_intent_matches(source_id, &relative_path, *intent_id)
                         && let Some(cache) = self.cache.wav.entries.get_mut(source_id)
-                        && let Some(index) = cache.lookup.get(relative_path).copied()
+                        && let Some(index) = cache.lookup.get(&relative_path).copied()
                         && let Some(wav) = cache.entry_mut(index)
                         && wav.looped == *expected_looped
                     {
                         wav.looped = *before_looped;
                     }
+                    self.runtime
+                        .source_lane
+                        .mutations
+                        .finish_looped_metadata_intent(source_id, &relative_path, *intent_id);
                 }
                 MetadataRollback::SoundType {
                     relative_path,
@@ -530,6 +550,58 @@ impl AppController {
         } else {
             self.rebuild_browser_lists();
         }
+    }
+
+    fn finish_metadata_mutation_intents(
+        &mut self,
+        source_id: &SourceId,
+        rollback: &[MetadataRollback],
+    ) {
+        for entry in rollback {
+            if let MetadataRollback::Looped {
+                relative_path,
+                intent_id,
+                ..
+            } = entry
+            {
+                let relative_path =
+                    self.resolve_looped_rollback_path(source_id, relative_path, *intent_id);
+                self.runtime
+                    .source_lane
+                    .mutations
+                    .finish_looped_metadata_intent(source_id, &relative_path, *intent_id);
+            }
+        }
+    }
+
+    fn resolve_looped_rollback_path(
+        &self,
+        source_id: &SourceId,
+        relative_path: &std::path::Path,
+        intent_id: u64,
+    ) -> std::path::PathBuf {
+        if self
+            .runtime
+            .source_lane
+            .mutations
+            .looped_metadata_intent_matches(source_id, relative_path, intent_id)
+        {
+            return relative_path.to_path_buf();
+        }
+        if let Some(new_relative) =
+            crate::app::controller::library::source_write_priority::completed_browser_rename_target(
+                source_id,
+                relative_path,
+            )
+            && self
+                .runtime
+                .source_lane
+                .mutations
+                .looped_metadata_intent_matches(source_id, &new_relative, intent_id)
+        {
+            return new_relative;
+        }
+        relative_path.to_path_buf()
     }
 }
 
