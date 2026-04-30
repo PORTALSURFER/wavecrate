@@ -768,6 +768,18 @@ impl SourceDatabaseOpenMode {
     }
 }
 
+/// Reset the debug-only source DB open counter used by regression tests.
+#[cfg(debug_assertions)]
+pub fn test_reset_source_db_open_total_count(root: &Path) {
+    telemetry::reset_open_total_count(root);
+}
+
+/// Return the debug-only source DB open count used by regression tests.
+#[cfg(debug_assertions)]
+pub fn test_source_db_open_total_count(root: &Path) -> usize {
+    telemetry::open_total_count(root)
+}
+
 fn should_open_source_db_read_only() -> bool {
     crate::env_flags::env_var_truthy(SOURCE_DB_READ_ONLY_ENV)
 }

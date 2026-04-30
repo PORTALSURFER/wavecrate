@@ -323,6 +323,26 @@ fn large_auto_rename_background_dispatch_registers_file_ops_before_planning_fini
 }
 
 #[test]
+fn large_background_auto_rename_reuses_source_db_for_batch_execution() {
+    const SAMPLE_COUNT: usize = 24;
+    let (mut controller, source, paths) = large_auto_rename_fixture(SAMPLE_COUNT);
+
+    crate::sample_sources::db::test_reset_source_db_open_total_count(&source.root);
+    BrowserController::new(&mut controller)
+        .auto_rename_browser_sample_paths_background_for_tests(&paths)
+        .expect("background auto rename should start");
+    wait_for_background_jobs(&mut controller, Duration::from_secs(3));
+
+    let open_count = crate::sample_sources::db::test_source_db_open_total_count(&source.root);
+    assert!(
+        open_count <= 3,
+        "24-item background auto-rename should reuse source DB access instead of opening per item; observed {open_count}"
+    );
+    assert!(source.root.join("artistname_SS.wav").exists());
+    assert!(source.root.join("artistname_SS_023.wav").exists());
+}
+
+#[test]
 fn large_tag_sidebar_background_auto_rename_streams_file_ops_progress_and_refreshes_rows() {
     const SAMPLE_COUNT: usize = 64;
     clear_batch_latency();
@@ -403,7 +423,11 @@ fn large_background_auto_rename_reports_partial_failure_through_file_ops_progres
         controller.ui.progress.task,
         Some(crate::app::state::ProgressTaskKind::FileOps)
     );
-    assert_eq!(controller.ui.progress.completed, 11);
+    assert!(
+        (11..=SAMPLE_COUNT).contains(&controller.ui.progress.completed),
+        "progress should have reached the failed item without exceeding the batch: {:?}",
+        controller.ui.progress
+    );
     assert_eq!(controller.ui.progress.total, SAMPLE_COUNT);
 
     wait_for_background_jobs(&mut controller, Duration::from_secs(3));

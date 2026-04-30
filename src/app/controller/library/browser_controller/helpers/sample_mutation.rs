@@ -252,10 +252,29 @@ pub(crate) fn run_sample_auto_rename_job(
 ) -> SampleAutoRenameResult {
     #[cfg(test)]
     let started_at = std::time::Instant::now();
+    let source_id = source.id.clone();
     let requested_paths = requests
         .iter()
         .map(|request| request.old_relative.clone())
         .collect::<Vec<_>>();
+    let db = match crate::sample_sources::SourceDatabase::open_with_role(
+        &source.root,
+        crate::sample_sources::SourceDatabaseConnectionRole::JobWorker,
+    ) {
+        Ok(db) => db,
+        Err(err) => {
+            return SampleAutoRenameResult {
+                source_id,
+                requested_paths: requested_paths.clone(),
+                renamed: Vec::new(),
+                skipped: Vec::new(),
+                errors: requested_paths
+                    .into_iter()
+                    .map(|path| (path, format!("Database unavailable: {err}")))
+                    .collect(),
+            };
+        }
+    };
     let mut renamed = Vec::new();
     let mut skipped = Vec::new();
     let mut errors = Vec::new();
@@ -284,13 +303,12 @@ pub(crate) fn run_sample_auto_rename_job(
         }
         let old_absolute = source.root.join(&request.old_relative);
         if request.old_relative == request.new_relative {
-            match mark_sample_tag_named(&source, &request.old_relative, request.tag_named).and_then(
-                |entry| {
+            match mark_sample_tag_named_with_db(&db, &request.old_relative, request.tag_named)
+                .and_then(|entry| {
                     entry.ok_or_else(|| {
                         format!("Sample not found: {}", request.old_relative.display())
                     })
-                },
-            ) {
+                }) {
                 Ok(entry) => {
                     emit_auto_rename_item_progress(
                         progress.as_ref(),
@@ -325,8 +343,9 @@ pub(crate) fn run_sample_auto_rename_job(
             }
             continue;
         }
-        match perform_sample_rename(
+        match perform_sample_rename_with_db(
             &source,
+            &db,
             &old_absolute,
             &request.old_relative,
             &request.new_relative,
@@ -384,7 +403,7 @@ pub(crate) fn run_sample_auto_rename_job(
         }
     }
     let result = SampleAutoRenameResult {
-        source_id: source.id,
+        source_id,
         requested_paths,
         renamed,
         skipped,
@@ -426,10 +445,46 @@ pub(super) fn perform_sample_rename(
     fallback_user_tag: Option<String>,
     fallback_tag_named: Option<bool>,
 ) -> Result<WavEntry, String> {
+    let db = crate::sample_sources::SourceDatabase::open_with_role(
+        &source.root,
+        crate::sample_sources::SourceDatabaseConnectionRole::JobWorker,
+    )
+    .map_err(|err| format!("Database unavailable: {err}"))?;
+    perform_sample_rename_with_db(
+        source,
+        &db,
+        old_absolute,
+        old_relative,
+        new_relative,
+        tag,
+        looped_metadata,
+        fallback_locked,
+        fallback_last_played_at,
+        fallback_sound_type,
+        fallback_user_tag,
+        fallback_tag_named,
+    )
+}
+
+fn perform_sample_rename_with_db(
+    source: &SampleSource,
+    db: &crate::sample_sources::SourceDatabase,
+    old_absolute: &Path,
+    old_relative: &Path,
+    new_relative: &Path,
+    tag: crate::sample_sources::Rating,
+    looped_metadata: RenameLoopedMetadata,
+    fallback_locked: bool,
+    fallback_last_played_at: Option<i64>,
+    fallback_sound_type: Option<crate::sample_sources::SampleSoundType>,
+    fallback_user_tag: Option<String>,
+    fallback_tag_named: Option<bool>,
+) -> Result<WavEntry, String> {
     let new_absolute = source.root.join(new_relative);
     std::fs::rename(old_absolute, &new_absolute)
         .map_err(|err| format!("Failed to rename file: {err}"))?;
     let result = persist_sample_rename_with_retry(
+        db,
         source,
         old_relative,
         new_relative,
@@ -469,6 +524,7 @@ fn rollback_sample_rename(
 /// Retry the source-db rewrite briefly so a just-queued metadata write can
 /// finish before the rename gives up and rolls the filesystem change back.
 fn persist_sample_rename_with_retry(
+    db: &crate::sample_sources::SourceDatabase,
     source: &SampleSource,
     old_relative: &Path,
     new_relative: &Path,
@@ -484,6 +540,7 @@ fn persist_sample_rename_with_retry(
     let mut last_err = None;
     for attempt in 0..SAMPLE_RENAME_DB_RETRIES {
         match persist_sample_rename_once(
+            db,
             source,
             old_relative,
             new_relative,
@@ -516,6 +573,7 @@ fn persist_sample_rename_with_retry(
 }
 
 fn persist_sample_rename_once(
+    db: &crate::sample_sources::SourceDatabase,
     source: &SampleSource,
     old_relative: &Path,
     new_relative: &Path,
@@ -529,8 +587,6 @@ fn persist_sample_rename_once(
     fallback_tag_named: Option<bool>,
 ) -> Result<WavEntry, String> {
     let (file_size, modified_ns) = file_metadata(new_absolute)?;
-    let db = crate::sample_sources::SourceDatabase::open(&source.root)
-        .map_err(|err| format!("Database unavailable: {err}"))?;
     let last_played_at = db
         .last_played_at_for_path(old_relative)
         .map_err(|err| format!("Failed to load playback age: {err}"))?;
@@ -625,13 +681,11 @@ fn persist_sample_rename_once(
     })
 }
 
-fn mark_sample_tag_named(
-    source: &SampleSource,
+fn mark_sample_tag_named_with_db(
+    db: &crate::sample_sources::SourceDatabase,
     relative_path: &Path,
     tag_named: bool,
 ) -> Result<Option<WavEntry>, String> {
-    let db = crate::sample_sources::SourceDatabase::open(&source.root)
-        .map_err(|err| format!("Database unavailable: {err}"))?;
     db.set_tag_named(relative_path, tag_named)
         .map_err(|err| format!("Failed to mark tag-name status: {err}"))?;
     db.entry_for_path(relative_path)

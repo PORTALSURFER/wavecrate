@@ -10,6 +10,13 @@ use crate::diagnostics::{DbDebugEvent, emit_db_debug_event};
 
 use super::SourceDbError;
 
+#[cfg(debug_assertions)]
+type OpenTotalCounts = std::sync::Mutex<std::collections::HashMap<std::path::PathBuf, usize>>;
+
+#[cfg(debug_assertions)]
+static SOURCE_DB_OPEN_TOTAL_COUNTS: std::sync::OnceLock<OpenTotalCounts> =
+    std::sync::OnceLock::new();
+
 const SLOW_SOURCE_DB_OPEN_STEP: Duration = Duration::from_millis(15);
 const SLOW_SOURCE_DB_OPEN_TOTAL: Duration = Duration::from_millis(40);
 const SLOW_SOURCE_DB_OPEN_TOTAL_JOB_WORKER: Duration = Duration::from_millis(150);
@@ -108,6 +115,9 @@ pub(super) fn record_open_total(
     elapsed: Duration,
     result: Result<(), &SourceDbError>,
 ) {
+    #[cfg(debug_assertions)]
+    record_test_open_total(source_root);
+
     let elapsed_ms = elapsed.as_millis() as u64;
     let source = source_root.display().to_string();
     let operation = "source_db.open_total";
@@ -158,6 +168,33 @@ pub(super) fn record_open_total(
             );
         }
     }
+}
+
+#[cfg(debug_assertions)]
+fn test_open_total_counts() -> &'static OpenTotalCounts {
+    SOURCE_DB_OPEN_TOTAL_COUNTS
+        .get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
+}
+
+#[cfg(debug_assertions)]
+fn record_test_open_total(source_root: &Path) {
+    let mut counts = test_open_total_counts().lock().unwrap();
+    *counts.entry(source_root.to_path_buf()).or_insert(0) += 1;
+}
+
+#[cfg(debug_assertions)]
+pub(super) fn reset_open_total_count(source_root: &Path) {
+    test_open_total_counts().lock().unwrap().remove(source_root);
+}
+
+#[cfg(debug_assertions)]
+pub(super) fn open_total_count(source_root: &Path) -> usize {
+    test_open_total_counts()
+        .lock()
+        .unwrap()
+        .get(source_root)
+        .copied()
+        .unwrap_or(0)
 }
 
 #[cfg(test)]
