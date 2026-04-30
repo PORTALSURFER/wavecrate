@@ -3,10 +3,15 @@ use super::*;
 use crate::updater::{
     RuntimeIdentity, UpdateChannel, UpdateCheckOutcome, UpdateCheckRequest, check_for_updates,
 };
+use std::path::Path;
 
 impl AppController {
     pub(super) fn maybe_check_for_updates_on_startup(&mut self) {
         if !self.settings.updates.check_on_startup {
+            return;
+        }
+        if startup_update_check_should_skip_for_current_exe() {
+            tracing::debug!("Skipping startup update check for local Cargo target executable");
             return;
         }
         if self.ui.update.status != crate::app::state::UpdateStatus::Idle {
@@ -159,6 +164,29 @@ impl AppController {
     }
 }
 
+fn startup_update_check_should_skip_for_current_exe() -> bool {
+    std::env::current_exe()
+        .map(|exe| startup_update_check_should_skip_for_exe(&exe))
+        .unwrap_or(false)
+}
+
+fn startup_update_check_should_skip_for_exe(exe: &Path) -> bool {
+    let Some(profile_dir) = exe.parent() else {
+        return false;
+    };
+    let Some(profile_name) = profile_dir.file_name().and_then(|name| name.to_str()) else {
+        return false;
+    };
+    if profile_name != "debug" && profile_name != "release" {
+        return false;
+    }
+    profile_dir
+        .parent()
+        .and_then(|target_dir| target_dir.file_name())
+        .and_then(|name| name.to_str())
+        == Some("target")
+}
+
 fn map_channel(channel: crate::sample_sources::config::UpdateChannel) -> UpdateChannel {
     match channel {
         crate::sample_sources::config::UpdateChannel::Stable => UpdateChannel::Stable,
@@ -190,5 +218,34 @@ fn runtime_identity(channel: UpdateChannel) -> RuntimeIdentity {
         target: target.to_string(),
         platform: platform.to_string(),
         arch: arch.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn startup_update_check_skips_local_cargo_target_exes() {
+        assert!(startup_update_check_should_skip_for_exe(Path::new(
+            r"C:\dev\sempal\target\release\sempal.exe"
+        )));
+        assert!(startup_update_check_should_skip_for_exe(Path::new(
+            r"C:\dev\sempal\target\debug\sempal.exe"
+        )));
+    }
+
+    #[test]
+    fn startup_update_check_runs_for_installed_or_non_cargo_exes() {
+        assert!(!startup_update_check_should_skip_for_exe(Path::new(
+            r"C:\Program Files\Sempal\sempal.exe"
+        )));
+        assert!(!startup_update_check_should_skip_for_exe(Path::new(
+            r"C:\dev\sempal\target\custom\sempal.exe"
+        )));
+        assert!(!startup_update_check_should_skip_for_exe(Path::new(
+            r"C:\dev\sempal\target-release\sempal.exe"
+        )));
     }
 }
