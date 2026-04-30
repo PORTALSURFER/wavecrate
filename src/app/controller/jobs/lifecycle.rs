@@ -13,6 +13,8 @@ pub(crate) struct ControllerShutdownTiming {
     pub(crate) analysis_shutdown: Duration,
     /// Time spent inside the full controller shutdown boundary.
     pub(crate) total: Duration,
+    /// True when workers were cancellation-signaled and detached instead of joined.
+    pub(crate) detached: bool,
 }
 
 impl ControllerJobs {
@@ -124,6 +126,32 @@ impl ControllerJobs {
         }
     }
 
+    /// Request worker shutdown without waiting for each backing thread to drain.
+    pub(crate) fn request_shutdown_detached(&mut self) {
+        if let Some(cancel) = self.cancel_handles.scan.as_ref() {
+            cancel.store(true, Ordering::Relaxed);
+        }
+        if let Some(cancel) = self.cancel_handles.folder_scan.as_ref() {
+            cancel.store(true, Ordering::Relaxed);
+        }
+        if let Some(cancel) = self.cancel_handles.trash_move.as_ref() {
+            cancel.store(true, Ordering::Relaxed);
+        }
+        if let Some(cancel) = self.cancel_handles.file_ops.as_ref() {
+            cancel.store(true, Ordering::Relaxed);
+        }
+        if let Some(cancel) = self.cancel_handles.issue_gateway_poll.as_ref() {
+            cancel.store(true, Ordering::Relaxed);
+        }
+        self.source_watcher.request_shutdown_detached();
+        self.search_worker.request_shutdown_detached();
+        self.recording_waveform_loader.request_shutdown_detached();
+        self.audio_loader.request_shutdown_detached();
+        self.wav_loader.request_shutdown_detached();
+        self.file_op_worker.request_shutdown_detached();
+        self.forwarders.take();
+    }
+
     /// Update the source roots watched for on-disk changes.
     pub(crate) fn update_source_watcher(&self, sources: Vec<SourceWatchEntry>) {
         self.source_watcher
@@ -212,6 +240,46 @@ impl AppController {
             jobs_shutdown,
             analysis_shutdown,
             total: total_started.elapsed(),
+            detached: false,
         }
+    }
+
+    /// Request controller worker cancellation without waiting for worker joins.
+    pub(crate) fn request_shutdown_detached_with_timing(&mut self) -> ControllerShutdownTiming {
+        let total_started = Instant::now();
+        let jobs_started = Instant::now();
+        self.runtime.jobs.request_shutdown_detached();
+        let jobs_shutdown = jobs_started.elapsed();
+        let analysis_started = Instant::now();
+        self.runtime.analysis.request_shutdown_detached();
+        let analysis_shutdown = analysis_started.elapsed();
+        ControllerShutdownTiming {
+            jobs_shutdown,
+            analysis_shutdown,
+            total: total_started.elapsed(),
+            detached: true,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn begin_shutdown_blocking_file_op_for_tests(
+        &mut self,
+        sleep_for: Duration,
+    ) -> Result<Arc<AtomicBool>, String> {
+        let started = Arc::new(AtomicBool::new(false));
+        let started_for_worker = started.clone();
+        self.runtime.jobs.begin_one_shot_file_op(move |cancel| {
+            started_for_worker.store(true, Ordering::Relaxed);
+            let deadline = Instant::now() + sleep_for;
+            while Instant::now() < deadline && !cancel.load(Ordering::Relaxed) {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            FileOpResult::FolderCreate(FolderCreateResult {
+                source_id: SourceId::from_string("shutdown-test"),
+                relative_path: PathBuf::from("folder"),
+                result: Ok(()),
+            })
+        })?;
+        Ok(started)
     }
 }

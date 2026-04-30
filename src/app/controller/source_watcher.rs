@@ -84,6 +84,12 @@ impl SourceWatcherHandle {
             let _ = handle.join();
         }
     }
+
+    /// Signal the watcher thread to exit without waiting for it to finish.
+    pub(crate) fn request_shutdown_detached(&mut self) {
+        let _ = self.command_tx.send(SourceWatchCommand::Shutdown);
+        let _ = self.join_handle.take();
+    }
 }
 
 /// Spawn the watcher thread and return a handle used to update watched sources.

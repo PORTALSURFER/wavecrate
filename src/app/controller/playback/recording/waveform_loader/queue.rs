@@ -105,6 +105,12 @@ impl RecordingWaveformWorkerHandle {
             let _ = handle.join();
         }
     }
+
+    /// Signal the worker thread to exit without waiting for it to finish.
+    pub(crate) fn request_shutdown_detached(&mut self) {
+        self.queue.shutdown();
+        let _ = self.join_handle.take();
+    }
 }
 
 /// Spawn a background worker that processes the latest pending recording waveform job.

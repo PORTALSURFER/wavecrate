@@ -310,10 +310,19 @@ impl NativeAppBridge for SempalNativeBridge {
             info!("Persisted config on native exit");
             None
         };
-        let controller_timing = self.controller.shutdown_with_timing();
+        let controller_timing = self.controller.request_shutdown_detached_with_timing();
+        info!(
+            jobs_ms = ms_duration(controller_timing.jobs_shutdown),
+            analysis_ms = ms_duration(controller_timing.analysis_shutdown),
+            total_ms = ms_duration(controller_timing.total),
+            detached = controller_timing.detached,
+            "Requested native controller shutdown"
+        );
         Some(crate::gui_runtime::NativeShutdownTimingArtifact {
             status: if failure_reason.is_some() {
                 String::from("error")
+            } else if controller_timing.detached {
+                String::from("detached")
             } else {
                 String::from("complete")
             },

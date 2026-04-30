@@ -264,6 +264,23 @@ impl AnalysisWorkerPool {
             let _ = handle.join();
         }
     }
+
+    pub(crate) fn request_shutdown_detached(&mut self) {
+        self.shutdown.store(true, Ordering::Relaxed);
+        self.cancel.store(true, Ordering::Relaxed);
+        let _ = job_cleanup::reset_running_jobs();
+        wakeup::notify_claim_wakeup();
+        #[cfg(not(test))]
+        {
+            if let Ok(mut cache) = self._progress_cache.write() {
+                *cache = ProgressCache::default();
+            }
+            self.decode_heartbeat.clear();
+            self.decode_heartbeat.close();
+            self.progress_wakeup.notify();
+        }
+        self.threads.clear();
+    }
 }
 
 pub(crate) fn default_worker_count() -> usize {

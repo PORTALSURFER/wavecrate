@@ -121,6 +121,12 @@ impl FileOpWorkerHandle {
             let _ = join.join();
         }
     }
+
+    /// Stop accepting new work without waiting for the active operation thread.
+    pub(super) fn request_shutdown_detached(&mut self) {
+        self.sender.take();
+        let _ = self.join.take();
+    }
 }
 
 fn run_file_op_worker(

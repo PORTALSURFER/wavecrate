@@ -15,6 +15,8 @@ use crate::app_core::state::{
 use crate::waveform::WaveformRenderer;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
+use std::time::{Duration, Instant};
 use tempfile::tempdir;
 
 use super::{
@@ -79,7 +81,7 @@ fn runtime_exit_returns_structured_shutdown_timing_once() {
         .on_runtime_exit()
         .expect("first runtime exit should emit timing");
 
-    assert_eq!(artifact.status, "complete");
+    assert_eq!(artifact.status, "detached");
     assert!(artifact.failure_reason.is_none());
     assert!(artifact.bridge_exit_flush_ms.is_some());
     assert!(artifact.config_persist_ms.is_some());
@@ -88,4 +90,37 @@ fn runtime_exit_returns_structured_shutdown_timing_once() {
     assert!(artifact.controller_shutdown_ms.is_some());
     assert!(artifact.runtime_exit_total_ms.is_some());
     assert!(bridge.on_runtime_exit().is_none());
+}
+
+#[test]
+fn runtime_exit_detaches_active_controller_shutdown_work() {
+    let base = tempdir().expect("create temp config dir");
+    let _base_guard = crate::app_dirs::ConfigBaseGuard::set(base.path().to_path_buf());
+    let _profile_guard = crate::app_dirs::PersistenceProfileGuard::live();
+    let mut bridge = test_bridge(32);
+    let started = bridge
+        .controller
+        .begin_shutdown_blocking_file_op_for_tests(Duration::from_millis(750))
+        .expect("queue blocking file op");
+    let wait_started = Instant::now();
+    while !started.load(Ordering::Relaxed) && wait_started.elapsed() < Duration::from_secs(1) {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(started.load(Ordering::Relaxed), "file op should be active");
+
+    let exit_started = Instant::now();
+    let artifact = bridge
+        .on_runtime_exit()
+        .expect("runtime exit should emit timing");
+    let elapsed = exit_started.elapsed();
+
+    assert_eq!(artifact.status, "detached");
+    assert!(
+        elapsed < Duration::from_millis(500),
+        "runtime exit should request shutdown without waiting for active file-op drain: {elapsed:?}"
+    );
+    assert!(
+        artifact.runtime_exit_total_ms.unwrap_or(f64::MAX) < 500.0,
+        "artifact should keep the native runtime-exit boundary bounded"
+    );
 }

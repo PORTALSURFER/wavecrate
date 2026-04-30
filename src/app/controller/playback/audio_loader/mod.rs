@@ -151,6 +151,12 @@ impl AudioLoaderHandle {
             let _ = handle.join();
         }
     }
+
+    /// Signal the loader thread to exit without waiting for the backing thread.
+    pub(crate) fn request_shutdown_detached(&mut self) {
+        self.shutdown.store(true, Ordering::Relaxed);
+        let _ = self.join_handle.take();
+    }
 }
 
 /// Spawn the audio loader worker and return its job channel plus shutdown handle.
