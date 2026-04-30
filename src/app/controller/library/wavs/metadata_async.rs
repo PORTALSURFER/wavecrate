@@ -7,7 +7,6 @@ use crate::app::controller::jobs::{
 };
 use crate::app::controller::state::runtime::{MetadataRollback, PendingMetadataMutation};
 use crate::sample_sources::SourceDatabase;
-use rusqlite::TransactionBehavior;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -340,7 +339,7 @@ fn wait_for_file_op_priority_to_clear(job: &MetadataMutationJob) {
 
 fn run_source_metadata_ops(job: &MetadataMutationJob) -> Result<(), String> {
     let started_at = Instant::now();
-    let db = SourceDatabase::open(&job.source_root).map_err(|err| err.to_string())?;
+    let db = SourceDatabase::open_fast(&job.source_root).map_err(|err| err.to_string())?;
     let resolved_ops = job
         .source_ops
         .iter()
@@ -544,7 +543,9 @@ fn resolve_stale_browser_rename_path_with_db(
 
 fn run_analysis_metadata_ops(job: &MetadataMutationJob) -> Result<(), String> {
     let mut conn = analysis_jobs::open_source_db(&job.source_root)?;
-    let duration_updates = collect_loaded_duration_updates(job)?;
+    let source_db = SourceDatabase::open_read_only(&job.source_root)
+        .map_err(|err| format!("Database unavailable: {err}"))?;
+    let duration_updates = collect_loaded_duration_updates(job, &source_db)?;
     let bpm_ops: Vec<_> = job
         .analysis_ops
         .iter()
@@ -556,16 +557,18 @@ fn run_analysis_metadata_ops(job: &MetadataMutationJob) -> Result<(), String> {
     let bpm_sample_ids: Vec<String> = bpm_ops
         .iter()
         .map(|(relative_path, _)| {
-            let resolved_path = resolve_stale_browser_rename_path(job, relative_path)?;
+            let resolved_path = resolve_stale_browser_rename_path(job, &source_db, relative_path)?;
             Ok(analysis_jobs::build_sample_id(
                 job.source_id.as_str(),
                 &resolved_path,
             ))
         })
         .collect::<Result<_, String>>()?;
-    let tx = conn
-        .transaction_with_behavior(TransactionBehavior::Immediate)
-        .map_err(|err| format!("Failed to start analysis metadata transaction: {err}"))?;
+    let tx = analysis_jobs::db::telemetry::begin_immediate_transaction(
+        &mut conn,
+        "analysis_metadata_mutation",
+    )
+    .map_err(|err| format!("Failed to start analysis metadata transaction: {err}"))?;
     if !bpm_ops.is_empty() {
         let bpm = bpm_ops.first().and_then(|(_, bpm)| **bpm);
         analysis_jobs::db::update_sample_bpms_in_tx(&tx, &bpm_sample_ids, bpm.map(f64::from))?;
@@ -589,7 +592,7 @@ fn run_analysis_metadata_ops(job: &MetadataMutationJob) -> Result<(), String> {
             )?;
         }
     }
-    tx.commit()
+    analysis_jobs::db::telemetry::commit_transaction(tx, "analysis_metadata_mutation")
         .map_err(|err| format!("Failed to commit analysis metadata transaction: {err}"))?;
     Ok(())
 }
@@ -603,6 +606,7 @@ struct LoadedDurationUpdate {
 
 fn collect_loaded_duration_updates(
     job: &MetadataMutationJob,
+    source_db: &SourceDatabase,
 ) -> Result<Vec<LoadedDurationUpdate>, String> {
     let mut updates = Vec::new();
     for op in &job.analysis_ops {
@@ -613,7 +617,7 @@ fn collect_loaded_duration_updates(
             long_sample_mark,
         } = op
         {
-            let resolved_path = resolve_stale_browser_rename_path(job, relative_path)?;
+            let resolved_path = resolve_stale_browser_rename_path(job, source_db, relative_path)?;
             let absolute = job.source_root.join(&resolved_path);
             let (file_size, modified_ns) =
                 crate::app::controller::library::wav_io::file_metadata(&absolute)?;
@@ -637,6 +641,7 @@ fn collect_loaded_duration_updates(
 
 fn resolve_stale_browser_rename_path(
     job: &MetadataMutationJob,
+    db: &SourceDatabase,
     relative_path: &Path,
 ) -> Result<PathBuf, String> {
     if job.source_root.join(relative_path).exists() {
@@ -650,8 +655,7 @@ fn resolve_stale_browser_rename_path(
     else {
         return Ok(relative_path.to_path_buf());
     };
-    if SourceDatabase::open(&job.source_root)
-        .map_err(|err| format!("Database unavailable: {err}"))?
+    if db
         .entry_for_path(&new_relative)
         .map_err(|err| format!("Failed to resolve renamed metadata target: {err}"))?
         .is_some()
@@ -850,6 +854,112 @@ mod tests {
         assert_eq!(
             persisted_duration_seconds(&source, &new_relative),
             Some(2.5)
+        );
+    }
+
+    #[test]
+    #[cfg(debug_assertions)]
+    fn analysis_metadata_rename_resolution_reuses_one_source_db_open() {
+        let temp = tempfile::tempdir().expect("create temp dir");
+        let source = SampleSource::new(temp.path().join("source"));
+        std::fs::create_dir_all(&source.root).expect("create source root");
+        let old_relative = PathBuf::from("old-name.wav");
+        let new_relative = PathBuf::from("new-name.wav");
+        let other_old_relative = PathBuf::from("other-old-name.wav");
+        let other_new_relative = PathBuf::from("other-new-name.wav");
+        let old_absolute = source.root.join(&old_relative);
+        let new_absolute = source.root.join(&new_relative);
+        let other_old_absolute = source.root.join(&other_old_relative);
+        let other_new_absolute = source.root.join(&other_new_relative);
+        std::fs::write(&old_absolute, b"metadata-fixture").expect("write fixture");
+        std::fs::write(&other_old_absolute, b"other-metadata-fixture").expect("write fixture");
+
+        let db = SourceDatabase::open(&source.root).expect("open source db");
+        let (old_size, old_modified_ns) =
+            crate::app::controller::library::wav_io::file_metadata(&old_absolute)
+                .expect("old metadata");
+        db.upsert_file(&old_relative, old_size, old_modified_ns)
+            .expect("insert old row");
+        let (other_old_size, other_old_modified_ns) =
+            crate::app::controller::library::wav_io::file_metadata(&other_old_absolute)
+                .expect("other old metadata");
+        db.upsert_file(&other_old_relative, other_old_size, other_old_modified_ns)
+            .expect("insert other old row");
+        std::fs::rename(&old_absolute, &new_absolute).expect("rename fixture");
+        std::fs::rename(&other_old_absolute, &other_new_absolute).expect("rename fixture");
+        let (new_size, new_modified_ns) =
+            crate::app::controller::library::wav_io::file_metadata(&new_absolute)
+                .expect("new metadata");
+        let (other_new_size, other_new_modified_ns) =
+            crate::app::controller::library::wav_io::file_metadata(&other_new_absolute)
+                .expect("other new metadata");
+        let mut batch = db.write_batch().expect("start rename batch");
+        batch.remove_file(&old_relative).expect("remove old row");
+        batch
+            .upsert_file(&new_relative, new_size, new_modified_ns)
+            .expect("insert new row");
+        batch
+            .remap_analysis_sample_identity(&old_relative, &new_relative)
+            .expect("remap analysis identity");
+        batch
+            .remove_file(&other_old_relative)
+            .expect("remove other old row");
+        batch
+            .upsert_file(&other_new_relative, other_new_size, other_new_modified_ns)
+            .expect("insert other new row");
+        batch
+            .remap_analysis_sample_identity(&other_old_relative, &other_new_relative)
+            .expect("remap other analysis identity");
+        batch.commit().expect("commit rename batch");
+        source_write_priority::record_completed_browser_rename(
+            &source.id,
+            &old_relative,
+            &new_relative,
+        );
+        source_write_priority::record_completed_browser_rename(
+            &source.id,
+            &other_old_relative,
+            &other_new_relative,
+        );
+
+        crate::sample_sources::db::test_reset_source_db_open_total_count(&source.root);
+        let result = run_metadata_mutation_job(MetadataMutationJob {
+            request_id: 19,
+            source_id: source.id.clone(),
+            source_root: source.root.clone(),
+            paths: [old_relative.clone(), other_old_relative.clone()]
+                .into_iter()
+                .collect(),
+            source_ops: Vec::new(),
+            analysis_ops: vec![
+                AnalysisMetadataMutationOp::SetLoadedDuration {
+                    relative_path: old_relative.clone(),
+                    duration_seconds: 3.0,
+                    sample_rate: 44_100,
+                    long_sample_mark: Some(false),
+                },
+                AnalysisMetadataMutationOp::SetLoadedDuration {
+                    relative_path: other_old_relative.clone(),
+                    duration_seconds: 4.0,
+                    sample_rate: 44_100,
+                    long_sample_mark: Some(false),
+                },
+            ],
+        });
+
+        assert!(result.result.is_ok(), "{:?}", result.result);
+        assert_eq!(
+            crate::sample_sources::db::test_source_db_open_total_count(&source.root),
+            2,
+            "analysis metadata should open once for writes and once for all rename-resolution reads"
+        );
+        assert_eq!(
+            persisted_duration_seconds(&source, &new_relative),
+            Some(3.0)
+        );
+        assert_eq!(
+            persisted_duration_seconds(&source, &other_new_relative),
+            Some(4.0)
         );
     }
 
