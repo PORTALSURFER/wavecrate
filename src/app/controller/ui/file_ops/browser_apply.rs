@@ -61,9 +61,12 @@ impl AppController {
                     self.dispatch_queued_browser_auto_rename(queued_auto_rename);
                     return;
                 };
-                if let Some(entry) = result.entry {
+                let remapped_in_place = if let Some(entry) = result.entry {
                     self.update_cached_entry(&source, &result.old_relative, entry);
-                }
+                    true
+                } else {
+                    false
+                };
                 remap_queued_browser_auto_rename_path(
                     &mut queued_auto_rename,
                     &result.old_relative,
@@ -84,7 +87,7 @@ impl AppController {
                             force_loaded_audio: false,
                         }));
                 }
-                if !active_playback_target {
+                if !active_playback_target && !remapped_in_place {
                     self.refresh_waveform_for_sample(&source, &result.new_relative);
                 }
                 self.complete_file_op_status(
@@ -138,9 +141,6 @@ impl AppController {
                         start_override: renamed.resume_start_override,
                         force_loaded_audio: false,
                     }));
-            }
-            if !active_playback_target {
-                self.refresh_waveform_for_sample(&source, &renamed.new_relative);
             }
         }
         let renamed = result.renamed.len();

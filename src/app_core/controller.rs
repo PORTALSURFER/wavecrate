@@ -44,7 +44,7 @@ pub(crate) type ProjectedSelectedPathsLookup =
 pub(crate) type UmapPointQuery<'a> = crate::app_core::app_api::controller::UmapPointQuery<'a>;
 /// Active browser auto-rename row state used by native-shell projection.
 pub(crate) type AutoRenameBatchRowState =
-    crate::app::controller::state::runtime::AutoRenameBatchRowState;
+    crate::app_core::app_api::controller_state::AutoRenameBatchRowState;
 
 use crate::app_core::actions::{NativeAppModel, NativeUiAction};
 #[cfg(test)]

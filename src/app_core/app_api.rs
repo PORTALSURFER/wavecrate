@@ -25,6 +25,8 @@ pub(crate) mod controller {
 
 /// Legacy controller-internal state types needed by migration glue.
 pub(crate) mod controller_state {
+    /// Legacy active browser auto-rename row state.
+    pub(crate) use crate::app::controller::state::runtime::AutoRenameBatchRowState;
     /// Legacy derived-state graph node identifiers.
     pub(crate) use crate::app::controller::state::runtime::DerivedNodeId;
     /// Legacy derived-state dirty reason categories.

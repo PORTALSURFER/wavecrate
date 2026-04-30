@@ -4,6 +4,77 @@ use crate::app::controller::jobs::SampleAutoRenameProgress;
 use crate::app::controller::state::runtime::{
     AutoRenameBatchRowSnapshot, AutoRenameBatchRowState, BrowserRenameIntentKey,
 };
+use crate::app_core::native_shell::project_waveform_model;
+
+/// Seed a loaded waveform with a reusable native projection signature.
+fn seed_stable_waveform_projection(
+    controller: &mut crate::app::controller::AppController,
+    source: &crate::sample_sources::SampleSource,
+    relative_path: &Path,
+) {
+    controller
+        .load_waveform_for_selection(source, relative_path)
+        .expect("waveform should load");
+    controller.ui.waveform.image = Some(crate::waveform::WaveformImage {
+        size: [2, 1],
+        pixels: vec![
+            crate::waveform::WaveformRgba::from_rgba_unmultiplied(10, 20, 30, 255),
+            crate::waveform::WaveformRgba::from_rgba_unmultiplied(40, 50, 60, 255),
+        ],
+    });
+    controller.ui.waveform.waveform_image_signature = Some(77);
+    controller.set_waveform_render_meta_for_tests(Some(
+        crate::app::controller::WaveformRenderMeta {
+            view_start: controller.ui.waveform.view.start,
+            view_end: controller.ui.waveform.view.end,
+            size: controller.sample_view.waveform.size,
+            samples_len: 2,
+            texture_width: 2,
+            channel_view: crate::waveform::WaveformChannelView::Mono,
+            channels: 1,
+            edit_fade: None,
+            transient_visual_token: None,
+        },
+    ));
+    controller.ui.waveform.playhead.visible = true;
+    controller.ui.waveform.playhead.position = 0.375;
+}
+
+/// Build one successful auto-rename result row for controller application tests.
+fn auto_rename_success(
+    old_relative: &str,
+    new_relative: &str,
+) -> crate::app::controller::jobs::SampleAutoRenameSuccess {
+    crate::app::controller::jobs::SampleAutoRenameSuccess {
+        old_relative: PathBuf::from(old_relative),
+        new_relative: PathBuf::from(new_relative),
+        entry: sample_entry(new_relative, crate::sample_sources::Rating::NEUTRAL),
+        resume_playback: false,
+        resume_looped: false,
+        resume_start_override: None,
+    }
+}
+
+/// Apply a completed auto-rename batch directly through the file-op result path.
+fn apply_auto_rename_successes(
+    controller: &mut crate::app::controller::AppController,
+    source_id: crate::sample_sources::SourceId,
+    requested_paths: Vec<PathBuf>,
+    renamed: Vec<crate::app::controller::jobs::SampleAutoRenameSuccess>,
+) {
+    controller.apply_file_op_result(
+        crate::app::controller::jobs::FileOpResult::SampleAutoRename(
+            crate::app::controller::jobs::SampleAutoRenameResult {
+                source_id,
+                requested_paths,
+                renamed,
+                skipped: Vec::new(),
+                errors: Vec::new(),
+            },
+        ),
+    );
+}
+
 #[test]
 fn auto_rename_uses_primary_row_plus_hidden_selection() {
     let (mut controller, source) = dummy_controller();
@@ -101,6 +172,122 @@ fn repeated_auto_rename_for_active_target_collapses_without_warning_churn() {
     );
     assert!(source.root.join("raw.wav").exists());
     assert!(!source.root.join("portal_SS.wav").exists());
+}
+
+#[test]
+/// Auto-renaming rows outside the loaded waveform must not invalidate native waveform projection.
+fn auto_rename_unrelated_rows_keeps_loaded_waveform_projection_stable() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.select_source_by_index(0);
+    controller.cache_db(&source).unwrap();
+    for name in ["loaded.wav", "queued.wav", "other.wav"] {
+        write_test_wav(&source.root.join(name), &[0.0, 0.1, -0.1]);
+    }
+    controller.set_wav_entries_for_tests(vec![
+        sample_entry("loaded.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("queued.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("other.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    seed_stable_waveform_projection(&mut controller, &source, Path::new("loaded.wav"));
+    controller.ui.waveform.loop_enabled = true;
+
+    let before = project_waveform_model(&mut controller);
+    apply_auto_rename_successes(
+        &mut controller,
+        source.id.clone(),
+        vec![PathBuf::from("queued.wav"), PathBuf::from("other.wav")],
+        vec![
+            auto_rename_success("queued.wav", "renamed_queued.wav"),
+            auto_rename_success("other.wav", "renamed_other.wav"),
+        ],
+    );
+    let after = project_waveform_model(&mut controller);
+
+    assert_eq!(before.waveform_image_signature, Some(77));
+    assert_eq!(
+        after.waveform_image_signature,
+        before.waveform_image_signature
+    );
+    assert_eq!(after.loading, before.loading);
+    assert_eq!(after.playhead_micros, before.playhead_micros);
+    assert_eq!(controller.ui.waveform.loading, None);
+    assert_eq!(
+        controller.sample_view.wav.loaded_wav.as_deref(),
+        Some(Path::new("loaded.wav"))
+    );
+    assert_eq!(
+        controller.ui.loaded_wav.as_deref(),
+        Some(Path::new("loaded.wav"))
+    );
+    assert!(controller.runtime.jobs.pending_audio.is_none());
+    assert!(controller.sample_view.waveform.decoded.is_some());
+    assert!(controller.ui.waveform.loop_enabled);
+}
+
+#[test]
+/// Auto-renaming the loaded row should remap waveform identity without publishing a blank frame.
+fn auto_rename_loaded_row_remaps_waveform_identity_without_blank_frame() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.select_source_by_index(0);
+    controller.cache_db(&source).unwrap();
+    for name in ["loaded.wav", "other.wav"] {
+        write_test_wav(&source.root.join(name), &[0.0, 0.1, -0.1]);
+    }
+    controller.set_wav_entries_for_tests(vec![
+        sample_entry("loaded.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("other.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    seed_stable_waveform_projection(&mut controller, &source, Path::new("loaded.wav"));
+    controller.set_browser_selected_paths(vec![PathBuf::from("loaded.wav")]);
+
+    let before = project_waveform_model(&mut controller);
+    apply_auto_rename_successes(
+        &mut controller,
+        source.id.clone(),
+        vec![PathBuf::from("loaded.wav"), PathBuf::from("other.wav")],
+        vec![
+            auto_rename_success("loaded.wav", "renamed_loaded.wav"),
+            auto_rename_success("other.wav", "renamed_other.wav"),
+        ],
+    );
+    let after = project_waveform_model(&mut controller);
+
+    assert_eq!(
+        after.waveform_image_signature,
+        before.waveform_image_signature
+    );
+    assert_eq!(after.loading, before.loading);
+    assert_eq!(after.playhead_micros, before.playhead_micros);
+    assert_eq!(controller.ui.waveform.loading, None);
+    assert_eq!(
+        controller.sample_view.wav.loaded_wav.as_deref(),
+        Some(Path::new("renamed_loaded.wav"))
+    );
+    assert_eq!(
+        controller.ui.loaded_wav.as_deref(),
+        Some(Path::new("renamed_loaded.wav"))
+    );
+    assert_eq!(
+        controller
+            .sample_view
+            .wav
+            .loaded_audio
+            .as_ref()
+            .map(|audio| audio.relative_path.as_path()),
+        Some(Path::new("renamed_loaded.wav"))
+    );
+    assert_eq!(
+        controller.ui.browser.selection.selected_paths,
+        vec![PathBuf::from("renamed_loaded.wav")]
+    );
+    assert!(controller.runtime.jobs.pending_audio.is_none());
+    assert!(controller.sample_view.waveform.decoded.is_some());
 }
 
 #[test]
