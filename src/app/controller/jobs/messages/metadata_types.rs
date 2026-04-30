@@ -35,6 +35,13 @@ pub(crate) enum SourceMetadataMutationOp {
         /// New user tag to store, or `None` to clear it.
         user_tag: Option<String>,
     },
+    /// Persist whether a sample filename is currently tag-derived.
+    SetTagNamed {
+        /// Relative sample path within the source root.
+        relative_path: PathBuf,
+        /// New tag-derived filename marker to store.
+        tag_named: bool,
+    },
     /// Assign one normal library tag to one sample.
     AssignNormalTag {
         /// Relative sample path within the source root.

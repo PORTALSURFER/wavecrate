@@ -15,6 +15,18 @@ fn execute_cached_statement(
     Ok(())
 }
 
+fn execute_cached_update_expect_one(
+    mut statement: CachedStatement<'_>,
+    params: impl rusqlite::Params,
+) -> Result<(), SourceDbError> {
+    let changed = statement.execute(params).map_err(map_sql_error)?;
+    if changed == 1 {
+        Ok(())
+    } else {
+        Err(SourceDbError::Unexpected)
+    }
+}
+
 pub(super) fn execute_transaction_cached(
     tx: &Transaction<'_>,
     sql: &str,
@@ -39,11 +51,10 @@ pub(super) fn update_path_i64_statement(
     value: i64,
 ) -> Result<(), SourceDbError> {
     let path = normalize_relative_path(relative_path)?;
-    tx.prepare_cached(sql)
-        .map_err(map_sql_error)?
-        .execute(params![value, path])
-        .map_err(map_sql_error)?;
-    Ok(())
+    execute_cached_update_expect_one(
+        tx.prepare_cached(sql).map_err(map_sql_error)?,
+        params![value, path],
+    )
 }
 
 pub(super) fn update_path_text_statement(
@@ -53,11 +64,10 @@ pub(super) fn update_path_text_statement(
     value: &str,
 ) -> Result<(), SourceDbError> {
     let path = normalize_relative_path(relative_path)?;
-    tx.prepare_cached(sql)
-        .map_err(map_sql_error)?
-        .execute(params![value, path])
-        .map_err(map_sql_error)?;
-    Ok(())
+    execute_cached_update_expect_one(
+        tx.prepare_cached(sql).map_err(map_sql_error)?,
+        params![value, path],
+    )
 }
 
 pub(super) fn update_path_null_statement(
@@ -66,11 +76,10 @@ pub(super) fn update_path_null_statement(
     relative_path: &Path,
 ) -> Result<(), SourceDbError> {
     let path = normalize_relative_path(relative_path)?;
-    tx.prepare_cached(sql)
-        .map_err(map_sql_error)?
-        .execute(params![path])
-        .map_err(map_sql_error)?;
-    Ok(())
+    execute_cached_update_expect_one(
+        tx.prepare_cached(sql).map_err(map_sql_error)?,
+        params![path],
+    )
 }
 
 pub(super) fn delete_path_statement(

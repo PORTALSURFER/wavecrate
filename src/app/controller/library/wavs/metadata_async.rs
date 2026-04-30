@@ -278,6 +278,7 @@ fn metadata_mutation_paths(
             | SourceMetadataMutationOp::SetLooped { relative_path, .. }
             | SourceMetadataMutationOp::SetSoundType { relative_path, .. }
             | SourceMetadataMutationOp::SetUserTag { relative_path, .. }
+            | SourceMetadataMutationOp::SetTagNamed { relative_path, .. }
             | SourceMetadataMutationOp::AssignNormalTag { relative_path, .. }
             | SourceMetadataMutationOp::RemoveNormalTag { relative_path, .. }
             | SourceMetadataMutationOp::SetLastPlayedAt { relative_path, .. } => {
@@ -302,7 +303,7 @@ pub(crate) fn run_metadata_mutation_job(job: MetadataMutationJob) -> MetadataMut
     let mut result = Ok(());
     wait_for_file_op_priority_to_clear(&job);
     if !job.source_ops.is_empty() {
-        result = run_source_metadata_ops(&job.source_root, &job.source_ops);
+        result = run_source_metadata_ops(&job);
     }
     if result.is_ok() && !job.analysis_ops.is_empty() {
         result = run_analysis_metadata_ops(&job);
@@ -335,77 +336,122 @@ fn wait_for_file_op_priority_to_clear(job: &MetadataMutationJob) {
     }
 }
 
-fn run_source_metadata_ops(
-    source_root: &Path,
-    ops: &[SourceMetadataMutationOp],
-) -> Result<(), String> {
-    let db = SourceDatabase::open(source_root).map_err(|err| err.to_string())?;
+fn run_source_metadata_ops(job: &MetadataMutationJob) -> Result<(), String> {
+    let db = SourceDatabase::open(&job.source_root).map_err(|err| err.to_string())?;
+    let resolved_ops = job
+        .source_ops
+        .iter()
+        .map(|op| {
+            let original_path = source_metadata_op_path(op);
+            resolve_stale_browser_rename_path_with_db(job, &db, original_path)
+                .map(|resolved_path| (op, original_path, resolved_path))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let mut batch = db.write_batch().map_err(|err| err.to_string())?;
-    for op in ops {
-        match op {
-            SourceMetadataMutationOp::SetTagAndLocked {
-                relative_path,
-                tag,
-                locked,
-            } => {
-                batch
-                    .set_tag(relative_path, *tag)
-                    .map_err(|err| err.to_string())?;
-                batch
-                    .set_locked(relative_path, *locked)
-                    .map_err(|err| err.to_string())?;
+    for (op, original_path, resolved_path) in resolved_ops {
+        let result = match op {
+            SourceMetadataMutationOp::SetTagAndLocked { tag, locked, .. } => batch
+                .set_tag(&resolved_path, *tag)
+                .and_then(|_| batch.set_locked(&resolved_path, *locked)),
+            SourceMetadataMutationOp::SetLooped { looped, .. } => {
+                batch.set_looped(&resolved_path, *looped)
             }
-            SourceMetadataMutationOp::SetLooped {
-                relative_path,
-                looped,
-            } => {
-                batch
-                    .set_looped(relative_path, *looped)
-                    .map_err(|err| err.to_string())?;
+            SourceMetadataMutationOp::SetSoundType { sound_type, .. } => {
+                batch.set_sound_type(&resolved_path, *sound_type)
             }
-            SourceMetadataMutationOp::SetSoundType {
-                relative_path,
-                sound_type,
-            } => {
-                batch
-                    .set_sound_type(relative_path, *sound_type)
-                    .map_err(|err| err.to_string())?;
+            SourceMetadataMutationOp::SetUserTag { user_tag, .. } => {
+                batch.set_user_tag(&resolved_path, user_tag.as_deref())
             }
-            SourceMetadataMutationOp::SetUserTag {
-                relative_path,
-                user_tag,
-            } => {
-                batch
-                    .set_user_tag(relative_path, user_tag.as_deref())
-                    .map_err(|err| err.to_string())?;
+            SourceMetadataMutationOp::SetTagNamed { tag_named, .. } => {
+                batch.set_tag_named(&resolved_path, *tag_named)
             }
-            SourceMetadataMutationOp::AssignNormalTag {
-                relative_path,
-                label,
-            } => {
-                batch
-                    .assign_tag_to_path(relative_path, label)
-                    .map_err(|err| err.to_string())?;
+            SourceMetadataMutationOp::AssignNormalTag { label, .. } => {
+                batch.assign_tag_to_path(&resolved_path, label).map(|_| ())
             }
-            SourceMetadataMutationOp::RemoveNormalTag {
-                relative_path,
-                label,
-            } => {
-                batch
-                    .remove_tag_from_path(relative_path, label)
-                    .map_err(|err| err.to_string())?;
+            SourceMetadataMutationOp::RemoveNormalTag { label, .. } => batch
+                .remove_tag_from_path(&resolved_path, label)
+                .map(|_| ()),
+            SourceMetadataMutationOp::SetLastPlayedAt { played_at, .. } => {
+                batch.set_last_played_at(&resolved_path, *played_at)
             }
-            SourceMetadataMutationOp::SetLastPlayedAt {
-                relative_path,
-                played_at,
-            } => {
-                batch
-                    .set_last_played_at(relative_path, *played_at)
-                    .map_err(|err| err.to_string())?;
-            }
-        }
+        };
+        result.map_err(|err| source_metadata_op_error(op, original_path, &resolved_path, err))?;
     }
     batch.commit().map_err(|err| err.to_string())
+}
+
+fn source_metadata_op_path(op: &SourceMetadataMutationOp) -> &Path {
+    match op {
+        SourceMetadataMutationOp::SetTagAndLocked { relative_path, .. }
+        | SourceMetadataMutationOp::SetLooped { relative_path, .. }
+        | SourceMetadataMutationOp::SetSoundType { relative_path, .. }
+        | SourceMetadataMutationOp::SetUserTag { relative_path, .. }
+        | SourceMetadataMutationOp::SetTagNamed { relative_path, .. }
+        | SourceMetadataMutationOp::AssignNormalTag { relative_path, .. }
+        | SourceMetadataMutationOp::RemoveNormalTag { relative_path, .. }
+        | SourceMetadataMutationOp::SetLastPlayedAt { relative_path, .. } => relative_path,
+    }
+}
+
+fn source_metadata_op_name(op: &SourceMetadataMutationOp) -> &'static str {
+    match op {
+        SourceMetadataMutationOp::SetTagAndLocked { .. } => "SetTagAndLocked",
+        SourceMetadataMutationOp::SetLooped { .. } => "SetLooped",
+        SourceMetadataMutationOp::SetSoundType { .. } => "SetSoundType",
+        SourceMetadataMutationOp::SetUserTag { .. } => "SetUserTag",
+        SourceMetadataMutationOp::SetTagNamed { .. } => "SetTagNamed",
+        SourceMetadataMutationOp::AssignNormalTag { .. } => "AssignNormalTag",
+        SourceMetadataMutationOp::RemoveNormalTag { .. } => "RemoveNormalTag",
+        SourceMetadataMutationOp::SetLastPlayedAt { .. } => "SetLastPlayedAt",
+    }
+}
+
+fn source_metadata_op_error(
+    op: &SourceMetadataMutationOp,
+    original_path: &Path,
+    resolved_path: &Path,
+    err: crate::sample_sources::SourceDbError,
+) -> String {
+    if original_path == resolved_path {
+        format!(
+            "Source metadata {} failed for {}: {err}",
+            source_metadata_op_name(op),
+            original_path.display()
+        )
+    } else {
+        format!(
+            "Source metadata {} failed for {} (resolved to {}): {err}",
+            source_metadata_op_name(op),
+            original_path.display(),
+            resolved_path.display()
+        )
+    }
+}
+
+fn resolve_stale_browser_rename_path_with_db(
+    job: &MetadataMutationJob,
+    db: &SourceDatabase,
+    relative_path: &Path,
+) -> Result<PathBuf, String> {
+    if job.source_root.join(relative_path).exists() {
+        return Ok(relative_path.to_path_buf());
+    }
+    let Some(new_relative) =
+        crate::app::controller::library::source_write_priority::completed_browser_rename_target(
+            &job.source_id,
+            relative_path,
+        )
+    else {
+        return Ok(relative_path.to_path_buf());
+    };
+    if db
+        .entry_for_path(&new_relative)
+        .map_err(|err| format!("Failed to resolve renamed metadata target: {err}"))?
+        .is_some()
+    {
+        return Ok(new_relative);
+    }
+    Ok(relative_path.to_path_buf())
 }
 
 fn run_analysis_metadata_ops(job: &MetadataMutationJob) -> Result<(), String> {
@@ -668,6 +714,101 @@ mod tests {
         assert_eq!(
             persisted_duration_seconds(&source, &new_relative),
             Some(2.5)
+        );
+    }
+
+    #[test]
+    fn source_metadata_job_follows_completed_browser_rename() {
+        let temp = tempfile::tempdir().expect("create temp dir");
+        let source = SampleSource::new(temp.path().join("source"));
+        std::fs::create_dir_all(&source.root).expect("create source root");
+        let old_relative = PathBuf::from("old-name.wav");
+        let new_relative = PathBuf::from("new-name.wav");
+        let old_absolute = source.root.join(&old_relative);
+        let new_absolute = source.root.join(&new_relative);
+        std::fs::write(&old_absolute, b"metadata-fixture").expect("write fixture");
+
+        let db = SourceDatabase::open(&source.root).expect("open source db");
+        let (old_size, old_modified_ns) =
+            crate::app::controller::library::wav_io::file_metadata(&old_absolute)
+                .expect("old metadata");
+        db.upsert_file(&old_relative, old_size, old_modified_ns)
+            .expect("insert old row");
+        std::fs::rename(&old_absolute, &new_absolute).expect("rename fixture");
+        let (new_size, new_modified_ns) =
+            crate::app::controller::library::wav_io::file_metadata(&new_absolute)
+                .expect("new metadata");
+        let mut batch = db.write_batch().expect("start rename batch");
+        batch.remove_file(&old_relative).expect("remove old row");
+        batch
+            .upsert_file(&new_relative, new_size, new_modified_ns)
+            .expect("insert new row");
+        batch.commit().expect("commit rename batch");
+        source_write_priority::record_completed_browser_rename(
+            &source.id,
+            &old_relative,
+            &new_relative,
+        );
+
+        let result = run_metadata_mutation_job(MetadataMutationJob {
+            request_id: 13,
+            source_id: source.id.clone(),
+            source_root: source.root.clone(),
+            paths: [old_relative.clone()].into_iter().collect(),
+            source_ops: vec![
+                SourceMetadataMutationOp::SetLooped {
+                    relative_path: old_relative.clone(),
+                    looped: true,
+                },
+                SourceMetadataMutationOp::AssignNormalTag {
+                    relative_path: old_relative.clone(),
+                    label: String::from("Vintage Loop"),
+                },
+            ],
+            analysis_ops: Vec::new(),
+        });
+
+        assert!(result.result.is_ok(), "{:?}", result.result);
+        assert_eq!(db.looped_for_path(&old_relative).expect("old looped"), None);
+        assert_eq!(
+            db.looped_for_path(&new_relative).expect("new looped"),
+            Some(true)
+        );
+        assert_eq!(
+            db.tags_for_path(&new_relative)
+                .expect("new tags")
+                .into_iter()
+                .map(|tag| tag.display_label)
+                .collect::<Vec<_>>(),
+            vec![String::from("Vintage Loop")]
+        );
+    }
+
+    #[test]
+    fn source_metadata_job_reports_operation_and_path_when_row_is_missing() {
+        let temp = tempfile::tempdir().expect("create temp dir");
+        let source = SampleSource::new(temp.path().join("source"));
+        std::fs::create_dir_all(&source.root).expect("create source root");
+        let relative_path = PathBuf::from("missing.wav");
+
+        let result = run_metadata_mutation_job(MetadataMutationJob {
+            request_id: 14,
+            source_id: source.id.clone(),
+            source_root: source.root.clone(),
+            paths: [relative_path.clone()].into_iter().collect(),
+            source_ops: vec![SourceMetadataMutationOp::SetLooped {
+                relative_path: relative_path.clone(),
+                looped: true,
+            }],
+            analysis_ops: Vec::new(),
+        });
+
+        let err = result.result.expect_err("missing source row should fail");
+        assert!(
+            err.contains("SetLooped")
+                && err.contains("missing.wav")
+                && err.contains("SQLite returned an unexpected result"),
+            "expected operation and path context, got: {err}"
         );
     }
 

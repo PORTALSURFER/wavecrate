@@ -205,6 +205,7 @@ impl<'conn> SourceWriteBatch<'conn> {
         label: &str,
     ) -> Result<bool, SourceDbError> {
         let path = normalize_relative_path(relative_path)?;
+        ensure_wav_path_exists(&self.tx, &path)?;
         let identity = normalize_tag_identity(label)?;
         let removed = self
             .tx
