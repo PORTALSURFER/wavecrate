@@ -369,12 +369,18 @@ impl AppController {
     /// Toggle whether sidebar metadata edits should auto-rename edited samples.
     pub(crate) fn toggle_browser_tag_sidebar_auto_rename(&mut self) {
         self.ui.browser.tag_sidebar_auto_rename = !self.ui.browser.tag_sidebar_auto_rename;
-        let label = if self.ui.browser.tag_sidebar_auto_rename {
-            "Auto rename on"
-        } else {
-            "Auto rename off"
-        };
-        self.set_status(label, StatusTone::Info);
+        if !self.ui.browser.tag_sidebar_auto_rename {
+            self.set_status("Auto rename off", StatusTone::Info);
+            return;
+        }
+        let target_paths = self.browser_tag_sidebar_target_paths();
+        if target_paths.is_empty() {
+            self.set_status("Auto rename on", StatusTone::Info);
+            return;
+        }
+        if let Err(err) = self.auto_rename_after_tag_sidebar_change(&target_paths) {
+            self.set_status(err, StatusTone::Error);
+        }
     }
 
     /// Store the current draft value for the browser metadata tag input.
