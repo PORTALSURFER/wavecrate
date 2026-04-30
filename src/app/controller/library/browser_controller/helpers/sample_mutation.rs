@@ -4,6 +4,7 @@ use super::*;
 use crate::app::controller::library::analysis_jobs::db::telemetry;
 use std::thread::sleep;
 use std::time::Duration;
+use tracing::info;
 
 #[cfg(not(test))]
 const SAMPLE_RENAME_DB_RETRIES: usize = SAMPLE_RENAME_DB_RETRIES_PRODUCTION;
@@ -476,10 +477,10 @@ fn persist_sample_rename_once(
     let last_played_at = db
         .last_played_at_for_path(old_relative)
         .map_err(|err| format!("Failed to load playback age: {err}"))?;
-    let looped = db
+    let db_looped = db
         .looped_for_path(old_relative)
-        .map_err(|err| format!("Failed to load loop marker: {err}"))?
-        .unwrap_or(fallback_looped);
+        .map_err(|err| format!("Failed to load loop marker: {err}"))?;
+    let looped = db_looped.unwrap_or(fallback_looped);
     let locked = db
         .locked_for_path(old_relative)
         .map_err(|err| format!("Failed to load lock marker: {err}"))?
@@ -541,6 +542,15 @@ fn persist_sample_rename_once(
     batch
         .commit()
         .map_err(|err| format!("Failed to save rename: {err}"))?;
+    info!(
+        source_id = %source.id,
+        old_path = %old_relative.display(),
+        new_path = %new_relative.display(),
+        request_looped = fallback_looped,
+        db_looped = ?db_looped,
+        final_looped = looped,
+        "auto rename: persisted loop metadata provenance"
+    );
     Ok(WavEntry {
         relative_path: new_relative.to_path_buf(),
         file_size,

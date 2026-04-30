@@ -10,14 +10,61 @@ use crate::app::controller::test_support::write_test_wav;
 use crate::gui::repaint::SharedRepaintSignal;
 use crate::sample_sources::db::DB_FILE_NAME;
 use crate::sample_sources::{Rating, SampleSoundType, SampleSource, SourceDatabase};
+use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::{
-    Arc,
+    Arc, Mutex,
     atomic::{AtomicBool, Ordering},
     mpsc::{Receiver, Sender},
 };
 use std::time::Duration;
 use tempfile::{TempDir, tempdir};
+use tracing_subscriber::fmt::MakeWriter;
+
+#[derive(Clone, Default)]
+struct SharedBuffer(Arc<Mutex<Vec<u8>>>);
+
+impl SharedBuffer {
+    fn captured(&self) -> String {
+        String::from_utf8(self.0.lock().unwrap().clone()).unwrap()
+    }
+}
+
+impl<'a> MakeWriter<'a> for SharedBuffer {
+    type Writer = SharedBufferWriter;
+
+    fn make_writer(&'a self) -> Self::Writer {
+        SharedBufferWriter(self.0.clone())
+    }
+}
+
+struct SharedBufferWriter(Arc<Mutex<Vec<u8>>>);
+
+impl io::Write for SharedBufferWriter {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.lock().unwrap().extend_from_slice(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+fn capture_info_logs<F>(run: F) -> String
+where
+    F: FnOnce(),
+{
+    let buffer = SharedBuffer::default();
+    let subscriber = tracing_subscriber::fmt()
+        .with_ansi(false)
+        .without_time()
+        .with_max_level(tracing::Level::INFO)
+        .with_writer(buffer.clone())
+        .finish();
+    tracing::subscriber::with_default(subscriber, run);
+    buffer.captured()
+}
 
 #[test]
 /// Single-sample rename restores the old path when the source DB is locked.
@@ -156,6 +203,53 @@ fn sample_rename_preserves_locked_and_metadata_on_success() {
         db.last_played_at_for_path(new_relative)
             .expect("new playback age"),
         Some(42)
+    );
+}
+
+#[test]
+fn sample_auto_rename_logs_looped_metadata_provenance() {
+    let (_temp, source) = setup_fixture(&["old.wav"]);
+    let old_relative = Path::new("old.wav");
+    let new_relative = Path::new("renamed.wav");
+    let db = SourceDatabase::open(&source.root).expect("open source db");
+    db.set_looped(old_relative, false)
+        .expect("override old looped");
+    let request = SampleAutoRenameRequest {
+        old_relative: old_relative.to_path_buf(),
+        new_relative: new_relative.to_path_buf(),
+        tag: Rating::KEEP_3,
+        looped: true,
+        locked: true,
+        sound_type: Some(SampleSoundType::Kick),
+        user_tag: Some(String::from("Vintage")),
+        tag_named: true,
+        last_played_at: Some(42),
+        resume_playback: false,
+        resume_looped: false,
+        resume_start_override: None,
+    };
+
+    let captured = capture_info_logs(|| {
+        let result = run_sample_auto_rename_job(
+            source.clone(),
+            vec![request],
+            Arc::new(AtomicBool::new(false)),
+            None,
+        );
+        assert!(result.errors.is_empty(), "{:?}", result.errors);
+    });
+
+    assert!(
+        captured.contains("auto rename: persisted loop metadata provenance"),
+        "rename persistence should log loop provenance: {captured}"
+    );
+    assert!(
+        captured.contains("old_path=old.wav")
+            && captured.contains("new_path=renamed.wav")
+            && captured.contains("request_looped=true")
+            && captured.contains("db_looped=Some(false)")
+            && captured.contains("final_looped=false"),
+        "log should identify request, DB, and final loop values: {captured}"
     );
 }
 

@@ -1,4 +1,96 @@
 use super::*;
+use std::io;
+use std::sync::{Arc, Mutex};
+use tracing_subscriber::fmt::MakeWriter;
+
+#[derive(Clone, Default)]
+struct SharedBuffer(Arc<Mutex<Vec<u8>>>);
+
+impl SharedBuffer {
+    fn captured(&self) -> String {
+        String::from_utf8(self.0.lock().unwrap().clone()).unwrap()
+    }
+}
+
+impl<'a> MakeWriter<'a> for SharedBuffer {
+    type Writer = SharedBufferWriter;
+
+    fn make_writer(&'a self) -> Self::Writer {
+        SharedBufferWriter(self.0.clone())
+    }
+}
+
+struct SharedBufferWriter(Arc<Mutex<Vec<u8>>>);
+
+impl io::Write for SharedBufferWriter {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.0.lock().unwrap().extend_from_slice(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+fn capture_info_logs<F>(run: F) -> String
+where
+    F: FnOnce(),
+{
+    let buffer = SharedBuffer::default();
+    let subscriber = tracing_subscriber::fmt()
+        .with_ansi(false)
+        .without_time()
+        .with_max_level(tracing::Level::INFO)
+        .with_writer(buffer.clone())
+        .finish();
+    tracing::subscriber::with_default(subscriber, run);
+    buffer.captured()
+}
+
+#[test]
+fn tag_sidebar_auto_rename_logs_metadata_provenance() {
+    let (mut controller, source) = dummy_controller();
+    controller.library.sources.push(source.clone());
+    controller.select_source_by_index(0);
+    controller.cache_db(&source).unwrap();
+    write_test_wav(&source.root.join("raw.wav"), &[0.0]);
+    let entry = sample_entry("raw.wav", crate::sample_sources::Rating::NEUTRAL);
+    register_entry_metadata(&mut controller, &source, &entry);
+    controller.set_wav_entries_for_tests(vec![entry]);
+    controller.rebuild_wav_lookup();
+    controller.rebuild_browser_lists();
+    controller.ui.browser.tag_sidebar_open = true;
+    controller.ui.browser.tag_sidebar_auto_rename = true;
+    controller.focus_browser_row_only(0);
+
+    let captured = capture_info_logs(|| {
+        controller
+            .apply_browser_tag_sidebar_looped(true)
+            .expect("loop click should auto rename");
+    });
+
+    assert!(
+        captured.contains("auto rename: request metadata provenance")
+            && captured.contains("raw.wav -> portal_loop.wav looped=true"),
+        "tag-sidebar auto-rename should log requested loop provenance: {captured}"
+    );
+    assert!(
+        captured.contains("auto rename: persisted loop metadata provenance")
+            && captured.contains("old_path=raw.wav")
+            && captured.contains("new_path=portal_loop.wav")
+            && captured.contains("request_looped=true")
+            && captured.contains("db_looped=Some(true)")
+            && captured.contains("final_looped=true"),
+        "tag-sidebar auto-rename should log DB and final loop provenance: {captured}"
+    );
+    assert!(
+        captured.contains("source metadata mutation: source ops resolved")
+            && captured.contains("SetLooped raw.wav")
+            && captured.contains("result=\"ok\""),
+        "tag-sidebar metadata write should log operation names and result: {captured}"
+    );
+}
 
 #[test]
 fn repeated_loop_sidebar_click_survives_auto_rename_and_stale_metadata_failure() {

@@ -9,7 +9,9 @@ use crate::app::controller::state::runtime::{MetadataRollback, PendingMetadataMu
 use crate::sample_sources::SourceDatabase;
 use rusqlite::TransactionBehavior;
 use std::collections::BTreeSet;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
+use tracing::info;
 
 const SELECTED_SOURCE_MUTATION_CLAIM_GRACE: Duration = Duration::from_millis(750);
 const SELECTED_SOURCE_MUTATION_AUTO_SYNC_GRACE: Duration = Duration::from_secs(5);
@@ -337,6 +339,7 @@ fn wait_for_file_op_priority_to_clear(job: &MetadataMutationJob) {
 }
 
 fn run_source_metadata_ops(job: &MetadataMutationJob) -> Result<(), String> {
+    let started_at = Instant::now();
     let db = SourceDatabase::open(&job.source_root).map_err(|err| err.to_string())?;
     let resolved_ops = job
         .source_ops
@@ -347,6 +350,16 @@ fn run_source_metadata_ops(job: &MetadataMutationJob) -> Result<(), String> {
                 .map(|resolved_path| (op, original_path, resolved_path))
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let log_records = resolved_ops
+        .iter()
+        .map(
+            |(op, original_path, resolved_path)| SourceMetadataMutationLogRecord {
+                op_name: source_metadata_op_name(op),
+                original_path: (*original_path).to_path_buf(),
+                resolved_path: resolved_path.clone(),
+            },
+        )
+        .collect::<Vec<_>>();
     let mut batch = db.write_batch().map_err(|err| err.to_string())?;
     for (op, original_path, resolved_path) in resolved_ops {
         let result = match op {
@@ -375,9 +388,84 @@ fn run_source_metadata_ops(job: &MetadataMutationJob) -> Result<(), String> {
                 batch.set_last_played_at(&resolved_path, *played_at)
             }
         };
-        result.map_err(|err| source_metadata_op_error(op, original_path, &resolved_path, err))?;
+        if let Err(err) = result {
+            let message = source_metadata_op_error(op, original_path, &resolved_path, err);
+            log_source_metadata_mutation_batch(
+                job,
+                &log_records,
+                "error",
+                started_at.elapsed(),
+                Some(&message),
+            );
+            return Err(message);
+        }
     }
-    batch.commit().map_err(|err| err.to_string())
+    match batch.commit() {
+        Ok(()) => {
+            log_source_metadata_mutation_batch(job, &log_records, "ok", started_at.elapsed(), None);
+            Ok(())
+        }
+        Err(err) => {
+            let message = err.to_string();
+            log_source_metadata_mutation_batch(
+                job,
+                &log_records,
+                "error",
+                started_at.elapsed(),
+                Some(&message),
+            );
+            Err(message)
+        }
+    }
+}
+
+struct SourceMetadataMutationLogRecord {
+    op_name: &'static str,
+    original_path: PathBuf,
+    resolved_path: PathBuf,
+}
+
+fn log_source_metadata_mutation_batch(
+    job: &MetadataMutationJob,
+    records: &[SourceMetadataMutationLogRecord],
+    result: &'static str,
+    elapsed: Duration,
+    error: Option<&str>,
+) {
+    info!(
+        source_id = %job.source_id,
+        request_id = job.request_id,
+        op_count = records.len(),
+        result,
+        elapsed_ms = elapsed.as_millis() as u64,
+        ops = %format_source_metadata_mutation_records(records),
+        error = error.unwrap_or(""),
+        "source metadata mutation: source ops resolved"
+    );
+}
+
+fn format_source_metadata_mutation_records(records: &[SourceMetadataMutationLogRecord]) -> String {
+    const MAX_ITEMS: usize = 8;
+    let mut parts = records
+        .iter()
+        .take(MAX_ITEMS)
+        .map(|record| {
+            if record.original_path == record.resolved_path {
+                format!("{} {}", record.op_name, record.original_path.display())
+            } else {
+                format!(
+                    "{} {} -> {} remapped=true",
+                    record.op_name,
+                    record.original_path.display(),
+                    record.resolved_path.display()
+                )
+            }
+        })
+        .collect::<Vec<_>>();
+    if records.len() > MAX_ITEMS {
+        parts.push(format!("... +{} more", records.len() - MAX_ITEMS));
+    }
+    parts.join("; ")
 }
 
 fn source_metadata_op_path(op: &SourceMetadataMutationOp) -> &Path {
@@ -577,6 +665,54 @@ fn resolve_stale_browser_rename_path(
 mod tests {
     use super::*;
     use crate::app::controller::library::source_write_priority;
+    use std::io;
+    use std::sync::{Arc, Mutex};
+    use tracing_subscriber::fmt::MakeWriter;
+
+    #[derive(Clone, Default)]
+    struct SharedBuffer(Arc<Mutex<Vec<u8>>>);
+
+    impl SharedBuffer {
+        fn captured(&self) -> String {
+            String::from_utf8(self.0.lock().unwrap().clone()).unwrap()
+        }
+    }
+
+    impl<'a> MakeWriter<'a> for SharedBuffer {
+        type Writer = SharedBufferWriter;
+
+        fn make_writer(&'a self) -> Self::Writer {
+            SharedBufferWriter(self.0.clone())
+        }
+    }
+
+    struct SharedBufferWriter(Arc<Mutex<Vec<u8>>>);
+
+    impl io::Write for SharedBufferWriter {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(buf);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    fn capture_info_logs<F>(run: F) -> String
+    where
+        F: FnOnce(),
+    {
+        let buffer = SharedBuffer::default();
+        let subscriber = tracing_subscriber::fmt()
+            .with_ansi(false)
+            .without_time()
+            .with_max_level(tracing::Level::INFO)
+            .with_writer(buffer.clone())
+            .finish();
+        tracing::subscriber::with_default(subscriber, run);
+        buffer.captured()
+    }
 
     #[test]
     fn metadata_mutation_paths_dedup_across_source_and_analysis_ops() {
@@ -781,6 +917,67 @@ mod tests {
                 .map(|tag| tag.display_label)
                 .collect::<Vec<_>>(),
             vec![String::from("Vintage Loop")]
+        );
+    }
+
+    #[test]
+    fn source_metadata_job_logs_operation_path_remap_and_result() {
+        let temp = tempfile::tempdir().expect("create temp dir");
+        let source = SampleSource::new(temp.path().join("source"));
+        std::fs::create_dir_all(&source.root).expect("create source root");
+        let old_relative = PathBuf::from("old-name.wav");
+        let new_relative = PathBuf::from("new-name.wav");
+        let old_absolute = source.root.join(&old_relative);
+        let new_absolute = source.root.join(&new_relative);
+        std::fs::write(&old_absolute, b"metadata-fixture").expect("write fixture");
+
+        let db = SourceDatabase::open(&source.root).expect("open source db");
+        let (old_size, old_modified_ns) =
+            crate::app::controller::library::wav_io::file_metadata(&old_absolute)
+                .expect("old metadata");
+        db.upsert_file(&old_relative, old_size, old_modified_ns)
+            .expect("insert old row");
+        std::fs::rename(&old_absolute, &new_absolute).expect("rename fixture");
+        let (new_size, new_modified_ns) =
+            crate::app::controller::library::wav_io::file_metadata(&new_absolute)
+                .expect("new metadata");
+        let mut batch = db.write_batch().expect("start rename batch");
+        batch.remove_file(&old_relative).expect("remove old row");
+        batch
+            .upsert_file(&new_relative, new_size, new_modified_ns)
+            .expect("insert new row");
+        batch.commit().expect("commit rename batch");
+        source_write_priority::record_completed_browser_rename(
+            &source.id,
+            &old_relative,
+            &new_relative,
+        );
+
+        let captured = capture_info_logs(|| {
+            let result = run_metadata_mutation_job(MetadataMutationJob {
+                request_id: 17,
+                source_id: source.id.clone(),
+                source_root: source.root.clone(),
+                paths: [old_relative.clone()].into_iter().collect(),
+                source_ops: vec![SourceMetadataMutationOp::SetLooped {
+                    relative_path: old_relative.clone(),
+                    looped: true,
+                }],
+                analysis_ops: Vec::new(),
+            });
+            assert!(result.result.is_ok(), "{:?}", result.result);
+        });
+
+        assert!(
+            captured.contains("source metadata mutation: source ops resolved"),
+            "source metadata batch should log resolved operations: {captured}"
+        );
+        assert!(
+            captured.contains("request_id=17")
+                && captured.contains("op_count=1")
+                && captured.contains("result=\"ok\"")
+                && captured.contains("SetLooped old-name.wav -> new-name.wav remapped=true"),
+            "log should include op name, original path, resolved path, and result: {captured}"
         );
     }
 
