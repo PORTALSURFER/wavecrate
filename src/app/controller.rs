@@ -11,7 +11,7 @@ mod library;
 mod playback;
 mod source_watcher;
 mod startup_source_repair;
-mod ui;
+pub(crate) mod ui;
 
 #[cfg(test)]
 /// Test-only batch latency measurement hooks for controller regression coverage.

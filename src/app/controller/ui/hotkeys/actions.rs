@@ -100,48 +100,8 @@ mod tests {
     use super::*;
     use crate::app::controller::ui::hotkeys;
     use crate::app::state::FocusContext;
+    use crate::app_core::actions::NativeUiAction;
     use crate::gui::input::KeyCode;
-
-    fn map_focus_context(focus: radiant::compat::sempal_shell::FocusContextModel) -> FocusContext {
-        match focus {
-            radiant::compat::sempal_shell::FocusContextModel::None => FocusContext::None,
-            radiant::compat::sempal_shell::FocusContextModel::Waveform => FocusContext::Waveform,
-            radiant::compat::sempal_shell::FocusContextModel::SampleBrowser => {
-                FocusContext::SampleBrowser
-            }
-            radiant::compat::sempal_shell::FocusContextModel::SourceFolders => {
-                FocusContext::SourceFolders
-            }
-            radiant::compat::sempal_shell::FocusContextModel::SourcesList => {
-                FocusContext::SourcesList
-            }
-        }
-    }
-
-    fn map_scope(scope: radiant::compat::sempal_shell::HotkeyScope) -> HotkeyScope {
-        match scope {
-            radiant::compat::sempal_shell::HotkeyScope::Global => HotkeyScope::Global,
-            radiant::compat::sempal_shell::HotkeyScope::Focus(focus) => {
-                HotkeyScope::Focus(map_focus_context(focus))
-            }
-        }
-    }
-
-    fn map_keypress(press: radiant::compat::sempal_shell::KeyPress) -> KeyPress {
-        KeyPress {
-            key: press.key,
-            command: press.command,
-            shift: press.shift,
-            alt: press.alt,
-        }
-    }
-
-    fn map_gesture(gesture: radiant::compat::sempal_shell::HotkeyGesture) -> HotkeyGesture {
-        HotkeyGesture {
-            first: map_keypress(gesture.first),
-            chord: gesture.chord.map(map_keypress),
-        }
-    }
 
     #[test]
     fn hotkey_registry_ids_are_unique() {
@@ -196,17 +156,38 @@ mod tests {
     }
 
     #[test]
-    fn sempal_catalog_preserves_legacy_radiant_binding_contract() {
-        let legacy: Vec<_> = radiant::compat::sempal_shell::iter_hotkey_bindings().collect();
-        assert_eq!(HOTKEY_ACTIONS.len(), legacy.len());
+    fn sempal_catalog_resolves_chords_and_contextual_actions() {
+        let first = hotkeys::resolve_hotkey_press(
+            None,
+            KeyPress::new(KeyCode::G),
+            FocusContext::SampleBrowser,
+        );
+        assert_eq!(first.pending_chord, Some(KeyPress::new(KeyCode::G)));
+        assert!(first.handled);
 
-        for (action, binding) in HOTKEY_ACTIONS.iter().zip(legacy) {
-            assert_eq!(action.id, binding.id);
-            assert_eq!(action.label, binding.label);
-            assert_eq!(action.gesture, map_gesture(binding.gesture));
-            assert_eq!(action.scope, map_scope(binding.scope));
-            assert_eq!(action.action, binding.action.clone().into());
-        }
+        let second = hotkeys::resolve_hotkey_press(
+            first.pending_chord,
+            KeyPress::new(KeyCode::W),
+            FocusContext::SampleBrowser,
+        );
+        assert_eq!(second.action, Some(NativeUiAction::FocusWaveformPanel));
+        assert!(second.handled);
+        assert_eq!(second.pending_chord, None);
+
+        let browser_copy = hotkeys::resolve_hotkey_press(
+            None,
+            KeyPress::with_command(KeyCode::C),
+            FocusContext::SampleBrowser,
+        );
+        assert_eq!(
+            browser_copy.action,
+            Some(NativeUiAction::CopySelectionToClipboard)
+        );
+
+        let waveform_search =
+            hotkeys::resolve_hotkey_press(None, KeyPress::new(KeyCode::F), FocusContext::Waveform);
+        assert_eq!(waveform_search.action, None);
+        assert!(!waveform_search.handled);
     }
 
     #[test]

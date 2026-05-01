@@ -128,3 +128,11 @@ impl HotkeyAction {
         matches!(self.scope, HotkeyScope::Global)
     }
 }
+
+/// Result of resolving one keypress against the Sempal-owned hotkey catalog.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct HotkeyResolution {
+    pub(crate) action: Option<NativeUiAction>,
+    pub(crate) handled: bool,
+    pub(crate) pending_chord: Option<KeyPress>,
+}

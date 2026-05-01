@@ -18,6 +18,10 @@
 //! `radiant::compat::sempal_shell` so the shell reads as compatibility
 //! infrastructure rather than the preferred generic Radiant API.
 
+use crate::app::{
+    controller::ui::hotkeys::{self, KeyPress},
+    state::FocusContext,
+};
 use crate::app_core::actions::{
     NativeAppBridge, NativeAppModel, NativeFrameBuildResult, NativeGuiAutomationSnapshot,
     NativeMotionModel, NativeUiAction,
@@ -133,6 +137,24 @@ impl<B: NativeAppBridge> radiant::compat::sempal_shell::NativeAppBridge
         self.inner.take_segment_revisions().into()
     }
 
+    fn resolve_hotkey_press(
+        &mut self,
+        pending_chord: Option<radiant::compat::sempal_shell::KeyPress>,
+        press: radiant::compat::sempal_shell::KeyPress,
+        focus: radiant::compat::sempal_shell::FocusContextModel,
+    ) -> radiant::compat::sempal_shell::HotkeyResolution {
+        let resolution = hotkeys::resolve_hotkey_press(
+            pending_chord.map(keypress_from_radiant),
+            keypress_from_radiant(press),
+            focus_context_from_radiant(focus),
+        );
+        radiant::compat::sempal_shell::HotkeyResolution {
+            action: resolution.action.map(Into::into),
+            handled: resolution.handled,
+            pending_chord: resolution.pending_chord.map(keypress_to_radiant),
+        }
+    }
+
     fn reduce_action(&mut self, action: radiant::compat::sempal_shell::UiAction) {
         self.inner.reduce_action(NativeUiAction::from(action));
     }
@@ -165,6 +187,40 @@ impl<B: NativeAppBridge> radiant::compat::sempal_shell::NativeAppBridge
         &mut self,
     ) -> Option<radiant::compat::sempal_shell::NativeShutdownTimingArtifact> {
         self.inner.on_runtime_exit()
+    }
+}
+
+fn focus_context_from_radiant(
+    focus: radiant::compat::sempal_shell::FocusContextModel,
+) -> FocusContext {
+    match focus {
+        radiant::compat::sempal_shell::FocusContextModel::None => FocusContext::None,
+        radiant::compat::sempal_shell::FocusContextModel::Waveform => FocusContext::Waveform,
+        radiant::compat::sempal_shell::FocusContextModel::SampleBrowser => {
+            FocusContext::SampleBrowser
+        }
+        radiant::compat::sempal_shell::FocusContextModel::SourceFolders => {
+            FocusContext::SourceFolders
+        }
+        radiant::compat::sempal_shell::FocusContextModel::SourcesList => FocusContext::SourcesList,
+    }
+}
+
+fn keypress_from_radiant(press: radiant::compat::sempal_shell::KeyPress) -> KeyPress {
+    KeyPress {
+        key: press.key,
+        command: press.command,
+        shift: press.shift,
+        alt: press.alt,
+    }
+}
+
+fn keypress_to_radiant(press: KeyPress) -> radiant::compat::sempal_shell::KeyPress {
+    radiant::compat::sempal_shell::KeyPress {
+        key: press.key,
+        command: press.command,
+        shift: press.shift,
+        alt: press.alt,
     }
 }
 
