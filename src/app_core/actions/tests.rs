@@ -342,6 +342,14 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal native confirm prompts should alias the generic Radiant prompt primitive"
     );
     assert!(
+        !native_dtos.contains("pub enum AudioEngineChipStateModel"),
+        "audio chip health should use the Radiant-owned generic health-state primitive"
+    );
+    assert!(
+        native_dtos.contains("pub type AudioEngineChipStateModel = feedback::HealthState;"),
+        "Sempal native audio chip state should alias the generic Radiant health primitive"
+    );
+    assert!(
         !native_dtos.contains("pub struct AudioOptionItemModel")
             && !native_dtos.contains("pub struct AudioFieldModel"),
         "audio picker item and summary field containers should use Radiant-owned generic form primitives"

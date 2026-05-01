@@ -73,6 +73,9 @@ pub type UpdatePanelModel = feedback::UpdatePanel;
 /// Modal confirmation prompt projected into the native shell.
 pub type ConfirmPromptModel = feedback::ConfirmPrompt<ConfirmPromptKind>;
 
+/// Health state of the compact audio-engine status chip.
+pub type AudioEngineChipStateModel = feedback::HealthState;
+
 /// Delete-recovery status for staged folder delete recovery in the sidebar.
 pub type FolderRecoveryModel = feedback::RecoverySummary;
 
@@ -796,16 +799,6 @@ pub struct MapPanelModel {
     pub focused_sample_id: Option<String>,
     /// Points available for rendering in normalized map space.
     pub points: Arc<[MapPointModel]>,
-}
-
-/// Health state of the compact audio-engine status chip.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub enum AudioEngineChipStateModel {
-    /// Output engine is active and matches the requested configuration.
-    #[default]
-    Healthy,
-    /// Output engine is unavailable or degraded.
-    Error,
 }
 
 /// Audio field currently expanded into a picker inside the options panel.
@@ -2119,24 +2112,6 @@ impl From<MapPanelModel> for compat::MapPanelModel {
 impl From<&MapPanelModel> for compat::MapPanelModel {
     fn from(value: &MapPanelModel) -> Self {
         value.clone().into()
-    }
-}
-
-impl From<compat::AudioEngineChipStateModel> for AudioEngineChipStateModel {
-    fn from(value: compat::AudioEngineChipStateModel) -> Self {
-        match value {
-            compat::AudioEngineChipStateModel::Healthy => Self::Healthy,
-            compat::AudioEngineChipStateModel::Error => Self::Error,
-        }
-    }
-}
-
-impl From<AudioEngineChipStateModel> for compat::AudioEngineChipStateModel {
-    fn from(value: AudioEngineChipStateModel) -> Self {
-        match value {
-            AudioEngineChipStateModel::Healthy => Self::Healthy,
-            AudioEngineChipStateModel::Error => Self::Error,
-        }
     }
 }
 
