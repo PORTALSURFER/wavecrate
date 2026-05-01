@@ -266,6 +266,22 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal native automation DTOs should alias generic Radiant automation primitives"
     );
     assert!(
+        native_dtos.contains("pub enum AutomationRole")
+            && native_dtos.contains("WaveformRegion")
+            && native_dtos.contains("MapCanvas")
+            && native_dtos.contains("MapPoint"),
+        "Sempal should own product automation role names at the app boundary"
+    );
+    assert!(
+        native_dtos.contains("compat::AutomationRole::TimelineRegion => Self::WaveformRegion")
+            && native_dtos.contains("compat::AutomationRole::SpatialCanvas => Self::MapCanvas")
+            && native_dtos.contains("compat::AutomationRole::SpatialPoint => Self::MapPoint")
+            && native_dtos.contains("AutomationRole::WaveformRegion => Self::TimelineRegion")
+            && native_dtos.contains("AutomationRole::MapCanvas => Self::SpatialCanvas")
+            && native_dtos.contains("AutomationRole::MapPoint => Self::SpatialPoint"),
+        "Sempal automation DTO conversion should map product role names onto generic Radiant roles"
+    );
+    assert!(
         !native_dtos.contains("pub struct FrameBuildResult"),
         "frame feedback should use the Radiant-owned generic primitive"
     );
