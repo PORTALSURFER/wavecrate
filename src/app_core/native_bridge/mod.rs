@@ -214,35 +214,35 @@ impl SempalNativeBridge {
 
 impl NativeAppBridge for SempalNativeBridge {
     /// Project the latest app model snapshot as a shared immutable arc.
-    fn project_model(&mut self) -> Arc<radiant::compat::sempal_shell::AppModel> {
+    fn project_model(&mut self) -> Arc<crate::app_core::actions::NativeAppModel> {
         let model = self.pull_model_arc_snapshot();
         if let Some(recorder) = self.gui_test_recorder.as_mut() {
             recorder.record_projected_model(model.as_ref());
         }
-        Arc::new(model.as_ref().into())
+        model
     }
 
     /// Project the latest app model snapshot by value.
-    fn pull_model(&mut self) -> radiant::compat::sempal_shell::AppModel {
-        self.pull_model_arc_snapshot().as_ref().into()
+    fn pull_model(&mut self) -> crate::app_core::actions::NativeAppModel {
+        Arc::unwrap_or_clone(self.pull_model_arc_snapshot())
     }
 
     /// Project the latest app model snapshot as a shared immutable arc.
     ///
     /// Returning shared ownership lets retained projection caches reuse model
     /// snapshots across pulls without cloning the full `AppModel`.
-    fn pull_model_arc(&mut self) -> Arc<radiant::compat::sempal_shell::AppModel> {
-        Arc::new(self.pull_model_arc_snapshot().as_ref().into())
+    fn pull_model_arc(&mut self) -> Arc<crate::app_core::actions::NativeAppModel> {
+        self.pull_model_arc_snapshot()
     }
 
     /// Return and clear the bridge segment mask from the most recent model pull.
-    fn take_dirty_segments(&mut self) -> radiant::compat::sempal_shell::DirtySegments {
-        SempalNativeBridge::take_dirty_segments(self).into()
+    fn take_dirty_segments(&mut self) -> NativeDirtySegments {
+        SempalNativeBridge::take_dirty_segments(self)
     }
 
     /// Return the latest static-segment revision snapshot.
-    fn take_segment_revisions(&mut self) -> radiant::compat::sempal_shell::SegmentRevisions {
-        SempalNativeBridge::take_segment_revisions(self).into()
+    fn take_segment_revisions(&mut self) -> NativeSegmentRevisions {
+        SempalNativeBridge::take_segment_revisions(self)
     }
 
     /// Install runtime repaint signal for async job completion wakeups.
@@ -272,13 +272,13 @@ impl NativeAppBridge for SempalNativeBridge {
     }
 
     /// Project motion-only fields for animation-only redraw phases.
-    fn project_motion_model(&mut self) -> Option<radiant::compat::sempal_shell::NativeMotionModel> {
-        SempalNativeBridge::project_motion_model(self).map(Into::into)
+    fn project_motion_model(&mut self) -> Option<NativeMotionModel> {
+        SempalNativeBridge::project_motion_model(self)
     }
 
     /// Reduce one runtime UI action into controller state.
-    fn reduce_action(&mut self, action: radiant::compat::sempal_shell::UiAction) {
-        SempalNativeBridge::reduce_action(self, action.into());
+    fn reduce_action(&mut self, action: NativeUiAction) {
+        SempalNativeBridge::reduce_action(self, action);
     }
 
     fn take_last_action_handled(&mut self) -> Option<bool> {
@@ -286,8 +286,8 @@ impl NativeAppBridge for SempalNativeBridge {
     }
 
     /// Observe one frame-build result for optional profiling telemetry.
-    fn observe_frame_result(&mut self, result: radiant::compat::sempal_shell::FrameBuildResult) {
-        SempalNativeBridge::observe_frame_result(self, result.into());
+    fn observe_frame_result(&mut self, result: NativeFrameBuildResult) {
+        SempalNativeBridge::observe_frame_result(self, result);
     }
 
     /// Flush pending work and persist config during runtime shutdown.

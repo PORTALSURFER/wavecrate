@@ -130,32 +130,32 @@ impl GuiFixtureBridge {
 }
 
 impl NativeAppBridge for GuiFixtureBridge {
-    fn project_model(&mut self) -> Arc<radiant::compat::sempal_shell::AppModel> {
+    fn project_model(&mut self) -> Arc<crate::app_core::actions::NativeAppModel> {
         <SempalNativeBridge as NativeAppBridge>::project_model(&mut self.bridge)
     }
 
-    fn pull_model(&mut self) -> radiant::compat::sempal_shell::AppModel {
+    fn pull_model(&mut self) -> crate::app_core::actions::NativeAppModel {
         <SempalNativeBridge as NativeAppBridge>::pull_model(&mut self.bridge)
     }
 
-    fn pull_model_arc(&mut self) -> Arc<radiant::compat::sempal_shell::AppModel> {
+    fn pull_model_arc(&mut self) -> Arc<crate::app_core::actions::NativeAppModel> {
         <SempalNativeBridge as NativeAppBridge>::pull_model_arc(&mut self.bridge)
     }
 
-    fn project_motion_model(&mut self) -> Option<radiant::compat::sempal_shell::NativeMotionModel> {
-        GuiFixtureBridge::project_motion_model(self).map(Into::into)
+    fn project_motion_model(&mut self) -> Option<NativeMotionModel> {
+        GuiFixtureBridge::project_motion_model(self)
     }
 
-    fn take_dirty_segments(&mut self) -> radiant::compat::sempal_shell::DirtySegments {
-        GuiFixtureBridge::take_dirty_segments(self).into()
+    fn take_dirty_segments(&mut self) -> NativeDirtySegments {
+        GuiFixtureBridge::take_dirty_segments(self)
     }
 
-    fn take_segment_revisions(&mut self) -> radiant::compat::sempal_shell::SegmentRevisions {
-        GuiFixtureBridge::take_segment_revisions(self).into()
+    fn take_segment_revisions(&mut self) -> NativeSegmentRevisions {
+        GuiFixtureBridge::take_segment_revisions(self)
     }
 
-    fn reduce_action(&mut self, action: radiant::compat::sempal_shell::UiAction) {
-        GuiFixtureBridge::reduce_action(self, action.into());
+    fn reduce_action(&mut self, action: NativeUiAction) {
+        GuiFixtureBridge::reduce_action(self, action);
     }
 
     fn take_last_action_handled(&mut self) -> Option<bool> {
@@ -177,8 +177,8 @@ impl NativeAppBridge for GuiFixtureBridge {
             .maybe_launch_external_drag(pointer_outside, pointer_left)
     }
 
-    fn observe_frame_result(&mut self, result: radiant::compat::sempal_shell::FrameBuildResult) {
-        GuiFixtureBridge::observe_frame_result(self, result.into());
+    fn observe_frame_result(&mut self, result: NativeFrameBuildResult) {
+        GuiFixtureBridge::observe_frame_result(self, result);
     }
 
     fn on_runtime_exit(&mut self) -> Option<crate::gui_runtime::NativeShutdownTimingArtifact> {

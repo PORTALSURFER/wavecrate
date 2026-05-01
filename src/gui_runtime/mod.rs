@@ -18,8 +18,11 @@
 //! `radiant::compat::sempal_shell` so the shell reads as compatibility
 //! infrastructure rather than the preferred generic Radiant API.
 
-use crate::app_core::actions::NativeAppBridge;
-use crate::app_core::actions::{NativeAppModel, NativeGuiAutomationSnapshot};
+use crate::app_core::actions::{
+    NativeAppBridge, NativeAppModel, NativeFrameBuildResult, NativeGuiAutomationSnapshot,
+    NativeMotionModel, NativeUiAction,
+};
+use std::sync::Arc;
 use tracing::{error, info};
 
 pub use radiant::compat::sempal_shell::{
@@ -89,6 +92,82 @@ impl From<WindowIconRgba> for radiant::compat::sempal_shell::WindowIconRgba {
     }
 }
 
+struct CompatNativeAppBridge<B> {
+    inner: B,
+}
+
+impl<B> CompatNativeAppBridge<B> {
+    fn new(inner: B) -> Self {
+        Self { inner }
+    }
+}
+
+impl<B: NativeAppBridge> radiant::compat::sempal_shell::NativeAppBridge
+    for CompatNativeAppBridge<B>
+{
+    fn project_model(&mut self) -> Arc<radiant::compat::sempal_shell::AppModel> {
+        let model = self.inner.project_model();
+        Arc::new(model.as_ref().into())
+    }
+
+    fn pull_model(&mut self) -> radiant::compat::sempal_shell::AppModel {
+        self.inner.pull_model().into()
+    }
+
+    fn pull_model_arc(&mut self) -> Arc<radiant::compat::sempal_shell::AppModel> {
+        let model = self.inner.pull_model_arc();
+        Arc::new(model.as_ref().into())
+    }
+
+    fn project_motion_model(&mut self) -> Option<radiant::compat::sempal_shell::NativeMotionModel> {
+        self.inner
+            .project_motion_model()
+            .map(NativeMotionModel::into)
+    }
+
+    fn take_dirty_segments(&mut self) -> radiant::compat::sempal_shell::DirtySegments {
+        self.inner.take_dirty_segments().into()
+    }
+
+    fn take_segment_revisions(&mut self) -> radiant::compat::sempal_shell::SegmentRevisions {
+        self.inner.take_segment_revisions().into()
+    }
+
+    fn reduce_action(&mut self, action: radiant::compat::sempal_shell::UiAction) {
+        self.inner.reduce_action(NativeUiAction::from(action));
+    }
+
+    fn take_last_action_handled(&mut self) -> Option<bool> {
+        self.inner.take_last_action_handled()
+    }
+
+    fn install_repaint_signal(&mut self, signal: Arc<dyn crate::gui::repaint::RepaintSignal>) {
+        self.inner.install_repaint_signal(signal);
+    }
+
+    #[cfg(target_os = "windows")]
+    fn set_external_drag_hwnd(&mut self, hwnd: isize) {
+        self.inner.set_external_drag_hwnd(hwnd);
+    }
+
+    #[cfg(target_os = "windows")]
+    fn maybe_launch_external_drag(&mut self, pointer_outside: bool, pointer_left: bool) -> bool {
+        self.inner
+            .maybe_launch_external_drag(pointer_outside, pointer_left)
+    }
+
+    fn observe_frame_result(&mut self, result: radiant::compat::sempal_shell::FrameBuildResult) {
+        self.inner
+            .observe_frame_result(NativeFrameBuildResult::from(result));
+    }
+
+    fn on_runtime_exit(
+        &mut self,
+    ) -> Option<radiant::compat::sempal_shell::NativeShutdownTimingArtifact> {
+        self.inner.on_runtime_exit()
+    }
+}
+
 /// Run the native Vello backend with a host-provided application bridge.
 ///
 /// This call blocks until the native host exits and returns an error if startup
@@ -100,11 +179,14 @@ pub fn run_native_vello_app<B: NativeAppBridge>(
     // No additional state is touched by this adapter; all control flow and
     // execution semantics remain in `radiant`.
     info!("Launching radiant native Vello runtime");
-    let result = radiant::compat::sempal_shell::run_native_vello_app(options.into(), bridge)
-        .map_err(|err| {
-            error!(%err, "radiant native Vello runtime returned error");
-            err
-        });
+    let result = radiant::compat::sempal_shell::run_native_vello_app(
+        options.into(),
+        CompatNativeAppBridge::new(bridge),
+    )
+    .map_err(|err| {
+        error!(%err, "radiant native Vello runtime returned error");
+        err
+    });
 
     if result.is_ok() {
         info!("Radiant native Vello runtime returned successfully");
@@ -120,8 +202,10 @@ pub fn run_native_vello_app_with_artifacts<B: NativeAppBridge>(
     bridge: B,
 ) -> NativeRunReport {
     info!("Launching radiant native Vello runtime");
-    let report =
-        radiant::compat::sempal_shell::run_native_vello_app_with_artifacts(options.into(), bridge);
+    let report = radiant::compat::sempal_shell::run_native_vello_app_with_artifacts(
+        options.into(),
+        CompatNativeAppBridge::new(bridge),
+    );
     if let Err(err) = &report.result {
         error!(%err, "radiant native Vello runtime returned error");
     } else {
@@ -139,12 +223,14 @@ pub fn run_native_vello_app_declarative<B: NativeAppBridge>(
     bridge: B,
 ) -> Result<(), String> {
     info!("Launching radiant native Vello runtime (declarative host)");
-    let result =
-        radiant::compat::sempal_shell::run_native_vello_app_declarative(options.into(), bridge)
-            .map_err(|err| {
-                error!(%err, "radiant native Vello runtime returned error");
-                err
-            });
+    let result = radiant::compat::sempal_shell::run_native_vello_app_declarative(
+        options.into(),
+        CompatNativeAppBridge::new(bridge),
+    )
+    .map_err(|err| {
+        error!(%err, "radiant native Vello runtime returned error");
+        err
+    });
 
     if result.is_ok() {
         info!("Radiant native Vello runtime returned successfully");
@@ -162,7 +248,7 @@ pub fn run_native_vello_app_declarative_with_artifacts<B: NativeAppBridge>(
     info!("Launching radiant native Vello runtime (declarative host)");
     let report = radiant::compat::sempal_shell::run_native_vello_app_declarative_with_artifacts(
         options.into(),
-        bridge,
+        CompatNativeAppBridge::new(bridge),
     );
     if let Err(err) = &report.result {
         error!(%err, "radiant native Vello runtime returned error");

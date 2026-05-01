@@ -7,6 +7,7 @@
 
 mod catalog;
 mod native_shell_actions;
+mod native_shell_bridge;
 mod native_shell_dtos;
 
 pub use self::catalog::{
@@ -184,7 +185,7 @@ pub type NativeWaveformSlicePreviewModel = self::native_shell_dtos::WaveformSlic
 pub use self::native_shell_dtos::parse_waveform_tempo_number_text;
 
 /// Native runtime bridge trait used by host launchers.
-pub use radiant::compat::sempal_shell::NativeAppBridge;
+pub use self::native_shell_bridge::NativeAppBridge;
 
 #[cfg(test)]
 mod tests;

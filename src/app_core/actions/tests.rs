@@ -229,8 +229,13 @@ fn native_action_exports_are_owned_in_app_core() {
     );
     assert!(
         actions_mod.contains("mod native_shell_actions;")
+            && actions_mod.contains("mod native_shell_bridge;")
             && actions_mod.contains("mod native_shell_dtos;"),
-        "Sempal-owned action and projection DTO modules must remain explicit"
+        "Sempal-owned action, bridge, and projection DTO modules must remain explicit"
+    );
+    assert!(
+        !actions_mod.contains("pub use radiant::compat::sempal_shell::NativeAppBridge"),
+        "NativeAppBridge must stay Sempal-owned, with compatibility conversion at the runtime boundary"
     );
 
     let radiant_app_sources = [
