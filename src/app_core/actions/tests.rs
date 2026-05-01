@@ -322,6 +322,8 @@ fn native_action_exports_are_owned_in_app_core() {
                 .contains("pub type BrowserTagPillModel = badge::SelectablePill<BrowserTagState>;")
             && native_dtos
                 .contains("pub type MapRenderModeModel = visualization::PointRenderMode;")
+            && native_dtos
+                .contains("pub type WaveformChannelViewModel = visualization::ChannelViewMode;")
             && native_dtos.contains("pub type MapPointModel = visualization::SpatialPoint;")
             && native_dtos.contains("pub type UpdateStatusModel = feedback::UpdateStatus;"),
         "Sempal native DTOs should alias generic Radiant state primitives"
@@ -329,6 +331,10 @@ fn native_action_exports_are_owned_in_app_core() {
     assert!(
         !native_dtos.contains("pub struct MapPointModel"),
         "map point geometry should use the Radiant-owned generic spatial point primitive"
+    );
+    assert!(
+        !native_dtos.contains("pub enum WaveformChannelViewModel"),
+        "waveform channel view should use the Radiant-owned generic channel-view primitive"
     );
     assert!(
         !native_dtos.contains("pub enum FolderPaneIdModel"),

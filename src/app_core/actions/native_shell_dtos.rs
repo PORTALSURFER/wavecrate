@@ -68,6 +68,9 @@ pub type BrowserTagPillModel = badge::SelectablePill<BrowserTagState>;
 /// Render mode label for the map panel.
 pub type MapRenderModeModel = visualization::PointRenderMode;
 
+/// Channel-view mode used by waveform rendering.
+pub type WaveformChannelViewModel = visualization::ChannelViewMode;
+
 /// Render data for one point shown in the native map canvas.
 pub type MapPointModel = visualization::SpatialPoint;
 
@@ -1036,15 +1039,6 @@ impl Default for WaveformPanelModel {
             waveform_image: None,
         }
     }
-}
-
-/// Waveform channel-view mode used by waveform rendering.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum WaveformChannelViewModel {
-    /// Collapse channels into one mono envelope.
-    Mono,
-    /// Render left/right channels in split stereo mode.
-    Stereo,
 }
 
 /// Waveform chrome copy used by metadata lines and control surfaces.
@@ -2426,24 +2420,6 @@ impl From<WaveformPanelModel> for compat::WaveformPanelModel {
 impl From<&WaveformPanelModel> for compat::WaveformPanelModel {
     fn from(value: &WaveformPanelModel) -> Self {
         value.clone().into()
-    }
-}
-
-impl From<compat::WaveformChannelViewModel> for WaveformChannelViewModel {
-    fn from(value: compat::WaveformChannelViewModel) -> Self {
-        match value {
-            compat::WaveformChannelViewModel::Mono => Self::Mono,
-            compat::WaveformChannelViewModel::Stereo => Self::Stereo,
-        }
-    }
-}
-
-impl From<WaveformChannelViewModel> for compat::WaveformChannelViewModel {
-    fn from(value: WaveformChannelViewModel) -> Self {
-        match value {
-            WaveformChannelViewModel::Mono => Self::Mono,
-            WaveformChannelViewModel::Stereo => Self::Stereo,
-        }
     }
 }
 
