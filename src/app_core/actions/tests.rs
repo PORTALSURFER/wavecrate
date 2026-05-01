@@ -241,6 +241,9 @@ fn native_action_exports_are_owned_in_app_core() {
     let native_dtos =
         fs::read_to_string(manifest_dir.join("src/app_core/actions/native_shell_dtos.rs"))
             .expect("native shell dtos");
+    let native_actions =
+        fs::read_to_string(manifest_dir.join("src/app_core/actions/native_shell_actions.rs"))
+            .expect("native shell actions");
     assert!(
         !native_dtos.contains("pub struct RetainedVec"),
         "retained snapshot storage should use the Radiant-owned generic primitive"
@@ -397,6 +400,12 @@ fn native_action_exports_are_owned_in_app_core() {
             .contains("pub type AudioOptionItemModel = form::OptionItem<AudioOptionValueModel>;")
             && native_dtos.contains("pub type AudioFieldModel = form::SummaryField;"),
         "Sempal native audio picker DTOs should alias generic Radiant form primitives"
+    );
+    assert!(
+        native_actions.contains("pub enum BrowserTagTarget")
+            && native_actions.contains("Trash")
+            && native_actions.contains("Keep"),
+        "Sempal should own browser triage target names"
     );
     assert!(
         !native_dtos.contains("pub struct FolderRecoveryModel"),

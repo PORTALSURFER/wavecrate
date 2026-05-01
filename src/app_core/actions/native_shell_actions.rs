@@ -1099,9 +1099,9 @@ fn nanos_match_micros(nanos: u32, micros: u32) -> bool {
 impl From<compat::BrowserTagTarget> for BrowserTagTarget {
     fn from(value: compat::BrowserTagTarget) -> Self {
         match value {
-            compat::BrowserTagTarget::Trash => Self::Trash,
+            compat::BrowserTagTarget::Negative => Self::Trash,
             compat::BrowserTagTarget::Neutral => Self::Neutral,
-            compat::BrowserTagTarget::Keep => Self::Keep,
+            compat::BrowserTagTarget::Positive => Self::Keep,
         }
     }
 }
@@ -1109,9 +1109,9 @@ impl From<compat::BrowserTagTarget> for BrowserTagTarget {
 impl From<BrowserTagTarget> for compat::BrowserTagTarget {
     fn from(value: BrowserTagTarget) -> Self {
         match value {
-            BrowserTagTarget::Trash => Self::Trash,
+            BrowserTagTarget::Trash => Self::Negative,
             BrowserTagTarget::Neutral => Self::Neutral,
-            BrowserTagTarget::Keep => Self::Keep,
+            BrowserTagTarget::Keep => Self::Positive,
         }
     }
 }
