@@ -129,16 +129,13 @@ pub(crate) fn sidebar_footer_surface_content(
     } else {
         String::new()
     };
-    let secondary_summary = if active_pane.folder_rows.len() > rendered_folders {
+    let secondary_summary = if active_pane.tree_rows.len() > rendered_folders {
         format!(
             "folders: +{} more…",
-            active_pane.folder_rows.len() - rendered_folders
+            active_pane.tree_rows.len() - rendered_folders
         )
-    } else if active_pane.folder_recovery.entry_count > 0 {
-        format!(
-            "recovery entries: {}",
-            active_pane.folder_recovery.entry_count
-        )
+    } else if active_pane.recovery.entry_count > 0 {
+        format!("recovery entries: {}", active_pane.recovery.entry_count)
     } else {
         String::new()
     };

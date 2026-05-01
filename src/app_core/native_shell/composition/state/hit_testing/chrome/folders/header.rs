@@ -51,10 +51,10 @@ fn folder_header_layout(
     let layout = compute_sidebar_folder_header_layout(
         sidebar_sections(layout, &style, model).folder_header(pane),
         style.sizing,
-        pane_model.folder_recovery.in_progress,
-        pane_model.folder_recovery.entry_count,
-        pane_model.show_all_folders,
-        pane_model.can_toggle_show_all_folders,
+        pane_model.recovery.in_progress,
+        pane_model.recovery.entry_count,
+        pane_model.show_all_items,
+        pane_model.can_toggle_show_all_items,
         pane_model.flattened_view,
         pane_model.can_toggle_flattened_view,
     );

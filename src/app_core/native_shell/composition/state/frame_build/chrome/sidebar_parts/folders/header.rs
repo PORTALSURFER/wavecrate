@@ -13,10 +13,10 @@ pub(super) fn render_folder_header(
     let header_layout = compute_sidebar_folder_header_layout(
         header_rect,
         ctx.sizing,
-        pane.folder_recovery.in_progress,
-        pane.folder_recovery.entry_count,
-        pane.show_all_folders,
-        pane.can_toggle_show_all_folders,
+        pane.recovery.in_progress,
+        pane.recovery.entry_count,
+        pane.show_all_items,
+        pane.can_toggle_show_all_items,
         pane.flattened_view,
         pane.can_toggle_flattened_view,
     );
@@ -87,8 +87,8 @@ pub(super) fn render_folder_header(
             text: format!(
                 "{} Pane: {} ({})",
                 title_prefix,
-                pane.source_label,
-                pane.folder_rows.len()
+                pane.item_label,
+                pane.tree_rows.len()
             ),
             position: header_layout.title_row.min,
             font_size: ctx.sizing.font_header,
@@ -110,15 +110,15 @@ pub(super) fn render_folder_header(
             TextRun {
                 text: format!(
                     "{} | query: {}",
-                    if pane.source_detail.is_empty() {
+                    if pane.item_detail.is_empty() {
                         "no source"
                     } else {
-                        pane.source_detail.as_str()
+                        pane.item_detail.as_str()
                     },
-                    if pane.folder_search_query.is_empty() {
+                    if pane.tree_search_query.is_empty() {
                         "—"
                     } else {
-                        pane.folder_search_query.as_str()
+                        pane.tree_search_query.as_str()
                     }
                 ),
                 position: metadata_row.min,

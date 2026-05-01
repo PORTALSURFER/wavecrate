@@ -46,7 +46,7 @@ pub(super) fn derive_projection_key_parts(controller: &AppController) -> Derived
         status_revision: controller.ui.projection_revisions.status,
         sources_selected: non_segment_static_key.sources_selected,
         sources_len: non_segment_static_key.sources_len,
-        folder_rows_len: non_segment_static_key.folder_rows_len,
+        tree_rows_len: non_segment_static_key.tree_rows_len,
         folder_focused: non_segment_static_key.folder_focused,
         folder_search_revision: non_segment_static_key.folder_search_revision,
         folder_inline_kind: non_segment_static_key.folder_inline_kind,

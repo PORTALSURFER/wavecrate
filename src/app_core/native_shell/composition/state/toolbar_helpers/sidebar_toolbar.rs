@@ -115,8 +115,8 @@ pub(in crate::gui::native_shell::state) fn sidebar_sections(
         style.sizing,
         SidebarRowCounts {
             source_rows: rendered_source_rows(style, model),
-            upper_folder_rows: model.sources.upper_folder_pane.folder_rows.len(),
-            lower_folder_rows: model.sources.lower_folder_pane.folder_rows.len(),
+            upper_tree_rows: model.sources.upper_folder_pane.tree_rows.len(),
+            lower_tree_rows: model.sources.lower_folder_pane.tree_rows.len(),
         },
     );
     SidebarSections {
@@ -124,13 +124,13 @@ pub(in crate::gui::native_shell::state) fn sidebar_sections(
             bounds: resolved.upper_folder_pane.bounds,
             source_rows: resolved.upper_folder_pane.source_rows,
             folder_header: resolved.upper_folder_pane.header,
-            folder_rows: resolved.upper_folder_pane.rows,
+            tree_rows: resolved.upper_folder_pane.rows,
         },
         lower: SidebarPaneSections {
             bounds: resolved.lower_folder_pane.bounds,
             source_rows: resolved.lower_folder_pane.source_rows,
             folder_header: resolved.lower_folder_pane.header,
-            folder_rows: resolved.lower_folder_pane.rows,
+            tree_rows: resolved.lower_folder_pane.rows,
         },
     }
 }
@@ -143,43 +143,43 @@ pub(in crate::gui::native_shell::state) fn source_action_buttons(
     let definitions = [
         (
             "New",
-            model.sources.folder_actions.can_create_child,
+            model.sources.tree_actions.can_create_child,
             UiAction::StartNewFolder,
             style.text_primary,
         ),
         (
             "Root",
-            model.sources.folder_actions.can_create_root,
+            model.sources.tree_actions.can_create_root,
             UiAction::StartNewFolderAtRoot,
             style.text_muted,
         ),
         (
             "Rename",
-            model.sources.folder_actions.can_rename,
+            model.sources.tree_actions.can_rename,
             UiAction::StartFolderRename,
             style.accent_warning,
         ),
         (
             "Delete",
-            model.sources.folder_actions.can_delete,
+            model.sources.tree_actions.can_delete,
             UiAction::DeleteFocusedFolder,
             style.accent_copper,
         ),
         (
             "Restore",
-            model.sources.folder_actions.can_restore_retained,
+            model.sources.tree_actions.can_restore_retained,
             UiAction::RestoreRetainedFolderDeletes,
             style.accent_mint,
         ),
         (
             "Purge",
-            model.sources.folder_actions.can_purge_retained,
+            model.sources.tree_actions.can_purge_retained,
             UiAction::PurgeRetainedFolderDeletes,
             style.accent_copper,
         ),
         (
             "Clear",
-            model.sources.folder_actions.can_clear_history,
+            model.sources.tree_actions.can_clear_history,
             UiAction::ClearFolderDeleteRecoveryLog,
             style.text_muted,
         ),

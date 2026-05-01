@@ -23,8 +23,8 @@ pub(crate) struct SidebarRowSections {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct SidebarRowCounts {
     pub source_rows: usize,
-    pub upper_folder_rows: usize,
-    pub lower_folder_rows: usize,
+    pub upper_tree_rows: usize,
+    pub lower_tree_rows: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -61,13 +61,13 @@ pub(crate) fn compute_sidebar_row_sections(
             upper_bounds,
             sizing,
             counts.source_rows,
-            counts.upper_folder_rows,
+            counts.upper_tree_rows,
         ),
         lower_folder_pane: resolve_pane_sections(
             lower_bounds,
             sizing,
             counts.source_rows,
-            counts.lower_folder_rows,
+            counts.lower_tree_rows,
         ),
     }
     .with_empty_fallback(empty)
@@ -98,9 +98,9 @@ fn resolve_pane_sections(
     bounds: Rect,
     sizing: SizingTokens,
     source_rows: usize,
-    folder_rows: usize,
+    tree_rows: usize,
 ) -> SidebarFolderPaneSections {
-    let heights = resolve_pane_heights(bounds.height(), sizing, source_rows, folder_rows);
+    let heights = resolve_pane_heights(bounds.height(), sizing, source_rows, tree_rows);
     let source_rows_rect = rect_from_top(bounds, bounds.min.y, heights.source_rows);
     let header_top = (source_rows_rect.max.y + heights.source_gap).min(bounds.max.y);
     let header_rect = rect_from_top(bounds, header_top, heights.header);
@@ -138,7 +138,7 @@ fn resolve_pane_heights(
     available_height: f32,
     sizing: SizingTokens,
     source_rows: usize,
-    folder_rows: usize,
+    tree_rows: usize,
 ) -> SidebarPaneHeights {
     let source_layout_rows = source_rows.max(1);
     let source_demand_height = stack_height(
@@ -162,7 +162,7 @@ fn resolve_pane_heights(
     } else {
         0.0
     };
-    let folder_row_min = compact_folder_rows_height(sizing);
+    let folder_row_min = compact_tree_rows_height(sizing);
     let reserved_folder_height = header_height + folder_row_min;
 
     let (source_rows, source_gap) = if source_min_height + source_gap + reserved_folder_height
@@ -178,7 +178,7 @@ fn resolve_pane_heights(
 
     let rows_height = (available_height - source_rows - source_gap - header_height).max(0.0);
     let folder_demand = stack_height(
-        folder_rows.max(1),
+        tree_rows.max(1),
         sizing.folder_row_height,
         sizing.folder_row_gap,
     );
@@ -190,7 +190,7 @@ fn resolve_pane_heights(
     }
 }
 
-fn compact_folder_rows_height(sizing: SizingTokens) -> f32 {
+fn compact_tree_rows_height(sizing: SizingTokens) -> f32 {
     stack_height(1, sizing.folder_row_height, sizing.folder_row_gap)
 }
 

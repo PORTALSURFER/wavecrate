@@ -15,7 +15,7 @@ impl NativeShellState {
         [FolderPaneIdModel::Upper, FolderPaneIdModel::Lower]
             .into_iter()
             .find_map(|pane| {
-                self.cached_folder_rows(layout, &style, model, pane)
+                self.cached_tree_rows(layout, &style, model, pane)
                     .iter()
                     .find(|row| row.rect.contains(point))
                     .map(|row| (pane, row.row_index))
@@ -35,7 +35,7 @@ impl NativeShellState {
             .into_iter()
             .find(|pane| {
                 let folder_sections = sections.folder_header(*pane);
-                folder_sections.contains(point) || sections.folder_rows(*pane).contains(point)
+                folder_sections.contains(point) || sections.tree_rows(*pane).contains(point)
             })
     }
 
@@ -58,15 +58,15 @@ impl NativeShellState {
     ) -> Option<(FolderPaneIdModel, usize)> {
         let (pane, row_index) = self.folder_row_at_point(layout, model, point)?;
         let pane_model = model.sources.folder_pane(pane);
-        if !pane_model.folder_search_query.trim().is_empty() {
+        if !pane_model.tree_search_query.trim().is_empty() {
             return None;
         }
         let style = style_for_layout(layout);
         let rendered_row = self
-            .cached_folder_rows(layout, &style, model, pane)
+            .cached_tree_rows(layout, &style, model, pane)
             .iter()
             .find(|row| row.row_index == row_index)?;
-        let row = pane_model.folder_rows.get(row_index)?;
+        let row = pane_model.tree_rows.get(row_index)?;
         if row_has_disclosure_target(row) {
             return None;
         }
@@ -91,10 +91,10 @@ impl NativeShellState {
         let row = model
             .sources
             .active_folder_pane_model()
-            .folder_rows
+            .tree_rows
             .get(row_index)?;
         let row_rect = self
-            .cached_folder_rows(layout, &style, model, pane)
+            .cached_tree_rows(layout, &style, model, pane)
             .iter()
             .find(|rendered_row| rendered_row.row_index == row_index)?
             .rect;
@@ -114,7 +114,7 @@ impl NativeShellState {
     ) -> Vec<Rect> {
         let style = style_for_layout(layout);
         let pane = model.sources.active_folder_pane;
-        self.cached_folder_rows(layout, &style, model, pane)
+        self.cached_tree_rows(layout, &style, model, pane)
             .iter()
             .map(|row| row.rect)
             .collect()

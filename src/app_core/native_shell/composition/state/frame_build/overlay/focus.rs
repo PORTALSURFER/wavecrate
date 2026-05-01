@@ -37,7 +37,7 @@ fn render_sidebar_section_focus_overlay(
                 primitives,
                 union_rect(
                     sections.folder_header(active_pane),
-                    sections.folder_rows(active_pane),
+                    sections.tree_rows(active_pane),
                 ),
                 style,
             );
@@ -127,11 +127,11 @@ pub(super) fn render_folder_focus_overlay(
         native_model::FolderPaneIdModel::Upper,
         native_model::FolderPaneIdModel::Lower,
     ] {
-        let pane_rows = shell_state.cached_folder_rows(layout, style, model, pane);
+        let pane_rows = shell_state.cached_tree_rows(layout, style, model, pane);
         let pane_model = model.sources.folder_pane(pane);
         let last_folder_row_max_y = pane_rows.last().map(|row| row.rect.max.y);
         for rendered_row in pane_rows.iter() {
-            let Some(row) = pane_model.folder_rows.get(rendered_row.row_index) else {
+            let Some(row) = pane_model.tree_rows.get(rendered_row.row_index) else {
                 continue;
             };
             let row_rect = rendered_row.rect;

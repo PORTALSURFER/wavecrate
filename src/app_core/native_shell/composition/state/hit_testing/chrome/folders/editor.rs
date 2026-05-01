@@ -8,12 +8,12 @@ impl NativeShellState {
     pub(crate) fn folder_create_row_index(&self, model: &AppModel) -> Option<usize> {
         let pane_model = model.sources.active_folder_pane_model();
         pane_model
-            .folder_rows
+            .tree_rows
             .iter()
             .position(|row| row.kind == FolderRowKind::RenameDraft)
             .or_else(|| {
                 pane_model
-                    .folder_rows
+                    .tree_rows
                     .iter()
                     .position(|row| row.kind == FolderRowKind::CreateDraft)
             })
@@ -63,10 +63,10 @@ fn active_folder_edit_row(
     let row = model
         .sources
         .active_folder_pane_model()
-        .folder_rows
+        .tree_rows
         .get(row_index)?;
     let row_rect = shell_state
-        .cached_folder_rows(layout, &style, model, pane)
+        .cached_tree_rows(layout, &style, model, pane)
         .iter()
         .find(|rendered_row| rendered_row.row_index == row_index)?
         .rect;

@@ -14,25 +14,25 @@ pub(crate) fn project_sources_model(controller: &AppController) -> SourcesPanelM
         FolderPaneIdModel::Upper => &upper_folder_pane,
         FolderPaneIdModel::Lower => &lower_folder_pane,
     };
-    let active_folder_search_query = active_pane_model.folder_search_query.clone();
-    let active_show_all_folders = active_pane_model.show_all_folders;
-    let active_can_toggle_show_all_folders = active_pane_model.can_toggle_show_all_folders;
+    let active_tree_search_query = active_pane_model.tree_search_query.clone();
+    let active_show_all_items = active_pane_model.show_all_items;
+    let active_can_toggle_show_all_items = active_pane_model.can_toggle_show_all_items;
     let active_flattened_view = active_pane_model.flattened_view;
     let active_can_toggle_flattened_view = active_pane_model.can_toggle_flattened_view;
-    let active_focused_folder_row = active_pane_model.focused_folder_row;
-    let active_folder_rows = active_pane_model.folder_rows.clone();
-    let active_folder_actions = active_pane_model.folder_actions.clone();
-    let active_folder_recovery = active_pane_model.folder_recovery.clone();
+    let active_focused_tree_row = active_pane_model.focused_tree_row;
+    let active_tree_rows = active_pane_model.tree_rows.clone();
+    let active_tree_actions = active_pane_model.tree_actions.clone();
+    let active_recovery = active_pane_model.recovery.clone();
 
     SourcesPanelModel {
         header: format!("Sources ({})", ui.sources.rows.len()),
-        search_query: active_folder_search_query.clone(),
+        search_query: active_tree_search_query.clone(),
         active_folder_pane,
         upper_folder_pane,
         lower_folder_pane,
-        folder_search_query: active_folder_search_query,
-        show_all_folders: active_show_all_folders,
-        can_toggle_show_all_folders: active_can_toggle_show_all_folders,
+        tree_search_query: active_tree_search_query,
+        show_all_items: active_show_all_items,
+        can_toggle_show_all_items: active_can_toggle_show_all_items,
         flattened_view: active_flattened_view,
         can_toggle_flattened_view: active_can_toggle_flattened_view,
         selected_row: ui.sources.selected,
@@ -46,7 +46,7 @@ pub(crate) fn project_sources_model(controller: &AppController) -> SourcesPanelM
             .rows
             .iter()
             .position(|row| controller.source_has_pending_file_mutations(&row.id)),
-        focused_folder_row: active_focused_folder_row,
+        focused_tree_row: active_focused_tree_row,
         rows: ui
             .sources
             .rows
@@ -77,17 +77,17 @@ pub(crate) fn project_sources_model(controller: &AppController) -> SourcesPanelM
             })
             .collect::<Vec<_>>()
             .into(),
-        folder_rows: active_folder_rows,
-        folder_actions: active_folder_actions,
-        folder_recovery: active_folder_recovery,
+        tree_rows: active_tree_rows,
+        tree_actions: active_tree_actions,
+        recovery: active_recovery,
     }
 }
 
 fn project_folder_pane(controller: &AppController, pane: FolderPaneId) -> FolderPaneModel {
     let ui = &controller.ui;
     let browser = folder_browser_ui_for_projection(ui, pane);
-    let projected_folder_rows = project_folder_rows(browser);
-    let focused_folder_row = projected_focused_folder_row(browser, &projected_folder_rows);
+    let projected_tree_rows = project_tree_rows(browser);
+    let focused_tree_row = projected_focused_tree_row(browser, &projected_tree_rows);
     let source = ui
         .sources
         .folder_pane(pane)
@@ -103,7 +103,7 @@ fn project_folder_pane(controller: &AppController, pane: FolderPaneId) -> Folder
                 })
                 .flatten()
         });
-    let has_source = source.is_some();
+    let has_item = source.is_some();
     let can_manage_folder = browser
         .focused
         .and_then(|index| browser.rows.get(index))
@@ -115,12 +115,12 @@ fn project_folder_pane(controller: &AppController, pane: FolderPaneId) -> Folder
             FolderPaneId::Upper => String::from("Upper"),
             FolderPaneId::Lower => String::from("Lower"),
         },
-        source_label: source
+        item_label: source
             .map(|row| row.name.clone())
             .unwrap_or_else(|| String::from("No source")),
-        source_detail: source.map(|row| row.path.clone()).unwrap_or_default(),
+        item_detail: source.map(|row| row.path.clone()).unwrap_or_default(),
         active: ui.sources.active_folder_pane == pane,
-        has_source,
+        has_item,
         loading: ui.sources.folder_pane(pane).loading,
         projecting: ui.sources.folder_pane(pane).projecting,
         mutation_busy: ui
@@ -129,16 +129,16 @@ fn project_folder_pane(controller: &AppController, pane: FolderPaneId) -> Folder
             .source_id
             .as_ref()
             .is_some_and(|source_id| controller.source_has_pending_file_mutations(source_id)),
-        folder_search_query: browser.search_query.clone(),
-        show_all_folders: browser.show_all_folders,
-        can_toggle_show_all_folders: has_source,
+        tree_search_query: browser.search_query.clone(),
+        show_all_items: browser.show_all_folders,
+        can_toggle_show_all_items: has_item,
         flattened_view: browser.flattened_view,
-        can_toggle_flattened_view: has_source,
-        focused_folder_row,
-        folder_rows: projected_folder_rows,
-        folder_actions: FolderActionsModel {
-            can_create_child: has_source,
-            can_create_root: has_source || ui.sources.rows.is_empty(),
+        can_toggle_flattened_view: has_item,
+        focused_tree_row,
+        tree_rows: projected_tree_rows,
+        tree_actions: FolderActionsModel {
+            can_create_child: has_item,
+            can_create_root: has_item || ui.sources.rows.is_empty(),
             can_rename: can_manage_folder,
             can_delete: can_manage_folder,
             can_restore_retained: !browser.delete_recovery.retained_entries.is_empty()
@@ -148,7 +148,7 @@ fn project_folder_pane(controller: &AppController, pane: FolderPaneId) -> Folder
             can_clear_history: !browser.delete_recovery.entries.is_empty()
                 && !browser.delete_recovery.in_progress,
         },
-        folder_recovery: FolderRecoveryModel {
+        recovery: FolderRecoveryModel {
             in_progress: browser.delete_recovery.in_progress,
             entry_count: browser.delete_recovery.entries.len(),
             retained_count: browser.delete_recovery.retained_entries.len(),
@@ -171,7 +171,7 @@ fn project_folder_pane_id(pane: FolderPaneId) -> FolderPaneIdModel {
     }
 }
 
-fn project_folder_rows(folder_ui: &FolderBrowserUiState) -> RetainedVec<FolderRowModel> {
+fn project_tree_rows(folder_ui: &FolderBrowserUiState) -> RetainedVec<FolderRowModel> {
     let mut projected: Vec<FolderRowModel> = folder_ui
         .rows
         .iter()
@@ -236,7 +236,7 @@ fn project_folder_rows(folder_ui: &FolderBrowserUiState) -> RetainedVec<FolderRo
     projected.into()
 }
 
-fn projected_focused_folder_row(
+fn projected_focused_tree_row(
     folder_ui: &FolderBrowserUiState,
     projected_rows: &[FolderRowModel],
 ) -> Option<usize> {

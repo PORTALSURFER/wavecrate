@@ -6,7 +6,7 @@ pub(crate) struct NativeProjectionCacheKey {
     pub(crate) status_revision: u64,
     pub(crate) sources_selected: Option<usize>,
     pub(crate) sources_len: usize,
-    pub(crate) folder_rows_len: usize,
+    pub(crate) tree_rows_len: usize,
     pub(crate) folder_focused: Option<usize>,
     pub(crate) folder_search_revision: u64,
     pub(crate) folder_inline_kind: u8,
@@ -227,7 +227,7 @@ pub(crate) struct WaveformProjectionCacheKey {
 pub(crate) struct NonSegmentStaticProjectionCacheKey {
     pub(crate) sources_selected: Option<usize>,
     pub(crate) sources_len: usize,
-    pub(crate) folder_rows_len: usize,
+    pub(crate) tree_rows_len: usize,
     pub(crate) folder_focused: Option<usize>,
     pub(crate) folder_search_revision: u64,
     pub(crate) folder_inline_kind: u8,

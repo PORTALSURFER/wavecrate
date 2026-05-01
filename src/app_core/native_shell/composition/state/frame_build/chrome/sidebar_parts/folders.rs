@@ -23,12 +23,12 @@ pub(super) fn render_folder_section(
             sections.folder_header(pane),
             ctx.model.sources.folder_pane(pane),
         );
-        let pane_rows = state.cached_folder_rows(ctx.layout, ctx.style, ctx.model, pane);
-        rows::render_folder_rows(ctx, primitives, text_runs, pane, pane_rows);
+        let pane_rows = state.cached_tree_rows(ctx.layout, ctx.style, ctx.model, pane);
+        rows::render_tree_rows(ctx, primitives, text_runs, pane, pane_rows);
         if let Some(scrollbar) = folder_scrollbar_layout(
-            sections.folder_rows(pane),
+            sections.tree_rows(pane),
             pane_rows,
-            ctx.model.sources.folder_pane(pane).folder_rows.len(),
+            ctx.model.sources.folder_pane(pane).tree_rows.len(),
             ctx.sizing,
         ) {
             emit_primitive(

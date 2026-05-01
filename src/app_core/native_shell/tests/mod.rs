@@ -15,7 +15,7 @@ fn project_sources_for_ui(ui: &UiState) -> SourcesPanelModel {
 }
 
 /// Focused tests for inline folder-row projection behavior.
-mod overlay_folder_rows {
+mod overlay_tree_rows {
     use super::*;
 
     /// Folder-create projection should insert a stable inline draft row with validation state.
@@ -70,11 +70,11 @@ mod overlay_folder_rows {
         });
         let projected = project_sources_for_ui(&ui);
         let draft = projected
-            .folder_rows
+            .tree_rows
             .iter()
             .find(|row| row.kind == FolderRowKind::CreateDraft)
             .expect("inline draft row should be projected");
-        assert_eq!(projected.focused_folder_row, Some(1));
+        assert_eq!(projected.focused_tree_row, Some(1));
         assert_eq!(draft.depth, 2);
         assert_eq!(draft.input_value.as_deref(), Some("existing"));
         assert_eq!(draft.input_placeholder.as_deref(), Some("New folder name"));
@@ -82,14 +82,14 @@ mod overlay_folder_rows {
             draft.input_error.as_deref(),
             Some("Folder already exists: drums/existing")
         );
-        assert_eq!(projected.folder_rows[2].kind, FolderRowKind::CreateDraft);
+        assert_eq!(projected.tree_rows[2].kind, FolderRowKind::CreateDraft);
 
         if let Some(edit) = ui.sources.folders.inline_edit.as_mut() {
             edit.name = String::from("bad/name");
         }
         let projected = project_sources_for_ui(&ui);
         let draft = projected
-            .folder_rows
+            .tree_rows
             .iter()
             .find(|row| row.kind == FolderRowKind::CreateDraft)
             .expect("inline draft row should still be projected");
@@ -139,8 +139,8 @@ mod overlay_folder_rows {
 
         let projected = project_sources_for_ui(&ui);
 
-        assert_eq!(projected.folder_rows[1].kind, FolderRowKind::CreateDraft);
-        assert_eq!(projected.folder_rows[1].depth, 1);
+        assert_eq!(projected.tree_rows[1].kind, FolderRowKind::CreateDraft);
+        assert_eq!(projected.tree_rows[1].depth, 1);
     }
 
     /// Inline folder rename should replace the existing row and surface validation errors.
@@ -181,8 +181,8 @@ mod overlay_folder_rows {
             select_all_on_focus_requested: true,
         });
         let projected = project_sources_for_ui(&ui);
-        assert_eq!(projected.focused_folder_row, Some(0));
-        let draft = &projected.folder_rows[0];
+        assert_eq!(projected.focused_tree_row, Some(0));
+        let draft = &projected.tree_rows[0];
         assert_eq!(draft.kind, FolderRowKind::RenameDraft);
         assert_eq!(
             draft.input_error.as_deref(),
@@ -199,7 +199,7 @@ mod overlay_folder_rows {
             edit.select_all_on_focus_requested = false;
         }
         let projected = project_sources_for_ui(&ui);
-        let draft = &projected.folder_rows[0];
+        let draft = &projected.tree_rows[0];
         assert_eq!(
             draft.input_error.as_deref(),
             Some("Folder name cannot contain path separators")
@@ -208,12 +208,12 @@ mod overlay_folder_rows {
 }
 
 /// Focused tests for projected folder action availability.
-mod overlay_folder_actions {
+mod overlay_tree_actions {
     use super::*;
 
     /// Destructive folder actions should require focus on a non-root folder row.
     #[test]
-    fn folder_actions_require_non_root_focus_for_destructive_actions() {
+    fn tree_actions_require_non_root_focus_for_destructive_actions() {
         let mut ui = UiState::default();
         let source_id = crate::sample_sources::SourceId::from_string("test-source");
         ui.sources.rows.push(crate::app::state::SourceRowView {
@@ -238,10 +238,10 @@ mod overlay_folder_actions {
         });
         ui.sources.folders.focused = Some(0);
         let projected = project_sources_for_ui(&ui);
-        assert!(projected.folder_actions.can_create_child);
-        assert!(projected.folder_actions.can_create_root);
-        assert!(!projected.folder_actions.can_rename);
-        assert!(!projected.folder_actions.can_delete);
+        assert!(projected.tree_actions.can_create_child);
+        assert!(projected.tree_actions.can_create_root);
+        assert!(!projected.tree_actions.can_rename);
+        assert!(!projected.tree_actions.can_delete);
 
         ui.sources.folders.rows.push(FolderRowView {
             path: std::path::PathBuf::from("drums"),
@@ -257,22 +257,22 @@ mod overlay_folder_actions {
         });
         ui.sources.folders.focused = Some(1);
         let projected = project_sources_for_ui(&ui);
-        assert!(projected.folder_actions.can_rename);
-        assert!(projected.folder_actions.can_delete);
+        assert!(projected.tree_actions.can_rename);
+        assert!(projected.tree_actions.can_delete);
     }
 
     /// Root folder creation should remain available even when there are no source rows yet.
     #[test]
-    fn folder_actions_allow_root_creation_when_no_sources_exist() {
+    fn tree_actions_allow_root_creation_when_no_sources_exist() {
         let ui = UiState::default();
         let projected = project_sources_for_ui(&ui);
-        assert!(!projected.folder_actions.can_create_child);
-        assert!(projected.folder_actions.can_create_root);
+        assert!(!projected.tree_actions.can_create_child);
+        assert!(projected.tree_actions.can_create_root);
     }
 
     /// Recovery log clearing should stay disabled while delete recovery work is still running.
     #[test]
-    fn folder_actions_disable_recovery_clear_while_recovery_is_running() {
+    fn tree_actions_disable_recovery_clear_while_recovery_is_running() {
         let mut ui = UiState::default();
         ui.sources
             .folders
@@ -287,6 +287,6 @@ mod overlay_folder_actions {
             });
         ui.sources.folders.delete_recovery.in_progress = true;
         let projected = project_sources_for_ui(&ui);
-        assert!(!projected.folder_actions.can_clear_history);
+        assert!(!projected.tree_actions.can_clear_history);
     }
 }

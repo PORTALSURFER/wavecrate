@@ -80,10 +80,10 @@ pub(in crate::gui::native_shell::state) fn sidebar_rows_cache_key(
         panel_section_padding_top: f32_to_bits(sizing.panel_section_padding_top),
         panel_section_padding_bottom: f32_to_bits(sizing.panel_section_padding_bottom),
         source_rows_min_when_split: usize_to_u32(sizing.source_rows_min_when_split),
-        folder_rows_min: usize_to_u32(sizing.folder_rows_min),
+        tree_rows_min: usize_to_u32(sizing.tree_rows_min),
         source_rows: rendered_source_rows(style, model) as u32,
-        upper_folder_rows: usize_to_u32(model.sources.upper_folder_pane.folder_rows.len()),
-        lower_folder_rows: usize_to_u32(model.sources.lower_folder_pane.folder_rows.len()),
+        upper_tree_rows: usize_to_u32(model.sources.upper_folder_pane.tree_rows.len()),
+        lower_tree_rows: usize_to_u32(model.sources.lower_folder_pane.tree_rows.len()),
         source_row_height: f32_to_bits(sizing.source_row_height),
         source_row_gap: f32_to_bits(sizing.source_row_gap),
         folder_row_height: f32_to_bits(sizing.folder_row_height),
@@ -93,7 +93,7 @@ pub(in crate::gui::native_shell::state) fn sidebar_rows_cache_key(
     }
 }
 
-pub(in crate::gui::native_shell::state) fn folder_rows_cache_key(
+pub(in crate::gui::native_shell::state) fn tree_rows_cache_key(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
@@ -108,8 +108,8 @@ pub(in crate::gui::native_shell::state) fn folder_rows_cache_key(
             FolderPaneIdModel::Lower => 1,
         },
         folder_view_start_row: usize_to_u32(folder_view_start_row),
-        focused_folder_row: folder_pane_model(model, pane)
-            .focused_folder_row
+        focused_tree_row: folder_pane_model(model, pane)
+            .focused_tree_row
             .map(usize_to_u32)
             .unwrap_or(u32::MAX),
         autoscroll: u32::from(autoscroll),
@@ -159,13 +159,13 @@ pub(in crate::gui::native_shell::state) fn folder_row_visual_rect(
     )
 }
 
-pub(in crate::gui::native_shell::state) fn folder_rows_capacity(
-    folder_rows_rect: Rect,
+pub(in crate::gui::native_shell::state) fn tree_rows_capacity(
+    tree_rows_rect: Rect,
     sizing: SizingTokens,
 ) -> usize {
     let row_height = sizing.folder_row_height.max(1.0);
     let row_gap = sizing.folder_row_gap.max(0.0);
-    ((folder_rows_rect.height() + row_gap) / (row_height + row_gap))
+    ((tree_rows_rect.height() + row_gap) / (row_height + row_gap))
         .floor()
         .max(1.0) as usize
 }
@@ -177,23 +177,23 @@ fn folder_scrollbar_track_metrics(sizing: SizingTokens) -> (f32, f32, f32) {
     (track_inset_x, track_inset_y, track_width)
 }
 
-pub(in crate::gui::native_shell::state) fn folder_rows_content_rect(
-    folder_rows_rect: Rect,
+pub(in crate::gui::native_shell::state) fn tree_rows_content_rect(
+    tree_rows_rect: Rect,
     total_rows: usize,
     sizing: SizingTokens,
 ) -> Rect {
-    let row_capacity = folder_rows_capacity(folder_rows_rect, sizing);
+    let row_capacity = tree_rows_capacity(tree_rows_rect, sizing);
     if total_rows <= row_capacity {
-        return folder_rows_rect;
+        return tree_rows_rect;
     }
     let (track_inset_x, _, track_width) = folder_scrollbar_track_metrics(sizing);
     let reserved_width = track_inset_x + track_width + super::FOLDER_SCROLLBAR_CONTENT_GAP;
-    let content_max_x = (folder_rows_rect.max.x - reserved_width)
+    let content_max_x = (tree_rows_rect.max.x - reserved_width)
         .round()
-        .max(folder_rows_rect.min.x + 1.0);
+        .max(tree_rows_rect.min.x + 1.0);
     Rect::from_min_max(
-        folder_rows_rect.min,
-        Point::new(content_max_x, folder_rows_rect.max.y),
+        tree_rows_rect.min,
+        Point::new(content_max_x, tree_rows_rect.max.y),
     )
 }
 
@@ -230,7 +230,7 @@ fn folder_window_start(
     view_start.min(max_start)
 }
 
-pub(in crate::gui::native_shell::state) fn rendered_folder_rows_with_state(
+pub(in crate::gui::native_shell::state) fn rendered_tree_rows_with_state(
     layout: &ShellLayout,
     model: &AppModel,
     style: &StyleTokens,
@@ -240,22 +240,22 @@ pub(in crate::gui::native_shell::state) fn rendered_folder_rows_with_state(
 ) -> (Vec<CachedFolderRow>, usize) {
     let sections = sidebar_sections(layout, style, model);
     let pane_model = folder_pane_model(model, pane);
-    let total_rows = pane_model.folder_rows.len();
+    let total_rows = pane_model.tree_rows.len();
     if total_rows == 0 {
         return (Vec::new(), 0);
     }
-    let rows_rect = sections.folder_rows(pane);
-    let row_capacity = folder_rows_capacity(rows_rect, style.sizing);
+    let rows_rect = sections.tree_rows(pane);
+    let row_capacity = tree_rows_capacity(rows_rect, style.sizing);
     let view_start = folder_window_start(
         total_rows,
         row_capacity,
-        pane_model.focused_folder_row,
+        pane_model.focused_tree_row,
         autoscroll,
         current_view_start,
     );
     let visible_rows = total_rows.saturating_sub(view_start).min(row_capacity);
     let row_rects = build_stacked_rows(
-        folder_rows_content_rect(rows_rect, total_rows, style.sizing),
+        tree_rows_content_rect(rows_rect, total_rows, style.sizing),
         visible_rows,
         style.sizing.folder_row_gap,
         style.sizing.folder_row_height,
@@ -278,7 +278,7 @@ pub(crate) fn rendered_folder_row_rects(
     style: &StyleTokens,
     model: &AppModel,
 ) -> Vec<Rect> {
-    rendered_folder_rows_with_state(
+    rendered_tree_rows_with_state(
         layout,
         model,
         style,
@@ -293,7 +293,7 @@ pub(crate) fn rendered_folder_row_rects(
 }
 
 pub(in crate::gui::native_shell::state) fn folder_scrollbar_layout(
-    folder_rows_rect: Rect,
+    tree_rows_rect: Rect,
     rows: &[CachedFolderRow],
     total_rows: usize,
     sizing: SizingTokens,
@@ -304,10 +304,10 @@ pub(in crate::gui::native_shell::state) fn folder_scrollbar_layout(
     let viewport_start = rows.first()?.row_index.min(total_rows.saturating_sub(1));
     let viewport_len = rows.len().min(total_rows);
     let (track_inset_x, track_inset_y, track_width) = folder_scrollbar_track_metrics(sizing);
-    let track_max_x = folder_rows_rect.max.x - track_inset_x;
-    let track_min_x = (track_max_x - track_width).max(folder_rows_rect.min.x);
-    let track_min_y = (folder_rows_rect.min.y + track_inset_y).min(folder_rows_rect.max.y);
-    let track_max_y = (folder_rows_rect.max.y - track_inset_y).max(track_min_y + 1.0);
+    let track_max_x = tree_rows_rect.max.x - track_inset_x;
+    let track_min_x = (track_max_x - track_width).max(tree_rows_rect.min.x);
+    let track_min_y = (tree_rows_rect.min.y + track_inset_y).min(tree_rows_rect.max.y);
+    let track_max_y = (tree_rows_rect.max.y - track_inset_y).max(track_min_y + 1.0);
     let track = Rect::from_min_max(
         Point::new(track_min_x, track_min_y),
         Point::new(track_max_x, track_max_y),

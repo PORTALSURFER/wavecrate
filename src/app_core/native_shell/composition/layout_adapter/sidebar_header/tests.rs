@@ -2,7 +2,7 @@ use super::*;
 use crate::gui::native_shell::style::StyleTokens;
 
 #[test]
-fn folder_recovery_badge_compacts_label_when_header_is_narrow() {
+fn recovery_badge_compacts_label_when_header_is_narrow() {
     let style = StyleTokens::for_viewport_width(820.0);
     let header_rect = Rect::from_min_max(
         Point::new(0.0, 0.0),

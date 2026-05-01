@@ -62,6 +62,9 @@ pub type FolderActionsModel = list::EditableTreeActions;
 /// Stable identifier for one side of the split folder pane surface.
 pub type FolderPaneIdModel = panel::SplitPaneSlot;
 
+/// Projected data for one fixed folder pane shown in the sidebar.
+pub type FolderPaneModel = panel::SplitPaneTreePanel<FolderRowModel>;
+
 /// Render data for one source row shown in the sidebar.
 pub type SourceRowModel = panel::SplitPaneAssignedRow;
 
@@ -1101,47 +1104,6 @@ pub enum FocusContextModel {
     SourcesList,
 }
 
-/// Projected data for one fixed folder pane shown in the sidebar.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct FolderPaneModel {
-    /// Stable pane identity used by native routing.
-    pub pane: FolderPaneIdModel,
-    /// Short title shown in the pane header.
-    pub title: String,
-    /// Primary source label currently assigned to the pane.
-    pub source_label: String,
-    /// Secondary source detail text, usually the source path.
-    pub source_detail: String,
-    /// Whether this pane currently drives browser and waveform state.
-    pub active: bool,
-    /// Whether a source is assigned to this pane.
-    pub has_source: bool,
-    /// Whether this pane is hydrating its assigned source snapshot.
-    pub loading: bool,
-    /// Whether this pane is asynchronously rebuilding its folder-tree rows.
-    pub projecting: bool,
-    /// Whether this pane's source currently owns a background file or folder mutation.
-    pub mutation_busy: bool,
-    /// Active folder-search query for this pane.
-    pub folder_search_query: String,
-    /// Whether the folder browser currently includes empty on-disk folders.
-    pub show_all_folders: bool,
-    /// Whether the folder-visibility toggle is currently actionable.
-    pub can_toggle_show_all_folders: bool,
-    /// Whether folder filtering includes descendant files in a flattened list.
-    pub flattened_view: bool,
-    /// Whether the folder flattened-view toggle is currently actionable.
-    pub can_toggle_flattened_view: bool,
-    /// Focused folder row index, if any.
-    pub focused_folder_row: Option<usize>,
-    /// Folder rows to render in this pane.
-    pub folder_rows: RetainedVec<FolderRowModel>,
-    /// Folder action availability projected for this pane.
-    pub folder_actions: FolderActionsModel,
-    /// Folder delete-recovery summary projected for this pane.
-    pub folder_recovery: FolderRecoveryModel,
-}
-
 /// Sidebar model for source browsing controls.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct SourcesPanelModel {
@@ -1156,11 +1118,11 @@ pub struct SourcesPanelModel {
     /// Lower fixed folder pane.
     pub lower_folder_pane: FolderPaneModel,
     /// Active folder-search query.
-    pub folder_search_query: String,
+    pub tree_search_query: String,
     /// Whether the folder browser currently includes empty on-disk folders.
-    pub show_all_folders: bool,
+    pub show_all_items: bool,
     /// Whether the folder-visibility toggle is currently actionable.
-    pub can_toggle_show_all_folders: bool,
+    pub can_toggle_show_all_items: bool,
     /// Whether folder filtering includes descendant files in a flattened list.
     pub flattened_view: bool,
     /// Whether the folder flattened-view toggle is currently actionable.
@@ -1172,15 +1134,15 @@ pub struct SourcesPanelModel {
     /// Source row currently running a background file or folder mutation, if any.
     pub mutation_busy_row: Option<usize>,
     /// Focused folder row index, if any.
-    pub focused_folder_row: Option<usize>,
+    pub focused_tree_row: Option<usize>,
     /// Rows to render in the source panel.
     pub rows: RetainedVec<SourceRowModel>,
     /// Folder rows to render in the folder browser section.
-    pub folder_rows: RetainedVec<FolderRowModel>,
+    pub tree_rows: RetainedVec<FolderRowModel>,
     /// Folder action availability for native sidebar controls.
-    pub folder_actions: FolderActionsModel,
+    pub tree_actions: FolderActionsModel,
     /// Folder delete-recovery summary for native sidebar status.
-    pub folder_recovery: FolderRecoveryModel,
+    pub recovery: FolderRecoveryModel,
 }
 
 impl SourcesPanelModel {
@@ -1305,56 +1267,6 @@ impl From<FocusContextModel> for compat::FocusContextModel {
     }
 }
 
-impl From<compat::FolderPaneModel> for FolderPaneModel {
-    fn from(value: compat::FolderPaneModel) -> Self {
-        Self {
-            pane: value.pane.into(),
-            title: value.title,
-            source_label: value.source_label,
-            source_detail: value.source_detail,
-            active: value.active,
-            has_source: value.has_source,
-            loading: value.loading,
-            projecting: value.projecting,
-            mutation_busy: value.mutation_busy,
-            folder_search_query: value.folder_search_query,
-            show_all_folders: value.show_all_folders,
-            can_toggle_show_all_folders: value.can_toggle_show_all_folders,
-            flattened_view: value.flattened_view,
-            can_toggle_flattened_view: value.can_toggle_flattened_view,
-            focused_folder_row: value.focused_folder_row,
-            folder_rows: retained_vec_from_compat(value.folder_rows),
-            folder_actions: value.folder_actions.into(),
-            folder_recovery: value.folder_recovery.into(),
-        }
-    }
-}
-
-impl From<FolderPaneModel> for compat::FolderPaneModel {
-    fn from(value: FolderPaneModel) -> Self {
-        Self {
-            pane: value.pane.into(),
-            title: value.title,
-            source_label: value.source_label,
-            source_detail: value.source_detail,
-            active: value.active,
-            has_source: value.has_source,
-            loading: value.loading,
-            projecting: value.projecting,
-            mutation_busy: value.mutation_busy,
-            folder_search_query: value.folder_search_query,
-            show_all_folders: value.show_all_folders,
-            can_toggle_show_all_folders: value.can_toggle_show_all_folders,
-            flattened_view: value.flattened_view,
-            can_toggle_flattened_view: value.can_toggle_flattened_view,
-            focused_folder_row: value.focused_folder_row,
-            folder_rows: retained_vec_to_compat(value.folder_rows),
-            folder_actions: value.folder_actions.into(),
-            folder_recovery: value.folder_recovery.into(),
-        }
-    }
-}
-
 impl From<compat::SourcesPanelModel> for SourcesPanelModel {
     fn from(value: compat::SourcesPanelModel) -> Self {
         Self {
@@ -1363,19 +1275,19 @@ impl From<compat::SourcesPanelModel> for SourcesPanelModel {
             active_folder_pane: value.active_folder_pane.into(),
             upper_folder_pane: value.upper_folder_pane.into(),
             lower_folder_pane: value.lower_folder_pane.into(),
-            folder_search_query: value.folder_search_query,
-            show_all_folders: value.show_all_folders,
-            can_toggle_show_all_folders: value.can_toggle_show_all_folders,
+            tree_search_query: value.tree_search_query,
+            show_all_items: value.show_all_items,
+            can_toggle_show_all_items: value.can_toggle_show_all_items,
             flattened_view: value.flattened_view,
             can_toggle_flattened_view: value.can_toggle_flattened_view,
             selected_row: value.selected_row,
             loading_row: value.loading_row,
             mutation_busy_row: value.mutation_busy_row,
-            focused_folder_row: value.focused_folder_row,
+            focused_tree_row: value.focused_tree_row,
             rows: retained_vec_from_compat(value.rows),
-            folder_rows: retained_vec_from_compat(value.folder_rows),
-            folder_actions: value.folder_actions.into(),
-            folder_recovery: value.folder_recovery.into(),
+            tree_rows: retained_vec_from_compat(value.tree_rows),
+            tree_actions: value.tree_actions.into(),
+            recovery: value.recovery.into(),
         }
     }
 }
@@ -1388,19 +1300,19 @@ impl From<SourcesPanelModel> for compat::SourcesPanelModel {
             active_folder_pane: value.active_folder_pane.into(),
             upper_folder_pane: value.upper_folder_pane.into(),
             lower_folder_pane: value.lower_folder_pane.into(),
-            folder_search_query: value.folder_search_query,
-            show_all_folders: value.show_all_folders,
-            can_toggle_show_all_folders: value.can_toggle_show_all_folders,
+            tree_search_query: value.tree_search_query,
+            show_all_items: value.show_all_items,
+            can_toggle_show_all_items: value.can_toggle_show_all_items,
             flattened_view: value.flattened_view,
             can_toggle_flattened_view: value.can_toggle_flattened_view,
             selected_row: value.selected_row,
             loading_row: value.loading_row,
             mutation_busy_row: value.mutation_busy_row,
-            focused_folder_row: value.focused_folder_row,
+            focused_tree_row: value.focused_tree_row,
             rows: retained_vec_to_compat(value.rows),
-            folder_rows: retained_vec_to_compat(value.folder_rows),
-            folder_actions: value.folder_actions.into(),
-            folder_recovery: value.folder_recovery.into(),
+            tree_rows: retained_vec_to_compat(value.tree_rows),
+            tree_actions: value.tree_actions.into(),
+            recovery: value.recovery.into(),
         }
     }
 }

@@ -83,14 +83,14 @@ pub(super) fn render_hover_overlay(
     let folder_draft_row = model
         .sources
         .active_folder_pane_model()
-        .folder_rows
+        .tree_rows
         .iter()
         .find(|row| row.kind == native_model::FolderRowKind::RenameDraft)
         .or_else(|| {
             model
                 .sources
                 .active_folder_pane_model()
-                .folder_rows
+                .tree_rows
                 .iter()
                 .find(|row| row.kind == native_model::FolderRowKind::CreateDraft)
         });
@@ -133,16 +133,16 @@ pub(super) fn render_hover_overlay(
         shell_state.hovered_folder_pane(),
         shell_state.hovered_folder_row_index,
     ) {
-        let folder_rows = shell_state.cached_folder_rows(layout, style, model, hovered_folder_pane);
+        let tree_rows = shell_state.cached_tree_rows(layout, style, model, hovered_folder_pane);
         if let (Some(row_rect), Some(row)) = (
-            folder_rows
+            tree_rows
                 .iter()
                 .find(|rendered_row| rendered_row.row_index == hovered_folder_row_index)
                 .map(|rendered_row| rendered_row.rect),
             model
                 .sources
                 .folder_pane(hovered_folder_pane)
-                .folder_rows
+                .tree_rows
                 .get(hovered_folder_row_index),
         ) {
             if !matches!(

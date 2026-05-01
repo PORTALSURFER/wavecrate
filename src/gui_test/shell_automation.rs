@@ -32,7 +32,7 @@ fn automation_snapshot_exposes_semantic_shell_nodes_from_sempal_fixture() {
     model
         .sources
         .upper_folder_pane
-        .folder_rows
+        .tree_rows
         .push(NativeFolderRowModel::new(
             "drums",
             String::new(),

@@ -79,7 +79,7 @@ fn mark_dirty_for_browser_focus_action_stays_targeted() {
 
 /// Folder-row interactions should stay on the sidebar/browser dirty lane.
 #[test]
-fn mark_dirty_for_folder_actions_stays_targeted() {
+fn mark_dirty_for_tree_actions_stays_targeted() {
     let actions = [
         NativeUiAction::SetFolderSearch {
             pane: None,

@@ -56,7 +56,7 @@ pub(crate) fn compute_sidebar_folder_header_layout(
     sizing: SizingTokens,
     recovery_in_progress: bool,
     recovery_entry_count: usize,
-    show_all_folders: bool,
+    show_all_items: bool,
     visibility_toggle_enabled: bool,
     flattened_view: bool,
     flattened_toggle_enabled: bool,
@@ -75,7 +75,7 @@ pub(crate) fn compute_sidebar_folder_header_layout(
         helpers::compute_folder_header_toggle_layouts(
             header_rect,
             sizing,
-            show_all_folders,
+            show_all_items,
             visibility_toggle_enabled,
             flattened_view,
             flattened_toggle_enabled,

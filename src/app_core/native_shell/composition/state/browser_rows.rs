@@ -71,10 +71,10 @@ pub(super) struct SidebarRowsCacheKey {
     pub(super) panel_section_padding_top: u32,
     pub(super) panel_section_padding_bottom: u32,
     pub(super) source_rows_min_when_split: u32,
-    pub(super) folder_rows_min: u32,
+    pub(super) tree_rows_min: u32,
     pub(super) source_rows: u32,
-    pub(super) upper_folder_rows: u32,
-    pub(super) lower_folder_rows: u32,
+    pub(super) upper_tree_rows: u32,
+    pub(super) lower_tree_rows: u32,
     pub(super) source_row_height: u32,
     pub(super) source_row_gap: u32,
     pub(super) folder_row_height: u32,
@@ -88,7 +88,7 @@ pub(super) struct FolderRowsCacheKey {
     pub(super) sidebar: SidebarRowsCacheKey,
     pub(super) pane: u32,
     pub(super) folder_view_start_row: u32,
-    pub(super) focused_folder_row: u32,
+    pub(super) focused_tree_row: u32,
     pub(super) autoscroll: u32,
 }
 
@@ -154,7 +154,7 @@ pub(super) struct SidebarPaneSections {
     pub(super) bounds: Rect,
     pub(super) source_rows: Rect,
     pub(super) folder_header: Rect,
-    pub(super) folder_rows: Rect,
+    pub(super) tree_rows: Rect,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -178,10 +178,10 @@ impl SidebarSections {
         }
     }
 
-    pub(super) fn folder_rows(self, pane: FolderPaneIdModel) -> Rect {
+    pub(super) fn tree_rows(self, pane: FolderPaneIdModel) -> Rect {
         match pane {
-            FolderPaneIdModel::Upper => self.upper.folder_rows,
-            FolderPaneIdModel::Lower => self.lower.folder_rows,
+            FolderPaneIdModel::Upper => self.upper.tree_rows,
+            FolderPaneIdModel::Lower => self.lower.tree_rows,
         }
     }
 }

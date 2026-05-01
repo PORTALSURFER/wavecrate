@@ -164,10 +164,10 @@ fn project_waveform_image(
         controller.projected_waveform_image_signature = None;
         return None;
     }
-    let has_source_image = controller.ui.waveform.image.is_some();
+    let has_item_image = controller.ui.waveform.image.is_some();
     let has_cached_image = controller.projected_waveform_image.is_some();
     if controller.projected_waveform_image_signature == signature
-        && has_source_image == has_cached_image
+        && has_item_image == has_cached_image
     {
         return controller.projected_waveform_image.clone();
     }

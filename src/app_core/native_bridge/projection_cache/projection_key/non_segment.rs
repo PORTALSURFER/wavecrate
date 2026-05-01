@@ -17,7 +17,7 @@ pub(super) fn build_non_segment_static_projection_key(
     NonSegmentStaticProjectionCacheKey {
         sources_selected: controller.ui.sources.selected,
         sources_len: controller.ui.sources.rows.len(),
-        folder_rows_len: controller.ui.sources.folders.rows.len(),
+        tree_rows_len: controller.ui.sources.folders.rows.len(),
         folder_focused: controller.ui.sources.folders.focused,
         folder_search_revision: controller.ui.projection_revisions.folder_search,
         folder_inline_kind: match folder_inline.map(|draft| &draft.kind) {

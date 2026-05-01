@@ -81,7 +81,7 @@ pub(crate) fn compute_recovery_badge_layout(
 pub(crate) fn compute_folder_header_toggle_layouts(
     header_rect: Rect,
     sizing: SizingTokens,
-    show_all_folders: bool,
+    show_all_items: bool,
     visibility_enabled: bool,
     flattened_view: bool,
     flattened_enabled: bool,
@@ -134,7 +134,7 @@ pub(crate) fn compute_folder_header_toggle_layouts(
         && visibility_rect.height() > 0.0)
         .then_some(FolderHeaderToggleLayout {
             rect: visibility_rect,
-            active: show_all_folders,
+            active: show_all_items,
             enabled: visibility_enabled,
         });
 

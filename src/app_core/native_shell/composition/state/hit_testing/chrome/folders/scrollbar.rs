@@ -11,9 +11,9 @@ impl NativeShellState {
         pane: FolderPaneIdModel,
     ) -> usize {
         let style = style_for_layout(layout);
-        self.cached_folder_rows(layout, &style, model, pane)
+        self.cached_tree_rows(layout, &style, model, pane)
             .len()
-            .min(model.sources.folder_pane(pane).folder_rows.len())
+            .min(model.sources.folder_pane(pane).tree_rows.len())
     }
 
     pub(crate) fn folder_viewport_start_row(
@@ -23,7 +23,7 @@ impl NativeShellState {
         pane: FolderPaneIdModel,
     ) -> Option<usize> {
         let style = style_for_layout(layout);
-        self.cached_folder_rows(layout, &style, model, pane)
+        self.cached_tree_rows(layout, &style, model, pane)
             .first()
             .map(|row| row.row_index)
     }
@@ -51,7 +51,7 @@ impl NativeShellState {
         folder_scrollbar_view_start_for_pointer(
             scrollbar,
             viewport_len,
-            model.sources.folder_pane(pane).folder_rows.len(),
+            model.sources.folder_pane(pane).tree_rows.len(),
             pointer_y,
             thumb_pointer_offset_y,
         )
@@ -122,7 +122,7 @@ fn folder_scrollbar_track_jump(
     folder_scrollbar_view_start_for_pointer(
         scrollbar,
         viewport_len,
-        model.sources.folder_pane(pane).folder_rows.len(),
+        model.sources.folder_pane(pane).tree_rows.len(),
         point.y,
         scrollbar.thumb.height() * 0.5,
     )

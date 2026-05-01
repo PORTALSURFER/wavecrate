@@ -3,7 +3,7 @@ use super::*;
 use crate as sempal_crate;
 use native_model::{FolderPaneIdModel, FolderRowModel};
 
-pub(super) fn render_folder_rows(
+pub(super) fn render_tree_rows(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
@@ -13,7 +13,7 @@ pub(super) fn render_folder_rows(
     let pane_model = ctx.model.sources.folder_pane(pane);
     let last_row_max_y = rows.last().map(|row| row.rect.max.y);
     for rendered_row in rows {
-        let Some(row) = pane_model.folder_rows.get(rendered_row.row_index) else {
+        let Some(row) = pane_model.tree_rows.get(rendered_row.row_index) else {
             continue;
         };
         let row_rect = rendered_row.rect;

@@ -205,16 +205,16 @@ fn startup_scene_model() -> NativeAppModel {
     model.status_text = String::from("Startup scene");
     model.sources.header = String::from("Sources");
     model.sources.search_query = String::from("kick");
-    model.sources.folder_search_query = String::from("drum");
+    model.sources.tree_search_query = String::from("drum");
     model.sources.selected_row = Some(0);
-    model.sources.focused_folder_row = Some(0);
-    model.sources.folder_actions.can_create_child = true;
-    model.sources.folder_actions.can_create_root = true;
-    model.sources.folder_actions.can_rename = true;
-    model.sources.folder_actions.can_delete = true;
-    model.sources.folder_actions.can_clear_history = true;
-    model.sources.folder_recovery.in_progress = false;
-    model.sources.folder_recovery.entry_count = 3;
+    model.sources.focused_tree_row = Some(0);
+    model.sources.tree_actions.can_create_child = true;
+    model.sources.tree_actions.can_create_root = true;
+    model.sources.tree_actions.can_rename = true;
+    model.sources.tree_actions.can_delete = true;
+    model.sources.tree_actions.can_clear_history = true;
+    model.sources.recovery.in_progress = false;
+    model.sources.recovery.entry_count = 3;
     for index in 0..8 {
         model.sources.rows.push(NativeSourceRowModel::new(
             format!("source_{index:02}"),
@@ -224,7 +224,7 @@ fn startup_scene_model() -> NativeAppModel {
         ));
     }
     for index in 0..10 {
-        model.sources.folder_rows.push(NativeFolderRowModel::new(
+        model.sources.tree_rows.push(NativeFolderRowModel::new(
             format!("folder_{index:02}"),
             String::new(),
             index % 2,
@@ -270,7 +270,7 @@ fn browser_dense_model() -> NativeAppModel {
         ));
     }
     for index in 0..16 {
-        model.sources.folder_rows.push(NativeFolderRowModel::new(
+        model.sources.tree_rows.push(NativeFolderRowModel::new(
             format!("folder_{index:02}"),
             String::new(),
             index % 3,

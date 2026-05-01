@@ -99,7 +99,7 @@ mod projection_folder_edits {
         let initial = bridge.project_model();
         let initial_draft = initial
             .sources
-            .folder_rows
+            .tree_rows
             .iter()
             .find(|row| row.kind == crate::app_core::actions::NativeFolderRowKind::CreateDraft)
             .expect("folder create draft should be projected");
@@ -112,7 +112,7 @@ mod projection_folder_edits {
         let updated = bridge.project_model();
         let updated_draft = updated
             .sources
-            .folder_rows
+            .tree_rows
             .iter()
             .find(|row| row.kind == crate::app_core::actions::NativeFolderRowKind::CreateDraft)
             .expect("folder create draft should still be projected");
@@ -154,7 +154,7 @@ mod projection_folder_edits {
         assert!(
             initial
                 .sources
-                .folder_rows
+                .tree_rows
                 .iter()
                 .any(|row| row.kind == crate::app_core::actions::NativeFolderRowKind::CreateDraft)
         );
@@ -165,7 +165,7 @@ mod projection_folder_edits {
         assert!(
             updated
                 .sources
-                .folder_rows
+                .tree_rows
                 .iter()
                 .all(|row| row.kind != crate::app_core::actions::NativeFolderRowKind::CreateDraft)
         );
@@ -218,7 +218,7 @@ mod projection_folder_edits {
         let updated = bridge.project_model();
         let draft = updated
             .sources
-            .folder_rows
+            .tree_rows
             .iter()
             .find(|row| row.kind == crate::app_core::actions::NativeFolderRowKind::RenameDraft)
             .expect("folder rename draft should be projected");
