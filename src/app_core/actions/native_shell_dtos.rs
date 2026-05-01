@@ -77,6 +77,9 @@ pub type BrowserTagPillModel = badge::SelectablePill<BrowserTagState>;
 /// Render mode label for the map panel.
 pub type MapRenderModeModel = visualization::PointRenderMode;
 
+/// Summary of map state consumed by the native shell map tab.
+pub type MapPanelModel = visualization::SpatialPanel;
+
 /// Channel-view mode used by waveform rendering.
 pub type WaveformChannelViewModel = visualization::ChannelViewMode;
 
@@ -776,35 +779,6 @@ pub struct BrowserTagSidebarModel {
     pub normal_tag_pills: Vec<BrowserTagPillModel>,
     /// Create-new candidate when the input does not exactly match an existing tag.
     pub create_tag_pill: Option<BrowserTagPillModel>,
-}
-
-/// Summary of map state consumed by the native shell map tab.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct MapPanelModel {
-    /// Whether the map tab is currently active in the browser panel.
-    pub active: bool,
-    /// Human-readable map summary line.
-    pub summary: String,
-    /// Legend/status label for map render mode and point density.
-    pub legend_label: String,
-    /// Selection/focus label for the currently highlighted map sample.
-    pub selection_label: String,
-    /// Hover label for the currently hovered map sample, when any.
-    pub hover_label: String,
-    /// Cluster summary label for projected map points.
-    pub cluster_label: String,
-    /// Viewport label describing zoom/pan state.
-    pub viewport_label: String,
-    /// Optional error text shown when map data cannot be loaded.
-    pub error: Option<String>,
-    /// Current map render mode.
-    pub render_mode: MapRenderModeModel,
-    /// Sample id currently selected in map state, when any.
-    pub selected_sample_id: Option<String>,
-    /// Sample id currently focused from the browser list, when any.
-    pub focused_sample_id: Option<String>,
-    /// Points available for rendering in normalized map space.
-    pub points: Arc<[MapPointModel]>,
 }
 
 /// Audio field currently expanded into a picker inside the options panel.
@@ -1697,62 +1671,6 @@ impl From<BrowserTagSidebarModel> for compat::BrowserTagSidebarModel {
 
 impl From<&BrowserTagSidebarModel> for compat::BrowserTagSidebarModel {
     fn from(value: &BrowserTagSidebarModel) -> Self {
-        value.clone().into()
-    }
-}
-
-impl From<compat::MapPanelModel> for MapPanelModel {
-    fn from(value: compat::MapPanelModel) -> Self {
-        Self {
-            active: value.active,
-            summary: value.summary,
-            legend_label: value.legend_label,
-            selection_label: value.selection_label,
-            hover_label: value.hover_label,
-            cluster_label: value.cluster_label,
-            viewport_label: value.viewport_label,
-            error: value.error,
-            render_mode: value.render_mode.into(),
-            selected_sample_id: value.selected_sample_id,
-            focused_sample_id: value.focused_sample_id,
-            points: value
-                .points
-                .iter()
-                .cloned()
-                .map(Into::into)
-                .collect::<Vec<_>>()
-                .into(),
-        }
-    }
-}
-
-impl From<MapPanelModel> for compat::MapPanelModel {
-    fn from(value: MapPanelModel) -> Self {
-        Self {
-            active: value.active,
-            summary: value.summary,
-            legend_label: value.legend_label,
-            selection_label: value.selection_label,
-            hover_label: value.hover_label,
-            cluster_label: value.cluster_label,
-            viewport_label: value.viewport_label,
-            error: value.error,
-            render_mode: value.render_mode.into(),
-            selected_sample_id: value.selected_sample_id,
-            focused_sample_id: value.focused_sample_id,
-            points: value
-                .points
-                .iter()
-                .cloned()
-                .map(Into::into)
-                .collect::<Vec<_>>()
-                .into(),
-        }
-    }
-}
-
-impl From<&MapPanelModel> for compat::MapPanelModel {
-    fn from(value: &MapPanelModel) -> Self {
         value.clone().into()
     }
 }

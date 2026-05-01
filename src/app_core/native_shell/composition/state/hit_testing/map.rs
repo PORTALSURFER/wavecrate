@@ -6,14 +6,14 @@ pub(in crate::gui::native_shell::state) fn map_point_is_selected(
     model: &AppModel,
     point: &native_model::MapPointModel,
 ) -> bool {
-    model.map.selected_sample_id.as_deref() == Some(point.id.as_ref())
+    model.map.selected_item_id.as_deref() == Some(point.id.as_ref())
 }
 
 pub(in crate::gui::native_shell::state) fn map_point_is_focused(
     model: &AppModel,
     point: &native_model::MapPointModel,
 ) -> bool {
-    model.map.focused_sample_id.as_deref() == Some(point.id.as_ref())
+    model.map.focused_item_id.as_deref() == Some(point.id.as_ref())
 }
 
 pub(in crate::gui::native_shell::state) fn map_point_color(

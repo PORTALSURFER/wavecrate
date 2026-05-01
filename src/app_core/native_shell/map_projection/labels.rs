@@ -33,8 +33,8 @@ pub(super) fn build_hidden_map_panel_model(
         viewport_label: viewport_label(controller),
         error: None,
         render_mode,
-        selected_sample_id: None,
-        focused_sample_id: None,
+        selected_item_id: None,
+        focused_item_id: None,
         points: Arc::default(),
     }
 }
@@ -57,8 +57,8 @@ pub(super) fn build_map_unavailable_model(
         viewport_label: viewport_label(controller),
         error: None,
         render_mode,
-        selected_sample_id: None,
-        focused_sample_id: None,
+        selected_item_id: None,
+        focused_item_id: None,
         points: Arc::default(),
     }
 }
@@ -142,8 +142,8 @@ pub(super) fn build_map_query_error_model(
         viewport_label: viewport_label(controller),
         error: Some(err),
         render_mode,
-        selected_sample_id: None,
-        focused_sample_id: None,
+        selected_item_id: None,
+        focused_item_id: None,
         points: Arc::default(),
     }
 }
@@ -153,8 +153,8 @@ pub(super) fn build_active_map_panel_model(
     controller: &AppController,
     render_mode: MapRenderModeModel,
     render_mode_label: &str,
-    selected_sample_id: Option<String>,
-    focused_sample_id: Option<String>,
+    selected_item_id: Option<String>,
+    focused_item_id: Option<String>,
 ) -> MapPanelModel {
     let cluster_count = controller.projected_map_cluster_count;
     let points = Arc::clone(&controller.projected_map_points);
@@ -162,19 +162,19 @@ pub(super) fn build_active_map_panel_model(
         active: true,
         summary: format!("{} points", points.len()),
         legend_label: format!("Render: {render_mode_label}"),
-        selection_label: selection_label(controller, focused_sample_id.as_deref()),
+        selection_label: selection_label(controller, focused_item_id.as_deref()),
         hover_label: hover_label(controller),
         cluster_label: cluster_label(cluster_count),
         viewport_label: viewport_label(controller),
         error: None,
         render_mode,
-        selected_sample_id,
-        focused_sample_id,
+        selected_item_id,
+        focused_item_id,
         points,
     }
 }
 
-fn selection_label(controller: &AppController, focused_sample_id: Option<&str>) -> String {
+fn selection_label(controller: &AppController, focused_item_id: Option<&str>) -> String {
     controller
         .ui
         .map
@@ -183,7 +183,7 @@ fn selection_label(controller: &AppController, focused_sample_id: Option<&str>) 
         .map(short_sample_label)
         .map(|label| format!("Selection: {label}"))
         .or_else(|| {
-            focused_sample_id
+            focused_item_id
                 .map(short_sample_label)
                 .map(|label| format!("Focus: {label}"))
         })

@@ -86,7 +86,7 @@ fn projection_segment_map_selection_dirty_reuses_retained_point_arc() {
     );
     assert!(Arc::ptr_eq(&first.map.points, &second.map.points));
     assert_eq!(
-        second.map.selected_sample_id.as_deref(),
+        second.map.selected_item_id.as_deref(),
         Some("source::kick.wav")
     );
     assert_segment_lookup_counts(lookup_counts.map_panel, 0, 1);

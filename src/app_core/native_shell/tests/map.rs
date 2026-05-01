@@ -55,7 +55,7 @@ fn map_projection_exposes_legend_selection_and_viewport_labels() {
     assert!(projected.legend_label.starts_with("Render:"));
     assert!(projected.selection_label.contains("Selection:"));
     assert_eq!(
-        projected.selected_sample_id.as_deref(),
+        projected.selected_item_id.as_deref(),
         Some("source::kick_24.wav")
     );
     assert!(projected.hover_label.contains("Hover:"));
@@ -179,10 +179,7 @@ fn map_projection_reuses_retained_points_for_selection_overlay_changes() {
     let second = project_map_model(&mut controller);
 
     assert!(std::sync::Arc::ptr_eq(&first.points, &second.points));
-    assert_eq!(
-        second.selected_sample_id.as_deref(),
-        Some("source::kick.wav")
-    );
+    assert_eq!(second.selected_item_id.as_deref(), Some("source::kick.wav"));
 }
 
 #[test]
