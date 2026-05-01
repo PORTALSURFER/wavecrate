@@ -36,7 +36,7 @@ fn build_projected_map_points_cache(
         let x = ((point.x - bounds.min_x) / denom_x).clamp(0.0, 1.0);
         let y = ((point.y - bounds.min_y) / denom_y).clamp(0.0, 1.0);
         projected_points.push(ProjectedMapPointCacheEntry {
-            sample_id: Arc::clone(&point.sample_id),
+            id: Arc::clone(&point.sample_id),
             x_milli: normalized_to_milli(x),
             y_milli: normalized_to_milli(y),
             cluster_id: point.cluster_id,

@@ -64,6 +64,9 @@ pub type BrowserTagPillModel = badge::SelectablePill<BrowserTagState>;
 /// Render mode label for the map panel.
 pub type MapRenderModeModel = visualization::PointRenderMode;
 
+/// Render data for one point shown in the native map canvas.
+pub type MapPointModel = visualization::SpatialPoint;
+
 /// Update-check status projected into the native shell.
 pub type UpdateStatusModel = feedback::UpdateStatus;
 
@@ -757,19 +760,6 @@ pub struct BrowserTagSidebarModel {
     pub normal_tag_pills: Vec<BrowserTagPillModel>,
     /// Create-new candidate when the input does not exactly match an existing tag.
     pub create_tag_pill: Option<BrowserTagPillModel>,
-}
-
-/// Render data for one map point shown in the native map canvas.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct MapPointModel {
-    /// Stable sample id used to route click actions back to the host.
-    pub sample_id: Arc<str>,
-    /// X position normalized to milli-units (`0..=1000`) across map bounds.
-    pub x_milli: u16,
-    /// Y position normalized to milli-units (`0..=1000`) across map bounds.
-    pub y_milli: u16,
-    /// Optional cluster id for color grouping.
-    pub cluster_id: Option<i32>,
 }
 
 /// Summary of map state consumed by the native shell map tab.
@@ -2034,28 +2024,6 @@ impl From<BrowserTagSidebarModel> for compat::BrowserTagSidebarModel {
 impl From<&BrowserTagSidebarModel> for compat::BrowserTagSidebarModel {
     fn from(value: &BrowserTagSidebarModel) -> Self {
         value.clone().into()
-    }
-}
-
-impl From<compat::MapPointModel> for MapPointModel {
-    fn from(value: compat::MapPointModel) -> Self {
-        Self {
-            sample_id: value.sample_id,
-            x_milli: value.x_milli,
-            y_milli: value.y_milli,
-            cluster_id: value.cluster_id,
-        }
-    }
-}
-
-impl From<MapPointModel> for compat::MapPointModel {
-    fn from(value: MapPointModel) -> Self {
-        Self {
-            sample_id: value.sample_id,
-            x_milli: value.x_milli,
-            y_milli: value.y_milli,
-            cluster_id: value.cluster_id,
-        }
     }
 }
 

@@ -6,14 +6,14 @@ pub(in crate::gui::native_shell::state) fn map_point_is_selected(
     model: &AppModel,
     point: &native_model::MapPointModel,
 ) -> bool {
-    model.map.selected_sample_id.as_deref() == Some(point.sample_id.as_ref())
+    model.map.selected_sample_id.as_deref() == Some(point.id.as_ref())
 }
 
 pub(in crate::gui::native_shell::state) fn map_point_is_focused(
     model: &AppModel,
     point: &native_model::MapPointModel,
 ) -> bool {
-    model.map.focused_sample_id.as_deref() == Some(point.sample_id.as_ref())
+    model.map.focused_sample_id.as_deref() == Some(point.id.as_ref())
 }
 
 pub(in crate::gui::native_shell::state) fn map_point_color(
@@ -69,7 +69,7 @@ pub(in crate::gui::native_shell::state) fn map_sample_id_at_point(
         }
         match best {
             Some((best_distance_sq, _)) if distance_sq >= best_distance_sq => {}
-            _ => best = Some((distance_sq, map_point.sample_id.as_ref())),
+            _ => best = Some((distance_sq, map_point.id.as_ref())),
         }
     }
     best.map(|(_, sample_id)| sample_id.to_string())
