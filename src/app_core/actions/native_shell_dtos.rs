@@ -9,6 +9,7 @@
 use radiant::compat::legacy_shell as compat;
 use radiant::gui::automation;
 use radiant::gui::frame;
+use radiant::gui::range;
 use radiant::gui::retained;
 use radiant::gui::types::ImageRgba;
 use serde::{Deserialize, Serialize};
@@ -25,6 +26,9 @@ pub type AutomationBounds = automation::AutomationBounds;
 
 /// Frame-level feedback from renderer to host bridge.
 pub type FrameBuildResult = frame::FrameBuildResult;
+
+/// Normalized interval with deterministic milli, micro, and nano projections.
+pub type NormalizedRangeModel = range::NormalizedRange;
 
 /// Browser playback-age filter chips shown in the native toolbar.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -1039,57 +1043,6 @@ pub struct DragOverlayModel {
     pub pointer_y: Option<u16>,
 }
 
-/// Normalized waveform range with deterministic milli, micro, and nano projections.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct NormalizedRangeModel {
-    /// Start position in normalized milli-units.
-    pub start_milli: u16,
-    /// End position in normalized milli-units.
-    pub end_milli: u16,
-    /// Start position in normalized micro-units (`0..=1_000_000`).
-    pub start_micros: u32,
-    /// End position in normalized micro-units (`0..=1_000_000`).
-    pub end_micros: u32,
-    /// Start position in normalized nanounits (`0..=1_000_000_000`).
-    pub start_nanos: u32,
-    /// End position in normalized nanounits (`0..=1_000_000_000`).
-    pub end_nanos: u32,
-}
-
-impl NormalizedRangeModel {
-    /// Build a normalized range, clamping bounds to `0..=1000` and ordering them.
-    pub fn new(start_milli: u16, end_milli: u16) -> Self {
-        Self::from_micros(
-            u32::from(start_milli.min(1000)) * 1000,
-            u32::from(end_milli.min(1000)) * 1000,
-        )
-    }
-
-    /// Build a normalized range from micro precision while preserving ordered milli mirrors.
-    pub fn from_micros(start_micros: u32, end_micros: u32) -> Self {
-        Self::from_nanos(
-            start_micros.min(1_000_000).saturating_mul(1000),
-            end_micros.min(1_000_000).saturating_mul(1000),
-        )
-    }
-
-    /// Build a normalized range from nano precision while preserving ordered mirrors.
-    pub fn from_nanos(start_nanos: u32, end_nanos: u32) -> Self {
-        let start = start_nanos.min(1_000_000_000);
-        let end = end_nanos.min(1_000_000_000);
-        let ordered_start = start.min(end);
-        let ordered_end = end.max(start);
-        Self {
-            start_milli: nanos_to_milli(ordered_start),
-            end_milli: nanos_to_milli(ordered_end),
-            start_micros: nanos_to_micros(ordered_start),
-            end_micros: nanos_to_micros(ordered_end),
-            start_nanos: ordered_start,
-            end_nanos: ordered_end,
-        }
-    }
-}
-
 /// One detected waveform slice preview exposed to the native shell.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WaveformSlicePreviewModel {
@@ -1664,18 +1617,6 @@ impl SourcesPanelModel {
     pub fn active_folder_pane_model(&self) -> &FolderPaneModel {
         self.folder_pane(self.active_folder_pane)
     }
-}
-
-fn micros_to_milli(value_micros: u32) -> u16 {
-    ((value_micros.min(1_000_000) + 500) / 1000) as u16
-}
-
-fn nanos_to_micros(value_nanos: u32) -> u32 {
-    ((value_nanos.min(1_000_000_000) + 500) / 1000).min(1_000_000)
-}
-
-fn nanos_to_milli(value_nanos: u32) -> u16 {
-    micros_to_milli(nanos_to_micros(value_nanos))
 }
 
 /// Snapshot of Sempal state required by the native shell renderer.
@@ -2952,32 +2893,6 @@ impl From<DragOverlayModel> for compat::DragOverlayModel {
 impl From<&DragOverlayModel> for compat::DragOverlayModel {
     fn from(value: &DragOverlayModel) -> Self {
         value.clone().into()
-    }
-}
-
-impl From<compat::NormalizedRangeModel> for NormalizedRangeModel {
-    fn from(value: compat::NormalizedRangeModel) -> Self {
-        Self {
-            start_milli: value.start_milli,
-            end_milli: value.end_milli,
-            start_micros: value.start_micros,
-            end_micros: value.end_micros,
-            start_nanos: value.start_nanos,
-            end_nanos: value.end_nanos,
-        }
-    }
-}
-
-impl From<NormalizedRangeModel> for compat::NormalizedRangeModel {
-    fn from(value: NormalizedRangeModel) -> Self {
-        Self {
-            start_milli: value.start_milli,
-            end_milli: value.end_milli,
-            start_micros: value.start_micros,
-            end_micros: value.end_micros,
-            start_nanos: value.start_nanos,
-            end_nanos: value.end_nanos,
-        }
     }
 }
 

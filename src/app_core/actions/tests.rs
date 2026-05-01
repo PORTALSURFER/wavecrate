@@ -270,6 +270,14 @@ fn native_action_exports_are_owned_in_app_core() {
         native_dtos.contains("pub type FrameBuildResult = frame::FrameBuildResult;"),
         "Sempal native frame feedback should alias the generic Radiant frame primitive"
     );
+    assert!(
+        !native_dtos.contains("pub struct NormalizedRangeModel"),
+        "normalized ranges should use the Radiant-owned generic primitive"
+    );
+    assert!(
+        native_dtos.contains("pub type NormalizedRangeModel = range::NormalizedRange;"),
+        "Sempal native range fields should alias the generic Radiant range primitive"
+    );
 
     let radiant_app_sources = [
         "actions/mod.rs",
