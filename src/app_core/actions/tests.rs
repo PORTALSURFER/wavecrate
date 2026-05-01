@@ -303,6 +303,7 @@ fn native_action_exports_are_owned_in_app_core() {
     );
     assert!(
         native_dtos.contains("pub type ColumnModel = list::ColumnSummary;")
+            && native_dtos.contains("pub type FolderPaneIdModel = panel::SplitPaneSlot;")
             && native_dtos.contains("pub type FolderRowKind = list::EditableRowKind;"),
         "Sempal source/sidebar DTOs should alias generic Radiant list primitives"
     );
@@ -328,6 +329,10 @@ fn native_action_exports_are_owned_in_app_core() {
     assert!(
         !native_dtos.contains("pub struct MapPointModel"),
         "map point geometry should use the Radiant-owned generic spatial point primitive"
+    );
+    assert!(
+        !native_dtos.contains("pub enum FolderPaneIdModel"),
+        "split pane identity should use the Radiant-owned generic panel primitive"
     );
     assert!(
         !native_dtos.contains("pub struct UpdatePanelModel"),

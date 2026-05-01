@@ -14,6 +14,7 @@ use radiant::gui::feedback;
 use radiant::gui::form;
 use radiant::gui::frame;
 use radiant::gui::list;
+use radiant::gui::panel;
 use radiant::gui::range;
 use radiant::gui::retained;
 use radiant::gui::selection;
@@ -51,6 +52,9 @@ pub type ColumnModel = list::ColumnSummary;
 
 /// Render data for one folder row shown in the sidebar folder tree.
 pub type FolderRowKind = list::EditableRowKind;
+
+/// Stable identifier for one side of the split folder pane surface.
+pub type FolderPaneIdModel = panel::SplitPaneSlot;
 
 /// Transient browser row processing states for batch file operations.
 pub type BrowserRowProcessingState = list::RowProcessingState;
@@ -1104,26 +1108,6 @@ pub fn parse_waveform_tempo_number_text(label: &str) -> Option<String> {
     Some(number.to_string())
 }
 
-/// Stable identifier for one of the two fixed folder panes in the sidebar.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
-pub enum FolderPaneIdModel {
-    /// Upper folder pane shown directly beneath the shared sources list.
-    #[default]
-    Upper,
-    /// Lower folder pane shown beneath the upper pane.
-    Lower,
-}
-
-impl FolderPaneIdModel {
-    /// Return the small stable identifier used by automation and routing.
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Upper => "upper",
-            Self::Lower => "lower",
-        }
-    }
-}
-
 /// Render data for one source row shown in the sidebar.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SourceRowModel {
@@ -1515,24 +1499,6 @@ where
         .map(Into::into)
         .collect::<Vec<_>>()
         .into()
-}
-
-impl From<compat::FolderPaneIdModel> for FolderPaneIdModel {
-    fn from(value: compat::FolderPaneIdModel) -> Self {
-        match value {
-            compat::FolderPaneIdModel::Upper => Self::Upper,
-            compat::FolderPaneIdModel::Lower => Self::Lower,
-        }
-    }
-}
-
-impl From<FolderPaneIdModel> for compat::FolderPaneIdModel {
-    fn from(value: FolderPaneIdModel) -> Self {
-        match value {
-            FolderPaneIdModel::Upper => Self::Upper,
-            FolderPaneIdModel::Lower => Self::Lower,
-        }
-    }
 }
 
 impl From<compat::SourceRowModel> for SourceRowModel {
