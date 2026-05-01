@@ -73,6 +73,9 @@ pub type UpdatePanelModel = feedback::UpdatePanel;
 /// Modal confirmation prompt projected into the native shell.
 pub type ConfirmPromptModel = feedback::ConfirmPrompt<ConfirmPromptKind>;
 
+/// Delete-recovery status for staged folder delete recovery in the sidebar.
+pub type FolderRecoveryModel = feedback::RecoverySummary;
+
 /// One selectable item shown inside an audio picker.
 pub type AudioOptionItemModel = form::OptionItem<AudioOptionValueModel>;
 
@@ -1351,17 +1354,6 @@ pub enum FocusContextModel {
     SourcesList,
 }
 
-/// Delete-recovery status for staged folder delete recovery in the sidebar.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct FolderRecoveryModel {
-    /// Whether delete recovery is still running in the background.
-    pub in_progress: bool,
-    /// Number of completed recovery log entries currently visible.
-    pub entry_count: usize,
-    /// Number of retained deletes currently awaiting explicit restore or purge.
-    pub retained_count: usize,
-}
-
 /// Projected data for one fixed folder pane shown in the sidebar.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct FolderPaneModel {
@@ -1678,26 +1670,6 @@ impl From<FocusContextModel> for compat::FocusContextModel {
             FocusContextModel::SampleBrowser => Self::SampleBrowser,
             FocusContextModel::SourceFolders => Self::SourceFolders,
             FocusContextModel::SourcesList => Self::SourcesList,
-        }
-    }
-}
-
-impl From<compat::FolderRecoveryModel> for FolderRecoveryModel {
-    fn from(value: compat::FolderRecoveryModel) -> Self {
-        Self {
-            in_progress: value.in_progress,
-            entry_count: value.entry_count,
-            retained_count: value.retained_count,
-        }
-    }
-}
-
-impl From<FolderRecoveryModel> for compat::FolderRecoveryModel {
-    fn from(value: FolderRecoveryModel) -> Self {
-        Self {
-            in_progress: value.in_progress,
-            entry_count: value.entry_count,
-            retained_count: value.retained_count,
         }
     }
 }

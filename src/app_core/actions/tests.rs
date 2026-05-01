@@ -352,6 +352,14 @@ fn native_action_exports_are_owned_in_app_core() {
             && native_dtos.contains("pub type AudioFieldModel = form::SummaryField;"),
         "Sempal native audio picker DTOs should alias generic Radiant form primitives"
     );
+    assert!(
+        !native_dtos.contains("pub struct FolderRecoveryModel"),
+        "folder recovery counters should use the Radiant-owned generic recovery summary primitive"
+    );
+    assert!(
+        native_dtos.contains("pub type FolderRecoveryModel = feedback::RecoverySummary;"),
+        "Sempal native folder recovery DTOs should alias the generic Radiant feedback primitive"
+    );
 
     let radiant_app_sources = [
         "actions/mod.rs",
