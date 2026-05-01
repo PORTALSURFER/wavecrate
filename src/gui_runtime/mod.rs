@@ -30,7 +30,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{error, info};
 
-pub use radiant::compat::sempal_shell::NativeStartupTimingArtifact;
+pub use radiant::gui_runtime::NativeStartupTimingArtifact;
 
 /// Machine-readable native shutdown timing payload exported by Sempal bridges.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -405,4 +405,22 @@ pub(crate) fn capture_native_shell_shot_snapshot(
 ) -> impl serde::Serialize {
     let compat_model = radiant::compat::sempal_shell::AppModel::from(model);
     radiant::compat::sempal_shell::capture_native_shell_shot_snapshot(name, viewport, &compat_model)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn startup_timing_artifact_uses_generic_radiant_runtime_export() {
+        let module = include_str!("mod.rs");
+        let legacy_compat_export = concat!(
+            "pub use radiant::compat::",
+            "sempal_shell::NativeStartupTimingArtifact;"
+        );
+
+        assert!(module.contains("pub use radiant::gui_runtime::NativeStartupTimingArtifact;"));
+        assert!(
+            !module.contains(legacy_compat_export),
+            "startup timing is a generic Radiant runtime artifact, not a Sempal compat DTO"
+        );
+    }
 }
