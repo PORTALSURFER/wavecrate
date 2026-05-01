@@ -247,14 +247,16 @@ fn focus_context_from_radiant(
 ) -> FocusContext {
     match focus {
         radiant::compat::legacy_shell::FocusContextModel::None => FocusContext::None,
-        radiant::compat::legacy_shell::FocusContextModel::Waveform => FocusContext::Waveform,
-        radiant::compat::legacy_shell::FocusContextModel::SampleBrowser => {
+        radiant::compat::legacy_shell::FocusContextModel::Timeline => FocusContext::Waveform,
+        radiant::compat::legacy_shell::FocusContextModel::ContentList => {
             FocusContext::SampleBrowser
         }
-        radiant::compat::legacy_shell::FocusContextModel::SourceFolders => {
+        radiant::compat::legacy_shell::FocusContextModel::NavigationTree => {
             FocusContext::SourceFolders
         }
-        radiant::compat::legacy_shell::FocusContextModel::SourcesList => FocusContext::SourcesList,
+        radiant::compat::legacy_shell::FocusContextModel::NavigationList => {
+            FocusContext::SourcesList
+        }
     }
 }
 

@@ -362,6 +362,12 @@ fn native_action_exports_are_owned_in_app_core() {
         "split pane identity should use the Radiant-owned generic panel primitive"
     );
     assert!(
+        native_dtos.contains("pub enum FocusContextModel")
+            && native_dtos.contains("SampleBrowser")
+            && native_dtos.contains("SourceFolders"),
+        "Sempal should own focus-context names for product surfaces"
+    );
+    assert!(
         !native_dtos.contains("pub struct SourceRowModel"),
         "split pane row projection should use the Radiant-owned generic panel primitive"
     );

@@ -24,14 +24,14 @@ fn render_sidebar_section_focus_overlay(
 ) {
     let sections = sidebar_sections(layout, style, model);
     match model.focus_context {
-        native_model::FocusContextModel::SourcesList => {
+        native_model::FocusContextModel::NavigationList => {
             render_section_focus_surface(
                 primitives,
                 sections.source_rows(model.sources.active_folder_pane),
                 style,
             );
         }
-        native_model::FocusContextModel::SourceFolders => {
+        native_model::FocusContextModel::NavigationTree => {
             let active_pane = model.sources.active_folder_pane;
             render_section_focus_surface(
                 primitives,
@@ -54,7 +54,7 @@ pub(super) fn render_waveform_focus_overlay(
 ) {
     if matches!(
         model.focus_context,
-        native_model::FocusContextModel::Waveform
+        native_model::FocusContextModel::Timeline
     ) {
         render_section_focus_surface(primitives, layout.waveform_card, style);
     }
@@ -77,7 +77,7 @@ pub(super) fn render_source_focus_overlay(
 ) {
     if matches!(
         model.focus_context,
-        native_model::FocusContextModel::SourcesList
+        native_model::FocusContextModel::NavigationList
     ) {
         render_sidebar_section_focus_overlay(layout, style, model, primitives);
     }
@@ -119,7 +119,7 @@ pub(super) fn render_folder_focus_overlay(
     let sizing = style.sizing;
     if matches!(
         model.focus_context,
-        native_model::FocusContextModel::SourceFolders
+        native_model::FocusContextModel::NavigationTree
     ) {
         render_sidebar_section_focus_overlay(layout, style, model, primitives);
     }
@@ -219,7 +219,7 @@ pub(super) fn render_browser_focus_overlay(
     let sizing = style.sizing;
     if matches!(
         model.focus_context,
-        native_model::FocusContextModel::SampleBrowser
+        native_model::FocusContextModel::ContentList
     ) {
         render_panel_focus_surface(layout.browser_panel, style, primitives);
     }

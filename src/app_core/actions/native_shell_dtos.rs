@@ -1208,10 +1208,10 @@ impl From<compat::FocusContextModel> for FocusContextModel {
     fn from(value: compat::FocusContextModel) -> Self {
         match value {
             compat::FocusContextModel::None => Self::None,
-            compat::FocusContextModel::Waveform => Self::Waveform,
-            compat::FocusContextModel::SampleBrowser => Self::SampleBrowser,
-            compat::FocusContextModel::SourceFolders => Self::SourceFolders,
-            compat::FocusContextModel::SourcesList => Self::SourcesList,
+            compat::FocusContextModel::Timeline => Self::Waveform,
+            compat::FocusContextModel::ContentList => Self::SampleBrowser,
+            compat::FocusContextModel::NavigationTree => Self::SourceFolders,
+            compat::FocusContextModel::NavigationList => Self::SourcesList,
         }
     }
 }
@@ -1220,10 +1220,10 @@ impl From<FocusContextModel> for compat::FocusContextModel {
     fn from(value: FocusContextModel) -> Self {
         match value {
             FocusContextModel::None => Self::None,
-            FocusContextModel::Waveform => Self::Waveform,
-            FocusContextModel::SampleBrowser => Self::SampleBrowser,
-            FocusContextModel::SourceFolders => Self::SourceFolders,
-            FocusContextModel::SourcesList => Self::SourcesList,
+            FocusContextModel::Waveform => Self::Timeline,
+            FocusContextModel::SampleBrowser => Self::ContentList,
+            FocusContextModel::SourceFolders => Self::NavigationTree,
+            FocusContextModel::SourcesList => Self::NavigationList,
         }
     }
 }
