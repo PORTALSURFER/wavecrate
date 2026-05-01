@@ -117,7 +117,7 @@ avoid duplicate state mutation in UI callbacks.
   - `gui-performance` (build with `--features gui-performance`)
   - `native-bridge-metrics` (build with `--features native-bridge-metrics`) for host bridge timing
 - Enable runtime logs by setting:
-  - `SEMPAL_NATIVE_RENDER_PROFILE=true`
+  - `RADIANT_NATIVE_RENDER_PROFILE=true`
   - `SEMPAL_NATIVE_BRIDGE_PROFILE=true`
   - Accepts `1`, `true`, `on`, and `yes` (case-insensitive for `TRUE`/`On`/`ON` style variants)
 - Logging includes frame build, model access, motion overlay, and frame-submit timing for render; bridge profiling also includes adapter transition and event-funnel timing.

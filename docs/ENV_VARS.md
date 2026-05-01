@@ -232,19 +232,19 @@ warning noise in test/bench logs.
 Wav-entry threshold used by browser search to switch from synchronous layout
 path recompute to async search jobs. Default: `5000`.
 
-- `SEMPAL_NATIVE_RENDER_PROFILE`
-Enables native render profiling logs when the build enables the `gui-performance`
-cargo feature. Accepted values include `1`, `true`, `on`, and `yes` (case
-variants are accepted in the current implementation).
+- `RADIANT_NATIVE_RENDER_PROFILE`
+Enables Radiant native render profiling logs when the build enables the
+`gui-performance` cargo feature. Accepted values include `1`, `true`, `on`,
+and `yes` (case variants are accepted in the current implementation).
 
-- `SEMPAL_NATIVE_STARTUP_PROFILE`
-Enables one-line native startup timing summaries after first present plus
-deferred model refresh. Accepted values: `1`, `true`, `on`, `yes`
+- `RADIANT_NATIVE_STARTUP_PROFILE`
+Enables one-line Radiant native startup timing summaries after first present
+plus deferred model refresh. Accepted values: `1`, `true`, `on`, `yes`
 (case-insensitive). Intended for startup-focused profiling workflows.
 
-- `SEMPAL_NATIVE_INCREMENTAL_FRAME_PIPELINE`
+- `RADIANT_NATIVE_INCREMENTAL_FRAME_PIPELINE`
 Enables bridge-driven dirty-segment gating for native static frame rebuilds in
-the `winit + vello` runtime. Accepted values: `1`, `true`, `on`, `yes`
+the Radiant `winit + vello` runtime. Accepted values: `1`, `true`, `on`, `yes`
 (case-insensitive).
 
 - `SEMPAL_NATIVE_BRIDGE_PROFILE`
@@ -299,7 +299,7 @@ percentiles across runs and the p95 spread across runs. Default: `1`.
 - `SEMPAL_PERF_GUARD_STARTUP_PROFILE`
 When set to `1`/`true`/`on`/`yes`, `scripts/perf.sh guard` also captures
 native startup timing logs by launching `sempal` under timeout and parsing
-`SEMPAL_NATIVE_STARTUP_PROFILE` output. Default: disabled (`0`).
+`RADIANT_NATIVE_STARTUP_PROFILE` output. Default: disabled (`0`).
 
 - `SEMPAL_PERF_GUARD_STARTUP_TIMEOUT_SECS`
 Timeout (seconds) used for each startup-profile capture run when startup
