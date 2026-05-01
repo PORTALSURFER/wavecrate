@@ -2889,7 +2889,7 @@ impl From<compat::UpdatePanelModel> for UpdatePanelModel {
             status_label: value.status_label,
             action_hint_label: value.action_hint_label,
             release_notes_label: value.release_notes_label,
-            available_tag: value.available_tag,
+            available_tag: value.available_version_label,
             available_url: value.available_url,
             last_error: value.last_error,
         }
@@ -2903,7 +2903,7 @@ impl From<UpdatePanelModel> for compat::UpdatePanelModel {
             status_label: value.status_label,
             action_hint_label: value.action_hint_label,
             release_notes_label: value.release_notes_label,
-            available_tag: value.available_tag,
+            available_version_label: value.available_tag,
             available_url: value.available_url,
             last_error: value.last_error,
         }
