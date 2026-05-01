@@ -8,6 +8,7 @@
 
 use radiant::compat::legacy_shell as compat;
 use radiant::gui::automation;
+use radiant::gui::frame;
 use radiant::gui::retained;
 use radiant::gui::types::ImageRgba;
 use serde::{Deserialize, Serialize};
@@ -21,6 +22,9 @@ pub type AutomationNodeId = automation::AutomationNodeId;
 
 /// Quantized window-space bounds for one automation node.
 pub type AutomationBounds = automation::AutomationBounds;
+
+/// Frame-level feedback from renderer to host bridge.
+pub type FrameBuildResult = frame::FrameBuildResult;
 
 /// Browser playback-age filter chips shown in the native toolbar.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -112,37 +116,6 @@ pub struct GuiAutomationSnapshot {
 }
 
 // Sempal-owned retained-render segment invalidation DTOs.
-
-/// Frame-level feedback from renderer to host bridge.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct FrameBuildResult {
-    /// Number of generated shape primitives.
-    pub primitive_count: usize,
-    /// Number of generated text runs.
-    pub text_run_count: usize,
-    /// Whether this redraw included a layout-driven static rebuild.
-    pub layout_rebuild: bool,
-    /// Whether this redraw rebuilt any static scene content.
-    pub static_rebuild: bool,
-    /// Whether this redraw rebuilt any state-overlay scene content.
-    pub state_overlay_rebuild: bool,
-    /// Whether this redraw rebuilt any motion-overlay scene content.
-    pub motion_overlay_rebuild: bool,
-    /// Whether runtime should keep animating while idle.
-    pub needs_animation: bool,
-    /// End-to-end frame time in microseconds for the redraw pass.
-    pub frame_total_us: u32,
-    /// Present-stage duration in microseconds for the redraw pass.
-    pub present_us: u32,
-    /// Frame-time budget used to classify redraw jank.
-    pub frame_budget_us: u32,
-    /// Whether the frame exceeded the configured frame-time budget.
-    pub jank: bool,
-    /// Whether the redraw produced a successful surface present.
-    pub presented: bool,
-    /// Whether a present was expected but not completed for this redraw.
-    pub missed_present: bool,
-}
 
 /// Bitmask describing which projection segments changed during the last model pull.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -3376,46 +3349,6 @@ impl From<GuiAutomationSnapshot> for compat::GuiAutomationSnapshot {
             viewport_width: value.viewport_width,
             viewport_height: value.viewport_height,
             root: value.root.into(),
-        }
-    }
-}
-
-impl From<compat::FrameBuildResult> for FrameBuildResult {
-    fn from(value: compat::FrameBuildResult) -> Self {
-        Self {
-            primitive_count: value.primitive_count,
-            text_run_count: value.text_run_count,
-            layout_rebuild: value.layout_rebuild,
-            static_rebuild: value.static_rebuild,
-            state_overlay_rebuild: value.state_overlay_rebuild,
-            motion_overlay_rebuild: value.motion_overlay_rebuild,
-            needs_animation: value.needs_animation,
-            frame_total_us: value.frame_total_us,
-            present_us: value.present_us,
-            frame_budget_us: value.frame_budget_us,
-            jank: value.jank,
-            presented: value.presented,
-            missed_present: value.missed_present,
-        }
-    }
-}
-
-impl From<FrameBuildResult> for compat::FrameBuildResult {
-    fn from(value: FrameBuildResult) -> Self {
-        Self {
-            primitive_count: value.primitive_count,
-            text_run_count: value.text_run_count,
-            layout_rebuild: value.layout_rebuild,
-            static_rebuild: value.static_rebuild,
-            state_overlay_rebuild: value.state_overlay_rebuild,
-            motion_overlay_rebuild: value.motion_overlay_rebuild,
-            needs_animation: value.needs_animation,
-            frame_total_us: value.frame_total_us,
-            present_us: value.present_us,
-            frame_budget_us: value.frame_budget_us,
-            jank: value.jank,
-            presented: value.presented,
-            missed_present: value.missed_present,
         }
     }
 }

@@ -262,6 +262,14 @@ fn native_action_exports_are_owned_in_app_core() {
             && native_dtos.contains("pub type AutomationBounds = automation::AutomationBounds;"),
         "Sempal native automation DTOs should alias generic Radiant automation primitives"
     );
+    assert!(
+        !native_dtos.contains("pub struct FrameBuildResult"),
+        "frame feedback should use the Radiant-owned generic primitive"
+    );
+    assert!(
+        native_dtos.contains("pub type FrameBuildResult = frame::FrameBuildResult;"),
+        "Sempal native frame feedback should alias the generic Radiant frame primitive"
+    );
 
     let radiant_app_sources = [
         "actions/mod.rs",
