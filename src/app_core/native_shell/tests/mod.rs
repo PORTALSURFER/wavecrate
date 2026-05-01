@@ -238,10 +238,10 @@ mod overlay_folder_actions {
         });
         ui.sources.folders.focused = Some(0);
         let projected = project_sources_for_ui(&ui);
-        assert!(projected.folder_actions.can_create_folder);
-        assert!(projected.folder_actions.can_create_folder_at_root);
-        assert!(!projected.folder_actions.can_rename_folder);
-        assert!(!projected.folder_actions.can_delete_folder);
+        assert!(projected.folder_actions.can_create_child);
+        assert!(projected.folder_actions.can_create_root);
+        assert!(!projected.folder_actions.can_rename);
+        assert!(!projected.folder_actions.can_delete);
 
         ui.sources.folders.rows.push(FolderRowView {
             path: std::path::PathBuf::from("drums"),
@@ -257,8 +257,8 @@ mod overlay_folder_actions {
         });
         ui.sources.folders.focused = Some(1);
         let projected = project_sources_for_ui(&ui);
-        assert!(projected.folder_actions.can_rename_folder);
-        assert!(projected.folder_actions.can_delete_folder);
+        assert!(projected.folder_actions.can_rename);
+        assert!(projected.folder_actions.can_delete);
     }
 
     /// Root folder creation should remain available even when there are no source rows yet.
@@ -266,8 +266,8 @@ mod overlay_folder_actions {
     fn folder_actions_allow_root_creation_when_no_sources_exist() {
         let ui = UiState::default();
         let projected = project_sources_for_ui(&ui);
-        assert!(!projected.folder_actions.can_create_folder);
-        assert!(projected.folder_actions.can_create_folder_at_root);
+        assert!(!projected.folder_actions.can_create_child);
+        assert!(projected.folder_actions.can_create_root);
     }
 
     /// Recovery log clearing should stay disabled while delete recovery work is still running.
@@ -287,6 +287,6 @@ mod overlay_folder_actions {
             });
         ui.sources.folders.delete_recovery.in_progress = true;
         let projected = project_sources_for_ui(&ui);
-        assert!(!projected.folder_actions.can_clear_recovery_log);
+        assert!(!projected.folder_actions.can_clear_history);
     }
 }

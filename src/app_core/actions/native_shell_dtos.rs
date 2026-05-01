@@ -53,6 +53,9 @@ pub type ColumnModel = list::ColumnSummary;
 /// Render data for one folder row shown in the sidebar folder tree.
 pub type FolderRowKind = list::EditableRowKind;
 
+/// Native folder-action availability consumed by sidebar action surfaces.
+pub type FolderActionsModel = list::EditableTreeActions;
+
 /// Stable identifier for one side of the split folder pane surface.
 pub type FolderPaneIdModel = panel::SplitPaneSlot;
 
@@ -1240,25 +1243,6 @@ impl FolderRowModel {
     }
 }
 
-/// Native folder-action availability consumed by sidebar action surfaces.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct FolderActionsModel {
-    /// Whether creating a folder at the focused parent is allowed.
-    pub can_create_folder: bool,
-    /// Whether creating a folder at source root is allowed.
-    pub can_create_folder_at_root: bool,
-    /// Whether renaming the focused folder is allowed.
-    pub can_rename_folder: bool,
-    /// Whether deleting the focused folder is allowed.
-    pub can_delete_folder: bool,
-    /// Whether explicit restore for retained folder deletes is allowed.
-    pub can_restore_retained_deletes: bool,
-    /// Whether explicit purge for retained folder deletes is allowed.
-    pub can_purge_retained_deletes: bool,
-    /// Whether clearing folder delete-recovery logs is allowed.
-    pub can_clear_recovery_log: bool,
-}
-
 /// Logical focus buckets projected into the native runtime.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum FocusContextModel {
@@ -1495,34 +1479,6 @@ impl From<FolderRowModel> for compat::FolderRowModel {
             input_error: value.input_error,
             input_focused: value.input_focused,
             select_all_on_focus: value.select_all_on_focus,
-        }
-    }
-}
-
-impl From<compat::FolderActionsModel> for FolderActionsModel {
-    fn from(value: compat::FolderActionsModel) -> Self {
-        Self {
-            can_create_folder: value.can_create_folder,
-            can_create_folder_at_root: value.can_create_folder_at_root,
-            can_rename_folder: value.can_rename_folder,
-            can_delete_folder: value.can_delete_folder,
-            can_restore_retained_deletes: value.can_restore_retained_deletes,
-            can_purge_retained_deletes: value.can_purge_retained_deletes,
-            can_clear_recovery_log: value.can_clear_recovery_log,
-        }
-    }
-}
-
-impl From<FolderActionsModel> for compat::FolderActionsModel {
-    fn from(value: FolderActionsModel) -> Self {
-        Self {
-            can_create_folder: value.can_create_folder,
-            can_create_folder_at_root: value.can_create_folder_at_root,
-            can_rename_folder: value.can_rename_folder,
-            can_delete_folder: value.can_delete_folder,
-            can_restore_retained_deletes: value.can_restore_retained_deletes,
-            can_purge_retained_deletes: value.can_purge_retained_deletes,
-            can_clear_recovery_log: value.can_clear_recovery_log,
         }
     }
 }

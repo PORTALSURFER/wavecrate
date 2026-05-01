@@ -137,15 +137,15 @@ fn project_folder_pane(controller: &AppController, pane: FolderPaneId) -> Folder
         focused_folder_row,
         folder_rows: projected_folder_rows,
         folder_actions: FolderActionsModel {
-            can_create_folder: has_source,
-            can_create_folder_at_root: has_source || ui.sources.rows.is_empty(),
-            can_rename_folder: can_manage_folder,
-            can_delete_folder: can_manage_folder,
-            can_restore_retained_deletes: !browser.delete_recovery.retained_entries.is_empty()
+            can_create_child: has_source,
+            can_create_root: has_source || ui.sources.rows.is_empty(),
+            can_rename: can_manage_folder,
+            can_delete: can_manage_folder,
+            can_restore_retained: !browser.delete_recovery.retained_entries.is_empty()
                 && !browser.delete_recovery.in_progress,
-            can_purge_retained_deletes: !browser.delete_recovery.retained_entries.is_empty()
+            can_purge_retained: !browser.delete_recovery.retained_entries.is_empty()
                 && !browser.delete_recovery.in_progress,
-            can_clear_recovery_log: !browser.delete_recovery.entries.is_empty()
+            can_clear_history: !browser.delete_recovery.entries.is_empty()
                 && !browser.delete_recovery.in_progress,
         },
         folder_recovery: FolderRecoveryModel {

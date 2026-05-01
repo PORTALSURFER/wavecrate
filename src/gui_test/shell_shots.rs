@@ -208,11 +208,11 @@ fn startup_scene_model() -> NativeAppModel {
     model.sources.folder_search_query = String::from("drum");
     model.sources.selected_row = Some(0);
     model.sources.focused_folder_row = Some(0);
-    model.sources.folder_actions.can_create_folder = true;
-    model.sources.folder_actions.can_create_folder_at_root = true;
-    model.sources.folder_actions.can_rename_folder = true;
-    model.sources.folder_actions.can_delete_folder = true;
-    model.sources.folder_actions.can_clear_recovery_log = true;
+    model.sources.folder_actions.can_create_child = true;
+    model.sources.folder_actions.can_create_root = true;
+    model.sources.folder_actions.can_rename = true;
+    model.sources.folder_actions.can_delete = true;
+    model.sources.folder_actions.can_clear_history = true;
     model.sources.folder_recovery.in_progress = false;
     model.sources.folder_recovery.entry_count = 3;
     for index in 0..8 {
