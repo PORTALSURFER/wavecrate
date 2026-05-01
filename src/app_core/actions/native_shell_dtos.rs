@@ -56,6 +56,9 @@ pub type FolderRowKind = list::EditableRowKind;
 /// Stable identifier for one side of the split folder pane surface.
 pub type FolderPaneIdModel = panel::SplitPaneSlot;
 
+/// Render data for one source row shown in the sidebar.
+pub type SourceRowModel = panel::SplitPaneAssignedRow;
+
 /// Transient browser row processing states for batch file operations.
 pub type BrowserRowProcessingState = list::RowProcessingState;
 
@@ -1102,49 +1105,6 @@ pub fn parse_waveform_tempo_number_text(label: &str) -> Option<String> {
     Some(number.to_string())
 }
 
-/// Render data for one source row shown in the sidebar.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct SourceRowModel {
-    /// Primary label shown for the source.
-    pub label: String,
-    /// Optional secondary detail text, usually a path or status.
-    pub detail: String,
-    /// Whether the row is currently selected.
-    pub selected: bool,
-    /// Whether the source is missing from disk.
-    pub missing: bool,
-    /// Whether this source is assigned to the upper folder pane.
-    pub assigned_to_upper_pane: bool,
-    /// Whether this source is assigned to the lower folder pane.
-    pub assigned_to_lower_pane: bool,
-}
-
-impl SourceRowModel {
-    /// Build a new source row model.
-    pub fn new(
-        label: impl Into<String>,
-        detail: impl Into<String>,
-        selected: bool,
-        missing: bool,
-    ) -> Self {
-        Self {
-            label: label.into(),
-            detail: detail.into(),
-            selected,
-            missing,
-            assigned_to_upper_pane: false,
-            assigned_to_lower_pane: false,
-        }
-    }
-
-    /// Mark whether this source is assigned to either fixed folder pane.
-    pub fn with_pane_assignment(mut self, upper: bool, lower: bool) -> Self {
-        self.assigned_to_upper_pane = upper;
-        self.assigned_to_lower_pane = lower;
-        self
-    }
-}
-
 /// Render data for one folder row shown in the sidebar folder tree.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FolderRowModel {
@@ -1493,32 +1453,6 @@ where
         .map(Into::into)
         .collect::<Vec<_>>()
         .into()
-}
-
-impl From<compat::SourceRowModel> for SourceRowModel {
-    fn from(value: compat::SourceRowModel) -> Self {
-        Self {
-            label: value.label,
-            detail: value.detail,
-            selected: value.selected,
-            missing: value.missing,
-            assigned_to_upper_pane: value.assigned_to_upper_pane,
-            assigned_to_lower_pane: value.assigned_to_lower_pane,
-        }
-    }
-}
-
-impl From<SourceRowModel> for compat::SourceRowModel {
-    fn from(value: SourceRowModel) -> Self {
-        Self {
-            label: value.label,
-            detail: value.detail,
-            selected: value.selected,
-            missing: value.missing,
-            assigned_to_upper_pane: value.assigned_to_upper_pane,
-            assigned_to_lower_pane: value.assigned_to_lower_pane,
-        }
-    }
 }
 
 impl From<compat::FolderRowModel> for FolderRowModel {
