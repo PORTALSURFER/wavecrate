@@ -7,100 +7,13 @@
 //! Sempal projection types.
 
 use radiant::compat::legacy_shell as compat;
+use radiant::gui::retained;
 use radiant::gui::types::ImageRgba;
 use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, ops::Deref, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 
 /// Shared storage used by retained app-model snapshots.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct RetainedVec<T>(Arc<Vec<T>>);
-
-impl<T> RetainedVec<T> {
-    /// Build an empty retained vector.
-    pub fn new() -> Self {
-        Self(Arc::new(Vec::new()))
-    }
-
-    /// Append one element, cloning the backing vector only when aliased.
-    pub fn push(&mut self, value: T)
-    where
-        T: Clone,
-    {
-        Arc::make_mut(&mut self.0).push(value);
-    }
-
-    /// Clear all elements, preserving retained storage when possible.
-    pub fn clear(&mut self)
-    where
-        T: Clone,
-    {
-        Arc::make_mut(&mut self.0).clear();
-    }
-
-    /// Truncate the vector to `len`.
-    pub fn truncate(&mut self, len: usize)
-    where
-        T: Clone,
-    {
-        Arc::make_mut(&mut self.0).truncate(len);
-    }
-
-    /// Return the number of retained elements.
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    /// Return whether the retained vector is empty.
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    /// Borrow the retained contents as a slice.
-    pub fn as_slice(&self) -> &[T] {
-        self.0.as_slice()
-    }
-
-    /// Borrow one retained element by index.
-    pub fn get(&self, index: usize) -> Option<&T> {
-        self.0.get(index)
-    }
-
-    /// Borrow one retained element mutably, cloning the backing vector only when aliased.
-    pub fn get_mut(&mut self, index: usize) -> Option<&mut T>
-    where
-        T: Clone,
-    {
-        Arc::make_mut(&mut self.0).get_mut(index)
-    }
-
-    /// Borrow the backing vector mutably for batched updates.
-    pub fn make_mut(&mut self) -> &mut Vec<T>
-    where
-        T: Clone,
-    {
-        Arc::make_mut(&mut self.0)
-    }
-}
-
-impl<T> Default for RetainedVec<T> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<T> Deref for RetainedVec<T> {
-    type Target = [T];
-
-    fn deref(&self) -> &Self::Target {
-        self.as_slice()
-    }
-}
-
-impl<T> From<Vec<T>> for RetainedVec<T> {
-    fn from(value: Vec<T>) -> Self {
-        Self(Arc::new(value))
-    }
-}
+pub type RetainedVec<T> = retained::RetainedVec<T>;
 
 /// Browser playback-age filter chips shown in the native toolbar.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -1866,34 +1779,30 @@ impl Default for AppModel {
     }
 }
 
-impl<T, U> From<compat::RetainedVec<T>> for RetainedVec<U>
+fn retained_vec_from_compat<T, U>(value: compat::RetainedVec<T>) -> RetainedVec<U>
 where
     T: Clone + Into<U>,
 {
-    fn from(value: compat::RetainedVec<T>) -> Self {
-        value
-            .as_slice()
-            .iter()
-            .cloned()
-            .map(Into::into)
-            .collect::<Vec<_>>()
-            .into()
-    }
+    value
+        .as_slice()
+        .iter()
+        .cloned()
+        .map(Into::into)
+        .collect::<Vec<_>>()
+        .into()
 }
 
-impl<T, U> From<RetainedVec<T>> for compat::RetainedVec<U>
+fn retained_vec_to_compat<T, U>(value: RetainedVec<T>) -> compat::RetainedVec<U>
 where
     T: Clone + Into<U>,
 {
-    fn from(value: RetainedVec<T>) -> Self {
-        value
-            .as_slice()
-            .iter()
-            .cloned()
-            .map(Into::into)
-            .collect::<Vec<_>>()
-            .into()
-    }
+    value
+        .as_slice()
+        .iter()
+        .cloned()
+        .map(Into::into)
+        .collect::<Vec<_>>()
+        .into()
 }
 
 impl From<compat::FolderPaneIdModel> for FolderPaneIdModel {
@@ -2112,7 +2021,7 @@ impl From<compat::FolderPaneModel> for FolderPaneModel {
             flattened_view: value.flattened_view,
             can_toggle_flattened_view: value.can_toggle_flattened_view,
             focused_folder_row: value.focused_folder_row,
-            folder_rows: value.folder_rows.into(),
+            folder_rows: retained_vec_from_compat(value.folder_rows),
             folder_actions: value.folder_actions.into(),
             folder_recovery: value.folder_recovery.into(),
         }
@@ -2137,7 +2046,7 @@ impl From<FolderPaneModel> for compat::FolderPaneModel {
             flattened_view: value.flattened_view,
             can_toggle_flattened_view: value.can_toggle_flattened_view,
             focused_folder_row: value.focused_folder_row,
-            folder_rows: value.folder_rows.into(),
+            folder_rows: retained_vec_to_compat(value.folder_rows),
             folder_actions: value.folder_actions.into(),
             folder_recovery: value.folder_recovery.into(),
         }
@@ -2161,8 +2070,8 @@ impl From<compat::SourcesPanelModel> for SourcesPanelModel {
             loading_row: value.loading_row,
             mutation_busy_row: value.mutation_busy_row,
             focused_folder_row: value.focused_folder_row,
-            rows: value.rows.into(),
-            folder_rows: value.folder_rows.into(),
+            rows: retained_vec_from_compat(value.rows),
+            folder_rows: retained_vec_from_compat(value.folder_rows),
             folder_actions: value.folder_actions.into(),
             folder_recovery: value.folder_recovery.into(),
         }
@@ -2186,8 +2095,8 @@ impl From<SourcesPanelModel> for compat::SourcesPanelModel {
             loading_row: value.loading_row,
             mutation_busy_row: value.mutation_busy_row,
             focused_folder_row: value.focused_folder_row,
-            rows: value.rows.into(),
-            folder_rows: value.folder_rows.into(),
+            rows: retained_vec_to_compat(value.rows),
+            folder_rows: retained_vec_to_compat(value.folder_rows),
             folder_actions: value.folder_actions.into(),
             folder_recovery: value.folder_recovery.into(),
         }
@@ -2334,7 +2243,7 @@ impl From<compat::BrowserPanelModel> for BrowserPanelModel {
             focused_sample_label: value.focused_sample_label,
             tag_sidebar: value.tag_sidebar.into(),
             anchor_visible_row: value.anchor_visible_row,
-            rows: value.rows.into(),
+            rows: retained_vec_from_compat(value.rows),
         }
     }
 }
@@ -2365,7 +2274,7 @@ impl From<BrowserPanelModel> for compat::BrowserPanelModel {
             focused_sample_label: value.focused_sample_label,
             tag_sidebar: value.tag_sidebar.into(),
             anchor_visible_row: value.anchor_visible_row,
-            rows: value.rows.into(),
+            rows: retained_vec_to_compat(value.rows),
         }
     }
 }

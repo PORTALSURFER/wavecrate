@@ -238,6 +238,18 @@ fn native_action_exports_are_owned_in_app_core() {
         "NativeAppBridge must stay Sempal-owned, with compatibility conversion at the runtime boundary"
     );
 
+    let native_dtos =
+        fs::read_to_string(manifest_dir.join("src/app_core/actions/native_shell_dtos.rs"))
+            .expect("native shell dtos");
+    assert!(
+        !native_dtos.contains("pub struct RetainedVec"),
+        "retained snapshot storage should use the Radiant-owned generic primitive"
+    );
+    assert!(
+        native_dtos.contains("pub type RetainedVec<T> = retained::RetainedVec<T>;"),
+        "Sempal native DTOs should alias the generic Radiant retained storage primitive"
+    );
+
     let radiant_app_sources = [
         "actions/mod.rs",
         "dirty_segments.rs",
