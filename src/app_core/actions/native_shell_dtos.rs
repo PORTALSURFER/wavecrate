@@ -114,15 +114,7 @@ pub type AudioOptionItemModel = form::OptionItem<AudioOptionValueModel>;
 pub type AudioFieldModel = form::SummaryField;
 
 /// Browser playback-age filter chips shown in the native toolbar.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub enum PlaybackAgeFilterChip {
-    /// Samples that have never been played.
-    NeverPlayed,
-    /// Samples whose last playback was at least 30 days ago.
-    OlderThanMonth,
-    /// Samples whose last playback was at least 7 days ago but less than 30 days ago.
-    OlderThanWeek,
-}
+pub type PlaybackAgeFilterChip = list::RecencyFilterChip;
 
 // Sempal-owned GUI automation snapshot DTOs.
 
@@ -517,18 +509,7 @@ impl NativeMotionModel {
 }
 
 /// Visual playback-age buckets derived from sample playback history.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum PlaybackAgeBucket {
-    /// Samples played within the last 7 days, including future-skewed timestamps.
-    #[default]
-    Fresh,
-    /// Samples last played at least 7 days ago but less than 30 days ago.
-    OlderThanWeek,
-    /// Samples last played at least 30 days ago.
-    OlderThanMonth,
-    /// Samples with no recorded playback timestamp.
-    NeverPlayed,
-}
+pub type PlaybackAgeBucket = list::RecencyBucket;
 
 /// Summary of one browser/list row consumed by the native shell.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1300,48 +1281,6 @@ impl From<SourcesPanelModel> for compat::SourcesPanelModel {
 impl From<&SourcesPanelModel> for compat::SourcesPanelModel {
     fn from(value: &SourcesPanelModel) -> Self {
         value.clone().into()
-    }
-}
-
-impl From<compat::PlaybackAgeFilterChip> for PlaybackAgeFilterChip {
-    fn from(value: compat::PlaybackAgeFilterChip) -> Self {
-        match value {
-            compat::PlaybackAgeFilterChip::NeverPlayed => Self::NeverPlayed,
-            compat::PlaybackAgeFilterChip::OlderThanMonth => Self::OlderThanMonth,
-            compat::PlaybackAgeFilterChip::OlderThanWeek => Self::OlderThanWeek,
-        }
-    }
-}
-
-impl From<PlaybackAgeFilterChip> for compat::PlaybackAgeFilterChip {
-    fn from(value: PlaybackAgeFilterChip) -> Self {
-        match value {
-            PlaybackAgeFilterChip::NeverPlayed => Self::NeverPlayed,
-            PlaybackAgeFilterChip::OlderThanMonth => Self::OlderThanMonth,
-            PlaybackAgeFilterChip::OlderThanWeek => Self::OlderThanWeek,
-        }
-    }
-}
-
-impl From<compat::PlaybackAgeBucket> for PlaybackAgeBucket {
-    fn from(value: compat::PlaybackAgeBucket) -> Self {
-        match value {
-            compat::PlaybackAgeBucket::Fresh => Self::Fresh,
-            compat::PlaybackAgeBucket::OlderThanWeek => Self::OlderThanWeek,
-            compat::PlaybackAgeBucket::OlderThanMonth => Self::OlderThanMonth,
-            compat::PlaybackAgeBucket::NeverPlayed => Self::NeverPlayed,
-        }
-    }
-}
-
-impl From<PlaybackAgeBucket> for compat::PlaybackAgeBucket {
-    fn from(value: PlaybackAgeBucket) -> Self {
-        match value {
-            PlaybackAgeBucket::Fresh => Self::Fresh,
-            PlaybackAgeBucket::OlderThanWeek => Self::OlderThanWeek,
-            PlaybackAgeBucket::OlderThanMonth => Self::OlderThanMonth,
-            PlaybackAgeBucket::NeverPlayed => Self::NeverPlayed,
-        }
     }
 }
 

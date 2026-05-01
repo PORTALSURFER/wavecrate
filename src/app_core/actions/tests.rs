@@ -317,6 +317,8 @@ fn native_action_exports_are_owned_in_app_core() {
     );
     assert!(
         !native_dtos.contains("pub enum BrowserRowProcessingState")
+            && !native_dtos.contains("pub enum PlaybackAgeFilterChip")
+            && !native_dtos.contains("pub enum PlaybackAgeBucket")
             && !native_dtos.contains("pub enum BrowserTagState")
             && !native_dtos.contains("pub struct BrowserTagPillModel")
             && !native_dtos.contains("pub struct BrowserTagSidebarModel")
@@ -327,6 +329,8 @@ fn native_action_exports_are_owned_in_app_core() {
     );
     assert!(
         native_dtos.contains("pub type BrowserRowProcessingState = list::RowProcessingState;")
+            && native_dtos.contains("pub type PlaybackAgeFilterChip = list::RecencyFilterChip;")
+            && native_dtos.contains("pub type PlaybackAgeBucket = list::RecencyBucket;")
             && native_dtos.contains("pub type BrowserTagState = selection::TriState;")
             && native_dtos
                 .contains("pub type BrowserTagPillModel = badge::SelectablePill<BrowserTagState>;")
