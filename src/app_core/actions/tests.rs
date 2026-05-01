@@ -306,6 +306,24 @@ fn native_action_exports_are_owned_in_app_core() {
             && native_dtos.contains("pub type FolderRowKind = list::EditableRowKind;"),
         "Sempal source/sidebar DTOs should alias generic Radiant list primitives"
     );
+    assert!(
+        !native_dtos.contains("pub enum BrowserRowProcessingState")
+            && !native_dtos.contains("pub enum BrowserTagState")
+            && !native_dtos.contains("pub struct BrowserTagPillModel")
+            && !native_dtos.contains("pub enum MapRenderModeModel")
+            && !native_dtos.contains("pub enum UpdateStatusModel"),
+        "generic row state, pill state, map mode, and update status DTOs should use Radiant-owned primitives"
+    );
+    assert!(
+        native_dtos.contains("pub type BrowserRowProcessingState = list::RowProcessingState;")
+            && native_dtos.contains("pub type BrowserTagState = selection::TriState;")
+            && native_dtos
+                .contains("pub type BrowserTagPillModel = badge::SelectablePill<BrowserTagState>;")
+            && native_dtos
+                .contains("pub type MapRenderModeModel = visualization::PointRenderMode;")
+            && native_dtos.contains("pub type UpdateStatusModel = feedback::UpdateStatus;"),
+        "Sempal native DTOs should alias generic Radiant state primitives"
+    );
 
     let radiant_app_sources = [
         "actions/mod.rs",

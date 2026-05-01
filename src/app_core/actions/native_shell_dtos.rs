@@ -8,13 +8,16 @@
 
 use radiant::compat::legacy_shell as compat;
 use radiant::gui::automation;
+use radiant::gui::badge;
 use radiant::gui::chrome;
 use radiant::gui::feedback;
 use radiant::gui::frame;
 use radiant::gui::list;
 use radiant::gui::range;
 use radiant::gui::retained;
+use radiant::gui::selection;
 use radiant::gui::types::ImageRgba;
+use radiant::gui::visualization;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -47,6 +50,21 @@ pub type ColumnModel = list::ColumnSummary;
 
 /// Render data for one folder row shown in the sidebar folder tree.
 pub type FolderRowKind = list::EditableRowKind;
+
+/// Transient browser row processing states for batch file operations.
+pub type BrowserRowProcessingState = list::RowProcessingState;
+
+/// Tri-state pill state used by the browser metadata editor.
+pub type BrowserTagState = selection::TriState;
+
+/// One clickable tag pill projected into the browser metadata sidebar.
+pub type BrowserTagPillModel = badge::SelectablePill<BrowserTagState>;
+
+/// Render mode label for the map panel.
+pub type MapRenderModeModel = visualization::PointRenderMode;
+
+/// Update-check status projected into the native shell.
+pub type UpdateStatusModel = feedback::UpdateStatus;
 
 /// Browser playback-age filter chips shown in the native toolbar.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -465,24 +483,6 @@ pub enum PlaybackAgeBucket {
     NeverPlayed,
 }
 
-/// Transient browser row processing states for batch file operations.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum BrowserRowProcessingState {
-    /// The row is not part of an active row-scoped operation.
-    #[default]
-    None,
-    /// The row is waiting in the current batch.
-    Queued,
-    /// The row is currently being processed.
-    Active,
-    /// The row completed successfully.
-    Completed,
-    /// The row was skipped by the batch.
-    Skipped,
-    /// The row failed during processing.
-    Failed,
-}
-
 /// Summary of one browser/list row consumed by the native shell.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BrowserRowModel {
@@ -717,29 +717,6 @@ pub struct BrowserActionsModel {
     pub tag_sidebar_open: bool,
 }
 
-/// Tri-state pill state used by the browser metadata editor.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub enum BrowserTagState {
-    /// No selected rows currently carry the value.
-    #[default]
-    Off,
-    /// Every selected row currently carries the value.
-    On,
-    /// Selected rows disagree about the value.
-    Mixed,
-}
-
-/// One clickable tag pill projected into the browser metadata sidebar.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct BrowserTagPillModel {
-    /// Stable identifier for hit testing and automation.
-    pub id: String,
-    /// User-facing pill label.
-    pub label: String,
-    /// Tri-state selection value for the current browser target set.
-    pub state: BrowserTagState,
-}
-
 /// Browser-local metadata sidebar shown beside the sample list.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct BrowserTagSidebarModel {
@@ -761,16 +738,6 @@ pub struct BrowserTagSidebarModel {
     pub normal_tag_pills: Vec<BrowserTagPillModel>,
     /// Create-new candidate when the input does not exactly match an existing tag.
     pub create_tag_pill: Option<BrowserTagPillModel>,
-}
-
-/// Render mode label for the map panel.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub enum MapRenderModeModel {
-    /// Rendered as a density heatmap.
-    Heatmap,
-    /// Rendered as individual points.
-    #[default]
-    Points,
 }
 
 /// Render data for one map point shown in the native map canvas.
@@ -914,20 +881,6 @@ pub struct AudioEngineModel {
     pub input_device_options: Vec<AudioOptionItemModel>,
     /// Input sample-rate choices.
     pub input_sample_rate_options: Vec<AudioOptionItemModel>,
-}
-
-/// Update-check status projected into the native shell.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub enum UpdateStatusModel {
-    /// No update activity in progress.
-    #[default]
-    Idle,
-    /// Update check is running.
-    Checking,
-    /// A newer update is available.
-    Available,
-    /// Update check failed.
-    Error,
 }
 
 /// Update panel state used by native top-bar actions.
@@ -1948,32 +1901,6 @@ impl From<PlaybackAgeBucket> for compat::PlaybackAgeBucket {
     }
 }
 
-impl From<compat::BrowserRowProcessingState> for BrowserRowProcessingState {
-    fn from(value: compat::BrowserRowProcessingState) -> Self {
-        match value {
-            compat::BrowserRowProcessingState::None => Self::None,
-            compat::BrowserRowProcessingState::Queued => Self::Queued,
-            compat::BrowserRowProcessingState::Active => Self::Active,
-            compat::BrowserRowProcessingState::Completed => Self::Completed,
-            compat::BrowserRowProcessingState::Skipped => Self::Skipped,
-            compat::BrowserRowProcessingState::Failed => Self::Failed,
-        }
-    }
-}
-
-impl From<BrowserRowProcessingState> for compat::BrowserRowProcessingState {
-    fn from(value: BrowserRowProcessingState) -> Self {
-        match value {
-            BrowserRowProcessingState::None => Self::None,
-            BrowserRowProcessingState::Queued => Self::Queued,
-            BrowserRowProcessingState::Active => Self::Active,
-            BrowserRowProcessingState::Completed => Self::Completed,
-            BrowserRowProcessingState::Skipped => Self::Skipped,
-            BrowserRowProcessingState::Failed => Self::Failed,
-        }
-    }
-}
-
 impl From<compat::BrowserRowModel> for BrowserRowModel {
     fn from(value: compat::BrowserRowModel) -> Self {
         Self {
@@ -2158,46 +2085,6 @@ impl From<&BrowserActionsModel> for compat::BrowserActionsModel {
     }
 }
 
-impl From<compat::BrowserTagState> for BrowserTagState {
-    fn from(value: compat::BrowserTagState) -> Self {
-        match value {
-            compat::BrowserTagState::Off => Self::Off,
-            compat::BrowserTagState::On => Self::On,
-            compat::BrowserTagState::Mixed => Self::Mixed,
-        }
-    }
-}
-
-impl From<BrowserTagState> for compat::BrowserTagState {
-    fn from(value: BrowserTagState) -> Self {
-        match value {
-            BrowserTagState::Off => Self::Off,
-            BrowserTagState::On => Self::On,
-            BrowserTagState::Mixed => Self::Mixed,
-        }
-    }
-}
-
-impl From<compat::BrowserTagPillModel> for BrowserTagPillModel {
-    fn from(value: compat::BrowserTagPillModel) -> Self {
-        Self {
-            id: value.id,
-            label: value.label,
-            state: value.state.into(),
-        }
-    }
-}
-
-impl From<BrowserTagPillModel> for compat::BrowserTagPillModel {
-    fn from(value: BrowserTagPillModel) -> Self {
-        Self {
-            id: value.id,
-            label: value.label,
-            state: value.state.into(),
-        }
-    }
-}
-
 impl From<compat::BrowserTagSidebarModel> for BrowserTagSidebarModel {
     fn from(value: compat::BrowserTagSidebarModel) -> Self {
         Self {
@@ -2233,24 +2120,6 @@ impl From<BrowserTagSidebarModel> for compat::BrowserTagSidebarModel {
 impl From<&BrowserTagSidebarModel> for compat::BrowserTagSidebarModel {
     fn from(value: &BrowserTagSidebarModel) -> Self {
         value.clone().into()
-    }
-}
-
-impl From<compat::MapRenderModeModel> for MapRenderModeModel {
-    fn from(value: compat::MapRenderModeModel) -> Self {
-        match value {
-            compat::MapRenderModeModel::Heatmap => Self::Heatmap,
-            compat::MapRenderModeModel::Points => Self::Points,
-        }
-    }
-}
-
-impl From<MapRenderModeModel> for compat::MapRenderModeModel {
-    fn from(value: MapRenderModeModel) -> Self {
-        match value {
-            MapRenderModeModel::Heatmap => Self::Heatmap,
-            MapRenderModeModel::Points => Self::Points,
-        }
     }
 }
 
@@ -2537,28 +2406,6 @@ impl From<AudioEngineModel> for compat::AudioEngineModel {
 impl From<&AudioEngineModel> for compat::AudioEngineModel {
     fn from(value: &AudioEngineModel) -> Self {
         value.clone().into()
-    }
-}
-
-impl From<compat::UpdateStatusModel> for UpdateStatusModel {
-    fn from(value: compat::UpdateStatusModel) -> Self {
-        match value {
-            compat::UpdateStatusModel::Idle => Self::Idle,
-            compat::UpdateStatusModel::Checking => Self::Checking,
-            compat::UpdateStatusModel::Available => Self::Available,
-            compat::UpdateStatusModel::Error => Self::Error,
-        }
-    }
-}
-
-impl From<UpdateStatusModel> for compat::UpdateStatusModel {
-    fn from(value: UpdateStatusModel) -> Self {
-        match value {
-            UpdateStatusModel::Idle => Self::Idle,
-            UpdateStatusModel::Checking => Self::Checking,
-            UpdateStatusModel::Available => Self::Available,
-            UpdateStatusModel::Error => Self::Error,
-        }
     }
 }
 
