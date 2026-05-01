@@ -59,6 +59,9 @@ fi
 echo "[devcheck] branch policy"
 ./scripts/internal/check/check_next_branch.sh
 
+echo "[devcheck] cargo check --manifest-path vendor/radiant/Cargo.toml"
+cargo check --manifest-path vendor/radiant/Cargo.toml
+
 if (( APP_ONLY == 1 )); then
   echo "[devcheck] cargo check -p sempal --lib --bin sempal"
   cargo check -p sempal --lib --bin sempal

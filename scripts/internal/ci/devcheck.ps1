@@ -57,6 +57,11 @@ try {
     & (Join-Path $rootDir "scripts/check.ps1") next-branch
   }
 
+  Write-Host "[devcheck] cargo check --manifest-path vendor/radiant/Cargo.toml"
+  Invoke-NativeStep -Label "cargo check --manifest-path vendor/radiant/Cargo.toml" -Command {
+    Invoke-SempalCargo check --manifest-path vendor/radiant/Cargo.toml
+  }
+
   if ($AppOnly) {
     Write-Host "[devcheck] cargo check -p sempal --lib --bin sempal"
     Invoke-NativeStep -Label "cargo check -p sempal --lib --bin sempal" -Command {
