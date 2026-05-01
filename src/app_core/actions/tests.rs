@@ -296,6 +296,16 @@ fn native_action_exports_are_owned_in_app_core() {
             && native_dtos.contains("pub type DragOverlayModel = feedback::DragOverlay;"),
         "Sempal feedback overlays should alias generic Radiant feedback primitives"
     );
+    assert!(
+        !native_dtos.contains("pub struct ColumnModel")
+            && !native_dtos.contains("pub enum FolderRowKind"),
+        "generic list column and editable-row kinds should use Radiant-owned primitives"
+    );
+    assert!(
+        native_dtos.contains("pub type ColumnModel = list::ColumnSummary;")
+            && native_dtos.contains("pub type FolderRowKind = list::EditableRowKind;"),
+        "Sempal source/sidebar DTOs should alias generic Radiant list primitives"
+    );
 
     let radiant_app_sources = [
         "actions/mod.rs",

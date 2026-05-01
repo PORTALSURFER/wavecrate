@@ -11,6 +11,7 @@ use radiant::gui::automation;
 use radiant::gui::chrome;
 use radiant::gui::feedback;
 use radiant::gui::frame;
+use radiant::gui::list;
 use radiant::gui::range;
 use radiant::gui::retained;
 use radiant::gui::types::ImageRgba;
@@ -40,6 +41,12 @@ pub type ProgressOverlayModel = feedback::ProgressOverlay;
 
 /// Drag/drop overlay content for native-shell feedback.
 pub type DragOverlayModel = feedback::DragOverlay;
+
+/// Render data for one triage/browser column.
+pub type ColumnModel = list::ColumnSummary;
+
+/// Render data for one folder row shown in the sidebar folder tree.
+pub type FolderRowKind = list::EditableRowKind;
 
 /// Browser playback-age filter chips shown in the native toolbar.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -1229,25 +1236,6 @@ impl FolderPaneIdModel {
     }
 }
 
-/// Render data for one triage/browser column.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ColumnModel {
-    /// Display label for the column header.
-    pub title: String,
-    /// Number of rows/items represented by the column.
-    pub item_count: usize,
-}
-
-impl ColumnModel {
-    /// Build a new column model.
-    pub fn new(title: impl Into<String>, item_count: usize) -> Self {
-        Self {
-            title: title.into(),
-            item_count,
-        }
-    }
-}
-
 /// Render data for one source row shown in the sidebar.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SourceRowModel {
@@ -1289,18 +1277,6 @@ impl SourceRowModel {
         self.assigned_to_lower_pane = lower;
         self
     }
-}
-
-/// Render data for one folder row shown in the sidebar folder tree.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub enum FolderRowKind {
-    /// Standard existing folder row projected from host state.
-    #[default]
-    Existing,
-    /// Inline draft row used while creating a new folder in place.
-    CreateDraft,
-    /// Inline draft row used while renaming an existing folder in place.
-    RenameDraft,
 }
 
 /// Render data for one folder row shown in the sidebar folder tree.
@@ -1682,24 +1658,6 @@ impl From<FolderPaneIdModel> for compat::FolderPaneIdModel {
     }
 }
 
-impl From<compat::ColumnModel> for ColumnModel {
-    fn from(value: compat::ColumnModel) -> Self {
-        Self {
-            title: value.title,
-            item_count: value.item_count,
-        }
-    }
-}
-
-impl From<ColumnModel> for compat::ColumnModel {
-    fn from(value: ColumnModel) -> Self {
-        Self {
-            title: value.title,
-            item_count: value.item_count,
-        }
-    }
-}
-
 impl From<compat::SourceRowModel> for SourceRowModel {
     fn from(value: compat::SourceRowModel) -> Self {
         Self {
@@ -1722,26 +1680,6 @@ impl From<SourceRowModel> for compat::SourceRowModel {
             missing: value.missing,
             assigned_to_upper_pane: value.assigned_to_upper_pane,
             assigned_to_lower_pane: value.assigned_to_lower_pane,
-        }
-    }
-}
-
-impl From<compat::FolderRowKind> for FolderRowKind {
-    fn from(value: compat::FolderRowKind) -> Self {
-        match value {
-            compat::FolderRowKind::Existing => Self::Existing,
-            compat::FolderRowKind::CreateDraft => Self::CreateDraft,
-            compat::FolderRowKind::RenameDraft => Self::RenameDraft,
-        }
-    }
-}
-
-impl From<FolderRowKind> for compat::FolderRowKind {
-    fn from(value: FolderRowKind) -> Self {
-        match value {
-            FolderRowKind::Existing => Self::Existing,
-            FolderRowKind::CreateDraft => Self::CreateDraft,
-            FolderRowKind::RenameDraft => Self::RenameDraft,
         }
     }
 }
