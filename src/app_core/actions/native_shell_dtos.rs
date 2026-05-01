@@ -11,6 +11,7 @@ use radiant::gui::automation;
 use radiant::gui::badge;
 use radiant::gui::chrome;
 use radiant::gui::feedback;
+use radiant::gui::form;
 use radiant::gui::frame;
 use radiant::gui::list;
 use radiant::gui::range;
@@ -71,6 +72,12 @@ pub type UpdatePanelModel = feedback::UpdatePanel;
 
 /// Modal confirmation prompt projected into the native shell.
 pub type ConfirmPromptModel = feedback::ConfirmPrompt<ConfirmPromptKind>;
+
+/// One selectable item shown inside an audio picker.
+pub type AudioOptionItemModel = form::OptionItem<AudioOptionValueModel>;
+
+/// Overview row shown for one audio field inside the options panel.
+pub type AudioFieldModel = form::SummaryField;
 
 /// Browser playback-age filter chips shown in the native toolbar.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -830,26 +837,6 @@ pub enum AudioOptionValueModel {
     InputDevice(Option<String>),
     /// Input sample rate in Hz, or `None` for the device default.
     InputSampleRate(Option<u32>),
-}
-
-/// One selectable item shown inside an audio picker.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AudioOptionItemModel {
-    /// Human-readable option label.
-    pub label: String,
-    /// Whether the option is currently selected.
-    pub selected: bool,
-    /// Raw value applied when the option is chosen.
-    pub value: AudioOptionValueModel,
-}
-
-/// Overview row shown for one audio field inside the options panel.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct AudioFieldModel {
-    /// Static row label.
-    pub label: String,
-    /// Current value summary.
-    pub value_label: String,
 }
 
 /// Output/input audio engine state projected into the native shell.
@@ -2233,41 +2220,19 @@ impl From<AudioOptionValueModel> for compat::AudioOptionValueModel {
     }
 }
 
-impl From<compat::AudioOptionItemModel> for AudioOptionItemModel {
-    fn from(value: compat::AudioOptionItemModel) -> Self {
-        Self {
-            label: value.label,
-            selected: value.selected,
-            value: value.value.into(),
-        }
+fn audio_option_item_from_compat(value: compat::AudioOptionItemModel) -> AudioOptionItemModel {
+    AudioOptionItemModel {
+        label: value.label,
+        selected: value.selected,
+        value: value.value.into(),
     }
 }
 
-impl From<AudioOptionItemModel> for compat::AudioOptionItemModel {
-    fn from(value: AudioOptionItemModel) -> Self {
-        Self {
-            label: value.label,
-            selected: value.selected,
-            value: value.value.into(),
-        }
-    }
-}
-
-impl From<compat::AudioFieldModel> for AudioFieldModel {
-    fn from(value: compat::AudioFieldModel) -> Self {
-        Self {
-            label: value.label,
-            value_label: value.value_label,
-        }
-    }
-}
-
-impl From<AudioFieldModel> for compat::AudioFieldModel {
-    fn from(value: AudioFieldModel) -> Self {
-        Self {
-            label: value.label,
-            value_label: value.value_label,
-        }
+fn audio_option_item_to_compat(value: AudioOptionItemModel) -> compat::AudioOptionItemModel {
+    compat::AudioOptionItemModel {
+        label: value.label,
+        selected: value.selected,
+        value: value.value.into(),
     }
 }
 
@@ -2287,32 +2252,32 @@ impl From<compat::AudioEngineModel> for AudioEngineModel {
             output_host_options: value
                 .output_host_options
                 .into_iter()
-                .map(Into::into)
+                .map(audio_option_item_from_compat)
                 .collect(),
             output_device_options: value
                 .output_device_options
                 .into_iter()
-                .map(Into::into)
+                .map(audio_option_item_from_compat)
                 .collect(),
             output_sample_rate_options: value
                 .output_sample_rate_options
                 .into_iter()
-                .map(Into::into)
+                .map(audio_option_item_from_compat)
                 .collect(),
             input_host_options: value
                 .input_host_options
                 .into_iter()
-                .map(Into::into)
+                .map(audio_option_item_from_compat)
                 .collect(),
             input_device_options: value
                 .input_device_options
                 .into_iter()
-                .map(Into::into)
+                .map(audio_option_item_from_compat)
                 .collect(),
             input_sample_rate_options: value
                 .input_sample_rate_options
                 .into_iter()
-                .map(Into::into)
+                .map(audio_option_item_from_compat)
                 .collect(),
         }
     }
@@ -2334,32 +2299,32 @@ impl From<AudioEngineModel> for compat::AudioEngineModel {
             output_host_options: value
                 .output_host_options
                 .into_iter()
-                .map(Into::into)
+                .map(audio_option_item_to_compat)
                 .collect(),
             output_device_options: value
                 .output_device_options
                 .into_iter()
-                .map(Into::into)
+                .map(audio_option_item_to_compat)
                 .collect(),
             output_sample_rate_options: value
                 .output_sample_rate_options
                 .into_iter()
-                .map(Into::into)
+                .map(audio_option_item_to_compat)
                 .collect(),
             input_host_options: value
                 .input_host_options
                 .into_iter()
-                .map(Into::into)
+                .map(audio_option_item_to_compat)
                 .collect(),
             input_device_options: value
                 .input_device_options
                 .into_iter()
-                .map(Into::into)
+                .map(audio_option_item_to_compat)
                 .collect(),
             input_sample_rate_options: value
                 .input_sample_rate_options
                 .into_iter()
-                .map(Into::into)
+                .map(audio_option_item_to_compat)
                 .collect(),
         }
     }

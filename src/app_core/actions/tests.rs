@@ -341,6 +341,17 @@ fn native_action_exports_are_owned_in_app_core() {
             .contains("pub type ConfirmPromptModel = feedback::ConfirmPrompt<ConfirmPromptKind>;"),
         "Sempal native confirm prompts should alias the generic Radiant prompt primitive"
     );
+    assert!(
+        !native_dtos.contains("pub struct AudioOptionItemModel")
+            && !native_dtos.contains("pub struct AudioFieldModel"),
+        "audio picker item and summary field containers should use Radiant-owned generic form primitives"
+    );
+    assert!(
+        native_dtos
+            .contains("pub type AudioOptionItemModel = form::OptionItem<AudioOptionValueModel>;")
+            && native_dtos.contains("pub type AudioFieldModel = form::SummaryField;"),
+        "Sempal native audio picker DTOs should alias generic Radiant form primitives"
+    );
 
     let radiant_app_sources = [
         "actions/mod.rs",
