@@ -8,6 +8,8 @@
 
 use radiant::compat::legacy_shell as compat;
 use radiant::gui::automation;
+use radiant::gui::chrome;
+use radiant::gui::feedback;
 use radiant::gui::frame;
 use radiant::gui::range;
 use radiant::gui::retained;
@@ -29,6 +31,15 @@ pub type FrameBuildResult = frame::FrameBuildResult;
 
 /// Normalized interval with deterministic milli, micro, and nano projections.
 pub type NormalizedRangeModel = range::NormalizedRange;
+
+/// Structured footer status content for left/center/right status segments.
+pub type StatusBarModel = chrome::StatusSegments;
+
+/// Progress overlay state projected into the native shell.
+pub type ProgressOverlayModel = feedback::ProgressOverlay;
+
+/// Drag/drop overlay content for native-shell feedback.
+pub type DragOverlayModel = feedback::DragOverlay;
 
 /// Browser playback-age filter chips shown in the native toolbar.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -797,17 +808,6 @@ pub struct MapPanelModel {
     pub points: Arc<[MapPointModel]>,
 }
 
-/// Structured footer status content for left/center/right status segments.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct StatusBarModel {
-    /// Left-aligned status segment.
-    pub left: String,
-    /// Center-aligned status segment.
-    pub center: String,
-    /// Right-aligned status segment.
-    pub right: String,
-}
-
 /// Health state of the compact audio-engine status chip.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum AudioEngineChipStateModel {
@@ -942,27 +942,6 @@ pub struct UpdatePanelModel {
     pub last_error: Option<String>,
 }
 
-/// Progress overlay state projected into the native shell.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct ProgressOverlayModel {
-    /// Whether the overlay is currently visible.
-    pub visible: bool,
-    /// Whether the overlay is modal.
-    pub modal: bool,
-    /// Title text for the progress surface.
-    pub title: String,
-    /// Optional detail line.
-    pub detail: Option<String>,
-    /// Completed steps.
-    pub completed: usize,
-    /// Total steps.
-    pub total: usize,
-    /// Whether the running operation supports cancel.
-    pub cancelable: bool,
-    /// Whether cancel has already been requested.
-    pub cancel_requested: bool,
-}
-
 /// Options-panel state projected into the native shell.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct OptionsPanelModel {
@@ -1024,23 +1003,6 @@ pub struct ConfirmPromptModel {
     pub input_placeholder: Option<String>,
     /// Optional validation error shown below editable prompt input.
     pub input_error: Option<String>,
-}
-
-/// Drag/drop overlay content for native-shell feedback.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct DragOverlayModel {
-    /// Whether a drag payload is currently active.
-    pub active: bool,
-    /// Human-friendly payload label.
-    pub label: String,
-    /// Current hover target label.
-    pub target_label: String,
-    /// Whether the current target is a valid drop.
-    pub valid_target: bool,
-    /// Cursor anchor x-coordinate for the floating drag chip, when available.
-    pub pointer_x: Option<u16>,
-    /// Cursor anchor y-coordinate for the floating drag chip, when available.
-    pub pointer_y: Option<u16>,
 }
 
 /// One detected waveform slice preview exposed to the native shell.
@@ -2432,32 +2394,6 @@ impl From<&MapPanelModel> for compat::MapPanelModel {
     }
 }
 
-impl From<compat::StatusBarModel> for StatusBarModel {
-    fn from(value: compat::StatusBarModel) -> Self {
-        Self {
-            left: value.left,
-            center: value.center,
-            right: value.right,
-        }
-    }
-}
-
-impl From<StatusBarModel> for compat::StatusBarModel {
-    fn from(value: StatusBarModel) -> Self {
-        Self {
-            left: value.left,
-            center: value.center,
-            right: value.right,
-        }
-    }
-}
-
-impl From<&StatusBarModel> for compat::StatusBarModel {
-    fn from(value: &StatusBarModel) -> Self {
-        value.clone().into()
-    }
-}
-
 impl From<compat::AudioEngineChipStateModel> for AudioEngineChipStateModel {
     fn from(value: compat::AudioEngineChipStateModel) -> Self {
         match value {
@@ -2722,42 +2658,6 @@ impl From<&UpdatePanelModel> for compat::UpdatePanelModel {
     }
 }
 
-impl From<compat::ProgressOverlayModel> for ProgressOverlayModel {
-    fn from(value: compat::ProgressOverlayModel) -> Self {
-        Self {
-            visible: value.visible,
-            modal: value.modal,
-            title: value.title,
-            detail: value.detail,
-            completed: value.completed,
-            total: value.total,
-            cancelable: value.cancelable,
-            cancel_requested: value.cancel_requested,
-        }
-    }
-}
-
-impl From<ProgressOverlayModel> for compat::ProgressOverlayModel {
-    fn from(value: ProgressOverlayModel) -> Self {
-        Self {
-            visible: value.visible,
-            modal: value.modal,
-            title: value.title,
-            detail: value.detail,
-            completed: value.completed,
-            total: value.total,
-            cancelable: value.cancelable,
-            cancel_requested: value.cancel_requested,
-        }
-    }
-}
-
-impl From<&ProgressOverlayModel> for compat::ProgressOverlayModel {
-    fn from(value: &ProgressOverlayModel) -> Self {
-        value.clone().into()
-    }
-}
-
 impl From<compat::OptionsPanelModel> for OptionsPanelModel {
     fn from(value: compat::OptionsPanelModel) -> Self {
         Self {
@@ -2860,38 +2760,6 @@ impl From<ConfirmPromptModel> for compat::ConfirmPromptModel {
 
 impl From<&ConfirmPromptModel> for compat::ConfirmPromptModel {
     fn from(value: &ConfirmPromptModel) -> Self {
-        value.clone().into()
-    }
-}
-
-impl From<compat::DragOverlayModel> for DragOverlayModel {
-    fn from(value: compat::DragOverlayModel) -> Self {
-        Self {
-            active: value.active,
-            label: value.label,
-            target_label: value.target_label,
-            valid_target: value.valid_target,
-            pointer_x: value.pointer_x,
-            pointer_y: value.pointer_y,
-        }
-    }
-}
-
-impl From<DragOverlayModel> for compat::DragOverlayModel {
-    fn from(value: DragOverlayModel) -> Self {
-        Self {
-            active: value.active,
-            label: value.label,
-            target_label: value.target_label,
-            valid_target: value.valid_target,
-            pointer_x: value.pointer_x,
-            pointer_y: value.pointer_y,
-        }
-    }
-}
-
-impl From<&DragOverlayModel> for compat::DragOverlayModel {
-    fn from(value: &DragOverlayModel) -> Self {
         value.clone().into()
     }
 }

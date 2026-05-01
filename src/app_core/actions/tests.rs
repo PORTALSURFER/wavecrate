@@ -278,6 +278,24 @@ fn native_action_exports_are_owned_in_app_core() {
         native_dtos.contains("pub type NormalizedRangeModel = range::NormalizedRange;"),
         "Sempal native range fields should alias the generic Radiant range primitive"
     );
+    assert!(
+        !native_dtos.contains("pub struct StatusBarModel"),
+        "status chrome should use the Radiant-owned generic primitive"
+    );
+    assert!(
+        native_dtos.contains("pub type StatusBarModel = chrome::StatusSegments;"),
+        "Sempal status chrome should alias the generic Radiant chrome primitive"
+    );
+    assert!(
+        !native_dtos.contains("pub struct ProgressOverlayModel")
+            && !native_dtos.contains("pub struct DragOverlayModel"),
+        "feedback overlays should use Radiant-owned generic primitives"
+    );
+    assert!(
+        native_dtos.contains("pub type ProgressOverlayModel = feedback::ProgressOverlay;")
+            && native_dtos.contains("pub type DragOverlayModel = feedback::DragOverlay;"),
+        "Sempal feedback overlays should alias generic Radiant feedback primitives"
+    );
 
     let radiant_app_sources = [
         "actions/mod.rs",
