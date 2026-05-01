@@ -182,7 +182,7 @@ fn projection_segment_browser_tag_sidebar_refreshes_pills_after_metadata_edit() 
     let (first_model, _) = cache.resolve_or_project(&mut controller);
     let _ = cache.take_segment_lookup_counts();
     assert_eq!(
-        first_model.browser.tag_sidebar.playback_type_pills[0].state,
+        first_model.browser.tag_sidebar.exclusive_pills[0].state,
         crate::app_core::actions::NativeBrowserTagState::Off
     );
 
@@ -202,11 +202,11 @@ fn projection_segment_browser_tag_sidebar_refreshes_pills_after_metadata_edit() 
     assert_segment_lookup_counts(lookup_counts.browser_tag_sidebar, 0, 1);
     assert_segment_lookup_counts(lookup_counts.browser_rows_window, 0, 1);
     assert_eq!(
-        second_model.browser.tag_sidebar.playback_type_pills[0].state,
+        second_model.browser.tag_sidebar.exclusive_pills[0].state,
         crate::app_core::actions::NativeBrowserTagState::On
     );
     assert_eq!(
-        second_model.browser.tag_sidebar.playback_type_pills[1].state,
+        second_model.browser.tag_sidebar.exclusive_pills[1].state,
         crate::app_core::actions::NativeBrowserTagState::Off
     );
 }
@@ -259,7 +259,7 @@ fn projection_segment_browser_tag_sidebar_refreshes_for_same_count_selection_swa
         "first.wav"
     );
     assert_eq!(
-        first_model.browser.tag_sidebar.playback_type_pills[0].state,
+        first_model.browser.tag_sidebar.exclusive_pills[0].state,
         crate::app_core::actions::NativeBrowserTagState::Off
     );
 
@@ -282,7 +282,7 @@ fn projection_segment_browser_tag_sidebar_refreshes_for_same_count_selection_swa
         "second.wav"
     );
     assert_eq!(
-        second_model.browser.tag_sidebar.playback_type_pills[0].state,
+        second_model.browser.tag_sidebar.exclusive_pills[0].state,
         crate::app_core::actions::NativeBrowserTagState::On
     );
 }

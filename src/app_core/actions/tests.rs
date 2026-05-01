@@ -319,16 +319,20 @@ fn native_action_exports_are_owned_in_app_core() {
         !native_dtos.contains("pub enum BrowserRowProcessingState")
             && !native_dtos.contains("pub enum BrowserTagState")
             && !native_dtos.contains("pub struct BrowserTagPillModel")
+            && !native_dtos.contains("pub struct BrowserTagSidebarModel")
             && !native_dtos.contains("pub enum MapRenderModeModel")
             && !native_dtos.contains("pub struct MapPanelModel")
             && !native_dtos.contains("pub enum UpdateStatusModel"),
-        "generic row state, pill state, map mode/panel, and update status DTOs should use Radiant-owned primitives"
+        "generic row state, pill state/panel, map mode/panel, and update status DTOs should use Radiant-owned primitives"
     );
     assert!(
         native_dtos.contains("pub type BrowserRowProcessingState = list::RowProcessingState;")
             && native_dtos.contains("pub type BrowserTagState = selection::TriState;")
             && native_dtos
                 .contains("pub type BrowserTagPillModel = badge::SelectablePill<BrowserTagState>;")
+            && native_dtos.contains(
+                "pub type BrowserTagSidebarModel = badge::PillEditorPanel<BrowserTagState>;"
+            )
             && native_dtos
                 .contains("pub type MapRenderModeModel = visualization::PointRenderMode;")
             && native_dtos.contains("pub type MapPanelModel = visualization::SpatialPanel;")

@@ -184,10 +184,10 @@ fn browser_projection_sidebar_uses_selected_visible_target_snapshot_fallback() {
 
     assert_eq!(projected.tag_sidebar.selected_count, 1);
     assert_eq!(projected.tag_sidebar.header_label.as_str(), "second.wav");
-    assert!(!projected.tag_sidebar.auto_rename_enabled);
+    assert!(!projected.tag_sidebar.primary_action_enabled);
     controller.ui.browser.tag_sidebar_auto_rename = true;
     let projected = project_browser_panel_frame_model(&mut controller);
-    assert!(projected.tag_sidebar.auto_rename_enabled);
+    assert!(projected.tag_sidebar.primary_action_enabled);
 }
 
 #[test]
@@ -213,16 +213,16 @@ fn browser_projection_sidebar_projects_common_normal_tags_from_db_usage() {
 
     let labels = projected
         .tag_sidebar
-        .normal_tag_pills
+        .option_pills
         .iter()
         .map(|pill| pill.label.as_str())
         .collect::<Vec<_>>();
     assert_eq!(labels, vec!["Texture", "Rare FX"]);
     assert_eq!(
-        projected.tag_sidebar.normal_tag_pills[0].state,
+        projected.tag_sidebar.option_pills[0].state,
         BrowserTagState::On
     );
-    assert!(projected.tag_sidebar.create_tag_pill.is_none());
+    assert!(projected.tag_sidebar.create_pill.is_none());
 }
 
 #[test]
@@ -248,22 +248,22 @@ fn browser_projection_sidebar_filters_candidates_and_exposes_create_state() {
 
     let projected = project_browser_panel_frame_model(&mut controller);
 
-    assert_eq!(projected.tag_sidebar.normal_tag_pills.len(), 1);
+    assert_eq!(projected.tag_sidebar.option_pills.len(), 1);
     assert_eq!(
-        projected.tag_sidebar.normal_tag_pills[0].label.as_str(),
+        projected.tag_sidebar.option_pills[0].label.as_str(),
         "Deep Kick"
     );
     assert_eq!(
-        projected.tag_sidebar.normal_tag_pills[0].state,
+        projected.tag_sidebar.option_pills[0].state,
         BrowserTagState::On
     );
-    assert!(projected.tag_sidebar.create_tag_pill.is_none());
+    assert!(projected.tag_sidebar.create_pill.is_none());
     controller.ui.browser.tag_sidebar_input = String::from("vinyl crackle");
     let projected = project_browser_panel_frame_model(&mut controller);
     assert_eq!(
         projected
             .tag_sidebar
-            .create_tag_pill
+            .create_pill
             .as_ref()
             .map(|pill| pill.label.as_str()),
         Some("Create \"vinyl crackle\"")
@@ -291,7 +291,7 @@ fn browser_projection_sidebar_projects_mixed_normal_tag_state() {
     let projected = project_browser_panel_frame_model(&mut controller);
 
     assert_eq!(
-        projected.tag_sidebar.normal_tag_pills[0].state,
+        projected.tag_sidebar.option_pills[0].state,
         BrowserTagState::Mixed
     );
 }

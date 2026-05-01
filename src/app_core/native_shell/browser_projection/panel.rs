@@ -177,7 +177,7 @@ pub(crate) fn project_browser_tag_sidebar_model(
             .unwrap_or_else(|| view_model::sample_display_label(&target_entries[0].relative_path)),
         count => format!("{count} samples selected"),
     };
-    let playback_type_pills = [
+    let exclusive_pills = [
         pill_model(
             "playback-loop",
             "Loop",
@@ -189,7 +189,7 @@ pub(crate) fn project_browser_tag_sidebar_model(
             bool_tag_state(&target_entries, |entry| !entry.looped),
         ),
     ];
-    let (normal_tag_pills, create_tag_pill) = if let Some(source) = controller.current_source() {
+    let (option_pills, create_pill) = if let Some(source) = controller.current_source() {
         let target_paths = sidebar_targets.resolve_paths(controller);
         project_normal_tag_candidates(controller, &source, &target_paths).unwrap_or_default()
     } else {
@@ -199,12 +199,12 @@ pub(crate) fn project_browser_tag_sidebar_model(
         open: is_list_tab && controller.ui.browser.tag_sidebar_open,
         selected_count,
         header_label,
-        auto_rename_enabled: controller.ui.browser.tag_sidebar_auto_rename,
+        primary_action_enabled: controller.ui.browser.tag_sidebar_auto_rename,
         input_value: controller.ui.browser.tag_sidebar_input.clone(),
         input_placeholder: String::from("Add tag"),
-        playback_type_pills,
-        normal_tag_pills,
-        create_tag_pill,
+        exclusive_pills,
+        option_pills,
+        create_pill,
     }
 }
 
@@ -255,7 +255,7 @@ fn project_normal_tag_candidates(
             state,
         ));
     }
-    let create_tag_pill = if normalized_input.is_empty() || !pills.is_empty() {
+    let create_pill = if normalized_input.is_empty() || !pills.is_empty() {
         None
     } else {
         let display_label = display_tag_input(&input);
@@ -265,7 +265,7 @@ fn project_normal_tag_candidates(
             BrowserTagState::Off,
         ))
     };
-    Ok((pills, create_tag_pill))
+    Ok((pills, create_pill))
 }
 
 fn normal_tag_visible(usage: &SourceTagUsage) -> bool {

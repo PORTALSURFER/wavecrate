@@ -179,7 +179,7 @@ fn destructive_edit_preserves_cached_browser_metadata() {
     assert_eq!(
         projected
             .tag_sidebar
-            .normal_tag_pills
+            .option_pills
             .iter()
             .find(|pill| pill.label == "kick")
             .map(|pill| pill.state),
@@ -188,7 +188,7 @@ fn destructive_edit_preserves_cached_browser_metadata() {
     assert_eq!(
         projected
             .tag_sidebar
-            .normal_tag_pills
+            .option_pills
             .iter()
             .find(|pill| pill.label == "Vintage FX")
             .map(|pill| pill.state),

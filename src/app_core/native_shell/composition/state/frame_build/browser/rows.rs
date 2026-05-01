@@ -410,7 +410,7 @@ fn render_browser_tag_sidebar_overlay(
         ctx,
         layout.auto_rename_rect,
         "Auto-rename",
-        sidebar.auto_rename_enabled,
+        sidebar.primary_action_enabled,
     );
     emit_primitive(
         primitives,
@@ -445,20 +445,20 @@ fn render_browser_tag_sidebar_overlay(
         },
     );
     for (pill, rect) in sidebar
-        .playback_type_pills
+        .exclusive_pills
         .iter()
         .zip(layout.playback_rects.iter())
     {
         render_sidebar_tag_pill(primitives, text_runs, ctx, *rect, pill);
     }
     for (pill, rect) in sidebar
-        .normal_tag_pills
+        .option_pills
         .iter()
         .zip(layout.normal_tag_rects.iter())
     {
         render_sidebar_tag_pill(primitives, text_runs, ctx, *rect, pill);
     }
-    if let (Some(create), Some(rect)) = (sidebar.create_tag_pill.as_ref(), layout.create_tag_rect) {
+    if let (Some(create), Some(rect)) = (sidebar.create_pill.as_ref(), layout.create_tag_rect) {
         render_sidebar_tag_pill(primitives, text_runs, ctx, rect, create);
     }
 }
@@ -613,8 +613,8 @@ fn browser_tag_sidebar_layout(
     let tag_width = ((content_max_x - content_min_x - pill_gap * (tag_cols - 1) as f32)
         / tag_cols as f32)
         .max(40.0);
-    let mut normal_tag_rects = Vec::with_capacity(model.browser.tag_sidebar.normal_tag_pills.len());
-    for index in 0..model.browser.tag_sidebar.normal_tag_pills.len() {
+    let mut normal_tag_rects = Vec::with_capacity(model.browser.tag_sidebar.option_pills.len());
+    for index in 0..model.browser.tag_sidebar.option_pills.len() {
         let col = index % tag_cols;
         let row = index / tag_cols;
         let min_x = content_min_x + (tag_width + pill_gap) * col as f32;
@@ -624,7 +624,7 @@ fn browser_tag_sidebar_layout(
             Point::new((min_x + tag_width).min(content_max_x), min_y + field_height),
         ));
     }
-    let create_tag_rect = model.browser.tag_sidebar.create_tag_pill.as_ref().map(|_| {
+    let create_tag_rect = model.browser.tag_sidebar.create_pill.as_ref().map(|_| {
         let y = normal_tag_rects
             .last()
             .map(|rect| rect.max.y + 12.0)

@@ -77,6 +77,9 @@ pub type BrowserTagState = selection::TriState;
 /// One clickable tag pill projected into the browser metadata sidebar.
 pub type BrowserTagPillModel = badge::SelectablePill<BrowserTagState>;
 
+/// Browser-local metadata sidebar shown beside the sample list.
+pub type BrowserTagSidebarModel = badge::PillEditorPanel<BrowserTagState>;
+
 /// Render mode label for the map panel.
 pub type MapRenderModeModel = visualization::PointRenderMode;
 
@@ -759,29 +762,6 @@ pub struct BrowserActionsModel {
     pub duplicate_cleanup_active: bool,
     /// Whether the browser-local tag sidebar is currently open.
     pub tag_sidebar_open: bool,
-}
-
-/// Browser-local metadata sidebar shown beside the sample list.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct BrowserTagSidebarModel {
-    /// Whether the sidebar should render in the current browser view.
-    pub open: bool,
-    /// Count of selected rows represented by the sidebar target set.
-    pub selected_count: usize,
-    /// Header line describing the current selection/focus context.
-    pub header_label: String,
-    /// Whether sidebar metadata edits should trigger auto-rename.
-    pub auto_rename_enabled: bool,
-    /// Current tag search/create input value.
-    pub input_value: String,
-    /// Placeholder shown for the tag input when empty.
-    pub input_placeholder: String,
-    /// Exclusive playback-type pills.
-    pub playback_type_pills: [BrowserTagPillModel; 2],
-    /// Normal tag candidates from common usage or search.
-    pub normal_tag_pills: Vec<BrowserTagPillModel>,
-    /// Create-new candidate when the input does not exactly match an existing tag.
-    pub create_tag_pill: Option<BrowserTagPillModel>,
 }
 
 /// Audio field currently expanded into a picker inside the options panel.
@@ -1545,44 +1525,6 @@ impl From<BrowserActionsModel> for compat::BrowserActionsModel {
 
 impl From<&BrowserActionsModel> for compat::BrowserActionsModel {
     fn from(value: &BrowserActionsModel) -> Self {
-        value.clone().into()
-    }
-}
-
-impl From<compat::BrowserTagSidebarModel> for BrowserTagSidebarModel {
-    fn from(value: compat::BrowserTagSidebarModel) -> Self {
-        Self {
-            open: value.open,
-            selected_count: value.selected_count,
-            header_label: value.header_label,
-            auto_rename_enabled: value.auto_rename_enabled,
-            input_value: value.input_value,
-            input_placeholder: value.input_placeholder,
-            playback_type_pills: value.playback_type_pills.map(Into::into),
-            normal_tag_pills: value.normal_tag_pills.into_iter().map(Into::into).collect(),
-            create_tag_pill: value.create_tag_pill.map(Into::into),
-        }
-    }
-}
-
-impl From<BrowserTagSidebarModel> for compat::BrowserTagSidebarModel {
-    fn from(value: BrowserTagSidebarModel) -> Self {
-        Self {
-            open: value.open,
-            selected_count: value.selected_count,
-            header_label: value.header_label,
-            auto_rename_enabled: value.auto_rename_enabled,
-            input_value: value.input_value,
-            input_placeholder: value.input_placeholder,
-            playback_type_pills: value.playback_type_pills.map(Into::into),
-            normal_tag_pills: value.normal_tag_pills.into_iter().map(Into::into).collect(),
-            create_tag_pill: value.create_tag_pill.map(Into::into),
-        }
-    }
-}
-
-impl From<&BrowserTagSidebarModel> for compat::BrowserTagSidebarModel {
-    fn from(value: &BrowserTagSidebarModel) -> Self {
         value.clone().into()
     }
 }

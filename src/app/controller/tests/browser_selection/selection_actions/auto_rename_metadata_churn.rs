@@ -560,7 +560,7 @@ fn assert_sidebar_loop_state(
     expected: crate::app_core::actions::NativeBrowserTagState,
 ) {
     let model = crate::app_core::native_shell::project_browser_tag_sidebar_model(controller);
-    assert_eq!(model.playback_type_pills[0].state, expected);
+    assert_eq!(model.exclusive_pills[0].state, expected);
 }
 
 fn assert_sidebar_one_shot_state(
@@ -568,7 +568,7 @@ fn assert_sidebar_one_shot_state(
     expected: crate::app_core::actions::NativeBrowserTagState,
 ) {
     let model = crate::app_core::native_shell::project_browser_tag_sidebar_model(controller);
-    assert_eq!(model.playback_type_pills[1].state, expected);
+    assert_eq!(model.exclusive_pills[1].state, expected);
 }
 
 fn assert_renamed_loop_surfaces(
