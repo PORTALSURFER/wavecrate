@@ -216,15 +216,15 @@ fn native_action_exports_are_owned_in_app_core() {
         fs::read_to_string(manifest_dir.join("src/app_core/actions/mod.rs")).expect("actions mod");
 
     assert!(
-        !actions_mod.contains("pub type NativeUiAction = radiant::compat::sempal_shell"),
+        !actions_mod.contains("pub type NativeUiAction = radiant::compat::legacy_shell"),
         "NativeUiAction must stay Sempal-owned, with compatibility conversion at the runtime boundary"
     );
     assert!(
-        !actions_mod.contains("pub type NativeAppModel = radiant::compat::sempal_shell"),
+        !actions_mod.contains("pub type NativeAppModel = radiant::compat::legacy_shell"),
         "NativeAppModel must stay Sempal-owned, with compatibility conversion at the runtime boundary"
     );
     assert!(
-        !actions_mod.contains("pub type NativeDirtySegments = radiant::compat::sempal_shell"),
+        !actions_mod.contains("pub type NativeDirtySegments = radiant::compat::legacy_shell"),
         "NativeDirtySegments must stay Sempal-owned, with compatibility conversion at the runtime boundary"
     );
     assert!(
@@ -234,7 +234,7 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal-owned action, bridge, and projection DTO modules must remain explicit"
     );
     assert!(
-        !actions_mod.contains("pub use radiant::compat::sempal_shell::NativeAppBridge"),
+        !actions_mod.contains("pub use radiant::compat::legacy_shell::NativeAppBridge"),
         "NativeAppBridge must stay Sempal-owned, with compatibility conversion at the runtime boundary"
     );
 

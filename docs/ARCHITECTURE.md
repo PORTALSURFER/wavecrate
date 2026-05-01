@@ -109,7 +109,7 @@ areas:
 - `radiant::runtime`
 
 The current native shell remains a compatibility surface for Sempal. Treat it
-as `radiant::compat::sempal_shell` in spirit even where module names still
+as `radiant::compat::legacy_shell` in spirit even where module names still
 reflect the older structure.
 
 Practical rule:

@@ -81,7 +81,7 @@ Use for compatibility-shell visual and behavior changes that are Sempal-owned.
 ### Radiant native-shell tests
 
 Use for generic Radiant behavior and explicit compatibility coverage while
-`compat::sempal_shell` exists.
+`compat::legacy_shell` exists.
 
 - `cargo nextest run --manifest-path vendor/radiant/Cargo.toml`
 

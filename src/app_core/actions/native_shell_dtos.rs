@@ -6,7 +6,7 @@
 //! the legacy shell snapshot contract without making Radiant the owner of the
 //! Sempal projection types.
 
-use radiant::compat::sempal_shell as compat;
+use radiant::compat::legacy_shell as compat;
 use radiant::gui::types::ImageRgba;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, ops::Deref, sync::Arc};

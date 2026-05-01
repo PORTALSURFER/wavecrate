@@ -6,7 +6,7 @@
 //! dispatch payloads.
 
 use super::native_shell_dtos::{FolderPaneIdModel, PlaybackAgeFilterChip};
-use radiant::compat::sempal_shell as compat;
+use radiant::compat::legacy_shell as compat;
 use serde::{Deserialize, Serialize};
 
 /// Triage targets used by native browser action surfaces.

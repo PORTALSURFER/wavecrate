@@ -15,7 +15,7 @@
 //! in one place while keeping host bootstrapping lightweight.
 //!
 //! Sempal intentionally reaches the current native shell through
-//! `radiant::compat::sempal_shell` so the shell reads as compatibility
+//! `radiant::compat::legacy_shell` so the shell reads as compatibility
 //! infrastructure rather than the preferred generic Radiant API.
 
 use crate::app::{
@@ -105,7 +105,7 @@ pub struct NativeRunOptions {
 ///
 /// Mapping is intentionally field-for-field to preserve behavior and avoid
 /// hidden launch-time mutations.
-impl From<NativeRunOptions> for radiant::compat::sempal_shell::NativeRunOptions {
+impl From<NativeRunOptions> for radiant::compat::legacy_shell::NativeRunOptions {
     fn from(value: NativeRunOptions) -> Self {
         Self {
             title: value.title,
@@ -123,7 +123,7 @@ impl From<NativeRunOptions> for radiant::compat::sempal_shell::NativeRunOptions 
 ///
 /// All pixel bytes are forwarded unchanged; callers remain responsible for
 /// supplying valid RGBA data and matching dimensions.
-impl From<WindowIconRgba> for radiant::compat::sempal_shell::WindowIconRgba {
+impl From<WindowIconRgba> for radiant::compat::legacy_shell::WindowIconRgba {
     fn from(value: WindowIconRgba) -> Self {
         Self {
             rgba: value.rgba,
@@ -143,56 +143,56 @@ impl<B> CompatNativeAppBridge<B> {
     }
 }
 
-impl<B: NativeAppBridge> radiant::compat::sempal_shell::NativeAppBridge
+impl<B: NativeAppBridge> radiant::compat::legacy_shell::NativeAppBridge
     for CompatNativeAppBridge<B>
 {
-    fn project_model(&mut self) -> Arc<radiant::compat::sempal_shell::AppModel> {
+    fn project_model(&mut self) -> Arc<radiant::compat::legacy_shell::AppModel> {
         let model = self.inner.project_model();
         Arc::new(model.as_ref().into())
     }
 
-    fn pull_model(&mut self) -> radiant::compat::sempal_shell::AppModel {
+    fn pull_model(&mut self) -> radiant::compat::legacy_shell::AppModel {
         self.inner.pull_model().into()
     }
 
-    fn pull_model_arc(&mut self) -> Arc<radiant::compat::sempal_shell::AppModel> {
+    fn pull_model_arc(&mut self) -> Arc<radiant::compat::legacy_shell::AppModel> {
         let model = self.inner.pull_model_arc();
         Arc::new(model.as_ref().into())
     }
 
-    fn project_motion_model(&mut self) -> Option<radiant::compat::sempal_shell::NativeMotionModel> {
+    fn project_motion_model(&mut self) -> Option<radiant::compat::legacy_shell::NativeMotionModel> {
         self.inner
             .project_motion_model()
             .map(NativeMotionModel::into)
     }
 
-    fn take_dirty_segments(&mut self) -> radiant::compat::sempal_shell::DirtySegments {
+    fn take_dirty_segments(&mut self) -> radiant::compat::legacy_shell::DirtySegments {
         self.inner.take_dirty_segments().into()
     }
 
-    fn take_segment_revisions(&mut self) -> radiant::compat::sempal_shell::SegmentRevisions {
+    fn take_segment_revisions(&mut self) -> radiant::compat::legacy_shell::SegmentRevisions {
         self.inner.take_segment_revisions().into()
     }
 
     fn resolve_hotkey_press(
         &mut self,
-        pending_chord: Option<radiant::compat::sempal_shell::KeyPress>,
-        press: radiant::compat::sempal_shell::KeyPress,
-        focus: radiant::compat::sempal_shell::FocusContextModel,
-    ) -> radiant::compat::sempal_shell::HotkeyResolution {
+        pending_chord: Option<radiant::compat::legacy_shell::KeyPress>,
+        press: radiant::compat::legacy_shell::KeyPress,
+        focus: radiant::compat::legacy_shell::FocusContextModel,
+    ) -> radiant::compat::legacy_shell::HotkeyResolution {
         let resolution = hotkeys::resolve_hotkey_press(
             pending_chord.map(keypress_from_radiant),
             keypress_from_radiant(press),
             focus_context_from_radiant(focus),
         );
-        radiant::compat::sempal_shell::HotkeyResolution {
+        radiant::compat::legacy_shell::HotkeyResolution {
             action: resolution.action.map(Into::into),
             handled: resolution.handled,
             pending_chord: resolution.pending_chord.map(keypress_to_radiant),
         }
     }
 
-    fn reduce_action(&mut self, action: radiant::compat::sempal_shell::UiAction) {
+    fn reduce_action(&mut self, action: radiant::compat::legacy_shell::UiAction) {
         self.inner.reduce_action(NativeUiAction::from(action));
     }
 
@@ -215,7 +215,7 @@ impl<B: NativeAppBridge> radiant::compat::sempal_shell::NativeAppBridge
             .maybe_launch_external_drag(pointer_outside, pointer_left)
     }
 
-    fn observe_frame_result(&mut self, result: radiant::compat::sempal_shell::FrameBuildResult) {
+    fn observe_frame_result(&mut self, result: radiant::compat::legacy_shell::FrameBuildResult) {
         self.inner
             .observe_frame_result(NativeFrameBuildResult::from(result));
     }
@@ -228,7 +228,7 @@ impl<B: NativeAppBridge> radiant::compat::sempal_shell::NativeAppBridge
 }
 
 fn native_run_report_from_radiant(
-    report: radiant::compat::sempal_shell::NativeRunReport,
+    report: radiant::compat::legacy_shell::NativeRunReport,
 ) -> NativeRunReport {
     NativeRunReport {
         artifacts: NativeRuntimeArtifacts {
@@ -243,22 +243,22 @@ fn native_run_report_from_radiant(
 }
 
 fn focus_context_from_radiant(
-    focus: radiant::compat::sempal_shell::FocusContextModel,
+    focus: radiant::compat::legacy_shell::FocusContextModel,
 ) -> FocusContext {
     match focus {
-        radiant::compat::sempal_shell::FocusContextModel::None => FocusContext::None,
-        radiant::compat::sempal_shell::FocusContextModel::Waveform => FocusContext::Waveform,
-        radiant::compat::sempal_shell::FocusContextModel::SampleBrowser => {
+        radiant::compat::legacy_shell::FocusContextModel::None => FocusContext::None,
+        radiant::compat::legacy_shell::FocusContextModel::Waveform => FocusContext::Waveform,
+        radiant::compat::legacy_shell::FocusContextModel::SampleBrowser => {
             FocusContext::SampleBrowser
         }
-        radiant::compat::sempal_shell::FocusContextModel::SourceFolders => {
+        radiant::compat::legacy_shell::FocusContextModel::SourceFolders => {
             FocusContext::SourceFolders
         }
-        radiant::compat::sempal_shell::FocusContextModel::SourcesList => FocusContext::SourcesList,
+        radiant::compat::legacy_shell::FocusContextModel::SourcesList => FocusContext::SourcesList,
     }
 }
 
-fn keypress_from_radiant(press: radiant::compat::sempal_shell::KeyPress) -> KeyPress {
+fn keypress_from_radiant(press: radiant::compat::legacy_shell::KeyPress) -> KeyPress {
     KeyPress {
         key: press.key,
         command: press.command,
@@ -267,8 +267,8 @@ fn keypress_from_radiant(press: radiant::compat::sempal_shell::KeyPress) -> KeyP
     }
 }
 
-fn keypress_to_radiant(press: KeyPress) -> radiant::compat::sempal_shell::KeyPress {
-    radiant::compat::sempal_shell::KeyPress {
+fn keypress_to_radiant(press: KeyPress) -> radiant::compat::legacy_shell::KeyPress {
+    radiant::compat::legacy_shell::KeyPress {
         key: press.key,
         command: press.command,
         shift: press.shift,
@@ -287,7 +287,7 @@ pub fn run_native_vello_app<B: NativeAppBridge>(
     // No additional state is touched by this adapter; all control flow and
     // execution semantics remain in `radiant`.
     info!("Launching radiant native Vello runtime");
-    let result = radiant::compat::sempal_shell::run_native_vello_app(
+    let result = radiant::compat::legacy_shell::run_native_vello_app(
         options.into(),
         CompatNativeAppBridge::new(bridge),
     )
@@ -310,7 +310,7 @@ pub fn run_native_vello_app_with_artifacts<B: NativeAppBridge>(
     bridge: B,
 ) -> NativeRunReport {
     info!("Launching radiant native Vello runtime");
-    let report = radiant::compat::sempal_shell::run_native_vello_app_with_artifacts(
+    let report = radiant::compat::legacy_shell::run_native_vello_app_with_artifacts(
         options.into(),
         CompatNativeAppBridge::new(bridge),
     );
@@ -332,7 +332,7 @@ pub fn run_native_vello_app_declarative<B: NativeAppBridge>(
     bridge: B,
 ) -> Result<(), String> {
     info!("Launching radiant native Vello runtime (declarative host)");
-    let result = radiant::compat::sempal_shell::run_native_vello_app_declarative(
+    let result = radiant::compat::legacy_shell::run_native_vello_app_declarative(
         options.into(),
         CompatNativeAppBridge::new(bridge),
     )
@@ -355,7 +355,7 @@ pub fn run_native_vello_app_declarative_with_artifacts<B: NativeAppBridge>(
     bridge: B,
 ) -> NativeRunReport {
     info!("Launching radiant native Vello runtime (declarative host)");
-    let report = radiant::compat::sempal_shell::run_native_vello_app_declarative_with_artifacts(
+    let report = radiant::compat::legacy_shell::run_native_vello_app_declarative_with_artifacts(
         options.into(),
         CompatNativeAppBridge::new(bridge),
     );
@@ -375,7 +375,7 @@ pub fn run_native_vello_app_declarative_with_artifacts<B: NativeAppBridge>(
 pub fn run_native_vello_preview(options: NativeRunOptions) -> Result<(), String> {
     info!("Launching radiant native Vello preview runtime");
     let result =
-        radiant::compat::sempal_shell::run_native_vello_preview(options.into()).map_err(|err| {
+        radiant::compat::legacy_shell::run_native_vello_preview(options.into()).map_err(|err| {
             error!(%err, "radiant native Vello preview returned error");
             err
         });
@@ -392,8 +392,8 @@ pub fn capture_gui_automation_snapshot(
     viewport: [f32; 2],
     model: &NativeAppModel,
 ) -> NativeGuiAutomationSnapshot {
-    let compat_model = radiant::compat::sempal_shell::AppModel::from(model);
-    radiant::compat::sempal_shell::capture_gui_automation_snapshot(viewport, &compat_model).into()
+    let compat_model = radiant::compat::legacy_shell::AppModel::from(model);
+    radiant::compat::legacy_shell::capture_gui_automation_snapshot(viewport, &compat_model).into()
 }
 
 /// Capture a deterministic compatibility native-shell visual snapshot.
@@ -403,8 +403,8 @@ pub(crate) fn capture_native_shell_shot_snapshot(
     viewport: [f32; 2],
     model: &NativeAppModel,
 ) -> impl serde::Serialize {
-    let compat_model = radiant::compat::sempal_shell::AppModel::from(model);
-    radiant::compat::sempal_shell::capture_native_shell_shot_snapshot(name, viewport, &compat_model)
+    let compat_model = radiant::compat::legacy_shell::AppModel::from(model);
+    radiant::compat::legacy_shell::capture_native_shell_shot_snapshot(name, viewport, &compat_model)
 }
 
 #[cfg(test)]
@@ -416,7 +416,7 @@ mod tests {
         let module = include_str!("mod.rs");
         let legacy_compat_export = concat!(
             "pub use radiant::compat::",
-            "sempal_shell::NativeStartupTimingArtifact;"
+            "legacy_shell::NativeStartupTimingArtifact;"
         );
 
         assert!(module.contains("pub use radiant::gui_runtime::NativeStartupTimingArtifact;"));
@@ -442,7 +442,7 @@ mod tests {
             target_fps: 90,
         };
 
-        let compat: radiant::compat::sempal_shell::NativeRunOptions = options.into();
+        let compat: radiant::compat::legacy_shell::NativeRunOptions = options.into();
 
         assert_eq!(compat.title, "Sempal test host");
         assert_eq!(compat.inner_size, Some([1280.0, 720.0]));

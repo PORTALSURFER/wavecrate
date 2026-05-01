@@ -1,7 +1,7 @@
 //! Native-shell projection helpers used by the `radiant` bridge.
 //!
 //! The bridge consumes these helpers to project controller state into the
-//! transitional `radiant::compat::sempal_shell` models and to translate
+//! transitional `radiant::compat::legacy_shell` models and to translate
 //! normalized UI ranges back into controller-domain selection math.
 
 use super::controller::{
