@@ -332,6 +332,15 @@ fn native_action_exports_are_owned_in_app_core() {
         native_dtos.contains("pub type UpdatePanelModel = feedback::UpdatePanel;"),
         "Sempal native update panels should alias the generic Radiant feedback primitive"
     );
+    assert!(
+        !native_dtos.contains("pub struct ConfirmPromptModel"),
+        "confirm prompts should use the Radiant-owned generic prompt primitive with a Sempal prompt kind"
+    );
+    assert!(
+        native_dtos
+            .contains("pub type ConfirmPromptModel = feedback::ConfirmPrompt<ConfirmPromptKind>;"),
+        "Sempal native confirm prompts should alias the generic Radiant prompt primitive"
+    );
 
     let radiant_app_sources = [
         "actions/mod.rs",

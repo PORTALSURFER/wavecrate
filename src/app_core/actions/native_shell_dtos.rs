@@ -69,6 +69,9 @@ pub type UpdateStatusModel = feedback::UpdateStatus;
 /// Update panel state used by native top-bar actions.
 pub type UpdatePanelModel = feedback::UpdatePanel;
 
+/// Modal confirmation prompt projected into the native shell.
+pub type ConfirmPromptModel = feedback::ConfirmPrompt<ConfirmPromptKind>;
+
 /// Browser playback-age filter chips shown in the native toolbar.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum PlaybackAgeFilterChip {
@@ -922,31 +925,6 @@ pub enum ConfirmPromptKind {
     PurgeRetainedFolderDeletes,
     /// Pending options-panel default-identifier prompt.
     OptionsDefaultIdentifier,
-}
-
-/// Modal confirmation prompt projected into the native shell.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct ConfirmPromptModel {
-    /// Whether the prompt is currently visible.
-    pub visible: bool,
-    /// Prompt kind used by the bridge to resolve confirm/cancel behavior.
-    pub kind: Option<ConfirmPromptKind>,
-    /// Prompt title text.
-    pub title: String,
-    /// Prompt body text.
-    pub message: String,
-    /// Confirm action label.
-    pub confirm_label: String,
-    /// Cancel action label.
-    pub cancel_label: String,
-    /// Optional target label shown as supplemental metadata.
-    pub target_label: Option<String>,
-    /// Optional editable prompt input value.
-    pub input_value: Option<String>,
-    /// Placeholder text for editable prompt input fields.
-    pub input_placeholder: Option<String>,
-    /// Optional validation error shown below editable prompt input.
-    pub input_error: Option<String>,
 }
 
 /// One detected waveform slice preview exposed to the native shell.
@@ -2459,43 +2437,33 @@ impl From<ConfirmPromptKind> for compat::ConfirmPromptKind {
     }
 }
 
-impl From<compat::ConfirmPromptModel> for ConfirmPromptModel {
-    fn from(value: compat::ConfirmPromptModel) -> Self {
-        Self {
-            visible: value.visible,
-            kind: value.kind.map(Into::into),
-            title: value.title,
-            message: value.message,
-            confirm_label: value.confirm_label,
-            cancel_label: value.cancel_label,
-            target_label: value.target_label,
-            input_value: value.input_value,
-            input_placeholder: value.input_placeholder,
-            input_error: value.input_error,
-        }
+fn confirm_prompt_from_compat(value: compat::ConfirmPromptModel) -> ConfirmPromptModel {
+    ConfirmPromptModel {
+        visible: value.visible,
+        kind: value.kind.map(Into::into),
+        title: value.title,
+        message: value.message,
+        confirm_label: value.confirm_label,
+        cancel_label: value.cancel_label,
+        target_label: value.target_label,
+        input_value: value.input_value,
+        input_placeholder: value.input_placeholder,
+        input_error: value.input_error,
     }
 }
 
-impl From<ConfirmPromptModel> for compat::ConfirmPromptModel {
-    fn from(value: ConfirmPromptModel) -> Self {
-        Self {
-            visible: value.visible,
-            kind: value.kind.map(Into::into),
-            title: value.title,
-            message: value.message,
-            confirm_label: value.confirm_label,
-            cancel_label: value.cancel_label,
-            target_label: value.target_label,
-            input_value: value.input_value,
-            input_placeholder: value.input_placeholder,
-            input_error: value.input_error,
-        }
-    }
-}
-
-impl From<&ConfirmPromptModel> for compat::ConfirmPromptModel {
-    fn from(value: &ConfirmPromptModel) -> Self {
-        value.clone().into()
+fn confirm_prompt_to_compat(value: ConfirmPromptModel) -> compat::ConfirmPromptModel {
+    compat::ConfirmPromptModel {
+        visible: value.visible,
+        kind: value.kind.map(Into::into),
+        title: value.title,
+        message: value.message,
+        confirm_label: value.confirm_label,
+        cancel_label: value.cancel_label,
+        target_label: value.target_label,
+        input_value: value.input_value,
+        input_placeholder: value.input_placeholder,
+        input_error: value.input_error,
     }
 }
 
@@ -2689,7 +2657,7 @@ impl From<compat::AppModel> for AppModel {
             browser_actions: value.browser_actions.into(),
             options_panel: value.options_panel.into(),
             progress_overlay: value.progress_overlay.into(),
-            confirm_prompt: value.confirm_prompt.into(),
+            confirm_prompt: confirm_prompt_from_compat(value.confirm_prompt),
             drag_overlay: value.drag_overlay.into(),
             columns: value.columns.map(Into::into),
             selected_column: value.selected_column,
@@ -2719,7 +2687,7 @@ impl From<AppModel> for compat::AppModel {
             browser_actions: value.browser_actions.into(),
             options_panel: value.options_panel.into(),
             progress_overlay: value.progress_overlay.into(),
-            confirm_prompt: value.confirm_prompt.into(),
+            confirm_prompt: confirm_prompt_to_compat(value.confirm_prompt),
             drag_overlay: value.drag_overlay.into(),
             columns: value.columns.map(Into::into),
             selected_column: value.selected_column,
