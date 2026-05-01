@@ -409,6 +409,8 @@ pub(crate) fn capture_native_shell_shot_snapshot(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn startup_timing_artifact_uses_generic_radiant_runtime_export() {
         let module = include_str!("mod.rs");
@@ -422,5 +424,45 @@ mod tests {
             !module.contains(legacy_compat_export),
             "startup timing is a generic Radiant runtime artifact, not a Sempal compat DTO"
         );
+    }
+
+    #[test]
+    fn native_run_options_map_field_for_field_to_radiant_compat_options() {
+        let options = NativeRunOptions {
+            title: String::from("Sempal test host"),
+            inner_size: Some([1280.0, 720.0]),
+            min_inner_size: Some([640.0, 360.0]),
+            maximized: true,
+            decorations: false,
+            icon: Some(WindowIconRgba {
+                rgba: vec![255, 0, 0, 255],
+                width: 1,
+                height: 1,
+            }),
+            target_fps: 90,
+        };
+
+        let compat: radiant::compat::sempal_shell::NativeRunOptions = options.into();
+
+        assert_eq!(compat.title, "Sempal test host");
+        assert_eq!(compat.inner_size, Some([1280.0, 720.0]));
+        assert_eq!(compat.min_inner_size, Some([640.0, 360.0]));
+        assert!(compat.maximized);
+        assert!(!compat.decorations);
+        assert_eq!(compat.target_fps, 90);
+        let icon = compat.icon.expect("icon should be forwarded");
+        assert_eq!(icon.rgba, vec![255, 0, 0, 255]);
+        assert_eq!(icon.width, 1);
+        assert_eq!(icon.height, 1);
+    }
+
+    #[test]
+    fn automation_snapshot_adapter_exposes_shell_root_from_sempal_model() {
+        let model = NativeAppModel::default();
+        let snapshot = capture_gui_automation_snapshot([1440.0, 810.0], &model);
+
+        assert_eq!(snapshot.root.id.0, "shell.root");
+        assert_eq!(snapshot.viewport_width, 1440);
+        assert_eq!(snapshot.viewport_height, 810);
     }
 }
