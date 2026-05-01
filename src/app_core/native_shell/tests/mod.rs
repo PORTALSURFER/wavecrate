@@ -192,7 +192,7 @@ mod overlay_folder_rows {
         assert_eq!(draft.input_placeholder.as_deref(), Some("Folder name"));
         assert!(draft.input_focused);
         assert!(draft.select_all_on_focus);
-        assert_eq!(draft.source_index, Some(0));
+        assert_eq!(draft.backing_index, Some(0));
 
         if let Some(edit) = ui.sources.folders.inline_edit.as_mut() {
             edit.name = String::from("../bad");

@@ -53,6 +53,9 @@ pub type ColumnModel = list::ColumnSummary;
 /// Render data for one folder row shown in the sidebar folder tree.
 pub type FolderRowKind = list::EditableRowKind;
 
+/// Render data for one folder row shown in the sidebar folder tree.
+pub type FolderRowModel = list::EditableTreeRow;
+
 /// Native folder-action availability consumed by sidebar action surfaces.
 pub type FolderActionsModel = list::EditableTreeActions;
 
@@ -1108,141 +1111,6 @@ pub fn parse_waveform_tempo_number_text(label: &str) -> Option<String> {
     Some(number.to_string())
 }
 
-/// Render data for one folder row shown in the sidebar folder tree.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct FolderRowModel {
-    /// Display label for the folder row.
-    pub label: String,
-    /// Optional secondary detail text for the folder row.
-    pub detail: String,
-    /// Tree depth used for indentation.
-    pub depth: usize,
-    /// Whether this row is currently selected.
-    pub selected: bool,
-    /// Whether this row currently has keyboard focus.
-    pub focused: bool,
-    /// Whether this row represents the synthetic source root.
-    pub is_root: bool,
-    /// Whether this row has child folders.
-    pub has_children: bool,
-    /// Whether this row is expanded in the folder tree.
-    pub expanded: bool,
-    /// Row kind used by the shell for inline draft rendering and hit testing.
-    pub kind: FolderRowKind,
-    /// Source/controller row index backing this projected row, when applicable.
-    pub source_index: Option<usize>,
-    /// Editable input value for inline draft rows.
-    pub input_value: Option<String>,
-    /// Placeholder text for inline draft rows.
-    pub input_placeholder: Option<String>,
-    /// Validation error for inline draft rows.
-    pub input_error: Option<String>,
-    /// Whether the inline draft input should own keyboard focus.
-    pub input_focused: bool,
-    /// Whether the next focus transition should select the full input text once.
-    pub select_all_on_focus: bool,
-}
-
-impl FolderRowModel {
-    /// Build a new folder row model.
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        label: impl Into<String>,
-        detail: impl Into<String>,
-        depth: usize,
-        selected: bool,
-        focused: bool,
-        is_root: bool,
-        has_children: bool,
-        expanded: bool,
-    ) -> Self {
-        Self {
-            label: label.into(),
-            detail: detail.into(),
-            depth,
-            selected,
-            focused,
-            is_root,
-            has_children,
-            expanded,
-            kind: FolderRowKind::Existing,
-            source_index: None,
-            input_value: None,
-            input_placeholder: None,
-            input_error: None,
-            input_focused: false,
-            select_all_on_focus: false,
-        }
-    }
-
-    /// Attach the backing source/controller row index for one existing row.
-    pub fn with_source_index(mut self, source_index: usize) -> Self {
-        self.source_index = Some(source_index);
-        self
-    }
-
-    /// Build one inline create-draft row embedded in the folder tree.
-    pub fn create_draft(
-        depth: usize,
-        input_value: impl Into<String>,
-        input_placeholder: impl Into<String>,
-        input_error: Option<String>,
-        input_focused: bool,
-    ) -> Self {
-        Self {
-            label: String::new(),
-            detail: String::new(),
-            depth,
-            selected: false,
-            focused: false,
-            is_root: false,
-            has_children: false,
-            expanded: false,
-            kind: FolderRowKind::CreateDraft,
-            source_index: None,
-            input_value: Some(input_value.into()),
-            input_placeholder: Some(input_placeholder.into()),
-            input_error,
-            input_focused,
-            select_all_on_focus: false,
-        }
-    }
-
-    /// Build one inline rename-draft row embedded in the folder tree.
-    pub fn rename_draft(
-        depth: usize,
-        input_value: impl Into<String>,
-        input_placeholder: impl Into<String>,
-        input_error: Option<String>,
-        input_focused: bool,
-    ) -> Self {
-        let input_value = input_value.into();
-        Self {
-            label: input_value.clone(),
-            detail: String::new(),
-            depth,
-            selected: false,
-            focused: false,
-            is_root: false,
-            has_children: false,
-            expanded: false,
-            kind: FolderRowKind::RenameDraft,
-            source_index: None,
-            input_value: Some(input_value),
-            input_placeholder: Some(input_placeholder.into()),
-            input_error,
-            input_focused,
-            select_all_on_focus: true,
-        }
-    }
-
-    /// Set whether the inline input should select all text the next time it receives focus.
-    pub fn with_select_all_on_focus(mut self, select_all_on_focus: bool) -> Self {
-        self.select_all_on_focus = select_all_on_focus;
-        self
-    }
-}
-
 /// Logical focus buckets projected into the native runtime.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum FocusContextModel {
@@ -1437,50 +1305,6 @@ where
         .map(Into::into)
         .collect::<Vec<_>>()
         .into()
-}
-
-impl From<compat::FolderRowModel> for FolderRowModel {
-    fn from(value: compat::FolderRowModel) -> Self {
-        Self {
-            label: value.label,
-            detail: value.detail,
-            depth: value.depth,
-            selected: value.selected,
-            focused: value.focused,
-            is_root: value.is_root,
-            has_children: value.has_children,
-            expanded: value.expanded,
-            kind: value.kind.into(),
-            source_index: value.source_index,
-            input_value: value.input_value,
-            input_placeholder: value.input_placeholder,
-            input_error: value.input_error,
-            input_focused: value.input_focused,
-            select_all_on_focus: value.select_all_on_focus,
-        }
-    }
-}
-
-impl From<FolderRowModel> for compat::FolderRowModel {
-    fn from(value: FolderRowModel) -> Self {
-        Self {
-            label: value.label,
-            detail: value.detail,
-            depth: value.depth,
-            selected: value.selected,
-            focused: value.focused,
-            is_root: value.is_root,
-            has_children: value.has_children,
-            expanded: value.expanded,
-            kind: value.kind.into(),
-            source_index: value.source_index,
-            input_value: value.input_value,
-            input_placeholder: value.input_placeholder,
-            input_error: value.input_error,
-            input_focused: value.input_focused,
-            select_all_on_focus: value.select_all_on_focus,
-        }
-    }
 }
 
 impl From<compat::FocusContextModel> for FocusContextModel {

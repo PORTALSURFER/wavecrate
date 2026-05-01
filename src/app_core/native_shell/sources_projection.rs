@@ -189,7 +189,7 @@ fn project_folder_rows(folder_ui: &FolderBrowserUiState) -> RetainedVec<FolderRo
                 row.has_children,
                 row.expanded,
             )
-            .with_source_index(row_index)
+            .with_backing_index(row_index)
         })
         .collect();
     if let Some(edit) = folder_ui.inline_edit.as_ref() {
@@ -243,7 +243,7 @@ fn projected_focused_folder_row(
     let focused = folder_ui.focused?;
     projected_rows
         .iter()
-        .position(|row| row.source_index == Some(focused))
+        .position(|row| row.backing_index == Some(focused))
 }
 
 fn inline_folder_draft_location(
@@ -267,7 +267,7 @@ fn inline_folder_draft_row(
     input_error: Option<String>,
     input_focused: bool,
     select_all_on_focus: bool,
-    source_index: Option<usize>,
+    backing_index: Option<usize>,
 ) -> FolderRowModel {
     FolderRowModel {
         label: String::new(),
@@ -279,7 +279,7 @@ fn inline_folder_draft_row(
         has_children: false,
         expanded: false,
         kind,
-        source_index,
+        backing_index,
         input_value: Some(input_value),
         input_placeholder: Some(input_placeholder),
         input_error,

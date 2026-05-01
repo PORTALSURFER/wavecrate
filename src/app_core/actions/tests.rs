@@ -299,14 +299,16 @@ fn native_action_exports_are_owned_in_app_core() {
     assert!(
         !native_dtos.contains("pub struct ColumnModel")
             && !native_dtos.contains("pub enum FolderRowKind")
+            && !native_dtos.contains("pub struct FolderRowModel")
             && !native_dtos.contains("pub struct FolderActionsModel"),
-        "generic list column, editable-row kind, and editable-tree actions should use Radiant-owned primitives"
+        "generic list column, editable-row kind, editable-tree row, and editable-tree actions should use Radiant-owned primitives"
     );
     assert!(
         native_dtos.contains("pub type ColumnModel = list::ColumnSummary;")
             && native_dtos.contains("pub type FolderPaneIdModel = panel::SplitPaneSlot;")
             && native_dtos.contains("pub type SourceRowModel = panel::SplitPaneAssignedRow;")
             && native_dtos.contains("pub type FolderRowKind = list::EditableRowKind;")
+            && native_dtos.contains("pub type FolderRowModel = list::EditableTreeRow;")
             && native_dtos.contains("pub type FolderActionsModel = list::EditableTreeActions;"),
         "Sempal source/sidebar DTOs should alias generic Radiant list primitives"
     );
