@@ -26,13 +26,50 @@ use crate::app_core::actions::{
     NativeAppBridge, NativeAppModel, NativeFrameBuildResult, NativeGuiAutomationSnapshot,
     NativeMotionModel, NativeUiAction,
 };
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{error, info};
 
-pub use radiant::compat::sempal_shell::{
-    NativeRunReport, NativeRuntimeArtifacts, NativeShutdownTimingArtifact,
-    NativeStartupTimingArtifact,
-};
+pub use radiant::compat::sempal_shell::NativeStartupTimingArtifact;
+
+/// Machine-readable native shutdown timing payload exported by Sempal bridges.
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct NativeShutdownTimingArtifact {
+    /// Whether all shutdown phases completed without a captured error.
+    pub status: String,
+    /// Explicit shutdown failure reason when a phase reports an error.
+    pub failure_reason: Option<String>,
+    /// Milliseconds spent flushing bridge-owned pending input before exit.
+    pub bridge_exit_flush_ms: Option<f64>,
+    /// Milliseconds spent persisting host configuration during exit.
+    pub config_persist_ms: Option<f64>,
+    /// Milliseconds spent draining controller job workers.
+    pub controller_jobs_shutdown_ms: Option<f64>,
+    /// Milliseconds spent draining analysis workers.
+    pub analysis_shutdown_ms: Option<f64>,
+    /// Milliseconds spent inside the controller shutdown boundary.
+    pub controller_shutdown_ms: Option<f64>,
+    /// Milliseconds spent inside the full runtime-exit hook.
+    pub runtime_exit_total_ms: Option<f64>,
+}
+
+/// Structured runtime artifacts exported after one Sempal native run completes.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct NativeRuntimeArtifacts {
+    /// Native startup timing artifact captured for this run, when startup began.
+    pub startup_timing: Option<NativeStartupTimingArtifact>,
+    /// Sempal shutdown timing artifact captured after the runtime exit hook runs.
+    pub shutdown_timing: Option<NativeShutdownTimingArtifact>,
+}
+
+/// Result plus structured artifacts returned by one Sempal native runtime execution.
+#[derive(Debug)]
+pub struct NativeRunReport {
+    /// Structured artifacts captured during the run.
+    pub artifacts: NativeRuntimeArtifacts,
+    /// Native runtime success or error outcome.
+    pub result: Result<(), String>,
+}
 
 /// RGBA icon payload used by native runtime hosts.
 #[derive(Clone, Debug)]
@@ -183,10 +220,25 @@ impl<B: NativeAppBridge> radiant::compat::sempal_shell::NativeAppBridge
             .observe_frame_result(NativeFrameBuildResult::from(result));
     }
 
-    fn on_runtime_exit(
-        &mut self,
-    ) -> Option<radiant::compat::sempal_shell::NativeShutdownTimingArtifact> {
-        self.inner.on_runtime_exit()
+    fn on_runtime_exit(&mut self) -> Option<serde_json::Value> {
+        self.inner
+            .on_runtime_exit()
+            .and_then(|artifact| serde_json::to_value(artifact).ok())
+    }
+}
+
+fn native_run_report_from_radiant(
+    report: radiant::compat::sempal_shell::NativeRunReport,
+) -> NativeRunReport {
+    NativeRunReport {
+        artifacts: NativeRuntimeArtifacts {
+            startup_timing: report.artifacts.startup_timing,
+            shutdown_timing: report
+                .artifacts
+                .shutdown_timing
+                .and_then(|value| serde_json::from_value(value).ok()),
+        },
+        result: report.result,
     }
 }
 
@@ -262,6 +314,7 @@ pub fn run_native_vello_app_with_artifacts<B: NativeAppBridge>(
         options.into(),
         CompatNativeAppBridge::new(bridge),
     );
+    let report = native_run_report_from_radiant(report);
     if let Err(err) = &report.result {
         error!(%err, "radiant native Vello runtime returned error");
     } else {
@@ -306,6 +359,7 @@ pub fn run_native_vello_app_declarative_with_artifacts<B: NativeAppBridge>(
         options.into(),
         CompatNativeAppBridge::new(bridge),
     );
+    let report = native_run_report_from_radiant(report);
     if let Err(err) = &report.result {
         error!(%err, "radiant native Vello runtime returned error");
     } else {
