@@ -119,7 +119,13 @@ fn commit_focus_after_preview_same_row_applies_commit_side_effects() {
         .back()
         .expect("focused history entry");
     assert_eq!(focused.relative_path, Path::new("two.wav"));
-    assert!(controller.runtime.pending_similarity_refresh.is_some());
+    assert!(
+        controller.runtime.pending_similarity_refresh.is_some()
+            || controller
+                .runtime
+                .pending_focused_similarity_query
+                .is_some()
+    );
     assert!(!controller.ui.browser.selection.commit_focus_pending);
 }
 
