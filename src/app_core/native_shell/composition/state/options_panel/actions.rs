@@ -128,18 +128,22 @@ pub(super) fn picker_options(
     target: native_model::AudioPickerTargetModel,
 ) -> &[native_model::AudioOptionItemModel] {
     match target {
-        native_model::AudioPickerTargetModel::OutputHost => &model.audio_engine.output_host_options,
-        native_model::AudioPickerTargetModel::OutputDevice => {
+        native_model::AudioPickerTargetModel::PrimaryGroup => {
+            &model.audio_engine.output_host_options
+        }
+        native_model::AudioPickerTargetModel::PrimaryItem => {
             &model.audio_engine.output_device_options
         }
-        native_model::AudioPickerTargetModel::OutputSampleRate => {
+        native_model::AudioPickerTargetModel::PrimaryNumber => {
             &model.audio_engine.output_sample_rate_options
         }
-        native_model::AudioPickerTargetModel::InputHost => &model.audio_engine.input_host_options,
-        native_model::AudioPickerTargetModel::InputDevice => {
+        native_model::AudioPickerTargetModel::SecondaryGroup => {
+            &model.audio_engine.input_host_options
+        }
+        native_model::AudioPickerTargetModel::SecondaryItem => {
             &model.audio_engine.input_device_options
         }
-        native_model::AudioPickerTargetModel::InputSampleRate => {
+        native_model::AudioPickerTargetModel::SecondaryNumber => {
             &model.audio_engine.input_sample_rate_options
         }
     }
@@ -148,28 +152,32 @@ pub(super) fn picker_options(
 /// Map one projected audio picker option into the native action it emits.
 pub(super) fn picker_action(value: &native_model::AudioOptionValueModel) -> UiAction {
     match value {
-        native_model::AudioOptionValueModel::OutputHost(host_id) => UiAction::SetAudioOutputHost {
-            host_id: host_id.clone(),
-        },
-        native_model::AudioOptionValueModel::OutputDevice(device_name) => {
+        native_model::AudioOptionValueModel::PrimaryGroup(host_id) => {
+            UiAction::SetAudioOutputHost {
+                host_id: host_id.clone(),
+            }
+        }
+        native_model::AudioOptionValueModel::PrimaryItem(device_name) => {
             UiAction::SetAudioOutputDevice {
                 device_name: device_name.clone(),
             }
         }
-        native_model::AudioOptionValueModel::OutputSampleRate(sample_rate) => {
+        native_model::AudioOptionValueModel::PrimaryNumber(sample_rate) => {
             UiAction::SetAudioOutputSampleRate {
                 sample_rate: *sample_rate,
             }
         }
-        native_model::AudioOptionValueModel::InputHost(host_id) => UiAction::SetAudioInputHost {
-            host_id: host_id.clone(),
-        },
-        native_model::AudioOptionValueModel::InputDevice(device_name) => {
+        native_model::AudioOptionValueModel::SecondaryGroup(host_id) => {
+            UiAction::SetAudioInputHost {
+                host_id: host_id.clone(),
+            }
+        }
+        native_model::AudioOptionValueModel::SecondaryItem(device_name) => {
             UiAction::SetAudioInputDevice {
                 device_name: device_name.clone(),
             }
         }
-        native_model::AudioOptionValueModel::InputSampleRate(sample_rate) => {
+        native_model::AudioOptionValueModel::SecondaryNumber(sample_rate) => {
             UiAction::SetAudioInputSampleRate {
                 sample_rate: *sample_rate,
             }
@@ -180,14 +188,12 @@ pub(super) fn picker_action(value: &native_model::AudioOptionValueModel) -> UiAc
 /// Return the title text for the active audio picker target.
 fn audio_picker_title(target: native_model::AudioPickerTargetModel) -> String {
     match target {
-        native_model::AudioPickerTargetModel::OutputHost => String::from("Output Host"),
-        native_model::AudioPickerTargetModel::OutputDevice => String::from("Output Device"),
-        native_model::AudioPickerTargetModel::OutputSampleRate => {
-            String::from("Output Sample Rate")
-        }
-        native_model::AudioPickerTargetModel::InputHost => String::from("Input Host"),
-        native_model::AudioPickerTargetModel::InputDevice => String::from("Input Device"),
-        native_model::AudioPickerTargetModel::InputSampleRate => String::from("Input Sample Rate"),
+        native_model::AudioPickerTargetModel::PrimaryGroup => String::from("Output Host"),
+        native_model::AudioPickerTargetModel::PrimaryItem => String::from("Output Device"),
+        native_model::AudioPickerTargetModel::PrimaryNumber => String::from("Output Sample Rate"),
+        native_model::AudioPickerTargetModel::SecondaryGroup => String::from("Input Host"),
+        native_model::AudioPickerTargetModel::SecondaryItem => String::from("Input Device"),
+        native_model::AudioPickerTargetModel::SecondaryNumber => String::from("Input Sample Rate"),
     }
 }
 

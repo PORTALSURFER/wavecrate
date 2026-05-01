@@ -1471,12 +1471,12 @@ impl From<&BrowserActionsModel> for compat::BrowserActionsModel {
 impl From<compat::AudioPickerTargetModel> for AudioPickerTargetModel {
     fn from(value: compat::AudioPickerTargetModel) -> Self {
         match value {
-            compat::AudioPickerTargetModel::OutputHost => Self::OutputHost,
-            compat::AudioPickerTargetModel::OutputDevice => Self::OutputDevice,
-            compat::AudioPickerTargetModel::OutputSampleRate => Self::OutputSampleRate,
-            compat::AudioPickerTargetModel::InputHost => Self::InputHost,
-            compat::AudioPickerTargetModel::InputDevice => Self::InputDevice,
-            compat::AudioPickerTargetModel::InputSampleRate => Self::InputSampleRate,
+            compat::AudioPickerTargetModel::PrimaryGroup => Self::OutputHost,
+            compat::AudioPickerTargetModel::PrimaryItem => Self::OutputDevice,
+            compat::AudioPickerTargetModel::PrimaryNumber => Self::OutputSampleRate,
+            compat::AudioPickerTargetModel::SecondaryGroup => Self::InputHost,
+            compat::AudioPickerTargetModel::SecondaryItem => Self::InputDevice,
+            compat::AudioPickerTargetModel::SecondaryNumber => Self::InputSampleRate,
         }
     }
 }
@@ -1484,12 +1484,12 @@ impl From<compat::AudioPickerTargetModel> for AudioPickerTargetModel {
 impl From<AudioPickerTargetModel> for compat::AudioPickerTargetModel {
     fn from(value: AudioPickerTargetModel) -> Self {
         match value {
-            AudioPickerTargetModel::OutputHost => Self::OutputHost,
-            AudioPickerTargetModel::OutputDevice => Self::OutputDevice,
-            AudioPickerTargetModel::OutputSampleRate => Self::OutputSampleRate,
-            AudioPickerTargetModel::InputHost => Self::InputHost,
-            AudioPickerTargetModel::InputDevice => Self::InputDevice,
-            AudioPickerTargetModel::InputSampleRate => Self::InputSampleRate,
+            AudioPickerTargetModel::OutputHost => Self::PrimaryGroup,
+            AudioPickerTargetModel::OutputDevice => Self::PrimaryItem,
+            AudioPickerTargetModel::OutputSampleRate => Self::PrimaryNumber,
+            AudioPickerTargetModel::InputHost => Self::SecondaryGroup,
+            AudioPickerTargetModel::InputDevice => Self::SecondaryItem,
+            AudioPickerTargetModel::InputSampleRate => Self::SecondaryNumber,
         }
     }
 }
@@ -1497,12 +1497,12 @@ impl From<AudioPickerTargetModel> for compat::AudioPickerTargetModel {
 impl From<compat::AudioOptionValueModel> for AudioOptionValueModel {
     fn from(value: compat::AudioOptionValueModel) -> Self {
         match value {
-            compat::AudioOptionValueModel::OutputHost(value) => Self::OutputHost(value),
-            compat::AudioOptionValueModel::OutputDevice(value) => Self::OutputDevice(value),
-            compat::AudioOptionValueModel::OutputSampleRate(value) => Self::OutputSampleRate(value),
-            compat::AudioOptionValueModel::InputHost(value) => Self::InputHost(value),
-            compat::AudioOptionValueModel::InputDevice(value) => Self::InputDevice(value),
-            compat::AudioOptionValueModel::InputSampleRate(value) => Self::InputSampleRate(value),
+            compat::AudioOptionValueModel::PrimaryGroup(value) => Self::OutputHost(value),
+            compat::AudioOptionValueModel::PrimaryItem(value) => Self::OutputDevice(value),
+            compat::AudioOptionValueModel::PrimaryNumber(value) => Self::OutputSampleRate(value),
+            compat::AudioOptionValueModel::SecondaryGroup(value) => Self::InputHost(value),
+            compat::AudioOptionValueModel::SecondaryItem(value) => Self::InputDevice(value),
+            compat::AudioOptionValueModel::SecondaryNumber(value) => Self::InputSampleRate(value),
         }
     }
 }
@@ -1510,12 +1510,12 @@ impl From<compat::AudioOptionValueModel> for AudioOptionValueModel {
 impl From<AudioOptionValueModel> for compat::AudioOptionValueModel {
     fn from(value: AudioOptionValueModel) -> Self {
         match value {
-            AudioOptionValueModel::OutputHost(value) => Self::OutputHost(value),
-            AudioOptionValueModel::OutputDevice(value) => Self::OutputDevice(value),
-            AudioOptionValueModel::OutputSampleRate(value) => Self::OutputSampleRate(value),
-            AudioOptionValueModel::InputHost(value) => Self::InputHost(value),
-            AudioOptionValueModel::InputDevice(value) => Self::InputDevice(value),
-            AudioOptionValueModel::InputSampleRate(value) => Self::InputSampleRate(value),
+            AudioOptionValueModel::OutputHost(value) => Self::PrimaryGroup(value),
+            AudioOptionValueModel::OutputDevice(value) => Self::PrimaryItem(value),
+            AudioOptionValueModel::OutputSampleRate(value) => Self::PrimaryNumber(value),
+            AudioOptionValueModel::InputHost(value) => Self::SecondaryGroup(value),
+            AudioOptionValueModel::InputDevice(value) => Self::SecondaryItem(value),
+            AudioOptionValueModel::InputSampleRate(value) => Self::SecondaryNumber(value),
         }
     }
 }
