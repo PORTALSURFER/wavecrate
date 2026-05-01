@@ -20,6 +20,14 @@ pub mod input {
     pub use radiant::gui::input::*;
 }
 
+pub mod list {
+    //! Generic list and virtualization primitives from `radiant`.
+    //!
+    //! Re-exports keep Sempal's large-list behavior on the framework-owned
+    //! virtualization contract instead of duplicating list-window math locally.
+    pub use radiant::gui::list::*;
+}
+
 pub mod repaint {
     //! Signals used to request UI updates from background work.
     //!

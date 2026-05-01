@@ -1,4 +1,5 @@
 use super::*;
+use crate::gui::list::{VirtualListWindowRequest, resolve_virtual_list_window};
 
 /// Resolve browser row-window bounds while preserving a prior visible viewport start.
 ///
@@ -69,7 +70,17 @@ pub(in crate::gui::native_shell::state) fn browser_window_start_with_previous(
     if !autoscroll {
         return projected_window_start;
     }
-    browser_prewindowed_start(focus_index, window_len, max_start, projected_window_start)
+    resolve_virtual_list_window(VirtualListWindowRequest {
+        total_items: rows.len(),
+        viewport_len: window_len,
+        requested_start: projected_window_start,
+        previous_start: Some(projected_window_start),
+        focused_index: Some(focus_index),
+        guard_band: super::BROWSER_VIEW_EDGE_MARGIN_ROWS,
+        overscan: 0,
+    })
+    .viewport_start
+    .min(max_start)
 }
 
 /// Resolve the authoritative viewport start inside a host-prewindowed browser slice.
@@ -79,26 +90,4 @@ fn prewindowed_relative_view_start(
     max_start: usize,
 ) -> usize {
     view_start_row.saturating_sub(slice_start).min(max_start)
-}
-
-/// Resolve one viewport start inside a host-prewindowed browser slice.
-fn browser_prewindowed_start(
-    focus_index: usize,
-    window_len: usize,
-    max_start: usize,
-    projected_window_start: usize,
-) -> usize {
-    let edge_margin = super::BROWSER_VIEW_EDGE_MARGIN_ROWS.min(window_len.saturating_sub(1) / 2);
-    let mut window_start = projected_window_start.min(max_start);
-    let window_end = window_start + window_len;
-    let top_guard = window_start + edge_margin;
-    let bottom_guard = window_end.saturating_sub(edge_margin);
-    if focus_index < top_guard {
-        window_start = focus_index.saturating_sub(edge_margin);
-    } else if focus_index >= bottom_guard {
-        window_start = focus_index
-            .saturating_add(edge_margin + 1)
-            .saturating_sub(window_len);
-    }
-    window_start.min(max_start)
 }
