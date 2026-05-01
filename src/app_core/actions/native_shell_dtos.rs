@@ -1673,17 +1673,13 @@ impl From<&OptionsPanelModel> for compat::OptionsPanelModel {
 impl From<compat::ConfirmPromptKind> for ConfirmPromptKind {
     fn from(value: compat::ConfirmPromptKind) -> Self {
         match value {
-            compat::ConfirmPromptKind::DestructiveEdit => Self::DestructiveEdit,
-            compat::ConfirmPromptKind::BrowserRename => Self::BrowserRename,
-            compat::ConfirmPromptKind::FolderRename => Self::FolderRename,
-            compat::ConfirmPromptKind::FolderCreate => Self::FolderCreate,
-            compat::ConfirmPromptKind::RestoreRetainedFolderDeletes => {
-                Self::RestoreRetainedFolderDeletes
-            }
-            compat::ConfirmPromptKind::PurgeRetainedFolderDeletes => {
-                Self::PurgeRetainedFolderDeletes
-            }
-            compat::ConfirmPromptKind::OptionsDefaultIdentifier => Self::OptionsDefaultIdentifier,
+            compat::ConfirmPromptKind::DestructiveOperation => Self::DestructiveEdit,
+            compat::ConfirmPromptKind::RenameContent => Self::BrowserRename,
+            compat::ConfirmPromptKind::RenameNavigationItem => Self::FolderRename,
+            compat::ConfirmPromptKind::CreateNavigationItem => Self::FolderCreate,
+            compat::ConfirmPromptKind::RestoreRetainedItems => Self::RestoreRetainedFolderDeletes,
+            compat::ConfirmPromptKind::PurgeRetainedItems => Self::PurgeRetainedFolderDeletes,
+            compat::ConfirmPromptKind::EditConfiguration => Self::OptionsDefaultIdentifier,
         }
     }
 }
@@ -1691,13 +1687,13 @@ impl From<compat::ConfirmPromptKind> for ConfirmPromptKind {
 impl From<ConfirmPromptKind> for compat::ConfirmPromptKind {
     fn from(value: ConfirmPromptKind) -> Self {
         match value {
-            ConfirmPromptKind::DestructiveEdit => Self::DestructiveEdit,
-            ConfirmPromptKind::BrowserRename => Self::BrowserRename,
-            ConfirmPromptKind::FolderRename => Self::FolderRename,
-            ConfirmPromptKind::FolderCreate => Self::FolderCreate,
-            ConfirmPromptKind::RestoreRetainedFolderDeletes => Self::RestoreRetainedFolderDeletes,
-            ConfirmPromptKind::PurgeRetainedFolderDeletes => Self::PurgeRetainedFolderDeletes,
-            ConfirmPromptKind::OptionsDefaultIdentifier => Self::OptionsDefaultIdentifier,
+            ConfirmPromptKind::DestructiveEdit => Self::DestructiveOperation,
+            ConfirmPromptKind::BrowserRename => Self::RenameContent,
+            ConfirmPromptKind::FolderRename => Self::RenameNavigationItem,
+            ConfirmPromptKind::FolderCreate => Self::CreateNavigationItem,
+            ConfirmPromptKind::RestoreRetainedFolderDeletes => Self::RestoreRetainedItems,
+            ConfirmPromptKind::PurgeRetainedFolderDeletes => Self::PurgeRetainedItems,
+            ConfirmPromptKind::OptionsDefaultIdentifier => Self::EditConfiguration,
         }
     }
 }

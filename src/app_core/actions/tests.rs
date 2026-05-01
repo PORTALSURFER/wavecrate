@@ -405,6 +405,32 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal native confirm prompts should alias the generic Radiant prompt primitive"
     );
     assert!(
+        native_dtos.contains("pub enum ConfirmPromptKind")
+            && native_dtos.contains("DestructiveEdit")
+            && native_dtos.contains("BrowserRename")
+            && native_dtos.contains("FolderRename")
+            && native_dtos.contains("OptionsDefaultIdentifier"),
+        "Sempal should own product prompt-kind names at the app boundary"
+    );
+    assert!(
+        native_dtos
+            .contains("compat::ConfirmPromptKind::DestructiveOperation => Self::DestructiveEdit")
+            && native_dtos
+                .contains("compat::ConfirmPromptKind::RenameContent => Self::BrowserRename")
+            && native_dtos
+                .contains("compat::ConfirmPromptKind::RenameNavigationItem => Self::FolderRename")
+            && native_dtos
+                .contains("compat::ConfirmPromptKind::CreateNavigationItem => Self::FolderCreate")
+            && native_dtos
+                .contains("ConfirmPromptKind::DestructiveEdit => Self::DestructiveOperation")
+            && native_dtos.contains("ConfirmPromptKind::BrowserRename => Self::RenameContent")
+            && native_dtos
+                .contains("ConfirmPromptKind::FolderRename => Self::RenameNavigationItem")
+            && native_dtos
+                .contains("ConfirmPromptKind::FolderCreate => Self::CreateNavigationItem"),
+        "Sempal prompt DTO conversion should map product prompt names onto generic Radiant intents"
+    );
+    assert!(
         !native_dtos.contains("pub enum AudioEngineChipStateModel"),
         "audio chip health should use the Radiant-owned generic health-state primitive"
     );
