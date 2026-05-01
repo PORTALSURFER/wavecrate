@@ -7,6 +7,7 @@
 //! Sempal projection types.
 
 use radiant::compat::legacy_shell as compat;
+use radiant::gui::automation;
 use radiant::gui::retained;
 use radiant::gui::types::ImageRgba;
 use serde::{Deserialize, Serialize};
@@ -14,6 +15,12 @@ use std::{collections::BTreeMap, sync::Arc};
 
 /// Shared storage used by retained app-model snapshots.
 pub type RetainedVec<T> = retained::RetainedVec<T>;
+
+/// Stable semantic identifier for one automation node in the native shell tree.
+pub type AutomationNodeId = automation::AutomationNodeId;
+
+/// Quantized window-space bounds for one automation node.
+pub type AutomationBounds = automation::AutomationBounds;
 
 /// Browser playback-age filter chips shown in the native toolbar.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -27,17 +34,6 @@ pub enum PlaybackAgeFilterChip {
 }
 
 // Sempal-owned GUI automation snapshot DTOs.
-
-/// Stable semantic identifier for one automation node in the native shell tree.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub struct AutomationNodeId(pub String);
-
-impl AutomationNodeId {
-    /// Create a new automation node identifier from an owned string.
-    pub fn new(id: impl Into<String>) -> Self {
-        Self(id.into())
-    }
-}
 
 /// Semantic role describing how an automation node behaves in the GUI.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -75,19 +71,6 @@ pub enum AutomationRole {
     Readout,
     /// Dialog or modal container.
     Dialog,
-}
-
-/// Quantized window-space bounds for one automation node.
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub struct AutomationBounds {
-    /// Left edge in logical window coordinates.
-    pub x: f32,
-    /// Top edge in logical window coordinates.
-    pub y: f32,
-    /// Width in logical window coordinates.
-    pub width: f32,
-    /// Height in logical window coordinates.
-    pub height: f32,
 }
 
 /// One node in the GUI automation tree.
@@ -3269,16 +3252,12 @@ impl From<&AppModel> for compat::AppModel {
     }
 }
 
-impl From<compat::AutomationNodeId> for AutomationNodeId {
-    fn from(value: compat::AutomationNodeId) -> Self {
-        Self(value.0)
-    }
+fn automation_node_id_from_compat(value: compat::AutomationNodeId) -> AutomationNodeId {
+    automation::AutomationNodeId(value.0)
 }
 
-impl From<AutomationNodeId> for compat::AutomationNodeId {
-    fn from(value: AutomationNodeId) -> Self {
-        Self(value.0)
-    }
+fn automation_node_id_to_compat(value: AutomationNodeId) -> compat::AutomationNodeId {
+    compat::AutomationNodeId(value.0)
 }
 
 impl From<compat::AutomationRole> for AutomationRole {
@@ -3327,35 +3306,31 @@ impl From<AutomationRole> for compat::AutomationRole {
     }
 }
 
-impl From<compat::AutomationBounds> for AutomationBounds {
-    fn from(value: compat::AutomationBounds) -> Self {
-        Self {
-            x: value.x,
-            y: value.y,
-            width: value.width,
-            height: value.height,
-        }
+fn automation_bounds_from_compat(value: compat::AutomationBounds) -> AutomationBounds {
+    AutomationBounds {
+        x: value.x,
+        y: value.y,
+        width: value.width,
+        height: value.height,
     }
 }
 
-impl From<AutomationBounds> for compat::AutomationBounds {
-    fn from(value: AutomationBounds) -> Self {
-        Self {
-            x: value.x,
-            y: value.y,
-            width: value.width,
-            height: value.height,
-        }
+fn automation_bounds_to_compat(value: AutomationBounds) -> compat::AutomationBounds {
+    compat::AutomationBounds {
+        x: value.x,
+        y: value.y,
+        width: value.width,
+        height: value.height,
     }
 }
 
 impl From<compat::AutomationNodeSnapshot> for AutomationNodeSnapshot {
     fn from(value: compat::AutomationNodeSnapshot) -> Self {
         Self {
-            id: value.id.into(),
+            id: automation_node_id_from_compat(value.id),
             role: value.role.into(),
             label: value.label,
-            bounds: value.bounds.into(),
+            bounds: automation_bounds_from_compat(value.bounds),
             value: value.value,
             enabled: value.enabled,
             selected: value.selected,
@@ -3369,10 +3344,10 @@ impl From<compat::AutomationNodeSnapshot> for AutomationNodeSnapshot {
 impl From<AutomationNodeSnapshot> for compat::AutomationNodeSnapshot {
     fn from(value: AutomationNodeSnapshot) -> Self {
         Self {
-            id: value.id.into(),
+            id: automation_node_id_to_compat(value.id),
             role: value.role.into(),
             label: value.label,
-            bounds: value.bounds.into(),
+            bounds: automation_bounds_to_compat(value.bounds),
             value: value.value,
             enabled: value.enabled,
             selected: value.selected,

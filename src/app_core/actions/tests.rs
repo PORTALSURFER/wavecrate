@@ -249,6 +249,19 @@ fn native_action_exports_are_owned_in_app_core() {
         native_dtos.contains("pub type RetainedVec<T> = retained::RetainedVec<T>;"),
         "Sempal native DTOs should alias the generic Radiant retained storage primitive"
     );
+    assert!(
+        !native_dtos.contains("pub struct AutomationNodeId"),
+        "automation node IDs should use the Radiant-owned generic primitive"
+    );
+    assert!(
+        !native_dtos.contains("pub struct AutomationBounds"),
+        "automation bounds should use the Radiant-owned generic primitive"
+    );
+    assert!(
+        native_dtos.contains("pub type AutomationNodeId = automation::AutomationNodeId;")
+            && native_dtos.contains("pub type AutomationBounds = automation::AutomationBounds;"),
+        "Sempal native automation DTOs should alias generic Radiant automation primitives"
+    );
 
     let radiant_app_sources = [
         "actions/mod.rs",
