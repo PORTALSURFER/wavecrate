@@ -324,6 +324,14 @@ fn native_action_exports_are_owned_in_app_core() {
             && native_dtos.contains("pub type UpdateStatusModel = feedback::UpdateStatus;"),
         "Sempal native DTOs should alias generic Radiant state primitives"
     );
+    assert!(
+        !native_dtos.contains("pub struct UpdatePanelModel"),
+        "update panels should use the Radiant-owned generic feedback primitive"
+    );
+    assert!(
+        native_dtos.contains("pub type UpdatePanelModel = feedback::UpdatePanel;"),
+        "Sempal native update panels should alias the generic Radiant feedback primitive"
+    );
 
     let radiant_app_sources = [
         "actions/mod.rs",

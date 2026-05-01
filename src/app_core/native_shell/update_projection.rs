@@ -55,7 +55,7 @@ pub(crate) fn project_update_model(ui: &UiState) -> UpdatePanelModel {
         status_label,
         action_hint_label,
         release_notes_label,
-        available_tag: ui.update.available_tag.clone(),
+        available_version_label: ui.update.available_tag.clone(),
         available_url: ui.update.available_url.clone(),
         last_error: ui.update.last_error.clone(),
     }

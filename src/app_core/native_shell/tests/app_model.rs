@@ -61,6 +61,10 @@ fn update_projection_exposes_status_and_action_hint_labels() {
         "Update available: v20.1.0 (manual install required)"
     );
     assert_eq!(
+        projected.available_version_label.as_deref(),
+        Some("v20.1.0")
+    );
+    assert_eq!(
         projected.action_hint_label,
         "Actions: open | install(manual) | dismiss"
     );

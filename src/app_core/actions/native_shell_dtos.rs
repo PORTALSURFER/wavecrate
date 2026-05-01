@@ -66,6 +66,9 @@ pub type MapRenderModeModel = visualization::PointRenderMode;
 /// Update-check status projected into the native shell.
 pub type UpdateStatusModel = feedback::UpdateStatus;
 
+/// Update panel state used by native top-bar actions.
+pub type UpdatePanelModel = feedback::UpdatePanel;
+
 /// Browser playback-age filter chips shown in the native toolbar.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum PlaybackAgeFilterChip {
@@ -881,25 +884,6 @@ pub struct AudioEngineModel {
     pub input_device_options: Vec<AudioOptionItemModel>,
     /// Input sample-rate choices.
     pub input_sample_rate_options: Vec<AudioOptionItemModel>,
-}
-
-/// Update panel state used by native top-bar actions.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct UpdatePanelModel {
-    /// Current update-check status.
-    pub status: UpdateStatusModel,
-    /// Status label rendered in native top-bar chrome.
-    pub status_label: String,
-    /// Action hint label rendered near update controls.
-    pub action_hint_label: String,
-    /// Supplemental release-notes label rendered under update hints.
-    pub release_notes_label: String,
-    /// Available release tag, when present.
-    pub available_tag: Option<String>,
-    /// Available release URL, when present.
-    pub available_url: Option<String>,
-    /// Last error message from update checks, if any.
-    pub last_error: Option<String>,
 }
 
 /// Options-panel state projected into the native shell.
@@ -2405,40 +2389,6 @@ impl From<AudioEngineModel> for compat::AudioEngineModel {
 
 impl From<&AudioEngineModel> for compat::AudioEngineModel {
     fn from(value: &AudioEngineModel) -> Self {
-        value.clone().into()
-    }
-}
-
-impl From<compat::UpdatePanelModel> for UpdatePanelModel {
-    fn from(value: compat::UpdatePanelModel) -> Self {
-        Self {
-            status: value.status.into(),
-            status_label: value.status_label,
-            action_hint_label: value.action_hint_label,
-            release_notes_label: value.release_notes_label,
-            available_tag: value.available_version_label,
-            available_url: value.available_url,
-            last_error: value.last_error,
-        }
-    }
-}
-
-impl From<UpdatePanelModel> for compat::UpdatePanelModel {
-    fn from(value: UpdatePanelModel) -> Self {
-        Self {
-            status: value.status.into(),
-            status_label: value.status_label,
-            action_hint_label: value.action_hint_label,
-            release_notes_label: value.release_notes_label,
-            available_version_label: value.available_tag,
-            available_url: value.available_url,
-            last_error: value.last_error,
-        }
-    }
-}
-
-impl From<&UpdatePanelModel> for compat::UpdatePanelModel {
-    fn from(value: &UpdatePanelModel) -> Self {
         value.clone().into()
     }
 }
