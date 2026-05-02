@@ -149,7 +149,7 @@ pub(super) fn render_browser_frame(
             continue;
         }
         let chip = BROWSER_PLAYBACK_AGE_FILTER_CHIPS[index];
-        let active = ctx.model.browser.active_playback_age_filters[index];
+        let active = ctx.model.browser.active_recency_filters[index];
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {

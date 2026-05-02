@@ -650,7 +650,7 @@ pub(in crate::gui::native_shell::state) fn browser_action_model_signature(model:
         .hash(&mut hasher);
     model.browser_actions.pill_editor_open().hash(&mut hasher);
     model.browser.active_rating_filters.hash(&mut hasher);
-    model.browser.active_playback_age_filters.hash(&mut hasher);
+    model.browser.active_recency_filters.hash(&mut hasher);
     model.browser.marked_filter_active.hash(&mut hasher);
     model
         .browser
