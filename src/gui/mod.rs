@@ -36,6 +36,14 @@ pub mod repaint {
     pub use radiant::gui::repaint::*;
 }
 
+pub mod svg {
+    //! SVG subset parsing helpers from `radiant`.
+    //!
+    //! Re-exported so Sempal-owned native-shell icon rasterization uses the
+    //! framework-provided parser instead of vendoring parser logic locally.
+    pub use radiant::gui::svg::*;
+}
+
 pub mod types {
     //! Light-weight value types used by UI declarations and render payloads.
     //!
