@@ -99,6 +99,9 @@ pub type WaveformViewportModel = visualization::TimelineViewport;
 /// Waveform cursor, playhead, and selection transport state exposed to the native shell.
 pub type WaveformTransportModel = visualization::TimelineTransportState;
 
+/// Waveform edit selection and fade-preview state exposed to the native shell.
+pub type WaveformEditPreviewModel = visualization::TimelineEditPreview;
+
 /// One detected waveform slice preview exposed to the native shell.
 pub type WaveformSlicePreviewModel = visualization::TimelineMarkerPreview;
 
@@ -565,8 +568,8 @@ impl NativeMotionModel {
     }
 
     /// Return this motion snapshot's generic timeline edit-preview state.
-    pub fn waveform_edit_preview(&self) -> compat::WaveformEditPreviewModel {
-        compat::WaveformEditPreviewModel::new(
+    pub fn waveform_edit_preview(&self) -> WaveformEditPreviewModel {
+        WaveformEditPreviewModel::new(
             self.waveform_edit_selection_milli,
             self.waveform_edit_fade_in_end_milli,
             self.waveform_edit_fade_in_end_micros,
@@ -1129,8 +1132,8 @@ impl WaveformPanelModel {
     }
 
     /// Return this panel's generic timeline edit preview.
-    pub fn edit_preview(&self) -> compat::WaveformEditPreviewModel {
-        compat::WaveformEditPreviewModel::new(
+    pub fn edit_preview(&self) -> WaveformEditPreviewModel {
+        WaveformEditPreviewModel::new(
             self.edit_selection_milli.map(Into::into),
             self.edit_fade_in_end_milli,
             self.edit_fade_in_end_micros,
