@@ -114,6 +114,9 @@ pub type WaveformPresentationModel = visualization::TimelinePresentationState;
 /// Retained waveform raster preview state exposed to the native shell.
 pub type WaveformImagePreviewModel = visualization::SignalRasterPreview;
 
+/// Waveform display chrome state exposed to the native shell.
+pub type WaveformChromeStateModel = visualization::SignalChromeState;
+
 /// Aggregated waveform timeline surface state exposed to the native shell.
 pub type WaveformSurfaceModel = visualization::TimelineSurfaceState<WaveformSlicePreviewModel>;
 
@@ -619,8 +622,8 @@ impl NativeMotionModel {
     }
 
     /// Return this motion snapshot's generic signal chrome state.
-    pub fn signal_chrome(&self) -> compat::WaveformChromeStateModel {
-        compat::WaveformChromeStateModel::new(
+    pub fn signal_chrome(&self) -> WaveformChromeStateModel {
+        WaveformChromeStateModel::new(
             self.waveform_transport_hint.clone(),
             self.waveform_compare_anchor_available,
             self.waveform_compare_anchor_label.clone(),
@@ -1246,8 +1249,8 @@ impl Default for WaveformChromeModel {
 
 impl WaveformChromeModel {
     /// Return this chrome model's generic signal visualization display state.
-    pub fn signal_chrome(&self) -> compat::WaveformChromeStateModel {
-        compat::WaveformChromeStateModel::new(
+    pub fn signal_chrome(&self) -> WaveformChromeStateModel {
+        WaveformChromeStateModel::new(
             self.transport_hint.clone(),
             self.compare_anchor_available,
             self.compare_anchor_label.clone(),
