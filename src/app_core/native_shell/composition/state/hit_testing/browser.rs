@@ -583,7 +583,7 @@ fn browser_tag_sidebar_action_at_point(
 ) -> Option<UiAction> {
     let layout = browser_tag_sidebar_layout(rows_rect, sizing, model)?;
     if layout.auto_rename_rect.contains(point) {
-        return Some(UiAction::ToggleBrowserTagSidebarAutoRename);
+        return Some(UiAction::ToggleBrowserPillEditorPrimaryAction);
     }
     if layout.input_rect.contains(point) {
         return Some(UiAction::FocusBrowserPillEditorInput);

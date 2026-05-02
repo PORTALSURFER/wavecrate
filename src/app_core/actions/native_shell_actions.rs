@@ -1357,8 +1357,8 @@ impl From<compat::UiAction> for UiAction {
                 Self::ToggleBrowserTagNamedFilter { invert: invert }
             }
             compat::UiAction::ToggleRandomNavigationMode => Self::ToggleRandomNavigationMode,
-            compat::UiAction::ToggleBrowserTagSidebar => Self::ToggleBrowserTagSidebar,
-            compat::UiAction::ToggleBrowserTagSidebarAutoRename => {
+            compat::UiAction::ToggleBrowserPillEditor => Self::ToggleBrowserTagSidebar,
+            compat::UiAction::ToggleBrowserPillEditorPrimaryAction => {
                 Self::ToggleBrowserTagSidebarAutoRename
             }
             compat::UiAction::ToggleBrowserDuplicateCleanupMode => {
@@ -1944,8 +1944,10 @@ impl From<UiAction> for compat::UiAction {
                 Self::ToggleBrowserTagNamedFilter { invert: invert }
             }
             UiAction::ToggleRandomNavigationMode => Self::ToggleRandomNavigationMode,
-            UiAction::ToggleBrowserTagSidebar => Self::ToggleBrowserTagSidebar,
-            UiAction::ToggleBrowserTagSidebarAutoRename => Self::ToggleBrowserTagSidebarAutoRename,
+            UiAction::ToggleBrowserTagSidebar => Self::ToggleBrowserPillEditor,
+            UiAction::ToggleBrowserTagSidebarAutoRename => {
+                Self::ToggleBrowserPillEditorPrimaryAction
+            }
             UiAction::ToggleBrowserDuplicateCleanupMode => Self::ToggleBrowserDuplicateCleanupMode,
             UiAction::FocusPreviousBrowserHistory => Self::FocusPreviousBrowserHistory,
             UiAction::FocusNextBrowserHistory => Self::FocusNextBrowserHistory,

@@ -1886,6 +1886,10 @@ fn automation_action_id_from_compat(action_id: String) -> String {
         "focus_browser_pill_editor_input" => String::from("focus_browser_tag_sidebar_input"),
         "set_browser_pill_editor_input" => String::from("set_browser_tag_sidebar_input"),
         "commit_browser_pill_editor_input" => String::from("commit_browser_tag_sidebar_input"),
+        "toggle_browser_pill_editor" => String::from("toggle_browser_tag_sidebar"),
+        "toggle_browser_pill_editor_primary_action" => {
+            String::from("toggle_browser_tag_sidebar_auto_rename")
+        }
         _ => action_id,
     }
 }
@@ -1896,6 +1900,10 @@ fn automation_action_id_to_compat(action_id: String) -> String {
         "focus_browser_tag_sidebar_input" => String::from("focus_browser_pill_editor_input"),
         "set_browser_tag_sidebar_input" => String::from("set_browser_pill_editor_input"),
         "commit_browser_tag_sidebar_input" => String::from("commit_browser_pill_editor_input"),
+        "toggle_browser_tag_sidebar" => String::from("toggle_browser_pill_editor"),
+        "toggle_browser_tag_sidebar_auto_rename" => {
+            String::from("toggle_browser_pill_editor_primary_action")
+        }
         _ => action_id,
     }
 }

@@ -50,7 +50,7 @@ pub(in crate::gui::native_shell::state) fn browser_action_buttons(
             icon: None,
             enabled: true,
             active: model.browser_actions.tag_sidebar_open,
-            action: UiAction::ToggleBrowserTagSidebar,
+            action: UiAction::ToggleBrowserPillEditor,
             text_color: if model.browser_actions.tag_sidebar_open {
                 style.highlight_cyan
             } else {
