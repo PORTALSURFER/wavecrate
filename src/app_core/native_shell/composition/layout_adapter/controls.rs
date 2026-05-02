@@ -16,5 +16,5 @@ pub(crate) use sidebar_buttons::compute_sidebar_action_button_rects;
 pub(crate) use update_buttons::compute_update_action_button_rects;
 
 #[cfg(test)]
-#[path = "../../../../../vendor/radiant/src/gui/native_shell/layout_adapter/controls_tests.rs"]
+#[path = "controls_tests.rs"]
 mod controls_tests;
