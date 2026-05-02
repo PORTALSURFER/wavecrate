@@ -305,37 +305,52 @@ pub struct SegmentRevisions {
 }
 
 impl SegmentRevisions {
+    /// Return these named compatibility revisions as a generic retained segment array.
+    pub const fn retained_revisions(self) -> invalidation::RetainedSegmentRevisions<6> {
+        invalidation::RetainedSegmentRevisions::new([
+            self.status_bar,
+            self.browser_frame,
+            self.browser_rows_window,
+            self.map_panel,
+            self.waveform_overlay,
+            self.global_static,
+        ])
+    }
+
     /// Return whether any static-segment revision is non-zero.
-    pub const fn has_static_revisions(self) -> bool {
-        self.status_bar != 0
-            || self.browser_frame != 0
-            || self.browser_rows_window != 0
-            || self.map_panel != 0
-            || self.waveform_overlay != 0
-            || self.global_static != 0
+    pub fn has_static_revisions(self) -> bool {
+        self.retained_revisions().has_revisions()
     }
 
     /// Bump revisions for the static segments flagged in `dirty_segments`.
     pub fn bump_for_dirty_segments(&mut self, dirty_segments: DirtySegments) {
         let bits = dirty_segments.bits();
-        if (bits & DirtySegments::STATUS_BAR) != 0 {
-            self.status_bar = self.status_bar.saturating_add(1);
-        }
-        if (bits & DirtySegments::BROWSER_FRAME) != 0 {
-            self.browser_frame = self.browser_frame.saturating_add(1);
-        }
-        if (bits & DirtySegments::BROWSER_ROWS_WINDOW) != 0 {
-            self.browser_rows_window = self.browser_rows_window.saturating_add(1);
-        }
-        if (bits & DirtySegments::MAP_PANEL) != 0 {
-            self.map_panel = self.map_panel.saturating_add(1);
-        }
-        if (bits & DirtySegments::WAVEFORM_OVERLAY) != 0 {
-            self.waveform_overlay = self.waveform_overlay.saturating_add(1);
-        }
-        if (bits & DirtySegments::GLOBAL_STATIC) != 0 {
-            self.global_static = self.global_static.saturating_add(1);
-        }
+        let mut revisions = self.retained_revisions();
+        revisions.bump_for_bits(
+            bits,
+            [
+                DirtySegments::STATUS_BAR,
+                DirtySegments::BROWSER_FRAME,
+                DirtySegments::BROWSER_ROWS_WINDOW,
+                DirtySegments::MAP_PANEL,
+                DirtySegments::WAVEFORM_OVERLAY,
+                DirtySegments::GLOBAL_STATIC,
+            ],
+        );
+        let [
+            status_bar,
+            browser_frame,
+            browser_rows_window,
+            map_panel,
+            waveform_overlay,
+            global_static,
+        ] = revisions.revisions;
+        self.status_bar = status_bar;
+        self.browser_frame = browser_frame;
+        self.browser_rows_window = browser_rows_window;
+        self.map_panel = map_panel;
+        self.waveform_overlay = waveform_overlay;
+        self.global_static = global_static;
     }
 }
 

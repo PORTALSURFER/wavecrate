@@ -629,8 +629,9 @@ fn native_action_exports_are_owned_in_app_core() {
     assert!(
         native_dtos.contains("use radiant::gui::invalidation;")
             && native_dtos.contains("mask: invalidation::RetainedSegmentMask")
-            && native_dtos.contains("mask: invalidation::RetainedSegmentMask::from_bits"),
-        "Sempal native dirty segments should wrap the generic Radiant retained segment mask primitive"
+            && native_dtos.contains("mask: invalidation::RetainedSegmentMask::from_bits")
+            && native_dtos.contains("invalidation::RetainedSegmentRevisions"),
+        "Sempal native dirty segments should wrap the generic Radiant retained segment primitives"
     );
 
     let radiant_app_sources = [
