@@ -369,8 +369,10 @@ fn native_action_exports_are_owned_in_app_core() {
     );
     assert!(
         native_dtos.contains("\"browser.tab.items\" => String::from(\"browser.tab.samples\")")
-            && native_dtos.contains("\"browser.tab.samples\" => String::from(\"browser.tab.items\")")
-            && native_dtos.contains("\"browser.pill_editor\" => String::from(\"browser.tag_sidebar\")")
+            && native_dtos
+                .contains("\"browser.tab.samples\" => String::from(\"browser.tab.items\")")
+            && native_dtos
+                .contains("\"browser.pill_editor\" => String::from(\"browser.tag_sidebar\")")
             && native_dtos.contains("\"browser.pill_editor.option.\"")
             && native_dtos.contains("format!(\"browser.tag_sidebar.normal_tag.{suffix}\")")
             && native_dtos.contains("metadata.insert(String::from(\"normal_tag_labels\"), value);")
@@ -783,6 +785,58 @@ fn native_action_exports_are_owned_in_app_core() {
                 "{} must not define Sempal-owned {forbidden}",
                 source_path.display()
             );
+        }
+    }
+}
+
+#[test]
+fn radiant_legacy_shell_imports_are_confined_to_runtime_boundary() {
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let src_dir = manifest_dir.join("src");
+    let allowed = BTreeSet::from([
+        "src/app_core/actions/native_shell_actions.rs",
+        "src/app_core/actions/native_shell_dtos.rs",
+        "src/gui_runtime/mod.rs",
+    ]);
+    let skipped = BTreeSet::from(["src/app_core/actions/tests.rs"]);
+    let forbidden = [
+        concat!("radiant::compat::", "legacy_shell"),
+        concat!("compat::", "legacy_shell"),
+    ];
+    let mut violations = Vec::new();
+
+    collect_rust_sources(&src_dir, &mut |path| {
+        let relative = path
+            .strip_prefix(manifest_dir)
+            .expect("source path under manifest dir")
+            .to_string_lossy()
+            .replace('\\', "/");
+        if skipped.contains(relative.as_str()) {
+            return;
+        }
+        let source = fs::read_to_string(path).expect("read Rust source");
+        if forbidden.iter().any(|needle| source.contains(needle))
+            && !allowed.contains(relative.as_str())
+        {
+            violations.push(relative);
+        }
+    });
+
+    assert!(
+        violations.is_empty(),
+        "direct Radiant legacy-shell usage must stay confined to the temporary runtime boundary: {}",
+        violations.join(", ")
+    );
+}
+
+fn collect_rust_sources(dir: &Path, visit: &mut impl FnMut(&Path)) {
+    for entry in fs::read_dir(dir).expect("read source dir") {
+        let entry = entry.expect("read source entry");
+        let path = entry.path();
+        if path.is_dir() {
+            collect_rust_sources(&path, visit);
+        } else if path.extension().is_some_and(|extension| extension == "rs") {
+            visit(&path);
         }
     }
 }

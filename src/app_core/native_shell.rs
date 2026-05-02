@@ -1,8 +1,8 @@
 //! Native-shell projection helpers used by the `radiant` bridge.
 //!
 //! The bridge consumes these helpers to project controller state into the
-//! transitional `radiant::compat::legacy_shell` models and to translate
-//! normalized UI ranges back into controller-domain selection math.
+//! Sempal-owned native shell contract and to translate normalized UI ranges
+//! back into controller-domain selection math.
 
 use super::controller::{
     AppController, ProjectedBrowserPreloadWindow, ProjectedBrowserRowCacheEntry,
