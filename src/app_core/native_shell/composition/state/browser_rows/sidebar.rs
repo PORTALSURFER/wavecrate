@@ -48,7 +48,7 @@ pub(in crate::gui::native_shell::state) fn browser_pill_editor_panel_rect(
     _sizing: SizingTokens,
     model: &AppModel,
 ) -> Option<Rect> {
-    if !model.browser.tag_sidebar.open || model.map.active || rows_rect.width() <= 1.0 {
+    if !model.browser.pill_editor().open || model.map.active || rows_rect.width() <= 1.0 {
         return None;
     }
     let width = (rows_rect.width() * 0.34).clamp(220.0, 320.0);

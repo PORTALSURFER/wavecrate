@@ -374,7 +374,7 @@ fn render_browser_pill_editor_overlay(
     else {
         return;
     };
-    let sidebar = &ctx.model.browser.tag_sidebar;
+    let sidebar = ctx.model.browser.pill_editor();
     let panel_rect = browser_pill_editor_rect(ctx.layout.browser_rows, ctx.sizing, ctx.model)
         .unwrap_or(ctx.layout.browser_rows);
     emit_primitive(
@@ -613,8 +613,8 @@ fn browser_pill_editor_layout(
     let tag_width = ((content_max_x - content_min_x - pill_gap * (tag_cols - 1) as f32)
         / tag_cols as f32)
         .max(40.0);
-    let mut normal_tag_rects = Vec::with_capacity(model.browser.tag_sidebar.option_pills.len());
-    for index in 0..model.browser.tag_sidebar.option_pills.len() {
+    let mut normal_tag_rects = Vec::with_capacity(model.browser.pill_editor().option_pills.len());
+    for index in 0..model.browser.pill_editor().option_pills.len() {
         let col = index % tag_cols;
         let row = index / tag_cols;
         let min_x = content_min_x + (tag_width + pill_gap) * col as f32;
@@ -624,7 +624,7 @@ fn browser_pill_editor_layout(
             Point::new((min_x + tag_width).min(content_max_x), min_y + field_height),
         ));
     }
-    let create_tag_rect = model.browser.tag_sidebar.create_pill.as_ref().map(|_| {
+    let create_tag_rect = model.browser.pill_editor().create_pill.as_ref().map(|_| {
         let y = normal_tag_rects
             .last()
             .map(|rect| rect.max.y + 12.0)

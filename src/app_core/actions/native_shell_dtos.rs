@@ -633,6 +633,20 @@ pub struct BrowserActionsModel {
     pub tag_sidebar_open: bool,
 }
 
+impl BrowserPanelModel {
+    /// Generic metadata-pill editor projected beside the content list.
+    pub fn pill_editor(&self) -> &BrowserTagSidebarModel {
+        &self.tag_sidebar
+    }
+}
+
+impl BrowserActionsModel {
+    /// Whether the generic browser pill editor is currently open.
+    pub fn pill_editor_open(&self) -> bool {
+        self.tag_sidebar_open
+    }
+}
+
 /// Audio field currently expanded into a picker inside the options panel.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AudioPickerTargetModel {
@@ -1186,7 +1200,7 @@ impl From<compat::BrowserPanelModel> for BrowserPanelModel {
             sort_label: value.sort_label,
             active_tab_label: value.active_tab_label,
             focused_sample_label: value.focused_item_label,
-            tag_sidebar: value.tag_sidebar.into(),
+            tag_sidebar: value.pill_editor.into(),
             anchor_visible_row: value.anchor_visible_row,
             rows: retained_vec_from_compat(value.rows),
         }
@@ -1217,7 +1231,7 @@ impl From<BrowserPanelModel> for compat::BrowserPanelModel {
             sort_label: value.sort_label,
             active_tab_label: value.active_tab_label,
             focused_item_label: value.focused_sample_label,
-            tag_sidebar: value.tag_sidebar.into(),
+            pill_editor: value.tag_sidebar.into(),
             anchor_visible_row: value.anchor_visible_row,
             rows: retained_vec_to_compat(value.rows),
         }
@@ -1280,7 +1294,7 @@ impl From<compat::BrowserActionsModel> for BrowserActionsModel {
             can_loop_crossfade_focused_sample: value.can_loop_crossfade_focused_item,
             random_navigation_enabled: value.random_navigation_enabled,
             duplicate_cleanup_active: value.duplicate_cleanup_active,
-            tag_sidebar_open: value.tag_sidebar_open,
+            tag_sidebar_open: value.pill_editor_open,
         }
     }
 }
@@ -1295,7 +1309,7 @@ impl From<BrowserActionsModel> for compat::BrowserActionsModel {
             can_loop_crossfade_focused_item: value.can_loop_crossfade_focused_sample,
             random_navigation_enabled: value.random_navigation_enabled,
             duplicate_cleanup_active: value.duplicate_cleanup_active,
-            tag_sidebar_open: value.tag_sidebar_open,
+            pill_editor_open: value.tag_sidebar_open,
         }
     }
 }

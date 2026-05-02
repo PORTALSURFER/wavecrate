@@ -544,8 +544,8 @@ fn browser_pill_editor_layout(
     let tag_width = ((content_max_x - content_min_x - pill_gap * (tag_cols - 1) as f32)
         / tag_cols as f32)
         .max(40.0);
-    let mut normal_tag_rects = Vec::with_capacity(model.browser.tag_sidebar.option_pills.len());
-    for index in 0..model.browser.tag_sidebar.option_pills.len() {
+    let mut normal_tag_rects = Vec::with_capacity(model.browser.pill_editor().option_pills.len());
+    for index in 0..model.browser.pill_editor().option_pills.len() {
         let col = index % tag_cols;
         let row = index / tag_cols;
         let min_x = content_min_x + (tag_width + pill_gap) * col as f32;
@@ -555,7 +555,7 @@ fn browser_pill_editor_layout(
             Point::new((min_x + tag_width).min(content_max_x), min_y + field_height),
         ));
     }
-    let create_tag_rect = model.browser.tag_sidebar.create_pill.as_ref().map(|_| {
+    let create_tag_rect = model.browser.pill_editor().create_pill.as_ref().map(|_| {
         let y = normal_tag_rects
             .last()
             .map(|rect| rect.max.y + 12.0)
@@ -595,7 +595,7 @@ fn browser_pill_editor_action_at_point(
     }
     for (pill, rect) in model
         .browser
-        .tag_sidebar
+        .pill_editor()
         .option_pills
         .iter()
         .zip(layout.normal_tag_rects.iter())
@@ -607,7 +607,7 @@ fn browser_pill_editor_action_at_point(
         }
     }
     if let (Some(pill), Some(rect)) = (
-        model.browser.tag_sidebar.create_pill.as_ref(),
+        model.browser.pill_editor().create_pill.as_ref(),
         layout.create_tag_rect,
     ) && rect.contains(point)
     {
@@ -645,7 +645,7 @@ pub(in crate::gui::native_shell::state) fn browser_action_model_signature(model:
         .browser_actions
         .duplicate_cleanup_active
         .hash(&mut hasher);
-    model.browser_actions.tag_sidebar_open.hash(&mut hasher);
+    model.browser_actions.pill_editor_open().hash(&mut hasher);
     model.browser.active_rating_filters.hash(&mut hasher);
     model.browser.active_playback_age_filters.hash(&mut hasher);
     model.browser.marked_filter_active.hash(&mut hasher);
