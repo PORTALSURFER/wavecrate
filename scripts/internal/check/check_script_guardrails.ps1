@@ -358,6 +358,15 @@ try {
     Assert-TextContains -Label "devcheck $($script.Label) checks Radiant standalone example" -Text $script.Text -Fragment "--example generic_native --no-default-features"
   }
 
+  $ciAgentPs = Get-Content -Path (Join-Path $scriptsDir "internal/ci/ci_agent.ps1") -Raw
+  $ciAgentSh = Get-Content -Path (Join-Path $scriptsDir "internal/ci/ci_agent.sh") -Raw
+  foreach ($script in @(
+      @{ Label = "PowerShell"; Text = $ciAgentPs },
+      @{ Label = "Bash"; Text = $ciAgentSh }
+    )) {
+    Assert-TextContains -Label "ci agent $($script.Label) runs Radiant standalone no-default tests" -Text $script.Text -Fragment "cargo test --manifest-path vendor/radiant/Cargo.toml --no-default-features"
+  }
+
   Invoke-ExpectExitCode -Label "agent request --Help" -ExpectedCode 0 -WorkDir $rootDir -ScriptPath (Join-Path $scriptsDir "agent.ps1") -Arguments @("request", "-Help")
   Invoke-ExpectExitCode -Label "run_agent_preflight --Help" -ExpectedCode 0 -WorkDir $rootDir -ScriptPath (Join-Path $scriptsDir "internal/agent/run_agent_preflight.ps1") -Arguments @("-Help")
   Invoke-ExpectExitCode -Label "ci smoke --Help" -ExpectedCode 0 -WorkDir $rootDir -ScriptPath (Join-Path $scriptsDir "ci.ps1") -Arguments @("smoke", "-Help")

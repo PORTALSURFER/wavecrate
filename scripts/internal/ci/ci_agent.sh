@@ -4,7 +4,7 @@
 #
 # This lane avoids cargo-nextest and the broader GUI contract wrappers so it
 # can run in constrained environments while still providing a real compile +
-# library-test cycle.
+# Radiant standalone-test + Sempal library-test cycle.
 
 set -euo pipefail
 
@@ -43,6 +43,9 @@ echo "[ci_agent] ./scripts/internal/check/check_next_branch.sh"
 
 echo "[ci_agent] ./scripts/ci.sh smoke"
 ./scripts/ci.sh smoke
+
+echo "[ci_agent] cargo test --manifest-path vendor/radiant/Cargo.toml --no-default-features"
+cargo test --manifest-path vendor/radiant/Cargo.toml --no-default-features
 
 echo "[ci_agent] cargo test -p sempal --lib"
 cargo test -p sempal --lib

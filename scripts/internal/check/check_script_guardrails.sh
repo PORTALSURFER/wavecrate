@@ -602,6 +602,16 @@ assert_file_contains \
   "scripts/internal/ci/devcheck.sh" \
   "--example generic_native --no-default-features"
 
+assert_file_contains \
+  "PowerShell ci agent runs Radiant standalone no-default tests" \
+  "scripts/internal/ci/ci_agent.ps1" \
+  "cargo test --manifest-path vendor/radiant/Cargo.toml --no-default-features"
+
+assert_file_contains \
+  "Bash ci agent runs Radiant standalone no-default tests" \
+  "scripts/internal/ci/ci_agent.sh" \
+  "cargo test --manifest-path vendor/radiant/Cargo.toml --no-default-features"
+
 run_expect_exit_code \
   "ci_agent --help" \
   0 \
