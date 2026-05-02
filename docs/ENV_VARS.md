@@ -138,7 +138,7 @@ source registry afterward.
     DB writes in paths that look like user libraries (for example `~/Music`,
     `~/Documents`, `~/Downloads`, `~/Desktop`).
 
-- `SEMPAL_NATIVE_FONT_PATH`
+- `RADIANT_NATIVE_FONT_PATH`
 Optional path to a `.ttf` font used by the native shell text renderer when
 system font discovery fails.
 

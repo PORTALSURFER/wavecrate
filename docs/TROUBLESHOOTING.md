@@ -91,7 +91,7 @@ Symptoms:
 
 Fix:
 
-- set `SEMPAL_NATIVE_FONT_PATH` to a known-good `.ttf`
+- set `RADIANT_NATIVE_FONT_PATH` to a known-good `.ttf`
 
 ### SQLite extension load blocked
 
