@@ -261,6 +261,20 @@ fn native_action_exports_are_owned_in_app_core() {
         manifest_dir.join("src/app_core/native_shell/composition/state/hit_testing/browser.rs"),
     )
     .expect("native browser hit testing");
+    let waveform_hit_testing = fs::read_to_string(
+        manifest_dir
+            .join("src/app_core/native_shell/composition/state/hit_testing/waveform/toolbar.rs"),
+    )
+    .expect("native waveform toolbar hit testing");
+    let waveform_playhead_trail = fs::read_to_string(
+        manifest_dir
+            .join("src/app_core/native_shell/composition/state/motion_overlay/playhead_trail.rs"),
+    )
+    .expect("native waveform playhead trail");
+    let waveform_segment_trail = fs::read_to_string(
+        manifest_dir.join("src/app_core/native_shell/composition/state/waveform_segments/trail.rs"),
+    )
+    .expect("native waveform segment trail");
     let native_options_actions = fs::read_to_string(
         manifest_dir.join("src/app_core/native_shell/composition/state/options_panel/actions.rs"),
     )
@@ -638,6 +652,16 @@ fn native_action_exports_are_owned_in_app_core() {
         native_dtos.contains("pub type WaveformMotionModel = visualization::TimelineMotionState")
             && native_dtos.contains("pub fn timeline_motion(&self) -> WaveformMotionModel"),
         "Sempal motion DTOs should expose Radiant's generic timeline motion aggregate"
+    );
+    assert!(
+        waveform_hit_testing.contains("model.signal_chrome()")
+            && waveform_hit_testing.contains("model.signal_tools()")
+            && waveform_hit_testing.contains("model.waveform_presentation()")
+            && waveform_playhead_trail.contains("model.waveform_transport()")
+            && waveform_playhead_trail.contains("model.waveform_viewport()")
+            && waveform_segment_trail.contains("model.waveform_transport()")
+            && waveform_segment_trail.contains("model.waveform_viewport()"),
+        "Sempal waveform composition should consume Radiant's generic motion parts on hot paths"
     );
     assert!(
         native_hit_testing.contains("fn focused_similarity_action() -> UiAction")

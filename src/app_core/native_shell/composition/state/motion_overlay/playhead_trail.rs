@@ -12,10 +12,8 @@ impl NativeShellState {
         let now_seconds = self.playhead_trail_elapsed_seconds;
         let previous = self.last_waveform_playhead_micros;
         let current = Self::playhead_position_micros(model);
-        let view_window = (
-            model.waveform_view_start_micros,
-            model.waveform_view_end_micros,
-        );
+        let viewport = model.waveform_viewport();
+        let view_window = (viewport.start_micros, viewport.end_micros);
         let view_changed = self.last_waveform_view_window.replace(view_window) != Some(view_window);
         self.last_waveform_playhead_micros = current;
         if current.is_none() {
@@ -43,11 +41,7 @@ impl NativeShellState {
 
     /// Resolve normalized playhead position using micro precision when available.
     fn playhead_position_micros(model: &NativeMotionModel) -> Option<u32> {
-        model.waveform_playhead_micros.or_else(|| {
-            model
-                .waveform_playhead_milli
-                .map(|milli| u32::from(milli) * 1000)
-        })
+        model.waveform_transport().resolved_playhead_micros()
     }
 
     /// Return wrapped playhead delta in micro-units for forward/backward motion.

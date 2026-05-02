@@ -15,26 +15,28 @@ pub(crate) fn playhead_marker_rect(
     border_width: f32,
     model: &NativeMotionModel,
 ) -> Option<Rect> {
-    if let Some(playhead_micros) = model.waveform_playhead_micros {
+    let transport = model.waveform_transport();
+    let viewport = model.waveform_viewport();
+    if let Some(playhead_micros) = transport.playhead_micros {
         return marker_rect_for_absolute_ratio(
             waveform_plot,
             border_width,
             f64::from(playhead_micros) / 1_000_000.0,
-            model.waveform_view_start_micros,
-            model.waveform_view_end_micros,
-            model.waveform_view_start_nanos,
-            model.waveform_view_end_nanos,
+            viewport.start_micros,
+            viewport.end_micros,
+            viewport.start_nanos,
+            viewport.end_nanos,
         );
     }
-    model.waveform_playhead_milli.and_then(|playhead_milli| {
+    transport.playhead_milli.and_then(|playhead_milli| {
         marker_rect_for_absolute_ratio(
             waveform_plot,
             border_width,
             f64::from(playhead_milli) / 1000.0,
-            model.waveform_view_start_micros,
-            model.waveform_view_end_micros,
-            model.waveform_view_start_nanos,
-            model.waveform_view_end_nanos,
+            viewport.start_micros,
+            viewport.end_micros,
+            viewport.start_nanos,
+            viewport.end_nanos,
         )
     })
 }
