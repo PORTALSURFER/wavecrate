@@ -482,6 +482,13 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal action conversion should map the product trash action onto Radiant's generic discard action"
     );
     assert!(
+        native_actions.contains(
+            "compat::UiAction::FocusLoadedContentInList => Self::FocusLoadedSampleInBrowser"
+        ) && native_actions
+            .contains("UiAction::FocusLoadedSampleInBrowser => Self::FocusLoadedContentInList"),
+        "Sempal action conversion should map the product loaded-sample focus action onto Radiant's generic loaded-content focus action"
+    );
+    assert!(
         !native_dtos.contains("pub struct FolderRecoveryModel"),
         "folder recovery counters should use the Radiant-owned generic recovery summary primitive"
     );

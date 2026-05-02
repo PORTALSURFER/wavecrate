@@ -1138,7 +1138,7 @@ impl From<compat::UiAction> for UiAction {
             compat::UiAction::FocusFolderPanel { pane } => Self::FocusFolderPanel {
                 pane: pane.map(Into::into),
             },
-            compat::UiAction::FocusLoadedSampleInBrowser => Self::FocusLoadedSampleInBrowser,
+            compat::UiAction::FocusLoadedContentInList => Self::FocusLoadedSampleInBrowser,
             compat::UiAction::FocusBrowserSearch => Self::FocusBrowserSearch,
             compat::UiAction::BlurBrowserSearch => Self::BlurBrowserSearch,
             compat::UiAction::OpenAddSourceDialog => Self::OpenAddSourceDialog,
@@ -1749,7 +1749,7 @@ impl From<UiAction> for compat::UiAction {
             UiAction::FocusFolderPanel { pane } => Self::FocusFolderPanel {
                 pane: pane.map(Into::into),
             },
-            UiAction::FocusLoadedSampleInBrowser => Self::FocusLoadedSampleInBrowser,
+            UiAction::FocusLoadedSampleInBrowser => Self::FocusLoadedContentInList,
             UiAction::FocusBrowserSearch => Self::FocusBrowserSearch,
             UiAction::BlurBrowserSearch => Self::BlurBrowserSearch,
             UiAction::OpenAddSourceDialog => Self::OpenAddSourceDialog,
