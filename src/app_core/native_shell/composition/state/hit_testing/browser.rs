@@ -586,7 +586,7 @@ fn browser_tag_sidebar_action_at_point(
         return Some(UiAction::ToggleBrowserTagSidebarAutoRename);
     }
     if layout.input_rect.contains(point) {
-        return Some(UiAction::FocusBrowserTagSidebarInput);
+        return Some(UiAction::FocusBrowserPillEditorInput);
     }
     for (index, rect) in layout.playback_rects.iter().enumerate() {
         if rect.contains(point) {

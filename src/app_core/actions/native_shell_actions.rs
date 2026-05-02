@@ -1383,11 +1383,11 @@ impl From<compat::UiAction> for UiAction {
                 Self::AdjustSelectedBrowserRating { delta: delta }
             }
             compat::UiAction::SetBrowserTab { map } => Self::SetBrowserTab { map: map },
-            compat::UiAction::FocusBrowserTagSidebarInput => Self::FocusBrowserTagSidebarInput,
-            compat::UiAction::SetBrowserTagSidebarInput { value } => {
+            compat::UiAction::FocusBrowserPillEditorInput => Self::FocusBrowserTagSidebarInput,
+            compat::UiAction::SetBrowserPillEditorInput { value } => {
                 Self::SetBrowserTagSidebarInput { value: value }
             }
-            compat::UiAction::CommitBrowserTagSidebarInput => Self::CommitBrowserTagSidebarInput,
+            compat::UiAction::CommitBrowserPillEditorInput => Self::CommitBrowserTagSidebarInput,
             compat::UiAction::SetBrowserSidebarLooped { looped } => {
                 Self::SetBrowserSidebarLooped { looped: looped }
             }
@@ -1962,11 +1962,11 @@ impl From<UiAction> for compat::UiAction {
                 Self::AdjustSelectedBrowserRating { delta: delta }
             }
             UiAction::SetBrowserTab { map } => Self::SetBrowserTab { map: map },
-            UiAction::FocusBrowserTagSidebarInput => Self::FocusBrowserTagSidebarInput,
+            UiAction::FocusBrowserTagSidebarInput => Self::FocusBrowserPillEditorInput,
             UiAction::SetBrowserTagSidebarInput { value } => {
-                Self::SetBrowserTagSidebarInput { value: value }
+                Self::SetBrowserPillEditorInput { value: value }
             }
-            UiAction::CommitBrowserTagSidebarInput => Self::CommitBrowserTagSidebarInput,
+            UiAction::CommitBrowserTagSidebarInput => Self::CommitBrowserPillEditorInput,
             UiAction::SetBrowserSidebarLooped { looped } => {
                 Self::SetBrowserSidebarLooped { looped: looped }
             }

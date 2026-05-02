@@ -1883,6 +1883,9 @@ impl From<AutomationNodeSnapshot> for compat::AutomationNodeSnapshot {
 fn automation_action_id_from_compat(action_id: String) -> String {
     match action_id.as_str() {
         "focus_spatial_content_item" => String::from("focus_map_sample"),
+        "focus_browser_pill_editor_input" => String::from("focus_browser_tag_sidebar_input"),
+        "set_browser_pill_editor_input" => String::from("set_browser_tag_sidebar_input"),
+        "commit_browser_pill_editor_input" => String::from("commit_browser_tag_sidebar_input"),
         _ => action_id,
     }
 }
@@ -1890,6 +1893,9 @@ fn automation_action_id_from_compat(action_id: String) -> String {
 fn automation_action_id_to_compat(action_id: String) -> String {
     match action_id.as_str() {
         "focus_map_sample" => String::from("focus_spatial_content_item"),
+        "focus_browser_tag_sidebar_input" => String::from("focus_browser_pill_editor_input"),
+        "set_browser_tag_sidebar_input" => String::from("set_browser_pill_editor_input"),
+        "commit_browser_tag_sidebar_input" => String::from("commit_browser_pill_editor_input"),
         _ => action_id,
     }
 }
