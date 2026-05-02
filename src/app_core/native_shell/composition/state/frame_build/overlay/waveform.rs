@@ -1,6 +1,4 @@
-use self::sempal_crate::app as native_model;
 use super::*;
-use crate as sempal_crate;
 
 pub(super) fn push_waveform_toolbar_hover_tooltip(
     primitives: &mut impl PrimitiveSink,
@@ -80,7 +78,7 @@ fn waveform_toolbar_hover_hint_text(hint: WaveformToolbarHoverHint, model: &AppM
     let presentation = model.waveform.presentation();
     match hint {
         WaveformToolbarHoverHint::ChannelView => {
-            if chrome.channel_view == native_model::WaveformChannelViewModel::Stereo {
+            if chrome.channel_view == crate::gui::visualization::ChannelViewMode::Stereo {
                 String::from("Switch waveform view to mono")
             } else {
                 String::from("Switch waveform view to split stereo")

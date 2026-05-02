@@ -1,12 +1,10 @@
 //! Waveform toolbar layout and button rendering helpers.
 
-use self::sempal_crate::app as native_model;
 use super::super::*;
 use super::{
     waveform_toolbar_icon_rect, waveform_toolbar_overlay_icon_color,
     waveform_toolbar_overlay_icon_rect, waveform_toolbar_visual_color,
 };
-use crate as sempal_crate;
 
 pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
     layout: &ShellLayout,
@@ -41,7 +39,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         (
             "Channel",
             Some(
-                if chrome.channel_view == native_model::WaveformChannelViewModel::Stereo {
+                if chrome.channel_view == crate::gui::visualization::ChannelViewMode::Stereo {
                     WaveformToolbarIcon::Stereo
                 } else {
                     WaveformToolbarIcon::Mono
@@ -52,7 +50,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
             true,
             false,
             Some(UiAction::SetWaveformChannelView {
-                stereo: chrome.channel_view != native_model::WaveformChannelViewModel::Stereo,
+                stereo: chrome.channel_view != crate::gui::visualization::ChannelViewMode::Stereo,
             }),
             style.text_primary,
         ),

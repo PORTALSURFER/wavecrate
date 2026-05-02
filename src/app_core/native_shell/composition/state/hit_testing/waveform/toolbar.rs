@@ -1,6 +1,4 @@
-use self::sempal_crate::app as native_model;
 use super::*;
-use crate as sempal_crate;
 
 pub(in crate::gui::native_shell::state) fn waveform_toolbar_hit_test_cache_key(
     layout: &ShellLayout,
@@ -33,7 +31,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_model_flags(
     let tools = model.signal_tools();
     let presentation = model.waveform_presentation();
     let mut bits = 0u16;
-    if chrome.channel_view == native_model::WaveformChannelViewModel::Stereo {
+    if chrome.channel_view == crate::gui::visualization::ChannelViewMode::Stereo {
         bits |= 1 << 0;
     }
     if tools.audition_enabled {
