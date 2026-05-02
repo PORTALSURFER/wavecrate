@@ -456,6 +456,7 @@ impl NativeMotionModel {
     pub fn from_app_model(model: &AppModel) -> Self {
         let viewport = model.waveform.viewport();
         let edit_preview = model.waveform.edit_preview();
+        let image_preview = model.waveform.image_preview();
 
         Self {
             transport_running: model.transport_running,
@@ -501,9 +502,9 @@ impl NativeMotionModel {
             waveform_view_end_nanos: viewport.end_nanos,
             waveform_tempo_label: model.waveform.tempo_label.clone(),
             waveform_zoom_label: model.waveform.zoom_label.clone(),
-            waveform_loaded_label: model.waveform.loaded_label.clone(),
-            waveform_loading: model.waveform.loading,
-            waveform_image_signature: model.waveform.waveform_image_signature,
+            waveform_loaded_label: image_preview.loaded_label,
+            waveform_loading: image_preview.loading,
+            waveform_image_signature: image_preview.image_signature,
             waveform_transport_hint: model.waveform_chrome.transport_hint.clone(),
             waveform_compare_anchor_available: model.waveform_chrome.compare_anchor_available,
             waveform_compare_anchor_label: model.waveform_chrome.compare_anchor_label.clone(),
@@ -982,6 +983,17 @@ impl WaveformPanelModel {
             self.edit_fade_out_mute_end_milli,
             self.edit_fade_out_mute_end_micros,
             self.edit_fade_out_curve_milli,
+        )
+    }
+
+    /// Return this panel's generic retained raster preview.
+    pub fn image_preview(&self) -> compat::WaveformImagePreviewModel {
+        compat::WaveformImagePreviewModel::new(
+            self.loaded_label.clone(),
+            self.loading,
+            self.image_rendering,
+            self.waveform_image_signature,
+            self.waveform_image.clone(),
         )
     }
 }
