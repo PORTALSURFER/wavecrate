@@ -110,7 +110,7 @@ fn slice_preview_rects_preserve_selection_state_and_stay_inside_plot() {
     let slices = compute_waveform_slice_preview_rects(
         plot,
         &[
-            WaveformSlicePreviewModel {
+            TimelineMarkerPreview {
                 range: NormalizedRangeModel::new(100, 220),
                 selected: false,
                 focused: false,
@@ -118,7 +118,7 @@ fn slice_preview_rects_preserve_selection_state_and_stay_inside_plot() {
                 duplicate_cleanup_candidate: false,
                 duplicate_cleanup_exempted: false,
             },
-            WaveformSlicePreviewModel {
+            TimelineMarkerPreview {
                 range: NormalizedRangeModel::new(500, 700),
                 selected: true,
                 focused: true,

@@ -59,3 +59,11 @@ pub mod types {
     //! style primitives, IDs) and intentionally exclude behavior.
     pub use radiant::gui::types::*;
 }
+
+pub mod visualization {
+    //! Generic visualization primitives from `radiant`.
+    //!
+    //! Re-exported so Sempal-owned waveform, timeline, and map surfaces consume
+    //! framework-owned data contracts instead of compatibility aliases.
+    pub use radiant::gui::visualization::*;
+}

@@ -15,7 +15,7 @@ fn waveform_motion_overlay_draws_slice_preview_overlays() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut state = NativeShellState::new();
     let mut model = AppModel::default();
-    let slice = crate::compat_app_contract::WaveformSlicePreviewModel {
+    let slice = crate::gui::visualization::TimelineMarkerPreview {
         range: crate::compat_app_contract::NormalizedRangeModel::new(180, 420),
         selected: false,
         focused: false,
@@ -73,7 +73,7 @@ fn waveform_motion_overlay_draws_selected_slice_preview_with_stronger_fill() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut state = NativeShellState::new();
     let mut model = AppModel::default();
-    let slice = crate::compat_app_contract::WaveformSlicePreviewModel {
+    let slice = crate::gui::visualization::TimelineMarkerPreview {
         range: crate::compat_app_contract::NormalizedRangeModel::new(180, 420),
         selected: true,
         focused: false,
@@ -119,7 +119,7 @@ fn waveform_motion_overlay_draws_exempted_duplicate_preview_with_cool_accent() {
     model
         .waveform
         .slices
-        .push(crate::compat_app_contract::WaveformSlicePreviewModel {
+        .push(crate::gui::visualization::TimelineMarkerPreview {
             range: crate::compat_app_contract::NormalizedRangeModel::new(180, 420),
             selected: false,
             focused: false,
@@ -163,7 +163,7 @@ fn waveform_automation_exposes_slice_toggle_and_detect_actions() {
     model
         .waveform
         .slices
-        .push(crate::compat_app_contract::WaveformSlicePreviewModel {
+        .push(crate::gui::visualization::TimelineMarkerPreview {
             range: crate::compat_app_contract::NormalizedRangeModel::new(180, 420),
             selected: true,
             focused: true,

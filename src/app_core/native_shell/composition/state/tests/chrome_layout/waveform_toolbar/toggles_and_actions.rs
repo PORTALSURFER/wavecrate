@@ -242,7 +242,7 @@ fn waveform_toolbar_clean_dups_button_requires_duplicate_cleanup_batch() {
     model
         .waveform
         .slices
-        .push(crate::compat_app_contract::WaveformSlicePreviewModel {
+        .push(crate::gui::visualization::TimelineMarkerPreview {
             range: crate::compat_app_contract::NormalizedRangeModel::new(180, 420),
             selected: false,
             focused: false,

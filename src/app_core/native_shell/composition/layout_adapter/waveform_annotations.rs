@@ -4,7 +4,8 @@ use self::sempal_crate::app as native_model;
 use crate as sempal_crate;
 use crate::gui::range::{NormalizedPixelSnap, NormalizedViewport};
 use crate::gui::types::{Point, Rect};
-use native_model::{NormalizedRangeModel, WaveformSlicePreviewModel};
+use crate::gui::visualization::TimelineMarkerPreview;
+use native_model::NormalizedRangeModel;
 
 #[cfg(test)]
 #[path = "waveform_annotations/tests.rs"]
@@ -95,7 +96,7 @@ pub(crate) fn compute_waveform_annotation_rects_with_nanos(
 /// Compute all slice-preview rectangles constrained to the waveform plot.
 pub(crate) fn compute_waveform_slice_preview_rects(
     waveform_plot: Rect,
-    slices: &[WaveformSlicePreviewModel],
+    slices: &[TimelineMarkerPreview],
     view_start_micros: impl Into<u32>,
     view_end_micros: impl Into<u32>,
 ) -> Vec<WaveformSlicePreviewRects> {
