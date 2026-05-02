@@ -3,11 +3,11 @@
 Configures optional local Cargo compile caching for repository scripts.
 
 .DESCRIPTION
-If `sccache` is installed and `RUSTC_WRAPPER` is not already set, this helper
-points Cargo at `sccache`. Scripts can opt out with
-`SEMPAL_DISABLE_SCCACHE=1`. When `sccache` is already inherited through
-`RUSTC_WRAPPER`, this helper probes it in wrapper mode and falls back to direct
-`rustc` if the probe fails or times out.
+Cargo runs default to direct `rustc`. Scripts can opt in to `sccache` with
+`SEMPAL_ENABLE_SCCACHE=1`, and can force the direct compiler path with
+`SEMPAL_DISABLE_SCCACHE=1`. When `sccache` is enabled or already inherited
+through `RUSTC_WRAPPER`, this helper probes it in wrapper mode and falls back
+to direct `rustc` if the probe fails or times out.
 #>
 
 $script:SempalCargoConfigOverrideArgs = @()
@@ -102,7 +102,8 @@ function Clear-SempalSccacheWrapper {
     [string]$Reason
   )
 
-  if (Test-SempalSccacheWrapperValue $env:RUSTC_WRAPPER) {
+  if ((Test-SempalSccacheWrapperValue $env:RUSTC_WRAPPER) -or
+      (Test-SempalSccacheWrapperValue $env:CARGO_BUILD_RUSTC_WRAPPER)) {
     Set-SempalCargoWrapperOverride ""
     Write-Host "[cargo-cache] $Reason; falling back to direct rustc"
     return
@@ -177,6 +178,11 @@ function Enable-SempalCargoCache {
     return
   }
 
+  if ($env:SEMPAL_ENABLE_SCCACHE -ne "1") {
+    Clear-SempalSccacheWrapper "sccache disabled by default"
+    return
+  }
+
   if (-not [string]::IsNullOrWhiteSpace($env:RUSTC_WRAPPER)) {
     if (Test-SempalSccacheWrapperValue $env:RUSTC_WRAPPER) {
       if (Test-SempalSccacheHealth $env:RUSTC_WRAPPER) {
@@ -201,7 +207,7 @@ function Enable-SempalCargoCache {
 
   if (-not (Test-SempalSccacheHealth $sccache.Source)) {
     Set-SempalCargoWrapperOverride ""
-    Write-Host "[cargo-cache] skipping sccache auto-config because the wrapper probe failed"
+    Write-Host "[cargo-cache] skipping sccache because the wrapper probe failed"
     return
   }
 

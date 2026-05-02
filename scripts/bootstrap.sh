@@ -4,7 +4,7 @@
 #
 # - Installs the pinned Rust toolchain from rust-toolchain.toml
 # - Ensures rustfmt/clippy/cargo-nextest are available
-# - Detects optional local `sccache` support used by repo Cargo scripts
+# - Detects optional local `sccache` support for explicit opt-in Cargo caching
 # - Checks git-lfs and python3
 # - Prints next-step commands for smoke, quick, and full validation tiers
 
@@ -23,7 +23,7 @@ Default: installs/ensures a known-good local environment:
 - pinned Rust toolchain from rust-toolchain.toml
 - rustfmt + clippy components
 - cargo-nextest
-- optional sccache detection for faster repeated Cargo runs
+- optional sccache detection for explicit opt-in Cargo caching
 - checks git-lfs, python3, and rg
 
   --verify-only:
@@ -202,7 +202,7 @@ else
 fi
 
 if command -v sccache >/dev/null 2>&1; then
-  echo "[bootstrap] sccache: installed (repo Cargo scripts will use it automatically)"
+  echo "[bootstrap] sccache: installed (set SEMPAL_ENABLE_SCCACHE=1 to use it)"
 else
   echo "[bootstrap] sccache: optional but missing"
   echo "[bootstrap]   Install for faster repeated builds. Examples:" >&2

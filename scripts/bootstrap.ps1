@@ -8,7 +8,7 @@ Bootstrap a known-good local dev environment (humans + agents).
 .DESCRIPTION
 - Installs the pinned Rust toolchain from rust-toolchain.toml
 - Ensures rustfmt/clippy/cargo-nextest are available
-- Detects optional local `sccache` support used by repo Cargo scripts
+- Detects optional local `sccache` support for explicit opt-in Cargo caching
 - Checks git-lfs and Python
 - Prints next-step commands for smoke, quick, and full validation tiers
 #>
@@ -210,7 +210,7 @@ try {
 
   $sccache = Get-Command sccache -ErrorAction SilentlyContinue
   if ($null -ne $sccache) {
-    Write-Host "[bootstrap] sccache: installed (repo Cargo scripts will use it automatically)"
+    Write-Host "[bootstrap] sccache: installed (set SEMPAL_ENABLE_SCCACHE=1 to use it)"
   } else {
     Write-Host "[bootstrap] sccache: optional but missing"
     Write-Host "[bootstrap]   Install for faster repeated builds. Examples:"

@@ -31,8 +31,9 @@ Use the lightest lane that still gives trustworthy coverage for the change.
 Windows note:
 
 - use the PowerShell wrappers in this repository
-- the wrappers fall back to direct `rustc` plus repo-local temp space when
-  inherited `sccache` or the default temp directory is unusable
+- the wrappers use direct `rustc` by default and still fall back to repo-local
+  temp space when the default temp directory is unusable
+- set `SEMPAL_ENABLE_SCCACHE=1` only when you explicitly want wrapper caching
 - do not run multiple cargo test commands concurrently
 
 ## Safe feature-change checklist
