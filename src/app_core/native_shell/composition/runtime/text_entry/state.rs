@@ -12,7 +12,7 @@ pub(crate) fn sanitize_waveform_bpm_insert(
 }
 
 /// Parse a positive finite BPM value from one text field string.
-pub(crate) fn parse_waveform_bpm_input(text: &str) -> Option<f32> {
+pub(in crate::gui_runtime::native_vello) fn parse_waveform_bpm_input(text: &str) -> Option<f32> {
     DecimalTextInputPolicy::POSITIVE_FINITE.parse_value(text)
 }
 
@@ -29,7 +29,7 @@ fn parse_projected_waveform_bpm_label(label: &str) -> Option<String> {
 }
 
 /// Convert one BPM value into the tenths-based runtime action representation.
-pub(crate) fn bpm_tenths_from_value(value: f32) -> u16 {
+pub(in crate::gui_runtime::native_vello) fn bpm_tenths_from_value(value: f32) -> u16 {
     rounded_scaled_u16(value, 10.0)
 }
 
