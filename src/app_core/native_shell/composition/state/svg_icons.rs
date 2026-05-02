@@ -13,10 +13,7 @@ use super::*;
 use crate as sempal_crate;
 use std::sync::Arc;
 
-#[path = "../../../../../vendor/radiant/src/gui/native_shell/state/svg_icons/parser.rs"]
-mod parser;
-
-use parser::{parse_svg_document, point_in_svg_shapes};
+use crate::gui::svg::{parse_svg_document, point_in_svg_shapes};
 
 /// Icon identifiers used by native shell controls.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
