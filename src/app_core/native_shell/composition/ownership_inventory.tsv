@@ -17,7 +17,6 @@ layout_adapter/micro_layout.rs	radiant_generic	stay_radiant	Reusable retained te
 state/svg_icons/parser.rs	radiant_generic	stay_radiant	Reusable SVG subset parser used by compatibility icon rasterization.
 style/sizing.rs	radiant_generic	stay_radiant	Viewport and UI-scale sizing token type.
 style/sizing/**	radiant_generic	stay_radiant	Sizing token defaults, tier deltas, and tests.
-style/tier.rs	radiant_generic	stay_radiant	Viewport tier and generic visual policy selection.
 style/mod.rs	compat_adapter	compat_boundary	Mixes generic theme tokens with Sempal shell chrome until style ownership is split.
 style/chrome.rs	sempal_composition	OPT-187	Sempal shell chrome tokens move with top, status, options, and overlay shell composition.
 style/palette.rs	sempal_composition	OPT-187	Sempal compatibility palette moves with top, status, options, and overlay shell composition.
