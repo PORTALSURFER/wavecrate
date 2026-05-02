@@ -57,12 +57,12 @@ pub(super) fn render_hover_overlay(
             visual,
         );
     }
-    let sidebar_input_rect = shell_state.browser_tag_sidebar_input_rect(layout, model);
-    let sidebar_text_rect = shell_state.browser_tag_sidebar_text_rect(layout, model);
+    let sidebar_input_rect = shell_state.browser_pill_editor_input_rect(layout, model);
+    let sidebar_text_rect = shell_state.browser_pill_editor_text_rect(layout, model);
     if let (Some(input_rect), Some(text_rect), Some(visual)) = (
         sidebar_input_rect,
         sidebar_text_rect,
-        shell_state.browser_tag_sidebar_editor_visual.as_ref(),
+        shell_state.browser_pill_editor_visual.as_ref(),
     ) {
         render_active_text_field(
             primitives,

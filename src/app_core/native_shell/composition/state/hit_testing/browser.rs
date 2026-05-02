@@ -32,7 +32,7 @@ impl NativeShellState {
         }
         let geometry = self.cached_browser_interaction_geometry(layout, model);
         if let Some(sidebar_rect) =
-            browser_tag_sidebar_panel_rect(layout.browser_rows, geometry.style.sizing, model)
+            browser_pill_editor_panel_rect(layout.browser_rows, geometry.style.sizing, model)
             && sidebar_rect.contains(point)
         {
             return None;
@@ -214,7 +214,7 @@ impl NativeShellState {
         alt_down: bool,
     ) -> Option<UiAction> {
         let geometry = self.cached_browser_interaction_geometry(layout, model);
-        if let Some(action) = browser_tag_sidebar_action_at_point(
+        if let Some(action) = browser_pill_editor_action_at_point(
             layout.browser_rows,
             geometry.style.sizing,
             model,
@@ -399,7 +399,7 @@ impl NativeShellState {
     }
 
     /// Return the browser tag-sidebar input rect when the sidebar is visible.
-    pub(crate) fn browser_tag_sidebar_input_rect(
+    pub(crate) fn browser_pill_editor_input_rect(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
@@ -407,12 +407,12 @@ impl NativeShellState {
         let style = self
             .cached_browser_interaction_geometry(layout, model)
             .style;
-        browser_tag_sidebar_layout(layout.browser_rows, style.sizing, model)
+        browser_pill_editor_layout(layout.browser_rows, style.sizing, model)
             .map(|layout| layout.input_rect)
     }
 
     /// Return the browser tag-sidebar input text rect when the sidebar is visible.
-    pub(crate) fn browser_tag_sidebar_text_rect(
+    pub(crate) fn browser_pill_editor_text_rect(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
@@ -420,7 +420,7 @@ impl NativeShellState {
         let style = self
             .cached_browser_interaction_geometry(layout, model)
             .style;
-        browser_tag_sidebar_layout(layout.browser_rows, style.sizing, model)
+        browser_pill_editor_layout(layout.browser_rows, style.sizing, model)
             .map(|layout| layout.input_text_rect)
     }
 
@@ -479,7 +479,7 @@ fn focused_similarity_action() -> UiAction {
 }
 
 #[derive(Clone, Debug)]
-struct BrowserTagSidebarLayout {
+struct BrowserPillEditorLayout {
     auto_rename_rect: Rect,
     input_rect: Rect,
     input_text_rect: Rect,
@@ -488,20 +488,20 @@ struct BrowserTagSidebarLayout {
     create_tag_rect: Option<Rect>,
 }
 
-fn browser_tag_sidebar_rect(
+fn browser_pill_editor_rect(
     rows_rect: Rect,
     _sizing: SizingTokens,
     model: &AppModel,
 ) -> Option<Rect> {
-    browser_tag_sidebar_panel_rect(rows_rect, _sizing, model)
+    browser_pill_editor_panel_rect(rows_rect, _sizing, model)
 }
 
-fn browser_tag_sidebar_layout(
+fn browser_pill_editor_layout(
     rows_rect: Rect,
     sizing: SizingTokens,
     model: &AppModel,
-) -> Option<BrowserTagSidebarLayout> {
-    let rect = browser_tag_sidebar_rect(rows_rect, sizing, model)?;
+) -> Option<BrowserPillEditorLayout> {
+    let rect = browser_pill_editor_rect(rows_rect, sizing, model)?;
     let pad = sizing.panel_inset.max(8.0);
     let content_min_x = rect.min.x + pad;
     let content_max_x = rect.max.x - pad;
@@ -565,7 +565,7 @@ fn browser_tag_sidebar_layout(
             Point::new(content_max_x, y + field_height),
         )
     });
-    Some(BrowserTagSidebarLayout {
+    Some(BrowserPillEditorLayout {
         auto_rename_rect,
         input_rect,
         input_text_rect,
@@ -575,13 +575,13 @@ fn browser_tag_sidebar_layout(
     })
 }
 
-fn browser_tag_sidebar_action_at_point(
+fn browser_pill_editor_action_at_point(
     rows_rect: Rect,
     sizing: SizingTokens,
     model: &AppModel,
     point: Point,
 ) -> Option<UiAction> {
-    let layout = browser_tag_sidebar_layout(rows_rect, sizing, model)?;
+    let layout = browser_pill_editor_layout(rows_rect, sizing, model)?;
     if layout.auto_rename_rect.contains(point) {
         return Some(UiAction::ToggleBrowserPillEditorPrimaryAction);
     }

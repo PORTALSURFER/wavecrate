@@ -337,7 +337,7 @@ pub(super) fn render_browser_rows_window(
             }),
         );
     }
-    render_browser_tag_sidebar_overlay(ctx, primitives, text_runs);
+    render_browser_pill_editor_overlay(ctx, primitives, text_runs);
 }
 
 fn render_browser_processing_marker(
@@ -365,17 +365,17 @@ fn render_browser_processing_marker(
     );
 }
 
-fn render_browser_tag_sidebar_overlay(
+fn render_browser_pill_editor_overlay(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
 ) {
-    let Some(layout) = browser_tag_sidebar_layout(ctx.layout.browser_rows, ctx.sizing, ctx.model)
+    let Some(layout) = browser_pill_editor_layout(ctx.layout.browser_rows, ctx.sizing, ctx.model)
     else {
         return;
     };
     let sidebar = &ctx.model.browser.tag_sidebar;
-    let panel_rect = browser_tag_sidebar_rect(ctx.layout.browser_rows, ctx.sizing, ctx.model)
+    let panel_rect = browser_pill_editor_rect(ctx.layout.browser_rows, ctx.sizing, ctx.model)
         .unwrap_or(ctx.layout.browser_rows);
     emit_primitive(
         primitives,
@@ -548,7 +548,7 @@ fn render_sidebar_tag_pill(
     );
 }
 
-struct BrowserTagSidebarLayout {
+struct BrowserPillEditorLayout {
     auto_rename_rect: Rect,
     input_rect: Rect,
     input_text_rect: Rect,
@@ -557,20 +557,20 @@ struct BrowserTagSidebarLayout {
     create_tag_rect: Option<Rect>,
 }
 
-fn browser_tag_sidebar_rect(
+fn browser_pill_editor_rect(
     rows_rect: Rect,
     _sizing: SizingTokens,
     model: &AppModel,
 ) -> Option<Rect> {
-    browser_tag_sidebar_panel_rect(rows_rect, _sizing, model)
+    browser_pill_editor_panel_rect(rows_rect, _sizing, model)
 }
 
-fn browser_tag_sidebar_layout(
+fn browser_pill_editor_layout(
     rows_rect: Rect,
     sizing: SizingTokens,
     model: &AppModel,
-) -> Option<BrowserTagSidebarLayout> {
-    let rect = browser_tag_sidebar_rect(rows_rect, sizing, model)?;
+) -> Option<BrowserPillEditorLayout> {
+    let rect = browser_pill_editor_rect(rows_rect, sizing, model)?;
     let pad = sizing.panel_inset.max(8.0);
     let content_min_x = rect.min.x + pad;
     let content_max_x = rect.max.x - pad;
@@ -634,7 +634,7 @@ fn browser_tag_sidebar_layout(
             Point::new(content_max_x, y + field_height),
         )
     });
-    Some(BrowserTagSidebarLayout {
+    Some(BrowserPillEditorLayout {
         auto_rename_rect,
         input_rect,
         input_text_rect,
