@@ -514,6 +514,14 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal action conversion should map the product find-similar action onto Radiant's generic focused-content action"
     );
     assert!(
+        native_actions.contains(
+            "compat::UiAction::NormalizeFocusedContentItem => Self::NormalizeFocusedBrowserSample"
+        ) && native_actions.contains(
+            "UiAction::NormalizeFocusedBrowserSample => Self::NormalizeFocusedContentItem"
+        ),
+        "Sempal action conversion should map the product normalize action onto Radiant's generic focused-content normalize action"
+    );
+    assert!(
         native_hit_testing.contains("fn focused_similarity_action() -> UiAction")
             && native_hit_testing.contains("UiAction::ToggleFindSimilarFocusedContent")
             && native_hit_testing.contains("UiAction::ToggleFindSimilarFocusedSample"),

@@ -1410,7 +1410,7 @@ impl From<compat::UiAction> for UiAction {
                 target: target.into(),
             },
             compat::UiAction::DeleteBrowserSelection => Self::DeleteBrowserSelection,
-            compat::UiAction::NormalizeFocusedBrowserSample => Self::NormalizeFocusedBrowserSample,
+            compat::UiAction::NormalizeFocusedContentItem => Self::NormalizeFocusedBrowserSample,
             compat::UiAction::NormalizeWaveformSelectionOrSample => {
                 Self::NormalizeWaveformSelectionOrSample
             }
@@ -1989,7 +1989,7 @@ impl From<UiAction> for compat::UiAction {
                 target: target.into(),
             },
             UiAction::DeleteBrowserSelection => Self::DeleteBrowserSelection,
-            UiAction::NormalizeFocusedBrowserSample => Self::NormalizeFocusedBrowserSample,
+            UiAction::NormalizeFocusedBrowserSample => Self::NormalizeFocusedContentItem,
             UiAction::NormalizeWaveformSelectionOrSample => {
                 Self::NormalizeWaveformSelectionOrSample
             }
