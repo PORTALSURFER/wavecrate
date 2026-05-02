@@ -96,6 +96,9 @@ pub type WaveformChannelViewModel = visualization::ChannelViewMode;
 /// Normalized waveform viewport state exposed to the native shell.
 pub type WaveformViewportModel = visualization::TimelineViewport;
 
+/// Waveform cursor, playhead, and selection transport state exposed to the native shell.
+pub type WaveformTransportModel = visualization::TimelineTransportState;
+
 /// One detected waveform slice preview exposed to the native shell.
 pub type WaveformSlicePreviewModel = visualization::TimelineMarkerPreview;
 
@@ -552,8 +555,8 @@ impl NativeMotionModel {
     }
 
     /// Return this motion snapshot's generic timeline transport state.
-    pub fn waveform_transport(&self) -> compat::WaveformTransportModel {
-        compat::WaveformTransportModel::new(
+    pub fn waveform_transport(&self) -> WaveformTransportModel {
+        WaveformTransportModel::new(
             self.waveform_cursor_milli,
             self.waveform_playhead_milli,
             self.waveform_playhead_micros,
@@ -1116,8 +1119,8 @@ impl WaveformPanelModel {
     }
 
     /// Return this panel's generic timeline transport state.
-    pub fn transport(&self) -> compat::WaveformTransportModel {
-        compat::WaveformTransportModel::new(
+    pub fn transport(&self) -> WaveformTransportModel {
+        WaveformTransportModel::new(
             self.cursor_milli,
             self.playhead_milli,
             self.playhead_micros,
