@@ -62,6 +62,9 @@ echo "[devcheck] branch policy"
 echo "[devcheck] cargo check --manifest-path vendor/radiant/Cargo.toml"
 cargo check --manifest-path vendor/radiant/Cargo.toml
 
+echo "[devcheck] cargo check --manifest-path vendor/radiant/Cargo.toml --example generic_native --no-default-features"
+cargo check --manifest-path vendor/radiant/Cargo.toml --example generic_native --no-default-features
+
 if (( APP_ONLY == 1 )); then
   echo "[devcheck] cargo check -p sempal --lib --bin sempal"
   cargo check -p sempal --lib --bin sempal

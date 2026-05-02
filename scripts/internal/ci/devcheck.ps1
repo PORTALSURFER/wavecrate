@@ -62,6 +62,11 @@ try {
     Invoke-SempalCargo check --manifest-path vendor/radiant/Cargo.toml
   }
 
+  Write-Host "[devcheck] cargo check --manifest-path vendor/radiant/Cargo.toml --example generic_native --no-default-features"
+  Invoke-NativeStep -Label "cargo check --manifest-path vendor/radiant/Cargo.toml --example generic_native --no-default-features" -Command {
+    Invoke-SempalCargo check --manifest-path vendor/radiant/Cargo.toml --example generic_native --no-default-features
+  }
+
   if ($AppOnly) {
     Write-Host "[devcheck] cargo check -p sempal --lib --bin sempal"
     Invoke-NativeStep -Label "cargo check -p sempal --lib --bin sempal" -Command {
