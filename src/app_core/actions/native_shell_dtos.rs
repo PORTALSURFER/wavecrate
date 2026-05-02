@@ -99,6 +99,9 @@ pub type WaveformSlicePreviewModel = visualization::TimelineMarkerPreview;
 /// One-shot waveform feedback event tokens exposed to the native shell.
 pub type WaveformFeedbackEventsModel = visualization::TimelineFeedbackEvents;
 
+/// Waveform guide/repeat/label presentation state exposed to the native shell.
+pub type WaveformPresentationModel = visualization::TimelinePresentationState;
+
 /// Render data for one point shown in the native map canvas.
 pub type MapPointModel = visualization::SpatialPoint;
 
@@ -461,6 +464,7 @@ impl NativeMotionModel {
         let transport = model.waveform.transport();
         let edit_preview = model.waveform.edit_preview();
         let feedback_events = model.waveform.feedback_events();
+        let presentation = model.waveform.presentation();
         let image_preview = model.waveform.image_preview();
         let signal_chrome = model.waveform_chrome.signal_chrome();
         let signal_tools = model.waveform_chrome.signal_tools();
@@ -487,7 +491,7 @@ impl NativeMotionModel {
             waveform_edit_fade_out_mute_end_milli: edit_preview.trailing_inner_end_milli,
             waveform_edit_fade_out_mute_end_micros: edit_preview.trailing_inner_end_micros,
             waveform_edit_fade_out_curve_milli: edit_preview.trailing_curve_milli,
-            waveform_loop_enabled: model.waveform.loop_enabled,
+            waveform_loop_enabled: presentation.repeat_enabled,
             waveform_loop_lock_enabled: signal_tools.lock_enabled,
             waveform_cursor_milli: transport.cursor_milli,
             waveform_playhead_milli: transport.playhead_milli,
@@ -498,8 +502,8 @@ impl NativeMotionModel {
             waveform_view_end_micros: viewport.end_micros,
             waveform_view_start_nanos: viewport.start_nanos,
             waveform_view_end_nanos: viewport.end_nanos,
-            waveform_tempo_label: model.waveform.tempo_label.clone(),
-            waveform_zoom_label: model.waveform.zoom_label.clone(),
+            waveform_tempo_label: presentation.primary_label,
+            waveform_zoom_label: presentation.viewport_label,
             waveform_loaded_label: image_preview.loaded_label,
             waveform_loading: image_preview.loading,
             waveform_image_signature: image_preview.image_signature,
@@ -998,6 +1002,17 @@ impl WaveformPanelModel {
             self.selection_export_flash_nonce,
             self.selection_export_failure_flash_nonce,
             self.edit_selection_apply_flash_nonce,
+        )
+    }
+
+    /// Return this panel's generic timeline presentation state.
+    pub fn presentation(&self) -> WaveformPresentationModel {
+        WaveformPresentationModel::new(
+            self.beat_step_micros,
+            self.bpm_grid_origin_micros,
+            self.loop_enabled,
+            self.tempo_label.clone(),
+            self.zoom_label.clone(),
         )
     }
 
@@ -2385,6 +2400,25 @@ mod tests {
         assert_eq!(events.primary_success_nonce, 11);
         assert_eq!(events.primary_failure_nonce, 12);
         assert_eq!(events.secondary_success_nonce, 13);
+    }
+
+    #[test]
+    fn waveform_panel_projects_generic_presentation_state() {
+        let model = WaveformPanelModel {
+            beat_step_micros: Some(100_000),
+            bpm_grid_origin_micros: 50_000,
+            loop_enabled: true,
+            tempo_label: Some(String::from("150 BPM")),
+            zoom_label: Some(String::from("8x")),
+            ..WaveformPanelModel::default()
+        };
+        let presentation = model.presentation();
+
+        assert_eq!(presentation.guide_step_micros, Some(100_000));
+        assert_eq!(presentation.guide_origin_micros, 50_000);
+        assert!(presentation.repeat_enabled);
+        assert_eq!(presentation.primary_label.as_deref(), Some("150 BPM"));
+        assert_eq!(presentation.viewport_label.as_deref(), Some("8x"));
     }
 
     #[test]
