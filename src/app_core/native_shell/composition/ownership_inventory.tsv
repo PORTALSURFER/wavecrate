@@ -1,0 +1,117 @@
+# Native shell ownership inventory for OPT-186.
+#
+# Columns:
+# - pattern: exact module path under src/gui/native_shell, or a directory prefix ending in /**
+# - owner: radiant_generic, compat_adapter, sempal_composition, or sempal_fixture
+# - move_scope: stay_radiant, compat_boundary, or the Linear child issue that owns the move
+# - notes: dependency and relocation notes without tabs
+#
+# The gui::native_shell::tests::contracts::native_shell_ownership_inventory_covers_every_module
+# regression requires every *.rs module under this directory to match exactly one pattern.
+pattern	owner	move_scope	notes
+mod.rs	compat_adapter	compat_boundary	Native-shell facade remains in Radiant until Sempal-owned composition has moved behind generic primitives.
+layout/**	radiant_generic	stay_radiant	Backend-neutral layout tree, geometry, and node contracts.
+layout_runtime.rs	radiant_generic	stay_radiant	Retained layout runtime and dirty-subtree bookkeeping.
+paint.rs	radiant_generic	stay_radiant	Backend-neutral paint primitives, text runs, images, and gradients.
+layout_adapter/micro_layout.rs	radiant_generic	stay_radiant	Reusable retained text-line placement helper.
+state/svg_icons/parser.rs	radiant_generic	stay_radiant	Reusable SVG subset parser used by compatibility icon rasterization.
+style/sizing.rs	radiant_generic	stay_radiant	Viewport and UI-scale sizing token type.
+style/sizing/**	radiant_generic	stay_radiant	Sizing token defaults, tier deltas, and tests.
+style/tier.rs	radiant_generic	stay_radiant	Viewport tier and generic visual policy selection.
+style/mod.rs	compat_adapter	compat_boundary	Mixes generic theme tokens with Sempal shell chrome until style ownership is split.
+style/chrome.rs	sempal_composition	OPT-187	Sempal shell chrome tokens move with top, status, options, and overlay shell composition.
+style/palette.rs	sempal_composition	OPT-187	Sempal compatibility palette moves with top, status, options, and overlay shell composition.
+layout_adapter.rs	compat_adapter	compat_boundary	Geometry adapter facade remains until surface-specific layout helpers move.
+layout_adapter/bands.rs	sempal_composition	OPT-187	Shell band geometry belongs with top, status, options, and overlay composition.
+layout_adapter/browser_chrome_text.rs	sempal_composition	OPT-188	Browser chrome text layout moves with browser chrome and map composition.
+layout_adapter/browser_tabs.rs	sempal_composition	OPT-188	Browser tab surface layout moves with browser chrome composition.
+layout_adapter/browser_text.rs	sempal_composition	OPT-188	Browser row and header text layout moves with browser composition.
+layout_adapter/control_text.rs	sempal_composition	OPT-187	Shared shell control text placement moves with the first chrome-control slice.
+layout_adapter/controls.rs	sempal_composition	OPT-187	Shared control layout facade moves with top, status, options, and overlay composition.
+layout_adapter/controls/shared.rs	sempal_composition	OPT-187	Shared shell-control helper moves with the first chrome-control slice.
+layout_adapter/controls/update_buttons.rs	sempal_composition	OPT-187	Update/control button layout moves with top bar and options composition.
+layout_adapter/controls/browser_toolbar.rs	sempal_composition	OPT-188	Browser toolbar controls move with browser chrome composition.
+layout_adapter/controls/sidebar_buttons.rs	sempal_composition	OPT-189	Sidebar and folder controls move with source/sidebar composition.
+layout_adapter/controls_tests.rs	sempal_fixture	OPT-191	Sempal shell control layout fixture now lives beside Sempal composition and must not return to Radiant native_shell.
+layout_adapter/map_canvas.rs	sempal_composition	OPT-188	Browser map canvas projection moves with browser map composition.
+layout_adapter/map_header.rs	sempal_composition	OPT-188	Browser map header layout moves with browser map composition.
+layout_adapter/overlay_visuals.rs	sempal_composition	OPT-187	Prompt, progress, and drag overlay visuals move with overlay composition.
+layout_adapter/overlays.rs	sempal_composition	OPT-187	Overlay layout facade moves with overlay composition.
+layout_adapter/overlays/**	sempal_composition	OPT-187	Prompt, progress, drag overlay layout and text helpers move with overlay composition.
+layout_adapter/row_hit_test.rs	sempal_composition	OPT-188	Browser row hit-test helper moves with browser rows and map composition.
+layout_adapter/sidebar_bands.rs	sempal_composition	OPT-189	Sidebar band geometry moves with source and folder composition.
+layout_adapter/sidebar_chrome_text.rs	sempal_composition	OPT-189	Sidebar chrome text layout moves with source and folder composition.
+layout_adapter/sidebar_header.rs	sempal_composition	OPT-189	Sidebar header layout facade moves with source and folder composition.
+layout_adapter/sidebar_header/**	sempal_composition	OPT-189	Sidebar header helpers and tests move with source and folder composition.
+layout_adapter/sidebar_sections.rs	sempal_composition	OPT-189	Sidebar source/folder section layout moves with source and folder composition.
+layout_adapter/sidebar_text.rs	sempal_composition	OPT-189	Sidebar row text layout moves with source and folder composition.
+layout_adapter/status_bar.rs	sempal_composition	OPT-187	Status bar text layout moves with top, status, options, and overlay composition.
+layout_adapter/waveform_annotations.rs	sempal_composition	OPT-190	Waveform annotation layout moves with waveform plot and overlay composition.
+layout_adapter/waveform_annotations/**	sempal_composition	OPT-190	Waveform annotation tests move with waveform plot and overlay composition.
+layout_adapter/waveform_header.rs	sempal_composition	OPT-190	Waveform header layout moves with waveform header composition.
+browser_chrome_surface.rs	sempal_composition	OPT-188	Browser chrome surface projection moves with browser chrome composition.
+browser_chrome_surface_helpers.rs	sempal_composition	OPT-188	Browser chrome surface helpers move with browser chrome composition.
+browser_chrome_surface_tests.rs	sempal_fixture	OPT-191	Sempal browser chrome fixture now lives beside Sempal composition and must not return to Radiant native_shell.
+sidebar_surface.rs	sempal_composition	OPT-189	Sidebar surface projection moves with source and folder composition.
+sidebar_surface_helpers.rs	sempal_composition	OPT-189	Sidebar surface helpers move with source and folder composition.
+sidebar_surface_tests.rs	sempal_fixture	OPT-191	Sempal sidebar fixture now lives beside Sempal composition and must not return to Radiant native_shell.
+status_surface.rs	sempal_composition	OPT-187	Status surface projection moves with top, status, options, and overlay composition.
+top_bar_surface.rs	sempal_composition	OPT-187	Top bar surface projection moves with top, status, options, and overlay composition.
+waveform_header_surface.rs	sempal_composition	OPT-190	Waveform header surface projection moves with waveform composition.
+waveform_toolbar_surface.rs	sempal_composition	OPT-190	Waveform toolbar surface projection moves with waveform composition.
+state.rs	compat_adapter	OPT-191	NativeShellState facade coordinates Sempal model sync, frame build, automation, and retained caches.
+state/automation.rs	sempal_composition	OPT-191	Automation facade moves after surface DTO and composition moves settle.
+state/automation/**	sempal_composition	OPT-191	Sempal automation nodes move after surface DTO and composition moves settle.
+state/browser_rows.rs	sempal_composition	OPT-188	Browser row projection facade moves with browser rows and tags.
+state/browser_rows/**	sempal_composition	OPT-188	Browser row projection, windowing, scrollbars, truncation, and visuals move with browser rows and tags.
+state/cache.rs	compat_adapter	OPT-191	Retained cache accessors are Sempal-shaped and should be split only after surface moves expose generic pieces.
+state/cache_types.rs	compat_adapter	OPT-191	Retained cache type facade is Sempal-shaped and should be split only after surface moves expose generic pieces.
+state/cache_types/**	compat_adapter	OPT-191	Retained cache keys and segment sinks are Sempal-shaped; split generic helpers after surface moves.
+state/frame_build.rs	compat_adapter	OPT-191	Frame-build facade ties all Sempal surfaces together until final shell composition relocation.
+state/frame_build/browser/**	sempal_composition	OPT-188	Browser frame-build panels, rows, and tabs move with browser composition.
+state/frame_build/chrome/mod.rs	sempal_composition	OPT-187	Shell chrome frame-build facade moves with top, status, options, and overlay composition.
+state/frame_build/chrome/modals.rs	sempal_composition	OPT-187	Modal chrome frame build moves with overlay composition.
+state/frame_build/chrome/shell.rs	sempal_composition	OPT-187	Shell background frame build moves with top, status, options, and overlay composition.
+state/frame_build/chrome/top_bar.rs	sempal_composition	OPT-187	Top bar frame build moves with top bar composition.
+state/frame_build/chrome/sidebar.rs	sempal_composition	OPT-189	Sidebar frame-build facade moves with source and folder composition.
+state/frame_build/chrome/sidebar_parts/**	sempal_composition	OPT-189	Sidebar source, folder, header, footer, and row frame-build pieces move with source and folder composition.
+state/frame_build/map.rs	sempal_composition	OPT-188	Browser map frame build moves with browser map composition.
+state/frame_build/overlay/browser.rs	sempal_composition	OPT-188	Browser overlay frame build moves with browser composition.
+state/frame_build/overlay/focus.rs	sempal_composition	OPT-187	Focus overlay frame build moves with overlay composition.
+state/frame_build/overlay/focus/**	sempal_composition	OPT-187	Focus overlay shared helpers move with overlay composition.
+state/frame_build/overlay/mod.rs	sempal_composition	OPT-187	Overlay frame-build facade moves with overlay composition.
+state/frame_build/overlay/waveform.rs	sempal_composition	OPT-190	Waveform overlay frame build moves with waveform composition.
+state/frame_build/status_bar.rs	sempal_composition	OPT-187	Status bar frame build moves with status bar composition.
+state/frame_build/waveform.rs	sempal_composition	OPT-190	Waveform frame build moves with waveform composition.
+state/frame_entrypoints.rs	compat_adapter	OPT-191	Top-level frame entrypoints remain until all surface composition has moved.
+state/frame_text_cache.rs	compat_adapter	OPT-191	Frame text cache is retained-shell glue; split generic cache utility only after composition moves.
+state/hit_testing/browser.rs	sempal_composition	OPT-188	Browser hit testing moves with browser rows and map composition.
+state/hit_testing/map.rs	sempal_composition	OPT-188	Browser map hit testing moves with browser map composition.
+state/hit_testing/mod.rs	compat_adapter	OPT-191	Hit-testing facade remains until surface-specific hit tests move.
+state/hit_testing/chrome.rs	sempal_composition	OPT-187	Shell chrome hit testing moves with top, status, options, and overlay composition.
+state/hit_testing/chrome/prompts.rs	sempal_composition	OPT-187	Prompt hit testing moves with overlay composition.
+state/hit_testing/chrome/top_bar.rs	sempal_composition	OPT-187	Top bar hit testing moves with top bar composition.
+state/hit_testing/chrome/source_controls.rs	sempal_composition	OPT-189	Source control hit testing moves with source and folder composition.
+state/hit_testing/chrome/folders.rs	sempal_composition	OPT-189	Folder hit-testing facade moves with source and folder composition.
+state/hit_testing/chrome/folders/**	sempal_composition	OPT-189	Folder hit testing moves with source and folder composition.
+state/hit_testing/hover.rs	compat_adapter	OPT-191	Shared hover routing remains until surface-specific hit tests move.
+state/hit_testing/waveform.rs	sempal_composition	OPT-190	Waveform hit testing moves with waveform composition.
+state/hit_testing/waveform/**	sempal_composition	OPT-190	Waveform toolbar hit testing moves with waveform composition.
+state/model_sync.rs	compat_adapter	OPT-191	AppModel to retained-state sync remains until Sempal owns the shell facade.
+state/motion_overlay.rs	sempal_composition	OPT-190	Motion overlay state is dominated by waveform/playhead behavior and moves with waveform composition.
+state/motion_overlay/**	sempal_composition	OPT-190	Playhead trail state moves with waveform composition.
+state/options_panel.rs	sempal_composition	OPT-187	Options panel facade moves with top, status, options, and overlay composition.
+state/options_panel/**	sempal_composition	OPT-187	Options panel actions, geometry, render, and style move with options composition.
+state/overlays.rs	sempal_composition	OPT-187	Overlay facade moves with top, status, options, and overlay composition.
+state/overlays/**	sempal_composition	OPT-187	Drag, progress, prompt, and overlay geometry move with overlay composition.
+state/svg_icons.rs	sempal_composition	OPT-190	Toolbar icon identifiers and rasterization move with waveform/browser/sidebar toolbar composition; parser stays generic.
+state/tests/**	sempal_fixture	OPT-191	Sempal native-shell compatibility fixture pack; keep relocation separate from production surface moves.
+state/text_fields.rs	sempal_composition	OPT-188	Browser/search text-field state moves with browser chrome composition.
+state/toolbar_helpers.rs	compat_adapter	OPT-191	Toolbar helper facade remains until browser, sidebar, and waveform toolbar helpers move.
+state/toolbar_helpers/browser_row_decor/**	sempal_composition	OPT-188	Browser row tags, markers, ratings, similarity, and playback-age decoration move with browser rows and tags.
+state/toolbar_helpers/browser_toolbar/**	sempal_composition	OPT-188	Browser toolbar buttons, colors, layout, and actions move with browser chrome composition.
+state/toolbar_helpers/sidebar_toolbar.rs	sempal_composition	OPT-189	Sidebar toolbar helper moves with source and folder composition.
+state/toolbar_helpers/waveform_toolbar.rs	sempal_composition	OPT-190	Waveform toolbar helper moves with waveform composition.
+state/toolbar_helpers/waveform_visuals.rs	sempal_composition	OPT-190	Waveform visuals helper moves with waveform composition.
+state/waveform_segments/**	sempal_composition	OPT-190	Waveform fades, header, overlay, routing, scrollbar, selection, slices, surface, and trail composition move with waveform composition.
+tests/**	sempal_fixture	OPT-191	Sempal native-shell compatibility tests stay grouped as fixture relocation unless a surface child explicitly owns one.

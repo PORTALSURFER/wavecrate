@@ -6,7 +6,7 @@ use std::{
 };
 
 const OWNERSHIP_INVENTORY: &str =
-    include_str!("../../../../../vendor/radiant/src/gui/native_shell/ownership_inventory.tsv");
+    include_str!("../ownership_inventory.tsv");
 
 #[test]
 fn focused_rows_do_not_enable_idle_animation_when_transport_is_stopped() {
