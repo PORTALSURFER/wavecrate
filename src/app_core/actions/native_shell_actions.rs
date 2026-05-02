@@ -1411,11 +1411,11 @@ impl From<compat::UiAction> for UiAction {
             },
             compat::UiAction::DeleteBrowserSelection => Self::DeleteBrowserSelection,
             compat::UiAction::NormalizeFocusedContentItem => Self::NormalizeFocusedBrowserSample,
-            compat::UiAction::NormalizeWaveformSelectionOrSample => {
+            compat::UiAction::NormalizeWaveformSelectionOrLoadedContent => {
                 Self::NormalizeWaveformSelectionOrSample
             }
             compat::UiAction::CropWaveformSelection => Self::CropWaveformSelection,
-            compat::UiAction::CropWaveformSelectionToNewSample => {
+            compat::UiAction::CropWaveformSelectionToNewContentItem => {
                 Self::CropWaveformSelectionToNewSample
             }
             compat::UiAction::TrimWaveformSelection => Self::TrimWaveformSelection,
@@ -1444,7 +1444,7 @@ impl From<compat::UiAction> for UiAction {
                 Self::ToggleFocusedWaveformSliceExportMark
             }
             compat::UiAction::AlignWaveformStartToMarker => Self::AlignWaveformStartToMarker,
-            compat::UiAction::DeleteLoadedWaveformSample => Self::DeleteLoadedWaveformSample,
+            compat::UiAction::DeleteLoadedWaveformContent => Self::DeleteLoadedWaveformSample,
             compat::UiAction::SlideWaveformSelection { delta, fine } => {
                 Self::SlideWaveformSelection {
                     delta: delta,
@@ -1991,10 +1991,12 @@ impl From<UiAction> for compat::UiAction {
             UiAction::DeleteBrowserSelection => Self::DeleteBrowserSelection,
             UiAction::NormalizeFocusedBrowserSample => Self::NormalizeFocusedContentItem,
             UiAction::NormalizeWaveformSelectionOrSample => {
-                Self::NormalizeWaveformSelectionOrSample
+                Self::NormalizeWaveformSelectionOrLoadedContent
             }
             UiAction::CropWaveformSelection => Self::CropWaveformSelection,
-            UiAction::CropWaveformSelectionToNewSample => Self::CropWaveformSelectionToNewSample,
+            UiAction::CropWaveformSelectionToNewSample => {
+                Self::CropWaveformSelectionToNewContentItem
+            }
             UiAction::TrimWaveformSelection => Self::TrimWaveformSelection,
             UiAction::ReverseWaveformSelection => Self::ReverseWaveformSelection,
             UiAction::FadeWaveformSelectionLeftToRight => Self::FadeWaveformSelectionLeftToRight,
@@ -2017,7 +2019,7 @@ impl From<UiAction> for compat::UiAction {
                 Self::ToggleFocusedWaveformSliceExportMark
             }
             UiAction::AlignWaveformStartToMarker => Self::AlignWaveformStartToMarker,
-            UiAction::DeleteLoadedWaveformSample => Self::DeleteLoadedWaveformSample,
+            UiAction::DeleteLoadedWaveformSample => Self::DeleteLoadedWaveformContent,
             UiAction::SlideWaveformSelection { delta, fine } => Self::SlideWaveformSelection {
                 delta: delta,
                 fine: fine,

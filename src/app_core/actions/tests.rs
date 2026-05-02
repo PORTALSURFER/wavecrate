@@ -574,6 +574,23 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal action conversion should map product browser-sample drag actions onto Radiant's generic content-item drag actions"
     );
     assert!(
+        native_actions.contains("compat::UiAction::NormalizeWaveformSelectionOrLoadedContent")
+            && native_actions.contains("Self::NormalizeWaveformSelectionOrSample")
+            && native_actions.contains("compat::UiAction::CropWaveformSelectionToNewContentItem")
+            && native_actions.contains("Self::CropWaveformSelectionToNewSample")
+            && native_actions.contains(
+                "compat::UiAction::DeleteLoadedWaveformContent => Self::DeleteLoadedWaveformSample"
+            )
+            && native_actions.contains("UiAction::NormalizeWaveformSelectionOrSample")
+            && native_actions.contains("Self::NormalizeWaveformSelectionOrLoadedContent")
+            && native_actions.contains("UiAction::CropWaveformSelectionToNewSample")
+            && native_actions.contains("Self::CropWaveformSelectionToNewContentItem")
+            && native_actions.contains(
+                "UiAction::DeleteLoadedWaveformSample => Self::DeleteLoadedWaveformContent"
+            ),
+        "Sempal action conversion should map product waveform sample actions onto Radiant's generic waveform content actions"
+    );
+    assert!(
         native_hit_testing.contains("fn focused_similarity_action() -> UiAction")
             && native_hit_testing.contains("UiAction::ToggleFindSimilarFocusedContent")
             && native_hit_testing.contains("UiAction::ToggleFindSimilarFocusedSample"),
