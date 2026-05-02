@@ -489,6 +489,13 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal action conversion should map the product loaded-sample focus action onto Radiant's generic loaded-content focus action"
     );
     assert!(
+        native_actions.contains("compat::UiAction::SetCompareAnchorFromFocusedContent")
+            && native_actions.contains("Self::SetCompareAnchorFromFocusedBrowserSample")
+            && native_actions.contains("UiAction::SetCompareAnchorFromFocusedBrowserSample")
+            && native_actions.contains("Self::SetCompareAnchorFromFocusedContent"),
+        "Sempal action conversion should map the product compare-anchor action onto Radiant's generic focused-content action"
+    );
+    assert!(
         !native_dtos.contains("pub struct FolderRecoveryModel"),
         "folder recovery counters should use the Radiant-owned generic recovery summary primitive"
     );

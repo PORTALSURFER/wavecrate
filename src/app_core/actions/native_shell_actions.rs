@@ -1268,7 +1268,7 @@ impl From<compat::UiAction> for UiAction {
             compat::UiAction::FocusBrowserRow { visible_row } => Self::FocusBrowserRow {
                 visible_row: visible_row,
             },
-            compat::UiAction::SetCompareAnchorFromFocusedBrowserSample => {
+            compat::UiAction::SetCompareAnchorFromFocusedContent => {
                 Self::SetCompareAnchorFromFocusedBrowserSample
             }
             compat::UiAction::CommitFocusedBrowserRow => Self::CommitFocusedBrowserRow,
@@ -1864,7 +1864,7 @@ impl From<UiAction> for compat::UiAction {
                 visible_row: visible_row,
             },
             UiAction::SetCompareAnchorFromFocusedBrowserSample => {
-                Self::SetCompareAnchorFromFocusedBrowserSample
+                Self::SetCompareAnchorFromFocusedContent
             }
             UiAction::CommitFocusedBrowserRow => Self::CommitFocusedBrowserRow,
             UiAction::SaveWaveformSelectionToBrowser => Self::SaveWaveformSelectionToBrowser,
