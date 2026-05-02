@@ -8,7 +8,7 @@
 #[path = "browser_chrome_surface_helpers.rs"]
 mod helpers;
 #[cfg(test)]
-#[path = "../../../../vendor/radiant/src/gui/native_shell/browser_chrome_surface_tests.rs"]
+#[path = "browser_chrome_surface_tests.rs"]
 mod tests;
 
 use super::style::SizingTokens;
