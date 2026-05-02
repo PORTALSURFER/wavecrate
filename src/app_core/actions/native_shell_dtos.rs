@@ -641,6 +641,11 @@ impl BrowserPanelModel {
 }
 
 impl BrowserActionsModel {
+    /// Whether generic browser pill edits can be applied.
+    pub fn can_edit_pills(&self) -> bool {
+        self.can_tag
+    }
+
     /// Whether the generic browser pill editor is currently open.
     pub fn pill_editor_open(&self) -> bool {
         self.tag_sidebar_open
@@ -1289,7 +1294,7 @@ impl From<compat::BrowserActionsModel> for BrowserActionsModel {
         Self {
             can_rename: value.can_rename,
             can_delete: value.can_delete,
-            can_tag: value.can_tag,
+            can_tag: value.can_edit_pills,
             can_normalize_focused_sample: value.can_normalize_focused_item,
             can_loop_crossfade_focused_sample: value.can_loop_crossfade_focused_item,
             random_navigation_enabled: value.random_navigation_enabled,
@@ -1304,7 +1309,7 @@ impl From<BrowserActionsModel> for compat::BrowserActionsModel {
         Self {
             can_rename: value.can_rename,
             can_delete: value.can_delete,
-            can_tag: value.can_tag,
+            can_edit_pills: value.can_tag,
             can_normalize_focused_item: value.can_normalize_focused_sample,
             can_loop_crossfade_focused_item: value.can_loop_crossfade_focused_sample,
             random_navigation_enabled: value.random_navigation_enabled,

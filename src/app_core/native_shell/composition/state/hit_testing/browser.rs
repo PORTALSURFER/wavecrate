@@ -635,7 +635,7 @@ pub(in crate::gui::native_shell::state) fn browser_action_hit_test_cache_key(
 pub(in crate::gui::native_shell::state) fn browser_action_model_signature(model: &AppModel) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     model.browser_actions.can_rename.hash(&mut hasher);
-    model.browser_actions.can_tag.hash(&mut hasher);
+    model.browser_actions.can_edit_pills().hash(&mut hasher);
     model.browser_actions.can_delete.hash(&mut hasher);
     model
         .browser_actions
