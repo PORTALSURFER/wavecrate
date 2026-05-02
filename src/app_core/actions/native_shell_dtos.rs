@@ -1848,7 +1848,11 @@ impl From<compat::AutomationNodeSnapshot> for AutomationNodeSnapshot {
             value: value.value,
             enabled: value.enabled,
             selected: value.selected,
-            available_actions: value.available_actions,
+            available_actions: value
+                .available_actions
+                .into_iter()
+                .map(automation_action_id_from_compat)
+                .collect(),
             metadata: value.metadata,
             children: value.children.into_iter().map(Into::into).collect(),
         }
@@ -1865,10 +1869,28 @@ impl From<AutomationNodeSnapshot> for compat::AutomationNodeSnapshot {
             value: value.value,
             enabled: value.enabled,
             selected: value.selected,
-            available_actions: value.available_actions,
+            available_actions: value
+                .available_actions
+                .into_iter()
+                .map(automation_action_id_to_compat)
+                .collect(),
             metadata: value.metadata,
             children: value.children.into_iter().map(Into::into).collect(),
         }
+    }
+}
+
+fn automation_action_id_from_compat(action_id: String) -> String {
+    match action_id.as_str() {
+        "focus_spatial_content_item" => String::from("focus_map_sample"),
+        _ => action_id,
+    }
+}
+
+fn automation_action_id_to_compat(action_id: String) -> String {
+    match action_id.as_str() {
+        "focus_map_sample" => String::from("focus_spatial_content_item"),
+        _ => action_id,
     }
 }
 

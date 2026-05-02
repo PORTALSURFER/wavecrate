@@ -441,7 +441,7 @@ impl NativeShellState {
             })
     }
 
-    /// Resolve a map-point click to a sample-id action when map tab is active.
+    /// Resolve a map-point click to a focus action when map tab is active.
     pub(crate) fn map_sample_action_at_point(
         &self,
         layout: &ShellLayout,
@@ -451,8 +451,19 @@ impl NativeShellState {
         if !model.map.active {
             return None;
         }
-        map_sample_id_at_point(layout, model, point)
-            .map(|sample_id| UiAction::FocusMapSample { sample_id })
+        map_content_id_at_point(layout, model, point).map(map_focus_action)
+    }
+}
+
+fn map_focus_action(content_id: String) -> UiAction {
+    #[cfg(feature = "legacy-shell")]
+    {
+        UiAction::FocusSpatialContentItem { content_id }
+    }
+    #[cfg(not(feature = "legacy-shell"))]
+    {
+        let sample_id = content_id;
+        UiAction::FocusMapSample { sample_id }
     }
 }
 

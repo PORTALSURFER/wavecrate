@@ -534,6 +534,28 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal action conversion should map product random-sample actions onto Radiant's generic random-content actions"
     );
     assert!(
+        native_actions.contains("compat::UiAction::FocusSpatialContentItem { content_id }")
+            && native_actions.contains("Self::FocusMapSample")
+            && native_actions.contains("sample_id: content_id")
+            && native_actions.contains("UiAction::FocusMapSample { sample_id }")
+            && native_actions.contains("Self::FocusSpatialContentItem")
+            && native_actions.contains("content_id: sample_id"),
+        "Sempal action conversion should map product map-sample focus onto Radiant's generic spatial-content focus action"
+    );
+    assert!(
+        native_hit_testing.contains("fn map_focus_action(content_id: String) -> UiAction")
+            && native_hit_testing.contains("UiAction::FocusSpatialContentItem")
+            && native_hit_testing.contains("UiAction::FocusMapSample"),
+        "shared map hit-testing should emit Radiant's generic spatial-content action in the legacy-shell build and Sempal's product action in the app build"
+    );
+    assert!(
+        native_dtos
+            .contains("\"focus_spatial_content_item\" => String::from(\"focus_map_sample\")")
+            && native_dtos
+                .contains("\"focus_map_sample\" => String::from(\"focus_spatial_content_item\")"),
+        "Sempal automation DTO conversion should map Radiant's generic spatial-content action id onto the product map-sample action id"
+    );
+    assert!(
         native_hit_testing.contains("fn focused_similarity_action() -> UiAction")
             && native_hit_testing.contains("UiAction::ToggleFindSimilarFocusedContent")
             && native_hit_testing.contains("UiAction::ToggleFindSimilarFocusedSample"),

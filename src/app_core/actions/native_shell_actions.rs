@@ -1394,8 +1394,8 @@ impl From<compat::UiAction> for UiAction {
             compat::UiAction::ToggleBrowserSidebarNormalTag { label } => {
                 Self::ToggleBrowserSidebarNormalTag { label: label }
             }
-            compat::UiAction::FocusMapSample { sample_id } => Self::FocusMapSample {
-                sample_id: sample_id,
+            compat::UiAction::FocusSpatialContentItem { content_id } => Self::FocusMapSample {
+                sample_id: content_id,
             },
             compat::UiAction::SetPromptInput { value } => Self::SetPromptInput { value: value },
             compat::UiAction::StartBrowserRename => Self::StartBrowserRename,
@@ -1973,8 +1973,8 @@ impl From<UiAction> for compat::UiAction {
             UiAction::ToggleBrowserSidebarNormalTag { label } => {
                 Self::ToggleBrowserSidebarNormalTag { label: label }
             }
-            UiAction::FocusMapSample { sample_id } => Self::FocusMapSample {
-                sample_id: sample_id,
+            UiAction::FocusMapSample { sample_id } => Self::FocusSpatialContentItem {
+                content_id: sample_id,
             },
             UiAction::SetPromptInput { value } => Self::SetPromptInput { value: value },
             UiAction::StartBrowserRename => Self::StartBrowserRename,

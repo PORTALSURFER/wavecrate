@@ -37,7 +37,7 @@ pub(in crate::gui::native_shell::state) fn map_point_color(
     }
 }
 
-pub(in crate::gui::native_shell::state) fn map_sample_id_at_point(
+pub(in crate::gui::native_shell::state) fn map_content_id_at_point(
     layout: &ShellLayout,
     model: &AppModel,
     point: Point,
@@ -72,5 +72,5 @@ pub(in crate::gui::native_shell::state) fn map_sample_id_at_point(
             _ => best = Some((distance_sq, map_point.id.as_ref())),
         }
     }
-    best.map(|(_, sample_id)| sample_id.to_string())
+    best.map(|(_, content_id)| content_id.to_string())
 }
