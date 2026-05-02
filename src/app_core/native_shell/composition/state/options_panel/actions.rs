@@ -5,49 +5,53 @@ use super::*;
 use crate as sempal_crate;
 
 pub(super) fn audio_overview_button_defs(model: &AppModel) -> Vec<(String, UiAction)> {
+    let paired_device = model.paired_device_panel();
     vec![
         (
             format!(
                 "{}: {}",
-                model.audio_engine.output_host.label, model.audio_engine.output_host.value_label
+                paired_device.primary_group().label,
+                paired_device.primary_group().value_label
             ),
             UiAction::OpenPrimaryGroupPicker,
         ),
         (
             format!(
                 "{}: {}",
-                model.audio_engine.output_device.label,
-                model.audio_engine.output_device.value_label
+                paired_device.primary_item().label,
+                paired_device.primary_item().value_label
             ),
             UiAction::OpenPrimaryItemPicker,
         ),
         (
             format!(
                 "{}: {}",
-                model.audio_engine.output_sample_rate.label,
-                model.audio_engine.output_sample_rate.value_label
+                paired_device.primary_number().label,
+                paired_device.primary_number().value_label
             ),
             UiAction::OpenPrimaryNumberPicker,
         ),
         (
             format!(
                 "{}: {}",
-                model.audio_engine.input_host.label, model.audio_engine.input_host.value_label
+                paired_device.secondary_group().label,
+                paired_device.secondary_group().value_label
             ),
             UiAction::OpenSecondaryGroupPicker,
         ),
         (
             format!(
                 "{}: {}",
-                model.audio_engine.input_device.label, model.audio_engine.input_device.value_label
+                paired_device.secondary_item().label,
+                paired_device.secondary_item().value_label
             ),
             UiAction::OpenSecondaryItemPicker,
         ),
         (
             format!(
                 "{}: {}",
-                model.audio_engine.input_sample_rate.label,
-                model.audio_engine.input_sample_rate.value_label
+                paired_device.secondary_number().label,
+                paired_device.secondary_number().value_label
             ),
             UiAction::OpenSecondaryNumberPicker,
         ),
@@ -117,75 +121,56 @@ pub(super) fn legacy_options_panel_button_defs(model: &AppModel) -> Vec<(String,
 
 pub(super) fn options_panel_title(model: &AppModel) -> String {
     model
-        .audio_engine
-        .active_picker
+        .paired_device_panel()
+        .active_picker()
         .map(audio_picker_title)
         .unwrap_or_else(|| String::from("Audio Engine"))
 }
 
 pub(super) fn picker_options(
     model: &AppModel,
-    target: native_model::AudioPickerTargetModel,
-) -> &[native_model::AudioOptionItemModel] {
-    match target {
-        native_model::AudioPickerTargetModel::PrimaryGroup => {
-            &model.audio_engine.output_host_options
-        }
-        native_model::AudioPickerTargetModel::PrimaryItem => {
-            &model.audio_engine.output_device_options
-        }
-        native_model::AudioPickerTargetModel::PrimaryNumber => {
-            &model.audio_engine.output_sample_rate_options
-        }
-        native_model::AudioPickerTargetModel::SecondaryGroup => {
-            &model.audio_engine.input_host_options
-        }
-        native_model::AudioPickerTargetModel::SecondaryItem => {
-            &model.audio_engine.input_device_options
-        }
-        native_model::AudioPickerTargetModel::SecondaryNumber => {
-            &model.audio_engine.input_sample_rate_options
-        }
-    }
+    target: native_model::PairedPickerTargetModel,
+) -> &[native_model::PairedPickerOptionModel] {
+    model.paired_device_panel().options_for(target)
 }
 
 /// Map one projected paired-picker option into the native action it emits.
-pub(super) fn picker_action(value: &native_model::AudioOptionValueModel) -> UiAction {
+pub(super) fn picker_action(value: &native_model::PairedPickerValueModel) -> UiAction {
     match value {
-        native_model::AudioOptionValueModel::PrimaryGroup(group_id) => UiAction::SetPrimaryGroup {
+        native_model::PairedPickerValueModel::PrimaryGroup(group_id) => UiAction::SetPrimaryGroup {
             group_id: group_id.clone(),
         },
-        native_model::AudioOptionValueModel::PrimaryItem(item_name) => UiAction::SetPrimaryItem {
+        native_model::PairedPickerValueModel::PrimaryItem(item_name) => UiAction::SetPrimaryItem {
             item_name: item_name.clone(),
         },
-        native_model::AudioOptionValueModel::PrimaryNumber(value) => {
+        native_model::PairedPickerValueModel::PrimaryNumber(value) => {
             UiAction::SetPrimaryNumber { value: *value }
         }
-        native_model::AudioOptionValueModel::SecondaryGroup(group_id) => {
+        native_model::PairedPickerValueModel::SecondaryGroup(group_id) => {
             UiAction::SetSecondaryGroup {
                 group_id: group_id.clone(),
             }
         }
-        native_model::AudioOptionValueModel::SecondaryItem(item_name) => {
+        native_model::PairedPickerValueModel::SecondaryItem(item_name) => {
             UiAction::SetSecondaryItem {
                 item_name: item_name.clone(),
             }
         }
-        native_model::AudioOptionValueModel::SecondaryNumber(value) => {
+        native_model::PairedPickerValueModel::SecondaryNumber(value) => {
             UiAction::SetSecondaryNumber { value: *value }
         }
     }
 }
 
 /// Return the title text for the active audio picker target.
-fn audio_picker_title(target: native_model::AudioPickerTargetModel) -> String {
+fn audio_picker_title(target: native_model::PairedPickerTargetModel) -> String {
     match target {
-        native_model::AudioPickerTargetModel::PrimaryGroup => String::from("Output Host"),
-        native_model::AudioPickerTargetModel::PrimaryItem => String::from("Output Device"),
-        native_model::AudioPickerTargetModel::PrimaryNumber => String::from("Output Sample Rate"),
-        native_model::AudioPickerTargetModel::SecondaryGroup => String::from("Input Host"),
-        native_model::AudioPickerTargetModel::SecondaryItem => String::from("Input Device"),
-        native_model::AudioPickerTargetModel::SecondaryNumber => String::from("Input Sample Rate"),
+        native_model::PairedPickerTargetModel::PrimaryGroup => String::from("Output Host"),
+        native_model::PairedPickerTargetModel::PrimaryItem => String::from("Output Device"),
+        native_model::PairedPickerTargetModel::PrimaryNumber => String::from("Output Sample Rate"),
+        native_model::PairedPickerTargetModel::SecondaryGroup => String::from("Input Host"),
+        native_model::PairedPickerTargetModel::SecondaryItem => String::from("Input Device"),
+        native_model::PairedPickerTargetModel::SecondaryNumber => String::from("Input Sample Rate"),
     }
 }
 

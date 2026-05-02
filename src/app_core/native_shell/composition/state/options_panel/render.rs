@@ -67,7 +67,7 @@ pub(super) fn render_options_panel(
     );
     if let (Some(detail_rect), Some(detail)) = (
         panel.detail_rect,
-        model.audio_engine.detail_label.as_deref(),
+        model.paired_device_panel().detail_label(),
     ) {
         emit_text(
             text_runs,

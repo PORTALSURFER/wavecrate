@@ -31,7 +31,7 @@ pub(super) fn options_panel_layout(
     let sizing = style.sizing;
     let panel_padding = sizing.overlay_padding.max(10.0);
     let title_height = sizing.overlay_button_height.max(22.0);
-    let detail_height = if model.audio_engine.detail_label.is_some() {
+    let detail_height = if model.paired_device_panel().detail_label().is_some() {
         sizing.overlay_button_height.max(20.0)
     } else {
         0.0
@@ -132,7 +132,7 @@ pub(super) fn options_panel_action_at_point(
 }
 
 fn build_options_panel_buttons(model: &AppModel) -> Vec<(String, UiAction, bool)> {
-    if let Some(target) = model.audio_engine.active_picker {
+    if let Some(target) = model.paired_device_panel().active_picker() {
         let mut buttons = Vec::new();
         buttons.push((String::from("Back"), UiAction::ShowOptionsOverview, false));
         buttons.extend(picker_options(model, target).iter().map(|item| {

@@ -488,6 +488,14 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal native audio picker DTOs should alias generic Radiant form primitives"
     );
     assert!(
+        native_dtos.contains("impl From<compat::PairedDevicePanelModel> for AudioEngineModel")
+            && native_dtos.contains("impl From<AudioEngineModel> for compat::PairedDevicePanelModel")
+            && native_dtos.contains("audio_engine: value.paired_device.into()")
+            && native_dtos.contains("paired_device: value.audio_engine.into()")
+            && native_dtos.contains("pub fn paired_device_panel(&self) -> &AudioEngineModel"),
+        "Sempal audio DTO conversion should map to Radiant generic paired-device model names"
+    );
+    assert!(
         native_actions.contains("pub enum BrowserTagTarget")
             && native_actions.contains("Trash")
             && native_actions.contains("Keep"),

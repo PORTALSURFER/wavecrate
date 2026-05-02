@@ -662,6 +662,12 @@ impl BrowserActionsModel {
     }
 }
 
+impl AppModel {
+    pub fn paired_device_panel(&self) -> &AudioEngineModel {
+        &self.audio_engine
+    }
+}
+
 /// Audio field currently expanded into a picker inside the options panel.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AudioPickerTargetModel {
@@ -731,6 +737,62 @@ pub struct AudioEngineModel {
     pub input_device_options: Vec<AudioOptionItemModel>,
     /// Input sample-rate choices.
     pub input_sample_rate_options: Vec<AudioOptionItemModel>,
+}
+
+impl AudioEngineModel {
+    pub fn status_state(&self) -> AudioEngineChipStateModel {
+        self.chip_state
+    }
+
+    pub fn status_label(&self) -> &str {
+        &self.chip_label
+    }
+
+    pub fn detail_label(&self) -> Option<&str> {
+        self.detail_label.as_deref()
+    }
+
+    pub fn primary_group(&self) -> &AudioFieldModel {
+        &self.output_host
+    }
+
+    pub fn primary_item(&self) -> &AudioFieldModel {
+        &self.output_device
+    }
+
+    pub fn primary_number(&self) -> &AudioFieldModel {
+        &self.output_sample_rate
+    }
+
+    pub fn secondary_group(&self) -> &AudioFieldModel {
+        &self.input_host
+    }
+
+    pub fn secondary_item(&self) -> &AudioFieldModel {
+        &self.input_device
+    }
+
+    pub fn secondary_number(&self) -> &AudioFieldModel {
+        &self.input_sample_rate
+    }
+
+    pub fn active_picker(&self) -> Option<compat::PairedPickerTargetModel> {
+        self.active_picker.map(Into::into)
+    }
+
+    pub fn options_for(
+        &self,
+        target: compat::PairedPickerTargetModel,
+    ) -> &[AudioOptionItemModel] {
+        match target {
+            compat::PairedPickerTargetModel::PrimaryGroup => &self.output_host_options,
+            compat::PairedPickerTargetModel::PrimaryItem => &self.output_device_options,
+            compat::PairedPickerTargetModel::PrimaryNumber => &self.output_sample_rate_options,
+            compat::PairedPickerTargetModel::SecondaryGroup => &self.input_host_options,
+            compat::PairedPickerTargetModel::SecondaryItem => &self.input_device_options,
+            compat::PairedPickerTargetModel::SecondaryNumber => &self.input_sample_rate_options,
+        }
+    }
 }
 
 /// Options-panel state projected into the native shell.
@@ -1335,20 +1397,20 @@ impl From<&BrowserActionsModel> for compat::BrowserActionsModel {
     }
 }
 
-impl From<compat::AudioPickerTargetModel> for AudioPickerTargetModel {
-    fn from(value: compat::AudioPickerTargetModel) -> Self {
+impl From<compat::PairedPickerTargetModel> for AudioPickerTargetModel {
+    fn from(value: compat::PairedPickerTargetModel) -> Self {
         match value {
-            compat::AudioPickerTargetModel::PrimaryGroup => Self::OutputHost,
-            compat::AudioPickerTargetModel::PrimaryItem => Self::OutputDevice,
-            compat::AudioPickerTargetModel::PrimaryNumber => Self::OutputSampleRate,
-            compat::AudioPickerTargetModel::SecondaryGroup => Self::InputHost,
-            compat::AudioPickerTargetModel::SecondaryItem => Self::InputDevice,
-            compat::AudioPickerTargetModel::SecondaryNumber => Self::InputSampleRate,
+            compat::PairedPickerTargetModel::PrimaryGroup => Self::OutputHost,
+            compat::PairedPickerTargetModel::PrimaryItem => Self::OutputDevice,
+            compat::PairedPickerTargetModel::PrimaryNumber => Self::OutputSampleRate,
+            compat::PairedPickerTargetModel::SecondaryGroup => Self::InputHost,
+            compat::PairedPickerTargetModel::SecondaryItem => Self::InputDevice,
+            compat::PairedPickerTargetModel::SecondaryNumber => Self::InputSampleRate,
         }
     }
 }
 
-impl From<AudioPickerTargetModel> for compat::AudioPickerTargetModel {
+impl From<AudioPickerTargetModel> for compat::PairedPickerTargetModel {
     fn from(value: AudioPickerTargetModel) -> Self {
         match value {
             AudioPickerTargetModel::OutputHost => Self::PrimaryGroup,
@@ -1361,20 +1423,20 @@ impl From<AudioPickerTargetModel> for compat::AudioPickerTargetModel {
     }
 }
 
-impl From<compat::AudioOptionValueModel> for AudioOptionValueModel {
-    fn from(value: compat::AudioOptionValueModel) -> Self {
+impl From<compat::PairedPickerValueModel> for AudioOptionValueModel {
+    fn from(value: compat::PairedPickerValueModel) -> Self {
         match value {
-            compat::AudioOptionValueModel::PrimaryGroup(value) => Self::OutputHost(value),
-            compat::AudioOptionValueModel::PrimaryItem(value) => Self::OutputDevice(value),
-            compat::AudioOptionValueModel::PrimaryNumber(value) => Self::OutputSampleRate(value),
-            compat::AudioOptionValueModel::SecondaryGroup(value) => Self::InputHost(value),
-            compat::AudioOptionValueModel::SecondaryItem(value) => Self::InputDevice(value),
-            compat::AudioOptionValueModel::SecondaryNumber(value) => Self::InputSampleRate(value),
+            compat::PairedPickerValueModel::PrimaryGroup(value) => Self::OutputHost(value),
+            compat::PairedPickerValueModel::PrimaryItem(value) => Self::OutputDevice(value),
+            compat::PairedPickerValueModel::PrimaryNumber(value) => Self::OutputSampleRate(value),
+            compat::PairedPickerValueModel::SecondaryGroup(value) => Self::InputHost(value),
+            compat::PairedPickerValueModel::SecondaryItem(value) => Self::InputDevice(value),
+            compat::PairedPickerValueModel::SecondaryNumber(value) => Self::InputSampleRate(value),
         }
     }
 }
 
-impl From<AudioOptionValueModel> for compat::AudioOptionValueModel {
+impl From<AudioOptionValueModel> for compat::PairedPickerValueModel {
     fn from(value: AudioOptionValueModel) -> Self {
         match value {
             AudioOptionValueModel::OutputHost(value) => Self::PrimaryGroup(value),
@@ -1387,7 +1449,7 @@ impl From<AudioOptionValueModel> for compat::AudioOptionValueModel {
     }
 }
 
-fn audio_option_item_from_compat(value: compat::AudioOptionItemModel) -> AudioOptionItemModel {
+fn audio_option_item_from_compat(value: compat::PairedPickerOptionModel) -> AudioOptionItemModel {
     AudioOptionItemModel {
         label: value.label,
         selected: value.selected,
@@ -1395,54 +1457,54 @@ fn audio_option_item_from_compat(value: compat::AudioOptionItemModel) -> AudioOp
     }
 }
 
-fn audio_option_item_to_compat(value: AudioOptionItemModel) -> compat::AudioOptionItemModel {
-    compat::AudioOptionItemModel {
+fn audio_option_item_to_compat(value: AudioOptionItemModel) -> compat::PairedPickerOptionModel {
+    compat::PairedPickerOptionModel {
         label: value.label,
         selected: value.selected,
         value: value.value.into(),
     }
 }
 
-impl From<compat::AudioEngineModel> for AudioEngineModel {
-    fn from(value: compat::AudioEngineModel) -> Self {
+impl From<compat::PairedDevicePanelModel> for AudioEngineModel {
+    fn from(value: compat::PairedDevicePanelModel) -> Self {
         Self {
-            chip_state: value.chip_state.into(),
-            chip_label: value.chip_label,
+            chip_state: value.status_state.into(),
+            chip_label: value.status_label,
             detail_label: value.detail_label,
-            output_host: value.output_host.into(),
-            output_device: value.output_device.into(),
-            output_sample_rate: value.output_sample_rate.into(),
-            input_host: value.input_host.into(),
-            input_device: value.input_device.into(),
-            input_sample_rate: value.input_sample_rate.into(),
+            output_host: value.primary_group.into(),
+            output_device: value.primary_item.into(),
+            output_sample_rate: value.primary_number.into(),
+            input_host: value.secondary_group.into(),
+            input_device: value.secondary_item.into(),
+            input_sample_rate: value.secondary_number.into(),
             active_picker: value.active_picker.map(Into::into),
             output_host_options: value
-                .output_host_options
+                .primary_group_options
                 .into_iter()
                 .map(audio_option_item_from_compat)
                 .collect(),
             output_device_options: value
-                .output_device_options
+                .primary_item_options
                 .into_iter()
                 .map(audio_option_item_from_compat)
                 .collect(),
             output_sample_rate_options: value
-                .output_sample_rate_options
+                .primary_number_options
                 .into_iter()
                 .map(audio_option_item_from_compat)
                 .collect(),
             input_host_options: value
-                .input_host_options
+                .secondary_group_options
                 .into_iter()
                 .map(audio_option_item_from_compat)
                 .collect(),
             input_device_options: value
-                .input_device_options
+                .secondary_item_options
                 .into_iter()
                 .map(audio_option_item_from_compat)
                 .collect(),
             input_sample_rate_options: value
-                .input_sample_rate_options
+                .secondary_number_options
                 .into_iter()
                 .map(audio_option_item_from_compat)
                 .collect(),
@@ -1450,45 +1512,45 @@ impl From<compat::AudioEngineModel> for AudioEngineModel {
     }
 }
 
-impl From<AudioEngineModel> for compat::AudioEngineModel {
+impl From<AudioEngineModel> for compat::PairedDevicePanelModel {
     fn from(value: AudioEngineModel) -> Self {
         Self {
-            chip_state: value.chip_state.into(),
-            chip_label: value.chip_label,
+            status_state: value.chip_state.into(),
+            status_label: value.chip_label,
             detail_label: value.detail_label,
-            output_host: value.output_host.into(),
-            output_device: value.output_device.into(),
-            output_sample_rate: value.output_sample_rate.into(),
-            input_host: value.input_host.into(),
-            input_device: value.input_device.into(),
-            input_sample_rate: value.input_sample_rate.into(),
+            primary_group: value.output_host.into(),
+            primary_item: value.output_device.into(),
+            primary_number: value.output_sample_rate.into(),
+            secondary_group: value.input_host.into(),
+            secondary_item: value.input_device.into(),
+            secondary_number: value.input_sample_rate.into(),
             active_picker: value.active_picker.map(Into::into),
-            output_host_options: value
+            primary_group_options: value
                 .output_host_options
                 .into_iter()
                 .map(audio_option_item_to_compat)
                 .collect(),
-            output_device_options: value
+            primary_item_options: value
                 .output_device_options
                 .into_iter()
                 .map(audio_option_item_to_compat)
                 .collect(),
-            output_sample_rate_options: value
+            primary_number_options: value
                 .output_sample_rate_options
                 .into_iter()
                 .map(audio_option_item_to_compat)
                 .collect(),
-            input_host_options: value
+            secondary_group_options: value
                 .input_host_options
                 .into_iter()
                 .map(audio_option_item_to_compat)
                 .collect(),
-            input_device_options: value
+            secondary_item_options: value
                 .input_device_options
                 .into_iter()
                 .map(audio_option_item_to_compat)
                 .collect(),
-            input_sample_rate_options: value
+            secondary_number_options: value
                 .input_sample_rate_options
                 .into_iter()
                 .map(audio_option_item_to_compat)
@@ -1497,7 +1559,7 @@ impl From<AudioEngineModel> for compat::AudioEngineModel {
     }
 }
 
-impl From<&AudioEngineModel> for compat::AudioEngineModel {
+impl From<&AudioEngineModel> for compat::PairedDevicePanelModel {
     fn from(value: &AudioEngineModel) -> Self {
         value.clone().into()
     }
@@ -1737,7 +1799,7 @@ impl From<compat::AppModel> for AppModel {
             sources_label: value.sources_label,
             status_text: value.status_text,
             status: value.status.into(),
-            audio_engine: value.audio_engine.into(),
+            audio_engine: value.paired_device.into(),
             browser_actions: value.browser_actions.into(),
             options_panel: value.options_panel.into(),
             progress_overlay: value.progress_overlay.into(),
@@ -1767,7 +1829,7 @@ impl From<AppModel> for compat::AppModel {
             sources_label: value.sources_label,
             status_text: value.status_text,
             status: value.status.into(),
-            audio_engine: value.audio_engine.into(),
+            paired_device: value.audio_engine.into(),
             browser_actions: value.browser_actions.into(),
             options_panel: value.options_panel.into(),
             progress_overlay: value.progress_overlay.into(),

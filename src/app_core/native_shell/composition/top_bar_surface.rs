@@ -95,7 +95,7 @@ pub(crate) fn top_bar_surface_content(model: &AppModel) -> TopBarSurfaceContent 
         title: model.title.clone(),
         volume_value: format!("{:.2}", model.volume.clamp(0.0, 1.0)),
         volume_label: String::from("Vol"),
-        options_label: model.audio_engine.chip_label.clone(),
+        options_label: model.paired_device_panel().status_label().to_string(),
         update_actions: top_bar_update_action_specs(model),
     }
 }

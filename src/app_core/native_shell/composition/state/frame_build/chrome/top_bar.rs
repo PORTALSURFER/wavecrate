@@ -1,7 +1,7 @@
 use self::sempal_crate::app as native_model;
 use super::*;
 use crate as sempal_crate;
-use native_model::AudioEngineChipStateModel;
+use native_model::StatusChipStateModel;
 
 pub(super) fn render_top_bar_controls(
     state: &NativeShellState,
@@ -98,8 +98,9 @@ fn render_options_button(
     let Some(button_rect) = button_rect else {
         return;
     };
-    let chip_error = ctx.model.audio_engine.chip_state == AudioEngineChipStateModel::Error;
-    let chip_label = ctx.model.audio_engine.chip_label.as_str();
+    let paired_device = ctx.model.paired_device_panel();
+    let chip_error = paired_device.status_state() == StatusChipStateModel::Error;
+    let chip_label = paired_device.status_label();
     render_status_options_button(
         primitives,
         ctx.style,
