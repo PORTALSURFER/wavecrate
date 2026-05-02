@@ -17,7 +17,13 @@ pub(in crate::gui::native_shell::state) fn push_waveform_playhead_overlay(
     playhead_trail_lines: &[PlayheadTrailLine],
     hovered_resize_edge: Option<WaveformResizeHoverEdge>,
 ) {
-    if model.waveform_loading {
+    let transport = model.waveform_transport();
+    let viewport = model.waveform_viewport();
+    let edit_preview = model.waveform_edit_preview();
+    let presentation = model.waveform_presentation();
+    let image_preview = model.waveform_image_preview();
+
+    if image_preview.loading {
         emit_waveform_loading_placeholder(primitives, layout.waveform_plot, style, motion_wave);
         return;
     }
@@ -25,13 +31,13 @@ pub(in crate::gui::native_shell::state) fn push_waveform_playhead_overlay(
     let annotations = compute_waveform_annotation_rects_with_nanos(
         layout.waveform_plot,
         style.sizing.border_width,
-        model.waveform_selection_milli,
-        model.waveform_cursor_milli,
+        transport.selection,
+        transport.cursor_milli,
         None,
-        model.waveform_view_start_micros,
-        model.waveform_view_end_micros,
-        model.waveform_view_start_nanos,
-        model.waveform_view_end_nanos,
+        viewport.start_micros,
+        viewport.end_micros,
+        viewport.start_nanos,
+        viewport.end_nanos,
     );
     let playhead_rect =
         playhead_marker_rect(layout.waveform_plot, style.sizing.border_width, model);
@@ -78,24 +84,24 @@ pub(in crate::gui::native_shell::state) fn push_waveform_playhead_overlay(
             style.accent_warning,
             hovered_resize_edge,
         );
-        if model.waveform_loop_enabled {
+        if presentation.repeat_enabled {
             emit_waveform_loop_bar(primitives, style, rect);
         }
         emit_selection_shift_handle(primitives, style, rect, style.accent_warning);
         emit_selection_drag_handle(primitives, style, rect);
     }
 
-    if let Some(edit_selection) = model.waveform_edit_selection_milli {
+    if let Some(edit_selection) = edit_preview.selection {
         let edit_selection_rect = compute_waveform_annotation_rects_with_nanos(
             layout.waveform_plot,
             style.sizing.border_width,
             Some(edit_selection),
             None,
             None,
-            model.waveform_view_start_micros,
-            model.waveform_view_end_micros,
-            model.waveform_view_start_nanos,
-            model.waveform_view_end_nanos,
+            viewport.start_micros,
+            viewport.end_micros,
+            viewport.start_nanos,
+            viewport.end_nanos,
         )
         .selection;
         if let Some(rect) = edit_selection_rect {
@@ -123,18 +129,18 @@ pub(in crate::gui::native_shell::state) fn push_waveform_playhead_overlay(
                 layout.waveform_plot,
                 rect,
                 edit_selection,
-                model.waveform_edit_fade_in_end_milli,
-                model.waveform_edit_fade_in_end_micros,
-                model.waveform_edit_fade_in_mute_start_milli,
-                model.waveform_edit_fade_in_mute_start_micros,
-                model.waveform_edit_fade_in_curve_milli,
-                model.waveform_edit_fade_out_start_milli,
-                model.waveform_edit_fade_out_start_micros,
-                model.waveform_edit_fade_out_mute_end_milli,
-                model.waveform_edit_fade_out_mute_end_micros,
-                model.waveform_edit_fade_out_curve_milli,
-                model.waveform_view_start_micros,
-                model.waveform_view_end_micros,
+                edit_preview.leading_end_milli,
+                edit_preview.leading_end_micros,
+                edit_preview.leading_inner_start_milli,
+                edit_preview.leading_inner_start_micros,
+                edit_preview.leading_curve_milli,
+                edit_preview.trailing_start_milli,
+                edit_preview.trailing_start_micros,
+                edit_preview.trailing_inner_end_milli,
+                edit_preview.trailing_inner_end_micros,
+                edit_preview.trailing_curve_milli,
+                viewport.start_micros,
+                viewport.end_micros,
                 style.highlight_blue,
             );
             emit_hovered_edit_resize_edge(
@@ -164,10 +170,10 @@ pub(in crate::gui::native_shell::state) fn push_waveform_playhead_overlay(
             style,
             style.sizing.border_width,
             playhead_trail_lines,
-            model.waveform_view_start_micros,
-            model.waveform_view_end_micros,
-            model.waveform_view_start_nanos,
-            model.waveform_view_end_nanos,
+            viewport.start_micros,
+            viewport.end_micros,
+            viewport.start_nanos,
+            viewport.end_nanos,
         );
         emit_primitive(
             primitives,

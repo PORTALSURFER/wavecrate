@@ -25,10 +25,11 @@ pub(super) fn emit_waveform_scrollbar(
     style: &StyleTokens,
     model: &NativeMotionModel,
 ) {
+    let viewport = model.waveform_viewport();
     let Some(scrollbar) = waveform_scrollbar_layout(
         waveform_scrollbar_lane,
-        model.waveform_view_start_micros,
-        model.waveform_view_end_micros,
+        viewport.start_micros,
+        viewport.end_micros,
     ) else {
         return;
     };

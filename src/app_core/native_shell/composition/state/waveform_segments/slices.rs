@@ -7,11 +7,12 @@ pub(in crate::gui::native_shell::state) fn emit_waveform_slice_previews(
     style: &StyleTokens,
     model: &NativeMotionModel,
 ) {
+    let viewport = model.waveform_viewport();
     let slices = compute_waveform_slice_preview_rects(
         waveform_plot,
         &model.waveform_slices,
-        model.waveform_view_start_micros,
-        model.waveform_view_end_micros,
+        viewport.start_micros,
+        viewport.end_micros,
     );
     for slice in slices {
         let (fill, border) = if slice.duplicate_cleanup_exempted {

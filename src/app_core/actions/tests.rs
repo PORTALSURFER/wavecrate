@@ -275,6 +275,21 @@ fn native_action_exports_are_owned_in_app_core() {
         manifest_dir.join("src/app_core/native_shell/composition/state/waveform_segments/trail.rs"),
     )
     .expect("native waveform segment trail");
+    let waveform_segment_overlay = fs::read_to_string(
+        manifest_dir
+            .join("src/app_core/native_shell/composition/state/waveform_segments/overlay.rs"),
+    )
+    .expect("native waveform segment overlay");
+    let waveform_segment_slices = fs::read_to_string(
+        manifest_dir
+            .join("src/app_core/native_shell/composition/state/waveform_segments/slices.rs"),
+    )
+    .expect("native waveform segment slices");
+    let waveform_segment_scrollbar = fs::read_to_string(
+        manifest_dir
+            .join("src/app_core/native_shell/composition/state/waveform_segments/scrollbar.rs"),
+    )
+    .expect("native waveform segment scrollbar");
     let waveform_toolbar_helpers =
         fs::read_to_string(manifest_dir.join(
             "src/app_core/native_shell/composition/state/toolbar_helpers/waveform_toolbar.rs",
@@ -666,6 +681,13 @@ fn native_action_exports_are_owned_in_app_core() {
             && waveform_playhead_trail.contains("model.waveform_viewport()")
             && waveform_segment_trail.contains("model.waveform_transport()")
             && waveform_segment_trail.contains("model.waveform_viewport()")
+            && waveform_segment_overlay.contains("model.waveform_transport()")
+            && waveform_segment_overlay.contains("model.waveform_viewport()")
+            && waveform_segment_overlay.contains("model.waveform_edit_preview()")
+            && waveform_segment_overlay.contains("model.waveform_presentation()")
+            && waveform_segment_overlay.contains("model.waveform_image_preview()")
+            && waveform_segment_slices.contains("model.waveform_viewport()")
+            && waveform_segment_scrollbar.contains("model.waveform_viewport()")
             && waveform_toolbar_helpers.contains("model.signal_chrome()")
             && waveform_toolbar_helpers.contains("model.signal_tools()")
             && waveform_toolbar_helpers.contains("model.waveform_presentation()")
