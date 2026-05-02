@@ -507,20 +507,20 @@ fn render_sidebar_tag_pill(
     text_runs: &mut impl TextRunSink,
     ctx: &StaticFrameCtx<'_>,
     rect: Rect,
-    pill: &native_model::BrowserTagPillModel,
+    pill: &native_model::BrowserPillModel,
 ) {
     let (fill, border, text) = match pill.state {
-        native_model::BrowserTagState::Off => (
+        native_model::BrowserPillState::Off => (
             ctx.style.surface_base,
             ctx.style.border,
             ctx.style.text_muted,
         ),
-        native_model::BrowserTagState::On => (
+        native_model::BrowserPillState::On => (
             blend_color(ctx.style.highlight_cyan, ctx.style.surface_overlay, 0.24),
             blend_color(ctx.style.highlight_cyan, ctx.style.text_primary, 0.32),
             ctx.style.text_primary,
         ),
-        native_model::BrowserTagState::Mixed => (
+        native_model::BrowserPillState::Mixed => (
             blend_color(
                 ctx.style.highlight_orange_soft,
                 ctx.style.surface_overlay,
