@@ -1073,10 +1073,7 @@ pub struct SourcesPanelModel {
 impl SourcesPanelModel {
     /// Borrow one pane model by id.
     pub fn folder_pane(&self, pane: FolderPaneIdModel) -> &FolderPaneModel {
-        match pane {
-            FolderPaneIdModel::Upper => &self.upper_folder_pane,
-            FolderPaneIdModel::Lower => &self.lower_folder_pane,
-        }
+        pane.select(&self.upper_folder_pane, &self.lower_folder_pane)
     }
 
     /// Borrow the pane that currently drives browser and waveform state.

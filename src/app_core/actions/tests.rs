@@ -361,6 +361,10 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal source/sidebar DTOs should alias generic Radiant list primitives"
     );
     assert!(
+        native_dtos.contains("pane.select(&self.upper_folder_pane, &self.lower_folder_pane)"),
+        "Sempal source/sidebar DTOs should route split-pane lookup through Radiant"
+    );
+    assert!(
         !native_dtos.contains("pub enum BrowserRowProcessingState")
             && !native_dtos.contains("pub struct BrowserRowModel")
             && !native_dtos.contains("pub enum PlaybackAgeFilterChip")
