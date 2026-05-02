@@ -10,11 +10,8 @@ pub(super) fn render_waveform_static(
 ) {
     let waveform_inner = ctx.layout.waveform_plot;
     emit_waveform_bpm_grid(state, primitives, waveform_inner, ctx.model, ctx.style);
-    push_waveform_image(
-        primitives,
-        waveform_inner,
-        ctx.model.waveform.waveform_image.as_deref(),
-    );
+    let image_preview = ctx.model.waveform.image_preview();
+    push_waveform_image(primitives, waveform_inner, image_preview.image.as_deref());
     let owned_motion_model;
     let motion_model = if let Some(motion_model) = motion_model {
         motion_model
@@ -70,13 +67,13 @@ pub(super) fn emit_waveform_bpm_grid(
     let Some(step_micros) = presentation.guide_step_micros.filter(|step| *step > 0) else {
         return;
     };
-    let view_start = u64::from(model.waveform.view_start_micros.min(1_000_000));
+    let viewport = model.waveform.viewport();
+    let view_start = u64::from(viewport.start_micros.min(1_000_000));
     let view_end = u64::from(
-        model
-            .waveform
-            .view_end_micros
+        viewport
+            .end_micros
             .min(1_000_000)
-            .max(model.waveform.view_start_micros.min(1_000_000)),
+            .max(viewport.start_micros.min(1_000_000)),
     );
     if view_end <= view_start || waveform_plot.width() <= 0.0 {
         return;
@@ -85,10 +82,10 @@ pub(super) fn emit_waveform_bpm_grid(
     let origin_micros = waveform_bpm_grid_origin_micros(state, model);
     let first_beat_index = first_waveform_bpm_grid_index(view_start, origin_micros, step_micros);
     let view = waveform_view_window_from_bounds(
-        model.waveform.view_start_micros,
-        model.waveform.view_end_micros,
-        Some(model.waveform.view_start_nanos),
-        Some(model.waveform.view_end_nanos),
+        viewport.start_micros,
+        viewport.end_micros,
+        Some(viewport.start_nanos),
+        Some(viewport.end_nanos),
     );
     let mut beat_index = first_beat_index;
     let mut beat_micros = origin_micros.saturating_add(beat_index.saturating_mul(step_micros));
@@ -120,10 +117,8 @@ pub(super) fn emit_waveform_bpm_grid(
 
 /// Return the BPM grid origin in normalized micro-units, persisting the latest selection start.
 fn waveform_bpm_grid_origin_micros(state: &mut NativeShellState, model: &AppModel) -> u64 {
-    let identity = (
-        model.waveform.loaded_label.clone(),
-        model.waveform.waveform_image_signature,
-    );
+    let image_preview = model.waveform.image_preview();
+    let identity = (image_preview.loaded_label, image_preview.image_signature);
     if state.last_waveform_bpm_grid_identity.as_ref() != Some(&identity) {
         state.last_waveform_bpm_grid_identity = Some(identity);
         state.last_waveform_bpm_grid_origin_micros = None;
@@ -133,7 +128,8 @@ fn waveform_bpm_grid_origin_micros(state: &mut NativeShellState, model: &AppMode
         state.last_waveform_bpm_grid_origin_micros = Some(0);
         return 0;
     }
-    if let Some(selection) = model.waveform.selection_milli {
+    let transport = model.waveform.transport();
+    if let Some(selection) = transport.selection {
         state.last_waveform_bpm_grid_origin_micros = Some(selection.start_micros);
         return u64::from(selection.start_micros);
     }

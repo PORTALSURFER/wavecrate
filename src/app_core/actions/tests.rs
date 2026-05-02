@@ -719,6 +719,9 @@ fn native_action_exports_are_owned_in_app_core() {
             && waveform_header_surface.contains("model.signal_chrome()")
             && waveform_static_frame.contains("model.waveform_chrome.signal_tools()")
             && waveform_static_frame.contains("model.waveform.presentation()")
+            && waveform_static_frame.contains("model.waveform.viewport()")
+            && waveform_static_frame.contains("model.waveform.transport()")
+            && waveform_static_frame.contains("model.waveform.image_preview()")
             && waveform_hover_overlay.contains("model.waveform_chrome.signal_chrome()")
             && waveform_hover_overlay.contains("model.waveform_chrome.signal_tools()")
             && waveform_hover_overlay.contains("model.waveform.presentation()"),
