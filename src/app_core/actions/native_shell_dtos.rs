@@ -929,18 +929,18 @@ impl AudioEngineModel {
         &self.input_sample_rate
     }
 
-    pub fn active_picker(&self) -> Option<compat::PairedPickerTargetModel> {
+    pub fn active_picker(&self) -> Option<form::PairedPickerTarget> {
         self.active_picker.map(Into::into)
     }
 
-    pub fn options_for(&self, target: compat::PairedPickerTargetModel) -> &[AudioOptionItemModel] {
+    pub fn options_for(&self, target: form::PairedPickerTarget) -> &[AudioOptionItemModel] {
         match target {
-            compat::PairedPickerTargetModel::PrimaryGroup => &self.output_host_options,
-            compat::PairedPickerTargetModel::PrimaryItem => &self.output_device_options,
-            compat::PairedPickerTargetModel::PrimaryNumber => &self.output_sample_rate_options,
-            compat::PairedPickerTargetModel::SecondaryGroup => &self.input_host_options,
-            compat::PairedPickerTargetModel::SecondaryItem => &self.input_device_options,
-            compat::PairedPickerTargetModel::SecondaryNumber => &self.input_sample_rate_options,
+            form::PairedPickerTarget::PrimaryGroup => &self.output_host_options,
+            form::PairedPickerTarget::PrimaryItem => &self.output_device_options,
+            form::PairedPickerTarget::PrimaryNumber => &self.output_sample_rate_options,
+            form::PairedPickerTarget::SecondaryGroup => &self.input_host_options,
+            form::PairedPickerTarget::SecondaryItem => &self.input_device_options,
+            form::PairedPickerTarget::SecondaryNumber => &self.input_sample_rate_options,
         }
     }
 }

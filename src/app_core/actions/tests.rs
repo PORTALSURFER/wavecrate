@@ -576,6 +576,15 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal audio DTO conversion should map to Radiant generic paired-device model names"
     );
     assert!(
+        native_dtos.contains("pub fn active_picker(&self) -> Option<form::PairedPickerTarget>")
+            && native_dtos.contains("pub fn options_for(&self, target: form::PairedPickerTarget)")
+            && !native_dtos
+                .contains("pub fn active_picker(&self) -> Option<compat::PairedPickerTargetModel>")
+            && !native_dtos
+                .contains("pub fn options_for(&self, target: compat::PairedPickerTargetModel)"),
+        "Sempal audio DTO helpers should expose the generic Radiant form target rather than the legacy-shell alias"
+    );
+    assert!(
         native_actions.contains("pub enum BrowserTagTarget")
             && native_actions.contains("Trash")
             && native_actions.contains("Keep"),
