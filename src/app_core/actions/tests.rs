@@ -275,6 +275,11 @@ fn native_action_exports_are_owned_in_app_core() {
         manifest_dir.join("src/app_core/native_shell/composition/state/waveform_segments/trail.rs"),
     )
     .expect("native waveform segment trail");
+    let waveform_toolbar_helpers =
+        fs::read_to_string(manifest_dir.join(
+            "src/app_core/native_shell/composition/state/toolbar_helpers/waveform_toolbar.rs",
+        ))
+        .expect("native waveform toolbar helpers");
     let native_options_actions = fs::read_to_string(
         manifest_dir.join("src/app_core/native_shell/composition/state/options_panel/actions.rs"),
     )
@@ -660,7 +665,11 @@ fn native_action_exports_are_owned_in_app_core() {
             && waveform_playhead_trail.contains("model.waveform_transport()")
             && waveform_playhead_trail.contains("model.waveform_viewport()")
             && waveform_segment_trail.contains("model.waveform_transport()")
-            && waveform_segment_trail.contains("model.waveform_viewport()"),
+            && waveform_segment_trail.contains("model.waveform_viewport()")
+            && waveform_toolbar_helpers.contains("model.signal_chrome()")
+            && waveform_toolbar_helpers.contains("model.signal_tools()")
+            && waveform_toolbar_helpers.contains("model.waveform_presentation()")
+            && waveform_toolbar_helpers.contains("model.waveform_image_preview()"),
         "Sempal waveform composition should consume Radiant's generic motion parts on hot paths"
     );
     assert!(

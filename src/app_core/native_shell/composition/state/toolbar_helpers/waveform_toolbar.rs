@@ -15,6 +15,11 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
     bpm_input_active: bool,
     bpm_input_display: Option<&str>,
 ) -> Vec<WaveformToolbarButton> {
+    let chrome = model.signal_chrome();
+    let tools = model.signal_tools();
+    let presentation = model.waveform_presentation();
+    let raster_preview = model.waveform_image_preview();
+    let loaded_available = raster_preview.loaded_label.is_some() && !raster_preview.loading;
     let bpm_value_label = waveform_toolbar_bpm_value_label(model, bpm_input_display);
     let (transport_label, transport_icon, transport_action, transport_color) =
         if model.transport_running {
@@ -36,7 +41,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         (
             "Channel",
             Some(
-                if model.waveform_channel_view == native_model::WaveformChannelViewModel::Stereo {
+                if chrome.channel_view == native_model::WaveformChannelViewModel::Stereo {
                     WaveformToolbarIcon::Stereo
                 } else {
                     WaveformToolbarIcon::Mono
@@ -47,8 +52,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
             true,
             false,
             Some(UiAction::SetWaveformChannelView {
-                stereo: model.waveform_channel_view
-                    != native_model::WaveformChannelViewModel::Stereo,
+                stereo: chrome.channel_view != native_model::WaveformChannelViewModel::Stereo,
             }),
             style.text_primary,
         ),
@@ -58,11 +62,11 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
             None,
             None,
             true,
-            model.waveform_normalized_audition_enabled,
+            tools.audition_enabled,
             Some(UiAction::SetNormalizedAuditionEnabled {
-                enabled: !model.waveform_normalized_audition_enabled,
+                enabled: !tools.audition_enabled,
             }),
-            if model.waveform_normalized_audition_enabled {
+            if tools.audition_enabled {
                 style.accent_warning
             } else {
                 style.text_muted
@@ -84,11 +88,11 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
             None,
             None,
             true,
-            model.waveform_bpm_snap_enabled,
+            tools.primary_snap_enabled,
             Some(UiAction::SetBpmSnapEnabled {
-                enabled: !model.waveform_bpm_snap_enabled,
+                enabled: !tools.primary_snap_enabled,
             }),
-            if model.waveform_bpm_snap_enabled {
+            if tools.primary_snap_enabled {
                 style.accent_warning
             } else {
                 style.text_muted
@@ -100,11 +104,11 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
             None,
             None,
             true,
-            model.waveform_relative_bpm_grid_enabled,
+            tools.relative_grid_enabled,
             Some(UiAction::SetRelativeBpmGridEnabled {
-                enabled: !model.waveform_relative_bpm_grid_enabled,
+                enabled: !tools.relative_grid_enabled,
             }),
-            if model.waveform_relative_bpm_grid_enabled {
+            if tools.relative_grid_enabled {
                 style.accent_warning
             } else {
                 style.text_muted
@@ -116,11 +120,11 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
             None,
             None,
             true,
-            model.waveform_transient_snap_enabled,
+            tools.secondary_snap_enabled,
             Some(UiAction::SetTransientSnapEnabled {
-                enabled: !model.waveform_transient_snap_enabled,
+                enabled: !tools.secondary_snap_enabled,
             }),
-            if model.waveform_transient_snap_enabled {
+            if tools.secondary_snap_enabled {
                 style.accent_warning
             } else {
                 style.text_muted
@@ -132,11 +136,11 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
             None,
             None,
             true,
-            model.waveform_transient_markers_enabled,
+            tools.markers_visible,
             Some(UiAction::SetTransientMarkersEnabled {
-                enabled: !model.waveform_transient_markers_enabled,
+                enabled: !tools.markers_visible,
             }),
-            if model.waveform_transient_markers_enabled {
+            if tools.markers_visible {
                 style.accent_warning
             } else {
                 style.text_muted
@@ -148,11 +152,11 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
             None,
             None,
             true,
-            model.waveform_slice_mode_enabled,
+            tools.review_mode_enabled,
             Some(UiAction::SetSliceModeEnabled {
-                enabled: !model.waveform_slice_mode_enabled,
+                enabled: !tools.review_mode_enabled,
             }),
-            if model.waveform_slice_mode_enabled {
+            if tools.review_mode_enabled {
                 style.accent_warning
             } else {
                 style.text_muted
@@ -163,7 +167,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
             Some(WaveformToolbarIcon::Slice),
             None,
             None,
-            model.waveform_loaded_label.is_some() && !model.waveform_loading,
+            loaded_available,
             false,
             Some(UiAction::DetectWaveformSilenceSlices),
             style.highlight_blue_soft,
@@ -173,7 +177,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
             Some(WaveformToolbarIcon::Slice),
             None,
             None,
-            model.waveform_loaded_label.is_some() && !model.waveform_loading,
+            loaded_available,
             false,
             Some(UiAction::DetectWaveformExactDuplicateSlices),
             style.highlight_blue_soft,
@@ -183,9 +187,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
             Some(WaveformToolbarIcon::Slice),
             None,
             None,
-            model.waveform_loaded_label.is_some()
-                && !model.waveform_loading
-                && model.waveform_exact_duplicate_cleanup_available,
+            loaded_available && tools.cleanup_available,
             false,
             Some(UiAction::CleanWaveformExactDuplicateSlices),
             style.highlight_cyan_soft,
@@ -193,18 +195,18 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
         (
             "Loop",
             Some(WaveformToolbarIcon::Loop),
-            if model.waveform_loop_lock_enabled {
+            if tools.lock_enabled {
                 Some(WaveformToolbarIcon::Lock)
             } else {
                 None
             },
             None,
             true,
-            model.waveform_loop_enabled,
+            presentation.repeat_enabled,
             Some(UiAction::ToggleLoopPlayback),
-            if model.waveform_loop_enabled && model.waveform_loop_lock_enabled {
+            if presentation.repeat_enabled && tools.lock_enabled {
                 style.accent_warning
-            } else if model.waveform_loop_enabled {
+            } else if presentation.repeat_enabled {
                 style.accent_warning
             } else {
                 style.text_muted
@@ -215,10 +217,10 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
             Some(WaveformToolbarIcon::Play),
             None,
             None,
-            model.waveform_compare_anchor_available,
+            chrome.reference_anchor_available,
             false,
             Some(UiAction::PlayCompareAnchor),
-            if model.waveform_compare_anchor_available {
+            if chrome.reference_anchor_available {
                 style.highlight_cyan_soft
             } else {
                 style.text_muted
@@ -306,7 +308,8 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_bpm_value_label(
         return display.to_string();
     }
     model
-        .waveform_tempo_label
+        .waveform_presentation()
+        .primary_label
         .as_deref()
         .and_then(parse_waveform_tempo_number_text)
         .unwrap_or_else(|| String::from("120.0"))
