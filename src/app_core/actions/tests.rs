@@ -261,6 +261,10 @@ fn native_action_exports_are_owned_in_app_core() {
         manifest_dir.join("src/app_core/native_shell/composition/state/hit_testing/browser.rs"),
     )
     .expect("native browser hit testing");
+    let waveform_shell_hit_testing = fs::read_to_string(
+        manifest_dir.join("src/app_core/native_shell/composition/state/hit_testing/waveform.rs"),
+    )
+    .expect("native waveform hit testing");
     let waveform_hit_testing = fs::read_to_string(
         manifest_dir
             .join("src/app_core/native_shell/composition/state/hit_testing/waveform/toolbar.rs"),
@@ -690,6 +694,9 @@ fn native_action_exports_are_owned_in_app_core() {
         waveform_hit_testing.contains("model.signal_chrome()")
             && waveform_hit_testing.contains("model.signal_tools()")
             && waveform_hit_testing.contains("model.waveform_presentation()")
+            && waveform_shell_hit_testing.contains("model.waveform.viewport()")
+            && waveform_shell_hit_testing.contains("model.waveform.transport()")
+            && waveform_shell_hit_testing.contains("model.waveform.edit_preview()")
             && waveform_playhead_trail.contains("model.waveform_transport()")
             && waveform_playhead_trail.contains("model.waveform_viewport()")
             && waveform_segment_trail.contains("model.waveform_transport()")

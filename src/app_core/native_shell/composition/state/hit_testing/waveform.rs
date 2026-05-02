@@ -62,10 +62,11 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
     ) -> Option<f32> {
+        let viewport = model.waveform.viewport();
         let scrollbar = waveform_scrollbar_layout(
             layout.waveform_scrollbar_lane,
-            model.waveform.view_start_micros,
-            model.waveform.view_end_micros,
+            viewport.start_micros,
+            viewport.end_micros,
         )?;
         scrollbar
             .thumb
@@ -80,10 +81,11 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
     ) -> Option<f32> {
+        let viewport = model.waveform.viewport();
         let scrollbar = waveform_scrollbar_layout(
             layout.waveform_scrollbar_lane,
-            model.waveform.view_start_micros,
-            model.waveform.view_end_micros,
+            viewport.start_micros,
+            viewport.end_micros,
         )?;
         scrollbar.thumb.contains(point).then_some({
             let thumb_width = scrollbar.thumb.width().max(1.0);
@@ -97,10 +99,11 @@ impl NativeShellState {
         layout: &ShellLayout,
         model: &AppModel,
     ) -> Option<f32> {
+        let viewport = model.waveform.viewport();
         waveform_scrollbar_layout(
             layout.waveform_scrollbar_lane,
-            model.waveform.view_start_micros,
-            model.waveform.view_end_micros,
+            viewport.start_micros,
+            viewport.end_micros,
         )
         .map(|scrollbar| scrollbar.thumb.width().max(1.0))
     }
@@ -113,15 +116,16 @@ impl NativeShellState {
         pointer_x: f32,
         thumb_pointer_offset_x: f32,
     ) -> Option<u32> {
+        let viewport = model.waveform.viewport();
         let scrollbar = waveform_scrollbar_layout(
             layout.waveform_scrollbar_lane,
-            model.waveform.view_start_micros,
-            model.waveform.view_end_micros,
+            viewport.start_micros,
+            viewport.end_micros,
         )?;
         waveform_scrollbar_center_for_pointer(
             scrollbar,
-            model.waveform.view_start_micros,
-            model.waveform.view_end_micros,
+            viewport.start_micros,
+            viewport.end_micros,
             pointer_x,
             thumb_pointer_offset_x,
         )
@@ -134,18 +138,19 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
     ) -> Option<u32> {
+        let viewport = model.waveform.viewport();
         let scrollbar = waveform_scrollbar_layout(
             layout.waveform_scrollbar_lane,
-            model.waveform.view_start_micros,
-            model.waveform.view_end_micros,
+            viewport.start_micros,
+            viewport.end_micros,
         )?;
         if !scrollbar.track.contains(point) || scrollbar.thumb.contains(point) {
             return None;
         }
         waveform_scrollbar_center_for_pointer(
             scrollbar,
-            model.waveform.view_start_micros,
-            model.waveform.view_end_micros,
+            viewport.start_micros,
+            viewport.end_micros,
             point.x,
             scrollbar.thumb.width() * 0.5,
         )
@@ -295,7 +300,9 @@ pub(in crate::gui::native_shell::state) fn hovered_waveform_resize_edge_for_poin
     if hover != Some(ShellNodeKind::WaveformCard) || !layout.waveform_plot.contains(point) {
         return None;
     }
-    hovered_resize_edge_for_range(layout, model, point, model.waveform.edit_selection_milli)
+    let edit_preview = model.waveform.edit_preview();
+    let transport = model.waveform.transport();
+    hovered_resize_edge_for_range(layout, model, point, edit_preview.selection)
         .map(|left_edge| {
             if left_edge {
                 WaveformResizeHoverEdge::EditSelectionStart
@@ -304,7 +311,7 @@ pub(in crate::gui::native_shell::state) fn hovered_waveform_resize_edge_for_poin
             }
         })
         .or_else(|| {
-            hovered_resize_edge_for_range(layout, model, point, model.waveform.selection_milli).map(
+            hovered_resize_edge_for_range(layout, model, point, transport.selection).map(
                 |left_edge| {
                     if left_edge {
                         WaveformResizeHoverEdge::SelectionStart
@@ -350,11 +357,12 @@ pub(in crate::gui::native_shell::state) fn waveform_x_for_micros(
     model: &AppModel,
     micros: u32,
 ) -> f32 {
+    let viewport = model.waveform.viewport();
     let view = waveform_view_window_from_bounds(
-        model.waveform.view_start_micros,
-        model.waveform.view_end_micros,
-        Some(model.waveform.view_start_nanos),
-        Some(model.waveform.view_end_nanos),
+        viewport.start_micros,
+        viewport.end_micros,
+        Some(viewport.start_nanos),
+        Some(viewport.end_nanos),
     );
     waveform_plot_x_for_micros(plot, micros, view, WaveformPixelSnap::Nearest)
 }
