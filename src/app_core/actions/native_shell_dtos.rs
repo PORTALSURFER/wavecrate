@@ -117,6 +117,9 @@ pub type WaveformImagePreviewModel = visualization::SignalRasterPreview;
 /// Waveform display chrome state exposed to the native shell.
 pub type WaveformChromeStateModel = visualization::SignalChromeState;
 
+/// Waveform tool availability state exposed to the native shell.
+pub type WaveformToolStateModel = visualization::SignalToolState;
+
 /// Aggregated waveform timeline surface state exposed to the native shell.
 pub type WaveformSurfaceModel = visualization::TimelineSurfaceState<WaveformSlicePreviewModel>;
 
@@ -632,8 +635,8 @@ impl NativeMotionModel {
     }
 
     /// Return this motion snapshot's generic signal tool state.
-    pub fn signal_tools(&self) -> compat::WaveformToolStateModel {
-        compat::WaveformToolStateModel::new(
+    pub fn signal_tools(&self) -> WaveformToolStateModel {
+        WaveformToolStateModel::new(
             self.waveform_loop_lock_enabled,
             self.waveform_normalized_audition_enabled,
             self.waveform_bpm_snap_enabled,
@@ -1259,8 +1262,8 @@ impl WaveformChromeModel {
     }
 
     /// Return this chrome model's generic signal visualization tool state.
-    pub fn signal_tools(&self) -> compat::WaveformToolStateModel {
-        compat::WaveformToolStateModel::new(
+    pub fn signal_tools(&self) -> WaveformToolStateModel {
+        WaveformToolStateModel::new(
             self.loop_lock_enabled,
             self.normalized_audition_enabled,
             self.bpm_snap_enabled,
