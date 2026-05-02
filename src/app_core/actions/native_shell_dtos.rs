@@ -93,6 +93,9 @@ pub type MapPanelModel = visualization::SpatialPanel;
 /// Channel-view mode used by waveform rendering.
 pub type WaveformChannelViewModel = visualization::ChannelViewMode;
 
+/// Normalized waveform viewport state exposed to the native shell.
+pub type WaveformViewportModel = visualization::TimelineViewport;
+
 /// One detected waveform slice preview exposed to the native shell.
 pub type WaveformSlicePreviewModel = visualization::TimelineMarkerPreview;
 
@@ -537,8 +540,8 @@ impl NativeMotionModel {
     }
 
     /// Return this motion snapshot's generic timeline viewport state.
-    pub fn waveform_viewport(&self) -> compat::WaveformViewportModel {
-        compat::WaveformViewportModel::new(
+    pub fn waveform_viewport(&self) -> WaveformViewportModel {
+        WaveformViewportModel::new(
             self.waveform_view_start_milli,
             self.waveform_view_end_milli,
             self.waveform_view_start_micros,
@@ -1101,8 +1104,8 @@ impl Default for WaveformPanelModel {
 
 impl WaveformPanelModel {
     /// Return this panel's generic normalized timeline viewport.
-    pub fn viewport(&self) -> compat::WaveformViewportModel {
-        compat::WaveformViewportModel::new(
+    pub fn viewport(&self) -> WaveformViewportModel {
+        WaveformViewportModel::new(
             self.view_start_milli,
             self.view_end_milli,
             self.view_start_micros,
