@@ -300,15 +300,9 @@ fn native_action_exports_are_owned_in_app_core() {
     );
     assert!(
         native_dtos.contains("\"browser.pill_editor\" => String::from(\"browser.tag_sidebar\")")
-            && native_dtos.contains(
-                "\"browser.pill_editor.option.\""
-            )
-            && native_dtos.contains(
-                "format!(\"browser.tag_sidebar.normal_tag.{suffix}\")"
-            )
-            && native_dtos.contains(
-                "metadata.insert(String::from(\"normal_tag_labels\"), value);"
-            )
+            && native_dtos.contains("\"browser.pill_editor.option.\"")
+            && native_dtos.contains("format!(\"browser.tag_sidebar.normal_tag.{suffix}\")")
+            && native_dtos.contains("metadata.insert(String::from(\"normal_tag_labels\"), value);")
             && native_dtos.contains("metadata.insert(String::from(\"tag_state\"), value);")
             && native_dtos.contains("metadata.insert(String::from(\"tag_id\"), value);"),
         "Sempal automation DTO conversion should map generic Radiant pill-editor nodes and metadata back onto product tag-sidebar names"
@@ -489,7 +483,8 @@ fn native_action_exports_are_owned_in_app_core() {
     );
     assert!(
         native_dtos.contains("impl From<compat::PairedDevicePanelModel> for AudioEngineModel")
-            && native_dtos.contains("impl From<AudioEngineModel> for compat::PairedDevicePanelModel")
+            && native_dtos
+                .contains("impl From<AudioEngineModel> for compat::PairedDevicePanelModel")
             && native_dtos.contains("audio_engine: value.paired_device.into()")
             && native_dtos.contains("paired_device: value.audio_engine.into()")
             && native_dtos.contains("pub fn paired_device_panel(&self) -> &AudioEngineModel"),
@@ -626,6 +621,12 @@ fn native_action_exports_are_owned_in_app_core() {
     assert!(
         native_dtos.contains("pub type FolderRecoveryModel = feedback::RecoverySummary;"),
         "Sempal native folder recovery DTOs should alias the generic Radiant feedback primitive"
+    );
+    assert!(
+        native_dtos.contains("use radiant::gui::invalidation;")
+            && native_dtos.contains("mask: invalidation::InvalidationMask")
+            && native_dtos.contains("mask: invalidation::InvalidationMask::from_bits"),
+        "Sempal native dirty segments should wrap the generic Radiant invalidation mask primitive"
     );
 
     let radiant_app_sources = [
