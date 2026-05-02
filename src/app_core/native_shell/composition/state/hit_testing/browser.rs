@@ -244,7 +244,7 @@ impl NativeShellState {
         }
         if browser_marked_filter_chip_contains_point(geometry.toolbar.tag_named_filter_chip, point)
         {
-            return Some(UiAction::ToggleBrowserTagNamedFilter { invert: alt_down });
+            return Some(UiAction::ToggleBrowserDerivedLabelFilter { invert: alt_down });
         }
         if geometry.toolbar.search_field.width() > 1.0
             && geometry.toolbar.search_field.contains(point)
