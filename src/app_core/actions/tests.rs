@@ -1,14 +1,14 @@
 use super::{
-    GUI_ACTION_CATALOG, GuiCoverageLayer, GuiDispatchPolicy, GuiEffectClass, GuiSurface,
-    action_catalog_entry_by_id, action_kind, representative_action_for_kind,
+    action_catalog_entry_by_id, action_kind, representative_action_for_kind, GuiCoverageLayer,
+    GuiDispatchPolicy, GuiEffectClass, GuiSurface, GUI_ACTION_CATALOG,
 };
 use crate::app_core::app_api::controller_state::DerivedNodeId;
 use crate::app_core::native_bridge::{
-    InteractionActionClass, catalog_dirty_source, catalog_interaction_class,
-    catalog_is_immediate_waveform_preview_action, catalog_prefers_targeted_invalidation,
-    catalog_uses_local_model_pull_fast_path,
+    catalog_dirty_source, catalog_interaction_class, catalog_is_immediate_waveform_preview_action,
+    catalog_prefers_targeted_invalidation, catalog_uses_local_model_pull_fast_path,
+    InteractionActionClass,
 };
-use crate::gui_test::{GuiAivAssertion, GuiAivStep, gui_aiv_suite_manifest};
+use crate::gui_test::{gui_aiv_suite_manifest, GuiAivAssertion, GuiAivStep};
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
@@ -796,7 +796,7 @@ fn radiant_legacy_shell_imports_are_confined_to_runtime_boundary() {
     let allowed = BTreeSet::from([
         "src/app_core/actions/native_shell_actions.rs",
         "src/app_core/actions/native_shell_dtos.rs",
-        "src/gui_runtime/mod.rs",
+        "src/gui_runtime/radiant_legacy_shell.rs",
     ]);
     let skipped = BTreeSet::from(["src/app_core/actions/tests.rs"]);
     let forbidden = [
