@@ -257,6 +257,10 @@ fn native_action_exports_are_owned_in_app_core() {
     let native_actions =
         fs::read_to_string(manifest_dir.join("src/app_core/actions/native_shell_actions.rs"))
             .expect("native shell actions");
+    let native_hit_testing = fs::read_to_string(
+        manifest_dir.join("src/app_core/native_shell/composition/state/hit_testing/browser.rs"),
+    )
+    .expect("native browser hit testing");
     assert!(
         !native_dtos.contains("pub struct RetainedVec"),
         "retained snapshot storage should use the Radiant-owned generic primitive"
@@ -501,6 +505,19 @@ fn native_action_exports_are_owned_in_app_core() {
             && native_actions.contains("UiAction::ToggleBrowserSampleMark")
             && native_actions.contains("Self::ToggleContentMark"),
         "Sempal action conversion should map the product browser mark action onto Radiant's generic content mark action"
+    );
+    assert!(
+        native_actions.contains("compat::UiAction::ToggleFindSimilarFocusedContent")
+            && native_actions.contains("Self::ToggleFindSimilarFocusedSample")
+            && native_actions.contains("UiAction::ToggleFindSimilarFocusedSample")
+            && native_actions.contains("Self::ToggleFindSimilarFocusedContent"),
+        "Sempal action conversion should map the product find-similar action onto Radiant's generic focused-content action"
+    );
+    assert!(
+        native_hit_testing.contains("fn focused_similarity_action() -> UiAction")
+            && native_hit_testing.contains("UiAction::ToggleFindSimilarFocusedContent")
+            && native_hit_testing.contains("UiAction::ToggleFindSimilarFocusedSample"),
+        "shared browser hit-testing should emit Radiant's generic focused-content action in the legacy-shell build and Sempal's product action in the app build"
     );
     assert!(
         !native_dtos.contains("pub struct FolderRecoveryModel"),

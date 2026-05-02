@@ -1366,7 +1366,7 @@ impl From<compat::UiAction> for UiAction {
             }
             compat::UiAction::FocusPreviousBrowserHistory => Self::FocusPreviousBrowserHistory,
             compat::UiAction::FocusNextBrowserHistory => Self::FocusNextBrowserHistory,
-            compat::UiAction::ToggleFindSimilarFocusedSample => {
+            compat::UiAction::ToggleFindSimilarFocusedContent => {
                 Self::ToggleFindSimilarFocusedSample
             }
             compat::UiAction::ToggleBrowserDuplicateCleanupKeep { visible_row } => {
@@ -1949,7 +1949,7 @@ impl From<UiAction> for compat::UiAction {
             UiAction::ToggleBrowserDuplicateCleanupMode => Self::ToggleBrowserDuplicateCleanupMode,
             UiAction::FocusPreviousBrowserHistory => Self::FocusPreviousBrowserHistory,
             UiAction::FocusNextBrowserHistory => Self::FocusNextBrowserHistory,
-            UiAction::ToggleFindSimilarFocusedSample => Self::ToggleFindSimilarFocusedSample,
+            UiAction::ToggleFindSimilarFocusedSample => Self::ToggleFindSimilarFocusedContent,
             UiAction::ToggleBrowserDuplicateCleanupKeep { visible_row } => {
                 Self::ToggleBrowserDuplicateCleanupKeep {
                     visible_row: visible_row,

@@ -59,7 +59,7 @@ impl NativeShellState {
             .find(|row| row.focused)
             .and_then(|row| browser_similarity_button_rect(row.rect, geometry.style.sizing))
             .filter(|rect| rect.contains(point))
-            .map(|_| UiAction::ToggleFindSimilarFocusedSample)
+            .map(|_| focused_similarity_action())
     }
 
     /// Resolve one browser context-menu action at a pointer location.
@@ -453,6 +453,17 @@ impl NativeShellState {
         }
         map_sample_id_at_point(layout, model, point)
             .map(|sample_id| UiAction::FocusMapSample { sample_id })
+    }
+}
+
+fn focused_similarity_action() -> UiAction {
+    #[cfg(feature = "legacy-shell")]
+    {
+        UiAction::ToggleFindSimilarFocusedContent
+    }
+    #[cfg(not(feature = "legacy-shell"))]
+    {
+        UiAction::ToggleFindSimilarFocusedSample
     }
 }
 
