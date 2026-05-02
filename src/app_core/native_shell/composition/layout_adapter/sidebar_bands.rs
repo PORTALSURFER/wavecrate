@@ -6,7 +6,7 @@ use crate::gui::layout_core::{
     LayoutEngine, LayoutNode, LayoutState, MainAlign, OverflowPolicy, SizeModeCross, SizeModeMain,
     SlotChild, SlotParams,
 };
-use crate::gui::types::{Point, Rect, Vector2};
+use crate::gui::types::{Rect, Vector2};
 
 pub(crate) const SIDEBAR_BANDS_ROOT_ID: u64 = 630;
 pub(crate) const SIDEBAR_HEADER_ID: u64 = 632;
@@ -105,14 +105,9 @@ fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Re
 }
 
 fn empty_rect(bounds: Rect) -> Rect {
-    Rect::from_min_max(bounds.min, bounds.min)
+    bounds.empty_at_min()
 }
 
 fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    let min = Point::new(rect.min.x.max(bounds.min.x), rect.min.y.max(bounds.min.y));
-    let max = Point::new(rect.max.x.min(bounds.max.x), rect.max.y.min(bounds.max.y));
-    if max.x < min.x || max.y < min.y {
-        return Rect::from_min_max(bounds.min, bounds.min);
-    }
-    Rect::from_min_max(min, max)
+    rect.clamp_to(bounds)
 }
