@@ -144,7 +144,7 @@ fn missing_browser_rows_render_red_exclamation_marker() {
 
     let frame = state.build_frame(&layout, &model);
     let has_marker = frame.text_runs.iter().any(|run| {
-        run.text == BROWSER_MISSING_SAMPLE_MARKER
+        run.text == BROWSER_MISSING_CONTENT_MARKER
             && run.color == style.accent_trash
             && (run.font_size - style.sizing.font_body).abs() <= f32::EPSILON
     });

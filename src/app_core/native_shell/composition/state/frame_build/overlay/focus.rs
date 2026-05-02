@@ -368,7 +368,7 @@ pub(super) fn render_browser_focus_overlay(
                 emit_text(
                     text_runs,
                     TextRun {
-                        text: String::from(BROWSER_MISSING_SAMPLE_MARKER),
+                        text: String::from(BROWSER_MISSING_CONTENT_MARKER),
                         position: label_position,
                         font_size: sizing.font_body,
                         color: style.accent_trash,

@@ -168,7 +168,7 @@ pub(super) fn render_browser_rows_window(
             emit_text(
                 text_runs,
                 TextRun {
-                    text: String::from(BROWSER_MISSING_SAMPLE_MARKER),
+                    text: String::from(BROWSER_MISSING_CONTENT_MARKER),
                     position: label_position,
                     font_size: ctx.sizing.font_body,
                     color: ctx.style.accent_trash,
