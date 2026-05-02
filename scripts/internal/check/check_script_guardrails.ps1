@@ -349,6 +349,15 @@ try {
   Assert-CompatibilityWrappers -Inventory $inventory
   Assert-DispatcherInventory -Inventory $inventory
 
+  $devcheckPs = Get-Content -Path (Join-Path $scriptsDir "internal/ci/devcheck.ps1") -Raw
+  $devcheckSh = Get-Content -Path (Join-Path $scriptsDir "internal/ci/devcheck.sh") -Raw
+  foreach ($script in @(
+      @{ Label = "PowerShell"; Text = $devcheckPs },
+      @{ Label = "Bash"; Text = $devcheckSh }
+    )) {
+    Assert-TextContains -Label "devcheck $($script.Label) checks Radiant standalone example" -Text $script.Text -Fragment "--example generic_native --no-default-features"
+  }
+
   Invoke-ExpectExitCode -Label "agent request --Help" -ExpectedCode 0 -WorkDir $rootDir -ScriptPath (Join-Path $scriptsDir "agent.ps1") -Arguments @("request", "-Help")
   Invoke-ExpectExitCode -Label "run_agent_preflight --Help" -ExpectedCode 0 -WorkDir $rootDir -ScriptPath (Join-Path $scriptsDir "internal/agent/run_agent_preflight.ps1") -Arguments @("-Help")
   Invoke-ExpectExitCode -Label "ci smoke --Help" -ExpectedCode 0 -WorkDir $rootDir -ScriptPath (Join-Path $scriptsDir "ci.ps1") -Arguments @("smoke", "-Help")

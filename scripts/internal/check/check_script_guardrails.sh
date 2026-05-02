@@ -37,6 +37,20 @@ run_expect_exit_code() {
   rm -f "$output_file"
 }
 
+assert_file_contains() {
+  local label="$1"
+  local path="$2"
+  local fragment="$3"
+
+  if grep -Fq -- "$fragment" "$path"; then
+    echo "[guardrails] PASS: $label"
+  else
+    echo "[guardrails] FAIL: $label" >&2
+    echo "[guardrails] Missing fragment '$fragment' in $path" >&2
+    failures=$((failures + 1))
+  fi
+}
+
 run_cleanup_audit_fixture() {
   local fixture_dir
   fixture_dir="$(mktemp -d)"
@@ -577,6 +591,16 @@ run_expect_exit_code \
   "$ROOT_DIR" \
   scripts/ci.sh smoke \
   --help
+
+assert_file_contains \
+  "PowerShell devcheck checks Radiant standalone example" \
+  "scripts/internal/ci/devcheck.ps1" \
+  "--example generic_native --no-default-features"
+
+assert_file_contains \
+  "Bash devcheck checks Radiant standalone example" \
+  "scripts/internal/ci/devcheck.sh" \
+  "--example generic_native --no-default-features"
 
 run_expect_exit_code \
   "ci_agent --help" \
