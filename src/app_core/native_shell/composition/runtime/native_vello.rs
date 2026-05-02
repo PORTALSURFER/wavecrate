@@ -38,32 +38,12 @@ pub fn run_native_vello_app<B: NativeAppBridge>(
     run_native_vello_app_with_artifacts(options, bridge).result
 }
 
-/// Run the native Vello backend using a declarative state+reducer bridge.
-///
-/// This is an API-level alias to [`run_native_vello_app`] that emphasizes
-/// one-way declarative host integration (`project_model` + `reduce_action`).
-pub fn run_native_vello_app_declarative<B: NativeAppBridge>(
-    options: NativeRunOptions,
-    bridge: B,
-) -> Result<(), String> {
-    run_native_vello_app(options, bridge)
-}
-
-/// Run the native Vello backend using a declarative state+reducer bridge and
-/// return structured runtime artifacts together with the result.
-pub fn run_native_vello_app_declarative_with_artifacts<B: NativeAppBridge>(
-    options: NativeRunOptions,
-    bridge: B,
-) -> NativeRunReport {
-    run_native_vello_app_with_artifacts(options, bridge)
-}
-
 /// Run the experimental native Vello backend window for backend-selection testing.
 ///
 /// This preview path renders an interactive backend-neutral shell model with
 /// Vello primitives and exercises native input hit-testing without `egui`.
 pub fn run_native_vello_preview(options: NativeRunOptions) -> Result<(), String> {
-    run_native_vello_app_declarative(options, PreviewBridge)
+    run_native_vello_app(options, PreviewBridge)
 }
 
 /// Capture a deterministic native-shell automation snapshot without launching a window.

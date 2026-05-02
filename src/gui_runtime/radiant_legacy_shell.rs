@@ -207,27 +207,6 @@ pub(super) fn run_native_vello_app_with_artifacts<B: NativeAppBridge>(
     native_run_report_from_radiant(report)
 }
 
-pub(super) fn run_native_vello_app_declarative<B: NativeAppBridge>(
-    options: NativeRunOptions,
-    bridge: B,
-) -> Result<(), String> {
-    radiant::compat::legacy_shell::run_native_vello_app_declarative(
-        options.into(),
-        CompatNativeAppBridge::new(bridge),
-    )
-}
-
-pub(super) fn run_native_vello_app_declarative_with_artifacts<B: NativeAppBridge>(
-    options: NativeRunOptions,
-    bridge: B,
-) -> NativeRunReport {
-    let report = radiant::compat::legacy_shell::run_native_vello_app_declarative_with_artifacts(
-        options.into(),
-        CompatNativeAppBridge::new(bridge),
-    );
-    native_run_report_from_radiant(report)
-}
-
 pub(super) fn run_native_vello_preview(options: NativeRunOptions) -> Result<(), String> {
     radiant::compat::legacy_shell::run_native_vello_preview(options.into())
 }

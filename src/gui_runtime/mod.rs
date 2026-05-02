@@ -146,7 +146,7 @@ pub fn run_native_vello_app_declarative<B: NativeAppBridge>(
 ) -> Result<(), String> {
     info!("Launching radiant native Vello runtime (declarative host)");
     let result =
-        radiant_legacy_shell::run_native_vello_app_declarative(options, bridge).map_err(|err| {
+        radiant_legacy_shell::run_native_vello_app(options, bridge).map_err(|err| {
             error!(%err, "radiant native Vello runtime returned error");
             err
         });
@@ -165,8 +165,7 @@ pub fn run_native_vello_app_declarative_with_artifacts<B: NativeAppBridge>(
     bridge: B,
 ) -> NativeRunReport {
     info!("Launching radiant native Vello runtime (declarative host)");
-    let report =
-        radiant_legacy_shell::run_native_vello_app_declarative_with_artifacts(options, bridge);
+    let report = radiant_legacy_shell::run_native_vello_app_with_artifacts(options, bridge);
     if let Err(err) = &report.result {
         error!(%err, "radiant native Vello runtime returned error");
     } else {
