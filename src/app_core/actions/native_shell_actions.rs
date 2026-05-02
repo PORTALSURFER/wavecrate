@@ -1377,8 +1377,8 @@ impl From<compat::UiAction> for UiAction {
             compat::UiAction::ConfirmBrowserDuplicateCleanup => {
                 Self::ConfirmBrowserDuplicateCleanup
             }
-            compat::UiAction::PlayRandomSample => Self::PlayRandomSample,
-            compat::UiAction::PlayPreviousRandomSample => Self::PlayPreviousRandomSample,
+            compat::UiAction::PlayRandomContentItem => Self::PlayRandomSample,
+            compat::UiAction::PlayPreviousRandomContentItem => Self::PlayPreviousRandomSample,
             compat::UiAction::AdjustSelectedBrowserRating { delta } => {
                 Self::AdjustSelectedBrowserRating { delta: delta }
             }
@@ -1956,8 +1956,8 @@ impl From<UiAction> for compat::UiAction {
                 }
             }
             UiAction::ConfirmBrowserDuplicateCleanup => Self::ConfirmBrowserDuplicateCleanup,
-            UiAction::PlayRandomSample => Self::PlayRandomSample,
-            UiAction::PlayPreviousRandomSample => Self::PlayPreviousRandomSample,
+            UiAction::PlayRandomSample => Self::PlayRandomContentItem,
+            UiAction::PlayPreviousRandomSample => Self::PlayPreviousRandomContentItem,
             UiAction::AdjustSelectedBrowserRating { delta } => {
                 Self::AdjustSelectedBrowserRating { delta: delta }
             }

@@ -522,6 +522,18 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal action conversion should map the product normalize action onto Radiant's generic focused-content normalize action"
     );
     assert!(
+        native_actions
+            .contains("compat::UiAction::PlayRandomContentItem => Self::PlayRandomSample")
+            && native_actions.contains(
+                "compat::UiAction::PlayPreviousRandomContentItem => Self::PlayPreviousRandomSample"
+            )
+            && native_actions.contains("UiAction::PlayRandomSample => Self::PlayRandomContentItem")
+            && native_actions.contains(
+                "UiAction::PlayPreviousRandomSample => Self::PlayPreviousRandomContentItem"
+            ),
+        "Sempal action conversion should map product random-sample actions onto Radiant's generic random-content actions"
+    );
+    assert!(
         native_hit_testing.contains("fn focused_similarity_action() -> UiAction")
             && native_hit_testing.contains("UiAction::ToggleFindSimilarFocusedContent")
             && native_hit_testing.contains("UiAction::ToggleFindSimilarFocusedSample"),
