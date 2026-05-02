@@ -1796,11 +1796,47 @@ impl From<&AppModel> for compat::AppModel {
 }
 
 fn automation_node_id_from_compat(value: compat::AutomationNodeId) -> AutomationNodeId {
-    automation::AutomationNodeId(value.0)
+    automation::AutomationNodeId(automation_node_id_string_from_compat(value.0))
 }
 
 fn automation_node_id_to_compat(value: AutomationNodeId) -> compat::AutomationNodeId {
-    compat::AutomationNodeId(value.0)
+    compat::AutomationNodeId(automation_node_id_string_to_compat(value.0))
+}
+
+fn automation_node_id_string_from_compat(node_id: String) -> String {
+    match node_id.as_str() {
+        "browser.pill_editor" => String::from("browser.tag_sidebar"),
+        "browser.pill_editor.input" => String::from("browser.tag_sidebar.input"),
+        "browser.pill_editor.exclusive.0" => String::from("browser.tag_sidebar.playback.loop"),
+        "browser.pill_editor.exclusive.1" => String::from("browser.tag_sidebar.playback.one_shot"),
+        _ => {
+            if let Some(suffix) = node_id.strip_prefix("browser.pill_editor.option.") {
+                format!("browser.tag_sidebar.normal_tag.{suffix}")
+            } else if let Some(suffix) = node_id.strip_prefix("browser.pill_editor.create.") {
+                format!("browser.tag_sidebar.create_tag.{suffix}")
+            } else {
+                node_id
+            }
+        }
+    }
+}
+
+fn automation_node_id_string_to_compat(node_id: String) -> String {
+    match node_id.as_str() {
+        "browser.tag_sidebar" => String::from("browser.pill_editor"),
+        "browser.tag_sidebar.input" => String::from("browser.pill_editor.input"),
+        "browser.tag_sidebar.playback.loop" => String::from("browser.pill_editor.exclusive.0"),
+        "browser.tag_sidebar.playback.one_shot" => String::from("browser.pill_editor.exclusive.1"),
+        _ => {
+            if let Some(suffix) = node_id.strip_prefix("browser.tag_sidebar.normal_tag.") {
+                format!("browser.pill_editor.option.{suffix}")
+            } else if let Some(suffix) = node_id.strip_prefix("browser.tag_sidebar.create_tag.") {
+                format!("browser.pill_editor.create.{suffix}")
+            } else {
+                node_id
+            }
+        }
+    }
 }
 
 impl From<compat::AutomationRole> for AutomationRole {
@@ -1947,6 +1983,15 @@ fn automation_metadata_from_compat(
     if let Some(value) = metadata.remove("focused_item_label") {
         metadata.insert(String::from("focused_sample_label"), value);
     }
+    if let Some(value) = metadata.remove("option_pill_labels") {
+        metadata.insert(String::from("normal_tag_labels"), value);
+    }
+    if let Some(value) = metadata.remove("pill_state") {
+        metadata.insert(String::from("tag_state"), value);
+    }
+    if let Some(value) = metadata.remove("pill_id") {
+        metadata.insert(String::from("tag_id"), value);
+    }
     metadata
 }
 
@@ -1955,6 +2000,15 @@ fn automation_metadata_to_compat(
 ) -> BTreeMap<String, String> {
     if let Some(value) = metadata.remove("focused_sample_label") {
         metadata.insert(String::from("focused_item_label"), value);
+    }
+    if let Some(value) = metadata.remove("normal_tag_labels") {
+        metadata.insert(String::from("option_pill_labels"), value);
+    }
+    if let Some(value) = metadata.remove("tag_state") {
+        metadata.insert(String::from("pill_state"), value);
+    }
+    if let Some(value) = metadata.remove("tag_id") {
+        metadata.insert(String::from("pill_id"), value);
     }
     metadata
 }

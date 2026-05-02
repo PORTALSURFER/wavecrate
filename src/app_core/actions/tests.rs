@@ -299,6 +299,21 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal automation DTO conversion should map product role names onto generic Radiant roles"
     );
     assert!(
+        native_dtos.contains("\"browser.pill_editor\" => String::from(\"browser.tag_sidebar\")")
+            && native_dtos.contains(
+                "\"browser.pill_editor.option.\""
+            )
+            && native_dtos.contains(
+                "format!(\"browser.tag_sidebar.normal_tag.{suffix}\")"
+            )
+            && native_dtos.contains(
+                "metadata.insert(String::from(\"normal_tag_labels\"), value);"
+            )
+            && native_dtos.contains("metadata.insert(String::from(\"tag_state\"), value);")
+            && native_dtos.contains("metadata.insert(String::from(\"tag_id\"), value);"),
+        "Sempal automation DTO conversion should map generic Radiant pill-editor nodes and metadata back onto product tag-sidebar names"
+    );
+    assert!(
         !native_dtos.contains("pub struct FrameBuildResult"),
         "frame feedback should use the Radiant-owned generic primitive"
     );
