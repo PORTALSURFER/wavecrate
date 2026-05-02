@@ -475,6 +475,13 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal should own browser triage target names"
     );
     assert!(
+        native_actions.contains(
+            "compat::UiAction::MoveDiscardedItemsToFolder => Self::MoveTrashedSamplesToFolder"
+        ) && native_actions
+            .contains("UiAction::MoveTrashedSamplesToFolder => Self::MoveDiscardedItemsToFolder"),
+        "Sempal action conversion should map the product trash action onto Radiant's generic discard action"
+    );
+    assert!(
         !native_dtos.contains("pub struct FolderRecoveryModel"),
         "folder recovery counters should use the Radiant-owned generic recovery summary primitive"
     );

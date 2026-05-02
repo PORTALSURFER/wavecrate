@@ -1458,7 +1458,7 @@ impl From<compat::UiAction> for UiAction {
             compat::UiAction::ToggleHotkeyOverlay => Self::ToggleHotkeyOverlay,
             compat::UiAction::CopyStatusLog => Self::CopyStatusLog,
             compat::UiAction::OpenFeedbackIssuePrompt => Self::OpenFeedbackIssuePrompt,
-            compat::UiAction::MoveTrashedSamplesToFolder => Self::MoveTrashedSamplesToFolder,
+            compat::UiAction::MoveDiscardedItemsToFolder => Self::MoveTrashedSamplesToFolder,
             compat::UiAction::SetInputMonitoringEnabled { enabled } => {
                 Self::SetInputMonitoringEnabled { enabled: enabled }
             }
@@ -2029,7 +2029,7 @@ impl From<UiAction> for compat::UiAction {
             UiAction::ToggleHotkeyOverlay => Self::ToggleHotkeyOverlay,
             UiAction::CopyStatusLog => Self::CopyStatusLog,
             UiAction::OpenFeedbackIssuePrompt => Self::OpenFeedbackIssuePrompt,
-            UiAction::MoveTrashedSamplesToFolder => Self::MoveTrashedSamplesToFolder,
+            UiAction::MoveTrashedSamplesToFolder => Self::MoveDiscardedItemsToFolder,
             UiAction::SetInputMonitoringEnabled { enabled } => {
                 Self::SetInputMonitoringEnabled { enabled: enabled }
             }
