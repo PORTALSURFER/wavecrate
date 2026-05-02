@@ -1,7 +1,7 @@
 //! Slotized browser chrome text-line geometry helpers.
 
 use super::super::style::SizingTokens;
-use super::micro_layout::{TextLineInsets, centered_text_line};
+use crate::gui::text_layout::{TextLineInsets, centered_text_line};
 use crate::gui::types::Rect;
 
 const TABS_TEXT_SAMPLE_ID: u64 = 1500;

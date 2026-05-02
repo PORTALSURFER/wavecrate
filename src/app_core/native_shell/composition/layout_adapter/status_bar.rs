@@ -2,7 +2,7 @@
 
 use super::super::status_surface::{StatusSurfaceContent, resolve_status_surface_layout};
 use super::super::style::SizingTokens;
-use super::micro_layout::{TextLineInsets, centered_text_line};
+use crate::gui::text_layout::{TextLineInsets, centered_text_line};
 use crate::gui::types::Rect;
 
 const STATUS_TEXT_LINE_ID: u64 = 922;

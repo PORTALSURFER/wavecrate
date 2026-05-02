@@ -12,7 +12,6 @@ pattern	owner	move_scope	notes
 mod.rs	compat_adapter	compat_boundary	Native-shell facade remains in Radiant until Sempal-owned composition has moved behind generic primitives.
 layout/**	radiant_generic	stay_radiant	Backend-neutral layout tree, geometry, and node contracts.
 layout_runtime.rs	radiant_generic	stay_radiant	Retained layout runtime and dirty-subtree bookkeeping.
-layout_adapter/micro_layout.rs	compat_adapter	compat_boundary	Compatibility re-export for generic text-line placement now owned by radiant::gui::text_layout.
 state/svg_icons/parser.rs	radiant_generic	stay_radiant	Reusable SVG subset parser used by compatibility icon rasterization.
 style/sizing.rs	radiant_generic	stay_radiant	Viewport and UI-scale sizing token type.
 style/sizing/**	radiant_generic	stay_radiant	Sizing token defaults, tier deltas, and tests.

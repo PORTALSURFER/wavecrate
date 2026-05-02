@@ -1,7 +1,7 @@
 //! Slotized browser map-header text layout helpers.
 
 use super::super::style::SizingTokens;
-use super::micro_layout::{TextLineInsets, centered_text_line};
+use crate::gui::text_layout::{TextLineInsets, centered_text_line};
 use crate::gui::layout_core::{
     Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
     OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams, layout_tree,

@@ -1,7 +1,7 @@
 //! Slotized sidebar row and recovery-badge text-line geometry helpers.
 
 use super::super::style::SizingTokens;
-use super::micro_layout::{TextLineInsets, centered_text_line};
+use crate::gui::text_layout::{TextLineInsets, centered_text_line};
 use crate::gui::types::{Point, Rect};
 
 const SIDEBAR_TEXT_LINE_ID: u64 = 1702;

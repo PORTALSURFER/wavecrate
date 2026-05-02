@@ -1,4 +1,4 @@
-use super::super::super::micro_layout::{TextLineInsets, centered_text_line, top_text_line};
+use crate::gui::text_layout::{TextLineInsets, centered_text_line, top_text_line};
 use super::super::shared;
 use crate::gui::layout_core::{
     Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,

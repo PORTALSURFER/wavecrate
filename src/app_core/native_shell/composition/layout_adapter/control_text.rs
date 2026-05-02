@@ -1,7 +1,7 @@
 //! Slotized text-line geometry helpers for control rows and action buttons.
 
 use super::super::style::SizingTokens;
-use super::micro_layout::{TextLineInsets, centered_text_line};
+use crate::gui::text_layout::{TextLineInsets, centered_text_line};
 use crate::gui::types::{Point, Rect};
 
 const ACTION_BUTTON_TEXT_BASE_ID: u64 = 1610;
