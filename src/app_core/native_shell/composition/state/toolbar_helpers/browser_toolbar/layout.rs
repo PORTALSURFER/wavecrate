@@ -18,7 +18,7 @@ pub(in crate::gui::native_shell::state) fn browser_toolbar_layout(
         rating_filter_chips: sections.rating_filter_chips,
         playback_age_filter_chips: sections.playback_age_filter_chips,
         marked_filter_chip: sections.marked_filter_chip,
-        tag_named_filter_chip: sections.tag_named_filter_chip,
+        derived_label_filter_chip: sections.derived_label_filter_chip,
         action_slots: sections.action_slots,
         search_field: sections.search_field,
         activity_chip: sections.activity_chip,

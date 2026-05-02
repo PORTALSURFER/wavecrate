@@ -10,7 +10,7 @@ const TOOLBAR_FILTER_CHIP_BASE_ID: u64 = 820;
 const RATING_FILTER_CHIP_COUNT: usize = 8;
 const PLAYBACK_AGE_FILTER_CHIP_COUNT: usize = 3;
 const MARKED_FILTER_CHIP_COUNT: usize = 1;
-const TAG_NAMED_FILTER_CHIP_COUNT: usize = 1;
+const DERIVED_LABEL_FILTER_CHIP_COUNT: usize = 1;
 
 /// Slot-resolved browser toolbar sections for search and chip controls.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -18,7 +18,7 @@ pub(crate) struct BrowserToolbarSections {
     pub rating_filter_chips: [Rect; 8],
     pub playback_age_filter_chips: [Rect; 3],
     pub marked_filter_chip: Rect,
-    pub tag_named_filter_chip: Rect,
+    pub derived_label_filter_chip: Rect,
     pub action_slots: [Rect; 3],
     pub search_field: Rect,
     pub activity_chip: Rect,
@@ -41,7 +41,7 @@ pub(crate) fn compute_browser_toolbar_sections(
             rating_filter_chips: empty_filter_chips,
             playback_age_filter_chips: empty_playback_age_filter_chips,
             marked_filter_chip: empty,
-            tag_named_filter_chip: empty,
+            derived_label_filter_chip: empty,
             action_slots: empty_action_slots,
             search_field: empty,
             activity_chip: empty,
@@ -56,7 +56,7 @@ pub(crate) fn compute_browser_toolbar_sections(
             rating_filter_chips: empty_filter_chips,
             playback_age_filter_chips: empty_playback_age_filter_chips,
             marked_filter_chip: empty,
-            tag_named_filter_chip: empty,
+            derived_label_filter_chip: empty,
             action_slots: empty_action_slots,
             search_field: empty,
             activity_chip: empty,
@@ -72,7 +72,7 @@ pub(crate) fn compute_browser_toolbar_sections(
             rating_filter_chips: empty_filter_chips,
             playback_age_filter_chips: empty_playback_age_filter_chips,
             marked_filter_chip: empty,
-            tag_named_filter_chip: empty,
+            derived_label_filter_chip: empty,
             action_slots: empty_action_slots,
             search_field: empty,
             activity_chip: empty,
@@ -117,11 +117,11 @@ pub(crate) fn compute_browser_toolbar_sections(
     } else {
         0.0
     };
-    let tag_named_chip_width = marked_chip_width;
+    let derived_label_chip_width = marked_chip_width;
     let mut remaining_after_filters = (available
         - filter_total_width
         - marked_chip_width
-        - tag_named_chip_width
+        - derived_label_chip_width
         - action_cluster_width
         - (gap * 2.0))
         .max(0.0);
@@ -194,7 +194,7 @@ pub(crate) fn compute_browser_toolbar_sections(
     } else {
         empty
     };
-    let tag_named_filter_chip = if marked_chip_side > 0.0 {
+    let derived_label_filter_chip = if marked_chip_side > 0.0 {
         let min_x = if marked_filter_chip.width() > 1.0 {
             (marked_filter_chip.max.x + filter_group_gap).min(left_max)
         } else {
@@ -210,8 +210,8 @@ pub(crate) fn compute_browser_toolbar_sections(
     } else {
         empty
     };
-    let controls_right_edge = if tag_named_filter_chip.width() > 1.0 {
-        tag_named_filter_chip.max.x
+    let controls_right_edge = if derived_label_filter_chip.width() > 1.0 {
+        derived_label_filter_chip.max.x
     } else if marked_filter_chip.width() > 1.0 {
         marked_filter_chip.max.x
     } else {
@@ -251,7 +251,7 @@ pub(crate) fn compute_browser_toolbar_sections(
         rating_filter_chips,
         playback_age_filter_chips,
         marked_filter_chip,
-        tag_named_filter_chip,
+        derived_label_filter_chip,
         action_slots,
         search_field,
         activity_chip: empty,
@@ -272,7 +272,7 @@ fn compute_filter_control_side(
     let chip_count = (RATING_FILTER_CHIP_COUNT
         + PLAYBACK_AGE_FILTER_CHIP_COUNT
         + MARKED_FILTER_CHIP_COUNT
-        + TAG_NAMED_FILTER_CHIP_COUNT) as f32;
+        + DERIVED_LABEL_FILTER_CHIP_COUNT) as f32;
     let intra_group_gap_count = (RATING_FILTER_CHIP_COUNT.saturating_sub(1)
         + PLAYBACK_AGE_FILTER_CHIP_COUNT.saturating_sub(1)) as f32;
     let raw_side =

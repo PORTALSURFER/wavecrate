@@ -634,6 +634,16 @@ pub struct BrowserActionsModel {
 }
 
 impl BrowserPanelModel {
+    /// Whether the generic derived-label filter is currently active.
+    pub fn derived_label_filter_active(&self) -> bool {
+        self.tag_named_filter_active
+    }
+
+    /// Whether the generic derived-label filter is currently inverted.
+    pub fn derived_label_filter_negated(&self) -> bool {
+        self.tag_named_filter_negated
+    }
+
     /// Generic metadata-pill editor projected beside the content list.
     pub fn pill_editor(&self) -> &BrowserTagSidebarModel {
         &self.tag_sidebar
@@ -1193,8 +1203,8 @@ impl From<compat::BrowserPanelModel> for BrowserPanelModel {
             active_rating_filters: value.active_rating_filters,
             active_playback_age_filters: value.active_playback_age_filters,
             marked_filter_active: value.marked_filter_active,
-            tag_named_filter_active: value.tag_named_filter_active,
-            tag_named_filter_negated: value.tag_named_filter_negated,
+            tag_named_filter_active: value.derived_label_filter_active,
+            tag_named_filter_negated: value.derived_label_filter_negated,
             search_placeholder: value.search_placeholder,
             busy: value.busy,
             source_loading: value.source_loading,
@@ -1224,8 +1234,8 @@ impl From<BrowserPanelModel> for compat::BrowserPanelModel {
             active_rating_filters: value.active_rating_filters,
             active_playback_age_filters: value.active_playback_age_filters,
             marked_filter_active: value.marked_filter_active,
-            tag_named_filter_active: value.tag_named_filter_active,
-            tag_named_filter_negated: value.tag_named_filter_negated,
+            derived_label_filter_active: value.tag_named_filter_active,
+            derived_label_filter_negated: value.tag_named_filter_negated,
             search_placeholder: value.search_placeholder,
             busy: value.busy,
             source_loading: value.source_loading,

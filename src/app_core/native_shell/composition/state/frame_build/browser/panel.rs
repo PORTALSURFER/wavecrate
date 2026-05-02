@@ -202,22 +202,22 @@ pub(super) fn render_browser_frame(
             },
         );
     }
-    if toolbar.tag_named_filter_chip.width() > 1.0 {
-        let active = ctx.model.browser.tag_named_filter_active;
+    if toolbar.derived_label_filter_chip.width() > 1.0 {
+        let active = ctx.model.browser.derived_label_filter_active();
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {
-                rect: toolbar.tag_named_filter_chip,
+                rect: toolbar.derived_label_filter_chip,
                 color: browser_marked_filter_chip_fill(ctx.style, active),
             }),
         );
         push_border(
             primitives,
-            toolbar.tag_named_filter_chip,
+            toolbar.derived_label_filter_chip,
             browser_marked_filter_chip_border(ctx.style, active),
             ctx.sizing.border_width,
         );
-        let icon = if ctx.model.browser.tag_named_filter_negated {
+        let icon = if ctx.model.browser.derived_label_filter_negated() {
             WaveformToolbarIcon::Filter
         } else {
             WaveformToolbarIcon::BrowserMarked
@@ -225,7 +225,7 @@ pub(super) fn render_browser_frame(
         let _ = emit_toolbar_svg_icon(
             primitives,
             icon,
-            centered_button_icon_rect(toolbar.tag_named_filter_chip, ctx.sizing),
+            centered_button_icon_rect(toolbar.derived_label_filter_chip, ctx.sizing),
             if active {
                 ctx.style.text_primary
             } else {

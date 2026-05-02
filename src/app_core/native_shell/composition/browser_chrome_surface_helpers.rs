@@ -68,7 +68,11 @@ pub(super) fn build_toolbar_children(
     spacer_id += 1;
     children.push(SurfaceChild::new(
         fixed_slot(widths.filter_side, widths.filter_side),
-        toggle_widget(TOOLBAR_TAG_NAMED_ID, "Tag named", widths.filter_side),
+        toggle_widget(
+            TOOLBAR_DERIVED_LABEL_ID,
+            "Derived label",
+            widths.filter_side,
+        ),
     ));
     children.push(spacer_child(spacer_id, widths.gap));
     spacer_id += 1;
@@ -211,13 +215,13 @@ pub(super) fn browser_toolbar_surface_widths(
     );
     let mut filter_total_width =
         browser_filter_cluster_width(filter_side, filter_gap, filter_group_gap).min(available);
-    let tag_named_width = if filter_side > 0.0 {
+    let derived_label_width = if filter_side > 0.0 {
         (filter_side * 2.0) + filter_group_gap + filter_gap
     } else {
         0.0
     };
     let mut remaining_after_filters =
-        (available - filter_total_width - tag_named_width - action_cluster_width - (gap * 2.0))
+        (available - filter_total_width - derived_label_width - action_cluster_width - (gap * 2.0))
             .max(0.0);
     if remaining_after_filters < min_search_width && desired_search_width > min_search_width {
         filter_side = compute_filter_control_side(
@@ -228,9 +232,12 @@ pub(super) fn browser_toolbar_surface_widths(
         );
         filter_total_width =
             browser_filter_cluster_width(filter_side, filter_gap, filter_group_gap).min(available);
-        remaining_after_filters =
-            (available - filter_total_width - tag_named_width - action_cluster_width - (gap * 2.0))
-                .max(0.0);
+        remaining_after_filters = (available
+            - filter_total_width
+            - derived_label_width
+            - action_cluster_width
+            - (gap * 2.0))
+            .max(0.0);
     }
     BrowserToolbarSurfaceWidths {
         horizontal_padding,

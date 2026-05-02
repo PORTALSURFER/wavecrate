@@ -242,8 +242,10 @@ impl NativeShellState {
         if browser_marked_filter_chip_contains_point(geometry.toolbar.marked_filter_chip, point) {
             return Some(UiAction::ToggleBrowserMarkedFilter);
         }
-        if browser_marked_filter_chip_contains_point(geometry.toolbar.tag_named_filter_chip, point)
-        {
+        if browser_marked_filter_chip_contains_point(
+            geometry.toolbar.derived_label_filter_chip,
+            point,
+        ) {
             return Some(UiAction::ToggleBrowserDerivedLabelFilter { invert: alt_down });
         }
         if geometry.toolbar.search_field.width() > 1.0
@@ -335,9 +337,9 @@ impl NativeShellState {
         (toolbar.marked_filter_chip.width() > 1.0).then_some(toolbar.marked_filter_chip)
     }
 
-    /// Return the tag-named-filter chip rect when the toolbar is available.
+    /// Return the derived-label-filter chip rect when the toolbar is available.
     #[cfg(test)]
-    pub(crate) fn browser_tag_named_filter_chip_rect(
+    pub(crate) fn browser_derived_label_filter_chip_rect(
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
@@ -345,7 +347,8 @@ impl NativeShellState {
         let toolbar = self
             .cached_browser_interaction_geometry(layout, model)
             .toolbar;
-        (toolbar.tag_named_filter_chip.width() > 1.0).then_some(toolbar.tag_named_filter_chip)
+        (toolbar.derived_label_filter_chip.width() > 1.0)
+            .then_some(toolbar.derived_label_filter_chip)
     }
 
     /// Return one browser playback-age filter chip rect for the given chip.
@@ -649,8 +652,14 @@ pub(in crate::gui::native_shell::state) fn browser_action_model_signature(model:
     model.browser.active_rating_filters.hash(&mut hasher);
     model.browser.active_playback_age_filters.hash(&mut hasher);
     model.browser.marked_filter_active.hash(&mut hasher);
-    model.browser.tag_named_filter_active.hash(&mut hasher);
-    model.browser.tag_named_filter_negated.hash(&mut hasher);
+    model
+        .browser
+        .derived_label_filter_active()
+        .hash(&mut hasher);
+    model
+        .browser
+        .derived_label_filter_negated()
+        .hash(&mut hasher);
     model.browser.search_query.hash(&mut hasher);
     model.browser.busy.hash(&mut hasher);
     model.browser.sort_label.hash(&mut hasher);
