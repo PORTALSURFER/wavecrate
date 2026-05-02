@@ -105,6 +105,9 @@ pub type WaveformPresentationModel = visualization::TimelinePresentationState;
 /// Aggregated waveform timeline surface state exposed to the native shell.
 pub type WaveformSurfaceModel = visualization::TimelineSurfaceState<WaveformSlicePreviewModel>;
 
+/// Aggregated waveform motion state exposed to the native shell.
+pub type WaveformMotionModel = visualization::TimelineMotionState<WaveformSlicePreviewModel>;
+
 /// Render data for one point shown in the native map canvas.
 pub type MapPointModel = visualization::SpatialPoint;
 
@@ -531,6 +534,118 @@ impl NativeMotionModel {
             waveform_exact_duplicate_cleanup_available: signal_tools.cleanup_available,
             status_right: model.status.right.clone(),
         }
+    }
+
+    /// Return this motion snapshot's generic timeline viewport state.
+    pub fn waveform_viewport(&self) -> compat::WaveformViewportModel {
+        compat::WaveformViewportModel::new(
+            self.waveform_view_start_milli,
+            self.waveform_view_end_milli,
+            self.waveform_view_start_micros,
+            self.waveform_view_end_micros,
+            self.waveform_view_start_nanos,
+            self.waveform_view_end_nanos,
+        )
+    }
+
+    /// Return this motion snapshot's generic timeline transport state.
+    pub fn waveform_transport(&self) -> compat::WaveformTransportModel {
+        compat::WaveformTransportModel::new(
+            self.waveform_cursor_milli,
+            self.waveform_playhead_milli,
+            self.waveform_playhead_micros,
+            self.waveform_selection_milli,
+        )
+    }
+
+    /// Return this motion snapshot's generic timeline edit-preview state.
+    pub fn waveform_edit_preview(&self) -> compat::WaveformEditPreviewModel {
+        compat::WaveformEditPreviewModel::new(
+            self.waveform_edit_selection_milli,
+            self.waveform_edit_fade_in_end_milli,
+            self.waveform_edit_fade_in_end_micros,
+            self.waveform_edit_fade_in_mute_start_milli,
+            self.waveform_edit_fade_in_mute_start_micros,
+            self.waveform_edit_fade_in_curve_milli,
+            self.waveform_edit_fade_out_start_milli,
+            self.waveform_edit_fade_out_start_micros,
+            self.waveform_edit_fade_out_mute_end_milli,
+            self.waveform_edit_fade_out_mute_end_micros,
+            self.waveform_edit_fade_out_curve_milli,
+        )
+    }
+
+    /// Return this motion snapshot's generic timeline feedback event tokens.
+    pub fn waveform_feedback_events(&self) -> WaveformFeedbackEventsModel {
+        WaveformFeedbackEventsModel::new(
+            self.waveform_selection_export_flash_nonce,
+            self.waveform_selection_export_failure_flash_nonce,
+            self.waveform_edit_selection_apply_flash_nonce,
+        )
+    }
+
+    /// Return this motion snapshot's generic timeline presentation state.
+    pub fn waveform_presentation(&self) -> WaveformPresentationModel {
+        WaveformPresentationModel::new(
+            None,
+            0,
+            self.waveform_loop_enabled,
+            self.waveform_tempo_label.clone(),
+            self.waveform_zoom_label.clone(),
+        )
+    }
+
+    /// Return this motion snapshot's generic retained raster preview state.
+    pub fn waveform_image_preview(&self) -> compat::WaveformImagePreviewModel {
+        compat::WaveformImagePreviewModel::new(
+            self.waveform_loaded_label.clone(),
+            self.waveform_loading,
+            false,
+            self.waveform_image_signature,
+            None,
+        )
+    }
+
+    /// Return this motion snapshot's generic signal chrome state.
+    pub fn signal_chrome(&self) -> compat::WaveformChromeStateModel {
+        compat::WaveformChromeStateModel::new(
+            self.waveform_transport_hint.clone(),
+            self.waveform_compare_anchor_available,
+            self.waveform_compare_anchor_label.clone(),
+            self.waveform_channel_view.into(),
+        )
+    }
+
+    /// Return this motion snapshot's generic signal tool state.
+    pub fn signal_tools(&self) -> compat::WaveformToolStateModel {
+        compat::WaveformToolStateModel::new(
+            self.waveform_loop_lock_enabled,
+            self.waveform_normalized_audition_enabled,
+            self.waveform_bpm_snap_enabled,
+            self.waveform_relative_bpm_grid_enabled,
+            self.waveform_transient_snap_enabled,
+            self.waveform_transient_markers_enabled,
+            self.waveform_slice_mode_enabled,
+            self.waveform_exact_duplicate_cleanup_available,
+        )
+    }
+
+    /// Return this motion snapshot as a generic timeline motion aggregate.
+    pub fn timeline_motion(&self) -> WaveformMotionModel {
+        WaveformMotionModel::new(
+            self.transport_running,
+            WaveformSurfaceModel::new(
+                self.waveform_viewport(),
+                self.waveform_transport(),
+                self.waveform_edit_preview(),
+                self.waveform_feedback_events(),
+                self.waveform_presentation(),
+                self.waveform_image_preview(),
+                self.waveform_slices.clone(),
+            ),
+            self.signal_chrome(),
+            self.signal_tools(),
+        )
     }
 }
 
@@ -2536,6 +2651,83 @@ mod tests {
             Some("Loaded")
         );
         assert_eq!(surface.markers.len(), 1);
+    }
+
+    #[test]
+    fn native_motion_projects_generic_timeline_motion_state() {
+        let model = super::NativeMotionModel {
+            transport_running: true,
+            map_active: false,
+            active_rating_filters: [false; 8],
+            active_playback_age_filters: [false; 3],
+            marked_filter_active: false,
+            waveform_selection_milli: Some(super::NormalizedRangeModel::new(100, 400)),
+            waveform_slices: Vec::new(),
+            waveform_selection_export_flash_nonce: 11,
+            waveform_selection_export_failure_flash_nonce: 12,
+            waveform_edit_selection_apply_flash_nonce: 13,
+            waveform_edit_selection_milli: None,
+            waveform_edit_fade_in_end_milli: Some(120),
+            waveform_edit_fade_in_end_micros: Some(120_000),
+            waveform_edit_fade_in_mute_start_milli: None,
+            waveform_edit_fade_in_mute_start_micros: None,
+            waveform_edit_fade_in_curve_milli: Some(200),
+            waveform_edit_fade_out_start_milli: None,
+            waveform_edit_fade_out_start_micros: None,
+            waveform_edit_fade_out_mute_end_milli: Some(390),
+            waveform_edit_fade_out_mute_end_micros: Some(390_000),
+            waveform_edit_fade_out_curve_milli: Some(800),
+            waveform_loop_enabled: true,
+            waveform_loop_lock_enabled: true,
+            waveform_cursor_milli: Some(150),
+            waveform_playhead_milli: Some(250),
+            waveform_playhead_micros: Some(250_500),
+            waveform_view_start_milli: 10,
+            waveform_view_end_milli: 900,
+            waveform_view_start_micros: 10_000,
+            waveform_view_end_micros: 900_000,
+            waveform_view_start_nanos: 10_000_000,
+            waveform_view_end_nanos: 900_000_000,
+            waveform_tempo_label: Some(String::from("128 BPM")),
+            waveform_zoom_label: Some(String::from("4x")),
+            waveform_loaded_label: Some(String::from("Loaded")),
+            waveform_loading: true,
+            waveform_image_signature: Some(42),
+            waveform_transport_hint: String::from("playing"),
+            waveform_compare_anchor_available: true,
+            waveform_compare_anchor_label: Some(String::from("A")),
+            waveform_channel_view: super::WaveformChannelViewModel::Stereo,
+            waveform_normalized_audition_enabled: true,
+            waveform_bpm_snap_enabled: true,
+            waveform_relative_bpm_grid_enabled: false,
+            waveform_transient_snap_enabled: true,
+            waveform_transient_markers_enabled: true,
+            waveform_slice_mode_enabled: false,
+            waveform_exact_duplicate_cleanup_available: true,
+            status_right: String::from("ready"),
+        };
+
+        let motion = model.timeline_motion();
+
+        assert!(motion.transport_running);
+        assert_eq!(motion.surface.viewport.start_micros, 10_000);
+        assert_eq!(
+            motion.surface.transport.resolved_playhead_micros(),
+            Some(250_500)
+        );
+        assert_eq!(motion.surface.feedback_events.primary_success_nonce, 11);
+        assert!(motion.surface.presentation.repeat_enabled);
+        assert_eq!(
+            motion.surface.raster_preview.loaded_label.as_deref(),
+            Some("Loaded")
+        );
+        assert_eq!(motion.chrome.status_hint, "playing");
+        assert_eq!(
+            motion.chrome.channel_view,
+            super::WaveformChannelViewModel::Stereo
+        );
+        assert!(motion.tools.lock_enabled);
+        assert!(motion.tools.cleanup_available);
     }
 
     #[test]

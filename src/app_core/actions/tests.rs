@@ -635,6 +635,11 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal waveform DTOs should expose Radiant's generic timeline surface aggregate"
     );
     assert!(
+        native_dtos.contains("pub type WaveformMotionModel = visualization::TimelineMotionState")
+            && native_dtos.contains("pub fn timeline_motion(&self) -> WaveformMotionModel"),
+        "Sempal motion DTOs should expose Radiant's generic timeline motion aggregate"
+    );
+    assert!(
         native_hit_testing.contains("fn focused_similarity_action() -> UiAction")
             && native_hit_testing.contains("UiAction::ToggleFindSimilarFocusedContent")
             && native_hit_testing.contains("UiAction::ToggleFindSimilarFocusedSample"),
