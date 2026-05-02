@@ -92,6 +92,9 @@ pub type MapPanelModel = visualization::SpatialPanel;
 /// Channel-view mode used by waveform rendering.
 pub type WaveformChannelViewModel = visualization::ChannelViewMode;
 
+/// One detected waveform slice preview exposed to the native shell.
+pub type WaveformSlicePreviewModel = visualization::TimelineMarkerPreview;
+
 /// Render data for one point shown in the native map canvas.
 pub type MapPointModel = visualization::SpatialPoint;
 
@@ -737,23 +740,6 @@ pub enum ConfirmPromptKind {
     PurgeRetainedFolderDeletes,
     /// Pending options-panel default-identifier prompt.
     OptionsDefaultIdentifier,
-}
-
-/// One detected waveform slice preview exposed to the native shell.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct WaveformSlicePreviewModel {
-    /// Detected slice range in normalized milli, micro, and nano precision.
-    pub range: NormalizedRangeModel,
-    /// Whether this slice is currently selected for slice-edit operations.
-    pub selected: bool,
-    /// Whether this slice is focused for keyboard review audition.
-    pub focused: bool,
-    /// Whether this slice is marked for export.
-    pub marked_for_export: bool,
-    /// Whether this slice belongs to a duplicate-cleanup preview batch.
-    pub duplicate_cleanup_candidate: bool,
-    /// Whether this duplicate preview is currently exempted from cleanup.
-    pub duplicate_cleanup_exempted: bool,
 }
 
 /// Waveform preview metadata consumed by the native shell.
@@ -1570,32 +1556,6 @@ fn confirm_prompt_to_compat(value: ConfirmPromptModel) -> compat::ConfirmPromptM
         input_value: value.input_value,
         input_placeholder: value.input_placeholder,
         input_error: value.input_error,
-    }
-}
-
-impl From<compat::WaveformSlicePreviewModel> for WaveformSlicePreviewModel {
-    fn from(value: compat::WaveformSlicePreviewModel) -> Self {
-        Self {
-            range: value.range.into(),
-            selected: value.selected,
-            focused: value.focused,
-            marked_for_export: value.marked_for_export,
-            duplicate_cleanup_candidate: value.duplicate_cleanup_candidate,
-            duplicate_cleanup_exempted: value.duplicate_cleanup_exempted,
-        }
-    }
-}
-
-impl From<WaveformSlicePreviewModel> for compat::WaveformSlicePreviewModel {
-    fn from(value: WaveformSlicePreviewModel) -> Self {
-        Self {
-            range: value.range.into(),
-            selected: value.selected,
-            focused: value.focused,
-            marked_for_export: value.marked_for_export,
-            duplicate_cleanup_candidate: value.duplicate_cleanup_candidate,
-            duplicate_cleanup_exempted: value.duplicate_cleanup_exempted,
-        }
     }
 }
 

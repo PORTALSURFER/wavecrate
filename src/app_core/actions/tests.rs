@@ -344,6 +344,7 @@ fn native_action_exports_are_owned_in_app_core() {
             && !native_dtos.contains("pub struct BrowserTagSidebarModel")
             && !native_dtos.contains("pub enum MapRenderModeModel")
             && !native_dtos.contains("pub struct MapPanelModel")
+            && !native_dtos.contains("pub struct WaveformSlicePreviewModel")
             && !native_dtos.contains("pub enum UpdateStatusModel"),
         "generic row state, pill state/panel, map mode/panel, and update status DTOs should use Radiant-owned primitives"
     );
@@ -363,6 +364,9 @@ fn native_action_exports_are_owned_in_app_core() {
             && native_dtos.contains("pub type MapPanelModel = visualization::SpatialPanel;")
             && native_dtos
                 .contains("pub type WaveformChannelViewModel = visualization::ChannelViewMode;")
+            && native_dtos.contains(
+                "pub type WaveformSlicePreviewModel = visualization::TimelineMarkerPreview;"
+            )
             && native_dtos.contains("pub type MapPointModel = visualization::SpatialPoint;")
             && native_dtos.contains("pub type UpdateStatusModel = feedback::UpdateStatus;"),
         "Sempal native DTOs should alias generic Radiant state primitives"
