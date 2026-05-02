@@ -210,6 +210,19 @@ fn runtime_internal_waveform_shift_actions_are_not_public_dispatch() {
 }
 
 #[test]
+fn native_app_default_keeps_sempal_product_labels_owned_in_app_core() {
+    let model = crate::app_core::actions::NativeAppModel::default();
+
+    assert_eq!(model.columns[1].title, "Samples");
+    assert_eq!(model.browser_chrome.samples_tab_label, "Samples");
+    assert_eq!(model.browser_chrome.map_tab_label, "Similarity map");
+    assert_eq!(
+        model.browser_chrome.search_placeholder,
+        "Search samples (Ctrl+F)"
+    );
+}
+
+#[test]
 fn native_action_exports_are_owned_in_app_core() {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let actions_mod =

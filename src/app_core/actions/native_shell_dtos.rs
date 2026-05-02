@@ -1045,7 +1045,14 @@ pub struct AppModel {
 
 impl Default for AppModel {
     fn default() -> Self {
-        Self::from(compat::AppModel::default())
+        let mut model = Self::from(compat::AppModel::default());
+        model.columns = [
+            ColumnModel::new("Trash", 0),
+            ColumnModel::new("Samples", 0),
+            ColumnModel::new("Keep", 0),
+        ];
+        model.browser_chrome = BrowserChromeModel::default();
+        model
     }
 }
 
