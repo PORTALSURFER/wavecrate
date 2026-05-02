@@ -357,7 +357,8 @@ fn native_action_exports_are_owned_in_app_core() {
             && native_dtos.contains("pub type SourceRowModel = panel::SplitPaneAssignedRow;")
             && native_dtos.contains("pub type FolderRowKind = list::EditableRowKind;")
             && native_dtos.contains("pub type FolderRowModel = list::EditableTreeRow;")
-            && native_dtos.contains("pub type FolderActionsModel = list::EditableTreeActions;"),
+            && native_dtos.contains("pub type FolderActionsModel = list::EditableTreeActions;")
+            && native_dtos.contains("panel::SplitPaneSidebarState"),
         "Sempal source/sidebar DTOs should alias generic Radiant list primitives"
     );
     assert!(

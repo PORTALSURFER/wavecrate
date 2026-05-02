@@ -1207,6 +1207,32 @@ impl SourcesPanelModel {
     pub fn active_folder_pane_model(&self) -> &FolderPaneModel {
         self.folder_pane(self.active_folder_pane)
     }
+
+    /// Return this source/sidebar model as a generic split-pane sidebar state.
+    pub fn split_pane_sidebar(
+        &self,
+    ) -> panel::SplitPaneSidebarState<SourceRowModel, FolderRowModel> {
+        panel::SplitPaneSidebarState {
+            header: self.header.clone(),
+            search_query: self.search_query.clone(),
+            active_pane: self.active_folder_pane,
+            upper_pane: self.upper_folder_pane.clone(),
+            lower_pane: self.lower_folder_pane.clone(),
+            tree_search_query: self.tree_search_query.clone(),
+            show_all_items: self.show_all_items,
+            can_toggle_show_all_items: self.can_toggle_show_all_items,
+            flattened_view: self.flattened_view,
+            can_toggle_flattened_view: self.can_toggle_flattened_view,
+            selected_row: self.selected_row,
+            loading_row: self.loading_row,
+            mutation_busy_row: self.mutation_busy_row,
+            focused_tree_row: self.focused_tree_row,
+            rows: self.rows.clone(),
+            tree_rows: self.tree_rows.clone(),
+            tree_actions: self.tree_actions.clone(),
+            recovery: self.recovery.clone(),
+        }
+    }
 }
 
 /// Snapshot of Sempal state required by the native shell renderer.
