@@ -1291,7 +1291,7 @@ impl From<compat::UiAction> for UiAction {
                     visible_row: visible_row,
                 }
             }
-            compat::UiAction::StartBrowserSampleDrag {
+            compat::UiAction::StartContentItemDrag {
                 visible_row,
                 pointer_x,
                 pointer_y,
@@ -1300,7 +1300,7 @@ impl From<compat::UiAction> for UiAction {
                 pointer_x: pointer_x,
                 pointer_y: pointer_y,
             },
-            compat::UiAction::UpdateBrowserSampleDrag {
+            compat::UiAction::UpdateContentItemDrag {
                 pointer_x,
                 pointer_y,
                 hovered_folder_pane,
@@ -1317,7 +1317,7 @@ impl From<compat::UiAction> for UiAction {
                 shift_down: shift_down,
                 alt_down: alt_down,
             },
-            compat::UiAction::FinishBrowserSampleDrag => Self::FinishBrowserSampleDrag,
+            compat::UiAction::FinishContentItemDrag => Self::FinishBrowserSampleDrag,
             compat::UiAction::ExtendBrowserSelectionToRow { visible_row } => {
                 Self::ExtendBrowserSelectionToRow {
                     visible_row: visible_row,
@@ -1886,7 +1886,7 @@ impl From<UiAction> for compat::UiAction {
                 visible_row,
                 pointer_x,
                 pointer_y,
-            } => Self::StartBrowserSampleDrag {
+            } => Self::StartContentItemDrag {
                 visible_row: visible_row,
                 pointer_x: pointer_x,
                 pointer_y: pointer_y,
@@ -1899,7 +1899,7 @@ impl From<UiAction> for compat::UiAction {
                 over_folder_panel,
                 shift_down,
                 alt_down,
-            } => Self::UpdateBrowserSampleDrag {
+            } => Self::UpdateContentItemDrag {
                 pointer_x: pointer_x,
                 pointer_y: pointer_y,
                 hovered_folder_pane: hovered_folder_pane.map(Into::into),
@@ -1908,7 +1908,7 @@ impl From<UiAction> for compat::UiAction {
                 shift_down: shift_down,
                 alt_down: alt_down,
             },
-            UiAction::FinishBrowserSampleDrag => Self::FinishBrowserSampleDrag,
+            UiAction::FinishBrowserSampleDrag => Self::FinishContentItemDrag,
             UiAction::ExtendBrowserSelectionToRow { visible_row } => {
                 Self::ExtendBrowserSelectionToRow {
                     visible_row: visible_row,

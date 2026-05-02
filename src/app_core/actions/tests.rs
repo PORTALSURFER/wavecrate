@@ -556,6 +556,22 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal automation DTO conversion should map Radiant's generic spatial-content action id onto the product map-sample action id"
     );
     assert!(
+        native_actions.contains("compat::UiAction::StartContentItemDrag")
+            && native_actions.contains("Self::StartBrowserSampleDrag")
+            && native_actions.contains("compat::UiAction::UpdateContentItemDrag")
+            && native_actions.contains("Self::UpdateBrowserSampleDrag")
+            && native_actions.contains(
+                "compat::UiAction::FinishContentItemDrag => Self::FinishBrowserSampleDrag"
+            )
+            && native_actions.contains("UiAction::StartBrowserSampleDrag")
+            && native_actions.contains("Self::StartContentItemDrag")
+            && native_actions.contains("UiAction::UpdateBrowserSampleDrag")
+            && native_actions.contains("Self::UpdateContentItemDrag")
+            && native_actions
+                .contains("UiAction::FinishBrowserSampleDrag => Self::FinishContentItemDrag"),
+        "Sempal action conversion should map product browser-sample drag actions onto Radiant's generic content-item drag actions"
+    );
+    assert!(
         native_hit_testing.contains("fn focused_similarity_action() -> UiAction")
             && native_hit_testing.contains("UiAction::ToggleFindSimilarFocusedContent")
             && native_hit_testing.contains("UiAction::ToggleFindSimilarFocusedSample"),
