@@ -1351,7 +1351,7 @@ impl From<compat::UiAction> for UiAction {
                     invert: invert,
                 }
             }
-            compat::UiAction::ToggleBrowserSampleMark => Self::ToggleBrowserSampleMark,
+            compat::UiAction::ToggleContentMark => Self::ToggleBrowserSampleMark,
             compat::UiAction::ToggleBrowserMarkedFilter => Self::ToggleBrowserMarkedFilter,
             compat::UiAction::ToggleBrowserTagNamedFilter { invert } => {
                 Self::ToggleBrowserTagNamedFilter { invert: invert }
@@ -1938,7 +1938,7 @@ impl From<UiAction> for compat::UiAction {
                     invert: invert,
                 }
             }
-            UiAction::ToggleBrowserSampleMark => Self::ToggleBrowserSampleMark,
+            UiAction::ToggleBrowserSampleMark => Self::ToggleContentMark,
             UiAction::ToggleBrowserMarkedFilter => Self::ToggleBrowserMarkedFilter,
             UiAction::ToggleBrowserTagNamedFilter { invert } => {
                 Self::ToggleBrowserTagNamedFilter { invert: invert }

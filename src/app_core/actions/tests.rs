@@ -496,6 +496,13 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal action conversion should map the product compare-anchor action onto Radiant's generic focused-content action"
     );
     assert!(
+        native_actions.contains("compat::UiAction::ToggleContentMark")
+            && native_actions.contains("Self::ToggleBrowserSampleMark")
+            && native_actions.contains("UiAction::ToggleBrowserSampleMark")
+            && native_actions.contains("Self::ToggleContentMark"),
+        "Sempal action conversion should map the product browser mark action onto Radiant's generic content mark action"
+    );
+    assert!(
         !native_dtos.contains("pub struct FolderRecoveryModel"),
         "folder recovery counters should use the Radiant-owned generic recovery summary primitive"
     );
