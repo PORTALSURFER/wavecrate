@@ -455,6 +455,7 @@ impl NativeMotionModel {
     /// Build a motion model from a full application model snapshot.
     pub fn from_app_model(model: &AppModel) -> Self {
         let viewport = model.waveform.viewport();
+        let edit_preview = model.waveform.edit_preview();
 
         Self {
             transport_running: model.transport_running,
@@ -471,17 +472,17 @@ impl NativeMotionModel {
             waveform_edit_selection_apply_flash_nonce: model
                 .waveform
                 .edit_selection_apply_flash_nonce,
-            waveform_edit_selection_milli: model.waveform.edit_selection_milli,
-            waveform_edit_fade_in_end_milli: model.waveform.edit_fade_in_end_milli,
-            waveform_edit_fade_in_end_micros: model.waveform.edit_fade_in_end_micros,
-            waveform_edit_fade_in_mute_start_milli: model.waveform.edit_fade_in_mute_start_milli,
-            waveform_edit_fade_in_mute_start_micros: model.waveform.edit_fade_in_mute_start_micros,
-            waveform_edit_fade_in_curve_milli: model.waveform.edit_fade_in_curve_milli,
-            waveform_edit_fade_out_start_milli: model.waveform.edit_fade_out_start_milli,
-            waveform_edit_fade_out_start_micros: model.waveform.edit_fade_out_start_micros,
-            waveform_edit_fade_out_mute_end_milli: model.waveform.edit_fade_out_mute_end_milli,
-            waveform_edit_fade_out_mute_end_micros: model.waveform.edit_fade_out_mute_end_micros,
-            waveform_edit_fade_out_curve_milli: model.waveform.edit_fade_out_curve_milli,
+            waveform_edit_selection_milli: edit_preview.selection,
+            waveform_edit_fade_in_end_milli: edit_preview.leading_end_milli,
+            waveform_edit_fade_in_end_micros: edit_preview.leading_end_micros,
+            waveform_edit_fade_in_mute_start_milli: edit_preview.leading_inner_start_milli,
+            waveform_edit_fade_in_mute_start_micros: edit_preview.leading_inner_start_micros,
+            waveform_edit_fade_in_curve_milli: edit_preview.leading_curve_milli,
+            waveform_edit_fade_out_start_milli: edit_preview.trailing_start_milli,
+            waveform_edit_fade_out_start_micros: edit_preview.trailing_start_micros,
+            waveform_edit_fade_out_mute_end_milli: edit_preview.trailing_inner_end_milli,
+            waveform_edit_fade_out_mute_end_micros: edit_preview.trailing_inner_end_micros,
+            waveform_edit_fade_out_curve_milli: edit_preview.trailing_curve_milli,
             waveform_loop_enabled: model.waveform.loop_enabled,
             waveform_loop_lock_enabled: model.waveform_chrome.loop_lock_enabled,
             waveform_cursor_milli: model.waveform.cursor_milli,
@@ -964,6 +965,23 @@ impl WaveformPanelModel {
             self.view_end_micros,
             self.view_start_nanos,
             self.view_end_nanos,
+        )
+    }
+
+    /// Return this panel's generic timeline edit preview.
+    pub fn edit_preview(&self) -> compat::WaveformEditPreviewModel {
+        compat::WaveformEditPreviewModel::new(
+            self.edit_selection_milli.map(Into::into),
+            self.edit_fade_in_end_milli,
+            self.edit_fade_in_end_micros,
+            self.edit_fade_in_mute_start_milli,
+            self.edit_fade_in_mute_start_micros,
+            self.edit_fade_in_curve_milli,
+            self.edit_fade_out_start_milli,
+            self.edit_fade_out_start_micros,
+            self.edit_fade_out_mute_end_milli,
+            self.edit_fade_out_mute_end_micros,
+            self.edit_fade_out_curve_milli,
         )
     }
 }
