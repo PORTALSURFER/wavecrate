@@ -457,6 +457,7 @@ impl NativeMotionModel {
         let viewport = model.waveform.viewport();
         let edit_preview = model.waveform.edit_preview();
         let image_preview = model.waveform.image_preview();
+        let signal_chrome = model.waveform_chrome.signal_chrome();
 
         Self {
             transport_running: model.transport_running,
@@ -505,10 +506,10 @@ impl NativeMotionModel {
             waveform_loaded_label: image_preview.loaded_label,
             waveform_loading: image_preview.loading,
             waveform_image_signature: image_preview.image_signature,
-            waveform_transport_hint: model.waveform_chrome.transport_hint.clone(),
-            waveform_compare_anchor_available: model.waveform_chrome.compare_anchor_available,
-            waveform_compare_anchor_label: model.waveform_chrome.compare_anchor_label.clone(),
-            waveform_channel_view: model.waveform_chrome.channel_view,
+            waveform_transport_hint: signal_chrome.status_hint,
+            waveform_compare_anchor_available: signal_chrome.reference_anchor_available,
+            waveform_compare_anchor_label: signal_chrome.reference_anchor_label,
+            waveform_channel_view: signal_chrome.channel_view.into(),
             waveform_normalized_audition_enabled: model.waveform_chrome.normalized_audition_enabled,
             waveform_bpm_snap_enabled: model.waveform_chrome.bpm_snap_enabled,
             waveform_relative_bpm_grid_enabled: model.waveform_chrome.relative_bpm_grid_enabled,
@@ -1043,6 +1044,18 @@ impl Default for WaveformChromeModel {
             slice_mode_enabled: false,
             exact_duplicate_cleanup_available: false,
         }
+    }
+}
+
+impl WaveformChromeModel {
+    /// Return this chrome model's generic signal visualization display state.
+    pub fn signal_chrome(&self) -> compat::WaveformChromeStateModel {
+        compat::WaveformChromeStateModel::new(
+            self.transport_hint.clone(),
+            self.compare_anchor_available,
+            self.compare_anchor_label.clone(),
+            self.channel_view.into(),
+        )
     }
 }
 
