@@ -635,7 +635,11 @@ fn native_action_exports_are_owned_in_app_core() {
         "shell.rs",
     ]
     .into_iter()
-    .map(|file| manifest_dir.join("vendor/radiant/src/app").join(file));
+    .map(|file| {
+        manifest_dir
+            .join("vendor/radiant/src/compat/legacy_shell")
+            .join(file)
+    });
     let forbidden_native_exports = [
         "pub type NativeUiAction",
         "pub enum NativeUiAction",
