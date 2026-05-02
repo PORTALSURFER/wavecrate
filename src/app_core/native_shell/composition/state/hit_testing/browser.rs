@@ -442,7 +442,7 @@ impl NativeShellState {
     }
 
     /// Resolve a map-point click to a focus action when map tab is active.
-    pub(crate) fn map_sample_action_at_point(
+    pub(crate) fn map_content_action_at_point(
         &self,
         layout: &ShellLayout,
         model: &AppModel,

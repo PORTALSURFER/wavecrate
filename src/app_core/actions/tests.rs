@@ -544,6 +544,8 @@ fn native_action_exports_are_owned_in_app_core() {
     );
     assert!(
         native_hit_testing.contains("fn map_focus_action(content_id: String) -> UiAction")
+            && native_hit_testing.contains("map_content_action_at_point")
+            && !native_hit_testing.contains("map_sample_action_at_point")
             && native_hit_testing.contains("UiAction::FocusSpatialContentItem")
             && native_hit_testing.contains("UiAction::FocusMapSample"),
         "shared map hit-testing should emit Radiant's generic spatial-content action in the legacy-shell build and Sempal's product action in the app build"
