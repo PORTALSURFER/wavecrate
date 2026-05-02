@@ -3,19 +3,10 @@ use crate::gui::layout_core::{
     Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
     OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams, layout_tree,
 };
-use crate::gui::types::{Point, Rect, Vector2};
+use crate::gui::types::{Rect, Vector2};
 
 pub(super) fn center_square_rect(rect: Rect, side: f32) -> Rect {
-    if rect.width() <= 0.0 || rect.height() <= 0.0 || side <= 0.0 {
-        return rect;
-    }
-    let clamped_side = side.min(rect.width()).min(rect.height());
-    let min_x = rect.min.x + ((rect.width() - clamped_side) * 0.5);
-    let min_y = rect.min.y + ((rect.height() - clamped_side) * 0.5);
-    Rect::from_min_max(
-        Point::new(min_x, min_y),
-        Point::new(min_x + clamped_side, min_y + clamped_side),
-    )
+    rect.centered_square(side)
 }
 
 #[cfg(test)]
@@ -25,20 +16,18 @@ pub(super) fn clamp_rect_right_edge(rect: Rect, bounds: Rect, right_edge: f32) -
     if max_x < clamped.min.x {
         return Rect::from_min_max(bounds.min, bounds.min);
     }
-    Rect::from_min_max(clamped.min, Point::new(max_x, clamped.max.y))
+    Rect::from_min_max(
+        clamped.min,
+        crate::gui::types::Point::new(max_x, clamped.max.y),
+    )
 }
 
 pub(super) fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    let min = Point::new(rect.min.x.max(bounds.min.x), rect.min.y.max(bounds.min.y));
-    let max = Point::new(rect.max.x.min(bounds.max.x), rect.max.y.min(bounds.max.y));
-    if max.x < min.x || max.y < min.y {
-        return Rect::from_min_max(bounds.min, bounds.min);
-    }
-    Rect::from_min_max(min, max)
+    rect.clamp_to(bounds)
 }
 
 pub(super) fn empty_rect(bounds: Rect) -> Rect {
-    Rect::from_min_max(bounds.min, bounds.min)
+    bounds.empty_at_min()
 }
 
 pub(super) fn layout_left_aligned_fixed_widths(
