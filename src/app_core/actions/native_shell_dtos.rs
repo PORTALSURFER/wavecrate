@@ -111,6 +111,9 @@ pub type WaveformFeedbackEventsModel = visualization::TimelineFeedbackEvents;
 /// Waveform guide/repeat/label presentation state exposed to the native shell.
 pub type WaveformPresentationModel = visualization::TimelinePresentationState;
 
+/// Retained waveform raster preview state exposed to the native shell.
+pub type WaveformImagePreviewModel = visualization::SignalRasterPreview;
+
 /// Aggregated waveform timeline surface state exposed to the native shell.
 pub type WaveformSurfaceModel = visualization::TimelineSurfaceState<WaveformSlicePreviewModel>;
 
@@ -605,8 +608,8 @@ impl NativeMotionModel {
     }
 
     /// Return this motion snapshot's generic retained raster preview state.
-    pub fn waveform_image_preview(&self) -> compat::WaveformImagePreviewModel {
-        compat::WaveformImagePreviewModel::new(
+    pub fn waveform_image_preview(&self) -> WaveformImagePreviewModel {
+        WaveformImagePreviewModel::new(
             self.waveform_loaded_label.clone(),
             self.waveform_loading,
             false,
@@ -1169,8 +1172,8 @@ impl WaveformPanelModel {
     }
 
     /// Return this panel's generic retained raster preview.
-    pub fn image_preview(&self) -> compat::WaveformImagePreviewModel {
-        compat::WaveformImagePreviewModel::new(
+    pub fn image_preview(&self) -> WaveformImagePreviewModel {
+        WaveformImagePreviewModel::new(
             self.loaded_label.clone(),
             self.loading,
             self.image_rendering,
