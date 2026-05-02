@@ -1391,7 +1391,7 @@ impl From<compat::UiAction> for UiAction {
             compat::UiAction::SetBrowserSidebarLooped { looped } => {
                 Self::SetBrowserSidebarLooped { looped: looped }
             }
-            compat::UiAction::ToggleBrowserSidebarNormalTag { label } => {
+            compat::UiAction::ToggleBrowserPillOption { label } => {
                 Self::ToggleBrowserSidebarNormalTag { label: label }
             }
             compat::UiAction::FocusSpatialContentItem { content_id } => Self::FocusMapSample {
@@ -1973,7 +1973,7 @@ impl From<UiAction> for compat::UiAction {
                 Self::SetBrowserSidebarLooped { looped: looped }
             }
             UiAction::ToggleBrowserSidebarNormalTag { label } => {
-                Self::ToggleBrowserSidebarNormalTag { label: label }
+                Self::ToggleBrowserPillOption { label: label }
             }
             UiAction::FocusMapSample { sample_id } => Self::FocusSpatialContentItem {
                 content_id: sample_id,

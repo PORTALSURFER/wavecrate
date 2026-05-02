@@ -601,7 +601,7 @@ fn browser_pill_editor_action_at_point(
         .zip(layout.normal_tag_rects.iter())
     {
         if rect.contains(point) {
-            return Some(UiAction::ToggleBrowserSidebarNormalTag {
+            return Some(UiAction::ToggleBrowserPillOption {
                 label: pill.label.clone(),
             });
         }
@@ -611,7 +611,7 @@ fn browser_pill_editor_action_at_point(
         layout.create_tag_rect,
     ) && rect.contains(point)
     {
-        return Some(UiAction::ToggleBrowserSidebarNormalTag {
+        return Some(UiAction::ToggleBrowserPillOption {
             label: pill.id.clone(),
         });
     }

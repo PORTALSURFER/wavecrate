@@ -1909,6 +1909,7 @@ fn automation_action_id_from_compat(action_id: String) -> String {
         "toggle_browser_pill_editor_primary_action" => {
             String::from("toggle_browser_tag_sidebar_auto_rename")
         }
+        "toggle_browser_pill_option" => String::from("toggle_browser_sidebar_normal_tag"),
         _ => action_id,
     }
 }
@@ -1923,6 +1924,7 @@ fn automation_action_id_to_compat(action_id: String) -> String {
         "toggle_browser_tag_sidebar_auto_rename" => {
             String::from("toggle_browser_pill_editor_primary_action")
         }
+        "toggle_browser_sidebar_normal_tag" => String::from("toggle_browser_pill_option"),
         _ => action_id,
     }
 }
