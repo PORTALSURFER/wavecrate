@@ -1,4 +1,4 @@
-//! Options-panel action definitions and audio picker helpers.
+//! Options-panel action definitions and paired-picker helpers.
 
 use self::sempal_crate::app as native_model;
 use super::*;
@@ -11,7 +11,7 @@ pub(super) fn audio_overview_button_defs(model: &AppModel) -> Vec<(String, UiAct
                 "{}: {}",
                 model.audio_engine.output_host.label, model.audio_engine.output_host.value_label
             ),
-            UiAction::OpenAudioOutputHostPicker,
+            UiAction::OpenPrimaryGroupPicker,
         ),
         (
             format!(
@@ -19,7 +19,7 @@ pub(super) fn audio_overview_button_defs(model: &AppModel) -> Vec<(String, UiAct
                 model.audio_engine.output_device.label,
                 model.audio_engine.output_device.value_label
             ),
-            UiAction::OpenAudioOutputDevicePicker,
+            UiAction::OpenPrimaryItemPicker,
         ),
         (
             format!(
@@ -27,21 +27,21 @@ pub(super) fn audio_overview_button_defs(model: &AppModel) -> Vec<(String, UiAct
                 model.audio_engine.output_sample_rate.label,
                 model.audio_engine.output_sample_rate.value_label
             ),
-            UiAction::OpenAudioOutputSampleRatePicker,
+            UiAction::OpenPrimaryNumberPicker,
         ),
         (
             format!(
                 "{}: {}",
                 model.audio_engine.input_host.label, model.audio_engine.input_host.value_label
             ),
-            UiAction::OpenAudioInputHostPicker,
+            UiAction::OpenSecondaryGroupPicker,
         ),
         (
             format!(
                 "{}: {}",
                 model.audio_engine.input_device.label, model.audio_engine.input_device.value_label
             ),
-            UiAction::OpenAudioInputDevicePicker,
+            UiAction::OpenSecondaryItemPicker,
         ),
         (
             format!(
@@ -49,7 +49,7 @@ pub(super) fn audio_overview_button_defs(model: &AppModel) -> Vec<(String, UiAct
                 model.audio_engine.input_sample_rate.label,
                 model.audio_engine.input_sample_rate.value_label
             ),
-            UiAction::OpenAudioInputSampleRatePicker,
+            UiAction::OpenSecondaryNumberPicker,
         ),
     ]
 }
@@ -149,38 +149,30 @@ pub(super) fn picker_options(
     }
 }
 
-/// Map one projected audio picker option into the native action it emits.
+/// Map one projected paired-picker option into the native action it emits.
 pub(super) fn picker_action(value: &native_model::AudioOptionValueModel) -> UiAction {
     match value {
-        native_model::AudioOptionValueModel::PrimaryGroup(host_id) => {
-            UiAction::SetAudioOutputHost {
-                host_id: host_id.clone(),
+        native_model::AudioOptionValueModel::PrimaryGroup(group_id) => UiAction::SetPrimaryGroup {
+            group_id: group_id.clone(),
+        },
+        native_model::AudioOptionValueModel::PrimaryItem(item_name) => UiAction::SetPrimaryItem {
+            item_name: item_name.clone(),
+        },
+        native_model::AudioOptionValueModel::PrimaryNumber(value) => {
+            UiAction::SetPrimaryNumber { value: *value }
+        }
+        native_model::AudioOptionValueModel::SecondaryGroup(group_id) => {
+            UiAction::SetSecondaryGroup {
+                group_id: group_id.clone(),
             }
         }
-        native_model::AudioOptionValueModel::PrimaryItem(device_name) => {
-            UiAction::SetAudioOutputDevice {
-                device_name: device_name.clone(),
+        native_model::AudioOptionValueModel::SecondaryItem(item_name) => {
+            UiAction::SetSecondaryItem {
+                item_name: item_name.clone(),
             }
         }
-        native_model::AudioOptionValueModel::PrimaryNumber(sample_rate) => {
-            UiAction::SetAudioOutputSampleRate {
-                sample_rate: *sample_rate,
-            }
-        }
-        native_model::AudioOptionValueModel::SecondaryGroup(host_id) => {
-            UiAction::SetAudioInputHost {
-                host_id: host_id.clone(),
-            }
-        }
-        native_model::AudioOptionValueModel::SecondaryItem(device_name) => {
-            UiAction::SetAudioInputDevice {
-                device_name: device_name.clone(),
-            }
-        }
-        native_model::AudioOptionValueModel::SecondaryNumber(sample_rate) => {
-            UiAction::SetAudioInputSampleRate {
-                sample_rate: *sample_rate,
-            }
+        native_model::AudioOptionValueModel::SecondaryNumber(value) => {
+            UiAction::SetSecondaryNumber { value: *value }
         }
     }
 }

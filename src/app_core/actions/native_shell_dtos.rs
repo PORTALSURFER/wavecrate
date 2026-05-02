@@ -1947,6 +1947,18 @@ impl From<AutomationNodeSnapshot> for compat::AutomationNodeSnapshot {
 
 fn automation_action_id_from_compat(action_id: String) -> String {
     match action_id.as_str() {
+        "open_primary_group_picker" => String::from("open_audio_output_host_picker"),
+        "open_primary_item_picker" => String::from("open_audio_output_device_picker"),
+        "open_primary_number_picker" => String::from("open_audio_output_sample_rate_picker"),
+        "open_secondary_group_picker" => String::from("open_audio_input_host_picker"),
+        "open_secondary_item_picker" => String::from("open_audio_input_device_picker"),
+        "open_secondary_number_picker" => String::from("open_audio_input_sample_rate_picker"),
+        "set_primary_group" => String::from("set_audio_output_host"),
+        "set_primary_item" => String::from("set_audio_output_device"),
+        "set_primary_number" => String::from("set_audio_output_sample_rate"),
+        "set_secondary_group" => String::from("set_audio_input_host"),
+        "set_secondary_item" => String::from("set_audio_input_device"),
+        "set_secondary_number" => String::from("set_audio_input_sample_rate"),
         "focus_spatial_content_item" => String::from("focus_map_sample"),
         "focus_browser_pill_editor_input" => String::from("focus_browser_tag_sidebar_input"),
         "set_browser_pill_editor_input" => String::from("set_browser_tag_sidebar_input"),
@@ -1963,6 +1975,18 @@ fn automation_action_id_from_compat(action_id: String) -> String {
 
 fn automation_action_id_to_compat(action_id: String) -> String {
     match action_id.as_str() {
+        "open_audio_output_host_picker" => String::from("open_primary_group_picker"),
+        "open_audio_output_device_picker" => String::from("open_primary_item_picker"),
+        "open_audio_output_sample_rate_picker" => String::from("open_primary_number_picker"),
+        "open_audio_input_host_picker" => String::from("open_secondary_group_picker"),
+        "open_audio_input_device_picker" => String::from("open_secondary_item_picker"),
+        "open_audio_input_sample_rate_picker" => String::from("open_secondary_number_picker"),
+        "set_audio_output_host" => String::from("set_primary_group"),
+        "set_audio_output_device" => String::from("set_primary_item"),
+        "set_audio_output_sample_rate" => String::from("set_primary_number"),
+        "set_audio_input_host" => String::from("set_secondary_group"),
+        "set_audio_input_device" => String::from("set_secondary_item"),
+        "set_audio_input_sample_rate" => String::from("set_secondary_number"),
         "focus_map_sample" => String::from("focus_spatial_content_item"),
         "focus_browser_tag_sidebar_input" => String::from("focus_browser_pill_editor_input"),
         "set_browser_tag_sidebar_input" => String::from("set_browser_pill_editor_input"),

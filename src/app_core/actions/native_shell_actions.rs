@@ -1148,36 +1148,36 @@ impl From<compat::UiAction> for UiAction {
             compat::UiAction::OpenTrashFolder => Self::OpenTrashFolder,
             compat::UiAction::EditDefaultIdentifier => Self::EditDefaultIdentifier,
             compat::UiAction::ShowOptionsOverview => Self::ShowOptionsOverview,
-            compat::UiAction::OpenAudioOutputHostPicker => Self::OpenAudioOutputHostPicker,
-            compat::UiAction::OpenAudioOutputDevicePicker => Self::OpenAudioOutputDevicePicker,
-            compat::UiAction::OpenAudioOutputSampleRatePicker => {
+            compat::UiAction::OpenPrimaryGroupPicker => Self::OpenAudioOutputHostPicker,
+            compat::UiAction::OpenPrimaryItemPicker => Self::OpenAudioOutputDevicePicker,
+            compat::UiAction::OpenPrimaryNumberPicker => {
                 Self::OpenAudioOutputSampleRatePicker
             }
-            compat::UiAction::OpenAudioInputHostPicker => Self::OpenAudioInputHostPicker,
-            compat::UiAction::OpenAudioInputDevicePicker => Self::OpenAudioInputDevicePicker,
-            compat::UiAction::OpenAudioInputSampleRatePicker => {
+            compat::UiAction::OpenSecondaryGroupPicker => Self::OpenAudioInputHostPicker,
+            compat::UiAction::OpenSecondaryItemPicker => Self::OpenAudioInputDevicePicker,
+            compat::UiAction::OpenSecondaryNumberPicker => {
                 Self::OpenAudioInputSampleRatePicker
             }
-            compat::UiAction::SetAudioOutputHost { host_id } => {
-                Self::SetAudioOutputHost { host_id: host_id }
+            compat::UiAction::SetPrimaryGroup { group_id } => {
+                Self::SetAudioOutputHost { host_id: group_id }
             }
-            compat::UiAction::SetAudioOutputDevice { device_name } => Self::SetAudioOutputDevice {
-                device_name: device_name,
+            compat::UiAction::SetPrimaryItem { item_name } => Self::SetAudioOutputDevice {
+                device_name: item_name,
             },
-            compat::UiAction::SetAudioOutputSampleRate { sample_rate } => {
+            compat::UiAction::SetPrimaryNumber { value } => {
                 Self::SetAudioOutputSampleRate {
-                    sample_rate: sample_rate,
+                    sample_rate: value,
                 }
             }
-            compat::UiAction::SetAudioInputHost { host_id } => {
-                Self::SetAudioInputHost { host_id: host_id }
+            compat::UiAction::SetSecondaryGroup { group_id } => {
+                Self::SetAudioInputHost { host_id: group_id }
             }
-            compat::UiAction::SetAudioInputDevice { device_name } => Self::SetAudioInputDevice {
-                device_name: device_name,
+            compat::UiAction::SetSecondaryItem { item_name } => Self::SetAudioInputDevice {
+                device_name: item_name,
             },
-            compat::UiAction::SetAudioInputSampleRate { sample_rate } => {
+            compat::UiAction::SetSecondaryNumber { value } => {
                 Self::SetAudioInputSampleRate {
-                    sample_rate: sample_rate,
+                    sample_rate: value,
                 }
             }
             compat::UiAction::FocusFolderSearch { pane } => Self::FocusFolderSearch {
@@ -1759,27 +1759,29 @@ impl From<UiAction> for compat::UiAction {
             UiAction::OpenTrashFolder => Self::OpenTrashFolder,
             UiAction::EditDefaultIdentifier => Self::EditDefaultIdentifier,
             UiAction::ShowOptionsOverview => Self::ShowOptionsOverview,
-            UiAction::OpenAudioOutputHostPicker => Self::OpenAudioOutputHostPicker,
-            UiAction::OpenAudioOutputDevicePicker => Self::OpenAudioOutputDevicePicker,
-            UiAction::OpenAudioOutputSampleRatePicker => Self::OpenAudioOutputSampleRatePicker,
-            UiAction::OpenAudioInputHostPicker => Self::OpenAudioInputHostPicker,
-            UiAction::OpenAudioInputDevicePicker => Self::OpenAudioInputDevicePicker,
-            UiAction::OpenAudioInputSampleRatePicker => Self::OpenAudioInputSampleRatePicker,
+            UiAction::OpenAudioOutputHostPicker => Self::OpenPrimaryGroupPicker,
+            UiAction::OpenAudioOutputDevicePicker => Self::OpenPrimaryItemPicker,
+            UiAction::OpenAudioOutputSampleRatePicker => Self::OpenPrimaryNumberPicker,
+            UiAction::OpenAudioInputHostPicker => Self::OpenSecondaryGroupPicker,
+            UiAction::OpenAudioInputDevicePicker => Self::OpenSecondaryItemPicker,
+            UiAction::OpenAudioInputSampleRatePicker => Self::OpenSecondaryNumberPicker,
             UiAction::SetAudioOutputHost { host_id } => {
-                Self::SetAudioOutputHost { host_id: host_id }
+                Self::SetPrimaryGroup { group_id: host_id }
             }
-            UiAction::SetAudioOutputDevice { device_name } => Self::SetAudioOutputDevice {
-                device_name: device_name,
+            UiAction::SetAudioOutputDevice { device_name } => Self::SetPrimaryItem {
+                item_name: device_name,
             },
-            UiAction::SetAudioOutputSampleRate { sample_rate } => Self::SetAudioOutputSampleRate {
-                sample_rate: sample_rate,
+            UiAction::SetAudioOutputSampleRate { sample_rate } => Self::SetPrimaryNumber {
+                value: sample_rate,
             },
-            UiAction::SetAudioInputHost { host_id } => Self::SetAudioInputHost { host_id: host_id },
-            UiAction::SetAudioInputDevice { device_name } => Self::SetAudioInputDevice {
-                device_name: device_name,
+            UiAction::SetAudioInputHost { host_id } => Self::SetSecondaryGroup {
+                group_id: host_id,
             },
-            UiAction::SetAudioInputSampleRate { sample_rate } => Self::SetAudioInputSampleRate {
-                sample_rate: sample_rate,
+            UiAction::SetAudioInputDevice { device_name } => Self::SetSecondaryItem {
+                item_name: device_name,
+            },
+            UiAction::SetAudioInputSampleRate { sample_rate } => Self::SetSecondaryNumber {
+                value: sample_rate,
             },
             UiAction::FocusFolderSearch { pane } => Self::FocusFolderSearch {
                 pane: pane.map(Into::into),
