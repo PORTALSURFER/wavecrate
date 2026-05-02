@@ -30,7 +30,9 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{error, info};
 
-pub use radiant::gui_runtime::NativeStartupTimingArtifact;
+pub use radiant::gui_runtime::{
+    DEFAULT_NATIVE_WINDOW_TITLE, NativeStartupTimingArtifact, RuntimeRunReport,
+};
 
 /// Machine-readable native shutdown timing payload exported by Sempal bridges.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]

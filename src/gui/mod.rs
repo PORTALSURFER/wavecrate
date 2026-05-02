@@ -20,6 +20,46 @@ pub mod input {
     pub use radiant::gui::input::*;
 }
 
+pub mod automation {
+    //! Generic automation snapshot primitives from `radiant`.
+    pub use radiant::gui::automation::*;
+}
+
+pub mod badge {
+    //! Generic badge and pill primitives from `radiant`.
+    pub use radiant::gui::badge::*;
+}
+
+pub mod chrome {
+    //! Generic chrome and status-surface primitives from `radiant`.
+    pub use radiant::gui::chrome::*;
+}
+
+pub mod feedback {
+    //! Generic user-feedback surface primitives from `radiant`.
+    pub use radiant::gui::feedback::*;
+}
+
+pub mod focus {
+    //! Generic focus routing primitives from `radiant`.
+    pub use radiant::gui::focus::*;
+}
+
+pub mod form {
+    //! Generic form and picker primitives from `radiant`.
+    pub use radiant::gui::form::*;
+}
+
+pub mod frame {
+    //! Frame feedback primitives from `radiant`.
+    pub use radiant::gui::frame::*;
+}
+
+pub mod invalidation {
+    //! Generic retained invalidation primitives from `radiant`.
+    pub use radiant::gui::invalidation::*;
+}
+
 pub mod list {
     //! Generic list and virtualization primitives from `radiant`.
     //!
@@ -28,12 +68,42 @@ pub mod list {
     pub use radiant::gui::list::*;
 }
 
+pub mod paint {
+    //! Backend-neutral paint primitives from `radiant`.
+    pub use radiant::gui::paint::*;
+}
+
+pub mod panel {
+    //! Generic panel and split-pane primitives from `radiant`.
+    pub use radiant::gui::panel::*;
+}
+
 pub mod range {
     //! Normalized range and viewport projection primitives from `radiant`.
     //!
     //! Re-exported so Sempal-owned waveform and timeline surfaces use generic
     //! normalized coordinate math instead of duplicating projection helpers.
     pub use radiant::gui::range::*;
+}
+
+pub mod retained {
+    //! Retained snapshot storage primitives from `radiant`.
+    pub use radiant::gui::retained::*;
+}
+
+pub mod selection {
+    //! Generic selection state primitives from `radiant`.
+    pub use radiant::gui::selection::*;
+}
+
+pub mod shortcuts {
+    //! Generic shortcut resolution primitives from `radiant`.
+    pub use radiant::gui::shortcuts::*;
+}
+
+pub mod snapshot {
+    //! Serializable visual snapshot primitives from `radiant`.
+    pub use radiant::gui::snapshot::*;
 }
 
 pub mod repaint {

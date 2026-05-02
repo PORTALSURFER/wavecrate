@@ -251,6 +251,15 @@ fn native_action_exports_are_owned_in_app_core() {
         "NativeAppBridge must stay Sempal-owned, with compatibility conversion at the runtime boundary"
     );
 
+    let local_contract = fs::read_to_string(manifest_dir.join("src/compat_app_contract.rs"))
+        .expect("local compatibility contract");
+    assert!(
+        local_contract.contains("Sempal-owned compatibility contract")
+            && local_contract.contains("pub use actions::{BrowserTriageTarget, UiAction};")
+            && local_contract.contains("pub use shell::{"),
+        "Sempal must have a local compatibility contract before the Radiant legacy shell facade can be retired"
+    );
+
     let native_dtos =
         fs::read_to_string(manifest_dir.join("src/app_core/actions/native_shell_dtos.rs"))
             .expect("native shell dtos");
@@ -751,18 +760,13 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal native dirty segments should wrap the generic Radiant retained segment primitives"
     );
 
-    let radiant_app_sources = [
-        "actions/mod.rs",
-        "dirty_segments.rs",
-        "motion.rs",
-        "shell.rs",
-    ]
-    .into_iter()
-    .map(|file| {
-        manifest_dir
-            .join("vendor/radiant/src/compat/legacy_shell")
-            .join(file)
-    });
+    let native_contract_sources = [
+        manifest_dir.join("vendor/radiant/src/compat/legacy_shell/mod.rs"),
+        manifest_dir.join("src/app_core/native_shell/composition/runtime/actions/mod.rs"),
+        manifest_dir.join("src/app_core/native_shell/composition/runtime/dirty_segments.rs"),
+        manifest_dir.join("src/app_core/native_shell/composition/runtime/motion.rs"),
+        manifest_dir.join("src/app_core/native_shell/composition/runtime/shell.rs"),
+    ];
     let forbidden_native_exports = [
         "pub type NativeUiAction",
         "pub enum NativeUiAction",
@@ -771,8 +775,8 @@ fn native_action_exports_are_owned_in_app_core() {
         "pub type NativeDirtySegments",
         "pub struct NativeDirtySegments",
     ];
-    for source_path in radiant_app_sources {
-        let source = fs::read_to_string(&source_path).expect("radiant app source");
+    for source_path in native_contract_sources {
+        let source = fs::read_to_string(&source_path).expect("native contract source");
         for forbidden in forbidden_native_exports {
             assert!(
                 !source.contains(forbidden),
