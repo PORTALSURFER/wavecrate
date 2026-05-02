@@ -45,34 +45,34 @@ pub(crate) struct WaveformHeaderSurfaceLayout {
 pub(crate) fn waveform_header_surface_content(
     model: &NativeMotionModel,
 ) -> WaveformHeaderSurfaceContent {
-    let playhead_text = model
-        .waveform_playhead_milli
+    let transport = model.waveform_transport();
+    let viewport = model.waveform_viewport();
+    let presentation = model.waveform_presentation();
+    let raster_preview = model.waveform_image_preview();
+    let chrome = model.signal_chrome();
+    let playhead_text = transport
+        .playhead_milli
         .map(format_milli_value)
         .unwrap_or_else(|| String::from("—"));
-    let cursor_text = model
-        .waveform_cursor_milli
+    let cursor_text = transport
+        .cursor_milli
         .map(format_milli_value)
         .unwrap_or_else(|| String::from("—"));
     let view_text = format!(
         "{}..{}",
-        format_milli_value(model.waveform_view_start_milli),
-        format_milli_value(model.waveform_view_end_milli)
+        format_milli_value(viewport.start_milli),
+        format_milli_value(viewport.end_milli)
     );
-    let tempo_text = model.waveform_tempo_label.as_deref().unwrap_or("— BPM");
-    let zoom_text = model.waveform_zoom_label.as_deref().unwrap_or("100%");
+    let tempo_text = presentation.primary_label.as_deref().unwrap_or("— BPM");
+    let zoom_text = presentation.viewport_label.as_deref().unwrap_or("100%");
     WaveformHeaderSurfaceContent {
-        title: model
-            .waveform_loaded_label
+        title: raster_preview
+            .loaded_label
             .clone()
             .unwrap_or_else(|| String::from("Waveform")),
         metadata: format!(
             "{} | tempo: {} | zoom: {} | playhead: {} | cursor: {} | view: {}",
-            model.waveform_transport_hint,
-            tempo_text,
-            zoom_text,
-            playhead_text,
-            cursor_text,
-            view_text,
+            chrome.status_hint, tempo_text, zoom_text, playhead_text, cursor_text, view_text,
         ),
     }
 }

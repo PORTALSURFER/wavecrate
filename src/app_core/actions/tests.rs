@@ -295,6 +295,10 @@ fn native_action_exports_are_owned_in_app_core() {
             "src/app_core/native_shell/composition/state/toolbar_helpers/waveform_toolbar.rs",
         ))
         .expect("native waveform toolbar helpers");
+    let waveform_header_surface = fs::read_to_string(
+        manifest_dir.join("src/app_core/native_shell/composition/waveform_header_surface.rs"),
+    )
+    .expect("native waveform header surface");
     let native_options_actions = fs::read_to_string(
         manifest_dir.join("src/app_core/native_shell/composition/state/options_panel/actions.rs"),
     )
@@ -691,7 +695,12 @@ fn native_action_exports_are_owned_in_app_core() {
             && waveform_toolbar_helpers.contains("model.signal_chrome()")
             && waveform_toolbar_helpers.contains("model.signal_tools()")
             && waveform_toolbar_helpers.contains("model.waveform_presentation()")
-            && waveform_toolbar_helpers.contains("model.waveform_image_preview()"),
+            && waveform_toolbar_helpers.contains("model.waveform_image_preview()")
+            && waveform_header_surface.contains("model.waveform_transport()")
+            && waveform_header_surface.contains("model.waveform_viewport()")
+            && waveform_header_surface.contains("model.waveform_presentation()")
+            && waveform_header_surface.contains("model.waveform_image_preview()")
+            && waveform_header_surface.contains("model.signal_chrome()"),
         "Sempal waveform composition should consume Radiant's generic motion parts on hot paths"
     );
     assert!(
