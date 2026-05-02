@@ -87,7 +87,7 @@ pub(crate) fn compute_browser_table_columns(
     }
 }
 
-/// Compute browser table-header label bounds for `#` and `Sample`.
+/// Compute browser table-header label bounds for `#` and the primary item column.
 pub(crate) fn compute_browser_header_text_layout(
     header_rect: Rect,
     sizing: SizingTokens,
@@ -101,7 +101,7 @@ pub(crate) fn compute_browser_header_text_layout(
     }
 }
 
-/// Compute browser-row index/sample label bounds plus collapsed inline-metadata anchors.
+/// Compute browser-row index/item label bounds plus collapsed inline-metadata anchors.
 pub(crate) fn compute_browser_row_text_layout(
     row_rect: Rect,
     sizing: SizingTokens,

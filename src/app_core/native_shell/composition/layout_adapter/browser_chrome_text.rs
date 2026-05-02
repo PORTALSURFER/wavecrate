@@ -111,10 +111,10 @@ mod tests {
     #[test]
     fn tabs_text_layout_stays_within_each_tab() {
         let style = StyleTokens::for_viewport_width(1280.0);
-        let samples = Rect::from_min_max(Point::new(220.0, 292.0), Point::new(720.0, 320.0));
+        let items = Rect::from_min_max(Point::new(220.0, 292.0), Point::new(720.0, 320.0));
         let map = Rect::from_min_max(Point::new(724.0, 292.0), Point::new(1220.0, 320.0));
-        let layout = compute_browser_tabs_text_layout(samples, map, style.sizing);
-        assert_inside(samples, layout.items_label);
+        let layout = compute_browser_tabs_text_layout(items, map, style.sizing);
+        assert_inside(items, layout.items_label);
         assert_inside(map, layout.map_label);
     }
 

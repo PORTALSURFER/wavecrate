@@ -11,7 +11,7 @@ pub(in crate::gui::native_shell::state) fn browser_inline_tag_text_width(
     ((text.chars().count() as f32) * (sizing.font_meta * 0.56).max(1.0)).ceil()
 }
 
-/// Return the horizontal gap between a sample label and its inline metadata label.
+/// Return the horizontal gap between an item label and its inline metadata label.
 pub(in crate::gui::native_shell::state) fn browser_inline_tag_gap(sizing: SizingTokens) -> f32 {
     sizing.text_inset_x.min(6.0).max(3.0)
 }
@@ -135,7 +135,7 @@ pub(in crate::gui::native_shell::state) fn browser_inline_tag_text_origin(
     )
 }
 
-/// Return the desired metadata-chip height for one browser sample label.
+/// Return the desired metadata-chip height for one browser item label.
 ///
 /// The nominal minimum is `10px`, but cramped rows during resize may provide
 /// less vertical space. In that case this helper caps the chip to the

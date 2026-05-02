@@ -223,7 +223,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
     (rendered, window_start)
 }
 
-/// Cap inline browser metadata width so the primary sample label keeps most of the row.
+/// Cap inline browser metadata width so the primary item label keeps most of the row.
 fn browser_inline_tag_max_width(sample_width: f32, rating_reserved_width: f32) -> f32 {
     let sample_width = sample_width.max(0.0);
     let available = (sample_width - rating_reserved_width - 24.0).max(0.0);

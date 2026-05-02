@@ -8,7 +8,7 @@ pub(in crate::gui::native_shell::state) fn browser_row_border_stroke(layout: &Sh
     layout.ui_scale.max(1.0)
 }
 
-/// Return x-advance reserved for the missing-file marker before a sample label.
+/// Return x-advance reserved for the missing-file marker before an item label.
 pub(in crate::gui::native_shell::state) fn browser_missing_marker_advance(font_size: f32) -> f32 {
     (font_size * 1.05).max(7.0)
 }
