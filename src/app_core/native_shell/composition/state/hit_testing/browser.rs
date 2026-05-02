@@ -280,16 +280,16 @@ impl NativeShellState {
                 layout.browser_tabs,
                 style.sizing,
                 &BrowserTabsSurfaceContent {
-                    samples_label: String::new(),
+                    items_label: String::new(),
                     map_label: String::new(),
                 },
             );
             BrowserTabsRects {
-                samples: tabs.samples,
+                items: tabs.items,
                 map: tabs.map,
             }
         };
-        if tabs.samples.contains(point) {
+        if tabs.items.contains(point) {
             return Some(UiAction::SetBrowserTab { map: false });
         }
         if tabs.map.contains(point) {

@@ -47,7 +47,7 @@ pub(super) fn render_browser_tab_overlay(
     emit_primitive(
         primitives,
         Primitive::Rect(FillRect {
-            rect: tabs.samples,
+            rect: tabs.items,
             color: samples_fill,
         }),
     );
@@ -58,14 +58,14 @@ pub(super) fn render_browser_tab_overlay(
             color: map_fill,
         }),
     );
-    push_border(primitives, tabs.samples, style.border, sizing.border_width);
+    push_border(primitives, tabs.items, style.border, sizing.border_width);
     push_border(
         primitives,
         tabs.map,
         blend_color(style.accent_mint, style.text_primary, 0.42),
         sizing.border_width,
     );
-    let tabs_text_layout = compute_browser_tabs_text_layout(tabs.samples, tabs.map, sizing);
+    let tabs_text_layout = compute_browser_tabs_text_layout(tabs.items, tabs.map, sizing);
     let samples_text = format!(
         "{} ({})",
         model.browser_chrome.items_tab_label,
@@ -80,13 +80,13 @@ pub(super) fn render_browser_tab_overlay(
         TextRun {
             text: truncate_to_width(
                 &samples_text,
-                tabs_text_layout.samples_label.width().max(40.0),
+                tabs_text_layout.items_label.width().max(40.0),
                 sizing.font_header,
             ),
-            position: tabs_text_layout.samples_label.min,
+            position: tabs_text_layout.items_label.min,
             font_size: sizing.font_header,
             color: samples_text_color,
-            max_width: Some(tabs_text_layout.samples_label.width().max(40.0)),
+            max_width: Some(tabs_text_layout.items_label.width().max(40.0)),
             align: TextAlign::Left,
         },
     );

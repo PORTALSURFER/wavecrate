@@ -4,7 +4,7 @@ use super::super::style::SizingTokens;
 use crate::gui::text_layout::{TextLineInsets, centered_text_line};
 use crate::gui::types::Rect;
 
-const TABS_TEXT_SAMPLE_ID: u64 = 1500;
+const TABS_TEXT_ITEM_ID: u64 = 1500;
 const TABS_TEXT_MAP_ID: u64 = 1501;
 const TOOLBAR_TEXT_SEARCH_ID: u64 = 1510;
 const TOOLBAR_TEXT_ACTIVITY_ID: u64 = 1511;
@@ -14,7 +14,7 @@ const FOOTER_TEXT_SUMMARY_ID: u64 = 1520;
 /// Slot-resolved browser-tab label bounds.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct BrowserTabsTextLayout {
-    pub samples_label: Rect,
+    pub items_label: Rect,
     pub map_label: Rect,
 }
 
@@ -28,16 +28,16 @@ pub(crate) struct BrowserToolbarTextLayout {
 
 /// Compute browser tab label bounds through strict slotized text-line layout.
 pub(crate) fn compute_browser_tabs_text_layout(
-    samples_tab: Rect,
+    items_tab: Rect,
     map_tab: Rect,
     sizing: SizingTokens,
 ) -> BrowserTabsTextLayout {
     BrowserTabsTextLayout {
-        samples_label: compute_text_line_rect(
-            samples_tab,
+        items_label: compute_text_line_rect(
+            items_tab,
             sizing,
             sizing.font_header,
-            TABS_TEXT_SAMPLE_ID,
+            TABS_TEXT_ITEM_ID,
         ),
         map_label: compute_text_line_rect(map_tab, sizing, sizing.font_header, TABS_TEXT_MAP_ID),
     }
@@ -114,7 +114,7 @@ mod tests {
         let samples = Rect::from_min_max(Point::new(220.0, 292.0), Point::new(720.0, 320.0));
         let map = Rect::from_min_max(Point::new(724.0, 292.0), Point::new(1220.0, 320.0));
         let layout = compute_browser_tabs_text_layout(samples, map, style.sizing);
-        assert_inside(samples, layout.samples_label);
+        assert_inside(samples, layout.items_label);
         assert_inside(map, layout.map_label);
     }
 

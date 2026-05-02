@@ -120,7 +120,7 @@ pub(super) fn render_browser_tabs(
     emit_primitive(
         primitives,
         Primitive::Rect(FillRect {
-            rect: tabs.samples,
+            rect: tabs.items,
             color: samples_fill,
         }),
     );
@@ -133,7 +133,7 @@ pub(super) fn render_browser_tabs(
     );
     push_border(
         primitives,
-        tabs.samples,
+        tabs.items,
         samples_border,
         ctx.sizing.border_width,
     );
@@ -142,10 +142,10 @@ pub(super) fn render_browser_tabs(
         text_runs,
         TextRun {
             text: cached_text.items_tab_label.clone(),
-            position: cached_text.tabs_text_layout.samples_label.min,
+            position: cached_text.tabs_text_layout.items_label.min,
             font_size: ctx.sizing.font_header,
             color: samples_text_color,
-            max_width: Some(cached_text.tabs_text_layout.samples_label.width().max(40.0)),
+            max_width: Some(cached_text.tabs_text_layout.items_label.width().max(40.0)),
             align: TextAlign::Left,
         },
     );

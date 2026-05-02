@@ -9,13 +9,13 @@ use crate::gui::layout_core::{
 use crate::gui::types::{Rect, Vector2};
 
 const BROWSER_TABS_ROOT_ID: u64 = 1770;
-const BROWSER_TABS_SAMPLES_ID: u64 = 1771;
+const BROWSER_TABS_ITEMS_ID: u64 = 1771;
 const BROWSER_TABS_MAP_ID: u64 = 1772;
 
 /// Slot-resolved browser tab button rects.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct BrowserTabsRects {
-    pub samples: Rect,
+    pub items: Rect,
     pub map: Rect,
 }
 
@@ -27,7 +27,7 @@ pub(crate) fn compute_browser_tabs_rects(
     let empty = empty_rect(tabs_rect);
     if tabs_rect.width() <= 0.0 || tabs_rect.height() <= 0.0 {
         return BrowserTabsRects {
-            samples: empty,
+            items: empty,
             map: empty,
         };
     }
@@ -43,14 +43,14 @@ pub(crate) fn compute_browser_tabs_rects(
             ..ContainerPolicy::default()
         },
         vec![
-            fill_tab_slot(BROWSER_TABS_SAMPLES_ID, tab_min_width),
+            fill_tab_slot(BROWSER_TABS_ITEMS_ID, tab_min_width),
             fill_tab_slot(BROWSER_TABS_MAP_ID, tab_min_width),
         ],
     );
     let output = layout_tree(&tree, tabs_rect);
     BrowserTabsRects {
-        samples: clamp_rect_to_bounds(
-            rect_for(&output.rects, BROWSER_TABS_SAMPLES_ID, empty),
+        items: clamp_rect_to_bounds(
+            rect_for(&output.rects, BROWSER_TABS_ITEMS_ID, empty),
             tabs_rect,
         ),
         map: clamp_rect_to_bounds(
@@ -106,9 +106,9 @@ mod tests {
             crate::gui::types::Point::new(1580.0, 276.0),
         );
         let rects = compute_browser_tabs_rects(tabs, style.sizing);
-        assert_inside(tabs, rects.samples);
+        assert_inside(tabs, rects.items);
         assert_inside(tabs, rects.map);
-        assert!(rects.samples.max.x <= rects.map.min.x);
+        assert!(rects.items.max.x <= rects.map.min.x);
     }
 
     #[test]
@@ -119,7 +119,7 @@ mod tests {
             crate::gui::types::Point::new(1220.0, 276.0),
         );
         let rects = compute_browser_tabs_rects(tabs, style.sizing);
-        let diff = (rects.samples.width() - rects.map.width()).abs();
+        let diff = (rects.items.width() - rects.map.width()).abs();
         assert!(diff <= 1.0);
     }
 
@@ -131,7 +131,7 @@ mod tests {
             crate::gui::types::Point::new(220.0, 244.0),
         );
         let rects = compute_browser_tabs_rects(tabs, style.sizing);
-        assert_eq!(rects.samples, tabs);
+        assert_eq!(rects.items, tabs);
         assert_eq!(rects.map, tabs);
     }
 }

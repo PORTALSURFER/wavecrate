@@ -28,7 +28,7 @@ use helpers::{
 };
 
 const TABS_ROOT_ID: u64 = 1200;
-const TABS_SAMPLES_ID: u64 = 1202;
+const TABS_ITEMS_ID: u64 = 1202;
 const TABS_MAP_ID: u64 = 1203;
 
 const TOOLBAR_ROOT_ID: u64 = 1240;
@@ -52,8 +52,8 @@ const BROWSER_TRIAGE_CHIP_COUNT: usize = 3;
 /// User-facing tab labels projected into the generic browser tabs surface.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct BrowserTabsSurfaceContent {
-    /// Samples-tab label shown on the left tab.
-    pub samples_label: String,
+    /// Items-tab label shown on the left tab.
+    pub items_label: String,
     /// Map-tab label shown on the right tab.
     pub map_label: String,
 }
@@ -61,8 +61,8 @@ pub(crate) struct BrowserTabsSurfaceContent {
 /// Resolved widget bounds for the generic browser tabs surface.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct BrowserTabsSurfaceLayout {
-    /// Samples-tab button bounds.
-    pub samples: Rect,
+    /// Items-tab button bounds.
+    pub items: Rect,
     /// Map-tab button bounds.
     pub map: Rect,
 }
@@ -106,7 +106,7 @@ pub(crate) struct BrowserToolbarSurfaceLayout {
 /// Build user-facing browser-tab content from the projected app model.
 pub(crate) fn browser_tabs_surface_content(model: &AppModel) -> BrowserTabsSurfaceContent {
     BrowserTabsSurfaceContent {
-        samples_label: format!(
+        items_label: format!(
             "{} ({})",
             model.browser_chrome.items_tab_label,
             model
@@ -143,7 +143,7 @@ pub(crate) fn resolve_browser_tabs_surface_layout(
     let output = layout_tree(&surface.layout_node(), tabs_rect);
     let empty = Rect::from_min_max(tabs_rect.min, tabs_rect.min);
     BrowserTabsSurfaceLayout {
-        samples: clamp_rect_to_bounds(rect_for(&output.rects, TABS_SAMPLES_ID, empty), tabs_rect),
+        items: clamp_rect_to_bounds(rect_for(&output.rects, TABS_ITEMS_ID, empty), tabs_rect),
         map: clamp_rect_to_bounds(rect_for(&output.rects, TABS_MAP_ID, empty), tabs_rect),
     }
 }
@@ -237,7 +237,7 @@ fn build_browser_tabs_surface(
         vec![
             SurfaceChild::new(
                 fill_slot(tab_min_width),
-                button_widget(TABS_SAMPLES_ID, &content.samples_label, 1.0, 1.0),
+                button_widget(TABS_ITEMS_ID, &content.items_label, 1.0, 1.0),
             ),
             SurfaceChild::new(
                 fill_slot(tab_min_width),

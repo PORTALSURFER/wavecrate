@@ -21,7 +21,7 @@ fn browser_tabs_surface_uses_public_button_widgets() {
     );
     assert_eq!(
         surface
-            .find_widget(TABS_SAMPLES_ID)
+            .find_widget(TABS_ITEMS_ID)
             .expect("primary tab")
             .widget()
             .kind(),
@@ -46,9 +46,9 @@ fn browser_tabs_surface_layout_stays_inside_tabs_band() {
         style.sizing,
         &browser_tabs_surface_content(&AppModel::default()),
     );
-    assert_inside(tabs_rect, layout.samples);
+    assert_inside(tabs_rect, layout.items);
     assert_inside(tabs_rect, layout.map);
-    assert!(layout.samples.max.x <= layout.map.min.x);
+    assert!(layout.items.max.x <= layout.map.min.x);
 }
 
 #[test]

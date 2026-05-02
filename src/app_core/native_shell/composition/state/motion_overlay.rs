@@ -258,7 +258,7 @@ impl NativeShellState {
             layout.browser_tabs,
             sizing,
             &BrowserTabsSurfaceContent {
-                samples_label: String::new(),
+                items_label: String::new(),
                 map_label: String::new(),
             },
         );
@@ -284,7 +284,7 @@ impl NativeShellState {
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {
-                rect: tabs.samples,
+                rect: tabs.items,
                 color: samples_fill,
             }),
         );
@@ -295,7 +295,7 @@ impl NativeShellState {
                 color: map_fill,
             }),
         );
-        push_border(primitives, tabs.samples, style.border, sizing.border_width);
+        push_border(primitives, tabs.items, style.border, sizing.border_width);
         push_border(
             primitives,
             tabs.map,
