@@ -68,7 +68,7 @@ pub(super) fn render_browser_tab_overlay(
     let tabs_text_layout = compute_browser_tabs_text_layout(tabs.samples, tabs.map, sizing);
     let samples_text = format!(
         "{} ({})",
-        model.browser_chrome.samples_tab_label,
+        model.browser_chrome.items_tab_label,
         model
             .columns
             .get(1)

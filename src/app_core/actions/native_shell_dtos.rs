@@ -1185,7 +1185,7 @@ impl From<compat::BrowserPanelModel> for BrowserPanelModel {
             duplicate_cleanup_active: value.duplicate_cleanup_active,
             sort_label: value.sort_label,
             active_tab_label: value.active_tab_label,
-            focused_sample_label: value.focused_sample_label,
+            focused_sample_label: value.focused_item_label,
             tag_sidebar: value.tag_sidebar.into(),
             anchor_visible_row: value.anchor_visible_row,
             rows: retained_vec_from_compat(value.rows),
@@ -1216,7 +1216,7 @@ impl From<BrowserPanelModel> for compat::BrowserPanelModel {
             duplicate_cleanup_active: value.duplicate_cleanup_active,
             sort_label: value.sort_label,
             active_tab_label: value.active_tab_label,
-            focused_sample_label: value.focused_sample_label,
+            focused_item_label: value.focused_sample_label,
             tag_sidebar: value.tag_sidebar.into(),
             anchor_visible_row: value.anchor_visible_row,
             rows: retained_vec_to_compat(value.rows),
@@ -1233,7 +1233,7 @@ impl From<&BrowserPanelModel> for compat::BrowserPanelModel {
 impl From<compat::BrowserChromeModel> for BrowserChromeModel {
     fn from(value: compat::BrowserChromeModel) -> Self {
         Self {
-            samples_tab_label: value.samples_tab_label,
+            samples_tab_label: value.items_tab_label,
             map_tab_label: value.map_tab_label,
             search_prefix_label: value.search_prefix_label,
             search_placeholder: value.search_placeholder,
@@ -1250,7 +1250,7 @@ impl From<compat::BrowserChromeModel> for BrowserChromeModel {
 impl From<BrowserChromeModel> for compat::BrowserChromeModel {
     fn from(value: BrowserChromeModel) -> Self {
         Self {
-            samples_tab_label: value.samples_tab_label,
+            items_tab_label: value.samples_tab_label,
             map_tab_label: value.map_tab_label,
             search_prefix_label: value.search_prefix_label,
             search_placeholder: value.search_placeholder,
@@ -1276,8 +1276,8 @@ impl From<compat::BrowserActionsModel> for BrowserActionsModel {
             can_rename: value.can_rename,
             can_delete: value.can_delete,
             can_tag: value.can_tag,
-            can_normalize_focused_sample: value.can_normalize_focused_sample,
-            can_loop_crossfade_focused_sample: value.can_loop_crossfade_focused_sample,
+            can_normalize_focused_sample: value.can_normalize_focused_item,
+            can_loop_crossfade_focused_sample: value.can_loop_crossfade_focused_item,
             random_navigation_enabled: value.random_navigation_enabled,
             duplicate_cleanup_active: value.duplicate_cleanup_active,
             tag_sidebar_open: value.tag_sidebar_open,
@@ -1291,8 +1291,8 @@ impl From<BrowserActionsModel> for compat::BrowserActionsModel {
             can_rename: value.can_rename,
             can_delete: value.can_delete,
             can_tag: value.can_tag,
-            can_normalize_focused_sample: value.can_normalize_focused_sample,
-            can_loop_crossfade_focused_sample: value.can_loop_crossfade_focused_sample,
+            can_normalize_focused_item: value.can_normalize_focused_sample,
+            can_loop_crossfade_focused_item: value.can_loop_crossfade_focused_sample,
             random_navigation_enabled: value.random_navigation_enabled,
             duplicate_cleanup_active: value.duplicate_cleanup_active,
             tag_sidebar_open: value.tag_sidebar_open,
@@ -1853,7 +1853,7 @@ impl From<compat::AutomationNodeSnapshot> for AutomationNodeSnapshot {
                 .into_iter()
                 .map(automation_action_id_from_compat)
                 .collect(),
-            metadata: value.metadata,
+            metadata: automation_metadata_from_compat(value.metadata),
             children: value.children.into_iter().map(Into::into).collect(),
         }
     }
@@ -1874,7 +1874,7 @@ impl From<AutomationNodeSnapshot> for compat::AutomationNodeSnapshot {
                 .into_iter()
                 .map(automation_action_id_to_compat)
                 .collect(),
-            metadata: value.metadata,
+            metadata: automation_metadata_to_compat(value.metadata),
             children: value.children.into_iter().map(Into::into).collect(),
         }
     }
@@ -1892,6 +1892,24 @@ fn automation_action_id_to_compat(action_id: String) -> String {
         "focus_map_sample" => String::from("focus_spatial_content_item"),
         _ => action_id,
     }
+}
+
+fn automation_metadata_from_compat(
+    mut metadata: BTreeMap<String, String>,
+) -> BTreeMap<String, String> {
+    if let Some(value) = metadata.remove("focused_item_label") {
+        metadata.insert(String::from("focused_sample_label"), value);
+    }
+    metadata
+}
+
+fn automation_metadata_to_compat(
+    mut metadata: BTreeMap<String, String>,
+) -> BTreeMap<String, String> {
+    if let Some(value) = metadata.remove("focused_sample_label") {
+        metadata.insert(String::from("focused_item_label"), value);
+    }
+    metadata
 }
 
 impl From<compat::GuiAutomationSnapshot> for GuiAutomationSnapshot {

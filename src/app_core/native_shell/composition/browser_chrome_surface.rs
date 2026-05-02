@@ -108,7 +108,7 @@ pub(crate) fn browser_tabs_surface_content(model: &AppModel) -> BrowserTabsSurfa
     BrowserTabsSurfaceContent {
         samples_label: format!(
             "{} ({})",
-            model.browser_chrome.samples_tab_label,
+            model.browser_chrome.items_tab_label,
             model
                 .columns
                 .get(1)

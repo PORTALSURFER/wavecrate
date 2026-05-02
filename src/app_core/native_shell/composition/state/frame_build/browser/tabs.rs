@@ -141,7 +141,7 @@ pub(super) fn render_browser_tabs(
     emit_text(
         text_runs,
         TextRun {
-            text: cached_text.samples_tab_label.clone(),
+            text: cached_text.items_tab_label.clone(),
             position: cached_text.tabs_text_layout.samples_label.min,
             font_size: ctx.sizing.font_header,
             color: samples_text_color,
