@@ -129,6 +129,9 @@ pub type AudioFieldModel = form::SummaryField;
 /// Browser playback-age filter chips shown in the native toolbar.
 pub type PlaybackAgeFilterChip = list::RecencyFilterChip;
 
+/// Generic preference/settings panel state used by native overlay projections.
+pub type PreferencePanelStateModel<const TOGGLES: usize> = form::PreferencePanelState<TOGGLES>;
+
 // Sempal-owned GUI automation snapshot DTOs.
 
 /// Semantic role describing how an automation node behaves in the GUI.
@@ -818,6 +821,23 @@ pub struct OptionsPanelModel {
     pub invert_waveform_scroll_enabled: bool,
     /// Short display label for the configured trash folder, when available.
     pub trash_folder_label: Option<String>,
+}
+
+impl OptionsPanelModel {
+    /// Return this panel's generic preference/settings state.
+    pub fn preference_state(&self) -> PreferencePanelStateModel<4> {
+        PreferencePanelStateModel::new(
+            self.visible,
+            self.default_identifier.clone(),
+            [
+                self.input_monitoring_enabled,
+                self.advance_after_rating_enabled,
+                self.destructive_yolo_mode_enabled,
+                self.invert_waveform_scroll_enabled,
+            ],
+            self.trash_folder_label.clone(),
+        )
+    }
 }
 
 /// Prompt types that can block interaction in the native shell.
@@ -2385,6 +2405,25 @@ mod tests {
     #[test]
     fn waveform_panel_default_bpm_grid_origin_is_zero() {
         assert_eq!(WaveformPanelModel::default().bpm_grid_origin_micros, 0);
+    }
+
+    #[test]
+    fn options_panel_projects_generic_preference_state() {
+        let model = super::OptionsPanelModel {
+            visible: true,
+            default_identifier: String::from("portal"),
+            input_monitoring_enabled: true,
+            advance_after_rating_enabled: false,
+            destructive_yolo_mode_enabled: true,
+            invert_waveform_scroll_enabled: false,
+            trash_folder_label: Some(String::from("Trash")),
+        };
+        let preferences = model.preference_state();
+
+        assert!(preferences.visible);
+        assert_eq!(preferences.primary_text_value, "portal");
+        assert_eq!(preferences.toggles, [true, false, true, false]);
+        assert_eq!(preferences.auxiliary_label.as_deref(), Some("Trash"));
     }
 
     #[test]
