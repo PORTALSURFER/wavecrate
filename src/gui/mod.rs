@@ -28,6 +28,14 @@ pub mod list {
     pub use radiant::gui::list::*;
 }
 
+pub mod range {
+    //! Normalized range and viewport projection primitives from `radiant`.
+    //!
+    //! Re-exported so Sempal-owned waveform and timeline surfaces use generic
+    //! normalized coordinate math instead of duplicating projection helpers.
+    pub use radiant::gui::range::*;
+}
+
 pub mod repaint {
     //! Signals used to request UI updates from background work.
     //!

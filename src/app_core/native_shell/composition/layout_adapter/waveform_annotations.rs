@@ -2,28 +2,13 @@
 
 use self::sempal_crate::app as native_model;
 use crate as sempal_crate;
+use crate::gui::range::{NormalizedPixelSnap, NormalizedViewport};
 use crate::gui::types::{Point, Rect};
 use native_model::{NormalizedRangeModel, WaveformSlicePreviewModel};
 
 #[cfg(test)]
 #[path = "waveform_annotations/tests.rs"]
 mod tests;
-
-/// Pixel-snapping policy for waveform x coordinates before rendering or hit-testing.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum WaveformPixelSnap {
-    /// Snap the x coordinate to the nearest device pixel.
-    Nearest,
-}
-
-/// Normalized waveform viewport bounds shared by input, rendering, and hit-testing.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct WaveformViewWindow {
-    /// Normalized start ratio in `0.0..=1.0`.
-    pub(crate) start_ratio: f64,
-    /// Normalized visible width ratio.
-    pub(crate) width_ratio: f64,
-}
 
 /// Waveform annotation rectangles resolved from normalized waveform anchors.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -138,6 +123,8 @@ pub(crate) fn compute_waveform_slice_preview_rects(
         .collect()
 }
 
+type WaveformViewWindow = NormalizedViewport;
+
 /// Resolve the authoritative waveform view window from micro and optional nano bounds.
 pub(crate) fn waveform_view_window_from_bounds(
     view_start_micros: u32,
@@ -145,13 +132,12 @@ pub(crate) fn waveform_view_window_from_bounds(
     view_start_nanos: Option<u32>,
     view_end_nanos: Option<u32>,
 ) -> WaveformViewWindow {
-    normalized_view_window_from_nanos(
+    NormalizedViewport::from_bounds(
         view_start_micros,
         view_end_micros,
         view_start_nanos,
         view_end_nanos,
     )
-    .unwrap_or_else(|| normalized_view_window_from_micros(view_start_micros, view_end_micros))
 }
 
 /// Convert one absolute waveform micro position into plot-space x.
@@ -159,14 +145,9 @@ pub(crate) fn waveform_plot_x_for_micros(
     waveform_plot: Rect,
     micros: u32,
     view: WaveformViewWindow,
-    snap: WaveformPixelSnap,
+    snap: NormalizedPixelSnap,
 ) -> f32 {
-    waveform_plot_x_for_absolute_ratio(
-        waveform_plot,
-        f64::from(micros.min(1_000_000)) / 1_000_000.0,
-        view,
-        snap,
-    )
+    view.x_for_micros(waveform_plot, micros, snap)
 }
 
 /// Convert one absolute waveform ratio into plot-space x.
@@ -174,19 +155,9 @@ pub(crate) fn waveform_plot_x_for_absolute_ratio(
     waveform_plot: Rect,
     absolute_ratio: f64,
     view: WaveformViewWindow,
-    snap: WaveformPixelSnap,
+    snap: NormalizedPixelSnap,
 ) -> f32 {
-    let ratio_in_view = if view.width_ratio <= f64::EPSILON {
-        0.0
-    } else {
-        ((absolute_ratio.clamp(0.0, 1.0) - view.start_ratio) / view.width_ratio).clamp(0.0, 1.0)
-            as f32
-    };
-    let raw_x = waveform_plot.min.x + (waveform_plot.width() * ratio_in_view);
-    match snap {
-        WaveformPixelSnap::Nearest => raw_x.round(),
-    }
-    .clamp(waveform_plot.min.x, waveform_plot.max.x)
+    view.x_for_ratio(waveform_plot, absolute_ratio, snap)
 }
 
 fn slice_rect(
@@ -198,13 +169,13 @@ fn slice_rect(
         waveform_plot,
         range.start_micros,
         view,
-        WaveformPixelSnap::Nearest,
+        NormalizedPixelSnap::Nearest,
     );
     let end = waveform_plot_x_for_micros(
         waveform_plot,
         range.end_micros,
         view,
-        WaveformPixelSnap::Nearest,
+        NormalizedPixelSnap::Nearest,
     );
     let left = start
         .min(end)
@@ -228,13 +199,13 @@ fn selection_rect(
         waveform_plot,
         selection.start_micros,
         view,
-        WaveformPixelSnap::Nearest,
+        NormalizedPixelSnap::Nearest,
     );
     let end = waveform_plot_x_for_micros(
         waveform_plot,
         selection.end_micros,
         view,
-        WaveformPixelSnap::Nearest,
+        NormalizedPixelSnap::Nearest,
     );
     let left = start
         .min(end)
@@ -259,51 +230,12 @@ fn marker_rect(
     if marker_width <= 0.0 {
         return None;
     }
-    let raw_x = waveform_plot_x_for_micros(waveform_plot, micros, view, WaveformPixelSnap::Nearest);
+    let raw_x =
+        waveform_plot_x_for_micros(waveform_plot, micros, view, NormalizedPixelSnap::Nearest);
     let left = raw_x.clamp(waveform_plot.min.x, waveform_plot.max.x - marker_width);
     let right = (left + marker_width).min(waveform_plot.max.x);
     (right > left).then_some(Rect::from_min_max(
         Point::new(left, waveform_plot.min.y),
         Point::new(right, waveform_plot.max.y),
     ))
-}
-
-fn normalized_view_window_from_micros(
-    view_start_micros: u32,
-    view_end_micros: u32,
-) -> WaveformViewWindow {
-    let start_micros = view_start_micros.min(1_000_000);
-    let end_micros = view_end_micros.min(1_000_000).max(start_micros);
-    let start_ratio = f64::from(start_micros) / 1_000_000.0;
-    let width_ratio =
-        (f64::from(end_micros.saturating_sub(start_micros)) / 1_000_000.0).max(f64::EPSILON);
-    WaveformViewWindow {
-        start_ratio,
-        width_ratio,
-    }
-}
-
-fn normalized_view_window_from_nanos(
-    view_start_micros: u32,
-    view_end_micros: u32,
-    view_start_nanos: Option<u32>,
-    view_end_nanos: Option<u32>,
-) -> Option<WaveformViewWindow> {
-    let start_nanos = view_start_nanos?.min(1_000_000_000);
-    let end_nanos = view_end_nanos?.min(1_000_000_000).max(start_nanos);
-    let start_matches = micros_matches_projected_nanos(view_start_micros, start_nanos);
-    let end_matches = micros_matches_projected_nanos(view_end_micros, end_nanos);
-    if !start_matches || !end_matches {
-        return None;
-    }
-    Some(WaveformViewWindow {
-        start_ratio: f64::from(start_nanos) / 1_000_000_000.0,
-        width_ratio: (f64::from(end_nanos.saturating_sub(start_nanos)) / 1_000_000_000.0)
-            .max(f64::EPSILON),
-    })
-}
-
-fn micros_matches_projected_nanos(view_micros: u32, view_nanos: u32) -> bool {
-    let projected_micros = ((view_nanos.min(1_000_000_000) + 500) / 1000).min(1_000_000);
-    projected_micros.abs_diff(view_micros.min(1_000_000)) <= 1
 }
