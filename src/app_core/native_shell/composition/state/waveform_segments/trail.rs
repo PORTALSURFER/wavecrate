@@ -117,7 +117,7 @@ fn marker_rect_for_absolute_ratio(
         waveform_plot,
         absolute_ratio,
         view,
-        WaveformPixelSnap::Nearest,
+        NormalizedPixelSnap::Nearest,
     );
     marker_rect_for_x(waveform_plot, border_width, raw_x)
 }

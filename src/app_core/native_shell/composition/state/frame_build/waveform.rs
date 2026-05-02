@@ -94,7 +94,7 @@ pub(super) fn emit_waveform_bpm_grid(
             waveform_plot,
             beat_micros as u32,
             view,
-            WaveformPixelSnap::Nearest,
+            NormalizedPixelSnap::Nearest,
         );
         let (line_color, line_width) = waveform_bpm_grid_line_style(style, beat_index);
         emit_primitive(

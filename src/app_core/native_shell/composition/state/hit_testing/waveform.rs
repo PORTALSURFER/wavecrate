@@ -364,7 +364,7 @@ pub(in crate::gui::native_shell::state) fn waveform_x_for_micros(
         Some(viewport.start_nanos),
         Some(viewport.end_nanos),
     );
-    waveform_plot_x_for_micros(plot, micros, view, WaveformPixelSnap::Nearest)
+    waveform_plot_x_for_micros(plot, micros, view, NormalizedPixelSnap::Nearest)
 }
 
 /// Return the centered vertical hit span used by waveform edge-resize targets.
