@@ -1406,7 +1406,7 @@ impl From<compat::UiAction> for UiAction {
                     visible_row: visible_row,
                 }
             }
-            compat::UiAction::TagBrowserSelection { target } => Self::TagBrowserSelection {
+            compat::UiAction::SetBrowserTriageMark { target } => Self::TagBrowserSelection {
                 target: target.into(),
             },
             compat::UiAction::DeleteBrowserSelection => Self::DeleteBrowserSelection,
@@ -1985,7 +1985,7 @@ impl From<UiAction> for compat::UiAction {
                     visible_row: visible_row,
                 }
             }
-            UiAction::TagBrowserSelection { target } => Self::TagBrowserSelection {
+            UiAction::TagBrowserSelection { target } => Self::SetBrowserTriageMark {
                 target: target.into(),
             },
             UiAction::DeleteBrowserSelection => Self::DeleteBrowserSelection,
