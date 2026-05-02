@@ -1096,17 +1096,17 @@ fn nanos_match_micros(nanos: u32, micros: u32) -> bool {
         || ((nanos.min(1_000_000_000) + 500) / 1000).min(1_000_000) == micros.min(1_000_000)
 }
 
-impl From<compat::BrowserTagTarget> for BrowserTagTarget {
-    fn from(value: compat::BrowserTagTarget) -> Self {
+impl From<compat::BrowserTriageTarget> for BrowserTagTarget {
+    fn from(value: compat::BrowserTriageTarget) -> Self {
         match value {
-            compat::BrowserTagTarget::Negative => Self::Trash,
-            compat::BrowserTagTarget::Neutral => Self::Neutral,
-            compat::BrowserTagTarget::Positive => Self::Keep,
+            compat::BrowserTriageTarget::Negative => Self::Trash,
+            compat::BrowserTriageTarget::Neutral => Self::Neutral,
+            compat::BrowserTriageTarget::Positive => Self::Keep,
         }
     }
 }
 
-impl From<BrowserTagTarget> for compat::BrowserTagTarget {
+impl From<BrowserTagTarget> for compat::BrowserTriageTarget {
     fn from(value: BrowserTagTarget) -> Self {
         match value {
             BrowserTagTarget::Trash => Self::Negative,
