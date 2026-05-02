@@ -203,7 +203,7 @@ fn browser_automation_exposes_marked_filter_and_marked_row_metadata() {
 fn browser_automation_exposes_playback_age_filters_and_row_bucket_metadata() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut model = AppModel::default();
-    model.browser.active_playback_age_filters = [true, false, true];
+    model.browser.active_recency_filters = [true, false, true];
     model.browser.rows.push(
         BrowserRowModel::new(0, "Never played row", 1, false, true)
             .with_playback_age_bucket(crate::compat_app_contract::PlaybackAgeBucket::NeverPlayed),

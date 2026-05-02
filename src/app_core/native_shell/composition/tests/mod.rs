@@ -79,7 +79,7 @@ fn canonical_shell_model() -> crate::compat_app_contract::AppModel {
             ));
     }
     model.browser.visible_count = model.browser.rows.len();
-    model.browser.selected_path_count = 3;
+    model.browser.selected_item_count = 3;
     model.browser.search_query = String::from("kick");
     model.browser_chrome.search_prefix_label = String::from("Find");
     model.browser_chrome.sort_prefix_label = String::from("Order");
