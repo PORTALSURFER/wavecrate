@@ -102,6 +102,9 @@ pub type WaveformFeedbackEventsModel = visualization::TimelineFeedbackEvents;
 /// Waveform guide/repeat/label presentation state exposed to the native shell.
 pub type WaveformPresentationModel = visualization::TimelinePresentationState;
 
+/// Aggregated waveform timeline surface state exposed to the native shell.
+pub type WaveformSurfaceModel = visualization::TimelineSurfaceState<WaveformSlicePreviewModel>;
+
 /// Render data for one point shown in the native map canvas.
 pub type MapPointModel = visualization::SpatialPoint;
 
@@ -1049,6 +1052,19 @@ impl WaveformPanelModel {
             self.image_rendering,
             self.waveform_image_signature,
             self.waveform_image.clone(),
+        )
+    }
+
+    /// Return this panel's generic normalized timeline surface state.
+    pub fn timeline_surface(&self) -> WaveformSurfaceModel {
+        WaveformSurfaceModel::new(
+            self.viewport(),
+            self.transport(),
+            self.edit_preview(),
+            self.feedback_events(),
+            self.presentation(),
+            self.image_preview(),
+            self.slices.clone(),
         )
     }
 }
@@ -2489,6 +2505,37 @@ mod tests {
         assert!(presentation.repeat_enabled);
         assert_eq!(presentation.primary_label.as_deref(), Some("150 BPM"));
         assert_eq!(presentation.viewport_label.as_deref(), Some("8x"));
+    }
+
+    #[test]
+    fn waveform_panel_projects_generic_timeline_surface_state() {
+        let model = WaveformPanelModel {
+            view_start_micros: 125_000,
+            playhead_micros: Some(250_250),
+            selection_export_failure_flash_nonce: 5,
+            loop_enabled: true,
+            loaded_label: Some(String::from("Loaded")),
+            slices: vec![super::WaveformSlicePreviewModel {
+                range: super::NormalizedRangeModel::new(100, 200),
+                selected: true,
+                focused: false,
+                marked_for_export: false,
+                duplicate_cleanup_candidate: false,
+                duplicate_cleanup_exempted: false,
+            }],
+            ..WaveformPanelModel::default()
+        };
+        let surface = model.timeline_surface();
+
+        assert_eq!(surface.viewport.start_micros, 125_000);
+        assert_eq!(surface.transport.resolved_playhead_micros(), Some(250_250));
+        assert_eq!(surface.feedback_events.primary_failure_nonce, 5);
+        assert!(surface.presentation.repeat_enabled);
+        assert_eq!(
+            surface.raster_preview.loaded_label.as_deref(),
+            Some("Loaded")
+        );
+        assert_eq!(surface.markers.len(), 1);
     }
 
     #[test]

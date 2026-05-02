@@ -630,6 +630,11 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal action conversion should map product waveform sample actions onto Radiant's generic waveform content actions"
     );
     assert!(
+        native_dtos.contains("pub type WaveformSurfaceModel = visualization::TimelineSurfaceState")
+            && native_dtos.contains("pub fn timeline_surface(&self) -> WaveformSurfaceModel"),
+        "Sempal waveform DTOs should expose Radiant's generic timeline surface aggregate"
+    );
+    assert!(
         native_hit_testing.contains("fn focused_similarity_action() -> UiAction")
             && native_hit_testing.contains("UiAction::ToggleFindSimilarFocusedContent")
             && native_hit_testing.contains("UiAction::ToggleFindSimilarFocusedSample"),
