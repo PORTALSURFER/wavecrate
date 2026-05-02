@@ -71,6 +71,9 @@ pub type SourceRowModel = panel::SplitPaneAssignedRow;
 /// Transient browser row processing states for batch file operations.
 pub type BrowserRowProcessingState = list::RowProcessingState;
 
+/// Summary of one browser/list row consumed by the native shell.
+pub type BrowserRowModel = list::ContentListRow;
+
 /// Tri-state pill state used by the browser metadata editor.
 pub type BrowserTagState = selection::TriState;
 
@@ -510,124 +513,6 @@ impl NativeMotionModel {
 
 /// Visual playback-age buckets derived from sample playback history.
 pub type PlaybackAgeBucket = list::RecencyBucket;
-
-/// Summary of one browser/list row consumed by the native shell.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BrowserRowModel {
-    /// Visible row index in the filtered browser list.
-    pub visible_row: usize,
-    /// Display label for the row.
-    pub label: Arc<str>,
-    /// Triage column index (`0..=2`) that currently owns the row.
-    pub column: usize,
-    /// Signed keep/trash rating level shown alongside the row label (`-3..=3`).
-    pub rating_level: i8,
-    /// Visual playback-age bucket used to render the browser row age marker.
-    pub playback_age_bucket: PlaybackAgeBucket,
-    /// Optional inline metadata label rendered at the right edge of the sample lane.
-    pub bucket_label: Option<Arc<str>>,
-    /// Optional normalized similarity fill amount encoded in the inclusive `0..=255` range.
-    pub similarity_display_strength: Option<u8>,
-    /// Whether this row is currently selected in multi-selection state.
-    pub selected: bool,
-    /// Whether this row currently has focus/caret.
-    pub focused: bool,
-    /// Whether the backing sample file is missing on disk.
-    pub missing: bool,
-    /// Whether the backing sample is marked as a confirmed keep lock.
-    pub locked: bool,
-    /// Whether the backing sample is session-marked for later review.
-    pub marked: bool,
-    /// Transient row-scoped processing state for active batch operations.
-    pub processing_state: BrowserRowProcessingState,
-}
-
-impl BrowserRowModel {
-    /// Build a row model, clamping the column into `0..=2`.
-    pub fn new(
-        visible_row: usize,
-        label: impl Into<String>,
-        column: usize,
-        selected: bool,
-        focused: bool,
-    ) -> Self {
-        Self {
-            visible_row,
-            label: Arc::<str>::from(label.into()),
-            column: column.min(2),
-            rating_level: 0,
-            playback_age_bucket: PlaybackAgeBucket::Fresh,
-            bucket_label: None,
-            similarity_display_strength: None,
-            selected,
-            focused,
-            missing: false,
-            locked: false,
-            marked: false,
-            processing_state: BrowserRowProcessingState::None,
-        }
-    }
-
-    /// Attach a signed keep/trash rating level for inline row indicators.
-    pub fn with_rating_level(mut self, rating_level: i8) -> Self {
-        self.rating_level = rating_level.clamp(-3, 3);
-        self
-    }
-
-    /// Attach the playback-age bucket used for row aging treatment.
-    pub fn with_playback_age_bucket(mut self, playback_age_bucket: PlaybackAgeBucket) -> Self {
-        self.playback_age_bucket = playback_age_bucket;
-        self
-    }
-
-    /// Attach an explicit inline metadata label for this row.
-    pub fn with_bucket_label(mut self, label: impl Into<String>) -> Self {
-        self.bucket_label = Some(Arc::<str>::from(label.into()));
-        self
-    }
-
-    /// Attach a normalized similarity display strength for the compact row bar.
-    pub fn with_similarity_display_strength(mut self, display_strength: f32) -> Self {
-        self.similarity_display_strength =
-            Some(Self::encode_similarity_display_strength(display_strength));
-        self
-    }
-
-    /// Encode one normalized similarity display strength into the stored byte range.
-    pub fn encode_similarity_display_strength(display_strength: f32) -> u8 {
-        (display_strength.clamp(0.0, 1.0) * 255.0).round() as u8
-    }
-
-    /// Decode the stored similarity display strength into a normalized fill amount.
-    pub fn similarity_display_strength_ratio(&self) -> Option<f32> {
-        self.similarity_display_strength
-            .map(|strength| f32::from(strength) / 255.0)
-    }
-
-    /// Mark whether the backing sample file is missing on disk.
-    pub fn with_missing(mut self, missing: bool) -> Self {
-        self.missing = missing;
-        self
-    }
-
-    /// Mark whether the backing sample should render with the keep-lock highlight.
-    pub fn with_locked(mut self, locked: bool) -> Self {
-        self.locked = locked;
-        self
-    }
-
-    /// Mark whether the backing sample should render with the session mark treatment.
-    pub fn with_marked(mut self, marked: bool) -> Self {
-        self.marked = marked;
-        self
-    }
-
-    /// Attach a transient row-scoped processing state.
-    pub fn with_processing_state(mut self, processing_state: BrowserRowProcessingState) -> Self {
-        self.processing_state = processing_state;
-        self
-    }
-}
 
 /// Summary of browser/list state consumed by the native shell.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
@@ -1281,46 +1166,6 @@ impl From<SourcesPanelModel> for compat::SourcesPanelModel {
 impl From<&SourcesPanelModel> for compat::SourcesPanelModel {
     fn from(value: &SourcesPanelModel) -> Self {
         value.clone().into()
-    }
-}
-
-impl From<compat::BrowserRowModel> for BrowserRowModel {
-    fn from(value: compat::BrowserRowModel) -> Self {
-        Self {
-            visible_row: value.visible_row,
-            label: value.label,
-            column: value.column,
-            rating_level: value.rating_level,
-            playback_age_bucket: value.playback_age_bucket.into(),
-            bucket_label: value.bucket_label,
-            similarity_display_strength: value.similarity_display_strength,
-            selected: value.selected,
-            focused: value.focused,
-            missing: value.missing,
-            locked: value.locked,
-            marked: value.marked,
-            processing_state: value.processing_state.into(),
-        }
-    }
-}
-
-impl From<BrowserRowModel> for compat::BrowserRowModel {
-    fn from(value: BrowserRowModel) -> Self {
-        Self {
-            visible_row: value.visible_row,
-            label: value.label,
-            column: value.column,
-            rating_level: value.rating_level,
-            playback_age_bucket: value.playback_age_bucket.into(),
-            bucket_label: value.bucket_label,
-            similarity_display_strength: value.similarity_display_strength,
-            selected: value.selected,
-            focused: value.focused,
-            missing: value.missing,
-            locked: value.locked,
-            marked: value.marked,
-            processing_state: value.processing_state.into(),
-        }
     }
 }
 
