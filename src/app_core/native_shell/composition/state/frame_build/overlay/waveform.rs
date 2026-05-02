@@ -75,58 +75,59 @@ pub(super) fn push_waveform_toolbar_hover_tooltip(
 }
 
 fn waveform_toolbar_hover_hint_text(hint: WaveformToolbarHoverHint, model: &AppModel) -> String {
+    let chrome = model.waveform_chrome.signal_chrome();
+    let tools = model.waveform_chrome.signal_tools();
+    let presentation = model.waveform.presentation();
     match hint {
         WaveformToolbarHoverHint::ChannelView => {
-            if model.waveform_chrome.channel_view == native_model::WaveformChannelViewModel::Stereo
-            {
+            if chrome.channel_view == native_model::WaveformChannelViewModel::Stereo {
                 String::from("Switch waveform view to mono")
             } else {
                 String::from("Switch waveform view to split stereo")
             }
         }
         WaveformToolbarHoverHint::NormalizedAudition => {
-            if model.waveform_chrome.normalized_audition_enabled {
+            if tools.audition_enabled {
                 String::from("Disable normalized audition")
             } else {
                 String::from("Enable normalized audition")
             }
         }
-        WaveformToolbarHoverHint::BpmValue => model
-            .waveform
-            .tempo_label
+        WaveformToolbarHoverHint::BpmValue => presentation
+            .primary_label
             .as_deref()
             .map(|tempo| format!("Edit playback BPM ({tempo})"))
             .unwrap_or_else(|| String::from("Edit playback BPM")),
         WaveformToolbarHoverHint::BpmSnap => {
-            if model.waveform_chrome.bpm_snap_enabled {
+            if tools.primary_snap_enabled {
                 String::from("Disable BPM snapping")
             } else {
                 String::from("Enable BPM snapping")
             }
         }
         WaveformToolbarHoverHint::RelativeBpmGrid => {
-            if model.waveform_chrome.relative_bpm_grid_enabled {
+            if tools.relative_grid_enabled {
                 String::from("Use sample-start BPM grid")
             } else {
                 String::from("Use selection-relative BPM grid")
             }
         }
         WaveformToolbarHoverHint::TransientSnap => {
-            if model.waveform_chrome.transient_snap_enabled {
+            if tools.secondary_snap_enabled {
                 String::from("Disable transient snapping")
             } else {
                 String::from("Enable transient snapping")
             }
         }
         WaveformToolbarHoverHint::ShowTransients => {
-            if model.waveform_chrome.transient_markers_enabled {
+            if tools.markers_visible {
                 String::from("Hide transient markers")
             } else {
                 String::from("Show transient markers")
             }
         }
         WaveformToolbarHoverHint::SliceMode => {
-            if model.waveform_chrome.slice_mode_enabled {
+            if tools.review_mode_enabled {
                 String::from("Disable slice mode")
             } else {
                 String::from("Enable slice mode")
@@ -142,19 +143,18 @@ fn waveform_toolbar_hover_hint_text(hint: WaveformToolbarHoverHint, model: &AppM
             "Remove marked duplicate windows and keep the first copy plus any right-click keeps",
         ),
         WaveformToolbarHoverHint::Loop => {
-            if model.waveform_chrome.loop_lock_enabled && model.waveform.loop_enabled {
+            if tools.lock_enabled && presentation.repeat_enabled {
                 String::from("Loop locked on. Click to unlock and disable; Shift-click locks off")
-            } else if model.waveform_chrome.loop_lock_enabled {
+            } else if tools.lock_enabled {
                 String::from("Loop locked off. Click to unlock and enable; Shift-click locks on")
-            } else if model.waveform.loop_enabled {
+            } else if presentation.repeat_enabled {
                 String::from("Disable loop playback")
             } else {
                 String::from("Enable loop playback")
             }
         }
-        WaveformToolbarHoverHint::Compare => model
-            .waveform_chrome
-            .compare_anchor_label
+        WaveformToolbarHoverHint::Compare => chrome
+            .reference_anchor_label
             .as_deref()
             .map(|label| format!("Play compare anchor ({label})"))
             .unwrap_or_else(|| String::from("Set a compare anchor to enable compare playback")),

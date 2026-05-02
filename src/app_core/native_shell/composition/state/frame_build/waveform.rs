@@ -62,10 +62,12 @@ pub(super) fn emit_waveform_bpm_grid(
     model: &AppModel,
     style: &StyleTokens,
 ) {
-    if !model.waveform_chrome.bpm_snap_enabled {
+    let tools = model.waveform_chrome.signal_tools();
+    if !tools.primary_snap_enabled {
         return;
     }
-    let Some(step_micros) = model.waveform.beat_step_micros.filter(|step| *step > 0) else {
+    let presentation = model.waveform.presentation();
+    let Some(step_micros) = presentation.guide_step_micros.filter(|step| *step > 0) else {
         return;
     };
     let view_start = u64::from(model.waveform.view_start_micros.min(1_000_000));
@@ -126,7 +128,8 @@ fn waveform_bpm_grid_origin_micros(state: &mut NativeShellState, model: &AppMode
         state.last_waveform_bpm_grid_identity = Some(identity);
         state.last_waveform_bpm_grid_origin_micros = None;
     }
-    if !model.waveform_chrome.relative_bpm_grid_enabled {
+    let tools = model.waveform_chrome.signal_tools();
+    if !tools.relative_grid_enabled {
         state.last_waveform_bpm_grid_origin_micros = Some(0);
         return 0;
     }
@@ -134,8 +137,9 @@ fn waveform_bpm_grid_origin_micros(state: &mut NativeShellState, model: &AppMode
         state.last_waveform_bpm_grid_origin_micros = Some(selection.start_micros);
         return u64::from(selection.start_micros);
     }
-    if model.waveform.bpm_grid_origin_micros != 0 {
-        let origin = model.waveform.bpm_grid_origin_micros;
+    let presentation = model.waveform.presentation();
+    if presentation.guide_origin_micros != 0 {
+        let origin = presentation.guide_origin_micros;
         state.last_waveform_bpm_grid_origin_micros = Some(origin);
         return u64::from(origin);
     }

@@ -299,6 +299,15 @@ fn native_action_exports_are_owned_in_app_core() {
         manifest_dir.join("src/app_core/native_shell/composition/waveform_header_surface.rs"),
     )
     .expect("native waveform header surface");
+    let waveform_static_frame = fs::read_to_string(
+        manifest_dir.join("src/app_core/native_shell/composition/state/frame_build/waveform.rs"),
+    )
+    .expect("native waveform static frame builder");
+    let waveform_hover_overlay = fs::read_to_string(
+        manifest_dir
+            .join("src/app_core/native_shell/composition/state/frame_build/overlay/waveform.rs"),
+    )
+    .expect("native waveform hover overlay frame builder");
     let native_options_actions = fs::read_to_string(
         manifest_dir.join("src/app_core/native_shell/composition/state/options_panel/actions.rs"),
     )
@@ -700,7 +709,12 @@ fn native_action_exports_are_owned_in_app_core() {
             && waveform_header_surface.contains("model.waveform_viewport()")
             && waveform_header_surface.contains("model.waveform_presentation()")
             && waveform_header_surface.contains("model.waveform_image_preview()")
-            && waveform_header_surface.contains("model.signal_chrome()"),
+            && waveform_header_surface.contains("model.signal_chrome()")
+            && waveform_static_frame.contains("model.waveform_chrome.signal_tools()")
+            && waveform_static_frame.contains("model.waveform.presentation()")
+            && waveform_hover_overlay.contains("model.waveform_chrome.signal_chrome()")
+            && waveform_hover_overlay.contains("model.waveform_chrome.signal_tools()")
+            && waveform_hover_overlay.contains("model.waveform.presentation()"),
         "Sempal waveform composition should consume Radiant's generic motion parts on hot paths"
     );
     assert!(
