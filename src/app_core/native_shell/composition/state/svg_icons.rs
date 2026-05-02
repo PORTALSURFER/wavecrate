@@ -134,79 +134,67 @@ fn rasterize_svg_icon(icon: WaveformToolbarIcon, side: usize, color: Rgba8) -> O
 fn icon_svg_asset(icon: WaveformToolbarIcon) -> &'static str {
     match icon {
         WaveformToolbarIcon::Mono => {
-            include_str!("../../../../../vendor/radiant/assets/icons/waveform_toolbar/mono.svg")
+            include_str!("../assets/icons/waveform_toolbar/mono.svg")
         }
         WaveformToolbarIcon::Stereo => {
-            include_str!("../../../../../vendor/radiant/assets/icons/waveform_toolbar/stereo.svg")
+            include_str!("../assets/icons/waveform_toolbar/stereo.svg")
         }
         WaveformToolbarIcon::Normalize => {
-            include_str!(
-                "../../../../../vendor/radiant/assets/icons/waveform_toolbar/normalize.svg"
-            )
+            include_str!("../assets/icons/waveform_toolbar/normalize.svg")
         }
         WaveformToolbarIcon::BpmSnap => {
-            include_str!("../../../../../vendor/radiant/assets/icons/waveform_toolbar/bpm_snap.svg")
+            include_str!("../assets/icons/waveform_toolbar/bpm_snap.svg")
         }
         WaveformToolbarIcon::RelativeBpmGrid => {
-            include_str!(
-                "../../../../../vendor/radiant/assets/icons/waveform_toolbar/relative_bpm_grid.svg"
-            )
+            include_str!("../assets/icons/waveform_toolbar/relative_bpm_grid.svg")
         }
         WaveformToolbarIcon::TransientSnap => {
-            include_str!(
-                "../../../../../vendor/radiant/assets/icons/waveform_toolbar/transient_snap.svg"
-            )
+            include_str!("../assets/icons/waveform_toolbar/transient_snap.svg")
         }
         WaveformToolbarIcon::ShowTransients => {
-            include_str!(
-                "../../../../../vendor/radiant/assets/icons/waveform_toolbar/show_transients.svg"
-            )
+            include_str!("../assets/icons/waveform_toolbar/show_transients.svg")
         }
         WaveformToolbarIcon::Slice => {
-            include_str!("../../../../../vendor/radiant/assets/icons/waveform_toolbar/slice.svg")
+            include_str!("../assets/icons/waveform_toolbar/slice.svg")
         }
         WaveformToolbarIcon::Play => {
-            include_str!("../../../../../vendor/radiant/assets/icons/waveform_toolbar/play.svg")
+            include_str!("../assets/icons/waveform_toolbar/play.svg")
         }
         WaveformToolbarIcon::Stop => {
-            include_str!("../../../../../vendor/radiant/assets/icons/waveform_toolbar/stop.svg")
+            include_str!("../assets/icons/waveform_toolbar/stop.svg")
         }
         WaveformToolbarIcon::Record => {
-            include_str!("../../../../../vendor/radiant/assets/icons/waveform_toolbar/record.svg")
+            include_str!("../assets/icons/waveform_toolbar/record.svg")
         }
         WaveformToolbarIcon::Loop => {
-            include_str!("../../../../../vendor/radiant/assets/icons/waveform_toolbar/loop.svg")
+            include_str!("../assets/icons/waveform_toolbar/loop.svg")
         }
         WaveformToolbarIcon::Lock => {
-            include_str!("../../../../../vendor/radiant/assets/icons/ui/lock.svg")
+            include_str!("../assets/icons/ui/lock.svg")
         }
         WaveformToolbarIcon::Dice => {
-            include_str!("../../../../../vendor/radiant/assets/icons/ui/dice.svg")
+            include_str!("../assets/icons/ui/dice.svg")
         }
         WaveformToolbarIcon::Similarity => {
-            include_str!("../../../../../vendor/radiant/assets/icons/ui/similarity.svg")
+            include_str!("../assets/icons/ui/similarity.svg")
         }
         WaveformToolbarIcon::Filter => {
-            include_str!("../../../../../vendor/radiant/assets/icons/ui/filter.svg")
+            include_str!("../assets/icons/ui/filter.svg")
         }
         WaveformToolbarIcon::Flatten => {
-            include_str!("../../../../../vendor/radiant/assets/icons/ui/flatten.svg")
+            include_str!("../assets/icons/ui/flatten.svg")
         }
         WaveformToolbarIcon::BrowserNeverPlayed => {
-            include_str!("../../../../../vendor/radiant/assets/icons/ui/browser_never_played.svg")
+            include_str!("../assets/icons/ui/browser_never_played.svg")
         }
         WaveformToolbarIcon::BrowserOlderThanMonth => {
-            include_str!(
-                "../../../../../vendor/radiant/assets/icons/ui/browser_older_than_month.svg"
-            )
+            include_str!("../assets/icons/ui/browser_older_than_month.svg")
         }
         WaveformToolbarIcon::BrowserOlderThanWeek => {
-            include_str!(
-                "../../../../../vendor/radiant/assets/icons/ui/browser_older_than_week.svg"
-            )
+            include_str!("../assets/icons/ui/browser_older_than_week.svg")
         }
         WaveformToolbarIcon::BrowserMarked => {
-            include_str!("../../../../../vendor/radiant/assets/icons/ui/browser_marked.svg")
+            include_str!("../assets/icons/ui/browser_marked.svg")
         }
     }
 }
