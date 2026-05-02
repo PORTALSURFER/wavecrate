@@ -1,14 +1,14 @@
 use super::{
-    action_catalog_entry_by_id, action_kind, representative_action_for_kind, GuiCoverageLayer,
-    GuiDispatchPolicy, GuiEffectClass, GuiSurface, GUI_ACTION_CATALOG,
+    GUI_ACTION_CATALOG, GuiCoverageLayer, GuiDispatchPolicy, GuiEffectClass, GuiSurface,
+    action_catalog_entry_by_id, action_kind, representative_action_for_kind,
 };
 use crate::app_core::app_api::controller_state::DerivedNodeId;
 use crate::app_core::native_bridge::{
-    catalog_dirty_source, catalog_interaction_class, catalog_is_immediate_waveform_preview_action,
-    catalog_prefers_targeted_invalidation, catalog_uses_local_model_pull_fast_path,
-    InteractionActionClass,
+    InteractionActionClass, catalog_dirty_source, catalog_interaction_class,
+    catalog_is_immediate_waveform_preview_action, catalog_prefers_targeted_invalidation,
+    catalog_uses_local_model_pull_fast_path,
 };
-use crate::gui_test::{gui_aiv_suite_manifest, GuiAivAssertion, GuiAivStep};
+use crate::gui_test::{GuiAivAssertion, GuiAivStep, gui_aiv_suite_manifest};
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
@@ -266,6 +266,16 @@ fn native_action_exports_are_owned_in_app_core() {
     let native_actions =
         fs::read_to_string(manifest_dir.join("src/app_core/actions/native_shell_actions.rs"))
             .expect("native shell actions");
+    assert!(
+        !native_actions.contains("radiant::compat::legacy_shell")
+            && !native_actions.contains("compat::UiAction")
+            && !native_actions.contains("compat::BrowserTriageTarget"),
+        "Sempal action payload definitions should not import Radiant legacy-shell compatibility types"
+    );
+    let native_action_conversions =
+        fs::read_to_string(manifest_dir.join("src/gui_runtime/radiant_legacy_shell.rs"))
+            .expect("native shell runtime adapter");
+    let native_actions = format!("{native_actions}\n{native_action_conversions}");
     let native_hit_testing = fs::read_to_string(
         manifest_dir.join("src/app_core/native_shell/composition/state/hit_testing/browser.rs"),
     )
@@ -803,7 +813,6 @@ fn radiant_legacy_shell_imports_are_confined_to_runtime_boundary() {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let src_dir = manifest_dir.join("src");
     let allowed = BTreeSet::from([
-        "src/app_core/actions/native_shell_actions.rs",
         "src/app_core/actions/native_shell_dtos.rs",
         "src/gui_runtime/radiant_legacy_shell.rs",
     ]);
