@@ -359,7 +359,9 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal automation DTO conversion should map product role names onto generic Radiant roles"
     );
     assert!(
-        native_dtos.contains("\"browser.pill_editor\" => String::from(\"browser.tag_sidebar\")")
+        native_dtos.contains("\"browser.tab.items\" => String::from(\"browser.tab.samples\")")
+            && native_dtos.contains("\"browser.tab.samples\" => String::from(\"browser.tab.items\")")
+            && native_dtos.contains("\"browser.pill_editor\" => String::from(\"browser.tag_sidebar\")")
             && native_dtos.contains("\"browser.pill_editor.option.\"")
             && native_dtos.contains("format!(\"browser.tag_sidebar.normal_tag.{suffix}\")")
             && native_dtos.contains("metadata.insert(String::from(\"normal_tag_labels\"), value);")

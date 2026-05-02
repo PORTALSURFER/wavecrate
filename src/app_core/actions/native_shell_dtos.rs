@@ -2168,6 +2168,7 @@ fn automation_node_id_to_compat(value: AutomationNodeId) -> compat::AutomationNo
 
 fn automation_node_id_string_from_compat(node_id: String) -> String {
     match node_id.as_str() {
+        "browser.tab.items" => String::from("browser.tab.samples"),
         "browser.pill_editor" => String::from("browser.tag_sidebar"),
         "browser.pill_editor.input" => String::from("browser.tag_sidebar.input"),
         "browser.pill_editor.exclusive.0" => String::from("browser.tag_sidebar.playback.loop"),
@@ -2186,6 +2187,7 @@ fn automation_node_id_string_from_compat(node_id: String) -> String {
 
 fn automation_node_id_string_to_compat(node_id: String) -> String {
     match node_id.as_str() {
+        "browser.tab.samples" => String::from("browser.tab.items"),
         "browser.tag_sidebar" => String::from("browser.pill_editor"),
         "browser.tag_sidebar.input" => String::from("browser.pill_editor.input"),
         "browser.tag_sidebar.playback.loop" => String::from("browser.pill_editor.exclusive.0"),
