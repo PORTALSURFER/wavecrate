@@ -207,10 +207,6 @@ pub(super) fn run_native_vello_app_with_artifacts<B: NativeAppBridge>(
     native_run_report_from_radiant(report)
 }
 
-pub(super) fn run_native_vello_preview(options: NativeRunOptions) -> Result<(), String> {
-    radiant::compat::legacy_shell::run_native_vello_preview(options.into())
-}
-
 pub(super) fn capture_gui_automation_snapshot(
     viewport: [f32; 2],
     model: &NativeAppModel,

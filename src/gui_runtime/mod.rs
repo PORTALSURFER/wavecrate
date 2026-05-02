@@ -174,24 +174,6 @@ pub fn run_native_vello_app_declarative_with_artifacts<B: NativeAppBridge>(
     report
 }
 
-/// Run the native Vello backend preview shell for backend smoke testing.
-///
-/// This is typically used to validate host integration behavior without passing a
-/// full application bridge.
-pub fn run_native_vello_preview(options: NativeRunOptions) -> Result<(), String> {
-    info!("Launching radiant native Vello preview runtime");
-    let result = radiant_legacy_shell::run_native_vello_preview(options).map_err(|err| {
-        error!(%err, "radiant native Vello preview returned error");
-        err
-    });
-
-    if result.is_ok() {
-        info!("Radiant native Vello preview returned successfully");
-    }
-
-    result
-}
-
 /// Capture a deterministic GUI automation snapshot without launching the native host.
 pub fn capture_gui_automation_snapshot(
     viewport: [f32; 2],

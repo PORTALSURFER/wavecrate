@@ -6,16 +6,6 @@ use crate::gui::{
     types::Vector2,
 };
 use crate::gui_runtime::{NativeRunOptions, native_vello};
-use std::sync::Arc;
-
-#[derive(Default)]
-pub(crate) struct PreviewBridge;
-
-impl NativeAppBridge for PreviewBridge {
-    fn project_model(&mut self) -> Arc<AppModel> {
-        Arc::new(AppModel::default())
-    }
-}
 
 /// Run the native Vello backend window with a host-provided legacy shell bridge.
 ///
@@ -36,14 +26,6 @@ pub fn run_native_vello_app<B: NativeAppBridge>(
     bridge: B,
 ) -> Result<(), String> {
     run_native_vello_app_with_artifacts(options, bridge).result
-}
-
-/// Run the experimental native Vello backend window for backend-selection testing.
-///
-/// This preview path renders an interactive backend-neutral shell model with
-/// Vello primitives and exercises native input hit-testing without `egui`.
-pub fn run_native_vello_preview(options: NativeRunOptions) -> Result<(), String> {
-    run_native_vello_app(options, PreviewBridge)
 }
 
 /// Capture a deterministic native-shell automation snapshot without launching a window.
