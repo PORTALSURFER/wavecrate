@@ -47,7 +47,7 @@ pub(in crate::gui::native_shell::state) fn browser_inline_tag_chip_width(
 
 /// Compute chip rects for one inline browser metadata cluster.
 ///
-/// During live resize the sample-label band can briefly shrink below the
+/// During live resize the item-label band can briefly shrink below the
 /// nominal metadata-chip minimum height. In that case the chips compress to
 /// the available row height or disappear if no positive-height rect remains.
 #[cfg(test)]

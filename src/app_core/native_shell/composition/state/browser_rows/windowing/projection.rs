@@ -193,7 +193,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
             truncation_cache,
             frame_counts,
             row.visible_row,
-            BrowserRowTextKind::Sample,
+            BrowserRowTextKind::Item,
             &row.label,
             label_width,
             sizing.font_body,
