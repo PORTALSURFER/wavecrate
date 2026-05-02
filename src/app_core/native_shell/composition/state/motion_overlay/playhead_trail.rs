@@ -3,7 +3,7 @@
 use super::*;
 
 impl NativeShellState {
-    /// Update retained playhead-trail samples and return drawable ghost lines.
+    /// Update retained playhead-trail points and return drawable ghost lines.
     pub(in crate::gui::native_shell::state) fn update_playhead_trail(
         &mut self,
         waveform_plot: Rect,
@@ -17,25 +17,25 @@ impl NativeShellState {
         let view_changed = self.last_waveform_view_window.replace(view_window) != Some(view_window);
         self.last_waveform_playhead_micros = current;
         if current.is_none() {
-            self.playhead_trail_samples.clear();
+            self.playhead_trail_points.clear();
             return Vec::new();
         }
         if !model.transport_running {
-            self.playhead_trail_samples.clear();
+            self.playhead_trail_points.clear();
             return Vec::new();
         }
         if view_changed {
-            self.playhead_trail_samples.clear();
+            self.playhead_trail_points.clear();
             return Vec::new();
         }
-        self.append_playhead_trail_samples_if_moving(
+        self.append_playhead_trail_points_if_moving(
             waveform_plot,
             true,
             previous,
             current,
             now_seconds,
         );
-        self.prune_playhead_trail_samples(now_seconds);
+        self.prune_playhead_trail_points(now_seconds);
         self.playhead_trail_lines(now_seconds)
     }
 
@@ -58,8 +58,8 @@ impl NativeShellState {
         }
     }
 
-    /// Insert one trail sample sequence for the latest frame when the playhead moved.
-    fn append_playhead_trail_samples_if_moving(
+    /// Insert one trail point sequence for the latest frame when the playhead moved.
+    fn append_playhead_trail_points_if_moving(
         &mut self,
         waveform_plot: Rect,
         transport_running: bool,
@@ -78,14 +78,14 @@ impl NativeShellState {
             return;
         }
         if delta.unsigned_abs() > PLAYHEAD_TRAIL_MAX_CONTIGUOUS_DELTA_MICROS {
-            self.playhead_trail_samples.clear();
+            self.playhead_trail_points.clear();
             return;
         }
         let previous_ratio = previous as f32 / 1_000_000.0;
         let current_ratio = Self::unwrap_playhead_ratio(previous_ratio, current, delta);
         let delta_ratio = current_ratio - previous_ratio;
         let previous_capture_seconds = self
-            .playhead_trail_samples
+            .playhead_trail_points
             .last()
             .map(|sample| sample.captured_at_seconds)
             .unwrap_or(captured_at_seconds - PLAYHEAD_TRAIL_MIN_INTERPOLATED_DELTA_SECONDS);
@@ -101,7 +101,7 @@ impl NativeShellState {
         for step in 1..=steps {
             let progress = step as f32 / steps as f32;
             let ratio = (previous_ratio + (delta_ratio * progress)).rem_euclid(1.0);
-            self.playhead_trail_samples.push(PlayheadTrailSample {
+            self.playhead_trail_points.push(PlayheadTrailPoint {
                 ratio,
                 captured_at_seconds: previous_capture_seconds + (capture_delta_seconds * progress),
             });
@@ -119,21 +119,21 @@ impl NativeShellState {
         current_ratio
     }
 
-    /// Remove expired and overflowed trail samples from retained state.
-    fn prune_playhead_trail_samples(&mut self, now_seconds: f32) {
-        self.playhead_trail_samples.retain(|sample| {
-            (now_seconds - sample.captured_at_seconds).max(0.0) <= PLAYHEAD_TRAIL_FADE_SECONDS
+    /// Remove expired and overflowed trail points from retained state.
+    fn prune_playhead_trail_points(&mut self, now_seconds: f32) {
+        self.playhead_trail_points.retain(|point| {
+            (now_seconds - point.captured_at_seconds).max(0.0) <= PLAYHEAD_TRAIL_FADE_SECONDS
         });
         let overflow = self
-            .playhead_trail_samples
+            .playhead_trail_points
             .len()
-            .saturating_sub(PLAYHEAD_TRAIL_MAX_SAMPLES);
+            .saturating_sub(PLAYHEAD_TRAIL_MAX_POINTS);
         if overflow > 0 {
-            self.playhead_trail_samples.drain(0..overflow);
+            self.playhead_trail_points.drain(0..overflow);
         }
     }
 
-    /// Project retained trail samples into drawable ghost-line primitives.
+    /// Project retained trail points into drawable ghost-line primitives.
     ///
     /// Alpha is normalized across the currently retained trail so fast motion still renders
     /// a full head-to-tail fade instead of large equal-opacity slabs, while the trail itself
@@ -143,23 +143,23 @@ impl NativeShellState {
         now_seconds: f32,
     ) -> Vec<PlayheadTrailLine> {
         let retained = self
-            .playhead_trail_samples
+            .playhead_trail_points
             .iter()
-            .filter_map(|sample| {
-                let age_seconds = (now_seconds - sample.captured_at_seconds)
+            .filter_map(|point| {
+                let age_seconds = (now_seconds - point.captured_at_seconds)
                     .clamp(0.0, PLAYHEAD_TRAIL_FADE_SECONDS);
-                (age_seconds < PLAYHEAD_TRAIL_FADE_SECONDS).then_some(*sample)
+                (age_seconds < PLAYHEAD_TRAIL_FADE_SECONDS).then_some(*point)
             })
             .collect::<Vec<_>>();
         let last_index = retained.len().saturating_sub(1).max(1) as f32;
         retained
             .into_iter()
             .enumerate()
-            .filter_map(|(index, sample)| {
+            .filter_map(|(index, point)| {
                 let progress = index as f32 / last_index;
                 let alpha = (progress.powf(1.35) * PLAYHEAD_TRAIL_HEAD_ALPHA).clamp(0.0, 1.0);
                 (alpha > 0.01).then_some(PlayheadTrailLine {
-                    ratio: sample.ratio,
+                    ratio: point.ratio,
                     alpha,
                 })
             })
