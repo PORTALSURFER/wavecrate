@@ -96,6 +96,9 @@ pub type WaveformChannelViewModel = visualization::ChannelViewMode;
 /// One detected waveform slice preview exposed to the native shell.
 pub type WaveformSlicePreviewModel = visualization::TimelineMarkerPreview;
 
+/// One-shot waveform feedback event tokens exposed to the native shell.
+pub type WaveformFeedbackEventsModel = visualization::TimelineFeedbackEvents;
+
 /// Render data for one point shown in the native map canvas.
 pub type MapPointModel = visualization::SpatialPoint;
 
@@ -457,6 +460,7 @@ impl NativeMotionModel {
         let viewport = model.waveform.viewport();
         let transport = model.waveform.transport();
         let edit_preview = model.waveform.edit_preview();
+        let feedback_events = model.waveform.feedback_events();
         let image_preview = model.waveform.image_preview();
         let signal_chrome = model.waveform_chrome.signal_chrome();
         let signal_tools = model.waveform_chrome.signal_tools();
@@ -469,13 +473,9 @@ impl NativeMotionModel {
             marked_filter_active: model.browser.marked_filter_active,
             waveform_selection_milli: transport.selection,
             waveform_slices: model.waveform.slices.clone(),
-            waveform_selection_export_flash_nonce: model.waveform.selection_export_flash_nonce,
-            waveform_selection_export_failure_flash_nonce: model
-                .waveform
-                .selection_export_failure_flash_nonce,
-            waveform_edit_selection_apply_flash_nonce: model
-                .waveform
-                .edit_selection_apply_flash_nonce,
+            waveform_selection_export_flash_nonce: feedback_events.primary_success_nonce,
+            waveform_selection_export_failure_flash_nonce: feedback_events.primary_failure_nonce,
+            waveform_edit_selection_apply_flash_nonce: feedback_events.secondary_success_nonce,
             waveform_edit_selection_milli: edit_preview.selection,
             waveform_edit_fade_in_end_milli: edit_preview.leading_end_milli,
             waveform_edit_fade_in_end_micros: edit_preview.leading_end_micros,
@@ -989,6 +989,15 @@ impl WaveformPanelModel {
             self.edit_fade_out_mute_end_milli,
             self.edit_fade_out_mute_end_micros,
             self.edit_fade_out_curve_milli,
+        )
+    }
+
+    /// Return this panel's generic timeline feedback events.
+    pub fn feedback_events(&self) -> WaveformFeedbackEventsModel {
+        WaveformFeedbackEventsModel::new(
+            self.selection_export_flash_nonce,
+            self.selection_export_failure_flash_nonce,
+            self.edit_selection_apply_flash_nonce,
         )
     }
 
@@ -2361,6 +2370,21 @@ mod tests {
     #[test]
     fn waveform_panel_default_bpm_grid_origin_is_zero() {
         assert_eq!(WaveformPanelModel::default().bpm_grid_origin_micros, 0);
+    }
+
+    #[test]
+    fn waveform_panel_projects_generic_feedback_events() {
+        let model = WaveformPanelModel {
+            selection_export_flash_nonce: 11,
+            selection_export_failure_flash_nonce: 12,
+            edit_selection_apply_flash_nonce: 13,
+            ..WaveformPanelModel::default()
+        };
+        let events = model.feedback_events();
+
+        assert_eq!(events.primary_success_nonce, 11);
+        assert_eq!(events.primary_failure_nonce, 12);
+        assert_eq!(events.secondary_success_nonce, 13);
     }
 
     #[test]
