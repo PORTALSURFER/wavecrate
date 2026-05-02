@@ -59,58 +59,45 @@ pub(super) fn audio_overview_button_defs(model: &AppModel) -> Vec<(String, UiAct
 }
 
 pub(super) fn legacy_options_panel_button_defs(model: &AppModel) -> Vec<(String, UiAction)> {
+    let preferences = model.options_panel.preference_state();
+    let input_monitoring_enabled = preferences.toggle_enabled(0);
+    let advance_after_rating_enabled = preferences.toggle_enabled(1);
+    let destructive_yolo_mode_enabled = preferences.toggle_enabled(2);
+    let invert_waveform_scroll_enabled = preferences.toggle_enabled(3);
+
     vec![
         (
-            format!(
-                "Auto Rename Identifier: {}",
-                model.options_panel.default_identifier
-            ),
+            format!("Auto Rename Identifier: {}", preferences.primary_text_value),
             UiAction::EditDefaultIdentifier,
         ),
         (
-            on_off_text(
-                "Input Monitor",
-                model.options_panel.input_monitoring_enabled,
-            ),
+            on_off_text("Input Monitor", input_monitoring_enabled),
             UiAction::SetInputMonitoringEnabled {
-                enabled: !model.options_panel.input_monitoring_enabled,
+                enabled: !input_monitoring_enabled,
             },
         ),
         (
-            on_off_text(
-                "Advance After Rating",
-                model.options_panel.advance_after_rating_enabled,
-            ),
+            on_off_text("Advance After Rating", advance_after_rating_enabled),
             UiAction::SetAdvanceAfterRatingEnabled {
-                enabled: !model.options_panel.advance_after_rating_enabled,
+                enabled: !advance_after_rating_enabled,
             },
         ),
         (
-            on_off_text(
-                "YOLO Edits",
-                model.options_panel.destructive_yolo_mode_enabled,
-            ),
+            on_off_text("YOLO Edits", destructive_yolo_mode_enabled),
             UiAction::SetDestructiveYoloMode {
-                enabled: !model.options_panel.destructive_yolo_mode_enabled,
+                enabled: !destructive_yolo_mode_enabled,
             },
         ),
         (
-            on_off_text(
-                "Invert Scroll",
-                model.options_panel.invert_waveform_scroll_enabled,
-            ),
+            on_off_text("Invert Scroll", invert_waveform_scroll_enabled),
             UiAction::SetInvertWaveformScroll {
-                enabled: !model.options_panel.invert_waveform_scroll_enabled,
+                enabled: !invert_waveform_scroll_enabled,
             },
         ),
         (
             format!(
                 "Trash Folder: {}",
-                model
-                    .options_panel
-                    .trash_folder_label
-                    .as_deref()
-                    .unwrap_or("Not set")
+                preferences.auxiliary_label.as_deref().unwrap_or("Not set")
             ),
             UiAction::PickTrashFolder,
         ),

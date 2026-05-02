@@ -261,6 +261,15 @@ fn native_action_exports_are_owned_in_app_core() {
         manifest_dir.join("src/app_core/native_shell/composition/state/hit_testing/browser.rs"),
     )
     .expect("native browser hit testing");
+    let native_options_actions = fs::read_to_string(
+        manifest_dir.join("src/app_core/native_shell/composition/state/options_panel/actions.rs"),
+    )
+    .expect("native options-panel actions");
+    let native_projection_key = fs::read_to_string(
+        manifest_dir
+            .join("src/app_core/native_bridge/projection_cache/projection_key/non_segment.rs"),
+    )
+    .expect("native projection key");
     assert!(
         !native_dtos.contains("pub struct RetainedVec"),
         "retained snapshot storage should use the Radiant-owned generic primitive"
@@ -364,6 +373,13 @@ fn native_action_exports_are_owned_in_app_core() {
     assert!(
         native_dtos.contains("pane.select(&self.upper_folder_pane, &self.lower_folder_pane)"),
         "Sempal source/sidebar DTOs should route split-pane lookup through Radiant"
+    );
+    assert!(
+        native_options_actions.contains("model.options_panel.preference_state()")
+            && native_options_actions.contains("preferences.toggle_enabled(0)")
+            && native_projection_key.contains("model.preference_state()")
+            && native_projection_key.contains("preferences.toggles.hash"),
+        "Sempal options-panel rendering and cache keys should consume Radiant's generic preference state"
     );
     assert!(
         !native_dtos.contains("pub enum BrowserRowProcessingState")

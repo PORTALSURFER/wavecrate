@@ -161,13 +161,11 @@ fn hash_audio_option_items(
 
 fn hash_options_panel_model(model: &crate::app_core::actions::NativeOptionsPanelModel) -> u64 {
     let mut hasher = DefaultHasher::new();
-    model.visible.hash(&mut hasher);
-    model.default_identifier.hash(&mut hasher);
-    model.input_monitoring_enabled.hash(&mut hasher);
-    model.advance_after_rating_enabled.hash(&mut hasher);
-    model.destructive_yolo_mode_enabled.hash(&mut hasher);
-    model.invert_waveform_scroll_enabled.hash(&mut hasher);
-    model.trash_folder_label.hash(&mut hasher);
+    let preferences = model.preference_state();
+    preferences.visible.hash(&mut hasher);
+    preferences.primary_text_value.hash(&mut hasher);
+    preferences.toggles.hash(&mut hasher);
+    preferences.auxiliary_label.hash(&mut hasher);
     hasher.finish()
 }
 
