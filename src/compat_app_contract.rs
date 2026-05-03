@@ -20,6 +20,8 @@ mod motion;
 mod runtime_artifacts;
 #[path = "app_core/native_shell/composition/runtime/shell.rs"]
 mod shell;
+#[path = "app_core/native_shell/composition/runtime/shell_snapshot.rs"]
+mod shell_snapshot;
 #[path = "app_core/native_shell/composition/runtime/sources.rs"]
 mod sources;
 #[path = "app_core/native_shell/composition/runtime/waveform.rs"]
@@ -30,8 +32,8 @@ pub use aliases::{
     AutomationBounds, AutomationNodeId, AutomationNodeSnapshot, AutomationRole,
     BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, BrowserPillEditorModel,
     BrowserPillModel, BrowserPillState, BrowserRowModel, BrowserRowProcessingState, ColumnModel,
-    FocusContextModel, FolderActionsModel, FolderPaneIdModel, FolderPaneModel, FrameBuildResult,
-    FolderRecoveryModel, FolderRowKind, FolderRowModel, GuiAutomationSnapshot, HotkeyResolution,
+    FocusContextModel, FolderActionsModel, FolderPaneIdModel, FolderPaneModel, FolderRecoveryModel,
+    FolderRowKind, FolderRowModel, FrameBuildResult, GuiAutomationSnapshot, HotkeyResolution,
     KeyPress, MapPanelModel, MapPointModel, MapRenderModeModel, PlaybackAgeBucket,
     PlaybackAgeFilterChip, RetainedVec, ShortcutResolution, SourceRowModel,
 };
@@ -45,5 +47,6 @@ pub use shell::{
     PairedPickerValueModel, ProgressOverlayModel, StatusBarModel, StatusChipStateModel,
     SummaryFieldModel, UpdatePanelModel, UpdateStatusModel,
 };
+pub use shell_snapshot::{NativeShellShotSnapshot, capture_native_shell_shot_snapshot};
 pub use sources::SourcesPanelModel;
 pub use waveform::{NormalizedRangeModel, WaveformChromeModel, WaveformPanelModel};
