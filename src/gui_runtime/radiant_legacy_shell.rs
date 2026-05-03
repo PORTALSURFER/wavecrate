@@ -8,6 +8,10 @@ use crate::app_core::actions::{
     NativeFrameBuildResult, NativeGuiAutomationSnapshot, NativeMotionModel, NativeUiAction,
     NativeUiAction as UiAction, native_shell_dtos::*,
 };
+use crate::gui::{
+    native_shell::{NativeShellState, ShellLayout, ShellLayoutRuntime, StyleTokens},
+    types::Vector2,
+};
 use radiant::{compat::legacy_shell as compat, gui::automation};
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -2094,6 +2098,136 @@ impl From<&AppModel> for compat::AppModel {
     }
 }
 
+fn local_app_model_from_radiant_compat(
+    value: compat::AppModel,
+) -> crate::compat_app_contract::AppModel {
+    crate::compat_app_contract::AppModel {
+        title: value.title,
+        backend_label: value.backend_label,
+        sources_label: value.sources_label,
+        status_text: value.status_text,
+        status: value.status,
+        paired_device: value.paired_device,
+        browser_actions: value.browser_actions,
+        options_panel: local_options_panel_from_radiant_compat(value.options_panel),
+        progress_overlay: value.progress_overlay,
+        confirm_prompt: value.confirm_prompt,
+        drag_overlay: value.drag_overlay,
+        columns: value.columns,
+        selected_column: value.selected_column,
+        volume: value.volume,
+        transport_running: value.transport_running,
+        sources: local_sources_panel_from_radiant_compat(value.sources),
+        browser: value.browser,
+        browser_chrome: value.browser_chrome,
+        map: value.map,
+        waveform: local_waveform_panel_from_radiant_compat(value.waveform),
+        waveform_chrome: local_waveform_chrome_from_radiant_compat(value.waveform_chrome),
+        update: value.update,
+        focus_context: value.focus_context,
+    }
+}
+
+fn local_options_panel_from_radiant_compat(
+    value: compat::OptionsPanelModel,
+) -> crate::compat_app_contract::OptionsPanelModel {
+    crate::compat_app_contract::OptionsPanelModel {
+        visible: value.visible,
+        default_identifier: value.default_identifier,
+        input_monitoring_enabled: value.input_monitoring_enabled,
+        advance_after_rating_enabled: value.advance_after_rating_enabled,
+        destructive_yolo_mode_enabled: value.destructive_yolo_mode_enabled,
+        invert_waveform_scroll_enabled: value.invert_waveform_scroll_enabled,
+        trash_folder_label: value.trash_folder_label,
+    }
+}
+
+fn local_sources_panel_from_radiant_compat(
+    value: compat::SourcesPanelModel,
+) -> crate::compat_app_contract::SourcesPanelModel {
+    crate::compat_app_contract::SourcesPanelModel {
+        header: value.header,
+        search_query: value.search_query,
+        active_folder_pane: value.active_folder_pane,
+        upper_folder_pane: value.upper_folder_pane,
+        lower_folder_pane: value.lower_folder_pane,
+        tree_search_query: value.tree_search_query,
+        show_all_items: value.show_all_items,
+        can_toggle_show_all_items: value.can_toggle_show_all_items,
+        flattened_view: value.flattened_view,
+        can_toggle_flattened_view: value.can_toggle_flattened_view,
+        selected_row: value.selected_row,
+        loading_row: value.loading_row,
+        mutation_busy_row: value.mutation_busy_row,
+        focused_tree_row: value.focused_tree_row,
+        rows: value.rows,
+        tree_rows: value.tree_rows,
+        tree_actions: value.tree_actions,
+        recovery: value.recovery,
+    }
+}
+
+fn local_waveform_panel_from_radiant_compat(
+    value: compat::WaveformPanelModel,
+) -> crate::compat_app_contract::WaveformPanelModel {
+    crate::compat_app_contract::WaveformPanelModel {
+        loaded_label: value.loaded_label,
+        loading: value.loading,
+        image_rendering: value.image_rendering,
+        cursor_milli: value.cursor_milli,
+        playhead_milli: value.playhead_milli,
+        playhead_micros: value.playhead_micros,
+        selection_milli: value.selection_milli,
+        slices: value.slices,
+        selection_export_flash_nonce: value.selection_export_flash_nonce,
+        selection_export_failure_flash_nonce: value.selection_export_failure_flash_nonce,
+        edit_selection_apply_flash_nonce: value.edit_selection_apply_flash_nonce,
+        edit_selection_milli: value.edit_selection_milli,
+        edit_fade_in_end_milli: value.edit_fade_in_end_milli,
+        edit_fade_in_end_micros: value.edit_fade_in_end_micros,
+        edit_fade_in_mute_start_milli: value.edit_fade_in_mute_start_milli,
+        edit_fade_in_mute_start_micros: value.edit_fade_in_mute_start_micros,
+        edit_fade_in_curve_milli: value.edit_fade_in_curve_milli,
+        edit_fade_out_start_milli: value.edit_fade_out_start_milli,
+        edit_fade_out_start_micros: value.edit_fade_out_start_micros,
+        edit_fade_out_mute_end_milli: value.edit_fade_out_mute_end_milli,
+        edit_fade_out_mute_end_micros: value.edit_fade_out_mute_end_micros,
+        edit_fade_out_curve_milli: value.edit_fade_out_curve_milli,
+        view_start_milli: value.view_start_milli,
+        view_end_milli: value.view_end_milli,
+        view_start_micros: value.view_start_micros,
+        view_end_micros: value.view_end_micros,
+        view_start_nanos: value.view_start_nanos,
+        view_end_nanos: value.view_end_nanos,
+        beat_step_micros: value.beat_step_micros,
+        bpm_grid_origin_micros: value.bpm_grid_origin_micros,
+        loop_enabled: value.loop_enabled,
+        tempo_label: value.tempo_label,
+        zoom_label: value.zoom_label,
+        waveform_image_signature: value.waveform_image_signature,
+        waveform_image: value.waveform_image,
+    }
+}
+
+fn local_waveform_chrome_from_radiant_compat(
+    value: compat::WaveformChromeModel,
+) -> crate::compat_app_contract::WaveformChromeModel {
+    crate::compat_app_contract::WaveformChromeModel {
+        transport_hint: value.transport_hint,
+        compare_anchor_available: value.compare_anchor_available,
+        compare_anchor_label: value.compare_anchor_label,
+        loop_lock_enabled: value.loop_lock_enabled,
+        channel_view: value.channel_view,
+        normalized_audition_enabled: value.normalized_audition_enabled,
+        bpm_snap_enabled: value.bpm_snap_enabled,
+        relative_bpm_grid_enabled: value.relative_bpm_grid_enabled,
+        transient_snap_enabled: value.transient_snap_enabled,
+        transient_markers_enabled: value.transient_markers_enabled,
+        slice_mode_enabled: value.slice_mode_enabled,
+        exact_duplicate_cleanup_available: value.exact_duplicate_cleanup_available,
+    }
+}
+
 fn automation_node_id_from_compat(value: compat::AutomationNodeId) -> AutomationNodeId {
     automation::AutomationNodeId(automation_node_id_string_from_compat(value.0))
 }
@@ -2542,7 +2676,16 @@ pub(super) fn capture_gui_automation_snapshot(
     model: &NativeAppModel,
 ) -> NativeGuiAutomationSnapshot {
     let compat_model = radiant::compat::legacy_shell::AppModel::from(model);
-    radiant::compat::legacy_shell::capture_gui_automation_snapshot(viewport, &compat_model).into()
+    let local_model = local_app_model_from_radiant_compat(compat_model);
+    let viewport = Vector2::new(viewport[0].max(1.0), viewport[1].max(1.0));
+    let style = StyleTokens::for_viewport_width(viewport.x);
+    let mut runtime = ShellLayoutRuntime::default();
+    let layout = ShellLayout::build_with_style_and_runtime(viewport, &style, &mut runtime);
+    let mut shell_state = NativeShellState::new();
+    shell_state.sync_from_model(&local_model);
+    shell_state
+        .automation_snapshot(&layout, &local_model)
+        .into()
 }
 
 #[cfg(test)]
@@ -2587,5 +2730,26 @@ mod tests {
         assert_eq!(icon.rgba, vec![255, 0, 0, 255]);
         assert_eq!(icon.width, 1);
         assert_eq!(icon.height, 1);
+    }
+
+    #[test]
+    fn automation_snapshot_uses_local_sempal_native_shell() {
+        let source = include_str!("radiant_legacy_shell.rs");
+        let function_start = source
+            .find("pub(super) fn capture_gui_automation_snapshot")
+            .expect("snapshot adapter function should exist");
+        let function_body = &source[function_start..];
+        let function_end = function_body
+            .find("#[cfg(test)]")
+            .expect("test-only snapshot adapter should follow automation adapter");
+        let function_body = &function_body[..function_end];
+
+        assert!(function_body.contains("local_app_model_from_radiant_compat"));
+        assert!(function_body.contains("NativeShellState::new()"));
+        assert!(
+            !function_body
+                .contains("radiant::compat::legacy_shell::capture_gui_automation_snapshot"),
+            "automation snapshots should be generated by Sempal's local native shell scaffold"
+        );
     }
 }
