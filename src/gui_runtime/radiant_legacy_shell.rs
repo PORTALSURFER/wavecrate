@@ -11,11 +11,11 @@ use crate::app_core::actions::{
 use radiant::{compat::legacy_shell as compat, gui::automation};
 use std::{collections::BTreeMap, sync::Arc};
 
-/// Converts app-level Vello launch options into the hosted `radiant` representation.
+/// Converts app-level Vello launch options into the generic `radiant` runtime representation.
 ///
 /// Mapping is intentionally field-for-field to preserve behavior and avoid
 /// hidden launch-time mutations.
-impl From<NativeRunOptions> for radiant::compat::legacy_shell::NativeRunOptions {
+impl From<NativeRunOptions> for radiant::gui_runtime::NativeRunOptions {
     fn from(value: NativeRunOptions) -> Self {
         Self {
             title: value.title,
@@ -33,7 +33,7 @@ impl From<NativeRunOptions> for radiant::compat::legacy_shell::NativeRunOptions 
 ///
 /// All pixel bytes are forwarded unchanged; callers remain responsible for
 /// supplying valid RGBA data and matching dimensions.
-impl From<WindowIconRgba> for radiant::compat::legacy_shell::WindowIconRgba {
+impl From<WindowIconRgba> for radiant::gui_runtime::WindowIconRgba {
     fn from(value: WindowIconRgba) -> Self {
         Self {
             rgba: value.rgba,
@@ -2575,7 +2575,7 @@ mod tests {
             target_fps: 90,
         };
 
-        let compat: radiant::compat::legacy_shell::NativeRunOptions = options.into();
+        let compat: radiant::gui_runtime::NativeRunOptions = options.into();
 
         assert_eq!(compat.title, "Sempal test host");
         assert_eq!(compat.inner_size, Some([1280.0, 720.0]));
