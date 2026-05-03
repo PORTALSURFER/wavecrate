@@ -1437,14 +1437,66 @@ pub struct AppModel {
 
 impl Default for AppModel {
     fn default() -> Self {
-        let mut model = Self::from(compat::AppModel::default());
-        model.columns = [
-            ColumnModel::new("Trash", 0),
-            ColumnModel::new("Samples", 0),
-            ColumnModel::new("Keep", 0),
-        ];
-        model.browser_chrome = BrowserChromeModel::default();
-        model
+        Self {
+            title: String::from(crate::gui_runtime::DEFAULT_NATIVE_WINDOW_TITLE),
+            backend_label: String::from("backend: native_vello"),
+            sources_label: String::from("Sources"),
+            status_text: String::new(),
+            status: StatusBarModel {
+                left: String::new(),
+                center: String::from("rows: 0 | selected: 0 | anchor: - | search: -"),
+                right: String::from("col: 2/3"),
+            },
+            audio_engine: AudioEngineModel::default(),
+            browser_actions: BrowserActionsModel::default(),
+            options_panel: OptionsPanelModel::default(),
+            progress_overlay: ProgressOverlayModel::default(),
+            confirm_prompt: ConfirmPromptModel::default(),
+            drag_overlay: DragOverlayModel::default(),
+            columns: [
+                ColumnModel::new("Trash", 0),
+                ColumnModel::new("Samples", 0),
+                ColumnModel::new("Keep", 0),
+            ],
+            selected_column: 1,
+            volume: 1.0,
+            transport_running: true,
+            sources: SourcesPanelModel {
+                header: String::from("Sources"),
+                search_query: String::new(),
+                active_folder_pane: FolderPaneIdModel::Upper,
+                upper_folder_pane: FolderPaneModel {
+                    pane: FolderPaneIdModel::Upper,
+                    title: String::from("Upper"),
+                    ..FolderPaneModel::default()
+                },
+                lower_folder_pane: FolderPaneModel {
+                    pane: FolderPaneIdModel::Lower,
+                    title: String::from("Lower"),
+                    ..FolderPaneModel::default()
+                },
+                tree_search_query: String::new(),
+                show_all_items: false,
+                can_toggle_show_all_items: false,
+                flattened_view: false,
+                can_toggle_flattened_view: false,
+                selected_row: None,
+                loading_row: None,
+                mutation_busy_row: None,
+                focused_tree_row: None,
+                rows: RetainedVec::new(),
+                tree_rows: RetainedVec::new(),
+                tree_actions: FolderActionsModel::default(),
+                recovery: FolderRecoveryModel::default(),
+            },
+            browser: BrowserPanelModel::default(),
+            browser_chrome: BrowserChromeModel::default(),
+            map: MapPanelModel::default(),
+            waveform: WaveformPanelModel::default(),
+            waveform_chrome: WaveformChromeModel::default(),
+            update: UpdatePanelModel::default(),
+            focus_context: FocusContextModel::None,
+        }
     }
 }
 

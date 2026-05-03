@@ -349,6 +349,13 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal native DTOs should alias the generic Radiant retained storage primitive"
     );
     assert!(
+        !native_dtos.contains("Self::from(compat::AppModel::default())")
+            && native_dtos
+                .contains("title: String::from(crate::gui_runtime::DEFAULT_NATIVE_WINDOW_TITLE)")
+            && native_dtos.contains("ColumnModel::new(\"Samples\", 0)"),
+        "Sempal app-model defaults should be app-core owned rather than sourced through Radiant legacy-shell DTOs"
+    );
+    assert!(
         !native_dtos.contains("pub struct AutomationNodeId"),
         "automation node IDs should use the Radiant-owned generic primitive"
     );
