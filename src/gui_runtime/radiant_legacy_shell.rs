@@ -2654,10 +2654,7 @@ pub(super) fn run_native_vello_app<B: NativeAppBridge>(
     options: NativeRunOptions,
     bridge: B,
 ) -> Result<(), String> {
-    radiant::compat::legacy_shell::run_native_vello_app(
-        options.into(),
-        CompatNativeAppBridge::new(bridge),
-    )
+    run_native_vello_app_with_artifacts(options, bridge).result
 }
 
 pub(super) fn run_native_vello_app_with_artifacts<B: NativeAppBridge>(
