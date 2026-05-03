@@ -145,7 +145,7 @@ impl<B: NativeAppBridge> radiant::compat::legacy_shell::NativeAppBridge
 }
 
 fn native_run_report_from_radiant(
-    report: radiant::compat::legacy_shell::NativeRunReport,
+    report: radiant::compat::runtime_artifacts::NativeRunReport,
 ) -> NativeRunReport {
     NativeRunReport {
         artifacts: NativeRuntimeArtifacts {
