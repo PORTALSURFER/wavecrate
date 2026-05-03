@@ -16,6 +16,10 @@ use crate::gui::{
     types::Vector2,
 };
 use radiant::compat::legacy_shell as compat;
+use radiant::gui::{
+    focus::FocusSurface as RadiantFocusSurface, frame::FrameBuildResult as RadiantFrameBuildResult,
+    input::KeyPress as RadiantKeyPress, shortcuts::ShortcutResolution as RadiantShortcutResolution,
+};
 use std::{collections::BTreeMap, sync::Arc};
 
 /// Converts app-level Vello launch options into the generic `radiant` runtime representation.
@@ -93,16 +97,16 @@ impl<B: NativeAppBridge> radiant::compat::legacy_shell::NativeAppBridge
 
     fn resolve_hotkey_press(
         &mut self,
-        pending_chord: Option<radiant::compat::legacy_shell::KeyPress>,
-        press: radiant::compat::legacy_shell::KeyPress,
-        focus: radiant::compat::legacy_shell::FocusContextModel,
-    ) -> radiant::compat::legacy_shell::HotkeyResolution {
+        pending_chord: Option<RadiantKeyPress>,
+        press: RadiantKeyPress,
+        focus: RadiantFocusSurface,
+    ) -> RadiantShortcutResolution<radiant::compat::legacy_shell::UiAction> {
         let resolution = hotkeys::resolve_hotkey_press(
             pending_chord.map(keypress_from_radiant),
             keypress_from_radiant(press),
             focus_context_from_radiant(focus),
         );
-        radiant::compat::legacy_shell::HotkeyResolution {
+        RadiantShortcutResolution {
             action: resolution.action.map(Into::into),
             handled: resolution.handled,
             pending_chord: resolution.pending_chord.map(keypress_to_radiant),
@@ -132,7 +136,7 @@ impl<B: NativeAppBridge> radiant::compat::legacy_shell::NativeAppBridge
             .maybe_launch_external_drag(pointer_outside, pointer_left)
     }
 
-    fn observe_frame_result(&mut self, result: radiant::compat::legacy_shell::FrameBuildResult) {
+    fn observe_frame_result(&mut self, result: RadiantFrameBuildResult) {
         self.inner
             .observe_frame_result(NativeFrameBuildResult::from(result));
     }
@@ -159,25 +163,17 @@ fn native_run_report_from_radiant(
     }
 }
 
-fn focus_context_from_radiant(
-    focus: radiant::compat::legacy_shell::FocusContextModel,
-) -> FocusContext {
+fn focus_context_from_radiant(focus: RadiantFocusSurface) -> FocusContext {
     match focus {
-        radiant::compat::legacy_shell::FocusContextModel::None => FocusContext::None,
-        radiant::compat::legacy_shell::FocusContextModel::Timeline => FocusContext::Waveform,
-        radiant::compat::legacy_shell::FocusContextModel::ContentList => {
-            FocusContext::SampleBrowser
-        }
-        radiant::compat::legacy_shell::FocusContextModel::NavigationTree => {
-            FocusContext::SourceFolders
-        }
-        radiant::compat::legacy_shell::FocusContextModel::NavigationList => {
-            FocusContext::SourcesList
-        }
+        RadiantFocusSurface::None => FocusContext::None,
+        RadiantFocusSurface::Timeline => FocusContext::Waveform,
+        RadiantFocusSurface::ContentList => FocusContext::SampleBrowser,
+        RadiantFocusSurface::NavigationTree => FocusContext::SourceFolders,
+        RadiantFocusSurface::NavigationList => FocusContext::SourcesList,
     }
 }
 
-fn keypress_from_radiant(press: radiant::compat::legacy_shell::KeyPress) -> KeyPress {
+fn keypress_from_radiant(press: RadiantKeyPress) -> KeyPress {
     KeyPress {
         key: press.key,
         command: press.command,
@@ -186,8 +182,8 @@ fn keypress_from_radiant(press: radiant::compat::legacy_shell::KeyPress) -> KeyP
     }
 }
 
-fn keypress_to_radiant(press: KeyPress) -> radiant::compat::legacy_shell::KeyPress {
-    radiant::compat::legacy_shell::KeyPress {
+fn keypress_to_radiant(press: KeyPress) -> RadiantKeyPress {
+    RadiantKeyPress {
         key: press.key,
         command: press.command,
         shift: press.shift,
