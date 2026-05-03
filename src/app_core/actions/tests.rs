@@ -272,9 +272,10 @@ fn native_action_exports_are_owned_in_app_core() {
             && !native_actions.contains("compat::BrowserTriageTarget"),
         "Sempal action payload definitions should not import Radiant legacy-shell compatibility types"
     );
-    let native_action_conversions =
-        fs::read_to_string(manifest_dir.join("src/gui_runtime/radiant_legacy_shell.rs"))
-            .expect("native shell runtime adapter");
+    let native_action_conversions = fs::read_to_string(
+        manifest_dir.join("src/app_core/native_shell/composition/runtime/native_vello.rs"),
+    )
+    .expect("native shell runtime adapter");
     let native_actions = format!("{native_actions}\n{native_action_conversions}");
     assert!(
         !native_dtos.contains("radiant::compat::legacy_shell") && !native_dtos.contains("compat::"),
@@ -827,10 +828,10 @@ fn native_action_exports_are_owned_in_app_core() {
 }
 
 #[test]
-fn radiant_legacy_shell_imports_are_confined_to_runtime_boundary() {
+fn radiant_legacy_shell_imports_are_confined_to_app_core_runtime_boundary() {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let src_dir = manifest_dir.join("src");
-    let allowed = BTreeSet::from(["src/gui_runtime/radiant_legacy_shell.rs"]);
+    let allowed = BTreeSet::from(["src/app_core/native_shell/composition/runtime/native_vello.rs"]);
     let skipped = BTreeSet::from(["src/app_core/actions/tests.rs"]);
     let forbidden = [
         concat!("radiant::compat::", "legacy_shell"),

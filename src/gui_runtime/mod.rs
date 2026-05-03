@@ -15,17 +15,18 @@
 //! in one place while keeping host bootstrapping lightweight.
 //!
 //! Sempal intentionally confines the current native-shell compatibility calls to
-//! the private `radiant_legacy_shell` adapter while the preferred generic
+//! the private app-core native-shell runtime adapter while the preferred generic
 //! Radiant runtime API continues to mature.
 
 use crate::app_core::actions::{NativeAppBridge, NativeAppModel, NativeGuiAutomationSnapshot};
 use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 
-mod radiant_legacy_shell;
+#[path = "../app_core/native_shell/composition/runtime/native_vello.rs"]
+mod native_shell_runtime;
 
 pub use radiant::gui_runtime::{
-    NativeStartupTimingArtifact, RuntimeRunReport, DEFAULT_NATIVE_WINDOW_TITLE,
+    DEFAULT_NATIVE_WINDOW_TITLE, NativeStartupTimingArtifact, RuntimeRunReport,
 };
 
 /// Machine-readable native shutdown timing payload exported by Sempal bridges.
@@ -108,7 +109,7 @@ pub fn run_native_vello_app<B: NativeAppBridge>(
     // No additional state is touched by this adapter; all control flow and
     // execution semantics remain in `radiant`.
     info!("Launching radiant native Vello runtime");
-    let result = radiant_legacy_shell::run_native_vello_app(options, bridge).map_err(|err| {
+    let result = native_shell_runtime::run_native_vello_app(options, bridge).map_err(|err| {
         error!(%err, "radiant native Vello runtime returned error");
         err
     });
@@ -127,7 +128,7 @@ pub fn run_native_vello_app_with_artifacts<B: NativeAppBridge>(
     bridge: B,
 ) -> NativeRunReport {
     info!("Launching radiant native Vello runtime");
-    let report = radiant_legacy_shell::run_native_vello_app_with_artifacts(options, bridge);
+    let report = native_shell_runtime::run_native_vello_app_with_artifacts(options, bridge);
     if let Err(err) = &report.result {
         error!(%err, "radiant native Vello runtime returned error");
     } else {
@@ -145,11 +146,10 @@ pub fn run_native_vello_app_declarative<B: NativeAppBridge>(
     bridge: B,
 ) -> Result<(), String> {
     info!("Launching radiant native Vello runtime (declarative host)");
-    let result =
-        radiant_legacy_shell::run_native_vello_app(options, bridge).map_err(|err| {
-            error!(%err, "radiant native Vello runtime returned error");
-            err
-        });
+    let result = native_shell_runtime::run_native_vello_app(options, bridge).map_err(|err| {
+        error!(%err, "radiant native Vello runtime returned error");
+        err
+    });
 
     if result.is_ok() {
         info!("Radiant native Vello runtime returned successfully");
@@ -165,7 +165,7 @@ pub fn run_native_vello_app_declarative_with_artifacts<B: NativeAppBridge>(
     bridge: B,
 ) -> NativeRunReport {
     info!("Launching radiant native Vello runtime (declarative host)");
-    let report = radiant_legacy_shell::run_native_vello_app_with_artifacts(options, bridge);
+    let report = native_shell_runtime::run_native_vello_app_with_artifacts(options, bridge);
     if let Err(err) = &report.result {
         error!(%err, "radiant native Vello runtime returned error");
     } else {
@@ -179,7 +179,7 @@ pub fn capture_gui_automation_snapshot(
     viewport: [f32; 2],
     model: &NativeAppModel,
 ) -> NativeGuiAutomationSnapshot {
-    radiant_legacy_shell::capture_gui_automation_snapshot(viewport, model)
+    native_shell_runtime::capture_gui_automation_snapshot(viewport, model)
 }
 
 /// Capture a deterministic compatibility native-shell visual snapshot.
@@ -189,7 +189,7 @@ pub(crate) fn capture_native_shell_shot_snapshot(
     viewport: [f32; 2],
     model: &NativeAppModel,
 ) -> impl serde::Serialize {
-    radiant_legacy_shell::capture_native_shell_shot_snapshot(name, viewport, model)
+    native_shell_runtime::capture_native_shell_shot_snapshot(name, viewport, model)
 }
 
 #[cfg(test)]
