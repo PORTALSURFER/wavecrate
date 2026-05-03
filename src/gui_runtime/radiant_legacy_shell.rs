@@ -6,10 +6,10 @@ use crate::app::{
 use crate::app_core::actions::{
     NativeAppBridge, NativeAppModel, NativeBrowserTagTarget as BrowserTagTarget,
     NativeFrameBuildResult, NativeGuiAutomationSnapshot, NativeMotionModel, NativeUiAction,
-    NativeUiAction as UiAction,
+    NativeUiAction as UiAction, native_shell_dtos::*,
 };
-use radiant::compat::legacy_shell as compat;
-use std::sync::Arc;
+use radiant::{compat::legacy_shell as compat, gui::automation};
+use std::{collections::BTreeMap, sync::Arc};
 
 /// Converts app-level Vello launch options into the hosted `radiant` representation.
 ///
@@ -1376,6 +1376,1138 @@ impl From<UiAction> for compat::UiAction {
             UiAction::OpenUpdateLink => Self::OpenUpdateLink,
             UiAction::InstallUpdate => Self::InstallUpdate,
             UiAction::DismissUpdate => Self::DismissUpdate,
+        }
+    }
+}
+
+fn retained_vec_from_compat<T, U>(value: compat::RetainedVec<T>) -> RetainedVec<U>
+where
+    T: Clone + Into<U>,
+{
+    value
+        .as_slice()
+        .iter()
+        .cloned()
+        .map(Into::into)
+        .collect::<Vec<_>>()
+        .into()
+}
+
+fn retained_vec_to_compat<T, U>(value: RetainedVec<T>) -> compat::RetainedVec<U>
+where
+    T: Clone + Into<U>,
+{
+    value
+        .as_slice()
+        .iter()
+        .cloned()
+        .map(Into::into)
+        .collect::<Vec<_>>()
+        .into()
+}
+
+impl From<compat::FocusContextModel> for FocusContextModel {
+    fn from(value: compat::FocusContextModel) -> Self {
+        match value {
+            compat::FocusContextModel::None => Self::None,
+            compat::FocusContextModel::Timeline => Self::Waveform,
+            compat::FocusContextModel::ContentList => Self::SampleBrowser,
+            compat::FocusContextModel::NavigationTree => Self::SourceFolders,
+            compat::FocusContextModel::NavigationList => Self::SourcesList,
+        }
+    }
+}
+
+impl From<FocusContextModel> for compat::FocusContextModel {
+    fn from(value: FocusContextModel) -> Self {
+        match value {
+            FocusContextModel::None => Self::None,
+            FocusContextModel::Waveform => Self::Timeline,
+            FocusContextModel::SampleBrowser => Self::ContentList,
+            FocusContextModel::SourceFolders => Self::NavigationTree,
+            FocusContextModel::SourcesList => Self::NavigationList,
+        }
+    }
+}
+
+impl From<compat::SourcesPanelModel> for SourcesPanelModel {
+    fn from(value: compat::SourcesPanelModel) -> Self {
+        Self {
+            header: value.header,
+            search_query: value.search_query,
+            active_folder_pane: value.active_folder_pane.into(),
+            upper_folder_pane: value.upper_folder_pane.into(),
+            lower_folder_pane: value.lower_folder_pane.into(),
+            tree_search_query: value.tree_search_query,
+            show_all_items: value.show_all_items,
+            can_toggle_show_all_items: value.can_toggle_show_all_items,
+            flattened_view: value.flattened_view,
+            can_toggle_flattened_view: value.can_toggle_flattened_view,
+            selected_row: value.selected_row,
+            loading_row: value.loading_row,
+            mutation_busy_row: value.mutation_busy_row,
+            focused_tree_row: value.focused_tree_row,
+            rows: retained_vec_from_compat(value.rows),
+            tree_rows: retained_vec_from_compat(value.tree_rows),
+            tree_actions: value.tree_actions.into(),
+            recovery: value.recovery.into(),
+        }
+    }
+}
+
+impl From<SourcesPanelModel> for compat::SourcesPanelModel {
+    fn from(value: SourcesPanelModel) -> Self {
+        Self {
+            header: value.header,
+            search_query: value.search_query,
+            active_folder_pane: value.active_folder_pane.into(),
+            upper_folder_pane: value.upper_folder_pane.into(),
+            lower_folder_pane: value.lower_folder_pane.into(),
+            tree_search_query: value.tree_search_query,
+            show_all_items: value.show_all_items,
+            can_toggle_show_all_items: value.can_toggle_show_all_items,
+            flattened_view: value.flattened_view,
+            can_toggle_flattened_view: value.can_toggle_flattened_view,
+            selected_row: value.selected_row,
+            loading_row: value.loading_row,
+            mutation_busy_row: value.mutation_busy_row,
+            focused_tree_row: value.focused_tree_row,
+            rows: retained_vec_to_compat(value.rows),
+            tree_rows: retained_vec_to_compat(value.tree_rows),
+            tree_actions: value.tree_actions.into(),
+            recovery: value.recovery.into(),
+        }
+    }
+}
+
+impl From<&SourcesPanelModel> for compat::SourcesPanelModel {
+    fn from(value: &SourcesPanelModel) -> Self {
+        value.clone().into()
+    }
+}
+
+impl From<compat::BrowserPanelModel> for BrowserPanelModel {
+    fn from(value: compat::BrowserPanelModel) -> Self {
+        Self {
+            visible_count: value.visible_count,
+            selected_visible_row: value.selected_visible_row,
+            autoscroll: value.autoscroll,
+            view_start_row: value.view_start_row,
+            selected_path_count: value.selected_item_count,
+            search_query: value.search_query,
+            active_rating_filters: value.active_rating_filters,
+            active_playback_age_filters: value.active_recency_filters,
+            marked_filter_active: value.marked_filter_active,
+            tag_named_filter_active: value.derived_label_filter_active,
+            tag_named_filter_negated: value.derived_label_filter_negated,
+            search_placeholder: value.search_placeholder,
+            busy: value.busy,
+            source_loading: value.data_loading,
+            metadata_pending: value.metadata_pending,
+            file_op_pending: value.mutation_pending,
+            similarity_filtered: value.similarity_filtered,
+            duplicate_cleanup_active: value.duplicate_cleanup_active,
+            sort_label: value.sort_label,
+            active_tab_label: value.active_tab_label,
+            focused_sample_label: value.focused_item_label,
+            tag_sidebar: value.pill_editor.into(),
+            anchor_visible_row: value.anchor_visible_row,
+            rows: retained_vec_from_compat(value.rows),
+        }
+    }
+}
+
+impl From<BrowserPanelModel> for compat::BrowserPanelModel {
+    fn from(value: BrowserPanelModel) -> Self {
+        Self {
+            visible_count: value.visible_count,
+            selected_visible_row: value.selected_visible_row,
+            autoscroll: value.autoscroll,
+            view_start_row: value.view_start_row,
+            selected_item_count: value.selected_path_count,
+            search_query: value.search_query,
+            active_rating_filters: value.active_rating_filters,
+            active_recency_filters: value.active_playback_age_filters,
+            marked_filter_active: value.marked_filter_active,
+            derived_label_filter_active: value.tag_named_filter_active,
+            derived_label_filter_negated: value.tag_named_filter_negated,
+            search_placeholder: value.search_placeholder,
+            busy: value.busy,
+            data_loading: value.source_loading,
+            metadata_pending: value.metadata_pending,
+            mutation_pending: value.file_op_pending,
+            similarity_filtered: value.similarity_filtered,
+            duplicate_cleanup_active: value.duplicate_cleanup_active,
+            sort_label: value.sort_label,
+            active_tab_label: value.active_tab_label,
+            focused_item_label: value.focused_sample_label,
+            pill_editor: value.tag_sidebar.into(),
+            anchor_visible_row: value.anchor_visible_row,
+            rows: retained_vec_to_compat(value.rows),
+        }
+    }
+}
+
+impl From<&BrowserPanelModel> for compat::BrowserPanelModel {
+    fn from(value: &BrowserPanelModel) -> Self {
+        value.clone().into()
+    }
+}
+
+impl From<compat::BrowserChromeModel> for BrowserChromeModel {
+    fn from(value: compat::BrowserChromeModel) -> Self {
+        Self {
+            samples_tab_label: value.items_tab_label,
+            map_tab_label: value.map_tab_label,
+            search_prefix_label: value.search_prefix_label,
+            search_placeholder: value.search_placeholder,
+            activity_ready_label: value.activity_ready_label,
+            activity_busy_label: value.activity_busy_label,
+            sort_prefix_label: value.sort_prefix_label,
+            sort_order_label: value.sort_order_label,
+            similarity_toggle_label: value.similarity_toggle_label,
+            item_count_label: value.item_count_label,
+        }
+    }
+}
+
+impl From<BrowserChromeModel> for compat::BrowserChromeModel {
+    fn from(value: BrowserChromeModel) -> Self {
+        Self {
+            items_tab_label: value.samples_tab_label,
+            map_tab_label: value.map_tab_label,
+            search_prefix_label: value.search_prefix_label,
+            search_placeholder: value.search_placeholder,
+            activity_ready_label: value.activity_ready_label,
+            activity_busy_label: value.activity_busy_label,
+            sort_prefix_label: value.sort_prefix_label,
+            sort_order_label: value.sort_order_label,
+            similarity_toggle_label: value.similarity_toggle_label,
+            item_count_label: value.item_count_label,
+        }
+    }
+}
+
+impl From<&BrowserChromeModel> for compat::BrowserChromeModel {
+    fn from(value: &BrowserChromeModel) -> Self {
+        value.clone().into()
+    }
+}
+
+impl From<compat::BrowserActionsModel> for BrowserActionsModel {
+    fn from(value: compat::BrowserActionsModel) -> Self {
+        Self {
+            can_rename: value.can_rename,
+            can_delete: value.can_delete,
+            can_tag: value.can_edit_pills,
+            can_normalize_focused_sample: value.can_process_focused_item,
+            can_loop_crossfade_focused_sample: value.can_open_focused_item_flow,
+            random_navigation_enabled: value.random_navigation_enabled,
+            duplicate_cleanup_active: value.duplicate_cleanup_active,
+            tag_sidebar_open: value.pill_editor_open,
+        }
+    }
+}
+
+impl From<BrowserActionsModel> for compat::BrowserActionsModel {
+    fn from(value: BrowserActionsModel) -> Self {
+        Self {
+            can_rename: value.can_rename,
+            can_delete: value.can_delete,
+            can_edit_pills: value.can_tag,
+            can_process_focused_item: value.can_normalize_focused_sample,
+            can_open_focused_item_flow: value.can_loop_crossfade_focused_sample,
+            random_navigation_enabled: value.random_navigation_enabled,
+            duplicate_cleanup_active: value.duplicate_cleanup_active,
+            pill_editor_open: value.tag_sidebar_open,
+        }
+    }
+}
+
+impl From<&BrowserActionsModel> for compat::BrowserActionsModel {
+    fn from(value: &BrowserActionsModel) -> Self {
+        value.clone().into()
+    }
+}
+
+impl From<compat::PairedPickerTargetModel> for AudioPickerTargetModel {
+    fn from(value: compat::PairedPickerTargetModel) -> Self {
+        match value {
+            compat::PairedPickerTargetModel::PrimaryGroup => Self::OutputHost,
+            compat::PairedPickerTargetModel::PrimaryItem => Self::OutputDevice,
+            compat::PairedPickerTargetModel::PrimaryNumber => Self::OutputSampleRate,
+            compat::PairedPickerTargetModel::SecondaryGroup => Self::InputHost,
+            compat::PairedPickerTargetModel::SecondaryItem => Self::InputDevice,
+            compat::PairedPickerTargetModel::SecondaryNumber => Self::InputSampleRate,
+        }
+    }
+}
+
+impl From<AudioPickerTargetModel> for compat::PairedPickerTargetModel {
+    fn from(value: AudioPickerTargetModel) -> Self {
+        match value {
+            AudioPickerTargetModel::OutputHost => Self::PrimaryGroup,
+            AudioPickerTargetModel::OutputDevice => Self::PrimaryItem,
+            AudioPickerTargetModel::OutputSampleRate => Self::PrimaryNumber,
+            AudioPickerTargetModel::InputHost => Self::SecondaryGroup,
+            AudioPickerTargetModel::InputDevice => Self::SecondaryItem,
+            AudioPickerTargetModel::InputSampleRate => Self::SecondaryNumber,
+        }
+    }
+}
+
+impl From<compat::PairedPickerValueModel> for AudioOptionValueModel {
+    fn from(value: compat::PairedPickerValueModel) -> Self {
+        match value {
+            compat::PairedPickerValueModel::PrimaryGroup(value) => Self::OutputHost(value),
+            compat::PairedPickerValueModel::PrimaryItem(value) => Self::OutputDevice(value),
+            compat::PairedPickerValueModel::PrimaryNumber(value) => Self::OutputSampleRate(value),
+            compat::PairedPickerValueModel::SecondaryGroup(value) => Self::InputHost(value),
+            compat::PairedPickerValueModel::SecondaryItem(value) => Self::InputDevice(value),
+            compat::PairedPickerValueModel::SecondaryNumber(value) => Self::InputSampleRate(value),
+        }
+    }
+}
+
+impl From<AudioOptionValueModel> for compat::PairedPickerValueModel {
+    fn from(value: AudioOptionValueModel) -> Self {
+        match value {
+            AudioOptionValueModel::OutputHost(value) => Self::PrimaryGroup(value),
+            AudioOptionValueModel::OutputDevice(value) => Self::PrimaryItem(value),
+            AudioOptionValueModel::OutputSampleRate(value) => Self::PrimaryNumber(value),
+            AudioOptionValueModel::InputHost(value) => Self::SecondaryGroup(value),
+            AudioOptionValueModel::InputDevice(value) => Self::SecondaryItem(value),
+            AudioOptionValueModel::InputSampleRate(value) => Self::SecondaryNumber(value),
+        }
+    }
+}
+
+fn audio_option_item_from_compat(value: compat::PairedPickerOptionModel) -> AudioOptionItemModel {
+    AudioOptionItemModel {
+        label: value.label,
+        selected: value.selected,
+        value: value.value.into(),
+    }
+}
+
+fn audio_option_item_to_compat(value: AudioOptionItemModel) -> compat::PairedPickerOptionModel {
+    compat::PairedPickerOptionModel {
+        label: value.label,
+        selected: value.selected,
+        value: value.value.into(),
+    }
+}
+
+impl From<compat::PairedDevicePanelModel> for AudioEngineModel {
+    fn from(value: compat::PairedDevicePanelModel) -> Self {
+        Self {
+            chip_state: value.status_state.into(),
+            chip_label: value.status_label,
+            detail_label: value.detail_label,
+            output_host: value.primary_group.into(),
+            output_device: value.primary_item.into(),
+            output_sample_rate: value.primary_number.into(),
+            input_host: value.secondary_group.into(),
+            input_device: value.secondary_item.into(),
+            input_sample_rate: value.secondary_number.into(),
+            active_picker: value.active_picker.map(Into::into),
+            output_host_options: value
+                .primary_group_options
+                .into_iter()
+                .map(audio_option_item_from_compat)
+                .collect(),
+            output_device_options: value
+                .primary_item_options
+                .into_iter()
+                .map(audio_option_item_from_compat)
+                .collect(),
+            output_sample_rate_options: value
+                .primary_number_options
+                .into_iter()
+                .map(audio_option_item_from_compat)
+                .collect(),
+            input_host_options: value
+                .secondary_group_options
+                .into_iter()
+                .map(audio_option_item_from_compat)
+                .collect(),
+            input_device_options: value
+                .secondary_item_options
+                .into_iter()
+                .map(audio_option_item_from_compat)
+                .collect(),
+            input_sample_rate_options: value
+                .secondary_number_options
+                .into_iter()
+                .map(audio_option_item_from_compat)
+                .collect(),
+        }
+    }
+}
+
+impl From<AudioEngineModel> for compat::PairedDevicePanelModel {
+    fn from(value: AudioEngineModel) -> Self {
+        Self {
+            status_state: value.chip_state.into(),
+            status_label: value.chip_label,
+            detail_label: value.detail_label,
+            primary_group: value.output_host.into(),
+            primary_item: value.output_device.into(),
+            primary_number: value.output_sample_rate.into(),
+            secondary_group: value.input_host.into(),
+            secondary_item: value.input_device.into(),
+            secondary_number: value.input_sample_rate.into(),
+            active_picker: value.active_picker.map(Into::into),
+            primary_group_options: value
+                .output_host_options
+                .into_iter()
+                .map(audio_option_item_to_compat)
+                .collect(),
+            primary_item_options: value
+                .output_device_options
+                .into_iter()
+                .map(audio_option_item_to_compat)
+                .collect(),
+            primary_number_options: value
+                .output_sample_rate_options
+                .into_iter()
+                .map(audio_option_item_to_compat)
+                .collect(),
+            secondary_group_options: value
+                .input_host_options
+                .into_iter()
+                .map(audio_option_item_to_compat)
+                .collect(),
+            secondary_item_options: value
+                .input_device_options
+                .into_iter()
+                .map(audio_option_item_to_compat)
+                .collect(),
+            secondary_number_options: value
+                .input_sample_rate_options
+                .into_iter()
+                .map(audio_option_item_to_compat)
+                .collect(),
+        }
+    }
+}
+
+impl From<&AudioEngineModel> for compat::PairedDevicePanelModel {
+    fn from(value: &AudioEngineModel) -> Self {
+        value.clone().into()
+    }
+}
+
+impl From<compat::OptionsPanelModel> for OptionsPanelModel {
+    fn from(value: compat::OptionsPanelModel) -> Self {
+        Self {
+            visible: value.visible,
+            default_identifier: value.default_identifier,
+            input_monitoring_enabled: value.input_monitoring_enabled,
+            advance_after_rating_enabled: value.advance_after_rating_enabled,
+            destructive_yolo_mode_enabled: value.destructive_yolo_mode_enabled,
+            invert_waveform_scroll_enabled: value.invert_waveform_scroll_enabled,
+            trash_folder_label: value.trash_folder_label,
+        }
+    }
+}
+
+impl From<OptionsPanelModel> for compat::OptionsPanelModel {
+    fn from(value: OptionsPanelModel) -> Self {
+        Self {
+            visible: value.visible,
+            default_identifier: value.default_identifier,
+            input_monitoring_enabled: value.input_monitoring_enabled,
+            advance_after_rating_enabled: value.advance_after_rating_enabled,
+            destructive_yolo_mode_enabled: value.destructive_yolo_mode_enabled,
+            invert_waveform_scroll_enabled: value.invert_waveform_scroll_enabled,
+            trash_folder_label: value.trash_folder_label,
+        }
+    }
+}
+
+impl From<&OptionsPanelModel> for compat::OptionsPanelModel {
+    fn from(value: &OptionsPanelModel) -> Self {
+        value.clone().into()
+    }
+}
+
+impl From<compat::ConfirmPromptKind> for ConfirmPromptKind {
+    fn from(value: compat::ConfirmPromptKind) -> Self {
+        match value {
+            compat::ConfirmPromptKind::DestructiveOperation => Self::DestructiveEdit,
+            compat::ConfirmPromptKind::RenameContent => Self::BrowserRename,
+            compat::ConfirmPromptKind::RenameNavigationItem => Self::FolderRename,
+            compat::ConfirmPromptKind::CreateNavigationItem => Self::FolderCreate,
+            compat::ConfirmPromptKind::RestoreRetainedItems => Self::RestoreRetainedFolderDeletes,
+            compat::ConfirmPromptKind::PurgeRetainedItems => Self::PurgeRetainedFolderDeletes,
+            compat::ConfirmPromptKind::EditConfiguration => Self::OptionsDefaultIdentifier,
+        }
+    }
+}
+
+impl From<ConfirmPromptKind> for compat::ConfirmPromptKind {
+    fn from(value: ConfirmPromptKind) -> Self {
+        match value {
+            ConfirmPromptKind::DestructiveEdit => Self::DestructiveOperation,
+            ConfirmPromptKind::BrowserRename => Self::RenameContent,
+            ConfirmPromptKind::FolderRename => Self::RenameNavigationItem,
+            ConfirmPromptKind::FolderCreate => Self::CreateNavigationItem,
+            ConfirmPromptKind::RestoreRetainedFolderDeletes => Self::RestoreRetainedItems,
+            ConfirmPromptKind::PurgeRetainedFolderDeletes => Self::PurgeRetainedItems,
+            ConfirmPromptKind::OptionsDefaultIdentifier => Self::EditConfiguration,
+        }
+    }
+}
+
+fn confirm_prompt_from_compat(value: compat::ConfirmPromptModel) -> ConfirmPromptModel {
+    ConfirmPromptModel {
+        visible: value.visible,
+        kind: value.kind.map(Into::into),
+        title: value.title,
+        message: value.message,
+        confirm_label: value.confirm_label,
+        cancel_label: value.cancel_label,
+        target_label: value.target_label,
+        input_value: value.input_value,
+        input_placeholder: value.input_placeholder,
+        input_error: value.input_error,
+    }
+}
+
+fn confirm_prompt_to_compat(value: ConfirmPromptModel) -> compat::ConfirmPromptModel {
+    compat::ConfirmPromptModel {
+        visible: value.visible,
+        kind: value.kind.map(Into::into),
+        title: value.title,
+        message: value.message,
+        confirm_label: value.confirm_label,
+        cancel_label: value.cancel_label,
+        target_label: value.target_label,
+        input_value: value.input_value,
+        input_placeholder: value.input_placeholder,
+        input_error: value.input_error,
+    }
+}
+
+impl From<compat::WaveformPanelModel> for WaveformPanelModel {
+    fn from(value: compat::WaveformPanelModel) -> Self {
+        Self {
+            loaded_label: value.loaded_label,
+            loading: value.loading,
+            image_rendering: value.image_rendering,
+            cursor_milli: value.cursor_milli,
+            playhead_milli: value.playhead_milli,
+            playhead_micros: value.playhead_micros,
+            selection_milli: value.selection_milli.map(Into::into),
+            slices: value.slices.into_iter().map(Into::into).collect(),
+            selection_export_flash_nonce: value.selection_export_flash_nonce,
+            selection_export_failure_flash_nonce: value.selection_export_failure_flash_nonce,
+            edit_selection_apply_flash_nonce: value.edit_selection_apply_flash_nonce,
+            edit_selection_milli: value.edit_selection_milli.map(Into::into),
+            edit_fade_in_end_milli: value.edit_fade_in_end_milli,
+            edit_fade_in_end_micros: value.edit_fade_in_end_micros,
+            edit_fade_in_mute_start_milli: value.edit_fade_in_mute_start_milli,
+            edit_fade_in_mute_start_micros: value.edit_fade_in_mute_start_micros,
+            edit_fade_in_curve_milli: value.edit_fade_in_curve_milli,
+            edit_fade_out_start_milli: value.edit_fade_out_start_milli,
+            edit_fade_out_start_micros: value.edit_fade_out_start_micros,
+            edit_fade_out_mute_end_milli: value.edit_fade_out_mute_end_milli,
+            edit_fade_out_mute_end_micros: value.edit_fade_out_mute_end_micros,
+            edit_fade_out_curve_milli: value.edit_fade_out_curve_milli,
+            view_start_milli: value.view_start_milli,
+            view_end_milli: value.view_end_milli,
+            view_start_micros: value.view_start_micros,
+            view_end_micros: value.view_end_micros,
+            view_start_nanos: value.view_start_nanos,
+            view_end_nanos: value.view_end_nanos,
+            beat_step_micros: value.beat_step_micros,
+            bpm_grid_origin_micros: value.bpm_grid_origin_micros,
+            loop_enabled: value.loop_enabled,
+            tempo_label: value.tempo_label,
+            zoom_label: value.zoom_label,
+            waveform_image_signature: value.waveform_image_signature,
+            waveform_image: value.waveform_image,
+        }
+    }
+}
+
+impl From<WaveformPanelModel> for compat::WaveformPanelModel {
+    fn from(value: WaveformPanelModel) -> Self {
+        Self {
+            loaded_label: value.loaded_label,
+            loading: value.loading,
+            image_rendering: value.image_rendering,
+            cursor_milli: value.cursor_milli,
+            playhead_milli: value.playhead_milli,
+            playhead_micros: value.playhead_micros,
+            selection_milli: value.selection_milli.map(Into::into),
+            slices: value.slices.into_iter().map(Into::into).collect(),
+            selection_export_flash_nonce: value.selection_export_flash_nonce,
+            selection_export_failure_flash_nonce: value.selection_export_failure_flash_nonce,
+            edit_selection_apply_flash_nonce: value.edit_selection_apply_flash_nonce,
+            edit_selection_milli: value.edit_selection_milli.map(Into::into),
+            edit_fade_in_end_milli: value.edit_fade_in_end_milli,
+            edit_fade_in_end_micros: value.edit_fade_in_end_micros,
+            edit_fade_in_mute_start_milli: value.edit_fade_in_mute_start_milli,
+            edit_fade_in_mute_start_micros: value.edit_fade_in_mute_start_micros,
+            edit_fade_in_curve_milli: value.edit_fade_in_curve_milli,
+            edit_fade_out_start_milli: value.edit_fade_out_start_milli,
+            edit_fade_out_start_micros: value.edit_fade_out_start_micros,
+            edit_fade_out_mute_end_milli: value.edit_fade_out_mute_end_milli,
+            edit_fade_out_mute_end_micros: value.edit_fade_out_mute_end_micros,
+            edit_fade_out_curve_milli: value.edit_fade_out_curve_milli,
+            view_start_milli: value.view_start_milli,
+            view_end_milli: value.view_end_milli,
+            view_start_micros: value.view_start_micros,
+            view_end_micros: value.view_end_micros,
+            view_start_nanos: value.view_start_nanos,
+            view_end_nanos: value.view_end_nanos,
+            beat_step_micros: value.beat_step_micros,
+            bpm_grid_origin_micros: value.bpm_grid_origin_micros,
+            loop_enabled: value.loop_enabled,
+            tempo_label: value.tempo_label,
+            zoom_label: value.zoom_label,
+            waveform_image_signature: value.waveform_image_signature,
+            waveform_image: value.waveform_image,
+        }
+    }
+}
+
+impl From<&WaveformPanelModel> for compat::WaveformPanelModel {
+    fn from(value: &WaveformPanelModel) -> Self {
+        value.clone().into()
+    }
+}
+
+impl From<compat::WaveformChromeModel> for WaveformChromeModel {
+    fn from(value: compat::WaveformChromeModel) -> Self {
+        Self {
+            transport_hint: value.transport_hint,
+            compare_anchor_available: value.compare_anchor_available,
+            compare_anchor_label: value.compare_anchor_label,
+            loop_lock_enabled: value.loop_lock_enabled,
+            channel_view: value.channel_view.into(),
+            normalized_audition_enabled: value.normalized_audition_enabled,
+            bpm_snap_enabled: value.bpm_snap_enabled,
+            relative_bpm_grid_enabled: value.relative_bpm_grid_enabled,
+            transient_snap_enabled: value.transient_snap_enabled,
+            transient_markers_enabled: value.transient_markers_enabled,
+            slice_mode_enabled: value.slice_mode_enabled,
+            exact_duplicate_cleanup_available: value.exact_duplicate_cleanup_available,
+        }
+    }
+}
+
+impl From<WaveformChromeModel> for compat::WaveformChromeModel {
+    fn from(value: WaveformChromeModel) -> Self {
+        Self {
+            transport_hint: value.transport_hint,
+            compare_anchor_available: value.compare_anchor_available,
+            compare_anchor_label: value.compare_anchor_label,
+            loop_lock_enabled: value.loop_lock_enabled,
+            channel_view: value.channel_view.into(),
+            normalized_audition_enabled: value.normalized_audition_enabled,
+            bpm_snap_enabled: value.bpm_snap_enabled,
+            relative_bpm_grid_enabled: value.relative_bpm_grid_enabled,
+            transient_snap_enabled: value.transient_snap_enabled,
+            transient_markers_enabled: value.transient_markers_enabled,
+            slice_mode_enabled: value.slice_mode_enabled,
+            exact_duplicate_cleanup_available: value.exact_duplicate_cleanup_available,
+        }
+    }
+}
+
+impl From<&WaveformChromeModel> for compat::WaveformChromeModel {
+    fn from(value: &WaveformChromeModel) -> Self {
+        value.clone().into()
+    }
+}
+
+impl From<compat::AppModel> for AppModel {
+    fn from(value: compat::AppModel) -> Self {
+        Self {
+            title: value.title,
+            backend_label: value.backend_label,
+            sources_label: value.sources_label,
+            status_text: value.status_text,
+            status: value.status.into(),
+            audio_engine: value.paired_device.into(),
+            browser_actions: value.browser_actions.into(),
+            options_panel: value.options_panel.into(),
+            progress_overlay: value.progress_overlay.into(),
+            confirm_prompt: confirm_prompt_from_compat(value.confirm_prompt),
+            drag_overlay: value.drag_overlay.into(),
+            columns: value.columns.map(Into::into),
+            selected_column: value.selected_column,
+            volume: value.volume,
+            transport_running: value.transport_running,
+            sources: value.sources.into(),
+            browser: value.browser.into(),
+            browser_chrome: value.browser_chrome.into(),
+            map: value.map.into(),
+            waveform: value.waveform.into(),
+            waveform_chrome: value.waveform_chrome.into(),
+            update: value.update.into(),
+            focus_context: value.focus_context.into(),
+        }
+    }
+}
+
+impl From<AppModel> for compat::AppModel {
+    fn from(value: AppModel) -> Self {
+        Self {
+            title: value.title,
+            backend_label: value.backend_label,
+            sources_label: value.sources_label,
+            status_text: value.status_text,
+            status: value.status.into(),
+            paired_device: value.audio_engine.into(),
+            browser_actions: value.browser_actions.into(),
+            options_panel: value.options_panel.into(),
+            progress_overlay: value.progress_overlay.into(),
+            confirm_prompt: confirm_prompt_to_compat(value.confirm_prompt),
+            drag_overlay: value.drag_overlay.into(),
+            columns: value.columns.map(Into::into),
+            selected_column: value.selected_column,
+            volume: value.volume,
+            transport_running: value.transport_running,
+            sources: value.sources.into(),
+            browser: value.browser.into(),
+            browser_chrome: value.browser_chrome.into(),
+            map: value.map.into(),
+            waveform: value.waveform.into(),
+            waveform_chrome: value.waveform_chrome.into(),
+            update: value.update.into(),
+            focus_context: value.focus_context.into(),
+        }
+    }
+}
+
+impl From<&AppModel> for compat::AppModel {
+    fn from(value: &AppModel) -> Self {
+        value.clone().into()
+    }
+}
+
+fn automation_node_id_from_compat(value: compat::AutomationNodeId) -> AutomationNodeId {
+    automation::AutomationNodeId(automation_node_id_string_from_compat(value.0))
+}
+
+fn automation_node_id_to_compat(value: AutomationNodeId) -> compat::AutomationNodeId {
+    compat::AutomationNodeId(automation_node_id_string_to_compat(value.0))
+}
+
+fn automation_node_id_string_from_compat(node_id: String) -> String {
+    match node_id.as_str() {
+        "browser.tab.items" => String::from("browser.tab.samples"),
+        "browser.pill_editor" => String::from("browser.tag_sidebar"),
+        "browser.pill_editor.input" => String::from("browser.tag_sidebar.input"),
+        "browser.pill_editor.exclusive.0" => String::from("browser.tag_sidebar.playback.loop"),
+        "browser.pill_editor.exclusive.1" => String::from("browser.tag_sidebar.playback.one_shot"),
+        _ => {
+            if let Some(suffix) = node_id.strip_prefix("browser.pill_editor.option.") {
+                format!("browser.tag_sidebar.normal_tag.{suffix}")
+            } else if let Some(suffix) = node_id.strip_prefix("browser.pill_editor.create.") {
+                format!("browser.tag_sidebar.create_tag.{suffix}")
+            } else {
+                node_id
+            }
+        }
+    }
+}
+
+fn automation_node_id_string_to_compat(node_id: String) -> String {
+    match node_id.as_str() {
+        "browser.tab.samples" => String::from("browser.tab.items"),
+        "browser.tag_sidebar" => String::from("browser.pill_editor"),
+        "browser.tag_sidebar.input" => String::from("browser.pill_editor.input"),
+        "browser.tag_sidebar.playback.loop" => String::from("browser.pill_editor.exclusive.0"),
+        "browser.tag_sidebar.playback.one_shot" => String::from("browser.pill_editor.exclusive.1"),
+        _ => {
+            if let Some(suffix) = node_id.strip_prefix("browser.tag_sidebar.normal_tag.") {
+                format!("browser.pill_editor.option.{suffix}")
+            } else if let Some(suffix) = node_id.strip_prefix("browser.tag_sidebar.create_tag.") {
+                format!("browser.pill_editor.create.{suffix}")
+            } else {
+                node_id
+            }
+        }
+    }
+}
+
+impl From<compat::AutomationRole> for AutomationRole {
+    fn from(value: compat::AutomationRole) -> Self {
+        match value {
+            compat::AutomationRole::Root => Self::Root,
+            compat::AutomationRole::Group => Self::Group,
+            compat::AutomationRole::Panel => Self::Panel,
+            compat::AutomationRole::Toolbar => Self::Toolbar,
+            compat::AutomationRole::TabList => Self::TabList,
+            compat::AutomationRole::Tab => Self::Tab,
+            compat::AutomationRole::Button => Self::Button,
+            compat::AutomationRole::SearchField => Self::SearchField,
+            compat::AutomationRole::Slider => Self::Slider,
+            compat::AutomationRole::Row => Self::Row,
+            compat::AutomationRole::Table => Self::Table,
+            compat::AutomationRole::TimelineRegion => Self::WaveformRegion,
+            compat::AutomationRole::SpatialCanvas => Self::MapCanvas,
+            compat::AutomationRole::SpatialPoint => Self::MapPoint,
+            compat::AutomationRole::Readout => Self::Readout,
+            compat::AutomationRole::Dialog => Self::Dialog,
+        }
+    }
+}
+
+impl From<AutomationRole> for compat::AutomationRole {
+    fn from(value: AutomationRole) -> Self {
+        match value {
+            AutomationRole::Root => Self::Root,
+            AutomationRole::Group => Self::Group,
+            AutomationRole::Panel => Self::Panel,
+            AutomationRole::Toolbar => Self::Toolbar,
+            AutomationRole::TabList => Self::TabList,
+            AutomationRole::Tab => Self::Tab,
+            AutomationRole::Button => Self::Button,
+            AutomationRole::SearchField => Self::SearchField,
+            AutomationRole::Slider => Self::Slider,
+            AutomationRole::Row => Self::Row,
+            AutomationRole::Table => Self::Table,
+            AutomationRole::WaveformRegion => Self::TimelineRegion,
+            AutomationRole::MapCanvas => Self::SpatialCanvas,
+            AutomationRole::MapPoint => Self::SpatialPoint,
+            AutomationRole::Readout => Self::Readout,
+            AutomationRole::Dialog => Self::Dialog,
+        }
+    }
+}
+
+fn automation_bounds_from_compat(value: compat::AutomationBounds) -> AutomationBounds {
+    AutomationBounds {
+        x: value.x,
+        y: value.y,
+        width: value.width,
+        height: value.height,
+    }
+}
+
+fn automation_bounds_to_compat(value: AutomationBounds) -> compat::AutomationBounds {
+    compat::AutomationBounds {
+        x: value.x,
+        y: value.y,
+        width: value.width,
+        height: value.height,
+    }
+}
+
+impl From<compat::AutomationNodeSnapshot> for AutomationNodeSnapshot {
+    fn from(value: compat::AutomationNodeSnapshot) -> Self {
+        Self {
+            id: automation_node_id_from_compat(value.id),
+            role: value.role.into(),
+            label: value.label,
+            bounds: automation_bounds_from_compat(value.bounds),
+            value: value.value,
+            enabled: value.enabled,
+            selected: value.selected,
+            available_actions: value
+                .available_actions
+                .into_iter()
+                .map(automation_action_id_from_compat)
+                .collect(),
+            metadata: automation_metadata_from_compat(value.metadata),
+            children: value.children.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<AutomationNodeSnapshot> for compat::AutomationNodeSnapshot {
+    fn from(value: AutomationNodeSnapshot) -> Self {
+        Self {
+            id: automation_node_id_to_compat(value.id),
+            role: value.role.into(),
+            label: value.label,
+            bounds: automation_bounds_to_compat(value.bounds),
+            value: value.value,
+            enabled: value.enabled,
+            selected: value.selected,
+            available_actions: value
+                .available_actions
+                .into_iter()
+                .map(automation_action_id_to_compat)
+                .collect(),
+            metadata: automation_metadata_to_compat(value.metadata),
+            children: value.children.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+fn automation_action_id_from_compat(action_id: String) -> String {
+    match action_id.as_str() {
+        "open_primary_group_picker" => String::from("open_audio_output_host_picker"),
+        "open_primary_item_picker" => String::from("open_audio_output_device_picker"),
+        "open_primary_number_picker" => String::from("open_audio_output_sample_rate_picker"),
+        "open_secondary_group_picker" => String::from("open_audio_input_host_picker"),
+        "open_secondary_item_picker" => String::from("open_audio_input_device_picker"),
+        "open_secondary_number_picker" => String::from("open_audio_input_sample_rate_picker"),
+        "set_primary_group" => String::from("set_audio_output_host"),
+        "set_primary_item" => String::from("set_audio_output_device"),
+        "set_primary_number" => String::from("set_audio_output_sample_rate"),
+        "set_secondary_group" => String::from("set_audio_input_host"),
+        "set_secondary_item" => String::from("set_audio_input_device"),
+        "set_secondary_number" => String::from("set_audio_input_sample_rate"),
+        "focus_spatial_content_item" => String::from("focus_map_sample"),
+        "focus_browser_pill_editor_input" => String::from("focus_browser_tag_sidebar_input"),
+        "set_browser_pill_editor_input" => String::from("set_browser_tag_sidebar_input"),
+        "commit_browser_pill_editor_input" => String::from("commit_browser_tag_sidebar_input"),
+        "toggle_browser_pill_editor" => String::from("toggle_browser_tag_sidebar"),
+        "toggle_browser_pill_editor_primary_action" => {
+            String::from("toggle_browser_tag_sidebar_auto_rename")
+        }
+        "toggle_browser_pill_option" => String::from("toggle_browser_sidebar_normal_tag"),
+        "toggle_browser_derived_label_filter" => String::from("toggle_browser_tag_named_filter"),
+        _ => action_id,
+    }
+}
+
+fn automation_action_id_to_compat(action_id: String) -> String {
+    match action_id.as_str() {
+        "open_audio_output_host_picker" => String::from("open_primary_group_picker"),
+        "open_audio_output_device_picker" => String::from("open_primary_item_picker"),
+        "open_audio_output_sample_rate_picker" => String::from("open_primary_number_picker"),
+        "open_audio_input_host_picker" => String::from("open_secondary_group_picker"),
+        "open_audio_input_device_picker" => String::from("open_secondary_item_picker"),
+        "open_audio_input_sample_rate_picker" => String::from("open_secondary_number_picker"),
+        "set_audio_output_host" => String::from("set_primary_group"),
+        "set_audio_output_device" => String::from("set_primary_item"),
+        "set_audio_output_sample_rate" => String::from("set_primary_number"),
+        "set_audio_input_host" => String::from("set_secondary_group"),
+        "set_audio_input_device" => String::from("set_secondary_item"),
+        "set_audio_input_sample_rate" => String::from("set_secondary_number"),
+        "focus_map_sample" => String::from("focus_spatial_content_item"),
+        "focus_browser_tag_sidebar_input" => String::from("focus_browser_pill_editor_input"),
+        "set_browser_tag_sidebar_input" => String::from("set_browser_pill_editor_input"),
+        "commit_browser_tag_sidebar_input" => String::from("commit_browser_pill_editor_input"),
+        "toggle_browser_tag_sidebar" => String::from("toggle_browser_pill_editor"),
+        "toggle_browser_tag_sidebar_auto_rename" => {
+            String::from("toggle_browser_pill_editor_primary_action")
+        }
+        "toggle_browser_sidebar_normal_tag" => String::from("toggle_browser_pill_option"),
+        "toggle_browser_tag_named_filter" => String::from("toggle_browser_derived_label_filter"),
+        _ => action_id,
+    }
+}
+
+fn automation_metadata_from_compat(
+    mut metadata: BTreeMap<String, String>,
+) -> BTreeMap<String, String> {
+    if let Some(value) = metadata.remove("focused_item_label") {
+        metadata.insert(String::from("focused_sample_label"), value);
+    }
+    if let Some(value) = metadata.remove("option_pill_labels") {
+        metadata.insert(String::from("normal_tag_labels"), value);
+    }
+    if let Some(value) = metadata.remove("pill_state") {
+        metadata.insert(String::from("tag_state"), value);
+    }
+    if let Some(value) = metadata.remove("pill_id") {
+        metadata.insert(String::from("tag_id"), value);
+    }
+    metadata
+}
+
+fn automation_metadata_to_compat(
+    mut metadata: BTreeMap<String, String>,
+) -> BTreeMap<String, String> {
+    if let Some(value) = metadata.remove("focused_sample_label") {
+        metadata.insert(String::from("focused_item_label"), value);
+    }
+    if let Some(value) = metadata.remove("normal_tag_labels") {
+        metadata.insert(String::from("option_pill_labels"), value);
+    }
+    if let Some(value) = metadata.remove("tag_state") {
+        metadata.insert(String::from("pill_state"), value);
+    }
+    if let Some(value) = metadata.remove("tag_id") {
+        metadata.insert(String::from("pill_id"), value);
+    }
+    metadata
+}
+
+impl From<compat::GuiAutomationSnapshot> for GuiAutomationSnapshot {
+    fn from(value: compat::GuiAutomationSnapshot) -> Self {
+        Self {
+            schema_version: value.schema_version,
+            viewport_width: value.viewport_width,
+            viewport_height: value.viewport_height,
+            root: value.root.into(),
+        }
+    }
+}
+
+impl From<GuiAutomationSnapshot> for compat::GuiAutomationSnapshot {
+    fn from(value: GuiAutomationSnapshot) -> Self {
+        Self {
+            schema_version: value.schema_version,
+            viewport_width: value.viewport_width,
+            viewport_height: value.viewport_height,
+            root: value.root.into(),
+        }
+    }
+}
+
+impl From<compat::DirtySegments> for DirtySegments {
+    fn from(value: compat::DirtySegments) -> Self {
+        Self::from_bits(value.bits())
+    }
+}
+
+impl From<DirtySegments> for compat::DirtySegments {
+    fn from(value: DirtySegments) -> Self {
+        Self::from_bits(value.bits())
+    }
+}
+
+impl From<compat::SegmentRevisions> for SegmentRevisions {
+    fn from(value: compat::SegmentRevisions) -> Self {
+        Self {
+            status_bar: value.status_bar,
+            browser_frame: value.browser_frame,
+            browser_rows_window: value.browser_rows_window,
+            map_panel: value.map_panel,
+            waveform_overlay: value.waveform_overlay,
+            global_static: value.global_static,
+        }
+    }
+}
+
+impl From<SegmentRevisions> for compat::SegmentRevisions {
+    fn from(value: SegmentRevisions) -> Self {
+        Self {
+            status_bar: value.status_bar,
+            browser_frame: value.browser_frame,
+            browser_rows_window: value.browser_rows_window,
+            map_panel: value.map_panel,
+            waveform_overlay: value.waveform_overlay,
+            global_static: value.global_static,
+        }
+    }
+}
+
+impl From<compat::NativeMotionModel> for NativeMotionModel {
+    fn from(value: compat::NativeMotionModel) -> Self {
+        Self {
+            transport_running: value.transport_running,
+            map_active: value.map_active,
+            active_rating_filters: value.active_rating_filters,
+            active_playback_age_filters: value.active_playback_age_filters,
+            marked_filter_active: value.marked_filter_active,
+            waveform_selection_milli: value.waveform_selection_milli.map(Into::into),
+            waveform_slices: value.waveform_slices.into_iter().map(Into::into).collect(),
+            waveform_selection_export_flash_nonce: value.waveform_selection_export_flash_nonce,
+            waveform_selection_export_failure_flash_nonce: value
+                .waveform_selection_export_failure_flash_nonce,
+            waveform_edit_selection_apply_flash_nonce: value
+                .waveform_edit_selection_apply_flash_nonce,
+            waveform_edit_selection_milli: value.waveform_edit_selection_milli.map(Into::into),
+            waveform_edit_fade_in_end_milli: value.waveform_edit_fade_in_end_milli,
+            waveform_edit_fade_in_end_micros: value.waveform_edit_fade_in_end_micros,
+            waveform_edit_fade_in_mute_start_milli: value.waveform_edit_fade_in_mute_start_milli,
+            waveform_edit_fade_in_mute_start_micros: value.waveform_edit_fade_in_mute_start_micros,
+            waveform_edit_fade_in_curve_milli: value.waveform_edit_fade_in_curve_milli,
+            waveform_edit_fade_out_start_milli: value.waveform_edit_fade_out_start_milli,
+            waveform_edit_fade_out_start_micros: value.waveform_edit_fade_out_start_micros,
+            waveform_edit_fade_out_mute_end_milli: value.waveform_edit_fade_out_mute_end_milli,
+            waveform_edit_fade_out_mute_end_micros: value.waveform_edit_fade_out_mute_end_micros,
+            waveform_edit_fade_out_curve_milli: value.waveform_edit_fade_out_curve_milli,
+            waveform_loop_enabled: value.waveform_loop_enabled,
+            waveform_loop_lock_enabled: value.waveform_loop_lock_enabled,
+            waveform_cursor_milli: value.waveform_cursor_milli,
+            waveform_playhead_milli: value.waveform_playhead_milli,
+            waveform_playhead_micros: value.waveform_playhead_micros,
+            waveform_view_start_milli: value.waveform_view_start_milli,
+            waveform_view_end_milli: value.waveform_view_end_milli,
+            waveform_view_start_micros: value.waveform_view_start_micros,
+            waveform_view_end_micros: value.waveform_view_end_micros,
+            waveform_view_start_nanos: value.waveform_view_start_nanos,
+            waveform_view_end_nanos: value.waveform_view_end_nanos,
+            waveform_tempo_label: value.waveform_tempo_label,
+            waveform_zoom_label: value.waveform_zoom_label,
+            waveform_loaded_label: value.waveform_loaded_label,
+            waveform_loading: value.waveform_loading,
+            waveform_image_signature: value.waveform_image_signature,
+            waveform_transport_hint: value.waveform_transport_hint,
+            waveform_compare_anchor_available: value.waveform_compare_anchor_available,
+            waveform_compare_anchor_label: value.waveform_compare_anchor_label,
+            waveform_channel_view: value.waveform_channel_view.into(),
+            waveform_normalized_audition_enabled: value.waveform_normalized_audition_enabled,
+            waveform_bpm_snap_enabled: value.waveform_bpm_snap_enabled,
+            waveform_relative_bpm_grid_enabled: value.waveform_relative_bpm_grid_enabled,
+            waveform_transient_snap_enabled: value.waveform_transient_snap_enabled,
+            waveform_transient_markers_enabled: value.waveform_transient_markers_enabled,
+            waveform_slice_mode_enabled: value.waveform_slice_mode_enabled,
+            waveform_exact_duplicate_cleanup_available: value
+                .waveform_exact_duplicate_cleanup_available,
+            status_right: value.status_right,
+        }
+    }
+}
+
+impl From<NativeMotionModel> for compat::NativeMotionModel {
+    fn from(value: NativeMotionModel) -> Self {
+        Self {
+            transport_running: value.transport_running,
+            map_active: value.map_active,
+            active_rating_filters: value.active_rating_filters,
+            active_playback_age_filters: value.active_playback_age_filters,
+            marked_filter_active: value.marked_filter_active,
+            waveform_selection_milli: value.waveform_selection_milli.map(Into::into),
+            waveform_slices: value.waveform_slices.into_iter().map(Into::into).collect(),
+            waveform_selection_export_flash_nonce: value.waveform_selection_export_flash_nonce,
+            waveform_selection_export_failure_flash_nonce: value
+                .waveform_selection_export_failure_flash_nonce,
+            waveform_edit_selection_apply_flash_nonce: value
+                .waveform_edit_selection_apply_flash_nonce,
+            waveform_edit_selection_milli: value.waveform_edit_selection_milli.map(Into::into),
+            waveform_edit_fade_in_end_milli: value.waveform_edit_fade_in_end_milli,
+            waveform_edit_fade_in_end_micros: value.waveform_edit_fade_in_end_micros,
+            waveform_edit_fade_in_mute_start_milli: value.waveform_edit_fade_in_mute_start_milli,
+            waveform_edit_fade_in_mute_start_micros: value.waveform_edit_fade_in_mute_start_micros,
+            waveform_edit_fade_in_curve_milli: value.waveform_edit_fade_in_curve_milli,
+            waveform_edit_fade_out_start_milli: value.waveform_edit_fade_out_start_milli,
+            waveform_edit_fade_out_start_micros: value.waveform_edit_fade_out_start_micros,
+            waveform_edit_fade_out_mute_end_milli: value.waveform_edit_fade_out_mute_end_milli,
+            waveform_edit_fade_out_mute_end_micros: value.waveform_edit_fade_out_mute_end_micros,
+            waveform_edit_fade_out_curve_milli: value.waveform_edit_fade_out_curve_milli,
+            waveform_loop_enabled: value.waveform_loop_enabled,
+            waveform_loop_lock_enabled: value.waveform_loop_lock_enabled,
+            waveform_cursor_milli: value.waveform_cursor_milli,
+            waveform_playhead_milli: value.waveform_playhead_milli,
+            waveform_playhead_micros: value.waveform_playhead_micros,
+            waveform_view_start_milli: value.waveform_view_start_milli,
+            waveform_view_end_milli: value.waveform_view_end_milli,
+            waveform_view_start_micros: value.waveform_view_start_micros,
+            waveform_view_end_micros: value.waveform_view_end_micros,
+            waveform_view_start_nanos: value.waveform_view_start_nanos,
+            waveform_view_end_nanos: value.waveform_view_end_nanos,
+            waveform_tempo_label: value.waveform_tempo_label,
+            waveform_zoom_label: value.waveform_zoom_label,
+            waveform_loaded_label: value.waveform_loaded_label,
+            waveform_loading: value.waveform_loading,
+            waveform_image_signature: value.waveform_image_signature,
+            waveform_transport_hint: value.waveform_transport_hint,
+            waveform_compare_anchor_available: value.waveform_compare_anchor_available,
+            waveform_compare_anchor_label: value.waveform_compare_anchor_label,
+            waveform_channel_view: value.waveform_channel_view.into(),
+            waveform_normalized_audition_enabled: value.waveform_normalized_audition_enabled,
+            waveform_bpm_snap_enabled: value.waveform_bpm_snap_enabled,
+            waveform_relative_bpm_grid_enabled: value.waveform_relative_bpm_grid_enabled,
+            waveform_transient_snap_enabled: value.waveform_transient_snap_enabled,
+            waveform_transient_markers_enabled: value.waveform_transient_markers_enabled,
+            waveform_slice_mode_enabled: value.waveform_slice_mode_enabled,
+            waveform_exact_duplicate_cleanup_available: value
+                .waveform_exact_duplicate_cleanup_available,
+            status_right: value.status_right,
         }
     }
 }

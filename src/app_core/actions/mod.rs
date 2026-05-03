@@ -8,7 +8,7 @@
 mod catalog;
 mod native_shell_actions;
 mod native_shell_bridge;
-mod native_shell_dtos;
+pub(crate) mod native_shell_dtos;
 
 pub use self::catalog::{
     GUI_ACTION_CATALOG, GuiActionCatalogEntry, GuiActionKind, GuiCoverageLayer, GuiDispatchPolicy,

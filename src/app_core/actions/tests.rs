@@ -243,7 +243,7 @@ fn native_action_exports_are_owned_in_app_core() {
     assert!(
         actions_mod.contains("mod native_shell_actions;")
             && actions_mod.contains("mod native_shell_bridge;")
-            && actions_mod.contains("mod native_shell_dtos;"),
+            && actions_mod.contains("pub(crate) mod native_shell_dtos;"),
         "Sempal-owned action, bridge, and projection DTO modules must remain explicit"
     );
     assert!(
@@ -276,6 +276,10 @@ fn native_action_exports_are_owned_in_app_core() {
         fs::read_to_string(manifest_dir.join("src/gui_runtime/radiant_legacy_shell.rs"))
             .expect("native shell runtime adapter");
     let native_actions = format!("{native_actions}\n{native_action_conversions}");
+    assert!(
+        !native_dtos.contains("radiant::compat::legacy_shell") && !native_dtos.contains("compat::"),
+        "Sempal projection DTO definitions should not import Radiant legacy-shell compatibility types"
+    );
     let native_hit_testing = fs::read_to_string(
         manifest_dir.join("src/app_core/native_shell/composition/state/hit_testing/browser.rs"),
     )
@@ -376,25 +380,35 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal should own product automation role names at the app boundary"
     );
     assert!(
-        native_dtos.contains("compat::AutomationRole::TimelineRegion => Self::WaveformRegion")
-            && native_dtos.contains("compat::AutomationRole::SpatialCanvas => Self::MapCanvas")
-            && native_dtos.contains("compat::AutomationRole::SpatialPoint => Self::MapPoint")
-            && native_dtos.contains("AutomationRole::WaveformRegion => Self::TimelineRegion")
-            && native_dtos.contains("AutomationRole::MapCanvas => Self::SpatialCanvas")
-            && native_dtos.contains("AutomationRole::MapPoint => Self::SpatialPoint"),
+        native_action_conversions
+            .contains("compat::AutomationRole::TimelineRegion => Self::WaveformRegion")
+            && native_action_conversions
+                .contains("compat::AutomationRole::SpatialCanvas => Self::MapCanvas")
+            && native_action_conversions
+                .contains("compat::AutomationRole::SpatialPoint => Self::MapPoint")
+            && native_action_conversions
+                .contains("AutomationRole::WaveformRegion => Self::TimelineRegion")
+            && native_action_conversions
+                .contains("AutomationRole::MapCanvas => Self::SpatialCanvas")
+            && native_action_conversions.contains("AutomationRole::MapPoint => Self::SpatialPoint"),
         "Sempal automation DTO conversion should map product role names onto generic Radiant roles"
     );
     assert!(
-        native_dtos.contains("\"browser.tab.items\" => String::from(\"browser.tab.samples\")")
-            && native_dtos
+        native_action_conversions
+            .contains("\"browser.tab.items\" => String::from(\"browser.tab.samples\")")
+            && native_action_conversions
                 .contains("\"browser.tab.samples\" => String::from(\"browser.tab.items\")")
-            && native_dtos
+            && native_action_conversions
                 .contains("\"browser.pill_editor\" => String::from(\"browser.tag_sidebar\")")
-            && native_dtos.contains("\"browser.pill_editor.option.\"")
-            && native_dtos.contains("format!(\"browser.tag_sidebar.normal_tag.{suffix}\")")
-            && native_dtos.contains("metadata.insert(String::from(\"normal_tag_labels\"), value);")
-            && native_dtos.contains("metadata.insert(String::from(\"tag_state\"), value);")
-            && native_dtos.contains("metadata.insert(String::from(\"tag_id\"), value);"),
+            && native_action_conversions.contains("\"browser.pill_editor.option.\"")
+            && native_action_conversions
+                .contains("format!(\"browser.tag_sidebar.normal_tag.{suffix}\")")
+            && native_action_conversions
+                .contains("metadata.insert(String::from(\"normal_tag_labels\"), value);")
+            && native_action_conversions
+                .contains("metadata.insert(String::from(\"tag_state\"), value);")
+            && native_action_conversions
+                .contains("metadata.insert(String::from(\"tag_id\"), value);"),
         "Sempal automation DTO conversion should map generic Radiant pill-editor nodes and metadata back onto product tag-sidebar names"
     );
     assert!(
@@ -547,20 +561,21 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal should own product prompt-kind names at the app boundary"
     );
     assert!(
-        native_dtos
+        native_action_conversions
             .contains("compat::ConfirmPromptKind::DestructiveOperation => Self::DestructiveEdit")
-            && native_dtos
+            && native_action_conversions
                 .contains("compat::ConfirmPromptKind::RenameContent => Self::BrowserRename")
-            && native_dtos
+            && native_action_conversions
                 .contains("compat::ConfirmPromptKind::RenameNavigationItem => Self::FolderRename")
-            && native_dtos
+            && native_action_conversions
                 .contains("compat::ConfirmPromptKind::CreateNavigationItem => Self::FolderCreate")
-            && native_dtos
+            && native_action_conversions
                 .contains("ConfirmPromptKind::DestructiveEdit => Self::DestructiveOperation")
-            && native_dtos.contains("ConfirmPromptKind::BrowserRename => Self::RenameContent")
-            && native_dtos
+            && native_action_conversions
+                .contains("ConfirmPromptKind::BrowserRename => Self::RenameContent")
+            && native_action_conversions
                 .contains("ConfirmPromptKind::FolderRename => Self::RenameNavigationItem")
-            && native_dtos
+            && native_action_conversions
                 .contains("ConfirmPromptKind::FolderCreate => Self::CreateNavigationItem"),
         "Sempal prompt DTO conversion should map product prompt names onto generic Radiant intents"
     );
@@ -584,11 +599,12 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal native audio picker DTOs should alias generic Radiant form primitives"
     );
     assert!(
-        native_dtos.contains("impl From<compat::PairedDevicePanelModel> for AudioEngineModel")
-            && native_dtos
+        native_action_conversions
+            .contains("impl From<compat::PairedDevicePanelModel> for AudioEngineModel")
+            && native_action_conversions
                 .contains("impl From<AudioEngineModel> for compat::PairedDevicePanelModel")
-            && native_dtos.contains("audio_engine: value.paired_device.into()")
-            && native_dtos.contains("paired_device: value.audio_engine.into()")
+            && native_action_conversions.contains("audio_engine: value.paired_device.into()")
+            && native_action_conversions.contains("paired_device: value.audio_engine.into()")
             && native_dtos.contains("pub fn paired_device_panel(&self) -> &AudioEngineModel"),
         "Sempal audio DTO conversion should map to Radiant generic paired-device model names"
     );
@@ -680,9 +696,9 @@ fn native_action_exports_are_owned_in_app_core() {
         "shared map hit-testing should emit Radiant's generic spatial-content action in the legacy-shell build and Sempal's product action in the app build"
     );
     assert!(
-        native_dtos
+        native_action_conversions
             .contains("\"focus_spatial_content_item\" => String::from(\"focus_map_sample\")")
-            && native_dtos
+            && native_action_conversions
                 .contains("\"focus_map_sample\" => String::from(\"focus_spatial_content_item\")"),
         "Sempal automation DTO conversion should map Radiant's generic spatial-content action id onto the product map-sample action id"
     );
