@@ -20,6 +20,19 @@ pub mod input {
     pub use radiant::gui::input::*;
 }
 
+pub mod layout_core {
+    //! Generic slot-based layout primitives from `radiant`.
+    pub use radiant::gui::layout_core::*;
+}
+
+pub mod text_layout {
+    //! Generic text placement helpers from `radiant`.
+    pub use radiant::gui::text_layout::*;
+}
+
+#[path = "../app_core/native_shell/composition/mod.rs"]
+pub(crate) mod native_shell;
+
 pub mod automation {
     //! Generic automation snapshot primitives from `radiant`.
     pub use radiant::gui::automation::*;

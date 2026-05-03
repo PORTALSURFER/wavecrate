@@ -459,26 +459,15 @@ impl NativeShellState {
 }
 
 fn map_focus_action(content_id: String) -> UiAction {
-    #[cfg(feature = "legacy-shell")]
-    {
-        UiAction::FocusSpatialContentItem { content_id }
-    }
-    #[cfg(not(feature = "legacy-shell"))]
-    {
-        let sample_id = content_id;
-        UiAction::FocusMapSample { sample_id }
-    }
+    // The current local composition contract is generic. The outer Sempal
+    // adapter still maps this to UiAction::FocusMapSample for product code.
+    UiAction::FocusSpatialContentItem { content_id }
 }
 
 fn focused_similarity_action() -> UiAction {
-    #[cfg(feature = "legacy-shell")]
-    {
-        UiAction::ToggleFindSimilarFocusedContent
-    }
-    #[cfg(not(feature = "legacy-shell"))]
-    {
-        UiAction::ToggleFindSimilarFocusedSample
-    }
+    // The current local composition contract is generic. The outer Sempal
+    // adapter still maps this to UiAction::ToggleFindSimilarFocusedSample.
+    UiAction::ToggleFindSimilarFocusedContent
 }
 
 #[derive(Clone, Debug)]
