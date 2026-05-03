@@ -381,23 +381,17 @@ fn native_action_exports_are_owned_in_app_core() {
     );
     assert!(
         native_action_conversions
-            .contains("compat::AutomationRole::TimelineRegion => Self::WaveformRegion")
+            .contains("gui_automation::AutomationRole::TimelineRegion => Self::WaveformRegion")
             && native_action_conversions
-                .contains("compat::AutomationRole::SpatialCanvas => Self::MapCanvas")
+                .contains("gui_automation::AutomationRole::SpatialCanvas => Self::MapCanvas")
             && native_action_conversions
-                .contains("compat::AutomationRole::SpatialPoint => Self::MapPoint")
-            && native_action_conversions
-                .contains("AutomationRole::WaveformRegion => Self::TimelineRegion")
-            && native_action_conversions
-                .contains("AutomationRole::MapCanvas => Self::SpatialCanvas")
-            && native_action_conversions.contains("AutomationRole::MapPoint => Self::SpatialPoint"),
-        "Sempal automation DTO conversion should map product role names onto generic Radiant roles"
+                .contains("gui_automation::AutomationRole::SpatialPoint => Self::MapPoint")
+            && !native_action_conversions.contains("compat::AutomationRole"),
+        "Sempal automation DTO conversion should map generic Radiant roles onto product role names without routing through legacy compat"
     );
     assert!(
         native_action_conversions
             .contains("\"browser.tab.items\" => String::from(\"browser.tab.samples\")")
-            && native_action_conversions
-                .contains("\"browser.tab.samples\" => String::from(\"browser.tab.items\")")
             && native_action_conversions
                 .contains("\"browser.pill_editor\" => String::from(\"browser.tag_sidebar\")")
             && native_action_conversions.contains("\"browser.pill_editor.option.\"")
@@ -408,8 +402,9 @@ fn native_action_exports_are_owned_in_app_core() {
             && native_action_conversions
                 .contains("metadata.insert(String::from(\"tag_state\"), value);")
             && native_action_conversions
-                .contains("metadata.insert(String::from(\"tag_id\"), value);"),
-        "Sempal automation DTO conversion should map generic Radiant pill-editor nodes and metadata back onto product tag-sidebar names"
+                .contains("metadata.insert(String::from(\"tag_id\"), value);")
+            && !native_action_conversions.contains("impl From<GuiAutomationSnapshot> for compat::"),
+        "Sempal automation DTO conversion should map generic Radiant pill-editor nodes and metadata onto product tag-sidebar names without reverse legacy compat conversion"
     );
     assert!(
         !native_dtos.contains("pub struct FrameBuildResult"),
@@ -698,9 +693,9 @@ fn native_action_exports_are_owned_in_app_core() {
     assert!(
         native_action_conversions
             .contains("\"focus_spatial_content_item\" => String::from(\"focus_map_sample\")")
-            && native_action_conversions
+            && !native_action_conversions
                 .contains("\"focus_map_sample\" => String::from(\"focus_spatial_content_item\")"),
-        "Sempal automation DTO conversion should map Radiant's generic spatial-content action id onto the product map-sample action id"
+        "Sempal automation DTO conversion should map Radiant's generic spatial-content action id onto the product map-sample action id without reverse legacy compat conversion"
     );
     assert!(
         native_actions.contains("compat::UiAction::StartContentItemDrag")

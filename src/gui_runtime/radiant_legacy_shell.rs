@@ -8,11 +8,12 @@ use crate::app_core::actions::{
     NativeFrameBuildResult, NativeGuiAutomationSnapshot, NativeMotionModel, NativeUiAction,
     NativeUiAction as UiAction, native_shell_dtos::*,
 };
+use crate::gui::automation as gui_automation;
 use crate::gui::{
     native_shell::{NativeShellState, ShellLayout, ShellLayoutRuntime, StyleTokens},
     types::Vector2,
 };
-use radiant::{compat::legacy_shell as compat, gui::automation};
+use radiant::compat::legacy_shell as compat;
 use std::{collections::BTreeMap, sync::Arc};
 
 /// Converts app-level Vello launch options into the generic `radiant` runtime representation.
@@ -2228,15 +2229,11 @@ fn local_waveform_chrome_from_radiant_compat(
     }
 }
 
-fn automation_node_id_from_compat(value: compat::AutomationNodeId) -> AutomationNodeId {
-    automation::AutomationNodeId(automation_node_id_string_from_compat(value.0))
+fn automation_node_id_from_generic(value: gui_automation::AutomationNodeId) -> AutomationNodeId {
+    gui_automation::AutomationNodeId(automation_node_id_string_from_generic(value.0))
 }
 
-fn automation_node_id_to_compat(value: AutomationNodeId) -> compat::AutomationNodeId {
-    compat::AutomationNodeId(automation_node_id_string_to_compat(value.0))
-}
-
-fn automation_node_id_string_from_compat(node_id: String) -> String {
+fn automation_node_id_string_from_generic(node_id: String) -> String {
     match node_id.as_str() {
         "browser.tab.items" => String::from("browser.tab.samples"),
         "browser.pill_editor" => String::from("browser.tag_sidebar"),
@@ -2255,72 +2252,30 @@ fn automation_node_id_string_from_compat(node_id: String) -> String {
     }
 }
 
-fn automation_node_id_string_to_compat(node_id: String) -> String {
-    match node_id.as_str() {
-        "browser.tab.samples" => String::from("browser.tab.items"),
-        "browser.tag_sidebar" => String::from("browser.pill_editor"),
-        "browser.tag_sidebar.input" => String::from("browser.pill_editor.input"),
-        "browser.tag_sidebar.playback.loop" => String::from("browser.pill_editor.exclusive.0"),
-        "browser.tag_sidebar.playback.one_shot" => String::from("browser.pill_editor.exclusive.1"),
-        _ => {
-            if let Some(suffix) = node_id.strip_prefix("browser.tag_sidebar.normal_tag.") {
-                format!("browser.pill_editor.option.{suffix}")
-            } else if let Some(suffix) = node_id.strip_prefix("browser.tag_sidebar.create_tag.") {
-                format!("browser.pill_editor.create.{suffix}")
-            } else {
-                node_id
-            }
-        }
-    }
-}
-
-impl From<compat::AutomationRole> for AutomationRole {
-    fn from(value: compat::AutomationRole) -> Self {
+impl From<gui_automation::AutomationRole> for AutomationRole {
+    fn from(value: gui_automation::AutomationRole) -> Self {
         match value {
-            compat::AutomationRole::Root => Self::Root,
-            compat::AutomationRole::Group => Self::Group,
-            compat::AutomationRole::Panel => Self::Panel,
-            compat::AutomationRole::Toolbar => Self::Toolbar,
-            compat::AutomationRole::TabList => Self::TabList,
-            compat::AutomationRole::Tab => Self::Tab,
-            compat::AutomationRole::Button => Self::Button,
-            compat::AutomationRole::SearchField => Self::SearchField,
-            compat::AutomationRole::Slider => Self::Slider,
-            compat::AutomationRole::Row => Self::Row,
-            compat::AutomationRole::Table => Self::Table,
-            compat::AutomationRole::TimelineRegion => Self::WaveformRegion,
-            compat::AutomationRole::SpatialCanvas => Self::MapCanvas,
-            compat::AutomationRole::SpatialPoint => Self::MapPoint,
-            compat::AutomationRole::Readout => Self::Readout,
-            compat::AutomationRole::Dialog => Self::Dialog,
+            gui_automation::AutomationRole::Root => Self::Root,
+            gui_automation::AutomationRole::Group => Self::Group,
+            gui_automation::AutomationRole::Panel => Self::Panel,
+            gui_automation::AutomationRole::Toolbar => Self::Toolbar,
+            gui_automation::AutomationRole::TabList => Self::TabList,
+            gui_automation::AutomationRole::Tab => Self::Tab,
+            gui_automation::AutomationRole::Button => Self::Button,
+            gui_automation::AutomationRole::SearchField => Self::SearchField,
+            gui_automation::AutomationRole::Slider => Self::Slider,
+            gui_automation::AutomationRole::Row => Self::Row,
+            gui_automation::AutomationRole::Table => Self::Table,
+            gui_automation::AutomationRole::TimelineRegion => Self::WaveformRegion,
+            gui_automation::AutomationRole::SpatialCanvas => Self::MapCanvas,
+            gui_automation::AutomationRole::SpatialPoint => Self::MapPoint,
+            gui_automation::AutomationRole::Readout => Self::Readout,
+            gui_automation::AutomationRole::Dialog => Self::Dialog,
         }
     }
 }
 
-impl From<AutomationRole> for compat::AutomationRole {
-    fn from(value: AutomationRole) -> Self {
-        match value {
-            AutomationRole::Root => Self::Root,
-            AutomationRole::Group => Self::Group,
-            AutomationRole::Panel => Self::Panel,
-            AutomationRole::Toolbar => Self::Toolbar,
-            AutomationRole::TabList => Self::TabList,
-            AutomationRole::Tab => Self::Tab,
-            AutomationRole::Button => Self::Button,
-            AutomationRole::SearchField => Self::SearchField,
-            AutomationRole::Slider => Self::Slider,
-            AutomationRole::Row => Self::Row,
-            AutomationRole::Table => Self::Table,
-            AutomationRole::WaveformRegion => Self::TimelineRegion,
-            AutomationRole::MapCanvas => Self::SpatialCanvas,
-            AutomationRole::MapPoint => Self::SpatialPoint,
-            AutomationRole::Readout => Self::Readout,
-            AutomationRole::Dialog => Self::Dialog,
-        }
-    }
-}
-
-fn automation_bounds_from_compat(value: compat::AutomationBounds) -> AutomationBounds {
+fn automation_bounds_from_generic(value: gui_automation::AutomationBounds) -> AutomationBounds {
     AutomationBounds {
         x: value.x,
         y: value.y,
@@ -2329,58 +2284,28 @@ fn automation_bounds_from_compat(value: compat::AutomationBounds) -> AutomationB
     }
 }
 
-fn automation_bounds_to_compat(value: AutomationBounds) -> compat::AutomationBounds {
-    compat::AutomationBounds {
-        x: value.x,
-        y: value.y,
-        width: value.width,
-        height: value.height,
-    }
-}
-
-impl From<compat::AutomationNodeSnapshot> for AutomationNodeSnapshot {
-    fn from(value: compat::AutomationNodeSnapshot) -> Self {
+impl From<gui_automation::AutomationNodeSnapshot> for AutomationNodeSnapshot {
+    fn from(value: gui_automation::AutomationNodeSnapshot) -> Self {
         Self {
-            id: automation_node_id_from_compat(value.id),
+            id: automation_node_id_from_generic(value.id),
             role: value.role.into(),
             label: value.label,
-            bounds: automation_bounds_from_compat(value.bounds),
+            bounds: automation_bounds_from_generic(value.bounds),
             value: value.value,
             enabled: value.enabled,
             selected: value.selected,
             available_actions: value
                 .available_actions
                 .into_iter()
-                .map(automation_action_id_from_compat)
+                .map(automation_action_id_from_generic)
                 .collect(),
-            metadata: automation_metadata_from_compat(value.metadata),
+            metadata: automation_metadata_from_generic(value.metadata),
             children: value.children.into_iter().map(Into::into).collect(),
         }
     }
 }
 
-impl From<AutomationNodeSnapshot> for compat::AutomationNodeSnapshot {
-    fn from(value: AutomationNodeSnapshot) -> Self {
-        Self {
-            id: automation_node_id_to_compat(value.id),
-            role: value.role.into(),
-            label: value.label,
-            bounds: automation_bounds_to_compat(value.bounds),
-            value: value.value,
-            enabled: value.enabled,
-            selected: value.selected,
-            available_actions: value
-                .available_actions
-                .into_iter()
-                .map(automation_action_id_to_compat)
-                .collect(),
-            metadata: automation_metadata_to_compat(value.metadata),
-            children: value.children.into_iter().map(Into::into).collect(),
-        }
-    }
-}
-
-fn automation_action_id_from_compat(action_id: String) -> String {
+fn automation_action_id_from_generic(action_id: String) -> String {
     match action_id.as_str() {
         "open_primary_group_picker" => String::from("open_audio_output_host_picker"),
         "open_primary_item_picker" => String::from("open_audio_output_device_picker"),
@@ -2408,35 +2333,7 @@ fn automation_action_id_from_compat(action_id: String) -> String {
     }
 }
 
-fn automation_action_id_to_compat(action_id: String) -> String {
-    match action_id.as_str() {
-        "open_audio_output_host_picker" => String::from("open_primary_group_picker"),
-        "open_audio_output_device_picker" => String::from("open_primary_item_picker"),
-        "open_audio_output_sample_rate_picker" => String::from("open_primary_number_picker"),
-        "open_audio_input_host_picker" => String::from("open_secondary_group_picker"),
-        "open_audio_input_device_picker" => String::from("open_secondary_item_picker"),
-        "open_audio_input_sample_rate_picker" => String::from("open_secondary_number_picker"),
-        "set_audio_output_host" => String::from("set_primary_group"),
-        "set_audio_output_device" => String::from("set_primary_item"),
-        "set_audio_output_sample_rate" => String::from("set_primary_number"),
-        "set_audio_input_host" => String::from("set_secondary_group"),
-        "set_audio_input_device" => String::from("set_secondary_item"),
-        "set_audio_input_sample_rate" => String::from("set_secondary_number"),
-        "focus_map_sample" => String::from("focus_spatial_content_item"),
-        "focus_browser_tag_sidebar_input" => String::from("focus_browser_pill_editor_input"),
-        "set_browser_tag_sidebar_input" => String::from("set_browser_pill_editor_input"),
-        "commit_browser_tag_sidebar_input" => String::from("commit_browser_pill_editor_input"),
-        "toggle_browser_tag_sidebar" => String::from("toggle_browser_pill_editor"),
-        "toggle_browser_tag_sidebar_auto_rename" => {
-            String::from("toggle_browser_pill_editor_primary_action")
-        }
-        "toggle_browser_sidebar_normal_tag" => String::from("toggle_browser_pill_option"),
-        "toggle_browser_tag_named_filter" => String::from("toggle_browser_derived_label_filter"),
-        _ => action_id,
-    }
-}
-
-fn automation_metadata_from_compat(
+fn automation_metadata_from_generic(
     mut metadata: BTreeMap<String, String>,
 ) -> BTreeMap<String, String> {
     if let Some(value) = metadata.remove("focused_item_label") {
@@ -2454,37 +2351,8 @@ fn automation_metadata_from_compat(
     metadata
 }
 
-fn automation_metadata_to_compat(
-    mut metadata: BTreeMap<String, String>,
-) -> BTreeMap<String, String> {
-    if let Some(value) = metadata.remove("focused_sample_label") {
-        metadata.insert(String::from("focused_item_label"), value);
-    }
-    if let Some(value) = metadata.remove("normal_tag_labels") {
-        metadata.insert(String::from("option_pill_labels"), value);
-    }
-    if let Some(value) = metadata.remove("tag_state") {
-        metadata.insert(String::from("pill_state"), value);
-    }
-    if let Some(value) = metadata.remove("tag_id") {
-        metadata.insert(String::from("pill_id"), value);
-    }
-    metadata
-}
-
-impl From<compat::GuiAutomationSnapshot> for GuiAutomationSnapshot {
-    fn from(value: compat::GuiAutomationSnapshot) -> Self {
-        Self {
-            schema_version: value.schema_version,
-            viewport_width: value.viewport_width,
-            viewport_height: value.viewport_height,
-            root: value.root.into(),
-        }
-    }
-}
-
-impl From<GuiAutomationSnapshot> for compat::GuiAutomationSnapshot {
-    fn from(value: GuiAutomationSnapshot) -> Self {
+impl From<gui_automation::GuiAutomationSnapshot> for GuiAutomationSnapshot {
+    fn from(value: gui_automation::GuiAutomationSnapshot) -> Self {
         Self {
             schema_version: value.schema_version,
             viewport_width: value.viewport_width,
