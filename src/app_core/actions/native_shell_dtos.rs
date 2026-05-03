@@ -726,8 +726,12 @@ pub struct BrowserPanelModel {
 pub struct BrowserChromeModel {
     /// Label for the list tab.
     pub samples_tab_label: String,
+    /// Label for the browser item column.
+    pub sample_column_label: String,
     /// Label for the map tab.
     pub map_tab_label: String,
+    /// Label for the tag/pill editor action.
+    pub tag_editor_label: String,
     /// Prefix label shown before active search queries.
     pub search_prefix_label: String,
     /// Placeholder label shown when no search query is active.
@@ -750,7 +754,9 @@ impl Default for BrowserChromeModel {
     fn default() -> Self {
         Self {
             samples_tab_label: String::from("Samples"),
+            sample_column_label: String::from("Sample"),
             map_tab_label: String::from("Similarity map"),
+            tag_editor_label: String::from("Tags"),
             search_prefix_label: String::from("Search"),
             search_placeholder: String::from("Search samples (Ctrl+F)"),
             activity_ready_label: String::from("Ready"),

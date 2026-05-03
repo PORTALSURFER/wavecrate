@@ -143,7 +143,9 @@ pub fn standard_browser_panel(config: CompanionBrowserPanelConfig) -> BrowserPan
 pub fn standard_browser_chrome(config: CompanionBrowserChromeConfig) -> BrowserChromeModel {
     BrowserChromeModel {
         samples_tab_label: config.samples_tab_label,
+        sample_column_label: String::from("Sample"),
         map_tab_label: config.map_tab_label,
+        tag_editor_label: String::from("Tags"),
         search_prefix_label: config.search_prefix_label,
         search_placeholder: config.search_placeholder,
         activity_ready_label: config.activity_ready_label,

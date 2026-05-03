@@ -1558,7 +1558,9 @@ impl From<compat::BrowserChromeModel> for BrowserChromeModel {
     fn from(value: compat::BrowserChromeModel) -> Self {
         Self {
             samples_tab_label: value.items_tab_label,
+            sample_column_label: value.item_column_label,
             map_tab_label: value.map_tab_label,
+            tag_editor_label: value.pill_editor_label,
             search_prefix_label: value.search_prefix_label,
             search_placeholder: value.search_placeholder,
             activity_ready_label: value.activity_ready_label,
@@ -1575,7 +1577,9 @@ impl From<BrowserChromeModel> for compat::BrowserChromeModel {
     fn from(value: BrowserChromeModel) -> Self {
         Self {
             items_tab_label: value.samples_tab_label,
+            item_column_label: value.sample_column_label,
             map_tab_label: value.map_tab_label,
+            pill_editor_label: value.tag_editor_label,
             search_prefix_label: value.search_prefix_label,
             search_placeholder: value.search_placeholder,
             activity_ready_label: value.activity_ready_label,

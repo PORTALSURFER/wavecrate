@@ -9,7 +9,9 @@ pub(crate) fn project_browser_chrome_model(
     let duplicate_cleanup_active = ui.browser.duplicate_cleanup.is_some();
     BrowserChromeModel {
         samples_tab_label: String::from("Samples"),
+        sample_column_label: String::from("Sample"),
         map_tab_label: String::from("Similarity map"),
+        tag_editor_label: String::from("Tags"),
         search_prefix_label: if search_focused {
             String::from("Search • focused")
         } else {
