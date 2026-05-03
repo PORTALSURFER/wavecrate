@@ -835,10 +835,7 @@ fn native_action_exports_are_owned_in_app_core() {
 fn radiant_legacy_shell_imports_are_confined_to_runtime_boundary() {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let src_dir = manifest_dir.join("src");
-    let allowed = BTreeSet::from([
-        "src/app_core/actions/native_shell_dtos.rs",
-        "src/gui_runtime/radiant_legacy_shell.rs",
-    ]);
+    let allowed = BTreeSet::from(["src/gui_runtime/radiant_legacy_shell.rs"]);
     let skipped = BTreeSet::from(["src/app_core/actions/tests.rs"]);
     let forbidden = [
         concat!("radiant::compat::", "legacy_shell"),
