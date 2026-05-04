@@ -344,10 +344,10 @@ impl From<compat::UiAction> for UiAction {
                 Self::SetCompareAnchorFromFocusedBrowserSample
             }
             compat::UiAction::CommitFocusedContentRow => Self::CommitFocusedBrowserRow,
-            compat::UiAction::SaveWaveformSelectionToBrowser => {
+            compat::UiAction::SaveWaveformSelectionAsContent => {
                 Self::SaveWaveformSelectionToBrowser
             }
-            compat::UiAction::SaveWaveformSelectionToBrowserWithKeep2 => {
+            compat::UiAction::SaveWaveformSelectionAsAlternateContent => {
                 Self::SaveWaveformSelectionToBrowserWithKeep2
             }
             compat::UiAction::CommitWaveformEditFades => Self::CommitWaveformEditFades,
@@ -939,9 +939,9 @@ impl From<UiAction> for compat::UiAction {
                 Self::SetCompareAnchorFromFocusedContent
             }
             UiAction::CommitFocusedBrowserRow => Self::CommitFocusedContentRow,
-            UiAction::SaveWaveformSelectionToBrowser => Self::SaveWaveformSelectionToBrowser,
+            UiAction::SaveWaveformSelectionToBrowser => Self::SaveWaveformSelectionAsContent,
             UiAction::SaveWaveformSelectionToBrowserWithKeep2 => {
-                Self::SaveWaveformSelectionToBrowserWithKeep2
+                Self::SaveWaveformSelectionAsAlternateContent
             }
             UiAction::CommitWaveformEditFades => Self::CommitWaveformEditFades,
             UiAction::DetectWaveformSilenceSlices => Self::DetectWaveformSilenceSlices,
