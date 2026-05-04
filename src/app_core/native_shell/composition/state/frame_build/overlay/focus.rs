@@ -1,6 +1,5 @@
-use self::sempal_crate::app as native_model;
 use super::*;
-use crate as sempal_crate;
+use crate::compat_app_contract::{FocusContextModel, FolderPaneIdModel};
 
 mod shared;
 
@@ -24,14 +23,14 @@ fn render_sidebar_section_focus_overlay(
 ) {
     let sections = sidebar_sections(layout, style, model);
     match model.focus_context {
-        native_model::FocusContextModel::NavigationList => {
+        FocusContextModel::NavigationList => {
             render_section_focus_surface(
                 primitives,
                 sections.source_rows(model.sources.active_folder_pane),
                 style,
             );
         }
-        native_model::FocusContextModel::NavigationTree => {
+        FocusContextModel::NavigationTree => {
             let active_pane = model.sources.active_folder_pane;
             render_section_focus_surface(
                 primitives,
@@ -54,7 +53,7 @@ pub(super) fn render_waveform_focus_overlay(
 ) {
     if matches!(
         model.focus_context,
-        native_model::FocusContextModel::Timeline
+        FocusContextModel::Timeline
     ) {
         render_section_focus_surface(primitives, layout.waveform_card, style);
     }
@@ -77,7 +76,7 @@ pub(super) fn render_source_focus_overlay(
 ) {
     if matches!(
         model.focus_context,
-        native_model::FocusContextModel::NavigationList
+        FocusContextModel::NavigationList
     ) {
         render_sidebar_section_focus_overlay(layout, style, model, primitives);
     }
@@ -89,8 +88,8 @@ pub(super) fn render_source_focus_overlay(
             continue;
         };
         let row_selected = match rendered_row.pane {
-            native_model::FolderPaneIdModel::Upper => row.assigned_to_upper_pane,
-            native_model::FolderPaneIdModel::Lower => row.assigned_to_lower_pane,
+            FolderPaneIdModel::Upper => row.assigned_to_upper_pane,
+            FolderPaneIdModel::Lower => row.assigned_to_lower_pane,
         };
         if !row_selected {
             continue;
@@ -119,13 +118,13 @@ pub(super) fn render_folder_focus_overlay(
     let sizing = style.sizing;
     if matches!(
         model.focus_context,
-        native_model::FocusContextModel::NavigationTree
+        FocusContextModel::NavigationTree
     ) {
         render_sidebar_section_focus_overlay(layout, style, model, primitives);
     }
     for pane in [
-        native_model::FolderPaneIdModel::Upper,
-        native_model::FolderPaneIdModel::Lower,
+        FolderPaneIdModel::Upper,
+        FolderPaneIdModel::Lower,
     ] {
         let pane_rows = shell_state.cached_tree_rows(layout, style, model, pane);
         let pane_model = model.sources.folder_pane(pane);
@@ -219,7 +218,7 @@ pub(super) fn render_browser_focus_overlay(
     let sizing = style.sizing;
     if matches!(
         model.focus_context,
-        native_model::FocusContextModel::ContentList
+        FocusContextModel::ContentList
     ) {
         render_panel_focus_surface(layout.browser_panel, style, primitives);
     }

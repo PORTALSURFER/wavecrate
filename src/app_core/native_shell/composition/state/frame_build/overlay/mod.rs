@@ -1,8 +1,7 @@
 //! State-driven overlay builders for the native shell.
 
-use self::sempal_crate::app as native_model;
 use super::*;
-use crate as sempal_crate;
+use crate::compat_app_contract::FolderRowKind;
 
 #[path = "browser.rs"]
 mod browser;
@@ -85,14 +84,14 @@ pub(super) fn render_hover_overlay(
         .active_folder_pane_model()
         .tree_rows
         .iter()
-        .find(|row| row.kind == native_model::FolderRowKind::RenameDraft)
+        .find(|row| row.kind == FolderRowKind::RenameDraft)
         .or_else(|| {
             model
                 .sources
                 .active_folder_pane_model()
                 .tree_rows
                 .iter()
-                .find(|row| row.kind == native_model::FolderRowKind::CreateDraft)
+                .find(|row| row.kind == FolderRowKind::CreateDraft)
         });
     if let (Some(input_rect), Some(text_rect), Some(draft_row), Some(visual)) = (
         folder_input_rect,
@@ -147,7 +146,7 @@ pub(super) fn render_hover_overlay(
         ) {
             if !matches!(
                 row.kind,
-                native_model::FolderRowKind::CreateDraft | native_model::FolderRowKind::RenameDraft
+                FolderRowKind::CreateDraft | FolderRowKind::RenameDraft
             ) {
                 let visual_rect = folder_row_visual_rect(row_rect, sizing);
                 let color = if model.drag_overlay.active {

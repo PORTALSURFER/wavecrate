@@ -1,7 +1,5 @@
-use self::sempal_crate::app as native_model;
 use super::*;
-use crate as sempal_crate;
-use native_model::{FolderPaneIdModel, FolderRowModel};
+use crate::compat_app_contract::{FolderPaneIdModel, FolderRowKind, FolderRowModel};
 
 pub(super) fn render_tree_rows(
     ctx: &StaticFrameCtx<'_>,
@@ -20,7 +18,7 @@ pub(super) fn render_tree_rows(
         let visual_rect = folder_row_visual_rect(row_rect, ctx.sizing);
         if matches!(
             row.kind,
-            native_model::FolderRowKind::CreateDraft | native_model::FolderRowKind::RenameDraft
+            FolderRowKind::CreateDraft | FolderRowKind::RenameDraft
         ) {
             render_folder_inline_draft_row(ctx, primitives, text_runs, row_rect, visual_rect, row);
             continue;

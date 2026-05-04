@@ -1,7 +1,5 @@
-use self::sempal_crate::app as native_model;
 use super::*;
-use crate as sempal_crate;
-use native_model::FolderPaneModel;
+use crate::compat_app_contract::FolderPaneModel;
 
 pub(super) fn render_folder_header(
     ctx: &StaticFrameCtx<'_>,

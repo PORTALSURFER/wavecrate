@@ -1,7 +1,5 @@
-use self::sempal_crate::app as native_model;
 use super::*;
-use crate as sempal_crate;
-use native_model::{FolderPaneIdModel, SourceRowModel};
+use crate::compat_app_contract::{FolderPaneIdModel, SourceRowModel};
 
 pub(super) fn render_source_rows(
     state: &mut NativeShellState,

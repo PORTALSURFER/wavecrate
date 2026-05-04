@@ -7,10 +7,8 @@
 //! kind.
 
 #[cfg(test)]
-use self::sempal_crate::app as native_model;
+use crate::compat_app_contract::UiAction;
 use super::*;
-#[cfg(test)]
-use crate as sempal_crate;
 use std::sync::Arc;
 
 use crate::gui::svg::{parse_svg_document, point_in_svg_shapes};
@@ -200,7 +198,6 @@ fn icon_svg_asset(icon: WaveformToolbarIcon) -> &'static str {
 mod tests {
     use super::*;
     use crate::gui::types::{Point, Rect, Rgba8};
-    use native_model::UiAction;
 
     fn waveform_toolbar_button(label: &'static str, active: bool) -> WaveformToolbarButton {
         WaveformToolbarButton {
