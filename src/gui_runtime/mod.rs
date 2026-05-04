@@ -1,22 +1,24 @@
-//! Shared GUI runtime host implementations re-exported from `radiant`.
+//! Sempal GUI runtime host integration.
 //!
 //! The runtime layer in `sempal` is intentionally minimal and has a strict
 //! contract:
 //!
 //! * it converts `sempal` launch options into `radiant`-native options,
-//! * it forwards those options to `radiant` runtime entry points,
+//! * it hosts the transitional Sempal native-shell Vello runner until the
+//!   generic Radiant runtime bridge is the only launch path,
 //! * it routes runtime errors into project logging.
 //!
-//! No widget state, layout rules, rendering command construction, event policy,
-//! diffing, or other GUI infrastructure is implemented here. Those
-//! responsibilities remain in `radiant`.
+//! Product shell composition, automation snapshots, and compatibility DTO
+//! conversion are Sempal-owned. Generic widget state, layout primitives,
+//! rendering command construction, event policy, diffing, and reusable GUI
+//! infrastructure remain in `radiant`.
 //!
 //! This separation allows deterministic ownership of interaction and layout logic
 //! in one place while keeping host bootstrapping lightweight.
 //!
-//! Sempal intentionally confines the current native-shell compatibility calls to
-//! this runtime boundary while the preferred generic Radiant runtime API
-//! continues to mature.
+//! Sempal intentionally confines the current native-shell compatibility glue to
+//! this runtime boundary while the preferred generic Radiant runtime API becomes
+//! ready for the runtime cutover.
 
 use crate::app_core::actions::{NativeAppBridge, NativeAppModel, NativeGuiAutomationSnapshot};
 use serde::{Deserialize, Serialize};
@@ -106,16 +108,14 @@ pub fn run_native_vello_app<B: NativeAppBridge>(
     options: NativeRunOptions,
     bridge: B,
 ) -> Result<(), String> {
-    // No additional state is touched by this adapter; all control flow and
-    // execution semantics remain in `radiant`.
-    info!("Launching radiant native Vello runtime");
+    info!("Launching Sempal native Vello runtime");
     let result = native_shell_runtime::run_native_vello_app(options, bridge).map_err(|err| {
-        error!(%err, "radiant native Vello runtime returned error");
+        error!(%err, "Sempal native Vello runtime returned error");
         err
     });
 
     if result.is_ok() {
-        info!("Radiant native Vello runtime returned successfully");
+        info!("Sempal native Vello runtime returned successfully");
     }
 
     result
@@ -127,12 +127,12 @@ pub fn run_native_vello_app_with_artifacts<B: NativeAppBridge>(
     options: NativeRunOptions,
     bridge: B,
 ) -> NativeRunReport {
-    info!("Launching radiant native Vello runtime");
+    info!("Launching Sempal native Vello runtime");
     let report = native_shell_runtime::run_native_vello_app_with_artifacts(options, bridge);
     if let Err(err) = &report.result {
-        error!(%err, "radiant native Vello runtime returned error");
+        error!(%err, "Sempal native Vello runtime returned error");
     } else {
-        info!("Radiant native Vello runtime returned successfully");
+        info!("Sempal native Vello runtime returned successfully");
     }
     report
 }
@@ -145,14 +145,14 @@ pub fn run_native_vello_app_declarative<B: NativeAppBridge>(
     options: NativeRunOptions,
     bridge: B,
 ) -> Result<(), String> {
-    info!("Launching radiant native Vello runtime (declarative host)");
+    info!("Launching Sempal native Vello runtime (declarative host)");
     let result = native_shell_runtime::run_native_vello_app(options, bridge).map_err(|err| {
-        error!(%err, "radiant native Vello runtime returned error");
+        error!(%err, "Sempal native Vello runtime returned error");
         err
     });
 
     if result.is_ok() {
-        info!("Radiant native Vello runtime returned successfully");
+        info!("Sempal native Vello runtime returned successfully");
     }
 
     result
@@ -164,12 +164,12 @@ pub fn run_native_vello_app_declarative_with_artifacts<B: NativeAppBridge>(
     options: NativeRunOptions,
     bridge: B,
 ) -> NativeRunReport {
-    info!("Launching radiant native Vello runtime (declarative host)");
+    info!("Launching Sempal native Vello runtime (declarative host)");
     let report = native_shell_runtime::run_native_vello_app_with_artifacts(options, bridge);
     if let Err(err) = &report.result {
-        error!(%err, "radiant native Vello runtime returned error");
+        error!(%err, "Sempal native Vello runtime returned error");
     } else {
-        info!("Radiant native Vello runtime returned successfully");
+        info!("Sempal native Vello runtime returned successfully");
     }
     report
 }

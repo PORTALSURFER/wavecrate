@@ -1,4 +1,9 @@
-//! Sempal native-shell adapter for the temporary Radiant legacy runtime path.
+//! Sempal native-shell adapter for the temporary local legacy runtime path.
+//!
+//! This module owns Sempal compatibility DTO conversion, automation snapshot
+//! mapping, and launch handoff to Sempal's local native-Vello runner. It should
+//! not call Radiant's legacy-shell facade; OPT-277 owns the later cutover to
+//! Radiant's generic runtime bridge.
 
 use super::{NativeRunOptions, NativeRunReport, NativeRuntimeArtifacts, WindowIconRgba};
 use crate::app_core::actions::{
@@ -2289,9 +2294,10 @@ pub(super) fn capture_native_shell_shot_snapshot(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{fs, path::Path};
 
     #[test]
-    fn native_run_options_map_field_for_field_to_radiant_compat_options() {
+    fn native_run_options_map_field_for_field_to_radiant_runtime_options() {
         let options = NativeRunOptions {
             title: String::from("Sempal test host"),
             inner_size: Some([1280.0, 720.0]),
@@ -2318,5 +2324,50 @@ mod tests {
         assert_eq!(icon.rgba, vec![255, 0, 0, 255]);
         assert_eq!(icon.width, 1);
         assert_eq!(icon.height, 1);
+    }
+
+    #[test]
+    fn sempal_runtime_glue_stays_local_until_generic_runtime_cutover() {
+        let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let adapter =
+            fs::read_to_string(manifest_dir.join("src/gui_runtime/native_shell_runtime.rs"))
+                .expect("native shell runtime adapter");
+        let runtime = fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello.rs"))
+            .expect("local native vello runtime");
+        let runtime_prelude = fs::read_to_string(
+            manifest_dir.join("src/gui_runtime/native_vello/legacy_shell_prelude.rs"),
+        )
+        .expect("local native vello prelude");
+        let public_runtime =
+            fs::read_to_string(manifest_dir.join("src/gui_runtime/mod.rs")).expect("runtime mod");
+
+        assert!(
+            adapter.contains("crate::compat_app_contract as compat")
+                && adapter.contains("native_vello::run_native_shell_vello_app_with_artifacts")
+                && adapter.contains("local_automation_snapshot_from_native_shell")
+                && adapter
+                    .contains("crate::compat_app_contract::capture_native_shell_shot_snapshot"),
+            "Sempal compatibility conversion, runtime launch, automation, and shot snapshots should stay in the local runtime adapter"
+        );
+        assert!(
+            !adapter.contains(&format!("{}{}", "radiant::compat::", "legacy_shell"))
+                && !adapter.contains(&format!(
+                    "{}{}",
+                    "run_legacy_native_vello_",
+                    "app_with_artifacts"
+                )),
+            "OPT-275 must not route Sempal runtime glue through Radiant's legacy-shell facade"
+        );
+        assert!(
+            runtime_prelude.contains("crate::compat_app_contract")
+                && runtime.contains("pub(super) use legacy_shell_runtime::run_legacy_shell_vello_app_with_artifacts as run_native_shell_vello_app_with_artifacts"),
+            "the transitional native-Vello runner should be Sempal-owned until OPT-277 switches to RuntimeBridge"
+        );
+        assert!(
+            public_runtime.contains("Sempal GUI runtime host integration")
+                && public_runtime.contains("Product shell composition, automation snapshots")
+                && public_runtime.contains("Launching Sempal native Vello runtime"),
+            "runtime boundary docs and logs should describe Sempal-owned compatibility glue, not a Radiant legacy runtime"
+        );
     }
 }
