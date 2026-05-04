@@ -417,9 +417,9 @@ impl From<compat::UiAction> for UiAction {
                     invert: invert,
                 }
             }
-            compat::UiAction::ToggleBrowserPlaybackAgeFilter { bucket, invert } => {
+            compat::UiAction::ToggleContentRecencyFilter { chip, invert } => {
                 Self::ToggleBrowserPlaybackAgeFilter {
-                    bucket: bucket.into(),
+                    bucket: chip.into(),
                     invert: invert,
                 }
             }
@@ -1005,8 +1005,8 @@ impl From<UiAction> for compat::UiAction {
                 }
             }
             UiAction::ToggleBrowserPlaybackAgeFilter { bucket, invert } => {
-                Self::ToggleBrowserPlaybackAgeFilter {
-                    bucket: bucket.into(),
+                Self::ToggleContentRecencyFilter {
+                    chip: bucket.into(),
                     invert: invert,
                 }
             }
