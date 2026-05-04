@@ -11,7 +11,7 @@ use crate::app_core::native_bridge::{
 use crate::gui_test::{GuiAivAssertion, GuiAivStep, gui_aiv_suite_manifest};
 use std::collections::BTreeSet;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[test]
 fn catalog_contains_every_action_kind_exactly_once() {
@@ -278,11 +278,24 @@ fn native_action_exports_are_owned_in_app_core() {
             && !native_actions.contains("compat::BrowserTriageTarget"),
         "Sempal action payload definitions should not import Radiant legacy-shell compatibility types"
     );
-    let native_action_conversions = fs::read_to_string(
-        manifest_dir.join("src/app_core/native_shell/composition/runtime/native_vello.rs"),
-    )
-    .expect("native shell runtime adapter");
+    let native_action_conversions =
+        fs::read_to_string(manifest_dir.join("src/gui_runtime/native_shell_runtime.rs"))
+            .expect("native shell runtime adapter");
     let native_actions = format!("{native_actions}\n{native_action_conversions}");
+    assert!(
+        !manifest_dir
+            .join("src/app_core/native_shell/composition/runtime/native_vello.rs")
+            .exists(),
+        "Radiant legacy-shell conversion belongs in gui_runtime, not app_core native-shell composition"
+    );
+    for source_path in rust_sources_under(&manifest_dir.join("src/app_core/native_shell")) {
+        let source = fs::read_to_string(&source_path).expect("native shell source");
+        assert!(
+            !source.contains("radiant::compat::legacy_shell"),
+            "{} must not import Radiant legacy-shell compatibility contracts; keep that adapter in gui_runtime",
+            source_path.display()
+        );
+    }
     assert!(
         !native_dtos.contains("radiant::compat::legacy_shell") && !native_dtos.contains("compat::"),
         "Sempal projection DTO definitions should not import Radiant legacy-shell compatibility types"
@@ -863,5 +876,26 @@ fn collect_desktop_aiv_assertion_action_ids(
             continue;
         };
         out.insert(action_id.clone());
+    }
+}
+
+fn rust_sources_under(root: &Path) -> Vec<PathBuf> {
+    let mut sources = Vec::new();
+    collect_rust_sources(root, &mut sources);
+    sources.sort();
+    sources
+}
+
+fn collect_rust_sources(path: &Path, out: &mut Vec<PathBuf>) {
+    let Ok(entries) = fs::read_dir(path) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_rust_sources(&path, out);
+        } else if path.extension().and_then(|ext| ext.to_str()) == Some("rs") {
+            out.push(path);
+        }
     }
 }

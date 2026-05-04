@@ -22,7 +22,6 @@ use crate::app_core::actions::{NativeAppBridge, NativeAppModel, NativeGuiAutomat
 use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 
-#[path = "../app_core/native_shell/composition/runtime/native_vello.rs"]
 mod native_shell_runtime;
 
 pub use radiant::gui_runtime::{

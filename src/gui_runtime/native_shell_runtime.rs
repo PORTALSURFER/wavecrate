@@ -13,11 +13,11 @@ use crate::gui::{
     native_shell::{NativeShellState, ShellLayout, ShellLayoutRuntime, StyleTokens},
     types::Vector2,
 };
+use radiant::compat::legacy_shell as compat;
 use radiant::gui::{
     focus::FocusSurface as RadiantFocusSurface, frame::FrameBuildResult as RadiantFrameBuildResult,
     input::KeyPress as RadiantKeyPress, shortcuts::ShortcutResolution as RadiantShortcutResolution,
 };
-use radiant::compat::legacy_shell as compat;
 use std::{collections::BTreeMap, sync::Arc};
 
 /// Converts app-level Vello launch options into the generic `radiant` runtime representation.
@@ -2477,7 +2477,9 @@ pub(super) fn capture_gui_automation_snapshot(
     let layout = ShellLayout::build_with_style_and_runtime(viewport, &style, &mut runtime);
     let mut shell_state = NativeShellState::new();
     shell_state.sync_from_model(&local_model);
-    local_automation_snapshot_from_native_shell(shell_state.automation_snapshot(&layout, &local_model))
+    local_automation_snapshot_from_native_shell(
+        shell_state.automation_snapshot(&layout, &local_model),
+    )
 }
 
 fn local_automation_snapshot_from_native_shell(
