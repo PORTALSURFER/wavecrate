@@ -259,6 +259,12 @@ fn native_action_exports_are_owned_in_app_core() {
             && local_contract.contains("pub use shell::{"),
         "Sempal must have a local compatibility contract before the Radiant legacy shell facade can be retired"
     );
+    assert!(
+        !local_contract.contains("runtime_artifacts")
+            && !local_contract.contains("NativeRunReport")
+            && !local_contract.contains("NativeRuntimeArtifacts"),
+        "runtime artifact envelopes belong in gui_runtime, not the local compatibility DTO contract"
+    );
 
     let native_dtos =
         fs::read_to_string(manifest_dir.join("src/app_core/actions/native_shell_dtos.rs"))
