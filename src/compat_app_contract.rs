@@ -16,8 +16,6 @@ mod bridge;
 mod dirty_segments;
 #[path = "app_core/native_shell/composition/runtime/motion.rs"]
 mod motion;
-#[path = "app_core/native_shell/composition/runtime/runtime_artifacts.rs"]
-mod runtime_artifacts;
 #[path = "app_core/native_shell/composition/runtime/shell.rs"]
 mod shell;
 #[path = "app_core/native_shell/composition/runtime/shell_snapshot.rs"]
@@ -40,7 +38,6 @@ pub use aliases::{
 pub use bridge::NativeAppBridge;
 pub use dirty_segments::{DirtySegments, SegmentRevisions};
 pub use motion::NativeMotionModel;
-pub use runtime_artifacts::{NativeRunReport, NativeRuntimeArtifacts};
 pub use shell::{
     AppModel, ConfirmPromptKind, ConfirmPromptModel, DragOverlayModel, OptionsPanelModel,
     PairedDevicePanelModel, PairedPickerOptionModel, PairedPickerTargetModel,
