@@ -1,13 +1,13 @@
-pub use crate::gui::automation::{
-    AutomationBounds, AutomationNodeId, AutomationNodeSnapshot, AutomationRole,
-    GuiAutomationSnapshot,
-};
 pub use crate::gui::chrome::ContentViewChrome as BrowserChromeModel;
 pub use crate::gui::focus::FocusSurface as FocusContextModel;
 pub use crate::gui::input::KeyPress;
 pub use crate::gui::list::ContentListActions as BrowserActionsModel;
 pub use crate::gui::shortcuts::ShortcutResolution;
 pub use crate::app_core::actions::{
+    NativeAutomationBounds as AutomationBounds,
+    NativeAutomationNodeId as AutomationNodeId,
+    NativeAutomationNodeSnapshot as AutomationNodeSnapshot,
+    NativeAutomationRole as AutomationRole,
     NativeBrowserRowModel as BrowserRowModel,
     NativeBrowserRowProcessingState as BrowserRowProcessingState,
     NativeBrowserTagPillModel as BrowserPillModel,
@@ -21,6 +21,7 @@ pub use crate::app_core::actions::{
     NativeFolderRowKind as FolderRowKind,
     NativeFolderRowModel as FolderRowModel,
     NativeFrameBuildResult as FrameBuildResult,
+    NativeGuiAutomationSnapshot as GuiAutomationSnapshot,
     NativeMapPanelModel as MapPanelModel,
     NativeMapPointModel as MapPointModel,
     NativeMapRenderModeModel as MapRenderModeModel,

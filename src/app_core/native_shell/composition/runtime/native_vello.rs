@@ -2477,9 +2477,43 @@ pub(super) fn capture_gui_automation_snapshot(
     let layout = ShellLayout::build_with_style_and_runtime(viewport, &style, &mut runtime);
     let mut shell_state = NativeShellState::new();
     shell_state.sync_from_model(&local_model);
-    shell_state
-        .automation_snapshot(&layout, &local_model)
-        .into()
+    local_automation_snapshot_from_native_shell(shell_state.automation_snapshot(&layout, &local_model))
+}
+
+fn local_automation_snapshot_from_native_shell(
+    value: GuiAutomationSnapshot,
+) -> NativeGuiAutomationSnapshot {
+    NativeGuiAutomationSnapshot {
+        schema_version: value.schema_version,
+        viewport_width: value.viewport_width,
+        viewport_height: value.viewport_height,
+        root: local_automation_node_from_native_shell(value.root),
+    }
+}
+
+fn local_automation_node_from_native_shell(
+    value: AutomationNodeSnapshot,
+) -> AutomationNodeSnapshot {
+    AutomationNodeSnapshot {
+        id: automation_node_id_from_generic(value.id),
+        role: value.role,
+        label: value.label,
+        bounds: value.bounds,
+        value: value.value,
+        enabled: value.enabled,
+        selected: value.selected,
+        available_actions: value
+            .available_actions
+            .into_iter()
+            .map(automation_action_id_from_generic)
+            .collect(),
+        metadata: automation_metadata_from_generic(value.metadata),
+        children: value
+            .children
+            .into_iter()
+            .map(local_automation_node_from_native_shell)
+            .collect(),
+    }
 }
 
 #[cfg(test)]

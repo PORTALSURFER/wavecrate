@@ -444,7 +444,7 @@ fn map_canvas_automation(
     let canvas = compute_browser_map_canvas_rect(layout.browser_rows, style.sizing);
     let mut map_node = simple_node(
         "browser.map_canvas",
-        AutomationRole::SpatialCanvas,
+        AutomationRole::MapCanvas,
         Some(model.browser_chrome.map_tab_label.clone()),
         canvas,
         Some(model.map.summary.clone()),
@@ -458,7 +458,7 @@ fn map_canvas_automation(
         .iter()
         .map(|point| AutomationNodeSnapshot {
             id: node_id(format!("browser.map.point.{}", point.id)),
-            role: AutomationRole::SpatialPoint,
+            role: AutomationRole::MapPoint,
             label: Some(String::from(point.id.as_ref())),
             bounds: bounds(circle_rect(
                 compute_browser_map_point_center(canvas, point.x_milli, point.y_milli),

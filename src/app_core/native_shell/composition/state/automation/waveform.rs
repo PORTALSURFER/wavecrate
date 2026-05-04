@@ -41,7 +41,7 @@ pub(super) fn build_waveform_automation(
     }
     children.push(AutomationNodeSnapshot {
         id: node_id("waveform.region"),
-        role: AutomationRole::TimelineRegion,
+        role: AutomationRole::WaveformRegion,
         label: Some(String::from("Waveform")),
         bounds: bounds(layout.waveform_plot),
         value: model.waveform.loaded_label.clone(),
