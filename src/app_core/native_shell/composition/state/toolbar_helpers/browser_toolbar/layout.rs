@@ -1,8 +1,7 @@
 //! Browser toolbar layout and hit-testing helpers.
 
-use self::sempal_crate::app as native_model;
 use super::super::super::*;
-use crate as sempal_crate;
+use crate::compat_app_contract::PlaybackAgeFilterChip;
 
 pub(in crate::gui::native_shell::state) fn browser_toolbar_layout(
     layout: &ShellLayout,
@@ -46,7 +45,7 @@ pub(in crate::gui::native_shell::state) fn browser_rating_filter_level_at_point(
 }
 
 pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_index(
-    chip: native_model::PlaybackAgeFilterChip,
+    chip: PlaybackAgeFilterChip,
 ) -> Option<usize> {
     BROWSER_PLAYBACK_AGE_FILTER_CHIPS
         .iter()
@@ -56,7 +55,7 @@ pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_inde
 pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_at_point(
     chips: [Rect; 3],
     point: Point,
-) -> Option<native_model::PlaybackAgeFilterChip> {
+) -> Option<PlaybackAgeFilterChip> {
     chips
         .iter()
         .position(|rect| rect.width() > 1.0 && rect.contains(point))

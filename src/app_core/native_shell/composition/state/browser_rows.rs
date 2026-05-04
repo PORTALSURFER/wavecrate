@@ -1,11 +1,11 @@
 //! Browser-row caches plus focused geometry, truncation, and visual helper modules.
 
-use self::sempal_crate::app as native_model;
 use super::svg_icons::WaveformToolbarIcon;
 use super::*;
-use crate as sempal_crate;
+use crate::compat_app_contract::{
+    BrowserRowProcessingState, FolderPaneIdModel, PlaybackAgeBucket,
+};
 use crate::gui::native_shell::layout_adapter::BrowserRowTextLayout;
-use native_model::FolderPaneIdModel;
 
 #[path = "browser_rows/sidebar.rs"]
 mod sidebar;
@@ -32,14 +32,14 @@ pub(super) struct CachedBrowserRow {
     pub(super) label_rendered_width: f32,
     pub(super) column: usize,
     pub(super) rating_level: i8,
-    pub(super) playback_age_bucket: native_model::PlaybackAgeBucket,
+    pub(super) playback_age_bucket: PlaybackAgeBucket,
     pub(super) similarity_display_strength: Option<u8>,
     pub(super) selected: bool,
     pub(super) focused: bool,
     pub(super) missing: bool,
     pub(super) locked: bool,
     pub(super) marked: bool,
-    pub(super) processing_state: native_model::BrowserRowProcessingState,
+    pub(super) processing_state: BrowserRowProcessingState,
     pub(super) rect: Rect,
 }
 

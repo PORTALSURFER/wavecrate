@@ -1,6 +1,5 @@
-use self::sempal_crate::app as native_model;
 use super::*;
-use crate as sempal_crate;
+use crate::compat_app_contract::NormalizedRangeModel;
 
 #[path = "waveform/toolbar.rs"]
 mod toolbar;
@@ -328,7 +327,7 @@ fn hovered_resize_edge_for_range(
     layout: &ShellLayout,
     model: &AppModel,
     point: Point,
-    range: Option<native_model::NormalizedRangeModel>,
+    range: Option<NormalizedRangeModel>,
 ) -> Option<bool> {
     let range = range?;
     let start_micros = range.start_micros.min(range.end_micros);

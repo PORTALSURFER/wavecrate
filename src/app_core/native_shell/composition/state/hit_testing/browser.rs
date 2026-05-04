@@ -1,8 +1,6 @@
 #[cfg(test)]
-use self::sempal_crate::app as native_model;
+use crate::compat_app_contract::PlaybackAgeFilterChip;
 use super::*;
-#[cfg(test)]
-use crate as sempal_crate;
 
 impl NativeShellState {
     /// Return a browser column-chip rect for one column index in tests.
@@ -357,7 +355,7 @@ impl NativeShellState {
         &mut self,
         layout: &ShellLayout,
         model: &AppModel,
-        chip: native_model::PlaybackAgeFilterChip,
+        chip: PlaybackAgeFilterChip,
     ) -> Option<Rect> {
         let toolbar = self
             .cached_browser_interaction_geometry(layout, model)

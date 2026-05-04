@@ -1,8 +1,7 @@
 //! Visual fill, pulse, and meter helpers shared by native shell lists and toolbars.
 
-use self::sempal_crate::app as native_model;
 use super::*;
-use crate as sempal_crate;
+use crate::compat_app_contract::{BrowserRowProcessingState, PlaybackAgeBucket};
 
 pub(in crate::gui::native_shell::state) fn volume_action_for_meter(
     volume_meter: Rect,
@@ -119,23 +118,23 @@ pub(in crate::gui::native_shell::state) fn browser_marked_similarity_row_fill(
 pub(in crate::gui::native_shell::state) fn browser_processing_row_fill(
     style: &StyleTokens,
     base: Rgba8,
-    state: native_model::BrowserRowProcessingState,
+    state: BrowserRowProcessingState,
 ) -> Rgba8 {
     match state {
-        native_model::BrowserRowProcessingState::None => base,
-        native_model::BrowserRowProcessingState::Queued => {
+        BrowserRowProcessingState::None => base,
+        BrowserRowProcessingState::Queued => {
             translucent_overlay_color(base, style.highlight_blue, 0.14)
         }
-        native_model::BrowserRowProcessingState::Active => {
+        BrowserRowProcessingState::Active => {
             translucent_overlay_color(base, style.highlight_orange, 0.28)
         }
-        native_model::BrowserRowProcessingState::Completed => {
+        BrowserRowProcessingState::Completed => {
             translucent_overlay_color(base, style.accent_mint, 0.18)
         }
-        native_model::BrowserRowProcessingState::Skipped => {
+        BrowserRowProcessingState::Skipped => {
             translucent_overlay_color(base, style.text_muted, 0.14)
         }
-        native_model::BrowserRowProcessingState::Failed => {
+        BrowserRowProcessingState::Failed => {
             translucent_overlay_color(base, style.accent_trash, 0.24)
         }
     }
@@ -144,15 +143,15 @@ pub(in crate::gui::native_shell::state) fn browser_processing_row_fill(
 /// Return the left-edge marker color for transient auto-rename processing state.
 pub(in crate::gui::native_shell::state) fn browser_processing_marker_color(
     style: &StyleTokens,
-    state: native_model::BrowserRowProcessingState,
+    state: BrowserRowProcessingState,
 ) -> Option<Rgba8> {
     match state {
-        native_model::BrowserRowProcessingState::None => None,
-        native_model::BrowserRowProcessingState::Queued => Some(style.highlight_blue),
-        native_model::BrowserRowProcessingState::Active => Some(style.highlight_orange),
-        native_model::BrowserRowProcessingState::Completed => Some(style.accent_mint),
-        native_model::BrowserRowProcessingState::Skipped => Some(style.text_muted),
-        native_model::BrowserRowProcessingState::Failed => Some(style.accent_trash),
+        BrowserRowProcessingState::None => None,
+        BrowserRowProcessingState::Queued => Some(style.highlight_blue),
+        BrowserRowProcessingState::Active => Some(style.highlight_orange),
+        BrowserRowProcessingState::Completed => Some(style.accent_mint),
+        BrowserRowProcessingState::Skipped => Some(style.text_muted),
+        BrowserRowProcessingState::Failed => Some(style.accent_trash),
     }
 }
 
@@ -182,13 +181,13 @@ pub(in crate::gui::native_shell::state) fn similarity_anchor_browser_index_fill(
 /// Return the left-edge browser age marker color for the playback-age bucket.
 pub(in crate::gui::native_shell::state) fn browser_playback_age_marker_color(
     style: &StyleTokens,
-    bucket: native_model::PlaybackAgeBucket,
+    bucket: PlaybackAgeBucket,
 ) -> Rgba8 {
     match bucket {
-        native_model::PlaybackAgeBucket::Fresh => style.text_primary,
-        native_model::PlaybackAgeBucket::OlderThanWeek => style.text_muted,
-        native_model::PlaybackAgeBucket::OlderThanMonth => style.border_emphasis,
-        native_model::PlaybackAgeBucket::NeverPlayed => style.grid_soft,
+        PlaybackAgeBucket::Fresh => style.text_primary,
+        PlaybackAgeBucket::OlderThanWeek => style.text_muted,
+        PlaybackAgeBucket::OlderThanMonth => style.border_emphasis,
+        PlaybackAgeBucket::NeverPlayed => style.grid_soft,
     }
 }
 

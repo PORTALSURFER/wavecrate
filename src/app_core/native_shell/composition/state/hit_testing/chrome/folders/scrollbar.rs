@@ -1,7 +1,5 @@
-use self::sempal_crate::app as native_model;
 use super::*;
-use crate as sempal_crate;
-use native_model::FolderPaneIdModel;
+use crate::compat_app_contract::FolderPaneIdModel;
 
 impl NativeShellState {
     pub(crate) fn folder_viewport_len(
