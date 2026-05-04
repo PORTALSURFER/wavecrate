@@ -67,11 +67,7 @@ pub fn load() -> Result<LibraryState, LibraryError> {
     let _guard = lock_library();
     let db = LibraryDatabase::open()?;
     let result = db.load_state();
-    record_library_db_event(
-        "library.load",
-        started_at,
-        result.as_ref().map(|_| ()).map_err(|err| err),
-    );
+    record_library_db_event("library.load", started_at, result.as_ref().map(|_| ()));
     result
 }
 
@@ -81,11 +77,7 @@ pub fn save(state: &LibraryState) -> Result<(), LibraryError> {
     let _guard = lock_library();
     let mut db = LibraryDatabase::open()?;
     let result = db.replace_state(state);
-    record_library_db_event(
-        "library.save",
-        started_at,
-        result.as_ref().map(|_| ()).map_err(|err| err),
-    );
+    record_library_db_event("library.save", started_at, result.as_ref().map(|_| ()));
     result
 }
 
@@ -98,10 +90,7 @@ pub fn open_connection() -> Result<Connection, LibraryError> {
     record_library_db_event(
         "library.open_connection",
         started_at,
-        result
-            .as_ref()
-            .map(|_| ())
-            .map_err(|err: &LibraryError| err),
+        result.as_ref().map(|_| ()),
     );
     result
 }
@@ -118,7 +107,7 @@ pub fn lookup_source_id_for_root(root: &Path) -> Result<Option<SourceId>, Librar
     record_library_db_event(
         "library.lookup_source_id_for_root",
         started_at,
-        result.as_ref().map(|_| ()).map_err(|err| err),
+        result.as_ref().map(|_| ()),
     );
     result
 }

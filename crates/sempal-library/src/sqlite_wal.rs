@@ -124,10 +124,10 @@ fn claim_checkpoint_window(db_path: &Path, now: Instant) -> bool {
         Ok(checkpoints) => checkpoints,
         Err(poisoned) => poisoned.into_inner(),
     };
-    if let Some(last_attempt) = checkpoints.get(db_path) {
-        if now.duration_since(*last_attempt) < PASSIVE_CHECKPOINT_MIN_INTERVAL {
-            return false;
-        }
+    if let Some(last_attempt) = checkpoints.get(db_path)
+        && now.duration_since(*last_attempt) < PASSIVE_CHECKPOINT_MIN_INTERVAL
+    {
+        return false;
     }
     checkpoints.insert(db_path.to_path_buf(), now);
     true

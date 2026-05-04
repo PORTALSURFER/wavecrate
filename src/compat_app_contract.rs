@@ -19,6 +19,12 @@ mod shell;
 #[path = "app_core/native_shell/composition/runtime/shell_snapshot.rs"]
 mod shell_snapshot;
 
+pub use crate::app_core::actions::{
+    NativeDirtySegments as DirtySegments, NativeNormalizedRangeModel as NormalizedRangeModel,
+    NativeOptionsPanelModel as OptionsPanelModel, NativeSegmentRevisions as SegmentRevisions,
+    NativeSourcesPanelModel as SourcesPanelModel, NativeWaveformChromeModel as WaveformChromeModel,
+    NativeWaveformPanelModel as WaveformPanelModel,
+};
 pub use actions::{BrowserTriageTarget, UiAction};
 pub use aliases::{
     AutomationBounds, AutomationNodeId, AutomationNodeSnapshot, AutomationRole,
@@ -30,12 +36,6 @@ pub use aliases::{
     PlaybackAgeFilterChip, RetainedVec, ShortcutResolution, SourceRowModel,
 };
 pub use bridge::NativeAppBridge;
-pub use crate::app_core::actions::{
-    NativeDirtySegments as DirtySegments, NativeNormalizedRangeModel as NormalizedRangeModel,
-    NativeOptionsPanelModel as OptionsPanelModel, NativeSegmentRevisions as SegmentRevisions,
-    NativeSourcesPanelModel as SourcesPanelModel, NativeWaveformChromeModel as WaveformChromeModel,
-    NativeWaveformPanelModel as WaveformPanelModel,
-};
 pub use motion::NativeMotionModel;
 pub use shell::{
     AppModel, ConfirmPromptKind, ConfirmPromptModel, DragOverlayModel, PairedDevicePanelModel,

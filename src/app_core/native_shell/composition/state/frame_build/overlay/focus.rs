@@ -51,10 +51,7 @@ pub(super) fn render_waveform_focus_overlay(
     model: &AppModel,
     primitives: &mut impl PrimitiveSink,
 ) {
-    if matches!(
-        model.focus_context,
-        FocusContextModel::Timeline
-    ) {
+    if matches!(model.focus_context, FocusContextModel::Timeline) {
         render_section_focus_surface(primitives, layout.waveform_card, style);
     }
 }
@@ -74,10 +71,7 @@ pub(super) fn render_source_focus_overlay(
     model: &AppModel,
     primitives: &mut impl PrimitiveSink,
 ) {
-    if matches!(
-        model.focus_context,
-        FocusContextModel::NavigationList
-    ) {
+    if matches!(model.focus_context, FocusContextModel::NavigationList) {
         render_sidebar_section_focus_overlay(layout, style, model, primitives);
     }
     let source_rows = shell_state
@@ -116,16 +110,10 @@ pub(super) fn render_folder_focus_overlay(
     text_runs: &mut impl TextRunSink,
 ) {
     let sizing = style.sizing;
-    if matches!(
-        model.focus_context,
-        FocusContextModel::NavigationTree
-    ) {
+    if matches!(model.focus_context, FocusContextModel::NavigationTree) {
         render_sidebar_section_focus_overlay(layout, style, model, primitives);
     }
-    for pane in [
-        FolderPaneIdModel::Upper,
-        FolderPaneIdModel::Lower,
-    ] {
+    for pane in [FolderPaneIdModel::Upper, FolderPaneIdModel::Lower] {
         let pane_rows = shell_state.cached_tree_rows(layout, style, model, pane);
         let pane_model = model.sources.folder_pane(pane);
         let last_folder_row_max_y = pane_rows.last().map(|row| row.rect.max.y);
@@ -216,10 +204,7 @@ pub(super) fn render_browser_focus_overlay(
     text_runs: &mut impl TextRunSink,
 ) {
     let sizing = style.sizing;
-    if matches!(
-        model.focus_context,
-        FocusContextModel::ContentList
-    ) {
+    if matches!(model.focus_context, FocusContextModel::ContentList) {
         render_panel_focus_surface(layout.browser_panel, style, primitives);
     }
     let browser_rows = shell_state.cached_browser_rows(layout, style, model);

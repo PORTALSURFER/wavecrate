@@ -115,7 +115,7 @@ impl SourceDatabase {
             "source_db.set_tags_batch",
             &self.root,
             started_at,
-            result.as_ref().map(|_| ()).map_err(|err| err),
+            result.as_ref().map(|_| ()),
         );
         result
     }
@@ -215,7 +215,7 @@ impl SourceDatabase {
             operation,
             &self.root,
             started_at,
-            result.as_ref().map(|_| ()).map_err(|err| err),
+            result.as_ref().map(|_| ()),
         );
         result
     }

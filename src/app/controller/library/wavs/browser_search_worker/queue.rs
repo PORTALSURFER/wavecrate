@@ -11,6 +11,7 @@ use super::*;
 #[derive(Default)]
 pub(super) struct SearchJobQueueState {
     pending: Option<QueuedSearchJob>,
+    metadata_delta_paths: std::collections::BTreeSet<std::path::PathBuf>,
     poisoned_recovered: bool,
     shutdown: bool,
 }
@@ -41,6 +42,13 @@ impl SearchJobQueue {
         if state.shutdown {
             return;
         }
+        let mut job = job;
+        if !job.metadata_delta_paths.is_empty() {
+            state
+                .metadata_delta_paths
+                .extend(job.metadata_delta_paths.iter().cloned());
+        }
+        job.metadata_delta_paths = state.metadata_delta_paths.iter().cloned().collect();
         record_search_queue_send(state.pending.is_some());
         state.pending = Some(QueuedSearchJob {
             job,
@@ -79,6 +87,14 @@ impl SearchJobQueue {
 
     pub(super) fn is_generation_current(&self, generation: u64) -> bool {
         self.generation.load(AtomicOrdering::Relaxed) == generation
+    }
+
+    /// Clear accumulated metadata-delta paths after the current generation produces a result.
+    pub(super) fn clear_metadata_delta_paths_if_current(&self, generation: u64) {
+        let mut state = self.lock_state();
+        if self.generation.load(AtomicOrdering::Relaxed) == generation {
+            state.metadata_delta_paths.clear();
+        }
     }
 
     fn lock_state(&self) -> std::sync::MutexGuard<'_, SearchJobQueueState> {
@@ -185,6 +201,7 @@ pub(crate) fn spawn_search_worker() -> (SearchJobSender, Receiver<SearchResult>,
                 &queue_worker,
                 queued.generation,
             ) {
+                queue_worker.clear_metadata_delta_paths_if_current(queued.generation);
                 let _ = result_tx.send(result);
             }
         }

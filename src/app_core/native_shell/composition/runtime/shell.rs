@@ -1,17 +1,15 @@
 //! Sempal shell and overlay models used by the legacy Radiant compatibility path.
 
+pub use crate::app_core::actions::{
+    NativeDragOverlayModel as DragOverlayModel, NativeProgressOverlayModel as ProgressOverlayModel,
+    NativeStatusBarModel as StatusBarModel, NativeUpdatePanelModel as UpdatePanelModel,
+    NativeUpdateStatusModel as UpdateStatusModel,
+};
 pub use crate::gui::feedback::HealthState as StatusChipStateModel;
 pub use crate::gui::feedback::PromptIntent as ConfirmPromptKind;
 pub use crate::gui::form::PairedPickerTarget as PairedPickerTargetModel;
 pub use crate::gui::form::PairedStatusPanel as PairedDevicePanelModel;
 pub use crate::gui::form::SummaryField as SummaryFieldModel;
-pub use crate::app_core::actions::{
-    NativeDragOverlayModel as DragOverlayModel,
-    NativeProgressOverlayModel as ProgressOverlayModel,
-    NativeStatusBarModel as StatusBarModel,
-    NativeUpdatePanelModel as UpdatePanelModel,
-    NativeUpdateStatusModel as UpdateStatusModel,
-};
 
 use super::{
     BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, ColumnModel, FocusContextModel,

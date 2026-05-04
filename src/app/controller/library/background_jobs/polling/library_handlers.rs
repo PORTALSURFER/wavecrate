@@ -155,15 +155,23 @@ impl AppController {
             && message.request_id == self.ui.browser.search.latest_search_request_id
         {
             self.mark_browser_search_projection_revision_dirty();
-            self.apply_browser_projection(
-                message.visible,
-                message.trash,
-                message.neutral,
-                message.keep,
-            );
+            let (trash, neutral, keep) = if self
+                .runtime
+                .source_lane
+                .mutations
+                .source_has_pending_metadata(&message.source_id)
+            {
+                self.optimistic_browser_triage_partitions()
+            } else {
+                (message.trash, message.neutral, message.keep)
+            };
+            self.apply_browser_projection(message.visible, trash, neutral, keep);
             self.ui_cache.browser.search.scores = message.scores;
             self.ui.browser.search.latest_applied_search_request_id = message.request_id;
             self.ui.browser.search.search_busy = false;
+            self.runtime
+                .pending_browser_search_metadata_delta_paths
+                .clear();
             self.clear_progress_task(ProgressTaskKind::Search);
             let pending_pane = self
                 .runtime
@@ -186,6 +194,32 @@ impl AppController {
         if self.selection_state.ctx.selected_source.as_ref() == Some(&message.source_id) {
             self.refresh_selected_source_similarity_prep_status();
         }
+    }
+
+    /// Build triage partitions from controller-owned optimistic rows while metadata writes are pending.
+    fn optimistic_browser_triage_partitions(
+        &mut self,
+    ) -> (
+        std::sync::Arc<[usize]>,
+        std::sync::Arc<[usize]>,
+        std::sync::Arc<[usize]>,
+    ) {
+        let mut trash = Vec::new();
+        let mut neutral = Vec::new();
+        let mut keep = Vec::new();
+        for index in 0..self.wav_entries_len() {
+            let Some(entry) = self.wav_entry(index) else {
+                continue;
+            };
+            if entry.tag.is_trash() {
+                trash.push(index);
+            } else if entry.tag.is_keep() {
+                keep.push(index);
+            } else {
+                neutral.push(index);
+            }
+        }
+        (trash.into(), neutral.into(), keep.into())
     }
 
     /// Apply one streamed selection-export worker message.

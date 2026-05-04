@@ -7,9 +7,9 @@
 
 use super::{NativeRunOptions, NativeRunReport, NativeRuntimeArtifacts, WindowIconRgba};
 use crate::app_core::actions::{
-    native_shell_dtos::*, NativeAppBridge, NativeAppModel,
-    NativeBrowserTagTarget as BrowserTagTarget, NativeFrameBuildResult,
-    NativeGuiAutomationSnapshot, NativeMotionModel, NativeUiAction, NativeUiAction as UiAction,
+    NativeAppBridge, NativeAppModel, NativeBrowserTagTarget as BrowserTagTarget,
+    NativeFrameBuildResult, NativeGuiAutomationSnapshot, NativeMotionModel, NativeUiAction,
+    NativeUiAction as UiAction, native_shell_dtos::*,
 };
 use crate::app_core::app_api::controller_ui_hotkeys::KeyPress;
 use crate::app_core::app_api::{controller_ui_hotkeys as hotkeys, state::FocusContext};
@@ -2521,8 +2521,9 @@ mod tests {
             "Sempal should consume Radiant without the legacy-shell feature after OPT-277"
         );
         assert!(
-            adapter.contains("impl<B: NativeAppBridge> RuntimeBridge<UiAction> for SempalRuntimeBridge<B>")
-                && adapter.contains("fn resolve_key_press(")
+            adapter.contains(
+                "impl<B: NativeAppBridge> RuntimeBridge<UiAction> for SempalRuntimeBridge<B>"
+            ) && adapter.contains("fn resolve_key_press(")
                 && adapter.contains("fn install_repaint_signal(")
                 && adapter.contains("fn on_runtime_exit("),
             "Sempal should own a generic Radiant RuntimeBridge adapter for shortcut, repaint, and exit routing"

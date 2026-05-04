@@ -431,17 +431,15 @@ impl SourceDatabase {
     }
 
     fn apply_pragmas(&self) -> Result<(), SourceDbError> {
-        let pragmas = format!(
-            "PRAGMA journal_mode=WAL;
+        let pragmas = "PRAGMA journal_mode=WAL;
              PRAGMA synchronous = NORMAL;
              PRAGMA foreign_keys=ON;
              PRAGMA busy_timeout=5000;
              PRAGMA temp_store=MEMORY;
              PRAGMA cache_size=-32000;
-             PRAGMA mmap_size=134217728;"
-        );
+             PRAGMA mmap_size=134217728;";
         self.connection
-            .execute_batch(&pragmas)
+            .execute_batch(pragmas)
             .map_err(util::map_sql_error)?;
         crate::sqlite_wal::apply_workload_wal_pragmas(&self.connection)
             .map_err(util::map_sql_error)?;

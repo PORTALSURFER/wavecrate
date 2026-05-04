@@ -230,6 +230,67 @@ fn metadata_delta_refresh_updates_only_targeted_rows() {
 }
 
 #[test]
+/// A coalesced metadata-delta refresh can cross revisions when it carries every changed path.
+fn metadata_delta_revision_gap_refreshes_all_provided_paths() {
+    let temp = tempdir().expect("tempdir");
+    let root = temp.path().join("source");
+    std::fs::create_dir_all(&root).expect("create source root");
+
+    let db = SourceDatabase::open(&root).expect("open source db");
+    db.upsert_file(Path::new("one.wav"), 1, 1)
+        .expect("insert one");
+    db.upsert_file(Path::new("two.wav"), 1, 2)
+        .expect("insert two");
+
+    let base_job = SearchJob {
+        source_id: SourceId::new(),
+        source_root: root.clone(),
+        ..make_search_job("")
+    };
+    let source_id = base_job.source_id.as_str().to_string();
+    let queue = SearchJobQueue::new();
+    queue.send(SearchJob {
+        source_id: base_job.source_id.clone(),
+        source_root: base_job.source_root.clone(),
+        ..make_search_job("")
+    });
+    let generation = queue
+        .take_blocking()
+        .expect("expected queued search job generation")
+        .generation;
+    let mut cache = SearchWorkerCache::default();
+
+    assert!(ensure_search_cache_ready_for_job(
+        &mut cache, &base_job, &source_id
+    ));
+    assert!(ensure_search_entries_loaded_for_job(
+        &mut cache, &base_job, &queue, generation
+    ));
+
+    db.set_tag(Path::new("one.wav"), Rating::TRASH_3)
+        .expect("update first skipped delta");
+    db.set_tag(Path::new("two.wav"), Rating::TRASH_3)
+        .expect("update second delta");
+    let delta_job = SearchJob {
+        metadata_delta_paths: vec![PathBuf::from("one.wav"), PathBuf::from("two.wav")],
+        source_id: base_job.source_id.clone(),
+        source_root: base_job.source_root.clone(),
+        ..make_search_job("")
+    };
+
+    assert!(ensure_search_cache_ready_for_job(
+        &mut cache, &delta_job, &source_id
+    ));
+    assert!(ensure_search_entries_loaded_for_job(
+        &mut cache, &delta_job, &queue, generation
+    ));
+
+    let refreshed = cache.entries.as_ref().expect("entries refreshed");
+    assert_eq!(refreshed[0].tag, Rating::TRASH_3);
+    assert_eq!(refreshed[1].tag, Rating::TRASH_3);
+}
+
+#[test]
 fn path_set_refresh_rebuilds_entries_and_clears_query_scores() {
     let temp = tempdir().expect("tempdir");
     let root = temp.path().join("source");

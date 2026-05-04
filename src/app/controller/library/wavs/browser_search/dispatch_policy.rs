@@ -90,6 +90,17 @@ impl AppController {
                 format!("Filtering '{query}' in {}", source.root.display()),
             );
         }
+        if !metadata_delta_paths.is_empty() {
+            self.runtime
+                .pending_browser_search_metadata_delta_paths
+                .extend(metadata_delta_paths);
+        }
+        let metadata_delta_paths = self
+            .runtime
+            .pending_browser_search_metadata_delta_paths
+            .iter()
+            .cloned()
+            .collect();
         self.runtime
             .jobs
             .send_search_job(crate::app::controller::jobs::SearchJob {

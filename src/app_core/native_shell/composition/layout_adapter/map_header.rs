@@ -1,11 +1,11 @@
 //! Slotized browser map-header text layout helpers.
 
 use super::super::style::SizingTokens;
-use crate::gui::text_layout::{TextLineInsets, centered_text_line};
 use crate::gui::layout_core::{
     Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
     OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams, layout_tree,
 };
+use crate::gui::text_layout::{TextLineInsets, centered_text_line};
 use crate::gui::types::{Point, Rect, Vector2};
 
 const MAP_HEADER_ROOT_ID: u64 = 1300;

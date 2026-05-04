@@ -32,17 +32,22 @@ impl BrowserController<'_> {
         info!(?rows, ?tag, primary_visible_row, "triage tag: multi row");
         let (contexts, mut last_error) = self.resolve_unique_browser_contexts(rows);
         info!(count = contexts.len(), "triage tag: resolved contexts");
+        let mut updated_paths = Vec::with_capacity(contexts.len());
         for ctx in contexts {
             if let Err(err) =
                 self.set_sample_tag_for_source(&ctx.source, &ctx.entry.relative_path, tag, true)
             {
                 last_error = Some(err);
             } else {
+                updated_paths.push(ctx.entry.relative_path.clone());
                 self.set_status(
                     format!("Tagged {} as {:?}", ctx.entry.relative_path.display(), tag),
                     StatusTone::Info,
                 );
             }
+        }
+        if !updated_paths.is_empty() && self.should_dispatch_browser_search_async() {
+            self.dispatch_search_job_with_metadata_delta(updated_paths);
         }
         self.refocus_after_filtered_removal(primary_visible_row);
         if let Some(err) = last_error {

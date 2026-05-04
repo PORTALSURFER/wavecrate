@@ -2,8 +2,8 @@
 
 use crate::theme::ThemeTokens;
 
-use super::chrome::ShellChromeTokens;
 use super::LayoutScaleTier;
+use super::chrome::ShellChromeTokens;
 
 /// Resolve the shell theme and compatibility chrome for the requested layout tier.
 pub(super) fn tokens_for_tier(layout_tier: LayoutScaleTier) -> (ThemeTokens, ShellChromeTokens) {

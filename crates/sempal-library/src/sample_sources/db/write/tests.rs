@@ -4,6 +4,16 @@ use tempfile::tempdir;
 
 use super::*;
 
+type RowSnapshot = Vec<(
+    std::path::PathBuf,
+    Rating,
+    bool,
+    bool,
+    bool,
+    Option<i64>,
+    Option<SampleSoundType>,
+)>;
+
 fn revision_value(db: &SourceDatabase) -> i64 {
     db.connection
         .query_row(
@@ -20,17 +30,7 @@ fn wav_paths_revision_value(db: &SourceDatabase) -> u64 {
     db.get_wav_paths_revision().unwrap()
 }
 
-fn row_snapshot(
-    db: &SourceDatabase,
-) -> Vec<(
-    std::path::PathBuf,
-    Rating,
-    bool,
-    bool,
-    bool,
-    Option<i64>,
-    Option<SampleSoundType>,
-)> {
+fn row_snapshot(db: &SourceDatabase) -> RowSnapshot {
     db.list_files()
         .unwrap()
         .into_iter()

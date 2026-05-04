@@ -143,7 +143,7 @@ impl SourceDatabase {
             "source_db.assign_tag_to_path",
             self.root(),
             started_at,
-            result.as_ref().map(|_| ()).map_err(|err| err),
+            result.as_ref().map(|_| ()),
         );
         result
     }
@@ -162,7 +162,7 @@ impl SourceDatabase {
             "source_db.remove_tag_from_path",
             self.root(),
             started_at,
-            result.as_ref().map(|_| ()).map_err(|err| err),
+            result.as_ref().map(|_| ()),
         );
         result
     }
@@ -326,7 +326,7 @@ fn ensure_wav_path_exists(tx: &Transaction<'_>, path: &str) -> Result<(), Source
 }
 
 fn query_limit(limit: usize) -> i64 {
-    limit.max(1).min(DEFAULT_TAG_LIMIT) as i64
+    limit.clamp(1, DEFAULT_TAG_LIMIT) as i64
 }
 
 fn tag_usage_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<SourceTagUsage> {

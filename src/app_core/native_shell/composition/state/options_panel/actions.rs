@@ -131,17 +131,15 @@ pub(super) fn picker_action(value: &PairedPickerValueModel) -> UiAction {
         PairedPickerValueModel::PrimaryItem(item_name) => UiAction::SetPrimaryItem {
             item_name: item_name.clone(),
         },
-        PairedPickerValueModel::PrimaryNumber(value) => UiAction::SetPrimaryNumber { value: *value },
-        PairedPickerValueModel::SecondaryGroup(group_id) => {
-            UiAction::SetSecondaryGroup {
-                group_id: group_id.clone(),
-            }
+        PairedPickerValueModel::PrimaryNumber(value) => {
+            UiAction::SetPrimaryNumber { value: *value }
         }
-        PairedPickerValueModel::SecondaryItem(item_name) => {
-            UiAction::SetSecondaryItem {
-                item_name: item_name.clone(),
-            }
-        }
+        PairedPickerValueModel::SecondaryGroup(group_id) => UiAction::SetSecondaryGroup {
+            group_id: group_id.clone(),
+        },
+        PairedPickerValueModel::SecondaryItem(item_name) => UiAction::SetSecondaryItem {
+            item_name: item_name.clone(),
+        },
         PairedPickerValueModel::SecondaryNumber(value) => {
             UiAction::SetSecondaryNumber { value: *value }
         }

@@ -344,7 +344,7 @@ fn resolve_profile_app_root(
     match selection {
         ProfileSelection::Live => Ok(base.join(APP_DIR_NAME)),
         ProfileSelection::Named(profile) => {
-            let sanitized = sanitize_profile_name(&profile)?;
+            let sanitized = sanitize_profile_name(profile)?;
             Ok(base
                 .join(APP_DIR_NAME)
                 .join(PROFILE_DIR_NAME)

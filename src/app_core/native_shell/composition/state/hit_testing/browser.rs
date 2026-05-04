@@ -1,6 +1,6 @@
+use super::*;
 #[cfg(test)]
 use crate::compat_app_contract::PlaybackAgeFilterChip;
-use super::*;
 
 impl NativeShellState {
     /// Return a browser column-chip rect for one column index in tests.

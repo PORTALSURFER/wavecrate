@@ -146,15 +146,14 @@ fn validate_existing_target_identity(
 }
 
 fn staged_copy_resolution_suffix(staged_absolute: Option<&Path>) -> String {
-    let staged_suffix = if staged_absolute.is_some_and(Path::is_file) {
+    if staged_absolute.is_some_and(Path::is_file) {
         format!(
             "; leaving staged copy at {} intact",
             staged_absolute.expect("checked above").display()
         )
     } else {
         String::from("; no staged copy remains to reconcile safely")
-    };
-    staged_suffix
+    }
 }
 
 fn validate_identity_match(

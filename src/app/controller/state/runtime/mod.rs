@@ -30,7 +30,7 @@ pub(crate) use source_lane::{
     PendingBrowserAutoRenameIntent, PendingFolderProjection, PendingMetadataMutation,
     PendingSourceHydration, SourceLaneRuntimeState,
 };
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -137,6 +137,8 @@ pub(crate) struct ControllerRuntimeState {
     pub(crate) map_query_connections: HashMap<SourceId, Connection>,
     /// Pending projection revision bumps recorded by mutation paths.
     pub(crate) projection_revision_dirty: ProjectionRevisionDirtyMask,
+    /// Source-relative metadata paths that must ride the next async browser-search job.
+    pub(crate) pending_browser_search_metadata_delta_paths: BTreeSet<PathBuf>,
     /// Monotonic producer-side id for newly rendered waveform image payloads.
     pub(crate) next_waveform_image_signature: u64,
     /// Tracks whether staged delete recovery has been scheduled for this session.
@@ -210,6 +212,7 @@ impl ControllerRuntimeState {
             pending_waveform_seek_not_before: None,
             map_query_connections: HashMap::new(),
             projection_revision_dirty: ProjectionRevisionDirtyMask::default(),
+            pending_browser_search_metadata_delta_paths: BTreeSet::new(),
             next_waveform_image_signature: 1,
             delete_recovery_started: false,
             active_retained_delete_resolution: None,

@@ -117,6 +117,30 @@ mod tests {
     }
 
     #[test]
+    /// Replacing pending search work should keep every pending metadata-delta path.
+    fn latest_search_job_merges_pending_metadata_delta_paths() {
+        let queue = Arc::new(SearchJobQueue::new());
+        let sender = SearchJobSender {
+            queue: Arc::clone(&queue),
+        };
+
+        let mut first = make_search_job("first", "one");
+        first.metadata_delta_paths = vec![PathBuf::from("one.wav")];
+        let mut second = make_search_job("second", "two");
+        second.metadata_delta_paths = vec![PathBuf::from("two.wav")];
+
+        sender.send(first);
+        sender.send(second);
+
+        let pending = queue.try_take().expect("expected pending search job");
+        assert_eq!(pending.job.query, "second");
+        assert_eq!(
+            pending.job.metadata_delta_paths,
+            vec![PathBuf::from("one.wav"), PathBuf::from("two.wav")]
+        );
+    }
+
+    #[test]
     fn newest_send_invalidates_inflight_generation() {
         let queue = Arc::new(SearchJobQueue::new());
         queue.send(make_search_job("first", "root"));
@@ -127,6 +151,29 @@ mod tests {
 
         queue.send(make_search_job("second", "root"));
         assert!(!queue.is_generation_current(inflight.generation));
+    }
+
+    #[test]
+    /// Metadata-delta paths from an invalidated in-flight generation must ride the replacement job.
+    fn metadata_delta_paths_survive_inflight_generation_replacement() {
+        let queue = Arc::new(SearchJobQueue::new());
+        let mut first = make_search_job("first", "root");
+        first.metadata_delta_paths = vec![PathBuf::from("one.wav")];
+        queue.send(first);
+        let inflight = queue
+            .take_blocking()
+            .expect("expected first queued search job");
+
+        let mut second = make_search_job("second", "root");
+        second.metadata_delta_paths = vec![PathBuf::from("two.wav")];
+        queue.send(second);
+
+        assert!(!queue.is_generation_current(inflight.generation));
+        let pending = queue.try_take().expect("expected replacement job");
+        assert_eq!(
+            pending.job.metadata_delta_paths,
+            vec![PathBuf::from("one.wav"), PathBuf::from("two.wav")]
+        );
     }
 
     #[test]

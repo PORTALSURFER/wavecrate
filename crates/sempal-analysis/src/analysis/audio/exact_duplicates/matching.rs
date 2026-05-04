@@ -111,7 +111,7 @@ fn windows_near_equal(samples: &[f32], channels: usize, left: Window, right: Win
         && max_abs <= MAX_DIFF_TOLERANCE
 }
 
-fn window_samples<'a>(samples: &'a [f32], channels: usize, window: Window) -> &'a [f32] {
+fn window_samples(samples: &[f32], channels: usize, window: Window) -> &[f32] {
     let start = window.start_frame.saturating_mul(channels);
     let end = window.end_frame.saturating_mul(channels).min(samples.len());
     &samples[start..end]

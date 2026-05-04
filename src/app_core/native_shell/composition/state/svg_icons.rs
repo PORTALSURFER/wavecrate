@@ -6,9 +6,9 @@
 //! so toolbar controls can render iconography without adding a new primitive
 //! kind.
 
+use super::*;
 #[cfg(test)]
 use crate::compat_app_contract::UiAction;
-use super::*;
 use std::sync::Arc;
 
 use crate::gui::svg::{parse_svg_document, point_in_svg_shapes};
