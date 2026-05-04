@@ -458,3 +458,132 @@ impl NativeShellState {
         false
     }
 }
+
+#[cfg(test)]
+mod opt_272_tests {
+    use super::*;
+    use crate::compat_app_contract::{FolderPaneIdModel, FolderRowModel, SourceRowModel};
+    use crate::gui::types::Vector2;
+
+    fn browser_model_with_rows(total: usize, focused_visible_row: usize) -> AppModel {
+        let mut model = AppModel::default();
+        for visible_row in 0..total {
+            model.browser.rows.push(BrowserRowModel::new(
+                visible_row,
+                format!("row_{visible_row:04}"),
+                1,
+                false,
+                visible_row == focused_visible_row,
+            ));
+        }
+        model.browser.visible_count = model.browser.rows.len();
+        model.browser.selected_visible_row = Some(focused_visible_row);
+        model.browser.anchor_visible_row = Some(focused_visible_row.saturating_sub(2));
+        model.browser.autoscroll = true;
+        model
+    }
+
+    fn folder_model_with_rows(total_rows: usize, focused_row: usize) -> AppModel {
+        let mut model = AppModel::default();
+        model.sources.rows.push(SourceRowModel::new(
+            String::from("source"),
+            String::from("detail"),
+            true,
+            false,
+        ));
+        model.sources.upper_folder_pane.active = true;
+        model.sources.upper_folder_pane.has_item = true;
+        model.sources.upper_folder_pane.focused_tree_row = Some(focused_row);
+        model.sources.active_folder_pane = FolderPaneIdModel::Upper;
+        for row_index in 0..total_rows {
+            model
+                .sources
+                .upper_folder_pane
+                .tree_rows
+                .push(FolderRowModel::new(
+                    format!("folder_{row_index:03}"),
+                    String::new(),
+                    row_index % 3,
+                    false,
+                    row_index == focused_row,
+                    row_index == 0,
+                    row_index + 1 < total_rows,
+                    true,
+                ));
+        }
+        model
+    }
+
+    #[test]
+    fn browser_rows_use_generic_list_window_hit_testing_and_scrollbar_primitives() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let style = style_for_layout(&layout);
+        let model = browser_model_with_rows(240, 118);
+        let mut state = NativeShellState::new();
+
+        let rows = state.cached_browser_rows(&layout, &style, &model).to_vec();
+        let list_rect = browser_rows_list_rect(layout.browser_rows, style.sizing, &model);
+        let expected_len = browser_rows_capacity(list_rect, style.sizing);
+
+        assert_eq!(rows.len(), expected_len);
+        assert!(rows.iter().any(|row| row.visible_row == 118));
+
+        let target = rows[3].rect.center();
+        assert_eq!(
+            row_index_for_visible_rows(&rows, target, list_rect),
+            Some(3)
+        );
+
+        let scrollbar =
+            browser_scrollbar_layout(list_rect, &rows, model.browser.visible_count, style.sizing)
+                .expect("overflowing browser rows should expose a scrollbar");
+        assert!(scrollbar.track.contains(scrollbar.thumb.center()));
+        assert_eq!(
+            browser_scrollbar_view_start_for_pointer(
+                scrollbar,
+                rows.len(),
+                model.browser.visible_count,
+                scrollbar.track.max.y,
+                scrollbar.thumb.height(),
+            ),
+            Some(model.browser.visible_count - rows.len())
+        );
+    }
+
+    #[test]
+    fn source_folder_rows_use_generic_list_window_and_scrollbar_primitives() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let style = style_for_layout(&layout);
+        let model = folder_model_with_rows(160, 112);
+        let mut state = NativeShellState::new();
+
+        let rows = state
+            .cached_tree_rows(&layout, &style, &model, FolderPaneIdModel::Upper)
+            .to_vec();
+        let sections = sidebar_sections(&layout, &style, &model);
+        let tree_rect = sections.tree_rows(FolderPaneIdModel::Upper);
+        let expected_len = tree_rows_capacity(tree_rect, style.sizing);
+
+        assert_eq!(rows.len(), expected_len);
+        assert!(rows.iter().any(|row| row.row_index == 112));
+
+        let scrollbar = folder_scrollbar_layout(
+            tree_rect,
+            &rows,
+            model.sources.upper_folder_pane.tree_rows.len(),
+            style.sizing,
+        )
+        .expect("overflowing source folders should expose a scrollbar");
+        assert!(scrollbar.track.contains(scrollbar.thumb.center()));
+        assert_eq!(
+            folder_scrollbar_view_start_for_pointer(
+                scrollbar,
+                rows.len(),
+                model.sources.upper_folder_pane.tree_rows.len(),
+                scrollbar.track.max.y,
+                scrollbar.thumb.height(),
+            ),
+            Some(model.sources.upper_folder_pane.tree_rows.len() - rows.len())
+        );
+    }
+}

@@ -2,6 +2,11 @@
 
 use super::*;
 use crate::compat_app_contract::{FolderPaneIdModel, FolderPaneModel};
+use crate::gui::list::{
+    VirtualListScrollbarRequest, VirtualListStackMetrics, VirtualListWindowRequest,
+    resolve_virtual_list_scrollbar, resolve_virtual_list_window,
+    virtual_list_scrollbar_view_start_for_pointer, virtual_list_viewport_len_for_extent,
+};
 
 pub(in crate::gui::native_shell::state) fn rendered_source_rows(
     style: &StyleTokens,
@@ -161,11 +166,10 @@ pub(in crate::gui::native_shell::state) fn tree_rows_capacity(
     tree_rows_rect: Rect,
     sizing: SizingTokens,
 ) -> usize {
-    let row_height = sizing.folder_row_height.max(1.0);
-    let row_gap = sizing.folder_row_gap.max(0.0);
-    ((tree_rows_rect.height() + row_gap) / (row_height + row_gap))
-        .floor()
-        .max(1.0) as usize
+    virtual_list_viewport_len_for_extent(
+        tree_rows_rect.height(),
+        VirtualListStackMetrics::new(sizing.folder_row_height, sizing.folder_row_gap),
+    )
 }
 
 fn folder_scrollbar_track_metrics(sizing: SizingTokens) -> (f32, f32, f32) {
@@ -202,30 +206,16 @@ fn folder_window_start(
     autoscroll: bool,
     current_view_start: usize,
 ) -> usize {
-    if total_rows <= window_len {
-        return 0;
-    }
-    let max_start = total_rows - window_len;
-    let mut view_start = current_view_start.min(max_start);
-    if !autoscroll {
-        return view_start;
-    }
-    let Some(focused_row) = focused_row else {
-        return view_start;
-    };
-    let edge_margin = super::FOLDER_VIEW_EDGE_MARGIN_ROWS.min(window_len.saturating_sub(1) / 2);
-    let focused_row = focused_row.min(total_rows.saturating_sub(1));
-    let view_end = view_start + window_len;
-    let top_guard = view_start + edge_margin;
-    let bottom_guard = view_end.saturating_sub(edge_margin);
-    if focused_row < top_guard {
-        view_start = focused_row.saturating_sub(edge_margin);
-    } else if focused_row >= bottom_guard {
-        view_start = focused_row
-            .saturating_add(edge_margin + 1)
-            .saturating_sub(window_len);
-    }
-    view_start.min(max_start)
+    resolve_virtual_list_window(VirtualListWindowRequest {
+        total_items: total_rows,
+        viewport_len: window_len,
+        requested_start: current_view_start,
+        previous_start: Some(current_view_start),
+        focused_index: focused_row.filter(|_| autoscroll),
+        guard_band: super::FOLDER_VIEW_EDGE_MARGIN_ROWS,
+        overscan: 0,
+    })
+    .viewport_start
 }
 
 pub(in crate::gui::native_shell::state) fn rendered_tree_rows_with_state(
@@ -313,24 +303,17 @@ pub(in crate::gui::native_shell::state) fn folder_scrollbar_layout(
     if track.height() <= 1.0 {
         return None;
     }
-    let min_thumb_height = (sizing.folder_row_height * 0.85).round().clamp(18.0, 32.0);
-    let thumb_height = (track.height() * (viewport_len as f32 / total_rows as f32))
-        .round()
-        .clamp(min_thumb_height, track.height());
-    let travel = (track.height() - thumb_height).max(0.0);
-    let max_viewport_start = total_rows.saturating_sub(viewport_len);
-    let start_ratio = if max_viewport_start == 0 {
-        0.0
-    } else {
-        viewport_start.min(max_viewport_start) as f32 / max_viewport_start as f32
-    };
-    let thumb_min_y = track.min.y + (travel * start_ratio);
-    let thumb_max_y = (thumb_min_y + thumb_height).min(track.max.y);
-    let thumb = Rect::from_min_max(
-        Point::new(track.min.x, thumb_min_y),
-        Point::new(track.max.x, thumb_max_y.max(thumb_min_y + 1.0)),
-    );
-    Some(FolderScrollbarLayout { track, thumb })
+    resolve_virtual_list_scrollbar(VirtualListScrollbarRequest {
+        track,
+        total_items: total_rows,
+        viewport_len,
+        viewport_start,
+        min_thumb_extent: (sizing.folder_row_height * 0.85).round().clamp(18.0, 32.0),
+    })
+    .map(|scrollbar| FolderScrollbarLayout {
+        track: scrollbar.track,
+        thumb: scrollbar.thumb,
+    })
 }
 
 pub(in crate::gui::native_shell::state) fn folder_scrollbar_view_start_for_pointer(
@@ -340,19 +323,16 @@ pub(in crate::gui::native_shell::state) fn folder_scrollbar_view_start_for_point
     pointer_y: f32,
     thumb_pointer_offset_y: f32,
 ) -> Option<usize> {
-    if viewport_len == 0 || total_rows <= viewport_len {
-        return None;
-    }
-    let max_viewport_start = total_rows.saturating_sub(viewport_len);
-    let thumb_height = scrollbar.thumb.height().max(1.0);
-    let travel = (scrollbar.track.height() - thumb_height).max(0.0);
-    if travel <= f32::EPSILON || max_viewport_start == 0 {
-        return Some(0);
-    }
-    let thumb_min_y = (pointer_y - thumb_pointer_offset_y)
-        .clamp(scrollbar.track.min.y, scrollbar.track.max.y - thumb_height);
-    let start_ratio = ((thumb_min_y - scrollbar.track.min.y) / travel).clamp(0.0, 1.0);
-    Some(((start_ratio * max_viewport_start as f32).round() as usize).min(max_viewport_start))
+    virtual_list_scrollbar_view_start_for_pointer(
+        crate::gui::list::VirtualListScrollbar {
+            track: scrollbar.track,
+            thumb: scrollbar.thumb,
+        },
+        viewport_len,
+        total_rows,
+        pointer_y,
+        thumb_pointer_offset_y,
+    )
 }
 
 pub(in crate::gui::native_shell::state) fn folder_pane_model<'a>(
