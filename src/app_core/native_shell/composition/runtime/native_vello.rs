@@ -2089,7 +2089,7 @@ fn local_app_model_from_native_model(value: &AppModel) -> crate::compat_app_cont
         status: value.status.clone(),
         paired_device: value.audio_engine.clone().into(),
         browser_actions: value.browser_actions.clone().into(),
-        options_panel: local_options_panel_from_native_model(&value.options_panel),
+        options_panel: value.options_panel.clone(),
         progress_overlay: value.progress_overlay.clone(),
         confirm_prompt: local_confirm_prompt_from_native_model(&value.confirm_prompt),
         drag_overlay: value.drag_overlay.clone(),
@@ -2105,20 +2105,6 @@ fn local_app_model_from_native_model(value: &AppModel) -> crate::compat_app_cont
         waveform_chrome: value.waveform_chrome.clone(),
         update: value.update.clone(),
         focus_context: value.focus_context.into(),
-    }
-}
-
-fn local_options_panel_from_native_model(
-    value: &OptionsPanelModel,
-) -> crate::compat_app_contract::OptionsPanelModel {
-    crate::compat_app_contract::OptionsPanelModel {
-        visible: value.visible,
-        default_identifier: value.default_identifier.clone(),
-        input_monitoring_enabled: value.input_monitoring_enabled,
-        advance_after_rating_enabled: value.advance_after_rating_enabled,
-        destructive_yolo_mode_enabled: value.destructive_yolo_mode_enabled,
-        invert_waveform_scroll_enabled: value.invert_waveform_scroll_enabled,
-        trash_folder_label: value.trash_folder_label.clone(),
     }
 }
 

@@ -32,14 +32,14 @@ pub use aliases::{
 pub use bridge::NativeAppBridge;
 pub use crate::app_core::actions::{
     NativeDirtySegments as DirtySegments, NativeNormalizedRangeModel as NormalizedRangeModel,
-    NativeSegmentRevisions as SegmentRevisions, NativeSourcesPanelModel as SourcesPanelModel,
-    NativeWaveformChromeModel as WaveformChromeModel, NativeWaveformPanelModel as WaveformPanelModel,
+    NativeOptionsPanelModel as OptionsPanelModel, NativeSegmentRevisions as SegmentRevisions,
+    NativeSourcesPanelModel as SourcesPanelModel, NativeWaveformChromeModel as WaveformChromeModel,
+    NativeWaveformPanelModel as WaveformPanelModel,
 };
 pub use motion::NativeMotionModel;
 pub use shell::{
-    AppModel, ConfirmPromptKind, ConfirmPromptModel, DragOverlayModel, OptionsPanelModel,
-    PairedDevicePanelModel, PairedPickerOptionModel, PairedPickerTargetModel,
-    PairedPickerValueModel, ProgressOverlayModel, StatusBarModel, StatusChipStateModel,
-    SummaryFieldModel, UpdatePanelModel, UpdateStatusModel,
+    AppModel, ConfirmPromptKind, ConfirmPromptModel, DragOverlayModel, PairedDevicePanelModel,
+    PairedPickerOptionModel, PairedPickerTargetModel, PairedPickerValueModel, ProgressOverlayModel,
+    StatusBarModel, StatusChipStateModel, SummaryFieldModel, UpdatePanelModel, UpdateStatusModel,
 };
 pub use shell_snapshot::{NativeShellShotSnapshot, capture_native_shell_shot_snapshot};

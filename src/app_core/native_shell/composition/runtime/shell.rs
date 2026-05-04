@@ -14,7 +14,7 @@ pub use crate::gui::form::SummaryField as SummaryFieldModel;
 use super::{
     BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, ColumnModel, FocusContextModel,
     FolderActionsModel, FolderPaneIdModel, FolderPaneModel, FolderRecoveryModel, MapPanelModel,
-    SourcesPanelModel, WaveformChromeModel, WaveformPanelModel,
+    OptionsPanelModel, SourcesPanelModel, WaveformChromeModel, WaveformPanelModel,
 };
 
 /// Raw value carried by one paired-picker option.
@@ -22,42 +22,6 @@ pub type PairedPickerValueModel = crate::gui::form::PairedPickerValue<String, u3
 
 /// One selectable item shown inside a paired picker.
 pub type PairedPickerOptionModel = crate::gui::form::OptionItem<PairedPickerValueModel>;
-
-/// Options-panel state projected into the native shell.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct OptionsPanelModel {
-    /// Whether the panel is currently visible.
-    pub visible: bool,
-    /// Current default identifier used by auto rename.
-    pub default_identifier: String,
-    /// Whether input monitoring is enabled.
-    pub input_monitoring_enabled: bool,
-    /// Whether rating advances browser focus.
-    pub advance_after_rating_enabled: bool,
-    /// Whether destructive edits skip confirmation.
-    pub destructive_yolo_mode_enabled: bool,
-    /// Whether waveform scrolling is inverted.
-    pub invert_waveform_scroll_enabled: bool,
-    /// Short display label for the configured trash folder, when available.
-    pub trash_folder_label: Option<String>,
-}
-
-impl OptionsPanelModel {
-    /// Return this panel's generic preference/settings state.
-    pub fn preference_state(&self) -> crate::gui::form::PreferencePanelState<4> {
-        crate::gui::form::PreferencePanelState::new(
-            self.visible,
-            self.default_identifier.clone(),
-            [
-                self.input_monitoring_enabled,
-                self.advance_after_rating_enabled,
-                self.destructive_yolo_mode_enabled,
-                self.invert_waveform_scroll_enabled,
-            ],
-            self.trash_folder_label.clone(),
-        )
-    }
-}
 
 /// Modal confirmation prompt projected into the native shell.
 pub type ConfirmPromptModel = crate::gui::feedback::ConfirmPrompt<ConfirmPromptKind>;
