@@ -219,8 +219,8 @@ impl From<compat::UiAction> for UiAction {
                 pane: pane.map(Into::into),
             },
             compat::UiAction::FocusLoadedContentInList => Self::FocusLoadedSampleInBrowser,
-            compat::UiAction::FocusBrowserSearch => Self::FocusBrowserSearch,
-            compat::UiAction::BlurBrowserSearch => Self::BlurBrowserSearch,
+            compat::UiAction::FocusContentSearch => Self::FocusBrowserSearch,
+            compat::UiAction::BlurContentSearch => Self::BlurBrowserSearch,
             compat::UiAction::OpenAddSourceDialog => Self::OpenAddSourceDialog,
             compat::UiAction::OpenOptionsMenu => Self::OpenOptionsMenu,
             compat::UiAction::CloseOptionsPanel => Self::CloseOptionsPanel,
@@ -410,7 +410,7 @@ impl From<compat::UiAction> for UiAction {
                 Self::ToggleFocusedBrowserRowSelection
             }
             compat::UiAction::SelectAllBrowserRows => Self::SelectAllBrowserRows,
-            compat::UiAction::SetBrowserSearch { query } => Self::SetBrowserSearch { query: query },
+            compat::UiAction::SetContentSearch { query } => Self::SetBrowserSearch { query: query },
             compat::UiAction::ToggleBrowserRatingFilter { level, invert } => {
                 Self::ToggleBrowserRatingFilter {
                     level: level,
@@ -822,8 +822,8 @@ impl From<UiAction> for compat::UiAction {
                 pane: pane.map(Into::into),
             },
             UiAction::FocusLoadedSampleInBrowser => Self::FocusLoadedContentInList,
-            UiAction::FocusBrowserSearch => Self::FocusBrowserSearch,
-            UiAction::BlurBrowserSearch => Self::BlurBrowserSearch,
+            UiAction::FocusBrowserSearch => Self::FocusContentSearch,
+            UiAction::BlurBrowserSearch => Self::BlurContentSearch,
             UiAction::OpenAddSourceDialog => Self::OpenAddSourceDialog,
             UiAction::OpenOptionsMenu => Self::OpenOptionsMenu,
             UiAction::CloseOptionsPanel => Self::CloseOptionsPanel,
@@ -997,7 +997,7 @@ impl From<UiAction> for compat::UiAction {
             }
             UiAction::ToggleFocusedBrowserRowSelection => Self::ToggleFocusedBrowserRowSelection,
             UiAction::SelectAllBrowserRows => Self::SelectAllBrowserRows,
-            UiAction::SetBrowserSearch { query } => Self::SetBrowserSearch { query: query },
+            UiAction::SetBrowserSearch { query } => Self::SetContentSearch { query: query },
             UiAction::ToggleBrowserRatingFilter { level, invert } => {
                 Self::ToggleBrowserRatingFilter {
                     level: level,
