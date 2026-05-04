@@ -212,7 +212,7 @@ impl From<compat::UiAction> for UiAction {
                 }
             }
             compat::UiAction::HandleEscape => Self::HandleEscape,
-            compat::UiAction::FocusBrowserPanel => Self::FocusBrowserPanel,
+            compat::UiAction::FocusContentPanel => Self::FocusBrowserPanel,
             compat::UiAction::FocusSourcesPanel => Self::FocusSourcesPanel,
             compat::UiAction::FocusWaveformPanel => Self::FocusWaveformPanel,
             compat::UiAction::FocusFolderPanel { pane } => Self::FocusFolderPanel {
@@ -815,7 +815,7 @@ impl From<UiAction> for compat::UiAction {
                 position_nanos: position_nanos,
             },
             UiAction::HandleEscape => Self::HandleEscape,
-            UiAction::FocusBrowserPanel => Self::FocusBrowserPanel,
+            UiAction::FocusBrowserPanel => Self::FocusContentPanel,
             UiAction::FocusSourcesPanel => Self::FocusSourcesPanel,
             UiAction::FocusWaveformPanel => Self::FocusWaveformPanel,
             UiAction::FocusFolderPanel { pane } => Self::FocusFolderPanel {
