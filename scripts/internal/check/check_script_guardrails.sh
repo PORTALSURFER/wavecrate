@@ -51,6 +51,19 @@ assert_file_contains() {
   fi
 }
 
+canonical_python_path() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -w "$1"
+    return
+  fi
+  python3 - "$1" <<'PY'
+import pathlib
+import sys
+
+print(pathlib.Path(sys.argv[1]).resolve())
+PY
+}
+
 run_cleanup_audit_fixture() {
   local fixture_dir
   fixture_dir="$(mktemp -d)"
@@ -436,6 +449,12 @@ run_run_contract_smoke_fixture() {
   local bad_manifest_path="$fixture_dir/run_manifest_bad.json"
   local valid_artifact_path="$fixture_dir/run_contract_123-456.ndjson"
   local bad_artifact_path="$fixture_dir/run_contract_bad.json"
+  valid_manifest_path="$(canonical_python_path "$manifest")"
+  bad_manifest_path="$(canonical_python_path "$bad_manifest")"
+  valid_artifact_path="$(canonical_python_path "$artifact")"
+  bad_artifact_path="$(canonical_python_path "$bad_artifact")"
+  startup_fail_manifest_path="$(canonical_python_path "$startup_fail_manifest")"
+  startup_fail_artifact_path="$(canonical_python_path "$startup_fail_artifact")"
 
   cat >"$artifact" <<EOF
 {"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"startup","milestone":"startup_begin","exit_status":"running","timestamp_utc":"1","process_id":111,"manifest_path":"$valid_manifest_path","artifact_path":"$valid_artifact_path"}
@@ -495,14 +514,14 @@ EOF
 EOF
 
   cat >"$startup_fail_artifact" <<EOF
-{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"startup","milestone":"startup_begin","exit_status":"running","timestamp_utc":"1","process_id":111,"manifest_path":"$startup_fail_manifest","artifact_path":"$startup_fail_artifact"}
-{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"startup","milestone":"startup_failed","exit_status":"error","timestamp_utc":"2","process_id":111,"manifest_path":"$startup_fail_manifest","artifact_path":"$startup_fail_artifact"}
+{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"startup","milestone":"startup_begin","exit_status":"running","timestamp_utc":"1","process_id":111,"manifest_path":"$startup_fail_manifest_path","artifact_path":"$startup_fail_artifact_path"}
+{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"startup","milestone":"startup_failed","exit_status":"error","timestamp_utc":"2","process_id":111,"manifest_path":"$startup_fail_manifest_path","artifact_path":"$startup_fail_artifact_path"}
 EOF
   cat >"$startup_fail_manifest" <<EOF
 {
   "run_id": "123-456",
-  "artifact_path": "$startup_fail_artifact",
-  "manifest_path": "$startup_fail_manifest",
+  "artifact_path": "$startup_fail_artifact_path",
+  "manifest_path": "$startup_fail_manifest_path",
   "milestones": [
     {"name": "startup_begin", "startup_phase": "startup", "status": "running", "timestamp_utc": "1"},
     {"name": "startup_failed", "startup_phase": "startup", "status": "error", "timestamp_utc": "2"}

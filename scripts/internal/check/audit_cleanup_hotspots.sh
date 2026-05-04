@@ -155,7 +155,7 @@ is_dedicated_test_path() {
 
 has_local_test_markers() {
   local file="$1"
-  rg -q '^\s*#\s*\[cfg\(test\)\]|^\s*mod\s+tests\b' "$file"
+  grep -Eq '^[[:space:]]*#[[:space:]]*\[cfg\(test\)\]|^[[:space:]]*mod[[:space:]]+tests\b' "$file"
 }
 
 has_sibling_module_tests() {
