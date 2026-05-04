@@ -27,6 +27,7 @@ missing_docs = "deny"
 
 [features]
 default = []
+gui-performance = []
 native-bridge-metrics = []
 sqlite-ext-unsafe = ["sempal-library/sqlite-ext-unsafe"]
 
@@ -46,6 +47,7 @@ regex = "1.12.2"
 directories = "6.0.0"
 rfd = "0.16.0"
 winit = "0.30.12"
+arboard = "3.6.1"
 pollster = "0.4.0"
 vello = "0.7.0"
 skrifa = "0.40.0"
@@ -88,7 +90,6 @@ symphonia = { version = "0.5.4", features = ["wav", "pcm", "mp3", "flac"] }
 rayon = "1.10"
 crossbeam-queue = "0.3.12"
 
-
 [target.'cfg(target_os = "macos")'.dependencies]
 
 [target.'cfg(not(target_os = "macos"))'.dependencies]
@@ -112,6 +113,12 @@ windows = { version = "0.62.2", features = [
     "Win32_System_SystemServices",
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
+windows-sys = { version = "0.61.2", features = [
+    "Win32_Foundation",
+    "Win32_Graphics",
+    "Win32_Graphics_Gdi",
     "Win32_UI_WindowsAndMessaging",
 ] }
 windows-implement = "0.60.2"

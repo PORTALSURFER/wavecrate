@@ -23,6 +23,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 
 mod native_shell_runtime;
+mod native_vello;
 
 pub use radiant::gui_runtime::{
     DEFAULT_NATIVE_WINDOW_TITLE, NativeStartupTimingArtifact, RuntimeRunReport,

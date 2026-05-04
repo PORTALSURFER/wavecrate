@@ -4512,6 +4512,7 @@ dependencies = [
 name = "sempal"
 version = "19.0.0"
 dependencies = [
+ "arboard",
  "base64",
  "bincode",
  "blake3",
@@ -4565,6 +4566,7 @@ dependencies = [
  "windows 0.62.2",
  "windows-core 0.62.2",
  "windows-implement 0.60.2",
+ "windows-sys 0.61.2",
  "winit",
  "winreg 0.52.0",
  "zip",

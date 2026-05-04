@@ -58,6 +58,11 @@ pub mod focus {
     pub use radiant::gui::focus::*;
 }
 
+pub mod fingerprint {
+    //! Generic stable fingerprint helpers from `radiant`.
+    pub use radiant::gui::fingerprint::*;
+}
+
 pub mod form {
     //! Generic form and picker primitives from `radiant`.
     pub use radiant::gui::form::*;

@@ -8,12 +8,13 @@ use crate::app_core::actions::{
 };
 use crate::app_core::app_api::controller_ui_hotkeys::KeyPress;
 use crate::app_core::app_api::{controller_ui_hotkeys as hotkeys, state::FocusContext};
+use crate::compat_app_contract as compat;
 use crate::gui::automation as gui_automation;
 use crate::gui::{
     native_shell::{NativeShellState, ShellLayout, ShellLayoutRuntime, StyleTokens},
     types::Vector2,
 };
-use radiant::compat::legacy_shell as compat;
+use crate::gui_runtime::native_vello;
 use radiant::gui::{
     focus::FocusSurface as RadiantFocusSurface, frame::FrameBuildResult as RadiantFrameBuildResult,
     input::KeyPress as RadiantKeyPress, shortcuts::ShortcutResolution as RadiantShortcutResolution,
@@ -172,17 +173,17 @@ fn keypress_to_radiant(press: KeyPress) -> RadiantKeyPress {
     }
 }
 
-impl From<compat::ContentTriageTarget> for BrowserTagTarget {
-    fn from(value: compat::ContentTriageTarget) -> Self {
+impl From<compat::BrowserTriageTarget> for BrowserTagTarget {
+    fn from(value: compat::BrowserTriageTarget) -> Self {
         match value {
-            compat::ContentTriageTarget::Negative => Self::Trash,
-            compat::ContentTriageTarget::Neutral => Self::Neutral,
-            compat::ContentTriageTarget::Positive => Self::Keep,
+            compat::BrowserTriageTarget::Negative => Self::Trash,
+            compat::BrowserTriageTarget::Neutral => Self::Neutral,
+            compat::BrowserTriageTarget::Positive => Self::Keep,
         }
     }
 }
 
-impl From<BrowserTagTarget> for compat::ContentTriageTarget {
+impl From<BrowserTagTarget> for compat::BrowserTriageTarget {
     fn from(value: BrowserTagTarget) -> Self {
         match value {
             BrowserTagTarget::Trash => Self::Negative,
@@ -208,15 +209,15 @@ impl From<compat::UiAction> for UiAction {
                 }
             }
             compat::UiAction::HandleEscape => Self::HandleEscape,
-            compat::UiAction::FocusContentPanel => Self::FocusBrowserPanel,
+            compat::UiAction::FocusBrowserPanel => Self::FocusBrowserPanel,
             compat::UiAction::FocusSourcesPanel => Self::FocusSourcesPanel,
             compat::UiAction::FocusWaveformPanel => Self::FocusWaveformPanel,
             compat::UiAction::FocusFolderPanel { pane } => Self::FocusFolderPanel {
                 pane: pane.map(Into::into),
             },
             compat::UiAction::FocusLoadedContentInList => Self::FocusLoadedSampleInBrowser,
-            compat::UiAction::FocusContentSearch => Self::FocusBrowserSearch,
-            compat::UiAction::BlurContentSearch => Self::BlurBrowserSearch,
+            compat::UiAction::FocusBrowserSearch => Self::FocusBrowserSearch,
+            compat::UiAction::BlurBrowserSearch => Self::BlurBrowserSearch,
             compat::UiAction::OpenAddSourceDialog => Self::OpenAddSourceDialog,
             compat::UiAction::OpenOptionsMenu => Self::OpenOptionsMenu,
             compat::UiAction::CloseOptionsPanel => Self::CloseOptionsPanel,
@@ -329,21 +330,21 @@ impl From<compat::UiAction> for UiAction {
             compat::UiAction::RestoreRetainedFolderDeletes => Self::RestoreRetainedFolderDeletes,
             compat::UiAction::PurgeRetainedFolderDeletes => Self::PurgeRetainedFolderDeletes,
             compat::UiAction::ClearFolderDeleteRecoveryLog => Self::ClearFolderDeleteRecoveryLog,
-            compat::UiAction::MoveContentFocus { delta } => Self::MoveBrowserFocus { delta: delta },
-            compat::UiAction::SetContentViewStart { visible_row } => Self::SetBrowserViewStart {
+            compat::UiAction::MoveBrowserFocus { delta } => Self::MoveBrowserFocus { delta: delta },
+            compat::UiAction::SetBrowserViewStart { visible_row } => Self::SetBrowserViewStart {
                 visible_row: visible_row,
             },
-            compat::UiAction::FocusContentRow { visible_row } => Self::FocusBrowserRow {
+            compat::UiAction::FocusBrowserRow { visible_row } => Self::FocusBrowserRow {
                 visible_row: visible_row,
             },
             compat::UiAction::SetCompareAnchorFromFocusedContent => {
                 Self::SetCompareAnchorFromFocusedBrowserSample
             }
-            compat::UiAction::CommitFocusedContentRow => Self::CommitFocusedBrowserRow,
-            compat::UiAction::SaveWaveformSelectionAsContent => {
+            compat::UiAction::CommitFocusedBrowserRow => Self::CommitFocusedBrowserRow,
+            compat::UiAction::SaveWaveformSelectionToBrowser => {
                 Self::SaveWaveformSelectionToBrowser
             }
-            compat::UiAction::SaveWaveformSelectionAsAlternateContent => {
+            compat::UiAction::SaveWaveformSelectionToBrowserWithKeep2 => {
                 Self::SaveWaveformSelectionToBrowserWithKeep2
             }
             compat::UiAction::CommitWaveformEditFades => Self::CommitWaveformEditFades,
@@ -354,7 +355,7 @@ impl From<compat::UiAction> for UiAction {
             compat::UiAction::CleanWaveformExactDuplicateSlices => {
                 Self::CleanWaveformExactDuplicateSlices
             }
-            compat::UiAction::ToggleContentRowSelection { visible_row } => {
+            compat::UiAction::ToggleBrowserRowSelection { visible_row } => {
                 Self::ToggleBrowserRowSelection {
                     visible_row: visible_row,
                 }
@@ -386,98 +387,98 @@ impl From<compat::UiAction> for UiAction {
                 alt_down: alt_down,
             },
             compat::UiAction::FinishContentItemDrag => Self::FinishBrowserSampleDrag,
-            compat::UiAction::ExtendContentSelectionToRow { visible_row } => {
+            compat::UiAction::ExtendBrowserSelectionToRow { visible_row } => {
                 Self::ExtendBrowserSelectionToRow {
                     visible_row: visible_row,
                 }
             }
-            compat::UiAction::AddRangeContentSelectionToRow { visible_row } => {
+            compat::UiAction::AddRangeBrowserSelection { visible_row } => {
                 Self::AddRangeBrowserSelection {
                     visible_row: visible_row,
                 }
             }
-            compat::UiAction::ExtendContentSelectionFromFocus { delta } => {
+            compat::UiAction::ExtendBrowserSelectionFromFocus { delta } => {
                 Self::ExtendBrowserSelectionFromFocus { delta: delta }
             }
-            compat::UiAction::AddRangeContentSelectionFromFocus { delta } => {
+            compat::UiAction::AddRangeBrowserSelectionFromFocus { delta } => {
                 Self::AddRangeBrowserSelectionFromFocus { delta: delta }
             }
-            compat::UiAction::ToggleFocusedContentRowSelection => {
+            compat::UiAction::ToggleFocusedBrowserRowSelection => {
                 Self::ToggleFocusedBrowserRowSelection
             }
-            compat::UiAction::SelectAllContentRows => Self::SelectAllBrowserRows,
-            compat::UiAction::SetContentSearch { query } => Self::SetBrowserSearch { query: query },
-            compat::UiAction::ToggleContentRatingFilter { level, invert } => {
+            compat::UiAction::SelectAllBrowserRows => Self::SelectAllBrowserRows,
+            compat::UiAction::SetBrowserSearch { query } => Self::SetBrowserSearch { query: query },
+            compat::UiAction::ToggleBrowserRatingFilter { level, invert } => {
                 Self::ToggleBrowserRatingFilter {
                     level: level,
                     invert: invert,
                 }
             }
-            compat::UiAction::ToggleContentRecencyFilter { chip, invert } => {
+            compat::UiAction::ToggleBrowserPlaybackAgeFilter { bucket, invert } => {
                 Self::ToggleBrowserPlaybackAgeFilter {
-                    bucket: chip.into(),
+                    bucket: bucket.into(),
                     invert: invert,
                 }
             }
             compat::UiAction::ToggleContentMark => Self::ToggleBrowserSampleMark,
-            compat::UiAction::ToggleContentMarkedFilter => Self::ToggleBrowserMarkedFilter,
-            compat::UiAction::ToggleContentDerivedLabelFilter { invert } => {
+            compat::UiAction::ToggleBrowserMarkedFilter => Self::ToggleBrowserMarkedFilter,
+            compat::UiAction::ToggleBrowserDerivedLabelFilter { invert } => {
                 Self::ToggleBrowserTagNamedFilter { invert: invert }
             }
             compat::UiAction::ToggleRandomNavigationMode => Self::ToggleRandomNavigationMode,
-            compat::UiAction::ToggleContentPillEditor => Self::ToggleBrowserTagSidebar,
-            compat::UiAction::ToggleContentPillEditorPrimaryAction => {
+            compat::UiAction::ToggleBrowserPillEditor => Self::ToggleBrowserTagSidebar,
+            compat::UiAction::ToggleBrowserPillEditorPrimaryAction => {
                 Self::ToggleBrowserTagSidebarAutoRename
             }
-            compat::UiAction::ToggleContentDuplicateCleanupMode => {
+            compat::UiAction::ToggleBrowserDuplicateCleanupMode => {
                 Self::ToggleBrowserDuplicateCleanupMode
             }
-            compat::UiAction::FocusPreviousContentHistory => Self::FocusPreviousBrowserHistory,
-            compat::UiAction::FocusNextContentHistory => Self::FocusNextBrowserHistory,
+            compat::UiAction::FocusPreviousBrowserHistory => Self::FocusPreviousBrowserHistory,
+            compat::UiAction::FocusNextBrowserHistory => Self::FocusNextBrowserHistory,
             compat::UiAction::ToggleFindSimilarFocusedContent => {
                 Self::ToggleFindSimilarFocusedSample
             }
-            compat::UiAction::ToggleContentDuplicateCleanupKeep { visible_row } => {
+            compat::UiAction::ToggleBrowserDuplicateCleanupKeep { visible_row } => {
                 Self::ToggleBrowserDuplicateCleanupKeep {
                     visible_row: visible_row,
                 }
             }
-            compat::UiAction::ConfirmContentDuplicateCleanup => {
+            compat::UiAction::ConfirmBrowserDuplicateCleanup => {
                 Self::ConfirmBrowserDuplicateCleanup
             }
             compat::UiAction::PlayRandomContentItem => Self::PlayRandomSample,
             compat::UiAction::PlayPreviousRandomContentItem => Self::PlayPreviousRandomSample,
-            compat::UiAction::AdjustSelectedContentRating { delta } => {
+            compat::UiAction::AdjustSelectedBrowserRating { delta } => {
                 Self::AdjustSelectedBrowserRating { delta: delta }
             }
-            compat::UiAction::SetContentTab { map } => Self::SetBrowserTab { map: map },
-            compat::UiAction::FocusContentPillEditorInput => Self::FocusBrowserTagSidebarInput,
-            compat::UiAction::SetContentPillEditorInput { value } => {
+            compat::UiAction::SetBrowserTab { map } => Self::SetBrowserTab { map: map },
+            compat::UiAction::FocusBrowserPillEditorInput => Self::FocusBrowserTagSidebarInput,
+            compat::UiAction::SetBrowserPillEditorInput { value } => {
                 Self::SetBrowserTagSidebarInput { value: value }
             }
-            compat::UiAction::CommitContentPillEditorInput => Self::CommitBrowserTagSidebarInput,
-            compat::UiAction::SetContentPlaybackLooped { looped } => {
+            compat::UiAction::CommitBrowserPillEditorInput => Self::CommitBrowserTagSidebarInput,
+            compat::UiAction::SetBrowserSidebarLooped { looped } => {
                 Self::SetBrowserSidebarLooped { looped: looped }
             }
-            compat::UiAction::ToggleContentPillOption { label } => {
+            compat::UiAction::ToggleBrowserPillOption { label } => {
                 Self::ToggleBrowserSidebarNormalTag { label: label }
             }
             compat::UiAction::FocusSpatialContentItem { content_id } => Self::FocusMapSample {
                 sample_id: content_id,
             },
             compat::UiAction::SetPromptInput { value } => Self::SetPromptInput { value: value },
-            compat::UiAction::StartContentRename => Self::StartBrowserRename,
-            compat::UiAction::ConfirmContentRename => Self::ConfirmBrowserRename,
-            compat::UiAction::CancelContentRename => Self::CancelBrowserRename,
-            compat::UiAction::AutoRenameContentSelection { visible_row } => {
+            compat::UiAction::StartBrowserRename => Self::StartBrowserRename,
+            compat::UiAction::ConfirmBrowserRename => Self::ConfirmBrowserRename,
+            compat::UiAction::CancelBrowserRename => Self::CancelBrowserRename,
+            compat::UiAction::AutoRenameBrowserSelection { visible_row } => {
                 Self::AutoRenameBrowserSelection {
                     visible_row: visible_row,
                 }
             }
-            compat::UiAction::SetContentTriageMark { target } => Self::TagBrowserSelection {
+            compat::UiAction::SetBrowserTriageMark { target } => Self::TagBrowserSelection {
                 target: target.into(),
             },
-            compat::UiAction::DeleteContentSelection => Self::DeleteBrowserSelection,
+            compat::UiAction::DeleteBrowserSelection => Self::DeleteBrowserSelection,
             compat::UiAction::NormalizeFocusedContentItem => Self::NormalizeFocusedBrowserSample,
             compat::UiAction::NormalizeWaveformSelectionOrLoadedContent => {
                 Self::NormalizeWaveformSelectionOrSample
@@ -707,7 +708,7 @@ impl From<compat::UiAction> for UiAction {
                 hovered_folder_pane,
                 hovered_folder_row,
                 over_folder_panel,
-                over_content_list,
+                over_browser_list,
                 shift_down,
                 alt_down,
             } => Self::UpdateWaveformSelectionDrag {
@@ -716,7 +717,7 @@ impl From<compat::UiAction> for UiAction {
                 hovered_folder_pane: hovered_folder_pane.map(Into::into),
                 hovered_folder_row: hovered_folder_row,
                 over_folder_panel: over_folder_panel.map(Into::into),
-                over_browser_list: over_content_list,
+                over_browser_list: over_browser_list,
                 shift_down: shift_down,
                 alt_down: alt_down,
             },
@@ -811,15 +812,15 @@ impl From<UiAction> for compat::UiAction {
                 position_nanos: position_nanos,
             },
             UiAction::HandleEscape => Self::HandleEscape,
-            UiAction::FocusBrowserPanel => Self::FocusContentPanel,
+            UiAction::FocusBrowserPanel => Self::FocusBrowserPanel,
             UiAction::FocusSourcesPanel => Self::FocusSourcesPanel,
             UiAction::FocusWaveformPanel => Self::FocusWaveformPanel,
             UiAction::FocusFolderPanel { pane } => Self::FocusFolderPanel {
                 pane: pane.map(Into::into),
             },
             UiAction::FocusLoadedSampleInBrowser => Self::FocusLoadedContentInList,
-            UiAction::FocusBrowserSearch => Self::FocusContentSearch,
-            UiAction::BlurBrowserSearch => Self::BlurContentSearch,
+            UiAction::FocusBrowserSearch => Self::FocusBrowserSearch,
+            UiAction::BlurBrowserSearch => Self::BlurBrowserSearch,
             UiAction::OpenAddSourceDialog => Self::OpenAddSourceDialog,
             UiAction::OpenOptionsMenu => Self::OpenOptionsMenu,
             UiAction::CloseOptionsPanel => Self::CloseOptionsPanel,
@@ -924,20 +925,20 @@ impl From<UiAction> for compat::UiAction {
             UiAction::RestoreRetainedFolderDeletes => Self::RestoreRetainedFolderDeletes,
             UiAction::PurgeRetainedFolderDeletes => Self::PurgeRetainedFolderDeletes,
             UiAction::ClearFolderDeleteRecoveryLog => Self::ClearFolderDeleteRecoveryLog,
-            UiAction::MoveBrowserFocus { delta } => Self::MoveContentFocus { delta: delta },
-            UiAction::SetBrowserViewStart { visible_row } => Self::SetContentViewStart {
+            UiAction::MoveBrowserFocus { delta } => Self::MoveBrowserFocus { delta: delta },
+            UiAction::SetBrowserViewStart { visible_row } => Self::SetBrowserViewStart {
                 visible_row: visible_row,
             },
-            UiAction::FocusBrowserRow { visible_row } => Self::FocusContentRow {
+            UiAction::FocusBrowserRow { visible_row } => Self::FocusBrowserRow {
                 visible_row: visible_row,
             },
             UiAction::SetCompareAnchorFromFocusedBrowserSample => {
                 Self::SetCompareAnchorFromFocusedContent
             }
-            UiAction::CommitFocusedBrowserRow => Self::CommitFocusedContentRow,
-            UiAction::SaveWaveformSelectionToBrowser => Self::SaveWaveformSelectionAsContent,
+            UiAction::CommitFocusedBrowserRow => Self::CommitFocusedBrowserRow,
+            UiAction::SaveWaveformSelectionToBrowser => Self::SaveWaveformSelectionToBrowser,
             UiAction::SaveWaveformSelectionToBrowserWithKeep2 => {
-                Self::SaveWaveformSelectionAsAlternateContent
+                Self::SaveWaveformSelectionToBrowserWithKeep2
             }
             UiAction::CommitWaveformEditFades => Self::CommitWaveformEditFades,
             UiAction::DetectWaveformSilenceSlices => Self::DetectWaveformSilenceSlices,
@@ -946,7 +947,7 @@ impl From<UiAction> for compat::UiAction {
             }
             UiAction::CleanWaveformExactDuplicateSlices => Self::CleanWaveformExactDuplicateSlices,
             UiAction::ToggleBrowserRowSelection { visible_row } => {
-                Self::ToggleContentRowSelection {
+                Self::ToggleBrowserRowSelection {
                     visible_row: visible_row,
                 }
             }
@@ -978,89 +979,87 @@ impl From<UiAction> for compat::UiAction {
             },
             UiAction::FinishBrowserSampleDrag => Self::FinishContentItemDrag,
             UiAction::ExtendBrowserSelectionToRow { visible_row } => {
-                Self::ExtendContentSelectionToRow {
+                Self::ExtendBrowserSelectionToRow {
                     visible_row: visible_row,
                 }
             }
-            UiAction::AddRangeBrowserSelection { visible_row } => {
-                Self::AddRangeContentSelectionToRow {
-                    visible_row: visible_row,
-                }
-            }
+            UiAction::AddRangeBrowserSelection { visible_row } => Self::AddRangeBrowserSelection {
+                visible_row: visible_row,
+            },
             UiAction::ExtendBrowserSelectionFromFocus { delta } => {
-                Self::ExtendContentSelectionFromFocus { delta: delta }
+                Self::ExtendBrowserSelectionFromFocus { delta: delta }
             }
             UiAction::AddRangeBrowserSelectionFromFocus { delta } => {
-                Self::AddRangeContentSelectionFromFocus { delta: delta }
+                Self::AddRangeBrowserSelectionFromFocus { delta: delta }
             }
-            UiAction::ToggleFocusedBrowserRowSelection => Self::ToggleFocusedContentRowSelection,
-            UiAction::SelectAllBrowserRows => Self::SelectAllContentRows,
-            UiAction::SetBrowserSearch { query } => Self::SetContentSearch { query: query },
+            UiAction::ToggleFocusedBrowserRowSelection => Self::ToggleFocusedBrowserRowSelection,
+            UiAction::SelectAllBrowserRows => Self::SelectAllBrowserRows,
+            UiAction::SetBrowserSearch { query } => Self::SetBrowserSearch { query: query },
             UiAction::ToggleBrowserRatingFilter { level, invert } => {
-                Self::ToggleContentRatingFilter {
+                Self::ToggleBrowserRatingFilter {
                     level: level,
                     invert: invert,
                 }
             }
             UiAction::ToggleBrowserPlaybackAgeFilter { bucket, invert } => {
-                Self::ToggleContentRecencyFilter {
-                    chip: bucket.into(),
+                Self::ToggleBrowserPlaybackAgeFilter {
+                    bucket: bucket.into(),
                     invert: invert,
                 }
             }
             UiAction::ToggleBrowserSampleMark => Self::ToggleContentMark,
-            UiAction::ToggleBrowserMarkedFilter => Self::ToggleContentMarkedFilter,
+            UiAction::ToggleBrowserMarkedFilter => Self::ToggleBrowserMarkedFilter,
             UiAction::ToggleBrowserTagNamedFilter { invert } => {
-                Self::ToggleContentDerivedLabelFilter { invert: invert }
+                Self::ToggleBrowserDerivedLabelFilter { invert: invert }
             }
             UiAction::ToggleRandomNavigationMode => Self::ToggleRandomNavigationMode,
-            UiAction::ToggleBrowserTagSidebar => Self::ToggleContentPillEditor,
+            UiAction::ToggleBrowserTagSidebar => Self::ToggleBrowserPillEditor,
             UiAction::ToggleBrowserTagSidebarAutoRename => {
-                Self::ToggleContentPillEditorPrimaryAction
+                Self::ToggleBrowserPillEditorPrimaryAction
             }
-            UiAction::ToggleBrowserDuplicateCleanupMode => Self::ToggleContentDuplicateCleanupMode,
-            UiAction::FocusPreviousBrowserHistory => Self::FocusPreviousContentHistory,
-            UiAction::FocusNextBrowserHistory => Self::FocusNextContentHistory,
+            UiAction::ToggleBrowserDuplicateCleanupMode => Self::ToggleBrowserDuplicateCleanupMode,
+            UiAction::FocusPreviousBrowserHistory => Self::FocusPreviousBrowserHistory,
+            UiAction::FocusNextBrowserHistory => Self::FocusNextBrowserHistory,
             UiAction::ToggleFindSimilarFocusedSample => Self::ToggleFindSimilarFocusedContent,
             UiAction::ToggleBrowserDuplicateCleanupKeep { visible_row } => {
-                Self::ToggleContentDuplicateCleanupKeep {
+                Self::ToggleBrowserDuplicateCleanupKeep {
                     visible_row: visible_row,
                 }
             }
-            UiAction::ConfirmBrowserDuplicateCleanup => Self::ConfirmContentDuplicateCleanup,
+            UiAction::ConfirmBrowserDuplicateCleanup => Self::ConfirmBrowserDuplicateCleanup,
             UiAction::PlayRandomSample => Self::PlayRandomContentItem,
             UiAction::PlayPreviousRandomSample => Self::PlayPreviousRandomContentItem,
             UiAction::AdjustSelectedBrowserRating { delta } => {
-                Self::AdjustSelectedContentRating { delta: delta }
+                Self::AdjustSelectedBrowserRating { delta: delta }
             }
-            UiAction::SetBrowserTab { map } => Self::SetContentTab { map: map },
-            UiAction::FocusBrowserTagSidebarInput => Self::FocusContentPillEditorInput,
+            UiAction::SetBrowserTab { map } => Self::SetBrowserTab { map: map },
+            UiAction::FocusBrowserTagSidebarInput => Self::FocusBrowserPillEditorInput,
             UiAction::SetBrowserTagSidebarInput { value } => {
-                Self::SetContentPillEditorInput { value: value }
+                Self::SetBrowserPillEditorInput { value: value }
             }
-            UiAction::CommitBrowserTagSidebarInput => Self::CommitContentPillEditorInput,
+            UiAction::CommitBrowserTagSidebarInput => Self::CommitBrowserPillEditorInput,
             UiAction::SetBrowserSidebarLooped { looped } => {
-                Self::SetContentPlaybackLooped { looped: looped }
+                Self::SetBrowserSidebarLooped { looped: looped }
             }
             UiAction::ToggleBrowserSidebarNormalTag { label } => {
-                Self::ToggleContentPillOption { label: label }
+                Self::ToggleBrowserPillOption { label: label }
             }
             UiAction::FocusMapSample { sample_id } => Self::FocusSpatialContentItem {
                 content_id: sample_id,
             },
             UiAction::SetPromptInput { value } => Self::SetPromptInput { value: value },
-            UiAction::StartBrowserRename => Self::StartContentRename,
-            UiAction::ConfirmBrowserRename => Self::ConfirmContentRename,
-            UiAction::CancelBrowserRename => Self::CancelContentRename,
+            UiAction::StartBrowserRename => Self::StartBrowserRename,
+            UiAction::ConfirmBrowserRename => Self::ConfirmBrowserRename,
+            UiAction::CancelBrowserRename => Self::CancelBrowserRename,
             UiAction::AutoRenameBrowserSelection { visible_row } => {
-                Self::AutoRenameContentSelection {
+                Self::AutoRenameBrowserSelection {
                     visible_row: visible_row,
                 }
             }
-            UiAction::TagBrowserSelection { target } => Self::SetContentTriageMark {
+            UiAction::TagBrowserSelection { target } => Self::SetBrowserTriageMark {
                 target: target.into(),
             },
-            UiAction::DeleteBrowserSelection => Self::DeleteContentSelection,
+            UiAction::DeleteBrowserSelection => Self::DeleteBrowserSelection,
             UiAction::NormalizeFocusedBrowserSample => Self::NormalizeFocusedContentItem,
             UiAction::NormalizeWaveformSelectionOrSample => {
                 Self::NormalizeWaveformSelectionOrLoadedContent
@@ -1289,7 +1288,7 @@ impl From<UiAction> for compat::UiAction {
                 hovered_folder_pane: hovered_folder_pane.map(Into::into),
                 hovered_folder_row: hovered_folder_row,
                 over_folder_panel: over_folder_panel.map(Into::into),
-                over_content_list: over_browser_list,
+                over_browser_list: over_browser_list,
                 shift_down: shift_down,
                 alt_down: alt_down,
             },
@@ -1412,56 +1411,6 @@ impl From<FocusContextModel> for compat::FocusContextModel {
             FocusContextModel::SampleBrowser => Self::ContentList,
             FocusContextModel::SourceFolders => Self::NavigationTree,
             FocusContextModel::SourcesList => Self::NavigationList,
-        }
-    }
-}
-
-impl From<compat::SourcesPanelModel> for SourcesPanelModel {
-    fn from(value: compat::SourcesPanelModel) -> Self {
-        Self {
-            header: value.header,
-            search_query: value.search_query,
-            active_folder_pane: value.active_folder_pane.into(),
-            upper_folder_pane: value.upper_folder_pane.into(),
-            lower_folder_pane: value.lower_folder_pane.into(),
-            tree_search_query: value.tree_search_query,
-            show_all_items: value.show_all_items,
-            can_toggle_show_all_items: value.can_toggle_show_all_items,
-            flattened_view: value.flattened_view,
-            can_toggle_flattened_view: value.can_toggle_flattened_view,
-            selected_row: value.selected_row,
-            loading_row: value.loading_row,
-            mutation_busy_row: value.mutation_busy_row,
-            focused_tree_row: value.focused_tree_row,
-            rows: retained_vec_from_compat(value.rows),
-            tree_rows: retained_vec_from_compat(value.tree_rows),
-            tree_actions: value.tree_actions.into(),
-            recovery: value.recovery.into(),
-        }
-    }
-}
-
-impl From<SourcesPanelModel> for compat::SourcesPanelModel {
-    fn from(value: SourcesPanelModel) -> Self {
-        Self {
-            header: value.header,
-            search_query: value.search_query,
-            active_folder_pane: value.active_folder_pane.into(),
-            upper_folder_pane: value.upper_folder_pane.into(),
-            lower_folder_pane: value.lower_folder_pane.into(),
-            tree_search_query: value.tree_search_query,
-            show_all_items: value.show_all_items,
-            can_toggle_show_all_items: value.can_toggle_show_all_items,
-            flattened_view: value.flattened_view,
-            can_toggle_flattened_view: value.can_toggle_flattened_view,
-            selected_row: value.selected_row,
-            loading_row: value.loading_row,
-            mutation_busy_row: value.mutation_busy_row,
-            focused_tree_row: value.focused_tree_row,
-            rows: retained_vec_to_compat(value.rows),
-            tree_rows: retained_vec_to_compat(value.tree_rows),
-            tree_actions: value.tree_actions.into(),
-            recovery: value.recovery.into(),
         }
     }
 }
@@ -1788,34 +1737,6 @@ impl From<&AudioEngineModel> for compat::PairedDevicePanelModel {
     }
 }
 
-impl From<compat::OptionsPanelModel> for OptionsPanelModel {
-    fn from(value: compat::OptionsPanelModel) -> Self {
-        Self {
-            visible: value.visible,
-            default_identifier: value.default_identifier,
-            input_monitoring_enabled: value.input_monitoring_enabled,
-            advance_after_rating_enabled: value.advance_after_rating_enabled,
-            destructive_yolo_mode_enabled: value.destructive_yolo_mode_enabled,
-            invert_waveform_scroll_enabled: value.invert_waveform_scroll_enabled,
-            trash_folder_label: value.trash_folder_label,
-        }
-    }
-}
-
-impl From<OptionsPanelModel> for compat::OptionsPanelModel {
-    fn from(value: OptionsPanelModel) -> Self {
-        Self {
-            visible: value.visible,
-            default_identifier: value.default_identifier,
-            input_monitoring_enabled: value.input_monitoring_enabled,
-            advance_after_rating_enabled: value.advance_after_rating_enabled,
-            destructive_yolo_mode_enabled: value.destructive_yolo_mode_enabled,
-            invert_waveform_scroll_enabled: value.invert_waveform_scroll_enabled,
-            trash_folder_label: value.trash_folder_label,
-        }
-    }
-}
-
 impl From<&OptionsPanelModel> for compat::OptionsPanelModel {
     fn from(value: &OptionsPanelModel) -> Self {
         value.clone().into()
@@ -1880,131 +1801,9 @@ fn confirm_prompt_to_compat(value: ConfirmPromptModel) -> compat::ConfirmPromptM
     }
 }
 
-impl From<compat::WaveformPanelModel> for WaveformPanelModel {
-    fn from(value: compat::WaveformPanelModel) -> Self {
-        Self {
-            loaded_label: value.loaded_label,
-            loading: value.loading,
-            image_rendering: value.image_rendering,
-            cursor_milli: value.cursor_milli,
-            playhead_milli: value.playhead_milli,
-            playhead_micros: value.playhead_micros,
-            selection_milli: value.selection_milli.map(Into::into),
-            slices: value.slices.into_iter().map(Into::into).collect(),
-            selection_export_flash_nonce: value.selection_export_flash_nonce,
-            selection_export_failure_flash_nonce: value.selection_export_failure_flash_nonce,
-            edit_selection_apply_flash_nonce: value.edit_selection_apply_flash_nonce,
-            edit_selection_milli: value.edit_selection_milli.map(Into::into),
-            edit_fade_in_end_milli: value.edit_fade_in_end_milli,
-            edit_fade_in_end_micros: value.edit_fade_in_end_micros,
-            edit_fade_in_mute_start_milli: value.edit_fade_in_mute_start_milli,
-            edit_fade_in_mute_start_micros: value.edit_fade_in_mute_start_micros,
-            edit_fade_in_curve_milli: value.edit_fade_in_curve_milli,
-            edit_fade_out_start_milli: value.edit_fade_out_start_milli,
-            edit_fade_out_start_micros: value.edit_fade_out_start_micros,
-            edit_fade_out_mute_end_milli: value.edit_fade_out_mute_end_milli,
-            edit_fade_out_mute_end_micros: value.edit_fade_out_mute_end_micros,
-            edit_fade_out_curve_milli: value.edit_fade_out_curve_milli,
-            view_start_milli: value.view_start_milli,
-            view_end_milli: value.view_end_milli,
-            view_start_micros: value.view_start_micros,
-            view_end_micros: value.view_end_micros,
-            view_start_nanos: value.view_start_nanos,
-            view_end_nanos: value.view_end_nanos,
-            beat_step_micros: value.beat_step_micros,
-            bpm_grid_origin_micros: value.bpm_grid_origin_micros,
-            loop_enabled: value.loop_enabled,
-            tempo_label: value.tempo_label,
-            zoom_label: value.zoom_label,
-            waveform_image_signature: value.waveform_image_signature,
-            waveform_image: value.waveform_image,
-        }
-    }
-}
-
-impl From<WaveformPanelModel> for compat::WaveformPanelModel {
-    fn from(value: WaveformPanelModel) -> Self {
-        Self {
-            loaded_label: value.loaded_label,
-            loading: value.loading,
-            image_rendering: value.image_rendering,
-            cursor_milli: value.cursor_milli,
-            playhead_milli: value.playhead_milli,
-            playhead_micros: value.playhead_micros,
-            selection_milli: value.selection_milli.map(Into::into),
-            slices: value.slices.into_iter().map(Into::into).collect(),
-            selection_export_flash_nonce: value.selection_export_flash_nonce,
-            selection_export_failure_flash_nonce: value.selection_export_failure_flash_nonce,
-            edit_selection_apply_flash_nonce: value.edit_selection_apply_flash_nonce,
-            edit_selection_milli: value.edit_selection_milli.map(Into::into),
-            edit_fade_in_end_milli: value.edit_fade_in_end_milli,
-            edit_fade_in_end_micros: value.edit_fade_in_end_micros,
-            edit_fade_in_mute_start_milli: value.edit_fade_in_mute_start_milli,
-            edit_fade_in_mute_start_micros: value.edit_fade_in_mute_start_micros,
-            edit_fade_in_curve_milli: value.edit_fade_in_curve_milli,
-            edit_fade_out_start_milli: value.edit_fade_out_start_milli,
-            edit_fade_out_start_micros: value.edit_fade_out_start_micros,
-            edit_fade_out_mute_end_milli: value.edit_fade_out_mute_end_milli,
-            edit_fade_out_mute_end_micros: value.edit_fade_out_mute_end_micros,
-            edit_fade_out_curve_milli: value.edit_fade_out_curve_milli,
-            view_start_milli: value.view_start_milli,
-            view_end_milli: value.view_end_milli,
-            view_start_micros: value.view_start_micros,
-            view_end_micros: value.view_end_micros,
-            view_start_nanos: value.view_start_nanos,
-            view_end_nanos: value.view_end_nanos,
-            beat_step_micros: value.beat_step_micros,
-            bpm_grid_origin_micros: value.bpm_grid_origin_micros,
-            loop_enabled: value.loop_enabled,
-            tempo_label: value.tempo_label,
-            zoom_label: value.zoom_label,
-            waveform_image_signature: value.waveform_image_signature,
-            waveform_image: value.waveform_image,
-        }
-    }
-}
-
 impl From<&WaveformPanelModel> for compat::WaveformPanelModel {
     fn from(value: &WaveformPanelModel) -> Self {
         value.clone().into()
-    }
-}
-
-impl From<compat::WaveformChromeModel> for WaveformChromeModel {
-    fn from(value: compat::WaveformChromeModel) -> Self {
-        Self {
-            transport_hint: value.transport_hint,
-            compare_anchor_available: value.compare_anchor_available,
-            compare_anchor_label: value.compare_anchor_label,
-            loop_lock_enabled: value.loop_lock_enabled,
-            channel_view: value.channel_view.into(),
-            normalized_audition_enabled: value.normalized_audition_enabled,
-            bpm_snap_enabled: value.bpm_snap_enabled,
-            relative_bpm_grid_enabled: value.relative_bpm_grid_enabled,
-            transient_snap_enabled: value.transient_snap_enabled,
-            transient_markers_enabled: value.transient_markers_enabled,
-            slice_mode_enabled: value.slice_mode_enabled,
-            exact_duplicate_cleanup_available: value.exact_duplicate_cleanup_available,
-        }
-    }
-}
-
-impl From<WaveformChromeModel> for compat::WaveformChromeModel {
-    fn from(value: WaveformChromeModel) -> Self {
-        Self {
-            transport_hint: value.transport_hint,
-            compare_anchor_available: value.compare_anchor_available,
-            compare_anchor_label: value.compare_anchor_label,
-            loop_lock_enabled: value.loop_lock_enabled,
-            channel_view: value.channel_view.into(),
-            normalized_audition_enabled: value.normalized_audition_enabled,
-            bpm_snap_enabled: value.bpm_snap_enabled,
-            relative_bpm_grid_enabled: value.relative_bpm_grid_enabled,
-            transient_snap_enabled: value.transient_snap_enabled,
-            transient_markers_enabled: value.transient_markers_enabled,
-            slice_mode_enabled: value.slice_mode_enabled,
-            exact_duplicate_cleanup_available: value.exact_duplicate_cleanup_available,
-        }
     }
 }
 
@@ -2283,44 +2082,6 @@ impl From<gui_automation::GuiAutomationSnapshot> for GuiAutomationSnapshot {
     }
 }
 
-impl From<compat::DirtySegments> for DirtySegments {
-    fn from(value: compat::DirtySegments) -> Self {
-        Self::from_bits(value.bits())
-    }
-}
-
-impl From<DirtySegments> for compat::DirtySegments {
-    fn from(value: DirtySegments) -> Self {
-        Self::from_bits(value.bits())
-    }
-}
-
-impl From<compat::SegmentRevisions> for SegmentRevisions {
-    fn from(value: compat::SegmentRevisions) -> Self {
-        Self {
-            status_bar: value.status_bar,
-            browser_frame: value.browser_frame,
-            browser_rows_window: value.browser_rows_window,
-            map_panel: value.map_panel,
-            waveform_overlay: value.waveform_overlay,
-            global_static: value.global_static,
-        }
-    }
-}
-
-impl From<SegmentRevisions> for compat::SegmentRevisions {
-    fn from(value: SegmentRevisions) -> Self {
-        Self {
-            status_bar: value.status_bar,
-            browser_frame: value.browser_frame,
-            browser_rows_window: value.browser_rows_window,
-            map_panel: value.map_panel,
-            waveform_overlay: value.waveform_overlay,
-            global_static: value.global_static,
-        }
-    }
-}
-
 impl From<compat::NativeMotionModel> for NativeMotionModel {
     fn from(value: compat::NativeMotionModel) -> Self {
         Self {
@@ -2450,17 +2211,14 @@ pub(super) fn run_native_vello_app_with_artifacts<B: NativeAppBridge>(
     options: NativeRunOptions,
     bridge: B,
 ) -> NativeRunReport {
-    let report = radiant::gui_runtime::run_legacy_native_vello_app_with_artifacts(
+    let report = native_vello::run_native_shell_vello_app_with_artifacts(
         options.into(),
         CompatNativeAppBridge::new(bridge),
     );
     NativeRunReport {
         artifacts: NativeRuntimeArtifacts {
             startup_timing: report.artifacts.startup_timing,
-            shutdown_timing: report
-                .artifacts
-                .shutdown_timing
-                .and_then(|value| serde_json::from_value(value).ok()),
+            shutdown_timing: report.artifacts.shutdown_timing,
         },
         result: report.result,
     }

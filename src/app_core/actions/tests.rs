@@ -296,6 +296,18 @@ fn native_action_exports_are_owned_in_app_core() {
             source_path.display()
         );
     }
+    for source_path in rust_sources_under(&manifest_dir.join("src")) {
+        if is_test_source(&source_path) {
+            continue;
+        }
+        let source = fs::read_to_string(&source_path).expect("Sempal source");
+        assert!(
+            !source.contains("radiant::compat::legacy_shell")
+                && !source.contains("run_legacy_native_vello_app_with_artifacts"),
+            "{} must not depend on Radiant's legacy-shell contracts or runner",
+            source_path.display()
+        );
+    }
     assert!(
         !native_dtos.contains("radiant::compat::legacy_shell") && !native_dtos.contains("compat::"),
         "Sempal projection DTO definitions should not import Radiant legacy-shell compatibility types"
@@ -898,4 +910,11 @@ fn collect_rust_sources(path: &Path, out: &mut Vec<PathBuf>) {
             out.push(path);
         }
     }
+}
+
+fn is_test_source(path: &Path) -> bool {
+    path.file_name().and_then(|name| name.to_str()) == Some("tests.rs")
+        || path
+            .components()
+            .any(|component| component.as_os_str() == "tests")
 }
