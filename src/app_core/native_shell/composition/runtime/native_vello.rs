@@ -333,17 +333,17 @@ impl From<compat::UiAction> for UiAction {
             compat::UiAction::RestoreRetainedFolderDeletes => Self::RestoreRetainedFolderDeletes,
             compat::UiAction::PurgeRetainedFolderDeletes => Self::PurgeRetainedFolderDeletes,
             compat::UiAction::ClearFolderDeleteRecoveryLog => Self::ClearFolderDeleteRecoveryLog,
-            compat::UiAction::MoveBrowserFocus { delta } => Self::MoveBrowserFocus { delta: delta },
-            compat::UiAction::SetBrowserViewStart { visible_row } => Self::SetBrowserViewStart {
+            compat::UiAction::MoveContentFocus { delta } => Self::MoveBrowserFocus { delta: delta },
+            compat::UiAction::SetContentViewStart { visible_row } => Self::SetBrowserViewStart {
                 visible_row: visible_row,
             },
-            compat::UiAction::FocusBrowserRow { visible_row } => Self::FocusBrowserRow {
+            compat::UiAction::FocusContentRow { visible_row } => Self::FocusBrowserRow {
                 visible_row: visible_row,
             },
             compat::UiAction::SetCompareAnchorFromFocusedContent => {
                 Self::SetCompareAnchorFromFocusedBrowserSample
             }
-            compat::UiAction::CommitFocusedBrowserRow => Self::CommitFocusedBrowserRow,
+            compat::UiAction::CommitFocusedContentRow => Self::CommitFocusedBrowserRow,
             compat::UiAction::SaveWaveformSelectionToBrowser => {
                 Self::SaveWaveformSelectionToBrowser
             }
@@ -358,7 +358,7 @@ impl From<compat::UiAction> for UiAction {
             compat::UiAction::CleanWaveformExactDuplicateSlices => {
                 Self::CleanWaveformExactDuplicateSlices
             }
-            compat::UiAction::ToggleBrowserRowSelection { visible_row } => {
+            compat::UiAction::ToggleContentRowSelection { visible_row } => {
                 Self::ToggleBrowserRowSelection {
                     visible_row: visible_row,
                 }
@@ -390,26 +390,26 @@ impl From<compat::UiAction> for UiAction {
                 alt_down: alt_down,
             },
             compat::UiAction::FinishContentItemDrag => Self::FinishBrowserSampleDrag,
-            compat::UiAction::ExtendBrowserSelectionToRow { visible_row } => {
+            compat::UiAction::ExtendContentSelectionToRow { visible_row } => {
                 Self::ExtendBrowserSelectionToRow {
                     visible_row: visible_row,
                 }
             }
-            compat::UiAction::AddRangeBrowserSelection { visible_row } => {
+            compat::UiAction::AddRangeContentSelectionToRow { visible_row } => {
                 Self::AddRangeBrowserSelection {
                     visible_row: visible_row,
                 }
             }
-            compat::UiAction::ExtendBrowserSelectionFromFocus { delta } => {
+            compat::UiAction::ExtendContentSelectionFromFocus { delta } => {
                 Self::ExtendBrowserSelectionFromFocus { delta: delta }
             }
-            compat::UiAction::AddRangeBrowserSelectionFromFocus { delta } => {
+            compat::UiAction::AddRangeContentSelectionFromFocus { delta } => {
                 Self::AddRangeBrowserSelectionFromFocus { delta: delta }
             }
-            compat::UiAction::ToggleFocusedBrowserRowSelection => {
+            compat::UiAction::ToggleFocusedContentRowSelection => {
                 Self::ToggleFocusedBrowserRowSelection
             }
-            compat::UiAction::SelectAllBrowserRows => Self::SelectAllBrowserRows,
+            compat::UiAction::SelectAllContentRows => Self::SelectAllBrowserRows,
             compat::UiAction::SetContentSearch { query } => Self::SetBrowserSearch { query: query },
             compat::UiAction::ToggleBrowserRatingFilter { level, invert } => {
                 Self::ToggleBrowserRatingFilter {
@@ -928,17 +928,17 @@ impl From<UiAction> for compat::UiAction {
             UiAction::RestoreRetainedFolderDeletes => Self::RestoreRetainedFolderDeletes,
             UiAction::PurgeRetainedFolderDeletes => Self::PurgeRetainedFolderDeletes,
             UiAction::ClearFolderDeleteRecoveryLog => Self::ClearFolderDeleteRecoveryLog,
-            UiAction::MoveBrowserFocus { delta } => Self::MoveBrowserFocus { delta: delta },
-            UiAction::SetBrowserViewStart { visible_row } => Self::SetBrowserViewStart {
+            UiAction::MoveBrowserFocus { delta } => Self::MoveContentFocus { delta: delta },
+            UiAction::SetBrowserViewStart { visible_row } => Self::SetContentViewStart {
                 visible_row: visible_row,
             },
-            UiAction::FocusBrowserRow { visible_row } => Self::FocusBrowserRow {
+            UiAction::FocusBrowserRow { visible_row } => Self::FocusContentRow {
                 visible_row: visible_row,
             },
             UiAction::SetCompareAnchorFromFocusedBrowserSample => {
                 Self::SetCompareAnchorFromFocusedContent
             }
-            UiAction::CommitFocusedBrowserRow => Self::CommitFocusedBrowserRow,
+            UiAction::CommitFocusedBrowserRow => Self::CommitFocusedContentRow,
             UiAction::SaveWaveformSelectionToBrowser => Self::SaveWaveformSelectionToBrowser,
             UiAction::SaveWaveformSelectionToBrowserWithKeep2 => {
                 Self::SaveWaveformSelectionToBrowserWithKeep2
@@ -950,7 +950,7 @@ impl From<UiAction> for compat::UiAction {
             }
             UiAction::CleanWaveformExactDuplicateSlices => Self::CleanWaveformExactDuplicateSlices,
             UiAction::ToggleBrowserRowSelection { visible_row } => {
-                Self::ToggleBrowserRowSelection {
+                Self::ToggleContentRowSelection {
                     visible_row: visible_row,
                 }
             }
@@ -982,21 +982,23 @@ impl From<UiAction> for compat::UiAction {
             },
             UiAction::FinishBrowserSampleDrag => Self::FinishContentItemDrag,
             UiAction::ExtendBrowserSelectionToRow { visible_row } => {
-                Self::ExtendBrowserSelectionToRow {
+                Self::ExtendContentSelectionToRow {
                     visible_row: visible_row,
                 }
             }
-            UiAction::AddRangeBrowserSelection { visible_row } => Self::AddRangeBrowserSelection {
-                visible_row: visible_row,
-            },
+            UiAction::AddRangeBrowserSelection { visible_row } => {
+                Self::AddRangeContentSelectionToRow {
+                    visible_row: visible_row,
+                }
+            }
             UiAction::ExtendBrowserSelectionFromFocus { delta } => {
-                Self::ExtendBrowserSelectionFromFocus { delta: delta }
+                Self::ExtendContentSelectionFromFocus { delta: delta }
             }
             UiAction::AddRangeBrowserSelectionFromFocus { delta } => {
-                Self::AddRangeBrowserSelectionFromFocus { delta: delta }
+                Self::AddRangeContentSelectionFromFocus { delta: delta }
             }
-            UiAction::ToggleFocusedBrowserRowSelection => Self::ToggleFocusedBrowserRowSelection,
-            UiAction::SelectAllBrowserRows => Self::SelectAllBrowserRows,
+            UiAction::ToggleFocusedBrowserRowSelection => Self::ToggleFocusedContentRowSelection,
+            UiAction::SelectAllBrowserRows => Self::SelectAllContentRows,
             UiAction::SetBrowserSearch { query } => Self::SetContentSearch { query: query },
             UiAction::ToggleBrowserRatingFilter { level, invert } => {
                 Self::ToggleBrowserRatingFilter {
