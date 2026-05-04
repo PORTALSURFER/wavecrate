@@ -2097,60 +2097,75 @@ impl From<&AppModel> for compat::AppModel {
     }
 }
 
-fn local_app_model_from_radiant_compat(
-    value: compat::AppModel,
-) -> crate::compat_app_contract::AppModel {
+fn local_app_model_from_native_model(value: &AppModel) -> crate::compat_app_contract::AppModel {
     crate::compat_app_contract::AppModel {
-        title: value.title,
-        backend_label: value.backend_label,
-        sources_label: value.sources_label,
-        status_text: value.status_text,
-        status: value.status,
-        paired_device: value.paired_device,
-        browser_actions: value.browser_actions,
-        options_panel: local_options_panel_from_radiant_compat(value.options_panel),
-        progress_overlay: value.progress_overlay,
-        confirm_prompt: value.confirm_prompt,
-        drag_overlay: value.drag_overlay,
-        columns: value.columns,
+        title: value.title.clone(),
+        backend_label: value.backend_label.clone(),
+        sources_label: value.sources_label.clone(),
+        status_text: value.status_text.clone(),
+        status: value.status.clone(),
+        paired_device: value.audio_engine.clone().into(),
+        browser_actions: value.browser_actions.clone().into(),
+        options_panel: local_options_panel_from_native_model(&value.options_panel),
+        progress_overlay: value.progress_overlay.clone(),
+        confirm_prompt: local_confirm_prompt_from_native_model(&value.confirm_prompt),
+        drag_overlay: value.drag_overlay.clone(),
+        columns: value.columns.clone().map(Into::into),
         selected_column: value.selected_column,
         volume: value.volume,
         transport_running: value.transport_running,
-        sources: local_sources_panel_from_radiant_compat(value.sources),
-        browser: value.browser,
-        browser_chrome: value.browser_chrome,
-        map: value.map,
-        waveform: local_waveform_panel_from_radiant_compat(value.waveform),
-        waveform_chrome: local_waveform_chrome_from_radiant_compat(value.waveform_chrome),
-        update: value.update,
-        focus_context: value.focus_context,
+        sources: local_sources_panel_from_native_model(&value.sources),
+        browser: value.browser.clone().into(),
+        browser_chrome: value.browser_chrome.clone().into(),
+        map: value.map.clone(),
+        waveform: local_waveform_panel_from_native_model(&value.waveform),
+        waveform_chrome: local_waveform_chrome_from_native_model(&value.waveform_chrome),
+        update: value.update.clone(),
+        focus_context: value.focus_context.into(),
     }
 }
 
-fn local_options_panel_from_radiant_compat(
-    value: compat::OptionsPanelModel,
+fn local_options_panel_from_native_model(
+    value: &OptionsPanelModel,
 ) -> crate::compat_app_contract::OptionsPanelModel {
     crate::compat_app_contract::OptionsPanelModel {
         visible: value.visible,
-        default_identifier: value.default_identifier,
+        default_identifier: value.default_identifier.clone(),
         input_monitoring_enabled: value.input_monitoring_enabled,
         advance_after_rating_enabled: value.advance_after_rating_enabled,
         destructive_yolo_mode_enabled: value.destructive_yolo_mode_enabled,
         invert_waveform_scroll_enabled: value.invert_waveform_scroll_enabled,
-        trash_folder_label: value.trash_folder_label,
+        trash_folder_label: value.trash_folder_label.clone(),
     }
 }
 
-fn local_sources_panel_from_radiant_compat(
-    value: compat::SourcesPanelModel,
+fn local_confirm_prompt_from_native_model(
+    value: &ConfirmPromptModel,
+) -> crate::compat_app_contract::ConfirmPromptModel {
+    crate::compat_app_contract::ConfirmPromptModel {
+        visible: value.visible,
+        kind: value.kind.map(Into::into),
+        title: value.title.clone(),
+        message: value.message.clone(),
+        confirm_label: value.confirm_label.clone(),
+        cancel_label: value.cancel_label.clone(),
+        target_label: value.target_label.clone(),
+        input_value: value.input_value.clone(),
+        input_placeholder: value.input_placeholder.clone(),
+        input_error: value.input_error.clone(),
+    }
+}
+
+fn local_sources_panel_from_native_model(
+    value: &SourcesPanelModel,
 ) -> crate::compat_app_contract::SourcesPanelModel {
     crate::compat_app_contract::SourcesPanelModel {
-        header: value.header,
-        search_query: value.search_query,
+        header: value.header.clone(),
+        search_query: value.search_query.clone(),
         active_folder_pane: value.active_folder_pane,
-        upper_folder_pane: value.upper_folder_pane,
-        lower_folder_pane: value.lower_folder_pane,
-        tree_search_query: value.tree_search_query,
+        upper_folder_pane: value.upper_folder_pane.clone(),
+        lower_folder_pane: value.lower_folder_pane.clone(),
+        tree_search_query: value.tree_search_query.clone(),
         show_all_items: value.show_all_items,
         can_toggle_show_all_items: value.can_toggle_show_all_items,
         flattened_view: value.flattened_view,
@@ -2159,25 +2174,25 @@ fn local_sources_panel_from_radiant_compat(
         loading_row: value.loading_row,
         mutation_busy_row: value.mutation_busy_row,
         focused_tree_row: value.focused_tree_row,
-        rows: value.rows,
-        tree_rows: value.tree_rows,
-        tree_actions: value.tree_actions,
-        recovery: value.recovery,
+        rows: value.rows.clone(),
+        tree_rows: value.tree_rows.clone(),
+        tree_actions: value.tree_actions.clone(),
+        recovery: value.recovery.clone(),
     }
 }
 
-fn local_waveform_panel_from_radiant_compat(
-    value: compat::WaveformPanelModel,
+fn local_waveform_panel_from_native_model(
+    value: &WaveformPanelModel,
 ) -> crate::compat_app_contract::WaveformPanelModel {
     crate::compat_app_contract::WaveformPanelModel {
-        loaded_label: value.loaded_label,
+        loaded_label: value.loaded_label.clone(),
         loading: value.loading,
         image_rendering: value.image_rendering,
         cursor_milli: value.cursor_milli,
         playhead_milli: value.playhead_milli,
         playhead_micros: value.playhead_micros,
         selection_milli: value.selection_milli,
-        slices: value.slices,
+        slices: value.slices.clone(),
         selection_export_flash_nonce: value.selection_export_flash_nonce,
         selection_export_failure_flash_nonce: value.selection_export_failure_flash_nonce,
         edit_selection_apply_flash_nonce: value.edit_selection_apply_flash_nonce,
@@ -2201,22 +2216,22 @@ fn local_waveform_panel_from_radiant_compat(
         beat_step_micros: value.beat_step_micros,
         bpm_grid_origin_micros: value.bpm_grid_origin_micros,
         loop_enabled: value.loop_enabled,
-        tempo_label: value.tempo_label,
-        zoom_label: value.zoom_label,
+        tempo_label: value.tempo_label.clone(),
+        zoom_label: value.zoom_label.clone(),
         waveform_image_signature: value.waveform_image_signature,
-        waveform_image: value.waveform_image,
+        waveform_image: value.waveform_image.clone(),
     }
 }
 
-fn local_waveform_chrome_from_radiant_compat(
-    value: compat::WaveformChromeModel,
+fn local_waveform_chrome_from_native_model(
+    value: &WaveformChromeModel,
 ) -> crate::compat_app_contract::WaveformChromeModel {
     crate::compat_app_contract::WaveformChromeModel {
-        transport_hint: value.transport_hint,
+        transport_hint: value.transport_hint.clone(),
         compare_anchor_available: value.compare_anchor_available,
-        compare_anchor_label: value.compare_anchor_label,
+        compare_anchor_label: value.compare_anchor_label.clone(),
         loop_lock_enabled: value.loop_lock_enabled,
-        channel_view: value.channel_view,
+        channel_view: value.channel_view.into(),
         normalized_audition_enabled: value.normalized_audition_enabled,
         bpm_snap_enabled: value.bpm_snap_enabled,
         relative_bpm_grid_enabled: value.relative_bpm_grid_enabled,
@@ -2538,8 +2553,7 @@ pub(super) fn capture_gui_automation_snapshot(
     viewport: [f32; 2],
     model: &NativeAppModel,
 ) -> NativeGuiAutomationSnapshot {
-    let compat_model = radiant::compat::legacy_shell::AppModel::from(model);
-    let local_model = local_app_model_from_radiant_compat(compat_model);
+    let local_model = local_app_model_from_native_model(model);
     let viewport = Vector2::new(viewport[0].max(1.0), viewport[1].max(1.0));
     let style = StyleTokens::for_viewport_width(viewport.x);
     let mut runtime = ShellLayoutRuntime::default();
@@ -2557,8 +2571,7 @@ pub(super) fn capture_native_shell_shot_snapshot(
     viewport: [f32; 2],
     model: &NativeAppModel,
 ) -> impl serde::Serialize {
-    let compat_model = radiant::compat::legacy_shell::AppModel::from(model);
-    let local_model = local_app_model_from_radiant_compat(compat_model);
+    let local_model = local_app_model_from_native_model(model);
     crate::compat_app_contract::capture_native_shell_shot_snapshot(name, viewport, &local_model)
 }
 
@@ -2608,7 +2621,10 @@ mod tests {
             .expect("test-only snapshot adapter should follow automation adapter");
         let function_body = &function_body[..function_end];
 
-        assert!(function_body.contains("local_app_model_from_radiant_compat"));
+        assert!(function_body.contains("local_app_model_from_native_model"));
+        assert!(!function_body.contains("radiant::compat::legacy_shell::AppModel"));
+        let removed_helper = concat!("local_app_model_from_", "radiant_compat");
+        assert!(!source.contains(removed_helper));
         assert!(function_body.contains("NativeShellState::new()"));
         assert!(
             !function_body
@@ -2629,7 +2645,10 @@ mod tests {
             .expect("tests should follow shot snapshot adapter");
         let function_body = &function_body[..function_end];
 
-        assert!(function_body.contains("local_app_model_from_radiant_compat"));
+        assert!(function_body.contains("local_app_model_from_native_model"));
+        assert!(!function_body.contains("radiant::compat::legacy_shell::AppModel"));
+        let removed_helper = concat!("local_app_model_from_", "radiant_compat");
+        assert!(!source.contains(removed_helper));
         assert!(
             function_body
                 .contains("crate::compat_app_contract::capture_native_shell_shot_snapshot")
