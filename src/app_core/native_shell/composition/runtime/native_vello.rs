@@ -148,21 +148,6 @@ impl<B: NativeAppBridge> radiant::compat::legacy_shell::NativeAppBridge
     }
 }
 
-fn native_run_report_from_radiant(
-    report: radiant::compat::runtime_artifacts::NativeRunReport,
-) -> NativeRunReport {
-    NativeRunReport {
-        artifacts: NativeRuntimeArtifacts {
-            startup_timing: report.artifacts.startup_timing,
-            shutdown_timing: report
-                .artifacts
-                .shutdown_timing
-                .and_then(|value| serde_json::from_value(value).ok()),
-        },
-        result: report.result,
-    }
-}
-
 fn focus_context_from_radiant(focus: RadiantFocusSurface) -> FocusContext {
     match focus {
         RadiantFocusSurface::None => FocusContext::None,
@@ -2546,7 +2531,16 @@ pub(super) fn run_native_vello_app_with_artifacts<B: NativeAppBridge>(
         options.into(),
         CompatNativeAppBridge::new(bridge),
     );
-    native_run_report_from_radiant(report)
+    NativeRunReport {
+        artifacts: NativeRuntimeArtifacts {
+            startup_timing: report.artifacts.startup_timing,
+            shutdown_timing: report
+                .artifacts
+                .shutdown_timing
+                .and_then(|value| serde_json::from_value(value).ok()),
+        },
+        result: report.result,
+    }
 }
 
 pub(super) fn capture_gui_automation_snapshot(
