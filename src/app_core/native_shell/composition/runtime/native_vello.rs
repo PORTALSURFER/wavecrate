@@ -2529,7 +2529,7 @@ pub(super) fn run_native_vello_app_with_artifacts<B: NativeAppBridge>(
     options: NativeRunOptions,
     bridge: B,
 ) -> NativeRunReport {
-    let report = radiant::compat::legacy_native_vello::run_native_vello_app_with_artifacts(
+    let report = radiant::gui_runtime::run_legacy_native_vello_app_with_artifacts(
         options.into(),
         CompatNativeAppBridge::new(bridge),
     );
