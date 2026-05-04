@@ -842,8 +842,13 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal native dirty segments should wrap the generic Radiant retained segment primitives"
     );
 
+    let radiant_legacy_shell = manifest_dir.join("vendor/radiant/src/compat/legacy_shell");
+    assert!(
+        !radiant_legacy_shell.exists(),
+        "Radiant legacy-shell compatibility contracts should be removed; Sempal must own native action/model compatibility locally"
+    );
+
     let native_contract_sources = [
-        manifest_dir.join("vendor/radiant/src/compat/legacy_shell/mod.rs"),
         manifest_dir.join("src/compat_app_contract.rs"),
         manifest_dir.join("src/app_core/native_shell/composition/runtime/actions/mod.rs"),
         manifest_dir.join("src/app_core/native_shell/composition/runtime/motion.rs"),
