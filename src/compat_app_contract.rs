@@ -12,8 +12,6 @@ mod actions;
 mod aliases;
 #[path = "app_core/native_shell/composition/runtime/bridge.rs"]
 mod bridge;
-#[path = "app_core/native_shell/composition/runtime/dirty_segments.rs"]
-mod dirty_segments;
 #[path = "app_core/native_shell/composition/runtime/motion.rs"]
 mod motion;
 #[path = "app_core/native_shell/composition/runtime/shell.rs"]
@@ -36,7 +34,9 @@ pub use aliases::{
     PlaybackAgeFilterChip, RetainedVec, ShortcutResolution, SourceRowModel,
 };
 pub use bridge::NativeAppBridge;
-pub use dirty_segments::{DirtySegments, SegmentRevisions};
+pub use crate::app_core::actions::{
+    NativeDirtySegments as DirtySegments, NativeSegmentRevisions as SegmentRevisions,
+};
 pub use motion::NativeMotionModel;
 pub use shell::{
     AppModel, ConfirmPromptKind, ConfirmPromptModel, DragOverlayModel, OptionsPanelModel,

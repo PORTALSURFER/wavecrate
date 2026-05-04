@@ -808,8 +808,8 @@ fn native_action_exports_are_owned_in_app_core() {
 
     let native_contract_sources = [
         manifest_dir.join("vendor/radiant/src/compat/legacy_shell/mod.rs"),
+        manifest_dir.join("src/compat_app_contract.rs"),
         manifest_dir.join("src/app_core/native_shell/composition/runtime/actions/mod.rs"),
-        manifest_dir.join("src/app_core/native_shell/composition/runtime/dirty_segments.rs"),
         manifest_dir.join("src/app_core/native_shell/composition/runtime/motion.rs"),
         manifest_dir.join("src/app_core/native_shell/composition/runtime/shell.rs"),
     ];
