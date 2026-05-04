@@ -25,6 +25,7 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
+          ssh-key: ${{ secrets.RADIANT_SUBMODULE_DEPLOY_KEY }}
       - name: Read pinned Rust toolchain
         id: rust_toolchain
         shell: bash
