@@ -460,10 +460,10 @@ impl From<compat::UiAction> for UiAction {
                 Self::SetBrowserTagSidebarInput { value: value }
             }
             compat::UiAction::CommitContentPillEditorInput => Self::CommitBrowserTagSidebarInput,
-            compat::UiAction::SetBrowserSidebarLooped { looped } => {
+            compat::UiAction::SetContentPlaybackLooped { looped } => {
                 Self::SetBrowserSidebarLooped { looped: looped }
             }
-            compat::UiAction::ToggleBrowserPillOption { label } => {
+            compat::UiAction::ToggleContentPillOption { label } => {
                 Self::ToggleBrowserSidebarNormalTag { label: label }
             }
             compat::UiAction::FocusSpatialContentItem { content_id } => Self::FocusMapSample {
@@ -1044,10 +1044,10 @@ impl From<UiAction> for compat::UiAction {
             }
             UiAction::CommitBrowserTagSidebarInput => Self::CommitContentPillEditorInput,
             UiAction::SetBrowserSidebarLooped { looped } => {
-                Self::SetBrowserSidebarLooped { looped: looped }
+                Self::SetContentPlaybackLooped { looped: looped }
             }
             UiAction::ToggleBrowserSidebarNormalTag { label } => {
-                Self::ToggleBrowserPillOption { label: label }
+                Self::ToggleContentPillOption { label: label }
             }
             UiAction::FocusMapSample { sample_id } => Self::FocusSpatialContentItem {
                 content_id: sample_id,
