@@ -429,8 +429,8 @@ impl From<compat::UiAction> for UiAction {
                 Self::ToggleBrowserTagNamedFilter { invert: invert }
             }
             compat::UiAction::ToggleRandomNavigationMode => Self::ToggleRandomNavigationMode,
-            compat::UiAction::ToggleBrowserPillEditor => Self::ToggleBrowserTagSidebar,
-            compat::UiAction::ToggleBrowserPillEditorPrimaryAction => {
+            compat::UiAction::ToggleContentPillEditor => Self::ToggleBrowserTagSidebar,
+            compat::UiAction::ToggleContentPillEditorPrimaryAction => {
                 Self::ToggleBrowserTagSidebarAutoRename
             }
             compat::UiAction::ToggleBrowserDuplicateCleanupMode => {
@@ -455,11 +455,11 @@ impl From<compat::UiAction> for UiAction {
                 Self::AdjustSelectedBrowserRating { delta: delta }
             }
             compat::UiAction::SetBrowserTab { map } => Self::SetBrowserTab { map: map },
-            compat::UiAction::FocusBrowserPillEditorInput => Self::FocusBrowserTagSidebarInput,
-            compat::UiAction::SetBrowserPillEditorInput { value } => {
+            compat::UiAction::FocusContentPillEditorInput => Self::FocusBrowserTagSidebarInput,
+            compat::UiAction::SetContentPillEditorInput { value } => {
                 Self::SetBrowserTagSidebarInput { value: value }
             }
-            compat::UiAction::CommitBrowserPillEditorInput => Self::CommitBrowserTagSidebarInput,
+            compat::UiAction::CommitContentPillEditorInput => Self::CommitBrowserTagSidebarInput,
             compat::UiAction::SetBrowserSidebarLooped { looped } => {
                 Self::SetBrowserSidebarLooped { looped: looped }
             }
@@ -1016,9 +1016,9 @@ impl From<UiAction> for compat::UiAction {
                 Self::ToggleContentDerivedLabelFilter { invert: invert }
             }
             UiAction::ToggleRandomNavigationMode => Self::ToggleRandomNavigationMode,
-            UiAction::ToggleBrowserTagSidebar => Self::ToggleBrowserPillEditor,
+            UiAction::ToggleBrowserTagSidebar => Self::ToggleContentPillEditor,
             UiAction::ToggleBrowserTagSidebarAutoRename => {
-                Self::ToggleBrowserPillEditorPrimaryAction
+                Self::ToggleContentPillEditorPrimaryAction
             }
             UiAction::ToggleBrowserDuplicateCleanupMode => Self::ToggleBrowserDuplicateCleanupMode,
             UiAction::FocusPreviousBrowserHistory => Self::FocusPreviousBrowserHistory,
@@ -1036,11 +1036,11 @@ impl From<UiAction> for compat::UiAction {
                 Self::AdjustSelectedBrowserRating { delta: delta }
             }
             UiAction::SetBrowserTab { map } => Self::SetBrowserTab { map: map },
-            UiAction::FocusBrowserTagSidebarInput => Self::FocusBrowserPillEditorInput,
+            UiAction::FocusBrowserTagSidebarInput => Self::FocusContentPillEditorInput,
             UiAction::SetBrowserTagSidebarInput { value } => {
-                Self::SetBrowserPillEditorInput { value: value }
+                Self::SetContentPillEditorInput { value: value }
             }
-            UiAction::CommitBrowserTagSidebarInput => Self::CommitBrowserPillEditorInput,
+            UiAction::CommitBrowserTagSidebarInput => Self::CommitContentPillEditorInput,
             UiAction::SetBrowserSidebarLooped { looped } => {
                 Self::SetBrowserSidebarLooped { looped: looped }
             }
