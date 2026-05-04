@@ -174,17 +174,23 @@ collect_files() {
   local -a rust_files=()
 
   if (( CHECK_ALL == 1 )); then
-    mapfile -t raw_files < <(sempal_git ls-files -- "${PROJECT_TRACKED_PATHS[@]}" || true)
+    while IFS= read -r path; do
+      raw_files+=("$path")
+    done < <(sempal_git ls-files -- "${PROJECT_TRACKED_PATHS[@]}" || true)
     COLLECT_SCOPE="all"
   elif [[ -n "$base" ]] && git_has_commit "$base" && git_has_commit "$head"; then
-    mapfile -t raw_files < <(
+    while IFS= read -r path; do
+      raw_files+=("$path")
+    done < <(
       sempal_git diff --name-only --diff-filter=AM "$base...$head" -- "${PROJECT_TRACKED_PATHS[@]}" \
         || true
     )
     COLLECT_SCOPE="diff(base...head)"
   elif git_has_commit "$head"; then
     # If base isn't available (e.g. first push), fall back to the head commit's file list.
-    mapfile -t raw_files < <(
+    while IFS= read -r path; do
+      raw_files+=("$path")
+    done < <(
       sempal_git show --name-only --pretty=format: "$head" -- "${PROJECT_TRACKED_PATHS[@]}" || true
     )
     COLLECT_SCOPE="diff(head)"
@@ -198,10 +204,14 @@ collect_files() {
   if (( CHECK_ALL != 1 )); then
     local -a staged=()
     local -a unstaged=()
-    mapfile -t staged < <(
+    while IFS= read -r path; do
+      staged+=("$path")
+    done < <(
       sempal_git diff --name-only --diff-filter=AM --cached -- "${PROJECT_TRACKED_PATHS[@]}" || true
     )
-    mapfile -t unstaged < <(
+    while IFS= read -r path; do
+      unstaged+=("$path")
+    done < <(
       sempal_git diff --name-only --diff-filter=AM -- "${PROJECT_TRACKED_PATHS[@]}" || true
     )
     staged_count="${#staged[@]}"
@@ -210,7 +220,9 @@ collect_files() {
   fi
 
   local -a vendor_files=()
-  mapfile -t vendor_files < <(collect_vendor_files "$base" "$head" || true)
+  while IFS= read -r path; do
+    vendor_files+=("$path")
+  done < <(collect_vendor_files "$base" "$head" || true)
   raw_files+=("${vendor_files[@]}")
 
   local candidate
@@ -221,7 +233,9 @@ collect_files() {
   done
 
   local -a uniq_files=()
-  mapfile -t uniq_files < <(printf "%s\n" "${rust_files[@]}" | sort -u || true)
+  while IFS= read -r path; do
+    uniq_files+=("$path")
+  done < <(printf "%s\n" "${rust_files[@]}" | sort -u || true)
 
   COLLECTED_FILE_COUNT="${#uniq_files[@]}"
   echo "[file_budget] collected_file_count=${COLLECTED_FILE_COUNT} (scope=${COLLECT_SCOPE}, raw=${#raw_files[@]}, staged=${staged_count}, unstaged=${unstaged_count})" >&2

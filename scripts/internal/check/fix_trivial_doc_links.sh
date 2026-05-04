@@ -62,7 +62,10 @@ for ((i=0; i<${#REWRITES[@]}; i+=2)); do
     continue
   fi
 
-  mapfile -t files < <(rg -l --fixed-strings "$from" docs 2>/dev/null || true)
+  files=()
+  while IFS= read -r path; do
+    files+=("$path")
+  done < <(rg -l --fixed-strings "$from" docs 2>/dev/null || true)
   if (( ${#files[@]} == 0 )); then
     continue
   fi

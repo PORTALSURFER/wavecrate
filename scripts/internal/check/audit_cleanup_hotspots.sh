@@ -171,7 +171,10 @@ has_sibling_module_tests() {
   has_local_test_markers "$mod_file"
 }
 
-mapfile -t rust_files < <(collect_rust_files | LC_ALL=C sort -u)
+rust_files=()
+while IFS= read -r rust_file; do
+  rust_files+=("$rust_file")
+done < <(collect_rust_files | LC_ALL=C sort -u)
 
 for file in "${rust_files[@]}"; do
   if [[ ! -f "$file" ]]; then

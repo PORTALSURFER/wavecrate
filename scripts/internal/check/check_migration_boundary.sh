@@ -7,10 +7,15 @@ APP_CORE_DIR="$ROOT_DIR/src/app_core"
 ALLOWED_FILE="$APP_CORE_DIR/app_api.rs"
 ALLOWED_TRANSITIONAL_FILES=()
 
+matches=()
 if command -v rg >/dev/null 2>&1; then
-  mapfile -t matches < <(rg -n "crate::app::" "$APP_CORE_DIR" || true)
+  while IFS= read -r match; do
+    matches+=("$match")
+  done < <(rg -n "crate::app::" "$APP_CORE_DIR" || true)
 else
-  mapfile -t matches < <(grep -RIn --include='*.rs' "crate::app::" "$APP_CORE_DIR" || true)
+  while IFS= read -r match; do
+    matches+=("$match")
+  done < <(grep -RIn --include='*.rs' "crate::app::" "$APP_CORE_DIR" || true)
 fi
 
 is_test_path() {

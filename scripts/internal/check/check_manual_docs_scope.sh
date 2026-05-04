@@ -66,14 +66,24 @@ collect_manual_changes() {
   local head="$2"
 
   local out=()
+  local staged=()
+  local unstaged=()
   if [[ -n "$base" ]] && git_has_commit "$base" && git_has_commit "$head"; then
-    mapfile -t out < <(sempal_git diff --name-only --diff-filter=AM "$base...$head" -- manual || true)
+    while IFS= read -r path; do
+      out+=("$path")
+    done < <(sempal_git diff --name-only --diff-filter=AM "$base...$head" -- manual || true)
   elif git_has_commit "$head"; then
-    mapfile -t out < <(sempal_git show --name-only --pretty=format: "$head" -- manual || true)
+    while IFS= read -r path; do
+      out+=("$path")
+    done < <(sempal_git show --name-only --pretty=format: "$head" -- manual || true)
   fi
 
-  mapfile -t staged < <(sempal_git diff --name-only --diff-filter=AM --cached -- manual || true)
-  mapfile -t unstaged < <(sempal_git diff --name-only --diff-filter=AM -- manual || true)
+  while IFS= read -r path; do
+    staged+=("$path")
+  done < <(sempal_git diff --name-only --diff-filter=AM --cached -- manual || true)
+  while IFS= read -r path; do
+    unstaged+=("$path")
+  done < <(sempal_git diff --name-only --diff-filter=AM -- manual || true)
 
   printf "%s\n" "${out[@]}" "${staged[@]}" "${unstaged[@]}" \
     | sed 's#^\\./##' \

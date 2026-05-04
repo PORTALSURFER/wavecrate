@@ -62,13 +62,21 @@ collect_markdown_files() {
 
   local out=()
   if [[ -n "$base" ]] && git_has_commit "$base" && git_has_commit "$head"; then
-    mapfile -t out < <(sempal_git diff --name-only --diff-filter=AM "$base...$head" -- '*.md' || true)
+    while IFS= read -r path; do
+      out+=("$path")
+    done < <(sempal_git diff --name-only --diff-filter=AM "$base...$head" -- '*.md' || true)
   elif git_has_commit "$head"; then
-    mapfile -t out < <(sempal_git show --name-only --pretty=format: "$head" -- '*.md' || true)
+    while IFS= read -r path; do
+      out+=("$path")
+    done < <(sempal_git show --name-only --pretty=format: "$head" -- '*.md' || true)
   fi
 
-  mapfile -t staged < <(sempal_git diff --name-only --diff-filter=AM --cached -- '*.md' || true)
-  mapfile -t unstaged < <(sempal_git diff --name-only --diff-filter=AM -- '*.md' || true)
+  while IFS= read -r path; do
+    staged+=("$path")
+  done < <(sempal_git diff --name-only --diff-filter=AM --cached -- '*.md' || true)
+  while IFS= read -r path; do
+    unstaged+=("$path")
+  done < <(sempal_git diff --name-only --diff-filter=AM -- '*.md' || true)
 
   printf "%s\n" "${out[@]}" "${staged[@]}" "${unstaged[@]}" \
     | sed 's#^\\./##' \
