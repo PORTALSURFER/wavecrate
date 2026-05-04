@@ -867,6 +867,22 @@ fn radiant_compat_imports_are_confined_to_app_core_runtime_boundary() {
         "direct Radiant compat usage must stay confined to the temporary runtime boundary: {}",
         violations.join(", ")
     );
+
+    let native_vello_path =
+        manifest_dir.join("src/app_core/native_shell/composition/runtime/native_vello.rs");
+    let native_vello = fs::read_to_string(native_vello_path).expect("native_vello adapter source");
+    assert!(
+        native_vello.contains("use radiant::compat::legacy_shell as compat;"),
+        "the temporary Radiant compat dependency should be visible as one import boundary"
+    );
+    let production_adapter = native_vello
+        .split("#[cfg(test)]")
+        .next()
+        .expect("native_vello source should contain production code");
+    assert!(
+        !production_adapter.contains("radiant::compat::legacy_shell::"),
+        "production adapter code should use the local compat alias instead of spreading Radiant compat paths"
+    );
 }
 
 fn collect_rust_sources(dir: &Path, visit: &mut impl FnMut(&Path)) {
