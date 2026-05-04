@@ -424,8 +424,8 @@ impl From<compat::UiAction> for UiAction {
                 }
             }
             compat::UiAction::ToggleContentMark => Self::ToggleBrowserSampleMark,
-            compat::UiAction::ToggleBrowserMarkedFilter => Self::ToggleBrowserMarkedFilter,
-            compat::UiAction::ToggleBrowserDerivedLabelFilter { invert } => {
+            compat::UiAction::ToggleContentMarkedFilter => Self::ToggleBrowserMarkedFilter,
+            compat::UiAction::ToggleContentDerivedLabelFilter { invert } => {
                 Self::ToggleBrowserTagNamedFilter { invert: invert }
             }
             compat::UiAction::ToggleRandomNavigationMode => Self::ToggleRandomNavigationMode,
@@ -1011,9 +1011,9 @@ impl From<UiAction> for compat::UiAction {
                 }
             }
             UiAction::ToggleBrowserSampleMark => Self::ToggleContentMark,
-            UiAction::ToggleBrowserMarkedFilter => Self::ToggleBrowserMarkedFilter,
+            UiAction::ToggleBrowserMarkedFilter => Self::ToggleContentMarkedFilter,
             UiAction::ToggleBrowserTagNamedFilter { invert } => {
-                Self::ToggleBrowserDerivedLabelFilter { invert: invert }
+                Self::ToggleContentDerivedLabelFilter { invert: invert }
             }
             UiAction::ToggleRandomNavigationMode => Self::ToggleRandomNavigationMode,
             UiAction::ToggleBrowserTagSidebar => Self::ToggleBrowserPillEditor,
