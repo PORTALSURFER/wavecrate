@@ -25,17 +25,6 @@ use tracing::{error, info};
 #[path = "../app_core/native_shell/composition/runtime/native_vello.rs"]
 mod native_shell_runtime;
 
-pub(crate) mod legacy_shell_compat {
-    pub(crate) use radiant::compat::legacy_shell::*;
-
-    pub(crate) fn run_native_vello_app_with_artifacts<B: NativeAppBridge>(
-        options: radiant::gui_runtime::NativeRunOptions,
-        bridge: B,
-    ) -> radiant::gui_runtime::LegacyNativeRunReport {
-        radiant::gui_runtime::run_legacy_native_vello_app_with_artifacts(options, bridge)
-    }
-}
-
 pub use radiant::gui_runtime::{
     DEFAULT_NATIVE_WINDOW_TITLE, NativeStartupTimingArtifact, RuntimeRunReport,
 };
