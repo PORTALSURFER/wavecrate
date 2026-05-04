@@ -7,9 +7,9 @@
 
 use super::{NativeRunOptions, NativeRunReport, NativeRuntimeArtifacts, WindowIconRgba};
 use crate::app_core::actions::{
-    NativeAppBridge, NativeAppModel, NativeBrowserTagTarget as BrowserTagTarget,
-    NativeFrameBuildResult, NativeGuiAutomationSnapshot, NativeMotionModel, NativeUiAction,
-    NativeUiAction as UiAction, native_shell_dtos::*,
+    native_shell_dtos::*, NativeAppBridge, NativeAppModel,
+    NativeBrowserTagTarget as BrowserTagTarget, NativeFrameBuildResult,
+    NativeGuiAutomationSnapshot, NativeMotionModel, NativeUiAction, NativeUiAction as UiAction,
 };
 use crate::app_core::app_api::controller_ui_hotkeys::KeyPress;
 use crate::app_core::app_api::{controller_ui_hotkeys as hotkeys, state::FocusContext};
@@ -24,6 +24,8 @@ use radiant::gui::{
     focus::FocusSurface as RadiantFocusSurface, frame::FrameBuildResult as RadiantFrameBuildResult,
     input::KeyPress as RadiantKeyPress, shortcuts::ShortcutResolution as RadiantShortcutResolution,
 };
+use radiant::runtime::{RuntimeBridge, SurfaceNode, UiSurface};
+use radiant::widgets::{CanvasMessage, WidgetSizing};
 use std::{collections::BTreeMap, sync::Arc};
 
 /// Converts app-level Vello launch options into the generic `radiant` runtime representation.
@@ -65,6 +67,82 @@ struct CompatNativeAppBridge<B> {
 impl<B> CompatNativeAppBridge<B> {
     fn new(inner: B) -> Self {
         Self { inner }
+    }
+}
+
+/// Sempal-owned generic Radiant runtime bridge.
+///
+/// The live native launch still uses Sempal's local Vello runner until the full
+/// shell paint/input surface is represented by generic public widgets. This
+/// bridge is the ownership boundary for the OPT-277 cutover: Sempal model
+/// projection, action reduction, shortcut resolution, repaint wiring, and
+/// shutdown artifacts no longer require Radiant's legacy-shell feature.
+#[allow(dead_code)]
+pub(super) struct SempalRuntimeBridge<B> {
+    inner: B,
+}
+
+#[allow(dead_code)]
+impl<B> SempalRuntimeBridge<B> {
+    pub(super) fn new(inner: B) -> Self {
+        Self { inner }
+    }
+
+    fn generic_shell_surface() -> Arc<UiSurface<UiAction>> {
+        Arc::new(UiSurface::new(SurfaceNode::canvas_mapped(
+            1,
+            WidgetSizing::fixed(Vector2::new(1280.0, 720.0)),
+            |_message: CanvasMessage| UiAction::HandleEscape,
+        )))
+    }
+
+    pub(super) fn capture_gui_automation_snapshot(
+        &mut self,
+        viewport: [f32; 2],
+    ) -> NativeGuiAutomationSnapshot
+    where
+        B: NativeAppBridge,
+    {
+        let model = self.inner.project_model();
+        capture_gui_automation_snapshot(viewport, model.as_ref())
+    }
+}
+
+impl<B: NativeAppBridge> RuntimeBridge<UiAction> for SempalRuntimeBridge<B> {
+    fn project_surface(&mut self) -> Arc<UiSurface<UiAction>> {
+        Self::generic_shell_surface()
+    }
+
+    fn reduce_message(&mut self, message: UiAction) {
+        self.inner.reduce_action(message);
+    }
+
+    fn resolve_key_press(
+        &mut self,
+        pending_chord: Option<RadiantKeyPress>,
+        press: RadiantKeyPress,
+        focus: RadiantFocusSurface,
+    ) -> RadiantShortcutResolution<UiAction> {
+        let resolution = hotkeys::resolve_hotkey_press(
+            pending_chord.map(keypress_from_radiant),
+            keypress_from_radiant(press),
+            focus_context_from_radiant(focus),
+        );
+        RadiantShortcutResolution {
+            action: resolution.action,
+            handled: resolution.handled,
+            pending_chord: resolution.pending_chord.map(keypress_to_radiant),
+        }
+    }
+
+    fn install_repaint_signal(&mut self, signal: Arc<dyn crate::gui::repaint::RepaintSignal>) {
+        self.inner.install_repaint_signal(signal);
+    }
+
+    fn on_runtime_exit(&mut self) -> Option<serde_json::Value> {
+        self.inner
+            .on_runtime_exit()
+            .and_then(|artifact| serde_json::to_value(artifact).ok())
     }
 }
 
@@ -2294,6 +2372,9 @@ pub(super) fn capture_native_shell_shot_snapshot(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::gui::repaint::RepaintSignal;
+    use radiant::widgets::{CanvasMessage, WidgetInput, WidgetOutput};
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::{fs, path::Path};
 
     #[test]
@@ -2353,8 +2434,7 @@ mod tests {
             !adapter.contains(&format!("{}{}", "radiant::compat::", "legacy_shell"))
                 && !adapter.contains(&format!(
                     "{}{}",
-                    "run_legacy_native_vello_",
-                    "app_with_artifacts"
+                    "run_legacy_native_vello_", "app_with_artifacts"
                 )),
             "OPT-275 must not route Sempal runtime glue through Radiant's legacy-shell facade"
         );
@@ -2369,5 +2449,123 @@ mod tests {
                 && public_runtime.contains("Launching Sempal native Vello runtime"),
             "runtime boundary docs and logs should describe Sempal-owned compatibility glue, not a Radiant legacy runtime"
         );
+    }
+
+    #[test]
+    fn sempal_generic_runtime_bridge_routes_messages_repaint_exit_and_snapshots() {
+        let repaint_installed = Arc::new(AtomicBool::new(false));
+        let mut bridge = SempalRuntimeBridge::new(RecordingBridge {
+            model: Arc::new(NativeAppModel::default()),
+            reduced: Vec::new(),
+            repaint_installed: Arc::clone(&repaint_installed),
+            exit_status: Some(String::from("clean")),
+        });
+
+        let surface = bridge.project_surface();
+        let action = surface
+            .dispatch_widget_output(
+                1,
+                WidgetOutput::Canvas(CanvasMessage::Input {
+                    input: WidgetInput::PointerPress {
+                        position: radiant::gui::types::Point::new(4.0, 5.0),
+                        button: radiant::widgets::PointerButton::Primary,
+                    },
+                }),
+            )
+            .expect("generic canvas should map input into a Sempal action");
+        bridge.reduce_message(action);
+        assert_eq!(bridge.inner.reduced, vec![UiAction::HandleEscape]);
+
+        bridge.install_repaint_signal(Arc::new(TestRepaintSignal));
+        assert!(repaint_installed.load(Ordering::Acquire));
+
+        let exit = bridge.on_runtime_exit().expect("shutdown artifact");
+        assert_eq!(exit["status"], "clean");
+
+        let snapshot = bridge.capture_gui_automation_snapshot([1280.0, 720.0]);
+        assert_eq!(snapshot.root.id.0, "shell.root");
+
+        let shortcut = bridge.resolve_key_press(
+            None,
+            RadiantKeyPress {
+                key: radiant::gui::input::KeyCode::G,
+                command: false,
+                shift: false,
+                alt: false,
+            },
+            RadiantFocusSurface::None,
+        );
+        assert!(shortcut.handled);
+        assert_eq!(
+            shortcut.pending_chord,
+            Some(RadiantKeyPress {
+                key: radiant::gui::input::KeyCode::G,
+                command: false,
+                shift: false,
+                alt: false,
+            })
+        );
+    }
+
+    #[test]
+    fn sempal_root_dependency_no_longer_enables_radiant_legacy_shell() {
+        let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let cargo = fs::read_to_string(manifest_dir.join("Cargo.toml")).expect("root manifest");
+        let adapter =
+            fs::read_to_string(manifest_dir.join("src/gui_runtime/native_shell_runtime.rs"))
+                .expect("native shell runtime adapter");
+
+        assert!(
+            cargo.contains("radiant = { path = \"vendor/radiant\" }")
+                && !cargo.contains("features = [\"legacy-shell\"]"),
+            "Sempal should consume Radiant without the legacy-shell feature after OPT-277"
+        );
+        assert!(
+            adapter.contains("impl<B: NativeAppBridge> RuntimeBridge<UiAction> for SempalRuntimeBridge<B>")
+                && adapter.contains("fn resolve_key_press(")
+                && adapter.contains("fn install_repaint_signal(")
+                && adapter.contains("fn on_runtime_exit("),
+            "Sempal should own a generic Radiant RuntimeBridge adapter for shortcut, repaint, and exit routing"
+        );
+    }
+
+    struct RecordingBridge {
+        model: Arc<NativeAppModel>,
+        reduced: Vec<UiAction>,
+        repaint_installed: Arc<AtomicBool>,
+        exit_status: Option<String>,
+    }
+
+    impl NativeAppBridge for RecordingBridge {
+        fn project_model(&mut self) -> Arc<NativeAppModel> {
+            Arc::clone(&self.model)
+        }
+
+        fn reduce_action(&mut self, action: UiAction) {
+            self.reduced.push(action);
+        }
+
+        fn install_repaint_signal(&mut self, _signal: Arc<dyn RepaintSignal>) {
+            self.repaint_installed.store(true, Ordering::Release);
+        }
+
+        fn on_runtime_exit(&mut self) -> Option<super::super::NativeShutdownTimingArtifact> {
+            Some(super::super::NativeShutdownTimingArtifact {
+                status: self.exit_status.take()?,
+                failure_reason: None,
+                bridge_exit_flush_ms: None,
+                config_persist_ms: None,
+                controller_jobs_shutdown_ms: None,
+                analysis_shutdown_ms: None,
+                controller_shutdown_ms: None,
+                runtime_exit_total_ms: None,
+            })
+        }
+    }
+
+    struct TestRepaintSignal;
+
+    impl RepaintSignal for TestRepaintSignal {
+        fn request_repaint(&self) {}
     }
 }
