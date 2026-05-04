@@ -64,6 +64,10 @@ print(pathlib.Path(sys.argv[1]).resolve())
 PY
 }
 
+json_escape() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
 run_cleanup_audit_fixture() {
   local fixture_dir
   fixture_dir="$(mktemp -d)"
@@ -455,17 +459,29 @@ run_run_contract_smoke_fixture() {
   bad_artifact_path="$(canonical_python_path "$bad_artifact")"
   startup_fail_manifest_path="$(canonical_python_path "$startup_fail_manifest")"
   startup_fail_artifact_path="$(canonical_python_path "$startup_fail_artifact")"
+  local valid_manifest_path_json
+  local bad_manifest_path_json
+  local valid_artifact_path_json
+  local bad_artifact_path_json
+  local startup_fail_manifest_path_json
+  local startup_fail_artifact_path_json
+  valid_manifest_path_json="$(json_escape "$valid_manifest_path")"
+  bad_manifest_path_json="$(json_escape "$bad_manifest_path")"
+  valid_artifact_path_json="$(json_escape "$valid_artifact_path")"
+  bad_artifact_path_json="$(json_escape "$bad_artifact_path")"
+  startup_fail_manifest_path_json="$(json_escape "$startup_fail_manifest_path")"
+  startup_fail_artifact_path_json="$(json_escape "$startup_fail_artifact_path")"
 
   cat >"$artifact" <<EOF
-{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"startup","milestone":"startup_begin","exit_status":"running","timestamp_utc":"1","process_id":111,"manifest_path":"$valid_manifest_path","artifact_path":"$valid_artifact_path"}
-{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"runtime","milestone":"runtime_started","exit_status":"running","timestamp_utc":"2","process_id":111,"manifest_path":"$valid_manifest_path","artifact_path":"$valid_artifact_path"}
-{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"shutdown","milestone":"runtime_exit","exit_status":"success","timestamp_utc":"3","process_id":111,"manifest_path":"$valid_manifest_path","artifact_path":"$valid_artifact_path"}
+{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"startup","milestone":"startup_begin","exit_status":"running","timestamp_utc":"1","process_id":111,"manifest_path":"$valid_manifest_path_json","artifact_path":"$valid_artifact_path_json"}
+{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"runtime","milestone":"runtime_started","exit_status":"running","timestamp_utc":"2","process_id":111,"manifest_path":"$valid_manifest_path_json","artifact_path":"$valid_artifact_path_json"}
+{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"shutdown","milestone":"runtime_exit","exit_status":"success","timestamp_utc":"3","process_id":111,"manifest_path":"$valid_manifest_path_json","artifact_path":"$valid_artifact_path_json"}
 EOF
   cat >"$manifest" <<EOF
 {
   "run_id": "123-456",
-  "artifact_path": "$valid_artifact_path",
-  "manifest_path": "$valid_manifest_path",
+  "artifact_path": "$valid_artifact_path_json",
+  "manifest_path": "$valid_manifest_path_json",
   "milestones": [
     {"name": "startup_begin", "startup_phase": "startup", "status": "running", "timestamp_utc": "1"},
     {"name": "runtime_started", "startup_phase": "runtime", "status": "running", "timestamp_utc": "2"},
@@ -484,9 +500,9 @@ EOF
     "$artifact"
 
   cat >"$bad_artifact" <<EOF
-{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"runtime","milestone":"runtime_started","exit_status":"running","timestamp_utc":"2","process_id":111,"manifest_path":"$bad_manifest_path","artifact_path":"$bad_artifact_path"}
-{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"startup","milestone":"startup_begin","exit_status":"running","timestamp_utc":"1","process_id":111,"manifest_path":"$bad_manifest_path","artifact_path":"$bad_artifact_path"}
-{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"shutdown","milestone":"runtime_exit","exit_status":"success","timestamp_utc":"3","process_id":111,"manifest_path":"$bad_manifest_path","artifact_path":"$bad_artifact_path"}
+{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"runtime","milestone":"runtime_started","exit_status":"running","timestamp_utc":"2","process_id":111,"manifest_path":"$bad_manifest_path_json","artifact_path":"$bad_artifact_path_json"}
+{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"startup","milestone":"startup_begin","exit_status":"running","timestamp_utc":"1","process_id":111,"manifest_path":"$bad_manifest_path_json","artifact_path":"$bad_artifact_path_json"}
+{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"shutdown","milestone":"runtime_exit","exit_status":"success","timestamp_utc":"3","process_id":111,"manifest_path":"$bad_manifest_path_json","artifact_path":"$bad_artifact_path_json"}
 EOF
 
   run_expect_exit_code \
@@ -502,8 +518,8 @@ EOF
   cat >"$bad_manifest" <<EOF
 {
   "run_id": "123-456",
-  "artifact_path": "$bad_artifact_path",
-  "manifest_path": "$bad_manifest_path",
+  "artifact_path": "$bad_artifact_path_json",
+  "manifest_path": "$bad_manifest_path_json",
   "milestones": [
     {"name": "runtime_started", "startup_phase": "runtime", "status": "running", "timestamp_utc": "2"},
     {"name": "startup_begin", "startup_phase": "startup", "status": "running", "timestamp_utc": "1"},
@@ -514,14 +530,14 @@ EOF
 EOF
 
   cat >"$startup_fail_artifact" <<EOF
-{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"startup","milestone":"startup_begin","exit_status":"running","timestamp_utc":"1","process_id":111,"manifest_path":"$startup_fail_manifest_path","artifact_path":"$startup_fail_artifact_path"}
-{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"startup","milestone":"startup_failed","exit_status":"error","timestamp_utc":"2","process_id":111,"manifest_path":"$startup_fail_manifest_path","artifact_path":"$startup_fail_artifact_path"}
+{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"startup","milestone":"startup_begin","exit_status":"running","timestamp_utc":"1","process_id":111,"manifest_path":"$startup_fail_manifest_path_json","artifact_path":"$startup_fail_artifact_path_json"}
+{"run_id":"123-456","git_sha":"abc1234","cfg_path":"$fixture_dir","log_path":"$fixture_dir","startup_phase":"startup","milestone":"startup_failed","exit_status":"error","timestamp_utc":"2","process_id":111,"manifest_path":"$startup_fail_manifest_path_json","artifact_path":"$startup_fail_artifact_path_json"}
 EOF
   cat >"$startup_fail_manifest" <<EOF
 {
   "run_id": "123-456",
-  "artifact_path": "$startup_fail_artifact_path",
-  "manifest_path": "$startup_fail_manifest_path",
+  "artifact_path": "$startup_fail_artifact_path_json",
+  "manifest_path": "$startup_fail_manifest_path_json",
   "milestones": [
     {"name": "startup_begin", "startup_phase": "startup", "status": "running", "timestamp_utc": "1"},
     {"name": "startup_failed", "startup_phase": "startup", "status": "error", "timestamp_utc": "2"}
