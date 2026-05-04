@@ -828,14 +828,20 @@ fn native_action_exports_are_owned_in_app_core() {
 }
 
 #[test]
-fn radiant_legacy_shell_imports_are_confined_to_app_core_runtime_boundary() {
+fn radiant_compat_imports_are_confined_to_app_core_runtime_boundary() {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let src_dir = manifest_dir.join("src");
     let allowed = BTreeSet::from(["src/app_core/native_shell/composition/runtime/native_vello.rs"]);
-    let skipped = BTreeSet::from(["src/app_core/actions/tests.rs"]);
+    let skipped = BTreeSet::from(["src/app_core/actions/tests.rs", "src/gui_runtime/mod.rs"]);
     let forbidden = [
+        concat!("radiant::", "compat::"),
+        concat!("radiant::{", "compat::"),
         concat!("radiant::compat::", "legacy_shell"),
+        concat!("radiant::compat::", "legacy_native_vello"),
+        concat!("radiant::compat::", "runtime_artifacts"),
         concat!("compat::", "legacy_shell"),
+        concat!("compat::", "legacy_native_vello"),
+        concat!("compat::", "runtime_artifacts"),
     ];
     let mut violations = Vec::new();
 
@@ -858,7 +864,7 @@ fn radiant_legacy_shell_imports_are_confined_to_app_core_runtime_boundary() {
 
     assert!(
         violations.is_empty(),
-        "direct Radiant legacy-shell usage must stay confined to the temporary runtime boundary: {}",
+        "direct Radiant compat usage must stay confined to the temporary runtime boundary: {}",
         violations.join(", ")
     );
 }
