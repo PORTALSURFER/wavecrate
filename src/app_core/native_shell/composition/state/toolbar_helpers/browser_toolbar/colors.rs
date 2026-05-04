@@ -215,7 +215,7 @@ pub(in crate::gui::native_shell::state) fn browser_rating_filter_chip_hover_fill
     motion_wave: f32,
 ) -> Rgba8 {
     let tint = if rating_level < 0 {
-        style.accent_trash
+        style.accent_danger
     } else if rating_level > 0 {
         style.accent_mint
     } else {
@@ -247,7 +247,7 @@ pub(in crate::gui::native_shell::state) fn browser_rating_filter_chip_hover_bord
     motion_wave: f32,
 ) -> Rgba8 {
     let tint = if rating_level < 0 {
-        style.accent_trash
+        style.accent_danger
     } else if rating_level > 0 {
         style.accent_mint
     } else {
@@ -266,7 +266,7 @@ pub(in crate::gui::native_shell::state) fn browser_rating_filter_chip_fill(
     active: bool,
 ) -> Rgba8 {
     let tint = if rating_level < 0 {
-        style.accent_trash
+        style.accent_danger
     } else if rating_level == 4 {
         blend_color(style.accent_mint, style.text_primary, 0.28)
     } else if rating_level > 0 {
@@ -301,7 +301,7 @@ pub(in crate::gui::native_shell::state) fn browser_rating_filter_chip_border(
 ) -> Rgba8 {
     if active {
         if rating_level < 0 {
-            blend_color(style.accent_trash, style.text_primary, 0.24)
+            blend_color(style.accent_danger, style.text_primary, 0.24)
         } else if rating_level == 4 {
             blend_color(style.accent_mint, style.text_primary, 0.44)
         } else if rating_level > 0 {

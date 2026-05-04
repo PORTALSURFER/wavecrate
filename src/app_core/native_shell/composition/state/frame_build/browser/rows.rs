@@ -170,7 +170,7 @@ pub(super) fn render_browser_rows_window(
                     text: String::from(BROWSER_MISSING_CONTENT_MARKER),
                     position: label_position,
                     font_size: ctx.sizing.font_body,
-                    color: ctx.style.accent_trash,
+                    color: ctx.style.accent_danger,
                     max_width: Some(marker_advance),
                     align: TextAlign::Left,
                 },

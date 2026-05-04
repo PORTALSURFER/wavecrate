@@ -11,8 +11,8 @@ pub(super) fn status_options_button_fill(
 ) -> Rgba8 {
     let (idle, hover) = if error {
         (
-            translucent_overlay_color(style.surface_overlay, style.accent_trash, 0.2),
-            translucent_overlay_color(style.surface_overlay, style.accent_trash, 0.34),
+            translucent_overlay_color(style.surface_overlay, style.accent_danger, 0.2),
+            translucent_overlay_color(style.surface_overlay, style.accent_danger, 0.34),
         )
     } else {
         (
@@ -43,10 +43,10 @@ pub(super) fn status_options_button_border(
 ) -> Rgba8 {
     let (idle, hover) = if error {
         (
-            blend_color(style.border_emphasis, style.accent_trash, 0.42),
+            blend_color(style.border_emphasis, style.accent_danger, 0.42),
             blend_color(
                 style.text_primary,
-                style.accent_trash,
+                style.accent_danger,
                 0.6 + (motion_wave * 0.06),
             ),
         )
@@ -78,14 +78,14 @@ pub(super) fn status_options_button_label_color(
     motion_wave: f32,
 ) -> Rgba8 {
     let idle = if error {
-        blend_color(style.text_primary, style.accent_trash, 0.42)
+        blend_color(style.text_primary, style.accent_danger, 0.42)
     } else {
         style.text_muted
     };
     let hover = if error {
         blend_color(
             style.text_primary,
-            style.accent_trash,
+            style.accent_danger,
             0.7 + (motion_wave * 0.08),
         )
     } else {

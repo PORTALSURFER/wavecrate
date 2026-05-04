@@ -149,7 +149,7 @@ pub(crate) fn render_active_folder_create_editor(
         visual,
         browser_search_field_active_fill(style),
         if has_error {
-            blend_color(style.accent_warning, style.accent_trash, 0.6)
+            blend_color(style.accent_warning, style.accent_danger, 0.6)
         } else {
             browser_search_field_active_border(style)
         },

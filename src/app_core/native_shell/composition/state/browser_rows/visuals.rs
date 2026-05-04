@@ -135,7 +135,7 @@ pub(in crate::gui::native_shell::state) fn browser_processing_row_fill(
             translucent_overlay_color(base, style.text_muted, 0.14)
         }
         BrowserRowProcessingState::Failed => {
-            translucent_overlay_color(base, style.accent_trash, 0.24)
+            translucent_overlay_color(base, style.accent_danger, 0.24)
         }
     }
 }
@@ -151,7 +151,7 @@ pub(in crate::gui::native_shell::state) fn browser_processing_marker_color(
         BrowserRowProcessingState::Active => Some(style.highlight_orange),
         BrowserRowProcessingState::Completed => Some(style.accent_mint),
         BrowserRowProcessingState::Skipped => Some(style.text_muted),
-        BrowserRowProcessingState::Failed => Some(style.accent_trash),
+        BrowserRowProcessingState::Failed => Some(style.accent_danger),
     }
 }
 

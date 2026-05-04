@@ -71,7 +71,7 @@ pub(in crate::gui::native_shell::state) fn browser_rating_indicator_color(
     rating_level: i8,
 ) -> Rgba8 {
     if rating_level < 0 {
-        style.accent_trash
+        style.accent_danger
     } else {
         style.accent_mint
     }

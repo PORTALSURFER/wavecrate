@@ -46,7 +46,7 @@ pub(in crate::gui::native_shell::state) fn push_waveform_playhead_overlay(
         let selection_fill = if selection_flash_active {
             let flash_accent = match selection_flash_tone {
                 WaveformSelectionFlashTone::Optimistic => style.accent_warning,
-                WaveformSelectionFlashTone::Error => style.accent_trash,
+                WaveformSelectionFlashTone::Error => style.accent_danger,
             };
             translucent_overlay_color(style.surface_overlay, flash_accent, 0.78)
         } else {
@@ -58,7 +58,7 @@ pub(in crate::gui::native_shell::state) fn push_waveform_playhead_overlay(
                     blend_color(style.accent_warning, style.text_primary, 0.5)
                 }
                 WaveformSelectionFlashTone::Error => {
-                    blend_color(style.accent_trash, style.text_primary, 0.5)
+                    blend_color(style.accent_danger, style.text_primary, 0.5)
                 }
             }
         } else {

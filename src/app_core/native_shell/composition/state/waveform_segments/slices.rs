@@ -23,13 +23,13 @@ pub(in crate::gui::native_shell::state) fn emit_waveform_slice_previews(
         } else if slice.duplicate_cleanup_candidate {
             if slice.focused {
                 (
-                    translucent_overlay_color(style.surface_overlay, style.accent_trash, 0.82),
-                    blend_color(style.accent_trash, style.text_primary, 0.55),
+                    translucent_overlay_color(style.surface_overlay, style.accent_danger, 0.82),
+                    blend_color(style.accent_danger, style.text_primary, 0.55),
                 )
             } else {
                 (
-                    translucent_overlay_color(style.surface_overlay, style.accent_trash, 0.62),
-                    blend_color(style.accent_trash, style.text_primary, 0.34),
+                    translucent_overlay_color(style.surface_overlay, style.accent_danger, 0.62),
+                    blend_color(style.accent_danger, style.text_primary, 0.34),
                 )
             }
         } else if slice.focused {

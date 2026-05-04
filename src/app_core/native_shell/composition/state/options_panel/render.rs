@@ -75,7 +75,7 @@ pub(super) fn render_options_panel(
                 text: detail.to_string(),
                 position: detail_rect.min,
                 font_size: sizing.font_meta,
-                color: blend_color(style.accent_trash, style.text_primary, 0.25),
+                color: blend_color(style.accent_danger, style.text_primary, 0.25),
                 max_width: Some(detail_rect.width().max(36.0)),
                 align: TextAlign::Left,
             },

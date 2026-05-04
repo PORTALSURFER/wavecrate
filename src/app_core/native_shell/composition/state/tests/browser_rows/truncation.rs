@@ -145,7 +145,7 @@ fn missing_browser_rows_render_red_exclamation_marker() {
     let frame = state.build_frame(&layout, &model);
     let has_marker = frame.text_runs.iter().any(|run| {
         run.text == BROWSER_MISSING_CONTENT_MARKER
-            && run.color == style.accent_trash
+            && run.color == style.accent_danger
             && (run.font_size - style.sizing.font_body).abs() <= f32::EPSILON
     });
     assert!(has_marker, "missing row marker should be rendered in red");

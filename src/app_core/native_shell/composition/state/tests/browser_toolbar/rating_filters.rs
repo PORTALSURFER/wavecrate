@@ -265,7 +265,7 @@ fn browser_rating_indicator_layout_stays_inside_sample_label() {
     assert_eq!(browser_rating_indicator_color(&style, 3), style.accent_mint);
     assert_eq!(
         browser_rating_indicator_color(&style, -2),
-        style.accent_trash
+        style.accent_danger
     );
 }
 

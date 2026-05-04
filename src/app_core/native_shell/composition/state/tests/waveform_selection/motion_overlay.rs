@@ -143,7 +143,7 @@ fn waveform_motion_overlay_flashes_selection_red_after_export_failure_token() {
 
     assert_eq!(
         flash_fill,
-        translucent_overlay_color(style.surface_overlay, style.accent_trash, 0.78)
+        translucent_overlay_color(style.surface_overlay, style.accent_danger, 0.78)
     );
 }
 
