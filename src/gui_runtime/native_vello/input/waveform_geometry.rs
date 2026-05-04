@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::gui::range::NormalizedPixelSnap;
+use crate::gui::visualization::TimelineCoordinateMapper;
 
 /// Absolute waveform position resolved from one pointer point.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -18,12 +19,7 @@ pub(super) fn waveform_pointer_position_from_point(
     model: &AppModel,
     point: Point,
 ) -> WaveformPointerPosition {
-    let view = waveform_view_window_from_bounds(
-        model.waveform.view_start_micros,
-        model.waveform.view_end_micros,
-        Some(model.waveform.view_start_nanos),
-        Some(model.waveform.view_end_nanos),
-    );
+    let view = model.waveform.viewport().normalized_viewport();
     let plot_ratio = waveform_ratio_from_point(layout, point);
     let normalized_ratio =
         (view.start_ratio + (view.width_ratio * f64::from(plot_ratio))).clamp(0.0, 1.0);
@@ -151,13 +147,12 @@ pub(super) fn nanos_to_micros(value_nanos: u32) -> u32 {
 
 /// Convert a normalized waveform micro position into plot-space x.
 pub(super) fn waveform_x_for_micros(plot: UiRect, model: &AppModel, micros: u32) -> f32 {
-    let view = waveform_view_window_from_bounds(
-        model.waveform.view_start_micros,
-        model.waveform.view_end_micros,
-        Some(model.waveform.view_start_nanos),
-        Some(model.waveform.view_end_nanos),
-    );
-    waveform_plot_x_for_micros(plot, micros, view, NormalizedPixelSnap::Nearest)
+    TimelineCoordinateMapper::new(
+        model.waveform.viewport(),
+        plot,
+        NormalizedPixelSnap::Nearest,
+    )
+    .x_for_micros(micros)
 }
 
 /// Return the centered vertical hit span used by waveform resize edges.

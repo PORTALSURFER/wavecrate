@@ -11,8 +11,7 @@ pub(in crate::gui_runtime::native_vello) use crate::gui::{
         ShellLayoutDirtyKind, ShellLayoutRuntime, ShellLayoutTreeKind, ShellNodeKind,
         StaticFrameSegment, StaticFrameSegments, StyleTokens, TextFieldVisualState,
         WaveformMotionOverlayFingerprint, compute_waveform_slice_preview_rects,
-        dirty_segments_for_layout_subtree, waveform_plot_x_for_micros,
-        waveform_view_window_from_bounds,
+        dirty_segments_for_layout_subtree, waveform_view_window_from_bounds,
     },
     paint::{PaintFrame as NativeViewFrame, Primitive},
 };

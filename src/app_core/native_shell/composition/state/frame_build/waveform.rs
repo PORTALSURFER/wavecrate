@@ -1,5 +1,6 @@
 use super::StaticFrameCtx;
 use super::*;
+use crate::gui::visualization::TimelineCoordinateMapper;
 
 pub(super) fn render_waveform_static(
     state: &mut NativeShellState,
@@ -81,21 +82,12 @@ pub(super) fn emit_waveform_bpm_grid(
     let step_micros = u64::from(step_micros);
     let origin_micros = waveform_bpm_grid_origin_micros(state, model);
     let first_beat_index = first_waveform_bpm_grid_index(view_start, origin_micros, step_micros);
-    let view = waveform_view_window_from_bounds(
-        viewport.start_micros,
-        viewport.end_micros,
-        Some(viewport.start_nanos),
-        Some(viewport.end_nanos),
-    );
+    let mapper =
+        TimelineCoordinateMapper::new(viewport, waveform_plot, NormalizedPixelSnap::Nearest);
     let mut beat_index = first_beat_index;
     let mut beat_micros = origin_micros.saturating_add(beat_index.saturating_mul(step_micros));
     while beat_micros <= view_end {
-        let x = waveform_plot_x_for_micros(
-            waveform_plot,
-            beat_micros as u32,
-            view,
-            NormalizedPixelSnap::Nearest,
-        );
+        let x = mapper.x_for_micros(beat_micros as u32);
         let (line_color, line_width) = waveform_bpm_grid_line_style(style, beat_index);
         emit_primitive(
             primitives,

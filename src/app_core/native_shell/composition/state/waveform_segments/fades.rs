@@ -1,5 +1,9 @@
 use super::*;
 use crate::compat_app_contract::NormalizedRangeModel;
+use crate::gui::{
+    range::NormalizedPixelSnap,
+    visualization::{TimelineCoordinateMapper, TimelineViewport},
+};
 
 /// Width in logical pixels for edit-fade drag handles.
 const EDIT_FADE_HANDLE_WIDTH: f32 = 3.0;
@@ -41,15 +45,23 @@ pub(super) fn emit_edit_fade_overlays(
         .unwrap_or(selection_end)
         .clamp(selection_start, selection_end);
 
-    let view_width = (view_end_micros.saturating_sub(view_start_micros)).max(1) as f32;
     if waveform_plot.width() <= 0.0 {
         return;
     }
 
-    let x_for_micros = |micros: u32| {
-        let in_view = (((micros as f32) - (view_start_micros as f32)) / view_width).clamp(0.0, 1.0);
-        waveform_plot.min.x + (waveform_plot.width() * in_view)
-    };
+    let mapper = TimelineCoordinateMapper::new(
+        TimelineViewport::new(
+            (view_start_micros / 1000).min(1000) as u16,
+            (view_end_micros / 1000).min(1000) as u16,
+            view_start_micros,
+            view_end_micros,
+            view_start_micros.saturating_mul(1000),
+            view_end_micros.saturating_mul(1000),
+        ),
+        waveform_plot,
+        NormalizedPixelSnap::None,
+    );
+    let x_for_micros = |micros: u32| mapper.x_for_micros(micros);
     let fade_in_mute_start = fade_in_mute_start_micros
         .or_else(|| fade_in_mute_start_milli.map(|value| u32::from(value) * 1000))
         .unwrap_or(selection_start)
