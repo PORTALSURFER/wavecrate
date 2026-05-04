@@ -1,15 +1,13 @@
 //! Sempal native-shell adapter for the temporary Radiant legacy runtime path.
 
 use super::{NativeRunOptions, NativeRunReport, NativeRuntimeArtifacts, WindowIconRgba};
-use crate::app::{
-    controller::ui::hotkeys::{self, KeyPress},
-    state::FocusContext,
-};
 use crate::app_core::actions::{
     NativeAppBridge, NativeAppModel, NativeBrowserTagTarget as BrowserTagTarget,
     NativeFrameBuildResult, NativeGuiAutomationSnapshot, NativeMotionModel, NativeUiAction,
     NativeUiAction as UiAction, native_shell_dtos::*,
 };
+use crate::app_core::app_api::controller_ui_hotkeys::KeyPress;
+use crate::app_core::app_api::{controller_ui_hotkeys as hotkeys, state::FocusContext};
 use crate::gui::automation as gui_automation;
 use crate::gui::{
     native_shell::{NativeShellState, ShellLayout, ShellLayoutRuntime, StyleTokens},
