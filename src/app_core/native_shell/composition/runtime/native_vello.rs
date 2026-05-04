@@ -64,34 +64,32 @@ impl<B> CompatNativeAppBridge<B> {
     }
 }
 
-impl<B: NativeAppBridge> radiant::compat::legacy_shell::NativeAppBridge
-    for CompatNativeAppBridge<B>
-{
-    fn project_model(&mut self) -> Arc<radiant::compat::legacy_shell::AppModel> {
+impl<B: NativeAppBridge> compat::NativeAppBridge for CompatNativeAppBridge<B> {
+    fn project_model(&mut self) -> Arc<compat::AppModel> {
         let model = self.inner.project_model();
         Arc::new(model.as_ref().into())
     }
 
-    fn pull_model(&mut self) -> radiant::compat::legacy_shell::AppModel {
+    fn pull_model(&mut self) -> compat::AppModel {
         self.inner.pull_model().into()
     }
 
-    fn pull_model_arc(&mut self) -> Arc<radiant::compat::legacy_shell::AppModel> {
+    fn pull_model_arc(&mut self) -> Arc<compat::AppModel> {
         let model = self.inner.pull_model_arc();
         Arc::new(model.as_ref().into())
     }
 
-    fn project_motion_model(&mut self) -> Option<radiant::compat::legacy_shell::NativeMotionModel> {
+    fn project_motion_model(&mut self) -> Option<compat::NativeMotionModel> {
         self.inner
             .project_motion_model()
             .map(NativeMotionModel::into)
     }
 
-    fn take_dirty_segments(&mut self) -> radiant::compat::legacy_shell::DirtySegments {
+    fn take_dirty_segments(&mut self) -> compat::DirtySegments {
         self.inner.take_dirty_segments().into()
     }
 
-    fn take_segment_revisions(&mut self) -> radiant::compat::legacy_shell::SegmentRevisions {
+    fn take_segment_revisions(&mut self) -> compat::SegmentRevisions {
         self.inner.take_segment_revisions().into()
     }
 
@@ -100,7 +98,7 @@ impl<B: NativeAppBridge> radiant::compat::legacy_shell::NativeAppBridge
         pending_chord: Option<RadiantKeyPress>,
         press: RadiantKeyPress,
         focus: RadiantFocusSurface,
-    ) -> RadiantShortcutResolution<radiant::compat::legacy_shell::UiAction> {
+    ) -> RadiantShortcutResolution<compat::UiAction> {
         let resolution = hotkeys::resolve_hotkey_press(
             pending_chord.map(keypress_from_radiant),
             keypress_from_radiant(press),
@@ -113,7 +111,7 @@ impl<B: NativeAppBridge> radiant::compat::legacy_shell::NativeAppBridge
         }
     }
 
-    fn reduce_action(&mut self, action: radiant::compat::legacy_shell::UiAction) {
+    fn reduce_action(&mut self, action: compat::UiAction) {
         self.inner.reduce_action(NativeUiAction::from(action));
     }
 
