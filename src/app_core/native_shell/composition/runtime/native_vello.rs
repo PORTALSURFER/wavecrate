@@ -470,10 +470,10 @@ impl From<compat::UiAction> for UiAction {
                 sample_id: content_id,
             },
             compat::UiAction::SetPromptInput { value } => Self::SetPromptInput { value: value },
-            compat::UiAction::StartBrowserRename => Self::StartBrowserRename,
-            compat::UiAction::ConfirmBrowserRename => Self::ConfirmBrowserRename,
-            compat::UiAction::CancelBrowserRename => Self::CancelBrowserRename,
-            compat::UiAction::AutoRenameBrowserSelection { visible_row } => {
+            compat::UiAction::StartContentRename => Self::StartBrowserRename,
+            compat::UiAction::ConfirmContentRename => Self::ConfirmBrowserRename,
+            compat::UiAction::CancelContentRename => Self::CancelBrowserRename,
+            compat::UiAction::AutoRenameContentSelection { visible_row } => {
                 Self::AutoRenameBrowserSelection {
                     visible_row: visible_row,
                 }
@@ -481,7 +481,7 @@ impl From<compat::UiAction> for UiAction {
             compat::UiAction::SetContentTriageMark { target } => Self::TagBrowserSelection {
                 target: target.into(),
             },
-            compat::UiAction::DeleteBrowserSelection => Self::DeleteBrowserSelection,
+            compat::UiAction::DeleteContentSelection => Self::DeleteBrowserSelection,
             compat::UiAction::NormalizeFocusedContentItem => Self::NormalizeFocusedBrowserSample,
             compat::UiAction::NormalizeWaveformSelectionOrLoadedContent => {
                 Self::NormalizeWaveformSelectionOrSample
@@ -1053,18 +1053,18 @@ impl From<UiAction> for compat::UiAction {
                 content_id: sample_id,
             },
             UiAction::SetPromptInput { value } => Self::SetPromptInput { value: value },
-            UiAction::StartBrowserRename => Self::StartBrowserRename,
-            UiAction::ConfirmBrowserRename => Self::ConfirmBrowserRename,
-            UiAction::CancelBrowserRename => Self::CancelBrowserRename,
+            UiAction::StartBrowserRename => Self::StartContentRename,
+            UiAction::ConfirmBrowserRename => Self::ConfirmContentRename,
+            UiAction::CancelBrowserRename => Self::CancelContentRename,
             UiAction::AutoRenameBrowserSelection { visible_row } => {
-                Self::AutoRenameBrowserSelection {
+                Self::AutoRenameContentSelection {
                     visible_row: visible_row,
                 }
             }
             UiAction::TagBrowserSelection { target } => Self::SetContentTriageMark {
                 target: target.into(),
             },
-            UiAction::DeleteBrowserSelection => Self::DeleteBrowserSelection,
+            UiAction::DeleteBrowserSelection => Self::DeleteContentSelection,
             UiAction::NormalizeFocusedBrowserSample => Self::NormalizeFocusedContentItem,
             UiAction::NormalizeWaveformSelectionOrSample => {
                 Self::NormalizeWaveformSelectionOrLoadedContent
