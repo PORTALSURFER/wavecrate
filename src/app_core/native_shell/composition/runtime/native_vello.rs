@@ -2101,8 +2101,8 @@ fn local_app_model_from_native_model(value: &AppModel) -> crate::compat_app_cont
         browser: value.browser.clone().into(),
         browser_chrome: value.browser_chrome.clone().into(),
         map: value.map.clone(),
-        waveform: local_waveform_panel_from_native_model(&value.waveform),
-        waveform_chrome: local_waveform_chrome_from_native_model(&value.waveform_chrome),
+        waveform: value.waveform.clone(),
+        waveform_chrome: value.waveform_chrome.clone(),
         update: value.update.clone(),
         focus_context: value.focus_context.into(),
     }
@@ -2161,67 +2161,6 @@ fn local_sources_panel_from_native_model(
         tree_rows: value.tree_rows.clone(),
         tree_actions: value.tree_actions.clone(),
         recovery: value.recovery.clone(),
-    }
-}
-
-fn local_waveform_panel_from_native_model(
-    value: &WaveformPanelModel,
-) -> crate::compat_app_contract::WaveformPanelModel {
-    crate::compat_app_contract::WaveformPanelModel {
-        loaded_label: value.loaded_label.clone(),
-        loading: value.loading,
-        image_rendering: value.image_rendering,
-        cursor_milli: value.cursor_milli,
-        playhead_milli: value.playhead_milli,
-        playhead_micros: value.playhead_micros,
-        selection_milli: value.selection_milli,
-        slices: value.slices.clone(),
-        selection_export_flash_nonce: value.selection_export_flash_nonce,
-        selection_export_failure_flash_nonce: value.selection_export_failure_flash_nonce,
-        edit_selection_apply_flash_nonce: value.edit_selection_apply_flash_nonce,
-        edit_selection_milli: value.edit_selection_milli,
-        edit_fade_in_end_milli: value.edit_fade_in_end_milli,
-        edit_fade_in_end_micros: value.edit_fade_in_end_micros,
-        edit_fade_in_mute_start_milli: value.edit_fade_in_mute_start_milli,
-        edit_fade_in_mute_start_micros: value.edit_fade_in_mute_start_micros,
-        edit_fade_in_curve_milli: value.edit_fade_in_curve_milli,
-        edit_fade_out_start_milli: value.edit_fade_out_start_milli,
-        edit_fade_out_start_micros: value.edit_fade_out_start_micros,
-        edit_fade_out_mute_end_milli: value.edit_fade_out_mute_end_milli,
-        edit_fade_out_mute_end_micros: value.edit_fade_out_mute_end_micros,
-        edit_fade_out_curve_milli: value.edit_fade_out_curve_milli,
-        view_start_milli: value.view_start_milli,
-        view_end_milli: value.view_end_milli,
-        view_start_micros: value.view_start_micros,
-        view_end_micros: value.view_end_micros,
-        view_start_nanos: value.view_start_nanos,
-        view_end_nanos: value.view_end_nanos,
-        beat_step_micros: value.beat_step_micros,
-        bpm_grid_origin_micros: value.bpm_grid_origin_micros,
-        loop_enabled: value.loop_enabled,
-        tempo_label: value.tempo_label.clone(),
-        zoom_label: value.zoom_label.clone(),
-        waveform_image_signature: value.waveform_image_signature,
-        waveform_image: value.waveform_image.clone(),
-    }
-}
-
-fn local_waveform_chrome_from_native_model(
-    value: &WaveformChromeModel,
-) -> crate::compat_app_contract::WaveformChromeModel {
-    crate::compat_app_contract::WaveformChromeModel {
-        transport_hint: value.transport_hint.clone(),
-        compare_anchor_available: value.compare_anchor_available,
-        compare_anchor_label: value.compare_anchor_label.clone(),
-        loop_lock_enabled: value.loop_lock_enabled,
-        channel_view: value.channel_view.into(),
-        normalized_audition_enabled: value.normalized_audition_enabled,
-        bpm_snap_enabled: value.bpm_snap_enabled,
-        relative_bpm_grid_enabled: value.relative_bpm_grid_enabled,
-        transient_snap_enabled: value.transient_snap_enabled,
-        transient_markers_enabled: value.transient_markers_enabled,
-        slice_mode_enabled: value.slice_mode_enabled,
-        exact_duplicate_cleanup_available: value.exact_duplicate_cleanup_available,
     }
 }
 
