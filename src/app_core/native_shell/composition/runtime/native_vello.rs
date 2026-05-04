@@ -13,7 +13,7 @@ use crate::gui::{
     native_shell::{NativeShellState, ShellLayout, ShellLayoutRuntime, StyleTokens},
     types::Vector2,
 };
-use radiant::compat::legacy_shell as compat;
+use crate::gui_runtime::legacy_shell_compat as compat;
 use radiant::gui::{
     focus::FocusSurface as RadiantFocusSurface, frame::FrameBuildResult as RadiantFrameBuildResult,
     input::KeyPress as RadiantKeyPress, shortcuts::ShortcutResolution as RadiantShortcutResolution,
@@ -2450,7 +2450,7 @@ pub(super) fn run_native_vello_app_with_artifacts<B: NativeAppBridge>(
     options: NativeRunOptions,
     bridge: B,
 ) -> NativeRunReport {
-    let report = radiant::gui_runtime::run_legacy_native_vello_app_with_artifacts(
+    let report = compat::run_native_vello_app_with_artifacts(
         options.into(),
         CompatNativeAppBridge::new(bridge),
     );
