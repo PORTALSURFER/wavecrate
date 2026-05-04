@@ -18,8 +18,6 @@ mod motion;
 mod shell;
 #[path = "app_core/native_shell/composition/runtime/shell_snapshot.rs"]
 mod shell_snapshot;
-#[path = "app_core/native_shell/composition/runtime/sources.rs"]
-mod sources;
 #[path = "app_core/native_shell/composition/runtime/waveform.rs"]
 mod waveform;
 
@@ -36,6 +34,7 @@ pub use aliases::{
 pub use bridge::NativeAppBridge;
 pub use crate::app_core::actions::{
     NativeDirtySegments as DirtySegments, NativeSegmentRevisions as SegmentRevisions,
+    NativeSourcesPanelModel as SourcesPanelModel,
 };
 pub use motion::NativeMotionModel;
 pub use shell::{
@@ -45,5 +44,4 @@ pub use shell::{
     SummaryFieldModel, UpdatePanelModel, UpdateStatusModel,
 };
 pub use shell_snapshot::{NativeShellShotSnapshot, capture_native_shell_shot_snapshot};
-pub use sources::SourcesPanelModel;
 pub use waveform::{NormalizedRangeModel, WaveformChromeModel, WaveformPanelModel};

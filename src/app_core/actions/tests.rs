@@ -820,6 +820,8 @@ fn native_action_exports_are_owned_in_app_core() {
         "pub struct NativeAppModel",
         "pub type NativeDirtySegments",
         "pub struct NativeDirtySegments",
+        "pub type NativeSourcesPanelModel",
+        "pub struct NativeSourcesPanelModel",
     ];
     for source_path in native_contract_sources {
         let source = fs::read_to_string(&source_path).expect("native contract source");
