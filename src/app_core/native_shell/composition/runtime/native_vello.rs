@@ -433,7 +433,7 @@ impl From<compat::UiAction> for UiAction {
             compat::UiAction::ToggleContentPillEditorPrimaryAction => {
                 Self::ToggleBrowserTagSidebarAutoRename
             }
-            compat::UiAction::ToggleBrowserDuplicateCleanupMode => {
+            compat::UiAction::ToggleContentDuplicateCleanupMode => {
                 Self::ToggleBrowserDuplicateCleanupMode
             }
             compat::UiAction::FocusPreviousBrowserHistory => Self::FocusPreviousBrowserHistory,
@@ -441,12 +441,12 @@ impl From<compat::UiAction> for UiAction {
             compat::UiAction::ToggleFindSimilarFocusedContent => {
                 Self::ToggleFindSimilarFocusedSample
             }
-            compat::UiAction::ToggleBrowserDuplicateCleanupKeep { visible_row } => {
+            compat::UiAction::ToggleContentDuplicateCleanupKeep { visible_row } => {
                 Self::ToggleBrowserDuplicateCleanupKeep {
                     visible_row: visible_row,
                 }
             }
-            compat::UiAction::ConfirmBrowserDuplicateCleanup => {
+            compat::UiAction::ConfirmContentDuplicateCleanup => {
                 Self::ConfirmBrowserDuplicateCleanup
             }
             compat::UiAction::PlayRandomContentItem => Self::PlayRandomSample,
@@ -1022,16 +1022,16 @@ impl From<UiAction> for compat::UiAction {
             UiAction::ToggleBrowserTagSidebarAutoRename => {
                 Self::ToggleContentPillEditorPrimaryAction
             }
-            UiAction::ToggleBrowserDuplicateCleanupMode => Self::ToggleBrowserDuplicateCleanupMode,
+            UiAction::ToggleBrowserDuplicateCleanupMode => Self::ToggleContentDuplicateCleanupMode,
             UiAction::FocusPreviousBrowserHistory => Self::FocusPreviousBrowserHistory,
             UiAction::FocusNextBrowserHistory => Self::FocusNextBrowserHistory,
             UiAction::ToggleFindSimilarFocusedSample => Self::ToggleFindSimilarFocusedContent,
             UiAction::ToggleBrowserDuplicateCleanupKeep { visible_row } => {
-                Self::ToggleBrowserDuplicateCleanupKeep {
+                Self::ToggleContentDuplicateCleanupKeep {
                     visible_row: visible_row,
                 }
             }
-            UiAction::ConfirmBrowserDuplicateCleanup => Self::ConfirmBrowserDuplicateCleanup,
+            UiAction::ConfirmBrowserDuplicateCleanup => Self::ConfirmContentDuplicateCleanup,
             UiAction::PlayRandomSample => Self::PlayRandomContentItem,
             UiAction::PlayPreviousRandomSample => Self::PlayPreviousRandomContentItem,
             UiAction::AdjustSelectedBrowserRating { delta } => {
