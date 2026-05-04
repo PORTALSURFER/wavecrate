@@ -411,7 +411,7 @@ impl From<compat::UiAction> for UiAction {
             }
             compat::UiAction::SelectAllContentRows => Self::SelectAllBrowserRows,
             compat::UiAction::SetContentSearch { query } => Self::SetBrowserSearch { query: query },
-            compat::UiAction::ToggleBrowserRatingFilter { level, invert } => {
+            compat::UiAction::ToggleContentRatingFilter { level, invert } => {
                 Self::ToggleBrowserRatingFilter {
                     level: level,
                     invert: invert,
@@ -436,8 +436,8 @@ impl From<compat::UiAction> for UiAction {
             compat::UiAction::ToggleContentDuplicateCleanupMode => {
                 Self::ToggleBrowserDuplicateCleanupMode
             }
-            compat::UiAction::FocusPreviousBrowserHistory => Self::FocusPreviousBrowserHistory,
-            compat::UiAction::FocusNextBrowserHistory => Self::FocusNextBrowserHistory,
+            compat::UiAction::FocusPreviousContentHistory => Self::FocusPreviousBrowserHistory,
+            compat::UiAction::FocusNextContentHistory => Self::FocusNextBrowserHistory,
             compat::UiAction::ToggleFindSimilarFocusedContent => {
                 Self::ToggleFindSimilarFocusedSample
             }
@@ -451,10 +451,10 @@ impl From<compat::UiAction> for UiAction {
             }
             compat::UiAction::PlayRandomContentItem => Self::PlayRandomSample,
             compat::UiAction::PlayPreviousRandomContentItem => Self::PlayPreviousRandomSample,
-            compat::UiAction::AdjustSelectedBrowserRating { delta } => {
+            compat::UiAction::AdjustSelectedContentRating { delta } => {
                 Self::AdjustSelectedBrowserRating { delta: delta }
             }
-            compat::UiAction::SetBrowserTab { map } => Self::SetBrowserTab { map: map },
+            compat::UiAction::SetContentTab { map } => Self::SetBrowserTab { map: map },
             compat::UiAction::FocusContentPillEditorInput => Self::FocusBrowserTagSidebarInput,
             compat::UiAction::SetContentPillEditorInput { value } => {
                 Self::SetBrowserTagSidebarInput { value: value }
@@ -1001,7 +1001,7 @@ impl From<UiAction> for compat::UiAction {
             UiAction::SelectAllBrowserRows => Self::SelectAllContentRows,
             UiAction::SetBrowserSearch { query } => Self::SetContentSearch { query: query },
             UiAction::ToggleBrowserRatingFilter { level, invert } => {
-                Self::ToggleBrowserRatingFilter {
+                Self::ToggleContentRatingFilter {
                     level: level,
                     invert: invert,
                 }
@@ -1023,8 +1023,8 @@ impl From<UiAction> for compat::UiAction {
                 Self::ToggleContentPillEditorPrimaryAction
             }
             UiAction::ToggleBrowserDuplicateCleanupMode => Self::ToggleContentDuplicateCleanupMode,
-            UiAction::FocusPreviousBrowserHistory => Self::FocusPreviousBrowserHistory,
-            UiAction::FocusNextBrowserHistory => Self::FocusNextBrowserHistory,
+            UiAction::FocusPreviousBrowserHistory => Self::FocusPreviousContentHistory,
+            UiAction::FocusNextBrowserHistory => Self::FocusNextContentHistory,
             UiAction::ToggleFindSimilarFocusedSample => Self::ToggleFindSimilarFocusedContent,
             UiAction::ToggleBrowserDuplicateCleanupKeep { visible_row } => {
                 Self::ToggleContentDuplicateCleanupKeep {
@@ -1035,9 +1035,9 @@ impl From<UiAction> for compat::UiAction {
             UiAction::PlayRandomSample => Self::PlayRandomContentItem,
             UiAction::PlayPreviousRandomSample => Self::PlayPreviousRandomContentItem,
             UiAction::AdjustSelectedBrowserRating { delta } => {
-                Self::AdjustSelectedBrowserRating { delta: delta }
+                Self::AdjustSelectedContentRating { delta: delta }
             }
-            UiAction::SetBrowserTab { map } => Self::SetBrowserTab { map: map },
+            UiAction::SetBrowserTab { map } => Self::SetContentTab { map: map },
             UiAction::FocusBrowserTagSidebarInput => Self::FocusContentPillEditorInput,
             UiAction::SetBrowserTagSidebarInput { value } => {
                 Self::SetContentPillEditorInput { value: value }
