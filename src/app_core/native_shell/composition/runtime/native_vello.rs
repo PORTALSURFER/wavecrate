@@ -176,17 +176,17 @@ fn keypress_to_radiant(press: KeyPress) -> RadiantKeyPress {
     }
 }
 
-impl From<compat::BrowserTriageTarget> for BrowserTagTarget {
-    fn from(value: compat::BrowserTriageTarget) -> Self {
+impl From<compat::ContentTriageTarget> for BrowserTagTarget {
+    fn from(value: compat::ContentTriageTarget) -> Self {
         match value {
-            compat::BrowserTriageTarget::Negative => Self::Trash,
-            compat::BrowserTriageTarget::Neutral => Self::Neutral,
-            compat::BrowserTriageTarget::Positive => Self::Keep,
+            compat::ContentTriageTarget::Negative => Self::Trash,
+            compat::ContentTriageTarget::Neutral => Self::Neutral,
+            compat::ContentTriageTarget::Positive => Self::Keep,
         }
     }
 }
 
-impl From<BrowserTagTarget> for compat::BrowserTriageTarget {
+impl From<BrowserTagTarget> for compat::ContentTriageTarget {
     fn from(value: BrowserTagTarget) -> Self {
         match value {
             BrowserTagTarget::Trash => Self::Negative,
@@ -478,7 +478,7 @@ impl From<compat::UiAction> for UiAction {
                     visible_row: visible_row,
                 }
             }
-            compat::UiAction::SetBrowserTriageMark { target } => Self::TagBrowserSelection {
+            compat::UiAction::SetContentTriageMark { target } => Self::TagBrowserSelection {
                 target: target.into(),
             },
             compat::UiAction::DeleteBrowserSelection => Self::DeleteBrowserSelection,
@@ -1059,7 +1059,7 @@ impl From<UiAction> for compat::UiAction {
                     visible_row: visible_row,
                 }
             }
-            UiAction::TagBrowserSelection { target } => Self::SetBrowserTriageMark {
+            UiAction::TagBrowserSelection { target } => Self::SetContentTriageMark {
                 target: target.into(),
             },
             UiAction::DeleteBrowserSelection => Self::DeleteBrowserSelection,
