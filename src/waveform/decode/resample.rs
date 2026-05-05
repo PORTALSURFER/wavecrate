@@ -1,4 +1,4 @@
-#[allow(dead_code)]
+#[cfg(test)]
 pub(super) fn resample_linear(
     samples: &[f32],
     channels: usize,

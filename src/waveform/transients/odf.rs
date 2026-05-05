@@ -101,8 +101,7 @@ pub(crate) fn spectral_flux_superflux(
             }
             let mut band_sum = 0.0f32;
             let mut count = 0.0f32;
-            for bin in *start_bin..(*end_bin).min(bins) {
-                let c = buf[bin];
+            for c in buf.iter().take((*end_bin).min(bins)).skip(*start_bin) {
                 let mag = (c.re * c.re + c.im * c.im).sqrt();
                 let mag_log = (1.0 + 10.0 * mag).ln();
                 band_sum += mag_log;

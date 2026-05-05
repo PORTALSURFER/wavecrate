@@ -1,3 +1,5 @@
+#![allow(clippy::result_large_err)]
+
 use std::io::Write;
 use std::path::Path;
 
@@ -29,7 +31,10 @@ pub fn save_to_path(config: &AppConfig, path: &Path) -> Result<(), ConfigError> 
 }
 
 /// Write the TOML settings file atomically to prevent partial writes on crash.
-pub(super) fn save_settings_to_path(settings: &AppSettings, path: &Path) -> Result<(), ConfigError> {
+pub(super) fn save_settings_to_path(
+    settings: &AppSettings,
+    path: &Path,
+) -> Result<(), ConfigError> {
     let data = toml::to_string_pretty(settings).map_err(|source| ConfigError::SerializeToml {
         path: path.to_path_buf(),
         source,
@@ -41,29 +46,24 @@ fn atomic_write(path: &Path, data: &[u8]) -> Result<(), ConfigError> {
     use rand::TryRngCore;
     let dir = path.parent().ok_or_else(|| ConfigError::Write {
         path: path.to_path_buf(),
-        source: std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "config path has no parent directory",
-        ),
+        source: std::io::Error::other("config path has no parent directory"),
     })?;
     let file_name = path.file_name().ok_or_else(|| ConfigError::Write {
         path: path.to_path_buf(),
-        source: std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "config path has no file name",
-        ),
+        source: std::io::Error::other("config path has no file name"),
     })?;
 
     let mut last_err = None;
     for _ in 0..5 {
         let mut bytes = [0u8; 6];
-        rand::rngs::OsRng.try_fill_bytes(&mut bytes).map_err(|source| ConfigError::Write {
-            path: path.to_path_buf(),
-            source: std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!("failed to generate temporary file suffix: {source}"),
-            ),
-        })?;
+        rand::rngs::OsRng
+            .try_fill_bytes(&mut bytes)
+            .map_err(|source| ConfigError::Write {
+                path: path.to_path_buf(),
+                source: std::io::Error::other(format!(
+                    "failed to generate temporary file suffix: {source}"
+                )),
+            })?;
         let suffix: String = bytes.iter().map(|b| format!("{:02x}", b)).collect();
         let tmp_path = dir.join(format!("{}.tmp-{}", file_name.to_string_lossy(), suffix));
 
@@ -136,10 +136,10 @@ fn replace_file(temp_path: &Path, path: &Path) -> Result<(), std::io::Error> {
             if err.kind() == std::io::ErrorKind::AlreadyExists
                 || err.kind() == std::io::ErrorKind::PermissionDenied
             {
-                if let Err(inner) = std::fs::remove_file(path) {
-                    if inner.kind() != std::io::ErrorKind::NotFound {
-                        return Err(inner);
-                    }
+                if let Err(inner) = std::fs::remove_file(path)
+                    && inner.kind() != std::io::ErrorKind::NotFound
+                {
+                    return Err(inner);
                 }
                 std::fs::rename(temp_path, path)?;
                 return Ok(());
@@ -156,12 +156,10 @@ fn sync_parent_dir(dir: &Path) -> Result<(), ConfigError> {
             path: dir.to_path_buf(),
             source,
         })?;
-        dir_handle
-            .sync_all()
-            .map_err(|source| ConfigError::Write {
-                path: dir.to_path_buf(),
-                source,
-            })?;
+        dir_handle.sync_all().map_err(|source| ConfigError::Write {
+            path: dir.to_path_buf(),
+            source,
+        })?;
     }
     #[cfg(not(unix))]
     {

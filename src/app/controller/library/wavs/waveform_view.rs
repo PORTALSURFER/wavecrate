@@ -1,0 +1,48 @@
+use super::*;
+use crate::app::state::WaveformView;
+
+pub(crate) fn clear_waveform_view(controller: &mut AppController) {
+    controller.ui.waveform.image = None;
+    controller.ui.waveform.waveform_image_signature = None;
+    controller.projected_waveform_image_signature = None;
+    controller.projected_waveform_image = None;
+    controller.ui.waveform.notice = None;
+    controller.ui.waveform.loading = None;
+    controller.ui.waveform.transients = std::sync::Arc::from([]);
+    controller.ui.waveform.transient_cache_token = None;
+    controller.sample_view.waveform.decoded = None;
+    controller.ui.waveform.playhead = PlayheadState::default();
+    controller.ui.waveform.last_start_marker = None;
+    controller.ui.waveform.cursor = None;
+    controller.ui.waveform.selection = None;
+    controller.ui.waveform.last_bpm_grid_origin = 0.0;
+    controller.ui.waveform.selection_duration = None;
+    controller.ui.waveform.edit_selection = None;
+    controller.clear_waveform_slices();
+    controller.ui.waveform.view = WaveformView::default();
+    controller.selection_state.range.clear();
+    controller.selection_state.edit_range.clear();
+    controller.sample_view.wav.loaded_audio = None;
+    controller.sample_view.wav.loaded_wav = None;
+    controller.set_ui_loaded_wav(None);
+    controller.sample_view.waveform.render_meta = None;
+    if let Some(player) = controller.audio.player.as_ref() {
+        player.borrow_mut().stop();
+    }
+    controller.runtime.pending_waveform_render = None;
+    controller.runtime.pending_waveform_transient_compute = None;
+    controller
+        .runtime
+        .jobs
+        .invalidate_waveform_render_requests();
+    controller
+        .runtime
+        .jobs
+        .invalidate_waveform_transient_requests();
+    controller.runtime.jobs.set_pending_audio(None);
+    controller.runtime.jobs.set_staged_audio_handoff(None);
+    controller.runtime.jobs.set_pending_playback(None);
+    controller.runtime.browser_selection_transition = None;
+    controller.ui.browser.selection.commit_focus_pending = false;
+    controller.mark_waveform_projection_dirty();
+}

@@ -1,6 +1,6 @@
 use super::super::AudioPlayer;
 use super::support::{fixtures, silent_wav_bytes, test_player};
-use crate::audio::output::{open_output_stream, AudioOutputConfig};
+use crate::audio::output::{AudioOutputConfig, open_output_stream};
 use std::{
     sync::Arc,
     time::{Duration, Instant},
@@ -225,6 +225,42 @@ fn span_sample_count_tracks_requested_window() {
         delta <= 2,
         "count {count}, expected {expected_samples} (frames {expected_frames})"
     );
+}
+
+#[test]
+fn stereo_loop_cycle_preserves_odd_frame_span_sample_count() {
+    let sample_rate = 1_000u32;
+    let start = 0.100;
+    let end = 0.103;
+    let expected_frames = ((end - start) * sample_rate as f32).round() as usize;
+    assert_eq!(expected_frames, 3);
+    let bytes = Arc::from(silent_wav_bytes(1.0, sample_rate, 2));
+
+    let (count, span_frames, _, channels) =
+        AudioPlayer::loop_cycle_sample_count_for_tests(bytes, start, end, None)
+            .expect("loop cycle count");
+
+    assert_eq!(span_frames, expected_frames);
+    assert_eq!(channels, 2);
+    assert_eq!(count, expected_frames * channels as usize);
+}
+
+#[test]
+fn stereo_loop_cycle_with_offset_preserves_odd_frame_span_sample_count() {
+    let sample_rate = 1_000u32;
+    let start = 0.100;
+    let end = 0.103;
+    let expected_frames = ((end - start) * sample_rate as f32).round() as usize;
+    assert_eq!(expected_frames, 3);
+    let bytes = Arc::from(silent_wav_bytes(1.0, sample_rate, 2));
+
+    let (count, span_frames, _, channels) =
+        AudioPlayer::loop_cycle_sample_count_for_tests(bytes, start, end, Some(0.001))
+            .expect("loop cycle count");
+
+    assert_eq!(span_frames, expected_frames);
+    assert_eq!(channels, 2);
+    assert_eq!(count, expected_frames * channels as usize);
 }
 
 #[test]

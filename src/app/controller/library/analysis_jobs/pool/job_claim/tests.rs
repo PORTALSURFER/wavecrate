@@ -1,0 +1,455 @@
+use super::super::job_progress::ProgressPollerWakeup;
+use super::*;
+use crate::app::controller::jobs::{JobMessage, JobMessageSender};
+use crate::app::controller::library::analysis_jobs::db as analysis_db;
+use crate::app::controller::library::analysis_jobs::wakeup::ClaimWakeup;
+use crate::sample_sources::SampleSource;
+use std::collections::{HashMap, HashSet};
+use std::sync::mpsc;
+use std::sync::{Arc, Mutex, RwLock};
+use std::thread::sleep;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use tempfile::NamedTempFile;
+use tempfile::TempDir;
+
+#[test]
+fn claim_selection_orders_sources_round_robin() {
+    let dir_a = TempDir::new().unwrap();
+    let dir_b = TempDir::new().unwrap();
+    let source_a = SampleSource::new(dir_a.path().to_path_buf());
+    let source_b = SampleSource::new(dir_b.path().to_path_buf());
+    let conn_a = analysis_db::open_source_db(&source_a.root).unwrap();
+    let conn_b = analysis_db::open_source_db(&source_b.root).unwrap();
+    let sample_a = format!("{}::a.wav", source_a.id);
+    let sample_b = format!("{}::b.wav", source_b.id);
+    conn_a
+        .execute(
+            "INSERT INTO analysis_jobs (sample_id, source_id, relative_path, job_type, status, attempts, created_at)
+             VALUES (?1, ?2, ?3, ?4, 'pending', 0, 0)",
+            rusqlite::params![
+                sample_a,
+                source_a.id.to_string(),
+                "a.wav",
+                analysis_db::ANALYZE_SAMPLE_JOB_TYPE
+            ],
+        )
+        .unwrap();
+    conn_b
+        .execute(
+            "INSERT INTO analysis_jobs (sample_id, source_id, relative_path, job_type, status, attempts, created_at)
+             VALUES (?1, ?2, ?3, ?4, 'pending', 0, 0)",
+            rusqlite::params![
+                sample_b,
+                source_b.id.to_string(),
+                "b.wav",
+                analysis_db::ANALYZE_SAMPLE_JOB_TYPE
+            ],
+        )
+        .unwrap();
+    let reset_done = Arc::new(Mutex::new(HashSet::new()));
+    let claim_wakeup = ClaimWakeup::new();
+    let mut selector = selection::ClaimSelector::with_sources_for_tests(
+        vec![
+            super::claim::SourceClaimDb {
+                source: source_a,
+                conn: conn_a,
+            },
+            super::claim::SourceClaimDb {
+                source: source_b,
+                conn: conn_b,
+            },
+        ],
+        1,
+        reset_done,
+    );
+    let mut wake_counter = 0;
+    assert!(
+        claim_wakeup
+            .acquire_probe_or_wait(&mut wake_counter)
+            .is_none()
+    );
+    let first = match selector.select_next(None, &claim_wakeup) {
+        selection::ClaimSelection::Job(job) => job,
+        _ => panic!("expected a job from first source"),
+    };
+    assert!(
+        claim_wakeup
+            .acquire_probe_or_wait(&mut wake_counter)
+            .is_none()
+    );
+    let second = match selector.select_next(None, &claim_wakeup) {
+        selection::ClaimSelection::Job(job) => job,
+        _ => panic!("expected a job from second source"),
+    };
+
+    assert!(first.sample_id.ends_with("a.wav"));
+    assert!(second.sample_id.ends_with("b.wav"));
+}
+
+#[test]
+fn claim_selection_skips_source_with_file_op_write_priority() {
+    let dir_a = TempDir::new().unwrap();
+    let dir_b = TempDir::new().unwrap();
+    let source_a = SampleSource::new(dir_a.path().to_path_buf());
+    let source_b = SampleSource::new(dir_b.path().to_path_buf());
+    let conn_a = analysis_db::open_source_db(&source_a.root).unwrap();
+    let conn_b = analysis_db::open_source_db(&source_b.root).unwrap();
+    conn_a
+        .execute(
+            "INSERT INTO analysis_jobs (sample_id, source_id, relative_path, job_type, status, attempts, created_at)
+             VALUES (?1, ?2, ?3, ?4, 'pending', 0, 0)",
+            rusqlite::params![
+                format!("{}::a.wav", source_a.id),
+                source_a.id.to_string(),
+                "a.wav",
+                analysis_db::ANALYZE_SAMPLE_JOB_TYPE
+            ],
+        )
+        .unwrap();
+    conn_b
+        .execute(
+            "INSERT INTO analysis_jobs (sample_id, source_id, relative_path, job_type, status, attempts, created_at)
+             VALUES (?1, ?2, ?3, ?4, 'pending', 0, 0)",
+            rusqlite::params![
+                format!("{}::b.wav", source_b.id),
+                source_b.id.to_string(),
+                "b.wav",
+                analysis_db::ANALYZE_SAMPLE_JOB_TYPE
+            ],
+        )
+        .unwrap();
+    let _guard =
+        crate::app::controller::library::source_write_priority::FileOpWritePriorityGuard::new(
+            &source_a.id,
+        );
+    let reset_done = Arc::new(Mutex::new(HashSet::new()));
+    let claim_wakeup = ClaimWakeup::new();
+    let mut selector = selection::ClaimSelector::with_sources_for_tests(
+        vec![
+            super::claim::SourceClaimDb {
+                source: source_a,
+                conn: conn_a,
+            },
+            super::claim::SourceClaimDb {
+                source: source_b,
+                conn: conn_b,
+            },
+        ],
+        1,
+        reset_done,
+    );
+
+    let claimed = match selector.select_next(None, &claim_wakeup) {
+        selection::ClaimSelection::Job(job) => job,
+        _ => panic!("expected a job from the unrelated source"),
+    };
+
+    assert!(claimed.sample_id.ends_with("b.wav"));
+}
+
+#[test]
+fn claim_wakeup_allows_only_one_idle_probe_per_backoff_window() {
+    let wakeup = ClaimWakeup::new();
+    let mut worker_a = 0;
+    let mut worker_b = 0;
+
+    assert!(wakeup.acquire_probe_or_wait(&mut worker_a).is_none());
+    let wait = wakeup
+        .acquire_probe_or_wait(&mut worker_b)
+        .expect("second worker should back off");
+    assert!(wait <= Duration::from_millis(5));
+    assert!(wakeup.probe_inflight());
+
+    wakeup.finish_probe(Duration::from_millis(200));
+    let wait = wakeup
+        .acquire_probe_or_wait(&mut worker_b)
+        .expect("backoff should remain active");
+    assert!(wait > Duration::from_millis(0));
+
+    wakeup.notify();
+    assert!(wakeup.acquire_probe_or_wait(&mut worker_b).is_none());
+}
+
+#[test]
+fn shared_selector_refreshes_sources_once_across_idle_probes() {
+    let dir = TempDir::new().unwrap();
+    let source = SampleSource::new(dir.path().to_path_buf());
+    let state = crate::sample_sources::library::LibraryState {
+        sources: vec![source.clone()],
+    };
+    crate::sample_sources::library::save(&state).unwrap();
+    let reset_done = Arc::new(Mutex::new(HashSet::new()));
+    let shared = selection::shared(reset_done);
+    let claim_wakeup = ClaimWakeup::new();
+
+    {
+        let mut selector = shared.lock().unwrap();
+        assert!(matches!(
+            selector.select_next(None, &claim_wakeup),
+            selection::ClaimSelection::Idle
+        ));
+        assert_eq!(selector.refresh_count(), 1);
+    }
+
+    {
+        let mut selector = shared.lock().unwrap();
+        assert!(matches!(
+            selector.select_next(None, &claim_wakeup),
+            selection::ClaimSelection::Idle
+        ));
+        assert_eq!(
+            selector.refresh_count(),
+            1,
+            "shared selector should reuse the first refresh during idle backoff"
+        );
+    }
+}
+
+#[test]
+fn notified_claim_wakeup_immediately_rechecks_sources_after_idle_backoff() {
+    let dir = TempDir::new().unwrap();
+    let source = SampleSource::new(dir.path().to_path_buf());
+    let selector_conn = analysis_db::open_source_db(&source.root).unwrap();
+    let reset_done = Arc::new(Mutex::new(HashSet::new()));
+    let claim_wakeup = ClaimWakeup::new();
+    let mut selector = selection::ClaimSelector::with_sources_for_tests(
+        vec![super::claim::SourceClaimDb {
+            source: source.clone(),
+            conn: selector_conn,
+        }],
+        1,
+        reset_done,
+    );
+    let mut wake_counter = 0u64;
+
+    assert!(
+        claim_wakeup
+            .acquire_probe_or_wait(&mut wake_counter)
+            .is_none()
+    );
+    assert!(matches!(
+        selector.select_next(None, &claim_wakeup),
+        selection::ClaimSelection::Idle
+    ));
+    let wait = claim_wakeup
+        .acquire_probe_or_wait(&mut wake_counter)
+        .expect("idle backoff should start after an empty probe");
+    assert!(wait > Duration::ZERO);
+
+    let conn = analysis_db::open_source_db(&source.root).unwrap();
+    conn.execute(
+        "INSERT INTO analysis_jobs (sample_id, source_id, relative_path, job_type, status, attempts, created_at)
+         VALUES (?1, ?2, ?3, ?4, 'pending', 0, 0)",
+        rusqlite::params![
+            format!("{}::fresh.wav", source.id),
+            source.id.to_string(),
+            "fresh.wav",
+            analysis_db::ANALYZE_SAMPLE_JOB_TYPE
+        ],
+    )
+    .unwrap();
+
+    claim_wakeup.notify();
+    assert!(
+        claim_wakeup
+            .acquire_probe_or_wait(&mut wake_counter)
+            .is_none(),
+        "new work should bypass the idle backoff immediately"
+    );
+    let claimed = match selector.select_next(None, &claim_wakeup) {
+        selection::ClaimSelection::Job(job) => job,
+        _ => panic!("expected notify to let the next probe claim new work"),
+    };
+
+    assert!(claimed.sample_id.ends_with("fresh.wav"));
+}
+
+#[test]
+fn clears_inflight_when_db_open_fails() {
+    let file = NamedTempFile::new().unwrap();
+    let source_root = file.path().to_path_buf();
+    let job = analysis_db::ClaimedJob {
+        id: 42,
+        sample_id: "source::missing.wav".to_string(),
+        content_hash: None,
+        job_type: analysis_db::ANALYZE_SAMPLE_JOB_TYPE.to_string(),
+        source_root: source_root.clone(),
+    };
+    let queue = DecodedQueue::new(4);
+    assert!(queue.try_mark_inflight(job.id));
+    let (tx, _rx) = mpsc::sync_channel::<JobMessage>(1);
+    let tx = JobMessageSender::new(tx);
+    let mut connections = HashMap::new();
+    let progress_cache = Arc::new(RwLock::new(ProgressCache::default()));
+    let progress_wakeup = ProgressPollerWakeup::new();
+    let heartbeat_tracker = Arc::new(heartbeat::DecodeHeartbeatTracker::new(
+        Duration::from_millis(10),
+    ));
+    let deferred = {
+        let mut finalize = db::FinalizeJobContext {
+            connections: &mut connections,
+            decode_queue: &queue,
+            tx: &tx,
+            progress_cache: &progress_cache,
+            progress_wakeup: &progress_wakeup,
+            heartbeat_tracker: &heartbeat_tracker,
+            log_jobs: false,
+        };
+        db::finalize_immediate_job(&mut finalize, job, Err("failed".to_string()))
+    };
+
+    assert!(deferred.is_some());
+    assert!(queue.try_mark_inflight(42));
+    assert!(connections.is_empty());
+}
+
+#[test]
+fn shared_decode_heartbeat_keeps_running_job_fresh() {
+    let dir = TempDir::new().unwrap();
+    let conn = analysis_db::open_source_db(dir.path()).unwrap();
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_else(|_| Duration::from_secs(0))
+        .as_secs() as i64;
+    conn.execute(
+        "INSERT INTO analysis_jobs (sample_id, job_type, status, attempts, created_at, running_at)
+         VALUES (?1, ?2, 'running', 1, ?3, ?4)",
+        rusqlite::params![
+            "source::long.wav",
+            analysis_db::ANALYZE_SAMPLE_JOB_TYPE,
+            now,
+            now - 120
+        ],
+    )
+    .unwrap();
+    let job_id: i64 = conn
+        .query_row(
+            "SELECT id FROM analysis_jobs WHERE sample_id = ?1",
+            rusqlite::params!["source::long.wav"],
+            |row| row.get(0),
+        )
+        .unwrap();
+
+    let tracker = Arc::new(heartbeat::DecodeHeartbeatTracker::new(
+        Duration::from_millis(10),
+    ));
+    let handle = heartbeat::spawn_decode_heartbeat_worker(tracker.clone());
+    tracker.register(dir.path(), job_id);
+    let deadline = Instant::now() + Duration::from_secs(2);
+    let heartbeat_observed = loop {
+        let running_at: Option<i64> = conn
+            .query_row(
+                "SELECT running_at FROM analysis_jobs WHERE id = ?1",
+                rusqlite::params![job_id],
+                |row| row.get(0),
+            )
+            .unwrap_or(None);
+        if running_at.is_some_and(|ts| ts >= now - 1) {
+            break true;
+        }
+        if Instant::now() >= deadline {
+            break false;
+        }
+        sleep(Duration::from_millis(10));
+    };
+    let stale_before = now - 1;
+    let changed = analysis_db::fail_stale_running_jobs(&conn, stale_before).unwrap();
+    tracker.unregister(dir.path(), job_id);
+    tracker.close();
+    let _ = handle.join();
+
+    assert!(
+        heartbeat_observed,
+        "heartbeat should refresh running_at before stale cleanup"
+    );
+    assert_eq!(changed, 0);
+}
+
+#[test]
+fn mid_loop_db_open_failure_clears_inflight_and_marks_failed() {
+    let dir = TempDir::new().unwrap();
+    let source_root = dir.path().join("source");
+    std::fs::create_dir_all(&source_root).unwrap();
+    let conn = analysis_db::open_source_db(&source_root).unwrap();
+    conn.execute(
+        "INSERT INTO analysis_jobs (sample_id, source_id, relative_path, job_type, status, attempts, created_at, running_at)
+         VALUES (?1, ?2, ?3, ?4, 'running', 1, 0, 0)",
+        rusqlite::params![
+            "source::a.wav",
+            "source",
+            "a.wav",
+            analysis_db::ANALYZE_SAMPLE_JOB_TYPE
+        ],
+    )
+    .unwrap();
+    let job_id: i64 = conn
+        .query_row(
+            "SELECT id FROM analysis_jobs WHERE sample_id = ?1",
+            rusqlite::params!["source::a.wav"],
+            |row| row.get(0),
+        )
+        .unwrap();
+    drop(conn);
+    let job = analysis_db::ClaimedJob {
+        id: job_id,
+        sample_id: "source::a.wav".to_string(),
+        content_hash: None,
+        job_type: analysis_db::ANALYZE_SAMPLE_JOB_TYPE.to_string(),
+        source_root: source_root.clone(),
+    };
+    let queue = DecodedQueue::new(4);
+    assert!(queue.try_mark_inflight(job.id));
+    let (tx, _rx) = mpsc::sync_channel::<JobMessage>(1);
+    let tx = JobMessageSender::new(tx);
+    let progress_cache = Arc::new(RwLock::new(ProgressCache::default()));
+    let progress_wakeup = ProgressPollerWakeup::new();
+    let heartbeat_tracker = Arc::new(heartbeat::DecodeHeartbeatTracker::new(
+        Duration::from_millis(10),
+    ));
+    let mut connections = HashMap::new();
+
+    let backup_root = dir.path().join("source_backup");
+    std::fs::rename(&source_root, &backup_root).unwrap();
+    let deferred = {
+        let mut finalize = db::FinalizeJobContext {
+            connections: &mut connections,
+            decode_queue: &queue,
+            tx: &tx,
+            progress_cache: &progress_cache,
+            progress_wakeup: &progress_wakeup,
+            heartbeat_tracker: &heartbeat_tracker,
+            log_jobs: false,
+        };
+        db::finalize_immediate_job(
+            &mut finalize,
+            job.clone(),
+            Err("Failed to open source DB".to_string()),
+        )
+    };
+    assert!(queue.try_mark_inflight(job.id));
+    assert!(deferred.is_some());
+
+    std::fs::rename(&backup_root, &source_root).unwrap();
+    let mut deferred_updates = vec![deferred.unwrap()];
+    let mut finalize = db::FinalizeJobContext {
+        connections: &mut connections,
+        decode_queue: &queue,
+        tx: &tx,
+        progress_cache: &progress_cache,
+        progress_wakeup: &progress_wakeup,
+        heartbeat_tracker: &heartbeat_tracker,
+        log_jobs: false,
+    };
+    db::flush_deferred_updates(&mut finalize, &mut deferred_updates);
+    assert!(deferred_updates.is_empty());
+    let conn = analysis_db::open_source_db(&source_root).unwrap();
+    let (status, last_error): (String, Option<String>) = conn
+        .query_row(
+            "SELECT status, last_error FROM analysis_jobs WHERE id = ?1",
+            rusqlite::params![job_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(status, "failed");
+    assert_eq!(last_error.as_deref(), Some("Failed to open source DB"));
+}

@@ -1,0 +1,283 @@
+//! Search-worker visible-row fast paths and filtered row builders.
+
+use super::super::super::telemetry::{
+    record_search_worker_scratch_alloc, record_search_worker_similar_lookup_alloc,
+    record_search_worker_visible_rows,
+};
+use super::super::results::sort_visible_by_playback_age;
+use super::super::*;
+use super::filtered_stage_for_job;
+
+/// Return an `All` visible-rows result when no filtering/sorting/scoring work is required.
+pub(in super::super) fn build_fast_path_result_if_applicable(
+    job: &SearchJob,
+    has_query: bool,
+    has_folder_filters: bool,
+    entries_len: usize,
+    partitions: &TriagePartitions,
+) -> Option<SearchResult> {
+    if has_query
+        || has_folder_filters
+        || job.filter != TriageFlagFilter::All
+        || job.similar_query.is_some()
+        || job.duplicate_cleanup.is_some()
+        || job.sort != SampleBrowserSort::ListOrder
+        || !job.rating_filter.is_empty()
+        || !job.playback_age_filter.is_empty()
+        || job.marked_only
+    {
+        return None;
+    }
+
+    record_search_worker_visible_rows(entries_len);
+    Some(SearchResult {
+        request_id: job.request_id,
+        source_id: job.source_id.clone(),
+        query: job.query.clone(),
+        visible: VisibleRows::All { total: entries_len },
+        trash: Arc::clone(&partitions.0),
+        neutral: Arc::clone(&partitions.1),
+        keep: Arc::clone(&partitions.2),
+        scores: Arc::from([]),
+    })
+}
+
+/// Inputs required to build visible search rows for one search job.
+pub(in super::super) struct BuildVisibleRowsParams<'a> {
+    pub(in super::super) job: &'a SearchJob,
+    pub(in super::super) has_query: bool,
+    pub(in super::super) scores: &'a Arc<[Option<i64>]>,
+    pub(in super::super) entries_len: usize,
+    pub(in super::super) queue: &'a SearchJobQueue,
+    pub(in super::super) generation: u64,
+    pub(in super::super) source_id: &'a str,
+    pub(in super::super) has_folder_filters: bool,
+}
+
+/// Build filtered visible indices for query/folder/tag/similarity criteria.
+pub(in super::super) fn build_visible_rows_for_job(
+    cache: &mut SearchWorkerCache,
+    params: BuildVisibleRowsParams<'_>,
+) -> Option<Vec<usize>> {
+    let BuildVisibleRowsParams {
+        job,
+        has_query,
+        scores,
+        entries_len,
+        queue,
+        generation,
+        source_id,
+        has_folder_filters,
+    } = params;
+    let filtered_stage = filtered_stage_for_job(
+        cache,
+        job,
+        source_id,
+        entries_len,
+        has_folder_filters,
+        queue,
+        generation,
+    )?;
+    if search_job_canceled(queue, generation) {
+        return None;
+    }
+
+    if let Some(similar) = &job.similar_query {
+        return build_visible_rows_for_similar(
+            cache,
+            job,
+            similar,
+            filtered_stage.as_ref(),
+            entries_len,
+            queue,
+            generation,
+        );
+    }
+
+    if let Some(cleanup) = &job.duplicate_cleanup {
+        return Some(
+            cleanup
+                .indices
+                .iter()
+                .copied()
+                .filter(|index| *index < entries_len)
+                .collect(),
+        );
+    }
+
+    let query_needs_score_sort = has_query;
+    if query_needs_score_sort {
+        let scratch_capacity = entries_len.min(1024);
+        let added_scratch_capacity = cache.prepare_scored_index_scratch(scratch_capacity);
+        record_search_worker_scratch_alloc(
+            added_scratch_capacity.saturating_mul(std::mem::size_of::<(usize, i64)>()),
+        );
+    } else {
+        cache.scored_index_scratch.clear();
+    }
+    let entries = cache.entries.as_ref()?;
+
+    if !query_needs_score_sort {
+        let mut visible = filtered_stage
+            .as_ref()
+            .map(|stage| stage.rows.as_ref().to_vec())
+            .unwrap_or_else(|| (0..entries_len).collect());
+        if job.sort != SampleBrowserSort::ListOrder {
+            sort_visible_indices(entries, &mut visible, job.sort);
+            if search_job_canceled(queue, generation) {
+                return None;
+            }
+        }
+        return Some(visible);
+    }
+
+    let mut visible = Vec::new();
+    if let Some(filtered_stage) = filtered_stage.as_ref() {
+        for (offset, index) in filtered_stage.rows.iter().copied().enumerate() {
+            if search_job_canceled_for_index(queue, generation, offset) {
+                return None;
+            }
+            if let Some(score) = scores.get(index).and_then(|score| *score) {
+                cache.scored_index_scratch.push((index, score));
+            }
+        }
+    } else {
+        for (index, _) in entries.iter().enumerate() {
+            if search_job_canceled_for_index(queue, generation, index) {
+                return None;
+            }
+            if let Some(score) = scores.get(index).and_then(|score| *score) {
+                cache.scored_index_scratch.push((index, score));
+            }
+        }
+    }
+
+    if query_needs_score_sort {
+        if search_job_canceled(queue, generation) {
+            return None;
+        }
+        cache
+            .scored_index_scratch
+            .sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        if search_job_canceled(queue, generation) {
+            return None;
+        }
+        visible.clear();
+        visible.reserve(cache.scored_index_scratch.len());
+        visible.extend(cache.scored_index_scratch.iter().map(|(index, _)| *index));
+    }
+
+    if job.sort != SampleBrowserSort::ListOrder {
+        sort_visible_indices(entries, &mut visible, job.sort);
+        if search_job_canceled(queue, generation) {
+            return None;
+        }
+    }
+    Some(visible)
+}
+
+fn build_visible_rows_for_similar(
+    cache: &mut SearchWorkerCache,
+    job: &SearchJob,
+    similar: &crate::app::state::SimilarQuery,
+    filtered_stage: Option<&super::filter_stage::WorkerFilteredStage>,
+    entries_len: usize,
+    queue: &SearchJobQueue,
+    generation: u64,
+) -> Option<Vec<usize>> {
+    if job.sort == SampleBrowserSort::Similarity {
+        let added_lookup_capacity = cache.prepare_similar_lookup_scratch(similar.indices.len());
+        record_search_worker_similar_lookup_alloc(
+            added_lookup_capacity.saturating_mul(std::mem::size_of::<(usize, f32)>()),
+        );
+        for (offset, (&index, &score)) in similar
+            .indices
+            .iter()
+            .zip(similar.scores.iter())
+            .enumerate()
+        {
+            if search_job_canceled_for_index(queue, generation, offset) {
+                return None;
+            }
+            if index < entries_len {
+                cache.similar_lookup_scratch.push((index, score));
+            }
+        }
+        cache
+            .similar_lookup_scratch
+            .sort_unstable_by_key(|(index, _)| *index);
+        if search_job_canceled(queue, generation) {
+            return None;
+        }
+    }
+
+    let entries = cache.entries.as_ref()?;
+    let mut visible = Vec::new();
+    for (offset, index) in similar.indices.iter().copied().enumerate() {
+        if search_job_canceled_for_index(queue, generation, offset) {
+            return None;
+        }
+        if entries.get(index).is_some()
+            && filtered_stage
+                .map(|stage| stage.accepts.get(index).copied().unwrap_or(false))
+                .unwrap_or(true)
+        {
+            visible.push(index);
+        }
+    }
+
+    if job.sort == SampleBrowserSort::Similarity {
+        visible.sort_by(|a: &usize, b: &usize| {
+            let a_score = similar_lookup_score(&cache.similar_lookup_scratch, *a);
+            let b_score = similar_lookup_score(&cache.similar_lookup_scratch, *b);
+            b_score
+                .partial_cmp(&a_score)
+                .unwrap_or(Ordering::Equal)
+                .then_with(|| a.cmp(b))
+        });
+        if search_job_canceled(queue, generation) {
+            return None;
+        }
+
+        if let Some(anchor) = similar.anchor_index
+            && entries.get(anchor).is_some()
+            && filtered_stage
+                .map(|stage| stage.accepts.get(anchor).copied().unwrap_or(false))
+                .unwrap_or(true)
+        {
+            if let Some(pos) = visible.iter().position(|index| *index == anchor) {
+                visible.remove(pos);
+            }
+            visible.insert(0, anchor);
+        }
+    } else {
+        sort_visible_indices(entries, &mut visible, job.sort);
+        if search_job_canceled(queue, generation) {
+            return None;
+        }
+    }
+
+    Some(visible)
+}
+
+fn similar_lookup_score(lookup: &[(usize, f32)], index: usize) -> f32 {
+    lookup
+        .binary_search_by_key(&index, |(candidate, _)| *candidate)
+        .ok()
+        .and_then(|position| lookup.get(position).map(|(_, score)| *score))
+        .unwrap_or(f32::NEG_INFINITY)
+}
+
+/// Sort visible indices according to the active browser sort mode.
+pub(in super::super) fn sort_visible_indices(
+    entries: &[CompactSearchEntry],
+    visible: &mut [usize],
+    sort: SampleBrowserSort,
+) {
+    match sort {
+        SampleBrowserSort::PlaybackAgeAsc => sort_visible_by_playback_age(entries, visible, true),
+        SampleBrowserSort::PlaybackAgeDesc => sort_visible_by_playback_age(entries, visible, false),
+        SampleBrowserSort::ListOrder => visible.sort_unstable(),
+        SampleBrowserSort::Similarity => {}
+    }
+}

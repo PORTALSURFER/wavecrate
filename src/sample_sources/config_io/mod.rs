@@ -23,5 +23,8 @@ fn map_app_dir_error(error: app_dirs::AppDirError) -> ConfigError {
         app_dirs::AppDirError::CreateDir { path, source } => {
             ConfigError::CreateDir { path, source }
         }
+        app_dirs::AppDirError::InvalidProfileName { profile } => {
+            ConfigError::InvalidProfile { profile }
+        }
     }
 }

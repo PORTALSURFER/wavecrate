@@ -1,0 +1,314 @@
+//! Explicit transaction stages for in-source folder sample moves.
+
+use super::super::super::move_transaction::{
+    PreparedStagedMove, SampleMoveMetadata, load_sample_move_metadata, move_sample_file,
+    prepare_staged_move, remove_move_journal_entry, report_staged_move_failure,
+};
+use crate::app::controller::jobs::{FolderEntryMove, FolderSampleMoveRequest};
+use crate::sample_sources::SourceDatabase;
+use crate::sample_sources::db::file_ops_journal;
+use std::path::Path;
+
+/// Prepared folder-sample move that can commit DB stages and finalize the staged file.
+pub(super) struct FolderSampleMoveTransaction<'a> {
+    request: FolderSampleMoveRequest,
+    db: &'a SourceDatabase,
+    metadata: SampleMoveMetadata,
+    prepared: PreparedStagedMove,
+}
+
+/// Validate one folder-sample request, load DB metadata, and stage the file move.
+pub(super) fn prepare_folder_sample_move_transaction<'a>(
+    db: &'a SourceDatabase,
+    source_root: &Path,
+    request: FolderSampleMoveRequest,
+) -> Result<FolderSampleMoveTransaction<'a>, String> {
+    let absolute = source_root.join(&request.relative_path);
+    if !absolute.is_file() {
+        return Err(format!("File missing: {}", request.relative_path.display()));
+    }
+    if let Some(parent) = request.target_relative.parent() {
+        let target_dir = source_root.join(parent);
+        if !target_dir.is_dir() {
+            return Err(format!("Folder not found: {}", parent.display()));
+        }
+    }
+    let target_absolute = source_root.join(&request.target_relative);
+    if target_absolute.exists() {
+        return Err(format!(
+            "A file already exists at {}",
+            request.target_relative.display()
+        ));
+    }
+    let metadata = load_sample_move_metadata(db, &request.relative_path)?;
+    let prepared = prepare_staged_move(
+        db,
+        source_root,
+        &request.relative_path,
+        source_root,
+        &request.target_relative,
+        metadata.clone(),
+    )?;
+    Ok(FolderSampleMoveTransaction {
+        request,
+        db,
+        metadata,
+        prepared,
+    })
+}
+
+impl FolderSampleMoveTransaction<'_> {
+    /// Commit the target/source DB stages or roll the staged file back on failure.
+    pub(super) fn commit_db_stage(&self, errors: &mut Vec<String>) -> bool {
+        let mut batch = match self.db.write_batch() {
+            Ok(batch) => batch,
+            Err(err) => {
+                report_staged_move_failure(
+                    errors,
+                    self.db,
+                    &self.prepared,
+                    format!("Failed to start database update: {err}"),
+                );
+                return false;
+            }
+        };
+        if let Err(err) = batch.remove_file(&self.request.relative_path) {
+            report_staged_move_failure(
+                errors,
+                self.db,
+                &self.prepared,
+                format!("Failed to drop old entry: {err}"),
+            );
+            return false;
+        }
+        if let Err(err) = batch.upsert_file(
+            &self.request.target_relative,
+            self.prepared.file_size,
+            self.prepared.modified_ns,
+        ) {
+            report_staged_move_failure(
+                errors,
+                self.db,
+                &self.prepared,
+                format!("Failed to register moved file: {err}"),
+            );
+            return false;
+        }
+        if let Err(err) = batch.set_tag(&self.request.target_relative, self.metadata.tag) {
+            report_staged_move_failure(
+                errors,
+                self.db,
+                &self.prepared,
+                format!("Failed to copy tag: {err}"),
+            );
+            return false;
+        }
+        if let Err(err) = batch.set_looped(&self.request.target_relative, self.metadata.looped) {
+            report_staged_move_failure(
+                errors,
+                self.db,
+                &self.prepared,
+                format!("Failed to copy loop marker: {err}"),
+            );
+            return false;
+        }
+        if let Err(err) = batch.set_locked(&self.request.target_relative, self.metadata.locked) {
+            report_staged_move_failure(
+                errors,
+                self.db,
+                &self.prepared,
+                format!("Failed to copy keep lock: {err}"),
+            );
+            return false;
+        }
+        if let Some(last_played_at) = self.metadata.last_played_at
+            && let Err(err) =
+                batch.set_last_played_at(&self.request.target_relative, last_played_at)
+        {
+            report_staged_move_failure(
+                errors,
+                self.db,
+                &self.prepared,
+                format!("Failed to copy playback age: {err}"),
+            );
+            return false;
+        }
+        if let Some(sound_type) = self.metadata.sound_type
+            && let Err(err) = batch.set_sound_type(&self.request.target_relative, Some(sound_type))
+        {
+            report_staged_move_failure(
+                errors,
+                self.db,
+                &self.prepared,
+                format!("Failed to copy sound type: {err}"),
+            );
+            return false;
+        }
+        if let Some(user_tag) = self.metadata.user_tag.as_deref()
+            && let Err(err) = batch.set_user_tag(&self.request.target_relative, Some(user_tag))
+        {
+            report_staged_move_failure(
+                errors,
+                self.db,
+                &self.prepared,
+                format!("Failed to copy custom tag: {err}"),
+            );
+            return false;
+        }
+        if let Err(err) =
+            batch.replace_tags_for_path(&self.request.target_relative, &self.metadata.normal_tags)
+        {
+            report_staged_move_failure(
+                errors,
+                self.db,
+                &self.prepared,
+                format!("Failed to copy normal tags: {err}"),
+            );
+            return false;
+        }
+        if let Err(err) = batch.commit() {
+            report_staged_move_failure(
+                errors,
+                self.db,
+                &self.prepared,
+                format!("Failed to save move: {err}"),
+            );
+            return false;
+        }
+        if let Err(err) = file_ops_journal::update_stage(
+            self.db,
+            &self.prepared.op_id,
+            file_ops_journal::FileOpStage::TargetDb,
+            None,
+            None,
+        ) {
+            errors.push(format!("Failed to update move journal: {err}"));
+        }
+        if let Err(err) = file_ops_journal::update_stage(
+            self.db,
+            &self.prepared.op_id,
+            file_ops_journal::FileOpStage::SourceDb,
+            None,
+            None,
+        ) {
+            errors.push(format!("Failed to update move journal: {err}"));
+        }
+        true
+    }
+
+    /// Rename the staged file into its final target path.
+    pub(super) fn finalize_filesystem_stage(&self, errors: &mut Vec<String>) -> bool {
+        if let Err(err) = std::fs::rename(
+            &self.prepared.staged_absolute,
+            &self.prepared.target_absolute,
+        ) {
+            self.rollback_after_finalize_failure(errors, format!("Failed to finalize move: {err}"));
+            return false;
+        }
+        true
+    }
+
+    /// Restore the original DB row and staged file after the DB commit already succeeded.
+    fn rollback_after_finalize_failure(&self, errors: &mut Vec<String>, message: String) {
+        errors.push(message);
+        let db_restored = self.rollback_db_stage(errors);
+        let file_restored = match move_sample_file(
+            &self.prepared.staged_absolute,
+            &self.prepared.source_absolute,
+        ) {
+            Ok(()) => true,
+            Err(err) => {
+                errors.push(format!("Failed to restore moved file: {err}"));
+                false
+            }
+        };
+        if db_restored && file_restored {
+            remove_move_journal_entry(errors, self.db, &self.prepared.op_id);
+        } else {
+            errors.push("Move left staged for recovery".to_string());
+        }
+    }
+
+    /// Roll the committed target/source DB stages back to the original source row.
+    fn rollback_db_stage(&self, errors: &mut Vec<String>) -> bool {
+        let mut batch = match self.db.write_batch() {
+            Ok(batch) => batch,
+            Err(err) => {
+                errors.push(format!("Failed to start database rollback: {err}"));
+                return false;
+            }
+        };
+        if let Err(err) = batch.remove_file(&self.request.target_relative) {
+            errors.push(format!("Failed to remove rolled-back target entry: {err}"));
+            return false;
+        }
+        if let Err(err) = batch.upsert_file(
+            &self.request.relative_path,
+            self.prepared.file_size,
+            self.prepared.modified_ns,
+        ) {
+            errors.push(format!("Failed to restore original database entry: {err}"));
+            return false;
+        }
+        if let Err(err) = batch.set_tag(&self.request.relative_path, self.metadata.tag) {
+            errors.push(format!("Failed to restore tag: {err}"));
+            return false;
+        }
+        if let Err(err) = batch.set_looped(&self.request.relative_path, self.metadata.looped) {
+            errors.push(format!("Failed to restore loop marker: {err}"));
+            return false;
+        }
+        if let Err(err) = batch.set_locked(&self.request.relative_path, self.metadata.locked) {
+            errors.push(format!("Failed to restore keep lock: {err}"));
+            return false;
+        }
+        if let Some(last_played_at) = self.metadata.last_played_at
+            && let Err(err) = batch.set_last_played_at(&self.request.relative_path, last_played_at)
+        {
+            errors.push(format!("Failed to restore playback age: {err}"));
+            return false;
+        }
+        if let Err(err) =
+            batch.set_sound_type(&self.request.relative_path, self.metadata.sound_type)
+        {
+            errors.push(format!("Failed to restore sound type: {err}"));
+            return false;
+        }
+        if let Err(err) = batch.set_user_tag(
+            &self.request.relative_path,
+            self.metadata.user_tag.as_deref(),
+        ) {
+            errors.push(format!("Failed to restore custom tag: {err}"));
+            return false;
+        }
+        if let Err(err) =
+            batch.replace_tags_for_path(&self.request.relative_path, &self.metadata.normal_tags)
+        {
+            errors.push(format!("Failed to restore normal tags: {err}"));
+            return false;
+        }
+        if let Err(err) = batch.commit() {
+            errors.push(format!("Failed to commit database rollback: {err}"));
+            return false;
+        }
+        true
+    }
+
+    /// Clear the journal entry and build the success payload for the moved sample.
+    pub(super) fn into_success(self, errors: &mut Vec<String>) -> FolderEntryMove {
+        remove_move_journal_entry(errors, self.db, &self.prepared.op_id);
+        FolderEntryMove {
+            old_relative: self.request.relative_path,
+            new_relative: self.request.target_relative,
+            file_size: self.prepared.file_size,
+            modified_ns: self.prepared.modified_ns,
+            tag: self.metadata.tag,
+            looped: self.metadata.looped,
+            locked: self.metadata.locked,
+            last_played_at: self.metadata.last_played_at,
+            sound_type: self.metadata.sound_type,
+            user_tag: self.metadata.user_tag,
+            normal_tags: self.metadata.normal_tags,
+        }
+    }
+}

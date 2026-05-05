@@ -1,8 +1,8 @@
-use std::sync::{Arc, RwLock};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Duration;
 use crate::audio::Source;
 use crate::selection::{FadeParams, SelectionRange, fade_gain_at_position};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, RwLock};
+use std::time::Duration;
 
 const MIN_MUTE_FADE_SECS: f32 = 0.002;
 
@@ -64,11 +64,7 @@ impl EditFadeHandle {
 
     /// Return a copy of the latest edit-fade snapshot.
     pub(crate) fn snapshot(&self) -> EditFadeSnapshot {
-        self.shared
-            .state
-            .read()
-            .unwrap_or_else(|e| e.into_inner())
-            .clone()
+        *self.shared.state.read().unwrap_or_else(|e| e.into_inner())
     }
 }
 
@@ -106,7 +102,11 @@ where
         loop_frames: u64,
         frame_offset: u64,
     ) -> Self {
-        let loop_frames = if loop_frames > 0 { Some(loop_frames) } else { None };
+        let loop_frames = if loop_frames > 0 {
+            Some(loop_frames)
+        } else {
+            None
+        };
         Self::with_loop(inner, handle, global_start_secs, loop_frames, frame_offset)
     }
 

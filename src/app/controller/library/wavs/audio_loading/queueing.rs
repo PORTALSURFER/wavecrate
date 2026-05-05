@@ -1,0 +1,147 @@
+use super::super::*;
+
+impl AppController {
+    /// Queue background audio loading for browser-preview playback.
+    ///
+    /// Preview navigation keeps the currently stable waveform and transport
+    /// visible while the newest request loads in the background, then hands off
+    /// playback only when that request becomes ready.
+    pub(crate) fn queue_browser_preview_audio_load(
+        &mut self,
+        source: &SampleSource,
+        relative_path: &Path,
+        looped: bool,
+    ) -> Result<(), String> {
+        let pending_playback = PendingPlayback {
+            source_id: source.id.clone(),
+            relative_path: relative_path.to_path_buf(),
+            looped,
+            start_override: None,
+            force_loaded_audio: false,
+        };
+        if self
+            .runtime
+            .jobs
+            .pending_audio()
+            .as_ref()
+            .is_some_and(|pending| {
+                pending.source_id == source.id && pending.relative_path == relative_path
+            })
+        {
+            self.runtime
+                .jobs
+                .set_pending_playback(Some(pending_playback));
+            self.note_browser_selection_loading(
+                source.id.clone(),
+                relative_path.to_path_buf(),
+                self.runtime.jobs.pending_playback(),
+            );
+            return Ok(());
+        }
+        self.queue_browser_selection_audio_load_for(source, relative_path, Some(pending_playback))
+    }
+
+    /// Queue one browser-owned candidate sample load through the shared transition model.
+    pub(crate) fn queue_browser_selection_audio_load_for(
+        &mut self,
+        source: &SampleSource,
+        relative_path: &Path,
+        pending_playback: Option<PendingPlayback>,
+    ) -> Result<(), String> {
+        self.begin_audio_load_transition(
+            source.id.clone(),
+            relative_path,
+            pending_playback.clone(),
+        );
+        self.dispatch_audio_load_for(source, relative_path, AudioLoadIntent::Selection)
+    }
+
+    pub(crate) fn queue_audio_load_for(
+        &mut self,
+        source: &SampleSource,
+        relative_path: &Path,
+        intent: AudioLoadIntent,
+        pending_playback: Option<PendingPlayback>,
+    ) -> Result<(), String> {
+        self.begin_audio_load_transition(
+            source.id.clone(),
+            relative_path,
+            pending_playback.clone(),
+        );
+        self.dispatch_audio_load_for(source, relative_path, intent)
+    }
+
+    /// Publish non-destructive loading-state changes for a newly selected sample.
+    ///
+    /// Selection changes should advertise the newest load target without
+    /// blanking the currently stable waveform or stopping playback until the new
+    /// sample is actually ready to take over.
+    pub(crate) fn begin_audio_load_transition(
+        &mut self,
+        source_id: SourceId,
+        relative_path: &Path,
+        pending_playback: Option<PendingPlayback>,
+    ) {
+        self.runtime.jobs.set_pending_audio(None);
+        self.runtime.jobs.set_staged_audio_handoff(None);
+        self.runtime
+            .jobs
+            .set_pending_playback(pending_playback.clone());
+        self.runtime.pending_waveform_render = None;
+        self.runtime.pending_waveform_transient_compute = None;
+        self.runtime.jobs.invalidate_waveform_render_requests();
+        self.runtime.jobs.invalidate_waveform_transient_requests();
+        self.ui.waveform.loading = Some(relative_path.to_path_buf());
+        self.ui.waveform.notice = None;
+        self.note_browser_selection_loading(
+            source_id,
+            relative_path.to_path_buf(),
+            pending_playback,
+        );
+        self.mark_waveform_projection_dirty();
+        self.set_status(
+            format!("Loading {}", relative_path.display()),
+            StatusTone::Busy,
+        );
+    }
+
+    /// Dispatch the heavy half of one prepared audio load request.
+    pub(crate) fn dispatch_audio_load_for(
+        &mut self,
+        source: &SampleSource,
+        relative_path: &Path,
+        intent: AudioLoadIntent,
+    ) -> Result<(), String> {
+        let request_id = self.runtime.jobs.next_audio_request_id();
+        let stretch_ratio = self.stretch_ratio_for_sample(relative_path);
+        let pending = PendingAudio {
+            request_id,
+            source_id: source.id.clone(),
+            root: source.root.clone(),
+            relative_path: relative_path.to_path_buf(),
+            intent,
+        };
+        let job = AudioLoadJob {
+            request_id,
+            source_id: source.id.clone(),
+            root: source.root.clone(),
+            relative_path: relative_path.to_path_buf(),
+            stretch_ratio,
+            render_spec: self.initial_waveform_render_spec(),
+            prepared: None,
+        };
+        if self.try_queue_cached_audio_load(source, relative_path, intent)? {
+            return Ok(());
+        }
+        if self.runtime.jobs.send_audio_job(job).is_err() {
+            self.runtime.jobs.set_pending_audio(None);
+            self.runtime.jobs.set_staged_audio_handoff(None);
+            self.runtime.jobs.set_pending_playback(None);
+            self.ui.waveform.loading = None;
+            self.clear_browser_selection_transition(&source.id, relative_path);
+            return Err("Failed to queue audio load".to_string());
+        }
+        self.runtime.jobs.set_pending_audio(Some(pending));
+        Ok(())
+    }
+}

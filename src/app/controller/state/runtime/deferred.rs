@@ -1,0 +1,194 @@
+use crate::app::controller::FeatureCacheKey;
+use crate::app::controller::library::analysis_jobs;
+use crate::app::controller::state::audio::PendingPlayback;
+use crate::app::state::SimilarQuery;
+use crate::sample_sources::SourceId;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::Instant;
+
+/// Controller-owned gate for deferring startup audio probing past first paint.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct DeferredStartupAudioRefreshState {
+    /// True while startup audio host/device probing still needs to run.
+    pub(crate) armed: bool,
+    /// Number of prepared native frames observed since configuration load.
+    pub(crate) prepare_count: u8,
+}
+
+/// Deferred browser-focus side effects scheduled after immediate selection updates.
+#[derive(Clone, Debug)]
+pub(crate) struct BrowserSelectionTransition {
+    /// Source that owns both the stable sample and the candidate browser selection.
+    pub(crate) source_id: SourceId,
+    /// Relative wav path for the candidate sample the browser currently points at.
+    pub(crate) relative_path: PathBuf,
+    /// Absolute wav entry index expected to still own browser focus.
+    pub(crate) entry_index: usize,
+    /// Whether browser focus is still preview-only, dispatch-pending, or fully settled.
+    pub(crate) commit_stage: BrowserSelectionCommitStage,
+    /// Whether the candidate sample is still stable, loading, or waiting on waveform visuals.
+    pub(crate) load_state: BrowserSelectionLoadState,
+    /// Playback intent captured for the candidate sample while it is loading.
+    pub(crate) pending_playback: Option<PendingPlayback>,
+}
+
+/// Commit lifecycle for one browser-selected candidate sample.
+#[derive(Clone, Debug)]
+pub(crate) enum BrowserSelectionCommitStage {
+    /// Browser focus has moved, but commit-only side effects are still deferred.
+    Preview,
+    /// Commit-only side effects were requested and still need controller-frame dispatch.
+    DispatchPending(BrowserSelectionCommitRequest),
+    /// The current candidate no longer has deferred commit work.
+    Settled,
+}
+
+/// Side effects still waiting to run before one candidate selection is fully committed.
+#[derive(Clone, Debug)]
+pub(crate) struct BrowserSelectionCommitRequest {
+    /// Whether the focused path should be written into browser/random history.
+    pub(crate) record_focus_history: bool,
+    /// Whether focused-similarity refresh should be scheduled once the commit settles.
+    pub(crate) refresh_similarity_highlight: bool,
+    /// Whether the candidate still needs a committed audio load dispatch.
+    pub(crate) load_requested: bool,
+}
+
+/// Load lifecycle for one browser-selected candidate sample.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BrowserSelectionLoadState {
+    /// The currently visible waveform still belongs to the previously loaded sample.
+    Stable,
+    /// Audio decode is in flight for the candidate sample.
+    Loading,
+    /// Audio decode finished and is waiting for waveform visuals before handoff.
+    AwaitingWaveform,
+}
+
+/// Deferred focused-similarity refresh request for the current browser selection.
+#[derive(Clone, Debug)]
+pub(crate) struct PendingFocusedSimilarityRefresh {
+    /// Sample id used to query near-duplicate highlights.
+    pub(crate) sample_id: String,
+    /// Selected relative wav path expected to still be focused when flushing.
+    pub(crate) relative_path: PathBuf,
+    /// Optional absolute entry index for the focused row.
+    pub(crate) anchor_index: Option<usize>,
+}
+
+/// In-flight focused-similarity highlight query owned by a background worker.
+#[derive(Clone, Debug)]
+pub(crate) struct PendingFocusedSimilarityQuery {
+    /// Monotonic request identifier used to drop stale async results.
+    pub(crate) request_id: u64,
+    /// Source that owned the focused sample when the query started.
+    pub(crate) source_id: SourceId,
+    /// Focused relative wav path expected to still be selected on apply.
+    pub(crate) relative_path: PathBuf,
+}
+
+/// In-flight follow-loaded similarity query owned by a background worker.
+#[derive(Clone, Debug)]
+pub(crate) struct PendingLoadedSimilarityQuery {
+    /// Monotonic request identifier used to drop stale async results.
+    pub(crate) request_id: u64,
+    /// Source that owned the loaded sample when the query started.
+    pub(crate) source_id: SourceId,
+    /// Loaded relative wav path expected to still be active on apply.
+    pub(crate) relative_path: PathBuf,
+    /// Browser snapshot key the similarity order must still match on apply.
+    pub(crate) key: FeatureCacheKey,
+}
+
+/// Cached loaded-similarity query aligned to one retained browser-path snapshot.
+#[derive(Clone, Debug)]
+pub(crate) struct LoadedSimilaritySourceSnapshot {
+    /// Source that owns the cached browser-path snapshot.
+    pub(crate) source_id: SourceId,
+    /// Browser-path snapshot key the cached candidate rows align to.
+    pub(crate) key: FeatureCacheKey,
+    /// Decoded candidate embeddings and DSP rows aligned to browser entry order.
+    pub(crate) candidates: Arc<[LoadedSimilaritySourceCandidate]>,
+}
+
+/// One decoded loaded-similarity candidate aligned to a browser entry.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct LoadedSimilaritySourceCandidate {
+    /// Normalized embedding decoded for this browser entry when similarity data exists.
+    pub(crate) embedding: Option<Arc<[f32]>>,
+    /// Lightweight DSP summary decoded for this browser entry when feature data exists.
+    pub(crate) light_dsp: Option<Arc<[f32]>>,
+}
+
+/// Fully built loaded-similarity query plus the retained source snapshot used to build it.
+#[derive(Clone, Debug)]
+pub(crate) struct LoadedSimilarityQueryData {
+    /// Similarity query aligned to the current browser snapshot.
+    pub(crate) query: SimilarQuery,
+    /// Source-scoped decoded candidate data reusable for future loaded-anchor queries.
+    pub(crate) source_snapshot: LoadedSimilaritySourceSnapshot,
+}
+
+/// Cached loaded-similarity query aligned to one retained browser-path snapshot.
+#[derive(Clone, Debug)]
+pub(crate) struct LoadedSimilarityQueryCache {
+    /// Stable sample identifier for the loaded anchor sample.
+    pub(crate) sample_id: String,
+    /// Reusable similarity ordering for the matching snapshot and sample.
+    pub(crate) query: SimilarQuery,
+    /// Retained decoded source snapshot reusable for matching source/path snapshots.
+    pub(crate) source_snapshot: LoadedSimilaritySourceSnapshot,
+}
+
+/// Pending manual similarity-filter rebuild waiting for wav-entry reload to finish.
+#[derive(Clone, Debug)]
+pub(crate) struct PendingSimilarityFilterRebuild {
+    /// Source that owned the similarity filter when it was scheduled.
+    pub(crate) source_id: SourceId,
+    /// Relative path that should anchor the rebuilt similarity filter.
+    pub(crate) anchor_relative_path: PathBuf,
+}
+
+/// Cached selected-source analysis progress data reused across controller frames.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct AnalysisProgressUiCache {
+    /// Source id that owns the cached progress snapshot.
+    pub(crate) source_id: Option<SourceId>,
+    /// Last source-scoped progress snapshot used for the overlay.
+    pub(crate) scoped_progress: Option<analysis_jobs::AnalysisProgress>,
+    /// When the scoped progress snapshot was last refreshed from a worker or DB.
+    pub(crate) scoped_progress_refreshed_at: Option<Instant>,
+    /// Last snapshot of running jobs shown in the overlay.
+    pub(crate) running_jobs: Vec<crate::app::state::RunningJobSnapshot>,
+    /// When the running-job snapshot list was last refreshed from the DB.
+    pub(crate) running_jobs_refreshed_at: Option<Instant>,
+}
+
+/// Deferred source-analysis metadata write queued after waveform load completes.
+#[derive(Clone, Debug)]
+pub(crate) struct PendingLoadedDurationMetadata {
+    /// Source id used to construct a stable sample id.
+    pub(crate) source_id: SourceId,
+    /// Source root used to open the per-source analysis database.
+    pub(crate) source_root: PathBuf,
+    /// Relative sample path for the loaded waveform.
+    pub(crate) relative_path: PathBuf,
+    /// Loaded waveform duration in seconds.
+    pub(crate) duration_seconds: f32,
+    /// Loaded waveform sample rate in Hz.
+    pub(crate) sample_rate: u32,
+    /// Cached long-sample mark when this path is still selected.
+    pub(crate) long_sample_mark: Option<bool>,
+}
+
+/// In-flight browser feature-cache refresh owned by the controller.
+#[derive(Clone, Debug)]
+pub(crate) struct PendingBrowserFeatureCacheRefresh {
+    /// Monotonic request identifier used to discard stale results.
+    pub(crate) request_id: u64,
+    /// Source that owned the wav-entry snapshot when the refresh was queued.
+    pub(crate) source_id: SourceId,
+    /// Wav-entry snapshot key the refresh rows must still match on apply.
+    pub(crate) key: FeatureCacheKey,
+}

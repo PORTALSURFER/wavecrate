@@ -74,6 +74,12 @@ pub enum ConfigError {
     /// No usable config directory found.
     #[error("No suitable config directory found")]
     NoConfigDir,
+    /// Failed to resolve the configured persistence profile.
+    #[error("Invalid config persistence profile '{profile}'")]
+    InvalidProfile {
+        /// Rejected profile name.
+        profile: String,
+    },
     /// Library database error.
     #[error("Library database error: {0}")]
     Library(#[from] crate::sample_sources::library::LibraryError),

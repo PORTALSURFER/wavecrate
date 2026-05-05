@@ -1,10 +1,9 @@
 /target
 /dist
+.sandbox/
+.worktrees/
 staging
 profile.kernel.etl
-profile.json.gz
-profile.json.gz
-profile.json.gz
 bundle-staging
 .sempal_delete_staging/
 assets/ml/panns_cnn14_16k/*.bpk
@@ -12,3 +11,14 @@ assets/ml/panns_cnn14_16k/*.onnx
 assets/ml/panns_cnn14_16k/*.onnx.data
 assets/ml/panns_cnn14_16k/*.pth
 .ssl
+
+# Generated desktop GUI test artifacts and exports.
+/artifacts/
+/desktop-smoke
+/tmp
+
+# Generated training dataset/model artifacts.
+/dataset/
+/model.json
+/profile.json.gz
+/flamegraph.svg

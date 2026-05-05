@@ -19,9 +19,7 @@ impl TestConfigEnv {
     }
 
     pub(super) fn ensure_app_dir(&self) -> PathBuf {
-        let path = self.dir.path().join(crate::app_dirs::APP_DIR_NAME);
-        std::fs::create_dir_all(&path).unwrap();
-        path
+        crate::app_dirs::app_root_dir().expect("resolve test app root")
     }
 
     pub(super) fn write(&self, path: &Path, data: &str) {

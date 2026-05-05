@@ -1,0 +1,36 @@
+/// Logical focus buckets used to drive contextual keyboard shortcuts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FocusContext {
+    /// No UI surface currently owns focus.
+    None,
+    /// The waveform viewer handles navigation/shortcuts.
+    Waveform,
+    /// The sample browser rows handle navigation/shortcuts.
+    SampleBrowser,
+    /// The source folder browser handles navigation/shortcuts.
+    SourceFolders,
+    /// The sources list handles navigation/shortcuts.
+    SourcesList,
+}
+
+/// Focus metadata shared between the controller and runtime host renderers.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UiFocusState {
+    /// Current focus context.
+    pub context: FocusContext,
+}
+
+impl UiFocusState {
+    /// Update the active focus context.
+    pub fn set_context(&mut self, context: FocusContext) {
+        self.context = context;
+    }
+}
+
+impl Default for UiFocusState {
+    fn default() -> Self {
+        Self {
+            context: FocusContext::None,
+        }
+    }
+}

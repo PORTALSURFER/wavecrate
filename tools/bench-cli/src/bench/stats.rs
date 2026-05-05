@@ -1,0 +1,344 @@
+use super::options::BenchOptions;
+use serde::Serialize;
+use std::time::Instant;
+
+/// Frame-budget proxy used to flag action-loop jank in benchmark summaries.
+const FRAME_BUDGET_US: u64 = 16_667;
+/// Two-frame budget proxy used as a missed-present estimate in benchmark summaries.
+const MISSED_PRESENT_PROXY_BUDGET_US: u64 = FRAME_BUDGET_US * 2;
+
+/// Stage-attributed benchmark helpers split from this module for size limits.
+#[path = "stats/staged.rs"]
+mod staged;
+
+pub(crate) use staged::{
+    StageLatencyBreakdown, StagedLatencySummary, bench_staged_action_with_iters,
+};
+
+#[derive(Clone, Debug, Serialize)]
+pub(super) struct LatencySummary {
+    /// Number of measured latency samples included in this summary.
+    pub(crate) sample_count: usize,
+    /// Warmup iteration count used for each benchmark action.
+    pub(crate) warmup_iters: usize,
+    /// Measured iteration count used for each benchmark action.
+    pub(crate) measure_iters: usize,
+    /// Minimum sampled latency in microseconds.
+    pub(crate) min_us: u64,
+    /// 50th percentile (median) in microseconds.
+    pub(crate) p50_us: u64,
+    /// 95th percentile in microseconds.
+    pub(crate) p95_us: u64,
+    /// 99th percentile in microseconds.
+    pub(crate) p99_us: u64,
+    /// 25th percentile in microseconds.
+    pub(crate) p25_us: u64,
+    /// 75th percentile in microseconds.
+    pub(crate) p75_us: u64,
+    /// Interquartile range in microseconds.
+    pub(crate) iqr_us: u64,
+    /// Maximum sampled latency in microseconds.
+    pub(crate) max_us: u64,
+    /// Mean latency in microseconds.
+    pub(crate) mean_us: f64,
+    /// Standard deviation in microseconds.
+    pub(crate) stddev_us: f64,
+    /// Number of high outliers based on Tukey's upper fence.
+    pub(crate) outlier_high_count: usize,
+    /// Share of high outliers in the measured sample set (0.0-1.0).
+    pub(crate) outlier_high_ratio: f64,
+    /// Frame-budget threshold used to derive jank proxy counters.
+    pub(crate) frame_budget_us: u64,
+    /// Samples above `frame_budget_us` as a frame-jank proxy.
+    pub(crate) frame_jank_count: usize,
+    /// Ratio of `frame_jank_count` to `sample_count`.
+    pub(crate) frame_jank_ratio: f64,
+    /// Samples above `2 * frame_budget_us` as a missed-present proxy.
+    pub(crate) missed_present_proxy_count: usize,
+    /// Ratio of `missed_present_proxy_count` to `sample_count`.
+    pub(crate) missed_present_proxy_ratio: f64,
+}
+
+/// Measure benchmark actions and return a latency summary.
+pub(crate) fn bench_action(
+    options: &BenchOptions,
+    mut f: impl FnMut() -> Result<(), String>,
+) -> Result<LatencySummary, String> {
+    bench_action_with_iters(options.warmup_iters, options.measure_iters, &mut f)
+}
+
+/// Measure benchmark actions with explicitly supplied warmup and measure counts.
+pub(crate) fn bench_action_with_iters(
+    warmup_iters: usize,
+    measure_iters: usize,
+    mut f: impl FnMut() -> Result<(), String>,
+) -> Result<LatencySummary, String> {
+    run_warmup_action(warmup_iters, &mut f)?;
+    let samples_us = run_measure_action(measure_iters, &mut f)?;
+    Ok(summarize(warmup_iters, measure_iters, samples_us))
+}
+
+fn run_warmup_action(
+    warmup_iters: usize,
+    f: &mut impl FnMut() -> Result<(), String>,
+) -> Result<(), String> {
+    for _ in 0..warmup_iters.max(1) {
+        f().map_err(|err| format!("Warmup action failed: {err}"))?;
+    }
+    Ok(())
+}
+
+fn run_measure_action(
+    measure_iters: usize,
+    f: &mut impl FnMut() -> Result<(), String>,
+) -> Result<Vec<u64>, String> {
+    let mut samples_us = Vec::with_capacity(measure_iters.max(1));
+    for _ in 0..measure_iters.max(1) {
+        let started = Instant::now();
+        f().map_err(|err| format!("Measured action failed: {err}"))?;
+        samples_us.push(started.elapsed().as_micros() as u64);
+    }
+    samples_us.sort_unstable();
+    Ok(samples_us)
+}
+
+fn summarize(warmup_iters: usize, measure_iters: usize, samples_us: Vec<u64>) -> LatencySummary {
+    let mut samples_us = samples_us;
+    samples_us.sort_unstable();
+    let sample_count = samples_us.len();
+    let min_us = *samples_us.first().unwrap_or(&0);
+    let max_us = *samples_us.last().unwrap_or(&0);
+    let p25_us = percentile(&samples_us, 0.25);
+    let p50_us = percentile(&samples_us, 0.50);
+    let p95_us = percentile(&samples_us, 0.95);
+    let p99_us = percentile(&samples_us, 0.99);
+    let p75_us = percentile(&samples_us, 0.75);
+    let iqr_us = p75_us.saturating_sub(p25_us);
+    let mean_us = if samples_us.is_empty() {
+        0.0
+    } else {
+        samples_us.iter().copied().map(|v| v as f64).sum::<f64>() / samples_us.len() as f64
+    };
+    let stddev_us = if sample_count == 0 {
+        0.0
+    } else {
+        let variance = samples_us
+            .iter()
+            .map(|value| {
+                let delta = *value as f64 - mean_us;
+                delta * delta
+            })
+            .sum::<f64>()
+            / sample_count as f64;
+        variance.sqrt()
+    };
+    let high_outlier_fence = p75_us as f64 + 1.5 * iqr_us as f64;
+    let outlier_high_count = samples_us
+        .iter()
+        .filter(|value| (**value as f64) > high_outlier_fence)
+        .count();
+    let outlier_high_ratio = if sample_count == 0 {
+        0.0
+    } else {
+        outlier_high_count as f64 / sample_count as f64
+    };
+    let frame_jank_count = samples_us
+        .iter()
+        .filter(|value| **value > FRAME_BUDGET_US)
+        .count();
+    let frame_jank_ratio = if sample_count == 0 {
+        0.0
+    } else {
+        frame_jank_count as f64 / sample_count as f64
+    };
+    let missed_present_proxy_count = samples_us
+        .iter()
+        .filter(|value| **value > MISSED_PRESENT_PROXY_BUDGET_US)
+        .count();
+    let missed_present_proxy_ratio = if sample_count == 0 {
+        0.0
+    } else {
+        missed_present_proxy_count as f64 / sample_count as f64
+    };
+    LatencySummary {
+        sample_count,
+        warmup_iters,
+        measure_iters,
+        min_us,
+        p25_us,
+        p50_us,
+        p95_us,
+        p99_us,
+        p75_us,
+        iqr_us,
+        max_us,
+        mean_us,
+        stddev_us,
+        outlier_high_count,
+        outlier_high_ratio,
+        frame_budget_us: FRAME_BUDGET_US,
+        frame_jank_count,
+        frame_jank_ratio,
+        missed_present_proxy_count,
+        missed_present_proxy_ratio,
+    }
+}
+
+fn percentile(sorted: &[u64], p: f64) -> u64 {
+    if sorted.is_empty() {
+        return 0;
+    }
+    let idx = (sorted.len() as f64 * p.clamp(0.0, 1.0)).ceil() as isize - 1;
+    let idx = (idx.clamp(0, (sorted.len() - 1) as isize) as usize).min(sorted.len() - 1);
+    sorted[idx]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Panic with context when a stats test helper result is an error.
+    fn must<T>(result: Result<T, String>, context: &str) -> T {
+        match result {
+            Ok(value) => value,
+            Err(err) => panic!("{context}: {err}"),
+        }
+    }
+
+    /// Ensure warmup runner executes the action exactly the requested count.
+    #[test]
+    fn run_warmup_invokes_action_exactly() {
+        let mut calls = 0usize;
+        let result = run_warmup_action(3, &mut || {
+            calls += 1;
+            Ok(())
+        });
+        assert!(result.is_ok());
+        assert_eq!(calls, 3);
+    }
+
+    /// Ensure measured runner records and returns sorted timing samples.
+    #[test]
+    fn run_measure_action_collects_timings_and_sorts() {
+        let mut calls = 0usize;
+        let result = run_measure_action(3, &mut || {
+            calls += 1;
+            Ok(())
+        });
+        let samples = must(result, "measured samples");
+        assert_eq!(calls, 3);
+        assert_eq!(samples.len(), 3);
+    }
+
+    /// Ensure summary output reports expected min/max and percentile values.
+    #[test]
+    fn summarize_percentile_handles_empty_and_known_data() {
+        let summary = summarize(0, 4, vec![40_u64, 10_u64, 30_u64, 20_u64, 50_u64]);
+        assert_eq!(summary.min_us, 10);
+        assert_eq!(summary.max_us, 50);
+        assert_eq!(summary.p25_us, 20);
+        assert_eq!(summary.p50_us, 30);
+        assert_eq!(summary.p95_us, 50);
+        assert_eq!(summary.p99_us, 50);
+        assert_eq!(summary.p75_us, 40);
+        assert_eq!(summary.iqr_us, 20);
+        assert_eq!(summary.sample_count, 5);
+        assert_eq!(summary.frame_budget_us, FRAME_BUDGET_US);
+        assert_eq!(summary.frame_jank_count, 0);
+        assert_eq!(summary.missed_present_proxy_count, 0);
+    }
+
+    /// Ensure percentile index rounding and clamping are deterministic.
+    #[test]
+    fn percentile_rounds_and_clamps_indices() {
+        let sorted = vec![10_u64, 20, 30, 40];
+        assert_eq!(percentile(&sorted, 0.5), 20);
+        assert_eq!(percentile(&sorted, 1.0), 40);
+        assert_eq!(percentile(&sorted, -1.0), 10);
+    }
+
+    /// Ensure `bench_action` reports configured warmup/measure sample counts.
+    #[test]
+    fn bench_action_reports_requested_sample_counts() {
+        let mut calls = 0usize;
+        let options = BenchOptions {
+            warmup_iters: 2,
+            measure_iters: 3,
+            ..BenchOptions::default()
+        };
+        let summary = must(
+            bench_action(&options, || {
+                calls += 1;
+                Ok(())
+            }),
+            "bench action",
+        );
+        assert_eq!(summary.warmup_iters, 2);
+        assert_eq!(summary.measure_iters, 3);
+        assert_eq!(calls, 5);
+    }
+
+    /// Ensure measured action failures are wrapped with benchmark context.
+    #[test]
+    fn bench_action_wraps_measured_action_error() {
+        let mut attempts = 0usize;
+        let options = BenchOptions {
+            warmup_iters: 1,
+            measure_iters: 2,
+            ..BenchOptions::default()
+        };
+        let result = bench_action(&options, || {
+            attempts += 1;
+            if attempts > 1 {
+                Err(format!("attempt {attempts} failed"))
+            } else {
+                Ok(())
+            }
+        });
+        let error = result.expect_err("expected failure");
+        assert!(error.contains("Measured action failed: attempt 2 failed"));
+    }
+
+    /// Ensure explicit warmup/measure counts override `BenchOptions` defaults.
+    #[test]
+    fn bench_action_with_iters_uses_explicit_counts() {
+        let mut calls = 0usize;
+        let summary = must(
+            bench_action_with_iters(2, 4, || {
+                calls += 1;
+                Ok(())
+            }),
+            "bench action with explicit counts",
+        );
+        assert_eq!(summary.warmup_iters, 2);
+        assert_eq!(summary.measure_iters, 4);
+        assert_eq!(calls, 6);
+    }
+
+    /// Ensure high-outlier reporting uses deterministic Tukey-fence counting.
+    #[test]
+    fn summarize_reports_high_outlier_count() {
+        let summary = summarize(0, 6, vec![10, 11, 12, 13, 14, 100]);
+        assert_eq!(summary.outlier_high_count, 1);
+        assert!(summary.outlier_high_ratio > 0.0);
+    }
+
+    /// Ensure frame-budget proxy counters classify jank and missed-present samples.
+    #[test]
+    fn summarize_reports_frame_budget_proxy_counts() {
+        let summary = summarize(
+            0,
+            4,
+            vec![
+                100,
+                FRAME_BUDGET_US + 1,
+                MISSED_PRESENT_PROXY_BUDGET_US + 1,
+                400,
+            ],
+        );
+        assert_eq!(summary.frame_jank_count, 2);
+        assert_eq!(summary.missed_present_proxy_count, 1);
+        assert!(summary.frame_jank_ratio > 0.0);
+        assert!(summary.missed_present_proxy_ratio > 0.0);
+    }
+}

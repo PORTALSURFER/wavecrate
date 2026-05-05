@@ -1,8 +1,25 @@
+[workspace]
+members = [
+    ".",
+    "apps/installer",
+    "apps/updater-helper",
+    "crates/sempal-analysis",
+    "crates/sempal-library",
+    "crates/sempal-scan",
+    "tools/analysis-admin",
+    "tools/bench-cli",
+    "tools/gui-test-cli",
+    "tools/similarity-prep",
+]
+default-members = ["."]
+resolver = "3"
+
 [package]
 name = "sempal"
 version = "19.0.0"
 edition = "2024"
 default-run = "sempal"
+autobins = false
 
 [lints.rust]
 warnings = "deny"
@@ -10,7 +27,9 @@ missing_docs = "deny"
 
 [features]
 default = []
-sqlite-ext-unsafe = []
+gui-performance = []
+native-bridge-metrics = []
+sqlite-ext-unsafe = ["sempal-library/sqlite-ext-unsafe"]
 
 [dependencies]
 hound = "3.5.1"
@@ -21,13 +40,18 @@ rusqlite = { version = "0.37.0", features = ["bundled", "load_extension"] }
 uuid = { version = "1.19.0", features = ["v4", "serde"] }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
+bincode = "1.3.3"
 toml = "0.8.19"
 thiserror = "2.0.17"
 regex = "1.12.2"
 directories = "6.0.0"
 rfd = "0.16.0"
-egui = "0.33.2"
-eframe = { version = "0.33.2", default-features = true }
+winit = "0.30.12"
+arboard = "3.6.1"
+pollster = "0.4.0"
+vello = "0.7.0"
+skrifa = "0.40.0"
+radiant = { path = "vendor/radiant" }
 open = "5.3.3"
 image = "0.25.9"
 raw-window-handle = "0.6"
@@ -59,17 +83,12 @@ keyring = "3.6.2"
 chacha20poly1305 = "0.10.1"
 base64 = "0.22.1"
 ed25519-dalek = "2.2.0"
-ndarray = "=0.16.1"
-linfa = "0.8.0"
-linfa-reduction = "0.8.0"
-linfa-tsne = "0.8.0"
-sprs = "=0.11.2"
-hnsw_rs = "0.3.3"
+sempal-analysis = { path = "crates/sempal-analysis" }
+sempal-library = { path = "crates/sempal-library" }
+sempal-scan = { path = "crates/sempal-scan" }
 symphonia = { version = "0.5.4", features = ["wav", "pcm", "mp3", "flac"] }
-hdbscan = "0.12.0"
-rustfft = "6.2.0"
 rayon = "1.10"
-
+crossbeam-queue = "0.3.12"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 
@@ -96,6 +115,12 @@ windows = { version = "0.62.2", features = [
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
 ] }
+windows-sys = { version = "0.61.2", features = [
+    "Win32_Foundation",
+    "Win32_Graphics",
+    "Win32_Graphics_Gdi",
+    "Win32_UI_WindowsAndMessaging",
+] }
 windows-implement = "0.60.2"
 windows-core = "0.62.2"
 winreg = "0.52.0"
@@ -105,9 +130,14 @@ libc = "0.2.176"
 
 [dev-dependencies]
 criterion = "0.8.1"
+filetime = "0.2.26"
 
 [build-dependencies]
 embed-resource = "3.0"
+
+[[bin]]
+name = "sempal"
+path = "src/main.rs"
 
 [[bench]]
 name = "tagging"
@@ -116,3 +146,10 @@ harness = false
 [[bench]]
 name = "ann_index"
 harness = false
+
+[profile.release-local]
+inherits = "release"
+incremental = true
+codegen-units = 256
+opt-level = 2
+strip = "none"

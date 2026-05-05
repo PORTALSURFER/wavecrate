@@ -185,7 +185,7 @@ where
 
     fn is_frame_boundary(&self) -> bool {
         let channels = self.channels.max(1) as u64;
-        self.samples_emitted % channels == 0
+        self.samples_emitted.is_multiple_of(channels)
     }
 
     fn start_fade_if_ready(&mut self) {

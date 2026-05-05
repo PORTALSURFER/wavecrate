@@ -1,0 +1,347 @@
+use super::{UiPoint, controls::DestructiveEditPrompt};
+use crate::selection::SelectionRange;
+use crate::waveform::{WaveformChannelView, WaveformImage};
+use std::collections::VecDeque;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::Instant;
+
+/// Cached waveform image and playback overlays.
+#[derive(Clone, Debug)]
+pub struct WaveformState {
+    /// Cached rendered waveform image.
+    pub image: Option<WaveformImage>,
+    /// Producer-side waveform image identity used for projection/cache invalidation.
+    pub waveform_image_signature: Option<u64>,
+    /// Playhead position and trail state.
+    pub playhead: PlayheadState,
+    /// Last play start position chosen by the user (normalized 0-1).
+    pub last_start_marker: Option<f32>,
+    /// Persistent navigation cursor (normalized 0-1) used by keyboard navigation.
+    pub cursor: Option<f32>,
+    /// Current selection range.
+    pub selection: Option<SelectionRange>,
+    /// Persisted playback-selection start used to anchor BPM grid rendering.
+    ///
+    /// This value is sample-local and survives selection clears so the BPM
+    /// grid can remain aligned to the last established playmark origin until a
+    /// new selection start replaces it. `0.0` represents the sample start
+    /// before any playmark selection has been established.
+    pub last_bpm_grid_origin: f32,
+    /// Cached selection duration label.
+    pub selection_duration: Option<String>,
+    /// Optional edit selection range used for destructive edits (normalized 0-1).
+    pub edit_selection: Option<SelectionRange>,
+    /// Detected slice ranges for the current waveform.
+    pub slices: Vec<SelectionRange>,
+    /// Batch origin that determines how slice exports should be named.
+    pub slice_batch_profile: WaveformSliceBatchProfile,
+    /// Number of duplicate windows represented by the current exact-duplicate cleanup batch.
+    ///
+    /// This is only non-zero when `slice_batch_profile` is
+    /// `WaveformSliceBatchProfile::ExactDuplicateBeats`.
+    pub slice_batch_beat_count: usize,
+    /// Exact-duplicate cleanup metadata for the current cleanup batch.
+    ///
+    /// This stays separate from generic slice review/export state so duplicate
+    /// cleanup can track one preview per duplicate window plus user exemptions.
+    pub duplicate_cleanup: Option<WaveformDuplicateCleanupState>,
+    /// Indices of slice ranges currently selected for edits.
+    pub selected_slices: Vec<usize>,
+    /// Keyboard-first review state for previewed waveform slices.
+    pub slice_review: WaveformSliceReviewState,
+    /// When true, waveform drags paint slice ranges instead of selection.
+    pub slice_mode_enabled: bool,
+    /// Label showing the hovered time position.
+    pub hover_time_label: Option<String>,
+    /// Current waveform channel view mode.
+    pub channel_view: WaveformChannelView,
+    /// When true, selection edits snap to beat-sized steps using the bpm value.
+    pub bpm_snap_enabled: bool,
+    /// When true, playback BPM grids and selection snapping anchor to the playmark selection.
+    ///
+    /// When false, the BPM grid and playback-selection snapping use the sample
+    /// start (`0.0`) as their global anchor.
+    pub relative_bpm_grid_enabled: bool,
+    /// When true, loaded BPM metadata will not override the current BPM value.
+    pub bpm_lock_enabled: bool,
+    /// When true, loaded samples with BPM metadata are time-stretched to match the current BPM.
+    pub bpm_stretch_enabled: bool,
+    /// Last text input for the waveform BPM value.
+    pub bpm_input: String,
+    /// Parsed waveform BPM value used by snapping and stretching when valid.
+    pub bpm_value: Option<f32>,
+    /// Cached transient positions (normalized 0-1) for the loaded waveform.
+    pub transients: Arc<[f32]>,
+    /// When true, transient markers are rendered on the waveform.
+    pub transient_markers_enabled: bool,
+    /// When true, selection drags snap to nearby transient markers (disabled while hidden).
+    pub transient_snap_enabled: bool,
+    /// Cache token for the waveform transients.
+    pub transient_cache_token: Option<u64>,
+    /// Current visible viewport within the waveform (0.0-1.0 normalized).
+    pub view: WaveformView,
+    /// Whether looped playback is enabled.
+    pub loop_enabled: bool,
+    /// When true, loop playback state is locked against auto-updates.
+    pub loop_lock_enabled: bool,
+    /// Whether to normalize audition playback.
+    pub normalized_audition_enabled: bool,
+    /// Optional notice text displayed near the waveform.
+    pub notice: Option<String>,
+    /// User-facing compare-anchor label shown by waveform/transport compare controls.
+    pub compare_anchor_label: Option<String>,
+    /// Optional path for the sample currently loading to drive UI affordances.
+    pub loading: Option<PathBuf>,
+    /// Pending confirmation dialog for destructive edits.
+    pub pending_destructive: Option<DestructiveEditPrompt>,
+    /// Last moment the waveform cursor was moved via mouse hover.
+    pub cursor_last_hover_at: Option<std::time::Instant>,
+    /// Last moment the waveform cursor was moved via keyboard/navigation.
+    pub cursor_last_navigation_at: Option<std::time::Instant>,
+    /// Last pointer position seen over the waveform (screen space).
+    pub hover_pointer_pos: Option<UiPoint>,
+    /// Timestamp of the last time the pointer moved over the waveform.
+    pub hover_pointer_last_moved_at: Option<std::time::Instant>,
+    /// When true, hover should not override the cursor until the pointer moves.
+    pub suppress_hover_cursor: bool,
+    /// Last pointer position used for middle-button waveform panning.
+    pub pan_drag_pos: Option<UiPoint>,
+    /// Start time for the current waveform copy flash.
+    pub copy_flash_at: Option<Instant>,
+    /// Monotonic token incremented when a waveform selection export is queued.
+    ///
+    /// Native shells use this as a one-shot optimistic event marker so they
+    /// can trigger immediate local blink feedback without depending on
+    /// wall-clock synchronization with controller `Instant` values.
+    pub selection_export_flash_nonce: u64,
+    /// Monotonic token incremented when a queued waveform selection export fails.
+    ///
+    /// Native shells use this as a one-shot error event marker so they can
+    /// repaint the selection with a stronger failure color after an optimistic
+    /// submit flash has already been shown.
+    pub selection_export_failure_flash_nonce: u64,
+    /// Monotonic token incremented when preview edit fades are committed.
+    ///
+    /// Native shells use this as a one-shot success event marker so they can
+    /// briefly brighten the edit-selection overlay when fade application
+    /// succeeds without relying on synchronized wall-clock timestamps.
+    pub edit_selection_apply_flash_nonce: u64,
+}
+
+/// Origin of the currently prepared waveform slice batch.
+///
+/// The controller uses this to keep export naming predictable for previewed
+/// silence-split batches while preserving the existing manual slice naming
+/// convention for user-authored slices.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WaveformSliceBatchProfile {
+    /// Slice batch created manually or by legacy slice tools.
+    Manual,
+    /// Slice batch created from silence-only detection.
+    SilenceSplit,
+    /// Slice batch created from exact BPM-aligned duplicate detection.
+    ExactDuplicateBeats,
+}
+
+/// Reviewable duplicate-cleanup batch derived from one waveform scan.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct WaveformDuplicateCleanupState {
+    /// Number of duplicate groups that have one kept canonical hit plus clones.
+    pub group_count: usize,
+    /// Visible duplicate previews in original waveform order.
+    pub previews: Vec<WaveformDuplicateCleanupPreview>,
+}
+
+/// One duplicate-cleanup preview entry shown in slice review mode.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WaveformDuplicateCleanupPreview {
+    /// Cleanup preview range in normalized waveform space.
+    pub range: SelectionRange,
+    /// Stable duplicate-group id for status text and future grouping logic.
+    pub group_id: usize,
+    /// Whether this preview is excluded from destructive cleanup.
+    pub exempted: bool,
+    /// Number of duplicate windows represented by this preview.
+    ///
+    /// This is `1` for detected windows and can be greater when the user merges
+    /// multiple duplicate previews into one wider cleanup span.
+    pub represented_window_count: usize,
+}
+
+/// Keyboard-oriented review state for previewed waveform slices.
+///
+/// Slice review intentionally stays separate from `selected_slices`: edit
+/// selection still powers merge/delete flows, while review focus and export
+/// marks drive fast audition/export decisions after silence splitting.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct WaveformSliceReviewState {
+    /// Whether keyboard slice review mode is currently active.
+    pub active: bool,
+    /// Zero-based index of the slice currently focused for audition.
+    pub focused_index: Option<usize>,
+    /// Zero-based slice indices explicitly marked for export.
+    pub marked_indices: Vec<usize>,
+}
+
+impl Default for WaveformState {
+    fn default() -> Self {
+        Self {
+            image: None,
+            waveform_image_signature: None,
+            playhead: PlayheadState::default(),
+            last_start_marker: None,
+            cursor: None,
+            selection: None,
+            last_bpm_grid_origin: 0.0,
+            selection_duration: None,
+            edit_selection: None,
+            slices: Vec::new(),
+            slice_batch_profile: WaveformSliceBatchProfile::Manual,
+            slice_batch_beat_count: 0,
+            duplicate_cleanup: None,
+            selected_slices: Vec::new(),
+            slice_review: WaveformSliceReviewState::default(),
+            slice_mode_enabled: false,
+            hover_time_label: None,
+            channel_view: WaveformChannelView::Mono,
+            bpm_snap_enabled: false,
+            relative_bpm_grid_enabled: false,
+            bpm_lock_enabled: false,
+            bpm_stretch_enabled: false,
+            bpm_input: "142".to_string(),
+            bpm_value: Some(142.0),
+            transients: Arc::from([]),
+            transient_markers_enabled: true,
+            transient_snap_enabled: false,
+            transient_cache_token: None,
+            view: WaveformView::default(),
+            loop_enabled: false,
+            loop_lock_enabled: false,
+            normalized_audition_enabled: false,
+            notice: None,
+            compare_anchor_label: None,
+            loading: None,
+            pending_destructive: None,
+            cursor_last_hover_at: None,
+            cursor_last_navigation_at: None,
+            hover_pointer_pos: None,
+            hover_pointer_last_moved_at: None,
+            suppress_hover_cursor: false,
+            pan_drag_pos: None,
+            copy_flash_at: None,
+            selection_export_flash_nonce: 0,
+            selection_export_failure_flash_nonce: 0,
+            edit_selection_apply_flash_nonce: 0,
+        }
+    }
+}
+
+/// Normalized bounds describing the visible region of the waveform.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WaveformView {
+    /// Normalized view start (0.0-1.0).
+    pub start: f64,
+    /// Normalized view end (0.0-1.0).
+    pub end: f64,
+}
+
+impl WaveformView {
+    /// Clamp the view to a valid range while keeping the width positive.
+    pub fn clamp(mut self) -> Self {
+        let width = (self.end - self.start).clamp(1e-9, 1.0);
+        let start = self.start.clamp(0.0, 1.0 - width);
+        self.start = start;
+        self.end = (start + width).min(1.0);
+        self
+    }
+
+    /// Width of the viewport.
+    pub fn width(&self) -> f64 {
+        (self.end - self.start).max(1e-9)
+    }
+}
+
+impl Default for WaveformView {
+    fn default() -> Self {
+        Self {
+            start: 0.0,
+            end: 1.0,
+        }
+    }
+}
+
+/// Current playhead position/visibility.
+#[derive(Clone, Debug)]
+pub struct PlayheadState {
+    /// Normalized playhead position.
+    pub position: f32,
+    /// Whether the playhead is visible.
+    pub visible: bool,
+    /// Normalized end of the currently playing span, when any.
+    pub active_span_end: Option<f32>,
+    /// Recent user-triggered seek to avoid large visual jumps on the next progress tick.
+    pub recent_seek: Option<PlayheadSeek>,
+    /// Recent playhead positions used to render a fading trail while playing.
+    pub trail: VecDeque<PlayheadTrailSample>,
+    /// Previous trails that are fading out after a discontinuity (seek/loop/stop).
+    pub fading_trails: Vec<FadingPlayheadTrail>,
+}
+
+impl Default for PlayheadState {
+    fn default() -> Self {
+        Self {
+            position: 0.0,
+            visible: false,
+            active_span_end: None,
+            recent_seek: None,
+            trail: VecDeque::new(),
+            fading_trails: Vec::new(),
+        }
+    }
+}
+
+/// Recently requested seek position used to smooth initial progress updates.
+#[derive(Clone, Copy, Debug)]
+pub struct PlayheadSeek {
+    /// Normalized seek position (0.0-1.0).
+    pub position: f32,
+    /// Monotonic timestamp of when the seek was requested.
+    pub started_at: Instant,
+}
+
+/// Cached samples for a playhead trail that is fading out.
+#[derive(Clone, Debug)]
+pub struct FadingPlayheadTrail {
+    /// Timestamp when the trail started fading.
+    pub started_at: Instant,
+    /// Sampled playhead positions in the trail.
+    pub samples: VecDeque<PlayheadTrailSample>,
+}
+
+/// Single playhead position sample used for rendering a fading trail.
+#[derive(Clone, Copy, Debug)]
+pub struct PlayheadTrailSample {
+    /// Normalized playhead position (0.0-1.0).
+    pub position: f32,
+    /// Monotonic timestamp for trail aging.
+    pub time: Instant,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{WaveformSliceBatchProfile, WaveformState};
+
+    #[test]
+    fn waveform_state_defaults_without_image_signature() {
+        let state = WaveformState::default();
+        assert!(state.image.is_none());
+        assert!(state.waveform_image_signature.is_none());
+        assert_eq!(state.slice_batch_profile, WaveformSliceBatchProfile::Manual);
+        assert_eq!(state.slice_batch_beat_count, 0);
+        assert!(state.duplicate_cleanup.is_none());
+        assert!(!state.slice_review.active);
+        assert!(state.slice_review.focused_index.is_none());
+        assert!(state.slice_review.marked_indices.is_empty());
+    }
+}

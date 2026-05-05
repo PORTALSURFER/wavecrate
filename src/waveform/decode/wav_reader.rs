@@ -31,13 +31,11 @@ impl WaveformRenderer {
 
         if frames > max_frames {
             let peaks = match spec.sample_format {
-                SampleFormat::Float => {
-                    peaks::build_peaks_with_analysis_from_float(
-                        &mut reader,
-                        channels,
-                        spec_sample_rate,
-                    )?
-                }
+                SampleFormat::Float => peaks::build_peaks_with_analysis_from_float(
+                    &mut reader,
+                    channels,
+                    spec_sample_rate,
+                )?,
                 SampleFormat::Int => peaks::build_peaks_with_analysis_from_int(
                     &mut reader,
                     channels,
@@ -100,18 +98,6 @@ fn read_int_samples(
         })
         .collect::<Result<_, _>>()?;
     Ok(raw)
-}
-
-#[cfg(test)]
-#[allow(dead_code)]
-pub(super) fn reset_wav_decode_count() {
-    WAV_DECODE_COUNT.store(0, Ordering::Relaxed);
-}
-
-#[cfg(test)]
-#[allow(dead_code)]
-pub(super) fn wav_decode_count() -> usize {
-    WAV_DECODE_COUNT.load(Ordering::Relaxed)
 }
 
 #[cfg(test)]

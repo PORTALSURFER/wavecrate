@@ -19,6 +19,10 @@ impl WaveformRenderer {
         Self::sample_columns_for_width(samples, channels, width, view)
     }
 
+    /// Sample per-column extrema across the entire input range for a target width/view.
+    ///
+    /// Each output column contains the minimum and maximum sample value represented in
+    /// its span. The empty-input case yields zeroed columns to keep callers' invariants.
     pub(super) fn sample_columns_for_width(
         samples: &[f32],
         channels: usize,

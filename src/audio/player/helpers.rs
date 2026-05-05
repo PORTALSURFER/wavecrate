@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use crate::audio::Source;
+use crate::audio::{OutputAdapter, Source};
 use tracing::warn;
 
 #[cfg(test)]
@@ -9,9 +9,9 @@ use super::super::DEFAULT_ANTI_CLIP_FADE;
 #[cfg(test)]
 use super::super::fade::{EdgeFade, fade_duration};
 use super::super::fade::{FadeOutHandle, FadeOutOnRequest, fade_frames_for_duration};
+use super::AudioPlayer;
 #[cfg(test)]
 use crate::audio::mixer::{decoder_from_bytes, map_seek_error};
-use super::AudioPlayer;
 
 impl AudioPlayer {
     pub(super) fn effective_volume(&self) -> f32 {
@@ -26,8 +26,10 @@ impl AudioPlayer {
     pub(super) fn reset_playback_state(&mut self) {
         self.started_at = None;
         self.play_span = None;
+        self.play_span_frames = None;
         self.looping = false;
         self.loop_offset = None;
+        self.loop_offset_frames = None;
         #[cfg(test)]
         {
             self.elapsed_override = None;
@@ -39,9 +41,21 @@ impl AudioPlayer {
         source: S,
     ) -> (FadeOutHandle, (u32, u16)) {
         let _volume = self.effective_volume();
+        let target_sample_rate = self.output.sample_rate.max(1);
+        let target_channels = self.output.channel_count.max(1);
+        let source: Box<dyn Source + Send> =
+            if source.sample_rate() == target_sample_rate && source.channels() == target_channels {
+                Box::new(source)
+            } else {
+                Box::new(OutputAdapter::new(
+                    source,
+                    target_sample_rate,
+                    target_channels,
+                ))
+            };
         let format = (source.sample_rate(), source.channels());
         let handle = FadeOutHandle::new();
-        
+
         if self
             .stream
             .append_source(FadeOutOnRequest::new(source, handle.clone()), 1.0)
@@ -51,7 +65,7 @@ impl AudioPlayer {
         } else {
             warn!("Failed to append audio source: output stream unavailable");
         }
-        
+
         (handle, format)
     }
 
@@ -83,7 +97,7 @@ impl AudioPlayer {
         }
     }
 
-    pub(super) fn normalized_span(&self, start: f32, end: f32) -> Result<(f32, f32, f32), String> {
+    pub(super) fn normalized_span(&self, start: f64, end: f64) -> Result<(f32, f32, f32), String> {
         let duration = self
             .track_duration
             .ok_or_else(|| "Load a .wav file first".to_string())?;
@@ -95,10 +109,11 @@ impl AudioPlayer {
         } else {
             (end, start)
         };
-        let clamped_start = start.clamp(0.0, 1.0) * duration;
-        let clamped_end = end.clamp(0.0, 1.0) * duration;
-        let mut bounded_start = clamped_start.min(duration);
-        let mut bounded_end = clamped_end.min(duration);
+        let duration64 = f64::from(duration);
+        let clamped_start = start.clamp(0.0, 1.0) * duration64;
+        let clamped_end = end.clamp(0.0, 1.0) * duration64;
+        let mut bounded_start = clamped_start.min(duration64) as f32;
+        let mut bounded_end = clamped_end.min(duration64) as f32;
         let min_span = self.min_span_seconds.unwrap_or(0.01);
         if bounded_end <= bounded_start {
             bounded_end = (bounded_start + min_span).min(duration);

@@ -1,4 +1,5 @@
 //! Gateway API client for creating GitHub issues.
+#![allow(clippy::result_large_err)]
 
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -110,8 +111,8 @@ pub fn fetch_issue_token() -> Result<String, IssueAuthError> {
     let response = match get_with_retry(AUTH_START_URL) {
         Ok(response) => response,
         Err(ureq::Error::Status(code, response)) => {
-            let body =
-                read_body_limited(response, MAX_AUTH_RESPONSE_BYTES).unwrap_or_else(|err| err);
+            let body = http_client::read_response_text(response, MAX_AUTH_RESPONSE_BYTES)
+                .unwrap_or_else(|err| err.to_string());
             return Err(IssueAuthError::ServerError(format!("HTTP {code}: {body}")));
         }
         Err(ureq::Error::Transport(err)) => {
@@ -119,20 +120,23 @@ pub fn fetch_issue_token() -> Result<String, IssueAuthError> {
         }
     };
 
-    let body = read_body_limited(response, MAX_AUTH_RESPONSE_BYTES)
-        .map_err(IssueAuthError::InvalidResponse)?;
+    let body = http_client::read_response_text(response, MAX_AUTH_RESPONSE_BYTES)
+        .map_err(|err| IssueAuthError::InvalidResponse(err.to_string()))?;
     parse_issue_token(&body)
 }
 
 /// Poll for a token using a request ID.
 pub fn poll_issue_token(request_id: &str) -> Result<Option<String>, IssueAuthError> {
-    let url = format!("{BASE_URL}/auth/poll?requestId={}", encode_uri_component(request_id));
+    let url = format!(
+        "{BASE_URL}/auth/poll?requestId={}",
+        encode_uri_component(request_id)
+    );
     let response = match get_with_retry(&url) {
         Ok(response) => response,
         Err(ureq::Error::Status(202, _)) => return Ok(None),
         Err(ureq::Error::Status(code, response)) => {
-            let body =
-                read_body_limited(response, MAX_AUTH_RESPONSE_BYTES).unwrap_or_else(|err| err);
+            let body = http_client::read_response_text(response, MAX_AUTH_RESPONSE_BYTES)
+                .unwrap_or_else(|err| err.to_string());
             return Err(IssueAuthError::ServerError(format!("HTTP {code}: {body}")));
         }
         Err(ureq::Error::Transport(err)) => {
@@ -140,29 +144,29 @@ pub fn poll_issue_token(request_id: &str) -> Result<Option<String>, IssueAuthErr
         }
     };
 
-    let body = read_body_limited(response, MAX_AUTH_RESPONSE_BYTES)
-        .map_err(IssueAuthError::InvalidResponse)?;
-    
+    let body = http_client::read_response_text(response, MAX_AUTH_RESPONSE_BYTES)
+        .map_err(|err| IssueAuthError::InvalidResponse(err.to_string()))?;
+
     #[derive(Deserialize)]
     struct PollResponse {
         #[serde(rename = "sessionId")]
         session_id: Option<String>,
         error: Option<String>,
     }
-    
+
     let parsed: PollResponse = serde_json::from_str(&body)
         .map_err(|err| IssueAuthError::InvalidResponse(err.to_string()))?;
-        
-    if let Some(token) = parsed.session_id {
-        if looks_like_issue_token(&token) {
-            return Ok(Some(token));
-        }
+
+    if let Some(token) = parsed.session_id
+        && looks_like_issue_token(&token)
+    {
+        return Ok(Some(token));
     }
-    
+
     if let Some(err) = parsed.error {
         return Err(IssueAuthError::ServerError(err));
     }
-    
+
     Ok(None)
 }
 
@@ -188,8 +192,8 @@ fn create_issue_with_url(
     let response = match post_with_retry(&url, token, request, &idempotency_key) {
         Ok(response) => response,
         Err(ureq::Error::Status(code, response)) => {
-            let body =
-                read_body_limited(response, MAX_ISSUE_RESPONSE_BYTES).unwrap_or_else(|err| err);
+            let body = http_client::read_response_text(response, MAX_ISSUE_RESPONSE_BYTES)
+                .unwrap_or_else(|err| err.to_string());
             return Err(map_status_error(code, body));
         }
         Err(ureq::Error::Transport(err)) => {
@@ -197,8 +201,8 @@ fn create_issue_with_url(
         }
     };
 
-    let body =
-        read_body_limited(response, MAX_ISSUE_RESPONSE_BYTES).map_err(CreateIssueError::Json)?;
+    let body = http_client::read_response_text(response, MAX_ISSUE_RESPONSE_BYTES)
+        .map_err(|err| CreateIssueError::Json(err.to_string()))?;
     parse_create_issue_response(&body)
 }
 
@@ -268,14 +272,12 @@ fn parse_issue_token(body: &str) -> Result<String, IssueAuthError> {
     if looks_like_issue_token(trimmed) {
         return Ok(trimmed.to_string());
     }
-    if trimmed.starts_with('{') {
-        if let Ok(value) = serde_json::from_str::<serde_json::Value>(trimmed) {
-            if let Some(token) = value.get("token").and_then(|token| token.as_str()) {
-                if looks_like_issue_token(token) {
-                    return Ok(token.to_string());
-                }
-            }
-        }
+    if trimmed.starts_with('{')
+        && let Ok(value) = serde_json::from_str::<serde_json::Value>(trimmed)
+        && let Some(token) = value.get("token").and_then(|token| token.as_str())
+        && looks_like_issue_token(token)
+    {
+        return Ok(token.to_string());
     }
 
     let mut saw_marker = false;
@@ -298,12 +300,6 @@ fn parse_issue_token(body: &str) -> Result<String, IssueAuthError> {
 fn is_session_expired_message(message: &str) -> bool {
     let lowered = message.trim().to_ascii_lowercase();
     lowered.contains("session") && lowered.contains("expired")
-}
-
-fn read_body_limited(response: ureq::Response, max_bytes: usize) -> Result<String, String> {
-    let bytes =
-        http_client::read_response_bytes(response, max_bytes).map_err(|err| err.to_string())?;
-    String::from_utf8(bytes).map_err(|err| err.to_string())
 }
 
 fn get_with_retry(url: &str) -> Result<ureq::Response, ureq::Error> {
@@ -384,6 +380,4 @@ mod tests {
         let err = parse_issue_token("No token here").unwrap_err();
         assert!(err.to_string().contains("Token not found"));
     }
-
-
 }

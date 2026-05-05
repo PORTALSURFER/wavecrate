@@ -1,0 +1,285 @@
+//! Lifecycle and queue-plumbing methods for [`ControllerJobs`].
+
+use super::*;
+use crate::app::controller::AppController;
+use std::time::{Duration, Instant};
+
+/// Phase timings captured while draining controller-owned shutdown work.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct ControllerShutdownTiming {
+    /// Time spent shutting down non-analysis controller workers.
+    pub(crate) jobs_shutdown: Duration,
+    /// Time spent shutting down analysis workers.
+    pub(crate) analysis_shutdown: Duration,
+    /// Time spent inside the full controller shutdown boundary.
+    pub(crate) total: Duration,
+    /// True when workers were cancellation-signaled and detached instead of joined.
+    pub(crate) detached: bool,
+}
+
+impl ControllerJobs {
+    /// Build controller job orchestration from pre-spawned worker channels/handles.
+    pub(in super::super) fn new(init: ControllerJobsInit) -> Self {
+        let ControllerJobsInit {
+            wav_job_tx,
+            wav_job_rx,
+            wav_loader,
+            audio_job_tx,
+            audio_job_rx,
+            audio_loader,
+            recording_waveform_job_tx,
+            recording_waveform_job_rx,
+            recording_waveform_loader,
+            search_job_tx,
+            search_job_rx,
+            search_worker,
+            job_message_queue_capacity,
+        } = init;
+        let (message_tx, message_rx) = new_job_message_queue(job_message_queue_capacity);
+        let source_watcher =
+            crate::app::controller::source_watcher::spawn_source_watcher(message_tx.clone());
+        let repaint_signal = Arc::new(SharedRepaintSignal::default());
+        let latest_waveform_render_request_id = Arc::new(AtomicU64::new(0));
+        let latest_waveform_transient_request_id = Arc::new(AtomicU64::new(0));
+        let file_op_worker =
+            file_op_worker::FileOpWorkerHandle::spawn(message_tx.clone(), repaint_signal.clone());
+        let forwarders = JobForwarderHandles::spawn(JobForwarderSpawnConfig {
+            message_tx: message_tx.clone(),
+            repaint_signal: repaint_signal.clone(),
+            wav_job_rx,
+            audio_job_rx,
+            recording_waveform_job_rx,
+            search_job_rx,
+        });
+
+        Self {
+            wav_job_tx,
+            audio_job_tx,
+            recording_waveform_job_tx,
+            search_job_tx,
+            wav_loader,
+            audio_loader,
+            recording_waveform_loader,
+            search_worker,
+            source_watcher,
+            file_op_worker,
+            forwarders: Some(forwarders),
+            message_tx,
+            message_rx,
+            pending_source: None,
+            pending_select_path: None,
+            pending_audio: None,
+            staged_audio_handoff: None,
+            pending_playback: None,
+            pending_recording_waveform: None,
+            pending_slice_batch_export: None,
+            request_counters: JobRequestCounters::default(),
+            in_progress: JobInProgressState::default(),
+            cancel_handles: JobCancelHandles::default(),
+            pending_folder_scan: None,
+            repaint_signal,
+            latest_waveform_render_request_id,
+            latest_waveform_transient_request_id,
+        }
+    }
+
+    /// Non-blocking receive for one queued worker message.
+    pub(in super::super) fn try_recv_message(&self) -> Result<JobMessage, TryRecvError> {
+        self.message_rx.try_recv()
+    }
+
+    /// Clone the bounded sender used by background workers to emit [`JobMessage`] values.
+    pub(in super::super) fn message_sender(&self) -> JobMessageSender {
+        self.message_tx.clone()
+    }
+
+    /// Install or replace the repaint signal used when async jobs publish updates.
+    pub(crate) fn set_repaint_signal(&self, signal: Arc<dyn RepaintSignal>) {
+        self.repaint_signal.set_signal(Some(signal));
+    }
+
+    /// Shut down background workers owned by the controller to avoid leaking threads on exit.
+    pub(crate) fn shutdown(&mut self) {
+        if let Some(cancel) = self.cancel_handles.scan.as_ref() {
+            cancel.store(true, Ordering::Relaxed);
+        }
+        if let Some(cancel) = self.cancel_handles.folder_scan.as_ref() {
+            cancel.store(true, Ordering::Relaxed);
+        }
+        if let Some(cancel) = self.cancel_handles.trash_move.as_ref() {
+            cancel.store(true, Ordering::Relaxed);
+        }
+        if let Some(cancel) = self.cancel_handles.file_ops.as_ref() {
+            cancel.store(true, Ordering::Relaxed);
+        }
+        if let Some(cancel) = self.cancel_handles.issue_gateway_poll.as_ref() {
+            cancel.store(true, Ordering::Relaxed);
+        }
+        self.source_watcher.shutdown();
+        self.search_worker.shutdown();
+        self.recording_waveform_loader.shutdown();
+        self.audio_loader.shutdown();
+        self.wav_loader.shutdown();
+        self.file_op_worker.shutdown();
+        if let Some(forwarders) = self.forwarders.take() {
+            forwarders.join();
+        }
+    }
+
+    /// Request worker shutdown without waiting for each backing thread to drain.
+    pub(crate) fn request_shutdown_detached(&mut self) {
+        if let Some(cancel) = self.cancel_handles.scan.as_ref() {
+            cancel.store(true, Ordering::Relaxed);
+        }
+        if let Some(cancel) = self.cancel_handles.folder_scan.as_ref() {
+            cancel.store(true, Ordering::Relaxed);
+        }
+        if let Some(cancel) = self.cancel_handles.trash_move.as_ref() {
+            cancel.store(true, Ordering::Relaxed);
+        }
+        if let Some(cancel) = self.cancel_handles.file_ops.as_ref() {
+            cancel.store(true, Ordering::Relaxed);
+        }
+        if let Some(cancel) = self.cancel_handles.issue_gateway_poll.as_ref() {
+            cancel.store(true, Ordering::Relaxed);
+        }
+        self.source_watcher.request_shutdown_detached();
+        self.search_worker.request_shutdown_detached();
+        self.recording_waveform_loader.request_shutdown_detached();
+        self.audio_loader.request_shutdown_detached();
+        self.wav_loader.request_shutdown_detached();
+        self.file_op_worker.request_shutdown_detached();
+        self.forwarders.take();
+    }
+
+    /// Update the source roots watched for on-disk changes.
+    pub(crate) fn update_source_watcher(&self, sources: Vec<SourceWatchEntry>) {
+        self.source_watcher
+            .send(SourceWatchCommand::ReplaceSources(sources));
+    }
+
+    /// Forward one stream-based worker channel into the controller job queue.
+    pub(super) fn start_progress_stream<Message: Send + 'static>(
+        &self,
+        rx: Receiver<Message>,
+        wrap: fn(Message) -> JobMessage,
+        is_finished: fn(&Message) -> bool,
+    ) {
+        spawn_progress_forwarder(ProgressForwarderConfig {
+            message_tx: self.message_tx.clone(),
+            repaint_signal: self.repaint_signal.clone(),
+            rx,
+            wrap,
+            is_finished,
+        });
+    }
+
+    /// Spawn a one-shot background task that always emits one controller job message.
+    pub(in super::super) fn spawn_one_shot_job<Output: Send + 'static>(
+        &self,
+        request_repaint: bool,
+        run: impl FnOnce() -> Output + Send + 'static,
+        wrap: impl FnOnce(Output) -> JobMessage + Send + 'static,
+    ) {
+        let tx = self.message_tx.clone();
+        let signal = self.repaint_signal.clone();
+        thread::spawn(move || {
+            let _ = tx.send(wrap(run()));
+            if request_repaint {
+                signal.request_repaint();
+            }
+        });
+    }
+
+    /// Spawn a one-shot background task that may or may not emit a controller job message.
+    pub(in super::super) fn spawn_optional_one_shot_job(
+        &self,
+        request_repaint: bool,
+        run: impl FnOnce() -> Option<JobMessage> + Send + 'static,
+    ) {
+        let tx = self.message_tx.clone();
+        let signal = self.repaint_signal.clone();
+        thread::spawn(move || {
+            if let Some(message) = run() {
+                let _ = tx.send(message);
+                if request_repaint {
+                    signal.request_repaint();
+                }
+            }
+        });
+    }
+
+    /// Trigger one repaint for queued work that still has messages left to apply.
+    pub(in super::super) fn request_repaint(&self) {
+        self.repaint_signal.request_repaint();
+    }
+}
+
+impl AppController {
+    /// Install the repaint signal used by controller-owned async subsystems.
+    pub(crate) fn set_repaint_signal(&mut self, signal: Arc<dyn RepaintSignal>) {
+        self.runtime.jobs.set_repaint_signal(signal.clone());
+        self.runtime.analysis.set_repaint_signal(signal);
+    }
+
+    /// Shut down background workers owned by the controller.
+    pub(crate) fn shutdown(&mut self) {
+        let _ = self.shutdown_with_timing();
+    }
+
+    /// Shut down background workers and return phase timings for run artifacts.
+    pub(crate) fn shutdown_with_timing(&mut self) -> ControllerShutdownTiming {
+        let total_started = Instant::now();
+        let jobs_started = Instant::now();
+        self.runtime.jobs.shutdown();
+        let jobs_shutdown = jobs_started.elapsed();
+        let analysis_started = Instant::now();
+        self.runtime.analysis.shutdown();
+        let analysis_shutdown = analysis_started.elapsed();
+        ControllerShutdownTiming {
+            jobs_shutdown,
+            analysis_shutdown,
+            total: total_started.elapsed(),
+            detached: false,
+        }
+    }
+
+    /// Request controller worker cancellation without waiting for worker joins.
+    pub(crate) fn request_shutdown_detached_with_timing(&mut self) -> ControllerShutdownTiming {
+        let total_started = Instant::now();
+        let jobs_started = Instant::now();
+        self.runtime.jobs.request_shutdown_detached();
+        let jobs_shutdown = jobs_started.elapsed();
+        let analysis_started = Instant::now();
+        self.runtime.analysis.request_shutdown_detached();
+        let analysis_shutdown = analysis_started.elapsed();
+        ControllerShutdownTiming {
+            jobs_shutdown,
+            analysis_shutdown,
+            total: total_started.elapsed(),
+            detached: true,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn begin_shutdown_blocking_file_op_for_tests(
+        &mut self,
+        sleep_for: Duration,
+    ) -> Result<Arc<AtomicBool>, String> {
+        let started = Arc::new(AtomicBool::new(false));
+        let started_for_worker = started.clone();
+        self.runtime.jobs.begin_one_shot_file_op(move |cancel| {
+            started_for_worker.store(true, Ordering::Relaxed);
+            let deadline = Instant::now() + sleep_for;
+            while Instant::now() < deadline && !cancel.load(Ordering::Relaxed) {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            FileOpResult::FolderCreate(FolderCreateResult {
+                source_id: SourceId::from_string("shutdown-test"),
+                relative_path: PathBuf::from("folder"),
+                result: Ok(()),
+            })
+        })?;
+        Ok(started)
+    }
+}

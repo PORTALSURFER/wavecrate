@@ -26,7 +26,6 @@ pub(super) struct ReleaseAsset {
 #[derive(Debug, Clone, Deserialize)]
 pub(super) struct Release {
     pub(super) tag_name: String,
-    #[allow(dead_code)]
     pub(super) prerelease: bool,
     pub(super) html_url: String,
     pub(super) published_at: Option<String>,
@@ -126,7 +125,7 @@ fn retry_delay_for_error(
     let retry_after = retry_after_delay(err);
     match retry_after {
         Some(delay) => delay.min(config.max_delay),
-        None => backoff_delay(config.base_delay, config.max_delay, attempt),
+        None => http_client::backoff_delay(config.base_delay, config.max_delay, attempt),
     }
 }
 
@@ -154,17 +153,6 @@ fn parse_retry_after(value: &str) -> Option<Duration> {
     let secs = u64::try_from(delta.whole_seconds()).ok()?;
     let nanos = u32::try_from(delta.subsec_nanoseconds()).ok()?;
     Some(Duration::new(secs, nanos))
-}
-
-fn backoff_delay(base: Duration, max: Duration, attempt: usize) -> Duration {
-    let exponent = u32::try_from(attempt.saturating_sub(1)).unwrap_or(u32::MAX);
-    let factor = 1u32.checked_shl(exponent).unwrap_or(u32::MAX);
-    let delay = base.checked_mul(factor).unwrap_or(max);
-    if delay > max {
-        max
-    } else {
-        delay
-    }
 }
 
 fn map_github_error(err: ureq::Error) -> UpdateError {
@@ -340,7 +328,7 @@ mod tests {
     #[test]
     fn retries_on_transient_github_errors() {
         let body = r#"{"ok": true}"#;
-        let responses = vec![
+        let responses = [
             "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n".to_string(),
             "HTTP/1.1 429 Too Many Requests\r\nRetry-After: 0\r\nContent-Length: 0\r\n\r\n"
                 .to_string(),
@@ -359,11 +347,8 @@ mod tests {
 
         let mut index = 0usize;
         let value: serde_json::Value = get_json_with_retry_from(config, || {
-            let current = response_from_str(
-                responses
-                    .get(index)
-                    .expect("response sequence exhausted"),
-            );
+            let current =
+                response_from_str(responses.get(index).expect("response sequence exhausted"));
             attempts.fetch_add(1, Ordering::SeqCst);
             index += 1;
             if index < 3 {

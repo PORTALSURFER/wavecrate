@@ -1,0 +1,189 @@
+//! Folder-browser disk-scan orchestration and refresh policy.
+
+use super::*;
+use crate::app::controller::state::cache::FolderBrowserCacheKey;
+use std::collections::BTreeSet;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
+
+impl AppController {
+    /// Queue a disk scan when the active source needs an updated empty-folder snapshot.
+    pub(super) fn request_folder_browser_disk_scan_if_needed(
+        &mut self,
+        source_id: &SourceId,
+        source_root: &Path,
+        max_age: Duration,
+    ) {
+        let now = Instant::now();
+        let pending_source = self.runtime.jobs.pending_folder_scan_source();
+        if let Some(pending_source) = pending_source.as_ref()
+            && pending_source != source_id
+            && let Some(model) = self
+                .ui_cache
+                .folders
+                .models
+                .get_mut(&FolderBrowserCacheKey {
+                    pane: self.active_folder_pane(),
+                    source_id: pending_source.clone(),
+                })
+        {
+            model.disk_refresh_in_progress = false;
+        }
+        let should_request = {
+            let model = self
+                .ui_cache
+                .folders
+                .models
+                .entry(FolderBrowserCacheKey {
+                    pane: self.active_folder_pane(),
+                    source_id: source_id.clone(),
+                })
+                .or_default();
+            model.show_all_folders
+                && model
+                    .last_disk_refresh
+                    .is_none_or(|last| now.duration_since(last) >= max_age)
+                && !model.disk_refresh_in_progress
+        };
+        if !should_request {
+            return;
+        }
+        if let Some(model) = self
+            .ui_cache
+            .folders
+            .models
+            .get_mut(&FolderBrowserCacheKey {
+                pane: self.active_folder_pane(),
+                source_id: source_id.clone(),
+            })
+        {
+            model.disk_refresh_in_progress = true;
+        }
+        self.runtime
+            .jobs
+            .request_folder_scan(source_id.clone(), source_root.to_path_buf());
+    }
+
+    /// Apply a completed disk scan result to the folder browser cache.
+    pub(crate) fn apply_folder_scan_result(
+        &mut self,
+        result: crate::app::controller::jobs::FolderScanResult,
+    ) {
+        let key = FolderBrowserCacheKey {
+            pane: self.active_folder_pane(),
+            source_id: result.source_id.clone(),
+        };
+        let Some(model) = self.ui_cache.folders.models.get_mut(&key) else {
+            return;
+        };
+        model.disk_folders = result.folders;
+        model.last_disk_refresh = Some(Instant::now());
+        model.disk_refresh_in_progress = false;
+        if self.selection_state.ctx.selected_source.as_ref() == Some(&result.source_id) {
+            self.refresh_folder_browser();
+        }
+    }
+
+    #[cfg(test)]
+    /// Refresh the folder browser while scanning disk folders synchronously (tests only).
+    pub(crate) fn refresh_folder_browser_for_tests(&mut self) {
+        let Some(source_id) = self.selection_state.ctx.selected_source.clone() else {
+            self.ui.sources.folders = FolderBrowserUiState::default();
+            return;
+        };
+        let Some(source) = self.current_source() else {
+            self.ui.sources.folders = FolderBrowserUiState::default();
+            return;
+        };
+        let cancel = AtomicBool::new(false);
+        let disk_folders = scan_disk_folders(&source.root, &cancel);
+        {
+            let model = self
+                .ui_cache
+                .folders
+                .models
+                .entry(FolderBrowserCacheKey {
+                    pane: self.active_folder_pane(),
+                    source_id: source_id.clone(),
+                })
+                .or_default();
+            model.disk_folders = disk_folders;
+            model.last_disk_refresh = Some(Instant::now());
+            model.disk_refresh_in_progress = false;
+        }
+        self.refresh_folder_browser();
+    }
+
+    pub(in crate::app) fn refresh_folder_browser_if_stale(&mut self, max_age: Duration) {
+        let Some(source_id) = self.selection_state.ctx.selected_source.clone() else {
+            return;
+        };
+        let Some(source) = self.current_source() else {
+            return;
+        };
+        let should_refresh = self
+            .ui_cache
+            .folders
+            .models
+            .get(&FolderBrowserCacheKey {
+                pane: self.active_folder_pane(),
+                source_id: source_id.clone(),
+            })
+            .map(|model| {
+                model.show_all_folders
+                    && model
+                        .last_disk_refresh
+                        .is_none_or(|last| Instant::now().duration_since(last) >= max_age)
+            })
+            .unwrap_or(true);
+        self.request_folder_browser_disk_scan_if_needed(&source_id, &source.root, max_age);
+        if should_refresh {
+            self.refresh_folder_browser();
+        }
+    }
+}
+
+/// Scan disk folders under `root`, honoring a cancellation signal.
+pub(crate) fn scan_disk_folders(root: &Path, cancel: &AtomicBool) -> BTreeSet<PathBuf> {
+    let mut folders = BTreeSet::new();
+    collect_disk_folders(root, PathBuf::new(), &mut folders, cancel);
+    folders
+}
+
+fn collect_disk_folders(
+    root: &Path,
+    parent: PathBuf,
+    folders: &mut BTreeSet<PathBuf>,
+    cancel: &AtomicBool,
+) {
+    if cancel.load(Ordering::Relaxed) {
+        return;
+    }
+    let Ok(entries) = fs::read_dir(root) else {
+        return;
+    };
+    for entry in entries {
+        if cancel.load(Ordering::Relaxed) {
+            return;
+        }
+        let Ok(entry) = entry else {
+            continue;
+        };
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        if !file_type.is_dir() {
+            continue;
+        }
+        let name = entry.file_name();
+        let relative = if parent.as_os_str().is_empty() {
+            PathBuf::from(name)
+        } else {
+            parent.join(&name)
+        };
+        folders.insert(relative.clone());
+        collect_disk_folders(&entry.path(), relative, folders, cancel);
+    }
+}

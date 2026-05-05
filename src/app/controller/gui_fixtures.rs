@@ -1,0 +1,435 @@
+//! Deterministic controller fixtures used by GUI test scenarios and tools.
+
+use super::*;
+use crate::app::controller::library::analysis_jobs;
+use crate::app::state::{
+    MapBounds, MapPoint, MapQueryBounds, SampleBrowserActionPrompt, UpdateStatus, WaveformView,
+};
+use hound::{SampleFormat, WavSpec, WavWriter};
+use std::{fs, path::Path, sync::Arc};
+use tempfile::TempDir;
+
+const BROWSER_FIXTURE_ENTRY_COUNT: usize = 40;
+const GUI_TEST_MAP_SOURCE_ID: &str = "gui-map-source";
+const GUI_TEST_MAP_SAMPLE_ID: &str = "gui-map-source::kick_one.wav";
+
+/// One controller fixture and the temporary resources it must keep alive.
+pub(crate) struct GuiFixtureControllerBundle {
+    /// Seeded controller ready for GUI scenario execution.
+    pub controller: AppController,
+    /// Temporary directories that back seeded files and databases.
+    pub sandbox_guards: Vec<TempDir>,
+}
+
+/// Build a deterministic controller fixture for the requested GUI test tag.
+///
+/// These fixtures avoid persisted user configuration so contract tests, CLI
+/// tooling, and desktop smoke runs all start from the same known state.
+pub(crate) fn build_named_gui_fixture_controller(
+    renderer: WaveformRenderer,
+    fixture_tag: &str,
+) -> Result<GuiFixtureControllerBundle, String> {
+    match fixture_tag {
+        "browser" => build_browser_fixture(renderer),
+        "sources" => build_sources_fixture(renderer),
+        "transport" => build_transport_fixture(renderer),
+        "map" => build_map_fixture(renderer),
+        "waveform" => build_waveform_fixture(renderer),
+        "waveform_mixed" => build_waveform_mixed_fixture(renderer),
+        "options" => build_options_fixture(renderer),
+        "prompt" => build_prompt_fixture(renderer),
+        "update" => build_update_fixture(renderer),
+        other => Err(format!("unsupported GUI fixture '{other}'")),
+    }
+}
+
+fn build_browser_fixture(renderer: WaveformRenderer) -> Result<GuiFixtureControllerBundle, String> {
+    build_browser_fixture_with_source_id(renderer, None)
+}
+
+fn build_sources_fixture(renderer: WaveformRenderer) -> Result<GuiFixtureControllerBundle, String> {
+    let mut controller = AppController::new(renderer, None);
+    controller.settings.controls.advance_after_rating = false;
+    let sandbox =
+        tempfile::tempdir().map_err(|err| format!("create sources fixture tempdir: {err}"))?;
+    let source_root = sandbox.path().join("sources-source");
+    fs::create_dir_all(source_root.join("drums").join("kicks")).map_err(|err| {
+        format!(
+            "create sources fixture nested folder {}: {err}",
+            source_root.join("drums").join("kicks").display()
+        )
+    })?;
+    fs::create_dir_all(source_root.join("drums").join("snares")).map_err(|err| {
+        format!(
+            "create sources fixture nested folder {}: {err}",
+            source_root.join("drums").join("snares").display()
+        )
+    })?;
+    fs::create_dir_all(source_root.join("loops")).map_err(|err| {
+        format!(
+            "create sources fixture nested folder {}: {err}",
+            source_root.join("loops").display()
+        )
+    })?;
+    let source = SampleSource::new(source_root);
+    let entries = vec![
+        write_fixture_entry(
+            &source.root,
+            "drums/kicks/tight.wav",
+            &[0.15, -0.20, 0.10, -0.05],
+            crate::sample_sources::Rating::NEUTRAL,
+        )?,
+        write_fixture_entry(
+            &source.root,
+            "drums/snares/snap.wav",
+            &[0.10, -0.08, 0.14, -0.12],
+            crate::sample_sources::Rating::KEEP_1,
+        )?,
+        write_fixture_entry(
+            &source.root,
+            "loops/house_loop.wav",
+            &[0.22, -0.16, 0.18, -0.14],
+            crate::sample_sources::Rating::TRASH_1,
+        )?,
+    ];
+    seed_source_fixture(&mut controller, &source, entries)?;
+    controller.refresh_folder_browser();
+    controller.focus_folder_row(1);
+    Ok(GuiFixtureControllerBundle {
+        controller,
+        sandbox_guards: vec![sandbox],
+    })
+}
+
+fn build_browser_fixture_with_source_id(
+    renderer: WaveformRenderer,
+    source_id: Option<SourceId>,
+) -> Result<GuiFixtureControllerBundle, String> {
+    let mut controller = AppController::new(renderer, None);
+    controller.settings.controls.advance_after_rating = false;
+    let sandbox =
+        tempfile::tempdir().map_err(|err| format!("create browser fixture tempdir: {err}"))?;
+    let source_root = sandbox.path().join("browser-source");
+    fs::create_dir_all(&source_root).map_err(|err| {
+        format!(
+            "create browser fixture source root {}: {err}",
+            source_root.display()
+        )
+    })?;
+    let source = match source_id {
+        Some(source_id) => SampleSource::new_with_id(source_id, source_root),
+        None => SampleSource::new(source_root),
+    };
+    let entries = browser_fixture_entries(&source.root)?;
+    seed_source_fixture(&mut controller, &source, entries)?;
+    seed_browser_fixture_tags(&mut controller, &source)?;
+    controller.select_wav_by_path(Path::new("kick_one.wav"));
+    controller.focus_browser_list();
+    Ok(GuiFixtureControllerBundle {
+        controller,
+        sandbox_guards: vec![sandbox],
+    })
+}
+
+fn build_transport_fixture(
+    renderer: WaveformRenderer,
+) -> Result<GuiFixtureControllerBundle, String> {
+    let mut bundle = build_waveform_fixture(renderer)?;
+    bundle.controller.apply_volume(0.42);
+    Ok(bundle)
+}
+
+fn seed_browser_fixture_tags(
+    controller: &mut AppController,
+    source: &SampleSource,
+) -> Result<(), String> {
+    let db = controller
+        .database_for(source)
+        .map_err(|err| format!("open browser fixture source DB for tags: {err}"))?;
+    for path in [
+        "kick_one.wav",
+        "snare_two.wav",
+        "hat_three.wav",
+        "loop_four.wav",
+    ] {
+        db.assign_tag_to_path(Path::new(path), "Texture")
+            .map_err(|err| format!("seed browser fixture Texture tag for {path}: {err}"))?;
+    }
+    for path in ["kick_one.wav", "kick_08.wav"] {
+        db.assign_tag_to_path(Path::new(path), "Deep Kick")
+            .map_err(|err| format!("seed browser fixture Deep Kick tag for {path}: {err}"))?;
+    }
+    db.assign_tag_to_path(Path::new("fx_five.wav"), "Rare FX")
+        .map_err(|err| format!("seed browser fixture Rare FX tag: {err}"))?;
+    Ok(())
+}
+
+fn browser_fixture_entries(root: &Path) -> Result<Vec<WavEntry>, String> {
+    let mut entries = Vec::with_capacity(BROWSER_FIXTURE_ENTRY_COUNT);
+    for index in 0..BROWSER_FIXTURE_ENTRY_COUNT {
+        let (name, tag) = browser_fixture_entry_spec(index);
+        let samples = browser_fixture_samples(index);
+        entries.push(write_fixture_entry(root, &name, &samples, tag)?);
+    }
+    Ok(entries)
+}
+
+fn browser_fixture_entry_spec(index: usize) -> (String, crate::sample_sources::Rating) {
+    let fixed = match index {
+        0 => Some(("kick_one.wav", crate::sample_sources::Rating::NEUTRAL)),
+        1 => Some(("snare_two.wav", crate::sample_sources::Rating::KEEP_3)),
+        2 => Some(("hat_three.wav", crate::sample_sources::Rating::TRASH_1)),
+        3 => Some(("loop_four.wav", crate::sample_sources::Rating::KEEP_1)),
+        4 => Some(("fx_five.wav", crate::sample_sources::Rating::TRASH_3)),
+        _ => None,
+    };
+    if let Some((name, tag)) = fixed {
+        return (String::from(name), tag);
+    }
+    let prefix = match index % 8 {
+        0 => "kick",
+        1 => "snare",
+        2 => "hat",
+        3 => "loop",
+        4 => "fx",
+        5 => "bass",
+        6 => "perc",
+        _ => "stab",
+    };
+    let name = format!("{prefix}_{index:02}.wav");
+    let tag = match index % 5 {
+        0 => crate::sample_sources::Rating::new(-2),
+        1 => crate::sample_sources::Rating::NEUTRAL,
+        2 => crate::sample_sources::Rating::KEEP_1,
+        3 => crate::sample_sources::Rating::new(2),
+        _ => crate::sample_sources::Rating::TRASH_1,
+    };
+    (name, tag)
+}
+
+fn browser_fixture_samples(index: usize) -> Vec<f32> {
+    let seed = index as f32 + 1.0;
+    vec![
+        0.0125 * seed,
+        0.18 + ((index % 5) as f32 * 0.05),
+        -0.10 - ((index % 4) as f32 * 0.04),
+        0.06 * ((index % 3) as f32 + 1.0),
+        -0.03 * ((index % 6) as f32 + 1.0),
+        0.015 * ((index % 7) as f32 + 1.0),
+    ]
+}
+
+fn build_waveform_fixture(
+    renderer: WaveformRenderer,
+) -> Result<GuiFixtureControllerBundle, String> {
+    let mut bundle = build_browser_fixture(renderer)?;
+    let source = bundle
+        .controller
+        .current_source()
+        .ok_or_else(|| String::from("waveform fixture missing current source"))?;
+    bundle
+        .controller
+        .load_waveform_for_selection(&source, Path::new("kick_one.wav"))?;
+    bundle.controller.ui.waveform.cursor = Some(0.38);
+    bundle.controller.ui.waveform.selection = Some(SelectionRange::new(0.35, 0.45));
+    bundle.controller.ui.waveform.view = WaveformView {
+        start: 0.25,
+        end: 0.75,
+    };
+    bundle.controller.focus_waveform();
+    Ok(bundle)
+}
+
+fn build_waveform_mixed_fixture(
+    renderer: WaveformRenderer,
+) -> Result<GuiFixtureControllerBundle, String> {
+    let mut bundle = build_waveform_fixture(renderer)?;
+    bundle.controller.ui.waveform.edit_selection = Some(SelectionRange::new(0.55, 0.65));
+    bundle
+        .controller
+        .selection_state
+        .edit_range
+        .set_range(bundle.controller.ui.waveform.edit_selection);
+    Ok(bundle)
+}
+
+fn build_map_fixture(renderer: WaveformRenderer) -> Result<GuiFixtureControllerBundle, String> {
+    let mut bundle = build_browser_fixture_with_source_id(
+        renderer,
+        Some(SourceId::from_string(GUI_TEST_MAP_SOURCE_ID)),
+    )?;
+    let source_id = bundle
+        .controller
+        .current_source()
+        .map(|source| source.id.as_str().to_string())
+        .ok_or_else(|| String::from("map fixture missing current source"))?;
+    let sample_id = analysis_jobs::build_sample_id(source_id.as_str(), Path::new("kick_one.wav"));
+    debug_assert_eq!(sample_id, GUI_TEST_MAP_SAMPLE_ID);
+    bundle.controller.set_browser_tab(true);
+    bundle.controller.ui.map.bounds = Some(MapBounds {
+        min_x: -1.0,
+        max_x: 1.0,
+        min_y: -1.0,
+        max_y: 1.0,
+    });
+    bundle.controller.ui.map.cached_bounds_source_id = Some(source_id.clone());
+    bundle.controller.ui.map.cached_bounds_umap_version = Some(String::from("v1"));
+    bundle.controller.ui.map.last_query = Some(MapQueryBounds {
+        min_x: -1.0,
+        max_x: 1.0,
+        min_y: -1.0,
+        max_y: 1.0,
+    });
+    bundle.controller.ui.map.cached_points = vec![MapPoint {
+        sample_id: Arc::<str>::from(sample_id),
+        x: 0.0,
+        y: 0.0,
+        cluster_id: Some(1),
+    }];
+    bundle.controller.ui.map.cached_points_source_id = Some(source_id);
+    bundle.controller.ui.map.cached_points_umap_version = Some(String::from("v1"));
+    bundle.controller.ui.map.cached_points_revision = 1;
+    bundle.controller.ui.map.selected_sample_id = None;
+    bundle.controller.ui.map.hovered_sample_id = None;
+    bundle.controller.ui.map.paint_hover_active_id = None;
+    bundle.controller.focus_browser_list();
+    Ok(bundle)
+}
+
+fn build_options_fixture(renderer: WaveformRenderer) -> Result<GuiFixtureControllerBundle, String> {
+    let mut bundle = build_browser_fixture(renderer)?;
+    bundle.controller.open_options_panel();
+    Ok(bundle)
+}
+
+fn build_prompt_fixture(renderer: WaveformRenderer) -> Result<GuiFixtureControllerBundle, String> {
+    let mut bundle = build_browser_fixture(renderer)?;
+    bundle.controller.ui.browser.pending_action = Some(SampleBrowserActionPrompt::Rename {
+        target: PathBuf::from("kick_one.wav"),
+        name: String::from("kick_one"),
+        input_error: None,
+    });
+    bundle.controller.focus_browser_list();
+    Ok(bundle)
+}
+
+fn build_update_fixture(renderer: WaveformRenderer) -> Result<GuiFixtureControllerBundle, String> {
+    let mut bundle = build_browser_fixture(renderer)?;
+    bundle.controller.ui.update.status = UpdateStatus::UpdateAvailable;
+    bundle.controller.ui.update.available_tag = Some(String::from("v20.1.0"));
+    bundle.controller.ui.update.available_url =
+        Some(String::from("https://example.invalid/releases/v20.1.0"));
+    bundle.controller.ui.update.available_published_at = Some(String::from("2026-03-11T12:00:00Z"));
+    bundle.controller.ui.update.last_error = None;
+    Ok(bundle)
+}
+
+fn seed_source_fixture(
+    controller: &mut AppController,
+    source: &SampleSource,
+    entries: Vec<WavEntry>,
+) -> Result<(), String> {
+    controller.library.sources.push(source.clone());
+    controller.selection_state.ctx.selected_source = Some(source.id.clone());
+    controller
+        .cache_db(source)
+        .map_err(|err| format!("cache GUI fixture source DB: {err}"))?;
+    write_entries_to_source_db(controller, source, &entries)?;
+    controller.wav_entries.clear();
+    controller.wav_entries.source_id = Some(source.id.clone());
+    controller.wav_entries.total = entries.len();
+    controller.wav_entries.insert_page(0, entries);
+    controller.rebuild_wav_lookup();
+    controller.refresh_sources_ui();
+    controller.rebuild_browser_lists();
+    Ok(())
+}
+
+fn write_entries_to_source_db(
+    controller: &mut AppController,
+    source: &SampleSource,
+    entries: &[WavEntry],
+) -> Result<(), String> {
+    let db = controller
+        .database_for(source)
+        .map_err(|err| format!("open GUI fixture source DB: {err}"))?;
+    let mut batch = db
+        .write_batch()
+        .map_err(|err| format!("create GUI fixture source write batch: {err}"))?;
+    for entry in entries {
+        let hash = entry.content_hash.as_deref().unwrap_or("gui-fixture");
+        batch
+            .upsert_file_with_hash_and_tag(
+                &entry.relative_path,
+                entry.file_size,
+                entry.modified_ns,
+                hash,
+                entry.tag,
+                entry.missing,
+            )
+            .map_err(|err| {
+                format!(
+                    "seed GUI fixture DB row {}: {err}",
+                    entry.relative_path.display()
+                )
+            })?;
+    }
+    batch
+        .commit()
+        .map_err(|err| format!("commit GUI fixture source DB batch: {err}"))
+}
+
+fn write_fixture_entry(
+    root: &Path,
+    name: &str,
+    samples: &[f32],
+    tag: crate::sample_sources::Rating,
+) -> Result<WavEntry, String> {
+    let path = root.join(name);
+    let spec = WavSpec {
+        channels: 1,
+        sample_rate: 16_000,
+        bits_per_sample: 32,
+        sample_format: SampleFormat::Float,
+    };
+    let mut writer = WavWriter::create(&path, spec)
+        .map_err(|err| format!("create fixture wav {}: {err}", path.display()))?;
+    for sample in samples {
+        writer
+            .write_sample(*sample)
+            .map_err(|err| format!("write fixture wav {}: {err}", path.display()))?;
+    }
+    writer
+        .finalize()
+        .map_err(|err| format!("finalize fixture wav {}: {err}", path.display()))?;
+    let metadata = fs::metadata(&path)
+        .map_err(|err| format!("read fixture wav metadata {}: {err}", path.display()))?;
+    let modified = metadata
+        .modified()
+        .map_err(|err| format!("read fixture wav modified time {}: {err}", path.display()))?;
+    let modified_ns = modified
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|err| {
+            format!(
+                "fixture wav modified time before epoch {}: {err}",
+                path.display()
+            )
+        })?
+        .as_nanos()
+        .min(i64::MAX as u128) as i64;
+    Ok(WavEntry {
+        relative_path: PathBuf::from(name),
+        file_size: metadata.len(),
+        modified_ns,
+        content_hash: Some(format!("fixture-{name}")),
+        tag,
+        looped: false,
+        sound_type: None,
+        locked: false,
+        missing: false,
+        last_played_at: None,
+        user_tag: None,
+        tag_named: false,
+        normal_tags: Vec::new(),
+    })
+}

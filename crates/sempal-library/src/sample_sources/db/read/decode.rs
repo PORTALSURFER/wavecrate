@@ -1,0 +1,72 @@
+use std::path::PathBuf;
+
+use rusqlite::Row;
+
+use super::super::util::parse_relative_path_from_db;
+use super::super::{Rating, WavEntry};
+
+/// Shared column list for wav-file queries that hydrate full `WavEntry` rows.
+pub(super) const WAV_FILE_SELECT_COLUMNS: &str = "path, file_size, modified_ns, content_hash, tag, looped, sound_type, locked, missing, last_played_at, user_tag, tag_named,
+    (
+        SELECT json_group_array(display_label)
+        FROM (
+            SELECT st.display_label
+            FROM source_tags st
+            JOIN wav_file_tags wft ON wft.tag_id = st.id
+            WHERE wft.path = wav_files.path
+            ORDER BY st.display_label COLLATE NOCASE ASC, st.normalized_text ASC
+        )
+    ) AS normal_tags";
+
+/// Decode a persisted relative path, skipping invalid rows without failing the whole query.
+pub(super) fn decode_relative_path(
+    path: String,
+    context: &str,
+) -> rusqlite::Result<Option<PathBuf>> {
+    match parse_relative_path_from_db(&path) {
+        Ok(relative_path) => Ok(Some(relative_path)),
+        Err(err) => {
+            tracing::warn!("{context}: {path} ({err})");
+            Ok(None)
+        }
+    }
+}
+
+/// Decode a query row whose first column is a relative path.
+pub(super) fn decode_path_row(row: &Row<'_>, context: &str) -> rusqlite::Result<Option<PathBuf>> {
+    let path: String = row.get(0)?;
+    decode_relative_path(path, context)
+}
+
+/// Decode a full wav-file row into the public `WavEntry` contract.
+pub(super) fn decode_wav_entry_row(
+    row: &Row<'_>,
+    context: &str,
+) -> rusqlite::Result<Option<WavEntry>> {
+    let Some(relative_path) = decode_path_row(row, context)? else {
+        return Ok(None);
+    };
+    Ok(Some(WavEntry {
+        relative_path,
+        file_size: row.get::<_, i64>(1)? as u64,
+        modified_ns: row.get(2)?,
+        content_hash: row.get::<_, Option<String>>(3)?,
+        tag: Rating::from_i64(row.get(4)?),
+        looped: row.get::<_, i64>(5)? != 0,
+        sound_type: row
+            .get::<_, Option<String>>(6)?
+            .as_deref()
+            .and_then(super::super::SampleSoundType::from_token),
+        locked: row.get::<_, i64>(7)? != 0,
+        missing: row.get::<_, i64>(8)? != 0,
+        last_played_at: row.get(9)?,
+        user_tag: row.get(10)?,
+        tag_named: row.get::<_, i64>(11)? != 0,
+        normal_tags: decode_normal_tags(row.get(12)?),
+    }))
+}
+
+fn decode_normal_tags(raw: Option<String>) -> Vec<String> {
+    raw.and_then(|value| serde_json::from_str::<Vec<String>>(&value).ok())
+        .unwrap_or_default()
+}

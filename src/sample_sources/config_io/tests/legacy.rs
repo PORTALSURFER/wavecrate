@@ -1,13 +1,13 @@
 use super::super::super::config_types::{
-    AnalysisSettings, AppSettingsCore, DropTargetConfig, FeatureFlags,
-    InteractionOptions, UpdateSettings,
+    AnalysisSettings, AppSettingsCore, DropTargetConfig, FeatureFlags, InteractionOptions,
+    UpdateSettings,
 };
 use super::super::LEGACY_CONFIG_FILE_NAME;
 use super::super::load::load_or_default;
 use super::TestConfigEnv;
 use crate::audio::{AudioInputConfig, AudioOutputConfig};
-use crate::sample_sources::config::AppConfig;
 use crate::sample_sources::SampleSource;
+use crate::sample_sources::config::AppConfig;
 
 #[test]
 fn migrates_from_legacy_json() {
@@ -26,17 +26,21 @@ fn migrates_from_legacy_json() {
                 "legacy_drop",
             ))],
             last_selected_source: None,
+            upper_folder_pane_source: None,
+            lower_folder_pane_source: None,
+            active_folder_pane: None,
             audio_output: AudioOutputConfig::default(),
             audio_input: AudioInputConfig::default(),
             volume: 0.9,
             controls: InteractionOptions::default(),
+            default_identifier: String::from("legacy"),
         },
     };
     let mut data = serde_json::to_value(&legacy).unwrap();
-    if let Some(core) = data.get_mut("core") {
-        if let Some(drop_targets) = core.get_mut("drop_targets") {
-            *drop_targets = serde_json::json!(["legacy_drop"]);
-        }
+    if let Some(core) = data.get_mut("core")
+        && let Some(drop_targets) = core.get_mut("drop_targets")
+    {
+        *drop_targets = serde_json::json!(["legacy_drop"]);
     }
     let data = serde_json::to_vec_pretty(&data).unwrap();
     std::fs::write(&legacy_path, data).unwrap();

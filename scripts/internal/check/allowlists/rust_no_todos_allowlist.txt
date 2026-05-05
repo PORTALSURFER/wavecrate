@@ -1,0 +1,7 @@
+# Allowlist for the Rust TODO/FIXME check.
+#
+# The default rule is: no new TODO/FIXME markers in non-test Rust code.
+# This allowlist exists only as a last resort for rare, well-justified cases.
+#
+# Format: one repo-relative Rust file path per line (no globs).
+

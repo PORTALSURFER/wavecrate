@@ -31,6 +31,7 @@ pub fn resolve_input_stream_config(
         used_fallback = true;
     }
     let sample_rate = stream_config.sample_rate;
+    let stream_channel_count = stream_config.channels;
     Ok(ResolvedInputConfig {
         device,
         stream_config,
@@ -41,7 +42,8 @@ pub fn resolve_input_stream_config(
             device_name,
             sample_rate,
             buffer_size_frames: applied_buffer,
-            channel_count: selection.output_channels,
+            stream_channel_count,
+            recorded_channel_count: selection.output_channels,
             selected_channels: selection.selected_channels,
             used_fallback,
         },
@@ -174,14 +176,14 @@ fn pick_stream_config<'a>(
     let mut picked = None;
     let mut rate = default_rate;
     if let Some(requested) = requested_rate {
-        if let Some(range) = ranges.iter().find(|range| rate_in_range(requested, *range)) {
+        if let Some(range) = ranges.iter().find(|range| rate_in_range(requested, range)) {
             picked = Some(*range);
             rate = requested;
         } else if using_desired {
             *used_fallback = true;
             if let Some(range) = supported
                 .iter()
-                .find(|range| rate_in_range(requested, *range))
+                .find(|range| rate_in_range(requested, range))
             {
                 picked = Some(range);
                 rate = requested;
@@ -194,7 +196,7 @@ fn pick_stream_config<'a>(
     if picked.is_none() {
         if let Some(range) = ranges
             .iter()
-            .find(|range| rate_in_range(default_rate, *range))
+            .find(|range| rate_in_range(default_rate, range))
         {
             picked = Some(*range);
             rate = default_rate;

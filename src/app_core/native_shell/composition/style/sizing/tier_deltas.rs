@@ -1,0 +1,181 @@
+use super::{SizingTokens, base::base_sizing};
+use crate::gui::native_shell::style::LayoutScaleTier;
+
+/// Resolve the shell sizing pack for the requested viewport tier.
+pub(super) fn sizing_for_tier(layout_tier: LayoutScaleTier) -> SizingTokens {
+    let mut sizing = base_sizing();
+    match layout_tier {
+        LayoutScaleTier::Compact => apply_compact_sizing(&mut sizing),
+        LayoutScaleTier::Wide => apply_wide_sizing(&mut sizing),
+        LayoutScaleTier::Standard => {}
+    }
+    sizing
+}
+
+/// Apply the compact-tier deltas to the base sizing pack.
+fn apply_compact_sizing(sizing: &mut SizingTokens) {
+    sizing.frame_inset = 0.0;
+    sizing.panel_gap = 0.0;
+    sizing.top_bar_height = 20.0;
+    sizing.top_bar_title_row_height = 20.0;
+    sizing.top_bar_title_row_min_height = 20.0;
+    sizing.top_bar_title_row_bottom_gap = 0.0;
+    sizing.status_bar_height = 19.0;
+    sizing.sidebar_ratio = 0.23;
+    sizing.sidebar_min_width = 168.0;
+    sizing.sidebar_max_width = 252.0;
+    sizing.content_min_width = 180.0;
+    sizing.waveform_ratio = 0.36;
+    sizing.waveform_min_height = 120.0;
+    sizing.waveform_max_height = 220.0;
+    sizing.column_gap = 5.0;
+    sizing.browser_rows_max_per_column = 36;
+    sizing.panel_inset = 5.0;
+    sizing.header_label_gutter = 3.0;
+    sizing.browser_tabs_height = 18.0;
+    sizing.browser_toolbar_height = 19.0;
+    sizing.browser_table_header_height = 18.0;
+    sizing.browser_footer_height = 16.0;
+    sizing.browser_search_field_min_width = 88.0;
+    sizing.browser_search_field_ratio = 0.22;
+    sizing.browser_index_col_width = 38.0;
+    sizing.browser_bucket_col_width = 76.0;
+    sizing.browser_row_gap = 0.0;
+    sizing.browser_row_height = 15.8;
+    sizing.source_row_gap = 2.0;
+    sizing.source_row_height = 15.8;
+    sizing.source_rows_max = 9;
+    sizing.source_rows_min_when_split = 2;
+    sizing.folder_row_gap = 0.0;
+    sizing.folder_row_height = 14.8;
+    sizing.tree_rows_max = 14;
+    sizing.tree_rows_min = 3;
+    sizing.sidebar_section_gap = 6.0;
+    sizing.source_section_divider_width = 1.0;
+    sizing.header_to_rows_gap = 3.0;
+    sizing.panel_section_padding_top = 1.0;
+    sizing.panel_section_padding_bottom = 1.0;
+    sizing.folder_header_block_height = 28.0;
+    sizing.recovery_badge_height = 13.0;
+    sizing.recovery_badge_min_width = 48.0;
+    sizing.recovery_badge_padding_x = 5.0;
+    sizing.folder_indent_step = 10.0;
+    sizing.title_meta_gap = 2.0;
+    sizing.row_corner_inset = 1.0;
+    sizing.source_header_block_height = 32.0;
+    sizing.column_header_block_height = 19.0;
+    sizing.waveform_header_block_height = 28.0;
+    sizing.source_bottom_padding = 6.0;
+    sizing.column_bottom_padding = 5.0;
+    sizing.action_button_width = 48.0;
+    sizing.action_button_height = 16.0;
+    sizing.action_button_gap = 3.0;
+    sizing.top_bar_cluster_gap = 8.0;
+    sizing.top_volume_meter_width = 76.0;
+    sizing.top_volume_meter_height = 7.0;
+    sizing.top_bar_action_cluster_min_width = 240.0;
+    sizing.top_bar_action_cluster_max_width = 420.0;
+    sizing.status_segment_gap = 8.0;
+    sizing.overlay_padding = 12.0;
+    sizing.prompt_width = 360.0;
+    sizing.prompt_min_height = 118.0;
+    sizing.overlay_button_width = 78.0;
+    sizing.overlay_button_height = 22.0;
+    sizing.progress_bar_height = 10.0;
+    sizing.drag_overlay_height = 22.0;
+    sizing.sidebar_action_button_width = 50.0;
+    sizing.sidebar_action_button_height = 16.0;
+    sizing.sidebar_action_button_gap = 3.0;
+    sizing.focus_stroke_width = 1.2;
+    sizing.hover_fill_alpha = 0.14;
+    sizing.waveform_scan_step = 11.0;
+    sizing.font_title = 13.0;
+    sizing.font_header = 11.0;
+    sizing.font_body = 8.8;
+    sizing.font_meta = 8.4;
+    sizing.font_status = 9.2;
+}
+
+/// Apply the wide-tier deltas to the base sizing pack.
+fn apply_wide_sizing(sizing: &mut SizingTokens) {
+    sizing.frame_inset = 0.0;
+    sizing.panel_gap = 0.0;
+    sizing.top_bar_height = 19.0;
+    sizing.top_bar_title_row_height = 19.0;
+    sizing.top_bar_title_row_min_height = 19.0;
+    sizing.top_bar_title_row_bottom_gap = 0.0;
+    sizing.status_bar_height = 17.0;
+    sizing.sidebar_ratio = 0.17;
+    sizing.sidebar_min_width = 170.0;
+    sizing.sidebar_max_width = 244.0;
+    sizing.content_min_width = 250.0;
+    sizing.waveform_ratio = 0.35;
+    sizing.waveform_min_height = 130.0;
+    sizing.waveform_max_height = 252.0;
+    sizing.column_gap = 6.0;
+    sizing.browser_rows_max_per_column = 64;
+    sizing.panel_inset = 5.0;
+    sizing.header_label_gutter = 3.5;
+    sizing.browser_tabs_height = 18.0;
+    sizing.browser_toolbar_height = 19.0;
+    sizing.browser_table_header_height = 18.0;
+    sizing.browser_footer_height = 16.0;
+    sizing.browser_search_field_min_width = 108.0;
+    sizing.browser_search_field_ratio = 0.24;
+    sizing.browser_index_col_width = 36.0;
+    sizing.browser_bucket_col_width = 84.0;
+    sizing.browser_row_gap = 0.0;
+    sizing.browser_row_height = 17.4;
+    sizing.source_row_gap = 1.5;
+    sizing.source_row_height = 16.9;
+    sizing.source_rows_max = 13;
+    sizing.source_rows_min_when_split = 4;
+    sizing.folder_row_gap = 0.0;
+    sizing.folder_row_height = 16.2;
+    sizing.tree_rows_max = 22;
+    sizing.tree_rows_min = 5;
+    sizing.sidebar_section_gap = 6.0;
+    sizing.source_section_divider_width = 1.0;
+    sizing.header_to_rows_gap = 3.5;
+    sizing.panel_section_padding_top = 1.5;
+    sizing.panel_section_padding_bottom = 1.5;
+    sizing.folder_header_block_height = 30.0;
+    sizing.recovery_badge_height = 14.5;
+    sizing.recovery_badge_min_width = 60.0;
+    sizing.recovery_badge_padding_x = 7.0;
+    sizing.folder_indent_step = 12.0;
+    sizing.title_meta_gap = 2.0;
+    sizing.row_corner_inset = 1.3;
+    sizing.source_header_block_height = 33.0;
+    sizing.column_header_block_height = 20.0;
+    sizing.waveform_header_block_height = 29.0;
+    sizing.source_bottom_padding = 7.0;
+    sizing.column_bottom_padding = 5.0;
+    sizing.action_button_width = 52.0;
+    sizing.action_button_height = 16.5;
+    sizing.action_button_gap = 3.0;
+    sizing.top_bar_cluster_gap = 8.0;
+    sizing.top_volume_meter_width = 82.0;
+    sizing.top_volume_meter_height = 6.5;
+    sizing.top_bar_action_cluster_min_width = 270.0;
+    sizing.top_bar_action_cluster_max_width = 500.0;
+    sizing.status_segment_gap = 9.0;
+    sizing.overlay_padding = 14.0;
+    sizing.prompt_width = 440.0;
+    sizing.prompt_min_height = 130.0;
+    sizing.overlay_button_width = 86.0;
+    sizing.overlay_button_height = 24.0;
+    sizing.progress_bar_height = 12.0;
+    sizing.drag_overlay_height = 24.0;
+    sizing.sidebar_action_button_width = 54.0;
+    sizing.sidebar_action_button_height = 16.5;
+    sizing.sidebar_action_button_gap = 3.0;
+    sizing.focus_stroke_width = 1.3;
+    sizing.hover_fill_alpha = 0.17;
+    sizing.waveform_scan_step = 12.0;
+    sizing.font_title = 13.0;
+    sizing.font_header = 10.8;
+    sizing.font_body = 9.4;
+    sizing.font_meta = 8.9;
+    sizing.font_status = 9.5;
+}

@@ -1,0 +1,258 @@
+//! Cache-key types used to partition retained projection segments.
+
+/// Full app projection cache key for immediate whole-model hit checks.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct NativeProjectionCacheKey {
+    pub(crate) status_revision: u64,
+    pub(crate) sources_selected: Option<usize>,
+    pub(crate) sources_len: usize,
+    pub(crate) tree_rows_len: usize,
+    pub(crate) folder_focused: Option<usize>,
+    pub(crate) folder_search_revision: u64,
+    pub(crate) folder_inline_kind: u8,
+    pub(crate) folder_inline_path_hash: Option<u64>,
+    pub(crate) folder_inline_name_hash: Option<u64>,
+    pub(crate) folder_inline_focus_requested: bool,
+    pub(crate) folder_inline_select_all_on_focus: bool,
+    pub(crate) browser_visible_len: usize,
+    pub(crate) browser_visible_rows_revision: u64,
+    pub(crate) browser_selected_visible: Option<usize>,
+    pub(crate) browser_anchor_visible: Option<usize>,
+    pub(crate) browser_autoscroll: bool,
+    pub(crate) browser_view_window_start: usize,
+    pub(crate) browser_render_window_start: usize,
+    pub(crate) browser_selected_paths_len: usize,
+    pub(crate) browser_selected_paths_revision: u64,
+    pub(crate) browser_auto_rename_rows_hash: u64,
+    pub(crate) browser_row_metadata_revision: u64,
+    pub(crate) browser_tag_sidebar_selected_count: usize,
+    pub(crate) browser_tag_sidebar_primary_hash: u64,
+    pub(crate) browser_tag_sidebar_target_hash: u64,
+    pub(crate) browser_tag_sidebar_input_hash: u64,
+    pub(crate) browser_search_revision: u64,
+    pub(crate) browser_similarity_filtered: bool,
+    pub(crate) browser_duplicate_cleanup_active: bool,
+    pub(crate) browser_tag_sidebar_open: bool,
+    pub(crate) browser_tag_sidebar_auto_rename: bool,
+    pub(crate) browser_filter: u8,
+    pub(crate) browser_sort: u8,
+    pub(crate) browser_tab: u8,
+    pub(crate) audio_engine_chip_state: u8,
+    pub(crate) audio_engine_chip_label_hash: u64,
+    pub(crate) audio_engine_overlay_hash: u64,
+    pub(crate) options_panel_hash: u64,
+    pub(crate) progress_overlay_hash: u64,
+    pub(crate) confirm_prompt_hash: u64,
+    pub(crate) drag_overlay_hash: u64,
+    pub(crate) waveform_signature: Option<u64>,
+    pub(crate) waveform_selection_start_milli: Option<u16>,
+    pub(crate) waveform_selection_end_milli: Option<u16>,
+    pub(crate) waveform_selection_start_micros: Option<u32>,
+    pub(crate) waveform_selection_end_micros: Option<u32>,
+    pub(crate) waveform_edit_selection_start_milli: Option<u16>,
+    pub(crate) waveform_edit_selection_end_milli: Option<u16>,
+    pub(crate) waveform_edit_selection_start_micros: Option<u32>,
+    pub(crate) waveform_edit_selection_end_micros: Option<u32>,
+    pub(crate) waveform_edit_fade_in_end_milli: Option<u16>,
+    pub(crate) waveform_edit_fade_in_mute_start_milli: Option<u16>,
+    pub(crate) waveform_edit_fade_in_curve_milli: Option<u16>,
+    pub(crate) waveform_edit_fade_out_start_milli: Option<u16>,
+    pub(crate) waveform_edit_fade_out_mute_end_milli: Option<u16>,
+    pub(crate) waveform_edit_fade_out_curve_milli: Option<u16>,
+    pub(crate) waveform_edit_fade_in_end_micros: Option<u32>,
+    pub(crate) waveform_edit_fade_in_mute_start_micros: Option<u32>,
+    pub(crate) waveform_edit_fade_out_start_micros: Option<u32>,
+    pub(crate) waveform_edit_fade_out_mute_end_micros: Option<u32>,
+    pub(crate) waveform_view_start_milli: u16,
+    pub(crate) waveform_view_end_milli: u16,
+    pub(crate) waveform_view_start_micros: u32,
+    pub(crate) waveform_view_end_micros: u32,
+    pub(crate) waveform_view_start_nanos: u32,
+    pub(crate) waveform_view_end_nanos: u32,
+    pub(crate) waveform_loop_enabled: bool,
+    pub(crate) waveform_loop_lock_enabled: bool,
+    pub(crate) waveform_bpm_bits: Option<u32>,
+    pub(crate) waveform_channel_view: u8,
+    pub(crate) waveform_normalized_audition_enabled: bool,
+    pub(crate) waveform_bpm_snap_enabled: bool,
+    pub(crate) waveform_relative_bpm_grid_enabled: bool,
+    pub(crate) waveform_transient_snap_enabled: bool,
+    pub(crate) waveform_transient_markers_enabled: bool,
+    pub(crate) waveform_slice_mode_enabled: bool,
+    pub(crate) map_open: bool,
+    pub(crate) map_zoom_bits: u32,
+    pub(crate) map_pan_x_bits: u32,
+    pub(crate) map_pan_y_bits: u32,
+    pub(crate) map_selection_revision: u64,
+    pub(crate) map_hover_revision: u64,
+    pub(crate) map_dataset_revision: u64,
+    pub(crate) map_query_revision: u64,
+    pub(crate) map_points_revision: u64,
+    pub(crate) update_status: u8,
+    pub(crate) update_revision: u64,
+    pub(crate) loaded_wav_revision: u64,
+    pub(crate) volume_milli: u16,
+    pub(crate) transport_running: bool,
+    pub(crate) focus_context: u8,
+}
+
+/// Status-bar projection key scoped to status and footer-affecting state.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct StatusProjectionCacheKey {
+    pub(crate) status_revision: u64,
+    pub(crate) browser_visible_len: usize,
+    pub(crate) browser_selected_paths_len: usize,
+    pub(crate) browser_anchor_visible: Option<usize>,
+    pub(crate) browser_search_revision: u64,
+    pub(crate) browser_search_busy: bool,
+    pub(crate) inline_progress_visible: bool,
+    pub(crate) inline_progress_completed: usize,
+    pub(crate) inline_progress_total: usize,
+    pub(crate) inline_progress_cancel_requested: bool,
+    pub(crate) inline_progress_title_hash: u64,
+    pub(crate) inline_progress_detail_hash: Option<u64>,
+    pub(crate) selected_column: usize,
+}
+
+/// Browser metadata/chrome projection key scoped to non-row browser state.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct BrowserFrameProjectionCacheKey {
+    pub(crate) browser_visible_len: usize,
+    pub(crate) browser_selected_visible: Option<usize>,
+    pub(crate) browser_anchor_visible: Option<usize>,
+    pub(crate) browser_autoscroll: bool,
+    pub(crate) browser_view_window_start: usize,
+    pub(crate) browser_selected_paths_len: usize,
+    pub(crate) browser_search_revision: u64,
+    pub(crate) browser_search_busy: bool,
+    pub(crate) browser_similarity_filtered: bool,
+    pub(crate) browser_duplicate_cleanup_active: bool,
+    pub(crate) browser_sort: u8,
+    pub(crate) browser_tab: u8,
+    pub(crate) browser_similarity_follow_loaded: bool,
+    pub(crate) loaded_wav_revision: u64,
+}
+
+/// Browser tag-sidebar projection key scoped to target-sensitive sidebar state.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct BrowserTagSidebarProjectionCacheKey {
+    pub(crate) browser_row_metadata_revision: u64,
+    pub(crate) browser_tag_sidebar_selected_count: usize,
+    pub(crate) browser_tag_sidebar_primary_hash: u64,
+    pub(crate) browser_tag_sidebar_target_hash: u64,
+    pub(crate) browser_tag_sidebar_input_hash: u64,
+    pub(crate) browser_tag_sidebar_open: bool,
+    pub(crate) browser_tag_sidebar_auto_rename: bool,
+    pub(crate) browser_tab: u8,
+}
+
+/// Browser rows projection key scoped to windowed row content.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct BrowserRowsProjectionCacheKey {
+    pub(crate) browser_visible_rows_revision: u64,
+    pub(crate) browser_visible_len: usize,
+    pub(crate) browser_render_window_start: usize,
+    pub(crate) browser_row_metadata_revision: u64,
+    pub(crate) browser_duplicate_cleanup_active: bool,
+    pub(crate) browser_tab: u8,
+}
+
+/// Browser row-state key scoped to focused and selected row decorations.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct BrowserRowsStateProjectionCacheKey {
+    pub(crate) browser_selected_visible: Option<usize>,
+    pub(crate) browser_selected_paths_revision: u64,
+    pub(crate) browser_auto_rename_rows_hash: u64,
+}
+
+/// Map-panel projection key scoped to similarity-map-affecting state.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct MapProjectionCacheKey {
+    pub(crate) map_open: bool,
+    pub(crate) map_zoom_bits: u32,
+    pub(crate) map_pan_x_bits: u32,
+    pub(crate) map_pan_y_bits: u32,
+    pub(crate) map_selection_revision: u64,
+    pub(crate) map_hover_revision: u64,
+    pub(crate) map_dataset_revision: u64,
+    pub(crate) map_query_revision: u64,
+    pub(crate) map_points_revision: u64,
+    pub(crate) browser_tab: u8,
+}
+
+/// Waveform projection key scoped to waveform panel/chrome state.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct WaveformProjectionCacheKey {
+    pub(crate) waveform_signature: Option<u64>,
+    pub(crate) waveform_selection_start_milli: Option<u16>,
+    pub(crate) waveform_selection_end_milli: Option<u16>,
+    pub(crate) waveform_selection_start_micros: Option<u32>,
+    pub(crate) waveform_selection_end_micros: Option<u32>,
+    pub(crate) waveform_edit_selection_start_milli: Option<u16>,
+    pub(crate) waveform_edit_selection_end_milli: Option<u16>,
+    pub(crate) waveform_edit_selection_start_micros: Option<u32>,
+    pub(crate) waveform_edit_selection_end_micros: Option<u32>,
+    pub(crate) waveform_edit_fade_in_end_milli: Option<u16>,
+    pub(crate) waveform_edit_fade_in_mute_start_milli: Option<u16>,
+    pub(crate) waveform_edit_fade_in_curve_milli: Option<u16>,
+    pub(crate) waveform_edit_fade_out_start_milli: Option<u16>,
+    pub(crate) waveform_edit_fade_out_mute_end_milli: Option<u16>,
+    pub(crate) waveform_edit_fade_out_curve_milli: Option<u16>,
+    pub(crate) waveform_edit_fade_in_end_micros: Option<u32>,
+    pub(crate) waveform_edit_fade_in_mute_start_micros: Option<u32>,
+    pub(crate) waveform_edit_fade_out_start_micros: Option<u32>,
+    pub(crate) waveform_edit_fade_out_mute_end_micros: Option<u32>,
+    pub(crate) waveform_view_start_milli: u16,
+    pub(crate) waveform_view_end_milli: u16,
+    pub(crate) waveform_view_start_micros: u32,
+    pub(crate) waveform_view_end_micros: u32,
+    pub(crate) waveform_view_start_nanos: u32,
+    pub(crate) waveform_view_end_nanos: u32,
+    pub(crate) waveform_loop_enabled: bool,
+    pub(crate) waveform_loop_lock_enabled: bool,
+    pub(crate) waveform_bpm_bits: Option<u32>,
+    pub(crate) waveform_channel_view: u8,
+    pub(crate) waveform_normalized_audition_enabled: bool,
+    pub(crate) waveform_bpm_snap_enabled: bool,
+    pub(crate) waveform_relative_bpm_grid_enabled: bool,
+    pub(crate) waveform_transient_snap_enabled: bool,
+    pub(crate) waveform_transient_markers_enabled: bool,
+    pub(crate) waveform_slice_mode_enabled: bool,
+    pub(crate) loaded_wav_revision: u64,
+    pub(crate) transport_running: bool,
+}
+
+/// Projection key for static fields that are not part of explicit segment buckets.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct NonSegmentStaticProjectionCacheKey {
+    pub(crate) sources_selected: Option<usize>,
+    pub(crate) sources_len: usize,
+    pub(crate) tree_rows_len: usize,
+    pub(crate) folder_focused: Option<usize>,
+    pub(crate) folder_search_revision: u64,
+    pub(crate) folder_inline_kind: u8,
+    pub(crate) folder_inline_path_hash: Option<u64>,
+    pub(crate) folder_inline_name_hash: Option<u64>,
+    pub(crate) folder_inline_focus_requested: bool,
+    pub(crate) folder_inline_select_all_on_focus: bool,
+    pub(crate) update_status: u8,
+    pub(crate) update_revision: u64,
+    pub(crate) volume_milli: u16,
+    pub(crate) transport_running: bool,
+    pub(crate) focus_context: u8,
+    pub(crate) trash_count: usize,
+    pub(crate) neutral_count: usize,
+    pub(crate) keep_count: usize,
+    pub(crate) audio_engine_chip_state: u8,
+    pub(crate) audio_engine_chip_label_hash: u64,
+}
+
+/// Projection key for non-segment overlays outside explicit static segment buckets.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct NonSegmentOverlayProjectionCacheKey {
+    pub(crate) audio_engine_overlay_hash: u64,
+    pub(crate) options_panel_hash: u64,
+    pub(crate) progress_overlay_hash: u64,
+    pub(crate) confirm_prompt_hash: u64,
+    pub(crate) drag_overlay_hash: u64,
+}

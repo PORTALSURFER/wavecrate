@@ -1,16 +1,16 @@
+#[cfg(unix)]
+use super::super::super::config_types::AppSettings;
 use super::super::super::config_types::{
     AnalysisSettings, AppSettingsCore, DropTargetColor, DropTargetConfig, FeatureFlags,
     InteractionOptions, TooltipMode, UpdateChannel, UpdateSettings,
 };
 use super::super::load::load_settings_from;
-use super::super::save::save_to_path;
-use super::TestConfigEnv;
 #[cfg(unix)]
 use super::super::save::save_settings_to_path;
+use super::super::save::save_to_path;
+use super::TestConfigEnv;
 use crate::audio::{AudioInputConfig, AudioOutputConfig};
 use crate::sample_sources::config::AppConfig;
-#[cfg(unix)]
-use super::super::super::config_types::AppSettings;
 use crate::sample_sources::library::LibraryState;
 use crate::sample_sources::{SampleSource, SourceId};
 use crate::waveform::WaveformChannelView;
@@ -138,10 +138,10 @@ fn settings_round_trip_preserves_fields() {
                 max_analysis_duration_seconds: 12.5,
                 limit_similarity_prep_duration: false,
                 long_sample_threshold_seconds: 42.0,
-            analysis_worker_count: 2,
-            fast_similarity_prep: true,
-            fast_similarity_prep_sample_rate: 8_000,
-        },
+                analysis_worker_count: 2,
+                fast_similarity_prep: true,
+                fast_similarity_prep_sample_rate: 8_000,
+            },
             updates: UpdateSettings {
                 channel: UpdateChannel::Nightly,
                 check_on_startup: false,
@@ -158,6 +158,9 @@ fn settings_round_trip_preserves_fields() {
                 DropTargetConfig::new(std::path::PathBuf::from("drops/b")),
             ],
             last_selected_source: Some(source_id.clone()),
+            upper_folder_pane_source: Some(source_id.clone()),
+            lower_folder_pane_source: None,
+            active_folder_pane: Some(String::from("upper")),
             audio_output: AudioOutputConfig {
                 host: Some("coreaudio".into()),
                 device: Some("Test Interface".into()),
@@ -183,6 +186,7 @@ fn settings_round_trip_preserves_fields() {
                 destructive_yolo_mode: true,
                 waveform_channel_view: WaveformChannelView::SplitStereo,
                 bpm_snap_enabled: true,
+                relative_bpm_grid_enabled: true,
                 bpm_lock_enabled: true,
                 bpm_stretch_enabled: true,
                 bpm_value: 123.0,
@@ -194,6 +198,7 @@ fn settings_round_trip_preserves_fields() {
                 tooltip_mode: TooltipMode::Regular,
                 loop_lock_enabled: true,
             },
+            default_identifier: String::from("artist"),
         },
     };
 
@@ -278,7 +283,10 @@ fn settings_round_trip_preserves_fields() {
         cfg.core.controls.anti_clip_fade_ms
     );
     assert_eq!(
-        round_trip.core.controls.auto_edge_fades_on_selection_exports,
+        round_trip
+            .core
+            .controls
+            .auto_edge_fades_on_selection_exports,
         cfg.core.controls.auto_edge_fades_on_selection_exports
     );
     assert_eq!(
@@ -292,6 +300,10 @@ fn settings_round_trip_preserves_fields() {
     assert_eq!(
         round_trip.core.controls.bpm_snap_enabled,
         cfg.core.controls.bpm_snap_enabled
+    );
+    assert_eq!(
+        round_trip.core.controls.relative_bpm_grid_enabled,
+        cfg.core.controls.relative_bpm_grid_enabled
     );
     assert_eq!(
         round_trip.core.controls.bpm_lock_enabled,

@@ -160,13 +160,11 @@ fn commit_entry(entry: &StagedEntry) -> Result<CommittedEntry, UpdateError> {
         fs::rename(&entry.dest, &entry.old_path)?;
     }
     if let Err(err) = fs::rename(&entry.new_path, &entry.dest) {
-        if had_dest {
-            if let Err(restore_err) = fs::rename(&entry.old_path, &entry.dest) {
-                return Err(UpdateError::Invalid(format!(
-                    "Failed to swap {}: {err}; restore failed: {restore_err}",
-                    entry.dest.display()
-                )));
-            }
+        if had_dest && let Err(restore_err) = fs::rename(&entry.old_path, &entry.dest) {
+            return Err(UpdateError::Invalid(format!(
+                "Failed to swap {}: {err}; restore failed: {restore_err}",
+                entry.dest.display()
+            )));
         }
         return Err(err.into());
     }

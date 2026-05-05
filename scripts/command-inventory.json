@@ -1,0 +1,326 @@
+{
+  "public_entrypoints": [
+    {
+      "path": "scripts/agent.ps1",
+      "role": "Agent request, preflight, checks, and hook install helpers.",
+      "windows_supported": true
+    },
+    {
+      "path": "scripts/agent.sh",
+      "role": "Agent request, preflight, checks, and hook install helpers.",
+      "windows_supported": false
+    },
+    {
+      "path": "scripts/bootstrap.ps1",
+      "role": "Repository bootstrap and hook installation.",
+      "windows_supported": true
+    },
+    {
+      "path": "scripts/bootstrap.sh",
+      "role": "Repository bootstrap and hook installation.",
+      "windows_supported": false
+    },
+    {
+      "path": "scripts/check.ps1",
+      "role": "Focused guardrails and reporting helpers.",
+      "windows_supported": true
+    },
+    {
+      "path": "scripts/check.sh",
+      "role": "Focused guardrails and reporting helpers.",
+      "windows_supported": false
+    },
+    {
+      "path": "scripts/ci.ps1",
+      "role": "Validation lanes: smoke, agent, quick, and local.",
+      "windows_supported": true
+    },
+    {
+      "path": "scripts/ci.sh",
+      "role": "Validation lanes: smoke, agent, quick, and local.",
+      "windows_supported": false
+    },
+    {
+      "path": "scripts/doctor.ps1",
+      "role": "Environment diagnostics.",
+      "windows_supported": true
+    },
+    {
+      "path": "scripts/doctor.sh",
+      "role": "Environment diagnostics.",
+      "windows_supported": false
+    },
+    {
+      "path": "scripts/gui.ps1",
+      "role": "Windows GUI validation lanes.",
+      "windows_supported": true
+    },
+    {
+      "path": "scripts/perf.ps1",
+      "role": "PowerShell runtime performance helpers.",
+      "windows_supported": true
+    },
+    {
+      "path": "scripts/perf.sh",
+      "role": "Runtime performance helpers, including bash-only calibration.",
+      "windows_supported": false
+    },
+    {
+      "path": "scripts/run.ps1",
+      "role": "Sandbox, cleanup, log, and bug-bundle helpers.",
+      "windows_supported": true
+    },
+    {
+      "path": "scripts/run.sh",
+      "role": "Sandbox, cleanup, log, and bug-bundle helpers.",
+      "windows_supported": false
+    }
+  ],
+  "compatibility_wrappers": [
+    {
+      "path": "scripts/bug_bundle.ps1",
+      "canonical": "scripts/run.ps1 bug-bundle",
+      "decision": "retain",
+      "reason": "Preserves older diagnostic bundle commands while docs migrate to scripts/run.ps1."
+    },
+    {
+      "path": "scripts/ci_agent.ps1",
+      "canonical": "scripts/ci.ps1 agent",
+      "decision": "retain",
+      "reason": "Preserves older agent-safe validation commands during dispatcher migration."
+    },
+    {
+      "path": "scripts/ci_local.ps1",
+      "canonical": "scripts/ci.ps1 local",
+      "decision": "retain",
+      "reason": "Preserves older full CI commands while canonical docs use scripts/ci.ps1 local."
+    },
+    {
+      "path": "scripts/ci_quick.ps1",
+      "canonical": "scripts/ci.ps1 quick",
+      "decision": "retain",
+      "reason": "Preserves older quick validation commands during dispatcher migration."
+    },
+    {
+      "path": "scripts/clean_sandbox.ps1",
+      "canonical": "scripts/run.ps1 clean",
+      "decision": "retain",
+      "reason": "Preserves older sandbox cleanup commands while docs migrate to scripts/run.ps1."
+    },
+    {
+      "path": "scripts/devcheck.ps1",
+      "canonical": "scripts/ci.ps1 smoke",
+      "decision": "retain",
+      "reason": "Preserves the long-standing smoke/devcheck muscle-memory command."
+    },
+    {
+      "path": "scripts/latest_log.ps1",
+      "canonical": "scripts/run.ps1 logs",
+      "decision": "retain",
+      "reason": "Preserves older latest-log commands while docs migrate to scripts/run.ps1."
+    },
+    {
+      "path": "scripts/run_sandbox.ps1",
+      "canonical": "scripts/run.ps1 sandbox",
+      "decision": "retain",
+      "reason": "Preserves older sandbox run commands while docs migrate to scripts/run.ps1."
+    }
+  ],
+  "top_level_non_commands": [
+    "scripts/README.md",
+    "scripts/command-inventory.json"
+  ],
+  "dispatchers": [
+    {
+      "path": "scripts/agent.ps1",
+      "kind": "powershell",
+      "internal_root": "scripts/internal/agent",
+      "commands": [
+        {
+          "name": "checks",
+          "target": "run_agent_ci_checks.ps1"
+        },
+        {
+          "name": "install-hooks",
+          "target": "install_agent_preflight_hooks.sh"
+        },
+        {
+          "name": "preflight",
+          "target": "run_agent_preflight.ps1"
+        },
+        {
+          "name": "request",
+          "target": "run_agent_request.ps1"
+        }
+      ]
+    },
+    {
+      "path": "scripts/check.ps1",
+      "kind": "powershell",
+      "internal_root": "scripts/internal/check",
+      "commands": [
+        {
+          "name": "app-core-boundary",
+          "target": "check_app_core_dependency_boundary.ps1"
+        },
+        {
+          "name": "cleanup-hotspots",
+          "target": "audit_cleanup_hotspots.ps1"
+        },
+        {
+          "name": "codeowners",
+          "target": "check_codeowners_coverage.ps1"
+        },
+        {
+          "name": "dead-deps",
+          "target": "check_rust_dead_deps_advisory.sh"
+        },
+        {
+          "name": "docs-index",
+          "target": "check_docs_index.ps1"
+        },
+        {
+          "name": "file-size-budget",
+          "target": "check_file_size_budget.ps1"
+        },
+        {
+          "name": "fix-doc-links",
+          "target": "fix_trivial_doc_links.ps1"
+        },
+        {
+          "name": "golden-tests",
+          "target": "ci_golden_tests.ps1"
+        },
+        {
+          "name": "knowledge",
+          "target": "knowledge_lint.ps1"
+        },
+        {
+          "name": "legacy-app-coupling",
+          "target": "check_legacy_app_coupling.ps1"
+        },
+        {
+          "name": "manual-docs-scope",
+          "target": "check_manual_docs_scope.ps1"
+        },
+        {
+          "name": "markdown-links",
+          "target": "check_markdown_links.ps1"
+        },
+        {
+          "name": "migration-boundary",
+          "target": "check_migration_boundary.ps1"
+        },
+        {
+          "name": "next-branch",
+          "target": "check_next_branch.ps1"
+        },
+        {
+          "name": "private-docs",
+          "target": "check_rust_private_docs.ps1"
+        },
+        {
+          "name": "prune-file-budget",
+          "target": "prune_file_size_budget_allowlist.ps1"
+        },
+        {
+          "name": "public-docs",
+          "target": "check_rust_public_docs.ps1"
+        },
+        {
+          "name": "report-env-vars",
+          "target": "report_env_vars_drift.sh"
+        },
+        {
+          "name": "report-file-budget",
+          "target": "report_file_size_budget_allowlist.sh"
+        },
+        {
+          "name": "report-markdown-links",
+          "target": "report_markdown_links_all.sh"
+        },
+        {
+          "name": "run-contract-smoke",
+          "target": "check_run_contract_smoke.sh"
+        },
+        {
+          "name": "rust-no-todos",
+          "target": "check_rust_no_todos.ps1"
+        },
+        {
+          "name": "script-guardrails",
+          "target": "check_script_guardrails.ps1"
+        },
+        {
+          "name": "taste",
+          "target": "check_rust_taste_invariants.ps1"
+        },
+        {
+          "name": "workflow-toolchain",
+          "target": "check_workflow_toolchain_pinning.ps1"
+        }
+      ]
+    },
+    {
+      "path": "scripts/ci.ps1",
+      "kind": "powershell",
+      "internal_root": "scripts/internal/ci",
+      "commands": [
+        {
+          "name": "agent",
+          "target": "ci_agent.ps1"
+        },
+        {
+          "name": "local",
+          "target": "ci_local.ps1"
+        },
+        {
+          "name": "quick",
+          "target": "ci_quick.ps1"
+        },
+        {
+          "name": "smoke",
+          "target": "devcheck.ps1"
+        }
+      ]
+    },
+    {
+      "path": "scripts/perf.ps1",
+      "kind": "powershell",
+      "internal_root": "scripts/internal/perf",
+      "commands": [
+        {
+          "name": "guard",
+          "target": "run_perf_guard.ps1"
+        },
+        {
+          "name": "wheel-stability",
+          "target": "run_perf_wheel_stability.ps1"
+        }
+      ]
+    },
+    {
+      "path": "scripts/run.ps1",
+      "kind": "powershell",
+      "internal_root": "scripts/internal/run",
+      "commands": [
+        {
+          "name": "bug-bundle",
+          "target": "bug_bundle.ps1"
+        },
+        {
+          "name": "clean",
+          "target": "clean_sandbox.ps1"
+        },
+        {
+          "name": "logs",
+          "target": "latest_log.ps1"
+        },
+        {
+          "name": "sandbox",
+          "target": "run_sandbox.ps1"
+        }
+      ]
+    }
+  ]
+}

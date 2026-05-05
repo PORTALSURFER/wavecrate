@@ -20,7 +20,7 @@ impl Wsola {
     pub(crate) fn new(sample_rate: u32) -> Self {
         let mut window_size = ((sample_rate.max(1) as f32) * 0.025).round() as usize;
         window_size = window_size.clamp(256, 4096);
-        if window_size % 2 != 0 {
+        if !window_size.is_multiple_of(2) {
             window_size += 1;
         }
         let hop_s = window_size / 2;
@@ -48,9 +48,7 @@ impl Wsola {
         if input_frames < self.window_size * 2 {
             return input.to_vec();
         }
-        let output_frames = ((input_frames as f64) / ratio)
-            .round()
-            .max(1.0) as usize;
+        let output_frames = ((input_frames as f64) / ratio).round().max(1.0) as usize;
         let mut output = vec![0.0; output_frames * channels];
         let mono_input = mono_from_interleaved(input, channels);
         let mut mono_output = vec![0.0; output_frames];
@@ -70,11 +68,8 @@ impl Wsola {
 
         while synthesis_pos + self.window_size <= output_frames && max_analysis_start > 0 {
             let expected = analysis_pos.round() as isize;
-            let expected_clamped =
-                expected.clamp(0, max_analysis_start as isize) as usize;
-            let search_start = expected
-                .saturating_sub(self.search_radius as isize)
-                .max(0) as usize;
+            let expected_clamped = expected.clamp(0, max_analysis_start as isize) as usize;
+            let search_start = expected.saturating_sub(self.search_radius as isize).max(0) as usize;
             let search_end = (expected + self.search_radius as isize)
                 .min(max_analysis_start as isize)
                 .max(0) as usize;
@@ -117,8 +112,7 @@ impl Wsola {
                 let dst_frame = synthesis_pos + i;
                 let window = self.window[i];
                 for ch in 0..channels {
-                    output[dst_frame * channels + ch] +=
-                        input[src_frame * channels + ch] * window;
+                    output[dst_frame * channels + ch] += input[src_frame * channels + ch] * window;
                 }
                 mono_output[dst_frame] += mono_input[src_frame] * window;
             }
@@ -145,15 +139,16 @@ fn hann_window(size: usize) -> Vec<f32> {
 }
 
 fn mono_from_interleaved(samples: &[f32], channels: usize) -> Vec<f32> {
-    let frames = samples.len() / channels.max(1);
+    let channels = channels.max(1);
+    let frames = samples.len() / channels;
     let mut mono = vec![0.0; frames];
-    for frame in 0..frames {
+    for (frame, mono_slot) in mono.iter_mut().enumerate() {
         let mut sum = 0.0f32;
         let base = frame * channels;
         for ch in 0..channels {
             sum += samples[base + ch];
         }
-        mono[frame] = sum / channels as f32;
+        *mono_slot = sum / channels as f32;
     }
     mono
 }
@@ -189,5 +184,17 @@ mod tests {
             .iter()
             .fold(0.0f32, |acc, sample| acc.max(sample.abs()));
         assert!(max <= 1e-6);
+    }
+
+    #[test]
+    fn mono_from_interleaved_averages_channels() {
+        let samples = [1.0f32, 3.0, 5.0, 7.0];
+        assert_eq!(mono_from_interleaved(&samples, 2), vec![2.0, 6.0]);
+    }
+
+    #[test]
+    fn mono_from_interleaved_treats_zero_channels_as_mono() {
+        let samples = [1.0f32, 2.0, 3.0];
+        assert_eq!(mono_from_interleaved(&samples, 0), samples.to_vec());
     }
 }
