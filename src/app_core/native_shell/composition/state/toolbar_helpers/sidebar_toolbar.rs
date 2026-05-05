@@ -1,6 +1,7 @@
 //! Sidebar action, source-add, and context-menu helper geometry.
 
 use super::super::*;
+use crate::compat_app_contract::FolderPaneIdModel;
 
 pub(in crate::gui::native_shell::state) fn render_source_add_button_overlay(
     primitives: &mut impl PrimitiveSink,
@@ -110,27 +111,36 @@ pub(in crate::gui::native_shell::state) fn sidebar_sections(
     style: &StyleTokens,
     model: &AppModel,
 ) -> SidebarSections {
+    let active_pane = model.sources.active_folder_pane;
     let resolved = compute_sidebar_row_sections(
         layout.sidebar_rows,
         style.sizing,
         SidebarRowCounts {
             source_rows: rendered_source_rows(style, model),
-            upper_tree_rows: model.sources.upper_folder_pane.tree_rows.len(),
-            lower_tree_rows: model.sources.lower_folder_pane.tree_rows.len(),
+            upper_tree_rows: model.sources.active_folder_pane_model().tree_rows.len(),
+            lower_tree_rows: 0,
         },
     );
-    SidebarSections {
-        upper: SidebarPaneSections {
-            bounds: resolved.upper_folder_pane.bounds,
-            source_rows: resolved.upper_folder_pane.source_rows,
-            folder_header: resolved.upper_folder_pane.header,
-            tree_rows: resolved.upper_folder_pane.rows,
+    let visible = SidebarPaneSections {
+        bounds: resolved.upper_folder_pane.bounds,
+        source_rows: resolved.upper_folder_pane.source_rows,
+        folder_header: resolved.upper_folder_pane.header,
+        tree_rows: resolved.upper_folder_pane.rows,
+    };
+    let hidden = SidebarPaneSections {
+        bounds: resolved.lower_folder_pane.bounds,
+        source_rows: resolved.lower_folder_pane.source_rows,
+        folder_header: resolved.lower_folder_pane.header,
+        tree_rows: resolved.lower_folder_pane.rows,
+    };
+    match active_pane {
+        FolderPaneIdModel::Upper => SidebarSections {
+            upper: visible,
+            lower: hidden,
         },
-        lower: SidebarPaneSections {
-            bounds: resolved.lower_folder_pane.bounds,
-            source_rows: resolved.lower_folder_pane.source_rows,
-            folder_header: resolved.lower_folder_pane.header,
-            tree_rows: resolved.lower_folder_pane.rows,
+        FolderPaneIdModel::Lower => SidebarSections {
+            upper: hidden,
+            lower: visible,
         },
     }
 }

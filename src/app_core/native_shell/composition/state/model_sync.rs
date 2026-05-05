@@ -54,10 +54,9 @@ impl NativeShellState {
             || model.sources.rows.iter().any(|row| row.selected)
             || model
                 .sources
-                .upper_folder_pane
+                .active_folder_pane_model()
                 .tree_rows
                 .iter()
-                .chain(model.sources.lower_folder_pane.tree_rows.iter())
                 .any(|row| row.focused || row.selected);
     }
 

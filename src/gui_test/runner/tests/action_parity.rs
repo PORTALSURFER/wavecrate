@@ -56,7 +56,7 @@ fn browser_nodes_advertise_expected_action_ids() {
         ),
         (
             "browser",
-            "sources.upper.source_row.0",
+            "sources.source_row.0",
             &[
                 "select_source_row",
                 "reload_source_row",
@@ -67,7 +67,7 @@ fn browser_nodes_advertise_expected_action_ids() {
         ),
         (
             "browser",
-            "sources.upper.folder_visibility_toggle",
+            "sources.folder_visibility_toggle",
             &["toggle_show_all_folders"],
         ),
         (
@@ -77,7 +77,7 @@ fn browser_nodes_advertise_expected_action_ids() {
         ),
         (
             "sources",
-            "sources.upper.folder_row.1",
+            "sources.folder_row.1",
             &[
                 "focus_folder_row",
                 "activate_folder_row",
@@ -147,29 +147,16 @@ fn sidebar_nodes_advertise_expected_action_ids() {
     let cases: &[(&str, &str, &[&str])] = &[
         ("browser", "sources.add_button", &["open_add_source_dialog"]),
         ("sources", "sources.panel", &["focus_sources_panel"]),
+        ("sources", "sources.source_list", &["focus_sources_panel"]),
+        ("sources", "sources.folder_browser", &["focus_folder_panel"]),
         (
             "sources",
-            "sources.upper.source_list",
-            &["focus_sources_panel"],
-        ),
-        (
-            "sources",
-            "sources.lower.source_list",
-            &["focus_sources_panel"],
-        ),
-        (
-            "sources",
-            "sources.upper.folder_browser",
-            &["focus_folder_panel"],
-        ),
-        (
-            "sources",
-            "sources.upper.folder_flatten_toggle",
+            "sources.folder_flatten_toggle",
             &["toggle_folder_flattened_view"],
         ),
         (
             "sources",
-            "sources.upper.folder_row.1",
+            "sources.folder_row.1",
             &[
                 "focus_folder_row",
                 "activate_folder_row",
@@ -179,18 +166,7 @@ fn sidebar_nodes_advertise_expected_action_ids() {
         ),
         (
             "browser",
-            "sources.upper.source_row.0",
-            &[
-                "select_source_row",
-                "reload_source_row",
-                "hard_sync_source_row",
-                "open_source_folder_row",
-                "remove_source_row",
-            ],
-        ),
-        (
-            "browser",
-            "sources.lower.source_row.0",
+            "sources.source_row.0",
             &[
                 "select_source_row",
                 "reload_source_row",

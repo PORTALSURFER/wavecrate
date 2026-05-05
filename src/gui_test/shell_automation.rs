@@ -18,6 +18,11 @@ fn child<'a>(
         .unwrap_or_else(|| panic!("missing automation child {id}"))
 }
 
+/// Return true when the automation subtree contains the given node ID.
+fn contains_node(parent: &NativeAutomationNodeSnapshot, id: &str) -> bool {
+    parent.id.0 == id || parent.children.iter().any(|child| contains_node(child, id))
+}
+
 #[test]
 fn automation_snapshot_exposes_semantic_shell_nodes_from_sempal_fixture() {
     let mut model = NativeAppModel::default();
@@ -76,6 +81,10 @@ fn automation_snapshot_exposes_semantic_shell_nodes_from_sempal_fixture() {
     assert_eq!(table.role, NativeAutomationRole::Table);
     assert_eq!(row.label.as_deref(), Some("kick_001.wav"));
     assert!(row.selected);
+    assert!(contains_node(sources, "sources.source_list"));
+    assert!(contains_node(sources, "sources.folder_browser"));
+    assert!(!contains_node(sources, "sources.upper.source_list"));
+    assert!(!contains_node(sources, "sources.lower.source_list"));
 }
 
 #[test]

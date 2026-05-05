@@ -33,9 +33,7 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
     ) -> Option<UiAction> {
-        [FolderPaneIdModel::Upper, FolderPaneIdModel::Lower]
-            .into_iter()
-            .find_map(|pane| folder_header_action(layout, model, pane, point))
+        folder_header_action(layout, model, model.sources.active_folder_pane, point)
     }
 }
 
@@ -83,13 +81,13 @@ fn folder_header_action(
         && button.enabled
         && button.rect.contains(point)
     {
-        return Some(UiAction::ToggleShowAllFolders { pane: Some(pane) });
+        return Some(UiAction::ToggleShowAllFolders { pane: None });
     }
     if let Some(button) = toggle.flatten_toggle_button
         && button.enabled
         && button.rect.contains(point)
     {
-        return Some(UiAction::ToggleFolderFlattenedView { pane: Some(pane) });
+        return Some(UiAction::ToggleFolderFlattenedView { pane: None });
     }
     None
 }

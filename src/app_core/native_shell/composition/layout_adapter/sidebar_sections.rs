@@ -1,9 +1,9 @@
-//! Slotized source/folder section partitioning for the sidebar rows band.
+//! Source/folder section partitioning for the sidebar rows band.
 
 use super::super::style::SizingTokens;
 use crate::gui::types::{Point, Rect};
 
-/// Slot-resolved rectangles for one fixed folder pane inside the sidebar band.
+/// Resolved rectangles for the visible folder browser inside the sidebar band.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct SidebarFolderPaneSections {
     pub bounds: Rect,
@@ -12,7 +12,7 @@ pub(crate) struct SidebarFolderPaneSections {
     pub rows: Rect,
 }
 
-/// Slot-resolved source/folder section rectangles inside the sidebar rows band.
+/// Source/folder section rectangles inside the sidebar rows band.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct SidebarRowSections {
     pub upper_folder_pane: SidebarFolderPaneSections,
@@ -36,6 +36,11 @@ struct SidebarPaneHeights {
 }
 
 /// Compute source/folder sections inside `layout.sidebar_rows`.
+///
+/// The model still carries upper/lower pane fields for persisted-state
+/// compatibility, but the native sidebar now exposes one source list and one
+/// folder browser. The visible section is returned in the upper slot; callers
+/// can remap it to an active compatibility slot when needed.
 pub(crate) fn compute_sidebar_row_sections(
     sidebar_rows: Rect,
     sizing: SizingTokens,
@@ -47,28 +52,14 @@ pub(crate) fn compute_sidebar_row_sections(
         sizing.panel_section_padding_bottom,
     );
     let empty = Rect::from_min_max(section_bounds.max, section_bounds.max);
-    let midpoint = section_bounds.min.y + (section_bounds.height() * 0.5);
-    let upper_bounds = Rect::from_min_max(
-        section_bounds.min,
-        Point::new(section_bounds.max.x, midpoint.min(section_bounds.max.y)),
-    );
-    let lower_bounds = Rect::from_min_max(
-        Point::new(section_bounds.min.x, midpoint.max(section_bounds.min.y)),
-        section_bounds.max,
-    );
     SidebarRowSections {
         upper_folder_pane: resolve_pane_sections(
-            upper_bounds,
+            section_bounds,
             sizing,
             counts.source_rows,
             counts.upper_tree_rows,
         ),
-        lower_folder_pane: resolve_pane_sections(
-            lower_bounds,
-            sizing,
-            counts.source_rows,
-            counts.lower_tree_rows,
-        ),
+        lower_folder_pane: empty_pane_sections(empty),
     }
     .with_empty_fallback(empty)
 }

@@ -10,14 +10,11 @@ impl NativeShellState {
         point: Point,
     ) -> Option<(FolderPaneIdModel, usize)> {
         let style = style_for_layout(layout);
-        [FolderPaneIdModel::Upper, FolderPaneIdModel::Lower]
-            .into_iter()
-            .find_map(|pane| {
-                self.cached_tree_rows(layout, &style, model, pane)
-                    .iter()
-                    .find(|row| row.rect.contains(point))
-                    .map(|row| (pane, row.row_index))
-            })
+        let pane = model.sources.active_folder_pane;
+        self.cached_tree_rows(layout, &style, model, pane)
+            .iter()
+            .find(|row| row.rect.contains(point))
+            .map(|row| (pane, row.row_index))
     }
 
     /// Return the folder pane whose header or rows band contains the point.
@@ -29,12 +26,10 @@ impl NativeShellState {
     ) -> Option<FolderPaneIdModel> {
         let style = style_for_layout(layout);
         let sections = sidebar_sections(layout, &style, model);
-        [FolderPaneIdModel::Upper, FolderPaneIdModel::Lower]
-            .into_iter()
-            .find(|pane| {
-                let folder_sections = sections.folder_header(*pane);
-                folder_sections.contains(point) || sections.tree_rows(*pane).contains(point)
-            })
+        let pane = model.sources.active_folder_pane;
+        let folder_sections = sections.folder_header(pane);
+        (folder_sections.contains(point) || sections.tree_rows(pane).contains(point))
+            .then_some(pane)
     }
 
     /// Return whether a point falls within either folder pane.

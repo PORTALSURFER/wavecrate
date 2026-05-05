@@ -74,27 +74,13 @@ pub(super) fn render_folder_header(
     if header_layout.title_row.width() <= 8.0 {
         return;
     }
-    let title_prefix = if pane.active {
-        "Active"
-    } else {
-        pane.title.as_str()
-    };
     emit_text(
         text_runs,
         TextRun {
-            text: format!(
-                "{} Pane: {} ({})",
-                title_prefix,
-                pane.item_label,
-                pane.tree_rows.len()
-            ),
+            text: format!("Folders: {} ({})", pane.item_label, pane.tree_rows.len()),
             position: header_layout.title_row.min,
             font_size: ctx.sizing.font_header,
-            color: if pane.active {
-                ctx.style.accent_mint
-            } else {
-                ctx.style.text_primary
-            },
+            color: ctx.style.accent_mint,
             max_width: Some(header_layout.title_row.width()),
             align: TextAlign::Left,
         },
