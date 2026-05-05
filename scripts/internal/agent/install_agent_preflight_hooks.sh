@@ -6,7 +6,7 @@
 #
 # Hooks installed for sempal:
 # - post-merge / post-checkout: rerun agent preflight
-# - pre-commit / pre-push: fail unless sempal uses local `next` tracking `origin/next`
+# - pre-commit / pre-push: fail unless sempal uses local `main` tracking `origin/main`
 #
 # Hooks installed for vendor/radiant:
 # - post-merge / post-checkout / pre-commit / pre-push: fail unless radiant uses
@@ -25,7 +25,7 @@ usage() {
   cat <<'USAGE'
 Usage: scripts/internal/agent/install_agent_preflight_hooks.sh [--force]
 
-Install local git hooks that keep sempal and vendor/radiant on their shared
+Install local git hooks that keep sempal and vendor/radiant on their expected
 development branches and rerun agent preflight checks after repo-level source
 updates.
 

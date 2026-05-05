@@ -51,7 +51,7 @@ try {
   Enable-SempalCargoCache
   Write-Host "[ci_quick] branch policy"
   Invoke-NativeStep -Label "branch policy" -Command {
-    & (Join-Path $rootDir "scripts/check.ps1") next-branch
+    & (Join-Path $rootDir "scripts/check.ps1") main-branch
   }
 
   if ($Workspace) {

@@ -48,7 +48,7 @@ try {
   Enable-SempalCargoCache
   Write-Host "[ci_agent] branch policy"
   Invoke-NativeStep -Label "branch policy" -Command {
-    & (Join-Path $rootDir "scripts/check.ps1") next-branch
+    & (Join-Path $rootDir "scripts/check.ps1") main-branch
   }
 
   Write-Host "[ci_agent] scripts/ci.ps1 smoke"

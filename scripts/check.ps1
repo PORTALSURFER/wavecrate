@@ -32,6 +32,7 @@ $commands = @{
   "legacy-app-coupling" = "check_legacy_app_coupling.ps1"
   "manual-docs-scope" = "check_manual_docs_scope.ps1"
   "markdown-links" = "check_markdown_links.ps1"
+  "main-branch" = "check_next_branch.ps1"
   "migration-boundary" = "check_migration_boundary.ps1"
   "next-branch" = "check_next_branch.ps1"
   "private-docs" = "check_rust_private_docs.ps1"

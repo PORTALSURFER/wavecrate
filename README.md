@@ -145,7 +145,7 @@ Legacy golden regression tests still use PANNs reference artifacts:
 - Format locally: `cargo fmt --all`.
 - Check formatting (same as CI): `cargo fmt --all -- --check`.
 - Lint locally (same as CI): `cargo clippy --workspace --all-targets`.
-- CI runs `rustfmt`, `clippy`, and `cargo test` on Ubuntu/Windows/macOS for every push to `main`/`next` and all pull requests targeting those branches.
+- CI runs `rustfmt`, `clippy`, and `cargo test` on Ubuntu/Windows/macOS for every push to `main` and all pull requests targeting `main`.
 
 ## Configuration and data
 

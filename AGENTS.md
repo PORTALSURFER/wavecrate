@@ -7,7 +7,7 @@ validation expectations for `C:\dev\sempal`.
 ## Orientation
 - Repository: `C:\dev\sempal`
 - Product: Sempal
-- Branch: `next`
+- Branch: `main`
 - Linear team: `PORTALSURFER`
 - Linear project: `Sempal` — https://linear.app/boostnlvp/project/sempal-7230ebfad82d
 - Primary docs entrypoint: `docs/README.md`
@@ -38,8 +38,9 @@ validation expectations for `C:\dev\sempal`.
    - macOS/Linux/WSL: `bash scripts/doctor.sh`
 
 ## Non-Negotiable Workflow Rules
-- Use `next` as the development branch for both `C:\dev\sempal` and `C:\dev\sempal\vendor\radiant` unless the user explicitly directs otherwise.
-- Keep both repos on local `next` tracking `origin/next`; the repo hook installer and `scripts/check.* next-branch` are the enforcement path.
+- Use `main` as the development branch for `C:\dev\sempal` unless the user explicitly directs otherwise.
+- Keep `C:\dev\sempal` on local `main` tracking `origin/main`; the repo hook installer and `scripts/check.* main-branch` branch guard are the enforcement path.
+- `C:\dev\sempal\vendor\radiant` remains a nested repo with its own branch policy; use its current default branch unless explicitly changing the Radiant repo too.
 - During the tight edit loop:
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 smoke`
   - macOS/Linux/WSL: `bash scripts/ci.sh smoke`

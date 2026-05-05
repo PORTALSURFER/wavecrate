@@ -54,7 +54,7 @@ try {
   Enable-SempalCargoCache
   Write-Host "[devcheck] branch policy"
   Invoke-NativeStep -Label "branch policy" -Command {
-    & (Join-Path $rootDir "scripts/check.ps1") next-branch
+    & (Join-Path $rootDir "scripts/check.ps1") main-branch
   }
 
   Write-Host "[devcheck] cargo check --manifest-path vendor/radiant/Cargo.toml"

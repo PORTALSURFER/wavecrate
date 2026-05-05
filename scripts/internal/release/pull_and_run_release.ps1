@@ -3,9 +3,9 @@
 Fast-forwards both development repos and runs Sempal in release sandbox mode.
 
 .DESCRIPTION
-Verifies that the main repo and `vendor/radiant` are both on local `next`
-tracking `origin/next`, requires both worktrees to be clean, pulls the latest
-remote commits with `git pull --ff-only origin next`, then delegates to
+Verifies that the main repo is on local `main` tracking `origin/main` and
+`vendor/radiant` is on its configured development branch, requires both
+worktrees to be clean, pulls the latest remote commits, then delegates to
 `scripts/run.ps1 sandbox`.
 
 This script accepts the same sandbox options as `scripts/run.ps1 sandbox`. Any
@@ -27,8 +27,8 @@ $ErrorActionPreference = "Stop"
 
 if ($Help) {
   Write-Host "Usage: scripts/internal/release/pull_and_run_release.ps1 [-Dir <path> | -Name <name> | -Temp] [-Clean] [-WriteDb] [-AllowUserLibraryDbWrite] [-- <app args...>]"
-  Write-Host "Fast-forward the main repo and vendor/radiant from origin/next, then run scripts/run.ps1 sandbox."
-  Write-Host "Both repos must be clean and on local next tracking origin/next."
+  Write-Host "Fast-forward the main repo from origin/main and vendor/radiant from origin/next, then run scripts/run.ps1 sandbox."
+  Write-Host "Both repos must be clean and on their expected tracking branches."
   exit 0
 }
 
@@ -80,22 +80,26 @@ function Assert-CleanRepo {
   }
 }
 
-function Assert-TrackedNextRepo {
+function Assert-TrackedRepo {
   param(
     [Parameter(Mandatory = $true)]
     [string]$RepoPath,
     [Parameter(Mandatory = $true)]
-    [string]$Label
+    [string]$Label,
+    [Parameter(Mandatory = $true)]
+    [string]$ExpectedBranch,
+    [Parameter(Mandatory = $true)]
+    [string]$ExpectedUpstream
   )
 
   $branch = (Invoke-GitCommand -RepoPath $RepoPath -GitArgs @("rev-parse", "--abbrev-ref", "HEAD")).Trim()
-  if ($branch -ne "next") {
-    throw "[pull_and_run_release] $Label repo must be on local next, found '$branch'."
+  if ($branch -ne $ExpectedBranch) {
+    throw "[pull_and_run_release] $Label repo must be on local $ExpectedBranch, found '$branch'."
   }
 
   $upstream = (Invoke-GitCommand -RepoPath $RepoPath -GitArgs @("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")).Trim()
-  if ($upstream -ne "origin/next") {
-    throw "[pull_and_run_release] $Label repo must track origin/next, found '$upstream'."
+  if ($upstream -ne $ExpectedUpstream) {
+    throw "[pull_and_run_release] $Label repo must track $ExpectedUpstream, found '$upstream'."
   }
 }
 
@@ -104,15 +108,19 @@ function Sync-Repo {
     [Parameter(Mandatory = $true)]
     [string]$RepoPath,
     [Parameter(Mandatory = $true)]
-    [string]$Label
+    [string]$Label,
+    [Parameter(Mandatory = $true)]
+    [string]$ExpectedBranch,
+    [Parameter(Mandatory = $true)]
+    [string]$ExpectedUpstream
   )
 
   Assert-RepoExists -RepoPath $RepoPath -Label $Label
   Assert-CleanRepo -RepoPath $RepoPath -Label $Label
-  Assert-TrackedNextRepo -RepoPath $RepoPath -Label $Label
+  Assert-TrackedRepo -RepoPath $RepoPath -Label $Label -ExpectedBranch $ExpectedBranch -ExpectedUpstream $ExpectedUpstream
 
-  Write-Host "[pull_and_run_release] Pulling $Label repo from origin/next"
-  Invoke-GitCommand -RepoPath $RepoPath -GitArgs @("pull", "--ff-only", "origin", "next") | Out-Null
+  Write-Host "[pull_and_run_release] Pulling $Label repo from $ExpectedUpstream"
+  Invoke-GitCommand -RepoPath $RepoPath -GitArgs @("pull", "--ff-only", "origin", $ExpectedBranch) | Out-Null
 }
 
 $runSandboxArgs = @()
@@ -135,8 +143,8 @@ if ($AllowUserLibraryDbWrite) {
   $runSandboxArgs += "-AllowUserLibraryDbWrite"
 }
 
-Sync-Repo -RepoPath $rootDir -Label "main"
-Sync-Repo -RepoPath $radiantDir -Label "vendor/radiant"
+Sync-Repo -RepoPath $rootDir -Label "main" -ExpectedBranch "main" -ExpectedUpstream "origin/main"
+Sync-Repo -RepoPath $radiantDir -Label "vendor/radiant" -ExpectedBranch "next" -ExpectedUpstream "origin/next"
 
 Write-Host "[pull_and_run_release] Starting release sandbox run"
 if ($args.Count -gt 0) {

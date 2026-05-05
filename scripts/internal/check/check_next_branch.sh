@@ -2,8 +2,8 @@
 
 # Verify that the current repository uses the shared development branch.
 #
-# The script fails unless the repo root is on local `next` and that branch
-# tracks `origin/next`. Use it from hooks and validation scripts to keep local
+# The script fails unless the repo root is on local `main` and that branch
+# tracks `origin/main`. Use it from hooks and validation scripts to keep local
 # work on the agreed branch.
 
 set -euo pipefail
@@ -11,14 +11,14 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$ROOT_DIR"
 
-EXPECTED_BRANCH="next"
-EXPECTED_UPSTREAM="origin/next"
+EXPECTED_BRANCH="main"
+EXPECTED_UPSTREAM="origin/main"
 
 usage() {
   cat <<'USAGE'
 Usage: scripts/internal/check/check_next_branch.sh
 
-Fail unless the current repository is on local next tracking origin/next.
+Fail unless the current repository is on local main tracking origin/main.
 USAGE
 }
 

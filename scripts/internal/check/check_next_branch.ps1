@@ -4,7 +4,7 @@ Verifies that the current repository uses the shared development branch.
 
 .DESCRIPTION
 Fails unless the repository rooted at the current workspace is on local
-`next` and that branch tracks `origin/next`. This keeps sempal development on
+`main` and that branch tracks `origin/main`. This keeps sempal development on
 the agreed branch and gives hooks and validation scripts a single branch-policy
 entrypoint.
 #>
@@ -18,13 +18,13 @@ $ErrorActionPreference = "Stop"
 
 if ($Help) {
   Write-Host "Usage: scripts/internal/check/check_next_branch.ps1"
-  Write-Host "Fail unless the current repository is on local next tracking origin/next."
+  Write-Host "Fail unless the current repository is on local main tracking origin/main."
   exit 0
 }
 
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
-$expectedBranch = "next"
-$expectedUpstream = "origin/next"
+$expectedBranch = "main"
+$expectedUpstream = "origin/main"
 
 function Invoke-GitText {
   param(
