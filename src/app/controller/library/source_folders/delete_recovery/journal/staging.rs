@@ -1,4 +1,3 @@
-use super::super::DELETE_STAGING_DIR;
 use super::load_journal;
 use super::remove_entry;
 use super::store::{insert_entry, update_entry, update_journal_stage};
@@ -230,6 +229,7 @@ fn ensure_staging_parent(staged: &Path, staging_root: &Path) -> Result<(), Strin
 fn mark_staging_root_hidden(staging_root: &Path) {
     #[cfg(target_os = "windows")]
     {
+        use super::super::DELETE_STAGING_DIR;
         use windows::{
             Win32::Storage::FileSystem::{FILE_ATTRIBUTE_HIDDEN, SetFileAttributesW},
             core::PCWSTR,

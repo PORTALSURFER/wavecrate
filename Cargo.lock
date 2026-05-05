@@ -4656,6 +4656,7 @@ name = "sempal-scan"
 version = "19.0.0"
 dependencies = [
  "blake3",
+ "libc",
  "sempal-library",
  "tempfile",
  "thiserror 2.0.17",
