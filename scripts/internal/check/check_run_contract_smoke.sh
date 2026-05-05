@@ -82,6 +82,14 @@ import sys
 
 artifact_path = pathlib.Path(sys.argv[1])
 manifest_path = pathlib.Path(sys.argv[2])
+expected_artifact_path = str(artifact_path.resolve())
+expected_manifest_path = str(manifest_path.resolve())
+
+
+def canonical_path_field(value):
+    if not isinstance(value, str):
+        return value
+    return str(pathlib.Path(value).resolve())
 
 try:
     artifact_text = artifact_path.read_text(encoding="utf-8").splitlines()
@@ -174,13 +182,13 @@ if "startup_failed" in seen and seen[-1] != "startup_failed":
 
 timestamps = []
 for idx, event in enumerate(events, 1):
-    if event.get("manifest_path") != str(manifest_path.resolve()):
+    if canonical_path_field(event.get("manifest_path")) != expected_manifest_path:
         print(
             f"error: event {idx} manifest_path {event.get('manifest_path')} does not match manifest {manifest_path}",
             file=sys.stderr,
         )
         sys.exit(1)
-    if event.get("artifact_path") != str(artifact_path.resolve()):
+    if canonical_path_field(event.get("artifact_path")) != expected_artifact_path:
         print(
             f"error: event {idx} artifact_path {event.get('artifact_path')} does not match artifact {artifact_path}",
             file=sys.stderr,
@@ -240,14 +248,14 @@ if manifest.get("run_id") != run_id:
 
 manifest_artifact_path = manifest.get("artifact_path")
 manifest_path_field = manifest.get("manifest_path")
-if manifest_artifact_path != str(artifact_path.resolve()):
+if canonical_path_field(manifest_artifact_path) != expected_artifact_path:
     print(
         f"error: manifest artifact_path {manifest_artifact_path} does not match artifact {artifact_path}",
         file=sys.stderr,
     )
     sys.exit(1)
 
-if manifest_path_field != str(manifest_path.resolve()):
+if canonical_path_field(manifest_path_field) != expected_manifest_path:
     print(
         f"error: manifest manifest_path {manifest_path_field} does not match manifest {manifest_path}",
         file=sys.stderr,
