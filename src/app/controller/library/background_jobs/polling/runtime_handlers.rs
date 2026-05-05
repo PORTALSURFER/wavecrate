@@ -320,6 +320,8 @@ impl AppController {
     }
 
     fn rollback_metadata_mutation(&mut self, source_id: &SourceId, rollback: &[MetadataRollback]) {
+        let active_source_matches =
+            self.selection_state.ctx.selected_source.as_ref() == Some(source_id);
         for entry in rollback {
             match entry {
                 MetadataRollback::TagAndLocked {
@@ -329,7 +331,9 @@ impl AppController {
                     expected_tag,
                     expected_locked,
                 } => {
-                    if let Some(index) = self.wav_index_for_path(relative_path) {
+                    if active_source_matches
+                        && let Some(index) = self.wav_index_for_path(relative_path)
+                    {
                         let _ = self.ensure_wav_page_loaded(index);
                         if let Some(wav) = self.wav_entries.entry_mut(index)
                             && wav.tag == *expected_tag
@@ -339,8 +343,7 @@ impl AppController {
                             wav.locked = *before_locked;
                         }
                     }
-                    if let Some(source_id) = self.selection_state.ctx.selected_source.as_ref()
-                        && let Some(cache) = self.cache.wav.entries.get_mut(source_id)
+                    if let Some(cache) = self.cache.wav.entries.get_mut(source_id)
                         && let Some(index) = cache.lookup.get(relative_path).copied()
                         && let Some(wav) = cache.entry_mut(index)
                         && wav.tag == *expected_tag
@@ -366,7 +369,9 @@ impl AppController {
                     {
                         continue;
                     }
-                    if let Some(index) = self.wav_index_for_path(&relative_path) {
+                    if active_source_matches
+                        && let Some(index) = self.wav_index_for_path(&relative_path)
+                    {
                         let _ = self.ensure_wav_page_loaded(index);
                         if let Some(wav) = self.wav_entries.entry_mut(index)
                             && wav.looped == *expected_looped
@@ -396,7 +401,9 @@ impl AppController {
                     before_sound_type,
                     expected_sound_type,
                 } => {
-                    if let Some(index) = self.wav_index_for_path(relative_path) {
+                    if active_source_matches
+                        && let Some(index) = self.wav_index_for_path(relative_path)
+                    {
                         let _ = self.ensure_wav_page_loaded(index);
                         if let Some(wav) = self.wav_entries.entry_mut(index)
                             && wav.sound_type == *expected_sound_type
@@ -404,8 +411,7 @@ impl AppController {
                             wav.sound_type = *before_sound_type;
                         }
                     }
-                    if let Some(source_id) = self.selection_state.ctx.selected_source.as_ref()
-                        && let Some(cache) = self.cache.wav.entries.get_mut(source_id)
+                    if let Some(cache) = self.cache.wav.entries.get_mut(source_id)
                         && let Some(index) = cache.lookup.get(relative_path).copied()
                         && let Some(wav) = cache.entry_mut(index)
                         && wav.sound_type == *expected_sound_type
@@ -418,7 +424,9 @@ impl AppController {
                     before_user_tag,
                     expected_user_tag,
                 } => {
-                    if let Some(index) = self.wav_index_for_path(relative_path) {
+                    if active_source_matches
+                        && let Some(index) = self.wav_index_for_path(relative_path)
+                    {
                         let _ = self.ensure_wav_page_loaded(index);
                         if let Some(wav) = self.wav_entries.entry_mut(index)
                             && wav.user_tag == *expected_user_tag
@@ -426,8 +434,7 @@ impl AppController {
                             wav.user_tag = before_user_tag.clone();
                         }
                     }
-                    if let Some(source_id) = self.selection_state.ctx.selected_source.as_ref()
-                        && let Some(cache) = self.cache.wav.entries.get_mut(source_id)
+                    if let Some(cache) = self.cache.wav.entries.get_mut(source_id)
                         && let Some(index) = cache.lookup.get(relative_path).copied()
                         && let Some(wav) = cache.entry_mut(index)
                         && wav.user_tag == *expected_user_tag
@@ -442,7 +449,7 @@ impl AppController {
                     before_present,
                     expected_present,
                 } => {
-                    if let Some(source_id) = self.selection_state.ctx.selected_source.clone() {
+                    if active_source_matches {
                         if let Some(index) = self.wav_index_for_path(relative_path) {
                             let _ = self.ensure_wav_page_loaded(index);
                             if let Some(wav) = self.wav_entries.entry_mut(index) {
@@ -455,49 +462,49 @@ impl AppController {
                                 );
                             }
                         }
-                        if let Some(cache) = self.cache.wav.entries.get_mut(&source_id)
-                            && let Some(index) = cache.lookup.get(relative_path).copied()
-                            && let Some(wav) = cache.entry_mut(index)
-                        {
-                            rollback_normal_tag_labels(
-                                &mut wav.normal_tags,
-                                normalized_text,
-                                display_label,
-                                *before_present,
-                                *expected_present,
-                            );
-                        }
-                        let tags = self
-                            .ui_cache
-                            .browser
-                            .normal_tags
-                            .entry(source_id.clone())
-                            .or_default()
-                            .entry(relative_path.clone())
-                            .or_default();
-                        let current_present = tags
-                            .iter()
-                            .any(|tag| tag.normalized_text == *normalized_text);
-                        if current_present == *expected_present {
-                            if *before_present {
-                                if !current_present {
-                                    tags.push(crate::sample_sources::db::SourceTag {
-                                        id: 0,
-                                        display_label: display_label.clone(),
-                                        normalized_text: normalized_text.clone(),
-                                    });
-                                    tags.sort_by(|left, right| {
-                                        left.display_label
-                                            .to_ascii_lowercase()
-                                            .cmp(&right.display_label.to_ascii_lowercase())
-                                            .then_with(|| {
-                                                left.normalized_text.cmp(&right.normalized_text)
-                                            })
-                                    });
-                                }
-                            } else {
-                                tags.retain(|tag| tag.normalized_text != *normalized_text);
+                    }
+                    if let Some(cache) = self.cache.wav.entries.get_mut(source_id)
+                        && let Some(index) = cache.lookup.get(relative_path).copied()
+                        && let Some(wav) = cache.entry_mut(index)
+                    {
+                        rollback_normal_tag_labels(
+                            &mut wav.normal_tags,
+                            normalized_text,
+                            display_label,
+                            *before_present,
+                            *expected_present,
+                        );
+                    }
+                    let tags = self
+                        .ui_cache
+                        .browser
+                        .normal_tags
+                        .entry(source_id.clone())
+                        .or_default()
+                        .entry(relative_path.clone())
+                        .or_default();
+                    let current_present = tags
+                        .iter()
+                        .any(|tag| tag.normalized_text == *normalized_text);
+                    if current_present == *expected_present {
+                        if *before_present {
+                            if !current_present {
+                                tags.push(crate::sample_sources::db::SourceTag {
+                                    id: 0,
+                                    display_label: display_label.clone(),
+                                    normalized_text: normalized_text.clone(),
+                                });
+                                tags.sort_by(|left, right| {
+                                    left.display_label
+                                        .to_ascii_lowercase()
+                                        .cmp(&right.display_label.to_ascii_lowercase())
+                                        .then_with(|| {
+                                            left.normalized_text.cmp(&right.normalized_text)
+                                        })
+                                });
                             }
+                        } else {
+                            tags.retain(|tag| tag.normalized_text != *normalized_text);
                         }
                     }
                 }
@@ -506,7 +513,9 @@ impl AppController {
                     before_last_played_at,
                     expected_last_played_at,
                 } => {
-                    if let Some(index) = self.wav_index_for_path(relative_path) {
+                    if active_source_matches
+                        && let Some(index) = self.wav_index_for_path(relative_path)
+                    {
                         let _ = self.ensure_wav_page_loaded(index);
                         if let Some(wav) = self.wav_entries.entry_mut(index)
                             && wav.last_played_at == *expected_last_played_at
@@ -514,8 +523,7 @@ impl AppController {
                             wav.last_played_at = *before_last_played_at;
                         }
                     }
-                    if let Some(source_id) = self.selection_state.ctx.selected_source.as_ref()
-                        && let Some(cache) = self.cache.wav.entries.get_mut(source_id)
+                    if let Some(cache) = self.cache.wav.entries.get_mut(source_id)
                         && let Some(index) = cache.lookup.get(relative_path).copied()
                         && let Some(wav) = cache.entry_mut(index)
                         && wav.last_played_at == *expected_last_played_at
@@ -528,19 +536,20 @@ impl AppController {
                     before_bpm,
                     expected_bpm,
                 } => {
-                    if let Some(source_id) = self.selection_state.ctx.selected_source.as_ref() {
-                        let cache = self
-                            .ui_cache
-                            .browser
-                            .bpm_values
-                            .entry(source_id.clone())
-                            .or_default();
-                        if cache.get(relative_path).copied().flatten() == *expected_bpm {
-                            cache.insert(relative_path.clone(), *before_bpm);
-                        }
+                    let cache = self
+                        .ui_cache
+                        .browser
+                        .bpm_values
+                        .entry(source_id.clone())
+                        .or_default();
+                    if cache.get(relative_path).copied().flatten() == *expected_bpm {
+                        cache.insert(relative_path.clone(), *before_bpm);
                     }
                 }
             }
+        }
+        if !active_source_matches {
+            return;
         }
         self.ui_cache.browser.pipeline.invalidate();
         self.mark_browser_row_metadata_projection_revision_dirty();

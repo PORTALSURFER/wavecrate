@@ -328,6 +328,84 @@ fn browser_tag_sidebar_multi_selection_queues_one_looped_metadata_batch() {
 }
 
 #[test]
+fn rating_write_require_present_rejects_missing_path_without_queueing() {
+    crate::app::controller::batch_latency::clear();
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "one.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+
+    let result = controller.set_sample_tag_for_source(
+        &source,
+        Path::new("missing.wav"),
+        crate::sample_sources::Rating::KEEP_1,
+        true,
+    );
+
+    assert_eq!(result, Err(String::from("Sample not found")));
+    assert!(metadata_queue_samples().is_empty());
+    assert_eq!(
+        controller.wav_entry(0).unwrap().tag,
+        crate::sample_sources::Rating::NEUTRAL
+    );
+}
+
+#[test]
+fn rating_write_without_require_present_preserves_permissive_missing_path_behavior() {
+    crate::app::controller::batch_latency::clear();
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "one.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+
+    let result = controller.set_sample_tag_for_source(
+        &source,
+        Path::new("missing.wav"),
+        crate::sample_sources::Rating::KEEP_1,
+        false,
+    );
+
+    assert_eq!(result, Ok(()));
+    assert_eq!(metadata_queue_samples().len(), 1);
+}
+
+#[test]
+fn looped_write_require_present_rejects_missing_single_path_without_queueing() {
+    crate::app::controller::batch_latency::clear();
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "one.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+
+    let result =
+        controller.set_sample_looped_for_source(&source, Path::new("missing.wav"), true, true);
+
+    assert_eq!(result, Err(String::from("Sample not found")));
+    assert!(metadata_queue_samples().is_empty());
+    assert!(!controller.wav_entry(0).unwrap().looped);
+}
+
+#[test]
+fn looped_batch_require_present_rejects_missing_path_before_intents_or_cache_updates() {
+    crate::app::controller::batch_latency::clear();
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "one.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+
+    let result = controller.set_sample_looped_for_source_batch(
+        &source,
+        &[PathBuf::from("one.wav"), PathBuf::from("missing.wav")],
+        true,
+        true,
+    );
+
+    assert_eq!(result, Err(String::from("Sample not found")));
+    assert!(metadata_queue_samples().is_empty());
+    assert!(!controller.wav_entry(0).unwrap().looped);
+}
+
+#[test]
 fn browser_tag_sidebar_batch_failure_rolls_back_each_normal_tag_row() {
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
         sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
@@ -388,6 +466,79 @@ fn browser_tag_sidebar_batch_failure_rolls_back_each_normal_tag_row() {
 }
 
 #[test]
+fn metadata_rollback_uses_mutation_source_after_source_switch() {
+    let (mut controller, source_a) = dummy_controller();
+    let source_b_root = source_a.root.parent().unwrap().join("source-b");
+    std::fs::create_dir_all(&source_b_root).unwrap();
+    let source_b = crate::sample_sources::SampleSource::new(source_b_root);
+    controller.library.sources.push(source_a.clone());
+    controller.library.sources.push(source_b.clone());
+    controller.cache_db(&source_a).unwrap();
+    controller.cache_db(&source_b).unwrap();
+
+    let mut source_a_entry = sample_entry("shared.wav", crate::sample_sources::Rating::KEEP_1);
+    source_a_entry.locked = true;
+    controller
+        .cache
+        .wav
+        .insert_page(source_a.id.clone(), 1, 100, 0, vec![source_a_entry.clone()]);
+
+    controller.select_source_by_index(1);
+    let mut source_b_entry = sample_entry("shared.wav", crate::sample_sources::Rating::KEEP_3);
+    source_b_entry.locked = true;
+    controller.set_wav_entries_for_tests(vec![source_b_entry]);
+    controller.rebuild_browser_lists();
+
+    let request_id = 8181;
+    controller
+        .runtime
+        .source_lane
+        .mutations
+        .insert_metadata_mutation(
+            crate::app::controller::state::runtime::PendingMetadataMutation {
+                request_id,
+                source_id: source_a.id.clone(),
+                paths: [PathBuf::from("shared.wav")].into_iter().collect(),
+                blocks_file_mutation: true,
+                rollback: vec![
+                    crate::app::controller::state::runtime::MetadataRollback::TagAndLocked {
+                        relative_path: PathBuf::from("shared.wav"),
+                        before_tag: crate::sample_sources::Rating::NEUTRAL,
+                        before_locked: false,
+                        expected_tag: crate::sample_sources::Rating::KEEP_1,
+                        expected_locked: true,
+                    },
+                ],
+                refresh_browser_projection: true,
+            },
+        );
+
+    controller.handle_metadata_mutation_finished_message(
+        crate::app::controller::jobs::MetadataMutationResult {
+            request_id,
+            source_id: source_a.id.clone(),
+            paths: [PathBuf::from("shared.wav")].into_iter().collect(),
+            elapsed: std::time::Duration::ZERO,
+            result: Err(String::from("forced metadata failure")),
+        },
+    );
+
+    let source_a_cache = controller.cache.wav.entries.get(&source_a.id).unwrap();
+    let source_a_index = source_a_cache
+        .lookup
+        .get(Path::new("shared.wav"))
+        .copied()
+        .unwrap();
+    let source_a_cached = source_a_cache.entry(source_a_index).unwrap();
+    assert_eq!(source_a_cached.tag, crate::sample_sources::Rating::NEUTRAL);
+    assert!(!source_a_cached.locked);
+
+    let source_b_active = controller.wav_entry(0).unwrap();
+    assert_eq!(source_b_active.tag, crate::sample_sources::Rating::KEEP_3);
+    assert!(source_b_active.locked);
+}
+
+#[test]
 fn rating_filter_rating_keeps_focus_on_next_visible_item() {
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
         sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
@@ -420,6 +571,16 @@ fn rating_filter_rating_keeps_focus_on_next_visible_item() {
 
 fn tag_labels(tags: Vec<crate::sample_sources::db::SourceTag>) -> Vec<String> {
     tags.into_iter().map(|tag| tag.display_label).collect()
+}
+
+fn metadata_queue_samples() -> Vec<crate::app::controller::batch_latency::BatchLatencySample> {
+    crate::app::controller::batch_latency::snapshot()
+        .into_iter()
+        .filter(|sample| {
+            sample.phase
+                == crate::app::controller::batch_latency::BatchLatencyPhase::MetadataMutationQueue
+        })
+        .collect()
 }
 
 #[test]
