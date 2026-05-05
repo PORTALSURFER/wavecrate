@@ -228,24 +228,39 @@ mod tests {
 
     #[test]
     fn startup_update_check_skips_local_cargo_target_exes() {
-        assert!(startup_update_check_should_skip_for_exe(Path::new(
-            r"C:\dev\sempal\target\release\sempal.exe"
-        )));
-        assert!(startup_update_check_should_skip_for_exe(Path::new(
-            r"C:\dev\sempal\target\debug\sempal.exe"
-        )));
+        assert!(startup_update_check_should_skip_for_exe(
+            &Path::new("dev")
+                .join("sempal")
+                .join("target")
+                .join("release")
+                .join("sempal")
+        ));
+        assert!(startup_update_check_should_skip_for_exe(
+            &Path::new("dev")
+                .join("sempal")
+                .join("target")
+                .join("debug")
+                .join("sempal")
+        ));
     }
 
     #[test]
     fn startup_update_check_runs_for_installed_or_non_cargo_exes() {
-        assert!(!startup_update_check_should_skip_for_exe(Path::new(
-            r"C:\Program Files\Sempal\sempal.exe"
-        )));
-        assert!(!startup_update_check_should_skip_for_exe(Path::new(
-            r"C:\dev\sempal\target\custom\sempal.exe"
-        )));
-        assert!(!startup_update_check_should_skip_for_exe(Path::new(
-            r"C:\dev\sempal\target-release\sempal.exe"
-        )));
+        assert!(!startup_update_check_should_skip_for_exe(
+            &Path::new("opt").join("Sempal").join("sempal")
+        ));
+        assert!(!startup_update_check_should_skip_for_exe(
+            &Path::new("dev")
+                .join("sempal")
+                .join("target")
+                .join("custom")
+                .join("sempal")
+        ));
+        assert!(!startup_update_check_should_skip_for_exe(
+            &Path::new("dev")
+                .join("sempal")
+                .join("target-release")
+                .join("sempal")
+        ));
     }
 }

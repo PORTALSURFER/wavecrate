@@ -34,6 +34,9 @@ pub(super) fn parse_relative_path_from_db(path: &str) -> Result<PathBuf, SourceD
 
 /// Validate a relative path and normalize away `.` components.
 fn sanitize_relative_path(path: &Path) -> Result<PathBuf, SourceDbError> {
+    if has_windows_absolute_prefix(path) {
+        return Err(SourceDbError::InvalidRelativePath(path.to_path_buf()));
+    }
     if path.is_absolute() {
         return Err(SourceDbError::PathMustBeRelative(path.to_path_buf()));
     }
@@ -55,6 +58,13 @@ fn sanitize_relative_path(path: &Path) -> Result<PathBuf, SourceDbError> {
         return Err(SourceDbError::InvalidRelativePath(path.to_path_buf()));
     }
     Ok(cleaned)
+}
+
+fn has_windows_absolute_prefix(path: &Path) -> bool {
+    let value = path.to_string_lossy();
+    let bytes = value.as_bytes();
+    value.starts_with('\\')
+        || (bytes.len() >= 2 && bytes[1] == b':' && bytes[0].is_ascii_alphabetic())
 }
 
 pub(super) fn create_parent_if_needed(path: &Path) -> Result<(), SourceDbError> {
@@ -88,14 +98,14 @@ mod tests {
         assert!(matches!(err, SourceDbError::PathMustBeRelative(_)));
     }
 
-    #[cfg(windows)]
     #[test]
     fn normalize_relative_path_rejects_windows_drive_prefix() {
         let err = normalize_relative_path(Path::new(r"C:\escape.wav")).unwrap_err();
-        assert!(matches!(err, SourceDbError::PathMustBeRelative(_)));
+        assert!(matches!(err, SourceDbError::InvalidRelativePath(_)));
+        let err = normalize_relative_path(Path::new("C:/escape.wav")).unwrap_err();
+        assert!(matches!(err, SourceDbError::InvalidRelativePath(_)));
     }
 
-    #[cfg(windows)]
     #[test]
     fn normalize_relative_path_rejects_windows_rooted_path_without_prefix() {
         let err = normalize_relative_path(Path::new(r"\escape.wav")).unwrap_err();

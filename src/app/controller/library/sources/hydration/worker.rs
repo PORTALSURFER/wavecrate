@@ -199,7 +199,7 @@ mod tests {
         std::fs::create_dir_all(temp.path().join("kits").join("perc")).expect("create perc");
         let entries = vec![
             WavEntry {
-                relative_path: PathBuf::from(r"kits\drums\kick.wav"),
+                relative_path: PathBuf::from("kits/drums/kick.wav"),
                 file_size: 0,
                 modified_ns: 0,
                 content_hash: None,

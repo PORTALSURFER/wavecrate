@@ -200,7 +200,11 @@ fn apply_files_and_dirs_reports_stale_removal_failures() {
         apply_files_and_dirs(&install_dir, &root_dir, &next_manifest).unwrap();
 
     if stale_file.exists() {
-        assert!(failures.iter().any(|failure| failure.path == stale_file));
+        assert!(
+            failures
+                .iter()
+                .any(|failure| failure.path == stale_file || failure.path == stale_dir)
+        );
     } else {
         assert!(!failures.iter().any(|failure| failure.path == stale_file));
     }

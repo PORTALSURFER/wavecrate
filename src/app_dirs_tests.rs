@@ -1,4 +1,5 @@
 use crate::app_dirs::{self, ConfigBaseGuard, PersistenceProfileGuard, set_app_root_override};
+use std::path::Path;
 use tempfile::tempdir;
 
 fn explicit_persistence_env_present() -> bool {
@@ -14,7 +15,13 @@ fn dependency_app_root_defaults_to_automated_test_profile() {
 
     let root = app_dirs::app_root_dir().expect("resolve app root under test harness");
 
-    assert!(root.ends_with(".sempal\\profiles\\automated-tests"));
+    assert!(
+        root.ends_with(
+            Path::new(".sempal")
+                .join("profiles")
+                .join("automated-tests")
+        )
+    );
     assert!(root.is_dir());
 }
 
