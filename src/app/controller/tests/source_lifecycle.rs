@@ -2,6 +2,7 @@ use super::super::test_support::{prepare_with_source_and_wav_entries, sample_ent
 use crate::app::state::StatusTone;
 
 #[test]
+/// Verifies removing source rolls back when config save fails.
 fn removing_source_rolls_back_when_config_save_fails() {
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
         "one.wav",

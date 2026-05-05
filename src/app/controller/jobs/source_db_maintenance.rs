@@ -242,6 +242,7 @@ fn run_source_db_maintenance_once(
     Ok(removed)
 }
 
+/// Records deferred source DB maintenance retry telemetry.
 fn record_deferred_maintenance_retry(job: &SourceDbMaintenanceJob, attempt: usize, err: &str) {
     analysis_jobs::db::telemetry::record_retry(
         "analysis_deferred_maintenance",
@@ -309,35 +310,43 @@ mod tests {
     use tracing_subscriber::fmt::MakeWriter;
 
     #[derive(Clone, Default)]
+    /// Stores state for shared buffer.
     struct SharedBuffer(Arc<Mutex<Vec<u8>>>);
 
     impl SharedBuffer {
+        /// Handles captured.
         fn captured(&self) -> String {
             String::from_utf8(self.0.lock().unwrap().clone()).unwrap()
         }
     }
 
     impl<'a> MakeWriter<'a> for SharedBuffer {
+        /// Names the writer type.
         type Writer = SharedBufferWriter;
 
+        /// Handles make writer.
         fn make_writer(&'a self) -> Self::Writer {
             SharedBufferWriter(self.0.clone())
         }
     }
 
+    /// Stores state for shared buffer writer.
     struct SharedBufferWriter(Arc<Mutex<Vec<u8>>>);
 
     impl io::Write for SharedBufferWriter {
+        /// Handles write.
         fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
             self.0.lock().unwrap().extend_from_slice(buf);
             Ok(buf.len())
         }
 
+        /// Handles flush.
         fn flush(&mut self) -> io::Result<()> {
             Ok(())
         }
     }
 
+    /// Handles capture debug logs.
     fn capture_debug_logs(run: impl FnOnce()) -> String {
         let buffer = SharedBuffer::default();
         let subscriber = tracing_subscriber::fmt()
@@ -372,6 +381,7 @@ mod tests {
     }
 
     #[test]
+    /// Verifies deferred maintenance retry records source scoped telemetry.
     fn deferred_maintenance_retry_records_source_scoped_telemetry() {
         let temp = tempdir().expect("create temp dir");
         let source = SampleSource::new(temp.path().join("source"));

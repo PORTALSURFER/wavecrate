@@ -37,6 +37,7 @@ pub(super) fn tokens_for_tier(layout_tier: LayoutScaleTier) -> (ThemeTokens, She
     (theme, chrome)
 }
 
+/// Handles sempal dark theme.
 fn sempal_dark_theme() -> ThemeTokens {
     let mut theme = ThemeTokens::default();
     theme.clear_color = rgba(15, 17, 18, 255);

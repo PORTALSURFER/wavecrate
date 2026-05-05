@@ -30,6 +30,7 @@ fn sample_locked_for_source(
         .ok_or_else(|| "Sample not found".to_string())
 }
 
+/// Handles sample present for source.
 fn sample_present_for_source(
     controller: &mut AppController,
     source: &SampleSource,
@@ -57,6 +58,7 @@ fn sample_present_for_source(
         .map_err(|err| err.to_string())
 }
 
+/// Handles require sample present for source.
 fn require_sample_present_for_source(
     controller: &mut AppController,
     source: &SampleSource,

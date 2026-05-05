@@ -55,6 +55,7 @@ mod tests {
             self.has_embeddings
         }
 
+        /// Handles record prep scan timestamp.
         fn record_prep_scan_timestamp(
             &self,
             _source: &SampleSource,

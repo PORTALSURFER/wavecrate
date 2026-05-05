@@ -291,6 +291,7 @@ fn metadata_delta_revision_gap_refreshes_all_provided_paths() {
 }
 
 #[test]
+/// Verifies revision read failure preserves existing search cache.
 fn revision_read_failure_preserves_existing_search_cache() {
     let (temp, root, _db, job, queue, generation, mut cache, source_id) =
         loaded_search_cache_for_tests("");
@@ -314,6 +315,7 @@ fn revision_read_failure_preserves_existing_search_cache() {
 }
 
 #[test]
+/// Verifies metadata read failure preserves existing search cache.
 fn metadata_read_failure_preserves_existing_search_cache() {
     let (temp, root, _db, job, queue, generation, mut cache, source_id) =
         loaded_search_cache_for_tests("");
@@ -338,6 +340,7 @@ fn metadata_read_failure_preserves_existing_search_cache() {
 }
 
 #[test]
+/// Handles targeted metadata delta read failure falls back to successful full reload.
 fn targeted_metadata_delta_read_failure_falls_back_to_successful_full_reload() {
     let (temp, _root, db, base_job, queue, generation, mut cache, source_id) =
         loaded_search_cache_for_tests("");
@@ -363,6 +366,7 @@ fn targeted_metadata_delta_read_failure_falls_back_to_successful_full_reload() {
 }
 
 #[test]
+/// Verifies targeted metadata delta failure preserves cache when full reload fails.
 fn targeted_metadata_delta_failure_preserves_cache_when_full_reload_fails() {
     let (temp, root, _db, base_job, queue, generation, mut cache, source_id) =
         loaded_search_cache_for_tests("");
@@ -637,6 +641,7 @@ fn similarity_visible_rows_keep_sparse_lookup_compact() {
     assert_eq!(cache.similar_lookup_scratch, vec![(1, 0.4), (3, 0.9)]);
 }
 
+/// Handles loaded search cache for tests.
 fn loaded_search_cache_for_tests(
     query: &str,
 ) -> (
@@ -683,6 +688,7 @@ fn loaded_search_cache_for_tests(
     (temp, root, db, job, queue, generation, cache, source_id)
 }
 
+/// Handles cached display labels.
 fn cached_display_labels(cache: &SearchWorkerCache) -> Vec<String> {
     cache
         .entries
@@ -693,10 +699,12 @@ fn cached_display_labels(cache: &SearchWorkerCache) -> Vec<String> {
         .collect()
 }
 
+/// Handles raw source conn.
 fn raw_source_conn(root: &Path) -> rusqlite::Connection {
     rusqlite::Connection::open(crate::sample_sources::database_path_for(root)).unwrap()
 }
 
+/// Handles set raw source metadata.
 fn set_raw_source_metadata(root: &Path, key: &str, value: &str) {
     raw_source_conn(root)
         .execute(

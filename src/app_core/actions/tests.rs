@@ -91,6 +91,7 @@ fn representative_actions_round_trip_through_kind_matcher() {
 }
 
 #[test]
+/// Handles representative actions round trip through compat conversion.
 fn representative_actions_round_trip_through_compat_conversion() {
     for entry in GUI_ACTION_CATALOG {
         let action = representative_action_for_kind(entry.kind);

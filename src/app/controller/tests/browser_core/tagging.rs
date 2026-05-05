@@ -328,6 +328,7 @@ fn browser_tag_sidebar_multi_selection_queues_one_looped_metadata_batch() {
 }
 
 #[test]
+/// Verifies rating write require present rejects missing path without queueing.
 fn rating_write_require_present_rejects_missing_path_without_queueing() {
     crate::app::controller::batch_latency::clear();
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
@@ -351,6 +352,7 @@ fn rating_write_require_present_rejects_missing_path_without_queueing() {
 }
 
 #[test]
+/// Verifies rating write without require present preserves permissive missing path behavior.
 fn rating_write_without_require_present_preserves_permissive_missing_path_behavior() {
     crate::app::controller::batch_latency::clear();
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
@@ -370,6 +372,7 @@ fn rating_write_without_require_present_preserves_permissive_missing_path_behavi
 }
 
 #[test]
+/// Verifies looped write require present rejects missing single path without queueing.
 fn looped_write_require_present_rejects_missing_single_path_without_queueing() {
     crate::app::controller::batch_latency::clear();
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
@@ -386,6 +389,7 @@ fn looped_write_require_present_rejects_missing_single_path_without_queueing() {
 }
 
 #[test]
+/// Verifies looped batch require present rejects missing path before intents or cache updates.
 fn looped_batch_require_present_rejects_missing_path_before_intents_or_cache_updates() {
     crate::app::controller::batch_latency::clear();
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
@@ -466,6 +470,7 @@ fn browser_tag_sidebar_batch_failure_rolls_back_each_normal_tag_row() {
 }
 
 #[test]
+/// Handles metadata rollback uses mutation source after source switch.
 fn metadata_rollback_uses_mutation_source_after_source_switch() {
     let (mut controller, source_a) = dummy_controller();
     let source_b_root = source_a.root.parent().unwrap().join("source-b");
@@ -539,6 +544,7 @@ fn metadata_rollback_uses_mutation_source_after_source_switch() {
 }
 
 #[test]
+/// Verifies metadata rollback restores variant active cache and ui state.
 fn metadata_rollback_restores_variant_active_cache_and_ui_state() {
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
         "one.wav",
@@ -719,6 +725,7 @@ fn tag_labels(tags: Vec<crate::sample_sources::db::SourceTag>) -> Vec<String> {
     tags.into_iter().map(|tag| tag.display_label).collect()
 }
 
+/// Handles metadata queue samples.
 fn metadata_queue_samples() -> Vec<crate::app::controller::batch_latency::BatchLatencySample> {
     crate::app::controller::batch_latency::snapshot()
         .into_iter()

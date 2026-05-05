@@ -18,6 +18,7 @@ pub(crate) fn read_source_prep_timestamp(source: &SampleSource) -> Option<i64> {
         .and_then(|value| value.parse().ok())
 }
 
+/// Handles record similarity prep scan timestamp.
 pub(crate) fn record_similarity_prep_scan_timestamp(
     source: &SampleSource,
     scan_completed_at: i64,
@@ -68,6 +69,7 @@ pub(crate) fn source_has_layout(source: &SampleSource, umap_version: &str) -> bo
     .unwrap_or(false)
 }
 
+/// Handles current present sample ids.
 fn current_present_sample_ids(source: &SampleSource) -> Result<Vec<String>, String> {
     let source_db = SourceDatabase::open_fast(&source.root).map_err(|err| err.to_string())?;
     let entries = source_db.list_files().map_err(|err| err.to_string())?;
@@ -78,6 +80,7 @@ fn current_present_sample_ids(source: &SampleSource) -> Result<Vec<String>, Stri
         .collect())
 }
 
+/// Handles sample ids covered by embeddings.
 fn sample_ids_covered_by_embeddings(
     conn: &rusqlite::Connection,
     model_id: &str,
@@ -95,6 +98,7 @@ fn sample_ids_covered_by_embeddings(
         .all(|sample_id| covered.contains(sample_id)))
 }
 
+/// Handles sample ids covered by layout.
 fn sample_ids_covered_by_layout(
     conn: &rusqlite::Connection,
     model_id: &str,
@@ -114,6 +118,7 @@ fn sample_ids_covered_by_layout(
         .all(|sample_id| covered.contains(sample_id)))
 }
 
+/// Handles covered sample ids.
 fn covered_sample_ids<P>(
     conn: &rusqlite::Connection,
     sql: &str,
@@ -160,13 +165,16 @@ pub(crate) fn open_source_db_for_similarity(
 }
 
 #[cfg(test)]
+/// Contains focused regression coverage for this module.
 mod tests {
     use super::*;
     use tempfile::tempdir;
 
+    /// Defines umap version.
     const UMAP_VERSION: &str = "test-umap";
 
     #[test]
+    /// Verifies source has embeddings requires current sample identity coverage.
     fn source_has_embeddings_requires_current_sample_identity_coverage() {
         let (_dir, source) = source_with_stale_similarity_rows();
 
@@ -186,6 +194,7 @@ mod tests {
     }
 
     #[test]
+    /// Verifies source has layout requires current sample identity coverage.
     fn source_has_layout_requires_current_sample_identity_coverage() {
         let (_dir, source) = source_with_stale_similarity_rows();
 
@@ -205,6 +214,7 @@ mod tests {
     }
 
     #[test]
+    /// Handles record similarity prep scan timestamp returns source db errors.
     fn record_similarity_prep_scan_timestamp_returns_source_db_errors() {
         let dir = tempdir().unwrap();
         let root_file = dir.path().join("not-a-source-dir");
@@ -214,6 +224,7 @@ mod tests {
         assert!(record_similarity_prep_scan_timestamp(&source, 123).is_err());
     }
 
+    /// Handles source with stale similarity rows.
     fn source_with_stale_similarity_rows() -> (tempfile::TempDir, SampleSource) {
         let dir = tempdir().unwrap();
         let root = dir.path().join("source");
@@ -236,10 +247,12 @@ mod tests {
         (dir, source)
     }
 
+    /// Handles sample id.
     fn sample_id(source: &SampleSource, relative_path: &str) -> String {
         analysis_jobs::build_sample_id(source.id.as_str(), std::path::Path::new(relative_path))
     }
 
+    /// Handles insert embedding.
     fn insert_embedding(source: &SampleSource, relative_path: &str) {
         let conn = analysis_jobs::open_source_db(&source.root).unwrap();
         conn.execute(
@@ -255,6 +268,7 @@ mod tests {
         .unwrap();
     }
 
+    /// Handles insert layout.
     fn insert_layout(source: &SampleSource, relative_path: &str) {
         let conn = analysis_jobs::open_source_db(&source.root).unwrap();
         ensure_sample_row(&conn, &sample_id(source, relative_path));
@@ -271,6 +285,7 @@ mod tests {
         .unwrap();
     }
 
+    /// Handles ensure sample row.
     fn ensure_sample_row(conn: &rusqlite::Connection, sample_id: &str) {
         conn.execute(
             "INSERT OR IGNORE INTO samples (sample_id, content_hash, size, mtime_ns)

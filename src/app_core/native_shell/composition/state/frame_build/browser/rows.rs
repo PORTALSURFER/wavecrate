@@ -24,6 +24,7 @@ pub(super) fn render_browser_rows_window(
 }
 
 #[derive(Clone, Copy, Debug)]
+/// Stores state for browser row render ctx.
 struct BrowserRowRenderCtx {
     row_border_rect: Rect,
     row_border_stroke: f32,
@@ -35,6 +36,7 @@ struct BrowserRowRenderCtx {
 }
 
 impl BrowserRowRenderCtx {
+    /// Handles new.
     fn new(ctx: &StaticFrameCtx<'_>, row: &CachedBrowserRow) -> Self {
         let row_border_stroke = browser_row_border_stroke(ctx.layout);
         let similarity_active =
@@ -64,6 +66,7 @@ impl BrowserRowRenderCtx {
     }
 }
 
+/// Handles render browser row background and decorations.
 fn render_browser_row_background_and_decorations(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
@@ -98,6 +101,7 @@ fn render_browser_row_background_and_decorations(
     render_browser_row_bucket_chip(ctx, primitives, row);
 }
 
+/// Handles browser row background fill.
 fn browser_row_background_fill(
     style: &StyleTokens,
     row: &CachedBrowserRow,
@@ -115,6 +119,7 @@ fn browser_row_background_fill(
     browser_processing_row_fill(style, base_fill, row.processing_state)
 }
 
+/// Handles render browser row similarity anchor marker.
 fn render_browser_row_similarity_anchor_marker(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
@@ -132,6 +137,7 @@ fn render_browser_row_similarity_anchor_marker(
     }
 }
 
+/// Handles render browser row playback age marker.
 fn render_browser_row_playback_age_marker(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
@@ -153,6 +159,7 @@ fn render_browser_row_playback_age_marker(
     }
 }
 
+/// Handles render browser row review markers.
 fn render_browser_row_review_markers(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
@@ -184,6 +191,7 @@ fn render_browser_row_review_markers(
     }
 }
 
+/// Handles render browser row column separators.
 fn render_browser_row_column_separators(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
@@ -207,6 +215,7 @@ fn render_browser_row_column_separators(
     }
 }
 
+/// Handles render browser row bucket chip.
 fn render_browser_row_bucket_chip(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
@@ -233,6 +242,7 @@ fn render_browser_row_bucket_chip(
     );
 }
 
+/// Handles render browser row labels and inline tags.
 fn render_browser_row_labels_and_inline_tags(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
@@ -269,6 +279,7 @@ fn render_browser_row_labels_and_inline_tags(
     render_browser_row_inline_tags(ctx, primitives, text_runs, row);
 }
 
+/// Handles render browser row sample label leading markers.
 fn render_browser_row_sample_label_leading_markers(
     ctx: &StaticFrameCtx<'_>,
     text_runs: &mut impl TextRunSink,
@@ -308,6 +319,7 @@ fn render_browser_row_sample_label_leading_markers(
     (label_position, label_max_width)
 }
 
+/// Handles render browser row rating indicators.
 fn render_browser_row_rating_indicators(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
@@ -365,6 +377,7 @@ fn render_browser_row_rating_indicators(
     label_max_width
 }
 
+/// Handles render browser row inline tags.
 fn render_browser_row_inline_tags(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
@@ -408,6 +421,7 @@ fn render_browser_row_inline_tags(
     }
 }
 
+/// Handles render browser row similarity controls.
 fn render_browser_row_similarity_controls(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
@@ -432,6 +446,7 @@ fn render_browser_row_similarity_controls(
     }
 }
 
+/// Handles render browser row similarity strength.
 fn render_browser_row_similarity_strength(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
@@ -471,6 +486,7 @@ fn render_browser_row_similarity_strength(
     }
 }
 
+/// Handles render browser rows overlay chrome.
 fn render_browser_rows_overlay_chrome(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
@@ -807,11 +823,13 @@ fn browser_pill_editor_layout(
 }
 
 #[cfg(test)]
+/// Contains focused regression coverage for this module.
 mod tests {
     use super::*;
     use crate::compat_app_contract::{AppModel, BrowserRowModel, BrowserRowProcessingState};
     use crate::gui::types::Vector2;
 
+    /// Handles has fill rect.
     fn has_fill_rect(frame: &NativeViewFrame, rect: Rect, color: Rgba8) -> bool {
         frame.primitives.iter().any(|primitive| {
             matches!(
@@ -823,6 +841,7 @@ mod tests {
     }
 
     #[test]
+    /// Handles processing browser rows keep processing marker separate from similarity anchor.
     fn processing_browser_rows_keep_processing_marker_separate_from_similarity_anchor() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         let style = style_for_layout(&layout);

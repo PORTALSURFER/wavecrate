@@ -101,12 +101,13 @@ pub(in super::super) fn ensure_search_entries_loaded_for_job(
     if cache.entries.is_some() && cache.paths_revision == paths_revision {
         let mut delta_read_failed = false;
         if !job.metadata_delta_paths.is_empty() {
-            let delta_rows = match {
+            let delta_result = {
                 let Some(db) = cache.db.as_ref() else {
                     return false;
                 };
                 db.list_search_entry_rows_for_paths(&job.metadata_delta_paths)
-            } {
+            };
+            let delta_rows = match delta_result {
                 Ok(rows) => rows,
                 Err(err) => {
                     delta_read_failed = true;
@@ -158,6 +159,7 @@ pub(in super::super) fn ensure_search_entries_loaded_for_job(
     reload_compact_entries(cache, &rows, queue, generation, revision, paths_revision)
 }
 
+/// Handles record search cache read failure.
 fn record_search_cache_read_failure(job: &SearchJob, read_type: &'static str, err: &str) {
     let source = job.source_root.display().to_string();
     tracing::warn!(
@@ -179,6 +181,7 @@ fn record_search_cache_read_failure(job: &SearchJob, read_type: &'static str, er
     });
 }
 
+/// Handles is busy error.
 fn is_busy_error(err: &str) -> bool {
     let lowered = err.to_ascii_lowercase();
     lowered.contains("busy") || lowered.contains("locked")

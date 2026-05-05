@@ -422,6 +422,7 @@ impl AppController {
         }
     }
 
+    /// Handles rollback tag and locked metadata.
     fn rollback_tag_and_locked_metadata(
         &mut self,
         source_id: &SourceId,
@@ -453,6 +454,7 @@ impl AppController {
         }
     }
 
+    /// Handles rollback looped metadata.
     fn rollback_looped_metadata(
         &mut self,
         source_id: &SourceId,
@@ -492,6 +494,7 @@ impl AppController {
             .finish_looped_metadata_intent(source_id, &relative_path, intent_id);
     }
 
+    /// Handles rollback sound type metadata.
     fn rollback_sound_type_metadata(
         &mut self,
         source_id: &SourceId,
@@ -517,6 +520,7 @@ impl AppController {
         }
     }
 
+    /// Handles rollback user tag metadata.
     fn rollback_user_tag_metadata(
         &mut self,
         source_id: &SourceId,
@@ -542,6 +546,7 @@ impl AppController {
         }
     }
 
+    /// Handles rollback normal tag metadata.
     fn rollback_normal_tag_metadata(
         &mut self,
         source_id: &SourceId,
@@ -609,6 +614,7 @@ impl AppController {
         }
     }
 
+    /// Handles rollback last played metadata.
     fn rollback_last_played_metadata(
         &mut self,
         source_id: &SourceId,
@@ -634,6 +640,7 @@ impl AppController {
         }
     }
 
+    /// Handles rollback bpm metadata.
     fn rollback_bpm_metadata(
         &mut self,
         source_id: &SourceId,

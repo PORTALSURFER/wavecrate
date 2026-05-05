@@ -10,6 +10,7 @@ impl AppController {
         self.refresh_similarity_prep_progress_with_store(&store);
     }
 
+    /// Handles refresh similarity prep progress with store.
     fn refresh_similarity_prep_progress_with_store(&mut self, store: &impl SimilarityPrepStore) {
         let Some(state) = self.runtime.similarity_prep.as_ref() else {
             return;
@@ -191,6 +192,7 @@ impl AppController {
 }
 
 #[cfg(test)]
+/// Contains focused regression coverage for this module.
 mod tests {
     use super::*;
     use crate::app::controller::WaveformRenderer;
@@ -200,21 +202,26 @@ mod tests {
     use crate::sample_sources::{SampleSource, SourceId};
     use tempfile::tempdir;
 
+    /// Stores state for embedding progress error store.
     struct EmbeddingProgressErrorStore;
 
     impl SimilarityPrepStore for EmbeddingProgressErrorStore {
+        /// Handles read scan timestamp.
         fn read_scan_timestamp(&self, _source: &SampleSource) -> Option<i64> {
             Some(10)
         }
 
+        /// Handles read prep timestamp.
         fn read_prep_timestamp(&self, _source: &SampleSource) -> Option<i64> {
             None
         }
 
+        /// Handles source has embeddings.
         fn source_has_embeddings(&self, _source: &SampleSource) -> bool {
             panic!("embedding coverage must not be checked when progress is unavailable")
         }
 
+        /// Handles record prep scan timestamp.
         fn record_prep_scan_timestamp(
             &self,
             _source: &SampleSource,
@@ -223,6 +230,7 @@ mod tests {
             Err("not needed".to_string())
         }
 
+        /// Handles current analysis progress.
         fn current_analysis_progress(
             &self,
             _source: &SampleSource,
@@ -230,6 +238,7 @@ mod tests {
             Ok(analysis_jobs::AnalysisProgress::default())
         }
 
+        /// Handles current embedding backfill progress.
         fn current_embedding_backfill_progress(
             &self,
             _source: &SampleSource,
@@ -237,6 +246,7 @@ mod tests {
             Err("progress db busy".to_string())
         }
 
+        /// Handles open source db for similarity.
         fn open_source_db_for_similarity(
             &self,
             _source_id: &SourceId,
@@ -244,6 +254,7 @@ mod tests {
             Err("not needed".to_string())
         }
 
+        /// Handles count umap layout rows.
         fn count_umap_layout_rows(
             &self,
             _conn: &rusqlite::Connection,
@@ -255,6 +266,7 @@ mod tests {
         }
     }
 
+    /// Handles controller with similarity prep source.
     fn controller_with_similarity_prep_source() -> (AppController, tempfile::TempDir) {
         let renderer = WaveformRenderer::new(10, 10);
         let mut controller = AppController::new(renderer, None);
@@ -277,6 +289,7 @@ mod tests {
     }
 
     #[test]
+    /// Verifies embedding progress error keeps similarity prep waiting.
     fn embedding_progress_error_keeps_similarity_prep_waiting() {
         let (mut controller, _dir) = controller_with_similarity_prep_source();
 
