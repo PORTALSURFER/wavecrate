@@ -68,14 +68,6 @@ while (( $# > 0 )); do
 done
 
 ALLOWLIST_PATH="$ROOT_DIR/scripts/internal/check/allowlists/rust_taste_invariants_allowlist.txt"
-declare -A ALLOWLIST=()
-if [[ -f "$ALLOWLIST_PATH" ]]; then
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    [[ -z "$line" ]] && continue
-    [[ "$line" == \#* ]] && continue
-    ALLOWLIST["$line"]=1
-  done < "$ALLOWLIST_PATH"
-fi
 
 git_has_commit() {
   sempal_git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1
@@ -83,7 +75,10 @@ git_has_commit() {
 
 is_allowlisted() {
   local file="$1"
-  [[ -n "${ALLOWLIST[$file]+x}" ]]
+  [[ -f "$ALLOWLIST_PATH" ]] || return 1
+  grep -Fxq -- "$file" <(
+    grep -Ev '^[[:space:]]*($|#)' "$ALLOWLIST_PATH" || true
+  )
 }
 
 is_testish_path() {
