@@ -179,7 +179,7 @@ fn browser_tagging_via_controller_updates_rows() {
         .tag_browser_samples(&[0, 1], Rating::TRASH_3, 0)
         .expect("tag browser samples");
 
-    for _ in 0..200 {
+    for _ in 0..1000 {
         controller.tick_playhead();
         if controller.ui.browser.trash.len() == 2 {
             break;

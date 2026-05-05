@@ -87,14 +87,14 @@ while (( $# > 0 )); do
 done
 
 ALLOWLIST_PATH="$ROOT_DIR/scripts/internal/check/allowlists/file_size_budget_allowlist.txt"
-declare -A ALLOWLIST=()
-if [[ -f "$ALLOWLIST_PATH" ]]; then
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    [[ -z "$line" ]] && continue
-    [[ "$line" == \#* ]] && continue
-    ALLOWLIST["$line"]=1
-  done < "$ALLOWLIST_PATH"
-fi
+
+is_allowlisted() {
+  local candidate="$1"
+  [[ -f "$ALLOWLIST_PATH" ]] || return 1
+  grep -Fxq -- "$candidate" <(
+    grep -Ev '^[[:space:]]*($|#)' "$ALLOWLIST_PATH" || true
+  )
+}
 
 git_has_commit() {
   sempal_git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1
@@ -259,7 +259,7 @@ while IFS= read -r file; do
   [[ -f "$file" ]] || continue
   checked=$((checked + 1))
 
-  if [[ -n "${ALLOWLIST[$file]+x}" ]]; then
+  if is_allowlisted "$file"; then
     continue
   fi
 

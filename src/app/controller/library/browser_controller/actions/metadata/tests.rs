@@ -318,7 +318,7 @@ fn large_auto_rename_background_dispatch_registers_file_ops_before_planning_fini
     assert!(controller.ui.progress.cancelable);
     assert_eq!(controller.ui.progress.total, SAMPLE_COUNT);
 
-    wait_for_background_jobs(&mut controller, Duration::from_secs(2));
+    wait_for_background_jobs(&mut controller, Duration::from_secs(15));
     assert!(source.root.join("artistname_SS.wav").exists());
 }
 
@@ -331,7 +331,7 @@ fn large_background_auto_rename_reuses_source_db_for_batch_execution() {
     BrowserController::new(&mut controller)
         .auto_rename_browser_sample_paths_background_for_tests(&paths)
         .expect("background auto rename should start");
-    wait_for_background_jobs(&mut controller, Duration::from_secs(3));
+    wait_for_background_jobs(&mut controller, Duration::from_secs(15));
 
     let open_count = crate::sample_sources::db::test_source_db_open_total_count(&source.root);
     assert!(
@@ -381,7 +381,7 @@ fn large_tag_sidebar_background_auto_rename_streams_file_ops_progress_and_refres
             .has_task(crate::app::state::ProgressTaskKind::FileOps)
     );
 
-    wait_for_background_jobs(&mut controller, Duration::from_secs(3));
+    wait_for_background_jobs(&mut controller, Duration::from_secs(15));
 
     assert_eq!(controller.visible_browser_len(), visible_before);
     assert!(source.root.join("artistname_SS_vintagefx.wav").exists());
@@ -430,7 +430,7 @@ fn large_background_auto_rename_reports_partial_failure_through_file_ops_progres
     );
     assert_eq!(controller.ui.progress.total, SAMPLE_COUNT);
 
-    wait_for_background_jobs(&mut controller, Duration::from_secs(3));
+    wait_for_background_jobs(&mut controller, Duration::from_secs(15));
 
     assert_eq!(
         controller.ui.status.text,

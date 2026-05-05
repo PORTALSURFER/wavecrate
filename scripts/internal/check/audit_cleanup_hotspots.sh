@@ -203,8 +203,11 @@ for file in "${rust_files[@]}"; do
         flush_span(line_no)
         in_fn = 1
         fn_start = line_no
-        if (match($0, /fn[[:space:]]+([A-Za-z_][A-Za-z0-9_]*)/, captures)) {
-          fn_name = captures[1]
+        fn_name = $0
+        sub(/^.*fn[[:space:]]+/, "", fn_name)
+        sub(/[^A-Za-z0-9_].*$/, "", fn_name)
+        if (fn_name != "") {
+          fn_name = fn_name
         } else {
           fn_name = "<unknown>"
         }
