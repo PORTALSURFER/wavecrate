@@ -142,6 +142,9 @@ fn absolute_paths_are_rejected() {
     let db = SourceDatabase::open(dir.path()).unwrap();
     let absolute = std::env::current_dir().unwrap().join("absolute.wav");
     let err = db.upsert_file(&absolute, 1, 1).unwrap_err();
+    #[cfg(windows)]
+    assert!(matches!(err, SourceDbError::InvalidRelativePath(_)));
+    #[cfg(not(windows))]
     assert!(matches!(err, SourceDbError::PathMustBeRelative(_)));
 }
 

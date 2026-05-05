@@ -28,6 +28,34 @@ Use the lightest lane that still gives trustworthy coverage for the change.
    - macOS/Linux/WSL:
      `bash scripts/ci.sh local`
 
+## CI lane contract
+
+GitHub CI and local wrappers share this contract:
+
+| Lane | GitHub job | Local command | Blocking policy |
+| --- | --- | --- | --- |
+| Required format and guardrails | `Required: format and guardrails` | `scripts/ci.* local` includes the same required guardrails; use `scripts/check.* <name>` for focused reruns | Required for PRs and pushes to `main` |
+| Required clippy | `Required: clippy` | `scripts/ci.* local` | Required for PRs and pushes to `main` |
+| Required docs | `Required: docs` | `scripts/ci.* local` | Required for PRs and pushes to `main` |
+| Required tests | `Required: tests (linux/windows/macos)` | `scripts/ci.* local` runs `cargo nextest run --workspace --profile ci-required --all-targets --no-fail-fast` on the local platform | Required for PRs and pushes to `main` |
+| Quarantined/slow tests | `Advisory: quarantined tests (linux/windows/macos)` | `cargo nextest run --workspace --profile ci-quarantine --all-targets --no-fail-fast` | Advisory until the tests are hardened |
+| Dead dependency sweep and env-var nudge | `Advisory: repository hygiene` | `scripts/check.* dead-deps --advisory` and `scripts/check.* report-env-vars` | Advisory Linux-only hygiene |
+| GUI semantic contracts | none in required GitHub CI | `scripts/gui.ps1 contract`, `scripts/gui.ps1 suite`, or AIV lanes | Local/manual or issue-specific |
+| Perf guard | none in required GitHub CI | `scripts/perf.* guard` | Local/manual or release-risk validation |
+| Release build/sync | `Create release on main` after a successful `CI` workflow on `main` | release workflow dispatch | Release-only, after required CI is green |
+
+The nextest policy is:
+
+- `ci-required` is the merge-blocking test subset and excludes known timing,
+  platform, or permission-sensitive tests while they are being hardened.
+- `ci-quarantine` owns that excluded coverage. Run it deliberately when working
+  on source-DB contention, browser async controller integration, or updater
+  stale-removal behavior.
+- The default nextest profile stays unfiltered for maintainers who want the
+  complete suite and are prepared to triage environment-specific failures.
+- Required GitHub test jobs upload nextest JUnit and archive summaries on
+  failure; start with the job summary before reading the raw log.
+
 Windows note:
 
 - use the PowerShell wrappers in this repository
@@ -54,6 +82,10 @@ Use for most app/domain behavior under `src/`.
 
 - all project tests:
   - `cargo nextest run --all-targets --no-fail-fast`
+  - required CI subset:
+    `cargo nextest run --workspace --profile ci-required --all-targets --no-fail-fast`
+  - quarantined/slow subset:
+    `cargo nextest run --workspace --profile ci-quarantine --all-targets --no-fail-fast`
   - `cargo test --doc`
 - quick app-development subset:
   - `cargo nextest run --profile quick --lib --tests`
@@ -186,9 +218,10 @@ GitHub CI and local wrappers together cover:
 
 - formatting
 - clippy
-- nextest
+- required nextest
 - doc tests
 - selected guardrail scripts
+- advisory quarantined tests and hygiene checks
 - local-only perf and GUI contract lanes where appropriate
 
 When in doubt, run the wrapper script instead of assembling the command list by

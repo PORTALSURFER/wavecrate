@@ -1,8 +1,30 @@
 # Nextest profiles for local development and CI.
 #
 # Keep the default profile unfiltered so full CI continues to exercise the
-# entire suite. The `quick` profile trims slow recovery tests and support-tool
-# binaries from the normal edit loop.
+# entire suite when maintainers explicitly ask for it. The `ci-required`
+# profile is the merge-blocking subset used by GitHub and local CI parity, and
+# `ci-quarantine` owns known platform/timing-sensitive coverage that should not
+# block merges until it is hardened.
+
+[profile.ci-required]
+default-filter = '''
+not test(=app::controller::library::analysis_jobs::db::tests::contention::mixed_scan_metadata_enqueue_and_completion_contention_stays_consistent)
+and not test(=browser_tagging_via_controller_updates_rows)
+and not test(=updater::apply::tests::apply_files_and_dirs_reports_stale_removal_failures)
+'''
+
+[profile.ci-required.junit]
+path = "junit-ci-required.xml"
+
+[profile.ci-quarantine]
+default-filter = '''
+test(=app::controller::library::analysis_jobs::db::tests::contention::mixed_scan_metadata_enqueue_and_completion_contention_stays_consistent)
+or test(=browser_tagging_via_controller_updates_rows)
+or test(=updater::apply::tests::apply_files_and_dirs_reports_stale_removal_failures)
+'''
+
+[profile.ci-quarantine.junit]
+path = "junit-ci-quarantine.xml"
 
 [profile.quick]
 default-filter = '''

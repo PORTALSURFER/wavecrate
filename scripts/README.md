@@ -8,6 +8,7 @@ dispatcher maps. These are the public entrypoints people should run directly:
 - `doctor.{sh,ps1}`: diagnose environment issues.
 - `agent.{sh,ps1}`: agent request, preflight, checks, and hook install helpers.
 - `ci.{sh,ps1}`: validation lanes (`smoke`, `agent`, `quick`, `local`).
+  `local` is required CI parity; perf and GUI checks use their own entrypoints.
 - `check.{sh,ps1}`: focused guardrails and report helpers.
 - `run.{sh,ps1}`: sandbox, cleanup, log, and bug-bundle helpers.
 - `perf.{sh,ps1}`: performance guard and calibration commands. The startup
