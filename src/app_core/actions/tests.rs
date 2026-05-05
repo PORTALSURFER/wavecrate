@@ -91,6 +91,27 @@ fn representative_actions_round_trip_through_kind_matcher() {
 }
 
 #[test]
+fn representative_actions_round_trip_through_compat_conversion() {
+    for entry in GUI_ACTION_CATALOG {
+        let action = representative_action_for_kind(entry.kind);
+        let compat_action: crate::compat_app_contract::UiAction = action.clone().into();
+        let round_trip = crate::app_core::actions::NativeUiAction::from(compat_action.clone());
+        assert_eq!(
+            round_trip, action,
+            "native -> compat -> native conversion changed {}",
+            entry.action_id
+        );
+
+        let compat_round_trip: crate::compat_app_contract::UiAction = round_trip.into();
+        assert_eq!(
+            compat_round_trip, compat_action,
+            "compat conversion is not stable for {}",
+            entry.action_id
+        );
+    }
+}
+
+#[test]
 fn every_history_enabled_catalog_entry_has_a_transaction_handler() {
     for entry in GUI_ACTION_CATALOG {
         assert!(
