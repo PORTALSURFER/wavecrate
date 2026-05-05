@@ -120,33 +120,22 @@ impl AppController {
             .core
             .upper_folder_pane_source
             .clone()
-            .filter(|id| self.library.sources.iter().any(|s| &s.id == id))
-            .or_else(|| persisted_selected.clone())
-            .or_else(|| self.library.sources.first().map(|source| source.id.clone()));
+            .filter(|id| self.library.sources.iter().any(|s| &s.id == id));
         let lower_source = cfg
             .core
             .lower_folder_pane_source
             .clone()
-            .filter(|id| self.library.sources.iter().any(|s| &s.id == id))
-            .or_else(|| {
-                self.library
-                    .sources
-                    .iter()
-                    .find(|source| Some(&source.id) != upper_source.as_ref())
-                    .map(|source| source.id.clone())
-            })
-            .or_else(|| upper_source.clone());
+            .filter(|id| self.library.sources.iter().any(|s| &s.id == id));
         let persisted_active_pane =
             parse_active_folder_pane(cfg.core.active_folder_pane.as_deref());
         let active_pane_source = match persisted_active_pane {
             FolderPaneId::Upper => upper_source.clone(),
             FolderPaneId::Lower => lower_source.clone(),
         };
-        let single_active_source = persisted_selected
-            .clone()
-            .or(active_pane_source)
-            .or(upper_source)
-            .or(lower_source)
+        let single_active_source = active_pane_source
+            .or_else(|| upper_source.clone())
+            .or_else(|| lower_source.clone())
+            .or_else(|| persisted_selected.clone())
             .or_else(|| self.library.sources.first().map(|source| source.id.clone()));
         self.ui.sources.folder_panes.upper.source_id = single_active_source.clone();
         self.ui.sources.folder_panes.lower.source_id = single_active_source;

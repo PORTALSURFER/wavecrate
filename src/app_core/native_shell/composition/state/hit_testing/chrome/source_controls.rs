@@ -213,7 +213,7 @@ impl NativeShellState {
         }
         if sections.folder_header(pane).contains(point) || sections.tree_rows(pane).contains(point)
         {
-            return Some(UiAction::FocusFolderPanel { pane: None });
+            return Some(UiAction::FocusFolderPanel);
         }
         None
     }

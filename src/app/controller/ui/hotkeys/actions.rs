@@ -147,7 +147,7 @@ mod tests {
         )));
         assert!(folder_focus.iter().any(|action| matches!(
             action.action,
-            crate::app_core::actions::NativeUiAction::FocusFolderSearch { .. }
+            crate::app_core::actions::NativeUiAction::FocusFolderSearch
         )));
         assert!(folder_focus.iter().all(|action| !matches!(
             action.action,

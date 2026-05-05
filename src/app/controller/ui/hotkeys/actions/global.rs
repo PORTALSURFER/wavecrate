@@ -80,7 +80,7 @@ pub(super) const FOCUS_FOLDER_TREE: HotkeyAction = HotkeyAction {
     label: "Focus folder tree",
     gesture: HotkeyGesture::with_chord(KeyPress::new(Key::G), KeyPress::new(Key::T)),
     scope: GLOBAL,
-    action: NativeUiAction::FocusFolderPanel { pane: None },
+    action: NativeUiAction::FocusFolderPanel,
 };
 pub(super) const FOCUS_SOURCES_LIST: HotkeyAction = HotkeyAction {
     id: "focus-sources-list",

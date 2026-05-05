@@ -70,10 +70,7 @@ pub enum UiAction {
     /// Focus the waveform panel.
     FocusWaveformPanel,
     /// Focus the folder browser section inside the sources panel.
-    FocusFolderPanel {
-        /// Pane that should become active, or `None` for the current active pane.
-        pane: Option<FolderPaneIdModel>,
-    },
+    FocusFolderPanel,
     /// Focus the currently loaded sample in the browser.
     FocusLoadedSampleInBrowser,
     /// Focus the browser search field.
@@ -137,40 +134,25 @@ pub enum UiAction {
         sample_rate: Option<u32>,
     },
     /// Focus the source-folder search field.
-    FocusFolderSearch {
-        /// Pane whose folder-search field should receive focus, or `None` for the active pane.
-        pane: Option<FolderPaneIdModel>,
-    },
+    FocusFolderSearch,
     /// Set folder search query.
     SetFolderSearch {
-        /// Pane whose folder-search query changed, or `None` for the active pane.
-        pane: Option<FolderPaneIdModel>,
         /// Full folder-search query text.
         query: String,
     },
     /// Toggle whether the folder tree shows disk folders without WAV-backed samples.
-    ToggleShowAllFolders {
-        /// Pane whose folder-visibility toggle was activated, or `None` for the active pane.
-        pane: Option<FolderPaneIdModel>,
-    },
+    ToggleShowAllFolders,
     /// Toggle whether folder filtering includes descendant files.
-    ToggleFolderFlattenedView {
-        /// Pane whose flattened-view toggle was activated, or `None` for the active pane.
-        pane: Option<FolderPaneIdModel>,
-    },
+    ToggleFolderFlattenedView,
 
     // Sources and folder tree actions.
     /// Focus a source row by index and make the sources list the active section.
     FocusSourceRow {
-        /// Pane containing the target source selector, or `None` for the active pane.
-        pane: Option<FolderPaneIdModel>,
         /// Target source row index.
         index: usize,
     },
     /// Select a source row by index.
     SelectSourceRow {
-        /// Pane containing the target source selector, or `None` for the active pane.
-        pane: Option<FolderPaneIdModel>,
         /// Target source row index.
         index: usize,
     },
@@ -189,36 +171,26 @@ pub enum UiAction {
     RemoveFocusedSourceRow,
     /// Reload wav entries for one source row.
     ReloadSourceRow {
-        /// Pane containing the target source selector, or `None` for the active pane.
-        pane: Option<FolderPaneIdModel>,
         /// Target source row index.
         index: usize,
     },
     /// Run a hard sync/rescan for one source row.
     HardSyncSourceRow {
-        /// Pane containing the target source selector, or `None` for the active pane.
-        pane: Option<FolderPaneIdModel>,
         /// Target source row index.
         index: usize,
     },
     /// Open one source row folder in the system file manager.
     OpenSourceFolderRow {
-        /// Pane containing the target source selector, or `None` for the active pane.
-        pane: Option<FolderPaneIdModel>,
         /// Target source row index.
         index: usize,
     },
     /// Remove one configured source row.
     RemoveSourceRow {
-        /// Pane containing the target source selector, or `None` for the active pane.
-        pane: Option<FolderPaneIdModel>,
         /// Target source row index.
         index: usize,
     },
     /// Focus a folder row by index.
     FocusFolderRow {
-        /// Pane containing the target folder row, or `None` for the active pane.
-        pane: Option<FolderPaneIdModel>,
         /// Target folder row index.
         index: usize,
     },
@@ -228,15 +200,11 @@ pub enum UiAction {
     /// existing folder-filter selection behavior while also toggling expansion
     /// for expandable non-root rows outside folder-search mode.
     ActivateFolderRow {
-        /// Pane containing the target folder row, or `None` for the active pane.
-        pane: Option<FolderPaneIdModel>,
         /// Target folder row index.
         index: usize,
     },
     /// Toggle expansion for one folder row without changing selection semantics.
     ToggleFolderRowExpanded {
-        /// Pane containing the target folder row, or `None` for the active pane.
-        pane: Option<FolderPaneIdModel>,
         /// Target folder row index.
         index: usize,
     },
@@ -255,8 +223,6 @@ pub enum UiAction {
     StartNewFolder,
     /// Create a folder relative to one specific projected folder row.
     StartNewFolderAtFolderRow {
-        /// Pane containing the target folder row, or `None` for the active pane.
-        pane: Option<FolderPaneIdModel>,
         /// Backing controller folder row index.
         index: usize,
     },

@@ -293,7 +293,7 @@ impl From<compat::UiAction> for UiAction {
             compat::UiAction::FocusBrowserPanel => Self::FocusBrowserPanel,
             compat::UiAction::FocusSourcesPanel => Self::FocusSourcesPanel,
             compat::UiAction::FocusWaveformPanel => Self::FocusWaveformPanel,
-            compat::UiAction::FocusFolderPanel { pane } => Self::FocusFolderPanel { pane },
+            compat::UiAction::FocusFolderPanel => Self::FocusFolderPanel,
             compat::UiAction::FocusLoadedContentInList => Self::FocusLoadedSampleInBrowser,
             compat::UiAction::FocusBrowserSearch => Self::FocusBrowserSearch,
             compat::UiAction::BlurBrowserSearch => Self::BlurBrowserSearch,
@@ -328,53 +328,33 @@ impl From<compat::UiAction> for UiAction {
             compat::UiAction::SetSecondaryNumber { value } => {
                 Self::SetAudioInputSampleRate { sample_rate: value }
             }
-            compat::UiAction::FocusFolderSearch { pane } => Self::FocusFolderSearch { pane },
-            compat::UiAction::SetFolderSearch { pane, query } => {
-                Self::SetFolderSearch { pane, query }
-            }
-            compat::UiAction::ToggleShowAllFolders { pane } => Self::ToggleShowAllFolders { pane },
-            compat::UiAction::ToggleFolderFlattenedView { pane } => {
-                Self::ToggleFolderFlattenedView { pane }
-            }
-            compat::UiAction::FocusSourceRow { pane, index } => {
-                Self::FocusSourceRow { pane, index }
-            }
-            compat::UiAction::SelectSourceRow { pane, index } => {
-                Self::SelectSourceRow { pane, index }
-            }
+            compat::UiAction::FocusFolderSearch => Self::FocusFolderSearch,
+            compat::UiAction::SetFolderSearch { query } => Self::SetFolderSearch { query },
+            compat::UiAction::ToggleShowAllFolders => Self::ToggleShowAllFolders,
+            compat::UiAction::ToggleFolderFlattenedView => Self::ToggleFolderFlattenedView,
+            compat::UiAction::FocusSourceRow { index } => Self::FocusSourceRow { index },
+            compat::UiAction::SelectSourceRow { index } => Self::SelectSourceRow { index },
             compat::UiAction::MoveSourceFocus { delta } => Self::MoveSourceFocus { delta },
             compat::UiAction::ReloadFocusedSourceRow => Self::ReloadFocusedSourceRow,
             compat::UiAction::HardSyncFocusedSourceRow => Self::HardSyncFocusedSourceRow,
             compat::UiAction::OpenFocusedSourceFolder => Self::OpenFocusedSourceFolder,
             compat::UiAction::RemoveFocusedSourceRow => Self::RemoveFocusedSourceRow,
-            compat::UiAction::ReloadSourceRow { pane, index } => {
-                Self::ReloadSourceRow { pane, index }
-            }
-            compat::UiAction::HardSyncSourceRow { pane, index } => {
-                Self::HardSyncSourceRow { pane, index }
-            }
-            compat::UiAction::OpenSourceFolderRow { pane, index } => {
-                Self::OpenSourceFolderRow { pane, index }
-            }
-            compat::UiAction::RemoveSourceRow { pane, index } => {
-                Self::RemoveSourceRow { pane, index }
-            }
-            compat::UiAction::FocusFolderRow { pane, index } => {
-                Self::FocusFolderRow { pane, index }
-            }
-            compat::UiAction::ActivateFolderRow { pane, index } => {
-                Self::ActivateFolderRow { pane, index }
-            }
-            compat::UiAction::ToggleFolderRowExpanded { pane, index } => {
-                Self::ToggleFolderRowExpanded { pane, index }
+            compat::UiAction::ReloadSourceRow { index } => Self::ReloadSourceRow { index },
+            compat::UiAction::HardSyncSourceRow { index } => Self::HardSyncSourceRow { index },
+            compat::UiAction::OpenSourceFolderRow { index } => Self::OpenSourceFolderRow { index },
+            compat::UiAction::RemoveSourceRow { index } => Self::RemoveSourceRow { index },
+            compat::UiAction::FocusFolderRow { index } => Self::FocusFolderRow { index },
+            compat::UiAction::ActivateFolderRow { index } => Self::ActivateFolderRow { index },
+            compat::UiAction::ToggleFolderRowExpanded { index } => {
+                Self::ToggleFolderRowExpanded { index }
             }
             compat::UiAction::ExpandFocusedFolder => Self::ExpandFocusedFolder,
             compat::UiAction::CollapseFocusedFolder => Self::CollapseFocusedFolder,
             compat::UiAction::ToggleFocusedFolderSelection => Self::ToggleFocusedFolderSelection,
             compat::UiAction::MoveFolderFocus { delta } => Self::MoveFolderFocus { delta },
             compat::UiAction::StartNewFolder => Self::StartNewFolder,
-            compat::UiAction::StartNewFolderAtFolderRow { pane, index } => {
-                Self::StartNewFolderAtFolderRow { pane, index }
+            compat::UiAction::StartNewFolderAtFolderRow { index } => {
+                Self::StartNewFolderAtFolderRow { index }
             }
             compat::UiAction::StartNewFolderAtRoot => Self::StartNewFolderAtRoot,
             compat::UiAction::FocusFolderCreateInput => Self::FocusFolderCreateInput,
@@ -826,7 +806,7 @@ impl From<UiAction> for compat::UiAction {
             UiAction::FocusBrowserPanel => Self::FocusBrowserPanel,
             UiAction::FocusSourcesPanel => Self::FocusSourcesPanel,
             UiAction::FocusWaveformPanel => Self::FocusWaveformPanel,
-            UiAction::FocusFolderPanel { pane } => Self::FocusFolderPanel { pane },
+            UiAction::FocusFolderPanel => Self::FocusFolderPanel,
             UiAction::FocusLoadedSampleInBrowser => Self::FocusLoadedContentInList,
             UiAction::FocusBrowserSearch => Self::FocusBrowserSearch,
             UiAction::BlurBrowserSearch => Self::BlurBrowserSearch,
@@ -859,37 +839,31 @@ impl From<UiAction> for compat::UiAction {
             UiAction::SetAudioInputSampleRate { sample_rate } => {
                 Self::SetSecondaryNumber { value: sample_rate }
             }
-            UiAction::FocusFolderSearch { pane } => Self::FocusFolderSearch { pane },
-            UiAction::SetFolderSearch { pane, query } => Self::SetFolderSearch { pane, query },
-            UiAction::ToggleShowAllFolders { pane } => Self::ToggleShowAllFolders { pane },
-            UiAction::ToggleFolderFlattenedView { pane } => {
-                Self::ToggleFolderFlattenedView { pane }
-            }
-            UiAction::FocusSourceRow { pane, index } => Self::FocusSourceRow { pane, index },
-            UiAction::SelectSourceRow { pane, index } => Self::SelectSourceRow { pane, index },
+            UiAction::FocusFolderSearch => Self::FocusFolderSearch,
+            UiAction::SetFolderSearch { query } => Self::SetFolderSearch { query },
+            UiAction::ToggleShowAllFolders => Self::ToggleShowAllFolders,
+            UiAction::ToggleFolderFlattenedView => Self::ToggleFolderFlattenedView,
+            UiAction::FocusSourceRow { index } => Self::FocusSourceRow { index },
+            UiAction::SelectSourceRow { index } => Self::SelectSourceRow { index },
             UiAction::MoveSourceFocus { delta } => Self::MoveSourceFocus { delta },
             UiAction::ReloadFocusedSourceRow => Self::ReloadFocusedSourceRow,
             UiAction::HardSyncFocusedSourceRow => Self::HardSyncFocusedSourceRow,
             UiAction::OpenFocusedSourceFolder => Self::OpenFocusedSourceFolder,
             UiAction::RemoveFocusedSourceRow => Self::RemoveFocusedSourceRow,
-            UiAction::ReloadSourceRow { pane, index } => Self::ReloadSourceRow { pane, index },
-            UiAction::HardSyncSourceRow { pane, index } => Self::HardSyncSourceRow { pane, index },
-            UiAction::OpenSourceFolderRow { pane, index } => {
-                Self::OpenSourceFolderRow { pane, index }
-            }
-            UiAction::RemoveSourceRow { pane, index } => Self::RemoveSourceRow { pane, index },
-            UiAction::FocusFolderRow { pane, index } => Self::FocusFolderRow { pane, index },
-            UiAction::ActivateFolderRow { pane, index } => Self::ActivateFolderRow { pane, index },
-            UiAction::ToggleFolderRowExpanded { pane, index } => {
-                Self::ToggleFolderRowExpanded { pane, index }
-            }
+            UiAction::ReloadSourceRow { index } => Self::ReloadSourceRow { index },
+            UiAction::HardSyncSourceRow { index } => Self::HardSyncSourceRow { index },
+            UiAction::OpenSourceFolderRow { index } => Self::OpenSourceFolderRow { index },
+            UiAction::RemoveSourceRow { index } => Self::RemoveSourceRow { index },
+            UiAction::FocusFolderRow { index } => Self::FocusFolderRow { index },
+            UiAction::ActivateFolderRow { index } => Self::ActivateFolderRow { index },
+            UiAction::ToggleFolderRowExpanded { index } => Self::ToggleFolderRowExpanded { index },
             UiAction::ExpandFocusedFolder => Self::ExpandFocusedFolder,
             UiAction::CollapseFocusedFolder => Self::CollapseFocusedFolder,
             UiAction::ToggleFocusedFolderSelection => Self::ToggleFocusedFolderSelection,
             UiAction::MoveFolderFocus { delta } => Self::MoveFolderFocus { delta },
             UiAction::StartNewFolder => Self::StartNewFolder,
-            UiAction::StartNewFolderAtFolderRow { pane, index } => {
-                Self::StartNewFolderAtFolderRow { pane, index }
+            UiAction::StartNewFolderAtFolderRow { index } => {
+                Self::StartNewFolderAtFolderRow { index }
             }
             UiAction::StartNewFolderAtRoot => Self::StartNewFolderAtRoot,
             UiAction::FocusFolderCreateInput => Self::FocusFolderCreateInput,

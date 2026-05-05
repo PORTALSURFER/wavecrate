@@ -1,7 +1,6 @@
 //! Source-row and global options routing for native browser actions.
 
 use super::super::AppController;
-use crate::app_core::actions::NativeFolderPaneIdModel as FolderPaneIdModel;
 use crate::app_core::actions::NativeUiAction;
 use crate::app_core::state::{AudioPickerTarget, FolderPaneId};
 
@@ -12,12 +11,12 @@ pub(super) fn apply_source_and_options_native_ui_action(
 ) -> Result<(), NativeUiAction> {
     match action {
         NativeUiAction::FocusSourcesPanel => controller.focus_sources_list(),
-        NativeUiAction::FocusSourceRow { pane, index } => {
-            controller.select_source_by_index_in_pane(resolve_source_pane(controller, pane), index);
+        NativeUiAction::FocusSourceRow { index } => {
+            controller.select_source_by_index_in_pane(resolve_source_pane(controller), index);
             controller.focus_sources_context();
         }
-        NativeUiAction::SelectSourceRow { pane, index } => {
-            controller.select_source_by_index_in_pane(resolve_source_pane(controller, pane), index)
+        NativeUiAction::SelectSourceRow { index } => {
+            controller.select_source_by_index_in_pane(resolve_source_pane(controller), index)
         }
         NativeUiAction::MoveSourceFocus { delta } => {
             controller.nudge_source_selection(delta as isize)
@@ -44,22 +43,20 @@ pub(super) fn apply_source_and_options_native_ui_action(
                 controller.remove_source(index);
             }
         }
-        NativeUiAction::ReloadSourceRow { pane, index } => {
-            controller.select_source_by_index_in_pane(resolve_source_pane(controller, pane), index);
+        NativeUiAction::ReloadSourceRow { index } => {
+            controller.select_source_by_index_in_pane(resolve_source_pane(controller), index);
             if let Some(source_id) = controller.source_id_for_index(index) {
                 controller.request_quick_sync_for_source(&source_id);
             }
         }
-        NativeUiAction::HardSyncSourceRow { pane, index } => {
-            controller.select_source_by_index_in_pane(resolve_source_pane(controller, pane), index);
+        NativeUiAction::HardSyncSourceRow { index } => {
+            controller.select_source_by_index_in_pane(resolve_source_pane(controller), index);
             if let Some(source_id) = controller.source_id_for_index(index) {
                 controller.request_hard_sync_for_source(&source_id);
             }
         }
-        NativeUiAction::OpenSourceFolderRow { pane: _, index } => {
-            controller.open_source_folder(index)
-        }
-        NativeUiAction::RemoveSourceRow { pane: _, index } => controller.remove_source(index),
+        NativeUiAction::OpenSourceFolderRow { index } => controller.open_source_folder(index),
+        NativeUiAction::RemoveSourceRow { index } => controller.remove_source(index),
         NativeUiAction::OpenAddSourceDialog => controller.add_source_via_dialog(),
         NativeUiAction::OpenOptionsMenu => controller.open_options_panel(),
         NativeUiAction::CloseOptionsPanel => controller.close_options_panel(),
@@ -130,9 +127,6 @@ fn selected_source_index(controller: &AppController) -> Option<usize> {
     controller.source_index_for_pane(controller.active_folder_pane())
 }
 
-fn resolve_source_pane(
-    controller: &AppController,
-    _pane: Option<FolderPaneIdModel>,
-) -> FolderPaneId {
+fn resolve_source_pane(controller: &AppController) -> FolderPaneId {
     controller.active_folder_pane()
 }

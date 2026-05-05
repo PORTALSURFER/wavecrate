@@ -82,13 +82,9 @@ fn mark_dirty_for_browser_focus_action_stays_targeted() {
 fn mark_dirty_for_tree_actions_stays_targeted() {
     let actions = [
         NativeUiAction::SetFolderSearch {
-            pane: None,
             query: String::from("drums"),
         },
-        NativeUiAction::ActivateFolderRow {
-            pane: None,
-            index: 0,
-        },
+        NativeUiAction::ActivateFolderRow { index: 0 },
     ];
 
     for action in actions {
@@ -187,10 +183,7 @@ fn mark_dirty_for_browser_review_actions_marks_waveform_state_too() {
 fn mark_dirty_for_unclassified_action_keeps_broad_invalidation() {
     let mut bridge = test_bridge(16);
 
-    bridge.mark_dirty_for_action(&NativeUiAction::OpenSourceFolderRow {
-        pane: None,
-        index: 0,
-    });
+    bridge.mark_dirty_for_action(&NativeUiAction::OpenSourceFolderRow { index: 0 });
 
     assert!(
         bridge

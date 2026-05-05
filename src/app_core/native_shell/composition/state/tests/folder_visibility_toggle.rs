@@ -1,6 +1,4 @@
 use super::*;
-use crate::compat_app_contract::FolderPaneIdModel;
-
 #[test]
 fn folder_visibility_toggle_button_click_maps_to_toggle_action() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
@@ -16,9 +14,7 @@ fn folder_visibility_toggle_button_click_maps_to_toggle_action() {
 
     assert_eq!(
         state.folder_header_action_at_point(&layout, &model, point),
-        Some(UiAction::ToggleShowAllFolders {
-            pane: Some(FolderPaneIdModel::Upper),
-        })
+        Some(UiAction::ToggleShowAllFolders)
     );
 }
 
@@ -54,9 +50,7 @@ fn folder_flatten_toggle_button_click_maps_to_toggle_action() {
 
     assert_eq!(
         state.folder_header_action_at_point(&layout, &model, point),
-        Some(UiAction::ToggleFolderFlattenedView {
-            pane: Some(FolderPaneIdModel::Upper),
-        })
+        Some(UiAction::ToggleFolderFlattenedView)
     );
 }
 

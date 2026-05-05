@@ -29,10 +29,7 @@ fn reload_source_row_action_uses_single_active_source_list() {
     let source_b_id = controller
         .source_id_for_index(1)
         .expect("source-b id should exist");
-    controller.apply_native_ui_action(NativeUiAction::ReloadSourceRow {
-        pane: Some(crate::app_core::actions::NativeFolderPaneIdModel::Lower),
-        index: 1,
-    });
+    controller.apply_native_ui_action(NativeUiAction::ReloadSourceRow { index: 1 });
 
     assert_eq!(
         controller.folder_pane_source(FolderPaneId::Upper),
@@ -68,10 +65,7 @@ fn remove_source_row_action_removes_clicked_source_from_single_list() {
     controller.select_source_by_index(0);
     controller.select_source_by_index_in_pane(FolderPaneId::Lower, 1);
 
-    controller.apply_native_ui_action(NativeUiAction::RemoveSourceRow {
-        pane: Some(crate::app_core::actions::NativeFolderPaneIdModel::Lower),
-        index: 1,
-    });
+    controller.apply_native_ui_action(NativeUiAction::RemoveSourceRow { index: 1 });
 
     assert_eq!(controller.active_folder_pane(), FolderPaneId::Upper);
     assert_eq!(controller.ui.sources.rows.len(), 1);
@@ -99,10 +93,7 @@ fn focus_source_row_action_selects_single_active_source_and_focuses_sources_list
         .expect("source-b id should exist");
     controller.ui.focus.context = FocusContext::Waveform;
 
-    controller.apply_native_ui_action(NativeUiAction::FocusSourceRow {
-        pane: Some(crate::app_core::actions::NativeFolderPaneIdModel::Lower),
-        index: 1,
-    });
+    controller.apply_native_ui_action(NativeUiAction::FocusSourceRow { index: 1 });
 
     assert_eq!(controller.active_folder_pane(), FolderPaneId::Upper);
     assert_eq!(
