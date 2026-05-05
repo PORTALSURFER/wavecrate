@@ -320,6 +320,41 @@ function Assert-DispatcherInventory {
   }
 }
 
+function Assert-PowerShellDispatcherWindowsTargets {
+  param([object]$Inventory)
+
+  if ($null -eq $Inventory) { return }
+
+  foreach ($dispatcher in @($Inventory.dispatchers)) {
+    if ($dispatcher.kind -ne "powershell") {
+      continue
+    }
+
+    foreach ($command in @($dispatcher.commands)) {
+      $target = [string]$command.target
+      if (-not $target.EndsWith(".sh")) {
+        continue
+      }
+
+      $windowsSupported = $true
+      if ($command.PSObject.Properties.Name -contains "windows_supported") {
+        $windowsSupported = [bool]$command.windows_supported
+      }
+      $reason = ""
+      if ($command.PSObject.Properties.Name -contains "reason") {
+        $reason = [string]$command.reason
+      }
+
+      if (-not $windowsSupported -and -not [string]::IsNullOrWhiteSpace($reason)) {
+        Write-Pass "dispatcher map $($dispatcher.path) documents Bash-only command $($command.name)"
+        continue
+      }
+
+      Add-Failure "PowerShell dispatcher $($dispatcher.path) command $($command.name) is backed only by Bash target $target without explicit windows_supported=false metadata"
+    }
+  }
+}
+
 Push-Location $rootDir
 try {
   $scriptsToParse = @(
@@ -337,7 +372,8 @@ try {
     (Join-Path $scriptsDir "internal/ci/ci_quick.ps1"),
     (Join-Path $scriptsDir "internal/ci/ci_local.ps1"),
     (Join-Path $scriptsDir "internal/check/audit_cleanup_hotspots.ps1"),
-    (Join-Path $scriptsDir "internal/check/check_docs_index.ps1")
+    (Join-Path $scriptsDir "internal/check/check_docs_index.ps1"),
+    (Join-Path $scriptsDir "internal/check/report_file_size_budget_allowlist.ps1")
   )
   foreach ($scriptPath in $scriptsToParse) {
     Assert-ScriptParses -Path $scriptPath
@@ -348,6 +384,7 @@ try {
   Assert-ScriptInventoryClassifiesTopLevel -Inventory $inventory
   Assert-CompatibilityWrappers -Inventory $inventory
   Assert-DispatcherInventory -Inventory $inventory
+  Assert-PowerShellDispatcherWindowsTargets -Inventory $inventory
 
   $devcheckPs = Get-Content -Path (Join-Path $scriptsDir "internal/ci/devcheck.ps1") -Raw
   $devcheckSh = Get-Content -Path (Join-Path $scriptsDir "internal/ci/devcheck.sh") -Raw

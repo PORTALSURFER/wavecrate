@@ -142,7 +142,9 @@
         },
         {
           "name": "install-hooks",
-          "target": "install_agent_preflight_hooks.sh"
+          "target": "install_agent_preflight_hooks.sh",
+          "windows_supported": false,
+          "reason": "Hook installation still uses the Bash installer; Windows request/preflight validation is handled by PowerShell commands."
         },
         {
           "name": "preflight",
@@ -173,7 +175,9 @@
         },
         {
           "name": "dead-deps",
-          "target": "check_rust_dead_deps_advisory.sh"
+          "target": "check_rust_dead_deps_advisory.sh",
+          "windows_supported": false,
+          "reason": "Advisory dead-dependency sweep is Linux/Bash-only in the PowerShell workflow."
         },
         {
           "name": "docs-index",
@@ -233,19 +237,25 @@
         },
         {
           "name": "report-env-vars",
-          "target": "report_env_vars_drift.sh"
+          "target": "report_env_vars_drift.sh",
+          "windows_supported": false,
+          "reason": "Environment-variable drift reporting remains a Bash-only advisory report."
         },
         {
           "name": "report-file-budget",
-          "target": "report_file_size_budget_allowlist.sh"
+          "target": "report_file_size_budget_allowlist.ps1"
         },
         {
           "name": "report-markdown-links",
-          "target": "report_markdown_links_all.sh"
+          "target": "report_markdown_links_all.sh",
+          "windows_supported": false,
+          "reason": "Full markdown-link reporting remains a Bash-only advisory report."
         },
         {
           "name": "run-contract-smoke",
-          "target": "check_run_contract_smoke.sh"
+          "target": "check_run_contract_smoke.sh",
+          "windows_supported": false,
+          "reason": "Run-contract smoke currently depends on the Bash test harness."
         },
         {
           "name": "rust-no-todos",
