@@ -241,14 +241,15 @@ impl AppController {
             .loaded_audio
             .as_ref()
             .ok_or_else(|| "Load a sample before slicing".to_string())?;
-        if let Some(decoded) = self.sample_view.waveform.decoded.as_ref() {
-            if decoded.peaks.is_none() && !decoded.samples.is_empty() {
-                return Ok((
-                    Cow::Borrowed(decoded.samples.as_ref()),
-                    decoded.sample_rate.max(1),
-                    decoded.channels.max(1),
-                ));
-            }
+        if let Some(decoded) = self.sample_view.waveform.decoded.as_ref()
+            && decoded.peaks.is_none()
+            && !decoded.samples.is_empty()
+        {
+            return Ok((
+                Cow::Borrowed(decoded.samples.as_ref()),
+                decoded.sample_rate.max(1),
+                decoded.channels.max(1),
+            ));
         }
         let decoded = decode_samples_from_bytes(&audio.bytes)?;
         Ok((

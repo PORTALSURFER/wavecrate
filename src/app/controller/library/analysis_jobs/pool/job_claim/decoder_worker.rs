@@ -170,12 +170,11 @@ fn decode_job(
     max_duration_bits: &AtomicU32,
     analysis_sample_rate: &AtomicU32,
 ) -> DecodeOutcome {
-    let outcome = if job.job_type == analysis_db::ANALYZE_SAMPLE_JOB_TYPE {
+    if job.job_type == analysis_db::ANALYZE_SAMPLE_JOB_TYPE {
         decode_analysis_job(job, max_duration_bits, analysis_sample_rate)
     } else {
         DecodeOutcome::NotNeeded
-    };
-    outcome
+    }
 }
 
 fn decode_analysis_job(

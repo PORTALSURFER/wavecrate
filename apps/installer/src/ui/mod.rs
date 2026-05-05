@@ -11,7 +11,6 @@ use sempal::{
 mod projection;
 mod state;
 
-use self::projection::step_label;
 pub(crate) use self::state::{InstallerEvent, InstallerNativeBridge, InstallerSender};
 
 /// Project installer state into the shared native app model and reduce runtime actions.
@@ -120,6 +119,7 @@ pub(crate) fn send_finished(sender: &mpsc::Sender<InstallerEvent>) -> Result<(),
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ui::projection::step_label;
     use sempal::app_core::actions::NativeUiAction as UiAction;
 
     #[test]

@@ -335,9 +335,9 @@ pub(in crate::gui::native_shell::state) fn folder_scrollbar_view_start_for_point
     )
 }
 
-pub(in crate::gui::native_shell::state) fn folder_pane_model<'a>(
-    model: &'a AppModel,
+pub(in crate::gui::native_shell::state) fn folder_pane_model(
+    model: &AppModel,
     pane: FolderPaneIdModel,
-) -> &'a FolderPaneModel {
+) -> &FolderPaneModel {
     model.sources.folder_pane(pane)
 }

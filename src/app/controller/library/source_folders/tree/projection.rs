@@ -31,7 +31,7 @@ impl AppController {
     pub(crate) fn build_folder_rows(&mut self, model: &FolderBrowserModel) {
         let source_id = self.selection_state.ctx.selected_source.clone();
         let snapshot = source_id
-            .map(|source_id| {
+            .and_then(|source_id| {
                 self.ui_cache
                     .folders
                     .snapshots
@@ -41,7 +41,6 @@ impl AppController {
                     ))
                     .cloned()
             })
-            .flatten()
             .unwrap_or_else(|| FolderTreeSnapshot::from_available(&model.available));
         let view = project_folder_browser_view(
             model,

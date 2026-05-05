@@ -81,10 +81,10 @@ fn current_progress_for_job_type(
         if matches!(cached, CachedProgressSnapshot::Stale) {
             telemetry::record_progress_snapshot_repair(source_root, "stale_recount", None);
         }
-        if let Err(err) = repair_progress_snapshot(source_root, job_type, filter_missing) {
-            if matches!(cached, CachedProgressSnapshot::Stale) {
-                telemetry::record_progress_snapshot_repair(source_root, "error", Some(&err));
-            }
+        if let Err(err) = repair_progress_snapshot(source_root, job_type, filter_missing)
+            && matches!(cached, CachedProgressSnapshot::Stale)
+        {
+            telemetry::record_progress_snapshot_repair(source_root, "error", Some(&err));
         }
         return Ok(progress);
     }

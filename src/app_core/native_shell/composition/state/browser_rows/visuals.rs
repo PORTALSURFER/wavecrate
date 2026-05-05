@@ -73,7 +73,7 @@ pub(in crate::gui::native_shell::state) fn browser_row_stripe_fill(
     style: &StyleTokens,
     visible_row: usize,
 ) -> Rgba8 {
-    if visible_row % 2 == 0 {
+    if visible_row.is_multiple_of(2) {
         blend_color(style.surface_base, style.bg_tertiary, 0.14)
     } else {
         blend_color(style.surface_base, style.bg_secondary, 0.10)

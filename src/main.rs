@@ -1,5 +1,6 @@
 #![deny(missing_docs)]
 #![deny(warnings)]
+#![allow(clippy::too_many_arguments)]
 
 //! Entry point for the native Vello-based Sempal UI.
 #![cfg_attr(

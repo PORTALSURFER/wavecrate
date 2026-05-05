@@ -174,10 +174,10 @@ pub(crate) fn rollback_staged_folder(
 
 /// Remove the staging root if it is now empty.
 pub(crate) fn cleanup_staging_root(staging_root: &Path) {
-    if let Ok(mut entries) = fs::read_dir(staging_root) {
-        if entries.next().is_none() {
-            let _ = fs::remove_dir(staging_root);
-        }
+    if let Ok(mut entries) = fs::read_dir(staging_root)
+        && entries.next().is_none()
+    {
+        let _ = fs::remove_dir(staging_root);
     }
 }
 

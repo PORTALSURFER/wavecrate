@@ -136,10 +136,12 @@ impl AppController {
 }
 
 fn strip_numbered_suffix<'a>(stem: &'a str, suffix: &str) -> &'a str {
-    if let Some((prefix, tail)) = stem.rsplit_once(&format!("_{suffix}")) {
-        if !prefix.is_empty() && !tail.is_empty() && tail.chars().all(|c| c.is_ascii_digit()) {
-            return prefix;
-        }
+    if let Some((prefix, tail)) = stem.rsplit_once(&format!("_{suffix}"))
+        && !prefix.is_empty()
+        && !tail.is_empty()
+        && tail.chars().all(|c| c.is_ascii_digit())
+    {
+        return prefix;
     }
     stem
 }

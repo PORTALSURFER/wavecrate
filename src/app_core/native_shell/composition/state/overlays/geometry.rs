@@ -41,9 +41,7 @@ pub(in crate::gui::native_shell::state) fn prompt_input_rect(
     style: &StyleTokens,
     model: &AppModel,
 ) -> Option<Rect> {
-    if model.confirm_prompt.input_value.is_none() {
-        return None;
-    }
+    model.confirm_prompt.input_value.as_ref()?;
     compute_prompt_overlay_visual_layout(
         layout.root.rect,
         layout.content,

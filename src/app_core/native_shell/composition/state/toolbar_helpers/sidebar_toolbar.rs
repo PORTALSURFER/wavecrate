@@ -198,7 +198,7 @@ pub(in crate::gui::native_shell::state) fn source_action_buttons(
     .action_buttons;
     action_layouts
         .into_iter()
-        .zip(definitions.into_iter())
+        .zip(definitions)
         .map(
             |(layout, (label, enabled, action, text_color))| ActionButton {
                 rect: layout.rect,

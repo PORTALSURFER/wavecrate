@@ -41,13 +41,14 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
                 "radiant native vello received zero-size resize"
             );
         }
-        if size.width > 0 && size.height > 0 && self.window.is_some() {
-            if let (Some(render_ctx), Some(surface)) =
+        if size.width > 0
+            && size.height > 0
+            && self.window.is_some()
+            && let (Some(render_ctx), Some(surface)) =
                 (self.render_ctx.as_ref(), self.render_surface.as_mut())
-            {
-                render_ctx.resize_surface(surface, size.width, size.height);
-                self.apply_invalidation_scope(RuntimeInvalidationScope::LayoutAndAll);
-            }
+        {
+            render_ctx.resize_surface(surface, size.width, size.height);
+            self.apply_invalidation_scope(RuntimeInvalidationScope::LayoutAndAll);
         }
     }
 

@@ -540,7 +540,7 @@ impl NativeMotionModel {
             waveform_transport_hint: signal_chrome.status_hint,
             waveform_compare_anchor_available: signal_chrome.reference_anchor_available,
             waveform_compare_anchor_label: signal_chrome.reference_anchor_label,
-            waveform_channel_view: signal_chrome.channel_view.into(),
+            waveform_channel_view: signal_chrome.channel_view,
             waveform_normalized_audition_enabled: signal_tools.audition_enabled,
             waveform_bpm_snap_enabled: signal_tools.primary_snap_enabled,
             waveform_relative_bpm_grid_enabled: signal_tools.relative_grid_enabled,
@@ -628,7 +628,7 @@ impl NativeMotionModel {
             self.waveform_transport_hint.clone(),
             self.waveform_compare_anchor_available,
             self.waveform_compare_anchor_label.clone(),
-            self.waveform_channel_view.into(),
+            self.waveform_channel_view,
         )
     }
 
@@ -820,6 +820,7 @@ impl BrowserActionsModel {
 }
 
 impl AppModel {
+    /// Audio device and engine panel state for the native shell options view.
     pub fn paired_device_panel(&self) -> &AudioEngineModel {
         &self.audio_engine
     }
@@ -897,46 +898,57 @@ pub struct AudioEngineModel {
 }
 
 impl AudioEngineModel {
+    /// Compact health state for the audio engine status chip.
     pub fn status_state(&self) -> AudioEngineChipStateModel {
         self.chip_state
     }
 
+    /// Compact label for the audio engine status chip.
     pub fn status_label(&self) -> &str {
         &self.chip_label
     }
 
+    /// Optional secondary audio-engine detail or error label.
     pub fn detail_label(&self) -> Option<&str> {
         self.detail_label.as_deref()
     }
 
+    /// Primary picker group, currently mapped to output host.
     pub fn primary_group(&self) -> &AudioFieldModel {
         &self.output_host
     }
 
+    /// Primary picker item, currently mapped to output device.
     pub fn primary_item(&self) -> &AudioFieldModel {
         &self.output_device
     }
 
+    /// Primary picker number field, currently mapped to output sample rate.
     pub fn primary_number(&self) -> &AudioFieldModel {
         &self.output_sample_rate
     }
 
+    /// Secondary picker group, currently mapped to input host.
     pub fn secondary_group(&self) -> &AudioFieldModel {
         &self.input_host
     }
 
+    /// Secondary picker item, currently mapped to input device.
     pub fn secondary_item(&self) -> &AudioFieldModel {
         &self.input_device
     }
 
+    /// Secondary picker number field, currently mapped to input sample rate.
     pub fn secondary_number(&self) -> &AudioFieldModel {
         &self.input_sample_rate
     }
 
+    /// Currently active generic paired-picker target.
     pub fn active_picker(&self) -> Option<form::PairedPickerTarget> {
         self.active_picker.map(Into::into)
     }
 
+    /// Option rows for the requested generic paired-picker target.
     pub fn options_for(&self, target: form::PairedPickerTarget) -> &[AudioOptionItemModel] {
         match target {
             form::PairedPickerTarget::PrimaryGroup => &self.output_host_options,
@@ -1140,14 +1152,14 @@ impl WaveformPanelModel {
             self.cursor_milli,
             self.playhead_milli,
             self.playhead_micros,
-            self.selection_milli.map(Into::into),
+            self.selection_milli,
         )
     }
 
     /// Return this panel's generic timeline edit preview.
     pub fn edit_preview(&self) -> WaveformEditPreviewModel {
         WaveformEditPreviewModel::new(
-            self.edit_selection_milli.map(Into::into),
+            self.edit_selection_milli,
             self.edit_fade_in_end_milli,
             self.edit_fade_in_end_micros,
             self.edit_fade_in_mute_start_milli,
@@ -1261,7 +1273,7 @@ impl WaveformChromeModel {
             self.transport_hint.clone(),
             self.compare_anchor_available,
             self.compare_anchor_label.clone(),
-            self.channel_view.into(),
+            self.channel_view,
         )
     }
 

@@ -90,36 +90,35 @@ impl NativeShellState {
             model,
             Some(waveform_toolbar_left - sizing.action_button_gap),
         );
-        if self.waveform_bpm_input_active {
-            if let Some(bpm_input_rect) = waveform_toolbar_buttons
+        if self.waveform_bpm_input_active
+            && let Some(bpm_input_rect) = waveform_toolbar_buttons
                 .iter()
                 .find(|button| button.label == "BPM Value")
                 .map(|button| button.rect)
-            {
-                if let Some(visual) = self.waveform_bpm_editor_visual.as_ref() {
-                    let bpm_text_rect = waveform_toolbar_buttons
-                        .iter()
-                        .find(|button| button.label == "BPM Value")
-                        .map(|button| compute_action_button_text_rect(button.rect, sizing))
-                        .unwrap_or(bpm_input_rect);
-                    render_active_waveform_bpm_editor(
-                        primitives,
-                        text_runs,
-                        style,
-                        sizing,
-                        bpm_input_rect,
-                        bpm_text_rect,
-                        visual,
-                    );
-                } else {
-                    render_waveform_bpm_input_focus_overlay(
-                        primitives,
-                        style,
-                        sizing,
-                        bpm_input_rect,
-                        motion_wave,
-                    );
-                }
+        {
+            if let Some(visual) = self.waveform_bpm_editor_visual.as_ref() {
+                let bpm_text_rect = waveform_toolbar_buttons
+                    .iter()
+                    .find(|button| button.label == "BPM Value")
+                    .map(|button| compute_action_button_text_rect(button.rect, sizing))
+                    .unwrap_or(bpm_input_rect);
+                render_active_waveform_bpm_editor(
+                    primitives,
+                    text_runs,
+                    style,
+                    sizing,
+                    bpm_input_rect,
+                    bpm_text_rect,
+                    visual,
+                );
+            } else {
+                render_waveform_bpm_input_focus_overlay(
+                    primitives,
+                    style,
+                    sizing,
+                    bpm_input_rect,
+                    motion_wave,
+                );
             }
         }
         render_waveform_toolbar_buttons(
@@ -138,16 +137,16 @@ impl NativeShellState {
             .as_ref()
             .map(|toolbar| toolbar.search_field)
             .filter(|rect| rect.width() > 1.0)
+            && self.hovered_browser_search_field
+            && self.browser_search_editor_visual.is_none()
         {
-            if self.hovered_browser_search_field && self.browser_search_editor_visual.is_none() {
-                render_browser_search_field_hover_overlay(
-                    primitives,
-                    style,
-                    sizing,
-                    search_field_rect,
-                    motion_wave,
-                );
-            }
+            render_browser_search_field_hover_overlay(
+                primitives,
+                style,
+                sizing,
+                search_field_rect,
+                motion_wave,
+            );
         }
         if let Some((chip_rect, rating_level)) =
             self.browser_toolbar_layout.as_ref().and_then(|toolbar| {

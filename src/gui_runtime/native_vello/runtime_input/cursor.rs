@@ -25,16 +25,16 @@ where
     /// Resolve waveform-resize hover cursor state for the current pointer.
     pub(crate) fn update_waveform_resize_cursor(&mut self, point: Point) {
         let icon = if let Some(layout) = self.shell_layout.as_deref() {
-            if waveform_selection_drag_handle_hovered(&layout, &self.model, point) {
+            if waveform_selection_drag_handle_hovered(layout, &self.model, point) {
                 CursorIcon::Grab
-            } else if waveform_resize_handle_hovered(&layout, &self.model, point) {
+            } else if waveform_resize_handle_hovered(layout, &self.model, point) {
                 CursorIcon::EwResize
             } else if self
                 .shell_state
-                .prompt_input_at_point(&layout, &self.model, point)
+                .prompt_input_at_point(layout, &self.model, point)
                 || self
                     .shell_state
-                    .waveform_bpm_input_at_point(&layout, &self.model, point)
+                    .waveform_bpm_input_at_point(layout, &self.model, point)
             {
                 CursorIcon::Text
             } else {

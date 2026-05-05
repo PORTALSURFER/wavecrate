@@ -10,7 +10,7 @@ pub(super) fn is_root_path(path: &Path) -> bool {
 }
 
 /// Cached state for the folder browser within a source.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct FolderBrowserModel {
     /// Currently selected folder paths.
     pub(crate) selected: BTreeSet<PathBuf>,
@@ -42,28 +42,6 @@ pub(crate) struct FolderBrowserModel {
     pub(crate) hotkeys: BTreeMap<u8, PathBuf>,
     /// Folder file-scope mode for browser filtering.
     pub(crate) file_scope_mode: crate::app::state::FolderFileScopeMode,
-}
-
-impl Default for FolderBrowserModel {
-    fn default() -> Self {
-        Self {
-            selected: BTreeSet::new(),
-            negated: BTreeSet::new(),
-            expanded: BTreeSet::new(),
-            focused: None,
-            available: BTreeSet::new(),
-            available_show_all_folders: false,
-            selection_anchor: None,
-            manual_folders: BTreeSet::new(),
-            search_query: String::new(),
-            show_all_folders: false,
-            last_disk_refresh: None,
-            disk_folders: BTreeSet::new(),
-            disk_refresh_in_progress: false,
-            hotkeys: BTreeMap::new(),
-            file_scope_mode: crate::app::state::FolderFileScopeMode::default(),
-        }
-    }
 }
 
 impl FolderBrowserModel {

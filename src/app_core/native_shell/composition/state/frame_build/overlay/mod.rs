@@ -143,25 +143,23 @@ pub(super) fn render_hover_overlay(
                 .folder_pane(hovered_folder_pane)
                 .tree_rows
                 .get(hovered_folder_row_index),
+        ) && !matches!(
+            row.kind,
+            FolderRowKind::CreateDraft | FolderRowKind::RenameDraft
         ) {
-            if !matches!(
-                row.kind,
-                FolderRowKind::CreateDraft | FolderRowKind::RenameDraft
-            ) {
-                let visual_rect = folder_row_visual_rect(row_rect, sizing);
-                let color = if model.drag_overlay.active {
-                    folder_drag_hover_fill(style, model.drag_overlay.valid_target)
-                } else {
-                    subtle_item_hover_fill(style)
-                };
-                emit_primitive(
-                    primitives,
-                    Primitive::Rect(FillRect {
-                        rect: visual_rect,
-                        color,
-                    }),
-                );
-            }
+            let visual_rect = folder_row_visual_rect(row_rect, sizing);
+            let color = if model.drag_overlay.active {
+                folder_drag_hover_fill(style, model.drag_overlay.valid_target)
+            } else {
+                subtle_item_hover_fill(style)
+            };
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: visual_rect,
+                    color,
+                }),
+            );
         }
     }
 }

@@ -167,10 +167,8 @@ fn select_wav_known_index_with_options(
     controller.sample_view.wav.selected_wav = Some(path.clone());
     controller.ui.browser.selection.last_focused_index = Some(index);
     controller.ui.browser.selection.last_focused_path = Some(path.clone());
-    if apply_commit_focus_effects {
-        if !side_effects.refresh_similarity_highlight {
-            controller.clear_focused_similarity_highlight();
-        }
+    if apply_commit_focus_effects && !side_effects.refresh_similarity_highlight {
+        controller.clear_focused_similarity_highlight();
     }
     let missing = controller
         .wav_entries

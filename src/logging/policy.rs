@@ -177,9 +177,8 @@ fn launch_arg_present<I>(args: I) -> bool
 where
     I: IntoIterator<Item = OsString>,
 {
-    args.into_iter().any(|arg| {
-        arg == OsString::from(DEBUG_LOGGING_ARG) || arg == OsString::from(DEBUG_LOGGING_SHORT_ARG)
-    })
+    args.into_iter()
+        .any(|arg| arg == DEBUG_LOGGING_ARG || arg == DEBUG_LOGGING_SHORT_ARG)
 }
 
 #[cfg(test)]

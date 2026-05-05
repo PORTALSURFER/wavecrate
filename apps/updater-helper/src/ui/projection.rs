@@ -31,7 +31,7 @@ impl UpdateNativeBridge {
                 model.status = UpdateStatusModel::Available;
                 model.status_label = message.clone();
                 if let Some(release) = self.selected_release() {
-                    model.available_tag = Some(release.tag.clone());
+                    model.available_version_label = Some(release.tag.clone());
                     if !release.html_url.is_empty() {
                         model.available_url = Some(release.html_url.clone());
                     }
@@ -54,7 +54,7 @@ impl UpdateNativeBridge {
                     model.status = UpdateStatusModel::Available;
                     model.status_label = String::from("Ready to update");
                     if let Some(release) = self.selected_release() {
-                        model.available_tag = Some(release.tag.clone());
+                        model.available_version_label = Some(release.tag.clone());
                         if !release.html_url.is_empty() {
                             model.available_url = Some(release.html_url.clone());
                         }

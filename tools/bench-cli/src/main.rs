@@ -1,4 +1,5 @@
 //! Developer utility to benchmark analysis throughput and library DB queries.
+#![allow(clippy::assertions_on_constants)]
 
 mod bench;
 

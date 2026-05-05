@@ -72,7 +72,7 @@ impl AppController {
         #[cfg(not(test))]
         {
             let _ = (source, absolute, target_path, entries);
-            return Ok(false);
+            Ok(false)
         }
         #[cfg(test)]
         {

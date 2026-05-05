@@ -68,29 +68,28 @@ pub(super) fn render_browser_rows_window(
             );
         }
         let marked_marker_width = if row.marked { 4.0 } else { 0.0 };
-        if row.marked {
-            if let Some(marker_rect) = browser_locked_marker_rect(row.rect, ctx.sizing, 0.0) {
-                emit_primitive(
-                    primitives,
-                    Primitive::Rect(FillRect {
-                        rect: marker_rect,
-                        color: ctx.style.highlight_cyan,
-                    }),
-                );
-            }
+        if row.marked
+            && let Some(marker_rect) = browser_locked_marker_rect(row.rect, ctx.sizing, 0.0)
+        {
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: marker_rect,
+                    color: ctx.style.highlight_cyan,
+                }),
+            );
         }
-        if row.locked {
-            if let Some(marker_rect) =
+        if row.locked
+            && let Some(marker_rect) =
                 browser_locked_marker_rect(row.rect, ctx.sizing, marked_marker_width)
-            {
-                emit_primitive(
-                    primitives,
-                    Primitive::Rect(FillRect {
-                        rect: marker_rect,
-                        color: ctx.style.accent_mint,
-                    }),
-                );
-            }
+        {
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: marker_rect,
+                    color: ctx.style.accent_mint,
+                }),
+            );
         }
         for separator_x in [row_columns.index.max.x, row_columns.sample.max.x] {
             emit_primitive(
@@ -267,35 +266,33 @@ pub(super) fn render_browser_rows_window(
                 );
             }
         }
-        if let Some(strength) = row.similarity_display_strength {
-            if let Some(track_rect) =
+        if let Some(strength) = row.similarity_display_strength
+            && let Some(track_rect) =
                 browser_similarity_strength_track_rect(row.text_layout.sample_label, ctx.sizing)
-            {
+        {
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: track_rect,
+                    color: translucent_overlay_color(
+                        ctx.style.surface_overlay,
+                        ctx.style.text_muted,
+                        0.12,
+                    ),
+                }),
+            );
+            if let Some(fill_rect) = browser_similarity_strength_fill_rect(track_rect, strength) {
                 emit_primitive(
                     primitives,
                     Primitive::Rect(FillRect {
-                        rect: track_rect,
-                        color: translucent_overlay_color(
-                            ctx.style.surface_overlay,
-                            ctx.style.text_muted,
-                            0.12,
+                        rect: fill_rect,
+                        color: blend_color(
+                            ctx.style.highlight_cyan_soft,
+                            ctx.style.highlight_cyan,
+                            0.38,
                         ),
                     }),
                 );
-                if let Some(fill_rect) = browser_similarity_strength_fill_rect(track_rect, strength)
-                {
-                    emit_primitive(
-                        primitives,
-                        Primitive::Rect(FillRect {
-                            rect: fill_rect,
-                            color: blend_color(
-                                ctx.style.highlight_cyan_soft,
-                                ctx.style.highlight_cyan,
-                                0.38,
-                            ),
-                        }),
-                    );
-                }
             }
         }
         if let Some(button_rect) = similarity_button {

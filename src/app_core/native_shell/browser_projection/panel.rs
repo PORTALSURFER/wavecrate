@@ -246,7 +246,7 @@ fn project_normal_tag_candidates(
         }
     };
     let mut pills = Vec::new();
-    for usage in usages.into_iter().filter(|usage| normal_tag_visible(usage)) {
+    for usage in usages.into_iter().filter(normal_tag_visible) {
         let state =
             controller.normal_tag_state_for_source(source, paths, &usage.tag.display_label)?;
         pills.push(pill_model(

@@ -168,11 +168,11 @@ impl<B: NativeAppBridge> compat::NativeAppBridge for CompatNativeAppBridge<B> {
     }
 
     fn take_dirty_segments(&mut self) -> compat::DirtySegments {
-        self.inner.take_dirty_segments().into()
+        self.inner.take_dirty_segments()
     }
 
     fn take_segment_revisions(&mut self) -> compat::SegmentRevisions {
-        self.inner.take_segment_revisions().into()
+        self.inner.take_segment_revisions()
     }
 
     fn resolve_hotkey_press(
@@ -279,25 +279,21 @@ impl From<BrowserTagTarget> for compat::BrowserTriageTarget {
 impl From<compat::UiAction> for UiAction {
     fn from(value: compat::UiAction) -> Self {
         match value {
-            compat::UiAction::SelectColumn { index } => Self::SelectColumn { index: index },
-            compat::UiAction::MoveColumn { delta } => Self::MoveColumn { delta: delta },
+            compat::UiAction::SelectColumn { index } => Self::SelectColumn { index },
+            compat::UiAction::MoveColumn { delta } => Self::MoveColumn { delta },
             compat::UiAction::ToggleTransport => Self::ToggleTransport,
             compat::UiAction::PlayCompareAnchor => Self::PlayCompareAnchor,
             compat::UiAction::PlayFromStart => Self::PlayFromStart,
             compat::UiAction::PlayFromCurrentPlayhead => Self::PlayFromCurrentPlayhead,
             compat::UiAction::PlayFromWaveformCursor => Self::PlayFromWaveformCursor,
             compat::UiAction::PlayWaveformAtPrecise { position_nanos } => {
-                Self::PlayWaveformAtPrecise {
-                    position_nanos: position_nanos,
-                }
+                Self::PlayWaveformAtPrecise { position_nanos }
             }
             compat::UiAction::HandleEscape => Self::HandleEscape,
             compat::UiAction::FocusBrowserPanel => Self::FocusBrowserPanel,
             compat::UiAction::FocusSourcesPanel => Self::FocusSourcesPanel,
             compat::UiAction::FocusWaveformPanel => Self::FocusWaveformPanel,
-            compat::UiAction::FocusFolderPanel { pane } => Self::FocusFolderPanel {
-                pane: pane.map(Into::into),
-            },
+            compat::UiAction::FocusFolderPanel { pane } => Self::FocusFolderPanel { pane },
             compat::UiAction::FocusLoadedContentInList => Self::FocusLoadedSampleInBrowser,
             compat::UiAction::FocusBrowserSearch => Self::FocusBrowserSearch,
             compat::UiAction::BlurBrowserSearch => Self::BlurBrowserSearch,
@@ -332,79 +328,58 @@ impl From<compat::UiAction> for UiAction {
             compat::UiAction::SetSecondaryNumber { value } => {
                 Self::SetAudioInputSampleRate { sample_rate: value }
             }
-            compat::UiAction::FocusFolderSearch { pane } => Self::FocusFolderSearch {
-                pane: pane.map(Into::into),
-            },
-            compat::UiAction::SetFolderSearch { pane, query } => Self::SetFolderSearch {
-                pane: pane.map(Into::into),
-                query: query,
-            },
-            compat::UiAction::ToggleShowAllFolders { pane } => Self::ToggleShowAllFolders {
-                pane: pane.map(Into::into),
-            },
-            compat::UiAction::ToggleFolderFlattenedView { pane } => {
-                Self::ToggleFolderFlattenedView {
-                    pane: pane.map(Into::into),
-                }
+            compat::UiAction::FocusFolderSearch { pane } => Self::FocusFolderSearch { pane },
+            compat::UiAction::SetFolderSearch { pane, query } => {
+                Self::SetFolderSearch { pane, query }
             }
-            compat::UiAction::FocusSourceRow { pane, index } => Self::FocusSourceRow {
-                pane: pane.map(Into::into),
-                index: index,
-            },
-            compat::UiAction::SelectSourceRow { pane, index } => Self::SelectSourceRow {
-                pane: pane.map(Into::into),
-                index: index,
-            },
-            compat::UiAction::MoveSourceFocus { delta } => Self::MoveSourceFocus { delta: delta },
+            compat::UiAction::ToggleShowAllFolders { pane } => Self::ToggleShowAllFolders { pane },
+            compat::UiAction::ToggleFolderFlattenedView { pane } => {
+                Self::ToggleFolderFlattenedView { pane }
+            }
+            compat::UiAction::FocusSourceRow { pane, index } => {
+                Self::FocusSourceRow { pane, index }
+            }
+            compat::UiAction::SelectSourceRow { pane, index } => {
+                Self::SelectSourceRow { pane, index }
+            }
+            compat::UiAction::MoveSourceFocus { delta } => Self::MoveSourceFocus { delta },
             compat::UiAction::ReloadFocusedSourceRow => Self::ReloadFocusedSourceRow,
             compat::UiAction::HardSyncFocusedSourceRow => Self::HardSyncFocusedSourceRow,
             compat::UiAction::OpenFocusedSourceFolder => Self::OpenFocusedSourceFolder,
             compat::UiAction::RemoveFocusedSourceRow => Self::RemoveFocusedSourceRow,
-            compat::UiAction::ReloadSourceRow { pane, index } => Self::ReloadSourceRow {
-                pane: pane.map(Into::into),
-                index: index,
-            },
-            compat::UiAction::HardSyncSourceRow { pane, index } => Self::HardSyncSourceRow {
-                pane: pane.map(Into::into),
-                index: index,
-            },
-            compat::UiAction::OpenSourceFolderRow { pane, index } => Self::OpenSourceFolderRow {
-                pane: pane.map(Into::into),
-                index: index,
-            },
-            compat::UiAction::RemoveSourceRow { pane, index } => Self::RemoveSourceRow {
-                pane: pane.map(Into::into),
-                index: index,
-            },
-            compat::UiAction::FocusFolderRow { pane, index } => Self::FocusFolderRow {
-                pane: pane.map(Into::into),
-                index: index,
-            },
-            compat::UiAction::ActivateFolderRow { pane, index } => Self::ActivateFolderRow {
-                pane: pane.map(Into::into),
-                index: index,
-            },
+            compat::UiAction::ReloadSourceRow { pane, index } => {
+                Self::ReloadSourceRow { pane, index }
+            }
+            compat::UiAction::HardSyncSourceRow { pane, index } => {
+                Self::HardSyncSourceRow { pane, index }
+            }
+            compat::UiAction::OpenSourceFolderRow { pane, index } => {
+                Self::OpenSourceFolderRow { pane, index }
+            }
+            compat::UiAction::RemoveSourceRow { pane, index } => {
+                Self::RemoveSourceRow { pane, index }
+            }
+            compat::UiAction::FocusFolderRow { pane, index } => {
+                Self::FocusFolderRow { pane, index }
+            }
+            compat::UiAction::ActivateFolderRow { pane, index } => {
+                Self::ActivateFolderRow { pane, index }
+            }
             compat::UiAction::ToggleFolderRowExpanded { pane, index } => {
-                Self::ToggleFolderRowExpanded {
-                    pane: pane.map(Into::into),
-                    index: index,
-                }
+                Self::ToggleFolderRowExpanded { pane, index }
             }
             compat::UiAction::ExpandFocusedFolder => Self::ExpandFocusedFolder,
             compat::UiAction::CollapseFocusedFolder => Self::CollapseFocusedFolder,
             compat::UiAction::ToggleFocusedFolderSelection => Self::ToggleFocusedFolderSelection,
-            compat::UiAction::MoveFolderFocus { delta } => Self::MoveFolderFocus { delta: delta },
+            compat::UiAction::MoveFolderFocus { delta } => Self::MoveFolderFocus { delta },
             compat::UiAction::StartNewFolder => Self::StartNewFolder,
             compat::UiAction::StartNewFolderAtFolderRow { pane, index } => {
-                Self::StartNewFolderAtFolderRow {
-                    pane: pane.map(Into::into),
-                    index: index,
-                }
+                Self::StartNewFolderAtFolderRow { pane, index }
             }
             compat::UiAction::StartNewFolderAtRoot => Self::StartNewFolderAtRoot,
             compat::UiAction::FocusFolderCreateInput => Self::FocusFolderCreateInput,
             compat::UiAction::SetFolderCreateInput { value } => {
-                Self::SetFolderCreateInput { value: value }
+                Self::SetFolderCreateInput { value }
             }
             compat::UiAction::ConfirmFolderCreate => Self::ConfirmFolderCreate,
             compat::UiAction::CancelFolderCreate => Self::CancelFolderCreate,
@@ -413,13 +388,13 @@ impl From<compat::UiAction> for UiAction {
             compat::UiAction::RestoreRetainedFolderDeletes => Self::RestoreRetainedFolderDeletes,
             compat::UiAction::PurgeRetainedFolderDeletes => Self::PurgeRetainedFolderDeletes,
             compat::UiAction::ClearFolderDeleteRecoveryLog => Self::ClearFolderDeleteRecoveryLog,
-            compat::UiAction::MoveBrowserFocus { delta } => Self::MoveBrowserFocus { delta: delta },
-            compat::UiAction::SetBrowserViewStart { visible_row } => Self::SetBrowserViewStart {
-                visible_row: visible_row,
-            },
-            compat::UiAction::FocusBrowserRow { visible_row } => Self::FocusBrowserRow {
-                visible_row: visible_row,
-            },
+            compat::UiAction::MoveBrowserFocus { delta } => Self::MoveBrowserFocus { delta },
+            compat::UiAction::SetBrowserViewStart { visible_row } => {
+                Self::SetBrowserViewStart { visible_row }
+            }
+            compat::UiAction::FocusBrowserRow { visible_row } => {
+                Self::FocusBrowserRow { visible_row }
+            }
             compat::UiAction::SetCompareAnchorFromFocusedContent => {
                 Self::SetCompareAnchorFromFocusedBrowserSample
             }
@@ -439,18 +414,16 @@ impl From<compat::UiAction> for UiAction {
                 Self::CleanWaveformExactDuplicateSlices
             }
             compat::UiAction::ToggleBrowserRowSelection { visible_row } => {
-                Self::ToggleBrowserRowSelection {
-                    visible_row: visible_row,
-                }
+                Self::ToggleBrowserRowSelection { visible_row }
             }
             compat::UiAction::StartContentItemDrag {
                 visible_row,
                 pointer_x,
                 pointer_y,
             } => Self::StartBrowserSampleDrag {
-                visible_row: visible_row,
-                pointer_x: pointer_x,
-                pointer_y: pointer_y,
+                visible_row,
+                pointer_x,
+                pointer_y,
             },
             compat::UiAction::UpdateContentItemDrag {
                 pointer_x,
@@ -461,52 +434,42 @@ impl From<compat::UiAction> for UiAction {
                 shift_down,
                 alt_down,
             } => Self::UpdateBrowserSampleDrag {
-                pointer_x: pointer_x,
-                pointer_y: pointer_y,
-                hovered_folder_pane: hovered_folder_pane.map(Into::into),
-                hovered_folder_row: hovered_folder_row,
-                over_folder_panel: over_folder_panel.map(Into::into),
-                shift_down: shift_down,
-                alt_down: alt_down,
+                pointer_x,
+                pointer_y,
+                hovered_folder_pane,
+                hovered_folder_row,
+                over_folder_panel,
+                shift_down,
+                alt_down,
             },
             compat::UiAction::FinishContentItemDrag => Self::FinishBrowserSampleDrag,
             compat::UiAction::ExtendBrowserSelectionToRow { visible_row } => {
-                Self::ExtendBrowserSelectionToRow {
-                    visible_row: visible_row,
-                }
+                Self::ExtendBrowserSelectionToRow { visible_row }
             }
             compat::UiAction::AddRangeBrowserSelection { visible_row } => {
-                Self::AddRangeBrowserSelection {
-                    visible_row: visible_row,
-                }
+                Self::AddRangeBrowserSelection { visible_row }
             }
             compat::UiAction::ExtendBrowserSelectionFromFocus { delta } => {
-                Self::ExtendBrowserSelectionFromFocus { delta: delta }
+                Self::ExtendBrowserSelectionFromFocus { delta }
             }
             compat::UiAction::AddRangeBrowserSelectionFromFocus { delta } => {
-                Self::AddRangeBrowserSelectionFromFocus { delta: delta }
+                Self::AddRangeBrowserSelectionFromFocus { delta }
             }
             compat::UiAction::ToggleFocusedBrowserRowSelection => {
                 Self::ToggleFocusedBrowserRowSelection
             }
             compat::UiAction::SelectAllBrowserRows => Self::SelectAllBrowserRows,
-            compat::UiAction::SetBrowserSearch { query } => Self::SetBrowserSearch { query: query },
+            compat::UiAction::SetBrowserSearch { query } => Self::SetBrowserSearch { query },
             compat::UiAction::ToggleBrowserRatingFilter { level, invert } => {
-                Self::ToggleBrowserRatingFilter {
-                    level: level,
-                    invert: invert,
-                }
+                Self::ToggleBrowserRatingFilter { level, invert }
             }
             compat::UiAction::ToggleBrowserPlaybackAgeFilter { bucket, invert } => {
-                Self::ToggleBrowserPlaybackAgeFilter {
-                    bucket: bucket.into(),
-                    invert: invert,
-                }
+                Self::ToggleBrowserPlaybackAgeFilter { bucket, invert }
             }
             compat::UiAction::ToggleContentMark => Self::ToggleBrowserSampleMark,
             compat::UiAction::ToggleBrowserMarkedFilter => Self::ToggleBrowserMarkedFilter,
             compat::UiAction::ToggleBrowserDerivedLabelFilter { invert } => {
-                Self::ToggleBrowserTagNamedFilter { invert: invert }
+                Self::ToggleBrowserTagNamedFilter { invert }
             }
             compat::UiAction::ToggleRandomNavigationMode => Self::ToggleRandomNavigationMode,
             compat::UiAction::ToggleBrowserPillEditor => Self::ToggleBrowserTagSidebar,
@@ -522,9 +485,7 @@ impl From<compat::UiAction> for UiAction {
                 Self::ToggleFindSimilarFocusedSample
             }
             compat::UiAction::ToggleBrowserDuplicateCleanupKeep { visible_row } => {
-                Self::ToggleBrowserDuplicateCleanupKeep {
-                    visible_row: visible_row,
-                }
+                Self::ToggleBrowserDuplicateCleanupKeep { visible_row }
             }
             compat::UiAction::ConfirmBrowserDuplicateCleanup => {
                 Self::ConfirmBrowserDuplicateCleanup
@@ -532,31 +493,29 @@ impl From<compat::UiAction> for UiAction {
             compat::UiAction::PlayRandomContentItem => Self::PlayRandomSample,
             compat::UiAction::PlayPreviousRandomContentItem => Self::PlayPreviousRandomSample,
             compat::UiAction::AdjustSelectedBrowserRating { delta } => {
-                Self::AdjustSelectedBrowserRating { delta: delta }
+                Self::AdjustSelectedBrowserRating { delta }
             }
-            compat::UiAction::SetBrowserTab { map } => Self::SetBrowserTab { map: map },
+            compat::UiAction::SetBrowserTab { map } => Self::SetBrowserTab { map },
             compat::UiAction::FocusBrowserPillEditorInput => Self::FocusBrowserTagSidebarInput,
             compat::UiAction::SetBrowserPillEditorInput { value } => {
-                Self::SetBrowserTagSidebarInput { value: value }
+                Self::SetBrowserTagSidebarInput { value }
             }
             compat::UiAction::CommitBrowserPillEditorInput => Self::CommitBrowserTagSidebarInput,
             compat::UiAction::SetBrowserSidebarLooped { looped } => {
-                Self::SetBrowserSidebarLooped { looped: looped }
+                Self::SetBrowserSidebarLooped { looped }
             }
             compat::UiAction::ToggleBrowserPillOption { label } => {
-                Self::ToggleBrowserSidebarNormalTag { label: label }
+                Self::ToggleBrowserSidebarNormalTag { label }
             }
             compat::UiAction::FocusSpatialContentItem { content_id } => Self::FocusMapSample {
                 sample_id: content_id,
             },
-            compat::UiAction::SetPromptInput { value } => Self::SetPromptInput { value: value },
+            compat::UiAction::SetPromptInput { value } => Self::SetPromptInput { value },
             compat::UiAction::StartBrowserRename => Self::StartBrowserRename,
             compat::UiAction::ConfirmBrowserRename => Self::ConfirmBrowserRename,
             compat::UiAction::CancelBrowserRename => Self::CancelBrowserRename,
             compat::UiAction::AutoRenameBrowserSelection { visible_row } => {
-                Self::AutoRenameBrowserSelection {
-                    visible_row: visible_row,
-                }
+                Self::AutoRenameBrowserSelection { visible_row }
             }
             compat::UiAction::SetBrowserTriageMark { target } => Self::TagBrowserSelection {
                 target: target.into(),
@@ -581,16 +540,16 @@ impl From<compat::UiAction> for UiAction {
             compat::UiAction::MuteWaveformSelection => Self::MuteWaveformSelection,
             compat::UiAction::DeleteSelectedSliceMarkers => Self::DeleteSelectedSliceMarkers,
             compat::UiAction::ToggleWaveformSliceSelection { index } => {
-                Self::ToggleWaveformSliceSelection { index: index }
+                Self::ToggleWaveformSliceSelection { index }
             }
             compat::UiAction::AuditionWaveformDuplicateSlice { index } => {
-                Self::AuditionWaveformDuplicateSlice { index: index }
+                Self::AuditionWaveformDuplicateSlice { index }
             }
             compat::UiAction::ToggleWaveformDuplicateSliceExemption { index } => {
-                Self::ToggleWaveformDuplicateSliceExemption { index: index }
+                Self::ToggleWaveformDuplicateSliceExemption { index }
             }
             compat::UiAction::MoveWaveformSliceFocus { delta } => {
-                Self::MoveWaveformSliceFocus { delta: delta }
+                Self::MoveWaveformSliceFocus { delta }
             }
             compat::UiAction::ToggleFocusedWaveformSliceExportMark => {
                 Self::ToggleFocusedWaveformSliceExportMark
@@ -598,10 +557,7 @@ impl From<compat::UiAction> for UiAction {
             compat::UiAction::AlignWaveformStartToMarker => Self::AlignWaveformStartToMarker,
             compat::UiAction::DeleteLoadedWaveformContent => Self::DeleteLoadedWaveformSample,
             compat::UiAction::SlideWaveformSelection { delta, fine } => {
-                Self::SlideWaveformSelection {
-                    delta: delta,
-                    fine: fine,
-                }
+                Self::SlideWaveformSelection { delta, fine }
             }
             compat::UiAction::ConfirmPrompt => Self::ConfirmPrompt,
             compat::UiAction::CancelPrompt => Self::CancelPrompt,
@@ -612,85 +568,69 @@ impl From<compat::UiAction> for UiAction {
             compat::UiAction::OpenFeedbackIssuePrompt => Self::OpenFeedbackIssuePrompt,
             compat::UiAction::MoveDiscardedItemsToFolder => Self::MoveTrashedSamplesToFolder,
             compat::UiAction::SetInputMonitoringEnabled { enabled } => {
-                Self::SetInputMonitoringEnabled { enabled: enabled }
+                Self::SetInputMonitoringEnabled { enabled }
             }
             compat::UiAction::SetAdvanceAfterRatingEnabled { enabled } => {
-                Self::SetAdvanceAfterRatingEnabled { enabled: enabled }
+                Self::SetAdvanceAfterRatingEnabled { enabled }
             }
             compat::UiAction::SetDestructiveYoloMode { enabled } => {
-                Self::SetDestructiveYoloMode { enabled: enabled }
+                Self::SetDestructiveYoloMode { enabled }
             }
             compat::UiAction::SetInvertWaveformScroll { enabled } => {
-                Self::SetInvertWaveformScroll { enabled: enabled }
+                Self::SetInvertWaveformScroll { enabled }
             }
             compat::UiAction::ToggleLoopPlayback => Self::ToggleLoopPlayback,
             compat::UiAction::ToggleLoopLock => Self::ToggleLoopLock,
             compat::UiAction::SetWaveformChannelView { stereo } => {
-                Self::SetWaveformChannelView { stereo: stereo }
+                Self::SetWaveformChannelView { stereo }
             }
             compat::UiAction::SetNormalizedAuditionEnabled { enabled } => {
-                Self::SetNormalizedAuditionEnabled { enabled: enabled }
+                Self::SetNormalizedAuditionEnabled { enabled }
             }
-            compat::UiAction::SetBpmSnapEnabled { enabled } => {
-                Self::SetBpmSnapEnabled { enabled: enabled }
-            }
+            compat::UiAction::SetBpmSnapEnabled { enabled } => Self::SetBpmSnapEnabled { enabled },
             compat::UiAction::SetRelativeBpmGridEnabled { enabled } => {
-                Self::SetRelativeBpmGridEnabled { enabled: enabled }
+                Self::SetRelativeBpmGridEnabled { enabled }
             }
-            compat::UiAction::AdjustWaveformBpm { delta } => {
-                Self::AdjustWaveformBpm { delta: delta }
+            compat::UiAction::AdjustWaveformBpm { delta } => Self::AdjustWaveformBpm { delta },
+            compat::UiAction::SetWaveformBpmValue { value_tenths } => {
+                Self::SetWaveformBpmValue { value_tenths }
             }
-            compat::UiAction::SetWaveformBpmValue { value_tenths } => Self::SetWaveformBpmValue {
-                value_tenths: value_tenths,
-            },
             compat::UiAction::SetTransientSnapEnabled { enabled } => {
-                Self::SetTransientSnapEnabled { enabled: enabled }
+                Self::SetTransientSnapEnabled { enabled }
             }
             compat::UiAction::SetTransientMarkersEnabled { enabled } => {
-                Self::SetTransientMarkersEnabled { enabled: enabled }
+                Self::SetTransientMarkersEnabled { enabled }
             }
             compat::UiAction::ToggleTransientMarkers => Self::ToggleTransientMarkers,
             compat::UiAction::ToggleBpmSnap => Self::ToggleBpmSnap,
             compat::UiAction::SetSliceModeEnabled { enabled } => {
-                Self::SetSliceModeEnabled { enabled: enabled }
+                Self::SetSliceModeEnabled { enabled }
             }
-            compat::UiAction::SetVolume { value_milli } => Self::SetVolume {
-                value_milli: value_milli,
-            },
+            compat::UiAction::SetVolume { value_milli } => Self::SetVolume { value_milli },
             compat::UiAction::CommitVolumeSetting => Self::CommitVolumeSetting,
-            compat::UiAction::SeekWaveformPrecise { position_nanos } => Self::SeekWaveformPrecise {
-                position_nanos: position_nanos,
-            },
-            compat::UiAction::SetWaveformCursorPrecise { position_nanos } => {
-                Self::SetWaveformCursorPrecise {
-                    position_nanos: position_nanos,
-                }
+            compat::UiAction::SeekWaveformPrecise { position_nanos } => {
+                Self::SeekWaveformPrecise { position_nanos }
             }
-            compat::UiAction::SeekWaveform { position_milli } => Self::SeekWaveform {
-                position_milli: position_milli,
-            },
-            compat::UiAction::SetWaveformCursor { position_milli } => Self::SetWaveformCursor {
-                position_milli: position_milli,
-            },
+            compat::UiAction::SetWaveformCursorPrecise { position_nanos } => {
+                Self::SetWaveformCursorPrecise { position_nanos }
+            }
+            compat::UiAction::SeekWaveform { position_milli } => {
+                Self::SeekWaveform { position_milli }
+            }
+            compat::UiAction::SetWaveformCursor { position_milli } => {
+                Self::SetWaveformCursor { position_milli }
+            }
             compat::UiAction::BeginWaveformSelectionAt { anchor_micros } => {
-                Self::BeginWaveformSelectionAt {
-                    anchor_micros: anchor_micros,
-                }
+                Self::BeginWaveformSelectionAt { anchor_micros }
             }
             compat::UiAction::BeginWaveformSelectionAtPrecise { anchor_nanos } => {
-                Self::BeginWaveformSelectionAtPrecise {
-                    anchor_nanos: anchor_nanos,
-                }
+                Self::BeginWaveformSelectionAtPrecise { anchor_nanos }
             }
             compat::UiAction::BeginWaveformCircularSlide { anchor_micros } => {
-                Self::BeginWaveformCircularSlide {
-                    anchor_micros: anchor_micros,
-                }
+                Self::BeginWaveformCircularSlide { anchor_micros }
             }
             compat::UiAction::UpdateWaveformCircularSlide { position_micros } => {
-                Self::UpdateWaveformCircularSlide {
-                    position_micros: position_micros,
-                }
+                Self::UpdateWaveformCircularSlide { position_micros }
             }
             compat::UiAction::FinishWaveformCircularSlide => Self::FinishWaveformCircularSlide,
             compat::UiAction::SetWaveformSelectionRange {
@@ -699,10 +639,10 @@ impl From<compat::UiAction> for UiAction {
                 snap_override,
                 preserve_view_edge,
             } => Self::SetWaveformSelectionRange {
-                start_micros: start_micros,
-                end_micros: end_micros,
-                snap_override: snap_override,
-                preserve_view_edge: preserve_view_edge,
+                start_micros,
+                end_micros,
+                snap_override,
+                preserve_view_edge,
             },
             compat::UiAction::SetWaveformSelectionRangePrecise {
                 start_nanos,
@@ -710,80 +650,68 @@ impl From<compat::UiAction> for UiAction {
                 snap_override,
                 preserve_view_edge,
             } => Self::SetWaveformSelectionRangePrecise {
-                start_nanos: start_nanos,
-                end_nanos: end_nanos,
-                snap_override: snap_override,
-                preserve_view_edge: preserve_view_edge,
+                start_nanos,
+                end_nanos,
+                snap_override,
+                preserve_view_edge,
             },
             compat::UiAction::SetWaveformSelectionRangeSmartScale {
                 start_micros,
                 end_micros,
             } => Self::SetWaveformSelectionRangeSmartScale {
-                start_micros: start_micros,
-                end_micros: end_micros,
+                start_micros,
+                end_micros,
             },
             compat::UiAction::SetWaveformSelectionRangeSmartScalePrecise {
                 start_nanos,
                 end_nanos,
             } => Self::SetWaveformSelectionRangeSmartScalePrecise {
-                start_nanos: start_nanos,
-                end_nanos: end_nanos,
+                start_nanos,
+                end_nanos,
             },
             compat::UiAction::SetWaveformEditSelectionRange {
                 start_micros,
                 end_micros,
                 preserve_view_edge,
             } => Self::SetWaveformEditSelectionRange {
-                start_micros: start_micros,
-                end_micros: end_micros,
-                preserve_view_edge: preserve_view_edge,
+                start_micros,
+                end_micros,
+                preserve_view_edge,
             },
             compat::UiAction::SetWaveformEditSelectionRangePrecise {
                 start_nanos,
                 end_nanos,
                 preserve_view_edge,
             } => Self::SetWaveformEditSelectionRangePrecise {
-                start_nanos: start_nanos,
-                end_nanos: end_nanos,
-                preserve_view_edge: preserve_view_edge,
+                start_nanos,
+                end_nanos,
+                preserve_view_edge,
             },
             compat::UiAction::SetWaveformEditFadeInEnd { position_micros } => {
-                Self::SetWaveformEditFadeInEnd {
-                    position_micros: position_micros,
-                }
+                Self::SetWaveformEditFadeInEnd { position_micros }
             }
             compat::UiAction::SetWaveformEditFadeInMuteStart { position_micros } => {
-                Self::SetWaveformEditFadeInMuteStart {
-                    position_micros: position_micros,
-                }
+                Self::SetWaveformEditFadeInMuteStart { position_micros }
             }
             compat::UiAction::SetWaveformEditFadeInCurve { curve_milli } => {
-                Self::SetWaveformEditFadeInCurve {
-                    curve_milli: curve_milli,
-                }
+                Self::SetWaveformEditFadeInCurve { curve_milli }
             }
             compat::UiAction::SetWaveformEditFadeOutStart { position_micros } => {
-                Self::SetWaveformEditFadeOutStart {
-                    position_micros: position_micros,
-                }
+                Self::SetWaveformEditFadeOutStart { position_micros }
             }
             compat::UiAction::SetWaveformEditFadeOutMuteEnd { position_micros } => {
-                Self::SetWaveformEditFadeOutMuteEnd {
-                    position_micros: position_micros,
-                }
+                Self::SetWaveformEditFadeOutMuteEnd { position_micros }
             }
             compat::UiAction::SetWaveformEditFadeOutCurve { curve_milli } => {
-                Self::SetWaveformEditFadeOutCurve {
-                    curve_milli: curve_milli,
-                }
+                Self::SetWaveformEditFadeOutCurve { curve_milli }
             }
             compat::UiAction::FinishWaveformEditFadeDrag => Self::FinishWaveformEditFadeDrag,
             compat::UiAction::StartWaveformSelectionDrag {
                 pointer_x,
                 pointer_y,
             } => Self::StartWaveformSelectionDrag {
-                pointer_x: pointer_x,
-                pointer_y: pointer_y,
+                pointer_x,
+                pointer_y,
             },
             compat::UiAction::UpdateWaveformSelectionDrag {
                 pointer_x,
@@ -795,14 +723,14 @@ impl From<compat::UiAction> for UiAction {
                 shift_down,
                 alt_down,
             } => Self::UpdateWaveformSelectionDrag {
-                pointer_x: pointer_x,
-                pointer_y: pointer_y,
-                hovered_folder_pane: hovered_folder_pane.map(Into::into),
-                hovered_folder_row: hovered_folder_row,
-                over_folder_panel: over_folder_panel.map(Into::into),
-                over_browser_list: over_browser_list,
-                shift_down: shift_down,
-                alt_down: alt_down,
+                pointer_x,
+                pointer_y,
+                hovered_folder_pane,
+                hovered_folder_row,
+                over_folder_panel,
+                over_browser_list,
+                shift_down,
+                alt_down,
             },
             compat::UiAction::FinishWaveformSelectionDrag => Self::FinishWaveformSelectionDrag,
             compat::UiAction::FinishWaveformSelectionRangeDrag => {
@@ -816,36 +744,36 @@ impl From<compat::UiAction> for UiAction {
                 start_micros,
                 end_micros,
             } => Self::BeginWaveformSelectionShift {
-                pointer_micros: pointer_micros,
-                start_micros: start_micros,
-                end_micros: end_micros,
+                pointer_micros,
+                start_micros,
+                end_micros,
             },
             compat::UiAction::BeginWaveformSelectionShiftPrecise {
                 pointer_nanos,
                 start_nanos,
                 end_nanos,
             } => Self::BeginWaveformSelectionShiftPrecise {
-                pointer_nanos: pointer_nanos,
-                start_nanos: start_nanos,
-                end_nanos: end_nanos,
+                pointer_nanos,
+                start_nanos,
+                end_nanos,
             },
             compat::UiAction::BeginWaveformEditSelectionShift {
                 pointer_micros,
                 start_micros,
                 end_micros,
             } => Self::BeginWaveformEditSelectionShift {
-                pointer_micros: pointer_micros,
-                start_micros: start_micros,
-                end_micros: end_micros,
+                pointer_micros,
+                start_micros,
+                end_micros,
             },
             compat::UiAction::BeginWaveformEditSelectionShiftPrecise {
                 pointer_nanos,
                 start_nanos,
                 end_nanos,
             } => Self::BeginWaveformEditSelectionShiftPrecise {
-                pointer_nanos: pointer_nanos,
-                start_nanos: start_nanos,
-                end_nanos: end_nanos,
+                pointer_nanos,
+                start_nanos,
+                end_nanos,
             },
             compat::UiAction::FinishWaveformEditSelectionDrag => {
                 Self::FinishWaveformEditSelectionDrag
@@ -857,17 +785,17 @@ impl From<compat::UiAction> for UiAction {
                 center_micros,
                 center_nanos,
             } => Self::SetWaveformViewCenter {
-                center_micros: center_micros,
-                center_nanos: center_nanos,
+                center_micros,
+                center_nanos,
             },
             compat::UiAction::ZoomWaveform {
                 zoom_in,
                 steps,
                 anchor_ratio_micros,
             } => Self::ZoomWaveform {
-                zoom_in: zoom_in,
-                steps: steps,
-                anchor_ratio_micros: anchor_ratio_micros,
+                zoom_in,
+                steps,
+                anchor_ratio_micros,
             },
             compat::UiAction::ZoomWaveformToSelection => Self::ZoomWaveformToSelection,
             compat::UiAction::ZoomWaveformFull => Self::ZoomWaveformFull,
@@ -884,23 +812,21 @@ impl From<compat::UiAction> for UiAction {
 impl From<UiAction> for compat::UiAction {
     fn from(value: UiAction) -> Self {
         match value {
-            UiAction::SelectColumn { index } => Self::SelectColumn { index: index },
-            UiAction::MoveColumn { delta } => Self::MoveColumn { delta: delta },
+            UiAction::SelectColumn { index } => Self::SelectColumn { index },
+            UiAction::MoveColumn { delta } => Self::MoveColumn { delta },
             UiAction::ToggleTransport => Self::ToggleTransport,
             UiAction::PlayCompareAnchor => Self::PlayCompareAnchor,
             UiAction::PlayFromStart => Self::PlayFromStart,
             UiAction::PlayFromCurrentPlayhead => Self::PlayFromCurrentPlayhead,
             UiAction::PlayFromWaveformCursor => Self::PlayFromWaveformCursor,
-            UiAction::PlayWaveformAtPrecise { position_nanos } => Self::PlayWaveformAtPrecise {
-                position_nanos: position_nanos,
-            },
+            UiAction::PlayWaveformAtPrecise { position_nanos } => {
+                Self::PlayWaveformAtPrecise { position_nanos }
+            }
             UiAction::HandleEscape => Self::HandleEscape,
             UiAction::FocusBrowserPanel => Self::FocusBrowserPanel,
             UiAction::FocusSourcesPanel => Self::FocusSourcesPanel,
             UiAction::FocusWaveformPanel => Self::FocusWaveformPanel,
-            UiAction::FocusFolderPanel { pane } => Self::FocusFolderPanel {
-                pane: pane.map(Into::into),
-            },
+            UiAction::FocusFolderPanel { pane } => Self::FocusFolderPanel { pane },
             UiAction::FocusLoadedSampleInBrowser => Self::FocusLoadedContentInList,
             UiAction::FocusBrowserSearch => Self::FocusBrowserSearch,
             UiAction::BlurBrowserSearch => Self::BlurBrowserSearch,
@@ -933,74 +859,41 @@ impl From<UiAction> for compat::UiAction {
             UiAction::SetAudioInputSampleRate { sample_rate } => {
                 Self::SetSecondaryNumber { value: sample_rate }
             }
-            UiAction::FocusFolderSearch { pane } => Self::FocusFolderSearch {
-                pane: pane.map(Into::into),
-            },
-            UiAction::SetFolderSearch { pane, query } => Self::SetFolderSearch {
-                pane: pane.map(Into::into),
-                query: query,
-            },
-            UiAction::ToggleShowAllFolders { pane } => Self::ToggleShowAllFolders {
-                pane: pane.map(Into::into),
-            },
-            UiAction::ToggleFolderFlattenedView { pane } => Self::ToggleFolderFlattenedView {
-                pane: pane.map(Into::into),
-            },
-            UiAction::FocusSourceRow { pane, index } => Self::FocusSourceRow {
-                pane: pane.map(Into::into),
-                index: index,
-            },
-            UiAction::SelectSourceRow { pane, index } => Self::SelectSourceRow {
-                pane: pane.map(Into::into),
-                index: index,
-            },
-            UiAction::MoveSourceFocus { delta } => Self::MoveSourceFocus { delta: delta },
+            UiAction::FocusFolderSearch { pane } => Self::FocusFolderSearch { pane },
+            UiAction::SetFolderSearch { pane, query } => Self::SetFolderSearch { pane, query },
+            UiAction::ToggleShowAllFolders { pane } => Self::ToggleShowAllFolders { pane },
+            UiAction::ToggleFolderFlattenedView { pane } => {
+                Self::ToggleFolderFlattenedView { pane }
+            }
+            UiAction::FocusSourceRow { pane, index } => Self::FocusSourceRow { pane, index },
+            UiAction::SelectSourceRow { pane, index } => Self::SelectSourceRow { pane, index },
+            UiAction::MoveSourceFocus { delta } => Self::MoveSourceFocus { delta },
             UiAction::ReloadFocusedSourceRow => Self::ReloadFocusedSourceRow,
             UiAction::HardSyncFocusedSourceRow => Self::HardSyncFocusedSourceRow,
             UiAction::OpenFocusedSourceFolder => Self::OpenFocusedSourceFolder,
             UiAction::RemoveFocusedSourceRow => Self::RemoveFocusedSourceRow,
-            UiAction::ReloadSourceRow { pane, index } => Self::ReloadSourceRow {
-                pane: pane.map(Into::into),
-                index: index,
-            },
-            UiAction::HardSyncSourceRow { pane, index } => Self::HardSyncSourceRow {
-                pane: pane.map(Into::into),
-                index: index,
-            },
-            UiAction::OpenSourceFolderRow { pane, index } => Self::OpenSourceFolderRow {
-                pane: pane.map(Into::into),
-                index: index,
-            },
-            UiAction::RemoveSourceRow { pane, index } => Self::RemoveSourceRow {
-                pane: pane.map(Into::into),
-                index: index,
-            },
-            UiAction::FocusFolderRow { pane, index } => Self::FocusFolderRow {
-                pane: pane.map(Into::into),
-                index: index,
-            },
-            UiAction::ActivateFolderRow { pane, index } => Self::ActivateFolderRow {
-                pane: pane.map(Into::into),
-                index: index,
-            },
-            UiAction::ToggleFolderRowExpanded { pane, index } => Self::ToggleFolderRowExpanded {
-                pane: pane.map(Into::into),
-                index: index,
-            },
+            UiAction::ReloadSourceRow { pane, index } => Self::ReloadSourceRow { pane, index },
+            UiAction::HardSyncSourceRow { pane, index } => Self::HardSyncSourceRow { pane, index },
+            UiAction::OpenSourceFolderRow { pane, index } => {
+                Self::OpenSourceFolderRow { pane, index }
+            }
+            UiAction::RemoveSourceRow { pane, index } => Self::RemoveSourceRow { pane, index },
+            UiAction::FocusFolderRow { pane, index } => Self::FocusFolderRow { pane, index },
+            UiAction::ActivateFolderRow { pane, index } => Self::ActivateFolderRow { pane, index },
+            UiAction::ToggleFolderRowExpanded { pane, index } => {
+                Self::ToggleFolderRowExpanded { pane, index }
+            }
             UiAction::ExpandFocusedFolder => Self::ExpandFocusedFolder,
             UiAction::CollapseFocusedFolder => Self::CollapseFocusedFolder,
             UiAction::ToggleFocusedFolderSelection => Self::ToggleFocusedFolderSelection,
-            UiAction::MoveFolderFocus { delta } => Self::MoveFolderFocus { delta: delta },
+            UiAction::MoveFolderFocus { delta } => Self::MoveFolderFocus { delta },
             UiAction::StartNewFolder => Self::StartNewFolder,
             UiAction::StartNewFolderAtFolderRow { pane, index } => {
-                Self::StartNewFolderAtFolderRow {
-                    pane: pane.map(Into::into),
-                    index: index,
-                }
+                Self::StartNewFolderAtFolderRow { pane, index }
             }
             UiAction::StartNewFolderAtRoot => Self::StartNewFolderAtRoot,
             UiAction::FocusFolderCreateInput => Self::FocusFolderCreateInput,
-            UiAction::SetFolderCreateInput { value } => Self::SetFolderCreateInput { value: value },
+            UiAction::SetFolderCreateInput { value } => Self::SetFolderCreateInput { value },
             UiAction::ConfirmFolderCreate => Self::ConfirmFolderCreate,
             UiAction::CancelFolderCreate => Self::CancelFolderCreate,
             UiAction::StartFolderRename => Self::StartFolderRename,
@@ -1008,13 +901,11 @@ impl From<UiAction> for compat::UiAction {
             UiAction::RestoreRetainedFolderDeletes => Self::RestoreRetainedFolderDeletes,
             UiAction::PurgeRetainedFolderDeletes => Self::PurgeRetainedFolderDeletes,
             UiAction::ClearFolderDeleteRecoveryLog => Self::ClearFolderDeleteRecoveryLog,
-            UiAction::MoveBrowserFocus { delta } => Self::MoveBrowserFocus { delta: delta },
-            UiAction::SetBrowserViewStart { visible_row } => Self::SetBrowserViewStart {
-                visible_row: visible_row,
-            },
-            UiAction::FocusBrowserRow { visible_row } => Self::FocusBrowserRow {
-                visible_row: visible_row,
-            },
+            UiAction::MoveBrowserFocus { delta } => Self::MoveBrowserFocus { delta },
+            UiAction::SetBrowserViewStart { visible_row } => {
+                Self::SetBrowserViewStart { visible_row }
+            }
+            UiAction::FocusBrowserRow { visible_row } => Self::FocusBrowserRow { visible_row },
             UiAction::SetCompareAnchorFromFocusedBrowserSample => {
                 Self::SetCompareAnchorFromFocusedContent
             }
@@ -1030,18 +921,16 @@ impl From<UiAction> for compat::UiAction {
             }
             UiAction::CleanWaveformExactDuplicateSlices => Self::CleanWaveformExactDuplicateSlices,
             UiAction::ToggleBrowserRowSelection { visible_row } => {
-                Self::ToggleBrowserRowSelection {
-                    visible_row: visible_row,
-                }
+                Self::ToggleBrowserRowSelection { visible_row }
             }
             UiAction::StartBrowserSampleDrag {
                 visible_row,
                 pointer_x,
                 pointer_y,
             } => Self::StartContentItemDrag {
-                visible_row: visible_row,
-                pointer_x: pointer_x,
-                pointer_y: pointer_y,
+                visible_row,
+                pointer_x,
+                pointer_y,
             },
             UiAction::UpdateBrowserSampleDrag {
                 pointer_x,
@@ -1052,48 +941,40 @@ impl From<UiAction> for compat::UiAction {
                 shift_down,
                 alt_down,
             } => Self::UpdateContentItemDrag {
-                pointer_x: pointer_x,
-                pointer_y: pointer_y,
-                hovered_folder_pane: hovered_folder_pane.map(Into::into),
-                hovered_folder_row: hovered_folder_row,
-                over_folder_panel: over_folder_panel.map(Into::into),
-                shift_down: shift_down,
-                alt_down: alt_down,
+                pointer_x,
+                pointer_y,
+                hovered_folder_pane,
+                hovered_folder_row,
+                over_folder_panel,
+                shift_down,
+                alt_down,
             },
             UiAction::FinishBrowserSampleDrag => Self::FinishContentItemDrag,
             UiAction::ExtendBrowserSelectionToRow { visible_row } => {
-                Self::ExtendBrowserSelectionToRow {
-                    visible_row: visible_row,
-                }
+                Self::ExtendBrowserSelectionToRow { visible_row }
             }
-            UiAction::AddRangeBrowserSelection { visible_row } => Self::AddRangeBrowserSelection {
-                visible_row: visible_row,
-            },
+            UiAction::AddRangeBrowserSelection { visible_row } => {
+                Self::AddRangeBrowserSelection { visible_row }
+            }
             UiAction::ExtendBrowserSelectionFromFocus { delta } => {
-                Self::ExtendBrowserSelectionFromFocus { delta: delta }
+                Self::ExtendBrowserSelectionFromFocus { delta }
             }
             UiAction::AddRangeBrowserSelectionFromFocus { delta } => {
-                Self::AddRangeBrowserSelectionFromFocus { delta: delta }
+                Self::AddRangeBrowserSelectionFromFocus { delta }
             }
             UiAction::ToggleFocusedBrowserRowSelection => Self::ToggleFocusedBrowserRowSelection,
             UiAction::SelectAllBrowserRows => Self::SelectAllBrowserRows,
-            UiAction::SetBrowserSearch { query } => Self::SetBrowserSearch { query: query },
+            UiAction::SetBrowserSearch { query } => Self::SetBrowserSearch { query },
             UiAction::ToggleBrowserRatingFilter { level, invert } => {
-                Self::ToggleBrowserRatingFilter {
-                    level: level,
-                    invert: invert,
-                }
+                Self::ToggleBrowserRatingFilter { level, invert }
             }
             UiAction::ToggleBrowserPlaybackAgeFilter { bucket, invert } => {
-                Self::ToggleBrowserPlaybackAgeFilter {
-                    bucket: bucket.into(),
-                    invert: invert,
-                }
+                Self::ToggleBrowserPlaybackAgeFilter { bucket, invert }
             }
             UiAction::ToggleBrowserSampleMark => Self::ToggleContentMark,
             UiAction::ToggleBrowserMarkedFilter => Self::ToggleBrowserMarkedFilter,
             UiAction::ToggleBrowserTagNamedFilter { invert } => {
-                Self::ToggleBrowserDerivedLabelFilter { invert: invert }
+                Self::ToggleBrowserDerivedLabelFilter { invert }
             }
             UiAction::ToggleRandomNavigationMode => Self::ToggleRandomNavigationMode,
             UiAction::ToggleBrowserTagSidebar => Self::ToggleBrowserPillEditor,
@@ -1105,39 +986,35 @@ impl From<UiAction> for compat::UiAction {
             UiAction::FocusNextBrowserHistory => Self::FocusNextBrowserHistory,
             UiAction::ToggleFindSimilarFocusedSample => Self::ToggleFindSimilarFocusedContent,
             UiAction::ToggleBrowserDuplicateCleanupKeep { visible_row } => {
-                Self::ToggleBrowserDuplicateCleanupKeep {
-                    visible_row: visible_row,
-                }
+                Self::ToggleBrowserDuplicateCleanupKeep { visible_row }
             }
             UiAction::ConfirmBrowserDuplicateCleanup => Self::ConfirmBrowserDuplicateCleanup,
             UiAction::PlayRandomSample => Self::PlayRandomContentItem,
             UiAction::PlayPreviousRandomSample => Self::PlayPreviousRandomContentItem,
             UiAction::AdjustSelectedBrowserRating { delta } => {
-                Self::AdjustSelectedBrowserRating { delta: delta }
+                Self::AdjustSelectedBrowserRating { delta }
             }
-            UiAction::SetBrowserTab { map } => Self::SetBrowserTab { map: map },
+            UiAction::SetBrowserTab { map } => Self::SetBrowserTab { map },
             UiAction::FocusBrowserTagSidebarInput => Self::FocusBrowserPillEditorInput,
             UiAction::SetBrowserTagSidebarInput { value } => {
-                Self::SetBrowserPillEditorInput { value: value }
+                Self::SetBrowserPillEditorInput { value }
             }
             UiAction::CommitBrowserTagSidebarInput => Self::CommitBrowserPillEditorInput,
             UiAction::SetBrowserSidebarLooped { looped } => {
-                Self::SetBrowserSidebarLooped { looped: looped }
+                Self::SetBrowserSidebarLooped { looped }
             }
             UiAction::ToggleBrowserSidebarNormalTag { label } => {
-                Self::ToggleBrowserPillOption { label: label }
+                Self::ToggleBrowserPillOption { label }
             }
             UiAction::FocusMapSample { sample_id } => Self::FocusSpatialContentItem {
                 content_id: sample_id,
             },
-            UiAction::SetPromptInput { value } => Self::SetPromptInput { value: value },
+            UiAction::SetPromptInput { value } => Self::SetPromptInput { value },
             UiAction::StartBrowserRename => Self::StartBrowserRename,
             UiAction::ConfirmBrowserRename => Self::ConfirmBrowserRename,
             UiAction::CancelBrowserRename => Self::CancelBrowserRename,
             UiAction::AutoRenameBrowserSelection { visible_row } => {
-                Self::AutoRenameBrowserSelection {
-                    visible_row: visible_row,
-                }
+                Self::AutoRenameBrowserSelection { visible_row }
             }
             UiAction::TagBrowserSelection { target } => Self::SetBrowserTriageMark {
                 target: target.into(),
@@ -1158,26 +1035,23 @@ impl From<UiAction> for compat::UiAction {
             UiAction::MuteWaveformSelection => Self::MuteWaveformSelection,
             UiAction::DeleteSelectedSliceMarkers => Self::DeleteSelectedSliceMarkers,
             UiAction::ToggleWaveformSliceSelection { index } => {
-                Self::ToggleWaveformSliceSelection { index: index }
+                Self::ToggleWaveformSliceSelection { index }
             }
             UiAction::AuditionWaveformDuplicateSlice { index } => {
-                Self::AuditionWaveformDuplicateSlice { index: index }
+                Self::AuditionWaveformDuplicateSlice { index }
             }
             UiAction::ToggleWaveformDuplicateSliceExemption { index } => {
-                Self::ToggleWaveformDuplicateSliceExemption { index: index }
+                Self::ToggleWaveformDuplicateSliceExemption { index }
             }
-            UiAction::MoveWaveformSliceFocus { delta } => {
-                Self::MoveWaveformSliceFocus { delta: delta }
-            }
+            UiAction::MoveWaveformSliceFocus { delta } => Self::MoveWaveformSliceFocus { delta },
             UiAction::ToggleFocusedWaveformSliceExportMark => {
                 Self::ToggleFocusedWaveformSliceExportMark
             }
             UiAction::AlignWaveformStartToMarker => Self::AlignWaveformStartToMarker,
             UiAction::DeleteLoadedWaveformSample => Self::DeleteLoadedWaveformContent,
-            UiAction::SlideWaveformSelection { delta, fine } => Self::SlideWaveformSelection {
-                delta: delta,
-                fine: fine,
-            },
+            UiAction::SlideWaveformSelection { delta, fine } => {
+                Self::SlideWaveformSelection { delta, fine }
+            }
             UiAction::ConfirmPrompt => Self::ConfirmPrompt,
             UiAction::CancelPrompt => Self::CancelPrompt,
             UiAction::CancelProgress => Self::CancelProgress,
@@ -1187,81 +1061,63 @@ impl From<UiAction> for compat::UiAction {
             UiAction::OpenFeedbackIssuePrompt => Self::OpenFeedbackIssuePrompt,
             UiAction::MoveTrashedSamplesToFolder => Self::MoveDiscardedItemsToFolder,
             UiAction::SetInputMonitoringEnabled { enabled } => {
-                Self::SetInputMonitoringEnabled { enabled: enabled }
+                Self::SetInputMonitoringEnabled { enabled }
             }
             UiAction::SetAdvanceAfterRatingEnabled { enabled } => {
-                Self::SetAdvanceAfterRatingEnabled { enabled: enabled }
+                Self::SetAdvanceAfterRatingEnabled { enabled }
             }
             UiAction::SetDestructiveYoloMode { enabled } => {
-                Self::SetDestructiveYoloMode { enabled: enabled }
+                Self::SetDestructiveYoloMode { enabled }
             }
             UiAction::SetInvertWaveformScroll { enabled } => {
-                Self::SetInvertWaveformScroll { enabled: enabled }
+                Self::SetInvertWaveformScroll { enabled }
             }
             UiAction::ToggleLoopPlayback => Self::ToggleLoopPlayback,
             UiAction::ToggleLoopLock => Self::ToggleLoopLock,
-            UiAction::SetWaveformChannelView { stereo } => {
-                Self::SetWaveformChannelView { stereo: stereo }
-            }
+            UiAction::SetWaveformChannelView { stereo } => Self::SetWaveformChannelView { stereo },
             UiAction::SetNormalizedAuditionEnabled { enabled } => {
-                Self::SetNormalizedAuditionEnabled { enabled: enabled }
+                Self::SetNormalizedAuditionEnabled { enabled }
             }
-            UiAction::SetBpmSnapEnabled { enabled } => Self::SetBpmSnapEnabled { enabled: enabled },
+            UiAction::SetBpmSnapEnabled { enabled } => Self::SetBpmSnapEnabled { enabled },
             UiAction::SetRelativeBpmGridEnabled { enabled } => {
-                Self::SetRelativeBpmGridEnabled { enabled: enabled }
+                Self::SetRelativeBpmGridEnabled { enabled }
             }
-            UiAction::AdjustWaveformBpm { delta } => Self::AdjustWaveformBpm { delta: delta },
-            UiAction::SetWaveformBpmValue { value_tenths } => Self::SetWaveformBpmValue {
-                value_tenths: value_tenths,
-            },
+            UiAction::AdjustWaveformBpm { delta } => Self::AdjustWaveformBpm { delta },
+            UiAction::SetWaveformBpmValue { value_tenths } => {
+                Self::SetWaveformBpmValue { value_tenths }
+            }
             UiAction::SetTransientSnapEnabled { enabled } => {
-                Self::SetTransientSnapEnabled { enabled: enabled }
+                Self::SetTransientSnapEnabled { enabled }
             }
             UiAction::SetTransientMarkersEnabled { enabled } => {
-                Self::SetTransientMarkersEnabled { enabled: enabled }
+                Self::SetTransientMarkersEnabled { enabled }
             }
             UiAction::ToggleTransientMarkers => Self::ToggleTransientMarkers,
             UiAction::ToggleBpmSnap => Self::ToggleBpmSnap,
-            UiAction::SetSliceModeEnabled { enabled } => {
-                Self::SetSliceModeEnabled { enabled: enabled }
-            }
-            UiAction::SetVolume { value_milli } => Self::SetVolume {
-                value_milli: value_milli,
-            },
+            UiAction::SetSliceModeEnabled { enabled } => Self::SetSliceModeEnabled { enabled },
+            UiAction::SetVolume { value_milli } => Self::SetVolume { value_milli },
             UiAction::CommitVolumeSetting => Self::CommitVolumeSetting,
-            UiAction::SeekWaveformPrecise { position_nanos } => Self::SeekWaveformPrecise {
-                position_nanos: position_nanos,
-            },
-            UiAction::SetWaveformCursorPrecise { position_nanos } => {
-                Self::SetWaveformCursorPrecise {
-                    position_nanos: position_nanos,
-                }
+            UiAction::SeekWaveformPrecise { position_nanos } => {
+                Self::SeekWaveformPrecise { position_nanos }
             }
-            UiAction::SeekWaveform { position_milli } => Self::SeekWaveform {
-                position_milli: position_milli,
-            },
-            UiAction::SetWaveformCursor { position_milli } => Self::SetWaveformCursor {
-                position_milli: position_milli,
-            },
+            UiAction::SetWaveformCursorPrecise { position_nanos } => {
+                Self::SetWaveformCursorPrecise { position_nanos }
+            }
+            UiAction::SeekWaveform { position_milli } => Self::SeekWaveform { position_milli },
+            UiAction::SetWaveformCursor { position_milli } => {
+                Self::SetWaveformCursor { position_milli }
+            }
             UiAction::BeginWaveformSelectionAt { anchor_micros } => {
-                Self::BeginWaveformSelectionAt {
-                    anchor_micros: anchor_micros,
-                }
+                Self::BeginWaveformSelectionAt { anchor_micros }
             }
             UiAction::BeginWaveformSelectionAtPrecise { anchor_nanos } => {
-                Self::BeginWaveformSelectionAtPrecise {
-                    anchor_nanos: anchor_nanos,
-                }
+                Self::BeginWaveformSelectionAtPrecise { anchor_nanos }
             }
             UiAction::BeginWaveformCircularSlide { anchor_micros } => {
-                Self::BeginWaveformCircularSlide {
-                    anchor_micros: anchor_micros,
-                }
+                Self::BeginWaveformCircularSlide { anchor_micros }
             }
             UiAction::UpdateWaveformCircularSlide { position_micros } => {
-                Self::UpdateWaveformCircularSlide {
-                    position_micros: position_micros,
-                }
+                Self::UpdateWaveformCircularSlide { position_micros }
             }
             UiAction::FinishWaveformCircularSlide => Self::FinishWaveformCircularSlide,
             UiAction::SetWaveformSelectionRange {
@@ -1270,10 +1126,10 @@ impl From<UiAction> for compat::UiAction {
                 snap_override,
                 preserve_view_edge,
             } => Self::SetWaveformSelectionRange {
-                start_micros: start_micros,
-                end_micros: end_micros,
-                snap_override: snap_override,
-                preserve_view_edge: preserve_view_edge,
+                start_micros,
+                end_micros,
+                snap_override,
+                preserve_view_edge,
             },
             UiAction::SetWaveformSelectionRangePrecise {
                 start_nanos,
@@ -1281,80 +1137,68 @@ impl From<UiAction> for compat::UiAction {
                 snap_override,
                 preserve_view_edge,
             } => Self::SetWaveformSelectionRangePrecise {
-                start_nanos: start_nanos,
-                end_nanos: end_nanos,
-                snap_override: snap_override,
-                preserve_view_edge: preserve_view_edge,
+                start_nanos,
+                end_nanos,
+                snap_override,
+                preserve_view_edge,
             },
             UiAction::SetWaveformSelectionRangeSmartScale {
                 start_micros,
                 end_micros,
             } => Self::SetWaveformSelectionRangeSmartScale {
-                start_micros: start_micros,
-                end_micros: end_micros,
+                start_micros,
+                end_micros,
             },
             UiAction::SetWaveformSelectionRangeSmartScalePrecise {
                 start_nanos,
                 end_nanos,
             } => Self::SetWaveformSelectionRangeSmartScalePrecise {
-                start_nanos: start_nanos,
-                end_nanos: end_nanos,
+                start_nanos,
+                end_nanos,
             },
             UiAction::SetWaveformEditSelectionRange {
                 start_micros,
                 end_micros,
                 preserve_view_edge,
             } => Self::SetWaveformEditSelectionRange {
-                start_micros: start_micros,
-                end_micros: end_micros,
-                preserve_view_edge: preserve_view_edge,
+                start_micros,
+                end_micros,
+                preserve_view_edge,
             },
             UiAction::SetWaveformEditSelectionRangePrecise {
                 start_nanos,
                 end_nanos,
                 preserve_view_edge,
             } => Self::SetWaveformEditSelectionRangePrecise {
-                start_nanos: start_nanos,
-                end_nanos: end_nanos,
-                preserve_view_edge: preserve_view_edge,
+                start_nanos,
+                end_nanos,
+                preserve_view_edge,
             },
             UiAction::SetWaveformEditFadeInEnd { position_micros } => {
-                Self::SetWaveformEditFadeInEnd {
-                    position_micros: position_micros,
-                }
+                Self::SetWaveformEditFadeInEnd { position_micros }
             }
             UiAction::SetWaveformEditFadeInMuteStart { position_micros } => {
-                Self::SetWaveformEditFadeInMuteStart {
-                    position_micros: position_micros,
-                }
+                Self::SetWaveformEditFadeInMuteStart { position_micros }
             }
             UiAction::SetWaveformEditFadeInCurve { curve_milli } => {
-                Self::SetWaveformEditFadeInCurve {
-                    curve_milli: curve_milli,
-                }
+                Self::SetWaveformEditFadeInCurve { curve_milli }
             }
             UiAction::SetWaveformEditFadeOutStart { position_micros } => {
-                Self::SetWaveformEditFadeOutStart {
-                    position_micros: position_micros,
-                }
+                Self::SetWaveformEditFadeOutStart { position_micros }
             }
             UiAction::SetWaveformEditFadeOutMuteEnd { position_micros } => {
-                Self::SetWaveformEditFadeOutMuteEnd {
-                    position_micros: position_micros,
-                }
+                Self::SetWaveformEditFadeOutMuteEnd { position_micros }
             }
             UiAction::SetWaveformEditFadeOutCurve { curve_milli } => {
-                Self::SetWaveformEditFadeOutCurve {
-                    curve_milli: curve_milli,
-                }
+                Self::SetWaveformEditFadeOutCurve { curve_milli }
             }
             UiAction::FinishWaveformEditFadeDrag => Self::FinishWaveformEditFadeDrag,
             UiAction::StartWaveformSelectionDrag {
                 pointer_x,
                 pointer_y,
             } => Self::StartWaveformSelectionDrag {
-                pointer_x: pointer_x,
-                pointer_y: pointer_y,
+                pointer_x,
+                pointer_y,
             },
             UiAction::UpdateWaveformSelectionDrag {
                 pointer_x,
@@ -1366,14 +1210,14 @@ impl From<UiAction> for compat::UiAction {
                 shift_down,
                 alt_down,
             } => Self::UpdateWaveformSelectionDrag {
-                pointer_x: pointer_x,
-                pointer_y: pointer_y,
-                hovered_folder_pane: hovered_folder_pane.map(Into::into),
-                hovered_folder_row: hovered_folder_row,
-                over_folder_panel: over_folder_panel.map(Into::into),
-                over_browser_list: over_browser_list,
-                shift_down: shift_down,
-                alt_down: alt_down,
+                pointer_x,
+                pointer_y,
+                hovered_folder_pane,
+                hovered_folder_row,
+                over_folder_panel,
+                over_browser_list,
+                shift_down,
+                alt_down,
             },
             UiAction::FinishWaveformSelectionDrag => Self::FinishWaveformSelectionDrag,
             UiAction::FinishWaveformSelectionRangeDrag => Self::FinishWaveformSelectionRangeDrag,
@@ -1385,36 +1229,36 @@ impl From<UiAction> for compat::UiAction {
                 start_micros,
                 end_micros,
             } => Self::BeginWaveformSelectionShift {
-                pointer_micros: pointer_micros,
-                start_micros: start_micros,
-                end_micros: end_micros,
+                pointer_micros,
+                start_micros,
+                end_micros,
             },
             UiAction::BeginWaveformSelectionShiftPrecise {
                 pointer_nanos,
                 start_nanos,
                 end_nanos,
             } => Self::BeginWaveformSelectionShiftPrecise {
-                pointer_nanos: pointer_nanos,
-                start_nanos: start_nanos,
-                end_nanos: end_nanos,
+                pointer_nanos,
+                start_nanos,
+                end_nanos,
             },
             UiAction::BeginWaveformEditSelectionShift {
                 pointer_micros,
                 start_micros,
                 end_micros,
             } => Self::BeginWaveformEditSelectionShift {
-                pointer_micros: pointer_micros,
-                start_micros: start_micros,
-                end_micros: end_micros,
+                pointer_micros,
+                start_micros,
+                end_micros,
             },
             UiAction::BeginWaveformEditSelectionShiftPrecise {
                 pointer_nanos,
                 start_nanos,
                 end_nanos,
             } => Self::BeginWaveformEditSelectionShiftPrecise {
-                pointer_nanos: pointer_nanos,
-                start_nanos: start_nanos,
-                end_nanos: end_nanos,
+                pointer_nanos,
+                start_nanos,
+                end_nanos,
             },
             UiAction::FinishWaveformEditSelectionDrag => Self::FinishWaveformEditSelectionDrag,
             UiAction::ClearWaveformSelection => Self::ClearWaveformSelection,
@@ -1424,17 +1268,17 @@ impl From<UiAction> for compat::UiAction {
                 center_micros,
                 center_nanos,
             } => Self::SetWaveformViewCenter {
-                center_micros: center_micros,
-                center_nanos: center_nanos,
+                center_micros,
+                center_nanos,
             },
             UiAction::ZoomWaveform {
                 zoom_in,
                 steps,
                 anchor_ratio_micros,
             } => Self::ZoomWaveform {
-                zoom_in: zoom_in,
-                steps: steps,
-                anchor_ratio_micros: anchor_ratio_micros,
+                zoom_in,
+                steps,
+                anchor_ratio_micros,
             },
             UiAction::ZoomWaveformToSelection => Self::ZoomWaveformToSelection,
             UiAction::ZoomWaveformFull => Self::ZoomWaveformFull,
@@ -1500,7 +1344,7 @@ impl From<FocusContextModel> for compat::FocusContextModel {
 
 impl From<&SourcesPanelModel> for compat::SourcesPanelModel {
     fn from(value: &SourcesPanelModel) -> Self {
-        value.clone().into()
+        value.clone()
     }
 }
 
@@ -1528,7 +1372,7 @@ impl From<compat::BrowserPanelModel> for BrowserPanelModel {
             sort_label: value.sort_label,
             active_tab_label: value.active_tab_label,
             focused_sample_label: value.focused_item_label,
-            tag_sidebar: value.pill_editor.into(),
+            tag_sidebar: value.pill_editor,
             anchor_visible_row: value.anchor_visible_row,
             rows: retained_vec_from_compat(value.rows),
         }
@@ -1559,7 +1403,7 @@ impl From<BrowserPanelModel> for compat::BrowserPanelModel {
             sort_label: value.sort_label,
             active_tab_label: value.active_tab_label,
             focused_item_label: value.focused_sample_label,
-            pill_editor: value.tag_sidebar.into(),
+            pill_editor: value.tag_sidebar,
             anchor_visible_row: value.anchor_visible_row,
             rows: retained_vec_to_compat(value.rows),
         }
@@ -1723,15 +1567,15 @@ fn audio_option_item_to_compat(value: AudioOptionItemModel) -> compat::PairedPic
 impl From<compat::PairedDevicePanelModel> for AudioEngineModel {
     fn from(value: compat::PairedDevicePanelModel) -> Self {
         Self {
-            chip_state: value.status_state.into(),
+            chip_state: value.status_state,
             chip_label: value.status_label,
             detail_label: value.detail_label,
-            output_host: value.primary_group.into(),
-            output_device: value.primary_item.into(),
-            output_sample_rate: value.primary_number.into(),
-            input_host: value.secondary_group.into(),
-            input_device: value.secondary_item.into(),
-            input_sample_rate: value.secondary_number.into(),
+            output_host: value.primary_group,
+            output_device: value.primary_item,
+            output_sample_rate: value.primary_number,
+            input_host: value.secondary_group,
+            input_device: value.secondary_item,
+            input_sample_rate: value.secondary_number,
             active_picker: value.active_picker.map(Into::into),
             output_host_options: value
                 .primary_group_options
@@ -1770,15 +1614,15 @@ impl From<compat::PairedDevicePanelModel> for AudioEngineModel {
 impl From<AudioEngineModel> for compat::PairedDevicePanelModel {
     fn from(value: AudioEngineModel) -> Self {
         Self {
-            status_state: value.chip_state.into(),
+            status_state: value.chip_state,
             status_label: value.chip_label,
             detail_label: value.detail_label,
-            primary_group: value.output_host.into(),
-            primary_item: value.output_device.into(),
-            primary_number: value.output_sample_rate.into(),
-            secondary_group: value.input_host.into(),
-            secondary_item: value.input_device.into(),
-            secondary_number: value.input_sample_rate.into(),
+            primary_group: value.output_host,
+            primary_item: value.output_device,
+            primary_number: value.output_sample_rate,
+            secondary_group: value.input_host,
+            secondary_item: value.input_device,
+            secondary_number: value.input_sample_rate,
             active_picker: value.active_picker.map(Into::into),
             primary_group_options: value
                 .output_host_options
@@ -1822,7 +1666,7 @@ impl From<&AudioEngineModel> for compat::PairedDevicePanelModel {
 
 impl From<&OptionsPanelModel> for compat::OptionsPanelModel {
     fn from(value: &OptionsPanelModel) -> Self {
-        value.clone().into()
+        value.clone()
     }
 }
 
@@ -1886,13 +1730,13 @@ fn confirm_prompt_to_compat(value: ConfirmPromptModel) -> compat::ConfirmPromptM
 
 impl From<&WaveformPanelModel> for compat::WaveformPanelModel {
     fn from(value: &WaveformPanelModel) -> Self {
-        value.clone().into()
+        value.clone()
     }
 }
 
 impl From<&WaveformChromeModel> for compat::WaveformChromeModel {
     fn from(value: &WaveformChromeModel) -> Self {
-        value.clone().into()
+        value.clone()
     }
 }
 
@@ -1903,24 +1747,24 @@ impl From<compat::AppModel> for AppModel {
             backend_label: value.backend_label,
             sources_label: value.sources_label,
             status_text: value.status_text,
-            status: value.status.into(),
+            status: value.status,
             audio_engine: value.paired_device.into(),
             browser_actions: value.browser_actions.into(),
-            options_panel: value.options_panel.into(),
-            progress_overlay: value.progress_overlay.into(),
+            options_panel: value.options_panel,
+            progress_overlay: value.progress_overlay,
             confirm_prompt: confirm_prompt_from_compat(value.confirm_prompt),
-            drag_overlay: value.drag_overlay.into(),
+            drag_overlay: value.drag_overlay,
             columns: value.columns.map(Into::into),
             selected_column: value.selected_column,
             volume: value.volume,
             transport_running: value.transport_running,
-            sources: value.sources.into(),
+            sources: value.sources,
             browser: value.browser.into(),
             browser_chrome: value.browser_chrome.into(),
-            map: value.map.into(),
-            waveform: value.waveform.into(),
-            waveform_chrome: value.waveform_chrome.into(),
-            update: value.update.into(),
+            map: value.map,
+            waveform: value.waveform,
+            waveform_chrome: value.waveform_chrome,
+            update: value.update,
             focus_context: value.focus_context.into(),
         }
     }
@@ -1933,24 +1777,24 @@ impl From<AppModel> for compat::AppModel {
             backend_label: value.backend_label,
             sources_label: value.sources_label,
             status_text: value.status_text,
-            status: value.status.into(),
+            status: value.status,
             paired_device: value.audio_engine.into(),
             browser_actions: value.browser_actions.into(),
-            options_panel: value.options_panel.into(),
-            progress_overlay: value.progress_overlay.into(),
+            options_panel: value.options_panel,
+            progress_overlay: value.progress_overlay,
             confirm_prompt: confirm_prompt_to_compat(value.confirm_prompt),
-            drag_overlay: value.drag_overlay.into(),
+            drag_overlay: value.drag_overlay,
             columns: value.columns.map(Into::into),
             selected_column: value.selected_column,
             volume: value.volume,
             transport_running: value.transport_running,
-            sources: value.sources.into(),
+            sources: value.sources,
             browser: value.browser.into(),
             browser_chrome: value.browser_chrome.into(),
-            map: value.map.into(),
-            waveform: value.waveform.into(),
-            waveform_chrome: value.waveform_chrome.into(),
-            update: value.update.into(),
+            map: value.map,
+            waveform: value.waveform,
+            waveform_chrome: value.waveform_chrome,
+            update: value.update,
             focus_context: value.focus_context.into(),
         }
     }
@@ -2173,14 +2017,14 @@ impl From<compat::NativeMotionModel> for NativeMotionModel {
             active_rating_filters: value.active_rating_filters,
             active_playback_age_filters: value.active_playback_age_filters,
             marked_filter_active: value.marked_filter_active,
-            waveform_selection_milli: value.waveform_selection_milli.map(Into::into),
-            waveform_slices: value.waveform_slices.into_iter().map(Into::into).collect(),
+            waveform_selection_milli: value.waveform_selection_milli,
+            waveform_slices: value.waveform_slices.into_iter().collect(),
             waveform_selection_export_flash_nonce: value.waveform_selection_export_flash_nonce,
             waveform_selection_export_failure_flash_nonce: value
                 .waveform_selection_export_failure_flash_nonce,
             waveform_edit_selection_apply_flash_nonce: value
                 .waveform_edit_selection_apply_flash_nonce,
-            waveform_edit_selection_milli: value.waveform_edit_selection_milli.map(Into::into),
+            waveform_edit_selection_milli: value.waveform_edit_selection_milli,
             waveform_edit_fade_in_end_milli: value.waveform_edit_fade_in_end_milli,
             waveform_edit_fade_in_end_micros: value.waveform_edit_fade_in_end_micros,
             waveform_edit_fade_in_mute_start_milli: value.waveform_edit_fade_in_mute_start_milli,
@@ -2210,7 +2054,7 @@ impl From<compat::NativeMotionModel> for NativeMotionModel {
             waveform_transport_hint: value.waveform_transport_hint,
             waveform_compare_anchor_available: value.waveform_compare_anchor_available,
             waveform_compare_anchor_label: value.waveform_compare_anchor_label,
-            waveform_channel_view: value.waveform_channel_view.into(),
+            waveform_channel_view: value.waveform_channel_view,
             waveform_normalized_audition_enabled: value.waveform_normalized_audition_enabled,
             waveform_bpm_snap_enabled: value.waveform_bpm_snap_enabled,
             waveform_relative_bpm_grid_enabled: value.waveform_relative_bpm_grid_enabled,
@@ -2232,14 +2076,14 @@ impl From<NativeMotionModel> for compat::NativeMotionModel {
             active_rating_filters: value.active_rating_filters,
             active_playback_age_filters: value.active_playback_age_filters,
             marked_filter_active: value.marked_filter_active,
-            waveform_selection_milli: value.waveform_selection_milli.map(Into::into),
-            waveform_slices: value.waveform_slices.into_iter().map(Into::into).collect(),
+            waveform_selection_milli: value.waveform_selection_milli,
+            waveform_slices: value.waveform_slices.into_iter().collect(),
             waveform_selection_export_flash_nonce: value.waveform_selection_export_flash_nonce,
             waveform_selection_export_failure_flash_nonce: value
                 .waveform_selection_export_failure_flash_nonce,
             waveform_edit_selection_apply_flash_nonce: value
                 .waveform_edit_selection_apply_flash_nonce,
-            waveform_edit_selection_milli: value.waveform_edit_selection_milli.map(Into::into),
+            waveform_edit_selection_milli: value.waveform_edit_selection_milli,
             waveform_edit_fade_in_end_milli: value.waveform_edit_fade_in_end_milli,
             waveform_edit_fade_in_end_micros: value.waveform_edit_fade_in_end_micros,
             waveform_edit_fade_in_mute_start_milli: value.waveform_edit_fade_in_mute_start_milli,
@@ -2269,7 +2113,7 @@ impl From<NativeMotionModel> for compat::NativeMotionModel {
             waveform_transport_hint: value.waveform_transport_hint,
             waveform_compare_anchor_available: value.waveform_compare_anchor_available,
             waveform_compare_anchor_label: value.waveform_compare_anchor_label,
-            waveform_channel_view: value.waveform_channel_view.into(),
+            waveform_channel_view: value.waveform_channel_view,
             waveform_normalized_audition_enabled: value.waveform_normalized_audition_enabled,
             waveform_bpm_snap_enabled: value.waveform_bpm_snap_enabled,
             waveform_relative_bpm_grid_enabled: value.waveform_relative_bpm_grid_enabled,
@@ -2295,7 +2139,7 @@ pub(super) fn run_native_vello_app_with_artifacts<B: NativeAppBridge>(
     bridge: B,
 ) -> NativeRunReport {
     let report = native_vello::run_native_shell_vello_app_with_artifacts(
-        options.into(),
+        options,
         CompatNativeAppBridge::new(bridge),
     );
     NativeRunReport {

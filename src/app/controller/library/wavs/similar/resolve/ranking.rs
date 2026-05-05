@@ -39,7 +39,7 @@ pub(crate) fn rerank_with_dsp(
         }
         let embed_sim = if let Some(query_embedding) = query_embedding {
             match embedding_by_sample.get(&neighbour.sample_id) {
-                Some(candidate) => cosine_similarity(query_embedding, &candidate).clamp(-1.0, 1.0),
+                Some(candidate) => cosine_similarity(query_embedding, candidate).clamp(-1.0, 1.0),
                 None => (1.0 - neighbour.distance).clamp(-1.0, 1.0),
             }
         } else {

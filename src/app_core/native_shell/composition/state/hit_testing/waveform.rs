@@ -194,7 +194,7 @@ impl NativeShellState {
         let style = style_for_layout(layout);
         let resolved = self
             .cached_waveform_toolbar_buttons(layout, &style, motion_model)
-            .into_iter()
+            .iter()
             .find(|button| button.enabled && button.rect.contains(point))
             .map(|button| {
                 (
