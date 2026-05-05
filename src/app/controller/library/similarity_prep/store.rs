@@ -6,7 +6,11 @@ pub(crate) trait SimilarityPrepStore {
     fn read_scan_timestamp(&self, source: &SampleSource) -> Option<i64>;
     fn read_prep_timestamp(&self, source: &SampleSource) -> Option<i64>;
     fn source_has_embeddings(&self, source: &SampleSource) -> bool;
-    fn record_prep_scan_timestamp(&self, source: &SampleSource, scan_completed_at: i64);
+    fn record_prep_scan_timestamp(
+        &self,
+        source: &SampleSource,
+        scan_completed_at: i64,
+    ) -> Result<(), String>;
     fn current_analysis_progress(
         &self,
         source: &SampleSource,
@@ -43,8 +47,12 @@ impl SimilarityPrepStore for DbSimilarityPrepStore {
         db::source_has_embeddings(source)
     }
 
-    fn record_prep_scan_timestamp(&self, source: &SampleSource, scan_completed_at: i64) {
-        db::record_similarity_prep_scan_timestamp(source, scan_completed_at);
+    fn record_prep_scan_timestamp(
+        &self,
+        source: &SampleSource,
+        scan_completed_at: i64,
+    ) -> Result<(), String> {
+        db::record_similarity_prep_scan_timestamp(source, scan_completed_at)
     }
 
     fn current_analysis_progress(

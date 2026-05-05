@@ -55,7 +55,13 @@ mod tests {
             self.has_embeddings
         }
 
-        fn record_prep_scan_timestamp(&self, _source: &SampleSource, _scan_completed_at: i64) {}
+        fn record_prep_scan_timestamp(
+            &self,
+            _source: &SampleSource,
+            _scan_completed_at: i64,
+        ) -> Result<(), String> {
+            Err("not needed".to_string())
+        }
 
         fn current_analysis_progress(
             &self,
