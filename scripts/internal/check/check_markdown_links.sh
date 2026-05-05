@@ -61,6 +61,8 @@ collect_markdown_files() {
   local head="$2"
 
   local out=()
+  local staged=()
+  local unstaged=()
   if [[ -n "$base" ]] && git_has_commit "$base" && git_has_commit "$head"; then
     while IFS= read -r path; do
       out+=("$path")
@@ -78,7 +80,7 @@ collect_markdown_files() {
     unstaged+=("$path")
   done < <(sempal_git diff --name-only --diff-filter=AM -- '*.md' || true)
 
-  printf "%s\n" "${out[@]}" "${staged[@]}" "${unstaged[@]}" \
+  printf "%s\n" ${out[@]+"${out[@]}"} ${staged[@]+"${staged[@]}"} ${unstaged[@]+"${unstaged[@]}"} \
     | sed 's#^\\./##' \
     | sort -u || true
 }

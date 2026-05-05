@@ -56,14 +56,6 @@ while (( $# > 0 )); do
 done
 
 ALLOWLIST_PATH="$ROOT_DIR/scripts/internal/check/allowlists/app_core_dependency_boundary_allowlist.txt"
-declare -A ALLOWLIST=()
-if [[ -f "$ALLOWLIST_PATH" ]]; then
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    [[ -z "$line" ]] && continue
-    [[ "$line" == \#* ]] && continue
-    ALLOWLIST["$line"]=1
-  done < "$ALLOWLIST_PATH"
-fi
 
 git_has_commit() {
   sempal_git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1
@@ -71,7 +63,14 @@ git_has_commit() {
 
 is_allowlisted() {
   local file="$1"
-  [[ -n "${ALLOWLIST[$file]+x}" ]]
+  local line
+  [[ -f "$ALLOWLIST_PATH" ]] || return 1
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$line" ]] && continue
+    [[ "$line" == \#* ]] && continue
+    [[ "$line" == "$file" ]] && return 0
+  done < "$ALLOWLIST_PATH"
+  return 1
 }
 
 scan_diff_stream() {

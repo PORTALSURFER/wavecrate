@@ -85,7 +85,7 @@ collect_manual_changes() {
     unstaged+=("$path")
   done < <(sempal_git diff --name-only --diff-filter=AM -- manual || true)
 
-  printf "%s\n" "${out[@]}" "${staged[@]}" "${unstaged[@]}" \
+  printf "%s\n" ${out[@]+"${out[@]}"} ${staged[@]+"${staged[@]}"} ${unstaged[@]+"${unstaged[@]}"} \
     | sed 's#^\\./##' \
     | sort -u || true
 }
