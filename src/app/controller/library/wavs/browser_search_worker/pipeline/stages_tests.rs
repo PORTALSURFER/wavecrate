@@ -291,6 +291,108 @@ fn metadata_delta_revision_gap_refreshes_all_provided_paths() {
 }
 
 #[test]
+fn revision_read_failure_preserves_existing_search_cache() {
+    let (temp, root, _db, job, queue, generation, mut cache, source_id) =
+        loaded_search_cache_for_tests("");
+    let _keep_temp = temp;
+    let original_revision = cache.revision;
+    let original_paths_revision = cache.paths_revision;
+    let original_labels = cached_display_labels(&cache);
+    set_raw_source_metadata(&root, "revision", "not-a-number");
+
+    assert!(ensure_search_cache_ready_for_job(
+        &mut cache, &job, &source_id
+    ));
+    assert!(!ensure_search_entries_loaded_for_job(
+        &mut cache, &job, &queue, generation
+    ));
+
+    assert_eq!(cache.revision, original_revision);
+    assert_eq!(cache.paths_revision, original_paths_revision);
+    assert_eq!(cached_display_labels(&cache), original_labels);
+    assert!(cache.entries.is_some());
+}
+
+#[test]
+fn metadata_read_failure_preserves_existing_search_cache() {
+    let (temp, root, _db, job, queue, generation, mut cache, source_id) =
+        loaded_search_cache_for_tests("");
+    let _keep_temp = temp;
+    let original_revision = cache.revision;
+    let original_labels = cached_display_labels(&cache);
+    set_raw_source_metadata(&root, "revision", &(original_revision + 1).to_string());
+    raw_source_conn(&root)
+        .execute("DROP TABLE source_tags", [])
+        .unwrap();
+
+    assert!(ensure_search_cache_ready_for_job(
+        &mut cache, &job, &source_id
+    ));
+    assert!(!ensure_search_entries_loaded_for_job(
+        &mut cache, &job, &queue, generation
+    ));
+
+    assert_eq!(cache.revision, original_revision);
+    assert_eq!(cached_display_labels(&cache), original_labels);
+    assert!(cache.entries.is_some());
+}
+
+#[test]
+fn targeted_metadata_delta_read_failure_falls_back_to_successful_full_reload() {
+    let (temp, _root, db, base_job, queue, generation, mut cache, source_id) =
+        loaded_search_cache_for_tests("");
+    let _keep_temp = temp;
+    db.set_tag(Path::new("one.wav"), Rating::KEEP_1)
+        .expect("update one");
+    let delta_job = SearchJob {
+        metadata_delta_paths: vec![PathBuf::from("../bad-delta.wav")],
+        source_id: base_job.source_id.clone(),
+        source_root: base_job.source_root.clone(),
+        ..make_search_job("")
+    };
+
+    assert!(ensure_search_cache_ready_for_job(
+        &mut cache, &delta_job, &source_id
+    ));
+    assert!(ensure_search_entries_loaded_for_job(
+        &mut cache, &delta_job, &queue, generation
+    ));
+
+    let refreshed = cache.entries.as_ref().expect("entries refreshed");
+    assert_eq!(refreshed[0].tag, Rating::KEEP_1);
+}
+
+#[test]
+fn targeted_metadata_delta_failure_preserves_cache_when_full_reload_fails() {
+    let (temp, root, _db, base_job, queue, generation, mut cache, source_id) =
+        loaded_search_cache_for_tests("");
+    let _keep_temp = temp;
+    let original_revision = cache.revision;
+    let original_labels = cached_display_labels(&cache);
+    set_raw_source_metadata(&root, "revision", &(original_revision + 1).to_string());
+    raw_source_conn(&root)
+        .execute("DROP TABLE source_tags", [])
+        .unwrap();
+    let delta_job = SearchJob {
+        metadata_delta_paths: vec![PathBuf::from("../bad-delta.wav")],
+        source_id: base_job.source_id.clone(),
+        source_root: base_job.source_root.clone(),
+        ..make_search_job("")
+    };
+
+    assert!(ensure_search_cache_ready_for_job(
+        &mut cache, &delta_job, &source_id
+    ));
+    assert!(!ensure_search_entries_loaded_for_job(
+        &mut cache, &delta_job, &queue, generation
+    ));
+
+    assert_eq!(cache.revision, original_revision);
+    assert_eq!(cached_display_labels(&cache), original_labels);
+    assert!(cache.entries.is_some());
+}
+
+#[test]
 fn path_set_refresh_rebuilds_entries_and_clears_query_scores() {
     let temp = tempdir().expect("tempdir");
     let root = temp.path().join("source");
@@ -533,6 +635,77 @@ fn similarity_visible_rows_keep_sparse_lookup_compact() {
 
     assert_eq!(visible, vec![3, 1]);
     assert_eq!(cache.similar_lookup_scratch, vec![(1, 0.4), (3, 0.9)]);
+}
+
+fn loaded_search_cache_for_tests(
+    query: &str,
+) -> (
+    tempfile::TempDir,
+    PathBuf,
+    SourceDatabase,
+    SearchJob,
+    SearchJobQueue,
+    u64,
+    SearchWorkerCache,
+    String,
+) {
+    let temp = tempdir().expect("tempdir");
+    let root = temp.path().join("source");
+    std::fs::create_dir_all(&root).expect("create source root");
+    let db = SourceDatabase::open(&root).expect("open source db");
+    db.upsert_file(Path::new("one.wav"), 1, 1)
+        .expect("insert one");
+    db.upsert_file(Path::new("two.wav"), 1, 2)
+        .expect("insert two");
+    let job = SearchJob {
+        source_id: SourceId::new(),
+        source_root: root.clone(),
+        ..make_search_job(query)
+    };
+    let source_id = job.source_id.as_str().to_string();
+    let queue = SearchJobQueue::new();
+    queue.send(SearchJob {
+        source_id: job.source_id.clone(),
+        source_root: job.source_root.clone(),
+        ..make_search_job(query)
+    });
+    let generation = queue
+        .take_blocking()
+        .expect("expected queued search job generation")
+        .generation;
+    let mut cache = SearchWorkerCache::default();
+    assert!(ensure_search_cache_ready_for_job(
+        &mut cache, &job, &source_id
+    ));
+    assert!(ensure_search_entries_loaded_for_job(
+        &mut cache, &job, &queue, generation
+    ));
+    (temp, root, db, job, queue, generation, cache, source_id)
+}
+
+fn cached_display_labels(cache: &SearchWorkerCache) -> Vec<String> {
+    cache
+        .entries
+        .as_ref()
+        .expect("entries loaded")
+        .iter()
+        .map(|entry| entry.display_label.to_string())
+        .collect()
+}
+
+fn raw_source_conn(root: &Path) -> rusqlite::Connection {
+    rusqlite::Connection::open(crate::sample_sources::database_path_for(root)).unwrap()
+}
+
+fn set_raw_source_metadata(root: &Path, key: &str, value: &str) {
+    raw_source_conn(root)
+        .execute(
+            "INSERT INTO metadata (key, value)
+             VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            rusqlite::params![key, value],
+        )
+        .unwrap();
 }
 
 fn make_search_job(query: &str) -> SearchJob {
