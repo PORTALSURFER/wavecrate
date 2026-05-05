@@ -168,17 +168,9 @@ impl SourceDatabase {
 
     /// Insert or update a metadata key/value pair.
     pub fn set_metadata(&self, key: &str, value: &str) -> Result<(), SourceDbError> {
-        let started_at = Instant::now();
-        self.connection
-            .execute(
-                "INSERT INTO metadata (key, value)
-                 VALUES (?1, ?2)
-                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-                params![key, value],
-            )
-            .map_err(map_sql_error)?;
-        record_source_db_event("source_db.set_metadata", &self.root, started_at, Ok(()));
-        Ok(())
+        self.mutate_with_batch("source_db.set_metadata", |batch| {
+            batch.set_metadata(key, value)
+        })
     }
 
     pub(super) fn bump_revision(conn: &rusqlite::Connection) -> Result<(), SourceDbError> {

@@ -113,3 +113,67 @@ fn reuses_known_source_id_for_same_root() {
         assert_eq!(reused.as_str(), id.as_str());
     });
 }
+
+#[test]
+fn corrupt_known_source_metadata_is_reported() {
+    let temp = tempdir().unwrap();
+    with_config_home(temp.path(), || {
+        let db = LibraryDatabase::open().unwrap();
+        db.set_metadata(KNOWN_SOURCES_KEY, "{not valid json")
+            .unwrap();
+
+        let err = db
+            .lookup_known_source_id(Path::new("some/root"))
+            .unwrap_err();
+
+        assert!(matches!(
+            err,
+            LibraryError::MetadataJson {
+                key: KNOWN_SOURCES_KEY,
+                ..
+            }
+        ));
+        assert!(err.to_string().contains(KNOWN_SOURCES_KEY));
+    });
+}
+
+#[test]
+fn replace_state_rolls_back_sources_when_known_source_metadata_write_fails() {
+    let temp = tempdir().unwrap();
+    with_config_home(temp.path(), || {
+        let original_root = normalize_path(Path::new("original/root"));
+        let original_id = SourceId::new();
+        save(&LibraryState {
+            sources: vec![SampleSource::new_with_id(
+                original_id.clone(),
+                original_root.clone(),
+            )],
+        })
+        .unwrap();
+
+        let mut db = LibraryDatabase::open().unwrap();
+        db.connection
+            .execute_batch(
+                "CREATE TRIGGER fail_known_sources_update
+                 BEFORE UPDATE ON metadata
+                 WHEN NEW.key = 'known_sources_v1'
+                 BEGIN
+                     SELECT RAISE(FAIL, 'known source metadata write failed');
+                 END;",
+            )
+            .unwrap();
+
+        let new_root = normalize_path(Path::new("new/root"));
+        let err = db
+            .replace_state(&LibraryState {
+                sources: vec![SampleSource::new(new_root)],
+            })
+            .unwrap_err();
+
+        assert!(matches!(err, LibraryError::Sql(_)));
+        let sources = db.load_sources().unwrap();
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0].id.as_str(), original_id.as_str());
+        assert_eq!(sources[0].root, original_root);
+    });
+}
