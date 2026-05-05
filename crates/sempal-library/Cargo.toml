@@ -22,6 +22,9 @@ toml = "0.8.19"
 tracing = "0.1.41"
 uuid = { version = "1.19.0", features = ["v4", "serde"] }
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.176"
+
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.62.2", features = [
     "Win32_Foundation",
