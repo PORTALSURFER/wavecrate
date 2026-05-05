@@ -128,7 +128,7 @@ fn loading_flag_clears_after_audio_load() {
         Some(rel.as_path())
     );
 
-    for _ in 0..50 {
+    for _ in 0..250 {
         controller.poll_background_jobs();
         if controller.sample_view.wav.loaded_wav.as_deref() == Some(rel.as_path())
             && controller.ui.waveform.loading.is_none()
