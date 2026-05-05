@@ -88,7 +88,12 @@ impl AppController {
                     && let Some(source) = self.find_source_by_id(&result.source_id)
                 {
                     let store = DbSimilarityPrepStore;
-                    store.record_prep_scan_timestamp(&source, scan_completed_at);
+                    if let Err(err) = store.record_prep_scan_timestamp(&source, scan_completed_at) {
+                        self.show_similarity_prep_failed(format!(
+                            "Similarity prep timestamp persistence failed: {err}"
+                        ));
+                        return;
+                    }
                 }
                 self.show_similarity_prep_ready(&outcome);
             }

@@ -104,6 +104,18 @@ impl AppController {
             return;
         }
         let removed = self.library.sources.remove(index);
+        if let Err(err) = self.persist_config("Failed to save config after removing source") {
+            self.library.sources.insert(index, removed.clone());
+            self.set_status(err.clone(), StatusTone::Error);
+            record_source_lifecycle_event(
+                "sources.remove",
+                Some(removed.id.as_str()),
+                "error",
+                started_at,
+                Some(&err),
+            );
+            return;
+        }
         self.library.missing.sources.remove(&removed.id);
         for pane in [FolderPaneId::Upper, FolderPaneId::Lower] {
             if self.ui.sources.folder_pane(pane).source_id.as_ref() == Some(&removed.id) {
@@ -130,7 +142,6 @@ impl AppController {
             self.clear_focused_similarity_highlight();
             self.clear_waveform_view();
         }
-        let _ = self.persist_config("Failed to save config after removing source");
         self.refresh_source_watcher();
         self.refresh_sources_ui();
         let _ = self.refresh_wavs();

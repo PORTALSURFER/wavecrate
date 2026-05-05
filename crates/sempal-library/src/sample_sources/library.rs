@@ -59,6 +59,14 @@ pub enum LibraryError {
     /// Failed to deserialize JSON metadata from the DB.
     #[error("Library metadata parse failed: {0}")]
     Json(#[from] serde_json::Error),
+    /// Failed to deserialize one named JSON metadata value from the DB.
+    #[error("Library metadata key '{key}' parse failed: {source}")]
+    MetadataJson {
+        /// Metadata key that contained invalid JSON.
+        key: &'static str,
+        /// Underlying JSON error.
+        source: serde_json::Error,
+    },
 }
 
 /// Load all sources from the global library database, creating it if missing.
@@ -159,9 +167,10 @@ impl LibraryDatabase {
     fn replace_state(&mut self, state: &LibraryState) -> Result<(), LibraryError> {
         let started_at = Instant::now();
         let tx = self.connection.transaction().map_err(map_sql_error)?;
+        let mut mappings = Self::load_known_sources_from(&tx)?;
         Self::replace_sources(&tx, &state.sources)?;
+        Self::remember_known_sources_in_tx(&tx, &mut mappings, &state.sources)?;
         tx.commit().map_err(map_sql_error)?;
-        self.remember_known_sources(&state.sources)?;
         record_library_db_event("library.replace_state", started_at, Ok(()));
         Ok(())
     }
@@ -225,9 +234,11 @@ impl LibraryDatabase {
         Ok(result)
     }
 
-    fn remember_known_sources(&mut self, sources: &[SampleSource]) -> Result<(), LibraryError> {
-        let started_at = Instant::now();
-        let mut mappings = self.load_known_sources()?;
+    fn remember_known_sources_in_tx(
+        tx: &Transaction<'_>,
+        mappings: &mut Vec<KnownSourceMapping>,
+        sources: &[SampleSource],
+    ) -> Result<(), LibraryError> {
         for source in sources {
             let normalized = normalize_path(&source.root);
             let root = normalized.to_string_lossy().to_string();
@@ -241,21 +252,55 @@ impl LibraryDatabase {
             }
         }
         mappings.sort_by(|a, b| a.root.cmp(&b.root));
-        self.set_metadata(KNOWN_SOURCES_KEY, &serde_json::to_string(&mappings)?)?;
-        record_library_db_event("library.remember_known_sources", started_at, Ok(()));
+        Self::set_metadata_in_tx(tx, KNOWN_SOURCES_KEY, &serde_json::to_string(&mappings)?)?;
         Ok(())
     }
 
     fn load_known_sources(&self) -> Result<Vec<KnownSourceMapping>, LibraryError> {
         let started_at = Instant::now();
-        let Some(value) = self.get_metadata(KNOWN_SOURCES_KEY)? else {
-            record_library_db_event("library.load_known_sources", started_at, Ok(()));
+        let result = Self::load_known_sources_from(&self.connection);
+        record_library_db_event(
+            "library.load_known_sources",
+            started_at,
+            result.as_ref().map(|_| ()),
+        );
+        result
+    }
+
+    fn load_known_sources_from(conn: &Connection) -> Result<Vec<KnownSourceMapping>, LibraryError> {
+        let Some(value) = Self::get_metadata_from(conn, KNOWN_SOURCES_KEY)? else {
             return Ok(Vec::new());
         };
-        let mappings =
-            serde_json::from_str::<Vec<KnownSourceMapping>>(&value).unwrap_or_else(|_| Vec::new());
-        record_library_db_event("library.load_known_sources", started_at, Ok(()));
-        Ok(mappings)
+        serde_json::from_str::<Vec<KnownSourceMapping>>(&value).map_err(|source| {
+            LibraryError::MetadataJson {
+                key: KNOWN_SOURCES_KEY,
+                source,
+            }
+        })
+    }
+
+    fn get_metadata_from(conn: &Connection, key: &str) -> Result<Option<String>, LibraryError> {
+        use rusqlite::OptionalExtension;
+        conn.query_row("SELECT value FROM metadata WHERE key = ?1", [key], |row| {
+            row.get(0)
+        })
+        .optional()
+        .map_err(map_sql_error)
+    }
+
+    fn set_metadata_in_tx(
+        tx: &Transaction<'_>,
+        key: &str,
+        value: &str,
+    ) -> Result<(), LibraryError> {
+        tx.execute(
+            "INSERT INTO metadata (key, value)
+             VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            [key, value],
+        )
+        .map_err(map_sql_error)?;
+        Ok(())
     }
 }
 

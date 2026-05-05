@@ -255,6 +255,21 @@ fn metadata_written_inside_batch_commits_with_other_changes() {
 }
 
 #[test]
+fn metadata_wrapper_uses_batch_revision_policy_without_wav_path_churn() {
+    let dir = tempdir().unwrap();
+    let db = SourceDatabase::open(dir.path()).unwrap();
+
+    db.set_metadata("custom_key", "custom_value").unwrap();
+
+    assert_eq!(
+        db.get_metadata("custom_key").unwrap().as_deref(),
+        Some("custom_value")
+    );
+    assert_eq!(revision_value(&db), 1);
+    assert_eq!(wav_paths_revision_value(&db), 0);
+}
+
+#[test]
 fn rename_identity_remap_preserves_analysis_artifacts_and_jobs() {
     let dir = tempdir().unwrap();
     let db = SourceDatabase::open(dir.path()).unwrap();

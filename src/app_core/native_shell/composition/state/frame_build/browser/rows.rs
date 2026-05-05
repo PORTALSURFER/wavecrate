@@ -9,9 +9,36 @@ pub(super) fn render_browser_rows_window(
 ) {
     let last_row_max_y = browser_rows.last().map(|row| row.rect.max.y);
     for row in browser_rows {
+        let row_ctx = BrowserRowRenderCtx::new(ctx, row);
+        render_browser_row_background_and_decorations(
+            ctx,
+            primitives,
+            row,
+            &row_ctx,
+            last_row_max_y,
+        );
+        render_browser_row_labels_and_inline_tags(ctx, primitives, text_runs, row, &row_ctx);
+        render_browser_row_similarity_controls(ctx, primitives, row, &row_ctx);
+    }
+    render_browser_rows_overlay_chrome(ctx, primitives, text_runs, browser_rows);
+}
+
+#[derive(Clone, Copy, Debug)]
+/// Stores state for browser row render ctx.
+struct BrowserRowRenderCtx {
+    row_border_rect: Rect,
+    row_border_stroke: f32,
+    similarity_active: bool,
+    similarity_button: Option<Rect>,
+    similarity_button_reserved_width: f32,
+    similarity_strength_reserved_width: f32,
+    age_marker_reserved_width: f32,
+}
+
+impl BrowserRowRenderCtx {
+    /// Handles new.
+    fn new(ctx: &StaticFrameCtx<'_>, row: &CachedBrowserRow) -> Self {
         let row_border_stroke = browser_row_border_stroke(ctx.layout);
-        let row_border_rect = browser_row_border_rect(row.rect, row_border_stroke);
-        let row_columns = row.text_layout.columns;
         let similarity_active =
             ctx.model.browser.similarity_filtered || ctx.model.browser.duplicate_cleanup_active;
         let similarity_button = (!ctx.model.browser.duplicate_cleanup_active)
@@ -20,297 +47,452 @@ pub(super) fn render_browser_rows_window(
             .and_then(|row| browser_similarity_button_rect(row.rect, ctx.sizing));
         let similarity_button_reserved_width =
             browser_similarity_button_reserved_width(similarity_button.is_some(), ctx.sizing);
-        let similarity_strength_reserved_width = browser_similarity_strength_reserved_width(
-            row.similarity_display_strength.is_some(),
-            ctx.sizing,
-        );
-        let base_fill = if row.marked && similarity_active {
-            browser_marked_similarity_row_fill(ctx.style, row.visible_row, row.visible_row == 0)
-        } else if row.marked {
-            browser_marked_row_fill(ctx.style, row.visible_row)
-        } else if similarity_active {
-            browser_similarity_row_fill(ctx.style, row.visible_row, row.visible_row == 0)
-        } else {
-            browser_row_stripe_fill(ctx.style, row.visible_row)
-        };
-        let base_fill = browser_processing_row_fill(ctx.style, base_fill, row.processing_state);
-        let age_marker_reserved_width = browser_playback_age_marker_reserved_width(
-            row.rect,
-            ctx.sizing,
+        Self {
+            row_border_rect: browser_row_border_rect(row.rect, row_border_stroke),
+            row_border_stroke,
+            similarity_active,
+            similarity_button,
             similarity_button_reserved_width,
-        );
+            similarity_strength_reserved_width: browser_similarity_strength_reserved_width(
+                row.similarity_display_strength.is_some(),
+                ctx.sizing,
+            ),
+            age_marker_reserved_width: browser_playback_age_marker_reserved_width(
+                row.rect,
+                ctx.sizing,
+                similarity_button_reserved_width,
+            ),
+        }
+    }
+}
+
+/// Handles render browser row background and decorations.
+fn render_browser_row_background_and_decorations(
+    ctx: &StaticFrameCtx<'_>,
+    primitives: &mut impl PrimitiveSink,
+    row: &CachedBrowserRow,
+    row_ctx: &BrowserRowRenderCtx,
+    last_row_max_y: Option<f32>,
+) {
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: row.rect,
+            color: browser_row_background_fill(ctx.style, row, row_ctx.similarity_active),
+        }),
+    );
+    render_browser_processing_marker(primitives, row, ctx.style, ctx.sizing);
+    render_browser_row_similarity_anchor_marker(ctx, primitives, row, row_ctx);
+    render_browser_row_playback_age_marker(ctx, primitives, row, row_ctx);
+    render_browser_row_review_markers(ctx, primitives, row);
+    render_browser_row_column_separators(ctx, primitives, row);
+    push_browser_row_border(
+        primitives,
+        row_ctx.row_border_rect,
+        ctx.style.border,
+        row_ctx.row_border_stroke,
+        BorderSides {
+            top: true,
+            bottom: Some(row.rect.max.y) == last_row_max_y,
+            left: false,
+            right: false,
+        },
+    );
+    render_browser_row_bucket_chip(ctx, primitives, row);
+}
+
+/// Handles browser row background fill.
+fn browser_row_background_fill(
+    style: &StyleTokens,
+    row: &CachedBrowserRow,
+    similarity_active: bool,
+) -> Rgba8 {
+    let base_fill = if row.marked && similarity_active {
+        browser_marked_similarity_row_fill(style, row.visible_row, row.visible_row == 0)
+    } else if row.marked {
+        browser_marked_row_fill(style, row.visible_row)
+    } else if similarity_active {
+        browser_similarity_row_fill(style, row.visible_row, row.visible_row == 0)
+    } else {
+        browser_row_stripe_fill(style, row.visible_row)
+    };
+    browser_processing_row_fill(style, base_fill, row.processing_state)
+}
+
+/// Handles render browser row similarity anchor marker.
+fn render_browser_row_similarity_anchor_marker(
+    ctx: &StaticFrameCtx<'_>,
+    primitives: &mut impl PrimitiveSink,
+    row: &CachedBrowserRow,
+    row_ctx: &BrowserRowRenderCtx,
+) {
+    if row_ctx.similarity_active && row.visible_row == 0 {
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {
-                rect: row.rect,
-                color: base_fill,
+                rect: row.text_layout.columns.index,
+                color: similarity_anchor_browser_index_fill(ctx.style),
             }),
         );
-        render_browser_processing_marker(primitives, row, ctx.style, ctx.sizing);
-        if similarity_active && row.visible_row == 0 {
-            emit_primitive(
-                primitives,
-                Primitive::Rect(FillRect {
-                    rect: row.text_layout.columns.index,
-                    color: similarity_anchor_browser_index_fill(ctx.style),
-                }),
-            );
-        }
-        if let Some(marker_rect) =
-            browser_playback_age_marker_rect(row.rect, ctx.sizing, similarity_button_reserved_width)
-        {
-            emit_primitive(
-                primitives,
-                Primitive::Rect(FillRect {
-                    rect: marker_rect,
-                    color: browser_playback_age_marker_color(ctx.style, row.playback_age_bucket),
-                }),
-            );
-        }
-        let marked_marker_width = if row.marked { 4.0 } else { 0.0 };
-        if row.marked
-            && let Some(marker_rect) = browser_locked_marker_rect(row.rect, ctx.sizing, 0.0)
-        {
-            emit_primitive(
-                primitives,
-                Primitive::Rect(FillRect {
-                    rect: marker_rect,
-                    color: ctx.style.highlight_cyan,
-                }),
-            );
-        }
-        if row.locked
-            && let Some(marker_rect) =
-                browser_locked_marker_rect(row.rect, ctx.sizing, marked_marker_width)
-        {
-            emit_primitive(
-                primitives,
-                Primitive::Rect(FillRect {
-                    rect: marker_rect,
-                    color: ctx.style.accent_mint,
-                }),
-            );
-        }
-        for separator_x in [row_columns.index.max.x, row_columns.sample.max.x] {
-            emit_primitive(
-                primitives,
-                Primitive::Rect(FillRect {
-                    rect: Rect::from_min_max(
-                        Point::new(separator_x, row.rect.min.y),
-                        Point::new(
-                            (separator_x + ctx.sizing.border_width).min(row.rect.max.x),
-                            row.rect.max.y,
-                        ),
-                    ),
-                    color: blend_color(ctx.style.border, ctx.style.grid_soft, 0.36),
-                }),
-            );
-        }
-        push_browser_row_border(
+    }
+}
+
+/// Handles render browser row playback age marker.
+fn render_browser_row_playback_age_marker(
+    ctx: &StaticFrameCtx<'_>,
+    primitives: &mut impl PrimitiveSink,
+    row: &CachedBrowserRow,
+    row_ctx: &BrowserRowRenderCtx,
+) {
+    if let Some(marker_rect) = browser_playback_age_marker_rect(
+        row.rect,
+        ctx.sizing,
+        row_ctx.similarity_button_reserved_width,
+    ) {
+        emit_primitive(
             primitives,
-            row_border_rect,
-            ctx.style.border,
-            row_border_stroke,
-            BorderSides {
-                top: true,
-                bottom: Some(row.rect.max.y) == last_row_max_y,
-                left: false,
-                right: false,
+            Primitive::Rect(FillRect {
+                rect: marker_rect,
+                color: browser_playback_age_marker_color(ctx.style, row.playback_age_bucket),
+            }),
+        );
+    }
+}
+
+/// Handles render browser row review markers.
+fn render_browser_row_review_markers(
+    ctx: &StaticFrameCtx<'_>,
+    primitives: &mut impl PrimitiveSink,
+    row: &CachedBrowserRow,
+) {
+    let marked_marker_width = if row.marked { 4.0 } else { 0.0 };
+    if row.marked
+        && let Some(marker_rect) = browser_locked_marker_rect(row.rect, ctx.sizing, 0.0)
+    {
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: marker_rect,
+                color: ctx.style.highlight_cyan,
+            }),
+        );
+    }
+    if row.locked
+        && let Some(marker_rect) =
+            browser_locked_marker_rect(row.rect, ctx.sizing, marked_marker_width)
+    {
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: marker_rect,
+                color: ctx.style.accent_mint,
+            }),
+        );
+    }
+}
+
+/// Handles render browser row column separators.
+fn render_browser_row_column_separators(
+    ctx: &StaticFrameCtx<'_>,
+    primitives: &mut impl PrimitiveSink,
+    row: &CachedBrowserRow,
+) {
+    let row_columns = row.text_layout.columns;
+    for separator_x in [row_columns.index.max.x, row_columns.sample.max.x] {
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: Rect::from_min_max(
+                    Point::new(separator_x, row.rect.min.y),
+                    Point::new(
+                        (separator_x + ctx.sizing.border_width).min(row.rect.max.x),
+                        row.rect.max.y,
+                    ),
+                ),
+                color: blend_color(ctx.style.border, ctx.style.grid_soft, 0.36),
+            }),
+        );
+    }
+}
+
+/// Handles render browser row bucket chip.
+fn render_browser_row_bucket_chip(
+    ctx: &StaticFrameCtx<'_>,
+    primitives: &mut impl PrimitiveSink,
+    row: &CachedBrowserRow,
+) {
+    let chip_rect = row.text_layout.bucket_chip;
+    let chip_color = match row.column {
+        0 => blend_color(ctx.style.accent_warning, ctx.style.bg_secondary, 0.54),
+        2 => blend_color(ctx.style.accent_mint, ctx.style.bg_secondary, 0.54),
+        _ => blend_color(ctx.style.text_muted, ctx.style.bg_secondary, 0.54),
+    };
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: chip_rect,
+            color: chip_color,
+        }),
+    );
+    push_border(
+        primitives,
+        chip_rect,
+        ctx.style.border,
+        ctx.sizing.border_width,
+    );
+}
+
+/// Handles render browser row labels and inline tags.
+fn render_browser_row_labels_and_inline_tags(
+    ctx: &StaticFrameCtx<'_>,
+    primitives: &mut impl PrimitiveSink,
+    text_runs: &mut impl TextRunSink,
+    row: &CachedBrowserRow,
+    row_ctx: &BrowserRowRenderCtx,
+) {
+    emit_text(
+        text_runs,
+        TextRun {
+            text: row.visible_row_label.clone(),
+            position: row.text_layout.index_label.min,
+            font_size: ctx.sizing.font_meta,
+            color: ctx.style.text_muted,
+            max_width: Some(row.text_layout.index_label.width().max(12.0)),
+            align: TextAlign::Right,
+        },
+    );
+    let (label_position, label_max_width) =
+        render_browser_row_sample_label_leading_markers(ctx, text_runs, row, row_ctx);
+    let label_max_width =
+        render_browser_row_rating_indicators(ctx, primitives, row, label_position, label_max_width);
+    emit_text(
+        text_runs,
+        TextRun {
+            text: row.label.clone(),
+            position: label_position,
+            font_size: ctx.sizing.font_body,
+            color: ctx.style.text_primary,
+            max_width: Some(label_max_width),
+            align: TextAlign::Left,
+        },
+    );
+    render_browser_row_inline_tags(ctx, primitives, text_runs, row);
+}
+
+/// Handles render browser row sample label leading markers.
+fn render_browser_row_sample_label_leading_markers(
+    ctx: &StaticFrameCtx<'_>,
+    text_runs: &mut impl TextRunSink,
+    row: &CachedBrowserRow,
+    row_ctx: &BrowserRowRenderCtx,
+) -> (Point, f32) {
+    let mut label_position = row.text_layout.sample_label.min;
+    let mut label_max_width = row.text_layout.sample_label.width().max(20.0);
+    if row_ctx.similarity_button_reserved_width > 0.0 {
+        label_position.x = (label_position.x + row_ctx.similarity_button_reserved_width)
+            .min(row.text_layout.sample_label.max.x);
+        label_max_width = (row.text_layout.sample_label.max.x - label_position.x).max(4.0);
+    }
+    if row_ctx.age_marker_reserved_width > 0.0 {
+        label_position.x = (label_position.x + row_ctx.age_marker_reserved_width)
+            .min(row.text_layout.sample_label.max.x);
+        label_max_width = (row.text_layout.sample_label.max.x - label_position.x).max(4.0);
+    }
+    if row.missing {
+        let marker_advance =
+            browser_missing_marker_advance(ctx.sizing.font_body).min(label_max_width.max(0.0));
+        emit_text(
+            text_runs,
+            TextRun {
+                text: String::from(BROWSER_MISSING_CONTENT_MARKER),
+                position: label_position,
+                font_size: ctx.sizing.font_body,
+                color: ctx.style.accent_danger,
+                max_width: Some(marker_advance),
+                align: TextAlign::Left,
             },
         );
-        let chip_rect = row.text_layout.bucket_chip;
-        let chip_color = match row.column {
-            0 => blend_color(ctx.style.accent_warning, ctx.style.bg_secondary, 0.54),
-            2 => blend_color(ctx.style.accent_mint, ctx.style.bg_secondary, 0.54),
-            _ => blend_color(ctx.style.text_muted, ctx.style.bg_secondary, 0.54),
-        };
+        label_position.x =
+            (label_position.x + marker_advance).min(row.text_layout.sample_label.max.x);
+        label_max_width = (row.text_layout.sample_label.max.x - label_position.x).max(4.0);
+    }
+    (label_position, label_max_width)
+}
+
+/// Handles render browser row rating indicators.
+fn render_browser_row_rating_indicators(
+    ctx: &StaticFrameCtx<'_>,
+    primitives: &mut impl PrimitiveSink,
+    row: &CachedBrowserRow,
+    label_position: Point,
+    mut label_max_width: f32,
+) -> f32 {
+    let inline_tag_reserved_width =
+        browser_inline_tag_reserved_width_for_labels(&row.inline_tag_labels, ctx.sizing);
+    let rating_reserved_width =
+        browser_rating_indicator_reserved_width(row.rating_level, row.locked, ctx.sizing);
+    let similarity_strength_reserved_width = browser_similarity_strength_reserved_width(
+        row.similarity_display_strength.is_some(),
+        ctx.sizing,
+    );
+    let rating_indicator_layout = browser_rating_indicator_layout(
+        BrowserRatingIndicatorAnchor {
+            sample_label: row.text_layout.sample_label,
+            label_origin_x: label_position.x,
+            label_rendered_width: row.label_rendered_width.min(label_max_width.max(0.0)),
+            right_limit_x: row.text_layout.sample_label.max.x
+                - inline_tag_reserved_width
+                - similarity_strength_reserved_width,
+        },
+        row.rating_level,
+        row.locked,
+        ctx.sizing,
+    );
+    if let Some(indicators) = rating_indicator_layout {
+        label_max_width = (label_max_width
+            - rating_reserved_width
+            - inline_tag_reserved_width
+            - similarity_strength_reserved_width)
+            .max(4.0);
+        for rect in indicators.rects.into_iter().take(indicators.count) {
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect,
+                    color: browser_rating_indicator_color(ctx.style, row.rating_level),
+                }),
+            );
+            push_border(
+                primitives,
+                rect,
+                blend_color(ctx.style.border, ctx.style.text_primary, 0.28),
+                ctx.sizing.border_width,
+            );
+        }
+    } else {
+        label_max_width =
+            (label_max_width - inline_tag_reserved_width - similarity_strength_reserved_width)
+                .max(4.0);
+    }
+    label_max_width
+}
+
+/// Handles render browser row inline tags.
+fn render_browser_row_inline_tags(
+    ctx: &StaticFrameCtx<'_>,
+    primitives: &mut impl PrimitiveSink,
+    text_runs: &mut impl TextRunSink,
+    row: &CachedBrowserRow,
+) {
+    if row.bucket_label.is_empty() {
+        return;
+    }
+    for (chip_rect, chip_label) in row
+        .inline_tag_rects
+        .iter()
+        .copied()
+        .zip(row.inline_tag_labels.iter())
+    {
+        let text_origin = browser_inline_tag_text_origin(chip_rect, ctx.sizing);
         emit_primitive(
             primitives,
             Primitive::Rect(FillRect {
                 rect: chip_rect,
-                color: chip_color,
+                color: blend_color(ctx.style.surface_overlay, ctx.style.bg_tertiary, 0.54),
             }),
         );
         push_border(
             primitives,
             chip_rect,
-            ctx.style.border,
+            blend_color(ctx.style.border_emphasis, ctx.style.text_muted, 0.18),
             ctx.sizing.border_width,
         );
         emit_text(
             text_runs,
             TextRun {
-                text: row.visible_row_label.clone(),
-                position: row.text_layout.index_label.min,
+                text: chip_label.clone(),
+                position: text_origin,
                 font_size: ctx.sizing.font_meta,
-                color: ctx.style.text_muted,
-                max_width: Some(row.text_layout.index_label.width().max(12.0)),
-                align: TextAlign::Right,
-            },
-        );
-        let mut label_position = row.text_layout.sample_label.min;
-        let mut label_max_width = row.text_layout.sample_label.width().max(20.0);
-        if similarity_button_reserved_width > 0.0 {
-            label_position.x = (label_position.x + similarity_button_reserved_width)
-                .min(row.text_layout.sample_label.max.x);
-            label_max_width = (row.text_layout.sample_label.max.x - label_position.x).max(4.0);
-        }
-        if age_marker_reserved_width > 0.0 {
-            label_position.x = (label_position.x + age_marker_reserved_width)
-                .min(row.text_layout.sample_label.max.x);
-            label_max_width = (row.text_layout.sample_label.max.x - label_position.x).max(4.0);
-        }
-        if row.missing {
-            let marker_advance =
-                browser_missing_marker_advance(ctx.sizing.font_body).min(label_max_width.max(0.0));
-            emit_text(
-                text_runs,
-                TextRun {
-                    text: String::from(BROWSER_MISSING_CONTENT_MARKER),
-                    position: label_position,
-                    font_size: ctx.sizing.font_body,
-                    color: ctx.style.accent_danger,
-                    max_width: Some(marker_advance),
-                    align: TextAlign::Left,
-                },
-            );
-            label_position.x =
-                (label_position.x + marker_advance).min(row.text_layout.sample_label.max.x);
-            label_max_width = (row.text_layout.sample_label.max.x - label_position.x).max(4.0);
-        }
-        let inline_tag_reserved_width =
-            browser_inline_tag_reserved_width_for_labels(&row.inline_tag_labels, ctx.sizing);
-        let rating_reserved_width =
-            browser_rating_indicator_reserved_width(row.rating_level, row.locked, ctx.sizing);
-        let rating_indicator_layout = browser_rating_indicator_layout(
-            BrowserRatingIndicatorAnchor {
-                sample_label: row.text_layout.sample_label,
-                label_origin_x: label_position.x,
-                label_rendered_width: row.label_rendered_width.min(label_max_width.max(0.0)),
-                right_limit_x: row.text_layout.sample_label.max.x
-                    - inline_tag_reserved_width
-                    - similarity_strength_reserved_width,
-            },
-            row.rating_level,
-            row.locked,
-            ctx.sizing,
-        );
-        if let Some(indicators) = rating_indicator_layout {
-            label_max_width = (label_max_width
-                - rating_reserved_width
-                - inline_tag_reserved_width
-                - similarity_strength_reserved_width)
-                .max(4.0);
-            for rect in indicators.rects.into_iter().take(indicators.count) {
-                emit_primitive(
-                    primitives,
-                    Primitive::Rect(FillRect {
-                        rect,
-                        color: browser_rating_indicator_color(ctx.style, row.rating_level),
-                    }),
-                );
-                push_border(
-                    primitives,
-                    rect,
-                    blend_color(ctx.style.border, ctx.style.text_primary, 0.28),
-                    ctx.sizing.border_width,
-                );
-            }
-        } else {
-            label_max_width =
-                (label_max_width - inline_tag_reserved_width - similarity_strength_reserved_width)
-                    .max(4.0);
-        }
-        emit_text(
-            text_runs,
-            TextRun {
-                text: row.label.clone(),
-                position: label_position,
-                font_size: ctx.sizing.font_body,
                 color: ctx.style.text_primary,
-                max_width: Some(label_max_width),
+                max_width: Some((chip_rect.max.x - text_origin.x).max(4.0)),
                 align: TextAlign::Left,
             },
         );
-        if !row.bucket_label.is_empty() {
-            for (chip_rect, chip_label) in row
-                .inline_tag_rects
-                .iter()
-                .copied()
-                .zip(row.inline_tag_labels.iter())
-            {
-                let text_origin = browser_inline_tag_text_origin(chip_rect, ctx.sizing);
-                emit_primitive(
-                    primitives,
-                    Primitive::Rect(FillRect {
-                        rect: chip_rect,
-                        color: blend_color(ctx.style.surface_overlay, ctx.style.bg_tertiary, 0.54),
-                    }),
-                );
-                push_border(
-                    primitives,
-                    chip_rect,
-                    blend_color(ctx.style.border_emphasis, ctx.style.text_muted, 0.18),
-                    ctx.sizing.border_width,
-                );
-                emit_text(
-                    text_runs,
-                    TextRun {
-                        text: chip_label.clone(),
-                        position: text_origin,
-                        font_size: ctx.sizing.font_meta,
-                        color: ctx.style.text_primary,
-                        max_width: Some((chip_rect.max.x - text_origin.x).max(4.0)),
-                        align: TextAlign::Left,
-                    },
-                );
-            }
-        }
-        if let Some(strength) = row.similarity_display_strength
-            && let Some(track_rect) =
-                browser_similarity_strength_track_rect(row.text_layout.sample_label, ctx.sizing)
-        {
-            emit_primitive(
-                primitives,
-                Primitive::Rect(FillRect {
-                    rect: track_rect,
-                    color: translucent_overlay_color(
-                        ctx.style.surface_overlay,
-                        ctx.style.text_muted,
-                        0.12,
-                    ),
-                }),
-            );
-            if let Some(fill_rect) = browser_similarity_strength_fill_rect(track_rect, strength) {
-                emit_primitive(
-                    primitives,
-                    Primitive::Rect(FillRect {
-                        rect: fill_rect,
-                        color: blend_color(
-                            ctx.style.highlight_cyan_soft,
-                            ctx.style.highlight_cyan,
-                            0.38,
-                        ),
-                    }),
-                );
-            }
-        }
-        if let Some(button_rect) = similarity_button {
-            let button_active = similarity_active && row.visible_row == 0;
-            render_browser_similarity_button(
-                primitives,
-                button_rect,
-                ctx.style,
-                ctx.sizing,
-                button_active,
-                if button_active {
-                    ctx.style.text_primary
-                } else {
-                    ctx.style.text_muted
-                },
-            );
-        }
     }
+}
+
+/// Handles render browser row similarity controls.
+fn render_browser_row_similarity_controls(
+    ctx: &StaticFrameCtx<'_>,
+    primitives: &mut impl PrimitiveSink,
+    row: &CachedBrowserRow,
+    row_ctx: &BrowserRowRenderCtx,
+) {
+    render_browser_row_similarity_strength(ctx, primitives, row, row_ctx);
+    if let Some(button_rect) = row_ctx.similarity_button {
+        let button_active = row_ctx.similarity_active && row.visible_row == 0;
+        render_browser_similarity_button(
+            primitives,
+            button_rect,
+            ctx.style,
+            ctx.sizing,
+            button_active,
+            if button_active {
+                ctx.style.text_primary
+            } else {
+                ctx.style.text_muted
+            },
+        );
+    }
+}
+
+/// Handles render browser row similarity strength.
+fn render_browser_row_similarity_strength(
+    ctx: &StaticFrameCtx<'_>,
+    primitives: &mut impl PrimitiveSink,
+    row: &CachedBrowserRow,
+    row_ctx: &BrowserRowRenderCtx,
+) {
+    if row_ctx.similarity_strength_reserved_width <= 0.0 {
+        return;
+    }
+    let Some(strength) = row.similarity_display_strength else {
+        return;
+    };
+    let Some(track_rect) =
+        browser_similarity_strength_track_rect(row.text_layout.sample_label, ctx.sizing)
+    else {
+        return;
+    };
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: track_rect,
+            color: translucent_overlay_color(ctx.style.surface_overlay, ctx.style.text_muted, 0.12),
+        }),
+    );
+    if let Some(fill_rect) = browser_similarity_strength_fill_rect(track_rect, strength) {
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: fill_rect,
+                color: blend_color(
+                    ctx.style.highlight_cyan_soft,
+                    ctx.style.highlight_cyan,
+                    0.38,
+                ),
+            }),
+        );
+    }
+}
+
+/// Handles render browser rows overlay chrome.
+fn render_browser_rows_overlay_chrome(
+    ctx: &StaticFrameCtx<'_>,
+    primitives: &mut impl PrimitiveSink,
+    text_runs: &mut impl TextRunSink,
+    browser_rows: &[CachedBrowserRow],
+) {
     let list_rect = browser_rows_list_rect(ctx.layout.browser_rows, ctx.sizing, ctx.model);
     if let Some(scrollbar) = browser_scrollbar_layout(
         list_rect,
@@ -638,4 +820,69 @@ fn browser_pill_editor_layout(
         normal_tag_rects,
         create_tag_rect,
     })
+}
+
+#[cfg(test)]
+/// Contains focused regression coverage for this module.
+mod tests {
+    use super::*;
+    use crate::compat_app_contract::{AppModel, BrowserRowModel, BrowserRowProcessingState};
+    use crate::gui::types::Vector2;
+
+    /// Handles has fill rect.
+    fn has_fill_rect(frame: &NativeViewFrame, rect: Rect, color: Rgba8) -> bool {
+        frame.primitives.iter().any(|primitive| {
+            matches!(
+                primitive,
+                Primitive::Rect(FillRect { rect: fill_rect, color: fill_color })
+                    if *fill_rect == rect && *fill_color == color
+            )
+        })
+    }
+
+    #[test]
+    /// Handles processing browser rows keep processing marker separate from similarity anchor.
+    fn processing_browser_rows_keep_processing_marker_separate_from_similarity_anchor() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let style = style_for_layout(&layout);
+        let mut state = NativeShellState::new();
+        let mut model = AppModel::default();
+        model.browser.similarity_filtered = true;
+        model.browser.rows.push(
+            BrowserRowModel::new(0, "processing anchor", 1, true, true)
+                .with_processing_state(BrowserRowProcessingState::Active),
+        );
+        model.browser.visible_count = model.browser.rows.len();
+
+        let rendered = rendered_browser_rows(&layout, &model, &style);
+        let row = rendered.first().expect("browser row should render");
+        let frame = state.build_frame(&layout, &model);
+        let base_similarity_fill = browser_similarity_row_fill(&style, 0, true);
+        let processing_fill = browser_processing_row_fill(
+            &style,
+            base_similarity_fill,
+            BrowserRowProcessingState::Active,
+        );
+        let marker_width = (style.sizing.border_width * 3.0).clamp(2.0, 5.0);
+        let processing_marker_rect = Rect::from_min_max(
+            row.rect.min,
+            Point::new(
+                (row.rect.min.x + marker_width).min(row.rect.max.x),
+                row.rect.max.y,
+            ),
+        );
+
+        assert!(has_fill_rect(&frame, row.rect, processing_fill));
+        assert!(!has_fill_rect(&frame, row.rect, base_similarity_fill));
+        assert!(has_fill_rect(
+            &frame,
+            processing_marker_rect,
+            style.highlight_orange
+        ));
+        assert!(has_fill_rect(
+            &frame,
+            row.text_layout.columns.index,
+            similarity_anchor_browser_index_fill(&style)
+        ));
+    }
 }

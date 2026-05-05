@@ -1,6 +1,7 @@
 //! Search-worker source and compact-entry cache refresh helpers.
 
 use super::super::*;
+use crate::logging::{DbDebugEvent, emit_db_debug_event};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
@@ -76,10 +77,21 @@ pub(in super::super) fn ensure_search_entries_loaded_for_job(
         let Some(db) = cache.db.as_ref() else {
             return false;
         };
-        (
-            db.get_revision().unwrap_or(0),
-            db.get_wav_paths_revision().unwrap_or(0),
-        )
+        let revision = match db.get_revision() {
+            Ok(value) => value,
+            Err(err) => {
+                record_search_cache_read_failure(job, "revision", &err.to_string());
+                return false;
+            }
+        };
+        let paths_revision = match db.get_wav_paths_revision() {
+            Ok(value) => value,
+            Err(err) => {
+                record_search_cache_read_failure(job, "paths_revision", &err.to_string());
+                return false;
+            }
+        };
+        (revision, paths_revision)
     };
     let must_reload = cache.entries.is_none() || cache.revision != revision;
     if !must_reload {
@@ -87,34 +99,47 @@ pub(in super::super) fn ensure_search_entries_loaded_for_job(
     }
 
     if cache.entries.is_some() && cache.paths_revision == paths_revision {
+        let mut delta_read_failed = false;
         if !job.metadata_delta_paths.is_empty() {
-            let delta_rows = {
+            let delta_result = {
                 let Some(db) = cache.db.as_ref() else {
                     return false;
                 };
                 db.list_search_entry_rows_for_paths(&job.metadata_delta_paths)
-                    .unwrap_or_default()
             };
-            if refresh_cached_entry_metadata_delta(
-                cache,
-                &job.metadata_delta_paths,
-                &delta_rows,
-                revision,
-            ) {
+            let delta_rows = match delta_result {
+                Ok(rows) => rows,
+                Err(err) => {
+                    delta_read_failed = true;
+                    record_search_cache_read_failure(job, "metadata_delta_rows", &err.to_string());
+                    Vec::new()
+                }
+            };
+            if !delta_read_failed
+                && refresh_cached_entry_metadata_delta(
+                    cache,
+                    &job.metadata_delta_paths,
+                    &delta_rows,
+                    revision,
+                )
+            {
                 return true;
             }
         }
-        let metadata = {
+        if !delta_read_failed {
             let Some(db) = cache.db.as_ref() else {
                 return false;
             };
-            match db.list_search_entry_metadata() {
+            let metadata = match db.list_search_entry_metadata() {
                 Ok(metadata) => metadata,
-                Err(_) => Vec::new(),
+                Err(err) => {
+                    record_search_cache_read_failure(job, "metadata_rows", &err.to_string());
+                    return false;
+                }
+            };
+            if refresh_cached_entry_metadata_only(cache, &metadata, revision) {
+                return true;
             }
-        };
-        if refresh_cached_entry_metadata_only(cache, &metadata, revision) {
-            return true;
         }
     }
 
@@ -124,22 +149,42 @@ pub(in super::super) fn ensure_search_entries_loaded_for_job(
         };
         match db.list_search_entry_rows() {
             Ok(rows) => rows,
-            Err(_) => {
-                cache.entries = None;
-                cache.revision = 0;
-                cache.paths_revision = 0;
-                cache.path_fingerprint = 0;
-                cache.query_score_cache.clear();
-                cache.folder_accept_cache.clear();
-                cache.filter_stage_cache.clear();
-                cache.playback_age_token_caches.clear();
-                cache.triage_cache = None;
+            Err(err) => {
+                record_search_cache_read_failure(job, "full_rows", &err.to_string());
                 return false;
             }
         }
     };
 
     reload_compact_entries(cache, &rows, queue, generation, revision, paths_revision)
+}
+
+/// Handles record search cache read failure.
+fn record_search_cache_read_failure(job: &SearchJob, read_type: &'static str, err: &str) {
+    let source = job.source_root.display().to_string();
+    tracing::warn!(
+        target: "perf::source_db",
+        action = "browser_search_cache_read_failed",
+        read_type,
+        source_id = job.source_id.as_str(),
+        source_root = %job.source_root.display(),
+        busy = is_busy_error(err),
+        error = err,
+        "Browser search cache read failed; preserving prior worker cache"
+    );
+    emit_db_debug_event(DbDebugEvent {
+        operation: "browser_search_cache.read",
+        source: Some(&source),
+        outcome: "error",
+        elapsed: std::time::Duration::ZERO,
+        error: Some(err),
+    });
+}
+
+/// Handles is busy error.
+fn is_busy_error(err: &str) -> bool {
+    let lowered = err.to_ascii_lowercase();
+    lowered.contains("busy") || lowered.contains("locked")
 }
 
 fn reload_compact_entries(

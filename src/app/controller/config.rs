@@ -345,6 +345,7 @@ impl AppController {
                             .ctx
                             .last_selected_browsable_source
                             .clone()
+                            .filter(|id| self.library.sources.iter().any(|s| &s.id == id))
                     }),
                 audio_output: self.settings.audio_output.clone(),
                 audio_input: self.settings.audio_input.clone(),

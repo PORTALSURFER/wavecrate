@@ -29,15 +29,7 @@ impl LibraryDatabase {
         Ok(columns)
     }
 
-    pub(super) fn get_metadata(&self, key: &str) -> Result<Option<String>, LibraryError> {
-        self.connection
-            .query_row("SELECT value FROM metadata WHERE key = ?1", [key], |row| {
-                row.get(0)
-            })
-            .optional()
-            .map_err(map_sql_error)
-    }
-
+    #[cfg(test)]
     pub(super) fn set_metadata(&self, key: &str, value: &str) -> Result<(), LibraryError> {
         self.connection
             .execute(

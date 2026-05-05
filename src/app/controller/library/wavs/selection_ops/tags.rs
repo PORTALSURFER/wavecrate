@@ -30,6 +30,47 @@ fn sample_locked_for_source(
         .ok_or_else(|| "Sample not found".to_string())
 }
 
+/// Handles sample present for source.
+fn sample_present_for_source(
+    controller: &mut AppController,
+    source: &SampleSource,
+    path: &Path,
+) -> Result<bool, String> {
+    if controller.selection_state.ctx.selected_source.as_ref() == Some(&source.id)
+        && controller.wav_index_for_path(path).is_some()
+    {
+        return Ok(true);
+    }
+    if controller
+        .cache
+        .wav
+        .entries
+        .get(&source.id)
+        .is_some_and(|cache| cache.lookup.contains_key(path))
+    {
+        return Ok(true);
+    }
+    controller
+        .database_for(source)
+        .map_err(|err| err.to_string())?
+        .index_for_path(path)
+        .map(|index| index.is_some())
+        .map_err(|err| err.to_string())
+}
+
+/// Handles require sample present for source.
+fn require_sample_present_for_source(
+    controller: &mut AppController,
+    source: &SampleSource,
+    path: &Path,
+) -> Result<(), String> {
+    if sample_present_for_source(controller, source, path)? {
+        Ok(())
+    } else {
+        Err("Sample not found".to_string())
+    }
+}
+
 /// Set a triage-column tag for the target sample path.
 pub(crate) fn set_sample_tag(
     controller: &mut AppController,
@@ -85,8 +126,11 @@ pub(crate) fn set_sample_tag_and_locked_for_source(
     path: &Path,
     target_tag: Rating,
     locked: bool,
-    _require_present: bool,
+    require_present: bool,
 ) -> Result<(), String> {
+    if require_present {
+        require_sample_present_for_source(controller, source, path)?;
+    }
     let before_tag = controller
         .wav_index_for_path(path)
         .and_then(|index| controller.wav_entry(index).map(|entry| entry.tag))
@@ -99,6 +143,14 @@ pub(crate) fn set_sample_tag_and_locked_for_source(
                 .and_then(|cache| cache.lookup.get(path).copied())
                 .and_then(|index| controller.cache.wav.entries.get(&source.id)?.entry(index))
                 .map(|entry| entry.tag)
+        })
+        .or_else(|| {
+            controller
+                .database_for(source)
+                .ok()?
+                .tag_for_path(path)
+                .ok()
+                .flatten()
         })
         .unwrap_or(Rating::NEUTRAL);
     let before_locked = controller
@@ -113,6 +165,14 @@ pub(crate) fn set_sample_tag_and_locked_for_source(
                 .and_then(|cache| cache.lookup.get(path).copied())
                 .and_then(|index| controller.cache.wav.entries.get(&source.id)?.entry(index))
                 .map(|entry| entry.locked)
+        })
+        .or_else(|| {
+            controller
+                .database_for(source)
+                .ok()?
+                .locked_for_path(path)
+                .ok()
+                .flatten()
         })
         .unwrap_or(false);
     let mut updated_active = false;
@@ -193,14 +253,14 @@ pub(crate) fn set_sample_looped_for_source(
     source: &SampleSource,
     path: &Path,
     looped: bool,
-    _require_present: bool,
+    require_present: bool,
 ) -> Result<(), String> {
     set_sample_looped_for_source_batch(
         controller,
         source,
         std::slice::from_ref(&path.to_path_buf()),
         looped,
-        false,
+        require_present,
     )?;
     Ok(())
 }
@@ -211,11 +271,16 @@ pub(crate) fn set_sample_looped_for_source_batch(
     source: &SampleSource,
     paths: &[PathBuf],
     looped: bool,
-    _require_present: bool,
+    require_present: bool,
 ) -> Result<usize, String> {
     let paths = unique_paths(paths);
     if paths.is_empty() {
         return Ok(0);
+    }
+    if require_present {
+        for path in &paths {
+            require_sample_present_for_source(controller, source, path)?;
+        }
     }
     let mut source_ops = Vec::with_capacity(paths.len());
     let mut rollback = Vec::with_capacity(paths.len());
