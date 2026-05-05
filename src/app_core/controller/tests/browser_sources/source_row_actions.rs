@@ -2,7 +2,8 @@ use super::*;
 use crate::app::state::FolderPaneId;
 
 #[test]
-fn reload_source_row_action_assigns_target_pane_without_changing_active_browser_source() {
+/// Reloading by source-row action uses the visible single active source list.
+fn reload_source_row_action_uses_single_active_source_list() {
     let _sandbox = ControllerPersistenceSandbox::new();
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     let dir = match tempdir() {
@@ -25,9 +26,6 @@ fn reload_source_row_action_assigns_target_pane_without_changing_active_browser_
     }
 
     controller.select_source_by_index(0);
-    let source_a_id = controller
-        .source_id_for_index(0)
-        .expect("source-a id should exist");
     let source_b_id = controller
         .source_id_for_index(1)
         .expect("source-b id should exist");
@@ -36,20 +34,17 @@ fn reload_source_row_action_assigns_target_pane_without_changing_active_browser_
         index: 1,
     });
 
-    assert_eq!(controller.active_folder_pane(), FolderPaneId::Upper);
     assert_eq!(
         controller.folder_pane_source(FolderPaneId::Upper),
-        Some(source_a_id)
-    );
-    assert_eq!(
-        controller.folder_pane_source(FolderPaneId::Lower),
         Some(source_b_id)
     );
-    assert_eq!(controller.ui.sources.selected, Some(0));
+    assert_eq!(controller.active_folder_pane(), FolderPaneId::Upper);
+    assert_eq!(controller.ui.sources.selected, Some(1));
 }
 
 #[test]
-fn remove_source_row_action_removes_clicked_pane_source_without_activating_it() {
+/// Removing a source row acts on the visible list without switching panes.
+fn remove_source_row_action_removes_clicked_source_from_single_list() {
     let _sandbox = ControllerPersistenceSandbox::new();
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     let dir = match tempdir() {
@@ -84,11 +79,11 @@ fn remove_source_row_action_removes_clicked_pane_source_without_activating_it() 
         controller.ui.sources.rows[0].path,
         source_a.to_string_lossy()
     );
-    assert_eq!(controller.folder_pane_source(FolderPaneId::Lower), None);
 }
 
 #[test]
-fn focus_source_row_action_assigns_target_pane_and_focuses_sources_list() {
+/// Focusing a source row selects from the visible list and focuses sources.
+fn focus_source_row_action_selects_single_active_source_and_focuses_sources_list() {
     let _sandbox = ControllerPersistenceSandbox::new();
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     let dir = tempdir().unwrap();
@@ -99,9 +94,6 @@ fn focus_source_row_action_assigns_target_pane_and_focuses_sources_list() {
     controller.add_source_from_path(source_a).unwrap();
     controller.add_source_from_path(source_b).unwrap();
     controller.select_source_by_index(0);
-    let source_a_id = controller
-        .source_id_for_index(0)
-        .expect("source-a id should exist");
     let source_b_id = controller
         .source_id_for_index(1)
         .expect("source-b id should exist");
@@ -115,13 +107,9 @@ fn focus_source_row_action_assigns_target_pane_and_focuses_sources_list() {
     assert_eq!(controller.active_folder_pane(), FolderPaneId::Upper);
     assert_eq!(
         controller.folder_pane_source(FolderPaneId::Upper),
-        Some(source_a_id)
-    );
-    assert_eq!(
-        controller.folder_pane_source(FolderPaneId::Lower),
         Some(source_b_id)
     );
-    assert_eq!(controller.ui.sources.selected, Some(0));
+    assert_eq!(controller.ui.sources.selected, Some(1));
     assert_eq!(controller.ui.focus.context, FocusContext::SourcesList);
 }
 

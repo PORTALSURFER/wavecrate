@@ -84,9 +84,13 @@ pub(in crate::gui::native_shell::state) fn sidebar_rows_cache_key(
         panel_section_padding_bottom: f32_to_bits(sizing.panel_section_padding_bottom),
         source_rows_min_when_split: usize_to_u32(sizing.source_rows_min_when_split),
         tree_rows_min: usize_to_u32(sizing.tree_rows_min),
+        active_folder_pane: match model.sources.active_folder_pane {
+            FolderPaneIdModel::Upper => 0,
+            FolderPaneIdModel::Lower => 1,
+        },
         source_rows: rendered_source_rows(style, model) as u32,
-        upper_tree_rows: usize_to_u32(model.sources.upper_folder_pane.tree_rows.len()),
-        lower_tree_rows: usize_to_u32(model.sources.lower_folder_pane.tree_rows.len()),
+        upper_tree_rows: usize_to_u32(model.sources.active_folder_pane_model().tree_rows.len()),
+        lower_tree_rows: 0,
         source_row_height: f32_to_bits(sizing.source_row_height),
         source_row_gap: f32_to_bits(sizing.source_row_gap),
         folder_row_height: f32_to_bits(sizing.folder_row_height),
@@ -126,25 +130,20 @@ pub(in crate::gui::native_shell::state) fn rendered_source_row_rects(
 ) -> Vec<CachedSourceRow> {
     let sections = sidebar_sections(layout, style, model);
     let row_count = rendered_source_rows(style, model);
-    let mut rows = Vec::with_capacity(row_count.saturating_mul(2));
-    for pane in [FolderPaneIdModel::Upper, FolderPaneIdModel::Lower] {
-        rows.extend(
-            build_stacked_rows(
-                sections.source_rows(pane),
-                row_count,
-                style.sizing.source_row_gap,
-                style.sizing.source_row_height,
-            )
-            .into_iter()
-            .enumerate()
-            .map(|(row_index, rect)| CachedSourceRow {
-                pane,
-                row_index,
-                rect,
-            }),
-        );
-    }
-    rows
+    build_stacked_rows(
+        sections.source_rows(model.sources.active_folder_pane),
+        row_count,
+        style.sizing.source_row_gap,
+        style.sizing.source_row_height,
+    )
+    .into_iter()
+    .enumerate()
+    .map(|(row_index, rect)| CachedSourceRow {
+        pane: model.sources.active_folder_pane,
+        row_index,
+        rect,
+    })
+    .collect()
 }
 
 /// Return the visual folder-row paint bounds while preserving the sidebar seams.

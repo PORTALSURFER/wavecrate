@@ -1,8 +1,7 @@
 use super::super::*;
-use crate::compat_app_contract::FolderPaneIdModel;
-
 #[test]
-fn sidebar_sections_keep_equal_height_panes_across_viewports() {
+/// The sidebar reserves one source list and one folder browser at all densities.
+fn sidebar_sections_render_one_source_and_folder_browser_across_viewports() {
     let sizes = [
         Vector2::new(820.0, 520.0),
         Vector2::new(1280.0, 720.0),
@@ -14,33 +13,29 @@ fn sidebar_sections_keep_equal_height_panes_across_viewports() {
         let layout = ShellLayout::build(viewport);
         let style = style_for_layout(&layout);
         let sections = sidebar_sections(&layout, &style, &model);
-        let rendered_upper_sources =
-            state.rendered_source_row_rects_for_pane(&layout, &model, FolderPaneIdModel::Upper);
-        let rendered_lower_sources =
-            state.rendered_source_row_rects_for_pane(&layout, &model, FolderPaneIdModel::Lower);
+        let rendered_sources = state.rendered_source_row_rects(&layout, &model);
         assert_rect_inside(layout.sidebar_rows, sections.upper.bounds);
         assert_rect_inside(layout.sidebar_rows, sections.lower.bounds);
-        assert!((sections.upper.bounds.height() - sections.lower.bounds.height()).abs() <= 0.01);
-        assert!((sections.upper.bounds.max.y - sections.lower.bounds.min.y).abs() <= 0.01);
-        assert!(!rendered_upper_sources.is_empty());
-        assert!(!rendered_lower_sources.is_empty());
+        assert!(sections.upper.bounds.height() > sections.lower.bounds.height());
+        assert!(sections.lower.bounds.height() <= 0.01);
+        assert!(!rendered_sources.is_empty());
     }
 }
 
 #[test]
-fn sidebar_sections_keep_each_pane_contents_inside_its_half_when_cramped() {
+/// Cramped sidebar layouts keep the single pane's bands inside the sidebar.
+fn sidebar_sections_keep_single_pane_contents_inside_sidebar_when_cramped() {
     let layout = ShellLayout::build(Vector2::new(820.0, 400.0));
     let style = style_for_layout(&layout);
     let model = populated_sidebar_model();
     let sections = sidebar_sections(&layout, &style, &model);
-    for pane_sections in [sections.upper, sections.lower] {
-        assert_rect_inside(layout.sidebar_rows, pane_sections.bounds);
-        assert_rect_inside(pane_sections.bounds, pane_sections.source_rows);
-        assert_rect_inside(pane_sections.bounds, pane_sections.folder_header);
-        assert_rect_inside(pane_sections.bounds, pane_sections.tree_rows);
-        assert!(pane_sections.source_rows.max.y <= pane_sections.folder_header.min.y);
-        assert!(pane_sections.folder_header.max.y <= pane_sections.tree_rows.min.y);
-    }
+    let pane_sections = sections.upper;
+    assert_rect_inside(layout.sidebar_rows, pane_sections.bounds);
+    assert_rect_inside(pane_sections.bounds, pane_sections.source_rows);
+    assert_rect_inside(pane_sections.bounds, pane_sections.folder_header);
+    assert_rect_inside(pane_sections.bounds, pane_sections.tree_rows);
+    assert!(pane_sections.source_rows.max.y <= pane_sections.folder_header.min.y);
+    assert!(pane_sections.folder_header.max.y <= pane_sections.tree_rows.min.y);
 }
 
 #[test]

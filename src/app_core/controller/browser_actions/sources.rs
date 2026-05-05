@@ -132,14 +132,7 @@ fn selected_source_index(controller: &AppController) -> Option<usize> {
 
 fn resolve_source_pane(
     controller: &AppController,
-    pane: Option<FolderPaneIdModel>,
+    _pane: Option<FolderPaneIdModel>,
 ) -> FolderPaneId {
-    let pane = pane.unwrap_or_else(|| match controller.active_folder_pane() {
-        FolderPaneId::Upper => FolderPaneIdModel::Upper,
-        FolderPaneId::Lower => FolderPaneIdModel::Lower,
-    });
-    match pane {
-        FolderPaneIdModel::Upper => FolderPaneId::Upper,
-        FolderPaneIdModel::Lower => FolderPaneId::Lower,
-    }
+    controller.active_folder_pane()
 }

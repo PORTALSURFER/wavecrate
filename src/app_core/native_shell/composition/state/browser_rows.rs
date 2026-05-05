@@ -70,6 +70,7 @@ pub(super) struct SidebarRowsCacheKey {
     pub(super) panel_section_padding_bottom: u32,
     pub(super) source_rows_min_when_split: u32,
     pub(super) tree_rows_min: u32,
+    pub(super) active_folder_pane: u32,
     pub(super) source_rows: u32,
     pub(super) upper_tree_rows: u32,
     pub(super) lower_tree_rows: u32,

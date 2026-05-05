@@ -85,7 +85,8 @@ fn overflowing_folder_lists_render_scrollbar_thumb_at_view_position() {
     )
     .expect("overflowing folder list should render a scrollbar");
 
-    let lower_model = folder_model_with_rows(240, 148);
+    let mut lower_model = folder_model_with_rows(240, 148);
+    lower_model.sources.active_folder_pane = FolderPaneIdModel::Lower;
     let lower_rows = state
         .cached_tree_rows(&layout, &style, &lower_model, FolderPaneIdModel::Lower)
         .to_vec();

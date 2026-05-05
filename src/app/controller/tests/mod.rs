@@ -34,6 +34,8 @@ mod selection_bpm_scale;
 mod selection_undo;
 /// Async source-hydration coverage for source switching and pane assignment.
 mod source_async;
+/// Source configuration migration and startup collapse regression coverage.
+mod source_config;
 /// Contains focused regression coverage for this module.
 mod source_lifecycle;
 /// Startup audio-probe deferral coverage.

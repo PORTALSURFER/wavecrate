@@ -136,10 +136,21 @@ impl AppController {
                     .map(|source| source.id.clone())
             })
             .or_else(|| upper_source.clone());
-        self.ui.sources.folder_panes.upper.source_id = upper_source;
-        self.ui.sources.folder_panes.lower.source_id = lower_source;
-        self.ui.sources.active_folder_pane =
+        let persisted_active_pane =
             parse_active_folder_pane(cfg.core.active_folder_pane.as_deref());
+        let active_pane_source = match persisted_active_pane {
+            FolderPaneId::Upper => upper_source.clone(),
+            FolderPaneId::Lower => lower_source.clone(),
+        };
+        let single_active_source = persisted_selected
+            .clone()
+            .or(active_pane_source)
+            .or(upper_source)
+            .or(lower_source)
+            .or_else(|| self.library.sources.first().map(|source| source.id.clone()));
+        self.ui.sources.folder_panes.upper.source_id = single_active_source.clone();
+        self.ui.sources.folder_panes.lower.source_id = single_active_source;
+        self.ui.sources.active_folder_pane = FolderPaneId::Upper;
         self.load_active_folder_ui_from_pane();
         self.selection_state.ctx.selected_source =
             self.folder_pane_source(self.ui.sources.active_folder_pane);
@@ -332,8 +343,8 @@ impl AppController {
                 trash_folder: self.settings.trash_folder.clone(),
                 drop_targets: self.settings.drop_targets.clone(),
                 upper_folder_pane_source: self.folder_pane_source(FolderPaneId::Upper),
-                lower_folder_pane_source: self.folder_pane_source(FolderPaneId::Lower),
-                active_folder_pane: Some(self.ui.sources.active_folder_pane.as_str().to_string()),
+                lower_folder_pane_source: self.folder_pane_source(FolderPaneId::Upper),
+                active_folder_pane: Some(FolderPaneId::Upper.as_str().to_string()),
                 last_selected_source: self
                     .selection_state
                     .ctx

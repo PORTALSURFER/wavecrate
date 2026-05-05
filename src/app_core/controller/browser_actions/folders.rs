@@ -3,7 +3,6 @@
 use super::super::AppController;
 use crate::app_core::actions::NativeFolderPaneIdModel as FolderPaneIdModel;
 use crate::app_core::actions::NativeUiAction;
-use crate::app_core::app_api::state::FolderPaneId;
 
 /// Try to dispatch folder-panel native actions.
 pub(super) fn apply_folder_native_ui_action(
@@ -79,16 +78,6 @@ pub(super) fn apply_folder_native_ui_action(
     Ok(())
 }
 
-fn select_folder_pane_if_needed(controller: &mut AppController, pane: Option<FolderPaneIdModel>) {
-    let Some(pane) = pane.map(folder_pane_id_from_native) else {
-        return;
-    };
-    controller.select_folder_pane(pane);
-}
-
-fn folder_pane_id_from_native(pane: FolderPaneIdModel) -> FolderPaneId {
-    match pane {
-        FolderPaneIdModel::Upper => FolderPaneId::Upper,
-        FolderPaneIdModel::Lower => FolderPaneId::Lower,
-    }
+/// Preserve the active single folder pane while accepting legacy pane hints.
+fn select_folder_pane_if_needed(_controller: &mut AppController, _pane: Option<FolderPaneIdModel>) {
 }

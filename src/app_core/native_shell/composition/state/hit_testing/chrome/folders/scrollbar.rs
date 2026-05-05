@@ -32,9 +32,7 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
     ) -> Option<(FolderPaneIdModel, f32)> {
-        [FolderPaneIdModel::Upper, FolderPaneIdModel::Lower]
-            .into_iter()
-            .find_map(|pane| folder_scrollbar_thumb_hit(self, layout, model, pane, point))
+        folder_scrollbar_thumb_hit(self, layout, model, model.sources.active_folder_pane, point)
     }
 
     pub(crate) fn folder_scrollbar_view_start_for_drag(
@@ -61,9 +59,7 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
     ) -> Option<(FolderPaneIdModel, usize)> {
-        [FolderPaneIdModel::Upper, FolderPaneIdModel::Lower]
-            .into_iter()
-            .find_map(|pane| folder_scrollbar_track_jump(self, layout, model, pane, point))
+        folder_scrollbar_track_jump(self, layout, model, model.sources.active_folder_pane, point)
     }
 
     pub(crate) fn set_folder_view_start_row(

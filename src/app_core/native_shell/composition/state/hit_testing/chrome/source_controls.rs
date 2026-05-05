@@ -207,15 +207,13 @@ impl NativeShellState {
     ) -> Option<UiAction> {
         let style = style_for_layout(layout);
         let sections = sidebar_sections(layout, &style, model);
-        for pane in [FolderPaneIdModel::Upper, FolderPaneIdModel::Lower] {
-            if sections.source_rows(pane).contains(point) {
-                return Some(UiAction::FocusSourcesPanel);
-            }
-            if sections.folder_header(pane).contains(point)
-                || sections.tree_rows(pane).contains(point)
-            {
-                return Some(UiAction::FocusFolderPanel { pane: Some(pane) });
-            }
+        let pane = model.sources.active_folder_pane;
+        if sections.source_rows(pane).contains(point) {
+            return Some(UiAction::FocusSourcesPanel);
+        }
+        if sections.folder_header(pane).contains(point) || sections.tree_rows(pane).contains(point)
+        {
+            return Some(UiAction::FocusFolderPanel { pane: None });
         }
         None
     }
