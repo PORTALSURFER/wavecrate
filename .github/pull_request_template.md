@@ -18,7 +18,8 @@
 
 - Smoke local checks: `bash scripts/ci.sh smoke` / `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 smoke`
 - Fast local checks: `bash scripts/ci.sh quick` / `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 quick`
-- Full CI parity (when relevant): `bash scripts/ci.sh local` / `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 local`
+- Required CI parity: `bash scripts/ci.sh local` / `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 local`
+- Advisory quarantined tests (when relevant): `cargo nextest run --workspace --profile ci-quarantine --all-targets --no-fail-fast`
 - Tests added/updated:
 - Manual QA notes:
   - Prefer running the app via `scripts/run.sh sandbox` / `scripts/run.ps1 sandbox` so tests and manual QA do not touch real user data.

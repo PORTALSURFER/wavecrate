@@ -6,9 +6,185 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_INCREMENTAL: "0"
+  CARGO_TERM_COLOR: always
+
 jobs:
-  lint_test:
-    name: Lint and test (${{ matrix.platform }})
+  required_format_guardrails:
+    name: "Required: format and guardrails"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch Radiant submodule
+        shell: bash
+        env:
+          RADIANT_SUBMODULE_DEPLOY_KEY: ${{ secrets.RADIANT_SUBMODULE_DEPLOY_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$RADIANT_SUBMODULE_DEPLOY_KEY" > ~/.ssh/radiant_submodule
+          chmod 600 ~/.ssh/radiant_submodule
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+          git config submodule.vendor/radiant.url git@github.com:PORTALSURFER/radiant.git
+          GIT_SSH_COMMAND='ssh -i ~/.ssh/radiant_submodule -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes' \
+            git submodule update --init --recursive vendor/radiant
+      - name: Read pinned Rust toolchain
+        id: rust_toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          channel="$(python3 - <<'PY'
+          import tomllib
+          from pathlib import Path
+
+          data = tomllib.loads(Path("rust-toolchain.toml").read_text(encoding="utf-8"))
+          print(data.get("toolchain", {}).get("channel", "stable"))
+          PY
+          )"
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ steps.rust_toolchain.outputs.channel }}
+          components: rustfmt
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Check migration boundary
+        run: ./scripts/check.sh migration-boundary
+      - name: Check script guardrails
+        run: ./scripts/check.sh script-guardrails
+      - name: Check workflow toolchain pinning
+        run: ./scripts/check.sh workflow-toolchain
+      - name: Check manual docs scope
+        env:
+          CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: ./scripts/check.sh manual-docs-scope --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
+      - name: Check legacy app coupling
+        env:
+          CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: ./scripts/check.sh legacy-app-coupling --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
+      - name: Check Rust TODO/FIXME (non-test)
+        env:
+          CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: ./scripts/check.sh rust-no-todos --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
+      - name: Check Rust public docs (diff-aware)
+        env:
+          CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: ./scripts/check.sh public-docs --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
+      - name: Check Rust private docs (diff-aware)
+        env:
+          CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: ./scripts/check.sh private-docs --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
+      - name: Check app_core dependency boundary
+        env:
+          CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: ./scripts/check.sh app-core-boundary --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
+      - name: Knowledge lint
+        env:
+          CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: ./scripts/check.sh knowledge --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
+
+  required_clippy:
+    name: "Required: clippy"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch Radiant submodule
+        shell: bash
+        env:
+          RADIANT_SUBMODULE_DEPLOY_KEY: ${{ secrets.RADIANT_SUBMODULE_DEPLOY_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$RADIANT_SUBMODULE_DEPLOY_KEY" > ~/.ssh/radiant_submodule
+          chmod 600 ~/.ssh/radiant_submodule
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+          git config submodule.vendor/radiant.url git@github.com:PORTALSURFER/radiant.git
+          GIT_SSH_COMMAND='ssh -i ~/.ssh/radiant_submodule -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes' \
+            git submodule update --init --recursive vendor/radiant
+      - name: Read pinned Rust toolchain
+        id: rust_toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          channel="$(python3 - <<'PY'
+          import tomllib
+          from pathlib import Path
+
+          data = tomllib.loads(Path("rust-toolchain.toml").read_text(encoding="utf-8"))
+          print(data.get("toolchain", {}).get("channel", "stable"))
+          PY
+          )"
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ steps.rust_toolchain.outputs.channel }}
+          components: clippy
+      - name: Install Linux audio deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev pkg-config
+      - name: Lint
+        run: cargo clippy --workspace --all-targets
+
+  required_docs:
+    name: "Required: docs"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch Radiant submodule
+        shell: bash
+        env:
+          RADIANT_SUBMODULE_DEPLOY_KEY: ${{ secrets.RADIANT_SUBMODULE_DEPLOY_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$RADIANT_SUBMODULE_DEPLOY_KEY" > ~/.ssh/radiant_submodule
+          chmod 600 ~/.ssh/radiant_submodule
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+          git config submodule.vendor/radiant.url git@github.com:PORTALSURFER/radiant.git
+          GIT_SSH_COMMAND='ssh -i ~/.ssh/radiant_submodule -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes' \
+            git submodule update --init --recursive vendor/radiant
+      - name: Read pinned Rust toolchain
+        id: rust_toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          channel="$(python3 - <<'PY'
+          import tomllib
+          from pathlib import Path
+
+          data = tomllib.loads(Path("rust-toolchain.toml").read_text(encoding="utf-8"))
+          print(data.get("toolchain", {}).get("channel", "stable"))
+          PY
+          )"
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ steps.rust_toolchain.outputs.channel }}
+      - name: Docs correctness
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+        run: cargo doc -p sempal --no-deps
+      - name: Doc tests
+        run: cargo test --workspace --doc
+
+  required_tests:
+    name: "Required: tests (${{ matrix.platform }})"
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -53,7 +229,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ steps.rust_toolchain.outputs.channel }}
-          components: rustfmt, clippy
       - name: Install cargo-nextest
         run: cargo install cargo-nextest --locked
       - name: Install Linux audio deps
@@ -61,7 +236,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libasound2-dev pkg-config
-      - name: Fetch ASIO SDK (Windows)
+      - name: Fetch ASIO SDK
         if: ${{ matrix.platform == 'windows' }}
         shell: pwsh
         run: |
@@ -79,75 +254,159 @@ jobs:
             throw "ASIO SDK directory not found for $($asioHeader.FullName)"
           }
           "CPAL_ASIO_DIR=$sdkDir" >> $env:GITHUB_ENV
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-      - name: Check migration boundary
+      - name: Run required nextest profile
         shell: bash
-        run: ./scripts/check.sh migration-boundary
-      - name: Check script guardrails
+        run: |
+          set -o pipefail
+          mkdir -p target/ci
+          cargo nextest run --workspace --profile ci-required --all-targets --no-fail-fast --failure-output immediate-final 2>&1 | tee "target/ci/nextest-ci-required-${{ matrix.platform }}.log"
+      - name: Summarize nextest failure
+        if: failure()
         shell: bash
-        run: ./scripts/check.sh script-guardrails
-      - name: Check workflow toolchain pinning
+        run: |
+          {
+            echo "## Required test failure (${{ matrix.platform }})"
+            echo
+            echo '```'
+            tail -n 160 "target/ci/nextest-ci-required-${{ matrix.platform }}.log"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload required test artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextest-ci-required-${{ matrix.platform }}
+          path: |
+            target/ci/nextest-ci-required-${{ matrix.platform }}.log
+            target/nextest/**/junit-ci-required.xml
+          if-no-files-found: ignore
+          retention-days: 14
+
+  advisory_quarantined_tests:
+    name: "Advisory: quarantined tests (${{ matrix.platform }})"
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: windows-latest
+            platform: windows
+          - os: macos-latest
+            platform: macos
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch Radiant submodule
+        shell: bash
+        env:
+          RADIANT_SUBMODULE_DEPLOY_KEY: ${{ secrets.RADIANT_SUBMODULE_DEPLOY_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$RADIANT_SUBMODULE_DEPLOY_KEY" > ~/.ssh/radiant_submodule
+          chmod 600 ~/.ssh/radiant_submodule
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+          git config submodule.vendor/radiant.url git@github.com:PORTALSURFER/radiant.git
+          GIT_SSH_COMMAND='ssh -i ~/.ssh/radiant_submodule -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes' \
+            git submodule update --init --recursive vendor/radiant
+      - name: Read pinned Rust toolchain
+        id: rust_toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          channel="$(python3 - <<'PY'
+          import tomllib
+          from pathlib import Path
+
+          data = tomllib.loads(Path("rust-toolchain.toml").read_text(encoding="utf-8"))
+          print(data.get("toolchain", {}).get("channel", "stable"))
+          PY
+          )"
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ steps.rust_toolchain.outputs.channel }}
+      - name: Install cargo-nextest
+        run: cargo install cargo-nextest --locked
+      - name: Install Linux audio deps
         if: ${{ matrix.platform == 'linux' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev pkg-config
+      - name: Fetch ASIO SDK
+        if: ${{ matrix.platform == 'windows' }}
+        shell: pwsh
+        run: |
+          git lfs install --local
+          git clone --depth 1 --recurse-submodules --shallow-submodules https://github.com/audiosdk/asio "$env:GITHUB_WORKSPACE/asio"
+          git -C "$env:GITHUB_WORKSPACE/asio" submodule update --init --recursive
+          git -C "$env:GITHUB_WORKSPACE/asio" lfs pull
+          $asioRoot = Join-Path $env:GITHUB_WORKSPACE "asio"
+          $asioHeader = Get-ChildItem -Path $asioRoot -Recurse -Filter "asiodrivers.h" -File | Select-Object -First 1
+          if (-not $asioHeader) {
+            throw "ASIO header not found under $asioRoot"
+          }
+          $sdkDir = Split-Path -Parent (Split-Path -Parent $asioHeader.FullName)
+          if (-not (Test-Path (Join-Path $sdkDir "host")) -or -not (Test-Path (Join-Path $sdkDir "common"))) {
+            throw "ASIO SDK directory not found for $($asioHeader.FullName)"
+          }
+          "CPAL_ASIO_DIR=$sdkDir" >> $env:GITHUB_ENV
+      - name: Run quarantined nextest profile
         shell: bash
-        run: ./scripts/check.sh workflow-toolchain
-      - name: Check manual docs scope
+        run: |
+          set -o pipefail
+          mkdir -p target/ci
+          cargo nextest run --workspace --profile ci-quarantine --all-targets --no-fail-fast --failure-output immediate-final 2>&1 | tee "target/ci/nextest-ci-quarantine-${{ matrix.platform }}.log"
+      - name: Summarize quarantined tests
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Quarantined tests (${{ matrix.platform }})"
+            echo
+            echo '```'
+            tail -n 160 "target/ci/nextest-ci-quarantine-${{ matrix.platform }}.log"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload quarantined test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextest-ci-quarantine-${{ matrix.platform }}
+          path: |
+            target/ci/nextest-ci-quarantine-${{ matrix.platform }}.log
+            target/nextest/**/junit-ci-quarantine.xml
+          if-no-files-found: ignore
+          retention-days: 14
+
+  advisory_hygiene:
+    name: "Advisory: repository hygiene"
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch Radiant submodule
         shell: bash
         env:
-          CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
-          CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-        run: ./scripts/check.sh manual-docs-scope --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
-      - name: Check legacy app coupling
-        shell: bash
-        env:
-          CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
-          CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-        run: ./scripts/check.sh legacy-app-coupling --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
-      - name: Check Rust TODO/FIXME (non-test)
-        shell: bash
-        env:
-          CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
-          CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-        run: ./scripts/check.sh rust-no-todos --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
-      - name: Check Rust public docs (diff-aware)
-        shell: bash
-        env:
-          CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
-          CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-        run: ./scripts/check.sh public-docs --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
-      - name: Check app_core dependency boundary
-        shell: bash
-        env:
-          CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
-          CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-        run: ./scripts/check.sh app-core-boundary --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
-      - name: Knowledge lint (docs)
-        shell: bash
-        env:
-          CI_BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
-          CI_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-        run: ./scripts/check.sh knowledge --base "$CI_BASE_SHA" --head "$CI_HEAD_SHA"
-      - name: Dead dependency/unused code sweep (advisory)
-        if: ${{ matrix.platform == 'linux' }}
-        continue-on-error: true
-        shell: bash
+          RADIANT_SUBMODULE_DEPLOY_KEY: ${{ secrets.RADIANT_SUBMODULE_DEPLOY_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$RADIANT_SUBMODULE_DEPLOY_KEY" > ~/.ssh/radiant_submodule
+          chmod 600 ~/.ssh/radiant_submodule
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+          git config submodule.vendor/radiant.url git@github.com:PORTALSURFER/radiant.git
+          GIT_SSH_COMMAND='ssh -i ~/.ssh/radiant_submodule -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes' \
+            git submodule update --init --recursive vendor/radiant
+      - name: Dead dependency/unused code sweep
         env:
           SEMPAL_DEAD_SWEEP_INSTALL_MISSING: "1"
           SEMPAL_DEAD_SWEEP_RUN_UDEPS: "0"
           SEMPAL_DEAD_SWEEP_REPORT_PATH: "target/dead_sweep_ci.txt"
         run: ./scripts/check.sh dead-deps --advisory
-      - name: Env var docs drift (nudge)
-        if: ${{ matrix.platform == 'linux' }}
-        shell: bash
-        run: ./scripts/check.sh report-env-vars || true
-      - name: Lint (clippy)
-        run: cargo clippy --workspace --all-targets
-      - name: Docs correctness (rustdoc warnings)
-        if: ${{ matrix.platform == 'linux' }}
-        env:
-          RUSTDOCFLAGS: "-D warnings"
-        run: cargo doc -p sempal --no-deps
-      - name: Run tests
-        run: cargo nextest run --workspace --all-targets --no-fail-fast
-      - name: Run doc tests
-        run: cargo test --workspace --doc
+      - name: Env var docs drift nudge
+        run: ./scripts/check.sh report-env-vars

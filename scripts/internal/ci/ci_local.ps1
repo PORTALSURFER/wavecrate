@@ -4,9 +4,9 @@
 Runs the PowerShell local CI core lane.
 
 .DESCRIPTION
-Runs the core format/lint/doc/test steps available in the PowerShell
-environment. Linux-only GitHub CI advisory checks and shell-specific guardrails
-still live in `.github/workflows/ci.yml`.
+Runs the required GitHub CI parity lane that is practical in the PowerShell
+environment. Linux-only advisory checks, perf guards, and GUI/manual lanes stay
+outside this merge-blocking parity command.
 #>
 
 param(
@@ -75,18 +75,15 @@ try {
     }
   }
 
-  Write-Host "[ci_local] cargo nextest run --workspace --all-targets --no-fail-fast"
-  Invoke-NativeStep -Label "cargo nextest run --workspace --all-targets --no-fail-fast" -Command {
-    Invoke-SempalCargo nextest run --workspace --all-targets --no-fail-fast
+  Write-Host "[ci_local] cargo nextest run --workspace --profile ci-required --all-targets --no-fail-fast"
+  Invoke-NativeStep -Label "cargo nextest run --workspace --profile ci-required --all-targets --no-fail-fast" -Command {
+    Invoke-SempalCargo nextest run --workspace --profile ci-required --all-targets --no-fail-fast
   }
 
   Write-Host "[ci_local] cargo test --workspace --doc"
   Invoke-NativeStep -Label "cargo test --workspace --doc" -Command {
     Invoke-SempalCargo test --workspace --doc
   }
-
-  Write-Host "[ci_local] scripts/internal/perf/run_perf_guard.ps1"
-  & (Join-Path $rootDir "scripts/internal/perf/run_perf_guard.ps1")
 
   Write-Host "[ci_local] OK"
 } finally {

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# Local CI mirror: run the same checks as `.github/workflows/ci.yml`.
-# This script is intentionally simple so agents and humans can rely on it.
+# Local required CI mirror: run the merge-blocking checks from
+# `.github/workflows/ci.yml` that are practical on this platform.
 
 # `--skip-agent-preflight` is useful for agent entrypoint scripts that have already
 # run `run_agent_ci_checks.sh` and want to avoid duplicate checks.
@@ -29,7 +29,7 @@ while (( $# > 0 )); do
       cat <<'USAGE'
 Usage: scripts/ci.sh local [--skip-agent-preflight]
 
-Run the local CI sequence used by this repository.
+Run the local required CI parity sequence used by this repository.
 
 Options:
   --skip-agent-preflight  Skip ./scripts/internal/agent/run_agent_ci_checks.sh.
@@ -58,13 +58,10 @@ cargo clippy --workspace --all-targets
 echo "[ci_local] cargo doc -p sempal --no-deps (RUSTDOCFLAGS=-D warnings)"
 RUSTDOCFLAGS="-D warnings" cargo doc -p sempal --no-deps
 
-echo "[ci_local] cargo nextest run --workspace --all-targets --no-fail-fast"
-cargo nextest run --workspace --all-targets --no-fail-fast
+echo "[ci_local] cargo nextest run --workspace --profile ci-required --all-targets --no-fail-fast"
+cargo nextest run --workspace --profile ci-required --all-targets --no-fail-fast
 
 echo "[ci_local] cargo test --workspace --doc"
 cargo test --workspace --doc
-
-echo "[ci_local] scripts/internal/perf/run_perf_guard.sh"
-./scripts/internal/perf/run_perf_guard.sh
 
 echo "[ci_local] OK"
