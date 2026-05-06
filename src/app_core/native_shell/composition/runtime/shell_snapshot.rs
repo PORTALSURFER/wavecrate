@@ -11,7 +11,7 @@ use crate::gui::{
     types::{Point, Rect, Rgba8, Vector2},
 };
 
-/// Compatibility alias for generic visual snapshots captured from the legacy shell.
+/// Compatibility alias for generic visual snapshots captured from the native shell.
 pub type NativeShellShotSnapshot = VisualSnapshot;
 
 /// Capture a deterministic native-shell visual snapshot without launching a window.

@@ -380,10 +380,6 @@ fn native_action_exports_are_owned_in_app_core() {
             "src/app_core/native_shell/composition/state/toolbar_helpers/waveform_toolbar.rs",
         ))
         .expect("native waveform toolbar helpers");
-    let waveform_runtime_geometry = fs::read_to_string(
-        manifest_dir.join("src/gui_runtime/native_vello/input/waveform_geometry.rs"),
-    )
-    .expect("native waveform runtime geometry");
     let waveform_header_surface = fs::read_to_string(
         manifest_dir.join("src/app_core/native_shell/composition/waveform_header_surface.rs"),
     )
@@ -825,8 +821,6 @@ fn native_action_exports_are_owned_in_app_core() {
             && waveform_toolbar_helpers.contains("model.signal_tools()")
             && waveform_toolbar_helpers.contains("model.waveform_presentation()")
             && waveform_toolbar_helpers.contains("model.waveform_image_preview()")
-            && waveform_runtime_geometry.contains("TimelineCoordinateMapper")
-            && waveform_runtime_geometry.contains("model.waveform.viewport()")
             && waveform_header_surface.contains("model.waveform_transport()")
             && waveform_header_surface.contains("model.waveform_viewport()")
             && waveform_header_surface.contains("model.waveform_presentation()")

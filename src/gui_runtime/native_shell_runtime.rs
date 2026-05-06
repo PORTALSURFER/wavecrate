@@ -2213,6 +2213,7 @@ mod tests {
                 .expect("native shell runtime adapter");
         let public_runtime =
             fs::read_to_string(manifest_dir.join("src/gui_runtime/mod.rs")).expect("runtime mod");
+        let removed_runtime_module = format!("mod {}{};", "native_", "vello");
 
         assert!(
             adapter.contains("crate::compat_app_contract as compat")
@@ -2228,12 +2229,12 @@ mod tests {
                 && !adapter.contains(&format!(
                     "{}{}",
                     "run_legacy_native_vello_", "app_with_artifacts"
-                ))
-                && !adapter.contains(&format!(
-                    "{}{}",
-                    "native_vello::run_native_shell_", "vello_app_with_artifacts"
                 )),
             "Sempal runtime glue must not route through a legacy-shell facade or local legacy runner"
+        );
+        assert!(
+            !public_runtime.contains(&removed_runtime_module),
+            "Sempal runtime module tree must not include the removed local native Vello runner"
         );
         assert!(
             public_runtime.contains("Sempal GUI runtime host integration")

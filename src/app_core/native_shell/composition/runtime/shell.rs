@@ -1,4 +1,4 @@
-//! Sempal shell and overlay models used by the legacy Radiant compatibility path.
+//! Sempal shell and overlay models used by the runtime compatibility contract.
 
 pub use crate::app_core::actions::{
     NativeDragOverlayModel as DragOverlayModel, NativeProgressOverlayModel as ProgressOverlayModel,

@@ -1,4 +1,4 @@
-//! Sempal host bridge trait used by the legacy Radiant compatibility path.
+//! Sempal host bridge trait used by the runtime compatibility contract.
 
 use super::{
     AppModel, DirtySegments, FocusContextModel, FrameBuildResult, HotkeyResolution, KeyPress,
