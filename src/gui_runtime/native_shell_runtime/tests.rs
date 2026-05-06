@@ -410,6 +410,62 @@ mod tests {
     }
 
     #[test]
+    fn retained_hover_refresh_skips_app_model_pull() {
+        let mut bridge = SempalRuntimeBridge::new(MotionOnlyRecordingBridge {
+            model: Arc::new(NativeAppModel::default()),
+            motion_model: None,
+            model_pull_count: 0,
+            motion_pull_count: 0,
+        });
+
+        let _ = bridge.project_surface();
+        assert_eq!(bridge.inner.model_pull_count, 1);
+        assert!(
+            bridge
+                .update(SempalRuntimeMessage::RetainedInput(
+                    RetainedCanvasInput::PointerMove {
+                        position: radiant::gui::types::Point::new(12.0, 16.0),
+                    },
+                ))
+                .requests_repaint()
+        );
+        let _ = bridge.project_surface();
+
+        assert_eq!(
+            bridge.inner.model_pull_count, 1,
+            "local retained hover refreshes should repaint overlays without pulling the app model"
+        );
+    }
+
+    #[test]
+    fn retained_action_refresh_reuses_emit_projection() {
+        let mut bridge = SempalRuntimeBridge::new(MotionOnlyRecordingBridge {
+            model: Arc::new(NativeAppModel::default()),
+            motion_model: None,
+            model_pull_count: 0,
+            motion_pull_count: 0,
+        });
+
+        assert!(
+            bridge
+                .update(SempalRuntimeMessage::RetainedInput(
+                    RetainedCanvasInput::PointerPress {
+                        position: radiant::gui::types::Point::new(4.0, 5.0),
+                        button: radiant::widgets::PointerButton::Primary,
+                    },
+                ))
+                .requests_repaint()
+        );
+        assert_eq!(bridge.inner.model_pull_count, 1);
+        let _ = bridge.project_surface();
+
+        assert_eq!(
+            bridge.inner.model_pull_count, 1,
+            "retained pointer actions should not pull a second model during repaint projection"
+        );
+    }
+
+    #[test]
     fn retained_shell_render_rebuilds_only_dirty_static_segments() {
         let mut bridge = SempalRuntimeBridge::new(RecordingBridge {
             model: Arc::new(NativeAppModel::default()),

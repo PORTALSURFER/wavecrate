@@ -16,6 +16,8 @@ pub(super) struct SempalRuntimeBridge<B> {
     layout_viewport: Option<Vector2>,
     pending_motion_model: Option<runtime_contract::NativeMotionModel>,
     motion_only_surface_refresh: bool,
+    local_overlay_surface_refresh: bool,
+    pending_surface_descriptor: Option<RetainedSurfaceDescriptor>,
     text_input_target: RetainedTextInputTarget,
     text_edit: RetainedTextEditState,
 }
@@ -183,6 +185,8 @@ impl<B> SempalRuntimeBridge<B> {
             layout_viewport: None,
             pending_motion_model: None,
             motion_only_surface_refresh: false,
+            local_overlay_surface_refresh: false,
+            pending_surface_descriptor: None,
             text_input_target: RetainedTextInputTarget::None,
             text_edit: RetainedTextEditState::default(),
         }
@@ -241,7 +245,28 @@ impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
         self.inner.reduce_action(action.clone());
         let model = self.inner.pull_model_arc();
         self.model = Arc::new(model.as_ref().into());
+        self.stage_surface_descriptor_from_latest_pull();
         self.update_text_target_after_action(&action);
+    }
+
+    fn stage_surface_descriptor_from_latest_pull(&mut self) {
+        let dirty = self.inner.take_dirty_segments();
+        let revisions = self.inner.take_segment_revisions();
+        let dirty_mask = u64::from(dirty.bits());
+        let descriptor = RetainedSurfaceDescriptor {
+            key: 1,
+            revision: retained_surface_revision(revisions),
+            dirty_mask,
+            volatile: true,
+        };
+        self.pending_surface_descriptor = Some(
+            self.pending_surface_descriptor
+                .map(|pending| RetainedSurfaceDescriptor {
+                    dirty_mask: pending.dirty_mask | dirty_mask,
+                    ..descriptor
+                })
+                .unwrap_or(descriptor),
+        );
     }
 
     /// Translate retained-canvas input into Sempal actions or local repaint-only state.
@@ -252,6 +277,7 @@ impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
                 let _effect =
                     self.shell_state
                         .handle_cursor_move_effect(&layout, &self.model, position);
+                self.local_overlay_surface_refresh = true;
                 true
             }
             RetainedCanvasInput::PointerPress { position, button } => {
@@ -273,6 +299,7 @@ impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
                 true
             }
             RetainedCanvasInput::PointerRelease { .. } | RetainedCanvasInput::FocusChanged(_) => {
+                self.local_overlay_surface_refresh = true;
                 true
             }
             RetainedCanvasInput::KeyPress(key) => self.handle_retained_key_press(key),
@@ -549,6 +576,21 @@ fn replace_char_range(text: &mut String, start: usize, end: usize, replacement: 
 impl<B: NativeAppBridge> RuntimeBridge<SempalRuntimeMessage> for SempalRuntimeBridge<B> {
     /// Project Sempal state into the retained canvas surface visible to Radiant.
     fn project_surface(&mut self) -> Arc<UiSurface<SempalRuntimeMessage>> {
+        if let Some(descriptor) = self.pending_surface_descriptor.take() {
+            self.local_overlay_surface_refresh = false;
+            self.motion_only_surface_refresh = false;
+            return Self::generic_shell_surface(descriptor);
+        }
+        if self.local_overlay_surface_refresh {
+            self.local_overlay_surface_refresh = false;
+            let revisions = self.inner.take_segment_revisions();
+            return Self::generic_shell_surface(RetainedSurfaceDescriptor {
+                key: 1,
+                revision: retained_surface_revision(revisions),
+                dirty_mask: 0,
+                volatile: true,
+            });
+        }
         if self.motion_only_surface_refresh {
             self.motion_only_surface_refresh = false;
             let revisions = self.inner.take_segment_revisions();
