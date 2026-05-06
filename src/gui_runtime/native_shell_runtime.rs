@@ -25,7 +25,7 @@ use radiant::gui::{
     input::KeyPress as RadiantKeyPress, shortcuts::ShortcutResolution as RadiantShortcutResolution,
 };
 use radiant::runtime::{RuntimeBridge, SurfaceNode, UiSurface};
-use radiant::widgets::{CanvasMessage, WidgetSizing};
+use radiant::widgets::{CanvasMessage, RetainedSurfaceDescriptor, WidgetSizing};
 use std::{collections::BTreeMap, sync::Arc};
 
 /// Converts app-level Vello launch options into the generic `radiant` runtime representation.
@@ -88,10 +88,11 @@ impl<B> SempalRuntimeBridge<B> {
         Self { inner }
     }
 
-    fn generic_shell_surface() -> Arc<UiSurface<UiAction>> {
-        Arc::new(UiSurface::new(SurfaceNode::canvas_mapped(
+    fn generic_shell_surface(retained: RetainedSurfaceDescriptor) -> Arc<UiSurface<UiAction>> {
+        Arc::new(UiSurface::new(SurfaceNode::retained_canvas_mapped(
             1,
             WidgetSizing::fixed(Vector2::new(1280.0, 720.0)),
+            retained,
             |_message: CanvasMessage| UiAction::HandleEscape,
         )))
     }
@@ -110,7 +111,14 @@ impl<B> SempalRuntimeBridge<B> {
 
 impl<B: NativeAppBridge> RuntimeBridge<UiAction> for SempalRuntimeBridge<B> {
     fn project_surface(&mut self) -> Arc<UiSurface<UiAction>> {
-        Self::generic_shell_surface()
+        let _model = self.inner.pull_model_arc();
+        let dirty = self.inner.take_dirty_segments();
+        let revisions = self.inner.take_segment_revisions();
+        Self::generic_shell_surface(RetainedSurfaceDescriptor {
+            key: 1,
+            revision: retained_surface_revision(revisions),
+            dirty_mask: u64::from(dirty.bits()),
+        })
     }
 
     fn reduce_message(&mut self, message: UiAction) {
@@ -144,6 +152,15 @@ impl<B: NativeAppBridge> RuntimeBridge<UiAction> for SempalRuntimeBridge<B> {
             .on_runtime_exit()
             .and_then(|artifact| serde_json::to_value(artifact).ok())
     }
+}
+
+fn retained_surface_revision(revisions: crate::app_core::actions::NativeSegmentRevisions) -> u64 {
+    revisions.status_bar
+        ^ revisions.browser_frame.rotate_left(7)
+        ^ revisions.browser_rows_window.rotate_left(13)
+        ^ revisions.map_panel.rotate_left(19)
+        ^ revisions.waveform_overlay.rotate_left(29)
+        ^ revisions.global_static.rotate_left(37)
 }
 
 impl<B: NativeAppBridge> compat::NativeAppBridge for CompatNativeAppBridge<B> {
@@ -2209,6 +2226,8 @@ pub(super) fn capture_native_shell_shot_snapshot(
 mod tests {
     use super::*;
     use crate::gui::repaint::RepaintSignal;
+    use radiant::runtime::PaintPrimitive;
+    use radiant::theme::ThemeTokens;
     use radiant::widgets::{CanvasMessage, WidgetInput, WidgetOutput};
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::{fs, path::Path};
@@ -2298,6 +2317,28 @@ mod tests {
         });
 
         let surface = bridge.project_surface();
+        let layout = radiant::layout::layout_tree(
+            &surface.layout_node(),
+            radiant::gui::types::Rect::from_min_size(
+                radiant::gui::types::Point::new(0.0, 0.0),
+                radiant::gui::types::Vector2::new(1280.0, 720.0),
+            ),
+        );
+        let plan = surface.paint_plan(&layout, &ThemeTokens::default());
+        let retained = plan
+            .primitives
+            .iter()
+            .find_map(|primitive| match primitive {
+                PaintPrimitive::CustomSurface(surface) => surface.retained,
+                _ => None,
+            });
+        assert_eq!(
+            retained
+                .expect("generic bridge should project retained shell metadata")
+                .dirty_mask,
+            u64::from(crate::app_core::actions::NativeDirtySegments::all().bits())
+        );
+
         let action = surface
             .dispatch_widget_output(
                 1,
