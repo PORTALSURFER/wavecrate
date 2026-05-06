@@ -1,9 +1,8 @@
 //! Sempal-owned native shell projection DTOs.
 //!
 //! These models describe Sempal application state as projected for the current
-//! native shell. Radiant still consumes a compatibility copy at the runtime
-//! boundary, but the generic runtime adapter lives in `gui_runtime` so app-core
-//! does not import Radiant compatibility modules.
+//! native shell. The runtime adapter in `gui_runtime` converts these app-core
+//! DTOs into the Sempal-owned native runtime contract consumed by Radiant.
 
 use radiant::gui::automation;
 use radiant::gui::badge;
