@@ -592,6 +592,62 @@ mod opt_272_tests {
         );
     }
 
+    /// Left-sidebar metadata filter rows route to sidebar filter actions.
+    #[test]
+    fn left_sidebar_metadata_filter_rows_route_browser_filter_actions() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let model = populated_single_sidebar_model();
+        let mut state = NativeShellState::new();
+
+        let expected = [
+            (
+                0,
+                crate::app_core::app_api::state::BrowserSidebarFilterOption::Format(
+                    crate::app_core::app_api::state::BrowserFormatFacet::Wav,
+                ),
+            ),
+            (
+                1,
+                crate::app_core::app_api::state::BrowserSidebarFilterOption::BitDepth(
+                    crate::app_core::app_api::state::BrowserBitDepthFacet::Unavailable,
+                ),
+            ),
+            (
+                2,
+                crate::app_core::app_api::state::BrowserSidebarFilterOption::Channels(
+                    crate::app_core::app_api::state::BrowserChannelFacet::Unavailable,
+                ),
+            ),
+            (
+                3,
+                crate::app_core::app_api::state::BrowserSidebarFilterOption::Bpm(
+                    crate::app_core::app_api::state::BrowserBpmFacet::Unknown,
+                ),
+            ),
+            (
+                4,
+                crate::app_core::app_api::state::BrowserSidebarFilterOption::Key(
+                    crate::app_core::app_api::state::BrowserKeyFacet::Unknown,
+                ),
+            ),
+        ];
+
+        for (row_index, option) in expected {
+            let row = state
+                .sidebar_filter_row_rect(&layout, &model, row_index)
+                .expect("left-sidebar filter row should exist");
+            assert_eq!(
+                state.source_action_at_point(&layout, &model, row.center()),
+                Some(
+                    crate::compat_app_contract::UiAction::ToggleBrowserSidebarFilter {
+                        option,
+                        additive: true,
+                    }
+                )
+            );
+        }
+    }
+
     #[test]
     /// The single visible folder browser keeps its scrollbar thumb hit target active.
     fn single_folder_browser_scrollbar_thumb_is_hittable() {

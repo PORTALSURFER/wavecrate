@@ -43,6 +43,23 @@ impl NativeShellState {
         (chip.width() > 1.0).then_some(chip)
     }
 
+    /// Return a sidebar filter row rect in tests.
+    #[cfg(test)]
+    pub(crate) fn sidebar_filter_row_rect(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        row_index: usize,
+    ) -> Option<Rect> {
+        let _ = model;
+        let style = style_for_layout(layout);
+        let rect = sidebar_workspace_sections(layout, &style).filters;
+        sidebar_filter_row_rects(rect, style.sizing)
+            .get(row_index)
+            .copied()
+            .filter(|row| row.width() > 1.0)
+    }
+
     /// Resolve a rendered source-row index for a point within the sidebar.
     pub(crate) fn source_row_at_point(
         &mut self,
