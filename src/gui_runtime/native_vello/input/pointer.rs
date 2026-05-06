@@ -34,6 +34,17 @@ fn route_modal_and_chrome_actions(
     if let Some(action) = shell_state.options_panel_action_at_point(layout, model, point) {
         return Some(action);
     }
+    if let Some(action) = shell_state.sidebar_filter_dropdown_action_at_point(layout, model, point)
+    {
+        return Some(action);
+    }
+    if shell_state.sidebar_filter_dropdown_visible() {
+        if shell_state.sidebar_filter_dropdown_contains_point(layout, model, point) {
+            return None;
+        }
+        shell_state.close_sidebar_filter_dropdown();
+        return Some(UiAction::FocusBrowserPanel);
+    }
     if model.options_panel.visible {
         if shell_state.options_panel_contains_point_live(layout, model, point) {
             return None;

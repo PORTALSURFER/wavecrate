@@ -205,10 +205,93 @@ pub(super) fn render_modal_overlay(
         model,
         shell_state.browser_context_menu,
     );
+    render_sidebar_filter_dropdown(shell_state, layout, style, model, primitives, text_runs);
     render_progress_overlay(primitives, text_runs, layout, style, model);
     render_confirm_prompt(primitives, text_runs, layout, style, model);
     render_drag_overlay(primitives, text_runs, layout, style, model);
     render_options_panel(primitives, text_runs, layout, style, model);
+}
+
+/// Render the open left-sidebar filter dropdown, if any.
+fn render_sidebar_filter_dropdown(
+    shell_state: &NativeShellState,
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    model: &AppModel,
+    primitives: &mut impl PrimitiveSink,
+    text_runs: &mut impl TextRunSink,
+) {
+    let Some((panel_rect, buttons)) =
+        sidebar_filter_dropdown_spec(layout, style, model, shell_state.sidebar_filter_dropdown)
+    else {
+        return;
+    };
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: panel_rect,
+            color: blend_color(style.surface_overlay, style.bg_primary, 0.18),
+        }),
+    );
+    push_border(
+        primitives,
+        panel_rect,
+        style.border_emphasis,
+        style.sizing.border_width,
+    );
+    for button in buttons {
+        emit_primitive(
+            primitives,
+            Primitive::Rect(FillRect {
+                rect: button.rect,
+                color: if button.active {
+                    blend_color(style.accent_mint, style.surface_overlay, 0.56)
+                } else {
+                    style.bg_tertiary
+                },
+            }),
+        );
+        push_border(
+            primitives,
+            button.rect,
+            if button.active {
+                style.accent_mint
+            } else {
+                style.border
+            },
+            style.sizing.border_width,
+        );
+        emit_text(
+            text_runs,
+            TextRun {
+                text: button.label.to_string(),
+                position: dropdown_button_text_rect(
+                    button.rect,
+                    style.sizing.text_inset_x,
+                    style.sizing.text_inset_y,
+                )
+                .min,
+                font_size: style.sizing.font_meta,
+                color: button.text_color,
+                max_width: Some(button.rect.width().max(24.0)),
+                align: TextAlign::Left,
+            },
+        );
+    }
+}
+
+/// Return a non-inverted text inset for one dropdown option button.
+fn dropdown_button_text_rect(rect: Rect, x: f32, y: f32) -> Rect {
+    Rect::from_min_max(
+        Point::new(
+            (rect.min.x + x).min(rect.max.x),
+            (rect.min.y + y).min(rect.max.y),
+        ),
+        Point::new(
+            (rect.max.x - x).max(rect.min.x),
+            (rect.max.y - y).max(rect.min.y),
+        ),
+    )
 }
 
 #[cfg(test)]

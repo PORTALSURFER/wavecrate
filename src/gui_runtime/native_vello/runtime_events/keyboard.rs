@@ -313,6 +313,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.deactivate_text_input_target();
             return true;
         }
+        if self.shell_state.close_sidebar_filter_dropdown() {
+            return true;
+        }
         self.emit_keyboard_action(UiAction::HandleEscape);
         true
     }

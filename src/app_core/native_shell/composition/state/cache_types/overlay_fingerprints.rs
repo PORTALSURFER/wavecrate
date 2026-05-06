@@ -130,6 +130,8 @@ pub(crate) struct ModalOverlayFingerprint {
     pub browser_context_menu_anchor_x_bits: Option<u32>,
     /// Browser-context-menu anchor y-position bits, if any.
     pub browser_context_menu_anchor_y_bits: Option<u32>,
+    /// Active sidebar filter dropdown facet, if any.
+    pub sidebar_filter_dropdown_facet: Option<super::interaction::SidebarFilterDropdownFacet>,
 }
 
 /// Compact motion-overlay fingerprint for runtime overlay skip checks.

@@ -305,6 +305,9 @@ impl NativeShellState {
             browser_context_menu_anchor_y_bits: self
                 .browser_context_menu
                 .map(|menu| menu.anchor.y.to_bits()),
+            sidebar_filter_dropdown_facet: self
+                .sidebar_filter_dropdown
+                .map(|dropdown| dropdown.facet),
         }
     }
 }

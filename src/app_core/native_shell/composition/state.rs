@@ -222,6 +222,7 @@ pub(crate) struct NativeShellState {
     pulse_phase: f32,
     source_context_menu: Option<SourceContextMenuState>,
     browser_context_menu: Option<BrowserContextMenuState>,
+    sidebar_filter_dropdown: Option<SidebarFilterDropdownState>,
     source_row_rects: Vec<CachedSourceRow>,
     source_row_cache_key: Option<SidebarRowsCacheKey>,
     upper_folder_pane: FolderPaneRuntimeState,
@@ -295,6 +296,7 @@ impl NativeShellState {
             pulse_phase: 0.0,
             source_context_menu: None,
             browser_context_menu: None,
+            sidebar_filter_dropdown: None,
             source_row_rects: Vec::new(),
             source_row_cache_key: None,
             upper_folder_pane: FolderPaneRuntimeState::default(),
@@ -458,6 +460,25 @@ impl NativeShellState {
         }
         false
     }
+
+    /// Open the transient sidebar filter dropdown for one facet.
+    pub(crate) fn open_sidebar_filter_dropdown(&mut self, facet: SidebarFilterDropdownFacet) {
+        self.sidebar_filter_dropdown = Some(SidebarFilterDropdownState { facet });
+    }
+
+    /// Return whether a sidebar filter dropdown is visible.
+    pub(crate) fn sidebar_filter_dropdown_visible(&self) -> bool {
+        self.sidebar_filter_dropdown.is_some()
+    }
+
+    /// Close the transient sidebar filter dropdown.
+    pub(crate) fn close_sidebar_filter_dropdown(&mut self) -> bool {
+        if self.sidebar_filter_dropdown.is_some() {
+            self.sidebar_filter_dropdown = None;
+            return true;
+        }
+        false
+    }
 }
 
 #[cfg(test)]
@@ -592,9 +613,9 @@ mod opt_272_tests {
         );
     }
 
-    /// Left-sidebar metadata filter rows route to sidebar filter actions.
+    /// Left-sidebar metadata filter rows open dropdowns that route sidebar filter actions.
     #[test]
-    fn left_sidebar_metadata_filter_rows_route_browser_filter_actions() {
+    fn left_sidebar_metadata_filter_dropdowns_route_browser_filter_actions() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         let model = populated_single_sidebar_model();
         let mut state = NativeShellState::new();
@@ -602,42 +623,59 @@ mod opt_272_tests {
         let expected = [
             (
                 0,
+                0,
                 crate::app_core::app_api::state::BrowserSidebarFilterOption::Format(
                     crate::app_core::app_api::state::BrowserFormatFacet::Wav,
                 ),
             ),
             (
                 1,
+                0,
                 crate::app_core::app_api::state::BrowserSidebarFilterOption::BitDepth(
                     crate::app_core::app_api::state::BrowserBitDepthFacet::Unavailable,
                 ),
             ),
             (
                 2,
+                3,
                 crate::app_core::app_api::state::BrowserSidebarFilterOption::Channels(
                     crate::app_core::app_api::state::BrowserChannelFacet::Unavailable,
                 ),
             ),
             (
                 3,
+                0,
                 crate::app_core::app_api::state::BrowserSidebarFilterOption::Bpm(
                     crate::app_core::app_api::state::BrowserBpmFacet::Unknown,
                 ),
             ),
             (
                 4,
+                0,
                 crate::app_core::app_api::state::BrowserSidebarFilterOption::Key(
                     crate::app_core::app_api::state::BrowserKeyFacet::Unknown,
                 ),
             ),
         ];
 
-        for (row_index, option) in expected {
+        for (row_index, option_index, option) in expected {
             let row = state
                 .sidebar_filter_row_rect(&layout, &model, row_index)
                 .expect("left-sidebar filter row should exist");
             assert_eq!(
                 state.source_action_at_point(&layout, &model, row.center()),
+                Some(crate::compat_app_contract::UiAction::FocusBrowserPanel)
+            );
+            assert!(state.sidebar_filter_dropdown_visible());
+            let option_rect = state
+                .sidebar_filter_dropdown_option_rect(&layout, &model, option_index)
+                .expect("left-sidebar filter dropdown option should exist");
+            assert_eq!(
+                state.sidebar_filter_dropdown_action_at_point(
+                    &layout,
+                    &model,
+                    option_rect.center()
+                ),
                 Some(
                     crate::compat_app_contract::UiAction::ToggleBrowserSidebarFilter {
                         option,
@@ -646,6 +684,40 @@ mod opt_272_tests {
                 )
             );
         }
+    }
+
+    /// Left-sidebar filter dropdowns expose clear actions for active facets.
+    #[test]
+    fn left_sidebar_filter_dropdown_clear_routes_browser_filter_action() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let mut model = populated_single_sidebar_model();
+        model.sidebar_filters.toggle(
+            crate::app_core::app_api::state::BrowserSidebarFilterOption::Bpm(
+                crate::app_core::app_api::state::BrowserBpmFacet::Mid,
+            ),
+            true,
+        );
+        let mut state = NativeShellState::new();
+        let row = state
+            .sidebar_filter_row_rect(&layout, &model, 3)
+            .expect("left-sidebar BPM filter row should exist");
+
+        assert_eq!(
+            state.source_action_at_point(&layout, &model, row.center()),
+            Some(crate::compat_app_contract::UiAction::FocusBrowserPanel)
+        );
+        let clear_rect = state
+            .sidebar_filter_dropdown_option_rect(&layout, &model, 4)
+            .expect("left-sidebar filter dropdown clear option should exist");
+
+        assert_eq!(
+            state.sidebar_filter_dropdown_action_at_point(&layout, &model, clear_rect.center()),
+            Some(
+                crate::compat_app_contract::UiAction::ClearBrowserSidebarFilter {
+                    facet: crate::app_core::app_api::state::BrowserSidebarFilterFacet::Bpm,
+                }
+            )
+        );
     }
 
     #[test]
