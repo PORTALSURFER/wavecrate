@@ -1,17 +1,17 @@
 use super::*;
-use crate::compat_app_contract::FolderPaneIdModel;
+use crate::app_core::native_shell::runtime_contract::FolderPaneIdModel;
 
 #[test]
 fn source_action_hit_test_emits_folder_action() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
-    let mut model = crate::compat_app_contract::AppModel::default();
+    let mut model = crate::app_core::native_shell::runtime_contract::AppModel::default();
     model.sources.tree_actions.can_delete = true;
     let button = state
         .source_action_button_rect(
             &layout,
             &model,
-            crate::compat_app_contract::UiAction::DeleteFocusedFolder,
+            crate::app_core::native_shell::runtime_contract::UiAction::DeleteFocusedFolder,
         )
         .expect("delete action button should be present");
     let point = Point::new(
@@ -20,7 +20,7 @@ fn source_action_hit_test_emits_folder_action() {
     );
     assert_eq!(
         state.source_action_at_point(&layout, &model, point),
-        Some(crate::compat_app_contract::UiAction::DeleteFocusedFolder)
+        Some(crate::app_core::native_shell::runtime_contract::UiAction::DeleteFocusedFolder)
     );
 }
 
@@ -28,13 +28,13 @@ fn source_action_hit_test_emits_folder_action() {
 fn source_action_hit_test_ignores_disabled_button() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
-    let mut model = crate::compat_app_contract::AppModel::default();
+    let mut model = crate::app_core::native_shell::runtime_contract::AppModel::default();
     model.sources.tree_actions.can_delete = false;
     let button = state
         .source_action_button_rect(
             &layout,
             &model,
-            crate::compat_app_contract::UiAction::DeleteFocusedFolder,
+            crate::app_core::native_shell::runtime_contract::UiAction::DeleteFocusedFolder,
         )
         .expect("delete action button should be present");
     let point = Point::new(
@@ -48,9 +48,9 @@ fn source_action_hit_test_ignores_disabled_button() {
 fn folder_row_hit_test_resolves_rendered_folder_row() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
-    let mut model = crate::compat_app_contract::AppModel::default();
+    let mut model = crate::app_core::native_shell::runtime_contract::AppModel::default();
     model.sources.upper_folder_pane.tree_rows.push(
-        crate::compat_app_contract::FolderRowModel::new(
+        crate::app_core::native_shell::runtime_contract::FolderRowModel::new(
             "Drums", "Drums", 0, false, true, false, true, true,
         ),
     );
@@ -72,11 +72,11 @@ fn folder_row_hit_test_resolves_rendered_folder_row() {
 fn folder_row_hit_test_survives_source_row_cache_priming() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
-    let mut model = crate::compat_app_contract::AppModel::default();
+    let mut model = crate::app_core::native_shell::runtime_contract::AppModel::default();
     model
         .sources
         .rows
-        .push(crate::compat_app_contract::SourceRowModel::new(
+        .push(crate::app_core::native_shell::runtime_contract::SourceRowModel::new(
             "Pack", "pack", false, false,
         ));
     model
@@ -86,7 +86,7 @@ fn folder_row_hit_test_survives_source_row_cache_priming() {
         .expect("source row should exist")
         .assigned_to_upper_pane = true;
     model.sources.upper_folder_pane.tree_rows.push(
-        crate::compat_app_contract::FolderRowModel::new(
+        crate::app_core::native_shell::runtime_contract::FolderRowModel::new(
             "Drums", "Drums", 0, false, true, false, true, true,
         ),
     );
@@ -119,10 +119,10 @@ fn folder_row_hit_test_survives_source_row_cache_priming() {
 fn tree_rows_fill_sidebar_width_and_touch_without_gap() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
-    let mut model = crate::compat_app_contract::AppModel::default();
+    let mut model = crate::app_core::native_shell::runtime_contract::AppModel::default();
     for index in 0..3 {
         model.sources.upper_folder_pane.tree_rows.push(
-            crate::compat_app_contract::FolderRowModel::new(
+            crate::app_core::native_shell::runtime_contract::FolderRowModel::new(
                 format!("Folder {index}"),
                 String::new(),
                 0,
@@ -143,3 +143,4 @@ fn tree_rows_fill_sidebar_width_and_touch_without_gap() {
     assert_eq!(folder_rects[0].max.y, folder_rects[1].min.y);
     assert_eq!(folder_rects[1].max.y, folder_rects[2].min.y);
 }
+

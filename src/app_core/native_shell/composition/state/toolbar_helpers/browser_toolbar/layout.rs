@@ -1,7 +1,7 @@
 //! Browser toolbar layout and hit-testing helpers.
 
 use super::super::super::*;
-use crate::compat_app_contract::PlaybackAgeFilterChip;
+use crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip;
 
 pub(in crate::gui::native_shell::state) fn browser_toolbar_layout(
     layout: &ShellLayout,
@@ -71,3 +71,4 @@ pub(in crate::gui::native_shell::state) fn browser_column_chips(
     let _ = (layout, style, model, browser_buttons);
     Vec::new()
 }
+

@@ -1,7 +1,7 @@
 //! State-driven overlay builders for the native shell.
 
 use super::*;
-use crate::compat_app_contract::FolderRowKind;
+use crate::app_core::native_shell::runtime_contract::FolderRowKind;
 
 #[path = "browser.rs"]
 mod browser;
@@ -307,3 +307,4 @@ pub(super) fn render_state_overlay(
     render_focus_overlay(shell_state, layout, style, model, primitives, text_runs);
     render_modal_overlay(shell_state, layout, style, model, primitives, text_runs);
 }
+

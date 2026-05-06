@@ -1,6 +1,6 @@
 //! Slotized waveform annotation geometry for selection, slice previews, cursor, and playhead.
 
-use crate::compat_app_contract::NormalizedRangeModel;
+use crate::app_core::native_shell::runtime_contract::NormalizedRangeModel;
 use crate::gui::range::{NormalizedPixelSnap, NormalizedViewport};
 use crate::gui::types::{Point, Rect};
 use crate::gui::visualization::TimelineMarkerPreview;
@@ -238,3 +238,4 @@ fn marker_rect(
         Point::new(right, waveform_plot.max.y),
     ))
 }
+

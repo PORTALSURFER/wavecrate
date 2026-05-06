@@ -1,7 +1,7 @@
 //! Shared helper utilities for semantic automation snapshot builders.
 
 use super::*;
-use crate::compat_app_contract::{
+use crate::app_core::native_shell::runtime_contract::{
     AutomationBounds, AutomationNodeId, AutomationNodeSnapshot, AutomationRole,
     NormalizedRangeModel, UpdateStatusModel,
 };
@@ -351,3 +351,4 @@ pub(super) fn circle_rect(center: Point, diameter: f32) -> Rect {
         Point::new(center.x + radius, center.y + radius),
     )
 }
+

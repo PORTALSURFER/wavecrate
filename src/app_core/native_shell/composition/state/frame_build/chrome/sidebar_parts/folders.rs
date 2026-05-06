@@ -1,5 +1,5 @@
 use super::*;
-use crate::compat_app_contract::FolderPaneIdModel;
+use crate::app_core::native_shell::runtime_contract::FolderPaneIdModel;
 
 mod header;
 mod rows;
@@ -69,3 +69,4 @@ fn render_source_section_divider(
         }),
     );
 }
+

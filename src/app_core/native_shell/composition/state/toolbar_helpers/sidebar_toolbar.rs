@@ -1,7 +1,7 @@
 //! Sidebar action, source-add, and context-menu helper geometry.
 
 use super::super::*;
-use crate::compat_app_contract::FolderPaneIdModel;
+use crate::app_core::native_shell::runtime_contract::FolderPaneIdModel;
 
 pub(in crate::gui::native_shell::state) fn render_source_add_button_overlay(
     primitives: &mut impl PrimitiveSink,
@@ -384,3 +384,4 @@ pub(in crate::gui::native_shell::state) fn browser_context_menu_spec(
             .collect(),
     ))
 }
+

@@ -10,8 +10,8 @@ mod prompts;
 mod sidebar;
 mod toolbar;
 
-fn canonical_shell_model() -> crate::compat_app_contract::AppModel {
-    let mut model = crate::compat_app_contract::AppModel::default();
+fn canonical_shell_model() -> crate::app_core::native_shell::runtime_contract::AppModel {
+    let mut model = crate::app_core::native_shell::runtime_contract::AppModel::default();
     model.title = String::from("Radiant Native");
     model.backend_label = String::from("radiant/native_vello");
     model.transport_running = true;
@@ -36,7 +36,7 @@ fn canonical_shell_model() -> crate::compat_app_contract::AppModel {
         model
             .sources
             .rows
-            .push(crate::compat_app_contract::SourceRowModel::new(
+            .push(crate::app_core::native_shell::runtime_contract::SourceRowModel::new(
                 format!("source_{index:02}"),
                 format!("/samples/source_{index:02}"),
                 index == 2,
@@ -47,7 +47,7 @@ fn canonical_shell_model() -> crate::compat_app_contract::AppModel {
         model
             .sources
             .tree_rows
-            .push(crate::compat_app_contract::FolderRowModel::new(
+            .push(crate::app_core::native_shell::runtime_contract::FolderRowModel::new(
                 format!("folder_{index:02}"),
                 String::new(),
                 index % 3,
@@ -70,7 +70,7 @@ fn canonical_shell_model() -> crate::compat_app_contract::AppModel {
         model
             .browser
             .rows
-            .push(crate::compat_app_contract::BrowserRowModel::new(
+            .push(crate::app_core::native_shell::runtime_contract::BrowserRowModel::new(
                 index,
                 format!("row_{index:02}.wav"),
                 index % 3,
@@ -89,7 +89,7 @@ fn canonical_shell_model() -> crate::compat_app_contract::AppModel {
     model.waveform.loaded_label = Some(String::from("Kick-Loop-01.wav"));
     model.waveform.cursor_milli = Some(345);
     model.waveform.playhead_milli = Some(512);
-    model.waveform.selection_milli = Some(crate::compat_app_contract::NormalizedRangeModel::new(
+    model.waveform.selection_milli = Some(crate::app_core::native_shell::runtime_contract::NormalizedRangeModel::new(
         200, 680,
     ));
     model.waveform.loop_enabled = true;
@@ -97,3 +97,4 @@ fn canonical_shell_model() -> crate::compat_app_contract::AppModel {
     model.waveform.view_end_milli = 900;
     model
 }
+

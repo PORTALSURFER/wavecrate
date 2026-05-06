@@ -1,5 +1,5 @@
 use super::*;
-use crate::compat_app_contract::FolderPaneIdModel;
+use crate::app_core::native_shell::runtime_contract::FolderPaneIdModel;
 #[test]
 fn folder_create_editor_overlay_renders_selection_and_caret() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
@@ -273,3 +273,4 @@ fn recovery_badge_renders_idle_count_label() {
         )
     }));
 }
+

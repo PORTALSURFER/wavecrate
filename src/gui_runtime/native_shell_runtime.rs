@@ -12,7 +12,7 @@ use crate::app_core::actions::{
 };
 use crate::app_core::app_api::controller_ui_hotkeys::KeyPress;
 use crate::app_core::app_api::{controller_ui_hotkeys as hotkeys, state::FocusContext};
-use crate::compat_app_contract as compat;
+use crate::app_core::native_shell::runtime_contract;
 use crate::gui::automation as gui_automation;
 use crate::gui::{
     native_shell::{NativeShellState, ShellLayout, ShellLayoutRuntime, ShellNodeKind, StyleTokens},

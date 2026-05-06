@@ -4,7 +4,7 @@ use super::*;
 fn toolbar_hit_test_focuses_browser_search() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
-    let model = crate::compat_app_contract::AppModel::default();
+    let model = crate::app_core::native_shell::runtime_contract::AppModel::default();
     let search_field = state
         .browser_search_field_rect(&layout, &model)
         .expect("browser search field should be present");
@@ -14,7 +14,7 @@ fn toolbar_hit_test_focuses_browser_search() {
     );
     assert_eq!(
         state.browser_action_at_point(&layout, &model, point, false),
-        Some(crate::compat_app_contract::UiAction::FocusBrowserSearch)
+        Some(crate::app_core::native_shell::runtime_contract::UiAction::FocusBrowserSearch)
     );
 }
 
@@ -23,7 +23,7 @@ fn toolbar_hit_test_focuses_browser_search() {
 fn sidebar_hit_test_toggles_browser_rating_filter_chip() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
-    let model = crate::compat_app_contract::AppModel::default();
+    let model = crate::app_core::native_shell::runtime_contract::AppModel::default();
     let chip = state
         .sidebar_rating_filter_chip_rect(&layout, &model, 3)
         .expect("keep-3 sidebar rating filter chip should be present");
@@ -34,7 +34,7 @@ fn sidebar_hit_test_toggles_browser_rating_filter_chip() {
     assert_eq!(
         state.source_action_at_point(&layout, &model, point),
         Some(
-            crate::compat_app_contract::UiAction::ToggleBrowserRatingFilter {
+            crate::app_core::native_shell::runtime_contract::UiAction::ToggleBrowserRatingFilter {
                 level: 3,
                 invert: false,
             }
@@ -47,7 +47,7 @@ fn sidebar_hit_test_toggles_browser_rating_filter_chip() {
 fn browser_toolbar_no_longer_exposes_rating_filter_chip() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
-    let model = crate::compat_app_contract::AppModel::default();
+    let model = crate::app_core::native_shell::runtime_contract::AppModel::default();
     assert!(state.browser_rating_filter_chip_rect(&layout, &model, 4).is_none());
 }
 
@@ -56,12 +56,12 @@ fn browser_toolbar_no_longer_exposes_rating_filter_chip() {
 fn browser_toolbar_no_longer_exposes_playback_age_filter_chip() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
-    let model = crate::compat_app_contract::AppModel::default();
+    let model = crate::app_core::native_shell::runtime_contract::AppModel::default();
     assert!(state
         .browser_playback_age_filter_chip_rect(
             &layout,
             &model,
-            crate::compat_app_contract::PlaybackAgeFilterChip::OlderThanMonth,
+            crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip::OlderThanMonth,
         )
         .is_none());
 }
@@ -71,7 +71,7 @@ fn browser_toolbar_no_longer_exposes_playback_age_filter_chip() {
 fn sidebar_pill_editor_input_is_left_sidebar_hit_target() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let state = NativeShellState::new();
-    let model = crate::compat_app_contract::AppModel::default();
+    let model = crate::app_core::native_shell::runtime_contract::AppModel::default();
     let rect = state
         .sidebar_pill_editor_input_rect(&layout, &model)
         .expect("sidebar tag input should be present");
@@ -82,7 +82,7 @@ fn sidebar_pill_editor_input_is_left_sidebar_hit_target() {
 fn toolbar_hit_test_ignores_empty_right_host_area() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
-    let model = crate::compat_app_contract::AppModel::default();
+    let model = crate::app_core::native_shell::runtime_contract::AppModel::default();
     let search_field = state
         .browser_search_field_rect(&layout, &model)
         .expect("browser search field should be present");
@@ -101,7 +101,7 @@ fn toolbar_hit_test_ignores_empty_right_host_area() {
 fn browser_toolbar_exposes_no_column_chip_hit_targets() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
-    let mut model = crate::compat_app_contract::AppModel::default();
+    let mut model = crate::app_core::native_shell::runtime_contract::AppModel::default();
     model.columns[2].item_count = 42;
     assert!(state.browser_column_chip_rect(&layout, &model, 2).is_none());
 }
@@ -110,7 +110,7 @@ fn browser_toolbar_exposes_no_column_chip_hit_targets() {
 fn waveform_toolbar_hit_test_emits_transport_action() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
-    let mut model = crate::compat_app_contract::AppModel::default();
+    let mut model = crate::app_core::native_shell::runtime_contract::AppModel::default();
     model.transport_running = false;
     let play = state
         .waveform_toolbar_button_rect(&layout, &model, "Play")
@@ -121,7 +121,7 @@ fn waveform_toolbar_hit_test_emits_transport_action() {
     );
     assert_eq!(
         state.waveform_toolbar_action_at_point(&layout, &model, point),
-        Some(crate::compat_app_contract::UiAction::ToggleTransport)
+        Some(crate::app_core::native_shell::runtime_contract::UiAction::ToggleTransport)
     );
 }
 
@@ -129,7 +129,7 @@ fn waveform_toolbar_hit_test_emits_transport_action() {
 fn waveform_toolbar_hit_test_emits_stop_action_when_transport_running() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
-    let mut model = crate::compat_app_contract::AppModel::default();
+    let mut model = crate::app_core::native_shell::runtime_contract::AppModel::default();
     model.transport_running = true;
     let stop = state
         .waveform_toolbar_button_rect(&layout, &model, "Stop")
@@ -140,7 +140,7 @@ fn waveform_toolbar_hit_test_emits_stop_action_when_transport_running() {
     );
     assert_eq!(
         state.waveform_toolbar_action_at_point(&layout, &model, point),
-        Some(crate::compat_app_contract::UiAction::HandleEscape)
+        Some(crate::app_core::native_shell::runtime_contract::UiAction::HandleEscape)
     );
 }
 
@@ -148,7 +148,7 @@ fn waveform_toolbar_hit_test_emits_stop_action_when_transport_running() {
 fn waveform_toolbar_hit_test_emits_loop_toggle_action() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
-    let mut model = crate::compat_app_contract::AppModel::default();
+    let mut model = crate::app_core::native_shell::runtime_contract::AppModel::default();
     model.waveform.loop_enabled = true;
     let loop_button = state
         .waveform_toolbar_button_rect(&layout, &model, "Loop")
@@ -159,7 +159,7 @@ fn waveform_toolbar_hit_test_emits_loop_toggle_action() {
     );
     assert_eq!(
         state.waveform_toolbar_action_at_point(&layout, &model, point),
-        Some(crate::compat_app_contract::UiAction::ToggleLoopPlayback)
+        Some(crate::app_core::native_shell::runtime_contract::UiAction::ToggleLoopPlayback)
     );
 }
 
@@ -167,7 +167,7 @@ fn waveform_toolbar_hit_test_emits_loop_toggle_action() {
 fn waveform_toolbar_shift_click_emits_loop_lock_action() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
-    let model = crate::compat_app_contract::AppModel::default();
+    let model = crate::app_core::native_shell::runtime_contract::AppModel::default();
     let loop_button = state
         .waveform_toolbar_button_rect(&layout, &model, "Loop")
         .expect("loop waveform toolbar button should be present");
@@ -177,7 +177,7 @@ fn waveform_toolbar_shift_click_emits_loop_lock_action() {
     );
     assert_eq!(
         state.waveform_toolbar_action_at_point_with_modifiers(&layout, &model, point, true),
-        Some(crate::compat_app_contract::UiAction::ToggleLoopLock)
+        Some(crate::app_core::native_shell::runtime_contract::UiAction::ToggleLoopLock)
     );
 }
 
@@ -185,7 +185,7 @@ fn waveform_toolbar_shift_click_emits_loop_lock_action() {
 fn waveform_toolbar_hit_test_emits_relative_grid_toggle_action() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
-    let model = crate::compat_app_contract::AppModel::default();
+    let model = crate::app_core::native_shell::runtime_contract::AppModel::default();
     let relative_grid = state
         .waveform_toolbar_button_rect(&layout, &model, "Rel Grid")
         .expect("relative grid waveform toolbar button should be present");
@@ -195,7 +195,7 @@ fn waveform_toolbar_hit_test_emits_relative_grid_toggle_action() {
     );
     assert_eq!(
         state.waveform_toolbar_action_at_point(&layout, &model, point),
-        Some(crate::compat_app_contract::UiAction::SetRelativeBpmGridEnabled { enabled: true })
+        Some(crate::app_core::native_shell::runtime_contract::UiAction::SetRelativeBpmGridEnabled { enabled: true })
     );
 }
 
@@ -203,7 +203,7 @@ fn waveform_toolbar_hit_test_emits_relative_grid_toggle_action() {
 fn waveform_toolbar_bpm_value_widget_exposes_input_hit_target() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
-    let mut model = crate::compat_app_contract::AppModel::default();
+    let mut model = crate::app_core::native_shell::runtime_contract::AppModel::default();
     model.waveform.tempo_label = Some(String::from("128.0 BPM"));
     let bpm_value = state
         .waveform_toolbar_button_rect(&layout, &model, "BPM Value")
@@ -214,3 +214,4 @@ fn waveform_toolbar_bpm_value_widget_exposes_input_hit_target() {
     );
     assert!(state.waveform_bpm_input_at_point(&layout, &model, point));
 }
+

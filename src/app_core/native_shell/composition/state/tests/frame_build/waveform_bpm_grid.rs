@@ -82,7 +82,7 @@ fn waveform_bpm_grid_lines_reuse_last_selection_origin_after_clear() {
     model.waveform.beat_step_micros = Some(125_000);
     model.waveform_chrome.bpm_snap_enabled = true;
     model.waveform_chrome.relative_bpm_grid_enabled = true;
-    model.waveform.selection_milli = Some(crate::compat_app_contract::NormalizedRangeModel::new(
+    model.waveform.selection_milli = Some(crate::app_core::native_shell::runtime_contract::NormalizedRangeModel::new(
         125, 375,
     ));
 
@@ -296,7 +296,7 @@ fn waveform_bpm_grid_lines_ignore_selection_origin_in_global_mode() {
     model.waveform.beat_step_micros = Some(125_000);
     model.waveform_chrome.bpm_snap_enabled = true;
     model.waveform_chrome.relative_bpm_grid_enabled = false;
-    model.waveform.selection_milli = Some(crate::compat_app_contract::NormalizedRangeModel::new(
+    model.waveform.selection_milli = Some(crate::app_core::native_shell::runtime_contract::NormalizedRangeModel::new(
         125, 375,
     ));
     model.waveform.bpm_grid_origin_micros = 250_000;
@@ -355,3 +355,4 @@ fn waveform_bpm_grid_positions(
     }
     (soft_xs, strong_xs)
 }
+

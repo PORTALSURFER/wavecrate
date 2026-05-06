@@ -1,7 +1,7 @@
 //! Visual fill, pulse, and meter helpers shared by native shell lists and toolbars.
 
 use super::*;
-use crate::compat_app_contract::{BrowserRowProcessingState, PlaybackAgeBucket};
+use crate::app_core::native_shell::runtime_contract::{BrowserRowProcessingState, PlaybackAgeBucket};
 
 pub(in crate::gui::native_shell::state) fn volume_action_for_meter(
     volume_meter: Rect,
@@ -205,3 +205,4 @@ pub(in crate::gui::native_shell::state) fn blend_color(a: Rgba8, b: Rgba8, amoun
         a: mix(a.a, b.a),
     }
 }
+

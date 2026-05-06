@@ -1,5 +1,5 @@
 use super::*;
-use crate::compat_app_contract::NormalizedRangeModel;
+use crate::app_core::native_shell::runtime_contract::NormalizedRangeModel;
 
 #[path = "waveform/toolbar.rs"]
 mod toolbar;
@@ -396,3 +396,4 @@ pub(in crate::gui::native_shell::state) fn waveform_hover_marker_rect(
         Point::new(right, waveform_plot.max.y),
     ))
 }
+

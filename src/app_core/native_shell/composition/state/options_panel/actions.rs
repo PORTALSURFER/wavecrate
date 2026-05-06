@@ -1,7 +1,7 @@
 //! Options-panel action definitions and paired-picker helpers.
 
 use super::*;
-use crate::compat_app_contract::{
+use crate::app_core::native_shell::runtime_contract::{
     PairedPickerOptionModel, PairedPickerTargetModel, PairedPickerValueModel,
 };
 
@@ -161,3 +161,4 @@ fn audio_picker_title(target: PairedPickerTargetModel) -> String {
 fn on_off_text(label: &str, enabled: bool) -> String {
     format!("{label}: {}", if enabled { "On" } else { "Off" })
 }
+

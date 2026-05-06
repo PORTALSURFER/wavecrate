@@ -137,8 +137,8 @@ impl From<gui_automation::GuiAutomationSnapshot> for GuiAutomationSnapshot {
     }
 }
 
-impl From<compat::NativeMotionModel> for NativeMotionModel {
-    fn from(value: compat::NativeMotionModel) -> Self {
+impl From<runtime_contract::NativeMotionModel> for NativeMotionModel {
+    fn from(value: runtime_contract::NativeMotionModel) -> Self {
         Self {
             transport_running: value.transport_running,
             map_active: value.map_active,
@@ -196,7 +196,7 @@ impl From<compat::NativeMotionModel> for NativeMotionModel {
     }
 }
 
-impl From<NativeMotionModel> for compat::NativeMotionModel {
+impl From<NativeMotionModel> for runtime_contract::NativeMotionModel {
     fn from(value: NativeMotionModel) -> Self {
         Self {
             transport_running: value.transport_running,
@@ -314,5 +314,6 @@ pub(crate) fn capture_native_shell_shot_snapshot(
     model: &NativeAppModel,
 ) -> impl serde::Serialize {
     let local_model = local_app_model_from_native_model(model);
-    crate::compat_app_contract::capture_native_shell_shot_snapshot(name, viewport, &local_model)
+    crate::app_core::native_shell::runtime_contract::capture_native_shell_shot_snapshot(name, viewport, &local_model)
 }
+

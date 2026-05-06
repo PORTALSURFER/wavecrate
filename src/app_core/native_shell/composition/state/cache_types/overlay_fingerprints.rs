@@ -72,7 +72,7 @@ pub(crate) struct StateOverlayFingerprint {
     /// Hovered browser row in visible-row space.
     pub hovered_browser_visible_row: Option<usize>,
     /// Hovered folder pane, when the pointer is over a folder pane.
-    pub hovered_folder_pane: Option<crate::compat_app_contract::FolderPaneIdModel>,
+    pub hovered_folder_pane: Option<crate::app_core::native_shell::runtime_contract::FolderPaneIdModel>,
     /// Hovered folder row by rendered sidebar row index.
     pub hovered_folder_row_index: Option<usize>,
     /// Hovered waveform-toolbar hint target.
@@ -95,7 +95,7 @@ pub(crate) struct HoverOverlayFingerprint {
     /// Hovered browser row in visible-row space.
     pub hovered_browser_visible_row: Option<usize>,
     /// Hovered folder pane, when the pointer is over a folder pane.
-    pub hovered_folder_pane: Option<crate::compat_app_contract::FolderPaneIdModel>,
+    pub hovered_folder_pane: Option<crate::app_core::native_shell::runtime_contract::FolderPaneIdModel>,
     /// Hovered folder row by rendered sidebar row index.
     pub hovered_folder_row_index: Option<usize>,
     /// Hovered waveform-toolbar hint target.
@@ -117,7 +117,7 @@ pub(crate) struct FocusOverlayFingerprint {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct ModalOverlayFingerprint {
     /// Active source-context-menu pane, if any.
-    pub source_context_menu_pane: Option<crate::compat_app_contract::FolderPaneIdModel>,
+    pub source_context_menu_pane: Option<crate::app_core::native_shell::runtime_contract::FolderPaneIdModel>,
     /// Active source-context-menu row, if any.
     pub source_context_menu_row_index: Option<usize>,
     /// Source-context-menu anchor x-position bits, if any.
@@ -178,7 +178,7 @@ pub(crate) struct ChromeMotionOverlayFingerprint {
     pub hovered_browser_rating_filter_level: Option<i8>,
     /// Hovered browser playback-age filter chip, if any.
     pub hovered_browser_playback_age_filter_chip:
-        Option<crate::compat_app_contract::PlaybackAgeFilterChip>,
+        Option<crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip>,
     /// Whether the browser marked-filter chip is hovered.
     pub hovered_browser_marked_filter: bool,
     /// Whether the browser search field is hovered.
@@ -208,3 +208,4 @@ pub(crate) struct ChromeMotionOverlayFingerprint {
     /// Quantized pulse animation phase.
     pub pulse_phase_bits: u32,
 }
+

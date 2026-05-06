@@ -44,7 +44,7 @@ fn prompt_buttons(
 fn prompt_hit_test_emits_confirm_and_cancel() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let state = NativeShellState::new();
-    let mut model = crate::compat_app_contract::AppModel::default();
+    let mut model = crate::app_core::native_shell::runtime_contract::AppModel::default();
     model.confirm_prompt.visible = true;
     let style = style::StyleTokens::for_viewport_width(layout.root.rect.width());
     let dialog = prompt_dialog(&layout, &style);
@@ -59,11 +59,11 @@ fn prompt_hit_test_emits_confirm_and_cancel() {
     );
     assert_eq!(
         state.prompt_action_at_point(&layout, &model, confirm_point),
-        Some(crate::compat_app_contract::UiAction::ConfirmPrompt)
+        Some(crate::app_core::native_shell::runtime_contract::UiAction::ConfirmPrompt)
     );
     assert_eq!(
         state.prompt_action_at_point(&layout, &model, cancel_point),
-        Some(crate::compat_app_contract::UiAction::CancelPrompt)
+        Some(crate::app_core::native_shell::runtime_contract::UiAction::CancelPrompt)
     );
 }
 
@@ -71,7 +71,7 @@ fn prompt_hit_test_emits_confirm_and_cancel() {
 fn prompt_input_hit_test_resolves_text_entry_rect() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let state = NativeShellState::new();
-    let mut model = crate::compat_app_contract::AppModel::default();
+    let mut model = crate::app_core::native_shell::runtime_contract::AppModel::default();
     model.confirm_prompt.visible = true;
     model.confirm_prompt.input_value = Some(String::from("kicks"));
     let style = style::StyleTokens::for_viewport_width(layout.root.rect.width());
@@ -90,7 +90,7 @@ fn prompt_input_hit_test_resolves_text_entry_rect() {
 fn prompt_confirm_hit_test_is_blocked_when_input_error_is_present() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let state = NativeShellState::new();
-    let mut model = crate::compat_app_contract::AppModel::default();
+    let mut model = crate::app_core::native_shell::runtime_contract::AppModel::default();
     model.confirm_prompt.visible = true;
     model.confirm_prompt.input_value = Some(String::from("bad/name"));
     model.confirm_prompt.input_error =
@@ -107,3 +107,4 @@ fn prompt_confirm_hit_test_is_blocked_when_input_error_is_present() {
         None
     );
 }
+

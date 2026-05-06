@@ -14,7 +14,7 @@ use super::layout_adapter::{
     compute_sidebar_band_sections_with_layout_engine,
 };
 use super::style::{SizingTokens, StyleTokens};
-use crate::compat_app_contract::DirtySegments;
+use crate::app_core::native_shell::runtime_contract::DirtySegments;
 use crate::gui::layout_core::{LayoutEngine, LayoutNode, LayoutState};
 use crate::gui::types::{Rect, Vector2};
 
@@ -248,7 +248,7 @@ mod tests {
         ShellLayoutDirtyKind, ShellLayoutRuntime, ShellLayoutTreeKind,
         dirty_segments_for_layout_subtree,
     };
-    use crate::compat_app_contract::DirtySegments;
+    use crate::app_core::native_shell::runtime_contract::DirtySegments;
     use crate::gui::native_shell::{ShellLayout, StyleTokens};
     use crate::gui::types::Vector2;
 
@@ -296,3 +296,4 @@ mod tests {
         );
     }
 }
+

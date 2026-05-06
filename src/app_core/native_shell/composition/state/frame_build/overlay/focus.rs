@@ -1,5 +1,5 @@
 use super::*;
-use crate::compat_app_contract::{FocusContextModel, FolderPaneIdModel};
+use crate::app_core::native_shell::runtime_contract::{FocusContextModel, FolderPaneIdModel};
 
 mod shared;
 
@@ -413,3 +413,4 @@ pub(super) fn render_browser_focus_overlay(
         }
     }
 }
+

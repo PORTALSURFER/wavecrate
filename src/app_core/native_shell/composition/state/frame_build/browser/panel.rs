@@ -1,5 +1,5 @@
 use super::*;
-use crate::compat_app_contract::PlaybackAgeFilterChip;
+use crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip;
 
 pub(super) fn render_browser_frame(
     state: &mut NativeShellState,
@@ -362,3 +362,4 @@ fn browser_playback_age_filter_icon(chip: PlaybackAgeFilterChip) -> WaveformTool
         PlaybackAgeFilterChip::OlderThanWeek => WaveformToolbarIcon::BrowserOlderThanWeek,
     }
 }
+

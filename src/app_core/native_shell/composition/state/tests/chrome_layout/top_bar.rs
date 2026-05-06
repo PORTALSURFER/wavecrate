@@ -3,8 +3,8 @@ use super::super::*;
 #[test]
 fn top_bar_surface_layout_stays_ordered_across_density_tiers() {
     let model = AppModel {
-        update: crate::compat_app_contract::UpdatePanelModel {
-            status: crate::compat_app_contract::UpdateStatusModel::Available,
+        update: crate::app_core::native_shell::runtime_contract::UpdatePanelModel {
+            status: crate::app_core::native_shell::runtime_contract::UpdateStatusModel::Available,
             status_label: String::from("Update available: v20.1.0"),
             action_hint_label: String::from("Actions: open | install(manual) | dismiss"),
             release_notes_label: String::from("Release: v20.1.0"),
@@ -40,3 +40,4 @@ fn top_bar_surface_layout_stays_ordered_across_density_tiers() {
         }
     }
 }
+

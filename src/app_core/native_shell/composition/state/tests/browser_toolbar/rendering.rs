@@ -22,9 +22,9 @@ fn browser_filter_icons_replace_legacy_age_and_mark_labels() {
     );
 
     for chip in [
-        crate::compat_app_contract::PlaybackAgeFilterChip::NeverPlayed,
-        crate::compat_app_contract::PlaybackAgeFilterChip::OlderThanMonth,
-        crate::compat_app_contract::PlaybackAgeFilterChip::OlderThanWeek,
+        crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip::NeverPlayed,
+        crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip::OlderThanMonth,
+        crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip::OlderThanWeek,
     ] {
         let chip_rect = state
             .browser_playback_age_filter_chip_rect(&layout, &model, chip)
@@ -119,3 +119,4 @@ fn browser_frame_text_cache_reuses_and_invalidates_on_search_changes() {
     assert_eq!(third.cache_hit_count, 1);
     assert_eq!(third.cache_miss_count, 1);
 }
+

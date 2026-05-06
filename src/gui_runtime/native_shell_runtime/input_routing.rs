@@ -12,15 +12,15 @@ fn focus_context_from_radiant(focus: RadiantFocusSurface) -> FocusContext {
 
 /// Resolve Sempal focus from the projected model, falling back to Radiant focus.
 pub(super) fn sempal_focus_context(
-    model: &compat::AppModel,
+    model: &runtime_contract::AppModel,
     focus: RadiantFocusSurface,
 ) -> FocusContext {
     match model.focus_context {
-        compat::FocusContextModel::None => focus_context_from_radiant(focus),
-        compat::FocusContextModel::Timeline => FocusContext::Waveform,
-        compat::FocusContextModel::ContentList => FocusContext::SampleBrowser,
-        compat::FocusContextModel::NavigationTree => FocusContext::SourceFolders,
-        compat::FocusContextModel::NavigationList => FocusContext::SourcesList,
+        runtime_contract::FocusContextModel::None => focus_context_from_radiant(focus),
+        runtime_contract::FocusContextModel::Timeline => FocusContext::Waveform,
+        runtime_contract::FocusContextModel::ContentList => FocusContext::SampleBrowser,
+        runtime_contract::FocusContextModel::NavigationTree => FocusContext::SourceFolders,
+        runtime_contract::FocusContextModel::NavigationList => FocusContext::SourcesList,
     }
 }
 
@@ -61,10 +61,10 @@ pub(super) fn retained_input_from_widget_input(input: WidgetInput) -> RetainedCa
 /// Resolve a retained pointer press into a Sempal compatibility action.
 pub(super) fn action_from_retained_pointer(
     layout: &ShellLayout,
-    model: &compat::AppModel,
+    model: &runtime_contract::AppModel,
     shell_state: &mut NativeShellState,
     point: Point,
-) -> Option<compat::UiAction> {
+) -> Option<runtime_contract::UiAction> {
     route_modal_and_chrome_actions(layout, model, shell_state, point)
         .or_else(|| route_browser_or_folder_row(layout, model, shell_state, point))
         .or_else(|| route_shell_background(layout, model, shell_state, point))
@@ -73,10 +73,10 @@ pub(super) fn action_from_retained_pointer(
 /// Route pointer presses through modal, chrome, toolbar, and action surfaces.
 fn route_modal_and_chrome_actions(
     layout: &ShellLayout,
-    model: &compat::AppModel,
+    model: &runtime_contract::AppModel,
     shell_state: &mut NativeShellState,
     point: Point,
-) -> Option<compat::UiAction> {
+) -> Option<runtime_contract::UiAction> {
     if let Some(action) = shell_state.prompt_action_at_point(layout, model, point) {
         return Some(action);
     }
@@ -95,13 +95,13 @@ fn route_modal_and_chrome_actions(
             return None;
         }
         shell_state.close_sidebar_filter_dropdown();
-        return Some(compat::UiAction::FocusBrowserPanel);
+        return Some(runtime_contract::UiAction::FocusBrowserPanel);
     }
     if model.options_panel.visible {
         if shell_state.options_panel_contains_point_live(layout, model, point) {
             return None;
         }
-        return Some(compat::UiAction::CloseOptionsPanel);
+        return Some(runtime_contract::UiAction::CloseOptionsPanel);
     }
     if let Some(action) = shell_state.status_options_action_at_point(layout, model, point) {
         return Some(action);
@@ -127,7 +127,7 @@ fn route_modal_and_chrome_actions(
     if let Some(action) = shell_state.folder_header_action_at_point(layout, model, point) {
         return Some(action);
     }
-    let motion_model = compat::NativeMotionModel::from_app_model(model);
+    let motion_model = runtime_contract::NativeMotionModel::from_app_model(model);
     shell_state
         .waveform_toolbar_action_at_point_with_motion_and_modifiers(
             layout,
@@ -143,15 +143,15 @@ fn route_modal_and_chrome_actions(
 /// Route pointer presses that target browser rows or folder rows.
 fn route_browser_or_folder_row(
     layout: &ShellLayout,
-    model: &compat::AppModel,
+    model: &runtime_contract::AppModel,
     shell_state: &mut NativeShellState,
     point: Point,
-) -> Option<compat::UiAction> {
+) -> Option<runtime_contract::UiAction> {
     if let Some(action) = shell_state.browser_row_similarity_action_at_point(layout, model, point) {
         return Some(action);
     }
     if let Some(visible_row) = shell_state.browser_row_at_point(layout, model, point) {
-        return Some(compat::UiAction::FocusBrowserRow { visible_row });
+        return Some(runtime_contract::UiAction::FocusBrowserRow { visible_row });
     }
     if let Some((pane, index)) = shell_state.folder_row_disclosure_at_point(layout, model, point) {
         return Some(folder_row_disclosure_action(model, pane, index));
@@ -164,10 +164,10 @@ fn route_browser_or_folder_row(
 /// Route pointer presses that land on the shell background areas.
 fn route_shell_background(
     layout: &ShellLayout,
-    model: &compat::AppModel,
+    model: &runtime_contract::AppModel,
     shell_state: &mut NativeShellState,
     point: Point,
-) -> Option<compat::UiAction> {
+) -> Option<runtime_contract::UiAction> {
     let hit = layout.hit_test(point)?;
     match hit {
         ShellNodeKind::Sidebar => route_sidebar_background(layout, model, shell_state, point),
@@ -175,14 +175,14 @@ fn route_shell_background(
             if layout.waveform_plot.contains(point) {
                 Some(waveform_cursor_action_from_point(layout, model, point))
             } else {
-                Some(compat::UiAction::FocusWaveformPanel)
+                Some(runtime_contract::UiAction::FocusWaveformPanel)
             }
         }
-        ShellNodeKind::TopBar => Some(compat::UiAction::ToggleTransport),
+        ShellNodeKind::TopBar => Some(runtime_contract::UiAction::ToggleTransport),
         ShellNodeKind::BrowserPanel | ShellNodeKind::BrowserTabs | ShellNodeKind::BrowserTable => {
-            Some(compat::UiAction::FocusBrowserPanel)
+            Some(runtime_contract::UiAction::FocusBrowserPanel)
         }
-        ShellNodeKind::StatusBar => Some(compat::UiAction::FocusLoadedContentInList),
+        ShellNodeKind::StatusBar => Some(runtime_contract::UiAction::FocusLoadedContentInList),
         _ => None,
     }
 }
@@ -190,12 +190,12 @@ fn route_shell_background(
 /// Route pointer presses that land in sidebar background space.
 fn route_sidebar_background(
     layout: &ShellLayout,
-    model: &compat::AppModel,
+    model: &runtime_contract::AppModel,
     shell_state: &mut NativeShellState,
     point: Point,
-) -> Option<compat::UiAction> {
+) -> Option<runtime_contract::UiAction> {
     if let Some((_pane, index)) = shell_state.source_row_at_point(layout, model, point) {
-        return Some(compat::UiAction::FocusSourceRow { index });
+        return Some(runtime_contract::UiAction::FocusSourceRow { index });
     }
     if let Some((pane, index)) = shell_state.folder_row_disclosure_at_point(layout, model, point) {
         return Some(folder_row_disclosure_action(model, pane, index));
@@ -208,26 +208,26 @@ fn route_sidebar_background(
 
 /// Return the folder-row action for a disclosure target.
 fn folder_row_disclosure_action(
-    model: &compat::AppModel,
+    model: &runtime_contract::AppModel,
     pane: FolderPaneIdModel,
     index: usize,
-) -> compat::UiAction {
+) -> runtime_contract::UiAction {
     let Some(row) = folder_row_for_pointer_action(model, pane, index) else {
-        return compat::UiAction::FocusFolderRow { index };
+        return runtime_contract::UiAction::FocusFolderRow { index };
     };
     if matches!(
         row.kind,
-        compat::FolderRowKind::CreateDraft | compat::FolderRowKind::RenameDraft
+        runtime_contract::FolderRowKind::CreateDraft | runtime_contract::FolderRowKind::RenameDraft
     ) {
-        return compat::UiAction::FocusFolderCreateInput;
+        return runtime_contract::UiAction::FocusFolderCreateInput;
     }
     let source_index = row.backing_index.unwrap_or(index);
     if folder_row_disclosure_toggles_expansion(model.sources.folder_pane(pane), index) {
-        compat::UiAction::ToggleFolderRowExpanded {
+        runtime_contract::UiAction::ToggleFolderRowExpanded {
             index: source_index,
         }
     } else {
-        compat::UiAction::FocusFolderRow {
+        runtime_contract::UiAction::FocusFolderRow {
             index: source_index,
         }
     }
@@ -235,30 +235,30 @@ fn folder_row_disclosure_action(
 
 /// Return the folder-row action for a row body target.
 fn folder_row_body_action(
-    model: &compat::AppModel,
+    model: &runtime_contract::AppModel,
     pane: FolderPaneIdModel,
     index: usize,
-) -> compat::UiAction {
+) -> runtime_contract::UiAction {
     let Some(row) = folder_row_for_pointer_action(model, pane, index) else {
-        return compat::UiAction::FocusFolderRow { index };
+        return runtime_contract::UiAction::FocusFolderRow { index };
     };
     if matches!(
         row.kind,
-        compat::FolderRowKind::CreateDraft | compat::FolderRowKind::RenameDraft
+        runtime_contract::FolderRowKind::CreateDraft | runtime_contract::FolderRowKind::RenameDraft
     ) {
-        return compat::UiAction::FocusFolderCreateInput;
+        return runtime_contract::UiAction::FocusFolderCreateInput;
     }
-    compat::UiAction::FocusFolderRow {
+    runtime_contract::UiAction::FocusFolderRow {
         index: row.backing_index.unwrap_or(index),
     }
 }
 
 /// Resolve the folder row model addressed by retained pointer routing.
 fn folder_row_for_pointer_action(
-    model: &compat::AppModel,
+    model: &runtime_contract::AppModel,
     pane: FolderPaneIdModel,
     index: usize,
-) -> Option<&compat::FolderRowModel> {
+) -> Option<&runtime_contract::FolderRowModel> {
     let pane_row = model.sources.folder_pane(pane).tree_rows.get(index);
     let flat_active_row = (pane == model.sources.active_folder_pane)
         .then(|| model.sources.tree_rows.get(index))
@@ -267,7 +267,7 @@ fn folder_row_for_pointer_action(
         .filter(|row| {
             matches!(
                 row.kind,
-                compat::FolderRowKind::CreateDraft | compat::FolderRowKind::RenameDraft
+                runtime_contract::FolderRowKind::CreateDraft | runtime_contract::FolderRowKind::RenameDraft
             )
         })
         .or(pane_row)
@@ -276,7 +276,7 @@ fn folder_row_for_pointer_action(
 
 /// Return whether a folder-row disclosure should expand or collapse the row.
 fn folder_row_disclosure_toggles_expansion(
-    pane_model: &compat::FolderPaneModel,
+    pane_model: &runtime_contract::FolderPaneModel,
     index: usize,
 ) -> bool {
     let Some(row) = pane_model.tree_rows.get(index) else {
@@ -286,7 +286,7 @@ fn folder_row_disclosure_toggles_expansion(
         && !row.is_root
         && !matches!(
             row.kind,
-            compat::FolderRowKind::CreateDraft | compat::FolderRowKind::RenameDraft
+            runtime_contract::FolderRowKind::CreateDraft | runtime_contract::FolderRowKind::RenameDraft
         )
         && pane_model.tree_search_query.trim().is_empty()
 }
@@ -294,9 +294,9 @@ fn folder_row_disclosure_toggles_expansion(
 /// Translate a waveform-plot pointer location into an absolute cursor action.
 fn waveform_cursor_action_from_point(
     layout: &ShellLayout,
-    model: &compat::AppModel,
+    model: &runtime_contract::AppModel,
     point: Point,
-) -> compat::UiAction {
+) -> runtime_contract::UiAction {
     let x_ratio = if layout.waveform_plot.width() <= 0.0 {
         0.0
     } else {
@@ -306,7 +306,8 @@ fn waveform_cursor_action_from_point(
     let start = viewport.start_nanos.min(viewport.end_nanos);
     let end = viewport.start_nanos.max(viewport.end_nanos);
     let span = end.saturating_sub(start);
-    compat::UiAction::SetWaveformCursorPrecise {
+    runtime_contract::UiAction::SetWaveformCursorPrecise {
         position_nanos: start.saturating_add(((span as f32) * x_ratio).round() as u32),
     }
 }
+

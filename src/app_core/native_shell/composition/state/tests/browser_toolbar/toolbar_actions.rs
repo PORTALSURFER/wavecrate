@@ -1,5 +1,5 @@
 use super::*;
-use crate::compat_app_contract::AutomationNodeSnapshot;
+use crate::app_core::native_shell::runtime_contract::AutomationNodeSnapshot;
 
 fn child<'a>(parent: &'a AutomationNodeSnapshot, id: &str) -> &'a AutomationNodeSnapshot {
     parent
@@ -181,7 +181,7 @@ fn browser_automation_exposes_marked_filter_and_marked_row_metadata() {
 
     assert_eq!(
         marked_filter.role,
-        crate::compat_app_contract::AutomationRole::Button
+        crate::app_core::native_shell::runtime_contract::AutomationRole::Button
     );
     assert!(marked_filter.selected);
     assert_eq!(
@@ -190,7 +190,7 @@ fn browser_automation_exposes_marked_filter_and_marked_row_metadata() {
     );
     assert_eq!(
         derived_label_filter.role,
-        crate::compat_app_contract::AutomationRole::Button
+        crate::app_core::native_shell::runtime_contract::AutomationRole::Button
     );
     assert_eq!(
         derived_label_filter.available_actions,
@@ -206,7 +206,7 @@ fn browser_automation_exposes_playback_age_filters_and_row_bucket_metadata() {
     model.browser.active_recency_filters = [true, false, true];
     model.browser.rows.push(
         BrowserRowModel::new(0, "Never played row", 1, false, true)
-            .with_playback_age_bucket(crate::compat_app_contract::PlaybackAgeBucket::NeverPlayed),
+            .with_playback_age_bucket(crate::app_core::native_shell::runtime_contract::PlaybackAgeBucket::NeverPlayed),
     );
     model.browser.visible_count = model.browser.rows.len();
     let mut state = NativeShellState::new();
@@ -229,3 +229,4 @@ fn browser_automation_exposes_playback_age_filters_and_row_bucket_metadata() {
         Some("never")
     );
 }
+

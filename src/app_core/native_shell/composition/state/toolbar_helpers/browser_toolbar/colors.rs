@@ -1,7 +1,7 @@
 //! Browser toolbar color and hover rendering helpers.
 
 use super::super::super::*;
-use crate::compat_app_contract::PlaybackAgeFilterChip;
+use crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip;
 
 pub(in crate::gui::native_shell::state) fn browser_marked_filter_chip_contains_point(
     chip: Rect,
@@ -313,3 +313,4 @@ pub(in crate::gui::native_shell::state) fn browser_rating_filter_chip_border(
         blend_color(style.border, style.surface_overlay, 0.25)
     }
 }
+

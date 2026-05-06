@@ -1,5 +1,5 @@
 use super::*;
-use crate::compat_app_contract::FolderRowKind;
+use crate::app_core::native_shell::runtime_contract::FolderRowKind;
 
 impl NativeShellState {
     /// Return the projected inline folder-edit row index in the active pane, when present.
@@ -98,3 +98,4 @@ pub(in crate::gui::native_shell::state) fn folder_create_text_rect(
 ) -> Rect {
     compute_action_button_text_rect(field_rect, sizing)
 }
+

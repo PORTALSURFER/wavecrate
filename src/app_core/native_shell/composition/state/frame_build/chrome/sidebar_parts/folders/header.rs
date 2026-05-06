@@ -1,5 +1,5 @@
 use super::*;
-use crate::compat_app_contract::FolderPaneModel;
+use crate::app_core::native_shell::runtime_contract::FolderPaneModel;
 
 pub(super) fn render_folder_header(
     ctx: &StaticFrameCtx<'_>,
@@ -198,3 +198,4 @@ fn folder_toggle_text_color(ctx: &StaticFrameCtx<'_>, active: bool, enabled: boo
         ctx.style.text_primary
     }
 }
+

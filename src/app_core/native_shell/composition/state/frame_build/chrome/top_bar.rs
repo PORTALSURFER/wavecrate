@@ -1,5 +1,5 @@
 use super::*;
-use crate::compat_app_contract::StatusChipStateModel;
+use crate::app_core::native_shell::runtime_contract::StatusChipStateModel;
 
 pub(super) fn render_top_bar_controls(
     state: &NativeShellState,
@@ -173,3 +173,4 @@ fn render_update_buttons(
         );
     }
 }
+

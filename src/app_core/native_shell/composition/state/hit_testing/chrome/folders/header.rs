@@ -1,5 +1,5 @@
 use super::*;
-use crate::compat_app_contract::FolderPaneIdModel;
+use crate::app_core::native_shell::runtime_contract::FolderPaneIdModel;
 
 impl NativeShellState {
     /// Return the folder-visibility toggle button rect for tests.
@@ -101,3 +101,4 @@ struct FolderHeaderHitButton {
     rect: Rect,
     enabled: bool,
 }
+

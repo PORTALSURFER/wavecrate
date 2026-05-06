@@ -50,16 +50,16 @@ mod tests {
         let removed_runtime_module = format!("mod {}{};", "native_", "vello");
 
         assert!(
-            adapter.contains("crate::compat_app_contract as compat")
+            adapter.contains("crate::app_core::native_shell::runtime_contract")
                 && adapter.contains("run_native_vello_runtime_with_artifacts")
                 && adapter.contains("SempalRuntimeBridge::new(bridge)")
                 && adapter.contains("local_automation_snapshot_from_native_shell")
                 && adapter
-                    .contains("crate::compat_app_contract::capture_native_shell_shot_snapshot"),
+                    .contains("crate::app_core::native_shell::runtime_contract::capture_native_shell_shot_snapshot"),
             "Sempal compatibility conversion, generic runtime launch, automation, and shot snapshots should stay in the runtime adapter"
         );
         assert!(
-            !adapter.contains(&format!("{}{}", "radiant::compat::", "legacy_shell"))
+            !adapter.contains(&format!("{}{}", "radiant::runtime_contract::", "legacy_shell"))
                 && !adapter.contains(&format!(
                     "{}{}",
                     "run_legacy_native_vello_", "app_with_artifacts"
@@ -206,8 +206,8 @@ mod tests {
     /// Retained canvas frames include local overlays that do not change the app projection.
     fn retained_shell_render_includes_hover_and_playhead_overlays() {
         let repaint_installed = Arc::new(AtomicBool::new(false));
-        let mut model = compat::AppModel::default();
-        model.browser.rows.push(compat::BrowserRowModel::new(
+        let mut model = runtime_contract::AppModel::default();
+        model.browser.rows.push(runtime_contract::BrowserRowModel::new(
             0,
             "hovered sample",
             1,
@@ -384,3 +384,4 @@ mod tests {
         sources
     }
 }
+

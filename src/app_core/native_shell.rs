@@ -78,6 +78,10 @@ mod waveform_image_translation;
 mod waveform_projection;
 
 pub(crate) use app_model::project_app_model;
+
+/// Sempal-owned runtime contract consumed by native-shell composition and the runtime adapter.
+#[path = "native_shell/runtime_contract.rs"]
+pub(crate) mod runtime_contract;
 #[cfg(test)]
 use app_model::{
     assemble_project_app_model, derive_project_app_model_inputs,

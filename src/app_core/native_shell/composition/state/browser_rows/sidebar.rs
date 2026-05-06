@@ -1,7 +1,7 @@
 //! Sidebar/source-row geometry helpers shared by the native shell.
 
 use super::*;
-use crate::compat_app_contract::{FolderPaneIdModel, FolderPaneModel};
+use crate::app_core::native_shell::runtime_contract::{FolderPaneIdModel, FolderPaneModel};
 use crate::gui::list::{
     VirtualListScrollbarRequest, VirtualListStackMetrics, VirtualListWindowRequest,
     resolve_virtual_list_scrollbar, resolve_virtual_list_window,
@@ -340,3 +340,4 @@ pub(in crate::gui::native_shell::state) fn folder_pane_model(
 ) -> &FolderPaneModel {
     model.sources.folder_pane(pane)
 }
+

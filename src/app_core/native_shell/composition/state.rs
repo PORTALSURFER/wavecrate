@@ -50,7 +50,7 @@ use super::{
         resolve_waveform_toolbar_surface_layout,
     },
 };
-use crate::compat_app_contract::{
+use crate::app_core::native_shell::runtime_contract::{
     AppModel, BrowserRowModel, DirtySegments, NativeMotionModel, UiAction,
 };
 use crate::gui::paint::{
@@ -130,10 +130,10 @@ const SOURCE_ADD_BUTTON_FLASH_TICKS: u8 = 6;
 /// Rating-filter chip levels shown left-to-right in the browser toolbar.
 const BROWSER_RATING_FILTER_LEVELS: [i8; 8] = [-3, -2, -1, 0, 1, 2, 3, 4];
 /// Playback-age filter chips shown left-to-right in the browser toolbar.
-const BROWSER_PLAYBACK_AGE_FILTER_CHIPS: [crate::compat_app_contract::PlaybackAgeFilterChip; 3] = [
-    crate::compat_app_contract::PlaybackAgeFilterChip::NeverPlayed,
-    crate::compat_app_contract::PlaybackAgeFilterChip::OlderThanMonth,
-    crate::compat_app_contract::PlaybackAgeFilterChip::OlderThanWeek,
+const BROWSER_PLAYBACK_AGE_FILTER_CHIPS: [crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip; 3] = [
+    crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip::NeverPlayed,
+    crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip::OlderThanMonth,
+    crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip::OlderThanWeek,
 ];
 /// Additional hit slop for the narrow content-list scrollbar thumb.
 const BROWSER_SCROLLBAR_THUMB_HIT_SLOP: f32 = 3.0;
@@ -184,13 +184,13 @@ pub(crate) struct NativeShellState {
     hovered_browser_visible_row: Option<usize>,
     hovered_browser_rating_filter_level: Option<i8>,
     hovered_browser_playback_age_filter_chip:
-        Option<crate::compat_app_contract::PlaybackAgeFilterChip>,
+        Option<crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip>,
     hovered_browser_marked_filter: bool,
     hovered_browser_search_field: bool,
     browser_search_editor_visual: Option<TextFieldVisualState>,
     browser_pill_editor_visual: Option<TextFieldVisualState>,
     folder_create_editor_visual: Option<TextFieldVisualState>,
-    hovered_folder_pane: Option<crate::compat_app_contract::FolderPaneIdModel>,
+    hovered_folder_pane: Option<crate::app_core::native_shell::runtime_contract::FolderPaneIdModel>,
     hovered_folder_row_index: Option<usize>,
     hovered_source_add_button: bool,
     hovered_status_options_button: bool,
@@ -340,7 +340,7 @@ impl NativeShellState {
     /// Return the pane currently associated with the hovered folder row, when any.
     pub(crate) fn hovered_folder_pane(
         &self,
-    ) -> Option<crate::compat_app_contract::FolderPaneIdModel> {
+    ) -> Option<crate::app_core::native_shell::runtime_contract::FolderPaneIdModel> {
         self.hovered_folder_pane
     }
 
@@ -422,7 +422,7 @@ impl NativeShellState {
     /// Open the transient source context menu for one source row.
     pub(crate) fn open_source_context_menu_for_row(
         &mut self,
-        pane: crate::compat_app_contract::FolderPaneIdModel,
+        pane: crate::app_core::native_shell::runtime_contract::FolderPaneIdModel,
         row_index: usize,
         anchor: Point,
     ) {
@@ -484,7 +484,7 @@ impl NativeShellState {
 #[cfg(test)]
 mod opt_272_tests {
     use super::*;
-    use crate::compat_app_contract::{FolderPaneIdModel, FolderRowModel, SourceRowModel};
+    use crate::app_core::native_shell::runtime_contract::{FolderPaneIdModel, FolderRowModel, SourceRowModel};
     use crate::gui::types::Vector2;
 
     fn browser_model_with_rows(total: usize, focused_visible_row: usize) -> AppModel {
@@ -605,7 +605,7 @@ mod opt_272_tests {
         assert_eq!(
             state.source_action_at_point(&layout, &model, chip.center()),
             Some(
-                crate::compat_app_contract::UiAction::ToggleBrowserRatingFilter {
+                crate::app_core::native_shell::runtime_contract::UiAction::ToggleBrowserRatingFilter {
                     level: 3,
                     invert: false,
                 }
@@ -664,7 +664,7 @@ mod opt_272_tests {
                 .expect("left-sidebar filter row should exist");
             assert_eq!(
                 state.source_action_at_point(&layout, &model, row.center()),
-                Some(crate::compat_app_contract::UiAction::FocusBrowserPanel)
+                Some(crate::app_core::native_shell::runtime_contract::UiAction::FocusBrowserPanel)
             );
             assert!(state.sidebar_filter_dropdown_visible());
             let option_rect = state
@@ -677,7 +677,7 @@ mod opt_272_tests {
                     option_rect.center()
                 ),
                 Some(
-                    crate::compat_app_contract::UiAction::ToggleBrowserSidebarFilter {
+                    crate::app_core::native_shell::runtime_contract::UiAction::ToggleBrowserSidebarFilter {
                         option,
                         additive: true,
                     }
@@ -704,7 +704,7 @@ mod opt_272_tests {
 
         assert_eq!(
             state.source_action_at_point(&layout, &model, row.center()),
-            Some(crate::compat_app_contract::UiAction::FocusBrowserPanel)
+            Some(crate::app_core::native_shell::runtime_contract::UiAction::FocusBrowserPanel)
         );
         let clear_rect = state
             .sidebar_filter_dropdown_option_rect(&layout, &model, 4)
@@ -713,7 +713,7 @@ mod opt_272_tests {
         assert_eq!(
             state.sidebar_filter_dropdown_action_at_point(&layout, &model, clear_rect.center()),
             Some(
-                crate::compat_app_contract::UiAction::ClearBrowserSidebarFilter {
+                crate::app_core::native_shell::runtime_contract::UiAction::ClearBrowserSidebarFilter {
                     facet: crate::app_core::app_api::state::BrowserSidebarFilterFacet::Bpm,
                 }
             )
@@ -821,3 +821,4 @@ mod opt_272_tests {
         );
     }
 }
+

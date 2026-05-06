@@ -1,6 +1,6 @@
 use super::*;
 
-fn retained_vec_from_compat<T, U>(value: compat::RetainedVec<T>) -> RetainedVec<U>
+fn retained_vec_from_compat<T, U>(value: runtime_contract::RetainedVec<T>) -> RetainedVec<U>
 where
     T: Clone + Into<U>,
 {
@@ -13,7 +13,7 @@ where
         .into()
 }
 
-fn retained_vec_to_compat<T, U>(value: RetainedVec<T>) -> compat::RetainedVec<U>
+fn retained_vec_to_compat<T, U>(value: RetainedVec<T>) -> runtime_contract::RetainedVec<U>
 where
     T: Clone + Into<U>,
 {
@@ -26,19 +26,19 @@ where
         .into()
 }
 
-impl From<compat::FocusContextModel> for FocusContextModel {
-    fn from(value: compat::FocusContextModel) -> Self {
+impl From<runtime_contract::FocusContextModel> for FocusContextModel {
+    fn from(value: runtime_contract::FocusContextModel) -> Self {
         match value {
-            compat::FocusContextModel::None => Self::None,
-            compat::FocusContextModel::Timeline => Self::Waveform,
-            compat::FocusContextModel::ContentList => Self::SampleBrowser,
-            compat::FocusContextModel::NavigationTree => Self::SourceFolders,
-            compat::FocusContextModel::NavigationList => Self::SourcesList,
+            runtime_contract::FocusContextModel::None => Self::None,
+            runtime_contract::FocusContextModel::Timeline => Self::Waveform,
+            runtime_contract::FocusContextModel::ContentList => Self::SampleBrowser,
+            runtime_contract::FocusContextModel::NavigationTree => Self::SourceFolders,
+            runtime_contract::FocusContextModel::NavigationList => Self::SourcesList,
         }
     }
 }
 
-impl From<FocusContextModel> for compat::FocusContextModel {
+impl From<FocusContextModel> for runtime_contract::FocusContextModel {
     fn from(value: FocusContextModel) -> Self {
         match value {
             FocusContextModel::None => Self::None,
@@ -50,14 +50,14 @@ impl From<FocusContextModel> for compat::FocusContextModel {
     }
 }
 
-impl From<&SourcesPanelModel> for compat::SourcesPanelModel {
+impl From<&SourcesPanelModel> for runtime_contract::SourcesPanelModel {
     fn from(value: &SourcesPanelModel) -> Self {
         value.clone()
     }
 }
 
-impl From<compat::BrowserPanelModel> for BrowserPanelModel {
-    fn from(value: compat::BrowserPanelModel) -> Self {
+impl From<runtime_contract::BrowserPanelModel> for BrowserPanelModel {
+    fn from(value: runtime_contract::BrowserPanelModel) -> Self {
         Self {
             visible_count: value.visible_count,
             selected_visible_row: value.selected_visible_row,
@@ -88,7 +88,7 @@ impl From<compat::BrowserPanelModel> for BrowserPanelModel {
     }
 }
 
-impl From<BrowserPanelModel> for compat::BrowserPanelModel {
+impl From<BrowserPanelModel> for runtime_contract::BrowserPanelModel {
     fn from(value: BrowserPanelModel) -> Self {
         Self {
             visible_count: value.visible_count,
@@ -119,14 +119,14 @@ impl From<BrowserPanelModel> for compat::BrowserPanelModel {
     }
 }
 
-impl From<&BrowserPanelModel> for compat::BrowserPanelModel {
+impl From<&BrowserPanelModel> for runtime_contract::BrowserPanelModel {
     fn from(value: &BrowserPanelModel) -> Self {
         value.clone().into()
     }
 }
 
-impl From<compat::BrowserChromeModel> for BrowserChromeModel {
-    fn from(value: compat::BrowserChromeModel) -> Self {
+impl From<runtime_contract::BrowserChromeModel> for BrowserChromeModel {
+    fn from(value: runtime_contract::BrowserChromeModel) -> Self {
         Self {
             samples_tab_label: value.items_tab_label,
             sample_column_label: value.item_column_label,
@@ -144,7 +144,7 @@ impl From<compat::BrowserChromeModel> for BrowserChromeModel {
     }
 }
 
-impl From<BrowserChromeModel> for compat::BrowserChromeModel {
+impl From<BrowserChromeModel> for runtime_contract::BrowserChromeModel {
     fn from(value: BrowserChromeModel) -> Self {
         Self {
             items_tab_label: value.samples_tab_label,
@@ -163,14 +163,14 @@ impl From<BrowserChromeModel> for compat::BrowserChromeModel {
     }
 }
 
-impl From<&BrowserChromeModel> for compat::BrowserChromeModel {
+impl From<&BrowserChromeModel> for runtime_contract::BrowserChromeModel {
     fn from(value: &BrowserChromeModel) -> Self {
         value.clone().into()
     }
 }
 
-impl From<compat::BrowserActionsModel> for BrowserActionsModel {
-    fn from(value: compat::BrowserActionsModel) -> Self {
+impl From<runtime_contract::BrowserActionsModel> for BrowserActionsModel {
+    fn from(value: runtime_contract::BrowserActionsModel) -> Self {
         Self {
             can_rename: value.can_rename,
             can_delete: value.can_delete,
@@ -184,7 +184,7 @@ impl From<compat::BrowserActionsModel> for BrowserActionsModel {
     }
 }
 
-impl From<BrowserActionsModel> for compat::BrowserActionsModel {
+impl From<BrowserActionsModel> for runtime_contract::BrowserActionsModel {
     fn from(value: BrowserActionsModel) -> Self {
         Self {
             can_rename: value.can_rename,
@@ -199,26 +199,26 @@ impl From<BrowserActionsModel> for compat::BrowserActionsModel {
     }
 }
 
-impl From<&BrowserActionsModel> for compat::BrowserActionsModel {
+impl From<&BrowserActionsModel> for runtime_contract::BrowserActionsModel {
     fn from(value: &BrowserActionsModel) -> Self {
         value.clone().into()
     }
 }
 
-impl From<compat::PairedPickerTargetModel> for AudioPickerTargetModel {
-    fn from(value: compat::PairedPickerTargetModel) -> Self {
+impl From<runtime_contract::PairedPickerTargetModel> for AudioPickerTargetModel {
+    fn from(value: runtime_contract::PairedPickerTargetModel) -> Self {
         match value {
-            compat::PairedPickerTargetModel::PrimaryGroup => Self::OutputHost,
-            compat::PairedPickerTargetModel::PrimaryItem => Self::OutputDevice,
-            compat::PairedPickerTargetModel::PrimaryNumber => Self::OutputSampleRate,
-            compat::PairedPickerTargetModel::SecondaryGroup => Self::InputHost,
-            compat::PairedPickerTargetModel::SecondaryItem => Self::InputDevice,
-            compat::PairedPickerTargetModel::SecondaryNumber => Self::InputSampleRate,
+            runtime_contract::PairedPickerTargetModel::PrimaryGroup => Self::OutputHost,
+            runtime_contract::PairedPickerTargetModel::PrimaryItem => Self::OutputDevice,
+            runtime_contract::PairedPickerTargetModel::PrimaryNumber => Self::OutputSampleRate,
+            runtime_contract::PairedPickerTargetModel::SecondaryGroup => Self::InputHost,
+            runtime_contract::PairedPickerTargetModel::SecondaryItem => Self::InputDevice,
+            runtime_contract::PairedPickerTargetModel::SecondaryNumber => Self::InputSampleRate,
         }
     }
 }
 
-impl From<AudioPickerTargetModel> for compat::PairedPickerTargetModel {
+impl From<AudioPickerTargetModel> for runtime_contract::PairedPickerTargetModel {
     fn from(value: AudioPickerTargetModel) -> Self {
         match value {
             AudioPickerTargetModel::OutputHost => Self::PrimaryGroup,
@@ -231,20 +231,20 @@ impl From<AudioPickerTargetModel> for compat::PairedPickerTargetModel {
     }
 }
 
-impl From<compat::PairedPickerValueModel> for AudioOptionValueModel {
-    fn from(value: compat::PairedPickerValueModel) -> Self {
+impl From<runtime_contract::PairedPickerValueModel> for AudioOptionValueModel {
+    fn from(value: runtime_contract::PairedPickerValueModel) -> Self {
         match value {
-            compat::PairedPickerValueModel::PrimaryGroup(value) => Self::OutputHost(value),
-            compat::PairedPickerValueModel::PrimaryItem(value) => Self::OutputDevice(value),
-            compat::PairedPickerValueModel::PrimaryNumber(value) => Self::OutputSampleRate(value),
-            compat::PairedPickerValueModel::SecondaryGroup(value) => Self::InputHost(value),
-            compat::PairedPickerValueModel::SecondaryItem(value) => Self::InputDevice(value),
-            compat::PairedPickerValueModel::SecondaryNumber(value) => Self::InputSampleRate(value),
+            runtime_contract::PairedPickerValueModel::PrimaryGroup(value) => Self::OutputHost(value),
+            runtime_contract::PairedPickerValueModel::PrimaryItem(value) => Self::OutputDevice(value),
+            runtime_contract::PairedPickerValueModel::PrimaryNumber(value) => Self::OutputSampleRate(value),
+            runtime_contract::PairedPickerValueModel::SecondaryGroup(value) => Self::InputHost(value),
+            runtime_contract::PairedPickerValueModel::SecondaryItem(value) => Self::InputDevice(value),
+            runtime_contract::PairedPickerValueModel::SecondaryNumber(value) => Self::InputSampleRate(value),
         }
     }
 }
 
-impl From<AudioOptionValueModel> for compat::PairedPickerValueModel {
+impl From<AudioOptionValueModel> for runtime_contract::PairedPickerValueModel {
     fn from(value: AudioOptionValueModel) -> Self {
         match value {
             AudioOptionValueModel::OutputHost(value) => Self::PrimaryGroup(value),
@@ -257,7 +257,7 @@ impl From<AudioOptionValueModel> for compat::PairedPickerValueModel {
     }
 }
 
-fn audio_option_item_from_compat(value: compat::PairedPickerOptionModel) -> AudioOptionItemModel {
+fn audio_option_item_from_compat(value: runtime_contract::PairedPickerOptionModel) -> AudioOptionItemModel {
     AudioOptionItemModel {
         label: value.label,
         selected: value.selected,
@@ -265,16 +265,16 @@ fn audio_option_item_from_compat(value: compat::PairedPickerOptionModel) -> Audi
     }
 }
 
-fn audio_option_item_to_compat(value: AudioOptionItemModel) -> compat::PairedPickerOptionModel {
-    compat::PairedPickerOptionModel {
+fn audio_option_item_to_compat(value: AudioOptionItemModel) -> runtime_contract::PairedPickerOptionModel {
+    runtime_contract::PairedPickerOptionModel {
         label: value.label,
         selected: value.selected,
         value: value.value.into(),
     }
 }
 
-impl From<compat::PairedDevicePanelModel> for AudioEngineModel {
-    fn from(value: compat::PairedDevicePanelModel) -> Self {
+impl From<runtime_contract::PairedDevicePanelModel> for AudioEngineModel {
+    fn from(value: runtime_contract::PairedDevicePanelModel) -> Self {
         Self {
             chip_state: value.status_state,
             chip_label: value.status_label,
@@ -320,7 +320,7 @@ impl From<compat::PairedDevicePanelModel> for AudioEngineModel {
     }
 }
 
-impl From<AudioEngineModel> for compat::PairedDevicePanelModel {
+impl From<AudioEngineModel> for runtime_contract::PairedDevicePanelModel {
     fn from(value: AudioEngineModel) -> Self {
         Self {
             status_state: value.chip_state,
@@ -367,33 +367,33 @@ impl From<AudioEngineModel> for compat::PairedDevicePanelModel {
     }
 }
 
-impl From<&AudioEngineModel> for compat::PairedDevicePanelModel {
+impl From<&AudioEngineModel> for runtime_contract::PairedDevicePanelModel {
     fn from(value: &AudioEngineModel) -> Self {
         value.clone().into()
     }
 }
 
-impl From<&OptionsPanelModel> for compat::OptionsPanelModel {
+impl From<&OptionsPanelModel> for runtime_contract::OptionsPanelModel {
     fn from(value: &OptionsPanelModel) -> Self {
         value.clone()
     }
 }
 
-impl From<compat::ConfirmPromptKind> for ConfirmPromptKind {
-    fn from(value: compat::ConfirmPromptKind) -> Self {
+impl From<runtime_contract::ConfirmPromptKind> for ConfirmPromptKind {
+    fn from(value: runtime_contract::ConfirmPromptKind) -> Self {
         match value {
-            compat::ConfirmPromptKind::DestructiveOperation => Self::DestructiveEdit,
-            compat::ConfirmPromptKind::RenameContent => Self::BrowserRename,
-            compat::ConfirmPromptKind::RenameNavigationItem => Self::FolderRename,
-            compat::ConfirmPromptKind::CreateNavigationItem => Self::FolderCreate,
-            compat::ConfirmPromptKind::RestoreRetainedItems => Self::RestoreRetainedFolderDeletes,
-            compat::ConfirmPromptKind::PurgeRetainedItems => Self::PurgeRetainedFolderDeletes,
-            compat::ConfirmPromptKind::EditConfiguration => Self::OptionsDefaultIdentifier,
+            runtime_contract::ConfirmPromptKind::DestructiveOperation => Self::DestructiveEdit,
+            runtime_contract::ConfirmPromptKind::RenameContent => Self::BrowserRename,
+            runtime_contract::ConfirmPromptKind::RenameNavigationItem => Self::FolderRename,
+            runtime_contract::ConfirmPromptKind::CreateNavigationItem => Self::FolderCreate,
+            runtime_contract::ConfirmPromptKind::RestoreRetainedItems => Self::RestoreRetainedFolderDeletes,
+            runtime_contract::ConfirmPromptKind::PurgeRetainedItems => Self::PurgeRetainedFolderDeletes,
+            runtime_contract::ConfirmPromptKind::EditConfiguration => Self::OptionsDefaultIdentifier,
         }
     }
 }
 
-impl From<ConfirmPromptKind> for compat::ConfirmPromptKind {
+impl From<ConfirmPromptKind> for runtime_contract::ConfirmPromptKind {
     fn from(value: ConfirmPromptKind) -> Self {
         match value {
             ConfirmPromptKind::DestructiveEdit => Self::DestructiveOperation,
@@ -407,7 +407,7 @@ impl From<ConfirmPromptKind> for compat::ConfirmPromptKind {
     }
 }
 
-fn confirm_prompt_from_compat(value: compat::ConfirmPromptModel) -> ConfirmPromptModel {
+fn confirm_prompt_from_compat(value: runtime_contract::ConfirmPromptModel) -> ConfirmPromptModel {
     ConfirmPromptModel {
         visible: value.visible,
         kind: value.kind.map(Into::into),
@@ -422,8 +422,8 @@ fn confirm_prompt_from_compat(value: compat::ConfirmPromptModel) -> ConfirmPromp
     }
 }
 
-fn confirm_prompt_to_compat(value: ConfirmPromptModel) -> compat::ConfirmPromptModel {
-    compat::ConfirmPromptModel {
+fn confirm_prompt_to_compat(value: ConfirmPromptModel) -> runtime_contract::ConfirmPromptModel {
+    runtime_contract::ConfirmPromptModel {
         visible: value.visible,
         kind: value.kind.map(Into::into),
         title: value.title,
@@ -437,20 +437,20 @@ fn confirm_prompt_to_compat(value: ConfirmPromptModel) -> compat::ConfirmPromptM
     }
 }
 
-impl From<&WaveformPanelModel> for compat::WaveformPanelModel {
+impl From<&WaveformPanelModel> for runtime_contract::WaveformPanelModel {
     fn from(value: &WaveformPanelModel) -> Self {
         value.clone()
     }
 }
 
-impl From<&WaveformChromeModel> for compat::WaveformChromeModel {
+impl From<&WaveformChromeModel> for runtime_contract::WaveformChromeModel {
     fn from(value: &WaveformChromeModel) -> Self {
         value.clone()
     }
 }
 
-impl From<compat::AppModel> for AppModel {
-    fn from(value: compat::AppModel) -> Self {
+impl From<runtime_contract::AppModel> for AppModel {
+    fn from(value: runtime_contract::AppModel) -> Self {
         let mut browser: BrowserPanelModel = value.browser.into();
         browser.sidebar_filters = value.sidebar_filters.clone();
         Self {
@@ -481,7 +481,7 @@ impl From<compat::AppModel> for AppModel {
     }
 }
 
-impl From<AppModel> for compat::AppModel {
+impl From<AppModel> for runtime_contract::AppModel {
     fn from(value: AppModel) -> Self {
         let sidebar_filters = value.browser.sidebar_filters.clone();
         Self {
@@ -513,7 +513,7 @@ impl From<AppModel> for compat::AppModel {
     }
 }
 
-impl From<&AppModel> for compat::AppModel {
+impl From<&AppModel> for runtime_contract::AppModel {
     fn from(value: &AppModel) -> Self {
         value.clone().into()
     }
@@ -521,8 +521,8 @@ impl From<&AppModel> for compat::AppModel {
 
 pub(super) fn local_app_model_from_native_model(
     value: &AppModel,
-) -> crate::compat_app_contract::AppModel {
-    crate::compat_app_contract::AppModel {
+) -> crate::app_core::native_shell::runtime_contract::AppModel {
+    crate::app_core::native_shell::runtime_contract::AppModel {
         title: value.title.clone(),
         backend_label: value.backend_label.clone(),
         sources_label: value.sources_label.clone(),
@@ -552,8 +552,8 @@ pub(super) fn local_app_model_from_native_model(
 
 fn local_confirm_prompt_from_native_model(
     value: &ConfirmPromptModel,
-) -> crate::compat_app_contract::ConfirmPromptModel {
-    crate::compat_app_contract::ConfirmPromptModel {
+) -> crate::app_core::native_shell::runtime_contract::ConfirmPromptModel {
+    crate::app_core::native_shell::runtime_contract::ConfirmPromptModel {
         visible: value.visible,
         kind: value.kind.map(Into::into),
         title: value.title.clone(),
@@ -569,8 +569,8 @@ fn local_confirm_prompt_from_native_model(
 
 fn local_sources_panel_from_native_model(
     value: &SourcesPanelModel,
-) -> crate::compat_app_contract::SourcesPanelModel {
-    crate::compat_app_contract::SourcesPanelModel {
+) -> crate::app_core::native_shell::runtime_contract::SourcesPanelModel {
+    crate::app_core::native_shell::runtime_contract::SourcesPanelModel {
         header: value.header.clone(),
         search_query: value.search_query.clone(),
         active_folder_pane: value.active_folder_pane,
@@ -591,3 +591,4 @@ fn local_sources_panel_from_native_model(
         recovery: value.recovery.clone(),
     }
 }
+

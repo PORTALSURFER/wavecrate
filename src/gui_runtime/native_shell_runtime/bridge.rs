@@ -7,7 +7,7 @@ use super::*;
 /// shutdown artifacts are routed through Radiant's generic runtime API.
 pub(super) struct SempalRuntimeBridge<B> {
     pub(super) inner: B,
-    model: Arc<compat::AppModel>,
+    model: Arc<runtime_contract::AppModel>,
     shell_state: NativeShellState,
     layout_runtime: ShellLayoutRuntime,
     frame: PaintFrame,
@@ -76,7 +76,7 @@ impl<B> SempalRuntimeBridge<B> {
     pub(super) fn new(inner: B) -> Self {
         Self {
             inner,
-            model: Arc::new(compat::AppModel::default()),
+            model: Arc::new(runtime_contract::AppModel::default()),
             shell_state: NativeShellState::new(),
             layout_runtime: ShellLayoutRuntime::default(),
             frame: PaintFrame::default(),
@@ -234,7 +234,7 @@ impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
                 .find(|row| {
                     matches!(
                         row.kind,
-                        compat::FolderRowKind::CreateDraft | compat::FolderRowKind::RenameDraft
+                        runtime_contract::FolderRowKind::CreateDraft | runtime_contract::FolderRowKind::RenameDraft
                     )
                 })
                 .map(|row| row.label.clone()),
@@ -342,7 +342,7 @@ impl<B: NativeAppBridge> RuntimeBridge<SempalRuntimeMessage> for SempalRuntimeBr
         let layout =
             ShellLayout::build_with_style_and_runtime(viewport, &style, &mut self.layout_runtime);
         self.shell_state.sync_from_model(&self.model);
-        let motion_model = compat::NativeMotionModel::from_app_model(&self.model);
+        let motion_model = runtime_contract::NativeMotionModel::from_app_model(&self.model);
         self.shell_state.sync_from_motion_model(&motion_model);
         self.shell_state
             .build_frame_with_style_into(&layout, &style, &self.model, &mut self.frame);
@@ -369,8 +369,8 @@ fn append_retained_shell_overlays(
     shell_state: &mut NativeShellState,
     layout: &ShellLayout,
     style: &StyleTokens,
-    model: &compat::AppModel,
-    motion_model: &compat::NativeMotionModel,
+    model: &runtime_contract::AppModel,
+    motion_model: &runtime_contract::NativeMotionModel,
     frame: &mut PaintFrame,
 ) {
     let mut overlay = PaintFrame::default();
@@ -400,3 +400,4 @@ fn retained_surface_revision(revisions: crate::app_core::actions::NativeSegmentR
         ^ revisions.waveform_overlay.rotate_left(29)
         ^ revisions.global_static.rotate_left(37)
 }
+

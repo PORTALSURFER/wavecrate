@@ -1,5 +1,5 @@
 use super::*;
-use crate::compat_app_contract::{
+use crate::app_core::native_shell::runtime_contract::{
     BrowserRowModel, FolderActionsModel, FolderRowModel, NativeMotionModel, NormalizedRangeModel,
     SourceRowModel,
 };
@@ -110,7 +110,7 @@ fn cached_browser_rows_from_rects(rects: &[Rect]) -> Vec<CachedBrowserRow> {
                 inline_tag_labels: Vec::new(),
                 inline_tag_rects: Vec::new(),
                 text_layout: compute_browser_row_text_layout(rect, style.sizing),
-                playback_age_bucket: crate::compat_app_contract::PlaybackAgeBucket::Fresh,
+                playback_age_bucket: crate::app_core::native_shell::runtime_contract::PlaybackAgeBucket::Fresh,
                 similarity_display_strength: None,
                 column: 1,
                 rating_level: 0,
@@ -119,7 +119,7 @@ fn cached_browser_rows_from_rects(rects: &[Rect]) -> Vec<CachedBrowserRow> {
                 missing: false,
                 locked: false,
                 marked: false,
-                processing_state: crate::compat_app_contract::BrowserRowProcessingState::None,
+                processing_state: crate::app_core::native_shell::runtime_contract::BrowserRowProcessingState::None,
                 rect,
             }
         })
@@ -198,3 +198,4 @@ mod waveform_edit_fades;
 mod waveform_edit_handles;
 mod waveform_selection;
 mod waveform_slices;
+

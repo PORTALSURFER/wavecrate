@@ -1,6 +1,6 @@
 use super::*;
 #[cfg(test)]
-use crate::compat_app_contract::PlaybackAgeFilterChip;
+use crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip;
 
 impl NativeShellState {
     /// Return a browser column-chip rect for one column index in tests.
@@ -668,3 +668,4 @@ pub(in crate::gui::native_shell::state) fn browser_action_model_signature(model:
     }
     hasher.finish()
 }
+

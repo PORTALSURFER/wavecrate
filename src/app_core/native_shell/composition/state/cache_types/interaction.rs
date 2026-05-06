@@ -4,7 +4,7 @@ use super::*;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(in crate::gui::native_shell::state) struct SourceContextMenuState {
     /// Pane containing the source row that opened the menu.
-    pub pane: crate::compat_app_contract::FolderPaneIdModel,
+    pub pane: crate::app_core::native_shell::runtime_contract::FolderPaneIdModel,
     /// Source row index the menu actions target.
     pub row_index: usize,
     /// Pointer anchor used to place the floating menu panel.
@@ -84,3 +84,4 @@ impl NativeAnimationReasons {
             || self.status_options_button_flash_active
     }
 }
+

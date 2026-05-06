@@ -1,5 +1,5 @@
 use super::*;
-use crate::compat_app_contract::{BrowserPillModel, BrowserPillState};
+use crate::app_core::native_shell::runtime_contract::{BrowserPillModel, BrowserPillState};
 
 /// Render the left-sidebar tag editor panel.
 pub(super) fn render_sidebar_tags(
@@ -242,3 +242,4 @@ fn inset_rect(rect: Rect, x: f32, y: f32) -> Rect {
         ),
     )
 }
+

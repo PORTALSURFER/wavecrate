@@ -377,16 +377,16 @@ fn browser_playback_age_buckets_render_distinct_left_markers_and_keep_rows_neutr
         .push(BrowserRowModel::new(0, "Fresh row", 1, false, false));
     model.browser.rows.push(
         BrowserRowModel::new(1, "Week row", 1, false, false)
-            .with_playback_age_bucket(crate::compat_app_contract::PlaybackAgeBucket::OlderThanWeek),
+            .with_playback_age_bucket(crate::app_core::native_shell::runtime_contract::PlaybackAgeBucket::OlderThanWeek),
     );
     model.browser.rows.push(
         BrowserRowModel::new(2, "Month row", 1, false, false).with_playback_age_bucket(
-            crate::compat_app_contract::PlaybackAgeBucket::OlderThanMonth,
+            crate::app_core::native_shell::runtime_contract::PlaybackAgeBucket::OlderThanMonth,
         ),
     );
     model.browser.rows.push(
         BrowserRowModel::new(3, "Never row", 1, false, false)
-            .with_playback_age_bucket(crate::compat_app_contract::PlaybackAgeBucket::NeverPlayed),
+            .with_playback_age_bucket(crate::app_core::native_shell::runtime_contract::PlaybackAgeBucket::NeverPlayed),
     );
     model.browser.visible_count = model.browser.rows.len();
 
@@ -410,19 +410,19 @@ fn browser_playback_age_buckets_render_distinct_left_markers_and_keep_rows_neutr
         .expect("never marker");
     let fresh_marker_color = browser_playback_age_marker_color(
         &style,
-        crate::compat_app_contract::PlaybackAgeBucket::Fresh,
+        crate::app_core::native_shell::runtime_contract::PlaybackAgeBucket::Fresh,
     );
     let week_marker_color = browser_playback_age_marker_color(
         &style,
-        crate::compat_app_contract::PlaybackAgeBucket::OlderThanWeek,
+        crate::app_core::native_shell::runtime_contract::PlaybackAgeBucket::OlderThanWeek,
     );
     let month_marker_color = browser_playback_age_marker_color(
         &style,
-        crate::compat_app_contract::PlaybackAgeBucket::OlderThanMonth,
+        crate::app_core::native_shell::runtime_contract::PlaybackAgeBucket::OlderThanMonth,
     );
     let never_marker_color = browser_playback_age_marker_color(
         &style,
-        crate::compat_app_contract::PlaybackAgeBucket::NeverPlayed,
+        crate::app_core::native_shell::runtime_contract::PlaybackAgeBucket::NeverPlayed,
     );
 
     assert_eq!(fresh_fill, browser_row_stripe_fill(&style, 0));
@@ -455,7 +455,7 @@ fn selected_browser_rows_keep_playback_age_marker_in_overlay() {
     let mut model = AppModel::default();
     model.browser.rows.push(
         BrowserRowModel::new(0, "selected month row", 1, true, false).with_playback_age_bucket(
-            crate::compat_app_contract::PlaybackAgeBucket::OlderThanMonth,
+            crate::app_core::native_shell::runtime_contract::PlaybackAgeBucket::OlderThanMonth,
         ),
     );
 
@@ -469,9 +469,10 @@ fn selected_browser_rows_keep_playback_age_marker_in_overlay() {
         browser_playback_age_marker_rect(row_rect, style.sizing, 0.0).expect("marker rect");
     let marker_color = browser_playback_age_marker_color(
         &style,
-        crate::compat_app_contract::PlaybackAgeBucket::OlderThanMonth,
+        crate::app_core::native_shell::runtime_contract::PlaybackAgeBucket::OlderThanMonth,
     );
 
     assert!(has_fill_rect(&overlay, row_rect, selected_fill));
     assert!(has_fill_rect(&overlay, marker_rect, marker_color));
 }
+

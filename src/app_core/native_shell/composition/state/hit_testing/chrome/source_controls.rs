@@ -1,5 +1,5 @@
 use super::*;
-use crate::compat_app_contract::{BrowserPillModel, BrowserPillState, FolderPaneIdModel};
+use crate::app_core::native_shell::runtime_contract::{BrowserPillModel, BrowserPillState, FolderPaneIdModel};
 
 impl NativeShellState {
     /// Return the left-sidebar tag-editor input rect.
@@ -901,3 +901,4 @@ fn inset_rect(rect: Rect, x: f32, y: f32) -> Rect {
         ),
     )
 }
+

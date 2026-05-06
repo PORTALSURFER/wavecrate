@@ -1,5 +1,5 @@
 use super::*;
-use crate::compat_app_contract::MapPointModel;
+use crate::app_core::native_shell::runtime_contract::MapPointModel;
 
 pub(in crate::gui::native_shell::state) fn map_point_is_selected(
     model: &AppModel,
@@ -73,3 +73,4 @@ pub(in crate::gui::native_shell::state) fn map_content_id_at_point(
     }
     best.map(|(_, content_id)| content_id.to_string())
 }
+

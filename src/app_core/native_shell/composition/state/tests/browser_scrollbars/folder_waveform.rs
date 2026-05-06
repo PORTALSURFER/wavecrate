@@ -1,5 +1,5 @@
 use super::*;
-use crate::compat_app_contract::FolderPaneIdModel;
+use crate::app_core::native_shell::runtime_contract::FolderPaneIdModel;
 
 #[allow(dead_code)]
 fn browser_model_with_rows(total: usize, focused_visible_row: usize) -> AppModel {
@@ -265,3 +265,4 @@ fn folder_model_with_rows(total_rows: usize, focused_row: usize) -> AppModel {
     model.sources.lower_folder_pane.focused_tree_row = model.sources.focused_tree_row;
     model
 }
+

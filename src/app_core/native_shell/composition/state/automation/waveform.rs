@@ -2,7 +2,7 @@
 
 use super::helpers::{action_slug, bounds, metadata, node_id, selection_micros_text, simple_node};
 use super::*;
-use crate::compat_app_contract::{AutomationRole, NormalizedRangeModel};
+use crate::app_core::native_shell::runtime_contract::{AutomationRole, NormalizedRangeModel};
 
 /// Build semantic automation for the waveform panel.
 pub(super) fn build_waveform_automation(
@@ -48,7 +48,7 @@ pub(super) fn build_waveform_automation(
         enabled: true,
         selected: matches!(
             model.focus_context,
-            crate::compat_app_contract::FocusContextModel::Timeline
+            crate::app_core::native_shell::runtime_contract::FocusContextModel::Timeline
         ),
         available_actions: vec![
             String::from("detect_waveform_silence_slices"),
@@ -143,7 +143,7 @@ pub(super) fn build_waveform_automation(
         enabled: true,
         selected: matches!(
             model.focus_context,
-            crate::compat_app_contract::FocusContextModel::Timeline
+            crate::app_core::native_shell::runtime_contract::FocusContextModel::Timeline
         ),
         available_actions: vec![String::from("focus_waveform_panel")],
         metadata: std::collections::BTreeMap::new(),
@@ -248,3 +248,4 @@ fn waveform_selection_x_for_micros(plot: Rect, model: &AppModel, micros: u32) ->
     );
     waveform_plot_x_for_micros(plot, micros, view, NormalizedPixelSnap::Nearest)
 }
+

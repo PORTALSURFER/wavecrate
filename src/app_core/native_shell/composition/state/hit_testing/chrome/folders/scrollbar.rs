@@ -1,5 +1,5 @@
 use super::*;
-use crate::compat_app_contract::FolderPaneIdModel;
+use crate::app_core::native_shell::runtime_contract::FolderPaneIdModel;
 
 impl NativeShellState {
     pub(crate) fn folder_viewport_len(
@@ -122,3 +122,4 @@ fn folder_scrollbar_track_jump(
     )
     .map(|view_start| (pane, view_start))
 }
+

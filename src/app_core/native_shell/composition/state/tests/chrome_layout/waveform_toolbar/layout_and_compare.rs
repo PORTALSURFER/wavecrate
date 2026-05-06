@@ -76,7 +76,7 @@ fn waveform_toolbar_click_sets_flash_in_chrome_motion_fingerprint() {
     );
     assert_eq!(
         state.waveform_toolbar_action_at_point(&layout, &model, point),
-        Some(crate::compat_app_contract::UiAction::ToggleTransport)
+        Some(crate::app_core::native_shell::runtime_contract::UiAction::ToggleTransport)
     );
     let fingerprint = state.chrome_motion_overlay_fingerprint();
     assert_eq!(
@@ -141,7 +141,7 @@ fn waveform_toolbar_compare_button_hit_testing_emits_compare_action() {
 
     assert_eq!(
         state.waveform_toolbar_action_at_point(&layout, &model, point),
-        Some(crate::compat_app_contract::UiAction::PlayCompareAnchor)
+        Some(crate::app_core::native_shell::runtime_contract::UiAction::PlayCompareAnchor)
     );
 }
 
@@ -238,3 +238,4 @@ fn waveform_toolbar_bpm_snap_button_uses_highlight_when_enabled() {
         .expect("bpm snap toolbar button should be present");
     assert_eq!(bpm_snap_on.text_color, style.accent_warning);
 }
+

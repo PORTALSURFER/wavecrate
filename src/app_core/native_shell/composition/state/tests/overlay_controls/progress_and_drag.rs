@@ -5,7 +5,7 @@ fn non_modal_progress_renders_status_bar_indicator_without_overlay_dialog() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut state = NativeShellState::new();
     let model = AppModel {
-        progress_overlay: crate::compat_app_contract::ProgressOverlayModel {
+        progress_overlay: crate::app_core::native_shell::runtime_contract::ProgressOverlayModel {
             visible: true,
             modal: false,
             title: String::from("Normalizing sample"),
@@ -70,7 +70,7 @@ fn non_modal_progress_does_not_expose_cancel_hit_target() {
     let style = style_for_layout(&layout);
     let state = NativeShellState::new();
     let model = AppModel {
-        progress_overlay: crate::compat_app_contract::ProgressOverlayModel {
+        progress_overlay: crate::app_core::native_shell::runtime_contract::ProgressOverlayModel {
             visible: true,
             modal: false,
             title: String::from("Normalizing"),
@@ -78,7 +78,7 @@ fn non_modal_progress_does_not_expose_cancel_hit_target() {
             total: 1,
             cancelable: true,
             cancel_requested: false,
-            ..crate::compat_app_contract::ProgressOverlayModel::default()
+            ..crate::app_core::native_shell::runtime_contract::ProgressOverlayModel::default()
         },
         ..AppModel::default()
     };
@@ -97,7 +97,7 @@ fn modal_progress_overlay_renders_cancelling_state() {
     let style = style_for_layout(&layout);
     let mut state = NativeShellState::new();
     let model = AppModel {
-        progress_overlay: crate::compat_app_contract::ProgressOverlayModel {
+        progress_overlay: crate::app_core::native_shell::runtime_contract::ProgressOverlayModel {
             visible: true,
             modal: true,
             title: String::from("Normalizing"),
@@ -128,7 +128,7 @@ fn confirm_prompt_validation_error_renders_disabled_confirm_button_and_error_tex
     let style = style_for_layout(&layout);
     let mut state = NativeShellState::new();
     let model = AppModel {
-        confirm_prompt: crate::compat_app_contract::ConfirmPromptModel {
+        confirm_prompt: crate::app_core::native_shell::runtime_contract::ConfirmPromptModel {
             visible: true,
             title: String::from("Rename"),
             message: String::from("Choose a new name"),
@@ -136,7 +136,7 @@ fn confirm_prompt_validation_error_renders_disabled_confirm_button_and_error_tex
             cancel_label: String::from("Dismiss"),
             input_value: Some(String::from("bad/name")),
             input_error: Some(String::from("Slash not allowed")),
-            ..crate::compat_app_contract::ConfirmPromptModel::default()
+            ..crate::app_core::native_shell::runtime_contract::ConfirmPromptModel::default()
         },
         ..AppModel::default()
     };
@@ -162,7 +162,7 @@ fn drag_overlay_renders_target_arrow_and_warning_text_for_invalid_drop() {
     let style = style_for_layout(&layout);
     let mut state = NativeShellState::new();
     let model = AppModel {
-        drag_overlay: crate::compat_app_contract::DragOverlayModel {
+        drag_overlay: crate::app_core::native_shell::runtime_contract::DragOverlayModel {
             active: true,
             label: String::from("kick.wav"),
             target_label: String::from("Trash"),
@@ -202,7 +202,7 @@ fn drag_overlay_renders_cursor_chip_near_pointer() {
     let style = style_for_layout(&layout);
     let mut state = NativeShellState::new();
     let model = AppModel {
-        drag_overlay: crate::compat_app_contract::DragOverlayModel {
+        drag_overlay: crate::app_core::native_shell::runtime_contract::DragOverlayModel {
             active: true,
             label: String::from("2 samples"),
             target_label: String::from("Folder: drums"),
@@ -236,7 +236,7 @@ fn drag_overlay_chip_flips_and_clamps_near_body_edges() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
     let model = AppModel {
-        drag_overlay: crate::compat_app_contract::DragOverlayModel {
+        drag_overlay: crate::app_core::native_shell::runtime_contract::DragOverlayModel {
             active: true,
             label: String::from("kick.wav"),
             target_label: String::from("Folder: drums"),
@@ -264,9 +264,9 @@ fn state_overlay_renders_options_panel_when_visible() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut state = NativeShellState::new();
     let model = AppModel {
-        options_panel: crate::compat_app_contract::OptionsPanelModel {
+        options_panel: crate::app_core::native_shell::runtime_contract::OptionsPanelModel {
             visible: true,
-            ..crate::compat_app_contract::OptionsPanelModel::default()
+            ..crate::app_core::native_shell::runtime_contract::OptionsPanelModel::default()
         },
         ..AppModel::default()
     };
@@ -281,3 +281,4 @@ fn state_overlay_renders_options_panel_when_visible() {
             .any(|run| run.text == "Audio Engine")
     );
 }
+

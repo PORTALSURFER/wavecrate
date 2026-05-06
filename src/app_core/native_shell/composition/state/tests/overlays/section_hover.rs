@@ -123,7 +123,7 @@ fn folder_row_drag_hovered_overlay_uses_drag_target_fill() {
     let mut state = NativeShellState::new();
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut model = populated_sidebar_model();
-    model.drag_overlay = crate::compat_app_contract::DragOverlayModel {
+    model.drag_overlay = crate::app_core::native_shell::runtime_contract::DragOverlayModel {
         active: true,
         label: String::from("kick"),
         target_label: String::from("Folder: Drums"),
@@ -172,7 +172,7 @@ fn folder_panel_background_drag_does_not_emit_row_highlight() {
     let mut state = NativeShellState::new();
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut model = populated_sidebar_model();
-    model.drag_overlay = crate::compat_app_contract::DragOverlayModel {
+    model.drag_overlay = crate::app_core::native_shell::runtime_contract::DragOverlayModel {
         active: true,
         label: String::from("kick"),
         target_label: String::from("Folder panel"),
@@ -279,3 +279,4 @@ fn sidebar_background_point(
     }
     panic!("expected hittable folder-panel background point");
 }
+

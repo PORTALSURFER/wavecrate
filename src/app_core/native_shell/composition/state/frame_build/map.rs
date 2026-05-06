@@ -1,6 +1,6 @@
 use super::StaticFrameCtx;
 use super::*;
-use crate::compat_app_contract::MapRenderModeModel;
+use crate::app_core::native_shell::runtime_contract::MapRenderModeModel;
 
 pub(super) fn render_map_panel(ctx: &StaticFrameCtx<'_>, primitives: &mut impl PrimitiveSink) {
     let canvas = compute_browser_map_canvas_rect(ctx.layout.browser_rows, ctx.sizing);
@@ -91,3 +91,4 @@ pub(super) fn render_map_header(ctx: &StaticFrameCtx<'_>, text_runs: &mut impl T
         },
     );
 }
+

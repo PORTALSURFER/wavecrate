@@ -1,5 +1,5 @@
 use super::*;
-use crate::compat_app_contract::{BrowserPillModel, BrowserPillState};
+use crate::app_core::native_shell::runtime_contract::{BrowserPillModel, BrowserPillState};
 
 pub(super) fn render_browser_rows_window(
     ctx: &StaticFrameCtx<'_>,
@@ -826,7 +826,7 @@ fn browser_pill_editor_layout(
 /// Contains focused regression coverage for this module.
 mod tests {
     use super::*;
-    use crate::compat_app_contract::{AppModel, BrowserRowModel, BrowserRowProcessingState};
+    use crate::app_core::native_shell::runtime_contract::{AppModel, BrowserRowModel, BrowserRowProcessingState};
     use crate::gui::types::Vector2;
 
     /// Handles has fill rect.
@@ -886,3 +886,4 @@ mod tests {
         ));
     }
 }
+
