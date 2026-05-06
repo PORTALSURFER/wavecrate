@@ -404,8 +404,18 @@ impl<B: NativeAppBridge> RuntimeBridge<SempalRuntimeMessage> for SempalRuntimeBr
         let layout =
             ShellLayout::build_with_style_and_runtime(viewport, &style, &mut self.layout_runtime);
         self.shell_state.sync_from_model(&self.model);
+        let motion_model = compat::NativeMotionModel::from_app_model(&self.model);
+        self.shell_state.sync_from_motion_model(&motion_model);
         self.shell_state
             .build_frame_with_style_into(&layout, &style, &self.model, &mut self.frame);
+        append_retained_shell_overlays(
+            &mut self.shell_state,
+            &layout,
+            &style,
+            &self.model,
+            &motion_model,
+            &mut self.frame,
+        );
         Some(self.frame.clone())
     }
 
@@ -414,6 +424,33 @@ impl<B: NativeAppBridge> RuntimeBridge<SempalRuntimeMessage> for SempalRuntimeBr
             .on_runtime_exit()
             .and_then(|artifact| serde_json::to_value(artifact).ok())
     }
+}
+
+/// Append state and motion overlays that are local to the retained shell bridge.
+fn append_retained_shell_overlays(
+    shell_state: &mut NativeShellState,
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    model: &compat::AppModel,
+    motion_model: &compat::NativeMotionModel,
+    frame: &mut PaintFrame,
+) {
+    let mut overlay = PaintFrame::default();
+    shell_state.build_waveform_motion_overlay_into(layout, style, motion_model, &mut overlay);
+    append_paint_frame(frame, &overlay);
+    shell_state.build_chrome_motion_overlay_into(layout, style, motion_model, &mut overlay);
+    append_paint_frame(frame, &overlay);
+    shell_state.build_hover_overlay_into(layout, style, model, &mut overlay);
+    append_paint_frame(frame, &overlay);
+    shell_state.build_focus_overlay_into(layout, style, model, &mut overlay);
+    append_paint_frame(frame, &overlay);
+}
+
+/// Append one overlay frame into the retained shell paint buffer.
+fn append_paint_frame(frame: &mut PaintFrame, overlay: &PaintFrame) {
+    frame.primitives.extend(overlay.primitives.iter().cloned());
+    frame.text_runs.extend(overlay.text_runs.iter().cloned());
+    frame.clear_color = overlay.clear_color;
 }
 
 /// Collapse per-segment revisions into the retained canvas revision Radiant observes.
@@ -2893,6 +2930,68 @@ mod tests {
     }
 
     #[test]
+    /// Retained canvas frames include local overlays that do not change the app projection.
+    fn retained_shell_render_includes_hover_and_playhead_overlays() {
+        let repaint_installed = Arc::new(AtomicBool::new(false));
+        let mut model = compat::AppModel::default();
+        model.browser.rows.push(compat::BrowserRowModel::new(
+            0,
+            "hovered sample",
+            1,
+            false,
+            false,
+        ));
+        model.browser.visible_count = 1;
+        model.waveform.playhead_milli = Some(250);
+        model.waveform.playhead_micros = Some(250_000);
+        model.transport_running = true;
+
+        let mut bridge = SempalRuntimeBridge::new(RecordingBridge {
+            model: Arc::new(model.into()),
+            reduced: Vec::new(),
+            repaint_installed,
+            exit_status: None,
+        });
+        let retained = retained_shell_descriptor(&mut bridge);
+        let viewport = radiant::gui::types::Vector2::new(1280.0, 720.0);
+        let rect = radiant::gui::types::Rect::from_min_size(
+            radiant::gui::types::Point::new(0.0, 0.0),
+            viewport,
+        );
+        let base_frame = bridge
+            .render_retained_surface(retained, rect, viewport)
+            .expect("initial retained shell frame");
+        let layout = ShellLayout::build(viewport);
+        let style = StyleTokens::for_viewport_width(viewport.x);
+        assert!(
+            frame_contains_playhead_marker(&base_frame, &layout, &style),
+            "retained shell frame should include the waveform playhead motion overlay"
+        );
+
+        let hover_point = radiant::gui::types::Point::new(
+            layout.browser_rows.min.x + 8.0,
+            layout.browser_rows.min.y + 8.0,
+        );
+        assert!(
+            bridge
+                .update(SempalRuntimeMessage::RetainedInput(
+                    RetainedCanvasInput::PointerMove {
+                        position: hover_point,
+                    },
+                ))
+                .requests_repaint()
+        );
+        let hover_frame = bridge
+            .render_retained_surface(retained, rect, viewport)
+            .expect("hovered retained shell frame");
+
+        assert!(
+            hover_frame.primitives.len() > base_frame.primitives.len(),
+            "retained shell frame should append hover overlays after retained pointer moves"
+        );
+    }
+
+    #[test]
     fn sempal_root_dependency_no_longer_enables_radiant_legacy_shell() {
         let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
         let cargo = fs::read_to_string(manifest_dir.join("Cargo.toml")).expect("root manifest");
@@ -2953,5 +3052,46 @@ mod tests {
 
     impl RepaintSignal for TestRepaintSignal {
         fn request_repaint(&self) {}
+    }
+
+    /// Return the retained shell descriptor projected by the bridge surface.
+    fn retained_shell_descriptor(
+        bridge: &mut SempalRuntimeBridge<RecordingBridge>,
+    ) -> RetainedSurfaceDescriptor {
+        let surface = bridge.project_surface();
+        let layout = radiant::layout::layout_tree(
+            &surface.layout_node(),
+            radiant::gui::types::Rect::from_min_size(
+                radiant::gui::types::Point::new(0.0, 0.0),
+                radiant::gui::types::Vector2::new(1280.0, 720.0),
+            ),
+        );
+        let plan = surface.paint_plan(&layout, &ThemeTokens::default());
+        plan.primitives
+            .iter()
+            .find_map(|primitive| match primitive {
+                PaintPrimitive::CustomSurface(surface) => surface.retained,
+                _ => None,
+            })
+            .expect("generic bridge should project retained shell metadata")
+    }
+
+    /// Return whether a frame contains the narrow waveform playhead marker.
+    fn frame_contains_playhead_marker(
+        frame: &PaintFrame,
+        layout: &ShellLayout,
+        style: &StyleTokens,
+    ) -> bool {
+        frame.primitives.iter().any(|primitive| match primitive {
+            crate::gui::paint::Primitive::Rect(rect) => {
+                rect.color == style.accent_copper
+                    && rect.rect.min.x >= layout.waveform_plot.min.x
+                    && rect.rect.max.x <= layout.waveform_plot.max.x
+                    && rect.rect.min.y >= layout.waveform_plot.min.y
+                    && rect.rect.max.y <= layout.waveform_plot.max.y
+                    && rect.rect.width() <= (style.sizing.border_width * 2.0).max(2.0)
+            }
+            _ => false,
+        })
     }
 }
