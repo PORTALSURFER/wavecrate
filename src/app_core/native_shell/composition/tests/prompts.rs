@@ -107,4 +107,3 @@ fn prompt_confirm_hit_test_is_blocked_when_input_error_is_present() {
         None
     );
 }
-

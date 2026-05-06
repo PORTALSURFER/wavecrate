@@ -15,11 +15,11 @@ mod sidebar_surface;
 mod state;
 mod status_surface;
 mod style;
+#[cfg(test)]
+mod tests;
 mod top_bar_surface;
 mod waveform_header_surface;
 mod waveform_toolbar_surface;
-#[cfg(test)]
-mod tests;
 
 pub(crate) use layout::ShellLayout;
 pub(crate) use layout::ShellNodeKind;

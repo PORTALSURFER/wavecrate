@@ -73,12 +73,11 @@ fn folder_row_hit_test_survives_source_row_cache_priming() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
     let mut model = crate::app_core::native_shell::runtime_contract::AppModel::default();
-    model
-        .sources
-        .rows
-        .push(crate::app_core::native_shell::runtime_contract::SourceRowModel::new(
+    model.sources.rows.push(
+        crate::app_core::native_shell::runtime_contract::SourceRowModel::new(
             "Pack", "pack", false, false,
-        ));
+        ),
+    );
     model
         .sources
         .rows
@@ -143,4 +142,3 @@ fn tree_rows_fill_sidebar_width_and_touch_without_gap() {
     assert_eq!(folder_rects[0].max.y, folder_rects[1].min.y);
     assert_eq!(folder_rects[1].max.y, folder_rects[2].min.y);
 }
-

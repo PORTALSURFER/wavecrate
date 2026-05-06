@@ -48,7 +48,11 @@ fn browser_toolbar_no_longer_exposes_rating_filter_chip() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
     let model = crate::app_core::native_shell::runtime_contract::AppModel::default();
-    assert!(state.browser_rating_filter_chip_rect(&layout, &model, 4).is_none());
+    assert!(
+        state
+            .browser_rating_filter_chip_rect(&layout, &model, 4)
+            .is_none()
+    );
 }
 
 /// Browser toolbar keeps playback-age filter chips hidden after moving filters left.
@@ -195,7 +199,11 @@ fn waveform_toolbar_hit_test_emits_relative_grid_toggle_action() {
     );
     assert_eq!(
         state.waveform_toolbar_action_at_point(&layout, &model, point),
-        Some(crate::app_core::native_shell::runtime_contract::UiAction::SetRelativeBpmGridEnabled { enabled: true })
+        Some(
+            crate::app_core::native_shell::runtime_contract::UiAction::SetRelativeBpmGridEnabled {
+                enabled: true
+            }
+        )
     );
 }
 
@@ -214,4 +222,3 @@ fn waveform_toolbar_bpm_value_widget_exposes_input_hit_target() {
     );
     assert!(state.waveform_bpm_input_at_point(&layout, &model, point));
 }
-

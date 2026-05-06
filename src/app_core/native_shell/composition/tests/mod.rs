@@ -33,21 +33,18 @@ fn canonical_shell_model() -> crate::app_core::native_shell::runtime_contract::A
     model.sources.upper_folder_pane.has_item = true;
     model.sources.upper_folder_pane.item_label = String::from("source_02");
     for index in 0..10 {
-        model
-            .sources
-            .rows
-            .push(crate::app_core::native_shell::runtime_contract::SourceRowModel::new(
+        model.sources.rows.push(
+            crate::app_core::native_shell::runtime_contract::SourceRowModel::new(
                 format!("source_{index:02}"),
                 format!("/samples/source_{index:02}"),
                 index == 2,
                 index == 5,
-            ));
+            ),
+        );
     }
     for index in 0..14 {
-        model
-            .sources
-            .tree_rows
-            .push(crate::app_core::native_shell::runtime_contract::FolderRowModel::new(
+        model.sources.tree_rows.push(
+            crate::app_core::native_shell::runtime_contract::FolderRowModel::new(
                 format!("folder_{index:02}"),
                 String::new(),
                 index % 3,
@@ -56,7 +53,8 @@ fn canonical_shell_model() -> crate::app_core::native_shell::runtime_contract::A
                 index == 0,
                 true,
                 true,
-            ));
+            ),
+        );
         model.sources.upper_folder_pane.tree_rows.push(
             model
                 .sources
@@ -67,16 +65,15 @@ fn canonical_shell_model() -> crate::app_core::native_shell::runtime_contract::A
         );
     }
     for index in 0..36 {
-        model
-            .browser
-            .rows
-            .push(crate::app_core::native_shell::runtime_contract::BrowserRowModel::new(
+        model.browser.rows.push(
+            crate::app_core::native_shell::runtime_contract::BrowserRowModel::new(
                 index,
                 format!("row_{index:02}.wav"),
                 index % 3,
                 index % 8 == 0,
                 index == 5,
-            ));
+            ),
+        );
     }
     model.browser.visible_count = model.browser.rows.len();
     model.browser.selected_item_count = 3;
@@ -89,12 +86,10 @@ fn canonical_shell_model() -> crate::app_core::native_shell::runtime_contract::A
     model.waveform.loaded_label = Some(String::from("Kick-Loop-01.wav"));
     model.waveform.cursor_milli = Some(345);
     model.waveform.playhead_milli = Some(512);
-    model.waveform.selection_milli = Some(crate::app_core::native_shell::runtime_contract::NormalizedRangeModel::new(
-        200, 680,
-    ));
+    model.waveform.selection_milli =
+        Some(crate::app_core::native_shell::runtime_contract::NormalizedRangeModel::new(200, 680));
     model.waveform.loop_enabled = true;
     model.waveform.view_start_milli = 100;
     model.waveform.view_end_milli = 900;
     model
 }
-

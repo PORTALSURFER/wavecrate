@@ -5,20 +5,18 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const OWNERSHIP_INVENTORY: &str =
-    include_str!("../ownership_inventory.tsv");
+const OWNERSHIP_INVENTORY: &str = include_str!("../ownership_inventory.tsv");
 
 #[test]
 fn focused_rows_do_not_enable_idle_animation_when_transport_is_stopped() {
     let mut state = NativeShellState::new();
     let mut model = crate::app_core::native_shell::runtime_contract::AppModel::default();
     model.transport_running = false;
-    model
-        .browser
-        .rows
-        .push(crate::app_core::native_shell::runtime_contract::BrowserRowModel::new(
+    model.browser.rows.push(
+        crate::app_core::native_shell::runtime_contract::BrowserRowModel::new(
             0, "kick", 1, false, true,
-        ));
+        ),
+    );
     state.sync_from_model(&model);
     state.sync_from_model(&model);
     assert!(!state.needs_animation());
@@ -278,4 +276,3 @@ fn relative_module_path(root: &Path, path: &PathBuf) -> String {
         .to_string_lossy()
         .replace('\\', "/")
 }
-
