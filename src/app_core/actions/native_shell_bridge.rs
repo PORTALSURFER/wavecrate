@@ -1,8 +1,8 @@
 //! Sempal-owned native runtime bridge trait.
 //!
-//! The native runtime still consumes a Radiant compatibility bridge at the
-//! launch boundary. Sempal code should implement this trait instead, so Sempal
-//! projection DTOs and actions remain owned in `app_core`.
+//! Sempal code implements this trait so projected DTOs and actions remain owned
+//! in `app_core` while the native runtime adapter handles the Radiant launch
+//! boundary.
 
 use super::{
     NativeAppModel, NativeDirtySegments, NativeFrameBuildResult, NativeMotionModel,

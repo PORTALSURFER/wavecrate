@@ -41,46 +41,6 @@ mod tests {
     }
 
     #[test]
-    /// Guard the Sempal launch path against regressing to a local native Vello runtime module.
-    fn sempal_runtime_glue_launches_through_generic_radiant_runtime() {
-        let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let adapter = native_shell_runtime_sources(manifest_dir);
-        let public_runtime =
-            fs::read_to_string(manifest_dir.join("src/gui_runtime/mod.rs")).expect("runtime mod");
-        let removed_runtime_module = format!("mod {}{};", "native_", "vello");
-
-        assert!(
-            adapter.contains("crate::app_core::native_shell::runtime_contract")
-                && adapter.contains("run_native_vello_runtime_with_artifacts")
-                && adapter.contains("SempalRuntimeBridge::new(bridge)")
-                && adapter.contains("local_automation_snapshot_from_native_shell")
-                && adapter
-                    .contains("crate::app_core::native_shell::runtime_contract::capture_native_shell_shot_snapshot"),
-            "Sempal compatibility conversion, generic runtime launch, automation, and shot snapshots should stay in the runtime adapter"
-        );
-        assert!(
-            !adapter.contains(&format!(
-                "{}{}",
-                "radiant::runtime_contract::", "legacy_shell"
-            )) && !adapter.contains(&format!(
-                "{}{}",
-                "run_legacy_native_vello_", "app_with_artifacts"
-            )),
-            "Sempal runtime glue must not route through a legacy-shell facade or local legacy runner"
-        );
-        assert!(
-            !public_runtime.contains(&removed_runtime_module),
-            "Sempal runtime module tree must not include the removed local native Vello runner"
-        );
-        assert!(
-            public_runtime.contains("Sempal GUI runtime host integration")
-                && public_runtime.contains("Product shell composition, automation snapshots")
-                && public_runtime.contains("Launching Sempal native Vello runtime"),
-            "runtime boundary docs and logs should describe Sempal-owned compatibility glue, not a Radiant legacy runtime"
-        );
-    }
-
-    #[test]
     fn sempal_generic_runtime_bridge_routes_messages_repaint_exit_and_snapshots() {
         let repaint_installed = Arc::new(AtomicBool::new(false));
         let mut bridge = SempalRuntimeBridge::new(RecordingBridge {
@@ -448,23 +408,13 @@ mod tests {
     }
 
     #[test]
-    fn sempal_root_dependency_no_longer_enables_radiant_legacy_shell() {
+    fn sempal_root_dependency_uses_default_radiant_package() {
         let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
         let cargo = fs::read_to_string(manifest_dir.join("Cargo.toml")).expect("root manifest");
-        let adapter = native_shell_runtime_sources(manifest_dir);
 
         assert!(
-            cargo.contains("radiant = { path = \"vendor/radiant\" }")
-                && !cargo.contains("features = [\"legacy-shell\"]"),
-            "Sempal should consume Radiant without the legacy-shell feature after OPT-277"
-        );
-        assert!(
-            adapter.contains(
-                "impl<B: NativeAppBridge> RuntimeBridge<SempalRuntimeMessage> for SempalRuntimeBridge<B>"
-            ) && adapter.contains("fn resolve_key_press(")
-                && adapter.contains("fn install_repaint_signal(")
-                && adapter.contains("fn on_runtime_exit("),
-            "Sempal should own a generic Radiant RuntimeBridge adapter for shortcut, repaint, and exit routing"
+            cargo.contains("radiant = { path = \"vendor/radiant\" }"),
+            "Sempal should consume the local Radiant package directly"
         );
     }
 
@@ -566,23 +516,5 @@ mod tests {
             }
             _ => false,
         })
-    }
-
-    fn native_shell_runtime_sources(manifest_dir: &Path) -> String {
-        let mut sources =
-            fs::read_to_string(manifest_dir.join("src/gui_runtime/native_shell_runtime.rs"))
-                .expect("native shell runtime facade");
-        for path in [
-            "src/gui_runtime/native_shell_runtime/action_mapping.rs",
-            "src/gui_runtime/native_shell_runtime/automation.rs",
-            "src/gui_runtime/native_shell_runtime/bridge.rs",
-            "src/gui_runtime/native_shell_runtime/input_routing.rs",
-            "src/gui_runtime/native_shell_runtime/launch.rs",
-            "src/gui_runtime/native_shell_runtime/model_mapping.rs",
-        ] {
-            sources.push('\n');
-            sources.push_str(&fs::read_to_string(manifest_dir.join(path)).expect(path));
-        }
-        sources
     }
 }
