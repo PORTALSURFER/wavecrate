@@ -446,6 +446,12 @@ impl From<compat::UiAction> for UiAction {
             compat::UiAction::ToggleBrowserPlaybackAgeFilter { bucket, invert } => {
                 Self::ToggleBrowserPlaybackAgeFilter { bucket, invert }
             }
+            compat::UiAction::ToggleBrowserSidebarFilter { option, additive } => {
+                Self::ToggleBrowserSidebarFilter { option, additive }
+            }
+            compat::UiAction::ClearBrowserSidebarFilter { facet } => {
+                Self::ClearBrowserSidebarFilter { facet }
+            }
             compat::UiAction::ToggleContentMark => Self::ToggleBrowserSampleMark,
             compat::UiAction::ToggleBrowserMarkedFilter => Self::ToggleBrowserMarkedFilter,
             compat::UiAction::ToggleBrowserDerivedLabelFilter { invert } => {
@@ -945,6 +951,12 @@ impl From<UiAction> for compat::UiAction {
             UiAction::ToggleBrowserPlaybackAgeFilter { bucket, invert } => {
                 Self::ToggleBrowserPlaybackAgeFilter { bucket, invert }
             }
+            UiAction::ToggleBrowserSidebarFilter { option, additive } => {
+                Self::ToggleBrowserSidebarFilter { option, additive }
+            }
+            UiAction::ClearBrowserSidebarFilter { facet } => {
+                Self::ClearBrowserSidebarFilter { facet }
+            }
             UiAction::ToggleBrowserSampleMark => Self::ToggleContentMark,
             UiAction::ToggleBrowserMarkedFilter => Self::ToggleBrowserMarkedFilter,
             UiAction::ToggleBrowserTagNamedFilter { invert } => {
@@ -1336,6 +1348,7 @@ impl From<compat::BrowserPanelModel> for BrowserPanelModel {
             marked_filter_active: value.marked_filter_active,
             tag_named_filter_active: value.derived_label_filter_active,
             tag_named_filter_negated: value.derived_label_filter_negated,
+            sidebar_filters: Default::default(),
             search_placeholder: value.search_placeholder,
             busy: value.busy,
             source_loading: value.data_loading,
@@ -1716,6 +1729,8 @@ impl From<&WaveformChromeModel> for compat::WaveformChromeModel {
 
 impl From<compat::AppModel> for AppModel {
     fn from(value: compat::AppModel) -> Self {
+        let mut browser: BrowserPanelModel = value.browser.into();
+        browser.sidebar_filters = value.sidebar_filters.clone();
         Self {
             title: value.title,
             backend_label: value.backend_label,
@@ -1733,7 +1748,7 @@ impl From<compat::AppModel> for AppModel {
             volume: value.volume,
             transport_running: value.transport_running,
             sources: value.sources,
-            browser: value.browser.into(),
+            browser,
             browser_chrome: value.browser_chrome.into(),
             map: value.map,
             waveform: value.waveform,
@@ -1746,6 +1761,7 @@ impl From<compat::AppModel> for AppModel {
 
 impl From<AppModel> for compat::AppModel {
     fn from(value: AppModel) -> Self {
+        let sidebar_filters = value.browser.sidebar_filters.clone();
         Self {
             title: value.title,
             backend_label: value.backend_label,
@@ -1764,6 +1780,7 @@ impl From<AppModel> for compat::AppModel {
             transport_running: value.transport_running,
             sources: value.sources,
             browser: value.browser.into(),
+            sidebar_filters,
             browser_chrome: value.browser_chrome.into(),
             map: value.map,
             waveform: value.waveform,
@@ -1799,6 +1816,7 @@ fn local_app_model_from_native_model(value: &AppModel) -> crate::compat_app_cont
         transport_running: value.transport_running,
         sources: local_sources_panel_from_native_model(&value.sources),
         browser: value.browser.clone().into(),
+        sidebar_filters: value.browser.sidebar_filters.clone(),
         browser_chrome: value.browser_chrome.clone().into(),
         map: value.map.clone(),
         waveform: value.waveform.clone(),

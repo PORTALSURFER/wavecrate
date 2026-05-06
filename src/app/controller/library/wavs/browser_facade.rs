@@ -1,6 +1,6 @@
 use super::*;
 use crate::app::controller::jobs::LoadedSimilarityQueryResult;
-use crate::app::state::SampleBrowserTab;
+use crate::app::state::{BrowserSidebarFilterFacet, BrowserSidebarFilterOption, SampleBrowserTab};
 use std::path::Path;
 
 impl AppController {
@@ -44,6 +44,20 @@ impl AppController {
     /// Clear any active playback-age filters in the browser list.
     pub fn clear_browser_playback_age_filter(&mut self) {
         browser_search::clear_browser_playback_age_filter(self);
+    }
+
+    /// Toggle one sidebar metadata-facet option in the browser list.
+    pub fn toggle_browser_sidebar_filter(
+        &mut self,
+        option: BrowserSidebarFilterOption,
+        additive: bool,
+    ) {
+        browser_search::toggle_browser_sidebar_filter(self, option, additive);
+    }
+
+    /// Clear one sidebar metadata-facet group in the browser list.
+    pub fn clear_browser_sidebar_filter(&mut self, facet: BrowserSidebarFilterFacet) {
+        browser_search::clear_browser_sidebar_filter(self, facet);
     }
 
     /// Toggle whether the browser shows only session-marked samples.

@@ -19,6 +19,9 @@ pub(super) fn filter_accepts_tag(
     locked: bool,
     last_played_at: Option<i64>,
     playback_age_now_unix_secs: i64,
+    sidebar_filters: &crate::app::state::BrowserSidebarFilterState,
+    relative_path: &Path,
+    bpm: Option<f32>,
 ) -> bool {
     let triage_ok = match filter {
         TriageFlagFilter::All => true,
@@ -34,7 +37,8 @@ pub(super) fn filter_accepts_tag(
         playback_age_bucket_matches_filters(playback_age_filter, playback_age_bucket);
     let marked_ok = !marked_only || marked;
     let tag_named_ok = tag_named_filter.accepts(tag_named);
-    triage_ok && rating_ok && playback_age_ok && marked_ok && tag_named_ok
+    let sidebar_ok = sidebar_filters.accepts_path_and_bpm(relative_path, bpm);
+    triage_ok && rating_ok && playback_age_ok && marked_ok && tag_named_ok && sidebar_ok
 }
 
 /// Return the effective browser rating-filter level for one worker entry.
@@ -146,7 +150,7 @@ mod tests {
     use super::*;
     use crate::sample_sources::SourceId;
     use std::collections::BTreeSet;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
 
     #[test]
     fn locked_keep_filter_accepts_only_locked_keep_rows() {
@@ -164,6 +168,9 @@ mod tests {
             true,
             None,
             0,
+            &crate::app::state::BrowserSidebarFilterState::default(),
+            Path::new("sample.wav"),
+            None,
         ));
         assert!(!filter_accepts_tag(
             TriageFlagFilter::All,
@@ -177,6 +184,9 @@ mod tests {
             false,
             None,
             0,
+            &crate::app::state::BrowserSidebarFilterState::default(),
+            Path::new("sample.wav"),
+            None,
         ));
         assert!(!filter_accepts_tag(
             TriageFlagFilter::All,
@@ -190,6 +200,9 @@ mod tests {
             true,
             None,
             0,
+            &crate::app::state::BrowserSidebarFilterState::default(),
+            Path::new("sample.wav"),
+            None,
         ));
         assert!(!filter_accepts_tag(
             TriageFlagFilter::All,
@@ -203,6 +216,9 @@ mod tests {
             true,
             None,
             0,
+            &crate::app::state::BrowserSidebarFilterState::default(),
+            Path::new("sample.wav"),
+            None,
         ));
         assert!(filter_accepts_tag(
             TriageFlagFilter::All,
@@ -216,6 +232,9 @@ mod tests {
             true,
             None,
             0,
+            &crate::app::state::BrowserSidebarFilterState::default(),
+            Path::new("sample.wav"),
+            None,
         ));
     }
 
@@ -268,6 +287,8 @@ mod tests {
             playback_age_filter: BTreeSet::new(),
             marked_only: false,
             tag_named_filter: crate::app::state::TagNamedFilter::All,
+            sidebar_filters: Default::default(),
+            sidebar_bpm_values: Default::default(),
             marked_paths: BTreeSet::new(),
             sort: SampleBrowserSort::ListOrder,
             similar_query: None,

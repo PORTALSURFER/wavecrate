@@ -372,6 +372,9 @@ fn sidebar_filter_action_at_point(
         return None;
     }
     let rows = sidebar_filter_row_rects(rect, style.sizing);
+    if let Some(action) = sidebar_filter_facet_action_at_point(&rows, point) {
+        return Some(action);
+    }
     let Some(rating_row) = rows.get(5).copied() else {
         return None;
     };
@@ -390,6 +393,47 @@ fn sidebar_filter_action_at_point(
         return Some(UiAction::ToggleBrowserMarkedFilter);
     }
     None
+}
+
+/// Resolve non-rating sidebar filter rows to their facet toggle actions.
+fn sidebar_filter_facet_action_at_point(rows: &[Rect], point: Point) -> Option<UiAction> {
+    use crate::app_core::app_api::state::{
+        BrowserBitDepthFacet, BrowserBpmFacet, BrowserChannelFacet, BrowserFormatFacet,
+        BrowserKeyFacet, BrowserSidebarFilterOption,
+    };
+    let option = if rows.first().is_some_and(|row| row.contains(point)) {
+        BrowserSidebarFilterOption::Format(BrowserFormatFacet::Wav)
+    } else if rows.get(1).is_some_and(|row| row.contains(point)) {
+        BrowserSidebarFilterOption::BitDepth(BrowserBitDepthFacet::Unavailable)
+    } else if rows.get(2).is_some_and(|row| row.contains(point)) {
+        BrowserSidebarFilterOption::Channels(BrowserChannelFacet::Unavailable)
+    } else if rows.get(3).is_some_and(|row| row.contains(point)) {
+        BrowserSidebarFilterOption::Bpm(sidebar_bpm_option_at_point(rows[3], point))
+    } else if rows.get(4).is_some_and(|row| row.contains(point)) {
+        BrowserSidebarFilterOption::Key(BrowserKeyFacet::Unknown)
+    } else {
+        return None;
+    };
+    Some(UiAction::ToggleBrowserSidebarFilter {
+        option,
+        additive: true,
+    })
+}
+
+/// Map a BPM-row point to one of the compact BPM buckets.
+fn sidebar_bpm_option_at_point(
+    row: Rect,
+    point: Point,
+) -> crate::app_core::app_api::state::BrowserBpmFacet {
+    let value_start = row.min.x + row.width() * 0.42;
+    let segment = ((point.x - value_start).max(0.0) / ((row.max.x - value_start).max(1.0) / 4.0))
+        .floor() as usize;
+    match segment.min(3) {
+        0 => crate::app_core::app_api::state::BrowserBpmFacet::Unknown,
+        1 => crate::app_core::app_api::state::BrowserBpmFacet::Slow,
+        2 => crate::app_core::app_api::state::BrowserBpmFacet::Mid,
+        _ => crate::app_core::app_api::state::BrowserBpmFacet::Fast,
+    }
 }
 
 /// Return the local sidebar tag input rectangle.

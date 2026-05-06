@@ -175,10 +175,29 @@ fn filters_group(rect: Rect, model: &AppModel) -> AutomationNodeSnapshot {
         .into_iter()
         .map(|name| {
             let (value, actions) = match name {
-                "format" => (String::from("WAV"), Vec::new()),
-                "bit_depth" | "channels" => (String::from("Unavailable"), Vec::new()),
-                "bpm" => (String::from("Any"), Vec::new()),
-                "key" => (String::from("Unknown"), Vec::new()),
+                "format" => (
+                    sidebar_option_summary(model.sidebar_filters.formats.len(), "WAV"),
+                    vec![String::from("toggle_browser_sidebar_filter")],
+                ),
+                "bit_depth" => (
+                    sidebar_option_summary(model.sidebar_filters.bit_depths.len(), "Unavailable"),
+                    vec![String::from("toggle_browser_sidebar_filter")],
+                ),
+                "channels" => (
+                    sidebar_option_summary(model.sidebar_filters.channels.len(), "Unavailable"),
+                    vec![String::from("toggle_browser_sidebar_filter")],
+                ),
+                "bpm" => (
+                    sidebar_bpm_summary(model),
+                    vec![
+                        String::from("toggle_browser_sidebar_filter"),
+                        String::from("clear_browser_sidebar_filter"),
+                    ],
+                ),
+                "key" => (
+                    sidebar_option_summary(model.sidebar_filters.keys.len(), "Unknown"),
+                    vec![String::from("toggle_browser_sidebar_filter")],
+                ),
                 "rating" => (
                     rating_filter_summary(model),
                     vec![String::from("toggle_browser_rating_filter")],
@@ -250,6 +269,30 @@ fn filters_group(rect: Rect, model: &AppModel) -> AutomationNodeSnapshot {
         available_actions: vec![String::from("focus_browser_panel")],
         metadata: metadata(&[("placement", "left_sidebar")]),
         children,
+    }
+}
+
+/// Summarize single-option sidebar facets for automation.
+fn sidebar_option_summary(active_count: usize, label: &str) -> String {
+    if active_count == 0 {
+        String::from("Any")
+    } else {
+        label.to_string()
+    }
+}
+
+/// Summarize active BPM sidebar facets for automation.
+fn sidebar_bpm_summary(model: &AppModel) -> String {
+    if model.sidebar_filters.bpms.is_empty() {
+        String::from("Any")
+    } else {
+        model
+            .sidebar_filters
+            .bpms
+            .iter()
+            .map(|facet| format!("{facet:?}"))
+            .collect::<Vec<_>>()
+            .join("|")
     }
 }
 

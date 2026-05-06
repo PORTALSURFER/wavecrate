@@ -19,6 +19,10 @@ pub(crate) struct SearchJob {
     pub(crate) marked_only: bool,
     /// Filter for samples known to have tag-derived filenames.
     pub(crate) tag_named_filter: crate::app::state::TagNamedFilter,
+    /// Sidebar metadata facet filters selected for the browser.
+    pub(crate) sidebar_filters: crate::app::state::BrowserSidebarFilterState,
+    /// BPM metadata aligned by relative path for sidebar BPM facets.
+    pub(crate) sidebar_bpm_values: BTreeMap<PathBuf, Option<f32>>,
     /// Session-marked sample paths for the active source.
     pub(crate) marked_paths: BTreeSet<PathBuf>,
     pub(crate) sort: crate::app::state::SampleBrowserSort,

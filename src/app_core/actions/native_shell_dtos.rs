@@ -693,6 +693,8 @@ pub struct BrowserPanelModel {
     pub tag_named_filter_active: bool,
     /// Whether the tag-named filter is currently inverted.
     pub tag_named_filter_negated: bool,
+    /// Sidebar metadata facets selected for browser filtering.
+    pub sidebar_filters: crate::app_core::state::BrowserSidebarFilterState,
     /// Placeholder shown when the browser search query is empty.
     pub search_placeholder: Option<String>,
     /// Whether browser search/filter work is still running in the background.

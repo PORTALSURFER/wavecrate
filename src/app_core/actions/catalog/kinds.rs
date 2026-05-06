@@ -190,6 +190,10 @@ pub enum GuiActionKind {
     ToggleBrowserRatingFilter,
     /// Toggle one browser playback-age filter chip.
     ToggleBrowserPlaybackAgeFilter,
+    /// Toggle one browser sidebar metadata-facet option.
+    ToggleBrowserSidebarFilter,
+    /// Clear one browser sidebar metadata-facet group.
+    ClearBrowserSidebarFilter,
     /// Toggle the temporary browser sample mark for the focused row or selection.
     ToggleBrowserSampleMark,
     /// Toggle whether the browser shows only temporary marked rows.

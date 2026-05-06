@@ -60,6 +60,15 @@ pub type PlaybackAgeFilterChip = app_state::PlaybackAgeFilterChip;
 /// Browser playback-age row-visual bucket state.
 pub type PlaybackAgeBucket = app_state::PlaybackAgeBucket;
 
+/// Browser sidebar filter facet identifier.
+pub type BrowserSidebarFilterFacet = app_state::BrowserSidebarFilterFacet;
+
+/// Browser sidebar filter option payload.
+pub type BrowserSidebarFilterOption = app_state::BrowserSidebarFilterOption;
+
+/// Browser sidebar filter state.
+pub type BrowserSidebarFilterState = app_state::BrowserSidebarFilterState;
+
 /// Return the fixed browser playback-age chip order used across migration-facing UI surfaces.
 pub fn browser_playback_age_filter_chips() -> [PlaybackAgeFilterChip; 3] {
     app_state::browser_playback_age_filter_chips()

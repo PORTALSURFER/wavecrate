@@ -10,6 +10,7 @@
 //! centralized while improving internal organization around it.
 
 use super::{FolderPaneIdModel, PlaybackAgeFilterChip};
+use crate::app_core::state::{BrowserSidebarFilterFacet, BrowserSidebarFilterOption};
 use serde::{Deserialize, Serialize};
 
 /// Triage targets used by native browser action surfaces.
@@ -360,6 +361,18 @@ pub enum UiAction {
         bucket: PlaybackAgeFilterChip,
         /// Whether the click should activate every playback-age chip except the clicked one.
         invert: bool,
+    },
+    /// Toggle one browser sidebar metadata-facet option.
+    ToggleBrowserSidebarFilter {
+        /// Sidebar filter option associated with the clicked chip.
+        option: BrowserSidebarFilterOption,
+        /// Whether the click should preserve other active options in the same facet.
+        additive: bool,
+    },
+    /// Clear one browser sidebar metadata-facet group.
+    ClearBrowserSidebarFilter {
+        /// Sidebar filter facet whose selected options should be cleared.
+        facet: BrowserSidebarFilterFacet,
     },
     /// Toggle the session mark for the focused content row or current multi-selection.
     ToggleContentMark,

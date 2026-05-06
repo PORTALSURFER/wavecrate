@@ -111,6 +111,7 @@ fn apply_browser_frame(model: &mut NativeAppModel, frame: NativeBrowserPanelMode
     model.browser.marked_filter_active = frame.marked_filter_active;
     model.browser.tag_named_filter_active = frame.tag_named_filter_active;
     model.browser.tag_named_filter_negated = frame.tag_named_filter_negated;
+    model.browser.sidebar_filters = frame.sidebar_filters;
     model.browser.search_placeholder = frame.search_placeholder;
     model.browser.busy = frame.busy;
     model.browser.similarity_filtered = frame.similarity_filtered;

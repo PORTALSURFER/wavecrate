@@ -52,6 +52,7 @@ pub(crate) fn project_browser_panel_frame_model(
         controller.ui.browser.search.tag_named_filter,
         crate::app_core::app_api::state::TagNamedFilter::NotTagNamed
     );
+    let sidebar_filters = controller.ui.browser.search.sidebar_filters.clone();
     let search_placeholder = Some(super::browser_search_placeholder(
         controller.ui.browser.search.search_focus_requested,
     ));
@@ -81,6 +82,7 @@ pub(crate) fn project_browser_panel_frame_model(
         marked_filter_active,
         tag_named_filter_active,
         tag_named_filter_negated,
+        sidebar_filters,
         search_placeholder,
         busy,
         source_loading: controller.ui.browser.search.source_loading,

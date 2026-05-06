@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::app::state::ProgressTaskKind;
+use std::collections::BTreeMap;
 use std::sync::OnceLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 #[cfg(test)]
@@ -51,6 +52,8 @@ impl AppController {
             self.clear_progress_task(ProgressTaskKind::Search);
             return;
         };
+        let source_id = source.id.clone();
+        let source_root = source.root.clone();
         self.ui.browser.search.latest_search_request_id = self
             .ui
             .browser
@@ -62,9 +65,11 @@ impl AppController {
         let filter = self.ui.browser.search.filter;
         let rating_filter = self.ui.browser.search.rating_filter.clone();
         let playback_age_filter = self.ui.browser.search.playback_age_filter.clone();
+        let sidebar_filters = self.ui.browser.search.sidebar_filters.clone();
+        let sidebar_bpm_values = self.sidebar_bpm_values_for_search_job(&sidebar_filters);
         let marked_only = self.ui.browser.search.marked_only;
         let tag_named_filter = self.ui.browser.search.tag_named_filter;
-        let marked_paths = self.ui.browser.marks.paths_for_source(&source.id);
+        let marked_paths = self.ui.browser.marks.paths_for_source(&source_id);
         let sort = self.ui.browser.search.sort;
         let similar_query = self.ui.browser.search.similar_query.clone();
         let duplicate_cleanup = self.ui.browser.duplicate_cleanup.clone();
@@ -82,12 +87,12 @@ impl AppController {
         if query.trim().is_empty() {
             self.update_progress_detail_for_task(
                 ProgressTaskKind::Search,
-                format!("Rebuilding browser rows for {}", source.root.display()),
+                format!("Rebuilding browser rows for {}", source_root.display()),
             );
         } else {
             self.update_progress_detail_for_task(
                 ProgressTaskKind::Search,
-                format!("Filtering '{query}' in {}", source.root.display()),
+                format!("Filtering '{query}' in {}", source_root.display()),
             );
         }
         if !metadata_delta_paths.is_empty() {
@@ -105,14 +110,16 @@ impl AppController {
             .jobs
             .send_search_job(crate::app::controller::jobs::SearchJob {
                 request_id,
-                source_id: source.id.clone(),
-                source_root: source.root.clone(),
+                source_id,
+                source_root,
                 query,
                 filter,
                 rating_filter,
                 playback_age_filter,
                 marked_only,
                 tag_named_filter,
+                sidebar_filters,
+                sidebar_bpm_values,
                 marked_paths,
                 sort,
                 similar_query,
@@ -123,6 +130,34 @@ impl AppController {
                 metadata_delta_paths,
                 playback_age_now_unix_secs,
             });
+    }
+
+    /// Collect BPM values needed by sidebar BPM facets for the worker job snapshot.
+    fn sidebar_bpm_values_for_search_job(
+        &mut self,
+        sidebar_filters: &crate::app::state::BrowserSidebarFilterState,
+    ) -> BTreeMap<PathBuf, Option<f32>> {
+        if !sidebar_filters.needs_bpm_metadata() {
+            return BTreeMap::new();
+        }
+        let Some(snapshot) = self.current_browser_feature_cache_snapshot() else {
+            return BTreeMap::new();
+        };
+        let paths = snapshot.entry_paths.to_vec();
+        self.preload_bpm_values_for_paths(&paths);
+        let Some(source_id) = self.current_source().map(|source| source.id.clone()) else {
+            return BTreeMap::new();
+        };
+        let Some(cache) = self.ui_cache.browser.bpm_values.get(&source_id) else {
+            return BTreeMap::new();
+        };
+        paths
+            .into_iter()
+            .map(|path| {
+                let bpm = cache.get(&path).copied().flatten();
+                (path, bpm)
+            })
+            .collect()
     }
 }
 

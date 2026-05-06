@@ -75,6 +75,8 @@ pub(in super::super) fn filtered_stage_for_job(
         let marked = job
             .marked_paths
             .contains(Path::new(entry.relative_path.as_ref()));
+        let relative_path = Path::new(entry.relative_path.as_ref());
+        let bpm = job.sidebar_bpm_values.get(relative_path).copied().flatten();
         let accepted = filter_accepts_tag(
             job.filter,
             &job.rating_filter,
@@ -87,6 +89,9 @@ pub(in super::super) fn filtered_stage_for_job(
             entry.locked,
             entry.last_played_at,
             job.playback_age_now_unix_secs,
+            &job.sidebar_filters,
+            relative_path,
+            bpm,
         ) && folder_accepts_index(folder_accepts.as_ref(), index);
         accepts.push(accepted);
         if accepted {
@@ -126,6 +131,7 @@ fn filter_stage_required(job: &SearchJob, has_folder_filters: bool) -> bool {
         || job.filter != TriageFlagFilter::All
         || !job.rating_filter.is_empty()
         || !job.playback_age_filter.is_empty()
+        || !job.sidebar_filters.is_empty()
         || job.marked_only
         || job.tag_named_filter != crate::app::state::TagNamedFilter::All
 }
@@ -147,8 +153,22 @@ fn filter_stage_hash(
         job.marked_only,
         job.marked_only.then_some(hash_value(&job.marked_paths)),
         job.tag_named_filter,
+        hash_value(&job.sidebar_filters),
+        job.sidebar_filters
+            .needs_bpm_metadata()
+            .then(|| sidebar_bpm_hash_for_job(job)),
         has_folder_filters.then_some(super::super::folder_filter_hash_for_job(job)),
     ))
+}
+
+/// Hash worker-side BPM lookup values for active sidebar BPM filters.
+fn sidebar_bpm_hash_for_job(job: &SearchJob) -> u64 {
+    hash_value(
+        &job.sidebar_bpm_values
+            .iter()
+            .map(|(path, bpm)| (path, bpm.map(f32::to_bits)))
+            .collect::<Vec<_>>(),
+    )
 }
 
 fn filter_key(filter: TriageFlagFilter) -> u8 {
@@ -308,6 +328,8 @@ mod tests {
             playback_age_filter: BTreeSet::new(),
             marked_only: false,
             tag_named_filter: crate::app::state::TagNamedFilter::All,
+            sidebar_filters: Default::default(),
+            sidebar_bpm_values: Default::default(),
             marked_paths: BTreeSet::new(),
             sort: SampleBrowserSort::ListOrder,
             similar_query: None,

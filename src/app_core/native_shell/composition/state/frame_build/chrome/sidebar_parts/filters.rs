@@ -211,10 +211,27 @@ fn render_rating_filter_chips(
 /// Return the compact summary value for a filter row.
 fn filter_summary(ctx: &StaticFrameCtx<'_>, label: &str) -> String {
     match label {
-        "Format" => String::from("WAV"),
-        "Bit Depth" | "Channels" => String::from("Unavailable"),
-        "BPM" => String::from("Any"),
-        "Key" => String::from("Unknown"),
+        "Format" => option_summary(ctx.model.sidebar_filters.formats.len(), "WAV"),
+        "Bit Depth" => option_summary(ctx.model.sidebar_filters.bit_depths.len(), "Unavailable"),
+        "Channels" => option_summary(ctx.model.sidebar_filters.channels.len(), "Unavailable"),
+        "BPM" => {
+            let filters = &ctx.model.sidebar_filters.bpms;
+            if filters.is_empty() {
+                String::from("Any")
+            } else {
+                filters
+                    .iter()
+                    .map(|facet| match facet {
+                        crate::app_core::app_api::state::BrowserBpmFacet::Unknown => "?",
+                        crate::app_core::app_api::state::BrowserBpmFacet::Slow => "<90",
+                        crate::app_core::app_api::state::BrowserBpmFacet::Mid => "90-129",
+                        crate::app_core::app_api::state::BrowserBpmFacet::Fast => "130+",
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            }
+        }
+        "Key" => option_summary(ctx.model.sidebar_filters.keys.len(), "Unknown"),
         _ => {
             let active = ctx
                 .model
@@ -229,6 +246,15 @@ fn filter_summary(ctx: &StaticFrameCtx<'_>, label: &str) -> String {
                 format!("{active} active")
             }
         }
+    }
+}
+
+/// Return the compact summary for single-option unavailable/unknown facets.
+fn option_summary(active_count: usize, label: &str) -> String {
+    if active_count == 0 {
+        String::from("Any")
+    } else {
+        label.to_string()
     }
 }
 

@@ -9,6 +9,8 @@ pub(super) fn ensure_filtered_stage(
     playback_age_filter: &std::collections::BTreeSet<crate::app::state::PlaybackAgeFilterChip>,
     playback_age_filter_hash: u64,
     playback_age_cache_token: Option<i64>,
+    sidebar_filters: &crate::app::state::BrowserSidebarFilterState,
+    sidebar_filter_hash: u64,
     marked_only: bool,
     tag_named_filter: crate::app::state::TagNamedFilter,
     playback_age_now_unix_secs: i64,
@@ -22,6 +24,7 @@ pub(super) fn ensure_filtered_stage(
         rating_filter_hash,
         playback_age_filter_hash,
         playback_age_cache_token,
+        sidebar_filter_hash,
         marked_only,
         tag_named_filter,
         marked_revision,
@@ -33,6 +36,7 @@ pub(super) fn ensure_filtered_stage(
             filter,
             rating_filter,
             playback_age_filter,
+            sidebar_filters,
             marked_only,
             tag_named_filter,
         ) {
@@ -44,15 +48,23 @@ pub(super) fn ensure_filtered_stage(
         }
 
         let (candidate_rows, needs_folder_check) = filtered_stage_candidates(controller, filter);
+        let candidate_rows = candidate_rows.to_vec();
+        preload_sidebar_bpm_values(controller, &candidate_rows, sidebar_filters);
         let mut filtered_rows = Vec::with_capacity(candidate_rows.len());
-        for &index in candidate_rows {
-            let Some((tag, locked, last_played_at, marked, tag_named)) = filter_stage_entry(
-                controller,
-                index,
-                marked_only.then_some(selected_source_id).flatten(),
-            ) else {
+        for index in candidate_rows {
+            let Some((relative_path, tag, locked, last_played_at, marked, tag_named)) =
+                filter_stage_entry(
+                    controller,
+                    index,
+                    marked_only.then_some(selected_source_id).flatten(),
+                )
+            else {
                 continue;
             };
+            let bpm = sidebar_filters
+                .needs_bpm_metadata()
+                .then(|| controller.bpm_value_for_path(&relative_path))
+                .flatten();
             if !helpers::filter_accepts(
                 filter,
                 rating_filter,
@@ -65,6 +77,9 @@ pub(super) fn ensure_filtered_stage(
                 locked,
                 last_played_at,
                 playback_age_now_unix_secs,
+                sidebar_filters,
+                &relative_path,
+                bpm,
             ) {
                 continue;
             }
@@ -87,6 +102,7 @@ pub(super) fn filtered_stage_fingerprint(
     rating_filter_hash: u64,
     playback_age_filter_hash: u64,
     playback_age_cache_token: Option<i64>,
+    sidebar_filter_hash: u64,
     marked_only: bool,
     tag_named_filter: crate::app::state::TagNamedFilter,
     marked_revision: u64,
@@ -100,6 +116,7 @@ pub(super) fn filtered_stage_fingerprint(
         rating_filter_hash,
         playback_age_filter_hash,
         playback_age_cache_token,
+        sidebar_filter_hash,
         marked_only,
         tag_named_filter,
         marked_only.then_some(marked_revision),
@@ -112,12 +129,14 @@ fn retained_filter_only_rows<'a>(
     filter: TriageFlagFilter,
     rating_filter: &std::collections::BTreeSet<i8>,
     playback_age_filter: &std::collections::BTreeSet<crate::app::state::PlaybackAgeFilterChip>,
+    sidebar_filters: &crate::app::state::BrowserSidebarFilterState,
     marked_only: bool,
     tag_named_filter: crate::app::state::TagNamedFilter,
 ) -> Option<&'a [usize]> {
     if marked_only
         || !rating_filter.is_empty()
         || !playback_age_filter.is_empty()
+        || !sidebar_filters.is_empty()
         || tag_named_filter != crate::app::state::TagNamedFilter::All
     {
         return None;
@@ -169,7 +188,7 @@ fn filter_stage_entry(
     controller: &AppController,
     index: usize,
     selected_source_id: Option<&crate::sample_sources::SourceId>,
-) -> Option<(Rating, bool, Option<i64>, bool, bool)> {
+) -> Option<(std::path::PathBuf, Rating, bool, Option<i64>, bool, bool)> {
     let entry = controller
         .ui_cache
         .browser
@@ -184,10 +203,35 @@ fn filter_stage_entry(
             .contains(source_id, &entry.relative_path)
     });
     Some((
+        entry.relative_path.clone(),
         entry.tag,
         entry.locked,
         entry.last_played_at,
         marked,
         entry.tag_named,
     ))
+}
+
+/// Preload BPM values needed by active sidebar BPM filters before row iteration.
+fn preload_sidebar_bpm_values(
+    controller: &mut AppController,
+    candidate_rows: &[usize],
+    sidebar_filters: &crate::app::state::BrowserSidebarFilterState,
+) {
+    if !sidebar_filters.needs_bpm_metadata() {
+        return;
+    }
+    let paths = candidate_rows
+        .iter()
+        .filter_map(|index| {
+            controller
+                .ui_cache
+                .browser
+                .pipeline
+                .compact_entries
+                .get(*index)
+                .map(|entry| entry.relative_path.clone())
+        })
+        .collect::<Vec<_>>();
+    controller.preload_bpm_values_for_paths(&paths);
 }
