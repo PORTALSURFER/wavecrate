@@ -38,6 +38,7 @@ fn sidebar_sections_keep_single_pane_contents_inside_sidebar_when_cramped() {
     assert!(pane_sections.folder_header.max.y <= pane_sections.tree_rows.min.y);
 }
 
+/// Sidebar workspace places tags and filters below the source browser.
 #[test]
 fn sidebar_workspace_anchors_tags_and_filters_below_sources() {
     let model = populated_sidebar_model();

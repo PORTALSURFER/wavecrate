@@ -1,10 +1,12 @@
 use super::*;
 
+/// Sidebar filter section rendering.
 mod filters;
 mod folders;
 mod footer;
 mod header;
 mod source_rows;
+/// Sidebar tag editor section rendering.
 mod tags;
 
 pub(super) fn render_sidebar(

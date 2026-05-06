@@ -95,6 +95,7 @@ pub(super) fn build_sidebar_automation(
     }
 }
 
+/// Build automation nodes for the sidebar tag editor.
 fn tags_group(rect: Rect, model: &AppModel) -> AutomationNodeSnapshot {
     let sidebar = model.browser.pill_editor();
     let mut children = Vec::new();
@@ -167,6 +168,7 @@ fn tags_group(rect: Rect, model: &AppModel) -> AutomationNodeSnapshot {
     }
 }
 
+/// Build automation nodes for the sidebar browser filters.
 fn filters_group(rect: Rect, model: &AppModel) -> AutomationNodeSnapshot {
     let rows = ["format", "bit_depth", "channels", "bpm", "key", "rating"];
     let mut children: Vec<_> = rows
@@ -251,6 +253,7 @@ fn filters_group(rect: Rect, model: &AppModel) -> AutomationNodeSnapshot {
     }
 }
 
+/// Summarize the active rating filters for automation.
 fn rating_filter_summary(model: &AppModel) -> String {
     let active = model
         .browser
@@ -265,6 +268,7 @@ fn rating_filter_summary(model: &AppModel) -> String {
     }
 }
 
+/// Return the sidebar tag input bounds used by automation snapshots.
 fn sidebar_tag_input_rect_for_automation(rect: Rect) -> Rect {
     let pad = 6.0;
     let height = 18.0;

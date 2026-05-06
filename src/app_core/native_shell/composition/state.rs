@@ -552,6 +552,7 @@ mod opt_272_tests {
         }
     }
 
+    /// Compact sidebar workspace keeps sources, tags, and filters ordered.
     #[test]
     fn compact_sidebar_workspace_anchors_tags_and_filters_below_sources() {
         let model = populated_single_sidebar_model();
@@ -570,6 +571,7 @@ mod opt_272_tests {
         }
     }
 
+    /// Left-sidebar rating chips route through the source hit-test path.
     #[test]
     fn left_sidebar_rating_chip_routes_browser_filter_action() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));

@@ -18,6 +18,7 @@ fn toolbar_hit_test_focuses_browser_search() {
     );
 }
 
+/// Sidebar rating chips dispatch the browser rating filter action.
 #[test]
 fn sidebar_hit_test_toggles_browser_rating_filter_chip() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
@@ -41,6 +42,7 @@ fn sidebar_hit_test_toggles_browser_rating_filter_chip() {
     );
 }
 
+/// Browser toolbar keeps rating filter chips hidden after moving filters left.
 #[test]
 fn browser_toolbar_no_longer_exposes_rating_filter_chip() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
@@ -49,6 +51,7 @@ fn browser_toolbar_no_longer_exposes_rating_filter_chip() {
     assert!(state.browser_rating_filter_chip_rect(&layout, &model, 4).is_none());
 }
 
+/// Browser toolbar keeps playback-age filter chips hidden after moving filters left.
 #[test]
 fn browser_toolbar_no_longer_exposes_playback_age_filter_chip() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
@@ -63,6 +66,7 @@ fn browser_toolbar_no_longer_exposes_playback_age_filter_chip() {
         .is_none());
 }
 
+/// Sidebar tag input is exposed as a left-sidebar hit target.
 #[test]
 fn sidebar_pill_editor_input_is_left_sidebar_hit_target() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));

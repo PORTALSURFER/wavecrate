@@ -145,6 +145,7 @@ pub(in crate::gui::native_shell::state) fn sidebar_sections(
     }
 }
 
+/// Return the sidebar workspace bands for sources, tags, and filters.
 pub(in crate::gui::native_shell::state) fn sidebar_workspace_sections(
     layout: &ShellLayout,
     style: &StyleTokens,

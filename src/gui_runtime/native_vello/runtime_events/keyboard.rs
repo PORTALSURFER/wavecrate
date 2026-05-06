@@ -329,6 +329,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.refresh_cached_model_after_folder_create_action(&action);
     }
 
+    /// Move the highlighted browser pill-editor suggestion by one step.
     fn move_browser_pill_editor_suggestion(&mut self, delta: isize) -> bool {
         let count = self.browser_pill_editor_suggestion_count();
         if count == 0 {
@@ -345,6 +346,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         true
     }
 
+    /// Complete the browser pill-editor input from the highlighted suggestion.
     fn complete_browser_pill_editor_suggestion(&mut self) -> bool {
         let Some(label) = self.browser_pill_editor_suggestion_label() else {
             return true;
@@ -352,11 +354,13 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.set_text_value(label)
     }
 
+    /// Count selectable browser pill-editor suggestions.
     fn browser_pill_editor_suggestion_count(&self) -> usize {
         let editor = &self.model.browser.pill_editor;
         editor.option_pills.len() + usize::from(editor.create_pill.is_some())
     }
 
+    /// Return the highlighted browser pill-editor suggestion label.
     fn browser_pill_editor_suggestion_label(&self) -> Option<String> {
         let editor = &self.model.browser.pill_editor;
         let count = self.browser_pill_editor_suggestion_count();
@@ -369,12 +373,13 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             .get(index)
             .or_else(|| {
                 (index == editor.option_pills.len())
-                    .then(|| editor.create_pill.as_ref())
+                    .then_some(editor.create_pill.as_ref())
                     .flatten()
             })
             .map(|pill| pill.label.clone())
     }
 
+    /// Remove the trailing selected pill when Backspace starts from an empty input.
     fn remove_last_browser_pill_editor_chip(&mut self) -> bool {
         if self
             .current_text_value()

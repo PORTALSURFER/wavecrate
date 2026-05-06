@@ -1,7 +1,9 @@
 use super::*;
 
+/// Ordered filter rows rendered in the left sidebar.
 const FILTER_ROWS: [&str; 6] = ["Format", "Bit Depth", "Channels", "BPM", "Key", "Rating"];
 
+/// Render the left-sidebar browser filters panel.
 pub(super) fn render_sidebar_filters(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
@@ -114,6 +116,7 @@ pub(super) fn render_sidebar_filters(
     }
 }
 
+/// Return row rectangles for the sidebar filter controls.
 pub(in crate::gui::native_shell::state) fn sidebar_filter_row_rects(
     rect: Rect,
     sizing: SizingTokens,
@@ -136,6 +139,7 @@ pub(in crate::gui::native_shell::state) fn sidebar_filter_row_rects(
         .collect()
 }
 
+/// Return hit/render rectangles for the rating chips inside the rating row.
 pub(in crate::gui::native_shell::state) fn sidebar_rating_chip_rects(
     rating_row: Rect,
     sizing: SizingTokens,
@@ -154,6 +158,7 @@ pub(in crate::gui::native_shell::state) fn sidebar_rating_chip_rects(
     })
 }
 
+/// Render the rating filter chip strip.
 fn render_rating_filter_chips(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
@@ -203,6 +208,7 @@ fn render_rating_filter_chips(
     }
 }
 
+/// Return the compact summary value for a filter row.
 fn filter_summary(ctx: &StaticFrameCtx<'_>, label: &str) -> String {
     match label {
         "Format" => String::from("WAV"),
@@ -226,6 +232,7 @@ fn filter_summary(ctx: &StaticFrameCtx<'_>, label: &str) -> String {
     }
 }
 
+/// Return the display label for a rating chip index.
 fn rating_chip_label(index: usize) -> &'static str {
     match index {
         0 => "-3",
@@ -240,6 +247,7 @@ fn rating_chip_label(index: usize) -> &'static str {
     }
 }
 
+/// Inset a rectangle without inverting its bounds.
 fn inset_rect(rect: Rect, x: f32, y: f32) -> Rect {
     Rect::from_min_max(
         Point::new(

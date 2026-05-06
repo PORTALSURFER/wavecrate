@@ -318,6 +318,7 @@ impl NativeShellState {
     }
 }
 
+/// Return the sidebar pill-editor input hit rectangle when it is visible.
 pub(in crate::gui::native_shell::state) fn sidebar_pill_editor_input_rect(
     layout: &ShellLayout,
     style: &StyleTokens,
@@ -326,6 +327,7 @@ pub(in crate::gui::native_shell::state) fn sidebar_pill_editor_input_rect(
     (rect.width() > 1.0 && rect.height() > 1.0).then(|| sidebar_tag_input_rect(rect, style.sizing))
 }
 
+/// Return the sidebar pill-editor text hit rectangle when it is visible.
 pub(in crate::gui::native_shell::state) fn sidebar_pill_editor_text_rect(
     layout: &ShellLayout,
     style: &StyleTokens,
@@ -334,6 +336,7 @@ pub(in crate::gui::native_shell::state) fn sidebar_pill_editor_text_rect(
         .map(|rect| inset_rect(rect, style.sizing.text_inset_x, style.sizing.text_inset_y))
 }
 
+/// Resolve a sidebar tag-editor point to its UI action.
 fn sidebar_tag_action_at_point(
     layout: &ShellLayout,
     style: &StyleTokens,
@@ -357,6 +360,7 @@ fn sidebar_tag_action_at_point(
     None
 }
 
+/// Resolve a sidebar filter-control point to its UI action.
 fn sidebar_filter_action_at_point(
     layout: &ShellLayout,
     style: &StyleTokens,
@@ -382,12 +386,13 @@ fn sidebar_filter_action_at_point(
             });
         }
     }
-    if model.browser.marked_filter_active && rows.get(0).is_some_and(|row| row.contains(point)) {
+    if model.browser.marked_filter_active && rows.first().is_some_and(|row| row.contains(point)) {
         return Some(UiAction::ToggleBrowserMarkedFilter);
     }
     None
 }
 
+/// Return the local sidebar tag input rectangle.
 fn sidebar_tag_input_rect(rect: Rect, sizing: SizingTokens) -> Rect {
     let pad = sizing.panel_inset.max(5.0);
     let height = sizing.browser_row_height.max(18.0);
@@ -400,11 +405,12 @@ fn sidebar_tag_input_rect(rect: Rect, sizing: SizingTokens) -> Rect {
     )
 }
 
-fn sidebar_tag_pill_rects<'a>(
+/// Return visible sidebar tag pill rectangles paired with their pill models.
+fn sidebar_tag_pill_rects(
     rect: Rect,
     sizing: SizingTokens,
-    model: &'a AppModel,
-) -> Vec<(&'a BrowserPillModel, Rect)> {
+    model: &AppModel,
+) -> Vec<(&BrowserPillModel, Rect)> {
     let pad = sizing.panel_inset.max(5.0);
     let gap = sizing.border_width.max(1.0) + 3.0;
     let title_height = sizing.font_meta + sizing.text_inset_y + 2.0;
@@ -445,6 +451,7 @@ fn sidebar_tag_pill_rects<'a>(
         .collect()
 }
 
+/// Return local sidebar filter row rectangles.
 fn sidebar_filter_row_rects(rect: Rect, sizing: SizingTokens) -> Vec<Rect> {
     let pad = sizing.panel_inset.max(5.0);
     let gap = sizing.border_width.max(1.0) + 2.0;
@@ -464,6 +471,7 @@ fn sidebar_filter_row_rects(rect: Rect, sizing: SizingTokens) -> Vec<Rect> {
         .collect()
 }
 
+/// Return local sidebar rating-chip hit rectangles.
 fn sidebar_rating_chip_rects(rating_row: Rect, sizing: SizingTokens) -> [Rect; 8] {
     let chip_gap = 2.0_f32.max(sizing.border_width);
     let left = rating_row.min.x + (rating_row.width() * 0.43);
@@ -479,6 +487,7 @@ fn sidebar_rating_chip_rects(rating_row: Rect, sizing: SizingTokens) -> [Rect; 8
     })
 }
 
+/// Inset a rectangle without inverting its bounds.
 fn inset_rect(rect: Rect, x: f32, y: f32) -> Rect {
     Rect::from_min_max(
         Point::new(

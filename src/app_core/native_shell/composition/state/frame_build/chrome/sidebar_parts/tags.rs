@@ -1,6 +1,7 @@
 use super::*;
 use crate::compat_app_contract::{BrowserPillModel, BrowserPillState};
 
+/// Render the left-sidebar tag editor panel.
 pub(super) fn render_sidebar_tags(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
@@ -102,6 +103,7 @@ pub(super) fn render_sidebar_tags(
     }
 }
 
+/// Return the sidebar tag input hit/render rectangle.
 pub(in crate::gui::native_shell::state) fn sidebar_tag_input_rect(
     rect: Rect,
     sizing: SizingTokens,
@@ -117,6 +119,7 @@ pub(in crate::gui::native_shell::state) fn sidebar_tag_input_rect(
     )
 }
 
+/// Return the inset text box inside the sidebar tag input.
 pub(in crate::gui::native_shell::state) fn sidebar_tag_input_text_rect(
     input: Rect,
     sizing: SizingTokens,
@@ -124,11 +127,12 @@ pub(in crate::gui::native_shell::state) fn sidebar_tag_input_text_rect(
     inset_rect(input, sizing.text_inset_x, sizing.text_inset_y)
 }
 
-pub(in crate::gui::native_shell::state) fn sidebar_tag_pill_rects<'a>(
+/// Return visible sidebar tag pill rectangles paired with their pill models.
+pub(in crate::gui::native_shell::state) fn sidebar_tag_pill_rects(
     rect: Rect,
     sizing: SizingTokens,
-    model: &'a AppModel,
-) -> Vec<(&'a BrowserPillModel, Rect)> {
+    model: &AppModel,
+) -> Vec<(&BrowserPillModel, Rect)> {
     let pad = sizing.panel_inset.max(5.0);
     let gap = sizing.border_width.max(1.0) + 3.0;
     let title_height = sizing.font_meta + sizing.text_inset_y + 2.0;
@@ -168,6 +172,7 @@ pub(in crate::gui::native_shell::state) fn sidebar_tag_pill_rects<'a>(
     out
 }
 
+/// Render the shared panel background for sidebar subsections.
 fn render_section_panel(ctx: &StaticFrameCtx<'_>, primitives: &mut impl PrimitiveSink, rect: Rect) {
     emit_primitive(
         primitives,
@@ -179,6 +184,7 @@ fn render_section_panel(ctx: &StaticFrameCtx<'_>, primitives: &mut impl Primitiv
     push_border(primitives, rect, ctx.style.border, ctx.sizing.border_width);
 }
 
+/// Render an uppercase sidebar subsection title.
 fn render_section_title(
     ctx: &StaticFrameCtx<'_>,
     text_runs: &mut impl TextRunSink,
@@ -203,6 +209,7 @@ fn render_section_title(
     );
 }
 
+/// Return the fill color for a tag pill state.
 fn tag_pill_fill(ctx: &StaticFrameCtx<'_>, state: BrowserPillState) -> Rgba8 {
     match state {
         BrowserPillState::On => blend_color(ctx.style.accent_mint, ctx.style.surface_overlay, 0.62),
@@ -213,6 +220,7 @@ fn tag_pill_fill(ctx: &StaticFrameCtx<'_>, state: BrowserPillState) -> Rgba8 {
     }
 }
 
+/// Return the border color for a tag pill state.
 fn tag_pill_border(ctx: &StaticFrameCtx<'_>, state: BrowserPillState) -> Rgba8 {
     match state {
         BrowserPillState::On => ctx.style.accent_mint,
@@ -221,6 +229,7 @@ fn tag_pill_border(ctx: &StaticFrameCtx<'_>, state: BrowserPillState) -> Rgba8 {
     }
 }
 
+/// Inset a rectangle without inverting its bounds.
 fn inset_rect(rect: Rect, x: f32, y: f32) -> Rect {
     Rect::from_min_max(
         Point::new(
