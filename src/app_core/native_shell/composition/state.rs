@@ -130,7 +130,8 @@ const SOURCE_ADD_BUTTON_FLASH_TICKS: u8 = 6;
 /// Rating-filter chip levels shown left-to-right in the browser toolbar.
 const BROWSER_RATING_FILTER_LEVELS: [i8; 8] = [-3, -2, -1, 0, 1, 2, 3, 4];
 /// Playback-age filter chips shown left-to-right in the browser toolbar.
-const BROWSER_PLAYBACK_AGE_FILTER_CHIPS: [crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip; 3] = [
+const BROWSER_PLAYBACK_AGE_FILTER_CHIPS:
+    [crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip; 3] = [
     crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip::NeverPlayed,
     crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip::OlderThanMonth,
     crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip::OlderThanWeek,
@@ -484,7 +485,9 @@ impl NativeShellState {
 #[cfg(test)]
 mod opt_272_tests {
     use super::*;
-    use crate::app_core::native_shell::runtime_contract::{FolderPaneIdModel, FolderRowModel, SourceRowModel};
+    use crate::app_core::native_shell::runtime_contract::{
+        FolderPaneIdModel, FolderRowModel, SourceRowModel,
+    };
     use crate::gui::types::Vector2;
 
     fn browser_model_with_rows(total: usize, focused_visible_row: usize) -> AppModel {
@@ -821,4 +824,3 @@ mod opt_272_tests {
         );
     }
 }
-

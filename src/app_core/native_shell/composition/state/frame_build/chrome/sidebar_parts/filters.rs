@@ -117,7 +117,7 @@ pub(super) fn render_sidebar_filters(
 }
 
 /// Return row rectangles for the sidebar filter controls.
-pub(in crate::gui::native_shell::state) fn sidebar_filter_row_rects(
+pub(in crate::app_core::native_shell::composition::state) fn sidebar_filter_row_rects(
     rect: Rect,
     sizing: SizingTokens,
 ) -> Vec<Rect> {
@@ -140,7 +140,7 @@ pub(in crate::gui::native_shell::state) fn sidebar_filter_row_rects(
 }
 
 /// Return hit/render rectangles for the rating chips inside the rating row.
-pub(in crate::gui::native_shell::state) fn sidebar_rating_chip_rects(
+pub(in crate::app_core::native_shell::composition::state) fn sidebar_rating_chip_rects(
     rating_row: Rect,
     sizing: SizingTokens,
 ) -> [Rect; 8] {

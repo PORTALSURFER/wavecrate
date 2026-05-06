@@ -67,4 +67,3 @@ pub(super) fn build_top_bar_automation(
         children,
     }
 }
-

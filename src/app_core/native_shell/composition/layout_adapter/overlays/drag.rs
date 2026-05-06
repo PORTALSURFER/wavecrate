@@ -1,10 +1,10 @@
 //! Slotized drag-overlay geometry.
 
 use super::shared;
+use crate::app_core::native_shell::composition::style::SizingTokens;
 use crate::gui::layout_core::{
     ContainerKind, ContainerPolicy, CrossAlign, LayoutNode, MainAlign, OverflowPolicy, layout_tree,
 };
-use crate::gui::native_shell::style::SizingTokens;
 use crate::gui::types::{Point, Rect};
 
 const DRAG_OVERLAY_ALIGN_ROOT_ID: u64 = 960;
@@ -65,7 +65,7 @@ pub(super) fn compute_drag_overlay_rect(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gui::native_shell::style::StyleTokens;
+    use crate::app_core::native_shell::composition::style::StyleTokens;
 
     #[test]
     fn drag_overlay_stays_above_status_bar() {

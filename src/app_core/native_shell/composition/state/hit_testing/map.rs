@@ -1,21 +1,21 @@
 use super::*;
 use crate::app_core::native_shell::runtime_contract::MapPointModel;
 
-pub(in crate::gui::native_shell::state) fn map_point_is_selected(
+pub(in crate::app_core::native_shell::composition::state) fn map_point_is_selected(
     model: &AppModel,
     point: &MapPointModel,
 ) -> bool {
     model.map.selected_item_id.as_deref() == Some(point.id.as_ref())
 }
 
-pub(in crate::gui::native_shell::state) fn map_point_is_focused(
+pub(in crate::app_core::native_shell::composition::state) fn map_point_is_focused(
     model: &AppModel,
     point: &MapPointModel,
 ) -> bool {
     model.map.focused_item_id.as_deref() == Some(point.id.as_ref())
 }
 
-pub(in crate::gui::native_shell::state) fn map_point_color(
+pub(in crate::app_core::native_shell::composition::state) fn map_point_color(
     style: &StyleTokens,
     model: &AppModel,
     point: &MapPointModel,
@@ -36,7 +36,7 @@ pub(in crate::gui::native_shell::state) fn map_point_color(
     }
 }
 
-pub(in crate::gui::native_shell::state) fn map_content_id_at_point(
+pub(in crate::app_core::native_shell::composition::state) fn map_content_id_at_point(
     layout: &ShellLayout,
     model: &AppModel,
     point: Point,
@@ -73,4 +73,3 @@ pub(in crate::gui::native_shell::state) fn map_content_id_at_point(
     }
     best.map(|(_, content_id)| content_id.to_string())
 }
-

@@ -1,7 +1,7 @@
 #[cfg(test)]
 use super::ShellLayout;
 #[cfg(test)]
-use crate::gui::native_shell::style::StyleTokens;
+use crate::app_core::native_shell::composition::style::StyleTokens;
 
 /// Derived metrics used to validate layout parity contracts.
 #[derive(Clone, Copy, Debug, PartialEq)]

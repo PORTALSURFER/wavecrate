@@ -3,7 +3,7 @@
 use super::*;
 
 /// Resolve which static segment owns one primitive.
-pub(in crate::gui::native_shell::state) fn static_segment_for_primitive(
+pub(in crate::app_core::native_shell::composition::state) fn static_segment_for_primitive(
     layout: &ShellLayout,
     model: &AppModel,
     primitive: &Primitive,
@@ -18,7 +18,7 @@ pub(in crate::gui::native_shell::state) fn static_segment_for_primitive(
 }
 
 /// Resolve which static segment owns one text run.
-pub(in crate::gui::native_shell::state) fn static_segment_for_text(
+pub(in crate::app_core::native_shell::composition::state) fn static_segment_for_text(
     layout: &ShellLayout,
     model: &AppModel,
     text_run: &TextRun,
@@ -58,7 +58,7 @@ fn static_segment_for_point(
 }
 
 /// Return whether one static build pass should include the requested segment.
-pub(in crate::gui::native_shell::state) fn static_segment_matches(
+pub(in crate::app_core::native_shell::composition::state) fn static_segment_matches(
     filter: Option<StaticFrameSegment>,
     segment: StaticFrameSegment,
 ) -> bool {

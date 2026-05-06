@@ -20,7 +20,7 @@ use self::{
     },
     slices::emit_waveform_slice_previews,
 };
-pub(in crate::gui::native_shell::state) use self::{
+pub(in crate::app_core::native_shell::composition::state) use self::{
     header::push_waveform_header_overlay,
     overlay::push_waveform_playhead_overlay,
     routing::{static_segment_for_primitive, static_segment_for_text, static_segment_matches},

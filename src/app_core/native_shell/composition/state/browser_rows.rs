@@ -2,8 +2,10 @@
 
 use super::svg_icons::WaveformToolbarIcon;
 use super::*;
-use crate::app_core::native_shell::runtime_contract::{BrowserRowProcessingState, FolderPaneIdModel, PlaybackAgeBucket};
-use crate::gui::native_shell::layout_adapter::BrowserRowTextLayout;
+use crate::app_core::native_shell::composition::layout_adapter::BrowserRowTextLayout;
+use crate::app_core::native_shell::runtime_contract::{
+    BrowserRowProcessingState, FolderPaneIdModel, PlaybackAgeBucket,
+};
 
 #[path = "browser_rows/sidebar.rs"]
 mod sidebar;
@@ -14,7 +16,7 @@ mod visuals;
 #[path = "browser_rows/windowing.rs"]
 mod windowing;
 
-pub(in crate::gui::native_shell::state) use self::{
+pub(in crate::app_core::native_shell::composition::state) use self::{
     sidebar::*, truncation::*, visuals::*, windowing::*,
 };
 
@@ -218,4 +220,3 @@ const BROWSER_SCROLLBAR_CONTENT_GAP: f32 = 3.0;
 const FOLDER_VIEW_EDGE_MARGIN_ROWS: usize = 2;
 /// Horizontal gap left between folder rows and the visual scrollbar lane.
 const FOLDER_SCROLLBAR_CONTENT_GAP: f32 = 3.0;
-

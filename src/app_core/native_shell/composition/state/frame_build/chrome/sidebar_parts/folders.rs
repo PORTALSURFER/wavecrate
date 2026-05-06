@@ -69,4 +69,3 @@ fn render_source_section_divider(
         }),
     );
 }
-

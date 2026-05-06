@@ -239,17 +239,9 @@ impl OwnershipRule {
 }
 
 fn native_shell_rs_modules() -> Vec<String> {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/gui/native_shell");
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/app_core/native_shell/composition");
     let mut modules = Vec::new();
     collect_rs_modules(&root, &root, &mut modules);
-    let sempal_composition_root = root.join("../../../../../src/app_core/native_shell/composition");
-    if sempal_composition_root.exists() {
-        collect_rs_modules(
-            &sempal_composition_root,
-            &sempal_composition_root,
-            &mut modules,
-        );
-    }
     modules.sort();
     modules.dedup();
     modules

@@ -413,4 +413,3 @@ pub(super) fn render_browser_focus_overlay(
         }
     }
 }
-

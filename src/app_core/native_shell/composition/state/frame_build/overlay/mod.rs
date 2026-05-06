@@ -307,4 +307,3 @@ pub(super) fn render_state_overlay(
     render_focus_overlay(shell_state, layout, style, model, primitives, text_runs);
     render_modal_overlay(shell_state, layout, style, model, primitives, text_runs);
 }
-

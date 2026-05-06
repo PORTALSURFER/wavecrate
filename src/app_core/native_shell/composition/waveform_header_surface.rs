@@ -205,7 +205,9 @@ fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Re
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{app::AppModel, gui::native_shell::style::StyleTokens, widgets::WidgetKind};
+    use crate::{
+        app::AppModel, app_core::native_shell::composition::style::StyleTokens, widgets::WidgetKind,
+    };
 
     fn assert_inside(outer: Rect, inner: Rect) {
         assert!(inner.min.x >= outer.min.x);

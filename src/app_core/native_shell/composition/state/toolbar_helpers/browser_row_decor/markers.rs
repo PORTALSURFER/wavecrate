@@ -4,12 +4,16 @@ use super::*;
 ///
 /// At `ui_scale == 1.0` this resolves to `1.0` logical px so row borders stay
 /// visually consistent at 100% scale.
-pub(in crate::gui::native_shell::state) fn browser_row_border_stroke(layout: &ShellLayout) -> f32 {
+pub(in crate::app_core::native_shell::composition::state) fn browser_row_border_stroke(
+    layout: &ShellLayout,
+) -> f32 {
     layout.ui_scale.max(1.0)
 }
 
 /// Return x-advance reserved for the missing-file marker before an item label.
-pub(in crate::gui::native_shell::state) fn browser_missing_marker_advance(font_size: f32) -> f32 {
+pub(in crate::app_core::native_shell::composition::state) fn browser_missing_marker_advance(
+    font_size: f32,
+) -> f32 {
     (font_size * 1.05).max(7.0)
 }
 
@@ -18,7 +22,7 @@ pub(in crate::gui::native_shell::state) fn browser_missing_marker_advance(font_s
 /// The marker stays inside the row gutter before the numbering column. When a
 /// focused row also renders a left focus border, `focused_left_border_width`
 /// shifts the marker to the right so both accents remain visible.
-pub(in crate::gui::native_shell::state) fn browser_locked_marker_rect(
+pub(in crate::app_core::native_shell::composition::state) fn browser_locked_marker_rect(
     row_rect: Rect,
     sizing: SizingTokens,
     focused_left_border_width: f32,
@@ -46,7 +50,7 @@ pub(in crate::gui::native_shell::state) fn browser_locked_marker_rect(
 /// The marker sits at the leading edge of the sample column. Focused rows can
 /// reserve extra leading width for the similarity button so both controls stay
 /// visible without overlapping.
-pub(in crate::gui::native_shell::state) fn browser_playback_age_marker_rect(
+pub(in crate::app_core::native_shell::composition::state) fn browser_playback_age_marker_rect(
     row_rect: Rect,
     sizing: SizingTokens,
     leading_reserved_width: f32,
@@ -77,7 +81,7 @@ pub(in crate::gui::native_shell::state) fn browser_playback_age_marker_rect(
 }
 
 /// Return the horizontal width reserved for the playback-age marker and gap.
-pub(in crate::gui::native_shell::state) fn browser_playback_age_marker_reserved_width(
+pub(in crate::app_core::native_shell::composition::state) fn browser_playback_age_marker_reserved_width(
     row_rect: Rect,
     sizing: SizingTokens,
     leading_reserved_width: f32,
@@ -89,7 +93,7 @@ pub(in crate::gui::native_shell::state) fn browser_playback_age_marker_reserved_
 
 /// Snap browser-row border bounds to the border stroke grid to avoid uneven AA
 /// widths between top/bottom edges.
-pub(in crate::gui::native_shell::state) fn browser_row_border_rect(
+pub(in crate::app_core::native_shell::composition::state) fn browser_row_border_rect(
     rect: Rect,
     stroke: f32,
 ) -> Rect {

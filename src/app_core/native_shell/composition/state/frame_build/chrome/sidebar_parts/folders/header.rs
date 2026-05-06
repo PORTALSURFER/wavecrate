@@ -198,4 +198,3 @@ fn folder_toggle_text_color(ctx: &StaticFrameCtx<'_>, active: bool, enabled: boo
         ctx.style.text_primary
     }
 }
-

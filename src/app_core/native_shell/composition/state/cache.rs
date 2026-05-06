@@ -287,4 +287,3 @@ fn sync_cached_browser_row_selection(
         row.selected = selected;
     }
 }
-

@@ -1,5 +1,7 @@
 use super::*;
-use crate::app_core::native_shell::runtime_contract::{FolderPaneIdModel, FolderRowKind, FolderRowModel};
+use crate::app_core::native_shell::runtime_contract::{
+    FolderPaneIdModel, FolderRowKind, FolderRowModel,
+};
 
 impl NativeShellState {
     /// Resolve a rendered folder-row index for a point within the sidebar.
@@ -121,4 +123,3 @@ fn row_has_disclosure_target(row: &FolderRowModel) -> bool {
     ) || row.is_root
         || !row.has_children
 }
-

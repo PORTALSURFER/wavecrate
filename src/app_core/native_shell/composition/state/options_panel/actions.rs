@@ -161,4 +161,3 @@ fn audio_picker_title(target: PairedPickerTargetModel) -> String {
 fn on_off_text(label: &str, enabled: bool) -> String {
     format!("{label}: {}", if enabled { "On" } else { "Off" })
 }
-

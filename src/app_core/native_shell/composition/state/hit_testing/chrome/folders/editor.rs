@@ -71,7 +71,7 @@ fn active_folder_edit_row(
     Some((row_rect, row.depth, style.sizing))
 }
 
-pub(in crate::gui::native_shell::state) fn folder_create_field_rect(
+pub(in crate::app_core::native_shell::composition::state) fn folder_create_field_rect(
     row_rect: Rect,
     sizing: SizingTokens,
     depth: usize,
@@ -92,10 +92,9 @@ pub(in crate::gui::native_shell::state) fn folder_create_field_rect(
     )
 }
 
-pub(in crate::gui::native_shell::state) fn folder_create_text_rect(
+pub(in crate::app_core::native_shell::composition::state) fn folder_create_text_rect(
     field_rect: Rect,
     sizing: SizingTokens,
 ) -> Rect {
     compute_action_button_text_rect(field_rect, sizing)
 }
-

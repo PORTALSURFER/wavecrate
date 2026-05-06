@@ -27,7 +27,10 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
     ) -> (
-        Option<(crate::app_core::native_shell::runtime_contract::FolderPaneIdModel, usize)>,
+        Option<(
+            crate::app_core::native_shell::runtime_contract::FolderPaneIdModel,
+            usize,
+        )>,
         Option<crate::app_core::native_shell::runtime_contract::FolderPaneIdModel>,
     ) {
         let hovered_folder_row = self
@@ -164,7 +167,10 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
         hover: Option<ShellNodeKind>,
-    ) -> Option<(crate::app_core::native_shell::runtime_contract::FolderPaneIdModel, usize)> {
+    ) -> Option<(
+        crate::app_core::native_shell::runtime_contract::FolderPaneIdModel,
+        usize,
+    )> {
         if hover != Some(ShellNodeKind::Sidebar) {
             return None;
         }
@@ -263,4 +269,3 @@ impl NativeShellState {
             .and_then(|button| waveform_toolbar_hover_hint(button.label))
     }
 }
-

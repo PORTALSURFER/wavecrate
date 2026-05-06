@@ -3,14 +3,14 @@
 use super::super::super::*;
 use crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip;
 
-pub(in crate::gui::native_shell::state) fn browser_marked_filter_chip_contains_point(
+pub(in crate::app_core::native_shell::composition::state) fn browser_marked_filter_chip_contains_point(
     chip: Rect,
     point: Point,
 ) -> bool {
     chip.width() > 1.0 && chip.contains(point)
 }
 
-pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_fill(
+pub(in crate::app_core::native_shell::composition::state) fn browser_playback_age_filter_chip_fill(
     style: &StyleTokens,
     chip: PlaybackAgeFilterChip,
     active: bool,
@@ -32,7 +32,7 @@ pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_fill
     )
 }
 
-pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_border(
+pub(in crate::app_core::native_shell::composition::state) fn browser_playback_age_filter_chip_border(
     style: &StyleTokens,
     chip: PlaybackAgeFilterChip,
     active: bool,
@@ -54,7 +54,7 @@ pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_bord
     }
 }
 
-pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_hover_fill(
+pub(in crate::app_core::native_shell::composition::state) fn browser_playback_age_filter_chip_hover_fill(
     style: &StyleTokens,
     chip: PlaybackAgeFilterChip,
     active: bool,
@@ -67,7 +67,7 @@ pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_hove
     )
 }
 
-pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_hover_border(
+pub(in crate::app_core::native_shell::composition::state) fn browser_playback_age_filter_chip_hover_border(
     style: &StyleTokens,
     chip: PlaybackAgeFilterChip,
     active: bool,
@@ -80,7 +80,7 @@ pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_hove
     )
 }
 
-pub(in crate::gui::native_shell::state) fn render_browser_playback_age_filter_chip_hover_overlay(
+pub(in crate::app_core::native_shell::composition::state) fn render_browser_playback_age_filter_chip_hover_overlay(
     primitives: &mut impl PrimitiveSink,
     style: &StyleTokens,
     sizing: SizingTokens,
@@ -104,7 +104,7 @@ pub(in crate::gui::native_shell::state) fn render_browser_playback_age_filter_ch
     );
 }
 
-pub(in crate::gui::native_shell::state) fn browser_marked_filter_chip_fill(
+pub(in crate::app_core::native_shell::composition::state) fn browser_marked_filter_chip_fill(
     style: &StyleTokens,
     active: bool,
 ) -> Rgba8 {
@@ -116,7 +116,7 @@ pub(in crate::gui::native_shell::state) fn browser_marked_filter_chip_fill(
     blend_color(base, style.highlight_cyan, if active { 0.34 } else { 0.16 })
 }
 
-pub(in crate::gui::native_shell::state) fn browser_marked_filter_chip_border(
+pub(in crate::app_core::native_shell::composition::state) fn browser_marked_filter_chip_border(
     style: &StyleTokens,
     active: bool,
 ) -> Rgba8 {
@@ -127,7 +127,7 @@ pub(in crate::gui::native_shell::state) fn browser_marked_filter_chip_border(
     }
 }
 
-pub(in crate::gui::native_shell::state) fn browser_marked_filter_chip_hover_fill(
+pub(in crate::app_core::native_shell::composition::state) fn browser_marked_filter_chip_hover_fill(
     style: &StyleTokens,
     active: bool,
     motion_wave: f32,
@@ -139,7 +139,7 @@ pub(in crate::gui::native_shell::state) fn browser_marked_filter_chip_hover_fill
     )
 }
 
-pub(in crate::gui::native_shell::state) fn browser_marked_filter_chip_hover_border(
+pub(in crate::app_core::native_shell::composition::state) fn browser_marked_filter_chip_hover_border(
     style: &StyleTokens,
     active: bool,
     motion_wave: f32,
@@ -151,7 +151,7 @@ pub(in crate::gui::native_shell::state) fn browser_marked_filter_chip_hover_bord
     )
 }
 
-pub(in crate::gui::native_shell::state) fn render_browser_search_field_hover_overlay(
+pub(in crate::app_core::native_shell::composition::state) fn render_browser_search_field_hover_overlay(
     primitives: &mut impl PrimitiveSink,
     style: &StyleTokens,
     sizing: SizingTokens,
@@ -173,7 +173,7 @@ pub(in crate::gui::native_shell::state) fn render_browser_search_field_hover_ove
     );
 }
 
-pub(in crate::gui::native_shell::state) fn render_browser_rating_filter_chip_hover_overlay(
+pub(in crate::app_core::native_shell::composition::state) fn render_browser_rating_filter_chip_hover_overlay(
     primitives: &mut impl PrimitiveSink,
     style: &StyleTokens,
     sizing: SizingTokens,
@@ -197,7 +197,7 @@ pub(in crate::gui::native_shell::state) fn render_browser_rating_filter_chip_hov
     );
 }
 
-pub(in crate::gui::native_shell::state) fn browser_search_field_hover_fill(
+pub(in crate::app_core::native_shell::composition::state) fn browser_search_field_hover_fill(
     style: &StyleTokens,
     motion_wave: f32,
 ) -> Rgba8 {
@@ -208,7 +208,7 @@ pub(in crate::gui::native_shell::state) fn browser_search_field_hover_fill(
     )
 }
 
-pub(in crate::gui::native_shell::state) fn browser_rating_filter_chip_hover_fill(
+pub(in crate::app_core::native_shell::composition::state) fn browser_rating_filter_chip_hover_fill(
     style: &StyleTokens,
     rating_level: i8,
     active: bool,
@@ -229,7 +229,7 @@ pub(in crate::gui::native_shell::state) fn browser_rating_filter_chip_hover_fill
     )
 }
 
-pub(in crate::gui::native_shell::state) fn browser_search_field_hover_border(
+pub(in crate::app_core::native_shell::composition::state) fn browser_search_field_hover_border(
     style: &StyleTokens,
     motion_wave: f32,
 ) -> Rgba8 {
@@ -240,7 +240,7 @@ pub(in crate::gui::native_shell::state) fn browser_search_field_hover_border(
     )
 }
 
-pub(in crate::gui::native_shell::state) fn browser_rating_filter_chip_hover_border(
+pub(in crate::app_core::native_shell::composition::state) fn browser_rating_filter_chip_hover_border(
     style: &StyleTokens,
     rating_level: i8,
     active: bool,
@@ -260,7 +260,7 @@ pub(in crate::gui::native_shell::state) fn browser_rating_filter_chip_hover_bord
     )
 }
 
-pub(in crate::gui::native_shell::state) fn browser_rating_filter_chip_fill(
+pub(in crate::app_core::native_shell::composition::state) fn browser_rating_filter_chip_fill(
     style: &StyleTokens,
     rating_level: i8,
     active: bool,
@@ -294,7 +294,7 @@ pub(in crate::gui::native_shell::state) fn browser_rating_filter_chip_fill(
     )
 }
 
-pub(in crate::gui::native_shell::state) fn browser_rating_filter_chip_border(
+pub(in crate::app_core::native_shell::composition::state) fn browser_rating_filter_chip_border(
     style: &StyleTokens,
     rating_level: i8,
     active: bool,
@@ -313,4 +313,3 @@ pub(in crate::gui::native_shell::state) fn browser_rating_filter_chip_border(
         blend_color(style.border, style.surface_overlay, 0.25)
     }
 }
-

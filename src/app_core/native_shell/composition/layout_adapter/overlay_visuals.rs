@@ -4,7 +4,7 @@ use super::overlays::{
     ProgressOverlaySections, PromptOverlaySections, compute_drag_overlay_rect,
     compute_progress_overlay_sections, compute_prompt_overlay_sections,
 };
-use crate::gui::native_shell::style::SizingTokens;
+use crate::app_core::native_shell::composition::style::SizingTokens;
 use crate::gui::types::{Point, Rect};
 
 /// Slot-resolved visual geometry for the confirmation prompt overlay.
@@ -86,7 +86,7 @@ fn compute_progress_fill_rect(track: Rect, progress_fraction: f32) -> Option<Rec
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gui::native_shell::style::StyleTokens;
+    use crate::app_core::native_shell::composition::style::StyleTokens;
 
     fn assert_inside(outer: Rect, inner: Rect) {
         assert!(inner.min.x >= outer.min.x);

@@ -1,7 +1,9 @@
 //! Deterministic automation snapshot builders for the native shell.
 
 use super::*;
-use crate::app_core::native_shell::runtime_contract::{AutomationNodeSnapshot, AutomationRole, GuiAutomationSnapshot};
+use crate::app_core::native_shell::runtime_contract::{
+    AutomationNodeSnapshot, AutomationRole, GuiAutomationSnapshot,
+};
 use std::collections::BTreeMap;
 
 #[path = "automation/browser.rs"]
@@ -103,4 +105,3 @@ impl NativeShellState {
         }
     }
 }
-

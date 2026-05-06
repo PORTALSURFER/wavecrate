@@ -1,6 +1,6 @@
 use super::super::DragOverlayTextLayout;
 use super::common::centered_line_in_rect;
-use crate::gui::native_shell::style::SizingTokens;
+use crate::app_core::native_shell::composition::style::SizingTokens;
 use crate::gui::types::Rect;
 
 const DRAG_TEXT_LABEL_ID: u64 = 995;

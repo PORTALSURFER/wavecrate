@@ -1,7 +1,7 @@
 use super::*;
 
 /// Emit preview overlays for detected silence-split waveform slices.
-pub(in crate::gui::native_shell::state) fn emit_waveform_slice_previews(
+pub(in crate::app_core::native_shell::composition::state) fn emit_waveform_slice_previews(
     primitives: &mut impl PrimitiveSink,
     waveform_plot: Rect,
     style: &StyleTokens,

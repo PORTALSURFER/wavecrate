@@ -60,6 +60,9 @@ use tracing::info;
 mod app_model;
 /// Browser panel/frame/row projection helpers and retained browser caches.
 mod browser_projection;
+/// Sempal-owned native shell composition tree.
+#[path = "native_shell/composition/mod.rs"]
+pub(crate) mod composition;
 /// Confirm-prompt projection helpers and folder-name validation utilities.
 mod confirm_prompt_projection;
 /// Map panel projection helpers and retained projected map-point caches.

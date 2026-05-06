@@ -98,7 +98,7 @@ fn empty_rect(bounds: Rect) -> Rect {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gui::native_shell::style::StyleTokens;
+    use crate::app_core::native_shell::composition::style::StyleTokens;
     use crate::gui::types::Point;
 
     fn assert_inside(outer: Rect, inner: Rect) {

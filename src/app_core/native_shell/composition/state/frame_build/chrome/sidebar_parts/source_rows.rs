@@ -90,4 +90,3 @@ fn emit_source_row_label(
         },
     );
 }
-

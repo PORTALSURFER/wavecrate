@@ -2,7 +2,7 @@ use super::*;
 
 /// Ephemeral sidebar source-menu state tracked by the runtime.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(in crate::gui::native_shell::state) struct SourceContextMenuState {
+pub(in crate::app_core::native_shell::composition::state) struct SourceContextMenuState {
     /// Pane containing the source row that opened the menu.
     pub pane: crate::app_core::native_shell::runtime_contract::FolderPaneIdModel,
     /// Source row index the menu actions target.
@@ -13,7 +13,7 @@ pub(in crate::gui::native_shell::state) struct SourceContextMenuState {
 
 /// Ephemeral browser row context-menu state tracked by the runtime.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(in crate::gui::native_shell::state) struct BrowserContextMenuState {
+pub(in crate::app_core::native_shell::composition::state) struct BrowserContextMenuState {
     /// Browser visible-row index the menu actions target.
     pub visible_row: usize,
     /// Pointer anchor used to place the floating menu panel.
@@ -33,21 +33,21 @@ pub(crate) enum SidebarFilterDropdownFacet {
 
 /// Ephemeral left-sidebar filter dropdown state tracked by the runtime.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(in crate::gui::native_shell::state) struct SidebarFilterDropdownState {
+pub(in crate::app_core::native_shell::composition::state) struct SidebarFilterDropdownState {
     /// Filter row whose dropdown is visible.
     pub facet: SidebarFilterDropdownFacet,
 }
 
 /// Invalidation key for the retained browser scrollbar interaction geometry.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(in crate::gui::native_shell::state) struct BrowserScrollbarCacheKey {
+pub(in crate::app_core::native_shell::composition::state) struct BrowserScrollbarCacheKey {
     /// The resolved browser-row cache key the scrollbar is derived from.
     pub rows_key: BrowserRowsCacheKey,
 }
 
 /// One retained playhead x-position point used to build ghost-line trails.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(in crate::gui::native_shell::state) struct PlayheadTrailPoint {
+pub(in crate::app_core::native_shell::composition::state) struct PlayheadTrailPoint {
     /// Normalized x-position in `0.0..=1.0`.
     pub ratio: f32,
     /// Monotonic animation clock value when this point was captured.
@@ -55,7 +55,7 @@ pub(in crate::gui::native_shell::state) struct PlayheadTrailPoint {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub(in crate::gui::native_shell::state) struct NativeAnimationReasons {
+pub(in crate::app_core::native_shell::composition::state) struct NativeAnimationReasons {
     pub transport_running: bool,
     pub startup_frame_tick: bool,
     pub playhead_trail_active: bool,
@@ -67,13 +67,13 @@ pub(in crate::gui::native_shell::state) struct NativeAnimationReasons {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::gui::native_shell::state) struct WaveformToolbarFlash {
+pub(in crate::app_core::native_shell::composition::state) struct WaveformToolbarFlash {
     pub hint: WaveformToolbarHoverHint,
     pub ticks_remaining: u8,
 }
 
 impl NativeAnimationReasons {
-    pub(in crate::gui::native_shell::state) fn needs_animation(self) -> bool {
+    pub(in crate::app_core::native_shell::composition::state) fn needs_animation(self) -> bool {
         self.transport_running
             || self.startup_frame_tick
             || self.playhead_trail_active
@@ -84,4 +84,3 @@ impl NativeAnimationReasons {
             || self.status_options_button_flash_active
     }
 }
-

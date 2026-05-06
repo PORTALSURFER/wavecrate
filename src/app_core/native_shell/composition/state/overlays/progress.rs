@@ -3,7 +3,7 @@
 use super::*;
 
 /// Render the modal progress overlay when it is visible.
-pub(in crate::gui::native_shell::state) fn render_progress_overlay(
+pub(in crate::app_core::native_shell::composition::state) fn render_progress_overlay(
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
     layout: &ShellLayout,

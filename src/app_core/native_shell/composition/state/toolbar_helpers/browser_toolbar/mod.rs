@@ -5,9 +5,9 @@ mod colors;
 mod layout;
 
 #[allow(unused_imports)]
-pub(in crate::gui::native_shell::state) use buttons::browser_action_buttons;
+pub(in crate::app_core::native_shell::composition::state) use buttons::browser_action_buttons;
 #[allow(unused_imports)]
-pub(in crate::gui::native_shell::state) use colors::{
+pub(in crate::app_core::native_shell::composition::state) use colors::{
     browser_marked_filter_chip_border, browser_marked_filter_chip_contains_point,
     browser_marked_filter_chip_fill, browser_marked_filter_chip_hover_border,
     browser_marked_filter_chip_hover_fill, browser_playback_age_filter_chip_border,
@@ -19,7 +19,7 @@ pub(in crate::gui::native_shell::state) use colors::{
     render_browser_rating_filter_chip_hover_overlay, render_browser_search_field_hover_overlay,
 };
 #[allow(unused_imports)]
-pub(in crate::gui::native_shell::state) use layout::{
+pub(in crate::app_core::native_shell::composition::state) use layout::{
     browser_column_chips, browser_playback_age_filter_chip_at_point,
     browser_playback_age_filter_chip_index, browser_rating_filter_chip_index,
     browser_rating_filter_level_at_point, browser_toolbar_layout,

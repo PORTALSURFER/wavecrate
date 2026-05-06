@@ -325,4 +325,3 @@ fn sync_folder_pane_model(
         pane_state.window_start = 0;
     }
 }
-

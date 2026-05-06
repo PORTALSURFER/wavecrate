@@ -2,7 +2,7 @@
 
 use super::super::*;
 
-pub(in crate::gui::native_shell::state) fn render_waveform_bpm_input_focus_overlay(
+pub(in crate::app_core::native_shell::composition::state) fn render_waveform_bpm_input_focus_overlay(
     primitives: &mut impl PrimitiveSink,
     style: &StyleTokens,
     sizing: SizingTokens,
@@ -24,7 +24,7 @@ pub(in crate::gui::native_shell::state) fn render_waveform_bpm_input_focus_overl
     );
 }
 
-pub(in crate::gui::native_shell::state) fn waveform_bpm_input_focus_fill(
+pub(in crate::app_core::native_shell::composition::state) fn waveform_bpm_input_focus_fill(
     style: &StyleTokens,
     motion_wave: f32,
 ) -> Rgba8 {
@@ -35,7 +35,7 @@ pub(in crate::gui::native_shell::state) fn waveform_bpm_input_focus_fill(
     )
 }
 
-pub(in crate::gui::native_shell::state) fn waveform_bpm_input_focus_border(
+pub(in crate::app_core::native_shell::composition::state) fn waveform_bpm_input_focus_border(
     style: &StyleTokens,
     motion_wave: f32,
 ) -> Rgba8 {
@@ -46,7 +46,7 @@ pub(in crate::gui::native_shell::state) fn waveform_bpm_input_focus_border(
     )
 }
 
-pub(in crate::gui::native_shell::state) fn waveform_toolbar_visual_color(
+pub(in crate::app_core::native_shell::composition::state) fn waveform_toolbar_visual_color(
     style: &StyleTokens,
     base_color: Rgba8,
     enabled: bool,
@@ -81,7 +81,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_visual_color(
     }
 }
 
-pub(in crate::gui::native_shell::state) fn waveform_toolbar_icon_rect(
+pub(in crate::app_core::native_shell::composition::state) fn waveform_toolbar_icon_rect(
     button_rect: Rect,
     sizing: SizingTokens,
     active: bool,
@@ -111,7 +111,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_icon_rect(
     )
 }
 
-pub(in crate::gui::native_shell::state) fn waveform_toolbar_overlay_icon_rect(
+pub(in crate::app_core::native_shell::composition::state) fn waveform_toolbar_overlay_icon_rect(
     button_rect: Rect,
     sizing: SizingTokens,
 ) -> Rect {
@@ -124,7 +124,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_overlay_icon_rect(
     )
 }
 
-pub(in crate::gui::native_shell::state) fn waveform_toolbar_overlay_icon_color(
+pub(in crate::app_core::native_shell::composition::state) fn waveform_toolbar_overlay_icon_color(
     style: &StyleTokens,
     icon_color: Rgba8,
 ) -> Rgba8 {

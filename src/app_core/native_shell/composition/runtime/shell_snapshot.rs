@@ -1,8 +1,10 @@
 //! Compatibility shell snapshot capture used by host-owned GUI fixtures.
 
 use super::AppModel;
+use crate::app_core::native_shell::composition::{
+    NativeShellState, ShellLayout, ShellLayoutRuntime, StyleTokens,
+};
 use crate::gui::{
-    native_shell::{NativeShellState, ShellLayout, ShellLayoutRuntime, StyleTokens},
     paint::{PaintFrame as NativeViewFrame, Primitive, TextAlign},
     snapshot::{
         SnapshotColor, SnapshotPoint, SnapshotPrimitive, SnapshotRect, SnapshotTextAlign,

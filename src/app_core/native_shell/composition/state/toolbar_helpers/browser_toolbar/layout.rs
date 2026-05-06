@@ -3,7 +3,7 @@
 use super::super::super::*;
 use crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip;
 
-pub(in crate::gui::native_shell::state) fn browser_toolbar_layout(
+pub(in crate::app_core::native_shell::composition::state) fn browser_toolbar_layout(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
@@ -26,7 +26,7 @@ pub(in crate::gui::native_shell::state) fn browser_toolbar_layout(
     }
 }
 
-pub(in crate::gui::native_shell::state) fn browser_rating_filter_chip_index(
+pub(in crate::app_core::native_shell::composition::state) fn browser_rating_filter_chip_index(
     level: i8,
 ) -> Option<usize> {
     BROWSER_RATING_FILTER_LEVELS
@@ -34,7 +34,7 @@ pub(in crate::gui::native_shell::state) fn browser_rating_filter_chip_index(
         .position(|chip| *chip == level)
 }
 
-pub(in crate::gui::native_shell::state) fn browser_rating_filter_level_at_point(
+pub(in crate::app_core::native_shell::composition::state) fn browser_rating_filter_level_at_point(
     chips: [Rect; 8],
     point: Point,
 ) -> Option<i8> {
@@ -44,7 +44,7 @@ pub(in crate::gui::native_shell::state) fn browser_rating_filter_level_at_point(
         .map(|index| BROWSER_RATING_FILTER_LEVELS[index])
 }
 
-pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_index(
+pub(in crate::app_core::native_shell::composition::state) fn browser_playback_age_filter_chip_index(
     chip: PlaybackAgeFilterChip,
 ) -> Option<usize> {
     BROWSER_PLAYBACK_AGE_FILTER_CHIPS
@@ -52,7 +52,7 @@ pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_inde
         .position(|candidate| *candidate == chip)
 }
 
-pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_at_point(
+pub(in crate::app_core::native_shell::composition::state) fn browser_playback_age_filter_chip_at_point(
     chips: [Rect; 3],
     point: Point,
 ) -> Option<PlaybackAgeFilterChip> {
@@ -62,7 +62,7 @@ pub(in crate::gui::native_shell::state) fn browser_playback_age_filter_chip_at_p
         .map(|index| BROWSER_PLAYBACK_AGE_FILTER_CHIPS[index])
 }
 
-pub(in crate::gui::native_shell::state) fn browser_column_chips(
+pub(in crate::app_core::native_shell::composition::state) fn browser_column_chips(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
@@ -71,4 +71,3 @@ pub(in crate::gui::native_shell::state) fn browser_column_chips(
     let _ = (layout, style, model, browser_buttons);
     Vec::new()
 }
-

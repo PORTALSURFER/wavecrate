@@ -477,4 +477,3 @@ fn map_canvas_automation(
         .collect();
     map_node
 }
-

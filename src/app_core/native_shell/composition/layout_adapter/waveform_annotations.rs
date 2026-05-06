@@ -238,4 +238,3 @@ fn marker_rect(
         Point::new(right, waveform_plot.max.y),
     ))
 }
-

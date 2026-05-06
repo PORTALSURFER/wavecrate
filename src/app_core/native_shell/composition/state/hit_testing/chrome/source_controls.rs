@@ -1,5 +1,7 @@
 use super::*;
-use crate::app_core::native_shell::runtime_contract::{BrowserPillModel, BrowserPillState, FolderPaneIdModel};
+use crate::app_core::native_shell::runtime_contract::{
+    BrowserPillModel, BrowserPillState, FolderPaneIdModel,
+};
 
 impl NativeShellState {
     /// Return the left-sidebar tag-editor input rect.
@@ -379,7 +381,7 @@ impl NativeShellState {
 }
 
 /// Return the sidebar pill-editor input hit rectangle when it is visible.
-pub(in crate::gui::native_shell::state) fn sidebar_pill_editor_input_rect(
+pub(in crate::app_core::native_shell::composition::state) fn sidebar_pill_editor_input_rect(
     layout: &ShellLayout,
     style: &StyleTokens,
 ) -> Option<Rect> {
@@ -388,7 +390,7 @@ pub(in crate::gui::native_shell::state) fn sidebar_pill_editor_input_rect(
 }
 
 /// Return the sidebar pill-editor text hit rectangle when it is visible.
-pub(in crate::gui::native_shell::state) fn sidebar_pill_editor_text_rect(
+pub(in crate::app_core::native_shell::composition::state) fn sidebar_pill_editor_text_rect(
     layout: &ShellLayout,
     style: &StyleTokens,
 ) -> Option<Rect> {
@@ -482,7 +484,7 @@ fn sidebar_filter_dropdown_facet_at_point(
 }
 
 /// Build sidebar filter dropdown panel geometry and option buttons.
-pub(in crate::gui::native_shell::state) fn sidebar_filter_dropdown_spec(
+pub(in crate::app_core::native_shell::composition::state) fn sidebar_filter_dropdown_spec(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
@@ -901,4 +903,3 @@ fn inset_rect(rect: Rect, x: f32, y: f32) -> Rect {
         ),
     )
 }
-

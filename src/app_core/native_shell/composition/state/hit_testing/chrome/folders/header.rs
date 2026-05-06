@@ -101,4 +101,3 @@ struct FolderHeaderHitButton {
     rect: Rect,
     enabled: bool,
 }
-

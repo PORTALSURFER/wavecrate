@@ -1,6 +1,6 @@
 use super::*;
 
-pub(in crate::gui::native_shell::state) fn waveform_toolbar_hit_test_cache_key(
+pub(in crate::app_core::native_shell::composition::state) fn waveform_toolbar_hit_test_cache_key(
     layout: &ShellLayout,
     model: &NativeMotionModel,
     bpm_editor_active: bool,
@@ -24,7 +24,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_hit_test_cache_key(
     }
 }
 
-pub(in crate::gui::native_shell::state) fn waveform_toolbar_model_flags(
+pub(in crate::app_core::native_shell::composition::state) fn waveform_toolbar_model_flags(
     model: &NativeMotionModel,
 ) -> u16 {
     let chrome = model.signal_chrome();
@@ -67,13 +67,15 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_model_flags(
     bits
 }
 
-pub(in crate::gui::native_shell::state) fn text_signature(value: Option<&str>) -> u64 {
+pub(in crate::app_core::native_shell::composition::state) fn text_signature(
+    value: Option<&str>,
+) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     value.hash(&mut hasher);
     hasher.finish()
 }
 
-pub(in crate::gui::native_shell::state) fn waveform_toolbar_hover_hint(
+pub(in crate::app_core::native_shell::composition::state) fn waveform_toolbar_hover_hint(
     label: &str,
 ) -> Option<WaveformToolbarHoverHint> {
     match label {

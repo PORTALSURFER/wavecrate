@@ -248,4 +248,3 @@ fn waveform_selection_x_for_micros(plot: Rect, model: &AppModel, micros: u32) ->
     );
     waveform_plot_x_for_micros(plot, micros, view, NormalizedPixelSnap::Nearest)
 }
-

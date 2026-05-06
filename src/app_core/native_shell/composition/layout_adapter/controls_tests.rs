@@ -4,7 +4,7 @@ use super::{
     compute_browser_toolbar_sections, compute_sidebar_action_button_rects,
     compute_update_action_button_rects,
 };
-use crate::gui::native_shell::style::StyleTokens;
+use crate::app_core::native_shell::composition::style::StyleTokens;
 use crate::gui::types::{Point, Rect};
 
 #[test]

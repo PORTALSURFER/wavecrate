@@ -16,10 +16,10 @@ pub(super) use prompt::compute_prompt_overlay_text_layout;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gui::native_shell::layout_adapter::overlays::{
+    use crate::app_core::native_shell::composition::layout_adapter::overlays::{
         ProgressOverlaySections, PromptOverlaySections,
     };
-    use crate::gui::native_shell::style::StyleTokens;
+    use crate::app_core::native_shell::composition::style::StyleTokens;
     use crate::gui::types::{Point, Rect};
 
     fn assert_inside(outer: Rect, inner: Rect) {

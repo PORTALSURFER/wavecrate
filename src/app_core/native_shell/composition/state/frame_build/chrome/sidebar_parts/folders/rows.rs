@@ -1,5 +1,7 @@
 use super::*;
-use crate::app_core::native_shell::runtime_contract::{FolderPaneIdModel, FolderRowKind, FolderRowModel};
+use crate::app_core::native_shell::runtime_contract::{
+    FolderPaneIdModel, FolderRowKind, FolderRowModel,
+};
 
 pub(super) fn render_tree_rows(
     ctx: &StaticFrameCtx<'_>,
@@ -307,4 +309,3 @@ fn create_draft_field_rect(row_rect: Rect, sizing: SizingTokens, depth: usize) -
 fn create_draft_text_rect(field_rect: Rect, sizing: SizingTokens) -> Rect {
     compute_action_button_text_rect(field_rect, sizing)
 }
-

@@ -2,7 +2,7 @@
 
 use super::*;
 
-pub(in crate::gui::native_shell::state) fn push_waveform_header_overlay(
+pub(in crate::app_core::native_shell::composition::state) fn push_waveform_header_overlay(
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
     layout: &ShellLayout,

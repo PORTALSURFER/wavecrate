@@ -368,4 +368,3 @@ fn fade_curve_sample(t: f32, curve: f32) -> f32 {
     let smootherstep = t3 * (t * (t * 6.0 - 15.0) + 10.0);
     t * (1.0 - curve) + smootherstep * curve
 }
-

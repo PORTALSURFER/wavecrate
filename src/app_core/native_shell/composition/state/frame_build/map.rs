@@ -91,4 +91,3 @@ pub(super) fn render_map_header(ctx: &StaticFrameCtx<'_>, text_runs: &mut impl T
         },
     );
 }
-

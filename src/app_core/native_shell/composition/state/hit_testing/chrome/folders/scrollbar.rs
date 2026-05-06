@@ -122,4 +122,3 @@ fn folder_scrollbar_track_jump(
     )
     .map(|view_start| (pane, view_start))
 }
-

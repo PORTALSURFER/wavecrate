@@ -248,8 +248,8 @@ mod tests {
         ShellLayoutDirtyKind, ShellLayoutRuntime, ShellLayoutTreeKind,
         dirty_segments_for_layout_subtree,
     };
+    use crate::app_core::native_shell::composition::{ShellLayout, StyleTokens};
     use crate::app_core::native_shell::runtime_contract::DirtySegments;
-    use crate::gui::native_shell::{ShellLayout, StyleTokens};
     use crate::gui::types::Vector2;
 
     #[test]
@@ -285,7 +285,7 @@ mod tests {
     fn browser_band_subtree_maps_to_browser_segments_only() {
         let dirty = dirty_segments_for_layout_subtree(
             ShellLayoutTreeKind::BrowserBands,
-            crate::gui::native_shell::layout_adapter::BROWSER_BANDS_ROOT_ID,
+            crate::app_core::native_shell::composition::layout_adapter::BROWSER_BANDS_ROOT_ID,
         );
 
         assert_eq!(
@@ -296,4 +296,3 @@ mod tests {
         );
     }
 }
-

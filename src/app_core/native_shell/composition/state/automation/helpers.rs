@@ -351,4 +351,3 @@ pub(super) fn circle_rect(center: Point, diameter: f32) -> Rect {
         Point::new(center.x + radius, center.y + radius),
     )
 }
-

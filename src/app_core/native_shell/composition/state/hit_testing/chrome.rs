@@ -9,4 +9,4 @@ mod source_controls;
 #[path = "chrome/top_bar.rs"]
 mod top_bar;
 
-pub(in crate::gui::native_shell::state) use self::source_controls::sidebar_filter_dropdown_spec;
+pub(in crate::app_core::native_shell::composition::state) use self::source_controls::sidebar_filter_dropdown_spec;

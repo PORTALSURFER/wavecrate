@@ -2,7 +2,7 @@
 
 use super::super::super::*;
 
-pub(in crate::gui::native_shell::state) fn browser_action_buttons(
+pub(in crate::app_core::native_shell::composition::state) fn browser_action_buttons(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,

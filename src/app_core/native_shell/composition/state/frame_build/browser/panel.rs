@@ -362,4 +362,3 @@ fn browser_playback_age_filter_icon(chip: PlaybackAgeFilterChip) -> WaveformTool
         PlaybackAgeFilterChip::OlderThanWeek => WaveformToolbarIcon::BrowserOlderThanWeek,
     }
 }
-

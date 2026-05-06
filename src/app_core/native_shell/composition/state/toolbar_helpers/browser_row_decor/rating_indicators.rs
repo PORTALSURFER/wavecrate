@@ -1,20 +1,20 @@
 use super::*;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(in crate::gui::native_shell::state) struct BrowserRatingIndicatorLayout {
-    pub(in crate::gui::native_shell::state) rects: [Rect; 3],
-    pub(in crate::gui::native_shell::state) count: usize,
+pub(in crate::app_core::native_shell::composition::state) struct BrowserRatingIndicatorLayout {
+    pub(in crate::app_core::native_shell::composition::state) rects: [Rect; 3],
+    pub(in crate::app_core::native_shell::composition::state) count: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(in crate::gui::native_shell::state) struct BrowserRatingIndicatorAnchor {
-    pub(in crate::gui::native_shell::state) sample_label: Rect,
-    pub(in crate::gui::native_shell::state) label_origin_x: f32,
-    pub(in crate::gui::native_shell::state) label_rendered_width: f32,
-    pub(in crate::gui::native_shell::state) right_limit_x: f32,
+pub(in crate::app_core::native_shell::composition::state) struct BrowserRatingIndicatorAnchor {
+    pub(in crate::app_core::native_shell::composition::state) sample_label: Rect,
+    pub(in crate::app_core::native_shell::composition::state) label_origin_x: f32,
+    pub(in crate::app_core::native_shell::composition::state) label_rendered_width: f32,
+    pub(in crate::app_core::native_shell::composition::state) right_limit_x: f32,
 }
 
-pub(in crate::gui::native_shell::state) fn browser_rating_indicator_reserved_width(
+pub(in crate::app_core::native_shell::composition::state) fn browser_rating_indicator_reserved_width(
     rating_level: i8,
     locked: bool,
     sizing: SizingTokens,
@@ -29,7 +29,7 @@ pub(in crate::gui::native_shell::state) fn browser_rating_indicator_reserved_wid
     (count as f32 * width) + ((count.saturating_sub(1)) as f32 * gap) + text_gap
 }
 
-pub(in crate::gui::native_shell::state) fn browser_rating_indicator_layout(
+pub(in crate::app_core::native_shell::composition::state) fn browser_rating_indicator_layout(
     anchor: BrowserRatingIndicatorAnchor,
     rating_level: i8,
     locked: bool,
@@ -66,7 +66,7 @@ pub(in crate::gui::native_shell::state) fn browser_rating_indicator_layout(
     Some(BrowserRatingIndicatorLayout { rects, count })
 }
 
-pub(in crate::gui::native_shell::state) fn browser_rating_indicator_color(
+pub(in crate::app_core::native_shell::composition::state) fn browser_rating_indicator_color(
     style: &StyleTokens,
     rating_level: i8,
 ) -> Rgba8 {
@@ -77,13 +77,13 @@ pub(in crate::gui::native_shell::state) fn browser_rating_indicator_color(
     }
 }
 
-pub(in crate::gui::native_shell::state) fn browser_rating_indicator_side(
+pub(in crate::app_core::native_shell::composition::state) fn browser_rating_indicator_side(
     sizing: SizingTokens,
 ) -> f32 {
     (sizing.font_meta * 0.68).round().clamp(5.0, 8.0)
 }
 
-pub(in crate::gui::native_shell::state) fn browser_rating_indicator_count(
+pub(in crate::app_core::native_shell::composition::state) fn browser_rating_indicator_count(
     rating_level: i8,
     locked: bool,
 ) -> usize {
@@ -94,7 +94,7 @@ pub(in crate::gui::native_shell::state) fn browser_rating_indicator_count(
     }
 }
 
-pub(in crate::gui::native_shell::state) fn browser_rating_indicator_unit_width(
+pub(in crate::app_core::native_shell::composition::state) fn browser_rating_indicator_unit_width(
     rating_level: i8,
     locked: bool,
     sizing: SizingTokens,
@@ -107,13 +107,13 @@ pub(in crate::gui::native_shell::state) fn browser_rating_indicator_unit_width(
     }
 }
 
-pub(in crate::gui::native_shell::state) fn browser_rating_indicator_gap(
+pub(in crate::app_core::native_shell::composition::state) fn browser_rating_indicator_gap(
     sizing: SizingTokens,
 ) -> f32 {
     sizing.border_width.max(1.0) + 1.0
 }
 
-pub(in crate::gui::native_shell::state) fn browser_rating_indicator_text_gap(
+pub(in crate::app_core::native_shell::composition::state) fn browser_rating_indicator_text_gap(
     sizing: SizingTokens,
 ) -> f32 {
     sizing.text_inset_x.min(5.0).max(2.0)

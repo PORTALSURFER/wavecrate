@@ -225,4 +225,3 @@ pub(super) fn progress_automation(
         },
     })
 }
-

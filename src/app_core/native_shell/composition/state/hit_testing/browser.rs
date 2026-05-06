@@ -610,7 +610,7 @@ fn browser_pill_editor_action_at_point(
     None
 }
 
-pub(in crate::gui::native_shell::state) fn browser_action_hit_test_cache_key(
+pub(in crate::app_core::native_shell::composition::state) fn browser_action_hit_test_cache_key(
     layout: &ShellLayout,
     model: &AppModel,
 ) -> BrowserActionHitTestCacheKey {
@@ -624,7 +624,9 @@ pub(in crate::gui::native_shell::state) fn browser_action_hit_test_cache_key(
     }
 }
 
-pub(in crate::gui::native_shell::state) fn browser_action_model_signature(model: &AppModel) -> u64 {
+pub(in crate::app_core::native_shell::composition::state) fn browser_action_model_signature(
+    model: &AppModel,
+) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     model.browser_actions.can_rename.hash(&mut hasher);
     model.browser_actions.can_edit_pills().hash(&mut hasher);
@@ -668,4 +670,3 @@ pub(in crate::gui::native_shell::state) fn browser_action_model_signature(model:
     }
     hasher.finish()
 }
-

@@ -58,7 +58,8 @@ pub(super) fn build_sidebar_automation(
         sections.source_rows(pane),
         source_rows,
         &model.sources.rows,
-        model.focus_context == crate::app_core::native_shell::runtime_contract::FocusContextModel::NavigationList,
+        model.focus_context
+            == crate::app_core::native_shell::runtime_contract::FocusContextModel::NavigationList,
     ));
     children.push(folder_browser_group(
         sections.folder_header(pane),
@@ -67,7 +68,8 @@ pub(super) fn build_sidebar_automation(
         &pane_model.tree_rows,
         pane_model,
         style,
-        model.focus_context == crate::app_core::native_shell::runtime_contract::FocusContextModel::NavigationTree,
+        model.focus_context
+            == crate::app_core::native_shell::runtime_contract::FocusContextModel::NavigationTree,
     ));
     children.push(tags_group(workspace.tags, model));
     children.push(filters_group(workspace.filters, model));
@@ -567,4 +569,3 @@ fn union_rect(first: Rect, second: Rect) -> Rect {
         Point::new(first.max.x.max(second.max.x), first.max.y.max(second.max.y)),
     )
 }
-

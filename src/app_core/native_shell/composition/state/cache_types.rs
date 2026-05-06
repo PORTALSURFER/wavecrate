@@ -8,24 +8,24 @@ mod overlay_fingerprints;
 mod segmented;
 mod truncation;
 
-pub(in crate::gui::native_shell::state) use frame_text::*;
-pub(in crate::gui::native_shell::state) use interaction::*;
-pub(in crate::gui::native_shell::state) use overlay_fingerprints::WaveformResizeHoverEdge;
+pub(in crate::app_core::native_shell::composition::state) use frame_text::*;
+pub(in crate::app_core::native_shell::composition::state) use interaction::*;
+pub(in crate::app_core::native_shell::composition::state) use overlay_fingerprints::WaveformResizeHoverEdge;
 pub(crate) use overlay_fingerprints::{
     ChromeMotionOverlayFingerprint, CursorMoveEffect, FocusOverlayFingerprint,
     HoverOverlayFingerprint, ModalOverlayFingerprint, WaveformMotionOverlayFingerprint,
     WaveformToolbarHoverHint,
 };
 #[cfg(test)]
-pub(in crate::gui::native_shell::state) use overlay_fingerprints::{
+pub(in crate::app_core::native_shell::composition::state) use overlay_fingerprints::{
     MotionOverlayFingerprint, StateOverlayFingerprint,
 };
-pub(in crate::gui::native_shell::state) use segmented::{
+pub(in crate::app_core::native_shell::composition::state) use segmented::{
     PrimitiveSink, SegmentedPrimitiveSink, SegmentedStaticEmitContext, SegmentedTextRunSink,
     TextRunSink, emit_primitive, emit_text,
 };
 pub(crate) use segmented::{StaticFrameSegment, StaticFrameSegments};
-pub(in crate::gui::native_shell::state) use truncation::*;
+pub(in crate::app_core::native_shell::composition::state) use truncation::*;
 
 #[cfg(test)]
 mod tests {
