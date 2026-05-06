@@ -24,8 +24,8 @@ pub(crate) struct WaveformSlicePreviewRects {
     pub selected: bool,
     pub focused: bool,
     pub marked_for_export: bool,
-    pub duplicate_cleanup_candidate: bool,
-    pub duplicate_cleanup_exempted: bool,
+    pub review_candidate: bool,
+    pub review_exempted: bool,
 }
 
 /// Compute waveform annotation rectangles constrained to the waveform plot.
@@ -115,8 +115,8 @@ pub(crate) fn compute_waveform_slice_preview_rects(
                 selected: slice.selected,
                 focused: slice.focused,
                 marked_for_export: slice.marked_for_export,
-                duplicate_cleanup_candidate: slice.duplicate_cleanup_candidate,
-                duplicate_cleanup_exempted: slice.duplicate_cleanup_exempted,
+                review_candidate: slice.review_candidate,
+                review_exempted: slice.review_exempted,
             })
         })
         .collect()

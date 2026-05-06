@@ -253,9 +253,9 @@ pub(super) fn project_waveform_slice_previews(
                 selected: ui.waveform.selected_slices.contains(&index),
                 focused: ui.waveform.slice_review.focused_index == Some(index),
                 marked_for_export: ui.waveform.slice_review.marked_indices.contains(&index),
-                duplicate_cleanup_candidate: ui.waveform.slice_batch_profile
+                review_candidate: ui.waveform.slice_batch_profile
                     == WaveformSliceBatchProfile::ExactDuplicateBeats,
-                duplicate_cleanup_exempted: duplicate_cleanup
+                review_exempted: duplicate_cleanup
                     .and_then(|cleanup| cleanup.previews.get(index))
                     .is_some_and(|preview| preview.exempted),
             },

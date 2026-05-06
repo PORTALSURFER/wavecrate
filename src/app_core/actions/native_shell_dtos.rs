@@ -1593,8 +1593,8 @@ mod tests {
                 selected: true,
                 focused: false,
                 marked_for_export: false,
-                duplicate_cleanup_candidate: false,
-                duplicate_cleanup_exempted: false,
+                review_candidate: false,
+                review_exempted: false,
             }],
             ..WaveformPanelModel::default()
         };

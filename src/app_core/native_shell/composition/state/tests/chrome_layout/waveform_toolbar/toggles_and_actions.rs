@@ -247,8 +247,8 @@ fn waveform_toolbar_clean_dups_button_requires_duplicate_cleanup_batch() {
             selected: false,
             focused: false,
             marked_for_export: false,
-            duplicate_cleanup_candidate: false,
-            duplicate_cleanup_exempted: false,
+            review_candidate: false,
+            review_exempted: false,
         });
     let buttons_enabled = waveform_toolbar_buttons(
         &layout,
