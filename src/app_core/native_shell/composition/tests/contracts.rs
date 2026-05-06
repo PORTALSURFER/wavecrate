@@ -80,7 +80,7 @@ fn canonical_frame_contains_expected_sidebar_and_status_contract_text() {
         frame
             .text_runs
             .iter()
-            .any(|run| run.text.contains("Active Pane:"))
+            .any(|run| run.text.contains("Folders: source_02"))
     );
     assert!(
         frame
