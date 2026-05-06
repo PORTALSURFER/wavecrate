@@ -16,10 +16,7 @@ use crate::app_core::app_api::{controller_ui_hotkeys as hotkeys, state::FocusCon
 use crate::compat_app_contract as compat;
 use crate::gui::automation as gui_automation;
 use crate::gui::{
-    native_shell::{
-        CursorMoveEffect, NativeShellState, ShellLayout, ShellLayoutRuntime, ShellNodeKind,
-        StyleTokens,
-    },
+    native_shell::{NativeShellState, ShellLayout, ShellLayoutRuntime, ShellNodeKind, StyleTokens},
     paint::PaintFrame,
     types::{Point, Rect, Vector2},
 };
@@ -193,10 +190,10 @@ impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
         match input {
             RetainedCanvasInput::PointerMove { position } => {
                 let layout = self.build_current_layout();
-                let effect =
+                let _effect =
                     self.shell_state
                         .handle_cursor_move_effect(&layout, &self.model, position);
-                !matches!(effect, CursorMoveEffect::None)
+                true
             }
             RetainedCanvasInput::PointerPress { position, button } => {
                 if button != PointerButton::Primary {
@@ -376,7 +373,7 @@ impl<B: NativeAppBridge> RuntimeBridge<SempalRuntimeMessage> for SempalRuntimeBr
         let resolution = hotkeys::resolve_hotkey_press(
             pending_chord.map(keypress_from_radiant),
             keypress_from_radiant(press),
-            focus_context_from_radiant(focus),
+            sempal_focus_context(&self.model, focus),
         );
         RadiantShortcutResolution {
             action: resolution.action.map(SempalRuntimeMessage::Action),
@@ -436,6 +433,17 @@ fn focus_context_from_radiant(focus: RadiantFocusSurface) -> FocusContext {
         RadiantFocusSurface::ContentList => FocusContext::SampleBrowser,
         RadiantFocusSurface::NavigationTree => FocusContext::SourceFolders,
         RadiantFocusSurface::NavigationList => FocusContext::SourcesList,
+    }
+}
+
+/// Resolve Sempal focus from the projected model, falling back to Radiant focus.
+fn sempal_focus_context(model: &compat::AppModel, focus: RadiantFocusSurface) -> FocusContext {
+    match model.focus_context {
+        compat::FocusContextModel::None => focus_context_from_radiant(focus),
+        compat::FocusContextModel::Timeline => FocusContext::Waveform,
+        compat::FocusContextModel::ContentList => FocusContext::SampleBrowser,
+        compat::FocusContextModel::NavigationTree => FocusContext::SourceFolders,
+        compat::FocusContextModel::NavigationList => FocusContext::SourcesList,
     }
 }
 
@@ -2824,6 +2832,34 @@ mod tests {
         assert!(bridge.update(message).requests_repaint());
         assert_ne!(bridge.inner.reduced, vec![UiAction::HandleEscape]);
         assert_eq!(bridge.inner.reduced, vec![UiAction::ToggleTransport]);
+        bridge.inner.reduced.clear();
+
+        let hover_message = SempalRuntimeMessage::RetainedInput(RetainedCanvasInput::PointerMove {
+            position: radiant::gui::types::Point::new(12.0, 16.0),
+        });
+        assert!(
+            bridge.update(hover_message).requests_repaint(),
+            "retained hover moves should repaint even when Sempal classifies the hover as a local overlay update"
+        );
+
+        bridge.update(SempalRuntimeMessage::RetainedInput(
+            RetainedCanvasInput::FocusChanged(true),
+        ));
+        bridge.update(SempalRuntimeMessage::Action(UiAction::FocusBrowserSearch));
+        bridge.inner.reduced.clear();
+        assert!(
+            bridge
+                .update(SempalRuntimeMessage::RetainedInput(
+                    RetainedCanvasInput::Character('k')
+                ))
+                .requests_repaint()
+        );
+        assert_eq!(
+            bridge.inner.reduced,
+            vec![UiAction::SetBrowserSearch {
+                query: String::from("k")
+            }]
+        );
 
         bridge.install_repaint_signal(Arc::new(TestRepaintSignal));
         assert!(repaint_installed.load(Ordering::Acquire));
