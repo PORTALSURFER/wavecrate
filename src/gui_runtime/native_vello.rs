@@ -69,5 +69,3 @@ pub(in crate::gui_runtime::native_vello) use legacy_shell_config::*;
 pub(in crate::gui_runtime::native_vello) use legacy_shell_runner::NativeVelloRunner;
 pub(in crate::gui_runtime::native_vello) use runtime_config::*;
 pub(in crate::gui_runtime::native_vello) use runtime_event::RuntimeUserEvent;
-
-pub(super) use legacy_shell_runtime::run_legacy_shell_vello_app_with_artifacts as run_native_shell_vello_app_with_artifacts;

@@ -4,8 +4,7 @@
 //! contract:
 //!
 //! * it converts `sempal` launch options into `radiant`-native options,
-//! * it hosts the transitional Sempal native-shell Vello runner until the
-//!   generic Radiant runtime bridge is the only launch path,
+//! * it launches through Radiant's generic native runtime bridge,
 //! * it routes runtime errors into project logging.
 //!
 //! Product shell composition, automation snapshots, and compatibility DTO
@@ -16,9 +15,8 @@
 //! This separation allows deterministic ownership of interaction and layout logic
 //! in one place while keeping host bootstrapping lightweight.
 //!
-//! Sempal intentionally confines the current native-shell compatibility glue to
-//! this runtime boundary while the preferred generic Radiant runtime API becomes
-//! ready for the runtime cutover.
+//! Sempal intentionally confines native-shell compatibility glue to this runtime
+//! boundary while the live launch path goes through Radiant's generic runtime.
 
 use crate::app_core::actions::{NativeAppBridge, NativeAppModel, NativeGuiAutomationSnapshot};
 use serde::{Deserialize, Serialize};
@@ -104,7 +102,7 @@ pub struct NativeRunOptions {
 ///
 /// This call blocks until the native host exits and returns an error if startup
 /// or runtime execution fails.
-pub fn run_native_vello_app<B: NativeAppBridge>(
+pub fn run_native_vello_app<B: NativeAppBridge + 'static>(
     options: NativeRunOptions,
     bridge: B,
 ) -> Result<(), String> {
@@ -123,7 +121,7 @@ pub fn run_native_vello_app<B: NativeAppBridge>(
 
 /// Run the native Vello backend with a host-provided application bridge and
 /// return the structured runtime artifacts captured during the run.
-pub fn run_native_vello_app_with_artifacts<B: NativeAppBridge>(
+pub fn run_native_vello_app_with_artifacts<B: NativeAppBridge + 'static>(
     options: NativeRunOptions,
     bridge: B,
 ) -> NativeRunReport {
@@ -141,7 +139,7 @@ pub fn run_native_vello_app_with_artifacts<B: NativeAppBridge>(
 ///
 /// This entrypoint is equivalent to [`run_native_vello_app`] and is provided to
 /// make declarative runtime usage explicit at call sites.
-pub fn run_native_vello_app_declarative<B: NativeAppBridge>(
+pub fn run_native_vello_app_declarative<B: NativeAppBridge + 'static>(
     options: NativeRunOptions,
     bridge: B,
 ) -> Result<(), String> {
@@ -160,7 +158,7 @@ pub fn run_native_vello_app_declarative<B: NativeAppBridge>(
 
 /// Run the native Vello backend with a declarative host bridge and return the
 /// structured runtime artifacts captured during the run.
-pub fn run_native_vello_app_declarative_with_artifacts<B: NativeAppBridge>(
+pub fn run_native_vello_app_declarative_with_artifacts<B: NativeAppBridge + 'static>(
     options: NativeRunOptions,
     bridge: B,
 ) -> NativeRunReport {
