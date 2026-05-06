@@ -105,6 +105,14 @@ pub(super) fn apply_browser_list_native_ui_action(
                 controller.set_browser_playback_age_filter(chip, true);
             }
         }
+        NativeUiAction::ToggleBrowserSidebarFilter { option, additive } => {
+            controller.focus_browser_list();
+            controller.toggle_browser_sidebar_filter(option, additive);
+        }
+        NativeUiAction::ClearBrowserSidebarFilter { facet } => {
+            controller.focus_browser_list();
+            controller.clear_browser_sidebar_filter(facet);
+        }
         NativeUiAction::ToggleBrowserSampleMark => {
             controller.focus_browser_list();
             controller.toggle_browser_sample_mark();

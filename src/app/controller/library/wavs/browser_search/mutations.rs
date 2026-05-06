@@ -2,7 +2,8 @@
 
 use super::*;
 use crate::app::state::{
-    PlaybackAgeFilterChip, SampleBrowserSort, browser_playback_age_filter_chips,
+    BrowserSidebarFilterFacet, BrowserSidebarFilterOption, PlaybackAgeFilterChip,
+    SampleBrowserSort, browser_playback_age_filter_chips,
 };
 
 /// Refresh browser rows through the authoritative async worker or the retained sync path.
@@ -29,6 +30,43 @@ pub(crate) fn toggle_browser_marked_filter(controller: &mut AppController) {
     crate::app::controller::library::wavs::cancel_pending_similarity_filter_rebuild(controller);
     controller.mark_browser_search_projection_revision_dirty();
     refresh_browser_search_results(controller);
+}
+
+/// Toggle one sidebar metadata-facet option and refresh visible rows when it changes.
+pub(crate) fn toggle_browser_sidebar_filter(
+    controller: &mut AppController,
+    option: BrowserSidebarFilterOption,
+    additive: bool,
+) {
+    if controller
+        .ui
+        .browser
+        .search
+        .sidebar_filters
+        .toggle(option, additive)
+    {
+        crate::app::controller::library::wavs::cancel_pending_similarity_filter_rebuild(controller);
+        controller.mark_browser_search_projection_revision_dirty();
+        refresh_browser_search_results(controller);
+    }
+}
+
+/// Clear one sidebar metadata-facet group and refresh visible rows when it changes.
+pub(crate) fn clear_browser_sidebar_filter(
+    controller: &mut AppController,
+    facet: BrowserSidebarFilterFacet,
+) {
+    if controller
+        .ui
+        .browser
+        .search
+        .sidebar_filters
+        .clear_facet(facet)
+    {
+        crate::app::controller::library::wavs::cancel_pending_similarity_filter_rebuild(controller);
+        controller.mark_browser_search_projection_revision_dirty();
+        refresh_browser_search_results(controller);
+    }
 }
 
 /// Cycle the browser tag-derived filename filter through off, positive, and negated states.

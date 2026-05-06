@@ -125,6 +125,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             text_input_target: TextInputTarget::None,
             text_input_buffer: None,
             text_editor_state: None,
+            browser_pill_editor_suggestion_index: None,
             active_text_field_visual_cache: None,
             text_input_drag_active: false,
             waveform_bpm_input_buffer: None,

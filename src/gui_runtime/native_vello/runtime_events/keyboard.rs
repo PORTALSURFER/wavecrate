@@ -130,13 +130,21 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             handled = self.handle_escape_key();
         }
         if !handled && matches!(event.logical_key, Key::Named(NamedKey::Backspace)) {
-            handled = self.backspace_text();
+            handled = if self.text_input_target == TextInputTarget::BrowserPillEditor {
+                self.backspace_text() || self.remove_last_browser_pill_editor_chip()
+            } else {
+                self.backspace_text()
+            };
         }
         if !handled && matches!(event.logical_key, Key::Named(NamedKey::Delete)) {
             handled = self.delete_text_forward();
         }
         if !handled && matches!(event.logical_key, Key::Named(NamedKey::Enter)) {
             handled = self.handle_enter_key();
+        }
+        if !handled && matches!(event.logical_key, Key::Named(NamedKey::Tab)) {
+            handled = self.text_input_target == TextInputTarget::BrowserPillEditor
+                && self.complete_browser_pill_editor_suggestion();
         }
         if !handled && let Some(key) = key {
             handled = self.handle_text_input_key(key);
@@ -202,6 +210,13 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
     }
 
     fn handle_text_input_key(&mut self, key: KeyCode) -> bool {
+        if self.text_input_target == TextInputTarget::BrowserPillEditor {
+            match key {
+                KeyCode::ArrowUp => return self.move_browser_pill_editor_suggestion(-1),
+                KeyCode::ArrowDown => return self.move_browser_pill_editor_suggestion(1),
+                _ => {}
+            }
+        }
         match key {
             KeyCode::ArrowUp => {
                 return self.step_waveform_bpm_input(if self.modifiers.shift_key() {
@@ -298,6 +313,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
             self.deactivate_text_input_target();
             return true;
         }
+        if self.shell_state.close_sidebar_filter_dropdown() {
+            return true;
+        }
         self.emit_keyboard_action(UiAction::HandleEscape);
         true
     }
@@ -312,6 +330,86 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.update_text_target_after_action(&action);
         self.emit_model_action(action.clone());
         self.refresh_cached_model_after_folder_create_action(&action);
+    }
+
+    /// Move the highlighted browser pill-editor suggestion by one step.
+    fn move_browser_pill_editor_suggestion(&mut self, delta: isize) -> bool {
+        let count = self.browser_pill_editor_suggestion_count();
+        if count == 0 {
+            self.browser_pill_editor_suggestion_index = None;
+            return true;
+        }
+        let current = self.browser_pill_editor_suggestion_index.unwrap_or(0);
+        let next = if delta < 0 {
+            current.checked_sub(1).unwrap_or(count - 1)
+        } else {
+            (current + 1) % count
+        };
+        self.browser_pill_editor_suggestion_index = Some(next);
+        true
+    }
+
+    /// Complete the browser pill-editor input from the highlighted suggestion.
+    fn complete_browser_pill_editor_suggestion(&mut self) -> bool {
+        let Some(label) = self.browser_pill_editor_suggestion_label() else {
+            return true;
+        };
+        self.set_text_value(label)
+    }
+
+    /// Count selectable browser pill-editor suggestions.
+    fn browser_pill_editor_suggestion_count(&self) -> usize {
+        let editor = &self.model.browser.pill_editor;
+        editor.option_pills.len() + usize::from(editor.create_pill.is_some())
+    }
+
+    /// Return the highlighted browser pill-editor suggestion label.
+    fn browser_pill_editor_suggestion_label(&self) -> Option<String> {
+        let editor = &self.model.browser.pill_editor;
+        let count = self.browser_pill_editor_suggestion_count();
+        if count == 0 {
+            return None;
+        }
+        let index = self.browser_pill_editor_suggestion_index.unwrap_or(0) % count;
+        editor
+            .option_pills
+            .get(index)
+            .or_else(|| {
+                (index == editor.option_pills.len())
+                    .then_some(editor.create_pill.as_ref())
+                    .flatten()
+            })
+            .map(|pill| pill.label.clone())
+    }
+
+    /// Remove the trailing selected pill when Backspace starts from an empty input.
+    fn remove_last_browser_pill_editor_chip(&mut self) -> bool {
+        if self
+            .current_text_value()
+            .is_some_and(|value| !value.trim().is_empty())
+        {
+            return false;
+        }
+        let Some(pill) = self
+            .model
+            .browser
+            .pill_editor
+            .option_pills
+            .iter()
+            .rev()
+            .find(|pill| {
+                !matches!(
+                    pill.state,
+                    crate::compat_app_contract::BrowserPillState::Off
+                )
+            })
+        else {
+            return true;
+        };
+        self.emit_keyboard_action(UiAction::ToggleBrowserPillOption {
+            label: pill.id.clone(),
+        });
+        true
     }
 }
 

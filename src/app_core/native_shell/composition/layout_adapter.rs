@@ -59,7 +59,10 @@ pub(crate) use sidebar_bands::{
 pub(super) use sidebar_header::{
     compute_sidebar_folder_header_layout, compute_source_section_divider_rect,
 };
-pub(super) use sidebar_sections::{SidebarRowCounts, compute_sidebar_row_sections};
+pub(super) use sidebar_sections::{
+    SidebarRowCounts, SidebarWorkspaceSections, compute_sidebar_row_sections,
+    compute_sidebar_workspace_sections,
+};
 pub(super) use sidebar_text::{
     SidebarFolderRowLayout, compute_sidebar_folder_row_depth_indent,
     compute_sidebar_folder_row_layout, compute_sidebar_recovery_badge_text_rect,

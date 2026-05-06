@@ -20,6 +20,24 @@ pub(in crate::gui::native_shell::state) struct BrowserContextMenuState {
     pub anchor: Point,
 }
 
+/// Sidebar filter row whose dropdown is currently open.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub(crate) enum SidebarFilterDropdownFacet {
+    Format,
+    BitDepth,
+    Channels,
+    Bpm,
+    Key,
+    Rating,
+}
+
+/// Ephemeral left-sidebar filter dropdown state tracked by the runtime.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(in crate::gui::native_shell::state) struct SidebarFilterDropdownState {
+    /// Filter row whose dropdown is visible.
+    pub facet: SidebarFilterDropdownFacet,
+}
+
 /// Invalidation key for the retained browser scrollbar interaction geometry.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(in crate::gui::native_shell::state) struct BrowserScrollbarCacheKey {

@@ -63,6 +63,8 @@ pub struct AppModel {
     pub sources: SourcesPanelModel,
     /// Browser panel summary consumed by the native renderer.
     pub browser: BrowserPanelModel,
+    /// Browser sidebar metadata-facet filter state consumed by Sempal sidebar chrome.
+    pub sidebar_filters: crate::app_core::state::BrowserSidebarFilterState,
     /// Browser chrome labels consumed by native tabs/toolbar/footer text.
     pub browser_chrome: BrowserChromeModel,
     /// Map panel summary consumed by the native renderer.
@@ -132,6 +134,7 @@ impl Default for AppModel {
                 recovery: FolderRecoveryModel::default(),
             },
             browser: BrowserPanelModel::default(),
+            sidebar_filters: Default::default(),
             browser_chrome: BrowserChromeModel::default(),
             map: MapPanelModel::default(),
             waveform: WaveformPanelModel::default(),

@@ -75,6 +75,9 @@ pub(super) fn filter_accepts(
     locked: bool,
     last_played_at: Option<i64>,
     playback_age_now_unix_secs: i64,
+    sidebar_filters: &crate::app::state::BrowserSidebarFilterState,
+    relative_path: &std::path::Path,
+    bpm: Option<f32>,
 ) -> bool {
     let triage_ok = match filter {
         TriageFlagFilter::All => true,
@@ -90,7 +93,8 @@ pub(super) fn filter_accepts(
         playback_age_bucket_matches_filters(playback_age_filter, playback_age_bucket);
     let marked_ok = !marked_only || marked;
     let tag_named_ok = tag_named_filter.accepts(tag_named);
-    triage_ok && rating_ok && playback_age_ok && marked_ok && tag_named_ok
+    let sidebar_ok = sidebar_filters.accepts_path_and_bpm(relative_path, bpm);
+    triage_ok && rating_ok && playback_age_ok && marked_ok && tag_named_ok && sidebar_ok
 }
 
 /// Return the effective browser rating-filter level for one sample row.

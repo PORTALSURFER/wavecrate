@@ -42,6 +42,9 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         };
         self.text_input_target = target;
         self.text_input_buffer = Some(current_text.clone());
+        if target == TextInputTarget::BrowserPillEditor {
+            self.browser_pill_editor_suggestion_index = None;
+        }
         let mut editor = SingleLineTextEditorState::collapsed_at_end(&current_text);
         if select_all_on_focus {
             editor.select_all(&current_text);
@@ -359,6 +362,7 @@ impl<B: NativeAppBridge> NativeVelloRunner<B> {
         self.text_input_target = TextInputTarget::None;
         self.text_input_buffer = None;
         self.text_editor_state = None;
+        self.browser_pill_editor_suggestion_index = None;
         self.active_text_field_visual_cache = None;
         self.text_input_drag_active = false;
     }

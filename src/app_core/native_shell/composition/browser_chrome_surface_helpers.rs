@@ -189,9 +189,6 @@ pub(super) fn browser_toolbar_surface_widths(
             filter_group_gap,
         };
     }
-    let max_filter_side = (toolbar.height() - (sizing.text_inset_y * 2.0))
-        .floor()
-        .clamp(6.0, 14.0);
     let desired_search_width = ((toolbar.width() * sizing.browser_search_field_ratio)
         .max(sizing.browser_search_field_min_width))
     .min(
@@ -207,38 +204,12 @@ pub(super) fn browser_toolbar_surface_widths(
         0.0
     };
     let min_search_width = sizing.browser_search_field_min_width.min(available);
-    let mut filter_side = compute_filter_control_side(
-        (available - desired_search_width - action_cluster_width - (gap * 2.0)).max(0.0),
-        max_filter_side,
-        filter_gap,
-        filter_group_gap,
-    );
-    let mut filter_total_width =
-        browser_filter_cluster_width(filter_side, filter_gap, filter_group_gap).min(available);
-    let derived_label_width = if filter_side > 0.0 {
-        (filter_side * 2.0) + filter_group_gap + filter_gap
-    } else {
-        0.0
-    };
-    let mut remaining_after_filters =
+    let filter_side = 0.0;
+    let filter_total_width = 0.0;
+    let derived_label_width = 0.0;
+    let remaining_after_filters =
         (available - filter_total_width - derived_label_width - action_cluster_width - (gap * 2.0))
             .max(0.0);
-    if remaining_after_filters < min_search_width && desired_search_width > min_search_width {
-        filter_side = compute_filter_control_side(
-            (available - min_search_width - action_cluster_width - (gap * 2.0)).max(0.0),
-            max_filter_side,
-            filter_gap,
-            filter_group_gap,
-        );
-        filter_total_width =
-            browser_filter_cluster_width(filter_side, filter_gap, filter_group_gap).min(available);
-        remaining_after_filters = (available
-            - filter_total_width
-            - derived_label_width
-            - action_cluster_width
-            - (gap * 2.0))
-            .max(0.0);
-    }
     BrowserToolbarSurfaceWidths {
         horizontal_padding,
         filter_side,
@@ -246,11 +217,7 @@ pub(super) fn browser_toolbar_surface_widths(
         search_width: desired_search_width
             .min(remaining_after_filters.max(min_search_width))
             .max(0.0),
-        tag_width: if action_side > 0.0 {
-            (action_side * 2.4).clamp(44.0, 72.0).min(available)
-        } else {
-            0.0
-        },
+        tag_width: 0.0,
         activity_width: 0.0,
         sort_width: 0.0,
         gap,
@@ -270,40 +237,6 @@ pub(super) fn browser_sort_label(model: &AppModel) -> String {
     } else {
         format!("{}: {}", model.browser_chrome.sort_prefix_label, sort_label)
     }
-}
-
-fn compute_filter_control_side(
-    available_width: f32,
-    max_filter_side: f32,
-    filter_gap: f32,
-    filter_group_gap: f32,
-) -> f32 {
-    if available_width <= 0.0 {
-        return 0.0;
-    }
-    let chip_count = (BROWSER_RATING_FILTER_COUNT + BROWSER_PLAYBACK_AGE_FILTER_COUNT + 2) as f32;
-    let intra_group_gap_count = (BROWSER_RATING_FILTER_COUNT.saturating_sub(1)
-        + BROWSER_PLAYBACK_AGE_FILTER_COUNT.saturating_sub(1))
-        as f32;
-    let raw_side =
-        (available_width - (filter_gap * (intra_group_gap_count + 1.0)) - (filter_group_gap * 2.0))
-            / chip_count;
-    if raw_side <= 0.0 {
-        0.0
-    } else {
-        raw_side.floor().clamp(6.0, max_filter_side)
-    }
-}
-
-fn browser_filter_cluster_width(chip_side: f32, gap: f32, group_gap: f32) -> f32 {
-    if chip_side <= 0.0 {
-        return 0.0;
-    }
-    (chip_side * BROWSER_RATING_FILTER_COUNT as f32)
-        + (gap * (BROWSER_RATING_FILTER_COUNT.saturating_sub(1) as f32))
-        + group_gap
-        + (chip_side * BROWSER_PLAYBACK_AGE_FILTER_COUNT as f32)
-        + (gap * (BROWSER_PLAYBACK_AGE_FILTER_COUNT.saturating_sub(1) as f32))
 }
 
 fn chip_label(index: usize) -> &'static str {

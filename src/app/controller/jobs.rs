@@ -62,7 +62,7 @@ use crate::app::state::FolderPaneId;
 use crate::gui::repaint::{RepaintSignal, SharedRepaintSignal};
 use crate::sample_sources::SourceId;
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     path::PathBuf,
     sync::{
         Arc,

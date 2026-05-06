@@ -2,7 +2,9 @@
 
 use super::helpers::{action_slug, bool_text, bounds, metadata, node_id, simple_node, slug};
 use super::*;
-use crate::compat_app_contract::{AutomationRole, FolderPaneIdModel, FolderPaneModel};
+use crate::compat_app_contract::{
+    AutomationRole, BrowserPillState, FolderPaneIdModel, FolderPaneModel,
+};
 
 /// Build semantic automation for the sources/sidebar panel.
 pub(super) fn build_sidebar_automation(
@@ -14,6 +16,17 @@ pub(super) fn build_sidebar_automation(
     let source_rows = shell.cached_source_rows(layout, style, model).to_vec();
     let sections = sidebar_sections(layout, style, model);
     let mut children = Vec::new();
+    let workspace = sidebar_workspace_sections(layout, style);
+    children.push(simple_node(
+        "sources.library",
+        AutomationRole::Group,
+        Some(String::from("Library")),
+        layout.sidebar_header,
+        Some(model.sources.header.clone()),
+        true,
+        false,
+        vec![String::from("focus_sources_panel")],
+    ));
     if let Some(rect) = source_add_button_rect(layout.sidebar_header, style.sizing) {
         children.push(simple_node(
             "sources.add_button",
@@ -56,6 +69,8 @@ pub(super) fn build_sidebar_automation(
         style,
         model.focus_context == crate::compat_app_contract::FocusContextModel::NavigationTree,
     ));
+    children.push(tags_group(workspace.tags, model));
+    children.push(filters_group(workspace.filters, model));
     AutomationNodeSnapshot {
         id: node_id("sources.panel"),
         role: AutomationRole::Panel,
@@ -78,6 +93,235 @@ pub(super) fn build_sidebar_automation(
         ]),
         children,
     }
+}
+
+/// Build automation nodes for the sidebar tag editor.
+fn tags_group(rect: Rect, model: &AppModel) -> AutomationNodeSnapshot {
+    let sidebar = model.browser.pill_editor();
+    let mut children = Vec::new();
+    children.push(simple_node(
+        "sources.tags.input",
+        AutomationRole::SearchField,
+        Some(String::from("Add tag")),
+        sidebar_tag_input_rect_for_automation(rect),
+        Some(sidebar.input_value.clone()),
+        true,
+        false,
+        vec![
+            String::from("focus_browser_pill_editor_input"),
+            String::from("set_browser_pill_editor_input"),
+            String::from("commit_browser_pill_editor_input"),
+        ],
+    ));
+    children.extend(
+        sidebar
+            .option_pills
+            .iter()
+            .enumerate()
+            .map(|(index, pill)| AutomationNodeSnapshot {
+                id: node_id(format!("sources.tags.suggestion.{index}")),
+                role: AutomationRole::Button,
+                label: Some(pill.label.clone()),
+                bounds: bounds(rect),
+                value: Some(format!("{:?}", pill.state)),
+                enabled: true,
+                selected: !matches!(pill.state, BrowserPillState::Off),
+                available_actions: vec![String::from("toggle_browser_pill_option")],
+                metadata: metadata(&[("pill_id", pill.id.as_str())]),
+                children: Vec::new(),
+            }),
+    );
+    if let Some(pill) = sidebar.create_pill.as_ref() {
+        children.push(AutomationNodeSnapshot {
+            id: node_id(format!("sources.tags.create_tag.{}", slug(&pill.id))),
+            role: AutomationRole::Button,
+            label: Some(pill.label.clone()),
+            bounds: bounds(rect),
+            value: Some(format!("{:?}", pill.state)),
+            enabled: true,
+            selected: false,
+            available_actions: vec![String::from("commit_browser_pill_editor_input")],
+            metadata: metadata(&[("pill_id", pill.id.as_str())]),
+            children: Vec::new(),
+        });
+    }
+    let option_pill_labels = sidebar
+        .option_pills
+        .iter()
+        .map(|pill| pill.label.as_str())
+        .collect::<Vec<_>>()
+        .join("|");
+    AutomationNodeSnapshot {
+        id: node_id("sources.tags"),
+        role: AutomationRole::Group,
+        label: Some(String::from("Tags")),
+        bounds: bounds(rect),
+        value: Some(sidebar.header_label.clone()),
+        enabled: true,
+        selected: false,
+        available_actions: vec![String::from("focus_browser_pill_editor_input")],
+        metadata: metadata(&[
+            ("selected_count", &sidebar.selected_count.to_string()),
+            ("normal_tag_labels", option_pill_labels.as_str()),
+        ]),
+        children,
+    }
+}
+
+/// Build automation nodes for the sidebar browser filters.
+fn filters_group(rect: Rect, model: &AppModel) -> AutomationNodeSnapshot {
+    let rows = ["format", "bit_depth", "channels", "bpm", "key", "rating"];
+    let mut children: Vec<_> = rows
+        .into_iter()
+        .map(|name| {
+            let (value, actions) = match name {
+                "format" => (
+                    sidebar_option_summary(model.sidebar_filters.formats.len(), "WAV"),
+                    vec![String::from("toggle_browser_sidebar_filter")],
+                ),
+                "bit_depth" => (
+                    sidebar_option_summary(model.sidebar_filters.bit_depths.len(), "Unavailable"),
+                    vec![String::from("toggle_browser_sidebar_filter")],
+                ),
+                "channels" => (
+                    sidebar_option_summary(model.sidebar_filters.channels.len(), "Unavailable"),
+                    vec![String::from("toggle_browser_sidebar_filter")],
+                ),
+                "bpm" => (
+                    sidebar_bpm_summary(model),
+                    vec![
+                        String::from("toggle_browser_sidebar_filter"),
+                        String::from("clear_browser_sidebar_filter"),
+                    ],
+                ),
+                "key" => (
+                    sidebar_option_summary(model.sidebar_filters.keys.len(), "Unknown"),
+                    vec![String::from("toggle_browser_sidebar_filter")],
+                ),
+                "rating" => (
+                    rating_filter_summary(model),
+                    vec![String::from("toggle_browser_rating_filter")],
+                ),
+                _ => (String::new(), Vec::new()),
+            };
+            simple_node(
+                format!("sources.filters.{name}"),
+                AutomationRole::Button,
+                Some(name.replace('_', " ")),
+                rect,
+                Some(value),
+                true,
+                false,
+                actions,
+            )
+        })
+        .collect();
+    children.push(simple_node(
+        "sources.filters.marked",
+        AutomationRole::Button,
+        Some(String::from("Marked")),
+        rect,
+        Some(bool_text(model.browser.marked_filter_active).to_string()),
+        true,
+        model.browser.marked_filter_active,
+        vec![String::from("toggle_browser_marked_filter")],
+    ));
+    for (slug, active) in [
+        ("never", model.browser.active_recency_filters[0]),
+        ("month", model.browser.active_recency_filters[1]),
+        ("week", model.browser.active_recency_filters[2]),
+    ] {
+        children.push(simple_node(
+            format!("sources.filters.playback_age.{slug}"),
+            AutomationRole::Button,
+            Some(format!("Playback age {slug}")),
+            rect,
+            Some(bool_text(active).to_string()),
+            true,
+            active,
+            vec![String::from("toggle_browser_playback_age_filter")],
+        ));
+    }
+    children.push(simple_node(
+        "sources.filters.tag_named",
+        AutomationRole::Button,
+        Some(String::from("Tag-derived names")),
+        rect,
+        Some(if model.browser.derived_label_filter_negated {
+            String::from("not tag-derived")
+        } else if model.browser.derived_label_filter_active {
+            String::from("tag-derived")
+        } else {
+            String::from("any")
+        }),
+        true,
+        model.browser.derived_label_filter_active,
+        vec![String::from("toggle_browser_tag_named_filter")],
+    ));
+    AutomationNodeSnapshot {
+        id: node_id("sources.filters"),
+        role: AutomationRole::Group,
+        label: Some(String::from("Filters")),
+        bounds: bounds(rect),
+        value: None,
+        enabled: true,
+        selected: false,
+        available_actions: vec![String::from("focus_browser_panel")],
+        metadata: metadata(&[("placement", "left_sidebar")]),
+        children,
+    }
+}
+
+/// Summarize single-option sidebar facets for automation.
+fn sidebar_option_summary(active_count: usize, label: &str) -> String {
+    if active_count == 0 {
+        String::from("Any")
+    } else {
+        label.to_string()
+    }
+}
+
+/// Summarize active BPM sidebar facets for automation.
+fn sidebar_bpm_summary(model: &AppModel) -> String {
+    if model.sidebar_filters.bpms.is_empty() {
+        String::from("Any")
+    } else {
+        model
+            .sidebar_filters
+            .bpms
+            .iter()
+            .map(|facet| format!("{facet:?}"))
+            .collect::<Vec<_>>()
+            .join("|")
+    }
+}
+
+/// Summarize the active rating filters for automation.
+fn rating_filter_summary(model: &AppModel) -> String {
+    let active = model
+        .browser
+        .active_rating_filters
+        .iter()
+        .filter(|active| **active)
+        .count();
+    if active == 0 {
+        String::from("Any")
+    } else {
+        format!("{active} active")
+    }
+}
+
+/// Return the sidebar tag input bounds used by automation snapshots.
+fn sidebar_tag_input_rect_for_automation(rect: Rect) -> Rect {
+    let pad = 6.0;
+    let height = 18.0;
+    Rect::from_min_max(
+        Point::new(
+            rect.min.x + pad,
+            (rect.max.y - pad - height).max(rect.min.y + pad),
+        ),
+        Point::new(rect.max.x - pad, rect.max.y - pad),
+    )
 }
 
 fn source_list_group(

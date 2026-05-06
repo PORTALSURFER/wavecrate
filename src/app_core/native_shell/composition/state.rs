@@ -14,17 +14,18 @@ use super::{
     layout::{ShellLayout, ShellNodeKind},
     layout_adapter::{
         BrowserTabsRects, BrowserTabsTextLayout, BrowserToolbarTextLayout, SidebarFolderRowLayout,
-        SidebarRowCounts, compute_action_button_text_rect, compute_browser_footer_text_rect,
-        compute_browser_header_text_layout, compute_browser_map_canvas_rect,
-        compute_browser_map_header_text_layout, compute_browser_map_point_center,
-        compute_browser_row_text_layout, compute_browser_tabs_text_layout,
-        compute_browser_toolbar_text_layout, compute_drag_overlay_text_layout,
-        compute_drag_overlay_visual_layout, compute_progress_overlay_text_layout,
-        compute_progress_overlay_visual_layout, compute_prompt_overlay_text_layout,
-        compute_prompt_overlay_visual_layout, compute_sidebar_folder_header_layout,
-        compute_sidebar_folder_row_depth_indent, compute_sidebar_folder_row_layout,
-        compute_sidebar_recovery_badge_text_rect, compute_sidebar_row_sections,
-        compute_sidebar_source_row_text_rect, compute_source_section_divider_rect,
+        SidebarRowCounts, SidebarWorkspaceSections, compute_action_button_text_rect,
+        compute_browser_footer_text_rect, compute_browser_header_text_layout,
+        compute_browser_map_canvas_rect, compute_browser_map_header_text_layout,
+        compute_browser_map_point_center, compute_browser_row_text_layout,
+        compute_browser_tabs_text_layout, compute_browser_toolbar_text_layout,
+        compute_drag_overlay_text_layout, compute_drag_overlay_visual_layout,
+        compute_progress_overlay_text_layout, compute_progress_overlay_visual_layout,
+        compute_prompt_overlay_text_layout, compute_prompt_overlay_visual_layout,
+        compute_sidebar_folder_header_layout, compute_sidebar_folder_row_depth_indent,
+        compute_sidebar_folder_row_layout, compute_sidebar_recovery_badge_text_rect,
+        compute_sidebar_row_sections, compute_sidebar_source_row_text_rect,
+        compute_sidebar_workspace_sections, compute_source_section_divider_rect,
         compute_status_text_line_rect, compute_waveform_annotation_rects_with_nanos,
         compute_waveform_slice_preview_rects, waveform_plot_x_for_absolute_ratio,
         waveform_plot_x_for_micros, waveform_view_window_from_bounds,
@@ -221,6 +222,7 @@ pub(crate) struct NativeShellState {
     pulse_phase: f32,
     source_context_menu: Option<SourceContextMenuState>,
     browser_context_menu: Option<BrowserContextMenuState>,
+    sidebar_filter_dropdown: Option<SidebarFilterDropdownState>,
     source_row_rects: Vec<CachedSourceRow>,
     source_row_cache_key: Option<SidebarRowsCacheKey>,
     upper_folder_pane: FolderPaneRuntimeState,
@@ -294,6 +296,7 @@ impl NativeShellState {
             pulse_phase: 0.0,
             source_context_menu: None,
             browser_context_menu: None,
+            sidebar_filter_dropdown: None,
             source_row_rects: Vec::new(),
             source_row_cache_key: None,
             upper_folder_pane: FolderPaneRuntimeState::default(),
@@ -457,6 +460,25 @@ impl NativeShellState {
         }
         false
     }
+
+    /// Open the transient sidebar filter dropdown for one facet.
+    pub(crate) fn open_sidebar_filter_dropdown(&mut self, facet: SidebarFilterDropdownFacet) {
+        self.sidebar_filter_dropdown = Some(SidebarFilterDropdownState { facet });
+    }
+
+    /// Return whether a sidebar filter dropdown is visible.
+    pub(crate) fn sidebar_filter_dropdown_visible(&self) -> bool {
+        self.sidebar_filter_dropdown.is_some()
+    }
+
+    /// Close the transient sidebar filter dropdown.
+    pub(crate) fn close_sidebar_filter_dropdown(&mut self) -> bool {
+        if self.sidebar_filter_dropdown.is_some() {
+            self.sidebar_filter_dropdown = None;
+            return true;
+        }
+        false
+    }
 }
 
 #[cfg(test)]
@@ -549,6 +571,153 @@ mod opt_272_tests {
             assert!(sections.lower.bounds.height() <= 0.01);
             assert_eq!(rendered_sources.len(), expected_source_rows);
         }
+    }
+
+    /// Compact sidebar workspace keeps sources, tags, and filters ordered.
+    #[test]
+    fn compact_sidebar_workspace_anchors_tags_and_filters_below_sources() {
+        let model = populated_single_sidebar_model();
+        for viewport in [Vector2::new(820.0, 420.0), Vector2::new(1280.0, 720.0)] {
+            let layout = ShellLayout::build(viewport);
+            let style = style_for_layout(&layout);
+            let workspace = sidebar_workspace_sections(&layout, &style);
+            let sections = sidebar_sections(&layout, &style, &model);
+
+            assert!(layout.sidebar_rows.contains(workspace.sources.center()));
+            assert!(layout.sidebar_rows.contains(workspace.tags.center()));
+            assert!(layout.sidebar_rows.contains(workspace.filters.center()));
+            assert!(workspace.sources.max.y <= workspace.tags.min.y);
+            assert!(workspace.tags.max.y <= workspace.filters.min.y);
+            assert!(workspace.sources.contains(sections.upper.bounds.center()));
+        }
+    }
+
+    /// Left-sidebar rating chips route through the source hit-test path.
+    #[test]
+    fn left_sidebar_rating_chip_routes_browser_filter_action() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let model = populated_single_sidebar_model();
+        let mut state = NativeShellState::new();
+        let chip = state
+            .sidebar_rating_filter_chip_rect(&layout, &model, 3)
+            .expect("left-sidebar rating chip should exist");
+
+        assert_eq!(
+            state.source_action_at_point(&layout, &model, chip.center()),
+            Some(
+                crate::compat_app_contract::UiAction::ToggleBrowserRatingFilter {
+                    level: 3,
+                    invert: false,
+                }
+            )
+        );
+    }
+
+    /// Left-sidebar metadata filter rows open dropdowns that route sidebar filter actions.
+    #[test]
+    fn left_sidebar_metadata_filter_dropdowns_route_browser_filter_actions() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let model = populated_single_sidebar_model();
+        let mut state = NativeShellState::new();
+
+        let expected = [
+            (
+                0,
+                0,
+                crate::app_core::app_api::state::BrowserSidebarFilterOption::Format(
+                    crate::app_core::app_api::state::BrowserFormatFacet::Wav,
+                ),
+            ),
+            (
+                1,
+                0,
+                crate::app_core::app_api::state::BrowserSidebarFilterOption::BitDepth(
+                    crate::app_core::app_api::state::BrowserBitDepthFacet::Unavailable,
+                ),
+            ),
+            (
+                2,
+                3,
+                crate::app_core::app_api::state::BrowserSidebarFilterOption::Channels(
+                    crate::app_core::app_api::state::BrowserChannelFacet::Unavailable,
+                ),
+            ),
+            (
+                3,
+                0,
+                crate::app_core::app_api::state::BrowserSidebarFilterOption::Bpm(
+                    crate::app_core::app_api::state::BrowserBpmFacet::Unknown,
+                ),
+            ),
+            (
+                4,
+                0,
+                crate::app_core::app_api::state::BrowserSidebarFilterOption::Key(
+                    crate::app_core::app_api::state::BrowserKeyFacet::Unknown,
+                ),
+            ),
+        ];
+
+        for (row_index, option_index, option) in expected {
+            let row = state
+                .sidebar_filter_row_rect(&layout, &model, row_index)
+                .expect("left-sidebar filter row should exist");
+            assert_eq!(
+                state.source_action_at_point(&layout, &model, row.center()),
+                Some(crate::compat_app_contract::UiAction::FocusBrowserPanel)
+            );
+            assert!(state.sidebar_filter_dropdown_visible());
+            let option_rect = state
+                .sidebar_filter_dropdown_option_rect(&layout, &model, option_index)
+                .expect("left-sidebar filter dropdown option should exist");
+            assert_eq!(
+                state.sidebar_filter_dropdown_action_at_point(
+                    &layout,
+                    &model,
+                    option_rect.center()
+                ),
+                Some(
+                    crate::compat_app_contract::UiAction::ToggleBrowserSidebarFilter {
+                        option,
+                        additive: true,
+                    }
+                )
+            );
+        }
+    }
+
+    /// Left-sidebar filter dropdowns expose clear actions for active facets.
+    #[test]
+    fn left_sidebar_filter_dropdown_clear_routes_browser_filter_action() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let mut model = populated_single_sidebar_model();
+        model.sidebar_filters.toggle(
+            crate::app_core::app_api::state::BrowserSidebarFilterOption::Bpm(
+                crate::app_core::app_api::state::BrowserBpmFacet::Mid,
+            ),
+            true,
+        );
+        let mut state = NativeShellState::new();
+        let row = state
+            .sidebar_filter_row_rect(&layout, &model, 3)
+            .expect("left-sidebar BPM filter row should exist");
+
+        assert_eq!(
+            state.source_action_at_point(&layout, &model, row.center()),
+            Some(crate::compat_app_contract::UiAction::FocusBrowserPanel)
+        );
+        let clear_rect = state
+            .sidebar_filter_dropdown_option_rect(&layout, &model, 4)
+            .expect("left-sidebar filter dropdown clear option should exist");
+
+        assert_eq!(
+            state.sidebar_filter_dropdown_action_at_point(&layout, &model, clear_rect.center()),
+            Some(
+                crate::compat_app_contract::UiAction::ClearBrowserSidebarFilter {
+                    facet: crate::app_core::app_api::state::BrowserSidebarFilterFacet::Bpm,
+                }
+            )
+        );
     }
 
     #[test]

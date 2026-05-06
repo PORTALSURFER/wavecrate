@@ -123,6 +123,7 @@ pub fn standard_browser_panel(config: CompanionBrowserPanelConfig) -> BrowserPan
         marked_filter_active: false,
         tag_named_filter_active: false,
         tag_named_filter_negated: false,
+        sidebar_filters: Default::default(),
         search_placeholder: config.search_placeholder,
         busy: config.busy,
         source_loading: false,

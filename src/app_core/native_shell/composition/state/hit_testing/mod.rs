@@ -9,6 +9,7 @@ mod map;
 mod waveform;
 
 pub(in crate::gui::native_shell::state) use self::browser::browser_action_hit_test_cache_key;
+pub(in crate::gui::native_shell::state) use self::chrome::sidebar_filter_dropdown_spec;
 pub(in crate::gui::native_shell::state) use self::map::{
     map_content_id_at_point, map_point_color, map_point_is_focused, map_point_is_selected,
 };
