@@ -23,6 +23,16 @@ fn contains_node(parent: &NativeAutomationNodeSnapshot, id: &str) -> bool {
     parent.id.0 == id || parent.children.iter().any(|child| contains_node(child, id))
 }
 
+/// Count occurrences of a node ID in the automation subtree.
+fn count_node(parent: &NativeAutomationNodeSnapshot, id: &str) -> usize {
+    usize::from(parent.id.0 == id)
+        + parent
+            .children
+            .iter()
+            .map(|child| count_node(child, id))
+            .sum::<usize>()
+}
+
 #[test]
 fn automation_snapshot_exposes_semantic_shell_nodes_from_sempal_fixture() {
     let mut model = NativeAppModel::default();
@@ -83,6 +93,8 @@ fn automation_snapshot_exposes_semantic_shell_nodes_from_sempal_fixture() {
     assert!(row.selected);
     assert!(contains_node(sources, "sources.source_list"));
     assert!(contains_node(sources, "sources.folder_browser"));
+    assert_eq!(count_node(sources, "sources.source_list"), 1);
+    assert_eq!(count_node(sources, "sources.folder_browser"), 1);
     assert!(!contains_node(sources, "sources.upper.source_list"));
     assert!(!contains_node(sources, "sources.lower.source_list"));
 }

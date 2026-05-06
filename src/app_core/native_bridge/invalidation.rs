@@ -64,11 +64,11 @@ pub(super) fn action_prefers_targeted_invalidation(action: &NativeUiAction) -> b
         NativeUiAction::MoveBrowserFocus { .. }
             | NativeUiAction::SetBrowserViewStart { .. }
             | NativeUiAction::FocusSourcesPanel
-            | NativeUiAction::FocusFolderPanel { .. }
-            | NativeUiAction::FocusFolderSearch { .. }
+            | NativeUiAction::FocusFolderPanel
+            | NativeUiAction::FocusFolderSearch
             | NativeUiAction::SetFolderSearch { .. }
-            | NativeUiAction::ToggleShowAllFolders { .. }
-            | NativeUiAction::ToggleFolderFlattenedView { .. }
+            | NativeUiAction::ToggleShowAllFolders
+            | NativeUiAction::ToggleFolderFlattenedView
             | NativeUiAction::FocusFolderRow { .. }
             | NativeUiAction::ActivateFolderRow { .. }
             | NativeUiAction::ToggleFolderRowExpanded { .. }
@@ -167,11 +167,11 @@ pub(super) fn classify_dirty_source(
         NativeUiAction::MoveBrowserFocus { .. }
         | NativeUiAction::SetBrowserViewStart { .. }
         | NativeUiAction::FocusSourcesPanel
-        | NativeUiAction::FocusFolderPanel { .. }
-        | NativeUiAction::FocusFolderSearch { .. }
+        | NativeUiAction::FocusFolderPanel
+        | NativeUiAction::FocusFolderSearch
         | NativeUiAction::SetFolderSearch { .. }
-        | NativeUiAction::ToggleShowAllFolders { .. }
-        | NativeUiAction::ToggleFolderFlattenedView { .. }
+        | NativeUiAction::ToggleShowAllFolders
+        | NativeUiAction::ToggleFolderFlattenedView
         | NativeUiAction::FocusFolderRow { .. }
         | NativeUiAction::ActivateFolderRow { .. }
         | NativeUiAction::ToggleFolderRowExpanded { .. }

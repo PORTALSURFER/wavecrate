@@ -49,7 +49,6 @@ fn folder_search_actions_arm_local_model_pull_fast_path() {
     let mut bridge = test_bridge(16);
 
     bridge.on_action(NativeUiAction::SetFolderSearch {
-        pane: None,
         query: String::from("drums"),
     });
 

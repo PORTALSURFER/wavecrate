@@ -149,11 +149,8 @@ fn route_sidebar_background(
     shell_state: &mut NativeShellState,
     point: Point,
 ) -> Option<UiAction> {
-    if let Some((pane, index)) = shell_state.source_row_at_point(layout, model, point) {
-        return Some(UiAction::FocusSourceRow {
-            pane: Some(pane),
-            index,
-        });
+    if let Some((_pane, index)) = shell_state.source_row_at_point(layout, model, point) {
+        return Some(UiAction::FocusSourceRow { index });
     }
     if let Some((pane, index)) = shell_state.folder_row_disclosure_at_point(layout, model, point) {
         return Some(folder_row_disclosure_action(model, pane, index));
@@ -167,10 +164,7 @@ fn route_sidebar_background(
 fn folder_row_disclosure_action(model: &AppModel, pane: SplitPaneSlot, index: usize) -> UiAction {
     let pane_model = model.sources.folder_pane(pane);
     let Some(row) = folder_row_for_pointer_action(model, pane, index) else {
-        return UiAction::FocusFolderRow {
-            pane: Some(pane),
-            index,
-        };
+        return UiAction::FocusFolderRow { index };
     };
     if matches!(
         row.kind,
@@ -181,12 +175,10 @@ fn folder_row_disclosure_action(model: &AppModel, pane: SplitPaneSlot, index: us
     let source_index = row.backing_index.unwrap_or(index);
     if folder_row_disclosure_toggles_expansion(pane_model, index) {
         UiAction::ToggleFolderRowExpanded {
-            pane: Some(pane),
             index: source_index,
         }
     } else {
         UiAction::FocusFolderRow {
-            pane: Some(pane),
             index: source_index,
         }
     }
@@ -194,10 +186,7 @@ fn folder_row_disclosure_action(model: &AppModel, pane: SplitPaneSlot, index: us
 
 fn folder_row_body_action(model: &AppModel, pane: SplitPaneSlot, index: usize) -> UiAction {
     let Some(row) = folder_row_for_pointer_action(model, pane, index) else {
-        return UiAction::FocusFolderRow {
-            pane: Some(pane),
-            index,
-        };
+        return UiAction::FocusFolderRow { index };
     };
     if matches!(
         row.kind,
@@ -207,7 +196,6 @@ fn folder_row_body_action(model: &AppModel, pane: SplitPaneSlot, index: usize) -
     }
     let source_index = row.backing_index.unwrap_or(index);
     UiAction::FocusFolderRow {
-        pane: Some(pane),
         index: source_index,
     }
 }

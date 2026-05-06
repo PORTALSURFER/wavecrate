@@ -235,13 +235,11 @@ pub(in crate::gui::native_shell::state) fn source_context_menu_spec(
         return None;
     }
     let source_index = menu.row_index;
-    let pane = Some(menu.pane);
     let definitions = [
         (
             "Reload",
             true,
             UiAction::ReloadSourceRow {
-                pane,
                 index: source_index,
             },
             style.text_primary,
@@ -250,7 +248,6 @@ pub(in crate::gui::native_shell::state) fn source_context_menu_spec(
             "Hard sync",
             true,
             UiAction::HardSyncSourceRow {
-                pane,
                 index: source_index,
             },
             style.accent_warning,
@@ -259,7 +256,6 @@ pub(in crate::gui::native_shell::state) fn source_context_menu_spec(
             "Open folder",
             true,
             UiAction::OpenSourceFolderRow {
-                pane,
                 index: source_index,
             },
             style.accent_mint,
@@ -268,7 +264,6 @@ pub(in crate::gui::native_shell::state) fn source_context_menu_spec(
             "Remove source",
             true,
             UiAction::RemoveSourceRow {
-                pane,
                 index: source_index,
             },
             style.accent_copper,

@@ -36,10 +36,7 @@ fn source_context_menu_hit_test_emits_reload_action_for_row() {
         .source_context_menu_button_rect(
             &layout,
             &model,
-            UiAction::ReloadSourceRow {
-                pane: Some(crate::compat_app_contract::FolderPaneIdModel::Upper),
-                index: 0,
-            },
+            UiAction::ReloadSourceRow { index: 0 },
         )
         .expect("reload action button should be present");
     let point = Point::new(
@@ -48,10 +45,7 @@ fn source_context_menu_hit_test_emits_reload_action_for_row() {
     );
     assert_eq!(
         state.source_context_menu_action_at_point(&layout, &model, point),
-        Some(UiAction::ReloadSourceRow {
-            pane: Some(crate::compat_app_contract::FolderPaneIdModel::Upper),
-            index: 0,
-        })
+        Some(UiAction::ReloadSourceRow { index: 0 })
     );
 }
 
@@ -82,10 +76,7 @@ fn source_context_menu_contains_point_tracks_open_close_state() {
         .source_context_menu_button_rect(
             &layout,
             &model,
-            UiAction::ReloadSourceRow {
-                pane: Some(crate::compat_app_contract::FolderPaneIdModel::Upper),
-                index: 0,
-            },
+            UiAction::ReloadSourceRow { index: 0 },
         )
         .expect("reload action button should be present");
     let point = Point::new(
@@ -126,10 +117,7 @@ fn source_context_menu_exposes_remove_action_in_overlay() {
         .source_context_menu_button_rect(
             &layout,
             &model,
-            UiAction::RemoveSourceRow {
-                pane: Some(crate::compat_app_contract::FolderPaneIdModel::Upper),
-                index: 0,
-            },
+            UiAction::RemoveSourceRow { index: 0 },
         )
         .expect("remove source action button should be present");
     let point = Point::new(
@@ -138,10 +126,7 @@ fn source_context_menu_exposes_remove_action_in_overlay() {
     );
     assert_eq!(
         state.source_context_menu_action_at_point(&layout, &model, point),
-        Some(UiAction::RemoveSourceRow {
-            pane: Some(crate::compat_app_contract::FolderPaneIdModel::Upper),
-            index: 0,
-        })
+        Some(UiAction::RemoveSourceRow { index: 0 })
     );
 
     let frame = state.build_frame(&layout, &model);

@@ -81,13 +81,13 @@ fn folder_header_action(
         && button.enabled
         && button.rect.contains(point)
     {
-        return Some(UiAction::ToggleShowAllFolders { pane: None });
+        return Some(UiAction::ToggleShowAllFolders);
     }
     if let Some(button) = toggle.flatten_toggle_button
         && button.enabled
         && button.rect.contains(point)
     {
-        return Some(UiAction::ToggleFolderFlattenedView { pane: None });
+        return Some(UiAction::ToggleFolderFlattenedView);
     }
     None
 }

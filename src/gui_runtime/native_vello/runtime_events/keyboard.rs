@@ -360,10 +360,7 @@ fn rewrite_folder_create_hotkey_action(
         return action;
     }
     row.backing_index
-        .map(|index| UiAction::StartNewFolderAtFolderRow {
-            pane: Some(pane),
-            index,
-        })
+        .map(|index| UiAction::StartNewFolderAtFolderRow { index })
         .unwrap_or(action)
 }
 

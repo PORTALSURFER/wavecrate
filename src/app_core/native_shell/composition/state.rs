@@ -514,6 +514,71 @@ mod opt_272_tests {
         model
     }
 
+    /// Build a populated single-sidebar fixture for source/folder geometry checks.
+    fn populated_single_sidebar_model() -> AppModel {
+        let mut model = folder_model_with_rows(48, 4);
+        model.sources.rows.clear();
+        for index in 0..12 {
+            model.sources.rows.push(SourceRowModel::new(
+                format!("source_{index:02}"),
+                format!("detail_{index:02}"),
+                index == 4,
+                false,
+            ));
+        }
+        model
+    }
+
+    #[test]
+    /// The sidebar reserves one source list and one folder browser at all densities.
+    fn sidebar_sections_render_one_source_and_folder_browser_across_viewports() {
+        let sizes = [
+            Vector2::new(820.0, 520.0),
+            Vector2::new(1280.0, 720.0),
+            Vector2::new(2300.0, 1080.0),
+        ];
+        let mut state = NativeShellState::new();
+        let model = populated_single_sidebar_model();
+        for viewport in sizes {
+            let layout = ShellLayout::build(viewport);
+            let style = style_for_layout(&layout);
+            let sections = sidebar_sections(&layout, &style, &model);
+            let rendered_sources = state.rendered_source_row_rects(&layout, &model);
+            let expected_source_rows = rendered_source_rows(&style, &model);
+            assert!(sections.upper.bounds.height() > sections.lower.bounds.height());
+            assert!(sections.lower.bounds.height() <= 0.01);
+            assert_eq!(rendered_sources.len(), expected_source_rows);
+        }
+    }
+
+    #[test]
+    /// The single visible folder browser keeps its scrollbar thumb hit target active.
+    fn single_folder_browser_scrollbar_thumb_is_hittable() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let style = style_for_layout(&layout);
+        let model = folder_model_with_rows(240, 72);
+        let mut state = NativeShellState::new();
+        let rows = state
+            .cached_tree_rows(&layout, &style, &model, FolderPaneIdModel::Upper)
+            .to_vec();
+        let sections = sidebar_sections(&layout, &style, &model);
+        let scrollbar = folder_scrollbar_layout(
+            sections.tree_rows(FolderPaneIdModel::Upper),
+            &rows,
+            model.sources.upper_folder_pane.tree_rows.len(),
+            style.sizing,
+        )
+        .expect("overflowing single folder browser should render a scrollbar");
+        let point = scrollbar.thumb.center();
+
+        let (slot, offset) = state
+            .folder_scrollbar_thumb_offset_at_point(&layout, &model, point)
+            .expect("single folder scrollbar thumb should be hittable");
+
+        assert_eq!(slot, FolderPaneIdModel::Upper);
+        assert!((offset - (scrollbar.thumb.height() * 0.5)).abs() <= 0.001);
+    }
+
     #[test]
     fn browser_rows_use_generic_list_window_hit_testing_and_scrollbar_primitives() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));

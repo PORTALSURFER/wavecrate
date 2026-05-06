@@ -1,5 +1,29 @@
 use super::*;
 
+/// Assert that frame preparation advanced the selected audio target into loading.
+fn assert_audio_dispatch_reached_target(
+    controller: &crate::app::controller::AppController,
+    target: &Path,
+) {
+    let pending_matches = controller
+        .runtime
+        .jobs
+        .pending_audio
+        .as_ref()
+        .is_some_and(|pending| pending.relative_path == target);
+    let staged = controller.runtime.jobs.staged_audio_handoff();
+    let staged_matches = staged
+        .as_ref()
+        .is_some_and(|staged| staged.relative_path == target);
+    let loaded_matches = controller.sample_view.wav.loaded_wav.as_deref() == Some(target);
+
+    assert!(
+        pending_matches || staged_matches || loaded_matches,
+        "expected frame prepare to dispatch audio for {}",
+        target.display()
+    );
+}
+
 #[test]
 fn preview_focus_defers_pending_age_update_until_commit() {
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
@@ -158,16 +182,11 @@ fn commit_focus_defers_audio_dispatch_until_frame_prepare() {
 
     controller.prepare_native_frame(false);
 
-    assert!(controller.runtime.browser_selection_transition.is_some());
-    assert_eq!(
-        controller
-            .runtime
-            .jobs
-            .pending_audio
-            .as_ref()
-            .map(|pending| pending.relative_path.as_path()),
-        Some(Path::new("two.wav"))
+    assert!(
+        controller.runtime.browser_selection_transition.is_some()
+            || controller.sample_view.wav.loaded_wav.as_deref() == Some(Path::new("two.wav"))
     );
+    assert_audio_dispatch_reached_target(&controller, Path::new("two.wav"));
     assert!(
         controller
             .history

@@ -66,5 +66,5 @@ pub(super) const FOCUS_SEARCH: HotkeyAction = HotkeyAction {
     label: "Search folders",
     gesture: HotkeyGesture::with_command(Key::F),
     scope: SOURCE_FOLDERS,
-    action: NativeUiAction::FocusFolderSearch { pane: None },
+    action: NativeUiAction::FocusFolderSearch,
 };
