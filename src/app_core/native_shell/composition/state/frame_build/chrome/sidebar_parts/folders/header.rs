@@ -1,5 +1,5 @@
 use super::*;
-use crate::compat_app_contract::FolderPaneModel;
+use crate::app_core::native_shell::runtime_contract::FolderPaneModel;
 
 pub(super) fn render_folder_header(
     ctx: &StaticFrameCtx<'_>,

@@ -3,7 +3,7 @@
 use super::*;
 
 /// Resolve the modal progress cancel-button hit target.
-pub(in crate::gui::native_shell::state) fn progress_cancel_button(
+pub(in crate::app_core::native_shell::composition::state) fn progress_cancel_button(
     layout: &ShellLayout,
     style: &StyleTokens,
     modal: bool,
@@ -20,7 +20,7 @@ pub(in crate::gui::native_shell::state) fn progress_cancel_button(
 }
 
 /// Resolve the prompt confirm/cancel button hit targets.
-pub(in crate::gui::native_shell::state) fn prompt_buttons(
+pub(in crate::app_core::native_shell::composition::state) fn prompt_buttons(
     layout: &ShellLayout,
     style: &StyleTokens,
 ) -> (Rect, Rect) {
@@ -36,7 +36,7 @@ pub(in crate::gui::native_shell::state) fn prompt_buttons(
 }
 
 /// Resolve the prompt input hit target when the current prompt owns a text field.
-pub(in crate::gui::native_shell::state) fn prompt_input_rect(
+pub(in crate::app_core::native_shell::composition::state) fn prompt_input_rect(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
@@ -54,7 +54,7 @@ pub(in crate::gui::native_shell::state) fn prompt_input_rect(
 }
 
 /// Resolve the drag overlay banner rect.
-pub(in crate::gui::native_shell::state) fn drag_overlay_rect(
+pub(in crate::app_core::native_shell::composition::state) fn drag_overlay_rect(
     layout: &ShellLayout,
     style: &StyleTokens,
 ) -> Rect {
@@ -62,12 +62,16 @@ pub(in crate::gui::native_shell::state) fn drag_overlay_rect(
 }
 
 /// Build style tokens from the shell layout width and ui scale.
-pub(in crate::gui::native_shell::state) fn style_for_layout(layout: &ShellLayout) -> StyleTokens {
+pub(in crate::app_core::native_shell::composition::state) fn style_for_layout(
+    layout: &ShellLayout,
+) -> StyleTokens {
     StyleTokens::for_viewport_with_scale(layout.root.rect.width(), layout.ui_scale)
 }
 
 /// Return whether the current prompt has a blocking validation error.
-pub(in crate::gui::native_shell::state) fn prompt_has_validation_error(model: &AppModel) -> bool {
+pub(in crate::app_core::native_shell::composition::state) fn prompt_has_validation_error(
+    model: &AppModel,
+) -> bool {
     model
         .confirm_prompt
         .input_error
@@ -76,7 +80,7 @@ pub(in crate::gui::native_shell::state) fn prompt_has_validation_error(model: &A
 }
 
 /// Draw a full border around one rect.
-pub(in crate::gui::native_shell::state) fn push_border(
+pub(in crate::app_core::native_shell::composition::state) fn push_border(
     primitives: &mut impl PrimitiveSink,
     rect: Rect,
     color: crate::gui::types::Rgba8,
@@ -118,16 +122,16 @@ pub(in crate::gui::native_shell::state) fn push_border(
 
 /// Per-edge border ownership used to avoid double-width seams between touching panels.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::gui::native_shell::state) struct BorderSides {
-    pub(in crate::gui::native_shell::state) top: bool,
-    pub(in crate::gui::native_shell::state) bottom: bool,
-    pub(in crate::gui::native_shell::state) left: bool,
-    pub(in crate::gui::native_shell::state) right: bool,
+pub(in crate::app_core::native_shell::composition::state) struct BorderSides {
+    pub(in crate::app_core::native_shell::composition::state) top: bool,
+    pub(in crate::app_core::native_shell::composition::state) bottom: bool,
+    pub(in crate::app_core::native_shell::composition::state) left: bool,
+    pub(in crate::app_core::native_shell::composition::state) right: bool,
 }
 
 impl BorderSides {
     /// Draw all four edges.
-    pub(in crate::gui::native_shell::state) const ALL: Self = Self {
+    pub(in crate::app_core::native_shell::composition::state) const ALL: Self = Self {
         top: true,
         bottom: true,
         left: true,
@@ -136,7 +140,7 @@ impl BorderSides {
 }
 
 /// Draw only the requested border edges for one rect.
-pub(in crate::gui::native_shell::state) fn push_border_sides(
+pub(in crate::app_core::native_shell::composition::state) fn push_border_sides(
     primitives: &mut impl PrimitiveSink,
     rect: Rect,
     color: crate::gui::types::Rgba8,
@@ -186,7 +190,7 @@ pub(in crate::gui::native_shell::state) fn push_border_sides(
 }
 
 /// Build vertically stacked row rects inside one column.
-pub(in crate::gui::native_shell::state) fn build_stacked_rows(
+pub(in crate::app_core::native_shell::composition::state) fn build_stacked_rows(
     column: Rect,
     rows: usize,
     gap: f32,

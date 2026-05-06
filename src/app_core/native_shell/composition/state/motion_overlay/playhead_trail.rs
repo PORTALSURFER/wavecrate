@@ -4,7 +4,7 @@ use super::*;
 
 impl NativeShellState {
     /// Update retained playhead-trail points and return drawable ghost lines.
-    pub(in crate::gui::native_shell::state) fn update_playhead_trail(
+    pub(in crate::app_core::native_shell::composition::state) fn update_playhead_trail(
         &mut self,
         waveform_plot: Rect,
         model: &NativeMotionModel,
@@ -138,7 +138,7 @@ impl NativeShellState {
     /// Alpha is normalized across the currently retained trail so fast motion still renders
     /// a full head-to-tail fade instead of large equal-opacity slabs, while the trail itself
     /// starts below the fully opaque playhead marker.
-    pub(in crate::gui::native_shell::state) fn playhead_trail_lines(
+    pub(in crate::app_core::native_shell::composition::state) fn playhead_trail_lines(
         &self,
         now_seconds: f32,
     ) -> Vec<PlayheadTrailLine> {

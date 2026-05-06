@@ -11,4 +11,6 @@ mod progress;
 #[path = "overlays/prompt.rs"]
 mod prompt;
 
-pub(in crate::gui::native_shell::state) use self::{drag::*, geometry::*, progress::*, prompt::*};
+pub(in crate::app_core::native_shell::composition::state) use self::{
+    drag::*, geometry::*, progress::*, prompt::*,
+};

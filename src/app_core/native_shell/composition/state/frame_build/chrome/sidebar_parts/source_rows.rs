@@ -1,5 +1,5 @@
 use super::*;
-use crate::compat_app_contract::{FolderPaneIdModel, SourceRowModel};
+use crate::app_core::native_shell::runtime_contract::{FolderPaneIdModel, SourceRowModel};
 
 pub(super) fn render_source_rows(
     state: &mut NativeShellState,

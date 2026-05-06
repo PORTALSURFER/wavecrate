@@ -1,14 +1,14 @@
 //! Sidebar/source-row geometry helpers shared by the native shell.
 
 use super::*;
-use crate::compat_app_contract::{FolderPaneIdModel, FolderPaneModel};
+use crate::app_core::native_shell::runtime_contract::{FolderPaneIdModel, FolderPaneModel};
 use crate::gui::list::{
     VirtualListScrollbarRequest, VirtualListStackMetrics, VirtualListWindowRequest,
     resolve_virtual_list_scrollbar, resolve_virtual_list_window,
     virtual_list_scrollbar_view_start_for_pointer, virtual_list_viewport_len_for_extent,
 };
 
-pub(in crate::gui::native_shell::state) fn rendered_source_rows(
+pub(in crate::app_core::native_shell::composition::state) fn rendered_source_rows(
     style: &StyleTokens,
     model: &AppModel,
 ) -> usize {
@@ -16,12 +16,12 @@ pub(in crate::gui::native_shell::state) fn rendered_source_rows(
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(in crate::gui::native_shell::state) struct BrowserRowsSplitRects {
+pub(in crate::app_core::native_shell::composition::state) struct BrowserRowsSplitRects {
     pub list: Rect,
     pub sidebar: Option<Rect>,
 }
 
-pub(in crate::gui::native_shell::state) fn browser_rows_split_rects(
+pub(in crate::app_core::native_shell::composition::state) fn browser_rows_split_rects(
     rows_rect: Rect,
     sizing: SizingTokens,
     model: &AppModel,
@@ -38,7 +38,7 @@ pub(in crate::gui::native_shell::state) fn browser_rows_split_rects(
     BrowserRowsSplitRects { list, sidebar }
 }
 
-pub(in crate::gui::native_shell::state) fn browser_rows_list_rect(
+pub(in crate::app_core::native_shell::composition::state) fn browser_rows_list_rect(
     rows_rect: Rect,
     sizing: SizingTokens,
     model: &AppModel,
@@ -46,7 +46,7 @@ pub(in crate::gui::native_shell::state) fn browser_rows_list_rect(
     browser_rows_split_rects(rows_rect, sizing, model).list
 }
 
-pub(in crate::gui::native_shell::state) fn browser_pill_editor_panel_rect(
+pub(in crate::app_core::native_shell::composition::state) fn browser_pill_editor_panel_rect(
     rows_rect: Rect,
     _sizing: SizingTokens,
     model: &AppModel,
@@ -64,7 +64,7 @@ pub(in crate::gui::native_shell::state) fn browser_pill_editor_panel_rect(
     ))
 }
 
-pub(in crate::gui::native_shell::state) fn sidebar_rows_cache_key(
+pub(in crate::app_core::native_shell::composition::state) fn sidebar_rows_cache_key(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
@@ -100,7 +100,7 @@ pub(in crate::gui::native_shell::state) fn sidebar_rows_cache_key(
     }
 }
 
-pub(in crate::gui::native_shell::state) fn tree_rows_cache_key(
+pub(in crate::app_core::native_shell::composition::state) fn tree_rows_cache_key(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
@@ -123,7 +123,7 @@ pub(in crate::gui::native_shell::state) fn tree_rows_cache_key(
     }
 }
 
-pub(in crate::gui::native_shell::state) fn rendered_source_row_rects(
+pub(in crate::app_core::native_shell::composition::state) fn rendered_source_row_rects(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
@@ -147,7 +147,7 @@ pub(in crate::gui::native_shell::state) fn rendered_source_row_rects(
 }
 
 /// Return the visual folder-row paint bounds while preserving the sidebar seams.
-pub(in crate::gui::native_shell::state) fn folder_row_visual_rect(
+pub(in crate::app_core::native_shell::composition::state) fn folder_row_visual_rect(
     row_rect: Rect,
     sizing: SizingTokens,
 ) -> Rect {
@@ -161,7 +161,7 @@ pub(in crate::gui::native_shell::state) fn folder_row_visual_rect(
     )
 }
 
-pub(in crate::gui::native_shell::state) fn tree_rows_capacity(
+pub(in crate::app_core::native_shell::composition::state) fn tree_rows_capacity(
     tree_rows_rect: Rect,
     sizing: SizingTokens,
 ) -> usize {
@@ -178,7 +178,7 @@ fn folder_scrollbar_track_metrics(sizing: SizingTokens) -> (f32, f32, f32) {
     (track_inset_x, track_inset_y, track_width)
 }
 
-pub(in crate::gui::native_shell::state) fn tree_rows_content_rect(
+pub(in crate::app_core::native_shell::composition::state) fn tree_rows_content_rect(
     tree_rows_rect: Rect,
     total_rows: usize,
     sizing: SizingTokens,
@@ -217,7 +217,7 @@ fn folder_window_start(
     .viewport_start
 }
 
-pub(in crate::gui::native_shell::state) fn rendered_tree_rows_with_state(
+pub(in crate::app_core::native_shell::composition::state) fn rendered_tree_rows_with_state(
     layout: &ShellLayout,
     model: &AppModel,
     style: &StyleTokens,
@@ -279,7 +279,7 @@ pub(crate) fn rendered_folder_row_rects(
     .collect()
 }
 
-pub(in crate::gui::native_shell::state) fn folder_scrollbar_layout(
+pub(in crate::app_core::native_shell::composition::state) fn folder_scrollbar_layout(
     tree_rows_rect: Rect,
     rows: &[CachedFolderRow],
     total_rows: usize,
@@ -315,7 +315,7 @@ pub(in crate::gui::native_shell::state) fn folder_scrollbar_layout(
     })
 }
 
-pub(in crate::gui::native_shell::state) fn folder_scrollbar_view_start_for_pointer(
+pub(in crate::app_core::native_shell::composition::state) fn folder_scrollbar_view_start_for_pointer(
     scrollbar: FolderScrollbarLayout,
     viewport_len: usize,
     total_rows: usize,
@@ -334,7 +334,7 @@ pub(in crate::gui::native_shell::state) fn folder_scrollbar_view_start_for_point
     )
 }
 
-pub(in crate::gui::native_shell::state) fn folder_pane_model(
+pub(in crate::app_core::native_shell::composition::state) fn folder_pane_model(
     model: &AppModel,
     pane: FolderPaneIdModel,
 ) -> &FolderPaneModel {

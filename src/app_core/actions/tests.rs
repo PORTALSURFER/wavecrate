@@ -95,7 +95,8 @@ fn representative_actions_round_trip_through_kind_matcher() {
 fn representative_actions_round_trip_through_compat_conversion() {
     for entry in GUI_ACTION_CATALOG {
         let action = representative_action_for_kind(entry.kind);
-        let compat_action: crate::compat_app_contract::UiAction = action.clone().into();
+        let compat_action: crate::app_core::native_shell::runtime_contract::UiAction =
+            action.clone().into();
         let round_trip = crate::app_core::actions::NativeUiAction::from(compat_action.clone());
         assert_eq!(
             round_trip, action,
@@ -103,7 +104,8 @@ fn representative_actions_round_trip_through_compat_conversion() {
             entry.action_id
         );
 
-        let compat_round_trip: crate::compat_app_contract::UiAction = round_trip.into();
+        let compat_round_trip: crate::app_core::native_shell::runtime_contract::UiAction =
+            round_trip.into();
         assert_eq!(
             compat_round_trip, compat_action,
             "compat conversion is not stable for {}",
@@ -251,15 +253,16 @@ fn native_action_exports_are_owned_in_app_core() {
         fs::read_to_string(manifest_dir.join("src/app_core/actions/mod.rs")).expect("actions mod");
 
     assert!(
-        !actions_mod.contains("pub type NativeUiAction = radiant::compat::legacy_shell"),
+        !actions_mod.contains("pub type NativeUiAction = radiant::runtime_contract::legacy_shell"),
         "NativeUiAction must stay Sempal-owned, with compatibility conversion at the runtime boundary"
     );
     assert!(
-        !actions_mod.contains("pub type NativeAppModel = radiant::compat::legacy_shell"),
+        !actions_mod.contains("pub type NativeAppModel = radiant::runtime_contract::legacy_shell"),
         "NativeAppModel must stay Sempal-owned, with compatibility conversion at the runtime boundary"
     );
     assert!(
-        !actions_mod.contains("pub type NativeDirtySegments = radiant::compat::legacy_shell"),
+        !actions_mod
+            .contains("pub type NativeDirtySegments = radiant::runtime_contract::legacy_shell"),
         "NativeDirtySegments must stay Sempal-owned, with compatibility conversion at the runtime boundary"
     );
     assert!(
@@ -269,12 +272,13 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal-owned action, bridge, and projection DTO modules must remain explicit"
     );
     assert!(
-        !actions_mod.contains("pub use radiant::compat::legacy_shell::NativeAppBridge"),
+        !actions_mod.contains("pub use radiant::runtime_contract::legacy_shell::NativeAppBridge"),
         "NativeAppBridge must stay Sempal-owned, with compatibility conversion at the runtime boundary"
     );
 
-    let local_contract = fs::read_to_string(manifest_dir.join("src/compat_app_contract.rs"))
-        .expect("local compatibility contract");
+    let local_contract =
+        fs::read_to_string(manifest_dir.join("src/app_core/native_shell/runtime_contract.rs"))
+            .expect("local compatibility contract");
     assert!(
         local_contract.contains("Sempal-owned compatibility contract")
             && local_contract.contains("pub use actions::{BrowserTriageTarget, UiAction};")
@@ -295,14 +299,12 @@ fn native_action_exports_are_owned_in_app_core() {
         fs::read_to_string(manifest_dir.join("src/app_core/actions/native_shell_actions.rs"))
             .expect("native shell actions");
     assert!(
-        !native_actions.contains("radiant::compat::legacy_shell")
-            && !native_actions.contains("compat::UiAction")
-            && !native_actions.contains("compat::BrowserTriageTarget"),
+        !native_actions.contains("radiant::runtime_contract::legacy_shell")
+            && !native_actions.contains("runtime_contract::UiAction")
+            && !native_actions.contains("runtime_contract::BrowserTriageTarget"),
         "Sempal action payload definitions should not import Radiant legacy-shell compatibility types"
     );
-    let native_action_conversions =
-        fs::read_to_string(manifest_dir.join("src/gui_runtime/native_shell_runtime.rs"))
-            .expect("native shell runtime adapter");
+    let native_action_conversions = native_shell_runtime_sources(&manifest_dir);
     let native_actions = format!("{native_actions}\n{native_action_conversions}");
     assert!(
         !manifest_dir
@@ -313,7 +315,7 @@ fn native_action_exports_are_owned_in_app_core() {
     for source_path in rust_sources_under(&manifest_dir.join("src/app_core/native_shell")) {
         let source = fs::read_to_string(&source_path).expect("native shell source");
         assert!(
-            !source.contains("radiant::compat::legacy_shell"),
+            !source.contains("radiant::runtime_contract::legacy_shell"),
             "{} must not import Radiant legacy-shell compatibility contracts; keep that adapter in gui_runtime",
             source_path.display()
         );
@@ -324,14 +326,15 @@ fn native_action_exports_are_owned_in_app_core() {
         }
         let source = fs::read_to_string(&source_path).expect("Sempal source");
         assert!(
-            !source.contains("radiant::compat::legacy_shell")
+            !source.contains("radiant::runtime_contract::legacy_shell")
                 && !source.contains("run_legacy_native_vello_app_with_artifacts"),
             "{} must not depend on Radiant's legacy-shell contracts or runner",
             source_path.display()
         );
     }
     assert!(
-        !native_dtos.contains("radiant::compat::legacy_shell") && !native_dtos.contains("compat::"),
+        !native_dtos.contains("radiant::runtime_contract::legacy_shell")
+            && !native_dtos.contains("runtime_contract::"),
         "Sempal projection DTO definitions should not import Radiant legacy-shell compatibility types"
     );
     let native_hit_testing = fs::read_to_string(
@@ -411,7 +414,7 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal native DTOs should alias the generic Radiant retained storage primitive"
     );
     assert!(
-        !native_dtos.contains("Self::from(compat::AppModel::default())")
+        !native_dtos.contains("Self::from(runtime_contract::AppModel::default())")
             && native_dtos
                 .contains("title: String::from(crate::gui_runtime::DEFAULT_NATIVE_WINDOW_TITLE)")
             && native_dtos.contains("ColumnModel::new(\"Samples\", 0)"),
@@ -444,7 +447,7 @@ fn native_action_exports_are_owned_in_app_core() {
                 .contains("gui_automation::AutomationRole::SpatialCanvas => Self::MapCanvas")
             && native_action_conversions
                 .contains("gui_automation::AutomationRole::SpatialPoint => Self::MapPoint")
-            && !native_action_conversions.contains("compat::AutomationRole"),
+            && !native_action_conversions.contains("runtime_contract::AutomationRole"),
         "Sempal automation DTO conversion should map generic Radiant roles onto product role names without routing through legacy compat"
     );
     assert!(
@@ -461,7 +464,8 @@ fn native_action_exports_are_owned_in_app_core() {
                 .contains("metadata.insert(String::from(\"tag_state\"), value);")
             && native_action_conversions
                 .contains("metadata.insert(String::from(\"tag_id\"), value);")
-            && !native_action_conversions.contains("impl From<GuiAutomationSnapshot> for compat::"),
+            && !native_action_conversions
+                .contains("impl From<GuiAutomationSnapshot> for runtime_contract::"),
         "Sempal automation DTO conversion should map generic Radiant pill-editor nodes and metadata onto product tag-sidebar names without reverse legacy compat conversion"
     );
     assert!(
@@ -530,25 +534,34 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal options-panel rendering and cache keys should consume Radiant's generic preference state"
     );
     assert!(
-        !native_dtos.contains("pub enum BrowserRowProcessingState")
-            && !native_dtos.contains("pub struct BrowserRowModel")
-            && !native_dtos.contains("pub enum PlaybackAgeFilterChip")
-            && !native_dtos.contains("pub enum PlaybackAgeBucket")
+        native_dtos.contains("pub enum BrowserRowProcessingState")
+            && native_dtos.contains("pub struct BrowserRowModel")
+            && native_dtos.contains("pub enum PlaybackAgeFilterChip")
+            && native_dtos.contains("pub enum PlaybackAgeBucket")
+            && !native_dtos.contains("pub type BrowserRowModel = list::ContentListRow;")
+            && !native_dtos.contains("pub type PlaybackAgeFilterChip = list::RecencyFilterChip;")
+            && !native_dtos.contains("pub type PlaybackAgeBucket = list::RecencyBucket;")
             && !native_dtos.contains("pub enum BrowserTagState")
             && !native_dtos.contains("pub struct BrowserTagPillModel")
             && !native_dtos.contains("pub struct BrowserTagSidebarModel")
             && !native_dtos.contains("pub enum MapRenderModeModel")
             && !native_dtos.contains("pub struct MapPanelModel")
-            && !native_dtos.contains("pub struct WaveformSlicePreviewModel")
+            && native_dtos.contains("pub struct WaveformSlicePreviewModel")
+            && native_dtos.contains("pub struct WaveformToolStateModel")
+            && native_dtos.contains(
+                "visualization::TimelineMotionState<WaveformSlicePreviewModel, WaveformToolStateModel>"
+            )
+            && !native_dtos.contains(
+                "pub type WaveformSlicePreviewModel = visualization::TimelineMarkerPreview;"
+            )
+            && !native_dtos.contains(
+                "pub type WaveformToolStateModel = visualization::SignalToolState;"
+            )
             && !native_dtos.contains("pub enum UpdateStatusModel"),
-        "generic row state, pill state/panel, map mode/panel, and update status DTOs should use Radiant-owned primitives"
+        "Sempal browser row/playback-age and waveform workflow DTOs should be host-owned while generic pill, map, and update DTOs stay Radiant-owned"
     );
     assert!(
-        native_dtos.contains("pub type BrowserRowProcessingState = list::RowProcessingState;")
-            && native_dtos.contains("pub type BrowserRowModel = list::ContentListRow;")
-            && native_dtos.contains("pub type PlaybackAgeFilterChip = list::RecencyFilterChip;")
-            && native_dtos.contains("pub type PlaybackAgeBucket = list::RecencyBucket;")
-            && native_dtos.contains("pub type BrowserTagState = selection::TriState;")
+        native_dtos.contains("pub type BrowserTagState = selection::TriState;")
             && native_dtos
                 .contains("pub type BrowserTagPillModel = badge::SelectablePill<BrowserTagState>;")
             && native_dtos.contains(
@@ -559,9 +572,6 @@ fn native_action_exports_are_owned_in_app_core() {
             && native_dtos.contains("pub type MapPanelModel = visualization::SpatialPanel;")
             && native_dtos
                 .contains("pub type WaveformChannelViewModel = visualization::ChannelViewMode;")
-            && native_dtos.contains(
-                "pub type WaveformSlicePreviewModel = visualization::TimelineMarkerPreview;"
-            )
             && native_dtos.contains("pub type MapPointModel = visualization::SpatialPoint;")
             && native_dtos.contains("pub type UpdateStatusModel = feedback::UpdateStatus;"),
         "Sempal native DTOs should alias generic Radiant state primitives"
@@ -614,14 +624,16 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal should own product prompt-kind names at the app boundary"
     );
     assert!(
-        native_action_conversions
-            .contains("compat::ConfirmPromptKind::DestructiveOperation => Self::DestructiveEdit")
-            && native_action_conversions
-                .contains("compat::ConfirmPromptKind::RenameContent => Self::BrowserRename")
-            && native_action_conversions
-                .contains("compat::ConfirmPromptKind::RenameNavigationItem => Self::FolderRename")
-            && native_action_conversions
-                .contains("compat::ConfirmPromptKind::CreateNavigationItem => Self::FolderCreate")
+        native_action_conversions.contains(
+            "runtime_contract::ConfirmPromptKind::DestructiveOperation => Self::DestructiveEdit"
+        ) && native_action_conversions
+            .contains("runtime_contract::ConfirmPromptKind::RenameContent => Self::BrowserRename")
+            && native_action_conversions.contains(
+                "runtime_contract::ConfirmPromptKind::RenameNavigationItem => Self::FolderRename"
+            )
+            && native_action_conversions.contains(
+                "runtime_contract::ConfirmPromptKind::CreateNavigationItem => Self::FolderCreate"
+            )
             && native_action_conversions
                 .contains("ConfirmPromptKind::DestructiveEdit => Self::DestructiveOperation")
             && native_action_conversions
@@ -653,9 +665,10 @@ fn native_action_exports_are_owned_in_app_core() {
     );
     assert!(
         native_action_conversions
-            .contains("impl From<compat::PairedDevicePanelModel> for AudioEngineModel")
-            && native_action_conversions
-                .contains("impl From<AudioEngineModel> for compat::PairedDevicePanelModel")
+            .contains("impl From<runtime_contract::PairedDevicePanelModel> for AudioEngineModel")
+            && native_action_conversions.contains(
+                "impl From<AudioEngineModel> for runtime_contract::PairedDevicePanelModel"
+            )
             && native_action_conversions.contains("audio_engine: value.paired_device.into()")
             && native_action_conversions.contains("paired_device: value.audio_engine.into()")
             && native_dtos.contains("pub fn paired_device_panel(&self) -> &AudioEngineModel"),
@@ -664,10 +677,12 @@ fn native_action_exports_are_owned_in_app_core() {
     assert!(
         native_dtos.contains("pub fn active_picker(&self) -> Option<form::PairedPickerTarget>")
             && native_dtos.contains("pub fn options_for(&self, target: form::PairedPickerTarget)")
-            && !native_dtos
-                .contains("pub fn active_picker(&self) -> Option<compat::PairedPickerTargetModel>")
-            && !native_dtos
-                .contains("pub fn options_for(&self, target: compat::PairedPickerTargetModel)"),
+            && !native_dtos.contains(
+                "pub fn active_picker(&self) -> Option<runtime_contract::PairedPickerTargetModel>"
+            )
+            && !native_dtos.contains(
+                "pub fn options_for(&self, target: runtime_contract::PairedPickerTargetModel)"
+            ),
         "Sempal audio DTO helpers should expose the generic Radiant form target rather than the legacy-shell alias"
     );
     assert!(
@@ -677,62 +692,61 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal should own browser triage target names"
     );
     assert!(
-        native_actions.contains(
-            "compat::UiAction::MoveDiscardedItemsToFolder => Self::MoveTrashedSamplesToFolder"
-        ) && native_actions
-            .contains("UiAction::MoveTrashedSamplesToFolder => Self::MoveDiscardedItemsToFolder"),
+        native_actions.contains("runtime_contract::UiAction::MoveDiscardedItemsToFolder")
+            && native_actions.contains("Self::MoveTrashedSamplesToFolder")
+            && native_actions.contains("UiAction::MoveTrashedSamplesToFolder")
+            && native_actions.contains("Self::MoveDiscardedItemsToFolder"),
         "Sempal action conversion should map the product trash action onto Radiant's generic discard action"
     );
     assert!(
-        native_actions.contains(
-            "compat::UiAction::FocusLoadedContentInList => Self::FocusLoadedSampleInBrowser"
-        ) && native_actions
-            .contains("UiAction::FocusLoadedSampleInBrowser => Self::FocusLoadedContentInList"),
+        native_actions.contains("runtime_contract::UiAction::FocusLoadedContentInList")
+            && native_actions.contains("Self::FocusLoadedSampleInBrowser")
+            && native_actions.contains("UiAction::FocusLoadedSampleInBrowser")
+            && native_actions.contains("Self::FocusLoadedContentInList"),
         "Sempal action conversion should map the product loaded-sample focus action onto Radiant's generic loaded-content focus action"
     );
     assert!(
-        native_actions.contains("compat::UiAction::SetCompareAnchorFromFocusedContent")
+        native_actions.contains("runtime_contract::UiAction::SetCompareAnchorFromFocusedContent")
             && native_actions.contains("Self::SetCompareAnchorFromFocusedBrowserSample")
             && native_actions.contains("UiAction::SetCompareAnchorFromFocusedBrowserSample")
             && native_actions.contains("Self::SetCompareAnchorFromFocusedContent"),
         "Sempal action conversion should map the product compare-anchor action onto Radiant's generic focused-content action"
     );
     assert!(
-        native_actions.contains("compat::UiAction::ToggleContentMark")
+        native_actions.contains("runtime_contract::UiAction::ToggleContentMark")
             && native_actions.contains("Self::ToggleBrowserSampleMark")
             && native_actions.contains("UiAction::ToggleBrowserSampleMark")
             && native_actions.contains("Self::ToggleContentMark"),
         "Sempal action conversion should map the product browser mark action onto Radiant's generic content mark action"
     );
     assert!(
-        native_actions.contains("compat::UiAction::ToggleFindSimilarFocusedContent")
+        native_actions.contains("runtime_contract::UiAction::ToggleFindSimilarFocusedContent")
             && native_actions.contains("Self::ToggleFindSimilarFocusedSample")
             && native_actions.contains("UiAction::ToggleFindSimilarFocusedSample")
             && native_actions.contains("Self::ToggleFindSimilarFocusedContent"),
         "Sempal action conversion should map the product find-similar action onto Radiant's generic focused-content action"
     );
     assert!(
-        native_actions.contains(
-            "compat::UiAction::NormalizeFocusedContentItem => Self::NormalizeFocusedBrowserSample"
-        ) && native_actions.contains(
-            "UiAction::NormalizeFocusedBrowserSample => Self::NormalizeFocusedContentItem"
-        ),
+        native_actions.contains("runtime_contract::UiAction::NormalizeFocusedContentItem")
+            && native_actions.contains("Self::NormalizeFocusedBrowserSample")
+            && native_actions.contains("UiAction::NormalizeFocusedBrowserSample")
+            && native_actions.contains("Self::NormalizeFocusedContentItem"),
         "Sempal action conversion should map the product normalize action onto Radiant's generic focused-content normalize action"
     );
     assert!(
-        native_actions
-            .contains("compat::UiAction::PlayRandomContentItem => Self::PlayRandomSample")
-            && native_actions.contains(
-                "compat::UiAction::PlayPreviousRandomContentItem => Self::PlayPreviousRandomSample"
-            )
-            && native_actions.contains("UiAction::PlayRandomSample => Self::PlayRandomContentItem")
-            && native_actions.contains(
-                "UiAction::PlayPreviousRandomSample => Self::PlayPreviousRandomContentItem"
-            ),
+        native_actions.contains("runtime_contract::UiAction::PlayRandomContentItem")
+            && native_actions.contains("Self::PlayRandomSample")
+            && native_actions.contains("runtime_contract::UiAction::PlayPreviousRandomContentItem")
+            && native_actions.contains("Self::PlayPreviousRandomSample")
+            && native_actions.contains("UiAction::PlayRandomSample")
+            && native_actions.contains("Self::PlayRandomContentItem")
+            && native_actions.contains("UiAction::PlayPreviousRandomSample")
+            && native_actions.contains("Self::PlayPreviousRandomContentItem"),
         "Sempal action conversion should map product random-sample actions onto Radiant's generic random-content actions"
     );
     assert!(
-        native_actions.contains("compat::UiAction::FocusSpatialContentItem { content_id }")
+        native_actions
+            .contains("runtime_contract::UiAction::FocusSpatialContentItem { content_id }")
             && native_actions.contains("Self::FocusMapSample")
             && native_actions.contains("sample_id: content_id")
             && native_actions.contains("UiAction::FocusMapSample { sample_id }")
@@ -756,36 +770,35 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal automation DTO conversion should map Radiant's generic spatial-content action id onto the product map-sample action id without reverse legacy compat conversion"
     );
     assert!(
-        native_actions.contains("compat::UiAction::StartContentItemDrag")
+        native_actions.contains("runtime_contract::UiAction::StartContentItemDrag")
             && native_actions.contains("Self::StartBrowserSampleDrag")
-            && native_actions.contains("compat::UiAction::UpdateContentItemDrag")
+            && native_actions.contains("runtime_contract::UiAction::UpdateContentItemDrag")
             && native_actions.contains("Self::UpdateBrowserSampleDrag")
-            && native_actions.contains(
-                "compat::UiAction::FinishContentItemDrag => Self::FinishBrowserSampleDrag"
-            )
+            && native_actions.contains("runtime_contract::UiAction::FinishContentItemDrag")
+            && native_actions.contains("Self::FinishBrowserSampleDrag")
             && native_actions.contains("UiAction::StartBrowserSampleDrag")
             && native_actions.contains("Self::StartContentItemDrag")
             && native_actions.contains("UiAction::UpdateBrowserSampleDrag")
             && native_actions.contains("Self::UpdateContentItemDrag")
-            && native_actions
-                .contains("UiAction::FinishBrowserSampleDrag => Self::FinishContentItemDrag"),
+            && native_actions.contains("UiAction::FinishBrowserSampleDrag")
+            && native_actions.contains("Self::FinishContentItemDrag"),
         "Sempal action conversion should map product browser-sample drag actions onto Radiant's generic content-item drag actions"
     );
     assert!(
-        native_actions.contains("compat::UiAction::NormalizeWaveformSelectionOrLoadedContent")
+        native_actions
+            .contains("runtime_contract::UiAction::NormalizeWaveformSelectionOrLoadedContent")
             && native_actions.contains("Self::NormalizeWaveformSelectionOrSample")
-            && native_actions.contains("compat::UiAction::CropWaveformSelectionToNewContentItem")
+            && native_actions
+                .contains("runtime_contract::UiAction::CropWaveformSelectionToNewContentItem")
             && native_actions.contains("Self::CropWaveformSelectionToNewSample")
-            && native_actions.contains(
-                "compat::UiAction::DeleteLoadedWaveformContent => Self::DeleteLoadedWaveformSample"
-            )
+            && native_actions.contains("runtime_contract::UiAction::DeleteLoadedWaveformContent")
+            && native_actions.contains("Self::DeleteLoadedWaveformSample")
             && native_actions.contains("UiAction::NormalizeWaveformSelectionOrSample")
             && native_actions.contains("Self::NormalizeWaveformSelectionOrLoadedContent")
             && native_actions.contains("UiAction::CropWaveformSelectionToNewSample")
             && native_actions.contains("Self::CropWaveformSelectionToNewContentItem")
-            && native_actions.contains(
-                "UiAction::DeleteLoadedWaveformSample => Self::DeleteLoadedWaveformContent"
-            ),
+            && native_actions.contains("UiAction::DeleteLoadedWaveformSample")
+            && native_actions.contains("Self::DeleteLoadedWaveformContent"),
         "Sempal action conversion should map product waveform sample actions onto Radiant's generic waveform content actions"
     );
     assert!(
@@ -794,7 +807,7 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal waveform DTOs should expose Radiant's generic timeline surface aggregate"
     );
     assert!(
-        native_dtos.contains("pub type WaveformMotionModel = visualization::TimelineMotionState")
+        native_dtos.contains("visualization::TimelineMotionState<")
             && native_dtos.contains("pub fn timeline_motion(&self) -> WaveformMotionModel"),
         "Sempal motion DTOs should expose Radiant's generic timeline motion aggregate"
     );
@@ -927,6 +940,24 @@ fn rust_sources_under(root: &Path) -> Vec<PathBuf> {
     let mut sources = Vec::new();
     collect_rust_sources(root, &mut sources);
     sources.sort();
+    sources
+}
+
+fn native_shell_runtime_sources(manifest_dir: &Path) -> String {
+    let mut sources =
+        fs::read_to_string(manifest_dir.join("src/gui_runtime/native_shell_runtime.rs"))
+            .expect("native shell runtime facade");
+    for path in [
+        "src/gui_runtime/native_shell_runtime/action_mapping.rs",
+        "src/gui_runtime/native_shell_runtime/automation.rs",
+        "src/gui_runtime/native_shell_runtime/bridge.rs",
+        "src/gui_runtime/native_shell_runtime/input_routing.rs",
+        "src/gui_runtime/native_shell_runtime/launch.rs",
+        "src/gui_runtime/native_shell_runtime/model_mapping.rs",
+    ] {
+        sources.push('\n');
+        sources.push_str(&fs::read_to_string(manifest_dir.join(path)).expect(path));
+    }
     sources
 }
 

@@ -6,7 +6,7 @@ use super::{
     waveform_toolbar_overlay_icon_rect, waveform_toolbar_visual_color,
 };
 
-pub(in crate::gui::native_shell::state) fn waveform_toolbar_buttons(
+pub(in crate::app_core::native_shell::composition::state) fn waveform_toolbar_buttons(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &NativeMotionModel,
@@ -298,7 +298,7 @@ fn waveform_toolbar_surface_item_kind(label: &str) -> WaveformToolbarSurfaceItem
     }
 }
 
-pub(in crate::gui::native_shell::state) fn waveform_toolbar_bpm_value_label(
+pub(in crate::app_core::native_shell::composition::state) fn waveform_toolbar_bpm_value_label(
     model: &NativeMotionModel,
     bpm_input_display: Option<&str>,
 ) -> String {
@@ -325,7 +325,7 @@ fn parse_waveform_tempo_number_text(label: &str) -> Option<String> {
     Some(number.to_string())
 }
 
-pub(in crate::gui::native_shell::state) fn waveform_toolbar_left_edge(
+pub(in crate::app_core::native_shell::composition::state) fn waveform_toolbar_left_edge(
     buttons: &[WaveformToolbarButton],
     fallback: f32,
 ) -> f32 {
@@ -336,7 +336,7 @@ pub(in crate::gui::native_shell::state) fn waveform_toolbar_left_edge(
         .unwrap_or(fallback)
 }
 
-pub(in crate::gui::native_shell::state) fn render_waveform_toolbar_buttons(
+pub(in crate::app_core::native_shell::composition::state) fn render_waveform_toolbar_buttons(
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
     style: &StyleTokens,

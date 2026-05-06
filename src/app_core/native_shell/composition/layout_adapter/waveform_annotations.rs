@@ -1,9 +1,10 @@
 //! Slotized waveform annotation geometry for selection, slice previews, cursor, and playhead.
 
-use crate::compat_app_contract::NormalizedRangeModel;
+use crate::app_core::native_shell::runtime_contract::{
+    NormalizedRangeModel, WaveformSlicePreviewModel,
+};
 use crate::gui::range::{NormalizedPixelSnap, NormalizedViewport};
 use crate::gui::types::{Point, Rect};
-use crate::gui::visualization::TimelineMarkerPreview;
 
 #[cfg(test)]
 #[path = "waveform_annotations/tests.rs"]
@@ -94,7 +95,7 @@ pub(crate) fn compute_waveform_annotation_rects_with_nanos(
 /// Compute all slice-preview rectangles constrained to the waveform plot.
 pub(crate) fn compute_waveform_slice_preview_rects(
     waveform_plot: Rect,
-    slices: &[TimelineMarkerPreview],
+    slices: &[WaveformSlicePreviewModel],
     view_start_micros: impl Into<u32>,
     view_end_micros: impl Into<u32>,
 ) -> Vec<WaveformSlicePreviewRects> {

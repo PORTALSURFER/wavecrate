@@ -1,6 +1,6 @@
 use super::super::{PromptOverlaySections, PromptOverlayTextLayout, shared};
 use super::common::{centered_line_in_rect, column_tree, fixed_height_child, top_line_in_rect};
-use crate::gui::native_shell::style::SizingTokens;
+use crate::app_core::native_shell::composition::style::SizingTokens;
 use crate::gui::types::{Point, Rect};
 
 const PROMPT_TEXT_ROOT_ID: u64 = 980;

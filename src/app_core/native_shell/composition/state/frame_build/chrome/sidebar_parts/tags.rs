@@ -1,5 +1,5 @@
 use super::*;
-use crate::compat_app_contract::{BrowserPillModel, BrowserPillState};
+use crate::app_core::native_shell::runtime_contract::{BrowserPillModel, BrowserPillState};
 
 /// Render the left-sidebar tag editor panel.
 pub(super) fn render_sidebar_tags(
@@ -104,7 +104,7 @@ pub(super) fn render_sidebar_tags(
 }
 
 /// Return the sidebar tag input hit/render rectangle.
-pub(in crate::gui::native_shell::state) fn sidebar_tag_input_rect(
+pub(in crate::app_core::native_shell::composition::state) fn sidebar_tag_input_rect(
     rect: Rect,
     sizing: SizingTokens,
 ) -> Rect {
@@ -120,7 +120,7 @@ pub(in crate::gui::native_shell::state) fn sidebar_tag_input_rect(
 }
 
 /// Return the inset text box inside the sidebar tag input.
-pub(in crate::gui::native_shell::state) fn sidebar_tag_input_text_rect(
+pub(in crate::app_core::native_shell::composition::state) fn sidebar_tag_input_text_rect(
     input: Rect,
     sizing: SizingTokens,
 ) -> Rect {
@@ -128,7 +128,7 @@ pub(in crate::gui::native_shell::state) fn sidebar_tag_input_text_rect(
 }
 
 /// Return visible sidebar tag pill rectangles paired with their pill models.
-pub(in crate::gui::native_shell::state) fn sidebar_tag_pill_rects(
+pub(in crate::app_core::native_shell::composition::state) fn sidebar_tag_pill_rects(
     rect: Rect,
     sizing: SizingTokens,
     model: &AppModel,

@@ -250,7 +250,7 @@ fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{gui::native_shell::style::StyleTokens, widgets::WidgetKind};
+    use crate::{app_core::native_shell::composition::style::StyleTokens, widgets::WidgetKind};
 
     fn sample_content() -> WaveformToolbarSurfaceContent {
         WaveformToolbarSurfaceContent {

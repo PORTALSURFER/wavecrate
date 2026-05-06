@@ -8,7 +8,7 @@
 
 use super::*;
 #[cfg(test)]
-use crate::compat_app_contract::UiAction;
+use crate::app_core::native_shell::runtime_contract::UiAction;
 use std::sync::Arc;
 
 use crate::gui::svg::{parse_svg_document, point_in_svg_shapes};

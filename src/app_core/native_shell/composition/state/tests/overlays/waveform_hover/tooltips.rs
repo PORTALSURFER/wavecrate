@@ -140,8 +140,8 @@ fn state_overlay_renders_clean_dups_tooltip_text() {
     model
         .waveform
         .slices
-        .push(crate::gui::visualization::TimelineMarkerPreview {
-            range: crate::compat_app_contract::NormalizedRangeModel::new(180, 420),
+        .push(crate::app_core::native_shell::runtime_contract::WaveformSlicePreviewModel {
+            range: crate::app_core::native_shell::runtime_contract::NormalizedRangeModel::new(180, 420),
             selected: false,
             focused: false,
             marked_for_export: false,
@@ -257,3 +257,4 @@ fn state_overlay_renders_compare_tooltip_text_without_anchor() {
             .contains("Set a compare anchor to enable compare playback")
     }));
 }
+

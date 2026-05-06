@@ -1,7 +1,7 @@
 //! Options-panel action definitions and paired-picker helpers.
 
 use super::*;
-use crate::compat_app_contract::{
+use crate::app_core::native_shell::runtime_contract::{
     PairedPickerOptionModel, PairedPickerTargetModel, PairedPickerValueModel,
 };
 

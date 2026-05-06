@@ -2,7 +2,7 @@
 
 use super::*;
 
-pub(in crate::gui::native_shell::state) fn truncate_to_width(
+pub(in crate::app_core::native_shell::composition::state) fn truncate_to_width(
     text: &str,
     max_width: f32,
     font_size: f32,
@@ -38,7 +38,7 @@ pub(in crate::gui::native_shell::state) fn truncate_to_width(
 }
 
 /// Approximate one-line browser text width using the shell's truncation heuristic.
-pub(in crate::gui::native_shell::state) fn browser_approx_text_width(
+pub(in crate::app_core::native_shell::composition::state) fn browser_approx_text_width(
     text: &str,
     font_size: f32,
 ) -> f32 {
@@ -47,7 +47,7 @@ pub(in crate::gui::native_shell::state) fn browser_approx_text_width(
 }
 
 /// Build a truncation-cache invalidation key from the current layout/style/row-revision state.
-pub(in crate::gui::native_shell::state) fn browser_row_truncation_cache_key(
+pub(in crate::app_core::native_shell::composition::state) fn browser_row_truncation_cache_key(
     layout: &ShellLayout,
     style: &StyleTokens,
     rows_key: BrowserRowsCacheKey,
@@ -70,7 +70,7 @@ pub(in crate::gui::native_shell::state) fn browser_row_truncation_cache_key(
 }
 
 /// Resolve one truncated browser-row text string from cache or compute it on miss.
-pub(in crate::gui::native_shell::state) fn truncate_browser_row_text_cached(
+pub(in crate::app_core::native_shell::composition::state) fn truncate_browser_row_text_cached(
     truncation_cache: &mut BrowserRowTruncationCache,
     frame_counts: &mut BrowserRowTruncationFrameCounts,
     row_id: usize,
@@ -89,19 +89,23 @@ pub(in crate::gui::native_shell::state) fn truncate_browser_row_text_cached(
 }
 
 /// Quantize truncation width inputs into stable cache buckets.
-pub(in crate::gui::native_shell::state) fn truncation_width_bucket(width: f32) -> u16 {
+pub(in crate::app_core::native_shell::composition::state) fn truncation_width_bucket(
+    width: f32,
+) -> u16 {
     ((width.max(0.0) * 2.0).round().clamp(0.0, u16::MAX as f32)) as u16
 }
 
 /// Quantize truncation font-size inputs into stable cache buckets.
-pub(in crate::gui::native_shell::state) fn truncation_font_size_bucket(font_size: f32) -> u16 {
+pub(in crate::app_core::native_shell::composition::state) fn truncation_font_size_bucket(
+    font_size: f32,
+) -> u16 {
     ((font_size.max(0.0) * 64.0)
         .round()
         .clamp(0.0, u16::MAX as f32)) as u16
 }
 
 /// Hash visible browser-row labels into one revision fingerprint.
-pub(in crate::gui::native_shell::state) fn browser_row_text_revision(
+pub(in crate::app_core::native_shell::composition::state) fn browser_row_text_revision(
     rows: &[BrowserRowModel],
 ) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();

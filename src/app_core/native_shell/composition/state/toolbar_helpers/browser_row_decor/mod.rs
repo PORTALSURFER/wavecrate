@@ -7,6 +7,6 @@ mod markers;
 mod rating_indicators;
 mod similarity;
 
-pub(in crate::gui::native_shell::state) use self::{
+pub(in crate::app_core::native_shell::composition::state) use self::{
     inline_tags::*, markers::*, rating_indicators::*, similarity::*,
 };

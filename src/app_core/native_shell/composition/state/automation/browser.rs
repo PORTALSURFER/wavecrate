@@ -4,8 +4,8 @@ use super::helpers::{
     action_slug, bool_text, bounds, circle_rect, metadata, node_id, simple_node, slug,
 };
 use super::*;
-use crate::compat_app_contract::AutomationRole;
-use crate::compat_app_contract::BrowserPillState;
+use crate::app_core::native_shell::runtime_contract::AutomationRole;
+use crate::app_core::native_shell::runtime_contract::BrowserPillState;
 
 /// Build semantic automation for the browser panel and its active content.
 pub(super) fn build_browser_automation(
@@ -85,13 +85,13 @@ pub(super) fn build_browser_automation(
         }
         let bucket = super::super::BROWSER_PLAYBACK_AGE_FILTER_CHIPS[index];
         let (slug, label) = match bucket {
-            crate::compat_app_contract::PlaybackAgeFilterChip::NeverPlayed => {
+            crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip::NeverPlayed => {
                 ("never", "Never played")
             }
-            crate::compat_app_contract::PlaybackAgeFilterChip::OlderThanMonth => {
+            crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip::OlderThanMonth => {
                 ("month", "Older than month")
             }
-            crate::compat_app_contract::PlaybackAgeFilterChip::OlderThanWeek => {
+            crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip::OlderThanWeek => {
                 ("week", "Older than week")
             }
         };
@@ -159,7 +159,7 @@ pub(super) fn build_browser_automation(
         enabled: true,
         selected: matches!(
             model.focus_context,
-            crate::compat_app_contract::FocusContextModel::ContentList
+            crate::app_core::native_shell::runtime_contract::FocusContextModel::ContentList
         ),
         available_actions: vec![String::from("focus_browser_panel")],
         metadata: metadata(&[
@@ -218,7 +218,7 @@ fn build_browser_table_automation(
         true,
         matches!(
             model.focus_context,
-            crate::compat_app_contract::FocusContextModel::ContentList
+            crate::app_core::native_shell::runtime_contract::FocusContextModel::ContentList
         ),
         vec![
             String::from("focus_browser_panel"),
@@ -255,10 +255,10 @@ fn build_browser_table_automation(
                 (
                     "playback_age_bucket",
                     match row.playback_age_bucket {
-                        crate::compat_app_contract::PlaybackAgeBucket::Fresh => "fresh",
-                        crate::compat_app_contract::PlaybackAgeBucket::OlderThanWeek => "week",
-                        crate::compat_app_contract::PlaybackAgeBucket::OlderThanMonth => "month",
-                        crate::compat_app_contract::PlaybackAgeBucket::NeverPlayed => "never",
+                        crate::app_core::native_shell::runtime_contract::PlaybackAgeBucket::Fresh => "fresh",
+                        crate::app_core::native_shell::runtime_contract::PlaybackAgeBucket::OlderThanWeek => "week",
+                        crate::app_core::native_shell::runtime_contract::PlaybackAgeBucket::OlderThanMonth => "month",
+                        crate::app_core::native_shell::runtime_contract::PlaybackAgeBucket::NeverPlayed => "never",
                     },
                 ),
             ]),
@@ -370,7 +370,7 @@ fn build_browser_pill_editor_automation(
 
 fn browser_pill_editor_pill_node(
     id: impl Into<String>,
-    pill: &crate::compat_app_contract::BrowserPillModel,
+    pill: &crate::app_core::native_shell::runtime_contract::BrowserPillModel,
     rect: Rect,
     available_actions: Vec<String>,
 ) -> AutomationNodeSnapshot {

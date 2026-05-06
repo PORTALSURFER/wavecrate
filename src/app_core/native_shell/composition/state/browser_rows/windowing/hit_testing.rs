@@ -3,7 +3,7 @@ use crate::gui::list::{
     MaterializedVirtualListItem, VirtualListItemKey, virtual_list_stacked_item_at_point,
 };
 
-pub(in crate::gui::native_shell::state) fn row_index_for_visible_rows(
+pub(in crate::app_core::native_shell::composition::state) fn row_index_for_visible_rows(
     rows: &[CachedBrowserRow],
     point: Point,
     browser_rows: Rect,
@@ -15,7 +15,7 @@ pub(in crate::gui::native_shell::state) fn row_index_for_visible_rows(
 }
 
 /// Resolve one browser-row index from stacked row geometry in constant time.
-pub(in crate::gui::native_shell::state) fn row_index_for_stacked_geometry(
+pub(in crate::app_core::native_shell::composition::state) fn row_index_for_stacked_geometry(
     rows: &[CachedBrowserRow],
     point: Point,
 ) -> Option<usize> {

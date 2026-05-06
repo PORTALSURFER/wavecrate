@@ -11,6 +11,6 @@ mod scrollbars;
 #[path = "windowing/viewport.rs"]
 mod viewport;
 
-pub(in crate::gui::native_shell::state) use self::{
+pub(in crate::app_core::native_shell::composition::state) use self::{
     hit_testing::*, projection::*, scrollbars::*, viewport::*,
 };

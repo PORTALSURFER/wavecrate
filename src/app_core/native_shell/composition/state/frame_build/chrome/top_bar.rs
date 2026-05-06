@@ -1,5 +1,5 @@
 use super::*;
-use crate::compat_app_contract::StatusChipStateModel;
+use crate::app_core::native_shell::runtime_contract::StatusChipStateModel;
 
 pub(super) fn render_top_bar_controls(
     state: &NativeShellState,
@@ -127,7 +127,7 @@ fn render_update_buttons(
     ctx: &StaticFrameCtx<'_>,
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
-    buttons: &[crate::gui::native_shell::top_bar_surface::TopBarUpdateButtonLayout],
+    buttons: &[crate::app_core::native_shell::composition::top_bar_surface::TopBarUpdateButtonLayout],
 ) {
     for button in buttons {
         let label_rect = compute_action_button_text_rect(button.rect, ctx.sizing);

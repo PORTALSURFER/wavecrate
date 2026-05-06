@@ -1,7 +1,7 @@
 use super::*;
 
 /// Approximate the rendered width of one inline browser metadata label.
-pub(in crate::gui::native_shell::state) fn browser_inline_tag_text_width(
+pub(in crate::app_core::native_shell::composition::state) fn browser_inline_tag_text_width(
     text: &str,
     sizing: SizingTokens,
 ) -> f32 {
@@ -12,12 +12,14 @@ pub(in crate::gui::native_shell::state) fn browser_inline_tag_text_width(
 }
 
 /// Return the horizontal gap between an item label and its inline metadata label.
-pub(in crate::gui::native_shell::state) fn browser_inline_tag_gap(sizing: SizingTokens) -> f32 {
+pub(in crate::app_core::native_shell::composition::state) fn browser_inline_tag_gap(
+    sizing: SizingTokens,
+) -> f32 {
     sizing.text_inset_x.min(6.0).max(3.0)
 }
 
 /// Split one inline browser metadata payload into stable per-chip labels.
-pub(in crate::gui::native_shell::state) fn browser_inline_tag_labels(
+pub(in crate::app_core::native_shell::composition::state) fn browser_inline_tag_labels(
     text: &str,
 ) -> impl Iterator<Item = &str> + '_ {
     text.split(" · ")
@@ -26,7 +28,7 @@ pub(in crate::gui::native_shell::state) fn browser_inline_tag_labels(
 }
 
 /// Materialize inline browser metadata labels once when a cache boundary owns them.
-pub(in crate::gui::native_shell::state) fn browser_inline_tag_labels_owned(
+pub(in crate::app_core::native_shell::composition::state) fn browser_inline_tag_labels_owned(
     text: &str,
 ) -> Vec<String> {
     browser_inline_tag_labels(text)
@@ -35,7 +37,7 @@ pub(in crate::gui::native_shell::state) fn browser_inline_tag_labels_owned(
 }
 
 /// Return the filled chip width needed for one inline browser metadata label.
-pub(in crate::gui::native_shell::state) fn browser_inline_tag_chip_width(
+pub(in crate::app_core::native_shell::composition::state) fn browser_inline_tag_chip_width(
     text: &str,
     sizing: SizingTokens,
 ) -> f32 {
@@ -51,7 +53,7 @@ pub(in crate::gui::native_shell::state) fn browser_inline_tag_chip_width(
 /// nominal metadata-chip minimum height. In that case the chips compress to
 /// the available row height or disappear if no positive-height rect remains.
 #[cfg(test)]
-pub(in crate::gui::native_shell::state) fn browser_inline_tag_chip_rects(
+pub(in crate::app_core::native_shell::composition::state) fn browser_inline_tag_chip_rects(
     sample_label: Rect,
     text: &str,
     trailing_reserved_width: f32,
@@ -65,7 +67,7 @@ pub(in crate::gui::native_shell::state) fn browser_inline_tag_chip_rects(
 }
 
 /// Return reserved width for a pre-split inline metadata cluster.
-pub(in crate::gui::native_shell::state) fn browser_inline_tag_reserved_width_for_labels(
+pub(in crate::app_core::native_shell::composition::state) fn browser_inline_tag_reserved_width_for_labels(
     labels: &[String],
     sizing: SizingTokens,
 ) -> f32 {
@@ -83,7 +85,7 @@ pub(in crate::gui::native_shell::state) fn browser_inline_tag_reserved_width_for
 }
 
 /// Compute chip rects for pre-split inline browser metadata labels.
-pub(in crate::gui::native_shell::state) fn browser_inline_tag_chip_rects_for_labels(
+pub(in crate::app_core::native_shell::composition::state) fn browser_inline_tag_chip_rects_for_labels(
     sample_label: Rect,
     labels: &[String],
     trailing_reserved_width: f32,
@@ -125,7 +127,7 @@ pub(in crate::gui::native_shell::state) fn browser_inline_tag_chip_rects_for_lab
 }
 
 /// Return the inset text origin for one inline browser metadata chip.
-pub(in crate::gui::native_shell::state) fn browser_inline_tag_text_origin(
+pub(in crate::app_core::native_shell::composition::state) fn browser_inline_tag_text_origin(
     chip_rect: Rect,
     sizing: SizingTokens,
 ) -> Point {
@@ -140,7 +142,7 @@ pub(in crate::gui::native_shell::state) fn browser_inline_tag_text_origin(
 /// The nominal minimum is `10px`, but cramped rows during resize may provide
 /// less vertical space. In that case this helper caps the chip to the
 /// available label height instead of panicking on inverted clamp bounds.
-pub(in crate::gui::native_shell::state) fn browser_inline_tag_chip_height(
+pub(in crate::app_core::native_shell::composition::state) fn browser_inline_tag_chip_height(
     sample_label: Rect,
     sizing: SizingTokens,
 ) -> f32 {
@@ -154,19 +156,19 @@ pub(in crate::gui::native_shell::state) fn browser_inline_tag_chip_height(
     desired_height.clamp(min_height, available_height)
 }
 
-pub(in crate::gui::native_shell::state) fn browser_inline_tag_chip_padding_x(
+pub(in crate::app_core::native_shell::composition::state) fn browser_inline_tag_chip_padding_x(
     sizing: SizingTokens,
 ) -> f32 {
     sizing.text_inset_x.min(5.0).max(3.0)
 }
 
-pub(in crate::gui::native_shell::state) fn browser_inline_tag_chip_padding_y(
+pub(in crate::app_core::native_shell::composition::state) fn browser_inline_tag_chip_padding_y(
     sizing: SizingTokens,
 ) -> f32 {
     sizing.text_inset_y.min(3.0).max(1.0)
 }
 
-pub(in crate::gui::native_shell::state) fn browser_inline_tag_chip_gap(
+pub(in crate::app_core::native_shell::composition::state) fn browser_inline_tag_chip_gap(
     sizing: SizingTokens,
 ) -> f32 {
     sizing.border_width.max(1.0) + 2.0

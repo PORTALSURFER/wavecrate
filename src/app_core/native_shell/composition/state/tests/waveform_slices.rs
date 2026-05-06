@@ -1,5 +1,5 @@
 use super::*;
-use crate::compat_app_contract::AutomationNodeSnapshot;
+use crate::app_core::native_shell::runtime_contract::AutomationNodeSnapshot;
 
 fn child<'a>(parent: &'a AutomationNodeSnapshot, id: &str) -> &'a AutomationNodeSnapshot {
     parent
@@ -15,8 +15,8 @@ fn waveform_motion_overlay_draws_slice_preview_overlays() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut state = NativeShellState::new();
     let mut model = AppModel::default();
-    let slice = crate::gui::visualization::TimelineMarkerPreview {
-        range: crate::compat_app_contract::NormalizedRangeModel::new(180, 420),
+    let slice = crate::app_core::native_shell::runtime_contract::WaveformSlicePreviewModel {
+        range: crate::app_core::native_shell::runtime_contract::NormalizedRangeModel::new(180, 420),
         selected: false,
         focused: false,
         marked_for_export: false,
@@ -73,8 +73,8 @@ fn waveform_motion_overlay_draws_selected_slice_preview_with_stronger_fill() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut state = NativeShellState::new();
     let mut model = AppModel::default();
-    let slice = crate::gui::visualization::TimelineMarkerPreview {
-        range: crate::compat_app_contract::NormalizedRangeModel::new(180, 420),
+    let slice = crate::app_core::native_shell::runtime_contract::WaveformSlicePreviewModel {
+        range: crate::app_core::native_shell::runtime_contract::NormalizedRangeModel::new(180, 420),
         selected: true,
         focused: false,
         marked_for_export: false,
@@ -119,8 +119,8 @@ fn waveform_motion_overlay_draws_exempted_duplicate_preview_with_cool_accent() {
     model
         .waveform
         .slices
-        .push(crate::gui::visualization::TimelineMarkerPreview {
-            range: crate::compat_app_contract::NormalizedRangeModel::new(180, 420),
+        .push(crate::app_core::native_shell::runtime_contract::WaveformSlicePreviewModel {
+            range: crate::app_core::native_shell::runtime_contract::NormalizedRangeModel::new(180, 420),
             selected: false,
             focused: false,
             marked_for_export: false,
@@ -163,8 +163,8 @@ fn waveform_automation_exposes_slice_toggle_and_detect_actions() {
     model
         .waveform
         .slices
-        .push(crate::gui::visualization::TimelineMarkerPreview {
-            range: crate::compat_app_contract::NormalizedRangeModel::new(180, 420),
+        .push(crate::app_core::native_shell::runtime_contract::WaveformSlicePreviewModel {
+            range: crate::app_core::native_shell::runtime_contract::NormalizedRangeModel::new(180, 420),
             selected: true,
             focused: true,
             marked_for_export: true,
@@ -252,3 +252,4 @@ fn waveform_automation_exposes_slice_toggle_and_detect_actions() {
         "clean dups toolbar button should be present"
     );
 }
+

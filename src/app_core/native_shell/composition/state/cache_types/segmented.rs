@@ -101,7 +101,7 @@ impl StaticFrameSegments {
 }
 
 /// Sink for emitted frame primitives.
-pub(in crate::gui::native_shell::state) trait PrimitiveSink {
+pub(in crate::app_core::native_shell::composition::state) trait PrimitiveSink {
     /// Push one primitive into the sink.
     fn push_primitive(&mut self, primitive: Primitive);
 }
@@ -113,7 +113,7 @@ impl PrimitiveSink for Vec<Primitive> {
 }
 
 /// Sink for emitted frame text runs.
-pub(in crate::gui::native_shell::state) trait TextRunSink {
+pub(in crate::app_core::native_shell::composition::state) trait TextRunSink {
     /// Push one text run into the sink.
     fn push_text_run(&mut self, text_run: TextRun);
 }
@@ -125,7 +125,7 @@ impl TextRunSink for Vec<TextRun> {
 }
 
 /// Emit one primitive into a generic sink.
-pub(in crate::gui::native_shell::state) fn emit_primitive(
+pub(in crate::app_core::native_shell::composition::state) fn emit_primitive(
     primitives: &mut impl PrimitiveSink,
     primitive: Primitive,
 ) {
@@ -133,7 +133,7 @@ pub(in crate::gui::native_shell::state) fn emit_primitive(
 }
 
 /// Emit one text run into a generic sink.
-pub(in crate::gui::native_shell::state) fn emit_text(
+pub(in crate::app_core::native_shell::composition::state) fn emit_text(
     text_runs: &mut impl TextRunSink,
     text_run: TextRun,
 ) {
@@ -141,7 +141,7 @@ pub(in crate::gui::native_shell::state) fn emit_text(
 }
 
 /// Shared segmented emit context that routes output into static buckets.
-pub(in crate::gui::native_shell::state) struct SegmentedStaticEmitContext<'a> {
+pub(in crate::app_core::native_shell::composition::state) struct SegmentedStaticEmitContext<'a> {
     pub layout: &'a ShellLayout,
     pub model: &'a AppModel,
     pub segments: &'a mut StaticFrameSegments,
@@ -149,7 +149,7 @@ pub(in crate::gui::native_shell::state) struct SegmentedStaticEmitContext<'a> {
 }
 
 /// Primitive sink that routes primitives directly into static buckets.
-pub(in crate::gui::native_shell::state) struct SegmentedPrimitiveSink<'a, 'b> {
+pub(in crate::app_core::native_shell::composition::state) struct SegmentedPrimitiveSink<'a, 'b> {
     pub context: &'a RefCell<SegmentedStaticEmitContext<'b>>,
 }
 
@@ -172,7 +172,7 @@ impl PrimitiveSink for SegmentedPrimitiveSink<'_, '_> {
 }
 
 /// Text-run sink that routes text directly into static buckets.
-pub(in crate::gui::native_shell::state) struct SegmentedTextRunSink<'a, 'b> {
+pub(in crate::app_core::native_shell::composition::state) struct SegmentedTextRunSink<'a, 'b> {
     pub context: &'a RefCell<SegmentedStaticEmitContext<'b>>,
 }
 

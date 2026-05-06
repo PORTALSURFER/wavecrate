@@ -2,8 +2,10 @@
 
 use super::svg_icons::WaveformToolbarIcon;
 use super::*;
-use crate::compat_app_contract::{BrowserRowProcessingState, FolderPaneIdModel, PlaybackAgeBucket};
-use crate::gui::native_shell::layout_adapter::BrowserRowTextLayout;
+use crate::app_core::native_shell::composition::layout_adapter::BrowserRowTextLayout;
+use crate::app_core::native_shell::runtime_contract::{
+    BrowserRowProcessingState, FolderPaneIdModel, PlaybackAgeBucket,
+};
 
 #[path = "browser_rows/sidebar.rs"]
 mod sidebar;
@@ -14,7 +16,7 @@ mod visuals;
 #[path = "browser_rows/windowing.rs"]
 mod windowing;
 
-pub(in crate::gui::native_shell::state) use self::{
+pub(in crate::app_core::native_shell::composition::state) use self::{
     sidebar::*, truncation::*, visuals::*, windowing::*,
 };
 

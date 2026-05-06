@@ -1,5 +1,5 @@
 use super::*;
-use crate::gui::native_shell::style::StyleTokens;
+use crate::app_core::native_shell::composition::style::StyleTokens;
 
 #[test]
 fn recovery_badge_compacts_label_when_header_is_narrow() {

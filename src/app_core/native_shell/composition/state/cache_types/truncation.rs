@@ -13,7 +13,7 @@ pub(crate) struct BrowserRowTruncationFrameCounts {
 
 /// Browser row text variants tracked in truncation cache keys.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(in crate::gui::native_shell::state) enum BrowserRowTextKind {
+pub(in crate::app_core::native_shell::composition::state) enum BrowserRowTextKind {
     /// Primary item label text in browser rows.
     Item,
     /// Secondary inline metadata text in browser rows.
@@ -22,7 +22,7 @@ pub(in crate::gui::native_shell::state) enum BrowserRowTextKind {
 
 /// Lookup key for one browser-row truncation output.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(in crate::gui::native_shell::state) struct BrowserRowTruncationEntryKey {
+pub(in crate::app_core::native_shell::composition::state) struct BrowserRowTruncationEntryKey {
     /// Stable visible-row identity used to scope cached text.
     pub row_id: u32,
     /// Quantized width bucket used by truncation heuristics.
@@ -35,7 +35,7 @@ pub(in crate::gui::native_shell::state) struct BrowserRowTruncationEntryKey {
 
 /// Invalidation key for browser-row truncation cache content.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(in crate::gui::native_shell::state) struct BrowserRowTruncationCacheKey {
+pub(in crate::app_core::native_shell::composition::state) struct BrowserRowTruncationCacheKey {
     /// Browser rows region minimum x-coordinate.
     pub browser_rows_min_x: u32,
     /// Browser rows region minimum y-coordinate.
@@ -56,7 +56,7 @@ pub(in crate::gui::native_shell::state) struct BrowserRowTruncationCacheKey {
 
 /// Invalidation key for browser action/button hit-test geometry caches.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(in crate::gui::native_shell::state) struct BrowserActionHitTestCacheKey {
+pub(in crate::app_core::native_shell::composition::state) struct BrowserActionHitTestCacheKey {
     /// Browser toolbar region minimum x-coordinate.
     pub browser_toolbar_min_x: u32,
     /// Browser toolbar region minimum y-coordinate.
@@ -73,7 +73,7 @@ pub(in crate::gui::native_shell::state) struct BrowserActionHitTestCacheKey {
 
 /// Invalidation key for waveform-toolbar hit-test geometry caches.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(in crate::gui::native_shell::state) struct WaveformToolbarHitTestCacheKey {
+pub(in crate::app_core::native_shell::composition::state) struct WaveformToolbarHitTestCacheKey {
     /// Waveform header region minimum x-coordinate.
     pub waveform_header_min_x: u32,
     /// Waveform header region minimum y-coordinate.
@@ -102,27 +102,27 @@ pub(in crate::gui::native_shell::state) struct WaveformToolbarHitTestCacheKey {
 
 /// Small retained LRU cache for browser-row text truncation outputs.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(in crate::gui::native_shell::state) struct BrowserRowTruncationCache {
+pub(in crate::app_core::native_shell::composition::state) struct BrowserRowTruncationCache {
     pub values: HashMap<BrowserRowTruncationEntryKey, BrowserRowTruncationCacheValue>,
     pub touch_epoch: u64,
 }
 
 /// One cached truncation result with the latest logical access epoch.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(in crate::gui::native_shell::state) struct BrowserRowTruncationCacheValue {
+pub(in crate::app_core::native_shell::composition::state) struct BrowserRowTruncationCacheValue {
     pub truncated: String,
     pub last_touch_epoch: u64,
 }
 
 impl BrowserRowTruncationCache {
     /// Clear all retained truncation entries.
-    pub(in crate::gui::native_shell::state) fn clear(&mut self) {
+    pub(in crate::app_core::native_shell::composition::state) fn clear(&mut self) {
         self.values.clear();
         self.touch_epoch = 0;
     }
 
     /// Resolve one truncation output from cache or compute and insert on miss.
-    pub(in crate::gui::native_shell::state) fn resolve(
+    pub(in crate::app_core::native_shell::composition::state) fn resolve(
         &mut self,
         key: BrowserRowTruncationEntryKey,
         text: &str,

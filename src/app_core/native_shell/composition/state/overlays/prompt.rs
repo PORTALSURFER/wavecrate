@@ -3,7 +3,7 @@
 use super::*;
 
 /// Render the confirm prompt overlay when it is visible.
-pub(in crate::gui::native_shell::state) fn render_confirm_prompt(
+pub(in crate::app_core::native_shell::composition::state) fn render_confirm_prompt(
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
     layout: &ShellLayout,

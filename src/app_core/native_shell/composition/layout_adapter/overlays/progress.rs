@@ -1,11 +1,11 @@
 //! Slotized progress overlay geometry.
 
 use super::{ProgressOverlaySections, shared};
+use crate::app_core::native_shell::composition::style::SizingTokens;
 use crate::gui::layout_core::{
     Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
     OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams, layout_tree,
 };
-use crate::gui::native_shell::style::SizingTokens;
 use crate::gui::types::{Rect, Vector2};
 
 const PROGRESS_DIALOG_ROOT_ID: u64 = 930;
@@ -223,7 +223,7 @@ fn compute_progress_cancel_button_rect(dialog: Rect, sizing: SizingTokens) -> Re
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gui::native_shell::style::StyleTokens;
+    use crate::app_core::native_shell::composition::style::StyleTokens;
     use crate::gui::types::Point;
 
     #[test]

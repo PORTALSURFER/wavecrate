@@ -1,9 +1,9 @@
 //! Sidebar action, source-add, and context-menu helper geometry.
 
 use super::super::*;
-use crate::compat_app_contract::FolderPaneIdModel;
+use crate::app_core::native_shell::runtime_contract::FolderPaneIdModel;
 
-pub(in crate::gui::native_shell::state) fn render_source_add_button_overlay(
+pub(in crate::app_core::native_shell::composition::state) fn render_source_add_button_overlay(
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
     style: &StyleTokens,
@@ -38,7 +38,7 @@ pub(in crate::gui::native_shell::state) fn render_source_add_button_overlay(
     );
 }
 
-pub(in crate::gui::native_shell::state) fn source_add_button_fill(
+pub(in crate::app_core::native_shell::composition::state) fn source_add_button_fill(
     style: &StyleTokens,
     hovered: bool,
     flashed: bool,
@@ -56,7 +56,7 @@ pub(in crate::gui::native_shell::state) fn source_add_button_fill(
     }
 }
 
-pub(in crate::gui::native_shell::state) fn source_add_button_border(
+pub(in crate::app_core::native_shell::composition::state) fn source_add_button_border(
     style: &StyleTokens,
     hovered: bool,
     flashed: bool,
@@ -77,7 +77,7 @@ pub(in crate::gui::native_shell::state) fn source_add_button_border(
     }
 }
 
-pub(in crate::gui::native_shell::state) fn source_add_button_icon_color(
+pub(in crate::app_core::native_shell::composition::state) fn source_add_button_icon_color(
     style: &StyleTokens,
     hovered: bool,
     flashed: bool,
@@ -94,7 +94,7 @@ pub(in crate::gui::native_shell::state) fn source_add_button_icon_color(
     }
 }
 
-pub(in crate::gui::native_shell::state) fn source_add_button_rect(
+pub(in crate::app_core::native_shell::composition::state) fn source_add_button_rect(
     header_rect: Rect,
     sizing: SizingTokens,
 ) -> Option<Rect> {
@@ -106,7 +106,7 @@ pub(in crate::gui::native_shell::state) fn source_add_button_rect(
     .add_button_rect
 }
 
-pub(in crate::gui::native_shell::state) fn sidebar_sections(
+pub(in crate::app_core::native_shell::composition::state) fn sidebar_sections(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
@@ -146,14 +146,14 @@ pub(in crate::gui::native_shell::state) fn sidebar_sections(
 }
 
 /// Return the sidebar workspace bands for sources, tags, and filters.
-pub(in crate::gui::native_shell::state) fn sidebar_workspace_sections(
+pub(in crate::app_core::native_shell::composition::state) fn sidebar_workspace_sections(
     layout: &ShellLayout,
     style: &StyleTokens,
 ) -> SidebarWorkspaceSections {
     compute_sidebar_workspace_sections(layout.sidebar_rows, style.sizing)
 }
 
-pub(in crate::gui::native_shell::state) fn source_action_buttons(
+pub(in crate::app_core::native_shell::composition::state) fn source_action_buttons(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
@@ -232,7 +232,7 @@ pub(in crate::gui::native_shell::state) fn source_action_buttons(
 }
 
 /// Build source context-menu panel geometry and action buttons.
-pub(in crate::gui::native_shell::state) fn source_context_menu_spec(
+pub(in crate::app_core::native_shell::composition::state) fn source_context_menu_spec(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
@@ -322,7 +322,7 @@ pub(in crate::gui::native_shell::state) fn source_context_menu_spec(
 }
 
 /// Build browser context-menu panel geometry and action buttons.
-pub(in crate::gui::native_shell::state) fn browser_context_menu_spec(
+pub(in crate::app_core::native_shell::composition::state) fn browser_context_menu_spec(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,

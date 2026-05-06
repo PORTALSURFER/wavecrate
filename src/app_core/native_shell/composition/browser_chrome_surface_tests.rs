@@ -1,7 +1,6 @@
 use super::*;
 use crate::{
-    gui::{native_shell::style::StyleTokens, types::Point},
-    widgets::WidgetKind,
+    app_core::native_shell::composition::style::StyleTokens, gui::types::Point, widgets::WidgetKind,
 };
 
 fn assert_inside(outer: Rect, inner: Rect) {

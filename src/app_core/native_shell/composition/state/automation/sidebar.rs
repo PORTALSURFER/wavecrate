@@ -2,7 +2,7 @@
 
 use super::helpers::{action_slug, bool_text, bounds, metadata, node_id, simple_node, slug};
 use super::*;
-use crate::compat_app_contract::{
+use crate::app_core::native_shell::runtime_contract::{
     AutomationRole, BrowserPillState, FolderPaneIdModel, FolderPaneModel,
 };
 
@@ -58,7 +58,8 @@ pub(super) fn build_sidebar_automation(
         sections.source_rows(pane),
         source_rows,
         &model.sources.rows,
-        model.focus_context == crate::compat_app_contract::FocusContextModel::NavigationList,
+        model.focus_context
+            == crate::app_core::native_shell::runtime_contract::FocusContextModel::NavigationList,
     ));
     children.push(folder_browser_group(
         sections.folder_header(pane),
@@ -67,7 +68,8 @@ pub(super) fn build_sidebar_automation(
         &pane_model.tree_rows,
         pane_model,
         style,
-        model.focus_context == crate::compat_app_contract::FocusContextModel::NavigationTree,
+        model.focus_context
+            == crate::app_core::native_shell::runtime_contract::FocusContextModel::NavigationTree,
     ));
     children.push(tags_group(workspace.tags, model));
     children.push(filters_group(workspace.filters, model));
@@ -328,7 +330,7 @@ fn source_list_group(
     pane: FolderPaneIdModel,
     rect: Rect,
     source_rows: Vec<CachedSourceRow>,
-    rows: &[crate::compat_app_contract::SourceRowModel],
+    rows: &[crate::app_core::native_shell::runtime_contract::SourceRowModel],
     selected: bool,
 ) -> AutomationNodeSnapshot {
     let row_count = rows.len().to_string();
@@ -375,7 +377,7 @@ fn source_list_group(
 }
 
 fn source_row_selected(
-    row: &crate::compat_app_contract::SourceRowModel,
+    row: &crate::app_core::native_shell::runtime_contract::SourceRowModel,
     pane: FolderPaneIdModel,
 ) -> bool {
     match pane {
@@ -388,7 +390,7 @@ fn folder_browser_group(
     header_rect: Rect,
     tree_rows_band: Rect,
     tree_rows: Vec<CachedFolderRow>,
-    rows: &[crate::compat_app_contract::FolderRowModel],
+    rows: &[crate::app_core::native_shell::runtime_contract::FolderRowModel],
     pane_model: &FolderPaneModel,
     style: &StyleTokens,
     selected: bool,
@@ -459,13 +461,13 @@ fn folder_browser_group(
             .map(|(row_index, rect, row)| {
                 let (role, label, value, available_actions) = if matches!(
                     row.kind,
-                    crate::compat_app_contract::FolderRowKind::CreateDraft
-                        | crate::compat_app_contract::FolderRowKind::RenameDraft
+                    crate::app_core::native_shell::runtime_contract::FolderRowKind::CreateDraft
+                        | crate::app_core::native_shell::runtime_contract::FolderRowKind::RenameDraft
                 ) {
                     (
                         AutomationRole::SearchField,
                         Some(
-                            if row.kind == crate::compat_app_contract::FolderRowKind::RenameDraft {
+                            if row.kind == crate::app_core::native_shell::runtime_contract::FolderRowKind::RenameDraft {
                                 String::from("Rename folder")
                             } else {
                                 String::from("New folder")
@@ -512,13 +514,13 @@ fn folder_browser_group(
                         (
                             "kind",
                             match row.kind {
-                                crate::compat_app_contract::FolderRowKind::CreateDraft => {
+                                crate::app_core::native_shell::runtime_contract::FolderRowKind::CreateDraft => {
                                     "create_draft"
                                 }
-                                crate::compat_app_contract::FolderRowKind::RenameDraft => {
+                                crate::app_core::native_shell::runtime_contract::FolderRowKind::RenameDraft => {
                                     "rename_draft"
                                 }
-                                crate::compat_app_contract::FolderRowKind::Existing => "existing",
+                                crate::app_core::native_shell::runtime_contract::FolderRowKind::Existing => "existing",
                             },
                         ),
                         ("input_error", row.input_error.as_deref().unwrap_or("")),

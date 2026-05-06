@@ -5,7 +5,7 @@ use super::surface::emit_waveform_loading_placeholder;
 use super::trail::emit_waveform_playhead_trail;
 use super::*;
 
-pub(in crate::gui::native_shell::state) fn push_waveform_playhead_overlay(
+pub(in crate::app_core::native_shell::composition::state) fn push_waveform_playhead_overlay(
     primitives: &mut impl PrimitiveSink,
     layout: &ShellLayout,
     style: &StyleTokens,

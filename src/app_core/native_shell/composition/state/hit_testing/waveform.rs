@@ -1,15 +1,15 @@
 use super::*;
-use crate::compat_app_contract::NormalizedRangeModel;
+use crate::app_core::native_shell::runtime_contract::NormalizedRangeModel;
 
 #[path = "waveform/toolbar.rs"]
 mod toolbar;
 
-pub(in crate::gui::native_shell::state) use self::toolbar::{
+pub(in crate::app_core::native_shell::composition::state) use self::toolbar::{
     waveform_toolbar_hit_test_cache_key, waveform_toolbar_hover_hint,
 };
 
 #[cfg(test)]
-pub(in crate::gui::native_shell::state) fn waveform_toolbar_model_flags(
+pub(in crate::app_core::native_shell::composition::state) fn waveform_toolbar_model_flags(
     model: &NativeMotionModel,
 ) -> u16 {
     toolbar::waveform_toolbar_model_flags(model)
@@ -273,7 +273,7 @@ impl NativeShellState {
 }
 
 /// Return hovered waveform marker x-position for one pointer point.
-pub(in crate::gui::native_shell::state) fn waveform_hover_x_for_point(
+pub(in crate::app_core::native_shell::composition::state) fn waveform_hover_x_for_point(
     layout: &ShellLayout,
     hover: Option<ShellNodeKind>,
     point: Point,
@@ -290,7 +290,7 @@ pub(in crate::gui::native_shell::state) fn waveform_hover_x_for_point(
 }
 
 /// Return the hovered waveform resize-edge target for one pointer point.
-pub(in crate::gui::native_shell::state) fn hovered_waveform_resize_edge_for_point(
+pub(in crate::app_core::native_shell::composition::state) fn hovered_waveform_resize_edge_for_point(
     layout: &ShellLayout,
     model: &AppModel,
     point: Point,
@@ -351,7 +351,7 @@ fn hovered_resize_edge_for_range(
 }
 
 /// Convert one normalized waveform micro position into plot-space x.
-pub(in crate::gui::native_shell::state) fn waveform_x_for_micros(
+pub(in crate::app_core::native_shell::composition::state) fn waveform_x_for_micros(
     plot: Rect,
     model: &AppModel,
     micros: u32,
@@ -367,7 +367,7 @@ pub(in crate::gui::native_shell::state) fn waveform_x_for_micros(
 }
 
 /// Return the centered vertical hit span used by waveform edge-resize targets.
-pub(in crate::gui::native_shell::state) fn waveform_centered_resize_edge_y_bounds(
+pub(in crate::app_core::native_shell::composition::state) fn waveform_centered_resize_edge_y_bounds(
     plot: Rect,
 ) -> (f32, f32) {
     let height = (plot.height() * 0.34).max(1.0).min(plot.height());
@@ -378,7 +378,7 @@ pub(in crate::gui::native_shell::state) fn waveform_centered_resize_edge_y_bound
 }
 
 /// Return one plot-bounded hover marker rectangle for a waveform x-position.
-pub(in crate::gui::native_shell::state) fn waveform_hover_marker_rect(
+pub(in crate::app_core::native_shell::composition::state) fn waveform_hover_marker_rect(
     waveform_plot: Rect,
     marker_width: f32,
     hover_x: f32,

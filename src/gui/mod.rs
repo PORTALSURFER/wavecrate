@@ -30,9 +30,6 @@ pub mod text_layout {
     pub use radiant::gui::text_layout::*;
 }
 
-#[path = "../app_core/native_shell/composition/mod.rs"]
-pub(crate) mod native_shell;
-
 pub mod automation {
     //! Generic automation snapshot primitives from `radiant`.
     pub use radiant::gui::automation::*;

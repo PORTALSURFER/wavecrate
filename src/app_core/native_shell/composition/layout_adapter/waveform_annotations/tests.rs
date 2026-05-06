@@ -1,4 +1,5 @@
 use super::*;
+use crate::app_core::native_shell::runtime_contract::WaveformSlicePreviewModel;
 
 fn assert_inside(outer: Rect, inner: Rect) {
     assert!(inner.min.x >= outer.min.x);
@@ -110,7 +111,7 @@ fn slice_preview_rects_preserve_selection_state_and_stay_inside_plot() {
     let slices = compute_waveform_slice_preview_rects(
         plot,
         &[
-            TimelineMarkerPreview {
+            WaveformSlicePreviewModel {
                 range: NormalizedRangeModel::new(100, 220),
                 selected: false,
                 focused: false,
@@ -118,7 +119,7 @@ fn slice_preview_rects_preserve_selection_state_and_stay_inside_plot() {
                 review_candidate: false,
                 review_exempted: false,
             },
-            TimelineMarkerPreview {
+            WaveformSlicePreviewModel {
                 range: NormalizedRangeModel::new(500, 700),
                 selected: true,
                 focused: true,

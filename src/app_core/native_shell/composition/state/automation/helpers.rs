@@ -1,7 +1,7 @@
 //! Shared helper utilities for semantic automation snapshot builders.
 
 use super::*;
-use crate::compat_app_contract::{
+use crate::app_core::native_shell::runtime_contract::{
     AutomationBounds, AutomationNodeId, AutomationNodeSnapshot, AutomationRole,
     NormalizedRangeModel, UpdateStatusModel,
 };

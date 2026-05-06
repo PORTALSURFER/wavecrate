@@ -1,7 +1,7 @@
 use super::*;
 
 /// Return the width reserved for the focused-row similarity trigger.
-pub(in crate::gui::native_shell::state) fn browser_similarity_button_reserved_width(
+pub(in crate::app_core::native_shell::composition::state) fn browser_similarity_button_reserved_width(
     visible: bool,
     sizing: SizingTokens,
 ) -> f32 {
@@ -12,7 +12,7 @@ pub(in crate::gui::native_shell::state) fn browser_similarity_button_reserved_wi
 }
 
 /// Return the width reserved for the compact right-edge similarity strength bar.
-pub(in crate::gui::native_shell::state) fn browser_similarity_strength_reserved_width(
+pub(in crate::app_core::native_shell::composition::state) fn browser_similarity_strength_reserved_width(
     visible: bool,
     sizing: SizingTokens,
 ) -> f32 {
@@ -23,7 +23,7 @@ pub(in crate::gui::native_shell::state) fn browser_similarity_strength_reserved_
 }
 
 /// Return the leading sample-column button rect used to trigger row similarity mode.
-pub(in crate::gui::native_shell::state) fn browser_similarity_button_rect(
+pub(in crate::app_core::native_shell::composition::state) fn browser_similarity_button_rect(
     row_rect: Rect,
     sizing: SizingTokens,
 ) -> Option<Rect> {
@@ -52,7 +52,7 @@ pub(in crate::gui::native_shell::state) fn browser_similarity_button_rect(
 }
 
 /// Return the compact right-edge track rect used to show row similarity strength.
-pub(in crate::gui::native_shell::state) fn browser_similarity_strength_track_rect(
+pub(in crate::app_core::native_shell::composition::state) fn browser_similarity_strength_track_rect(
     sample_label: Rect,
     sizing: SizingTokens,
 ) -> Option<Rect> {
@@ -76,7 +76,7 @@ pub(in crate::gui::native_shell::state) fn browser_similarity_strength_track_rec
 }
 
 /// Return the fill rect used inside the compact similarity strength track.
-pub(in crate::gui::native_shell::state) fn browser_similarity_strength_fill_rect(
+pub(in crate::app_core::native_shell::composition::state) fn browser_similarity_strength_fill_rect(
     track_rect: Rect,
     strength: u8,
 ) -> Option<Rect> {
@@ -93,7 +93,7 @@ pub(in crate::gui::native_shell::state) fn browser_similarity_strength_fill_rect
 }
 
 /// Return the centered icon rect used inside the browser similarity button.
-pub(in crate::gui::native_shell::state) fn browser_similarity_button_icon_rect(
+pub(in crate::app_core::native_shell::composition::state) fn browser_similarity_button_icon_rect(
     button_rect: Rect,
     sizing: SizingTokens,
 ) -> Rect {
@@ -111,7 +111,7 @@ pub(in crate::gui::native_shell::state) fn browser_similarity_button_icon_rect(
 }
 
 /// Render the focused-row similarity button using the shared native icon pipeline.
-pub(in crate::gui::native_shell::state) fn render_browser_similarity_button(
+pub(in crate::app_core::native_shell::composition::state) fn render_browser_similarity_button(
     primitives: &mut impl PrimitiveSink,
     button_rect: Rect,
     style: &StyleTokens,

@@ -4,7 +4,7 @@ use crate::gui::list::{
     virtual_list_scrollbar_view_start_for_pointer, virtual_list_viewport_len_for_extent,
 };
 
-pub(in crate::gui::native_shell::state) fn browser_rows_capacity(
+pub(in crate::app_core::native_shell::composition::state) fn browser_rows_capacity(
     table_rows_rect: Rect,
     sizing: SizingTokens,
 ) -> usize {
@@ -24,7 +24,7 @@ fn browser_scrollbar_track_metrics(sizing: SizingTokens) -> (f32, f32, f32) {
 }
 
 /// Return the browser-row content rect after reserving the scrollbar lane.
-pub(in crate::gui::native_shell::state) fn browser_rows_content_rect(
+pub(in crate::app_core::native_shell::composition::state) fn browser_rows_content_rect(
     browser_rows_rect: Rect,
     visible_count: usize,
     sizing: SizingTokens,
@@ -45,7 +45,7 @@ pub(in crate::gui::native_shell::state) fn browser_rows_content_rect(
 }
 
 /// Compute visual scrollbar geometry for one overflowing browser row viewport.
-pub(in crate::gui::native_shell::state) fn browser_scrollbar_layout(
+pub(in crate::app_core::native_shell::composition::state) fn browser_scrollbar_layout(
     browser_rows_rect: Rect,
     rows: &[CachedBrowserRow],
     visible_count: usize,
@@ -86,7 +86,7 @@ pub(in crate::gui::native_shell::state) fn browser_scrollbar_layout(
 }
 
 /// Resolve the browser viewport start row for a dragged scrollbar thumb position.
-pub(in crate::gui::native_shell::state) fn browser_scrollbar_view_start_for_pointer(
+pub(in crate::app_core::native_shell::composition::state) fn browser_scrollbar_view_start_for_pointer(
     scrollbar: BrowserScrollbarLayout,
     viewport_len: usize,
     visible_count: usize,

@@ -1,5 +1,7 @@
 use super::*;
-use crate::compat_app_contract::{FolderPaneIdModel, FolderRowKind, FolderRowModel};
+use crate::app_core::native_shell::runtime_contract::{
+    FolderPaneIdModel, FolderRowKind, FolderRowModel,
+};
 
 pub(super) fn render_tree_rows(
     ctx: &StaticFrameCtx<'_>,

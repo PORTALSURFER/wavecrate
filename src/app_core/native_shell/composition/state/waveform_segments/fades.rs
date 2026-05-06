@@ -1,5 +1,5 @@
 use super::*;
-use crate::compat_app_contract::NormalizedRangeModel;
+use crate::app_core::native_shell::runtime_contract::NormalizedRangeModel;
 use crate::gui::{
     range::NormalizedPixelSnap,
     visualization::{TimelineCoordinateMapper, TimelineViewport},

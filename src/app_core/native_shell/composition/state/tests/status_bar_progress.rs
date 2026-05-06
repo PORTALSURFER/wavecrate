@@ -7,7 +7,7 @@ fn indeterminate_scan_progress_renders_scan_label_and_file_counter() {
     let mut state = NativeShellState::new();
     state.tick_with_style(0.35, &style);
     let model = AppModel {
-        progress_overlay: crate::compat_app_contract::ProgressOverlayModel {
+        progress_overlay: crate::app_core::native_shell::runtime_contract::ProgressOverlayModel {
             visible: true,
             modal: false,
             title: String::from("Scanning source"),
@@ -55,7 +55,7 @@ fn determinate_analysis_progress_keeps_fraction_counter() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut state = NativeShellState::new();
     let model = AppModel {
-        progress_overlay: crate::compat_app_contract::ProgressOverlayModel {
+        progress_overlay: crate::app_core::native_shell::runtime_contract::ProgressOverlayModel {
             visible: true,
             modal: false,
             title: String::from("Analyzing samples"),
@@ -93,7 +93,7 @@ fn status_bar_text_cache_reuses_and_invalidates_on_progress_changes() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut state = NativeShellState::new();
     let mut model = AppModel {
-        progress_overlay: crate::compat_app_contract::ProgressOverlayModel {
+        progress_overlay: crate::app_core::native_shell::runtime_contract::ProgressOverlayModel {
             visible: true,
             modal: false,
             title: String::from("Analyzing samples"),
@@ -203,3 +203,4 @@ fn status_bar_text_cache_invalidates_when_transport_state_changes() {
     assert_eq!(second.cache_hit_count, 0);
     assert_eq!(second.cache_miss_count, 1);
 }
+

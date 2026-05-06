@@ -30,7 +30,10 @@ fn primary_click_selects_clicked_column() {
         (layout.columns[2].min.y + layout.columns[2].max.y) * 0.5,
     );
     assert!(state.handle_primary_click(&layout, point));
-    let frame = state.build_frame(&layout, &crate::compat_app_contract::AppModel::default());
+    let frame = state.build_frame(
+        &layout,
+        &crate::app_core::native_shell::runtime_contract::AppModel::default(),
+    );
     assert!(frame.primitives.len() > 10);
     assert!(!frame.text_runs.is_empty());
 }
@@ -48,13 +51,12 @@ fn arrow_keys_wrap_selection() {
 fn browser_row_hit_test_resolves_visible_row() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
-    let mut model = crate::compat_app_contract::AppModel::default();
-    model
-        .browser
-        .rows
-        .push(crate::compat_app_contract::BrowserRowModel::new(
+    let mut model = crate::app_core::native_shell::runtime_contract::AppModel::default();
+    model.browser.rows.push(
+        crate::app_core::native_shell::runtime_contract::BrowserRowModel::new(
             7, "kick", 0, false, true,
-        ));
+        ),
+    );
     let style = style::StyleTokens::for_viewport_width(layout.root.rect.width());
     let row_center_y = layout.browser_rows.min.y + (style.sizing.browser_row_height * 0.5);
     let point = Point::new(
@@ -305,18 +307,17 @@ fn wide_viewport_renders_more_browser_rows_than_narrow_viewport() {
     let narrow_layout = ShellLayout::build(Vector2::new(820.0, 520.0));
     let wide_layout = ShellLayout::build(Vector2::new(2300.0, 1080.0));
     let mut state = NativeShellState::new();
-    let mut model = crate::compat_app_contract::AppModel::default();
+    let mut model = crate::app_core::native_shell::runtime_contract::AppModel::default();
     for index in 0..40 {
-        model
-            .browser
-            .rows
-            .push(crate::compat_app_contract::BrowserRowModel::new(
+        model.browser.rows.push(
+            crate::app_core::native_shell::runtime_contract::BrowserRowModel::new(
                 index,
                 format!("row_{index:02}"),
                 1,
                 false,
                 false,
-            ));
+            ),
+        );
     }
     state.sync_from_model(&model);
     let narrow_frame = state.build_frame(&narrow_layout, &model);

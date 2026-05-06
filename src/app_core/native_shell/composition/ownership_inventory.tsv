@@ -1,23 +1,23 @@
 # Native shell ownership inventory for OPT-186.
 #
 # Columns:
-# - pattern: exact module path under src/gui/native_shell, or a directory prefix ending in /**
+# - pattern: exact module path under src/app_core/native_shell/composition, or a directory prefix ending in /**
 # - owner: radiant_generic, compat_adapter, sempal_composition, or sempal_fixture
 # - move_scope: stay_radiant, compat_boundary, or the Linear child issue that owns the move
 # - notes: dependency and relocation notes without tabs
 #
-# The gui::native_shell::tests::contracts::native_shell_ownership_inventory_covers_every_module
+# The app_core::native_shell::composition::tests::contracts::native_shell_ownership_inventory_covers_every_module
 # regression requires every *.rs module under this directory to match exactly one pattern.
 pattern	owner	move_scope	notes
-mod.rs	compat_adapter	compat_boundary	Native-shell facade remains in Radiant until Sempal-owned composition has moved behind generic primitives.
+mod.rs	compat_adapter	compat_boundary	Native-shell composition facade is Sempal-owned and remains the local app composition entrypoint.
 layout/**	radiant_generic	stay_radiant	Backend-neutral layout tree, geometry, and node contracts.
 layout_runtime.rs	radiant_generic	stay_radiant	Retained layout runtime and dirty-subtree bookkeeping.
-state/svg_icons/parser.rs	radiant_generic	stay_radiant	Reusable SVG subset parser used by compatibility icon rasterization.
 style/sizing.rs	radiant_generic	stay_radiant	Viewport and UI-scale sizing token type.
 style/sizing/**	radiant_generic	stay_radiant	Sizing token defaults, tier deltas, and tests.
 style/mod.rs	compat_adapter	compat_boundary	Mixes generic theme tokens with Sempal shell chrome until style ownership is split.
 style/chrome.rs	sempal_composition	OPT-187	Sempal shell chrome tokens move with top, status, options, and overlay shell composition.
 style/palette.rs	sempal_composition	OPT-187	Sempal compatibility palette moves with top, status, options, and overlay shell composition.
+runtime/**	compat_adapter	compat_boundary	Sempal-owned runtime contract modules back composition and the runtime adapter during the post-cutover boundary cleanup.
 layout_adapter.rs	compat_adapter	compat_boundary	Geometry adapter facade remains until surface-specific layout helpers move.
 layout_adapter/bands.rs	sempal_composition	OPT-187	Shell band geometry belongs with top, status, options, and overlay composition.
 layout_adapter/browser_chrome_text.rs	sempal_composition	OPT-188	Browser chrome text layout moves with browser chrome and map composition.
@@ -112,3 +112,4 @@ state/toolbar_helpers/waveform_toolbar.rs	sempal_composition	OPT-190	Waveform to
 state/toolbar_helpers/waveform_visuals.rs	sempal_composition	OPT-190	Waveform visuals helper moves with waveform composition.
 state/waveform_segments/**	sempal_composition	OPT-190	Waveform fades, header, overlay, routing, scrollbar, selection, slices, surface, and trail composition move with waveform composition.
 tests/**	sempal_fixture	OPT-191	Sempal native-shell compatibility tests stay grouped as fixture relocation unless a surface child explicitly owns one.
+

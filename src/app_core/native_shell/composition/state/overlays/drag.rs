@@ -12,7 +12,7 @@ const DRAG_CHIP_MIN_HEIGHT: f32 = 18.0;
 ///
 /// This keeps the existing bottom banner for destination/status feedback and
 /// adds a compact cursor-following chip that shows the dragged payload label.
-pub(in crate::gui::native_shell::state) fn render_drag_overlay(
+pub(in crate::app_core::native_shell::composition::state) fn render_drag_overlay(
     primitives: &mut impl PrimitiveSink,
     text_runs: &mut impl TextRunSink,
     layout: &ShellLayout,
@@ -128,7 +128,7 @@ fn drag_banner_text(model: &AppModel) -> String {
 }
 
 /// Resolve the floating drag-chip rect for the current pointer anchor.
-pub(in crate::gui::native_shell::state) fn drag_chip_rect(
+pub(in crate::app_core::native_shell::composition::state) fn drag_chip_rect(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,

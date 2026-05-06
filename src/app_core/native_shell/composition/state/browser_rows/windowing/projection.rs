@@ -1,6 +1,6 @@
 use super::*;
 
-pub(in crate::gui::native_shell::state) fn browser_rows_cache_key(
+pub(in crate::app_core::native_shell::composition::state) fn browser_rows_cache_key(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
@@ -47,16 +47,16 @@ pub(in crate::gui::native_shell::state) fn browser_rows_cache_key(
     }
 }
 
-pub(in crate::gui::native_shell::state) fn usize_to_u32(value: usize) -> u32 {
+pub(in crate::app_core::native_shell::composition::state) fn usize_to_u32(value: usize) -> u32 {
     u32::try_from(value).unwrap_or(u32::MAX)
 }
 
-pub(in crate::gui::native_shell::state) fn f32_to_bits(value: f32) -> u32 {
+pub(in crate::app_core::native_shell::composition::state) fn f32_to_bits(value: f32) -> u32 {
     value.to_bits()
 }
 
 #[cfg(test)]
-pub(in crate::gui::native_shell::state) fn rendered_browser_rows(
+pub(in crate::app_core::native_shell::composition::state) fn rendered_browser_rows(
     layout: &ShellLayout,
     model: &AppModel,
     style: &StyleTokens,
@@ -74,7 +74,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows(
 
 /// Build rendered browser rows while reusing a retained truncation cache.
 #[cfg(test)]
-pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached(
+pub(in crate::app_core::native_shell::composition::state) fn rendered_browser_rows_cached(
     layout: &ShellLayout,
     model: &AppModel,
     style: &StyleTokens,
@@ -93,7 +93,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached(
 
 /// Build rendered browser rows and return the resolved viewport start used.
 #[cfg(test)]
-pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_window_start(
+pub(in crate::app_core::native_shell::composition::state) fn rendered_browser_rows_cached_with_window_start(
     layout: &ShellLayout,
     model: &AppModel,
     style: &StyleTokens,
@@ -111,7 +111,7 @@ pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_win
 }
 
 /// Build rendered browser rows while preserving a prior visible viewport start.
-pub(in crate::gui::native_shell::state) fn rendered_browser_rows_cached_with_window_start_and_previous(
+pub(in crate::app_core::native_shell::composition::state) fn rendered_browser_rows_cached_with_window_start_and_previous(
     layout: &ShellLayout,
     model: &AppModel,
     style: &StyleTokens,

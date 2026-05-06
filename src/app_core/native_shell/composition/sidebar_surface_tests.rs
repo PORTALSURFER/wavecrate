@@ -1,5 +1,5 @@
 use super::*;
-use crate::gui::native_shell::style::StyleTokens;
+use crate::app_core::native_shell::composition::style::StyleTokens;
 use crate::gui::types::Point;
 use crate::widgets::WidgetKind;
 

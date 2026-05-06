@@ -1,5 +1,5 @@
 use super::{SizingTokens, base::base_sizing};
-use crate::gui::native_shell::style::LayoutScaleTier;
+use crate::app_core::native_shell::composition::style::LayoutScaleTier;
 
 /// Resolve the shell sizing pack for the requested viewport tier.
 pub(super) fn sizing_for_tier(layout_tier: LayoutScaleTier) -> SizingTokens {

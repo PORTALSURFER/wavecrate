@@ -13,7 +13,7 @@ pub(crate) struct SegmentTextCacheFrameCounts {
 
 /// Invalidation key for retained browser-frame/tab/footer text payloads.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(in crate::gui::native_shell::state) struct BrowserSegmentTextCacheKey {
+pub(in crate::app_core::native_shell::composition::state) struct BrowserSegmentTextCacheKey {
     /// Browser tabs region minimum x-coordinate.
     pub browser_tabs_min_x: u32,
     /// Browser tabs region minimum y-coordinate.
@@ -50,7 +50,7 @@ pub(in crate::gui::native_shell::state) struct BrowserSegmentTextCacheKey {
 
 /// Retained text/layout payload for browser tabs, toolbar labels, and footer copy.
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::gui::native_shell::state) struct BrowserSegmentTextCacheValue {
+pub(in crate::app_core::native_shell::composition::state) struct BrowserSegmentTextCacheValue {
     /// Precomputed browser-tab label rects.
     pub tabs_text_layout: BrowserTabsTextLayout,
     /// Precomputed toolbar label rects.
@@ -73,7 +73,7 @@ pub(in crate::gui::native_shell::state) struct BrowserSegmentTextCacheValue {
 
 /// Invalidation key for retained status-bar text payloads.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(in crate::gui::native_shell::state) struct StatusBarTextCacheKey {
+pub(in crate::app_core::native_shell::composition::state) struct StatusBarTextCacheKey {
     /// Status left-segment region minimum x-coordinate.
     pub status_left_min_x: u32,
     /// Status left-segment region minimum y-coordinate.
@@ -118,7 +118,7 @@ pub(in crate::gui::native_shell::state) struct StatusBarTextCacheKey {
 
 /// Retained text/layout payload for the status bar and inline progress copy.
 #[derive(Clone, Debug, PartialEq)]
-pub(in crate::gui::native_shell::state) struct StatusBarTextCacheValue {
+pub(in crate::app_core::native_shell::composition::state) struct StatusBarTextCacheValue {
     /// Precomputed left status-label rect.
     pub left_text_rect: Rect,
     /// Precomputed center status-label rect.

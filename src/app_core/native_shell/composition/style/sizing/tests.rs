@@ -1,5 +1,5 @@
 use super::{SizingTokens, tier_deltas::sizing_for_tier};
-use crate::gui::native_shell::style::LayoutScaleTier;
+use crate::app_core::native_shell::composition::style::LayoutScaleTier;
 
 fn assert_common_invariants(sizing: SizingTokens) {
     assert!(sizing.min_viewport_width > 0.0);

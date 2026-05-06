@@ -68,10 +68,149 @@ pub type FolderPaneModel = panel::SplitPaneTreePanel<FolderRowModel>;
 pub type SourceRowModel = panel::SplitPaneAssignedRow;
 
 /// Transient browser row processing states for batch file operations.
-pub type BrowserRowProcessingState = list::RowProcessingState;
+#[derive(
+    Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+pub enum BrowserRowProcessingState {
+    /// The row is not part of an active row-scoped operation.
+    #[default]
+    None,
+    /// The row is waiting in the current batch.
+    Queued,
+    /// The row is currently being processed.
+    Active,
+    /// The row completed successfully.
+    Completed,
+    /// The row was skipped by the batch.
+    Skipped,
+    /// The row failed during processing.
+    Failed,
+}
 
-/// Summary of one browser/list row consumed by the native shell.
-pub type BrowserRowModel = list::ContentListRow;
+/// Summary of one Sempal browser/list row consumed by the native shell.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BrowserRowModel {
+    /// Visible row index in the filtered browser list.
+    pub visible_row: usize,
+    /// Display label for the row.
+    ///
+    /// This text is reference-counted so retained app-model clones can reuse
+    /// row payloads without copying every row label.
+    pub label: Arc<str>,
+    /// Triage or grouping column index that currently owns the row.
+    pub column: usize,
+    /// Signed row rating level shown alongside the row label (`-3..=3`).
+    pub rating_level: i8,
+    /// Visual playback-age bucket used to render the row age marker.
+    pub playback_age_bucket: PlaybackAgeBucket,
+    /// Optional inline metadata label rendered at the row edge.
+    pub bucket_label: Option<Arc<str>>,
+    /// Optional normalized relatedness fill amount encoded in the inclusive `0..=255` range.
+    pub similarity_display_strength: Option<u8>,
+    /// Whether this row is currently selected in multi-selection state.
+    pub selected: bool,
+    /// Whether this row currently has focus/caret.
+    pub focused: bool,
+    /// Whether the backing sample is unavailable.
+    pub missing: bool,
+    /// Whether the backing sample is locked/protected.
+    pub locked: bool,
+    /// Whether the backing sample is marked for later review.
+    pub marked: bool,
+    /// Transient row-scoped processing state for active batch file operations.
+    pub processing_state: BrowserRowProcessingState,
+}
+
+impl BrowserRowModel {
+    /// Build a row model, clamping the column into `0..=2`.
+    pub fn new(
+        visible_row: usize,
+        label: impl Into<String>,
+        column: usize,
+        selected: bool,
+        focused: bool,
+    ) -> Self {
+        Self {
+            visible_row,
+            label: Arc::<str>::from(label.into()),
+            column: column.min(2),
+            rating_level: 0,
+            playback_age_bucket: PlaybackAgeBucket::Fresh,
+            bucket_label: None,
+            similarity_display_strength: None,
+            selected,
+            focused,
+            missing: false,
+            locked: false,
+            marked: false,
+            processing_state: BrowserRowProcessingState::None,
+        }
+    }
+
+    /// Attach a signed rating level for inline row indicators.
+    pub fn with_rating_level(mut self, rating_level: i8) -> Self {
+        self.rating_level = rating_level.clamp(-3, 3);
+        self
+    }
+
+    /// Attach the playback-age bucket used for row aging treatment.
+    pub fn with_playback_age_bucket(mut self, playback_age_bucket: PlaybackAgeBucket) -> Self {
+        self.playback_age_bucket = playback_age_bucket;
+        self
+    }
+
+    /// Attach an explicit inline metadata label for this row.
+    pub fn with_bucket_label(mut self, label: impl Into<String>) -> Self {
+        self.bucket_label = Some(Arc::<str>::from(label.into()));
+        self
+    }
+
+    /// Attach a normalized relatedness display strength for a compact row bar.
+    ///
+    /// Values are clamped into `[0.0, 1.0]` and encoded into the integer-backed
+    /// `similarity_display_strength` field so retained app-model snapshots can
+    /// keep `Eq` semantics.
+    pub fn with_similarity_display_strength(mut self, display_strength: f32) -> Self {
+        self.similarity_display_strength =
+            Some(Self::encode_similarity_display_strength(display_strength));
+        self
+    }
+
+    /// Encode one normalized relatedness display strength into the stored byte range.
+    pub fn encode_similarity_display_strength(display_strength: f32) -> u8 {
+        (display_strength.clamp(0.0, 1.0) * 255.0).round() as u8
+    }
+
+    /// Decode the stored relatedness display strength into a normalized fill amount.
+    pub fn similarity_display_strength_ratio(&self) -> Option<f32> {
+        self.similarity_display_strength
+            .map(|strength| f32::from(strength) / 255.0)
+    }
+
+    /// Mark whether the backing sample is unavailable.
+    pub fn with_missing(mut self, missing: bool) -> Self {
+        self.missing = missing;
+        self
+    }
+
+    /// Mark whether the backing sample should render with protected treatment.
+    pub fn with_locked(mut self, locked: bool) -> Self {
+        self.locked = locked;
+        self
+    }
+
+    /// Mark whether the backing sample should render with review treatment.
+    pub fn with_marked(mut self, marked: bool) -> Self {
+        self.marked = marked;
+        self
+    }
+
+    /// Attach a transient row-scoped processing state.
+    pub fn with_processing_state(mut self, processing_state: BrowserRowProcessingState) -> Self {
+        self.processing_state = processing_state;
+        self
+    }
+}
 
 /// Tri-state pill state used by the browser metadata editor.
 pub type BrowserTagState = selection::TriState;
@@ -100,8 +239,22 @@ pub type WaveformTransportModel = visualization::TimelineTransportState;
 /// Waveform edit selection and fade-preview state exposed to the native shell.
 pub type WaveformEditPreviewModel = visualization::TimelineEditPreview;
 
-/// One detected waveform slice preview exposed to the native shell.
-pub type WaveformSlicePreviewModel = visualization::TimelineMarkerPreview;
+/// One detected Sempal waveform slice preview exposed to the native shell.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WaveformSlicePreviewModel {
+    /// Slice range in normalized waveform precision.
+    pub range: NormalizedRangeModel,
+    /// Whether this slice is currently selected for edit operations.
+    pub selected: bool,
+    /// Whether this slice is focused for keyboard review.
+    pub focused: bool,
+    /// Whether this slice is marked for sample export.
+    pub marked_for_export: bool,
+    /// Whether this slice belongs to the duplicate-cleanup candidate batch.
+    pub review_candidate: bool,
+    /// Whether this slice is currently exempted from duplicate cleanup.
+    pub review_exempted: bool,
+}
 
 /// One-shot waveform feedback event tokens exposed to the native shell.
 pub type WaveformFeedbackEventsModel = visualization::TimelineFeedbackEvents;
@@ -116,13 +269,73 @@ pub type WaveformImagePreviewModel = visualization::SignalRasterPreview;
 pub type WaveformChromeStateModel = visualization::SignalChromeState;
 
 /// Waveform tool availability state exposed to the native shell.
-pub type WaveformToolStateModel = visualization::SignalToolState;
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WaveformToolStateModel {
+    /// Whether loop playback is locked against sample-driven updates.
+    pub lock_enabled: bool,
+    /// Whether normalized audition playback is enabled.
+    pub audition_enabled: bool,
+    /// Whether BPM snapping is enabled.
+    pub primary_snap_enabled: bool,
+    /// Whether playback BPM grids and snapping use selection-relative anchors.
+    pub relative_grid_enabled: bool,
+    /// Whether transient snapping is enabled.
+    pub secondary_snap_enabled: bool,
+    /// Whether transient markers are visible.
+    pub markers_visible: bool,
+    /// Whether slice review mode is active.
+    pub review_mode_enabled: bool,
+    /// Whether exact-duplicate cleanup can be applied from the waveform toolbar.
+    pub cleanup_available: bool,
+}
+
+impl Default for WaveformToolStateModel {
+    fn default() -> Self {
+        Self {
+            lock_enabled: false,
+            audition_enabled: false,
+            primary_snap_enabled: false,
+            relative_grid_enabled: false,
+            secondary_snap_enabled: false,
+            markers_visible: true,
+            review_mode_enabled: false,
+            cleanup_available: false,
+        }
+    }
+}
+
+impl WaveformToolStateModel {
+    /// Build waveform tool state from explicit Sempal workflow flags.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        lock_enabled: bool,
+        audition_enabled: bool,
+        primary_snap_enabled: bool,
+        relative_grid_enabled: bool,
+        secondary_snap_enabled: bool,
+        markers_visible: bool,
+        review_mode_enabled: bool,
+        cleanup_available: bool,
+    ) -> Self {
+        Self {
+            lock_enabled,
+            audition_enabled,
+            primary_snap_enabled,
+            relative_grid_enabled,
+            secondary_snap_enabled,
+            markers_visible,
+            review_mode_enabled,
+            cleanup_available,
+        }
+    }
+}
 
 /// Aggregated waveform timeline surface state exposed to the native shell.
 pub type WaveformSurfaceModel = visualization::TimelineSurfaceState<WaveformSlicePreviewModel>;
 
 /// Aggregated waveform motion state exposed to the native shell.
-pub type WaveformMotionModel = visualization::TimelineMotionState<WaveformSlicePreviewModel>;
+pub type WaveformMotionModel =
+    visualization::TimelineMotionState<WaveformSlicePreviewModel, WaveformToolStateModel>;
 
 /// Render data for one point shown in the native map canvas.
 pub type MapPointModel = visualization::SpatialPoint;
@@ -149,7 +362,15 @@ pub type AudioOptionItemModel = form::OptionItem<AudioOptionValueModel>;
 pub type AudioFieldModel = form::SummaryField;
 
 /// Browser playback-age filter chips shown in the native toolbar.
-pub type PlaybackAgeFilterChip = list::RecencyFilterChip;
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub enum PlaybackAgeFilterChip {
+    /// Samples with no recorded playback timestamp.
+    NeverPlayed,
+    /// Samples last played at least 30 days ago.
+    OlderThanMonth,
+    /// Samples last played at least 7 days ago but less than 30 days ago.
+    OlderThanWeek,
+}
 
 /// Generic preference/settings panel state used by native overlay projections.
 pub type PreferencePanelStateModel<const TOGGLES: usize> = form::PreferencePanelState<TOGGLES>;
@@ -666,7 +887,20 @@ impl NativeMotionModel {
 }
 
 /// Visual playback-age buckets derived from sample playback history.
-pub type PlaybackAgeBucket = list::RecencyBucket;
+#[derive(
+    Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+pub enum PlaybackAgeBucket {
+    /// Samples played within the recent window, including future-skewed timestamps.
+    #[default]
+    Fresh,
+    /// Samples last played at least 7 days ago but less than 30 days ago.
+    OlderThanWeek,
+    /// Samples last played at least 30 days ago.
+    OlderThanMonth,
+    /// Samples with no recorded playback timestamp.
+    NeverPlayed,
+}
 
 /// Summary of browser/list state consumed by the native shell.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]

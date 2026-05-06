@@ -1,6 +1,6 @@
 //! Shared widget, slot, and clamp helpers for sidebar chrome surfaces.
 
-use crate::gui::native_shell::style::SizingTokens;
+use crate::app_core::native_shell::composition::style::SizingTokens;
 use crate::{
     gui::types::{Point, Rect, Vector2},
     layout::{Constraints, CrossAlign, Insets, SizeModeCross, SizeModeMain, SlotParams},

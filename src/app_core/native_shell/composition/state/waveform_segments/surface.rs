@@ -7,7 +7,7 @@ const LOADING_WAVEFORM_PROFILE: [f32; 15] = [
 ];
 
 /// Emit the neutral loading-state waveform silhouette used before waveform pixels arrive.
-pub(in crate::gui::native_shell::state) fn emit_waveform_loading_placeholder(
+pub(in crate::app_core::native_shell::composition::state) fn emit_waveform_loading_placeholder(
     primitives: &mut impl PrimitiveSink,
     waveform_plot: Rect,
     style: &StyleTokens,
@@ -94,7 +94,7 @@ pub(in crate::gui::native_shell::state) fn emit_waveform_loading_placeholder(
     }
 }
 
-pub(in crate::gui::native_shell::state) fn push_waveform_image(
+pub(in crate::app_core::native_shell::composition::state) fn push_waveform_image(
     primitives: &mut impl PrimitiveSink,
     waveform_plot: Rect,
     image: Option<&ImageRgba>,

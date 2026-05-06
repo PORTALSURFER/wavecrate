@@ -388,7 +388,7 @@ impl NativeShellState {
     }
 }
 
-pub(in crate::gui::native_shell::state) fn status_motion_overlay_rect(
+pub(in crate::app_core::native_shell::composition::state) fn status_motion_overlay_rect(
     segment: Rect,
     stroke: f32,
 ) -> Rect {

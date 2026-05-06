@@ -179,7 +179,7 @@ fn empty_rect(bounds: Rect) -> Rect {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gui::native_shell::style::StyleTokens;
+    use crate::app_core::native_shell::composition::style::StyleTokens;
 
     fn assert_inside(outer: Rect, inner: Rect) {
         assert!(inner.min.x >= outer.min.x);
@@ -219,3 +219,4 @@ mod tests {
         assert!(layout.query_row.min.x >= expected_left);
     }
 }
+

@@ -1,9 +1,11 @@
 //! Visual fill, pulse, and meter helpers shared by native shell lists and toolbars.
 
 use super::*;
-use crate::compat_app_contract::{BrowserRowProcessingState, PlaybackAgeBucket};
+use crate::app_core::native_shell::runtime_contract::{
+    BrowserRowProcessingState, PlaybackAgeBucket,
+};
 
-pub(in crate::gui::native_shell::state) fn volume_action_for_meter(
+pub(in crate::app_core::native_shell::composition::state) fn volume_action_for_meter(
     volume_meter: Rect,
     point: Point,
 ) -> UiAction {
@@ -15,11 +17,13 @@ pub(in crate::gui::native_shell::state) fn volume_action_for_meter(
     }
 }
 
-pub(in crate::gui::native_shell::state) fn interaction_wave(pulse_phase: f32) -> f32 {
+pub(in crate::app_core::native_shell::composition::state) fn interaction_wave(
+    pulse_phase: f32,
+) -> f32 {
     ((pulse_phase.sin() + 1.0) * 0.5).clamp(0.0, 1.0)
 }
 
-pub(in crate::gui::native_shell::state) fn translucent_overlay_color(
+pub(in crate::app_core::native_shell::composition::state) fn translucent_overlay_color(
     base: Rgba8,
     tint: Rgba8,
     amount: f32,
@@ -33,7 +37,9 @@ pub(in crate::gui::native_shell::state) fn translucent_overlay_color(
 }
 
 /// Return a subtle whitish row-hover fill used across non-browser item lists.
-pub(in crate::gui::native_shell::state) fn subtle_item_hover_fill(style: &StyleTokens) -> Rgba8 {
+pub(in crate::app_core::native_shell::composition::state) fn subtle_item_hover_fill(
+    style: &StyleTokens,
+) -> Rgba8 {
     translucent_overlay_color(
         style.bg_tertiary,
         style.text_primary,
@@ -60,7 +66,9 @@ pub(crate) fn folder_drag_hover_fill(style: &StyleTokens, valid_target: bool) ->
 ///
 /// The browser hover needs to read clearly against alternating row fills, so it
 /// intentionally uses roughly double the shared item-list hover intensity.
-pub(in crate::gui::native_shell::state) fn browser_row_hover_fill(style: &StyleTokens) -> Rgba8 {
+pub(in crate::app_core::native_shell::composition::state) fn browser_row_hover_fill(
+    style: &StyleTokens,
+) -> Rgba8 {
     translucent_overlay_color(
         style.bg_tertiary,
         style.text_primary,
@@ -69,7 +77,7 @@ pub(in crate::gui::native_shell::state) fn browser_row_hover_fill(style: &StyleT
 }
 
 /// Return the alternating neutral fill used for non-selected browser rows.
-pub(in crate::gui::native_shell::state) fn browser_row_stripe_fill(
+pub(in crate::app_core::native_shell::composition::state) fn browser_row_stripe_fill(
     style: &StyleTokens,
     visible_row: usize,
 ) -> Rgba8 {
@@ -81,7 +89,7 @@ pub(in crate::gui::native_shell::state) fn browser_row_stripe_fill(
 }
 
 /// Return the highlighted fill used while a similarity filter is active.
-pub(in crate::gui::native_shell::state) fn browser_similarity_row_fill(
+pub(in crate::app_core::native_shell::composition::state) fn browser_similarity_row_fill(
     style: &StyleTokens,
     visible_row: usize,
     anchor: bool,
@@ -92,7 +100,7 @@ pub(in crate::gui::native_shell::state) fn browser_similarity_row_fill(
 }
 
 /// Return the high-contrast fill used for rows carrying the temporary session mark.
-pub(in crate::gui::native_shell::state) fn browser_marked_row_fill(
+pub(in crate::app_core::native_shell::composition::state) fn browser_marked_row_fill(
     style: &StyleTokens,
     visible_row: usize,
 ) -> Rgba8 {
@@ -101,7 +109,7 @@ pub(in crate::gui::native_shell::state) fn browser_marked_row_fill(
 }
 
 /// Return the combined fill used when a marked row also participates in similarity mode.
-pub(in crate::gui::native_shell::state) fn browser_marked_similarity_row_fill(
+pub(in crate::app_core::native_shell::composition::state) fn browser_marked_similarity_row_fill(
     style: &StyleTokens,
     visible_row: usize,
     anchor: bool,
@@ -115,7 +123,7 @@ pub(in crate::gui::native_shell::state) fn browser_marked_similarity_row_fill(
 }
 
 /// Return a row fill blended with transient auto-rename processing state.
-pub(in crate::gui::native_shell::state) fn browser_processing_row_fill(
+pub(in crate::app_core::native_shell::composition::state) fn browser_processing_row_fill(
     style: &StyleTokens,
     base: Rgba8,
     state: BrowserRowProcessingState,
@@ -141,7 +149,7 @@ pub(in crate::gui::native_shell::state) fn browser_processing_row_fill(
 }
 
 /// Return the left-edge marker color for transient auto-rename processing state.
-pub(in crate::gui::native_shell::state) fn browser_processing_marker_color(
+pub(in crate::app_core::native_shell::composition::state) fn browser_processing_marker_color(
     style: &StyleTokens,
     state: BrowserRowProcessingState,
 ) -> Option<Rgba8> {
@@ -156,7 +164,9 @@ pub(in crate::gui::native_shell::state) fn browser_processing_marker_color(
 }
 
 /// Return the stronger neutral fill used for selected browser rows.
-pub(in crate::gui::native_shell::state) fn selected_browser_row_fill(style: &StyleTokens) -> Rgba8 {
+pub(in crate::app_core::native_shell::composition::state) fn selected_browser_row_fill(
+    style: &StyleTokens,
+) -> Rgba8 {
     translucent_overlay_color(
         style.bg_tertiary,
         style.text_primary,
@@ -165,21 +175,21 @@ pub(in crate::gui::native_shell::state) fn selected_browser_row_fill(style: &Sty
 }
 
 /// Return the accent fill used for the selected browser-row index cell.
-pub(in crate::gui::native_shell::state) fn selected_browser_index_fill(
+pub(in crate::app_core::native_shell::composition::state) fn selected_browser_index_fill(
     style: &StyleTokens,
 ) -> Rgba8 {
     style.highlight_orange
 }
 
 /// Return the accent fill used for the similarity-anchor browser-row index cell.
-pub(in crate::gui::native_shell::state) fn similarity_anchor_browser_index_fill(
+pub(in crate::app_core::native_shell::composition::state) fn similarity_anchor_browser_index_fill(
     style: &StyleTokens,
 ) -> Rgba8 {
     style.highlight_blue
 }
 
 /// Return the left-edge browser age marker color for the playback-age bucket.
-pub(in crate::gui::native_shell::state) fn browser_playback_age_marker_color(
+pub(in crate::app_core::native_shell::composition::state) fn browser_playback_age_marker_color(
     style: &StyleTokens,
     bucket: PlaybackAgeBucket,
 ) -> Rgba8 {
@@ -191,7 +201,11 @@ pub(in crate::gui::native_shell::state) fn browser_playback_age_marker_color(
     }
 }
 
-pub(in crate::gui::native_shell::state) fn blend_color(a: Rgba8, b: Rgba8, amount: f32) -> Rgba8 {
+pub(in crate::app_core::native_shell::composition::state) fn blend_color(
+    a: Rgba8,
+    b: Rgba8,
+    amount: f32,
+) -> Rgba8 {
     let amount = amount.clamp(0.0, 1.0);
     let mix = |x: u8, y: u8| -> u8 {
         ((x as f32) + ((y as f32 - x as f32) * amount))

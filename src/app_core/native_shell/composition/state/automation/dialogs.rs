@@ -4,7 +4,7 @@ use super::helpers::{
     action_slug, bounds, metadata, node_id, simple_node, slug, update_status_text,
 };
 use super::*;
-use crate::compat_app_contract::AutomationRole;
+use crate::app_core::native_shell::runtime_contract::AutomationRole;
 
 /// Build semantic automation for the update panel embedded in the top bar.
 pub(super) fn update_panel_automation(

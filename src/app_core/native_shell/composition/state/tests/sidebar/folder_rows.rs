@@ -275,7 +275,7 @@ fn focused_folder_overlay_fill_insets_from_sidebar_seams() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = StyleTokens::for_viewport_width(1280.0);
     let mut model = AppModel::default();
-    model.focus_context = crate::compat_app_contract::FocusContextModel::NavigationTree;
+    model.focus_context = crate::app_core::native_shell::runtime_contract::FocusContextModel::NavigationTree;
     push_active_folder_row(
         &mut model,
         FolderRowModel::new(
@@ -317,3 +317,4 @@ fn focused_folder_overlay_fill_insets_from_sidebar_seams() {
         )
     }));
 }
+

@@ -1,11 +1,11 @@
 //! Slotized prompt overlay geometry.
 
 use super::{PromptOverlaySections, shared};
+use crate::app_core::native_shell::composition::style::SizingTokens;
 use crate::gui::layout_core::{
     Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
     OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams, layout_tree,
 };
-use crate::gui::native_shell::style::SizingTokens;
 use crate::gui::types::{Rect, Vector2};
 
 const PROMPT_DIALOG_ROOT_ID: u64 = 900;
@@ -235,7 +235,7 @@ fn compute_prompt_input_rect(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gui::native_shell::style::StyleTokens;
+    use crate::app_core::native_shell::composition::style::StyleTokens;
     use crate::gui::types::Point;
 
     #[test]

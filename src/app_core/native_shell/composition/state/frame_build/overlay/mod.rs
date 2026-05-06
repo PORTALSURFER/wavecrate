@@ -1,7 +1,7 @@
 //! State-driven overlay builders for the native shell.
 
 use super::*;
-use crate::compat_app_contract::FolderRowKind;
+use crate::app_core::native_shell::runtime_contract::FolderRowKind;
 
 #[path = "browser.rs"]
 mod browser;

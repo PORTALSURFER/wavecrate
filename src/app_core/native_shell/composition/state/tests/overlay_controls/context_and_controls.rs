@@ -27,7 +27,7 @@ fn source_context_menu_hit_test_emits_reload_action_for_row() {
         (row_rect.min.y + row_rect.max.y) * 0.5,
     );
     state.open_source_context_menu_for_row(
-        crate::compat_app_contract::FolderPaneIdModel::Upper,
+        crate::app_core::native_shell::runtime_contract::FolderPaneIdModel::Upper,
         0,
         anchor,
     );
@@ -68,7 +68,7 @@ fn source_context_menu_contains_point_tracks_open_close_state() {
         .expect("source row should exist")
         .assigned_to_upper_pane = true;
     state.open_source_context_menu_for_row(
-        crate::compat_app_contract::FolderPaneIdModel::Upper,
+        crate::app_core::native_shell::runtime_contract::FolderPaneIdModel::Upper,
         0,
         Point::new(layout.sidebar.min.x + 24.0, layout.sidebar.min.y + 24.0),
     );
@@ -108,7 +108,7 @@ fn source_context_menu_exposes_remove_action_in_overlay() {
         .expect("source row should exist")
         .assigned_to_upper_pane = true;
     state.open_source_context_menu_for_row(
-        crate::compat_app_contract::FolderPaneIdModel::Upper,
+        crate::app_core::native_shell::runtime_contract::FolderPaneIdModel::Upper,
         0,
         Point::new(layout.sidebar.min.x + 24.0, layout.sidebar.min.y + 24.0),
     );
@@ -252,9 +252,9 @@ fn options_panel_contains_points_inside_panel() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let state = NativeShellState::new();
     let model = AppModel {
-        options_panel: crate::compat_app_contract::OptionsPanelModel {
+        options_panel: crate::app_core::native_shell::runtime_contract::OptionsPanelModel {
             visible: true,
-            ..crate::compat_app_contract::OptionsPanelModel::default()
+            ..crate::app_core::native_shell::runtime_contract::OptionsPanelModel::default()
         },
         ..AppModel::default()
     };
@@ -268,10 +268,10 @@ fn options_panel_trash_folder_buttons_emit_expected_actions() {
     let style = style_for_layout(&layout);
     let state = NativeShellState::new();
     let model = AppModel {
-        options_panel: crate::compat_app_contract::OptionsPanelModel {
+        options_panel: crate::app_core::native_shell::runtime_contract::OptionsPanelModel {
             visible: true,
             trash_folder_label: Some(String::from("trash_bin")),
-            ..crate::compat_app_contract::OptionsPanelModel::default()
+            ..crate::app_core::native_shell::runtime_contract::OptionsPanelModel::default()
         },
         ..AppModel::default()
     };
@@ -312,10 +312,10 @@ fn options_panel_default_identifier_button_emits_edit_action() {
     let style = style_for_layout(&layout);
     let state = NativeShellState::new();
     let model = AppModel {
-        options_panel: crate::compat_app_contract::OptionsPanelModel {
+        options_panel: crate::app_core::native_shell::runtime_contract::OptionsPanelModel {
             visible: true,
             default_identifier: String::from("portal"),
-            ..crate::compat_app_contract::OptionsPanelModel::default()
+            ..crate::app_core::native_shell::runtime_contract::OptionsPanelModel::default()
         },
         ..AppModel::default()
     };
@@ -343,10 +343,10 @@ fn status_options_chip_renders_audio_label_and_error_tint() {
     let style = style_for_layout(&layout);
     let mut state = NativeShellState::new();
     let model = AppModel {
-        paired_device: crate::compat_app_contract::PairedDevicePanelModel {
-            status_state: crate::compat_app_contract::StatusChipStateModel::Error,
+        paired_device: crate::app_core::native_shell::runtime_contract::PairedDevicePanelModel {
+            status_state: crate::app_core::native_shell::runtime_contract::StatusChipStateModel::Error,
             status_label: String::from("Audio Err"),
-            ..crate::compat_app_contract::PairedDevicePanelModel::default()
+            ..crate::app_core::native_shell::runtime_contract::PairedDevicePanelModel::default()
         },
         ..AppModel::default()
     };
@@ -375,8 +375,8 @@ fn top_bar_update_buttons_emit_expected_actions() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let state = NativeShellState::new();
     let model = AppModel {
-        update: crate::compat_app_contract::UpdatePanelModel {
-            status: crate::compat_app_contract::UpdateStatusModel::Available,
+        update: crate::app_core::native_shell::runtime_contract::UpdatePanelModel {
+            status: crate::app_core::native_shell::runtime_contract::UpdateStatusModel::Available,
             status_label: String::from("Update available: v20.1.0"),
             action_hint_label: String::from("Actions: open | install(manual) | dismiss"),
             release_notes_label: String::from("Release: v20.1.0"),
@@ -411,36 +411,36 @@ fn options_panel_overview_lists_audio_rows_before_legacy_toggles() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
     let model = AppModel {
-        options_panel: crate::compat_app_contract::OptionsPanelModel {
+        options_panel: crate::app_core::native_shell::runtime_contract::OptionsPanelModel {
             visible: true,
-            ..crate::compat_app_contract::OptionsPanelModel::default()
+            ..crate::app_core::native_shell::runtime_contract::OptionsPanelModel::default()
         },
-        paired_device: crate::compat_app_contract::PairedDevicePanelModel {
-            primary_group: crate::compat_app_contract::SummaryFieldModel {
+        paired_device: crate::app_core::native_shell::runtime_contract::PairedDevicePanelModel {
+            primary_group: crate::app_core::native_shell::runtime_contract::SummaryFieldModel {
                 label: String::from("Output Host"),
                 value_label: String::from("ASIO"),
             },
-            primary_item: crate::compat_app_contract::SummaryFieldModel {
+            primary_item: crate::app_core::native_shell::runtime_contract::SummaryFieldModel {
                 label: String::from("Output Device"),
                 value_label: String::from("USB"),
             },
-            primary_number: crate::compat_app_contract::SummaryFieldModel {
+            primary_number: crate::app_core::native_shell::runtime_contract::SummaryFieldModel {
                 label: String::from("Output Sample Rate"),
                 value_label: String::from("48 kHz"),
             },
-            secondary_group: crate::compat_app_contract::SummaryFieldModel {
+            secondary_group: crate::app_core::native_shell::runtime_contract::SummaryFieldModel {
                 label: String::from("Input Host"),
                 value_label: String::from("WASAPI"),
             },
-            secondary_item: crate::compat_app_contract::SummaryFieldModel {
+            secondary_item: crate::app_core::native_shell::runtime_contract::SummaryFieldModel {
                 label: String::from("Input Device"),
                 value_label: String::from("Mic"),
             },
-            secondary_number: crate::compat_app_contract::SummaryFieldModel {
+            secondary_number: crate::app_core::native_shell::runtime_contract::SummaryFieldModel {
                 label: String::from("Input Sample Rate"),
                 value_label: String::from("44.1 kHz"),
             },
-            ..crate::compat_app_contract::PairedDevicePanelModel::default()
+            ..crate::app_core::native_shell::runtime_contract::PairedDevicePanelModel::default()
         },
         ..AppModel::default()
     };
@@ -474,27 +474,27 @@ fn options_panel_picker_mode_uses_back_row_and_picker_actions() {
     let style = style_for_layout(&layout);
     let state = NativeShellState::new();
     let model = AppModel {
-        options_panel: crate::compat_app_contract::OptionsPanelModel {
+        options_panel: crate::app_core::native_shell::runtime_contract::OptionsPanelModel {
             visible: true,
-            ..crate::compat_app_contract::OptionsPanelModel::default()
+            ..crate::app_core::native_shell::runtime_contract::OptionsPanelModel::default()
         },
-        paired_device: crate::compat_app_contract::PairedDevicePanelModel {
-            active_picker: Some(crate::compat_app_contract::PairedPickerTargetModel::PrimaryNumber),
+        paired_device: crate::app_core::native_shell::runtime_contract::PairedDevicePanelModel {
+            active_picker: Some(crate::app_core::native_shell::runtime_contract::PairedPickerTargetModel::PrimaryNumber),
             primary_number_options: vec![
-                crate::compat_app_contract::PairedPickerOptionModel {
+                crate::app_core::native_shell::runtime_contract::PairedPickerOptionModel {
                     label: String::from("Device default"),
                     selected: false,
-                    value: crate::compat_app_contract::PairedPickerValueModel::PrimaryNumber(None),
+                    value: crate::app_core::native_shell::runtime_contract::PairedPickerValueModel::PrimaryNumber(None),
                 },
-                crate::compat_app_contract::PairedPickerOptionModel {
+                crate::app_core::native_shell::runtime_contract::PairedPickerOptionModel {
                     label: String::from("48 kHz"),
                     selected: true,
-                    value: crate::compat_app_contract::PairedPickerValueModel::PrimaryNumber(Some(
+                    value: crate::app_core::native_shell::runtime_contract::PairedPickerValueModel::PrimaryNumber(Some(
                         48_000,
                     )),
                 },
             ],
-            ..crate::compat_app_contract::PairedDevicePanelModel::default()
+            ..crate::app_core::native_shell::runtime_contract::PairedDevicePanelModel::default()
         },
         ..AppModel::default()
     };
@@ -533,11 +533,11 @@ fn options_panel_renders_after_other_modal_overlays() {
     let style = style_for_layout(&layout);
     let mut state = NativeShellState::new();
     let model = AppModel {
-        options_panel: crate::compat_app_contract::OptionsPanelModel {
+        options_panel: crate::app_core::native_shell::runtime_contract::OptionsPanelModel {
             visible: true,
-            ..crate::compat_app_contract::OptionsPanelModel::default()
+            ..crate::app_core::native_shell::runtime_contract::OptionsPanelModel::default()
         },
-        progress_overlay: crate::compat_app_contract::ProgressOverlayModel {
+        progress_overlay: crate::app_core::native_shell::runtime_contract::ProgressOverlayModel {
             visible: true,
             modal: true,
             title: String::from("Background task"),
@@ -547,13 +547,13 @@ fn options_panel_renders_after_other_modal_overlays() {
             cancelable: true,
             cancel_requested: false,
         },
-        paired_device: crate::compat_app_contract::PairedDevicePanelModel {
+        paired_device: crate::app_core::native_shell::runtime_contract::PairedDevicePanelModel {
             status_label: String::from("48 kHz"),
-            primary_group: crate::compat_app_contract::SummaryFieldModel {
+            primary_group: crate::app_core::native_shell::runtime_contract::SummaryFieldModel {
                 label: String::from("Output Host"),
                 value_label: String::from("ASIO"),
             },
-            ..crate::compat_app_contract::PairedDevicePanelModel::default()
+            ..crate::app_core::native_shell::runtime_contract::PairedDevicePanelModel::default()
         },
         ..AppModel::default()
     };
@@ -599,3 +599,4 @@ fn options_panel_renders_after_other_modal_overlays() {
         .expect("options panel surface should render");
     assert!(panel_rect_index > progress_rect_index);
 }
+
