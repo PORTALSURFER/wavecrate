@@ -48,10 +48,10 @@ impl AppController {
             .waveform
             .transient_cache_token
             .filter(|_| self.ui.waveform.transient_markers_enabled);
-        let render_matches_current_state = result
-            .render_meta
-            .as_ref()
-            .is_some_and(|meta| meta.transient_visual_token == expected_transient_visual_token);
+        let render_matches_current_state = result.render_meta.as_ref().is_some_and(|meta| {
+            meta.transient_visual_token == expected_transient_visual_token
+                && meta.matches_view_identity(self.ui.waveform.view)
+        });
         if render_matches_current_state {
             self.store_prepared_waveform_image(
                 result.image,
