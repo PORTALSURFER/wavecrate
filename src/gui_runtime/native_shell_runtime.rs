@@ -16,16 +16,21 @@ use crate::app_core::app_api::{controller_ui_hotkeys as hotkeys, state::FocusCon
 use crate::compat_app_contract as compat;
 use crate::gui::automation as gui_automation;
 use crate::gui::{
-    native_shell::{NativeShellState, ShellLayout, ShellLayoutRuntime, StyleTokens},
+    native_shell::{
+        CursorMoveEffect, NativeShellState, ShellLayout, ShellLayoutRuntime, ShellNodeKind,
+        StyleTokens,
+    },
     paint::PaintFrame,
-    types::{Rect, Vector2},
+    types::{Point, Rect, Vector2},
 };
 use radiant::gui::{
     focus::FocusSurface as RadiantFocusSurface, input::KeyPress as RadiantKeyPress,
     shortcuts::ShortcutResolution as RadiantShortcutResolution,
 };
-use radiant::runtime::{RuntimeBridge, SurfaceNode, UiSurface};
-use radiant::widgets::{CanvasMessage, RetainedSurfaceDescriptor, WidgetSizing};
+use radiant::runtime::{Command, RuntimeBridge, SurfaceNode, UiSurface};
+use radiant::widgets::{
+    CanvasMessage, PointerButton, RetainedSurfaceDescriptor, WidgetInput, WidgetKey, WidgetSizing,
+};
 use std::{collections::BTreeMap, sync::Arc};
 
 /// Converts app-level Vello launch options into the generic `radiant` runtime representation.
@@ -72,6 +77,42 @@ pub(super) struct SempalRuntimeBridge<B> {
     layout_runtime: ShellLayoutRuntime,
     frame: PaintFrame,
     layout_viewport: Option<Vector2>,
+    text_input_target: RetainedTextInputTarget,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum SempalRuntimeMessage {
+    Action(UiAction),
+    RetainedInput(RetainedCanvasInput),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum RetainedCanvasInput {
+    PointerMove {
+        position: Point,
+    },
+    PointerPress {
+        position: Point,
+        button: PointerButton,
+    },
+    PointerRelease {
+        position: Point,
+        button: PointerButton,
+    },
+    FocusChanged(bool),
+    KeyPress(WidgetKey),
+    Character(char),
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum RetainedTextInputTarget {
+    #[default]
+    None,
+    BrowserSearch,
+    FolderSearch,
+    BrowserPillEditor,
+    FolderCreate,
+    Prompt,
 }
 
 impl<B> SempalRuntimeBridge<B> {
@@ -83,16 +124,23 @@ impl<B> SempalRuntimeBridge<B> {
             layout_runtime: ShellLayoutRuntime::default(),
             frame: PaintFrame::default(),
             layout_viewport: None,
+            text_input_target: RetainedTextInputTarget::None,
         }
     }
 
     /// Build the generic retained canvas surface that Radiant owns around Sempal rendering.
-    fn generic_shell_surface(retained: RetainedSurfaceDescriptor) -> Arc<UiSurface<UiAction>> {
+    fn generic_shell_surface(
+        retained: RetainedSurfaceDescriptor,
+    ) -> Arc<UiSurface<SempalRuntimeMessage>> {
         Arc::new(UiSurface::new(SurfaceNode::retained_canvas_mapped(
             1,
             WidgetSizing::fixed(Vector2::new(1280.0, 720.0)),
             retained,
-            |_message: CanvasMessage| UiAction::HandleEscape,
+            |message: CanvasMessage| match message {
+                CanvasMessage::Input { input } => {
+                    SempalRuntimeMessage::RetainedInput(retained_input_from_widget_input(input))
+                }
+            },
         )))
     }
 
@@ -109,8 +157,156 @@ impl<B> SempalRuntimeBridge<B> {
     }
 }
 
-impl<B: NativeAppBridge> RuntimeBridge<UiAction> for SempalRuntimeBridge<B> {
-    fn project_surface(&mut self) -> Arc<UiSurface<UiAction>> {
+impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
+    fn emit_action(&mut self, action: UiAction) {
+        self.update_text_target_after_action(&action);
+        self.inner.reduce_action(action);
+        let model = self.inner.pull_model_arc();
+        self.model = Arc::new(model.as_ref().into());
+    }
+
+    fn handle_retained_canvas_input(&mut self, input: RetainedCanvasInput) -> bool {
+        match input {
+            RetainedCanvasInput::PointerMove { position } => {
+                let layout = self.build_current_layout();
+                let effect =
+                    self.shell_state
+                        .handle_cursor_move_effect(&layout, &self.model, position);
+                !matches!(effect, CursorMoveEffect::None)
+            }
+            RetainedCanvasInput::PointerPress { position, button } => {
+                if button != PointerButton::Primary {
+                    return true;
+                }
+                let layout = self.build_current_layout();
+                if let Some(action) = action_from_retained_pointer(
+                    &layout,
+                    &self.model,
+                    &mut self.shell_state,
+                    position,
+                ) {
+                    self.emit_action(action.into());
+                }
+                true
+            }
+            RetainedCanvasInput::PointerRelease { .. } | RetainedCanvasInput::FocusChanged(_) => {
+                true
+            }
+            RetainedCanvasInput::KeyPress(key) => self.handle_retained_key_press(key),
+            RetainedCanvasInput::Character(character) => self.handle_retained_character(character),
+        }
+    }
+
+    fn build_current_layout(&mut self) -> ShellLayout {
+        let viewport = self
+            .layout_viewport
+            .unwrap_or_else(|| Vector2::new(1280.0, 720.0));
+        let style = StyleTokens::for_viewport_with_scale(viewport.x, 1.0);
+        ShellLayout::build_with_style_and_runtime(viewport, &style, &mut self.layout_runtime)
+    }
+
+    fn handle_retained_key_press(&mut self, key: WidgetKey) -> bool {
+        match key {
+            WidgetKey::Enter => {
+                if self.model.confirm_prompt.visible {
+                    self.emit_action(UiAction::ConfirmPrompt);
+                    return true;
+                }
+                if self.text_input_target == RetainedTextInputTarget::BrowserPillEditor {
+                    self.emit_action(UiAction::CommitBrowserTagSidebarInput);
+                }
+                self.text_input_target = RetainedTextInputTarget::None;
+                true
+            }
+            WidgetKey::Backspace => self.rewrite_retained_text(|value| {
+                value.pop();
+            }),
+            WidgetKey::Delete => true,
+            _ => false,
+        }
+    }
+
+    fn handle_retained_character(&mut self, character: char) -> bool {
+        if character.is_control() {
+            return false;
+        }
+        self.rewrite_retained_text(|value| value.push(character))
+    }
+
+    fn rewrite_retained_text(&mut self, rewrite: impl FnOnce(&mut String)) -> bool {
+        let Some(mut value) = self.current_text_value() else {
+            return false;
+        };
+        rewrite(&mut value);
+        let action = match self.text_input_target {
+            RetainedTextInputTarget::None => return false,
+            RetainedTextInputTarget::BrowserSearch => UiAction::SetBrowserSearch { query: value },
+            RetainedTextInputTarget::FolderSearch => UiAction::SetFolderSearch { query: value },
+            RetainedTextInputTarget::BrowserPillEditor => {
+                UiAction::SetBrowserTagSidebarInput { value }
+            }
+            RetainedTextInputTarget::FolderCreate => UiAction::SetFolderCreateInput { value },
+            RetainedTextInputTarget::Prompt => UiAction::SetPromptInput { value },
+        };
+        self.emit_action(action);
+        true
+    }
+
+    fn current_text_value(&self) -> Option<String> {
+        match self.text_input_target {
+            RetainedTextInputTarget::None => None,
+            RetainedTextInputTarget::BrowserSearch => Some(self.model.browser.search_query.clone()),
+            RetainedTextInputTarget::FolderSearch => {
+                Some(self.model.sources.tree_search_query.clone())
+            }
+            RetainedTextInputTarget::BrowserPillEditor => {
+                Some(self.model.browser.pill_editor.input_value.clone())
+            }
+            RetainedTextInputTarget::FolderCreate => self
+                .model
+                .sources
+                .tree_rows
+                .iter()
+                .find(|row| {
+                    matches!(
+                        row.kind,
+                        compat::FolderRowKind::CreateDraft | compat::FolderRowKind::RenameDraft
+                    )
+                })
+                .map(|row| row.label.clone()),
+            RetainedTextInputTarget::Prompt => self.model.confirm_prompt.input_value.clone(),
+        }
+    }
+
+    fn update_text_target_after_action(&mut self, action: &UiAction) {
+        self.text_input_target = match action {
+            UiAction::FocusBrowserSearch | UiAction::SetBrowserSearch { .. } => {
+                RetainedTextInputTarget::BrowserSearch
+            }
+            UiAction::FocusFolderSearch | UiAction::SetFolderSearch { .. } => {
+                RetainedTextInputTarget::FolderSearch
+            }
+            UiAction::FocusBrowserTagSidebarInput | UiAction::SetBrowserTagSidebarInput { .. } => {
+                RetainedTextInputTarget::BrowserPillEditor
+            }
+            UiAction::FocusFolderCreateInput | UiAction::SetFolderCreateInput { .. } => {
+                RetainedTextInputTarget::FolderCreate
+            }
+            UiAction::SetPromptInput { .. } => RetainedTextInputTarget::Prompt,
+            UiAction::BlurBrowserSearch
+            | UiAction::CommitBrowserTagSidebarInput
+            | UiAction::ConfirmFolderCreate
+            | UiAction::CancelFolderCreate
+            | UiAction::ConfirmPrompt
+            | UiAction::CancelPrompt
+            | UiAction::HandleEscape => RetainedTextInputTarget::None,
+            _ => self.text_input_target,
+        };
+    }
+}
+
+impl<B: NativeAppBridge> RuntimeBridge<SempalRuntimeMessage> for SempalRuntimeBridge<B> {
+    fn project_surface(&mut self) -> Arc<UiSurface<SempalRuntimeMessage>> {
         let model = self.inner.pull_model_arc();
         self.model = Arc::new(model.as_ref().into());
         let dirty = self.inner.take_dirty_segments();
@@ -122,8 +318,21 @@ impl<B: NativeAppBridge> RuntimeBridge<UiAction> for SempalRuntimeBridge<B> {
         })
     }
 
-    fn reduce_message(&mut self, message: UiAction) {
-        self.inner.reduce_action(message);
+    fn update(&mut self, message: SempalRuntimeMessage) -> Command<SempalRuntimeMessage> {
+        match message {
+            SempalRuntimeMessage::Action(action) => {
+                self.emit_action(action);
+                Command::none()
+            }
+            SempalRuntimeMessage::RetainedInput(input) => {
+                let repaint = self.handle_retained_canvas_input(input);
+                if repaint {
+                    Command::request_repaint()
+                } else {
+                    Command::none()
+                }
+            }
+        }
     }
 
     fn resolve_key_press(
@@ -131,14 +340,14 @@ impl<B: NativeAppBridge> RuntimeBridge<UiAction> for SempalRuntimeBridge<B> {
         pending_chord: Option<RadiantKeyPress>,
         press: RadiantKeyPress,
         focus: RadiantFocusSurface,
-    ) -> RadiantShortcutResolution<UiAction> {
+    ) -> RadiantShortcutResolution<SempalRuntimeMessage> {
         let resolution = hotkeys::resolve_hotkey_press(
             pending_chord.map(keypress_from_radiant),
             keypress_from_radiant(press),
             focus_context_from_radiant(focus),
         );
         RadiantShortcutResolution {
-            action: resolution.action,
+            action: resolution.action.map(SempalRuntimeMessage::Action),
             handled: resolution.handled,
             pending_chord: resolution.pending_chord.map(keypress_to_radiant),
         }
@@ -213,6 +422,264 @@ fn keypress_to_radiant(press: KeyPress) -> RadiantKeyPress {
         command: press.command,
         shift: press.shift,
         alt: press.alt,
+    }
+}
+
+fn retained_input_from_widget_input(input: WidgetInput) -> RetainedCanvasInput {
+    match input {
+        WidgetInput::PointerMove { position } => RetainedCanvasInput::PointerMove { position },
+        WidgetInput::PointerPress { position, button } => {
+            RetainedCanvasInput::PointerPress { position, button }
+        }
+        WidgetInput::PointerRelease { position, button } => {
+            RetainedCanvasInput::PointerRelease { position, button }
+        }
+        WidgetInput::FocusChanged(focused) => RetainedCanvasInput::FocusChanged(focused),
+        WidgetInput::KeyPress(key) => RetainedCanvasInput::KeyPress(key),
+        WidgetInput::Character(character) => RetainedCanvasInput::Character(character),
+    }
+}
+
+fn action_from_retained_pointer(
+    layout: &ShellLayout,
+    model: &compat::AppModel,
+    shell_state: &mut NativeShellState,
+    point: Point,
+) -> Option<compat::UiAction> {
+    route_modal_and_chrome_actions(layout, model, shell_state, point)
+        .or_else(|| route_browser_or_folder_row(layout, model, shell_state, point))
+        .or_else(|| route_shell_background(layout, model, shell_state, point))
+}
+
+fn route_modal_and_chrome_actions(
+    layout: &ShellLayout,
+    model: &compat::AppModel,
+    shell_state: &mut NativeShellState,
+    point: Point,
+) -> Option<compat::UiAction> {
+    if let Some(action) = shell_state.prompt_action_at_point(layout, model, point) {
+        return Some(action);
+    }
+    if let Some(action) = shell_state.progress_action_at_point(layout, model, point) {
+        return Some(action);
+    }
+    if let Some(action) = shell_state.options_panel_action_at_point(layout, model, point) {
+        return Some(action);
+    }
+    if let Some(action) = shell_state.sidebar_filter_dropdown_action_at_point(layout, model, point)
+    {
+        return Some(action);
+    }
+    if shell_state.sidebar_filter_dropdown_visible() {
+        if shell_state.sidebar_filter_dropdown_contains_point(layout, model, point) {
+            return None;
+        }
+        shell_state.close_sidebar_filter_dropdown();
+        return Some(compat::UiAction::FocusBrowserPanel);
+    }
+    if model.options_panel.visible {
+        if shell_state.options_panel_contains_point_live(layout, model, point) {
+            return None;
+        }
+        return Some(compat::UiAction::CloseOptionsPanel);
+    }
+    if let Some(action) = shell_state.status_options_action_at_point(layout, model, point) {
+        return Some(action);
+    }
+    if let Some(action) = shell_state.top_bar_update_action_at_point(layout, model, point) {
+        return Some(action);
+    }
+    if let Some(action) = shell_state.top_bar_volume_action_at_point(layout, model, point) {
+        return Some(action);
+    }
+    if let Some(action) = shell_state.browser_tab_action_at_point(layout, point) {
+        return Some(action);
+    }
+    if let Some(action) = shell_state.map_content_action_at_point(layout, model, point) {
+        return Some(action);
+    }
+    if let Some(action) = shell_state.browser_action_at_point(layout, model, point, false) {
+        return Some(action);
+    }
+    if let Some(action) = shell_state.source_action_at_point(layout, model, point) {
+        return Some(action);
+    }
+    if let Some(action) = shell_state.folder_header_action_at_point(layout, model, point) {
+        return Some(action);
+    }
+    let motion_model = compat::NativeMotionModel::from_app_model(model);
+    shell_state
+        .waveform_toolbar_action_at_point_with_motion_and_modifiers(
+            layout,
+            &motion_model,
+            point,
+            false,
+        )
+        .or_else(|| {
+            shell_state.waveform_toolbar_action_at_point_with_modifiers(layout, model, point, false)
+        })
+}
+
+fn route_browser_or_folder_row(
+    layout: &ShellLayout,
+    model: &compat::AppModel,
+    shell_state: &mut NativeShellState,
+    point: Point,
+) -> Option<compat::UiAction> {
+    if let Some(action) = shell_state.browser_row_similarity_action_at_point(layout, model, point) {
+        return Some(action);
+    }
+    if let Some(visible_row) = shell_state.browser_row_at_point(layout, model, point) {
+        return Some(compat::UiAction::FocusBrowserRow { visible_row });
+    }
+    if let Some((pane, index)) = shell_state.folder_row_disclosure_at_point(layout, model, point) {
+        return Some(folder_row_disclosure_action(model, pane, index));
+    }
+    shell_state
+        .folder_row_at_point(layout, model, point)
+        .map(|(pane, index)| folder_row_body_action(model, pane, index))
+}
+
+fn route_shell_background(
+    layout: &ShellLayout,
+    model: &compat::AppModel,
+    shell_state: &mut NativeShellState,
+    point: Point,
+) -> Option<compat::UiAction> {
+    let hit = layout.hit_test(point)?;
+    match hit {
+        ShellNodeKind::Sidebar => route_sidebar_background(layout, model, shell_state, point),
+        ShellNodeKind::WaveformCard => {
+            if layout.waveform_plot.contains(point) {
+                Some(waveform_cursor_action_from_point(layout, model, point))
+            } else {
+                Some(compat::UiAction::FocusWaveformPanel)
+            }
+        }
+        ShellNodeKind::TopBar => Some(compat::UiAction::ToggleTransport),
+        ShellNodeKind::BrowserPanel | ShellNodeKind::BrowserTabs | ShellNodeKind::BrowserTable => {
+            Some(compat::UiAction::FocusBrowserPanel)
+        }
+        ShellNodeKind::StatusBar => Some(compat::UiAction::FocusLoadedContentInList),
+        _ => None,
+    }
+}
+
+fn route_sidebar_background(
+    layout: &ShellLayout,
+    model: &compat::AppModel,
+    shell_state: &mut NativeShellState,
+    point: Point,
+) -> Option<compat::UiAction> {
+    if let Some((_pane, index)) = shell_state.source_row_at_point(layout, model, point) {
+        return Some(compat::UiAction::FocusSourceRow { index });
+    }
+    if let Some((pane, index)) = shell_state.folder_row_disclosure_at_point(layout, model, point) {
+        return Some(folder_row_disclosure_action(model, pane, index));
+    }
+    if let Some((pane, index)) = shell_state.folder_row_at_point(layout, model, point) {
+        return Some(folder_row_body_action(model, pane, index));
+    }
+    shell_state.sidebar_focus_action_at_point(layout, model, point)
+}
+
+fn folder_row_disclosure_action(
+    model: &compat::AppModel,
+    pane: FolderPaneIdModel,
+    index: usize,
+) -> compat::UiAction {
+    let Some(row) = folder_row_for_pointer_action(model, pane, index) else {
+        return compat::UiAction::FocusFolderRow { index };
+    };
+    if matches!(
+        row.kind,
+        compat::FolderRowKind::CreateDraft | compat::FolderRowKind::RenameDraft
+    ) {
+        return compat::UiAction::FocusFolderCreateInput;
+    }
+    let source_index = row.backing_index.unwrap_or(index);
+    if folder_row_disclosure_toggles_expansion(model.sources.folder_pane(pane), index) {
+        compat::UiAction::ToggleFolderRowExpanded {
+            index: source_index,
+        }
+    } else {
+        compat::UiAction::FocusFolderRow {
+            index: source_index,
+        }
+    }
+}
+
+fn folder_row_body_action(
+    model: &compat::AppModel,
+    pane: FolderPaneIdModel,
+    index: usize,
+) -> compat::UiAction {
+    let Some(row) = folder_row_for_pointer_action(model, pane, index) else {
+        return compat::UiAction::FocusFolderRow { index };
+    };
+    if matches!(
+        row.kind,
+        compat::FolderRowKind::CreateDraft | compat::FolderRowKind::RenameDraft
+    ) {
+        return compat::UiAction::FocusFolderCreateInput;
+    }
+    compat::UiAction::FocusFolderRow {
+        index: row.backing_index.unwrap_or(index),
+    }
+}
+
+fn folder_row_for_pointer_action(
+    model: &compat::AppModel,
+    pane: FolderPaneIdModel,
+    index: usize,
+) -> Option<&compat::FolderRowModel> {
+    let pane_row = model.sources.folder_pane(pane).tree_rows.get(index);
+    let flat_active_row = (pane == model.sources.active_folder_pane)
+        .then(|| model.sources.tree_rows.get(index))
+        .flatten();
+    flat_active_row
+        .filter(|row| {
+            matches!(
+                row.kind,
+                compat::FolderRowKind::CreateDraft | compat::FolderRowKind::RenameDraft
+            )
+        })
+        .or(pane_row)
+        .or(flat_active_row)
+}
+
+fn folder_row_disclosure_toggles_expansion(
+    pane_model: &compat::FolderPaneModel,
+    index: usize,
+) -> bool {
+    let Some(row) = pane_model.tree_rows.get(index) else {
+        return false;
+    };
+    row.has_children
+        && !row.is_root
+        && !matches!(
+            row.kind,
+            compat::FolderRowKind::CreateDraft | compat::FolderRowKind::RenameDraft
+        )
+        && pane_model.tree_search_query.trim().is_empty()
+}
+
+fn waveform_cursor_action_from_point(
+    layout: &ShellLayout,
+    model: &compat::AppModel,
+    point: Point,
+) -> compat::UiAction {
+    let x_ratio = if layout.waveform_plot.width() <= 0.0 {
+        0.0
+    } else {
+        ((point.x - layout.waveform_plot.min.x) / layout.waveform_plot.width()).clamp(0.0, 1.0)
+    };
+    let viewport = model.waveform.viewport();
+    let start = viewport.start_nanos.min(viewport.end_nanos);
+    let end = viewport.start_nanos.max(viewport.end_nanos);
+    let span = end.saturating_sub(start);
+    compat::UiAction::SetWaveformCursorPrecise {
+        position_nanos: start.saturating_add(((span as f32) * x_ratio).round() as u32),
     }
 }
 
@@ -2296,7 +2763,7 @@ mod tests {
             "retained shell paint should contain the real Sempal frame, not a placeholder canvas"
         );
 
-        let action = surface
+        let message = surface
             .dispatch_widget_output(
                 1,
                 WidgetOutput::Canvas(CanvasMessage::Input {
@@ -2307,8 +2774,13 @@ mod tests {
                 }),
             )
             .expect("generic canvas should map input into a Sempal action");
-        bridge.reduce_message(action);
-        assert_eq!(bridge.inner.reduced, vec![UiAction::HandleEscape]);
+        assert!(matches!(
+            message,
+            SempalRuntimeMessage::RetainedInput(RetainedCanvasInput::PointerPress { .. })
+        ));
+        assert!(bridge.update(message).requests_repaint());
+        assert_ne!(bridge.inner.reduced, vec![UiAction::HandleEscape]);
+        assert_eq!(bridge.inner.reduced, vec![UiAction::ToggleTransport]);
 
         bridge.install_repaint_signal(Arc::new(TestRepaintSignal));
         assert!(repaint_installed.load(Ordering::Acquire));
@@ -2356,7 +2828,7 @@ mod tests {
         );
         assert!(
             adapter.contains(
-                "impl<B: NativeAppBridge> RuntimeBridge<UiAction> for SempalRuntimeBridge<B>"
+                "impl<B: NativeAppBridge> RuntimeBridge<SempalRuntimeMessage> for SempalRuntimeBridge<B>"
             ) && adapter.contains("fn resolve_key_press(")
                 && adapter.contains("fn install_repaint_signal(")
                 && adapter.contains("fn on_runtime_exit("),
