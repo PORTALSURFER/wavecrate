@@ -71,6 +71,10 @@ mod tests {
             retained.dirty_mask,
             u64::from(crate::app_core::actions::NativeDirtySegments::all().bits())
         );
+        assert!(
+            retained.volatile,
+            "Sempal retained shell overlays must opt out of Radiant full-frame cache hits"
+        );
         let frame = bridge
             .render_retained_surface(
                 retained,
@@ -357,6 +361,55 @@ mod tests {
     }
 
     #[test]
+    fn retained_shell_animation_refresh_uses_motion_only_projection() {
+        let mut app_model = runtime_contract::AppModel::default();
+        app_model.transport_running = true;
+        app_model.waveform.playhead_milli = Some(100);
+        app_model.waveform.playhead_micros = Some(100_000);
+        let native_model: NativeAppModel = app_model.clone().into();
+
+        let mut motion_model = runtime_contract::NativeMotionModel::from_app_model(&app_model);
+        motion_model.waveform_playhead_milli = Some(450);
+        motion_model.waveform_playhead_micros = Some(450_000);
+
+        let mut bridge = SempalRuntimeBridge::new(MotionOnlyRecordingBridge {
+            model: Arc::new(native_model),
+            motion_model: Some(motion_model.into()),
+            model_pull_count: 0,
+            motion_pull_count: 0,
+        });
+        let retained = retained_motion_descriptor(&mut bridge);
+
+        assert_eq!(bridge.inner.model_pull_count, 1);
+        assert!(
+            bridge.needs_animation(),
+            "playback motion should keep the generic runtime on animation frames"
+        );
+        assert_eq!(bridge.inner.motion_pull_count, 1);
+        let _ = bridge.project_surface();
+        assert_eq!(
+            bridge.inner.model_pull_count, 1,
+            "animation refreshes should not force a full app-model pull"
+        );
+
+        let viewport = radiant::gui::types::Vector2::new(1280.0, 720.0);
+        let rect = radiant::gui::types::Rect::from_min_size(
+            radiant::gui::types::Point::new(0.0, 0.0),
+            viewport,
+        );
+        let frame = bridge
+            .render_retained_surface(retained, rect, viewport)
+            .expect("motion-only retained shell frame");
+        let layout = ShellLayout::build(viewport);
+        let style = StyleTokens::for_viewport_width(viewport.x);
+
+        assert!(
+            frame_contains_playhead_marker(&frame, &layout, &style),
+            "motion-only refresh should still render the playhead overlay"
+        );
+    }
+
+    #[test]
     fn retained_shell_render_rebuilds_only_dirty_static_segments() {
         let mut bridge = SempalRuntimeBridge::new(RecordingBridge {
             model: Arc::new(NativeAppModel::default()),
@@ -389,6 +442,7 @@ mod tests {
                     key: 1,
                     revision: initial.revision + 1,
                     dirty_mask: u64::from(DirtySegments::STATUS_BAR),
+                    volatile: true,
                 },
                 rect,
                 viewport,
@@ -471,6 +525,29 @@ mod tests {
         }
     }
 
+    struct MotionOnlyRecordingBridge {
+        model: Arc<NativeAppModel>,
+        motion_model: Option<NativeMotionModel>,
+        model_pull_count: usize,
+        motion_pull_count: usize,
+    }
+
+    impl NativeAppBridge for MotionOnlyRecordingBridge {
+        fn project_model(&mut self) -> Arc<NativeAppModel> {
+            self.model_pull_count += 1;
+            Arc::clone(&self.model)
+        }
+
+        fn pull_model_arc(&mut self) -> Arc<NativeAppModel> {
+            self.project_model()
+        }
+
+        fn pull_motion_model(&mut self) -> Option<NativeMotionModel> {
+            self.motion_pull_count += 1;
+            self.motion_model.clone()
+        }
+    }
+
     struct TestRepaintSignal;
 
     impl RepaintSignal for TestRepaintSignal {
@@ -480,6 +557,28 @@ mod tests {
     /// Return the retained shell descriptor projected by the bridge surface.
     fn retained_shell_descriptor(
         bridge: &mut SempalRuntimeBridge<RecordingBridge>,
+    ) -> RetainedSurfaceDescriptor {
+        let surface = bridge.project_surface();
+        let layout = radiant::layout::layout_tree(
+            &surface.layout_node(),
+            radiant::gui::types::Rect::from_min_size(
+                radiant::gui::types::Point::new(0.0, 0.0),
+                radiant::gui::types::Vector2::new(1280.0, 720.0),
+            ),
+        );
+        let plan = surface.paint_plan(&layout, &ThemeTokens::default());
+        plan.primitives
+            .iter()
+            .find_map(|primitive| match primitive {
+                PaintPrimitive::CustomSurface(surface) => surface.retained,
+                _ => None,
+            })
+            .expect("generic bridge should project retained shell metadata")
+    }
+
+    /// Return the retained shell descriptor projected by a motion-only bridge.
+    fn retained_motion_descriptor(
+        bridge: &mut SempalRuntimeBridge<MotionOnlyRecordingBridge>,
     ) -> RetainedSurfaceDescriptor {
         let surface = bridge.project_surface();
         let layout = radiant::layout::layout_tree(

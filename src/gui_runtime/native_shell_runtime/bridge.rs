@@ -14,6 +14,8 @@ pub(super) struct SempalRuntimeBridge<B> {
     static_segments_initialized: bool,
     frame: PaintFrame,
     layout_viewport: Option<Vector2>,
+    pending_motion_model: Option<runtime_contract::NativeMotionModel>,
+    motion_only_surface_refresh: bool,
     text_input_target: RetainedTextInputTarget,
     text_edit: RetainedTextEditState,
 }
@@ -179,6 +181,8 @@ impl<B> SempalRuntimeBridge<B> {
             static_segments_initialized: false,
             frame: PaintFrame::default(),
             layout_viewport: None,
+            pending_motion_model: None,
+            motion_only_surface_refresh: false,
             text_input_target: RetainedTextInputTarget::None,
             text_edit: RetainedTextEditState::default(),
         }
@@ -545,6 +549,16 @@ fn replace_char_range(text: &mut String, start: usize, end: usize, replacement: 
 impl<B: NativeAppBridge> RuntimeBridge<SempalRuntimeMessage> for SempalRuntimeBridge<B> {
     /// Project Sempal state into the retained canvas surface visible to Radiant.
     fn project_surface(&mut self) -> Arc<UiSurface<SempalRuntimeMessage>> {
+        if self.motion_only_surface_refresh {
+            self.motion_only_surface_refresh = false;
+            let revisions = self.inner.take_segment_revisions();
+            return Self::generic_shell_surface(RetainedSurfaceDescriptor {
+                key: 1,
+                revision: retained_surface_revision(revisions),
+                dirty_mask: 0,
+                volatile: true,
+            });
+        }
         let model = self.inner.pull_model_arc();
         self.model = Arc::new(model.as_ref().into());
         let dirty = self.inner.take_dirty_segments();
@@ -553,6 +567,7 @@ impl<B: NativeAppBridge> RuntimeBridge<SempalRuntimeMessage> for SempalRuntimeBr
             key: 1,
             revision: retained_surface_revision(revisions),
             dirty_mask: u64::from(dirty.bits()),
+            volatile: true,
         })
     }
 
@@ -608,7 +623,21 @@ impl<B: NativeAppBridge> RuntimeBridge<SempalRuntimeMessage> for SempalRuntimeBr
         self.inner.install_repaint_signal(signal);
     }
 
-    fn needs_animation(&self) -> bool {
+    fn needs_animation(&mut self) -> bool {
+        if let Some(motion_model) = self.inner.pull_motion_model() {
+            let motion_model: runtime_contract::NativeMotionModel = motion_model.into();
+            self.shell_state.sync_from_motion_model(&motion_model);
+            if self.shell_state.needs_animation() {
+                self.motion_only_surface_refresh = true;
+                self.pending_motion_model = Some(motion_model);
+            } else {
+                self.motion_only_surface_refresh = false;
+                self.pending_motion_model = None;
+            }
+        } else {
+            self.motion_only_surface_refresh = false;
+            self.pending_motion_model = None;
+        }
         self.shell_state.needs_animation()
     }
 
@@ -633,7 +662,10 @@ impl<B: NativeAppBridge> RuntimeBridge<SempalRuntimeMessage> for SempalRuntimeBr
         self.shell_state.sync_from_model(&self.model);
         let mut model = self.model.as_ref().clone();
         self.apply_local_text_projection(&mut model);
-        let motion_model = runtime_contract::NativeMotionModel::from_app_model(&model);
+        let motion_model = self
+            .pending_motion_model
+            .take()
+            .unwrap_or_else(|| runtime_contract::NativeMotionModel::from_app_model(&model));
         self.shell_state.sync_from_motion_model(&motion_model);
         let dirty_bits = descriptor.dirty_mask.min(u64::from(u16::MAX)) as u16;
         for segment in StaticFrameSegment::ALL {
