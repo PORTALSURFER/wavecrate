@@ -397,6 +397,57 @@ mod tests {
     }
 
     #[test]
+    fn retained_shell_render_rebuilds_only_dirty_static_segments() {
+        let mut bridge = SempalRuntimeBridge::new(RecordingBridge {
+            model: Arc::new(NativeAppModel::default()),
+            reduced: Vec::new(),
+            repaint_installed: Arc::new(AtomicBool::new(false)),
+            exit_status: None,
+        });
+        let viewport = radiant::gui::types::Vector2::new(1280.0, 720.0);
+        let rect = radiant::gui::types::Rect::from_min_size(
+            radiant::gui::types::Point::new(0.0, 0.0),
+            viewport,
+        );
+        let initial = retained_shell_descriptor(&mut bridge);
+        let _ = bridge
+            .render_retained_surface(initial, rect, viewport)
+            .expect("initial retained shell frame");
+        let browser_rows_before = bridge
+            .static_segment_frame_for_tests(StaticFrameSegment::BrowserRowsWindow)
+            .clone();
+        let status_before = bridge
+            .static_segment_frame_for_tests(StaticFrameSegment::StatusBar)
+            .clone();
+
+        let mut model = bridge.retained_model_for_tests().clone();
+        model.status_text = String::from("status changed");
+        bridge.set_retained_model_for_tests(model);
+        let _ = bridge
+            .render_retained_surface(
+                RetainedSurfaceDescriptor {
+                    key: 1,
+                    revision: initial.revision + 1,
+                    dirty_mask: u64::from(DirtySegments::STATUS_BAR),
+                },
+                rect,
+                viewport,
+            )
+            .expect("status-only retained shell frame");
+
+        assert_eq!(
+            bridge.static_segment_frame_for_tests(StaticFrameSegment::BrowserRowsWindow),
+            &browser_rows_before,
+            "status-only dirt should not rebuild the browser rows static segment"
+        );
+        assert_ne!(
+            bridge.static_segment_frame_for_tests(StaticFrameSegment::StatusBar),
+            &status_before,
+            "status dirt should rebuild the status static segment"
+        );
+    }
+
+    #[test]
     fn sempal_root_dependency_no_longer_enables_radiant_legacy_shell() {
         let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
         let cargo = fs::read_to_string(manifest_dir.join("Cargo.toml")).expect("root manifest");

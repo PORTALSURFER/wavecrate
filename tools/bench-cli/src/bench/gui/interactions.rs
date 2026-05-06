@@ -97,7 +97,7 @@ pub(super) fn bench_browser_filter_churn_latency(
         interaction_iters(options),
         |timer| {
             timer.mark_input_done();
-            bridge.mutate_controller(|controller| {
+            bridge.mutate_controller_retained(|controller| {
                 controller.set_browser_filter(interaction_filter_for_step(step))
             });
             step = step.saturating_add(1);
@@ -126,7 +126,7 @@ pub(super) fn bench_browser_query_churn_latency(
         interaction_iters(options),
         |timer| {
             timer.mark_input_done();
-            bridge.mutate_controller(|controller| {
+            bridge.mutate_controller_retained(|controller| {
                 controller.set_browser_search(interaction_query_for_step(step))
             });
             step = step.saturating_add(1);
@@ -155,7 +155,7 @@ pub(super) fn bench_browser_sort_toggle_latency(
         interaction_iters(options),
         |timer| {
             timer.mark_input_done();
-            bridge.mutate_controller(|controller| {
+            bridge.mutate_controller_retained(|controller| {
                 controller.set_browser_sort(interaction_sort_for_step(step))
             });
             step = step.saturating_add(1);

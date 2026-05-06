@@ -201,3 +201,77 @@ fn rebuild_browser_lists_dispatches_async_pipeline_when_enabled() {
     );
     assert!(!controller.ui.browser.search.search_busy);
 }
+
+#[test]
+fn triage_filter_toggle_uses_retained_pipeline_when_async_is_enabled() {
+    let entries = vec![
+        sample_entry("trash.wav", Rating::TRASH_1),
+        sample_entry("neutral.wav", Rating::NEUTRAL),
+        sample_entry("keep.wav", Rating::KEEP_1),
+    ];
+    let (mut controller, _source) = prepare_with_source_and_wav_entries(entries);
+
+    with_browser_async_pipeline_enabled_for_tests(true, || {
+        controller.set_browser_filter(TriageFlagFilter::Keep);
+    });
+
+    assert_eq!(visible_indices(&controller), vec![2]);
+    assert_eq!(controller.ui.browser.search.latest_search_request_id, 1);
+    assert_eq!(
+        controller
+            .ui
+            .browser
+            .search
+            .latest_applied_search_request_id,
+        1
+    );
+    assert!(!controller.ui.browser.search.search_busy);
+}
+
+#[test]
+fn local_triage_filter_toggle_retires_stale_async_search_results() {
+    let entries = vec![
+        sample_entry("kick.wav", Rating::NEUTRAL),
+        sample_entry("snare.wav", Rating::TRASH_1),
+        sample_entry("hat.wav", Rating::KEEP_1),
+    ];
+    let (mut controller, source) = prepare_with_source_and_wav_entries(entries);
+
+    with_browser_async_pipeline_enabled_for_tests(true, || {
+        controller.set_browser_search("kick");
+        controller.set_browser_search("");
+        let stale_empty_query_request_id = controller.ui.browser.search.latest_search_request_id;
+        controller.set_browser_filter(TriageFlagFilter::Keep);
+        let local_request_id = controller.ui.browser.search.latest_search_request_id;
+
+        assert_eq!(
+            local_request_id,
+            stale_empty_query_request_id.wrapping_add(1)
+        );
+        assert_eq!(visible_indices(&controller), vec![2]);
+        assert!(!controller.ui.browser.search.search_busy);
+
+        controller.apply_background_job_message_for_tests(JobMessage::BrowserSearchFinished(
+            SearchResult {
+                request_id: stale_empty_query_request_id,
+                source_id: source.id.clone(),
+                query: String::new(),
+                visible: VisibleRows::All { total: 3 },
+                trash: Arc::from([1usize]),
+                neutral: Arc::from([0usize]),
+                keep: Arc::from([2usize]),
+                scores: Arc::from([]),
+            },
+        ));
+
+        assert_eq!(visible_indices(&controller), vec![2]);
+        assert_eq!(
+            controller
+                .ui
+                .browser
+                .search
+                .latest_applied_search_request_id,
+            local_request_id
+        );
+    });
+}

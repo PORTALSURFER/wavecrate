@@ -15,12 +15,26 @@ fn refresh_browser_search_results(controller: &mut AppController) {
     }
 }
 
+/// Refresh a simple triage-filter change without creating async churn when cached rows suffice.
+fn refresh_browser_triage_filter_results(controller: &mut AppController) {
+    if controller.can_refresh_triage_filter_locally() {
+        if controller.should_dispatch_browser_search_async()
+            || controller.ui.browser.search.search_busy
+        {
+            controller.invalidate_async_browser_search_for_local_projection();
+        }
+        controller.rebuild_browser_lists_retained();
+    } else {
+        refresh_browser_search_results(controller);
+    }
+}
+
 pub(crate) fn set_browser_filter(controller: &mut AppController, filter: TriageFlagFilter) {
     if controller.ui.browser.search.filter != filter {
         crate::app::controller::library::wavs::cancel_pending_similarity_filter_rebuild(controller);
         controller.ui.browser.search.filter = filter;
         controller.mark_browser_search_projection_revision_dirty();
-        refresh_browser_search_results(controller);
+        refresh_browser_triage_filter_results(controller);
     }
 }
 

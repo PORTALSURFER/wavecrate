@@ -26,6 +26,11 @@ impl AppController {
             return;
         }
 
+        self.rebuild_browser_lists_retained();
+    }
+
+    /// Rebuild browser rows through the retained in-process pipeline.
+    pub(crate) fn rebuild_browser_lists_retained(&mut self) {
         let allow_highlight = matches!(
             self.ui.focus.context,
             FocusContext::SampleBrowser | FocusContext::Waveform | FocusContext::None
@@ -48,6 +53,46 @@ impl AppController {
         );
         self.ui.browser.search.search_busy = false;
         self.clear_progress_task(crate::app::state::ProgressTaskKind::Search);
+    }
+
+    /// Return true when a simple triage-filter toggle can reuse retained row partitions locally.
+    pub(crate) fn can_refresh_triage_filter_locally(&self) -> bool {
+        use crate::app::state::{SampleBrowserSort, TagNamedFilter};
+
+        let Some(source_id) = self.selection_state.ctx.selected_source.as_ref() else {
+            return false;
+        };
+        if self
+            .runtime
+            .source_lane
+            .mutations
+            .source_has_pending_metadata(source_id)
+        {
+            return false;
+        }
+        if !self.ui_cache.browser.pipeline.has_base_snapshot() {
+            return false;
+        }
+        if self.ui.browser.duplicate_cleanup.is_some()
+            || self.active_search_query().is_some()
+            || self.ui.browser.search.similar_query.is_some()
+            || self.ui.browser.search.sort != SampleBrowserSort::ListOrder
+            || !self.ui.browser.search.rating_filter.is_empty()
+            || !self.ui.browser.search.playback_age_filter.is_empty()
+            || !self.ui.browser.search.sidebar_filters.is_empty()
+            || self.ui.browser.search.marked_only
+            || self.ui.browser.search.tag_named_filter != TagNamedFilter::All
+        {
+            return false;
+        }
+        let folder_selection = self.folder_selection_for_filter();
+        let folder_negated = self.folder_negation_for_filter();
+        let file_scope_mode = self.folder_file_scope_mode_for_filter().unwrap_or_default();
+        !crate::app::controller::library::source_folders::folder_filters_active(
+            folder_selection,
+            folder_negated,
+            file_scope_mode,
+        )
     }
 
     pub(crate) fn selected_row_index(&mut self) -> Option<usize> {

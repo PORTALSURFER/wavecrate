@@ -151,6 +151,26 @@ impl SempalNativeBridge {
         result
     }
 
+    /// Apply direct controller mutations that already completed their local maintenance work.
+    ///
+    /// Benchmark-only interaction paths use this for retained browser mutations that
+    /// should invalidate projection keys without forcing the next pull through the
+    /// full controller preparation lane.
+    pub fn mutate_controller_retained<R>(
+        &mut self,
+        mutate: impl FnOnce(&mut AppController) -> R,
+    ) -> R {
+        let before_key = self.projection_key_snapshot();
+        let result = mutate(&mut self.controller);
+        self.invalidate_projection_key_snapshot();
+        let after_key = self.projection_key_snapshot();
+        if before_key != after_key {
+            self.projection_cache.invalidate_key_only();
+        }
+        self.schedule_local_model_pull_fast_path();
+        result
+    }
+
     #[cfg(test)]
     /// Project the latest Sempal-owned app model snapshot for app-core tests.
     pub(crate) fn project_model(&mut self) -> Arc<crate::app_core::actions::NativeAppModel> {
