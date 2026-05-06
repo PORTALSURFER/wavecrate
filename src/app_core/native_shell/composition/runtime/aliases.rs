@@ -89,14 +89,17 @@ impl Default for BrowserPanelModel {
 }
 
 impl BrowserPanelModel {
+    /// Return whether the browser's derived-label filter is active.
     pub fn derived_label_filter_active(&self) -> bool {
         self.derived_label_filter_active
     }
 
+    /// Return whether the active derived-label filter is negated.
     pub fn derived_label_filter_negated(&self) -> bool {
         self.derived_label_filter_negated
     }
 
+    /// Return the browser metadata pill-editor projection.
     pub fn pill_editor(&self) -> &BrowserPillEditorModel {
         &self.pill_editor
     }
@@ -152,10 +155,12 @@ pub struct BrowserActionsModel {
 }
 
 impl BrowserActionsModel {
+    /// Return whether browser metadata pills can be edited.
     pub fn can_edit_pills(&self) -> bool {
         self.can_edit_pills
     }
 
+    /// Return whether the browser metadata pill editor is currently open.
     pub fn pill_editor_open(&self) -> bool {
         self.pill_editor_open
     }
