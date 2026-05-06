@@ -300,9 +300,7 @@ fn native_action_exports_are_owned_in_app_core() {
             && !native_actions.contains("compat::BrowserTriageTarget"),
         "Sempal action payload definitions should not import Radiant legacy-shell compatibility types"
     );
-    let native_action_conversions =
-        fs::read_to_string(manifest_dir.join("src/gui_runtime/native_shell_runtime.rs"))
-            .expect("native shell runtime adapter");
+    let native_action_conversions = native_shell_runtime_sources(&manifest_dir);
     let native_actions = format!("{native_actions}\n{native_action_conversions}");
     assert!(
         !manifest_dir
@@ -927,6 +925,24 @@ fn rust_sources_under(root: &Path) -> Vec<PathBuf> {
     let mut sources = Vec::new();
     collect_rust_sources(root, &mut sources);
     sources.sort();
+    sources
+}
+
+fn native_shell_runtime_sources(manifest_dir: &Path) -> String {
+    let mut sources =
+        fs::read_to_string(manifest_dir.join("src/gui_runtime/native_shell_runtime.rs"))
+            .expect("native shell runtime facade");
+    for path in [
+        "src/gui_runtime/native_shell_runtime/action_mapping.rs",
+        "src/gui_runtime/native_shell_runtime/automation.rs",
+        "src/gui_runtime/native_shell_runtime/bridge.rs",
+        "src/gui_runtime/native_shell_runtime/input_routing.rs",
+        "src/gui_runtime/native_shell_runtime/launch.rs",
+        "src/gui_runtime/native_shell_runtime/model_mapping.rs",
+    ] {
+        sources.push('\n');
+        sources.push_str(&fs::read_to_string(manifest_dir.join(path)).expect(path));
+    }
     sources
 }
 
