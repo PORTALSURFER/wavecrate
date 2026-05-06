@@ -1,6 +1,9 @@
 //! Sempal native-shell motion projection used by the runtime compatibility contract.
 
-use super::{AppModel, NormalizedRangeModel};
+use super::{
+    AppModel, NormalizedRangeModel, WaveformMotionModel, WaveformSlicePreviewModel,
+    WaveformToolStateModel,
+};
 
 /// Motion-sensitive slice of the app model used for incremental overlay rendering.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -18,7 +21,7 @@ pub struct NativeMotionModel {
     /// Waveform selected playback window with milli and micro precision.
     pub waveform_selection_milli: Option<NormalizedRangeModel>,
     /// Preview slices detected from silence-splitting the loaded waveform.
-    pub waveform_slices: Vec<crate::gui::visualization::TimelineMarkerPreview>,
+    pub waveform_slices: Vec<WaveformSlicePreviewModel>,
     /// One-shot token incremented when a waveform-selection export is queued.
     pub waveform_selection_export_flash_nonce: u64,
     /// One-shot token incremented when a queued waveform-selection export fails.
@@ -257,8 +260,8 @@ impl NativeMotionModel {
     }
 
     /// Return this motion snapshot's generic signal tool state.
-    pub fn signal_tools(&self) -> crate::gui::visualization::SignalToolState {
-        crate::gui::visualization::SignalToolState::new(
+    pub fn signal_tools(&self) -> WaveformToolStateModel {
+        WaveformToolStateModel::new(
             self.waveform_loop_lock_enabled,
             self.waveform_normalized_audition_enabled,
             self.waveform_bpm_snap_enabled,
@@ -271,12 +274,8 @@ impl NativeMotionModel {
     }
 
     /// Return this motion snapshot as a generic timeline motion aggregate.
-    pub fn timeline_motion(
-        &self,
-    ) -> crate::gui::visualization::TimelineMotionState<
-        crate::gui::visualization::TimelineMarkerPreview,
-    > {
-        crate::gui::visualization::TimelineMotionState::new(
+    pub fn timeline_motion(&self) -> WaveformMotionModel {
+        WaveformMotionModel::new(
             self.transport_running,
             crate::gui::visualization::TimelineSurfaceState::new(
                 self.waveform_viewport(),

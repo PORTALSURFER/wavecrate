@@ -33,7 +33,8 @@ pub use aliases::{
     FocusContextModel, FolderActionsModel, FolderPaneIdModel, FolderPaneModel, FolderRecoveryModel,
     FolderRowKind, FolderRowModel, FrameBuildResult, GuiAutomationSnapshot, HotkeyResolution,
     KeyPress, MapPanelModel, MapPointModel, MapRenderModeModel, PlaybackAgeBucket,
-    PlaybackAgeFilterChip, RetainedVec, ShortcutResolution, SourceRowModel,
+    PlaybackAgeFilterChip, RetainedVec, ShortcutResolution, SourceRowModel, WaveformMotionModel,
+    WaveformSlicePreviewModel, WaveformToolStateModel,
 };
 pub use bridge::NativeAppBridge;
 pub use motion::NativeMotionModel;

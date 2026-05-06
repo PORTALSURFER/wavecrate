@@ -181,6 +181,12 @@ pub type NativeWaveformChannelViewModel = self::native_shell_dtos::WaveformChann
 /// Native runtime waveform slice preview model.
 pub type NativeWaveformSlicePreviewModel = self::native_shell_dtos::WaveformSlicePreviewModel;
 
+/// Native runtime waveform tool state model.
+pub type NativeWaveformToolStateModel = self::native_shell_dtos::WaveformToolStateModel;
+
+/// Native runtime waveform motion aggregate model.
+pub type NativeWaveformMotionModel = self::native_shell_dtos::WaveformMotionModel;
+
 /// Extract the numeric BPM token from a native waveform tempo label.
 pub use self::native_shell_dtos::parse_waveform_tempo_number_text;
 

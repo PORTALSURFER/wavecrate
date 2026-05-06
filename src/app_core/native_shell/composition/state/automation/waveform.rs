@@ -165,7 +165,7 @@ fn waveform_slice_node(
     index: usize,
     plot: Rect,
     model: &AppModel,
-    slice: crate::gui::visualization::TimelineMarkerPreview,
+    slice: crate::app_core::native_shell::runtime_contract::WaveformSlicePreviewModel,
 ) -> AutomationNodeSnapshot {
     let selection_value = selection_micros_text(slice.range);
     AutomationNodeSnapshot {

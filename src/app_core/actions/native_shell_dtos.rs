@@ -239,8 +239,22 @@ pub type WaveformTransportModel = visualization::TimelineTransportState;
 /// Waveform edit selection and fade-preview state exposed to the native shell.
 pub type WaveformEditPreviewModel = visualization::TimelineEditPreview;
 
-/// One detected waveform slice preview exposed to the native shell.
-pub type WaveformSlicePreviewModel = visualization::TimelineMarkerPreview;
+/// One detected Sempal waveform slice preview exposed to the native shell.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WaveformSlicePreviewModel {
+    /// Slice range in normalized waveform precision.
+    pub range: NormalizedRangeModel,
+    /// Whether this slice is currently selected for edit operations.
+    pub selected: bool,
+    /// Whether this slice is focused for keyboard review.
+    pub focused: bool,
+    /// Whether this slice is marked for sample export.
+    pub marked_for_export: bool,
+    /// Whether this slice belongs to the duplicate-cleanup candidate batch.
+    pub review_candidate: bool,
+    /// Whether this slice is currently exempted from duplicate cleanup.
+    pub review_exempted: bool,
+}
 
 /// One-shot waveform feedback event tokens exposed to the native shell.
 pub type WaveformFeedbackEventsModel = visualization::TimelineFeedbackEvents;
@@ -255,13 +269,73 @@ pub type WaveformImagePreviewModel = visualization::SignalRasterPreview;
 pub type WaveformChromeStateModel = visualization::SignalChromeState;
 
 /// Waveform tool availability state exposed to the native shell.
-pub type WaveformToolStateModel = visualization::SignalToolState;
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WaveformToolStateModel {
+    /// Whether loop playback is locked against sample-driven updates.
+    pub lock_enabled: bool,
+    /// Whether normalized audition playback is enabled.
+    pub audition_enabled: bool,
+    /// Whether BPM snapping is enabled.
+    pub primary_snap_enabled: bool,
+    /// Whether playback BPM grids and snapping use selection-relative anchors.
+    pub relative_grid_enabled: bool,
+    /// Whether transient snapping is enabled.
+    pub secondary_snap_enabled: bool,
+    /// Whether transient markers are visible.
+    pub markers_visible: bool,
+    /// Whether slice review mode is active.
+    pub review_mode_enabled: bool,
+    /// Whether exact-duplicate cleanup can be applied from the waveform toolbar.
+    pub cleanup_available: bool,
+}
+
+impl Default for WaveformToolStateModel {
+    fn default() -> Self {
+        Self {
+            lock_enabled: false,
+            audition_enabled: false,
+            primary_snap_enabled: false,
+            relative_grid_enabled: false,
+            secondary_snap_enabled: false,
+            markers_visible: true,
+            review_mode_enabled: false,
+            cleanup_available: false,
+        }
+    }
+}
+
+impl WaveformToolStateModel {
+    /// Build waveform tool state from explicit Sempal workflow flags.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        lock_enabled: bool,
+        audition_enabled: bool,
+        primary_snap_enabled: bool,
+        relative_grid_enabled: bool,
+        secondary_snap_enabled: bool,
+        markers_visible: bool,
+        review_mode_enabled: bool,
+        cleanup_available: bool,
+    ) -> Self {
+        Self {
+            lock_enabled,
+            audition_enabled,
+            primary_snap_enabled,
+            relative_grid_enabled,
+            secondary_snap_enabled,
+            markers_visible,
+            review_mode_enabled,
+            cleanup_available,
+        }
+    }
+}
 
 /// Aggregated waveform timeline surface state exposed to the native shell.
 pub type WaveformSurfaceModel = visualization::TimelineSurfaceState<WaveformSlicePreviewModel>;
 
 /// Aggregated waveform motion state exposed to the native shell.
-pub type WaveformMotionModel = visualization::TimelineMotionState<WaveformSlicePreviewModel>;
+pub type WaveformMotionModel =
+    visualization::TimelineMotionState<WaveformSlicePreviewModel, WaveformToolStateModel>;
 
 /// Render data for one point shown in the native map canvas.
 pub type MapPointModel = visualization::SpatialPoint;

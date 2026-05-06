@@ -14,7 +14,9 @@ pub use crate::app_core::actions::{
     NativeMapPointModel as MapPointModel, NativeMapRenderModeModel as MapRenderModeModel,
     NativePlaybackAgeBucket as PlaybackAgeBucket,
     NativePlaybackAgeFilterChip as PlaybackAgeFilterChip, NativeRetainedVec as RetainedVec,
-    NativeSourceRowModel as SourceRowModel,
+    NativeSourceRowModel as SourceRowModel, NativeWaveformMotionModel as WaveformMotionModel,
+    NativeWaveformSlicePreviewModel as WaveformSlicePreviewModel,
+    NativeWaveformToolStateModel as WaveformToolStateModel,
 };
 pub use crate::gui::focus::FocusSurface as FocusContextModel;
 pub use crate::gui::input::KeyPress;

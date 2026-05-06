@@ -546,9 +546,19 @@ fn native_action_exports_are_owned_in_app_core() {
             && !native_dtos.contains("pub struct BrowserTagSidebarModel")
             && !native_dtos.contains("pub enum MapRenderModeModel")
             && !native_dtos.contains("pub struct MapPanelModel")
-            && !native_dtos.contains("pub struct WaveformSlicePreviewModel")
+            && native_dtos.contains("pub struct WaveformSlicePreviewModel")
+            && native_dtos.contains("pub struct WaveformToolStateModel")
+            && native_dtos.contains(
+                "visualization::TimelineMotionState<WaveformSlicePreviewModel, WaveformToolStateModel>"
+            )
+            && !native_dtos.contains(
+                "pub type WaveformSlicePreviewModel = visualization::TimelineMarkerPreview;"
+            )
+            && !native_dtos.contains(
+                "pub type WaveformToolStateModel = visualization::SignalToolState;"
+            )
             && !native_dtos.contains("pub enum UpdateStatusModel"),
-        "Sempal browser row/playback-age DTOs should be host-owned while generic pill, map, waveform, and update DTOs stay Radiant-owned"
+        "Sempal browser row/playback-age and waveform workflow DTOs should be host-owned while generic pill, map, and update DTOs stay Radiant-owned"
     );
     assert!(
         native_dtos.contains("pub type BrowserTagState = selection::TriState;")
@@ -562,9 +572,6 @@ fn native_action_exports_are_owned_in_app_core() {
             && native_dtos.contains("pub type MapPanelModel = visualization::SpatialPanel;")
             && native_dtos
                 .contains("pub type WaveformChannelViewModel = visualization::ChannelViewMode;")
-            && native_dtos.contains(
-                "pub type WaveformSlicePreviewModel = visualization::TimelineMarkerPreview;"
-            )
             && native_dtos.contains("pub type MapPointModel = visualization::SpatialPoint;")
             && native_dtos.contains("pub type UpdateStatusModel = feedback::UpdateStatus;"),
         "Sempal native DTOs should alias generic Radiant state primitives"
@@ -800,7 +807,7 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal waveform DTOs should expose Radiant's generic timeline surface aggregate"
     );
     assert!(
-        native_dtos.contains("pub type WaveformMotionModel = visualization::TimelineMotionState")
+        native_dtos.contains("visualization::TimelineMotionState<")
             && native_dtos.contains("pub fn timeline_motion(&self) -> WaveformMotionModel"),
         "Sempal motion DTOs should expose Radiant's generic timeline motion aggregate"
     );
