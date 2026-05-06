@@ -86,6 +86,7 @@ impl<B> SempalRuntimeBridge<B> {
         }
     }
 
+    /// Build the generic retained canvas surface that Radiant owns around Sempal rendering.
     fn generic_shell_surface(retained: RetainedSurfaceDescriptor) -> Arc<UiSurface<UiAction>> {
         Arc::new(UiSurface::new(SurfaceNode::retained_canvas_mapped(
             1,
@@ -147,6 +148,7 @@ impl<B: NativeAppBridge> RuntimeBridge<UiAction> for SempalRuntimeBridge<B> {
         self.inner.install_repaint_signal(signal);
     }
 
+    /// Render the retained Sempal shell into a paint frame when Radiant requests the canvas.
     fn render_retained_surface(
         &mut self,
         descriptor: RetainedSurfaceDescriptor,
@@ -176,6 +178,7 @@ impl<B: NativeAppBridge> RuntimeBridge<UiAction> for SempalRuntimeBridge<B> {
     }
 }
 
+/// Collapse per-segment revisions into the retained canvas revision Radiant observes.
 fn retained_surface_revision(revisions: crate::app_core::actions::NativeSegmentRevisions) -> u64 {
     revisions.status_bar
         ^ revisions.browser_frame.rotate_left(7)
@@ -2076,6 +2079,7 @@ impl From<NativeMotionModel> for compat::NativeMotionModel {
     }
 }
 
+/// Run Sempal through the generic Radiant Vello runtime.
 pub(super) fn run_native_vello_app<B: NativeAppBridge + 'static>(
     options: NativeRunOptions,
     bridge: B,
@@ -2083,6 +2087,7 @@ pub(super) fn run_native_vello_app<B: NativeAppBridge + 'static>(
     run_native_vello_app_with_artifacts(options, bridge).result
 }
 
+/// Run Sempal through the generic Radiant Vello runtime and return launch artifacts.
 pub(super) fn run_native_vello_app_with_artifacts<B: NativeAppBridge + 'static>(
     options: NativeRunOptions,
     bridge: B,
@@ -2206,6 +2211,7 @@ mod tests {
     }
 
     #[test]
+    /// Guard the Sempal launch path against regressing to a local native Vello runtime module.
     fn sempal_runtime_glue_launches_through_generic_radiant_runtime() {
         let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
         let adapter =

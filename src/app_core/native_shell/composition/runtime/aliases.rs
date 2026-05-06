@@ -58,6 +58,7 @@ pub struct BrowserPanelModel {
 }
 
 impl Default for BrowserPanelModel {
+    /// Build the empty browser projection used before the app bridge has emitted a model.
     fn default() -> Self {
         Self {
             visible_count: 0,
@@ -123,6 +124,7 @@ pub struct BrowserChromeModel {
 }
 
 impl Default for BrowserChromeModel {
+    /// Build the compatibility chrome copy defaults used by shell tests and empty projections.
     fn default() -> Self {
         Self {
             items_tab_label: String::from("Items"),
