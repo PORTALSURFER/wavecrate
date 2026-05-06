@@ -80,38 +80,60 @@ pub(super) struct SempalRuntimeBridge<B> {
     text_input_target: RetainedTextInputTarget,
 }
 
+/// Private message surface used by the generic runtime before Sempal action reduction.
 #[derive(Clone, Debug, PartialEq)]
 enum SempalRuntimeMessage {
+    /// Existing application action emitted by shortcut resolution or translated retained input.
     Action(UiAction),
+    /// Raw retained-canvas input that still needs Sempal shell hit-testing.
     RetainedInput(RetainedCanvasInput),
 }
 
+/// Retained-canvas input normalized out of Radiant widget events.
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum RetainedCanvasInput {
+    /// Pointer hover moved inside the retained Sempal canvas.
     PointerMove {
+        /// Logical pointer position in the host surface.
         position: Point,
     },
+    /// Pointer press started inside the retained Sempal canvas.
     PointerPress {
+        /// Logical pointer position in the host surface.
         position: Point,
+        /// Pressed pointer button.
         button: PointerButton,
     },
+    /// Pointer press ended inside the retained Sempal canvas.
     PointerRelease {
+        /// Logical pointer position in the host surface.
         position: Point,
+        /// Released pointer button.
         button: PointerButton,
     },
+    /// Runtime focus changed for the retained canvas widget.
     FocusChanged(bool),
+    /// Non-text key intent routed to the focused retained canvas.
     KeyPress(WidgetKey),
+    /// Printable character routed to the focused retained canvas.
     Character(char),
 }
 
+/// Local text-input target tracked after Sempal focus actions.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum RetainedTextInputTarget {
+    /// No retained text input owns keyboard editing.
     #[default]
     None,
+    /// Browser search owns text editing.
     BrowserSearch,
+    /// Folder search owns text editing.
     FolderSearch,
+    /// Browser metadata tag sidebar input owns text editing.
     BrowserPillEditor,
+    /// Inline folder create/rename input owns text editing.
     FolderCreate,
+    /// Visible confirmation prompt input owns text editing.
     Prompt,
 }
 
@@ -158,6 +180,7 @@ impl<B> SempalRuntimeBridge<B> {
 }
 
 impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
+    /// Reduce one app action through the host and refresh the retained compatibility model.
     fn emit_action(&mut self, action: UiAction) {
         self.update_text_target_after_action(&action);
         self.inner.reduce_action(action);
@@ -165,6 +188,7 @@ impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
         self.model = Arc::new(model.as_ref().into());
     }
 
+    /// Translate retained-canvas input into Sempal actions or local repaint-only state.
     fn handle_retained_canvas_input(&mut self, input: RetainedCanvasInput) -> bool {
         match input {
             RetainedCanvasInput::PointerMove { position } => {
@@ -197,6 +221,7 @@ impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
         }
     }
 
+    /// Build the current shell layout used by retained input hit-testing.
     fn build_current_layout(&mut self) -> ShellLayout {
         let viewport = self
             .layout_viewport
@@ -205,6 +230,7 @@ impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
         ShellLayout::build_with_style_and_runtime(viewport, &style, &mut self.layout_runtime)
     }
 
+    /// Handle one non-text key intent routed through the focused retained canvas.
     fn handle_retained_key_press(&mut self, key: WidgetKey) -> bool {
         match key {
             WidgetKey::Enter => {
@@ -226,6 +252,7 @@ impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
         }
     }
 
+    /// Insert one printable character into the active retained text target.
     fn handle_retained_character(&mut self, character: char) -> bool {
         if character.is_control() {
             return false;
@@ -233,6 +260,7 @@ impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
         self.rewrite_retained_text(|value| value.push(character))
     }
 
+    /// Rewrite the active retained text target and emit the matching host action.
     fn rewrite_retained_text(&mut self, rewrite: impl FnOnce(&mut String)) -> bool {
         let Some(mut value) = self.current_text_value() else {
             return false;
@@ -252,6 +280,7 @@ impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
         true
     }
 
+    /// Return the current projected text for the active retained text target.
     fn current_text_value(&self) -> Option<String> {
         match self.text_input_target {
             RetainedTextInputTarget::None => None,
@@ -278,6 +307,7 @@ impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
         }
     }
 
+    /// Keep the local retained text target synchronized with host focus actions.
     fn update_text_target_after_action(&mut self, action: &UiAction) {
         self.text_input_target = match action {
             UiAction::FocusBrowserSearch | UiAction::SetBrowserSearch { .. } => {
@@ -306,6 +336,7 @@ impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
 }
 
 impl<B: NativeAppBridge> RuntimeBridge<SempalRuntimeMessage> for SempalRuntimeBridge<B> {
+    /// Project Sempal state into the retained canvas surface visible to Radiant.
     fn project_surface(&mut self) -> Arc<UiSurface<SempalRuntimeMessage>> {
         let model = self.inner.pull_model_arc();
         self.model = Arc::new(model.as_ref().into());
@@ -318,6 +349,7 @@ impl<B: NativeAppBridge> RuntimeBridge<SempalRuntimeMessage> for SempalRuntimeBr
         })
     }
 
+    /// Apply one generic runtime message and request repaint when retained state changed.
     fn update(&mut self, message: SempalRuntimeMessage) -> Command<SempalRuntimeMessage> {
         match message {
             SempalRuntimeMessage::Action(action) => {
@@ -425,6 +457,7 @@ fn keypress_to_radiant(press: KeyPress) -> RadiantKeyPress {
     }
 }
 
+/// Convert one Radiant widget input event into the Sempal retained input shape.
 fn retained_input_from_widget_input(input: WidgetInput) -> RetainedCanvasInput {
     match input {
         WidgetInput::PointerMove { position } => RetainedCanvasInput::PointerMove { position },
@@ -440,6 +473,7 @@ fn retained_input_from_widget_input(input: WidgetInput) -> RetainedCanvasInput {
     }
 }
 
+/// Resolve a retained pointer press into a Sempal compatibility action.
 fn action_from_retained_pointer(
     layout: &ShellLayout,
     model: &compat::AppModel,
@@ -451,6 +485,7 @@ fn action_from_retained_pointer(
         .or_else(|| route_shell_background(layout, model, shell_state, point))
 }
 
+/// Route pointer presses through modal, chrome, toolbar, and action surfaces.
 fn route_modal_and_chrome_actions(
     layout: &ShellLayout,
     model: &compat::AppModel,
@@ -520,6 +555,7 @@ fn route_modal_and_chrome_actions(
         })
 }
 
+/// Route pointer presses that target browser rows or folder rows.
 fn route_browser_or_folder_row(
     layout: &ShellLayout,
     model: &compat::AppModel,
@@ -540,6 +576,7 @@ fn route_browser_or_folder_row(
         .map(|(pane, index)| folder_row_body_action(model, pane, index))
 }
 
+/// Route pointer presses that land on the shell background areas.
 fn route_shell_background(
     layout: &ShellLayout,
     model: &compat::AppModel,
@@ -565,6 +602,7 @@ fn route_shell_background(
     }
 }
 
+/// Route pointer presses that land in sidebar background space.
 fn route_sidebar_background(
     layout: &ShellLayout,
     model: &compat::AppModel,
@@ -583,6 +621,7 @@ fn route_sidebar_background(
     shell_state.sidebar_focus_action_at_point(layout, model, point)
 }
 
+/// Return the folder-row action for a disclosure target.
 fn folder_row_disclosure_action(
     model: &compat::AppModel,
     pane: FolderPaneIdModel,
@@ -609,6 +648,7 @@ fn folder_row_disclosure_action(
     }
 }
 
+/// Return the folder-row action for a row body target.
 fn folder_row_body_action(
     model: &compat::AppModel,
     pane: FolderPaneIdModel,
@@ -628,6 +668,7 @@ fn folder_row_body_action(
     }
 }
 
+/// Resolve the folder row model addressed by retained pointer routing.
 fn folder_row_for_pointer_action(
     model: &compat::AppModel,
     pane: FolderPaneIdModel,
@@ -648,6 +689,7 @@ fn folder_row_for_pointer_action(
         .or(flat_active_row)
 }
 
+/// Return whether a folder-row disclosure should expand or collapse the row.
 fn folder_row_disclosure_toggles_expansion(
     pane_model: &compat::FolderPaneModel,
     index: usize,
@@ -664,6 +706,7 @@ fn folder_row_disclosure_toggles_expansion(
         && pane_model.tree_search_query.trim().is_empty()
 }
 
+/// Translate a waveform-plot pointer location into an absolute cursor action.
 fn waveform_cursor_action_from_point(
     layout: &ShellLayout,
     model: &compat::AppModel,
