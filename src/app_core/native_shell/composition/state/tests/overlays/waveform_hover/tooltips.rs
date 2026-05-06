@@ -145,8 +145,8 @@ fn state_overlay_renders_clean_dups_tooltip_text() {
             selected: false,
             focused: false,
             marked_for_export: false,
-            duplicate_cleanup_candidate: true,
-            duplicate_cleanup_exempted: false,
+            review_candidate: true,
+            review_exempted: false,
         });
     let mut state = NativeShellState::new();
     let button_rect = state

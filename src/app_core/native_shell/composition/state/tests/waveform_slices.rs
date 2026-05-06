@@ -20,8 +20,8 @@ fn waveform_motion_overlay_draws_slice_preview_overlays() {
         selected: false,
         focused: false,
         marked_for_export: false,
-        duplicate_cleanup_candidate: false,
-        duplicate_cleanup_exempted: false,
+        review_candidate: false,
+        review_exempted: false,
     };
     model.waveform.slices.push(slice.clone());
     let motion = NativeMotionModel::from_app_model(&model);
@@ -78,8 +78,8 @@ fn waveform_motion_overlay_draws_selected_slice_preview_with_stronger_fill() {
         selected: true,
         focused: false,
         marked_for_export: false,
-        duplicate_cleanup_candidate: false,
-        duplicate_cleanup_exempted: false,
+        review_candidate: false,
+        review_exempted: false,
     };
     model.waveform.slices.push(slice.clone());
     let motion = NativeMotionModel::from_app_model(&model);
@@ -124,8 +124,8 @@ fn waveform_motion_overlay_draws_exempted_duplicate_preview_with_cool_accent() {
             selected: false,
             focused: false,
             marked_for_export: false,
-            duplicate_cleanup_candidate: true,
-            duplicate_cleanup_exempted: true,
+            review_candidate: true,
+            review_exempted: true,
         });
     let motion = NativeMotionModel::from_app_model(&model);
     let expected_rect = compute_waveform_slice_preview_rects(
@@ -168,8 +168,8 @@ fn waveform_automation_exposes_slice_toggle_and_detect_actions() {
             selected: true,
             focused: true,
             marked_for_export: true,
-            duplicate_cleanup_candidate: false,
-            duplicate_cleanup_exempted: false,
+            review_candidate: false,
+            review_exempted: false,
         });
     let mut state = NativeShellState::new();
     let node = state.automation_snapshot(&layout, &model);
@@ -214,7 +214,7 @@ fn waveform_automation_exposes_slice_toggle_and_detect_actions() {
         Some(&String::from("true"))
     );
     assert_eq!(
-        slice.metadata.get("duplicate_cleanup_candidate"),
+        slice.metadata.get("review_candidate"),
         Some(&String::from("false"))
     );
     assert!(

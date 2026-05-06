@@ -2,7 +2,7 @@
 //!
 //! These models describe Sempal application state as projected for the current
 //! native shell. Radiant still consumes a compatibility copy at the runtime
-//! boundary, but the legacy-shell adapters live in `gui_runtime` so app-core
+//! boundary, but the generic runtime adapter lives in `gui_runtime` so app-core
 //! does not import Radiant compatibility modules.
 
 use radiant::gui::automation;
@@ -1593,8 +1593,8 @@ mod tests {
                 selected: true,
                 focused: false,
                 marked_for_export: false,
-                duplicate_cleanup_candidate: false,
-                duplicate_cleanup_exempted: false,
+                review_candidate: false,
+                review_exempted: false,
             }],
             ..WaveformPanelModel::default()
         };

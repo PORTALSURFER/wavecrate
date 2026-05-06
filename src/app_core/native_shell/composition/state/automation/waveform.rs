@@ -178,8 +178,8 @@ fn waveform_slice_node(
         selected: slice.selected
             || slice.focused
             || slice.marked_for_export
-            || slice.duplicate_cleanup_exempted,
-        available_actions: if slice.duplicate_cleanup_candidate {
+            || slice.review_exempted,
+        available_actions: if slice.review_candidate {
             vec![
                 String::from("audition_waveform_duplicate_slice"),
                 String::from("toggle_waveform_duplicate_slice_exemption"),
@@ -196,12 +196,12 @@ fn waveform_slice_node(
             ),
             ("edit_selected", super::helpers::bool_text(slice.selected)),
             (
-                "duplicate_cleanup_candidate",
-                super::helpers::bool_text(slice.duplicate_cleanup_candidate),
+                "review_candidate",
+                super::helpers::bool_text(slice.review_candidate),
             ),
             (
-                "duplicate_cleanup_exempted",
-                super::helpers::bool_text(slice.duplicate_cleanup_exempted),
+                "review_exempted",
+                super::helpers::bool_text(slice.review_exempted),
             ),
         ]),
         children: Vec::new(),

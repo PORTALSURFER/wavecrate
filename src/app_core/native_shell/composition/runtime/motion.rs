@@ -1,4 +1,4 @@
-//! Sempal native-shell motion projection used by the legacy Radiant compatibility path.
+//! Sempal native-shell motion projection used by the runtime compatibility contract.
 
 use super::{AppModel, NormalizedRangeModel};
 

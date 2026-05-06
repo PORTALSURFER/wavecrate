@@ -1,15 +1,15 @@
-//! Sempal native-shell adapter for the temporary local legacy runtime path.
+//! Sempal native-shell adapter for Radiant's generic runtime path.
 //!
 //! This module owns Sempal compatibility DTO conversion, automation snapshot
-//! mapping, and launch handoff to Sempal's local native-Vello runner. It should
-//! not call Radiant's legacy-shell facade; OPT-277 owns the later cutover to
-//! Radiant's generic runtime bridge.
+//! mapping, and launch handoff through Sempal's generic Radiant runtime bridge.
+//! It should not call Radiant's legacy-shell facade or the local transitional
+//! native-Vello runner.
 
 use super::{NativeRunOptions, NativeRunReport, NativeRuntimeArtifacts, WindowIconRgba};
 use crate::app_core::actions::{
     NativeAppBridge, NativeAppModel, NativeBrowserTagTarget as BrowserTagTarget,
-    NativeFrameBuildResult, NativeGuiAutomationSnapshot, NativeMotionModel, NativeUiAction,
-    NativeUiAction as UiAction, native_shell_dtos::*,
+    NativeGuiAutomationSnapshot, NativeMotionModel, NativeUiAction as UiAction,
+    native_shell_dtos::*,
 };
 use crate::app_core::app_api::controller_ui_hotkeys::KeyPress;
 use crate::app_core::app_api::{controller_ui_hotkeys as hotkeys, state::FocusContext};
@@ -17,15 +17,15 @@ use crate::compat_app_contract as compat;
 use crate::gui::automation as gui_automation;
 use crate::gui::{
     native_shell::{NativeShellState, ShellLayout, ShellLayoutRuntime, StyleTokens},
-    types::Vector2,
+    paint::PaintFrame,
+    types::{Rect, Vector2},
 };
-use crate::gui_runtime::native_vello;
 use radiant::gui::{
-    focus::FocusSurface as RadiantFocusSurface, frame::FrameBuildResult as RadiantFrameBuildResult,
-    input::KeyPress as RadiantKeyPress, shortcuts::ShortcutResolution as RadiantShortcutResolution,
+    focus::FocusSurface as RadiantFocusSurface, input::KeyPress as RadiantKeyPress,
+    shortcuts::ShortcutResolution as RadiantShortcutResolution,
 };
 use radiant::runtime::{RuntimeBridge, SurfaceNode, UiSurface};
-use radiant::widgets::{CanvasMessage, WidgetSizing};
+use radiant::widgets::{CanvasMessage, RetainedSurfaceDescriptor, WidgetSizing};
 use std::{collections::BTreeMap, sync::Arc};
 
 /// Converts app-level Vello launch options into the generic `radiant` runtime representation.
@@ -60,42 +60,43 @@ impl From<WindowIconRgba> for radiant::gui_runtime::WindowIconRgba {
     }
 }
 
-struct CompatNativeAppBridge<B> {
-    inner: B,
-}
-
-impl<B> CompatNativeAppBridge<B> {
-    fn new(inner: B) -> Self {
-        Self { inner }
-    }
-}
-
 /// Sempal-owned generic Radiant runtime bridge.
 ///
-/// The live native launch still uses Sempal's local Vello runner until the full
-/// shell paint/input surface is represented by generic public widgets. This
-/// bridge is the ownership boundary for the OPT-277 cutover: Sempal model
+/// This bridge is the ownership boundary for the runtime cutover: Sempal model
 /// projection, action reduction, shortcut resolution, repaint wiring, and
-/// shutdown artifacts no longer require Radiant's legacy-shell feature.
-#[allow(dead_code)]
+/// shutdown artifacts are routed through Radiant's generic runtime API.
 pub(super) struct SempalRuntimeBridge<B> {
     inner: B,
+    model: Arc<compat::AppModel>,
+    shell_state: NativeShellState,
+    layout_runtime: ShellLayoutRuntime,
+    frame: PaintFrame,
+    layout_viewport: Option<Vector2>,
 }
 
-#[allow(dead_code)]
 impl<B> SempalRuntimeBridge<B> {
     pub(super) fn new(inner: B) -> Self {
-        Self { inner }
+        Self {
+            inner,
+            model: Arc::new(compat::AppModel::default()),
+            shell_state: NativeShellState::new(),
+            layout_runtime: ShellLayoutRuntime::default(),
+            frame: PaintFrame::default(),
+            layout_viewport: None,
+        }
     }
 
-    fn generic_shell_surface() -> Arc<UiSurface<UiAction>> {
-        Arc::new(UiSurface::new(SurfaceNode::canvas_mapped(
+    /// Build the generic retained canvas surface that Radiant owns around Sempal rendering.
+    fn generic_shell_surface(retained: RetainedSurfaceDescriptor) -> Arc<UiSurface<UiAction>> {
+        Arc::new(UiSurface::new(SurfaceNode::retained_canvas_mapped(
             1,
             WidgetSizing::fixed(Vector2::new(1280.0, 720.0)),
+            retained,
             |_message: CanvasMessage| UiAction::HandleEscape,
         )))
     }
 
+    #[cfg(test)]
     pub(super) fn capture_gui_automation_snapshot(
         &mut self,
         viewport: [f32; 2],
@@ -110,7 +111,15 @@ impl<B> SempalRuntimeBridge<B> {
 
 impl<B: NativeAppBridge> RuntimeBridge<UiAction> for SempalRuntimeBridge<B> {
     fn project_surface(&mut self) -> Arc<UiSurface<UiAction>> {
-        Self::generic_shell_surface()
+        let model = self.inner.pull_model_arc();
+        self.model = Arc::new(model.as_ref().into());
+        let dirty = self.inner.take_dirty_segments();
+        let revisions = self.inner.take_segment_revisions();
+        Self::generic_shell_surface(RetainedSurfaceDescriptor {
+            key: 1,
+            revision: retained_surface_revision(revisions),
+            dirty_mask: u64::from(dirty.bits()),
+        })
     }
 
     fn reduce_message(&mut self, message: UiAction) {
@@ -139,6 +148,29 @@ impl<B: NativeAppBridge> RuntimeBridge<UiAction> for SempalRuntimeBridge<B> {
         self.inner.install_repaint_signal(signal);
     }
 
+    /// Render the retained Sempal shell into a paint frame when Radiant requests the canvas.
+    fn render_retained_surface(
+        &mut self,
+        descriptor: RetainedSurfaceDescriptor,
+        _rect: Rect,
+        viewport: Vector2,
+    ) -> Option<PaintFrame> {
+        if descriptor.key != 1 {
+            return None;
+        }
+        let style = StyleTokens::for_viewport_with_scale(viewport.x, 1.0);
+        if self.layout_viewport != Some(viewport) {
+            self.layout_runtime.reset();
+            self.layout_viewport = Some(viewport);
+        }
+        let layout =
+            ShellLayout::build_with_style_and_runtime(viewport, &style, &mut self.layout_runtime);
+        self.shell_state.sync_from_model(&self.model);
+        self.shell_state
+            .build_frame_with_style_into(&layout, &style, &self.model, &mut self.frame);
+        Some(self.frame.clone())
+    }
+
     fn on_runtime_exit(&mut self) -> Option<serde_json::Value> {
         self.inner
             .on_runtime_exit()
@@ -146,86 +178,14 @@ impl<B: NativeAppBridge> RuntimeBridge<UiAction> for SempalRuntimeBridge<B> {
     }
 }
 
-impl<B: NativeAppBridge> compat::NativeAppBridge for CompatNativeAppBridge<B> {
-    fn project_model(&mut self) -> Arc<compat::AppModel> {
-        let model = self.inner.project_model();
-        Arc::new(model.as_ref().into())
-    }
-
-    fn pull_model(&mut self) -> compat::AppModel {
-        self.inner.pull_model().into()
-    }
-
-    fn pull_model_arc(&mut self) -> Arc<compat::AppModel> {
-        let model = self.inner.pull_model_arc();
-        Arc::new(model.as_ref().into())
-    }
-
-    fn project_motion_model(&mut self) -> Option<compat::NativeMotionModel> {
-        self.inner
-            .project_motion_model()
-            .map(NativeMotionModel::into)
-    }
-
-    fn take_dirty_segments(&mut self) -> compat::DirtySegments {
-        self.inner.take_dirty_segments()
-    }
-
-    fn take_segment_revisions(&mut self) -> compat::SegmentRevisions {
-        self.inner.take_segment_revisions()
-    }
-
-    fn resolve_hotkey_press(
-        &mut self,
-        pending_chord: Option<RadiantKeyPress>,
-        press: RadiantKeyPress,
-        focus: RadiantFocusSurface,
-    ) -> RadiantShortcutResolution<compat::UiAction> {
-        let resolution = hotkeys::resolve_hotkey_press(
-            pending_chord.map(keypress_from_radiant),
-            keypress_from_radiant(press),
-            focus_context_from_radiant(focus),
-        );
-        RadiantShortcutResolution {
-            action: resolution.action.map(Into::into),
-            handled: resolution.handled,
-            pending_chord: resolution.pending_chord.map(keypress_to_radiant),
-        }
-    }
-
-    fn reduce_action(&mut self, action: compat::UiAction) {
-        self.inner.reduce_action(NativeUiAction::from(action));
-    }
-
-    fn take_last_action_handled(&mut self) -> Option<bool> {
-        self.inner.take_last_action_handled()
-    }
-
-    fn install_repaint_signal(&mut self, signal: Arc<dyn crate::gui::repaint::RepaintSignal>) {
-        self.inner.install_repaint_signal(signal);
-    }
-
-    #[cfg(target_os = "windows")]
-    fn set_external_drag_hwnd(&mut self, hwnd: isize) {
-        self.inner.set_external_drag_hwnd(hwnd);
-    }
-
-    #[cfg(target_os = "windows")]
-    fn maybe_launch_external_drag(&mut self, pointer_outside: bool, pointer_left: bool) -> bool {
-        self.inner
-            .maybe_launch_external_drag(pointer_outside, pointer_left)
-    }
-
-    fn observe_frame_result(&mut self, result: RadiantFrameBuildResult) {
-        self.inner
-            .observe_frame_result(NativeFrameBuildResult::from(result));
-    }
-
-    fn on_runtime_exit(&mut self) -> Option<serde_json::Value> {
-        self.inner
-            .on_runtime_exit()
-            .and_then(|artifact| serde_json::to_value(artifact).ok())
-    }
+/// Collapse per-segment revisions into the retained canvas revision Radiant observes.
+fn retained_surface_revision(revisions: crate::app_core::actions::NativeSegmentRevisions) -> u64 {
+    revisions.status_bar
+        ^ revisions.browser_frame.rotate_left(7)
+        ^ revisions.browser_rows_window.rotate_left(13)
+        ^ revisions.map_panel.rotate_left(19)
+        ^ revisions.waveform_overlay.rotate_left(29)
+        ^ revisions.global_static.rotate_left(37)
 }
 
 fn focus_context_from_radiant(focus: RadiantFocusSurface) -> FocusContext {
@@ -2119,25 +2079,30 @@ impl From<NativeMotionModel> for compat::NativeMotionModel {
     }
 }
 
-pub(super) fn run_native_vello_app<B: NativeAppBridge>(
+/// Run Sempal through the generic Radiant Vello runtime.
+pub(super) fn run_native_vello_app<B: NativeAppBridge + 'static>(
     options: NativeRunOptions,
     bridge: B,
 ) -> Result<(), String> {
     run_native_vello_app_with_artifacts(options, bridge).result
 }
 
-pub(super) fn run_native_vello_app_with_artifacts<B: NativeAppBridge>(
+/// Run Sempal through the generic Radiant Vello runtime and return launch artifacts.
+pub(super) fn run_native_vello_app_with_artifacts<B: NativeAppBridge + 'static>(
     options: NativeRunOptions,
     bridge: B,
 ) -> NativeRunReport {
-    let report = native_vello::run_native_shell_vello_app_with_artifacts(
-        options,
-        CompatNativeAppBridge::new(bridge),
+    let report = radiant::gui_runtime::run_native_vello_runtime_with_artifacts(
+        options.into(),
+        SempalRuntimeBridge::new(bridge),
     );
     NativeRunReport {
         artifacts: NativeRuntimeArtifacts {
             startup_timing: report.artifacts.startup_timing,
-            shutdown_timing: report.artifacts.shutdown_timing,
+            shutdown_timing: report
+                .artifacts
+                .shutdown_timing
+                .and_then(|value| serde_json::from_value(value).ok()),
         },
         result: report.result,
     }
@@ -2209,6 +2174,8 @@ pub(super) fn capture_native_shell_shot_snapshot(
 mod tests {
     use super::*;
     use crate::gui::repaint::RepaintSignal;
+    use radiant::runtime::PaintPrimitive;
+    use radiant::theme::ThemeTokens;
     use radiant::widgets::{CanvasMessage, WidgetInput, WidgetOutput};
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::{fs, path::Path};
@@ -2244,27 +2211,24 @@ mod tests {
     }
 
     #[test]
-    fn sempal_runtime_glue_stays_local_until_generic_runtime_cutover() {
+    /// Guard the Sempal launch path against regressing to a local native Vello runtime module.
+    fn sempal_runtime_glue_launches_through_generic_radiant_runtime() {
         let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
         let adapter =
             fs::read_to_string(manifest_dir.join("src/gui_runtime/native_shell_runtime.rs"))
                 .expect("native shell runtime adapter");
-        let runtime = fs::read_to_string(manifest_dir.join("src/gui_runtime/native_vello.rs"))
-            .expect("local native vello runtime");
-        let runtime_prelude = fs::read_to_string(
-            manifest_dir.join("src/gui_runtime/native_vello/legacy_shell_prelude.rs"),
-        )
-        .expect("local native vello prelude");
         let public_runtime =
             fs::read_to_string(manifest_dir.join("src/gui_runtime/mod.rs")).expect("runtime mod");
+        let removed_runtime_module = format!("mod {}{};", "native_", "vello");
 
         assert!(
             adapter.contains("crate::compat_app_contract as compat")
-                && adapter.contains("native_vello::run_native_shell_vello_app_with_artifacts")
+                && adapter.contains("run_native_vello_runtime_with_artifacts")
+                && adapter.contains("SempalRuntimeBridge::new(bridge)")
                 && adapter.contains("local_automation_snapshot_from_native_shell")
                 && adapter
                     .contains("crate::compat_app_contract::capture_native_shell_shot_snapshot"),
-            "Sempal compatibility conversion, runtime launch, automation, and shot snapshots should stay in the local runtime adapter"
+            "Sempal compatibility conversion, generic runtime launch, automation, and shot snapshots should stay in the runtime adapter"
         );
         assert!(
             !adapter.contains(&format!("{}{}", "radiant::compat::", "legacy_shell"))
@@ -2272,12 +2236,11 @@ mod tests {
                     "{}{}",
                     "run_legacy_native_vello_", "app_with_artifacts"
                 )),
-            "OPT-275 must not route Sempal runtime glue through Radiant's legacy-shell facade"
+            "Sempal runtime glue must not route through a legacy-shell facade or local legacy runner"
         );
         assert!(
-            runtime_prelude.contains("crate::compat_app_contract")
-                && runtime.contains("pub(super) use legacy_shell_runtime::run_legacy_shell_vello_app_with_artifacts as run_native_shell_vello_app_with_artifacts"),
-            "the transitional native-Vello runner should be Sempal-owned until OPT-277 switches to RuntimeBridge"
+            !public_runtime.contains(&removed_runtime_module),
+            "Sempal runtime module tree must not include the removed local native Vello runner"
         );
         assert!(
             public_runtime.contains("Sempal GUI runtime host integration")
@@ -2298,6 +2261,41 @@ mod tests {
         });
 
         let surface = bridge.project_surface();
+        let layout = radiant::layout::layout_tree(
+            &surface.layout_node(),
+            radiant::gui::types::Rect::from_min_size(
+                radiant::gui::types::Point::new(0.0, 0.0),
+                radiant::gui::types::Vector2::new(1280.0, 720.0),
+            ),
+        );
+        let plan = surface.paint_plan(&layout, &ThemeTokens::default());
+        let retained = plan
+            .primitives
+            .iter()
+            .find_map(|primitive| match primitive {
+                PaintPrimitive::CustomSurface(surface) => surface.retained,
+                _ => None,
+            });
+        let retained = retained.expect("generic bridge should project retained shell metadata");
+        assert_eq!(
+            retained.dirty_mask,
+            u64::from(crate::app_core::actions::NativeDirtySegments::all().bits())
+        );
+        let frame = bridge
+            .render_retained_surface(
+                retained,
+                radiant::gui::types::Rect::from_min_size(
+                    radiant::gui::types::Point::new(0.0, 0.0),
+                    radiant::gui::types::Vector2::new(1280.0, 720.0),
+                ),
+                radiant::gui::types::Vector2::new(1280.0, 720.0),
+            )
+            .expect("generic runtime should ask Sempal for real retained shell paint");
+        assert!(
+            frame.primitives.len() > 8 && !frame.text_runs.is_empty(),
+            "retained shell paint should contain the real Sempal frame, not a placeholder canvas"
+        );
+
         let action = surface
             .dispatch_widget_output(
                 1,

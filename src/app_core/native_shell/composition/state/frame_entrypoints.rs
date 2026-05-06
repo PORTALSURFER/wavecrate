@@ -20,7 +20,6 @@ impl NativeShellState {
     }
 
     /// Build a native frame from state + layout + style tokens into reusable buffers.
-    #[cfg(test)]
     pub(crate) fn build_frame_with_style_into(
         &mut self,
         layout: &ShellLayout,

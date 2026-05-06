@@ -15,12 +15,12 @@ pub(in crate::gui::native_shell::state) fn emit_waveform_slice_previews(
         viewport.end_micros,
     );
     for slice in slices {
-        let (fill, border) = if slice.duplicate_cleanup_exempted {
+        let (fill, border) = if slice.review_exempted {
             (
                 translucent_overlay_color(style.surface_overlay, style.accent_mint, 0.74),
                 blend_color(style.accent_mint, style.text_primary, 0.42),
             )
-        } else if slice.duplicate_cleanup_candidate {
+        } else if slice.review_candidate {
             if slice.focused {
                 (
                     translucent_overlay_color(style.surface_overlay, style.accent_danger, 0.82),
