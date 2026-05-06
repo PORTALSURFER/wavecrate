@@ -19,19 +19,19 @@ fn toolbar_hit_test_focuses_browser_search() {
 }
 
 #[test]
-fn toolbar_hit_test_toggles_browser_rating_filter_chip() {
+fn sidebar_hit_test_toggles_browser_rating_filter_chip() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
     let model = crate::compat_app_contract::AppModel::default();
     let chip = state
-        .browser_rating_filter_chip_rect(&layout, &model, 3)
-        .expect("keep-3 rating filter chip should be present");
+        .sidebar_rating_filter_chip_rect(&layout, &model, 3)
+        .expect("keep-3 sidebar rating filter chip should be present");
     let point = Point::new(
         (chip.min.x + chip.max.x) * 0.5,
         (chip.min.y + chip.max.y) * 0.5,
     );
     assert_eq!(
-        state.browser_action_at_point(&layout, &model, point, false),
+        state.source_action_at_point(&layout, &model, point),
         Some(
             crate::compat_app_contract::UiAction::ToggleBrowserRatingFilter {
                 level: 3,
@@ -42,80 +42,36 @@ fn toolbar_hit_test_toggles_browser_rating_filter_chip() {
 }
 
 #[test]
-fn toolbar_hit_test_alt_click_inverts_browser_rating_filter_chip() {
+fn browser_toolbar_no_longer_exposes_rating_filter_chip() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
     let model = crate::compat_app_contract::AppModel::default();
-    let chip = state
-        .browser_rating_filter_chip_rect(&layout, &model, 4)
-        .expect("locked keep rating filter chip should be present");
-    let point = Point::new(
-        (chip.min.x + chip.max.x) * 0.5,
-        (chip.min.y + chip.max.y) * 0.5,
-    );
-    assert_eq!(
-        state.browser_action_at_point(&layout, &model, point, true),
-        Some(
-            crate::compat_app_contract::UiAction::ToggleBrowserRatingFilter {
-                level: 4,
-                invert: true,
-            }
-        )
-    );
+    assert!(state.browser_rating_filter_chip_rect(&layout, &model, 4).is_none());
 }
 
 #[test]
-fn toolbar_hit_test_toggles_browser_playback_age_filter_chip() {
+fn browser_toolbar_no_longer_exposes_playback_age_filter_chip() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let mut state = NativeShellState::new();
     let model = crate::compat_app_contract::AppModel::default();
-    let chip = state
+    assert!(state
         .browser_playback_age_filter_chip_rect(
             &layout,
             &model,
             crate::compat_app_contract::PlaybackAgeFilterChip::OlderThanMonth,
         )
-        .expect("month playback-age filter chip should be present");
-    let point = Point::new(
-        (chip.min.x + chip.max.x) * 0.5,
-        (chip.min.y + chip.max.y) * 0.5,
-    );
-    assert_eq!(
-        state.browser_action_at_point(&layout, &model, point, false),
-        Some(
-            crate::compat_app_contract::UiAction::ToggleBrowserPlaybackAgeFilter {
-                bucket: crate::compat_app_contract::PlaybackAgeFilterChip::OlderThanMonth,
-                invert: false,
-            }
-        )
-    );
+        .is_none());
 }
 
 #[test]
-fn toolbar_hit_test_alt_click_inverts_browser_playback_age_filter_chip() {
+fn sidebar_pill_editor_input_is_left_sidebar_hit_target() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
-    let mut state = NativeShellState::new();
+    let state = NativeShellState::new();
     let model = crate::compat_app_contract::AppModel::default();
-    let chip = state
-        .browser_playback_age_filter_chip_rect(
-            &layout,
-            &model,
-            crate::compat_app_contract::PlaybackAgeFilterChip::OlderThanWeek,
-        )
-        .expect("week playback-age filter chip should be present");
-    let point = Point::new(
-        (chip.min.x + chip.max.x) * 0.5,
-        (chip.min.y + chip.max.y) * 0.5,
-    );
-    assert_eq!(
-        state.browser_action_at_point(&layout, &model, point, true),
-        Some(
-            crate::compat_app_contract::UiAction::ToggleBrowserPlaybackAgeFilter {
-                bucket: crate::compat_app_contract::PlaybackAgeFilterChip::OlderThanWeek,
-                invert: true,
-            }
-        )
-    );
+    let rect = state
+        .sidebar_pill_editor_input_rect(&layout, &model)
+        .expect("sidebar tag input should be present");
+    assert!(layout.sidebar.contains(rect.center()));
 }
 
 #[test]

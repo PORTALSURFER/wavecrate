@@ -14,17 +14,18 @@ use super::{
     layout::{ShellLayout, ShellNodeKind},
     layout_adapter::{
         BrowserTabsRects, BrowserTabsTextLayout, BrowserToolbarTextLayout, SidebarFolderRowLayout,
-        SidebarRowCounts, compute_action_button_text_rect, compute_browser_footer_text_rect,
-        compute_browser_header_text_layout, compute_browser_map_canvas_rect,
-        compute_browser_map_header_text_layout, compute_browser_map_point_center,
-        compute_browser_row_text_layout, compute_browser_tabs_text_layout,
-        compute_browser_toolbar_text_layout, compute_drag_overlay_text_layout,
-        compute_drag_overlay_visual_layout, compute_progress_overlay_text_layout,
-        compute_progress_overlay_visual_layout, compute_prompt_overlay_text_layout,
-        compute_prompt_overlay_visual_layout, compute_sidebar_folder_header_layout,
-        compute_sidebar_folder_row_depth_indent, compute_sidebar_folder_row_layout,
-        compute_sidebar_recovery_badge_text_rect, compute_sidebar_row_sections,
-        compute_sidebar_source_row_text_rect, compute_source_section_divider_rect,
+        SidebarRowCounts, SidebarWorkspaceSections, compute_action_button_text_rect,
+        compute_browser_footer_text_rect, compute_browser_header_text_layout,
+        compute_browser_map_canvas_rect, compute_browser_map_header_text_layout,
+        compute_browser_map_point_center, compute_browser_row_text_layout,
+        compute_browser_tabs_text_layout, compute_browser_toolbar_text_layout,
+        compute_drag_overlay_text_layout, compute_drag_overlay_visual_layout,
+        compute_progress_overlay_text_layout, compute_progress_overlay_visual_layout,
+        compute_prompt_overlay_text_layout, compute_prompt_overlay_visual_layout,
+        compute_sidebar_folder_header_layout, compute_sidebar_folder_row_depth_indent,
+        compute_sidebar_folder_row_layout, compute_sidebar_recovery_badge_text_rect,
+        compute_sidebar_row_sections, compute_sidebar_source_row_text_rect,
+        compute_sidebar_workspace_sections, compute_source_section_divider_rect,
         compute_status_text_line_rect, compute_waveform_annotation_rects_with_nanos,
         compute_waveform_slice_preview_rects, waveform_plot_x_for_absolute_ratio,
         waveform_plot_x_for_micros, waveform_view_window_from_bounds,
@@ -549,6 +550,44 @@ mod opt_272_tests {
             assert!(sections.lower.bounds.height() <= 0.01);
             assert_eq!(rendered_sources.len(), expected_source_rows);
         }
+    }
+
+    #[test]
+    fn compact_sidebar_workspace_anchors_tags_and_filters_below_sources() {
+        let model = populated_single_sidebar_model();
+        for viewport in [Vector2::new(820.0, 420.0), Vector2::new(1280.0, 720.0)] {
+            let layout = ShellLayout::build(viewport);
+            let style = style_for_layout(&layout);
+            let workspace = sidebar_workspace_sections(&layout, &style);
+            let sections = sidebar_sections(&layout, &style, &model);
+
+            assert!(layout.sidebar_rows.contains(workspace.sources.center()));
+            assert!(layout.sidebar_rows.contains(workspace.tags.center()));
+            assert!(layout.sidebar_rows.contains(workspace.filters.center()));
+            assert!(workspace.sources.max.y <= workspace.tags.min.y);
+            assert!(workspace.tags.max.y <= workspace.filters.min.y);
+            assert!(workspace.sources.contains(sections.upper.bounds.center()));
+        }
+    }
+
+    #[test]
+    fn left_sidebar_rating_chip_routes_browser_filter_action() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let model = populated_single_sidebar_model();
+        let mut state = NativeShellState::new();
+        let chip = state
+            .sidebar_rating_filter_chip_rect(&layout, &model, 3)
+            .expect("left-sidebar rating chip should exist");
+
+        assert_eq!(
+            state.source_action_at_point(&layout, &model, chip.center()),
+            Some(
+                crate::compat_app_contract::UiAction::ToggleBrowserRatingFilter {
+                    level: 3,
+                    invert: false,
+                }
+            )
+        );
     }
 
     #[test]

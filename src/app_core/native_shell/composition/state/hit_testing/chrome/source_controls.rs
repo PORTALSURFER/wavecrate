@@ -1,7 +1,48 @@
 use super::*;
-use crate::compat_app_contract::FolderPaneIdModel;
+use crate::compat_app_contract::{BrowserPillModel, BrowserPillState, FolderPaneIdModel};
 
 impl NativeShellState {
+    /// Return the left-sidebar tag-editor input rect.
+    pub(crate) fn sidebar_pill_editor_input_rect(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> Option<Rect> {
+        let _ = model;
+        sidebar_pill_editor_input_rect(layout, &style_for_layout(layout))
+    }
+
+    /// Return the left-sidebar tag-editor text rect.
+    pub(crate) fn sidebar_pill_editor_text_rect(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+    ) -> Option<Rect> {
+        let _ = model;
+        sidebar_pill_editor_text_rect(layout, &style_for_layout(layout))
+    }
+
+    /// Return a sidebar rating-filter chip rect in tests.
+    #[cfg(test)]
+    pub(crate) fn sidebar_rating_filter_chip_rect(
+        &self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        level: i8,
+    ) -> Option<Rect> {
+        let _ = model;
+        let style = style_for_layout(layout);
+        let rect = sidebar_workspace_sections(layout, &style).filters;
+        let row = sidebar_filter_row_rects(rect, style.sizing)
+            .get(5)
+            .copied()?;
+        let index = [-3, -2, -1, 0, 1, 2, 3, 4]
+            .iter()
+            .position(|candidate| *candidate == level)?;
+        let chip = sidebar_rating_chip_rects(row, style.sizing)[index];
+        (chip.width() > 1.0).then_some(chip)
+    }
+
     /// Resolve a rendered source-row index for a point within the sidebar.
     pub(crate) fn source_row_at_point(
         &mut self,
@@ -186,6 +227,12 @@ impl NativeShellState {
         point: Point,
     ) -> Option<UiAction> {
         let style = style_for_layout(layout);
+        if let Some(action) = sidebar_tag_action_at_point(layout, &style, model, point) {
+            return Some(action);
+        }
+        if let Some(action) = sidebar_filter_action_at_point(layout, &style, model, point) {
+            return Some(action);
+        }
         if source_add_button_rect(layout.sidebar_header, style.sizing)
             .is_some_and(|rect| rect.contains(point))
         {
@@ -214,6 +261,13 @@ impl NativeShellState {
         if sections.folder_header(pane).contains(point) || sections.tree_rows(pane).contains(point)
         {
             return Some(UiAction::FocusFolderPanel);
+        }
+        let workspace = sidebar_workspace_sections(layout, &style);
+        if workspace.tags.contains(point) {
+            return Some(UiAction::FocusBrowserPillEditorInput);
+        }
+        if workspace.filters.contains(point) {
+            return Some(UiAction::FocusBrowserPanel);
         }
         None
     }
@@ -262,4 +316,178 @@ impl NativeShellState {
         .find(|button| button.spec.enabled && button.rect.contains(point))
         .map(|button| button.spec.action)
     }
+}
+
+pub(in crate::gui::native_shell::state) fn sidebar_pill_editor_input_rect(
+    layout: &ShellLayout,
+    style: &StyleTokens,
+) -> Option<Rect> {
+    let rect = sidebar_workspace_sections(layout, style).tags;
+    (rect.width() > 1.0 && rect.height() > 1.0).then(|| sidebar_tag_input_rect(rect, style.sizing))
+}
+
+pub(in crate::gui::native_shell::state) fn sidebar_pill_editor_text_rect(
+    layout: &ShellLayout,
+    style: &StyleTokens,
+) -> Option<Rect> {
+    sidebar_pill_editor_input_rect(layout, style)
+        .map(|rect| inset_rect(rect, style.sizing.text_inset_x, style.sizing.text_inset_y))
+}
+
+fn sidebar_tag_action_at_point(
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    model: &AppModel,
+    point: Point,
+) -> Option<UiAction> {
+    let rect = sidebar_workspace_sections(layout, style).tags;
+    if rect.width() <= 1.0 || rect.height() <= 1.0 || !rect.contains(point) {
+        return None;
+    }
+    if sidebar_tag_input_rect(rect, style.sizing).contains(point) {
+        return Some(UiAction::FocusBrowserPillEditorInput);
+    }
+    for (pill, pill_rect) in sidebar_tag_pill_rects(rect, style.sizing, model) {
+        if pill_rect.contains(point) {
+            return Some(UiAction::ToggleBrowserPillOption {
+                label: pill.id.clone(),
+            });
+        }
+    }
+    None
+}
+
+fn sidebar_filter_action_at_point(
+    layout: &ShellLayout,
+    style: &StyleTokens,
+    model: &AppModel,
+    point: Point,
+) -> Option<UiAction> {
+    let rect = sidebar_workspace_sections(layout, style).filters;
+    if rect.width() <= 1.0 || rect.height() <= 1.0 || !rect.contains(point) {
+        return None;
+    }
+    let rows = sidebar_filter_row_rects(rect, style.sizing);
+    let Some(rating_row) = rows.get(5).copied() else {
+        return None;
+    };
+    for (index, chip) in sidebar_rating_chip_rects(rating_row, style.sizing)
+        .into_iter()
+        .enumerate()
+    {
+        if chip.contains(point) {
+            return Some(UiAction::ToggleBrowserRatingFilter {
+                level: [-3, -2, -1, 0, 1, 2, 3, 4][index],
+                invert: false,
+            });
+        }
+    }
+    if model.browser.marked_filter_active && rows.get(0).is_some_and(|row| row.contains(point)) {
+        return Some(UiAction::ToggleBrowserMarkedFilter);
+    }
+    None
+}
+
+fn sidebar_tag_input_rect(rect: Rect, sizing: SizingTokens) -> Rect {
+    let pad = sizing.panel_inset.max(5.0);
+    let height = sizing.browser_row_height.max(18.0);
+    Rect::from_min_max(
+        Point::new(
+            rect.min.x + pad,
+            (rect.max.y - pad - height).max(rect.min.y + pad),
+        ),
+        Point::new(rect.max.x - pad, rect.max.y - pad),
+    )
+}
+
+fn sidebar_tag_pill_rects<'a>(
+    rect: Rect,
+    sizing: SizingTokens,
+    model: &'a AppModel,
+) -> Vec<(&'a BrowserPillModel, Rect)> {
+    let pad = sizing.panel_inset.max(5.0);
+    let gap = sizing.border_width.max(1.0) + 3.0;
+    let title_height = sizing.font_meta + sizing.text_inset_y + 2.0;
+    let input = sidebar_tag_input_rect(rect, sizing);
+    let row_height = sizing.browser_row_height.max(18.0);
+    let col_width = ((rect.width() - pad * 2.0 - gap) * 0.5).max(36.0);
+    let mut pills: Vec<_> = model
+        .browser
+        .pill_editor()
+        .option_pills
+        .iter()
+        .filter(|pill| !matches!(pill.state, BrowserPillState::Off))
+        .collect();
+    if pills.is_empty() {
+        pills.extend(model.browser.pill_editor().option_pills.iter().take(4));
+    }
+    if let Some(create) = model.browser.pill_editor().create_pill.as_ref() {
+        pills.push(create);
+    }
+    pills
+        .into_iter()
+        .take(4)
+        .enumerate()
+        .filter_map(|(index, pill)| {
+            let col = index % 2;
+            let row = index / 2;
+            let min_x = rect.min.x + pad + (col_width + gap) * col as f32;
+            let min_y = rect.min.y + pad + title_height + (row_height + gap) * row as f32;
+            let pill_rect = Rect::from_min_max(
+                Point::new(min_x, min_y),
+                Point::new(
+                    (min_x + col_width).min(rect.max.x - pad),
+                    min_y + row_height,
+                ),
+            );
+            (pill_rect.max.y <= input.min.y - gap).then_some((pill, pill_rect))
+        })
+        .collect()
+}
+
+fn sidebar_filter_row_rects(rect: Rect, sizing: SizingTokens) -> Vec<Rect> {
+    let pad = sizing.panel_inset.max(5.0);
+    let gap = sizing.border_width.max(1.0) + 2.0;
+    let title_height = sizing.font_meta + sizing.text_inset_y + 4.0;
+    let available = (rect.height() - pad * 2.0 - title_height - gap * 5.0).max(0.0);
+    let row_height = (available / 6.0)
+        .min(sizing.browser_row_height.max(18.0))
+        .max(8.0);
+    (0..6)
+        .map(|index| {
+            let min_y = rect.min.y + pad + title_height + (row_height + gap) * index as f32;
+            Rect::from_min_max(
+                Point::new(rect.min.x + pad, min_y),
+                Point::new(rect.max.x - pad, (min_y + row_height).min(rect.max.y - pad)),
+            )
+        })
+        .collect()
+}
+
+fn sidebar_rating_chip_rects(rating_row: Rect, sizing: SizingTokens) -> [Rect; 8] {
+    let chip_gap = 2.0_f32.max(sizing.border_width);
+    let left = rating_row.min.x + (rating_row.width() * 0.43);
+    let right = rating_row.max.x - sizing.text_inset_x;
+    let available = (right - left - chip_gap * 7.0).max(0.0);
+    let side = (available / 8.0).min(rating_row.height() - 4.0).max(0.0);
+    std::array::from_fn(|index| {
+        let x = left + (side + chip_gap) * index as f32;
+        Rect::from_min_max(
+            Point::new(x, rating_row.min.y + 2.0),
+            Point::new((x + side).min(right), rating_row.min.y + 2.0 + side),
+        )
+    })
+}
+
+fn inset_rect(rect: Rect, x: f32, y: f32) -> Rect {
+    Rect::from_min_max(
+        Point::new(
+            (rect.min.x + x).min(rect.max.x),
+            (rect.min.y + y).min(rect.max.y),
+        ),
+        Point::new(
+            (rect.max.x - x).max(rect.min.x),
+            (rect.max.y - y).max(rect.min.y),
+        ),
+    )
 }

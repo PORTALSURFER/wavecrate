@@ -25,7 +25,7 @@ pub(crate) fn project_sources_model(controller: &AppController) -> SourcesPanelM
     let active_recovery = active_pane_model.recovery.clone();
 
     SourcesPanelModel {
-        header: format!("Sources ({})", ui.sources.rows.len()),
+        header: format!("Library ({} items)", ui.browser.viewport.visible.len()),
         search_query: active_tree_search_query.clone(),
         active_folder_pane,
         upper_folder_pane,

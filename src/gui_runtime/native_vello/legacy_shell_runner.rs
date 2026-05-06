@@ -123,6 +123,7 @@ pub(in crate::gui_runtime::native_vello) struct NativeVelloRunner<B: NativeAppBr
     pub(super) text_input_target: TextInputTarget,
     pub(super) text_input_buffer: Option<String>,
     pub(super) text_editor_state: Option<SingleLineTextEditorState>,
+    pub(super) browser_pill_editor_suggestion_index: Option<usize>,
     pub(super) active_text_field_visual_cache: Option<ActiveTextFieldVisualCacheEntry>,
     pub(super) text_input_drag_active: bool,
     pub(super) waveform_bpm_input_buffer: Option<String>,

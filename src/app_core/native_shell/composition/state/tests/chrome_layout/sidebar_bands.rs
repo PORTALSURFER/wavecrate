@@ -39,6 +39,24 @@ fn sidebar_sections_keep_single_pane_contents_inside_sidebar_when_cramped() {
 }
 
 #[test]
+fn sidebar_workspace_anchors_tags_and_filters_below_sources() {
+    let model = populated_sidebar_model();
+    for viewport in [Vector2::new(820.0, 400.0), Vector2::new(1280.0, 720.0)] {
+        let layout = ShellLayout::build(viewport);
+        let style = style_for_layout(&layout);
+        let workspace = sidebar_workspace_sections(&layout, &style);
+        let source_sections = sidebar_sections(&layout, &style, &model);
+
+        assert_rect_inside(layout.sidebar_rows, workspace.sources);
+        assert_rect_inside(layout.sidebar_rows, workspace.tags);
+        assert_rect_inside(layout.sidebar_rows, workspace.filters);
+        assert!(workspace.sources.max.y <= workspace.tags.min.y);
+        assert!(workspace.tags.max.y <= workspace.filters.min.y);
+        assert_rect_inside(workspace.sources, source_sections.upper.bounds);
+    }
+}
+
+#[test]
 fn sidebar_header_and_footer_surfaces_stay_ordered_across_density_tiers() {
     let model = populated_sidebar_model();
     for viewport in [

@@ -32,17 +32,17 @@ fn browser_nodes_advertise_expected_action_ids() {
         ),
         (
             "browser",
-            "browser.marked_filter",
+            "sources.filters.marked",
             &["toggle_browser_marked_filter"],
         ),
         (
             "browser",
-            "browser.rating_filter.3",
+            "sources.filters.rating",
             &["toggle_browser_rating_filter"],
         ),
         (
             "browser",
-            "browser.playback_age_filter.month",
+            "sources.filters.playback_age.month",
             &["toggle_browser_playback_age_filter"],
         ),
         (
@@ -64,6 +64,20 @@ fn browser_nodes_advertise_expected_action_ids() {
                 "open_source_folder_row",
                 "remove_source_row",
             ],
+        ),
+        (
+            "browser",
+            "sources.tags.input",
+            &[
+                "focus_browser_tag_sidebar_input",
+                "set_browser_tag_sidebar_input",
+                "commit_browser_tag_sidebar_input",
+            ],
+        ),
+        (
+            "browser",
+            "sources.filters.rating",
+            &["toggle_browser_rating_filter"],
         ),
         (
             "browser",

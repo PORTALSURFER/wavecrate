@@ -410,6 +410,7 @@ impl NativeShellState {
             .style;
         browser_pill_editor_layout(layout.browser_rows, style.sizing, model)
             .map(|layout| layout.input_rect)
+            .or_else(|| self.sidebar_pill_editor_input_rect(layout, model))
     }
 
     /// Return the browser tag-sidebar input text rect when the sidebar is visible.
@@ -423,6 +424,7 @@ impl NativeShellState {
             .style;
         browser_pill_editor_layout(layout.browser_rows, style.sizing, model)
             .map(|layout| layout.input_text_rect)
+            .or_else(|| self.sidebar_pill_editor_text_rect(layout, model))
     }
 
     /// Return the focused-row similarity button rect when present.

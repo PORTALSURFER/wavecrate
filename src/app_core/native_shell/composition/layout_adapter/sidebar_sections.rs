@@ -19,6 +19,14 @@ pub(crate) struct SidebarRowSections {
     pub lower_folder_pane: SidebarFolderPaneSections,
 }
 
+/// Compact library-workspace bands inside the sidebar rows band.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct SidebarWorkspaceSections {
+    pub sources: Rect,
+    pub tags: Rect,
+    pub filters: Rect,
+}
+
 /// Rendered row-count inputs used for source/folder section partitioning.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct SidebarRowCounts {
@@ -46,11 +54,8 @@ pub(crate) fn compute_sidebar_row_sections(
     sizing: SizingTokens,
     counts: SidebarRowCounts,
 ) -> SidebarRowSections {
-    let section_bounds = inset_vertical(
-        sidebar_rows,
-        sizing.panel_section_padding_top,
-        sizing.panel_section_padding_bottom,
-    );
+    let workspace = compute_sidebar_workspace_sections(sidebar_rows, sizing);
+    let section_bounds = workspace.sources;
     let empty = Rect::from_min_max(section_bounds.max, section_bounds.max);
     SidebarRowSections {
         upper_folder_pane: resolve_pane_sections(
@@ -62,6 +67,80 @@ pub(crate) fn compute_sidebar_row_sections(
         lower_folder_pane: empty_pane_sections(empty),
     }
     .with_empty_fallback(empty)
+}
+
+/// Compute top Sources plus bottom Tags/Filters bands for the compact library workspace.
+pub(crate) fn compute_sidebar_workspace_sections(
+    sidebar_rows: Rect,
+    sizing: SizingTokens,
+) -> SidebarWorkspaceSections {
+    let bounds = inset_vertical(
+        sidebar_rows,
+        sizing.panel_section_padding_top,
+        sizing.panel_section_padding_bottom,
+    );
+    let empty = bounds.empty_at_min();
+    if bounds.width() <= 0.0 || bounds.height() <= 0.0 {
+        return SidebarWorkspaceSections {
+            sources: empty,
+            tags: empty,
+            filters: empty,
+        };
+    }
+
+    let gap = sizing.sidebar_section_gap.max(3.0);
+    let row_height = sizing.browser_row_height.max(18.0);
+    let label_height = (sizing.font_meta + sizing.text_inset_y).max(10.0);
+    let desired_tags_height = label_height + row_height * 2.0 + gap;
+    let desired_filters_height = label_height + row_height * 6.0 + gap;
+    let bottom_demand = desired_tags_height + desired_filters_height + gap;
+    let min_sources_height = (sizing.source_row_height + sizing.folder_row_height + gap)
+        .min(bounds.height())
+        .max(0.0);
+    let available_bottom = (bounds.height() - min_sources_height).max(0.0);
+    let bottom_scale = if bottom_demand <= available_bottom || bottom_demand <= 0.0 {
+        1.0
+    } else {
+        (available_bottom / bottom_demand).clamp(0.0, 1.0)
+    };
+    let tags_height = desired_tags_height * bottom_scale;
+    let filters_height = desired_filters_height * bottom_scale;
+    let used_bottom = tags_height + filters_height + if bottom_scale > 0.0 { gap } else { 0.0 };
+    let sources_bottom = (bounds.max.y - used_bottom).max(bounds.min.y);
+    let tags_top = if tags_height > 0.0 {
+        (sources_bottom + gap).min(bounds.max.y)
+    } else {
+        bounds.max.y
+    };
+    let filters_top = if filters_height > 0.0 {
+        (tags_top + tags_height + gap).min(bounds.max.y)
+    } else {
+        bounds.max.y
+    };
+
+    SidebarWorkspaceSections {
+        sources: clamp_rect_to_bounds(
+            Rect::from_min_max(bounds.min, Point::new(bounds.max.x, sources_bottom)),
+            bounds,
+        ),
+        tags: clamp_rect_to_bounds(
+            Rect::from_min_max(
+                Point::new(bounds.min.x, tags_top),
+                Point::new(bounds.max.x, (tags_top + tags_height).min(bounds.max.y)),
+            ),
+            bounds,
+        ),
+        filters: clamp_rect_to_bounds(
+            Rect::from_min_max(
+                Point::new(bounds.min.x, filters_top),
+                Point::new(
+                    bounds.max.x,
+                    (filters_top + filters_height).min(bounds.max.y),
+                ),
+            ),
+            bounds,
+        ),
+    }
 }
 
 impl SidebarRowSections {

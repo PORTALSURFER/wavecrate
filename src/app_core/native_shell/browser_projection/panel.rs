@@ -163,7 +163,6 @@ pub(crate) fn project_browser_focused_sample_label(controller: &AppController) -
 pub(crate) fn project_browser_tag_sidebar_model(
     controller: &mut AppController,
 ) -> BrowserTagSidebarModel {
-    let is_list_tab = matches!(controller.ui.browser.active_tab, SampleBrowserTab::List);
     let sidebar_targets = controller.browser_tag_sidebar_target_snapshot();
     let target_entries = sidebar_targets.resolve_entries(controller);
     let selected_count = target_entries.len();
@@ -196,7 +195,10 @@ pub(crate) fn project_browser_tag_sidebar_model(
         (Vec::new(), None)
     };
     BrowserTagSidebarModel {
-        open: is_list_tab && controller.ui.browser.tag_sidebar_open,
+        // The tag editor is now rendered in the left library sidebar. Keep the
+        // existing projection payload for mutation/input compatibility without
+        // opening the old browser-row overlay.
+        open: false,
         selected_count,
         header_label,
         primary_action_enabled: controller.ui.browser.tag_sidebar_auto_rename,

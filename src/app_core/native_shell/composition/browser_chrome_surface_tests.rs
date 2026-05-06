@@ -66,7 +66,7 @@ fn browser_toolbar_surface_uses_public_toggle_button_and_text_input_widgets() {
     assert_eq!(
         surface
             .find_widget(TOOLBAR_RATING_BASE_ID)
-            .expect("rating chip")
+            .expect("compatibility-only rating chip widget")
             .widget()
             .kind(),
         WidgetKind::Toggle
@@ -102,10 +102,9 @@ fn browser_toolbar_surface_layout_preserves_search_and_button_order() {
         layout
             .rating_filter_chips
             .iter()
-            .all(|chip| chip.width() > 1.0)
+            .all(|chip| chip.width() <= 1.0)
     );
     assert_inside(toolbar_rect, layout.search_field);
-    assert!(layout.rating_filter_chips[7].max.x <= layout.action_slots[0].min.x);
     assert!(layout.action_slots[0].max.x <= layout.action_slots[1].min.x);
     assert!(layout.action_slots[1].max.x <= layout.search_field.min.x);
     assert!(layout.search_field.max.x <= layout.action_slots[2].min.x);

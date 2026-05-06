@@ -145,6 +145,13 @@ pub(in crate::gui::native_shell::state) fn sidebar_sections(
     }
 }
 
+pub(in crate::gui::native_shell::state) fn sidebar_workspace_sections(
+    layout: &ShellLayout,
+    style: &StyleTokens,
+) -> SidebarWorkspaceSections {
+    compute_sidebar_workspace_sections(layout.sidebar_rows, style.sizing)
+}
+
 pub(in crate::gui::native_shell::state) fn source_action_buttons(
     layout: &ShellLayout,
     style: &StyleTokens,
