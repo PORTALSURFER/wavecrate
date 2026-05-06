@@ -57,6 +57,28 @@ fn apply_native_commit_browser_tag_sidebar_input_creates_normal_tag() {
     assert_eq!(controller.ui.browser.tag_sidebar_input, "");
 }
 
+#[test]
+fn apply_native_commit_browser_tag_sidebar_input_tokenizes_comma_separated_tags() {
+    let (mut controller, source) = controller_with_source_entries(vec![wav_entry("one.wav")]);
+    controller.focus_browser_row_only(0);
+    controller.apply_native_ui_action(NativeUiAction::SetBrowserTagSidebarInput {
+        value: String::from("kick, hard, one shot"),
+    });
+
+    controller.apply_native_ui_action(NativeUiAction::CommitBrowserTagSidebarInput);
+
+    let mut labels = tag_labels(
+        controller
+            .database_for(&source)
+            .unwrap()
+            .tags_for_path(Path::new("one.wav"))
+            .unwrap(),
+    );
+    labels.sort();
+    assert_eq!(labels, vec!["hard", "kick", "one shot"]);
+    assert_eq!(controller.ui.browser.tag_sidebar_input, "");
+}
+
 fn controller_with_source_entries(
     entries: Vec<WavEntry>,
 ) -> (AppController, crate::sample_sources::SampleSource) {

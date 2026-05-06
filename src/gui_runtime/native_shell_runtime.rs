@@ -22,7 +22,8 @@ use crate::gui::{
     types::{Point, Rect, Vector2},
 };
 use radiant::gui::{
-    focus::FocusSurface as RadiantFocusSurface, input::KeyPress as RadiantKeyPress,
+    focus::FocusSurface as RadiantFocusSurface,
+    input::{KeyCode as RadiantKeyCode, KeyPress as RadiantKeyPress},
     shortcuts::ShortcutResolution as RadiantShortcutResolution,
 };
 use radiant::runtime::{Command, RuntimeBridge, SurfaceNode, UiSurface};

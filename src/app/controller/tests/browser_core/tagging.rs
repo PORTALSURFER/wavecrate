@@ -218,6 +218,55 @@ fn browser_tag_sidebar_typed_input_creates_reusable_normal_tag() {
 }
 
 #[test]
+fn browser_tag_sidebar_typed_input_commits_ordered_comma_tokens_idempotently() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    controller
+        .database_for(&source)
+        .unwrap()
+        .assign_tag_to_path(Path::new("one.wav"), "Deep Kick")
+        .unwrap();
+    controller.focus_browser_row_only(1);
+    controller.set_browser_tag_sidebar_input(String::from(" kick, hard, one shot, kick,,  "));
+
+    controller
+        .commit_browser_tag_sidebar_input()
+        .expect("comma-delimited tags should commit");
+
+    let tags = controller
+        .database_for(&source)
+        .unwrap()
+        .tags_for_path(Path::new("two.wav"))
+        .unwrap();
+    assert_eq!(tag_labels(tags), vec!["Deep Kick", "hard", "one shot"]);
+    assert_eq!(controller.ui.browser.tag_sidebar_input, "");
+}
+
+#[test]
+fn browser_tag_sidebar_multi_selection_commits_full_comma_token_set() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
+        sample_entry("two.wav", crate::sample_sources::Rating::NEUTRAL),
+    ]);
+    controller.set_browser_selected_paths(vec![PathBuf::from("one.wav"), PathBuf::from("two.wav")]);
+    controller.set_browser_tag_sidebar_input(String::from("kick, hard"));
+
+    controller
+        .commit_browser_tag_sidebar_input()
+        .expect("multi-selection should receive every token");
+
+    let db = controller.database_for(&source).unwrap();
+    let mut first_labels = tag_labels(db.tags_for_path(Path::new("one.wav")).unwrap());
+    first_labels.sort();
+    let mut second_labels = tag_labels(db.tags_for_path(Path::new("two.wav")).unwrap());
+    second_labels.sort();
+    assert_eq!(first_labels, vec!["hard", "kick"]);
+    assert_eq!(second_labels, vec!["hard", "kick"]);
+}
+
+#[test]
 fn browser_tag_sidebar_multi_selection_tracks_mixed_and_removes_normal_tags() {
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
         sample_entry("one.wav", crate::sample_sources::Rating::NEUTRAL),
