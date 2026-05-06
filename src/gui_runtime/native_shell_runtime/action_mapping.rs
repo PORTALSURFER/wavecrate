@@ -38,7 +38,9 @@ impl From<runtime_contract::UiAction> for UiAction {
             runtime_contract::UiAction::FocusSourcesPanel => Self::FocusSourcesPanel,
             runtime_contract::UiAction::FocusWaveformPanel => Self::FocusWaveformPanel,
             runtime_contract::UiAction::FocusFolderPanel => Self::FocusFolderPanel,
-            runtime_contract::UiAction::FocusLoadedContentInList => Self::FocusLoadedSampleInBrowser,
+            runtime_contract::UiAction::FocusLoadedContentInList => {
+                Self::FocusLoadedSampleInBrowser
+            }
             runtime_contract::UiAction::FocusBrowserSearch => Self::FocusBrowserSearch,
             runtime_contract::UiAction::BlurBrowserSearch => Self::BlurBrowserSearch,
             runtime_contract::UiAction::OpenAddSourceDialog => Self::OpenAddSourceDialog,
@@ -50,52 +52,82 @@ impl From<runtime_contract::UiAction> for UiAction {
             runtime_contract::UiAction::ShowOptionsOverview => Self::ShowOptionsOverview,
             runtime_contract::UiAction::OpenPrimaryGroupPicker => Self::OpenAudioOutputHostPicker,
             runtime_contract::UiAction::OpenPrimaryItemPicker => Self::OpenAudioOutputDevicePicker,
-            runtime_contract::UiAction::OpenPrimaryNumberPicker => Self::OpenAudioOutputSampleRatePicker,
+            runtime_contract::UiAction::OpenPrimaryNumberPicker => {
+                Self::OpenAudioOutputSampleRatePicker
+            }
             runtime_contract::UiAction::OpenSecondaryGroupPicker => Self::OpenAudioInputHostPicker,
             runtime_contract::UiAction::OpenSecondaryItemPicker => Self::OpenAudioInputDevicePicker,
-            runtime_contract::UiAction::OpenSecondaryNumberPicker => Self::OpenAudioInputSampleRatePicker,
+            runtime_contract::UiAction::OpenSecondaryNumberPicker => {
+                Self::OpenAudioInputSampleRatePicker
+            }
             runtime_contract::UiAction::SetPrimaryGroup { group_id } => {
                 Self::SetAudioOutputHost { host_id: group_id }
             }
-            runtime_contract::UiAction::SetPrimaryItem { item_name } => Self::SetAudioOutputDevice {
-                device_name: item_name,
-            },
+            runtime_contract::UiAction::SetPrimaryItem { item_name } => {
+                Self::SetAudioOutputDevice {
+                    device_name: item_name,
+                }
+            }
             runtime_contract::UiAction::SetPrimaryNumber { value } => {
                 Self::SetAudioOutputSampleRate { sample_rate: value }
             }
             runtime_contract::UiAction::SetSecondaryGroup { group_id } => {
                 Self::SetAudioInputHost { host_id: group_id }
             }
-            runtime_contract::UiAction::SetSecondaryItem { item_name } => Self::SetAudioInputDevice {
-                device_name: item_name,
-            },
+            runtime_contract::UiAction::SetSecondaryItem { item_name } => {
+                Self::SetAudioInputDevice {
+                    device_name: item_name,
+                }
+            }
             runtime_contract::UiAction::SetSecondaryNumber { value } => {
                 Self::SetAudioInputSampleRate { sample_rate: value }
             }
             runtime_contract::UiAction::FocusFolderSearch => Self::FocusFolderSearch,
-            runtime_contract::UiAction::SetFolderSearch { query } => Self::SetFolderSearch { query },
+            runtime_contract::UiAction::SetFolderSearch { query } => {
+                Self::SetFolderSearch { query }
+            }
             runtime_contract::UiAction::ToggleShowAllFolders => Self::ToggleShowAllFolders,
-            runtime_contract::UiAction::ToggleFolderFlattenedView => Self::ToggleFolderFlattenedView,
+            runtime_contract::UiAction::ToggleFolderFlattenedView => {
+                Self::ToggleFolderFlattenedView
+            }
             runtime_contract::UiAction::FocusSourceRow { index } => Self::FocusSourceRow { index },
-            runtime_contract::UiAction::SelectSourceRow { index } => Self::SelectSourceRow { index },
-            runtime_contract::UiAction::MoveSourceFocus { delta } => Self::MoveSourceFocus { delta },
+            runtime_contract::UiAction::SelectSourceRow { index } => {
+                Self::SelectSourceRow { index }
+            }
+            runtime_contract::UiAction::MoveSourceFocus { delta } => {
+                Self::MoveSourceFocus { delta }
+            }
             runtime_contract::UiAction::ReloadFocusedSourceRow => Self::ReloadFocusedSourceRow,
             runtime_contract::UiAction::HardSyncFocusedSourceRow => Self::HardSyncFocusedSourceRow,
             runtime_contract::UiAction::OpenFocusedSourceFolder => Self::OpenFocusedSourceFolder,
             runtime_contract::UiAction::RemoveFocusedSourceRow => Self::RemoveFocusedSourceRow,
-            runtime_contract::UiAction::ReloadSourceRow { index } => Self::ReloadSourceRow { index },
-            runtime_contract::UiAction::HardSyncSourceRow { index } => Self::HardSyncSourceRow { index },
-            runtime_contract::UiAction::OpenSourceFolderRow { index } => Self::OpenSourceFolderRow { index },
-            runtime_contract::UiAction::RemoveSourceRow { index } => Self::RemoveSourceRow { index },
+            runtime_contract::UiAction::ReloadSourceRow { index } => {
+                Self::ReloadSourceRow { index }
+            }
+            runtime_contract::UiAction::HardSyncSourceRow { index } => {
+                Self::HardSyncSourceRow { index }
+            }
+            runtime_contract::UiAction::OpenSourceFolderRow { index } => {
+                Self::OpenSourceFolderRow { index }
+            }
+            runtime_contract::UiAction::RemoveSourceRow { index } => {
+                Self::RemoveSourceRow { index }
+            }
             runtime_contract::UiAction::FocusFolderRow { index } => Self::FocusFolderRow { index },
-            runtime_contract::UiAction::ActivateFolderRow { index } => Self::ActivateFolderRow { index },
+            runtime_contract::UiAction::ActivateFolderRow { index } => {
+                Self::ActivateFolderRow { index }
+            }
             runtime_contract::UiAction::ToggleFolderRowExpanded { index } => {
                 Self::ToggleFolderRowExpanded { index }
             }
             runtime_contract::UiAction::ExpandFocusedFolder => Self::ExpandFocusedFolder,
             runtime_contract::UiAction::CollapseFocusedFolder => Self::CollapseFocusedFolder,
-            runtime_contract::UiAction::ToggleFocusedFolderSelection => Self::ToggleFocusedFolderSelection,
-            runtime_contract::UiAction::MoveFolderFocus { delta } => Self::MoveFolderFocus { delta },
+            runtime_contract::UiAction::ToggleFocusedFolderSelection => {
+                Self::ToggleFocusedFolderSelection
+            }
+            runtime_contract::UiAction::MoveFolderFocus { delta } => {
+                Self::MoveFolderFocus { delta }
+            }
             runtime_contract::UiAction::StartNewFolder => Self::StartNewFolder,
             runtime_contract::UiAction::StartNewFolderAtFolderRow { index } => {
                 Self::StartNewFolderAtFolderRow { index }
@@ -109,10 +141,18 @@ impl From<runtime_contract::UiAction> for UiAction {
             runtime_contract::UiAction::CancelFolderCreate => Self::CancelFolderCreate,
             runtime_contract::UiAction::StartFolderRename => Self::StartFolderRename,
             runtime_contract::UiAction::DeleteFocusedFolder => Self::DeleteFocusedFolder,
-            runtime_contract::UiAction::RestoreRetainedFolderDeletes => Self::RestoreRetainedFolderDeletes,
-            runtime_contract::UiAction::PurgeRetainedFolderDeletes => Self::PurgeRetainedFolderDeletes,
-            runtime_contract::UiAction::ClearFolderDeleteRecoveryLog => Self::ClearFolderDeleteRecoveryLog,
-            runtime_contract::UiAction::MoveBrowserFocus { delta } => Self::MoveBrowserFocus { delta },
+            runtime_contract::UiAction::RestoreRetainedFolderDeletes => {
+                Self::RestoreRetainedFolderDeletes
+            }
+            runtime_contract::UiAction::PurgeRetainedFolderDeletes => {
+                Self::PurgeRetainedFolderDeletes
+            }
+            runtime_contract::UiAction::ClearFolderDeleteRecoveryLog => {
+                Self::ClearFolderDeleteRecoveryLog
+            }
+            runtime_contract::UiAction::MoveBrowserFocus { delta } => {
+                Self::MoveBrowserFocus { delta }
+            }
             runtime_contract::UiAction::SetBrowserViewStart { visible_row } => {
                 Self::SetBrowserViewStart { visible_row }
             }
@@ -130,7 +170,9 @@ impl From<runtime_contract::UiAction> for UiAction {
                 Self::SaveWaveformSelectionToBrowserWithKeep2
             }
             runtime_contract::UiAction::CommitWaveformEditFades => Self::CommitWaveformEditFades,
-            runtime_contract::UiAction::DetectWaveformSilenceSlices => Self::DetectWaveformSilenceSlices,
+            runtime_contract::UiAction::DetectWaveformSilenceSlices => {
+                Self::DetectWaveformSilenceSlices
+            }
             runtime_contract::UiAction::DetectWaveformExactDuplicateSlices => {
                 Self::DetectWaveformExactDuplicateSlices
             }
@@ -183,7 +225,9 @@ impl From<runtime_contract::UiAction> for UiAction {
                 Self::ToggleFocusedBrowserRowSelection
             }
             runtime_contract::UiAction::SelectAllBrowserRows => Self::SelectAllBrowserRows,
-            runtime_contract::UiAction::SetBrowserSearch { query } => Self::SetBrowserSearch { query },
+            runtime_contract::UiAction::SetBrowserSearch { query } => {
+                Self::SetBrowserSearch { query }
+            }
             runtime_contract::UiAction::ToggleBrowserRatingFilter { level, invert } => {
                 Self::ToggleBrowserRatingFilter { level, invert }
             }
@@ -197,11 +241,15 @@ impl From<runtime_contract::UiAction> for UiAction {
                 Self::ClearBrowserSidebarFilter { facet }
             }
             runtime_contract::UiAction::ToggleContentMark => Self::ToggleBrowserSampleMark,
-            runtime_contract::UiAction::ToggleBrowserMarkedFilter => Self::ToggleBrowserMarkedFilter,
+            runtime_contract::UiAction::ToggleBrowserMarkedFilter => {
+                Self::ToggleBrowserMarkedFilter
+            }
             runtime_contract::UiAction::ToggleBrowserDerivedLabelFilter { invert } => {
                 Self::ToggleBrowserTagNamedFilter { invert }
             }
-            runtime_contract::UiAction::ToggleRandomNavigationMode => Self::ToggleRandomNavigationMode,
+            runtime_contract::UiAction::ToggleRandomNavigationMode => {
+                Self::ToggleRandomNavigationMode
+            }
             runtime_contract::UiAction::ToggleBrowserPillEditor => Self::ToggleBrowserTagSidebar,
             runtime_contract::UiAction::ToggleBrowserPillEditorPrimaryAction => {
                 Self::ToggleBrowserTagSidebarAutoRename
@@ -209,7 +257,9 @@ impl From<runtime_contract::UiAction> for UiAction {
             runtime_contract::UiAction::ToggleBrowserDuplicateCleanupMode => {
                 Self::ToggleBrowserDuplicateCleanupMode
             }
-            runtime_contract::UiAction::FocusPreviousBrowserHistory => Self::FocusPreviousBrowserHistory,
+            runtime_contract::UiAction::FocusPreviousBrowserHistory => {
+                Self::FocusPreviousBrowserHistory
+            }
             runtime_contract::UiAction::FocusNextBrowserHistory => Self::FocusNextBrowserHistory,
             runtime_contract::UiAction::ToggleFindSimilarFocusedContent => {
                 Self::ToggleFindSimilarFocusedSample
@@ -221,25 +271,33 @@ impl From<runtime_contract::UiAction> for UiAction {
                 Self::ConfirmBrowserDuplicateCleanup
             }
             runtime_contract::UiAction::PlayRandomContentItem => Self::PlayRandomSample,
-            runtime_contract::UiAction::PlayPreviousRandomContentItem => Self::PlayPreviousRandomSample,
+            runtime_contract::UiAction::PlayPreviousRandomContentItem => {
+                Self::PlayPreviousRandomSample
+            }
             runtime_contract::UiAction::AdjustSelectedBrowserRating { delta } => {
                 Self::AdjustSelectedBrowserRating { delta }
             }
             runtime_contract::UiAction::SetBrowserTab { map } => Self::SetBrowserTab { map },
-            runtime_contract::UiAction::FocusBrowserPillEditorInput => Self::FocusBrowserTagSidebarInput,
+            runtime_contract::UiAction::FocusBrowserPillEditorInput => {
+                Self::FocusBrowserTagSidebarInput
+            }
             runtime_contract::UiAction::SetBrowserPillEditorInput { value } => {
                 Self::SetBrowserTagSidebarInput { value }
             }
-            runtime_contract::UiAction::CommitBrowserPillEditorInput => Self::CommitBrowserTagSidebarInput,
+            runtime_contract::UiAction::CommitBrowserPillEditorInput => {
+                Self::CommitBrowserTagSidebarInput
+            }
             runtime_contract::UiAction::SetBrowserSidebarLooped { looped } => {
                 Self::SetBrowserSidebarLooped { looped }
             }
             runtime_contract::UiAction::ToggleBrowserPillOption { label } => {
                 Self::ToggleBrowserSidebarNormalTag { label }
             }
-            runtime_contract::UiAction::FocusSpatialContentItem { content_id } => Self::FocusMapSample {
-                sample_id: content_id,
-            },
+            runtime_contract::UiAction::FocusSpatialContentItem { content_id } => {
+                Self::FocusMapSample {
+                    sample_id: content_id,
+                }
+            }
             runtime_contract::UiAction::SetPromptInput { value } => Self::SetPromptInput { value },
             runtime_contract::UiAction::StartBrowserRename => Self::StartBrowserRename,
             runtime_contract::UiAction::ConfirmBrowserRename => Self::ConfirmBrowserRename,
@@ -247,11 +305,15 @@ impl From<runtime_contract::UiAction> for UiAction {
             runtime_contract::UiAction::AutoRenameBrowserSelection { visible_row } => {
                 Self::AutoRenameBrowserSelection { visible_row }
             }
-            runtime_contract::UiAction::SetBrowserTriageMark { target } => Self::TagBrowserSelection {
-                target: target.into(),
-            },
+            runtime_contract::UiAction::SetBrowserTriageMark { target } => {
+                Self::TagBrowserSelection {
+                    target: target.into(),
+                }
+            }
             runtime_contract::UiAction::DeleteBrowserSelection => Self::DeleteBrowserSelection,
-            runtime_contract::UiAction::NormalizeFocusedContentItem => Self::NormalizeFocusedBrowserSample,
+            runtime_contract::UiAction::NormalizeFocusedContentItem => {
+                Self::NormalizeFocusedBrowserSample
+            }
             runtime_contract::UiAction::NormalizeWaveformSelectionOrLoadedContent => {
                 Self::NormalizeWaveformSelectionOrSample
             }
@@ -268,7 +330,9 @@ impl From<runtime_contract::UiAction> for UiAction {
                 Self::FadeWaveformSelectionRightToLeft
             }
             runtime_contract::UiAction::MuteWaveformSelection => Self::MuteWaveformSelection,
-            runtime_contract::UiAction::DeleteSelectedSliceMarkers => Self::DeleteSelectedSliceMarkers,
+            runtime_contract::UiAction::DeleteSelectedSliceMarkers => {
+                Self::DeleteSelectedSliceMarkers
+            }
             runtime_contract::UiAction::ToggleWaveformSliceSelection { index } => {
                 Self::ToggleWaveformSliceSelection { index }
             }
@@ -284,8 +348,12 @@ impl From<runtime_contract::UiAction> for UiAction {
             runtime_contract::UiAction::ToggleFocusedWaveformSliceExportMark => {
                 Self::ToggleFocusedWaveformSliceExportMark
             }
-            runtime_contract::UiAction::AlignWaveformStartToMarker => Self::AlignWaveformStartToMarker,
-            runtime_contract::UiAction::DeleteLoadedWaveformContent => Self::DeleteLoadedWaveformSample,
+            runtime_contract::UiAction::AlignWaveformStartToMarker => {
+                Self::AlignWaveformStartToMarker
+            }
+            runtime_contract::UiAction::DeleteLoadedWaveformContent => {
+                Self::DeleteLoadedWaveformSample
+            }
             runtime_contract::UiAction::SlideWaveformSelection { delta, fine } => {
                 Self::SlideWaveformSelection { delta, fine }
             }
@@ -296,7 +364,9 @@ impl From<runtime_contract::UiAction> for UiAction {
             runtime_contract::UiAction::ToggleHotkeyOverlay => Self::ToggleHotkeyOverlay,
             runtime_contract::UiAction::CopyStatusLog => Self::CopyStatusLog,
             runtime_contract::UiAction::OpenFeedbackIssuePrompt => Self::OpenFeedbackIssuePrompt,
-            runtime_contract::UiAction::MoveDiscardedItemsToFolder => Self::MoveTrashedSamplesToFolder,
+            runtime_contract::UiAction::MoveDiscardedItemsToFolder => {
+                Self::MoveTrashedSamplesToFolder
+            }
             runtime_contract::UiAction::SetInputMonitoringEnabled { enabled } => {
                 Self::SetInputMonitoringEnabled { enabled }
             }
@@ -317,11 +387,15 @@ impl From<runtime_contract::UiAction> for UiAction {
             runtime_contract::UiAction::SetNormalizedAuditionEnabled { enabled } => {
                 Self::SetNormalizedAuditionEnabled { enabled }
             }
-            runtime_contract::UiAction::SetBpmSnapEnabled { enabled } => Self::SetBpmSnapEnabled { enabled },
+            runtime_contract::UiAction::SetBpmSnapEnabled { enabled } => {
+                Self::SetBpmSnapEnabled { enabled }
+            }
             runtime_contract::UiAction::SetRelativeBpmGridEnabled { enabled } => {
                 Self::SetRelativeBpmGridEnabled { enabled }
             }
-            runtime_contract::UiAction::AdjustWaveformBpm { delta } => Self::AdjustWaveformBpm { delta },
+            runtime_contract::UiAction::AdjustWaveformBpm { delta } => {
+                Self::AdjustWaveformBpm { delta }
+            }
             runtime_contract::UiAction::SetWaveformBpmValue { value_tenths } => {
                 Self::SetWaveformBpmValue { value_tenths }
             }
@@ -336,7 +410,9 @@ impl From<runtime_contract::UiAction> for UiAction {
             runtime_contract::UiAction::SetSliceModeEnabled { enabled } => {
                 Self::SetSliceModeEnabled { enabled }
             }
-            runtime_contract::UiAction::SetVolume { value_milli } => Self::SetVolume { value_milli },
+            runtime_contract::UiAction::SetVolume { value_milli } => {
+                Self::SetVolume { value_milli }
+            }
             runtime_contract::UiAction::CommitVolumeSetting => Self::CommitVolumeSetting,
             runtime_contract::UiAction::SeekWaveformPrecise { position_nanos } => {
                 Self::SeekWaveformPrecise { position_nanos }
@@ -362,7 +438,9 @@ impl From<runtime_contract::UiAction> for UiAction {
             runtime_contract::UiAction::UpdateWaveformCircularSlide { position_micros } => {
                 Self::UpdateWaveformCircularSlide { position_micros }
             }
-            runtime_contract::UiAction::FinishWaveformCircularSlide => Self::FinishWaveformCircularSlide,
+            runtime_contract::UiAction::FinishWaveformCircularSlide => {
+                Self::FinishWaveformCircularSlide
+            }
             runtime_contract::UiAction::SetWaveformSelectionRange {
                 start_micros,
                 end_micros,
@@ -435,7 +513,9 @@ impl From<runtime_contract::UiAction> for UiAction {
             runtime_contract::UiAction::SetWaveformEditFadeOutCurve { curve_milli } => {
                 Self::SetWaveformEditFadeOutCurve { curve_milli }
             }
-            runtime_contract::UiAction::FinishWaveformEditFadeDrag => Self::FinishWaveformEditFadeDrag,
+            runtime_contract::UiAction::FinishWaveformEditFadeDrag => {
+                Self::FinishWaveformEditFadeDrag
+            }
             runtime_contract::UiAction::StartWaveformSelectionDrag {
                 pointer_x,
                 pointer_y,
@@ -462,7 +542,9 @@ impl From<runtime_contract::UiAction> for UiAction {
                 shift_down,
                 alt_down,
             },
-            runtime_contract::UiAction::FinishWaveformSelectionDrag => Self::FinishWaveformSelectionDrag,
+            runtime_contract::UiAction::FinishWaveformSelectionDrag => {
+                Self::FinishWaveformSelectionDrag
+            }
             runtime_contract::UiAction::FinishWaveformSelectionRangeDrag => {
                 Self::FinishWaveformSelectionRangeDrag
             }
@@ -509,7 +591,9 @@ impl From<runtime_contract::UiAction> for UiAction {
                 Self::FinishWaveformEditSelectionDrag
             }
             runtime_contract::UiAction::ClearWaveformSelection => Self::ClearWaveformSelection,
-            runtime_contract::UiAction::ClearWaveformEditSelection => Self::ClearWaveformEditSelection,
+            runtime_contract::UiAction::ClearWaveformEditSelection => {
+                Self::ClearWaveformEditSelection
+            }
             runtime_contract::UiAction::ClearWaveformSelections => Self::ClearWaveformSelections,
             runtime_contract::UiAction::SetWaveformViewCenter {
                 center_micros,
@@ -1021,4 +1105,3 @@ impl From<UiAction> for runtime_contract::UiAction {
         }
     }
 }
-

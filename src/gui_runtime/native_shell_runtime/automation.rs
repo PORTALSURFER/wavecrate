@@ -314,6 +314,9 @@ pub(crate) fn capture_native_shell_shot_snapshot(
     model: &NativeAppModel,
 ) -> impl serde::Serialize {
     let local_model = local_app_model_from_native_model(model);
-    crate::app_core::native_shell::runtime_contract::capture_native_shell_shot_snapshot(name, viewport, &local_model)
+    crate::app_core::native_shell::runtime_contract::capture_native_shell_shot_snapshot(
+        name,
+        viewport,
+        &local_model,
+    )
 }
-

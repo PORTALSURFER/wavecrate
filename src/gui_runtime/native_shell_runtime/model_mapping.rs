@@ -234,12 +234,24 @@ impl From<AudioPickerTargetModel> for runtime_contract::PairedPickerTargetModel 
 impl From<runtime_contract::PairedPickerValueModel> for AudioOptionValueModel {
     fn from(value: runtime_contract::PairedPickerValueModel) -> Self {
         match value {
-            runtime_contract::PairedPickerValueModel::PrimaryGroup(value) => Self::OutputHost(value),
-            runtime_contract::PairedPickerValueModel::PrimaryItem(value) => Self::OutputDevice(value),
-            runtime_contract::PairedPickerValueModel::PrimaryNumber(value) => Self::OutputSampleRate(value),
-            runtime_contract::PairedPickerValueModel::SecondaryGroup(value) => Self::InputHost(value),
-            runtime_contract::PairedPickerValueModel::SecondaryItem(value) => Self::InputDevice(value),
-            runtime_contract::PairedPickerValueModel::SecondaryNumber(value) => Self::InputSampleRate(value),
+            runtime_contract::PairedPickerValueModel::PrimaryGroup(value) => {
+                Self::OutputHost(value)
+            }
+            runtime_contract::PairedPickerValueModel::PrimaryItem(value) => {
+                Self::OutputDevice(value)
+            }
+            runtime_contract::PairedPickerValueModel::PrimaryNumber(value) => {
+                Self::OutputSampleRate(value)
+            }
+            runtime_contract::PairedPickerValueModel::SecondaryGroup(value) => {
+                Self::InputHost(value)
+            }
+            runtime_contract::PairedPickerValueModel::SecondaryItem(value) => {
+                Self::InputDevice(value)
+            }
+            runtime_contract::PairedPickerValueModel::SecondaryNumber(value) => {
+                Self::InputSampleRate(value)
+            }
         }
     }
 }
@@ -257,7 +269,9 @@ impl From<AudioOptionValueModel> for runtime_contract::PairedPickerValueModel {
     }
 }
 
-fn audio_option_item_from_compat(value: runtime_contract::PairedPickerOptionModel) -> AudioOptionItemModel {
+fn audio_option_item_from_compat(
+    value: runtime_contract::PairedPickerOptionModel,
+) -> AudioOptionItemModel {
     AudioOptionItemModel {
         label: value.label,
         selected: value.selected,
@@ -265,7 +279,9 @@ fn audio_option_item_from_compat(value: runtime_contract::PairedPickerOptionMode
     }
 }
 
-fn audio_option_item_to_compat(value: AudioOptionItemModel) -> runtime_contract::PairedPickerOptionModel {
+fn audio_option_item_to_compat(
+    value: AudioOptionItemModel,
+) -> runtime_contract::PairedPickerOptionModel {
     runtime_contract::PairedPickerOptionModel {
         label: value.label,
         selected: value.selected,
@@ -386,9 +402,15 @@ impl From<runtime_contract::ConfirmPromptKind> for ConfirmPromptKind {
             runtime_contract::ConfirmPromptKind::RenameContent => Self::BrowserRename,
             runtime_contract::ConfirmPromptKind::RenameNavigationItem => Self::FolderRename,
             runtime_contract::ConfirmPromptKind::CreateNavigationItem => Self::FolderCreate,
-            runtime_contract::ConfirmPromptKind::RestoreRetainedItems => Self::RestoreRetainedFolderDeletes,
-            runtime_contract::ConfirmPromptKind::PurgeRetainedItems => Self::PurgeRetainedFolderDeletes,
-            runtime_contract::ConfirmPromptKind::EditConfiguration => Self::OptionsDefaultIdentifier,
+            runtime_contract::ConfirmPromptKind::RestoreRetainedItems => {
+                Self::RestoreRetainedFolderDeletes
+            }
+            runtime_contract::ConfirmPromptKind::PurgeRetainedItems => {
+                Self::PurgeRetainedFolderDeletes
+            }
+            runtime_contract::ConfirmPromptKind::EditConfiguration => {
+                Self::OptionsDefaultIdentifier
+            }
         }
     }
 }
@@ -591,4 +613,3 @@ fn local_sources_panel_from_native_model(
         recovery: value.recovery.clone(),
     }
 }
-

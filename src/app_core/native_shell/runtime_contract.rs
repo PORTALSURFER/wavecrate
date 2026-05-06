@@ -43,5 +43,3 @@ pub use shell::{
     StatusBarModel, StatusChipStateModel, SummaryFieldModel, UpdatePanelModel, UpdateStatusModel,
 };
 pub use shell_snapshot::{NativeShellShotSnapshot, capture_native_shell_shot_snapshot};
-
-

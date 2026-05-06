@@ -267,7 +267,8 @@ fn folder_row_for_pointer_action(
         .filter(|row| {
             matches!(
                 row.kind,
-                runtime_contract::FolderRowKind::CreateDraft | runtime_contract::FolderRowKind::RenameDraft
+                runtime_contract::FolderRowKind::CreateDraft
+                    | runtime_contract::FolderRowKind::RenameDraft
             )
         })
         .or(pane_row)
@@ -286,7 +287,8 @@ fn folder_row_disclosure_toggles_expansion(
         && !row.is_root
         && !matches!(
             row.kind,
-            runtime_contract::FolderRowKind::CreateDraft | runtime_contract::FolderRowKind::RenameDraft
+            runtime_contract::FolderRowKind::CreateDraft
+                | runtime_contract::FolderRowKind::RenameDraft
         )
         && pane_model.tree_search_query.trim().is_empty()
 }
@@ -310,4 +312,3 @@ fn waveform_cursor_action_from_point(
         position_nanos: start.saturating_add(((span as f32) * x_ratio).round() as u32),
     }
 }
-

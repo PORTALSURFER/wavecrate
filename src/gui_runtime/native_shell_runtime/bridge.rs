@@ -234,7 +234,8 @@ impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
                 .find(|row| {
                     matches!(
                         row.kind,
-                        runtime_contract::FolderRowKind::CreateDraft | runtime_contract::FolderRowKind::RenameDraft
+                        runtime_contract::FolderRowKind::CreateDraft
+                            | runtime_contract::FolderRowKind::RenameDraft
                     )
                 })
                 .map(|row| row.label.clone()),
@@ -400,4 +401,3 @@ fn retained_surface_revision(revisions: crate::app_core::actions::NativeSegmentR
         ^ revisions.waveform_overlay.rotate_left(29)
         ^ revisions.global_static.rotate_left(37)
 }
-

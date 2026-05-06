@@ -59,11 +59,13 @@ mod tests {
             "Sempal compatibility conversion, generic runtime launch, automation, and shot snapshots should stay in the runtime adapter"
         );
         assert!(
-            !adapter.contains(&format!("{}{}", "radiant::runtime_contract::", "legacy_shell"))
-                && !adapter.contains(&format!(
-                    "{}{}",
-                    "run_legacy_native_vello_", "app_with_artifacts"
-                )),
+            !adapter.contains(&format!(
+                "{}{}",
+                "radiant::runtime_contract::", "legacy_shell"
+            )) && !adapter.contains(&format!(
+                "{}{}",
+                "run_legacy_native_vello_", "app_with_artifacts"
+            )),
             "Sempal runtime glue must not route through a legacy-shell facade or local legacy runner"
         );
         assert!(
@@ -207,13 +209,16 @@ mod tests {
     fn retained_shell_render_includes_hover_and_playhead_overlays() {
         let repaint_installed = Arc::new(AtomicBool::new(false));
         let mut model = runtime_contract::AppModel::default();
-        model.browser.rows.push(runtime_contract::BrowserRowModel::new(
-            0,
-            "hovered sample",
-            1,
-            false,
-            false,
-        ));
+        model
+            .browser
+            .rows
+            .push(runtime_contract::BrowserRowModel::new(
+                0,
+                "hovered sample",
+                1,
+                false,
+                false,
+            ));
         model.browser.visible_count = 1;
         model.waveform.playhead_milli = Some(250);
         model.waveform.playhead_micros = Some(250_000);
@@ -384,4 +389,3 @@ mod tests {
         sources
     }
 }
-

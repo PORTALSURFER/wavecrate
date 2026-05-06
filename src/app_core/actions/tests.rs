@@ -95,7 +95,8 @@ fn representative_actions_round_trip_through_kind_matcher() {
 fn representative_actions_round_trip_through_compat_conversion() {
     for entry in GUI_ACTION_CATALOG {
         let action = representative_action_for_kind(entry.kind);
-        let compat_action: crate::app_core::native_shell::runtime_contract::UiAction = action.clone().into();
+        let compat_action: crate::app_core::native_shell::runtime_contract::UiAction =
+            action.clone().into();
         let round_trip = crate::app_core::actions::NativeUiAction::from(compat_action.clone());
         assert_eq!(
             round_trip, action,
@@ -103,7 +104,8 @@ fn representative_actions_round_trip_through_compat_conversion() {
             entry.action_id
         );
 
-        let compat_round_trip: crate::app_core::native_shell::runtime_contract::UiAction = round_trip.into();
+        let compat_round_trip: crate::app_core::native_shell::runtime_contract::UiAction =
+            round_trip.into();
         assert_eq!(
             compat_round_trip, compat_action,
             "compat conversion is not stable for {}",
@@ -259,7 +261,8 @@ fn native_action_exports_are_owned_in_app_core() {
         "NativeAppModel must stay Sempal-owned, with compatibility conversion at the runtime boundary"
     );
     assert!(
-        !actions_mod.contains("pub type NativeDirtySegments = radiant::runtime_contract::legacy_shell"),
+        !actions_mod
+            .contains("pub type NativeDirtySegments = radiant::runtime_contract::legacy_shell"),
         "NativeDirtySegments must stay Sempal-owned, with compatibility conversion at the runtime boundary"
     );
     assert!(
@@ -329,7 +332,8 @@ fn native_action_exports_are_owned_in_app_core() {
         );
     }
     assert!(
-        !native_dtos.contains("radiant::runtime_contract::legacy_shell") && !native_dtos.contains("runtime_contract::"),
+        !native_dtos.contains("radiant::runtime_contract::legacy_shell")
+            && !native_dtos.contains("runtime_contract::"),
         "Sempal projection DTO definitions should not import Radiant legacy-shell compatibility types"
     );
     let native_hit_testing = fs::read_to_string(
@@ -459,7 +463,8 @@ fn native_action_exports_are_owned_in_app_core() {
                 .contains("metadata.insert(String::from(\"tag_state\"), value);")
             && native_action_conversions
                 .contains("metadata.insert(String::from(\"tag_id\"), value);")
-            && !native_action_conversions.contains("impl From<GuiAutomationSnapshot> for runtime_contract::"),
+            && !native_action_conversions
+                .contains("impl From<GuiAutomationSnapshot> for runtime_contract::"),
         "Sempal automation DTO conversion should map generic Radiant pill-editor nodes and metadata onto product tag-sidebar names without reverse legacy compat conversion"
     );
     assert!(
@@ -612,14 +617,16 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal should own product prompt-kind names at the app boundary"
     );
     assert!(
-        native_action_conversions
-            .contains("runtime_contract::ConfirmPromptKind::DestructiveOperation => Self::DestructiveEdit")
-            && native_action_conversions
-                .contains("runtime_contract::ConfirmPromptKind::RenameContent => Self::BrowserRename")
-            && native_action_conversions
-                .contains("runtime_contract::ConfirmPromptKind::RenameNavigationItem => Self::FolderRename")
-            && native_action_conversions
-                .contains("runtime_contract::ConfirmPromptKind::CreateNavigationItem => Self::FolderCreate")
+        native_action_conversions.contains(
+            "runtime_contract::ConfirmPromptKind::DestructiveOperation => Self::DestructiveEdit"
+        ) && native_action_conversions
+            .contains("runtime_contract::ConfirmPromptKind::RenameContent => Self::BrowserRename")
+            && native_action_conversions.contains(
+                "runtime_contract::ConfirmPromptKind::RenameNavigationItem => Self::FolderRename"
+            )
+            && native_action_conversions.contains(
+                "runtime_contract::ConfirmPromptKind::CreateNavigationItem => Self::FolderCreate"
+            )
             && native_action_conversions
                 .contains("ConfirmPromptKind::DestructiveEdit => Self::DestructiveOperation")
             && native_action_conversions
@@ -652,8 +659,9 @@ fn native_action_exports_are_owned_in_app_core() {
     assert!(
         native_action_conversions
             .contains("impl From<runtime_contract::PairedDevicePanelModel> for AudioEngineModel")
-            && native_action_conversions
-                .contains("impl From<AudioEngineModel> for runtime_contract::PairedDevicePanelModel")
+            && native_action_conversions.contains(
+                "impl From<AudioEngineModel> for runtime_contract::PairedDevicePanelModel"
+            )
             && native_action_conversions.contains("audio_engine: value.paired_device.into()")
             && native_action_conversions.contains("paired_device: value.audio_engine.into()")
             && native_dtos.contains("pub fn paired_device_panel(&self) -> &AudioEngineModel"),
@@ -662,10 +670,12 @@ fn native_action_exports_are_owned_in_app_core() {
     assert!(
         native_dtos.contains("pub fn active_picker(&self) -> Option<form::PairedPickerTarget>")
             && native_dtos.contains("pub fn options_for(&self, target: form::PairedPickerTarget)")
-            && !native_dtos
-                .contains("pub fn active_picker(&self) -> Option<runtime_contract::PairedPickerTargetModel>")
-            && !native_dtos
-                .contains("pub fn options_for(&self, target: runtime_contract::PairedPickerTargetModel)"),
+            && !native_dtos.contains(
+                "pub fn active_picker(&self) -> Option<runtime_contract::PairedPickerTargetModel>"
+            )
+            && !native_dtos.contains(
+                "pub fn options_for(&self, target: runtime_contract::PairedPickerTargetModel)"
+            ),
         "Sempal audio DTO helpers should expose the generic Radiant form target rather than the legacy-shell alias"
     );
     assert!(
@@ -730,7 +740,8 @@ fn native_action_exports_are_owned_in_app_core() {
         "Sempal action conversion should map product random-sample actions onto Radiant's generic random-content actions"
     );
     assert!(
-        native_actions.contains("runtime_contract::UiAction::FocusSpatialContentItem { content_id }")
+        native_actions
+            .contains("runtime_contract::UiAction::FocusSpatialContentItem { content_id }")
             && native_actions.contains("Self::FocusMapSample")
             && native_actions.contains("sample_id: content_id")
             && native_actions.contains("UiAction::FocusMapSample { sample_id }")
@@ -966,4 +977,3 @@ fn is_test_source(path: &Path) -> bool {
             .components()
             .any(|component| component.as_os_str() == "tests")
 }
-
