@@ -63,6 +63,7 @@ impl SempalNativeBridge {
     /// Allow the next app-model pull to skip full preparation once.
     pub(super) fn schedule_local_model_pull_fast_path(&mut self) {
         self.pending_model_pull_preparation = PendingModelPullPreparation::LocalOnly;
+        self.consecutive_local_model_pulls = 0;
     }
 
     /// Return whether the next app-model pull may skip full preparation.

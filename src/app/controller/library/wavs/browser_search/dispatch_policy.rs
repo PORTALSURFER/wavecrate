@@ -41,6 +41,21 @@ impl AppController {
         self.dispatch_search_job_with_metadata_delta(Vec::new());
     }
 
+    /// Retire any queued async browser-search result before applying a local projection.
+    pub(crate) fn invalidate_async_browser_search_for_local_projection(&mut self) {
+        self.ui.browser.search.latest_search_request_id = self
+            .ui
+            .browser
+            .search
+            .latest_search_request_id
+            .wrapping_add(1);
+        self.ui.browser.search.latest_applied_search_request_id =
+            self.ui.browser.search.latest_search_request_id;
+        self.runtime
+            .pending_browser_search_metadata_delta_paths
+            .clear();
+    }
+
     /// Enqueue one authoritative browser-search worker job plus optional metadata-only row deltas.
     pub(crate) fn dispatch_search_job_with_metadata_delta(
         &mut self,

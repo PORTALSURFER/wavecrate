@@ -10,6 +10,8 @@ pub(super) struct SempalRuntimeBridge<B> {
     model: Arc<runtime_contract::AppModel>,
     shell_state: NativeShellState,
     layout_runtime: ShellLayoutRuntime,
+    static_segments: StaticFrameSegments,
+    static_segments_initialized: bool,
     frame: PaintFrame,
     layout_viewport: Option<Vector2>,
     text_input_target: RetainedTextInputTarget,
@@ -173,6 +175,8 @@ impl<B> SempalRuntimeBridge<B> {
             model: Arc::new(runtime_contract::AppModel::default()),
             shell_state: NativeShellState::new(),
             layout_runtime: ShellLayoutRuntime::default(),
+            static_segments: StaticFrameSegments::default(),
+            static_segments_initialized: false,
             frame: PaintFrame::default(),
             layout_viewport: None,
             text_input_target: RetainedTextInputTarget::None,
@@ -206,6 +210,24 @@ impl<B> SempalRuntimeBridge<B> {
     {
         let model = self.inner.project_model();
         capture_gui_automation_snapshot(viewport, model.as_ref())
+    }
+
+    #[cfg(test)]
+    pub(super) fn static_segment_frame_for_tests(
+        &self,
+        segment: StaticFrameSegment,
+    ) -> &PaintFrame {
+        self.static_segments.frame(segment)
+    }
+
+    #[cfg(test)]
+    pub(super) fn set_retained_model_for_tests(&mut self, model: runtime_contract::AppModel) {
+        self.model = Arc::new(model);
+    }
+
+    #[cfg(test)]
+    pub(super) fn retained_model_for_tests(&self) -> &runtime_contract::AppModel {
+        self.model.as_ref()
     }
 }
 
@@ -586,6 +608,10 @@ impl<B: NativeAppBridge> RuntimeBridge<SempalRuntimeMessage> for SempalRuntimeBr
         self.inner.install_repaint_signal(signal);
     }
 
+    fn needs_animation(&self) -> bool {
+        self.shell_state.needs_animation()
+    }
+
     /// Render the retained Sempal shell into a paint frame when Radiant requests the canvas.
     fn render_retained_surface(
         &mut self,
@@ -600,6 +626,7 @@ impl<B: NativeAppBridge> RuntimeBridge<SempalRuntimeMessage> for SempalRuntimeBr
         if self.layout_viewport != Some(viewport) {
             self.layout_runtime.reset();
             self.layout_viewport = Some(viewport);
+            self.static_segments_initialized = false;
         }
         let layout =
             ShellLayout::build_with_style_and_runtime(viewport, &style, &mut self.layout_runtime);
@@ -608,8 +635,21 @@ impl<B: NativeAppBridge> RuntimeBridge<SempalRuntimeMessage> for SempalRuntimeBr
         self.apply_local_text_projection(&mut model);
         let motion_model = runtime_contract::NativeMotionModel::from_app_model(&model);
         self.shell_state.sync_from_motion_model(&motion_model);
-        self.shell_state
-            .build_frame_with_style_into(&layout, &style, &model, &mut self.frame);
+        let dirty_bits = descriptor.dirty_mask.min(u64::from(u16::MAX)) as u16;
+        for segment in StaticFrameSegment::ALL {
+            if !self.static_segments_initialized || dirty_bits & segment.dirty_mask() != 0 {
+                self.shell_state.build_static_segment_with_style_into(
+                    &layout,
+                    &style,
+                    &model,
+                    Some(&motion_model),
+                    segment,
+                    &mut self.static_segments,
+                );
+            }
+        }
+        self.static_segments_initialized = true;
+        self.static_segments.compose_into(&mut self.frame);
         append_retained_shell_overlays(
             &mut self.shell_state,
             &layout,

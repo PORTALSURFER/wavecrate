@@ -63,6 +63,11 @@ pub(crate) struct BrowserPipelineCache {
 }
 
 impl BrowserPipelineCache {
+    /// Return true when the base row snapshot has been built and can seed retained filters.
+    pub(crate) fn has_base_snapshot(&self) -> bool {
+        self.base_fingerprint.is_some()
+    }
+
     /// Drop all staged fingerprints and vectors.
     pub(crate) fn invalidate(&mut self) {
         self.base_fingerprint = None;

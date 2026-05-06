@@ -43,6 +43,36 @@ fn local_focus_actions_arm_local_model_pull_fast_path() {
     assert!(!bridge.controller.has_dirty_derived_nodes());
 }
 
+/// Retained direct mutations should not force full pull preparation after local row updates.
+#[test]
+fn retained_controller_mutations_arm_local_model_pull_fast_path() {
+    let mut bridge = test_bridge(16);
+
+    bridge.mutate_controller_retained(|controller| {
+        controller.set_browser_filter(crate::app::state::TriageFlagFilter::Keep)
+    });
+
+    assert_eq!(
+        bridge.pending_model_pull_preparation,
+        PendingModelPullPreparation::LocalOnly
+    );
+}
+
+/// Fresh local input starts a fresh local-pull burst instead of inheriting stale pull count.
+#[test]
+fn scheduling_local_fast_path_resets_previous_burst_count() {
+    let mut bridge = test_bridge(16);
+    bridge.consecutive_local_model_pulls = 8;
+
+    bridge.schedule_local_model_pull_fast_path();
+
+    assert_eq!(bridge.consecutive_local_model_pulls, 0);
+    assert_eq!(
+        bridge.pending_model_pull_preparation,
+        PendingModelPullPreparation::LocalOnly
+    );
+}
+
 /// Folder-panel search edits should stay on the local-only pull path.
 #[test]
 fn folder_search_actions_arm_local_model_pull_fast_path() {
