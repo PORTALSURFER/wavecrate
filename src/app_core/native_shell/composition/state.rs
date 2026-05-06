@@ -514,6 +514,7 @@ mod opt_272_tests {
         model
     }
 
+    /// Build a populated single-sidebar fixture for source/folder geometry checks.
     fn populated_single_sidebar_model() -> AppModel {
         let mut model = folder_model_with_rows(48, 4);
         model.sources.rows.clear();
@@ -529,6 +530,7 @@ mod opt_272_tests {
     }
 
     #[test]
+    /// The sidebar reserves one source list and one folder browser at all densities.
     fn sidebar_sections_render_one_source_and_folder_browser_across_viewports() {
         let sizes = [
             Vector2::new(820.0, 520.0),
@@ -550,6 +552,7 @@ mod opt_272_tests {
     }
 
     #[test]
+    /// The single visible folder browser keeps its scrollbar thumb hit target active.
     fn single_folder_browser_scrollbar_thumb_is_hittable() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         let style = style_for_layout(&layout);

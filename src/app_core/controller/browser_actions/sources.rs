@@ -127,6 +127,7 @@ fn selected_source_index(controller: &AppController) -> Option<usize> {
     controller.source_index_for_pane(controller.active_folder_pane())
 }
 
+/// Resolve ordinary source-row actions to the single active sidebar pane.
 fn resolve_source_pane(controller: &AppController) -> FolderPaneId {
     controller.active_folder_pane()
 }
