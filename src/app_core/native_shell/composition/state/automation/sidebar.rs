@@ -117,6 +117,24 @@ fn tags_group(rect: Rect, model: &AppModel) -> AutomationNodeSnapshot {
     ));
     children.extend(
         sidebar
+            .accepted_pills
+            .iter()
+            .enumerate()
+            .map(|(index, pill)| AutomationNodeSnapshot {
+                id: node_id(format!("sources.tags.accepted.{index}.{}", slug(&pill.id))),
+                role: AutomationRole::Button,
+                label: Some(pill.label.clone()),
+                bounds: bounds(rect),
+                value: Some(format!("{:?}", pill.state)),
+                enabled: true,
+                selected: true,
+                available_actions: vec![String::from("toggle_browser_pill_option")],
+                metadata: metadata(&[("pill_id", pill.id.as_str()), ("chip_kind", "accepted")]),
+                children: Vec::new(),
+            }),
+    );
+    children.extend(
+        sidebar
             .option_pills
             .iter()
             .enumerate()
@@ -153,6 +171,12 @@ fn tags_group(rect: Rect, model: &AppModel) -> AutomationNodeSnapshot {
         .map(|pill| pill.label.as_str())
         .collect::<Vec<_>>()
         .join("|");
+    let accepted_pill_labels = sidebar
+        .accepted_pills
+        .iter()
+        .map(|pill| pill.label.as_str())
+        .collect::<Vec<_>>()
+        .join("|");
     AutomationNodeSnapshot {
         id: node_id("sources.tags"),
         role: AutomationRole::Group,
@@ -164,6 +188,7 @@ fn tags_group(rect: Rect, model: &AppModel) -> AutomationNodeSnapshot {
         available_actions: vec![String::from("focus_browser_pill_editor_input")],
         metadata: metadata(&[
             ("selected_count", &sidebar.selected_count.to_string()),
+            ("accepted_tag_labels", accepted_pill_labels.as_str()),
             ("normal_tag_labels", option_pill_labels.as_str()),
         ]),
         children,

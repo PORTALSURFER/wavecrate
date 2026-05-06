@@ -296,6 +296,60 @@ fn browser_projection_sidebar_projects_mixed_normal_tag_state() {
     );
 }
 
+#[test]
+fn browser_projection_sidebar_projects_accepted_tags_separately_from_suggestions() {
+    let mut first = browser_projection_test_entry("first.wav");
+    first.normal_tags = vec![
+        String::from("Kick"),
+        String::from("Hard"),
+        String::from("One Shot"),
+        String::from("Texture"),
+        String::from("Bright"),
+        String::from("Long Tail"),
+    ];
+    let mut second = browser_projection_test_entry("second.wav");
+    second.normal_tags = vec![String::from("Kick")];
+    let (mut controller, source) = browser_projection_controller_with_source(vec![first, second]);
+    let db = controller.database_for(&source).unwrap();
+    for label in ["Kick", "Hard", "One Shot", "Texture", "Bright", "Long Tail"] {
+        db.assign_tag_to_path(std::path::Path::new("first.wav"), label)
+            .unwrap();
+    }
+    db.assign_tag_to_path(std::path::Path::new("second.wav"), "Kick")
+        .unwrap();
+    controller.ui.browser.tag_sidebar_open = true;
+    controller.ui.browser.selection.selected_paths = vec![
+        std::path::PathBuf::from("first.wav"),
+        std::path::PathBuf::from("second.wav"),
+    ];
+    controller.mark_browser_selected_paths_changed();
+    controller.ui.browser.tag_sidebar_input = String::from("zzzz");
+
+    let projected = project_browser_panel_frame_model(&mut controller);
+
+    let accepted = projected
+        .tag_sidebar
+        .accepted_pills
+        .iter()
+        .map(|pill| (pill.label.as_str(), pill.state))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        accepted,
+        vec![
+            ("Bright", BrowserTagState::Mixed),
+            ("Hard", BrowserTagState::Mixed),
+            ("Kick", BrowserTagState::On),
+            ("Long Tail", BrowserTagState::Mixed),
+            ("One Shot", BrowserTagState::Mixed),
+            ("Texture", BrowserTagState::Mixed),
+        ]
+    );
+    assert!(
+        projected.tag_sidebar.option_pills.is_empty(),
+        "accepted chips should not depend on the current suggestion filter"
+    );
+}
+
 /// Browser projection should expose manual viewport state for native scrollbar rendering.
 #[test]
 fn browser_projection_exposes_manual_viewport_state() {

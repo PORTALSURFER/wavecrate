@@ -820,13 +820,18 @@ fn sidebar_tag_pill_rects(
     let input = sidebar_tag_input_rect(rect, sizing);
     let row_height = sizing.browser_row_height.max(18.0);
     let col_width = ((rect.width() - pad * 2.0 - gap) * 0.5).max(36.0);
-    let mut pills: Vec<_> = model
-        .browser
-        .pill_editor()
-        .option_pills
-        .iter()
-        .filter(|pill| !matches!(pill.state, BrowserPillState::Off))
-        .collect();
+    let mut pills: Vec<_> = model.browser.pill_editor().accepted_pills.iter().collect();
+    if pills.is_empty() {
+        pills.extend(
+            model
+                .browser
+                .pill_editor()
+                .option_pills
+                .iter()
+                .filter(|pill| !matches!(pill.state, BrowserPillState::Off))
+                .take(4),
+        );
+    }
     if pills.is_empty() {
         pills.extend(model.browser.pill_editor().option_pills.iter().take(4));
     }
@@ -835,7 +840,7 @@ fn sidebar_tag_pill_rects(
     }
     pills
         .into_iter()
-        .take(4)
+        .take(12)
         .enumerate()
         .filter_map(|(index, pill)| {
             let col = index % 2;

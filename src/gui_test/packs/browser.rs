@@ -187,6 +187,13 @@ pub(super) fn browser_tag_sidebar_unified_tag_library_scenario() -> GuiScenario 
                 action: NativeUiAction::CommitBrowserTagSidebarInput,
             },
             GuiScenarioStep::Assert {
+                assertion: GuiAssertion::NodeMetadataEquals {
+                    node_id: String::from("sources.tags"),
+                    key: String::from("accepted_tag_labels"),
+                    value: String::from("Texture|vinyl crackle"),
+                },
+            },
+            GuiScenarioStep::Assert {
                 assertion: GuiAssertion::NodePresent {
                     node_id: String::from("sources.tags.suggestion.0"),
                 },

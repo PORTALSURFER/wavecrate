@@ -28,6 +28,7 @@ pub(super) fn render_sidebar_tags(
         ctx.style.border_emphasis,
         ctx.sizing.border_width,
     );
+    render_input_selection_and_caret(ctx, primitives, input);
     emit_text(
         text_runs,
         TextRun {
@@ -140,20 +141,25 @@ pub(in crate::app_core::native_shell::composition::state) fn sidebar_tag_pill_re
     let row_height = sizing.browser_row_height.max(18.0);
     let col_width = ((rect.width() - pad * 2.0 - gap) * 0.5).max(36.0);
     let mut out = Vec::new();
-    let mut pills: Vec<_> = model
-        .browser
-        .pill_editor()
-        .option_pills
-        .iter()
-        .filter(|pill| !matches!(pill.state, BrowserPillState::Off))
-        .collect();
+    let mut pills: Vec<_> = model.browser.pill_editor().accepted_pills.iter().collect();
+    if pills.is_empty() {
+        pills.extend(
+            model
+                .browser
+                .pill_editor()
+                .option_pills
+                .iter()
+                .filter(|pill| !matches!(pill.state, BrowserPillState::Off))
+                .take(4),
+        );
+    }
     if pills.is_empty() {
         pills.extend(model.browser.pill_editor().option_pills.iter().take(4));
     }
     if let Some(create) = model.browser.pill_editor().create_pill.as_ref() {
         pills.push(create);
     }
-    for (index, pill) in pills.into_iter().take(4).enumerate() {
+    for (index, pill) in pills.into_iter().take(12).enumerate() {
         let col = index % 2;
         let row = index / 2;
         let min_x = rect.min.x + pad + (col_width + gap) * col as f32;
@@ -170,6 +176,60 @@ pub(in crate::app_core::native_shell::composition::state) fn sidebar_tag_pill_re
         }
     }
     out
+}
+
+fn render_input_selection_and_caret(
+    ctx: &StaticFrameCtx<'_>,
+    primitives: &mut impl PrimitiveSink,
+    input: Rect,
+) {
+    let editor = ctx.model.browser.pill_editor();
+    if !editor.input_focused {
+        return;
+    }
+    let text_rect = sidebar_tag_input_text_rect(input, ctx.sizing);
+    let char_width = (ctx.sizing.font_meta * 0.56).max(1.0);
+    if let Some((start, end)) = normalized_selection(editor.input_selection) {
+        let min_x =
+            text_rect.min.x.min(text_rect.max.x).max(text_rect.min.x) + char_width * start as f32;
+        let max_x = text_rect.min.x + char_width * end as f32;
+        let selection = Rect::from_min_max(
+            Point::new(min_x.min(text_rect.max.x), text_rect.min.y),
+            Point::new(max_x.min(text_rect.max.x), text_rect.max.y),
+        );
+        if selection.width() > 0.5 {
+            emit_primitive(
+                primitives,
+                Primitive::Rect(FillRect {
+                    rect: selection,
+                    color: blend_color(ctx.style.accent_mint, ctx.style.surface_overlay, 0.45),
+                }),
+            );
+        }
+    }
+    let caret_index = editor.input_caret.min(editor.input_value.chars().count());
+    let caret_x = (text_rect.min.x + char_width * caret_index as f32)
+        .min(text_rect.max.x)
+        .max(text_rect.min.x);
+    let caret = Rect::from_min_max(
+        Point::new(caret_x, text_rect.min.y),
+        Point::new(
+            (caret_x + ctx.sizing.border_width.max(1.0)).min(text_rect.max.x),
+            text_rect.max.y,
+        ),
+    );
+    emit_primitive(
+        primitives,
+        Primitive::Rect(FillRect {
+            rect: caret,
+            color: ctx.style.text_primary,
+        }),
+    );
+}
+
+fn normalized_selection(selection: Option<(usize, usize)>) -> Option<(usize, usize)> {
+    let (a, b) = selection?;
+    (a != b).then_some(if a < b { (a, b) } else { (b, a) })
 }
 
 /// Render the shared panel background for sidebar subsections.

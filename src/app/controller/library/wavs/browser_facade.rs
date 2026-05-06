@@ -405,7 +405,7 @@ impl AppController {
     /// Apply the current tag input draft to focused/selected browser rows.
     pub(crate) fn commit_browser_tag_sidebar_input(&mut self) -> Result<(), String> {
         let value = self.ui.browser.tag_sidebar_input.clone();
-        self.apply_browser_tag_sidebar_normal_tag(&value)?;
+        self.apply_browser_tag_sidebar_normal_tag_tokens(&value)?;
         self.ui.browser.tag_sidebar_input.clear();
         Ok(())
     }
@@ -448,12 +448,35 @@ impl AppController {
         &mut self,
         label: &str,
     ) -> Result<(), String> {
+        self.apply_browser_tag_sidebar_normal_tag_tokens(label)
+    }
+
+    /// Assign one or more comma-delimited normal tags to the focused/selected browser rows.
+    pub(crate) fn apply_browser_tag_sidebar_normal_tag_tokens(
+        &mut self,
+        input: &str,
+    ) -> Result<(), String> {
         let Some(source) = self.current_source() else {
             return Err(String::from("No source selected"));
         };
-        let resolved_label = self.resolve_browser_normal_tag_label(&source, label)?;
+        let tokens = browser_tag_sidebar_tokens(input);
+        if tokens.is_empty() {
+            return Ok(());
+        }
+        let mut resolved_labels = Vec::<String>::new();
+        for token in tokens {
+            let resolved_label = self.resolve_browser_normal_tag_label(&source, &token)?;
+            if !resolved_labels
+                .iter()
+                .any(|label| label.eq_ignore_ascii_case(&resolved_label))
+            {
+                resolved_labels.push(resolved_label);
+            }
+        }
         let target_paths = self.browser_tag_sidebar_target_paths();
-        self.set_normal_tag_for_source_batch(&source, &target_paths, &resolved_label, true)?;
+        for resolved_label in resolved_labels {
+            self.set_normal_tag_for_source_batch(&source, &target_paths, &resolved_label, true)?;
+        }
         self.auto_rename_after_tag_sidebar_change(&target_paths)?;
         Ok(())
     }
@@ -502,4 +525,12 @@ impl AppController {
         self.browser()
             .auto_rename_browser_sample_paths_action(target_paths)
     }
+}
+
+fn browser_tag_sidebar_tokens(input: &str) -> Vec<String> {
+    input
+        .split(',')
+        .map(|token| token.split_whitespace().collect::<Vec<_>>().join(" "))
+        .filter(|token| !token.is_empty())
+        .collect()
 }

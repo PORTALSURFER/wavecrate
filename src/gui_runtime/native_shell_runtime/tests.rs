@@ -182,6 +182,7 @@ mod tests {
         let snapshot = bridge.capture_gui_automation_snapshot([1280.0, 720.0]);
         assert_eq!(snapshot.root.id.0, "shell.root");
 
+        bridge.update(SempalRuntimeMessage::Action(UiAction::HandleEscape));
         let shortcut = bridge.resolve_key_press(
             None,
             RadiantKeyPress {
@@ -202,6 +203,132 @@ mod tests {
                 alt: false,
             })
         );
+    }
+
+    #[test]
+    fn focused_browser_pill_editor_shields_typing_from_shortcuts_and_commits_commas() {
+        let mut bridge = SempalRuntimeBridge::new(RecordingBridge {
+            model: Arc::new(NativeAppModel::default()),
+            reduced: Vec::new(),
+            repaint_installed: Arc::new(AtomicBool::new(false)),
+            exit_status: None,
+        });
+        bridge.update(SempalRuntimeMessage::Action(
+            UiAction::FocusBrowserTagSidebarInput,
+        ));
+
+        let shortcut = bridge.resolve_key_press(
+            Some(RadiantKeyPress {
+                key: RadiantKeyCode::G,
+                command: false,
+                shift: false,
+                alt: false,
+            }),
+            RadiantKeyPress {
+                key: RadiantKeyCode::G,
+                command: false,
+                shift: false,
+                alt: false,
+            },
+            RadiantFocusSurface::None,
+        );
+        assert!(
+            !shortcut.handled && shortcut.action.is_none() && shortcut.pending_chord.is_none(),
+            "focused tag text entry should clear pending chords without consuming printable text"
+        );
+
+        bridge.update(SempalRuntimeMessage::RetainedInput(
+            RetainedCanvasInput::Character('k'),
+        ));
+        bridge.update(SempalRuntimeMessage::RetainedInput(
+            RetainedCanvasInput::Character('i'),
+        ));
+        bridge.update(SempalRuntimeMessage::RetainedInput(
+            RetainedCanvasInput::Character(','),
+        ));
+        bridge.update(SempalRuntimeMessage::RetainedInput(
+            RetainedCanvasInput::Character('h'),
+        ));
+
+        assert_eq!(
+            bridge.inner.reduced,
+            vec![
+                UiAction::FocusBrowserTagSidebarInput,
+                UiAction::SetBrowserTagSidebarInput {
+                    value: String::from("k"),
+                },
+                UiAction::SetBrowserTagSidebarInput {
+                    value: String::from("ki"),
+                },
+                UiAction::SetBrowserTagSidebarInput {
+                    value: String::from("ki"),
+                },
+                UiAction::CommitBrowserTagSidebarInput,
+                UiAction::SetBrowserTagSidebarInput {
+                    value: String::from("h"),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn focused_browser_pill_editor_selection_deletes_draft_before_chip_backspace() {
+        let mut model = NativeAppModel::default();
+        model.browser.tag_sidebar.input_value = String::from("abc");
+        model
+            .browser
+            .tag_sidebar
+            .accepted_pills
+            .push(BrowserTagPillModel {
+                id: String::from("Kick"),
+                label: String::from("Kick"),
+                state: crate::app_core::actions::NativeBrowserTagState::On,
+            });
+        let mut bridge = SempalRuntimeBridge::new(RecordingBridge {
+            model: Arc::new(model),
+            reduced: Vec::new(),
+            repaint_installed: Arc::new(AtomicBool::new(false)),
+            exit_status: None,
+        });
+        bridge.update(SempalRuntimeMessage::Action(
+            UiAction::FocusBrowserTagSidebarInput,
+        ));
+        bridge.update(SempalRuntimeMessage::LocalTextEdit);
+        let _ = bridge.resolve_key_press(
+            None,
+            RadiantKeyPress {
+                key: RadiantKeyCode::A,
+                command: true,
+                shift: false,
+                alt: false,
+            },
+            RadiantFocusSurface::None,
+        );
+        bridge.update(SempalRuntimeMessage::RetainedInput(
+            RetainedCanvasInput::KeyPress(WidgetKey::Backspace),
+        ));
+
+        assert_eq!(
+            bridge.inner.reduced.last(),
+            Some(&UiAction::SetBrowserTagSidebarInput {
+                value: String::new(),
+            })
+        );
+        assert!(
+            !bridge.inner.reduced.iter().any(|action| matches!(
+                action,
+                UiAction::ToggleBrowserSidebarNormalTag { label } if label == "Kick"
+            )),
+            "Backspace with selected draft text should edit text before removing an accepted chip"
+        );
+
+        bridge.update(SempalRuntimeMessage::RetainedInput(
+            RetainedCanvasInput::KeyPress(WidgetKey::Backspace),
+        ));
+        assert!(bridge.inner.reduced.iter().any(|action| matches!(
+            action,
+            UiAction::ToggleBrowserSidebarNormalTag { label } if label == "Kick"
+        )));
     }
 
     #[test]
@@ -303,6 +430,25 @@ mod tests {
         }
 
         fn reduce_action(&mut self, action: UiAction) {
+            match &action {
+                UiAction::SetBrowserSearch { query } => {
+                    Arc::make_mut(&mut self.model).browser.search_query = query.clone();
+                }
+                UiAction::SetBrowserTagSidebarInput { value } => {
+                    Arc::make_mut(&mut self.model)
+                        .browser
+                        .tag_sidebar
+                        .input_value = value.clone();
+                }
+                UiAction::CommitBrowserTagSidebarInput => {
+                    Arc::make_mut(&mut self.model)
+                        .browser
+                        .tag_sidebar
+                        .input_value
+                        .clear();
+                }
+                _ => {}
+            }
             self.reduced.push(action);
         }
 

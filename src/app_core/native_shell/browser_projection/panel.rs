@@ -190,11 +190,18 @@ pub(crate) fn project_browser_tag_sidebar_model(
             bool_tag_state(&target_entries, |entry| !entry.looped),
         ),
     ];
-    let (option_pills, create_pill) = if let Some(source) = controller.current_source() {
+    let (accepted_pills, option_pills, create_pill) = if let Some(source) =
+        controller.current_source()
+    {
         let target_paths = sidebar_targets.resolve_paths(controller);
-        project_normal_tag_candidates(controller, &source, &target_paths).unwrap_or_default()
+        let accepted_pills =
+            project_accepted_normal_tags(controller, &source, &target_paths, &target_entries)
+                .unwrap_or_else(|_| project_accepted_normal_tags_from_entries(&target_entries));
+        let (option_pills, create_pill) =
+            project_normal_tag_candidates(controller, &source, &target_paths).unwrap_or_default();
+        (accepted_pills, option_pills, create_pill)
     } else {
-        (Vec::new(), None)
+        (Vec::new(), Vec::new(), None)
     };
     BrowserTagSidebarModel {
         // The tag editor is now rendered in the left library sidebar. Keep the
@@ -206,7 +213,11 @@ pub(crate) fn project_browser_tag_sidebar_model(
         primary_action_enabled: controller.ui.browser.tag_sidebar_auto_rename,
         input_value: controller.ui.browser.tag_sidebar_input.clone(),
         input_placeholder: String::from("Add tag"),
+        input_focused: false,
+        input_caret: controller.ui.browser.tag_sidebar_input.chars().count(),
+        input_selection: None,
         exclusive_pills,
+        accepted_pills,
         option_pills,
         create_pill,
     }
@@ -230,6 +241,83 @@ fn bool_tag_state(entries: &[WavEntry], predicate: impl Fn(&WavEntry) -> bool) -
         count if count == entries.len() => BrowserTagState::On,
         _ => BrowserTagState::Mixed,
     }
+}
+
+fn project_accepted_normal_tags(
+    controller: &mut AppController,
+    source: &crate::sample_sources::SampleSource,
+    paths: &[std::path::PathBuf],
+    fallback_entries: &[WavEntry],
+) -> Result<Vec<BrowserTagPillModel>, String> {
+    if paths.is_empty() {
+        return Ok(Vec::new());
+    }
+    let labels_by_path = {
+        let db = controller
+            .database_for(source)
+            .map_err(|err| err.to_string())?;
+        paths
+            .iter()
+            .map(|path| db.tag_labels_for_path(path).map_err(|err| err.to_string()))
+            .collect::<Result<Vec<_>, _>>()?
+    };
+    if labels_by_path.iter().all(Vec::is_empty) && !fallback_entries.is_empty() {
+        return Ok(project_accepted_normal_tags_from_entries(fallback_entries));
+    }
+    Ok(project_accepted_normal_tags_from_label_sets(
+        &labels_by_path,
+    ))
+}
+
+fn project_accepted_normal_tags_from_entries(entries: &[WavEntry]) -> Vec<BrowserTagPillModel> {
+    if entries.is_empty() {
+        return Vec::new();
+    }
+    let label_sets = entries
+        .iter()
+        .map(|entry| entry.normal_tags.clone())
+        .collect::<Vec<_>>();
+    project_accepted_normal_tags_from_label_sets(&label_sets)
+}
+
+fn project_accepted_normal_tags_from_label_sets(
+    label_sets: &[Vec<String>],
+) -> Vec<BrowserTagPillModel> {
+    if label_sets.is_empty() {
+        return Vec::new();
+    }
+    let mut counts = std::collections::BTreeMap::<String, usize>::new();
+    let mut order = Vec::<String>::new();
+    for labels in label_sets {
+        for label in labels {
+            let normalized = display_tag_input(label);
+            if normalized.is_empty() {
+                continue;
+            }
+            let count = counts.entry(normalized.clone()).or_insert_with(|| {
+                order.push(normalized.clone());
+                0
+            });
+            *count += 1;
+        }
+    }
+    order
+        .into_iter()
+        .filter_map(|label| {
+            let count = counts.get(&label).copied().unwrap_or_default();
+            (count > 0).then(|| {
+                pill_model(
+                    &label,
+                    &label,
+                    if count == label_sets.len() {
+                        BrowserTagState::On
+                    } else {
+                        BrowserTagState::Mixed
+                    },
+                )
+            })
+        })
+        .collect()
 }
 
 fn project_normal_tag_candidates(

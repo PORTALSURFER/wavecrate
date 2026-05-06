@@ -13,6 +13,7 @@ pub(super) struct SempalRuntimeBridge<B> {
     frame: PaintFrame,
     layout_viewport: Option<Vector2>,
     text_input_target: RetainedTextInputTarget,
+    text_edit: RetainedTextEditState,
 }
 
 /// Private message surface used by the generic runtime before Sempal action reduction.
@@ -22,6 +23,8 @@ pub(super) enum SempalRuntimeMessage {
     Action(UiAction),
     /// Raw retained-canvas input that still needs Sempal shell hit-testing.
     RetainedInput(RetainedCanvasInput),
+    /// Local retained text-edit state changed without reducing an app action.
+    LocalTextEdit,
 }
 
 /// Retained-canvas input normalized out of Radiant widget events.
@@ -72,6 +75,97 @@ pub(super) enum RetainedTextInputTarget {
     Prompt,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct RetainedTextEditState {
+    target: RetainedTextInputTarget,
+    value: String,
+    caret: usize,
+    selection_anchor: Option<usize>,
+}
+
+impl RetainedTextEditState {
+    fn selection(&self) -> Option<(usize, usize)> {
+        let anchor = self.selection_anchor?;
+        (anchor != self.caret).then_some((anchor, self.caret))
+    }
+
+    fn has_selection(&self) -> bool {
+        self.selection().is_some()
+    }
+
+    fn clear_selection(&mut self) {
+        self.selection_anchor = None;
+    }
+
+    fn sync(&mut self, target: RetainedTextInputTarget, value: String) {
+        if self.target != target || self.value != value {
+            self.target = target;
+            self.value = value;
+            self.caret = self.value.chars().count();
+            self.selection_anchor = None;
+        }
+    }
+
+    fn selected_bounds(&self) -> Option<(usize, usize)> {
+        self.selection()
+            .map(|(a, b)| if a < b { (a, b) } else { (b, a) })
+    }
+
+    fn replace_selection(&mut self, replacement: &str) -> bool {
+        let Some((start, end)) = self.selected_bounds() else {
+            return false;
+        };
+        replace_char_range(&mut self.value, start, end, replacement);
+        self.caret = start + replacement.chars().count();
+        self.clear_selection();
+        true
+    }
+
+    fn insert_char(&mut self, character: char) {
+        self.replace_selection("");
+        let index = byte_index_for_char(&self.value, self.caret);
+        self.value.insert(index, character);
+        self.caret += 1;
+    }
+
+    fn backspace(&mut self) -> bool {
+        if self.replace_selection("") {
+            return true;
+        }
+        if self.caret == 0 {
+            return false;
+        }
+        let end = self.caret;
+        let start = self.caret - 1;
+        replace_char_range(&mut self.value, start, end, "");
+        self.caret = start;
+        true
+    }
+
+    fn delete(&mut self) -> bool {
+        if self.replace_selection("") {
+            return true;
+        }
+        if self.caret >= self.value.chars().count() {
+            return false;
+        }
+        replace_char_range(&mut self.value, self.caret, self.caret + 1, "");
+        true
+    }
+
+    fn move_caret(&mut self, caret: usize, selecting: bool) {
+        let caret = caret.min(self.value.chars().count());
+        if selecting {
+            if self.selection_anchor.is_none() {
+                self.selection_anchor = Some(self.caret);
+            }
+        } else {
+            self.clear_selection();
+        }
+        self.caret = caret;
+    }
+}
+
 impl<B> SempalRuntimeBridge<B> {
     pub(super) fn new(inner: B) -> Self {
         Self {
@@ -82,6 +176,7 @@ impl<B> SempalRuntimeBridge<B> {
             frame: PaintFrame::default(),
             layout_viewport: None,
             text_input_target: RetainedTextInputTarget::None,
+            text_edit: RetainedTextEditState::default(),
         }
     }
 
@@ -117,10 +212,10 @@ impl<B> SempalRuntimeBridge<B> {
 impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
     /// Reduce one app action through the host and refresh the retained compatibility model.
     fn emit_action(&mut self, action: UiAction) {
-        self.update_text_target_after_action(&action);
-        self.inner.reduce_action(action);
+        self.inner.reduce_action(action.clone());
         let model = self.inner.pull_model_arc();
         self.model = Arc::new(model.as_ref().into());
+        self.update_text_target_after_action(&action);
     }
 
     /// Translate retained-canvas input into Sempal actions or local repaint-only state.
@@ -145,6 +240,9 @@ impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
                     position,
                 ) {
                     self.emit_action(action.into());
+                    if self.text_input_target != RetainedTextInputTarget::None {
+                        self.sync_text_edit_from_model();
+                    }
                 }
                 true
             }
@@ -179,10 +277,33 @@ impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
                 self.text_input_target = RetainedTextInputTarget::None;
                 true
             }
-            WidgetKey::Backspace => self.rewrite_retained_text(|value| {
-                value.pop();
+            WidgetKey::Backspace => {
+                self.sync_text_edit_from_model();
+                if self.text_input_target == RetainedTextInputTarget::BrowserPillEditor
+                    && self.text_edit.value.is_empty()
+                    && !self.text_edit.has_selection()
+                {
+                    return self.remove_last_browser_pill_editor_chip();
+                }
+                self.edit_retained_text(|edit| edit.backspace())
+            }
+            WidgetKey::Delete => self.edit_retained_text(|edit| edit.delete()),
+            WidgetKey::ArrowLeft => self.edit_retained_text(|edit| {
+                edit.move_caret(edit.caret.saturating_sub(1), false);
+                false
             }),
-            WidgetKey::Delete => true,
+            WidgetKey::ArrowRight => self.edit_retained_text(|edit| {
+                edit.move_caret(edit.caret + 1, false);
+                false
+            }),
+            WidgetKey::Home => self.edit_retained_text(|edit| {
+                edit.move_caret(0, false);
+                false
+            }),
+            WidgetKey::End => self.edit_retained_text(|edit| {
+                edit.move_caret(edit.value.chars().count(), false);
+                false
+            }),
             _ => false,
         }
     }
@@ -192,15 +313,45 @@ impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
         if character.is_control() {
             return false;
         }
-        self.rewrite_retained_text(|value| value.push(character))
+        self.sync_text_edit_from_model();
+        if self.text_input_target == RetainedTextInputTarget::BrowserPillEditor && character == ','
+        {
+            let token = self.text_edit.value.clone();
+            if token.split_whitespace().next().is_none() {
+                self.text_edit.value.clear();
+                self.text_edit.caret = 0;
+                self.text_edit.clear_selection();
+                return true;
+            }
+            self.emit_action(UiAction::SetBrowserTagSidebarInput {
+                value: token.clone(),
+            });
+            self.emit_action(UiAction::CommitBrowserTagSidebarInput);
+            self.text_input_target = RetainedTextInputTarget::BrowserPillEditor;
+            self.text_edit
+                .sync(RetainedTextInputTarget::BrowserPillEditor, String::new());
+            return true;
+        }
+        self.edit_retained_text(|edit| {
+            edit.insert_char(character);
+            true
+        })
     }
 
     /// Rewrite the active retained text target and emit the matching host action.
-    fn rewrite_retained_text(&mut self, rewrite: impl FnOnce(&mut String)) -> bool {
-        let Some(mut value) = self.current_text_value() else {
+    fn edit_retained_text(
+        &mut self,
+        rewrite: impl FnOnce(&mut RetainedTextEditState) -> bool,
+    ) -> bool {
+        if self.text_input_target == RetainedTextInputTarget::None {
             return false;
-        };
-        rewrite(&mut value);
+        }
+        self.sync_text_edit_from_model();
+        let changed = rewrite(&mut self.text_edit);
+        if !changed {
+            return true;
+        }
+        let value = self.text_edit.value.clone();
         let action = match self.text_input_target {
             RetainedTextInputTarget::None => return false,
             RetainedTextInputTarget::BrowserSearch => UiAction::SetBrowserSearch { query: value },
@@ -212,6 +363,22 @@ impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
             RetainedTextInputTarget::Prompt => UiAction::SetPromptInput { value },
         };
         self.emit_action(action);
+        true
+    }
+
+    fn sync_text_edit_from_model(&mut self) {
+        if let Some(value) = self.current_text_value() {
+            self.text_edit.sync(self.text_input_target, value);
+        }
+    }
+
+    fn remove_last_browser_pill_editor_chip(&mut self) -> bool {
+        let Some(pill) = self.model.browser.pill_editor().accepted_pills.last() else {
+            return true;
+        };
+        self.emit_action(UiAction::ToggleBrowserSidebarNormalTag {
+            label: pill.id.clone(),
+        });
         true
     }
 
@@ -268,7 +435,89 @@ impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
             | UiAction::HandleEscape => RetainedTextInputTarget::None,
             _ => self.text_input_target,
         };
+        self.sync_text_edit_from_model();
     }
+
+    fn resolve_retained_text_key_press(&mut self, press: RadiantKeyPress) -> bool {
+        if press.alt {
+            return false;
+        }
+        if press.command {
+            match press.key {
+                RadiantKeyCode::A => {
+                    self.text_edit.caret = self.text_edit.value.chars().count();
+                    self.text_edit.selection_anchor = Some(0);
+                    return true;
+                }
+                RadiantKeyCode::X => {
+                    self.text_edit.replace_selection("");
+                    let value = self.text_edit.value.clone();
+                    self.emit_text_value(value);
+                    return true;
+                }
+                RadiantKeyCode::C | RadiantKeyCode::V => return true,
+                _ => return false,
+            }
+        }
+        let len = self.text_edit.value.chars().count();
+        match press.key {
+            RadiantKeyCode::ArrowLeft => {
+                self.text_edit
+                    .move_caret(self.text_edit.caret.saturating_sub(1), press.shift);
+                true
+            }
+            RadiantKeyCode::ArrowRight => {
+                self.text_edit
+                    .move_caret((self.text_edit.caret + 1).min(len), press.shift);
+                true
+            }
+            RadiantKeyCode::Home => {
+                self.text_edit.move_caret(0, press.shift);
+                true
+            }
+            RadiantKeyCode::End => {
+                self.text_edit.move_caret(len, press.shift);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    fn emit_text_value(&mut self, value: String) {
+        let action = match self.text_input_target {
+            RetainedTextInputTarget::None => return,
+            RetainedTextInputTarget::BrowserSearch => UiAction::SetBrowserSearch { query: value },
+            RetainedTextInputTarget::FolderSearch => UiAction::SetFolderSearch { query: value },
+            RetainedTextInputTarget::BrowserPillEditor => {
+                UiAction::SetBrowserTagSidebarInput { value }
+            }
+            RetainedTextInputTarget::FolderCreate => UiAction::SetFolderCreateInput { value },
+            RetainedTextInputTarget::Prompt => UiAction::SetPromptInput { value },
+        };
+        self.emit_action(action);
+    }
+
+    fn apply_local_text_projection(&self, model: &mut runtime_contract::AppModel) {
+        if self.text_input_target != RetainedTextInputTarget::BrowserPillEditor {
+            return;
+        }
+        model.browser.pill_editor.input_focused = true;
+        model.browser.pill_editor.input_caret = self.text_edit.caret;
+        model.browser.pill_editor.input_selection = self.text_edit.selection();
+    }
+}
+
+fn byte_index_for_char(text: &str, char_index: usize) -> usize {
+    text.char_indices()
+        .nth(char_index)
+        .map(|(index, _)| index)
+        .unwrap_or(text.len())
+}
+
+fn replace_char_range(text: &mut String, start: usize, end: usize, replacement: &str) {
+    let start = byte_index_for_char(text, start);
+    let end = byte_index_for_char(text, end);
+    text.replace_range(start..end, replacement);
 }
 
 impl<B: NativeAppBridge> RuntimeBridge<SempalRuntimeMessage> for SempalRuntimeBridge<B> {
@@ -292,6 +541,7 @@ impl<B: NativeAppBridge> RuntimeBridge<SempalRuntimeMessage> for SempalRuntimeBr
                 self.emit_action(action);
                 Command::none()
             }
+            SempalRuntimeMessage::LocalTextEdit => Command::request_repaint(),
             SempalRuntimeMessage::RetainedInput(input) => {
                 let repaint = self.handle_retained_canvas_input(input);
                 if repaint {
@@ -309,6 +559,17 @@ impl<B: NativeAppBridge> RuntimeBridge<SempalRuntimeMessage> for SempalRuntimeBr
         press: RadiantKeyPress,
         focus: RadiantFocusSurface,
     ) -> RadiantShortcutResolution<SempalRuntimeMessage> {
+        if self.text_input_target != RetainedTextInputTarget::None {
+            self.sync_text_edit_from_model();
+            if self.resolve_retained_text_key_press(press) {
+                return RadiantShortcutResolution {
+                    action: Some(SempalRuntimeMessage::LocalTextEdit),
+                    handled: true,
+                    pending_chord: None,
+                };
+            }
+            return RadiantShortcutResolution::unhandled();
+        }
         let resolution = hotkeys::resolve_hotkey_press(
             pending_chord.map(keypress_from_radiant),
             keypress_from_radiant(press),
@@ -343,15 +604,17 @@ impl<B: NativeAppBridge> RuntimeBridge<SempalRuntimeMessage> for SempalRuntimeBr
         let layout =
             ShellLayout::build_with_style_and_runtime(viewport, &style, &mut self.layout_runtime);
         self.shell_state.sync_from_model(&self.model);
-        let motion_model = runtime_contract::NativeMotionModel::from_app_model(&self.model);
+        let mut model = self.model.as_ref().clone();
+        self.apply_local_text_projection(&mut model);
+        let motion_model = runtime_contract::NativeMotionModel::from_app_model(&model);
         self.shell_state.sync_from_motion_model(&motion_model);
         self.shell_state
-            .build_frame_with_style_into(&layout, &style, &self.model, &mut self.frame);
+            .build_frame_with_style_into(&layout, &style, &model, &mut self.frame);
         append_retained_shell_overlays(
             &mut self.shell_state,
             &layout,
             &style,
-            &self.model,
+            &model,
             &motion_model,
             &mut self.frame,
         );
