@@ -270,6 +270,7 @@ impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
                 self.local_overlay_surface_refresh = true;
                 true
             }
+            WidgetInput::Wheel { .. } => true,
             WidgetInput::KeyPress(key) => self.handle_retained_key_press(key),
             WidgetInput::Character(character) => self.handle_retained_character(character),
             WidgetInput::TextEdit(command) => self.handle_retained_text_edit(command),
