@@ -34,7 +34,7 @@ pub(super) enum SempalRuntimeMessage {
 }
 
 /// Retained-canvas input normalized out of Radiant widget events.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(super) enum RetainedCanvasInput {
     /// Pointer hover moved inside the retained Sempal canvas.
     PointerMove {
@@ -61,6 +61,8 @@ pub(super) enum RetainedCanvasInput {
     KeyPress(WidgetKey),
     /// Printable character routed to the focused retained canvas.
     Character(char),
+    /// Backend-level text editing command routed to the focused retained canvas.
+    TextEdit(TextEditCommand),
 }
 
 /// Local text-input target tracked after Sempal focus actions.
@@ -304,6 +306,7 @@ impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
             }
             RetainedCanvasInput::KeyPress(key) => self.handle_retained_key_press(key),
             RetainedCanvasInput::Character(character) => self.handle_retained_character(character),
+            RetainedCanvasInput::TextEdit(command) => self.handle_retained_text_edit(command),
         }
     }
 
@@ -358,6 +361,48 @@ impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
                 false
             }),
             _ => false,
+        }
+    }
+
+    /// Handle one backend-level text edit command from Radiant's native runtime.
+    fn handle_retained_text_edit(&mut self, command: TextEditCommand) -> bool {
+        match command {
+            TextEditCommand::MoveLeft { extend_selection } => self.edit_retained_text(|edit| {
+                edit.move_caret(edit.caret.saturating_sub(1), extend_selection);
+                false
+            }),
+            TextEditCommand::MoveRight { extend_selection } => self.edit_retained_text(|edit| {
+                edit.move_caret(edit.caret + 1, extend_selection);
+                false
+            }),
+            TextEditCommand::MoveHome { extend_selection } => self.edit_retained_text(|edit| {
+                edit.move_caret(0, extend_selection);
+                false
+            }),
+            TextEditCommand::MoveEnd { extend_selection } => self.edit_retained_text(|edit| {
+                edit.move_caret(edit.value.chars().count(), extend_selection);
+                false
+            }),
+            TextEditCommand::SelectAll => self.edit_retained_text(|edit| {
+                edit.caret = edit.value.chars().count();
+                edit.selection_anchor = Some(0);
+                false
+            }),
+            TextEditCommand::InsertText(text) => {
+                let mut handled = false;
+                for character in text.chars() {
+                    if self.handle_retained_character(character) {
+                        handled = true;
+                    }
+                }
+                handled
+            }
+            TextEditCommand::Backspace => self.handle_retained_key_press(WidgetKey::Backspace),
+            TextEditCommand::Delete => self.handle_retained_key_press(WidgetKey::Delete),
+            TextEditCommand::CutSelection => self.edit_retained_text(|edit| {
+                edit.replace_selection("");
+                true
+            }),
         }
     }
 

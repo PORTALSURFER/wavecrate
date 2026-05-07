@@ -1,5 +1,6 @@
 use super::*;
 
+#[allow(clippy::module_inception)]
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -232,6 +233,35 @@ mod tests {
                     value: String::from("h"),
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn retained_text_edit_commands_preserve_selection_and_paste_flow() {
+        let mut bridge = SempalRuntimeBridge::new(RecordingBridge {
+            model: Arc::new(NativeAppModel::default()),
+            reduced: Vec::new(),
+            repaint_installed: Arc::new(AtomicBool::new(false)),
+            exit_status: None,
+        });
+
+        bridge.update(SempalRuntimeMessage::Action(UiAction::FocusBrowserSearch));
+        bridge.inner.reduced.clear();
+        bridge.update(SempalRuntimeMessage::RetainedInput(
+            RetainedCanvasInput::TextEdit(TextEditCommand::InsertText(String::from("kick"))),
+        ));
+        bridge.update(SempalRuntimeMessage::RetainedInput(
+            RetainedCanvasInput::TextEdit(TextEditCommand::SelectAll),
+        ));
+        bridge.update(SempalRuntimeMessage::RetainedInput(
+            RetainedCanvasInput::TextEdit(TextEditCommand::InsertText(String::from("snare"))),
+        ));
+
+        assert_eq!(
+            bridge.inner.reduced.last(),
+            Some(&UiAction::SetBrowserSearch {
+                query: String::from("snare"),
+            })
         );
     }
 
