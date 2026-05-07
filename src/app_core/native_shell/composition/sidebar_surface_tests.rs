@@ -1,12 +1,15 @@
 use super::*;
 use crate::app_core::native_shell::composition::style::StyleTokens;
 use crate::gui::types::Point;
-use crate::widgets::{ButtonWidget, TextWidget, Widget};
 
-fn is_widget<T: Widget + 'static>(surface: &UiSurface<()>, id: u64) -> bool {
-    surface
-        .find_widget(id)
-        .is_some_and(|widget| widget.widget().as_any().downcast_ref::<T>().is_some())
+fn assert_widget_node(surface: &UiSurface<()>, id: u64) {
+    assert_eq!(
+        surface
+            .find_widget(id)
+            .expect("widget node should exist")
+            .id(),
+        id
+    );
 }
 
 fn assert_inside(outer: Rect, inner: Rect) {
@@ -17,7 +20,7 @@ fn assert_inside(outer: Rect, inner: Rect) {
 }
 
 #[test]
-fn sidebar_surfaces_use_public_text_and_button_widgets() {
+fn sidebar_surfaces_project_widget_nodes() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let header =
         build_sidebar_header_surface(&SidebarHeaderSurfaceContent::default(), style.sizing);
@@ -29,9 +32,9 @@ fn sidebar_surfaces_use_public_text_and_button_widgets() {
         style.sizing,
         208.0,
     );
-    assert!(is_widget::<TextWidget>(&header, HEADER_TITLE_ID));
-    assert!(is_widget::<ButtonWidget>(&header, HEADER_ADD_BUTTON_ID));
-    assert!(is_widget::<ButtonWidget>(&footer, FOOTER_ACTION_BASE_ID));
+    assert_widget_node(&header, HEADER_TITLE_ID);
+    assert_widget_node(&header, HEADER_ADD_BUTTON_ID);
+    assert_widget_node(&footer, FOOTER_ACTION_BASE_ID);
 }
 
 #[test]

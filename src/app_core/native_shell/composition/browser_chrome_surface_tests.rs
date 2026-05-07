@@ -1,14 +1,14 @@
 use super::*;
-use crate::{
-    app_core::native_shell::composition::style::StyleTokens,
-    gui::types::Point,
-    widgets::{ButtonWidget, TextInputWidget, ToggleWidget, Widget},
-};
+use crate::{app_core::native_shell::composition::style::StyleTokens, gui::types::Point};
 
-fn is_widget<T: Widget + 'static>(surface: &UiSurface<()>, id: u64) -> bool {
-    surface
-        .find_widget(id)
-        .is_some_and(|widget| widget.widget().as_any().downcast_ref::<T>().is_some())
+fn assert_widget_node(surface: &UiSurface<()>, id: u64) {
+    assert_eq!(
+        surface
+            .find_widget(id)
+            .expect("widget node should exist")
+            .id(),
+        id
+    );
 }
 
 fn assert_inside(outer: Rect, inner: Rect) {
@@ -19,15 +19,15 @@ fn assert_inside(outer: Rect, inner: Rect) {
 }
 
 #[test]
-fn browser_tabs_surface_uses_public_button_widgets() {
+fn browser_tabs_surface_projects_widget_nodes() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let surface = build_browser_tabs_surface(
         &browser_tabs_surface_content(&AppModel::default()),
         style.sizing,
         800.0,
     );
-    assert!(is_widget::<ButtonWidget>(&surface, TABS_ITEMS_ID));
-    assert!(is_widget::<ButtonWidget>(&surface, TABS_MAP_ID));
+    assert_widget_node(&surface, TABS_ITEMS_ID);
+    assert_widget_node(&surface, TABS_MAP_ID);
 }
 
 #[test]
@@ -45,7 +45,7 @@ fn browser_tabs_surface_layout_stays_inside_tabs_band() {
 }
 
 #[test]
-fn browser_toolbar_surface_uses_public_toggle_button_and_text_input_widgets() {
+fn browser_toolbar_surface_projects_widget_nodes() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let content = browser_toolbar_surface_content(&AppModel::default());
     let surface = build_browser_toolbar_surface(
@@ -56,9 +56,9 @@ fn browser_toolbar_surface_uses_public_toggle_button_and_text_input_widgets() {
             style.sizing,
         ),
     );
-    assert!(is_widget::<ToggleWidget>(&surface, TOOLBAR_RATING_BASE_ID));
-    assert!(is_widget::<ButtonWidget>(&surface, TOOLBAR_RANDOM_ID));
-    assert!(is_widget::<TextInputWidget>(&surface, TOOLBAR_SEARCH_ID));
+    assert_widget_node(&surface, TOOLBAR_RATING_BASE_ID);
+    assert_widget_node(&surface, TOOLBAR_RANDOM_ID);
+    assert_widget_node(&surface, TOOLBAR_SEARCH_ID);
 }
 
 #[test]

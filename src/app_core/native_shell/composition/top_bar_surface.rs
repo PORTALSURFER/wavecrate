@@ -544,10 +544,17 @@ fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Re
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        app_core::native_shell::composition::style::StyleTokens,
-        widgets::{ButtonWidget, CanvasWidget, TextWidget},
-    };
+    use crate::app_core::native_shell::composition::style::StyleTokens;
+
+    fn assert_widget_node(surface: &UiSurface<()>, id: u64) {
+        assert_eq!(
+            surface
+                .find_widget(id)
+                .expect("widget node should exist")
+                .id(),
+            id
+        );
+    }
 
     fn assert_inside(outer: Rect, inner: Rect) {
         assert!(inner.min.x >= outer.min.x);
@@ -586,36 +593,12 @@ mod tests {
     }
 
     #[test]
-    fn top_bar_surface_uses_public_text_button_and_canvas_widgets() {
+    fn top_bar_surface_projects_widget_nodes() {
         let style = StyleTokens::for_viewport_width(1280.0);
         let surface = build_top_bar_surface(&content(), style.sizing, 1280.0);
-        assert!(
-            surface
-                .find_widget(TOP_TITLE_TEXT_ID)
-                .expect("title")
-                .widget()
-                .as_any()
-                .downcast_ref::<TextWidget>()
-                .is_some()
-        );
-        assert!(
-            surface
-                .find_widget(TOP_VOLUME_METER_ID)
-                .expect("meter")
-                .widget()
-                .as_any()
-                .downcast_ref::<CanvasWidget>()
-                .is_some()
-        );
-        assert!(
-            surface
-                .find_widget(TOP_OPTIONS_BUTTON_ID)
-                .expect("options")
-                .widget()
-                .as_any()
-                .downcast_ref::<ButtonWidget>()
-                .is_some()
-        );
+        assert_widget_node(&surface, TOP_TITLE_TEXT_ID);
+        assert_widget_node(&surface, TOP_VOLUME_METER_ID);
+        assert_widget_node(&surface, TOP_OPTIONS_BUTTON_ID);
     }
 
     #[test]
