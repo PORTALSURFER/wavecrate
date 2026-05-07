@@ -231,12 +231,16 @@ mod tests {
     }
 
     #[test]
-    fn shell_specific_sidebar_chrome_stays_outside_core_theme() {
+    fn shell_chrome_uses_default_theme_tokens() {
         let tokens = StyleTokens::for_viewport_width(1280.0);
         assert_eq!(
             tokens.chrome.source_recovery_badge_active,
             tokens.theme.accent_warning
         );
-        assert_ne!(tokens.chrome.source_section_divider, tokens.theme.border);
+        assert_eq!(
+            tokens.chrome.source_recovery_badge_idle,
+            tokens.theme.surface_overlay
+        );
+        assert_eq!(tokens.chrome.source_section_divider, tokens.theme.border);
     }
 }
