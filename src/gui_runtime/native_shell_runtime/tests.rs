@@ -1,5 +1,6 @@
 use super::*;
 
+#[allow(clippy::module_inception)]
 #[cfg(test)]
 mod tests {
     use super::*;

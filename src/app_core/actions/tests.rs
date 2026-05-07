@@ -345,7 +345,7 @@ fn native_projection_dtos_keep_product_defaults_and_generic_primitives() {
     let preferences = model.options_panel.preference_state();
     assert_eq!(preferences.toggles.len(), 4);
     assert_eq!(model.waveform.timeline_surface().markers.len(), 0);
-    assert_eq!(model.waveform_chrome.signal_tools().markers_visible, true);
+    assert!(model.waveform_chrome.signal_tools().markers_visible);
 }
 fn collect_desktop_aiv_action_ids(
     cases: &[crate::gui_test::GuiAivCase],
