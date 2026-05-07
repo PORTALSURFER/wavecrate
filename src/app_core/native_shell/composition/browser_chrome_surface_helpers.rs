@@ -2,7 +2,7 @@ use super::*;
 use crate::{
     gui::types::{Rect, Vector2},
     layout::{CrossAlign, Insets, SizeModeCross, SizeModeMain, SlotParams},
-    runtime::{SurfaceChild, SurfaceNode, WidgetMessageMapper},
+    runtime::{SurfaceChild, SurfaceNode},
     widgets::{CanvasWidget, TextInputWidget, TextWidget, ToggleWidget, WidgetSizing},
 };
 
@@ -155,13 +155,10 @@ pub(super) fn build_toolbar_children(
     }
     children.push(SurfaceChild::new(
         SlotParams::fill(),
-        SurfaceNode::widget(
-            CanvasWidget::new(
-                TOOLBAR_TRIAGE_BASE_ID + BROWSER_TRIAGE_CHIP_COUNT as u64,
-                WidgetSizing::fixed(Vector2::new(1.0, 1.0)),
-            ),
-            WidgetMessageMapper::none(),
-        ),
+        SurfaceNode::static_widget(CanvasWidget::new(
+            TOOLBAR_TRIAGE_BASE_ID + BROWSER_TRIAGE_CHIP_COUNT as u64,
+            WidgetSizing::fixed(Vector2::new(1.0, 1.0)),
+        )),
     ));
     children
 }
@@ -263,14 +260,11 @@ fn playback_chip_label(index: usize) -> &'static str {
 }
 
 fn toggle_widget(id: u64, label: &str, side: f32) -> SurfaceNode<()> {
-    SurfaceNode::widget(
-        ToggleWidget::new(
-            id,
-            label,
-            WidgetSizing::fixed(Vector2::new(side.max(1.0), side.max(1.0))),
-        ),
-        WidgetMessageMapper::none(),
-    )
+    SurfaceNode::static_widget(ToggleWidget::new(
+        id,
+        label,
+        WidgetSizing::fixed(Vector2::new(side.max(1.0), side.max(1.0))),
+    ))
 }
 
 fn text_input_widget(
@@ -286,19 +280,16 @@ fn text_input_widget(
         WidgetSizing::fixed(Vector2::new(width.max(1.0), height.max(1.0))),
     );
     widget.props.placeholder = (!placeholder.is_empty()).then(|| placeholder.to_string());
-    SurfaceNode::widget(widget, WidgetMessageMapper::none())
+    SurfaceNode::static_widget(widget)
 }
 
 fn text_widget(id: u64, text: &str, width: f32, height: f32, font_size: f32) -> SurfaceNode<()> {
-    SurfaceNode::widget(
-        TextWidget::new(
-            id,
-            text,
-            WidgetSizing::fixed(Vector2::new(width.max(1.0), height.max(1.0)))
-                .with_baseline((font_size * 0.75).max(0.0)),
-        ),
-        WidgetMessageMapper::none(),
-    )
+    SurfaceNode::static_widget(TextWidget::new(
+        id,
+        text,
+        WidgetSizing::fixed(Vector2::new(width.max(1.0), height.max(1.0)))
+            .with_baseline((font_size * 0.75).max(0.0)),
+    ))
 }
 
 fn fixed_slot(width: f32, height: f32) -> SlotParams {
@@ -320,9 +311,9 @@ fn fixed_slot(width: f32, height: f32) -> SlotParams {
 fn spacer_child(id: u64, width: f32) -> SurfaceChild<()> {
     SurfaceChild::new(
         fixed_slot(width.max(0.0), 1.0),
-        SurfaceNode::widget(
-            CanvasWidget::new(id, WidgetSizing::fixed(Vector2::new(width.max(1.0), 1.0))),
-            WidgetMessageMapper::none(),
-        ),
+        SurfaceNode::static_widget(CanvasWidget::new(
+            id,
+            WidgetSizing::fixed(Vector2::new(width.max(1.0), 1.0)),
+        )),
     )
 }

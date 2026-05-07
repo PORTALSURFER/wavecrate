@@ -12,7 +12,7 @@ use crate::{
         Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, MainAlign, OverflowPolicy,
         SizeModeCross, SizeModeMain, SlotParams, layout_tree,
     },
-    runtime::{SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
+    runtime::{SurfaceChild, SurfaceNode, UiSurface},
     widgets::{CanvasWidget, TextWidget, WidgetSizing},
 };
 
@@ -245,15 +245,12 @@ fn segment_surface(
                 },
                 vec![SurfaceChild::new(
                     text_slot(sizing.font_status),
-                    SurfaceNode::widget(
-                        TextWidget::new(
-                            text_id,
-                            label,
-                            WidgetSizing::fixed(Vector2::new(1.0, sizing.font_status.max(1.0)))
-                                .with_baseline((sizing.font_status * 0.75).max(0.0)),
-                        ),
-                        WidgetMessageMapper::none(),
-                    ),
+                    SurfaceNode::static_widget(TextWidget::new(
+                        text_id,
+                        label,
+                        WidgetSizing::fixed(Vector2::new(1.0, sizing.font_status.max(1.0)))
+                            .with_baseline((sizing.font_status * 0.75).max(0.0)),
+                    )),
                 )],
             ),
         )],
@@ -306,33 +303,27 @@ fn progress_surface(
                             },
                             vec![SurfaceChild::new(
                                 text_slot(sizing.font_status),
-                                SurfaceNode::widget(
-                                    TextWidget::new(
-                                        STATUS_PROGRESS_TEXT_ID,
-                                        &content.progress_counter,
-                                        WidgetSizing::fixed(Vector2::new(
-                                            progress_width.max(1.0),
-                                            sizing.font_status.max(1.0),
-                                        ))
-                                        .with_baseline((sizing.font_status * 0.75).max(0.0)),
-                                    ),
-                                    WidgetMessageMapper::none(),
-                                ),
+                                SurfaceNode::static_widget(TextWidget::new(
+                                    STATUS_PROGRESS_TEXT_ID,
+                                    &content.progress_counter,
+                                    WidgetSizing::fixed(Vector2::new(
+                                        progress_width.max(1.0),
+                                        sizing.font_status.max(1.0),
+                                    ))
+                                    .with_baseline((sizing.font_status * 0.75).max(0.0)),
+                                )),
                             )],
                         ),
                     ),
                     SurfaceChild::new(
                         fixed_slot(track_height),
-                        SurfaceNode::widget(
-                            CanvasWidget::new(
-                                STATUS_PROGRESS_TRACK_ID,
-                                WidgetSizing::fixed(Vector2::new(
-                                    progress_width.max(1.0),
-                                    track_height.max(1.0),
-                                )),
-                            ),
-                            WidgetMessageMapper::none(),
-                        ),
+                        SurfaceNode::static_widget(CanvasWidget::new(
+                            STATUS_PROGRESS_TRACK_ID,
+                            WidgetSizing::fixed(Vector2::new(
+                                progress_width.max(1.0),
+                                track_height.max(1.0),
+                            )),
+                        )),
                     ),
                 ],
             ),
@@ -347,10 +338,10 @@ fn progress_slot_width(viewport_width: f32, sizing: SizingTokens) -> f32 {
 }
 
 fn spacer_surface(id: u64) -> SurfaceNode<()> {
-    SurfaceNode::widget(
-        CanvasWidget::new(id, WidgetSizing::fixed(Vector2::new(1.0, 1.0))),
-        WidgetMessageMapper::none(),
-    )
+    SurfaceNode::static_widget(CanvasWidget::new(
+        id,
+        WidgetSizing::fixed(Vector2::new(1.0, 1.0)),
+    ))
 }
 
 fn percent_slot(ratio: f32) -> SlotParams {

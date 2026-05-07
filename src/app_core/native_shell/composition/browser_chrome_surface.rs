@@ -19,7 +19,7 @@ use crate::{
         Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, MainAlign, OverflowPolicy,
         SizeModeCross, SizeModeMain, SlotParams, layout_tree,
     },
-    runtime::{SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
+    runtime::{SurfaceChild, SurfaceNode, UiSurface},
     widgets::{ButtonWidget, WidgetSizing},
 };
 use helpers::{
@@ -286,14 +286,11 @@ fn build_browser_toolbar_surface(
 }
 
 fn button_widget(id: u64, label: &str, width: f32, height: f32) -> SurfaceNode<()> {
-    SurfaceNode::widget(
-        ButtonWidget::new(
-            id,
-            label,
-            WidgetSizing::fixed(Vector2::new(width.max(1.0), height.max(1.0))),
-        ),
-        WidgetMessageMapper::none(),
-    )
+    SurfaceNode::static_widget(ButtonWidget::new(
+        id,
+        label,
+        WidgetSizing::fixed(Vector2::new(width.max(1.0), height.max(1.0))),
+    ))
 }
 
 fn fill_slot(min_width: f32) -> SlotParams {
