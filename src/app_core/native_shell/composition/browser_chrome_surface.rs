@@ -292,7 +292,7 @@ fn button_widget(id: u64, label: &str, width: f32, height: f32) -> SurfaceNode<(
             label,
             WidgetSizing::fixed(Vector2::new(width.max(1.0), height.max(1.0))),
         )),
-        WidgetMessageMapper::None,
+        WidgetMessageMapper::none(),
     )
 }
 

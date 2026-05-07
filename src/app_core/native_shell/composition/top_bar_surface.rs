@@ -346,7 +346,7 @@ fn build_title_cluster(
                                     meter_height.max(1.0),
                                 )),
                             )),
-                            WidgetMessageMapper::None,
+                            WidgetMessageMapper::none(),
                         ),
                     ),
                     SurfaceChild::new(
@@ -404,7 +404,7 @@ fn build_action_cluster(
                     spec.label,
                     WidgetSizing::fixed(Vector2::new(width.max(1.0), button_height.max(1.0))),
                 )),
-                WidgetMessageMapper::None,
+                WidgetMessageMapper::none(),
             ),
         ));
     }
@@ -416,7 +416,7 @@ fn build_action_cluster(
                 &content.options_label,
                 WidgetSizing::fixed(Vector2::new(options_width.max(1.0), button_height.max(1.0))),
             )),
-            WidgetMessageMapper::None,
+            WidgetMessageMapper::none(),
         ),
     ));
     SurfaceNode::container(
@@ -514,7 +514,7 @@ fn text_widget(id: u64, text: &str, width: f32, font_size: f32) -> SurfaceNode<(
             WidgetSizing::fixed(Vector2::new(width.max(1.0), font_size.max(1.0)))
                 .with_baseline((font_size * 0.75).max(0.0)),
         )),
-        WidgetMessageMapper::None,
+        WidgetMessageMapper::none(),
     )
 }
 
@@ -524,7 +524,7 @@ fn spacer_widget(id: u64) -> SurfaceNode<()> {
             id,
             WidgetSizing::fixed(Vector2::new(1.0, 1.0)),
         )),
-        WidgetMessageMapper::None,
+        WidgetMessageMapper::none(),
     )
 }
 

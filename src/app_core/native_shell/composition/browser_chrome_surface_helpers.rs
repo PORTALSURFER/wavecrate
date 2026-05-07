@@ -160,7 +160,7 @@ pub(super) fn build_toolbar_children(
                 TOOLBAR_TRIAGE_BASE_ID + BROWSER_TRIAGE_CHIP_COUNT as u64,
                 WidgetSizing::fixed(Vector2::new(1.0, 1.0)),
             )),
-            WidgetMessageMapper::None,
+            WidgetMessageMapper::none(),
         ),
     ));
     children
@@ -269,7 +269,7 @@ fn toggle_widget(id: u64, label: &str, side: f32) -> SurfaceNode<()> {
             label,
             WidgetSizing::fixed(Vector2::new(side.max(1.0), side.max(1.0))),
         )),
-        WidgetMessageMapper::None,
+        WidgetMessageMapper::none(),
     )
 }
 
@@ -286,7 +286,7 @@ fn text_input_widget(
         WidgetSizing::fixed(Vector2::new(width.max(1.0), height.max(1.0))),
     );
     widget.props.placeholder = (!placeholder.is_empty()).then(|| placeholder.to_string());
-    SurfaceNode::widget(WidgetSpec::TextInput(widget), WidgetMessageMapper::None)
+    SurfaceNode::widget(WidgetSpec::TextInput(widget), WidgetMessageMapper::none())
 }
 
 fn text_widget(id: u64, text: &str, width: f32, height: f32, font_size: f32) -> SurfaceNode<()> {
@@ -297,7 +297,7 @@ fn text_widget(id: u64, text: &str, width: f32, height: f32, font_size: f32) -> 
             WidgetSizing::fixed(Vector2::new(width.max(1.0), height.max(1.0)))
                 .with_baseline((font_size * 0.75).max(0.0)),
         )),
-        WidgetMessageMapper::None,
+        WidgetMessageMapper::none(),
     )
 }
 
@@ -325,7 +325,7 @@ fn spacer_child(id: u64, width: f32) -> SurfaceChild<()> {
                 id,
                 WidgetSizing::fixed(Vector2::new(width.max(1.0), 1.0)),
             )),
-            WidgetMessageMapper::None,
+            WidgetMessageMapper::none(),
         ),
     )
 }

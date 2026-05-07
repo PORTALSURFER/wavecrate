@@ -41,7 +41,7 @@ pub(super) fn text_widget(id: u64, text: &str, width: f32, height: f32) -> Surfa
             WidgetSizing::fixed(Vector2::new(width.max(1.0), height.max(1.0)))
                 .with_baseline((height * 0.75).max(0.0)),
         )),
-        WidgetMessageMapper::None,
+        WidgetMessageMapper::none(),
     )
 }
 
@@ -53,7 +53,7 @@ pub(super) fn button_widget(id: u64, label: &str, width: f32, height: f32) -> Su
             label,
             WidgetSizing::fixed(Vector2::new(width.max(1.0), height.max(1.0))),
         )),
-        WidgetMessageMapper::None,
+        WidgetMessageMapper::none(),
     )
 }
 
