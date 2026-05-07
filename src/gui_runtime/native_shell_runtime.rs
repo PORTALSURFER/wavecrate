@@ -44,12 +44,11 @@ mod model_mapping;
 pub(super) use automation::capture_gui_automation_snapshot;
 #[cfg(test)]
 pub(super) use automation::capture_native_shell_shot_snapshot;
+use bridge::SempalRuntimeBridge;
 #[cfg(test)]
 use bridge::SempalRuntimeMessage;
-use bridge::{RetainedCanvasInput, SempalRuntimeBridge};
 use input_routing::{
-    action_from_retained_pointer, keypress_from_radiant, keypress_to_radiant,
-    retained_input_from_widget_input, sempal_focus_context,
+    action_from_retained_pointer, keypress_from_radiant, keypress_to_radiant, sempal_focus_context,
 };
 pub(super) use launch::{run_native_vello_app, run_native_vello_app_with_artifacts};
 use model_mapping::local_app_model_from_native_model;

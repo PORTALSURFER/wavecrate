@@ -42,23 +42,6 @@ pub(super) fn keypress_to_radiant(press: KeyPress) -> RadiantKeyPress {
     }
 }
 
-/// Convert one Radiant widget input event into the Sempal retained input shape.
-pub(super) fn retained_input_from_widget_input(input: WidgetInput) -> RetainedCanvasInput {
-    match input {
-        WidgetInput::PointerMove { position } => RetainedCanvasInput::PointerMove { position },
-        WidgetInput::PointerPress { position, button } => {
-            RetainedCanvasInput::PointerPress { position, button }
-        }
-        WidgetInput::PointerRelease { position, button } => {
-            RetainedCanvasInput::PointerRelease { position, button }
-        }
-        WidgetInput::FocusChanged(focused) => RetainedCanvasInput::FocusChanged(focused),
-        WidgetInput::KeyPress(key) => RetainedCanvasInput::KeyPress(key),
-        WidgetInput::Character(character) => RetainedCanvasInput::Character(character),
-        WidgetInput::TextEdit(command) => RetainedCanvasInput::TextEdit(command),
-    }
-}
-
 /// Resolve a retained pointer press into a Sempal compatibility action.
 pub(super) fn action_from_retained_pointer(
     layout: &ShellLayout,

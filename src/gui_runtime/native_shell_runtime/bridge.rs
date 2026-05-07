@@ -27,42 +27,10 @@ pub(super) struct SempalRuntimeBridge<B> {
 pub(super) enum SempalRuntimeMessage {
     /// Existing application action emitted by shortcut resolution or translated retained input.
     Action(UiAction),
-    /// Raw retained-canvas input that still needs Sempal shell hit-testing.
-    RetainedInput(RetainedCanvasInput),
+    /// Radiant retained-canvas input that still needs Sempal shell hit-testing.
+    RetainedInput(WidgetInput),
     /// Local retained text-edit state changed without reducing an app action.
     LocalTextEdit,
-}
-
-/// Retained-canvas input normalized out of Radiant widget events.
-#[derive(Clone, Debug, PartialEq)]
-pub(super) enum RetainedCanvasInput {
-    /// Pointer hover moved inside the retained Sempal canvas.
-    PointerMove {
-        /// Logical pointer position in the host surface.
-        position: Point,
-    },
-    /// Pointer press started inside the retained Sempal canvas.
-    PointerPress {
-        /// Logical pointer position in the host surface.
-        position: Point,
-        /// Pressed pointer button.
-        button: PointerButton,
-    },
-    /// Pointer press ended inside the retained Sempal canvas.
-    PointerRelease {
-        /// Logical pointer position in the host surface.
-        position: Point,
-        /// Released pointer button.
-        button: PointerButton,
-    },
-    /// Runtime focus changed for the retained canvas widget.
-    FocusChanged(bool),
-    /// Non-text key intent routed to the focused retained canvas.
-    KeyPress(WidgetKey),
-    /// Printable character routed to the focused retained canvas.
-    Character(char),
-    /// Backend-level text editing command routed to the focused retained canvas.
-    TextEdit(TextEditCommand),
 }
 
 /// Local text-input target tracked after Sempal focus actions.
@@ -203,9 +171,7 @@ impl<B> SempalRuntimeBridge<B> {
             WidgetSizing::fixed(Vector2::new(1280.0, 720.0)),
             retained,
             |message: CanvasMessage| match message {
-                CanvasMessage::Input { input } => {
-                    SempalRuntimeMessage::RetainedInput(retained_input_from_widget_input(input))
-                }
+                CanvasMessage::Input { input } => SempalRuntimeMessage::RetainedInput(input),
             },
         )))
     }
@@ -272,9 +238,9 @@ impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
     }
 
     /// Translate retained-canvas input into Sempal actions or local repaint-only state.
-    fn handle_retained_canvas_input(&mut self, input: RetainedCanvasInput) -> bool {
+    fn handle_retained_canvas_input(&mut self, input: WidgetInput) -> bool {
         match input {
-            RetainedCanvasInput::PointerMove { position } => {
+            WidgetInput::PointerMove { position } => {
                 let layout = self.build_current_layout();
                 let _effect =
                     self.shell_state
@@ -282,7 +248,7 @@ impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
                 self.local_overlay_surface_refresh = true;
                 true
             }
-            RetainedCanvasInput::PointerPress { position, button } => {
+            WidgetInput::PointerPress { position, button } => {
                 if button != PointerButton::Primary {
                     return true;
                 }
@@ -300,13 +266,13 @@ impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
                 }
                 true
             }
-            RetainedCanvasInput::PointerRelease { .. } | RetainedCanvasInput::FocusChanged(_) => {
+            WidgetInput::PointerRelease { .. } | WidgetInput::FocusChanged(_) => {
                 self.local_overlay_surface_refresh = true;
                 true
             }
-            RetainedCanvasInput::KeyPress(key) => self.handle_retained_key_press(key),
-            RetainedCanvasInput::Character(character) => self.handle_retained_character(character),
-            RetainedCanvasInput::TextEdit(command) => self.handle_retained_text_edit(command),
+            WidgetInput::KeyPress(key) => self.handle_retained_key_press(key),
+            WidgetInput::Character(character) => self.handle_retained_character(character),
+            WidgetInput::TextEdit(command) => self.handle_retained_text_edit(command),
         }
     }
 
