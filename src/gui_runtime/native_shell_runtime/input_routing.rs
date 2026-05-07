@@ -55,6 +55,7 @@ pub(super) fn retained_input_from_widget_input(input: WidgetInput) -> RetainedCa
         WidgetInput::FocusChanged(focused) => RetainedCanvasInput::FocusChanged(focused),
         WidgetInput::KeyPress(key) => RetainedCanvasInput::KeyPress(key),
         WidgetInput::Character(character) => RetainedCanvasInput::Character(character),
+        WidgetInput::TextEdit(command) => RetainedCanvasInput::TextEdit(command),
     }
 }
 

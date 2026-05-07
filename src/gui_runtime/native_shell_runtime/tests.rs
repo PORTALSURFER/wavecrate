@@ -236,6 +236,35 @@ mod tests {
     }
 
     #[test]
+    fn retained_text_edit_commands_preserve_selection_and_paste_flow() {
+        let mut bridge = SempalRuntimeBridge::new(RecordingBridge {
+            model: Arc::new(NativeAppModel::default()),
+            reduced: Vec::new(),
+            repaint_installed: Arc::new(AtomicBool::new(false)),
+            exit_status: None,
+        });
+
+        bridge.update(SempalRuntimeMessage::Action(UiAction::FocusBrowserSearch));
+        bridge.inner.reduced.clear();
+        bridge.update(SempalRuntimeMessage::RetainedInput(
+            RetainedCanvasInput::TextEdit(TextEditCommand::InsertText(String::from("kick"))),
+        ));
+        bridge.update(SempalRuntimeMessage::RetainedInput(
+            RetainedCanvasInput::TextEdit(TextEditCommand::SelectAll),
+        ));
+        bridge.update(SempalRuntimeMessage::RetainedInput(
+            RetainedCanvasInput::TextEdit(TextEditCommand::InsertText(String::from("snare"))),
+        ));
+
+        assert_eq!(
+            bridge.inner.reduced.last(),
+            Some(&UiAction::SetBrowserSearch {
+                query: String::from("snare"),
+            })
+        );
+    }
+
+    #[test]
     fn focused_browser_pill_editor_selection_deletes_draft_before_chip_backspace() {
         let mut model = NativeAppModel::default();
         model.browser.tag_sidebar.input_value = String::from("abc");
