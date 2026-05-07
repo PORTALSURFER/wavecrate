@@ -104,14 +104,14 @@ mod tests {
             .expect("generic canvas should map input into a Sempal action");
         assert!(matches!(
             message,
-            SempalRuntimeMessage::RetainedInput(RetainedCanvasInput::PointerPress { .. })
+            SempalRuntimeMessage::RetainedInput(WidgetInput::PointerPress { .. })
         ));
         assert!(bridge.update(message).requests_repaint());
         assert_ne!(bridge.inner.reduced, vec![UiAction::HandleEscape]);
         assert_eq!(bridge.inner.reduced, vec![UiAction::ToggleTransport]);
         bridge.inner.reduced.clear();
 
-        let hover_message = SempalRuntimeMessage::RetainedInput(RetainedCanvasInput::PointerMove {
+        let hover_message = SempalRuntimeMessage::RetainedInput(WidgetInput::PointerMove {
             position: radiant::gui::types::Point::new(12.0, 16.0),
         });
         assert!(
@@ -120,15 +120,15 @@ mod tests {
         );
 
         bridge.update(SempalRuntimeMessage::RetainedInput(
-            RetainedCanvasInput::FocusChanged(true),
+            WidgetInput::FocusChanged(true),
         ));
         bridge.update(SempalRuntimeMessage::Action(UiAction::FocusBrowserSearch));
         bridge.inner.reduced.clear();
         assert!(
             bridge
-                .update(SempalRuntimeMessage::RetainedInput(
-                    RetainedCanvasInput::Character('k')
-                ))
+                .update(SempalRuntimeMessage::RetainedInput(WidgetInput::Character(
+                    'k'
+                )))
                 .requests_repaint()
         );
         assert_eq!(
@@ -202,18 +202,18 @@ mod tests {
             "focused tag text entry should clear pending chords without consuming printable text"
         );
 
-        bridge.update(SempalRuntimeMessage::RetainedInput(
-            RetainedCanvasInput::Character('k'),
-        ));
-        bridge.update(SempalRuntimeMessage::RetainedInput(
-            RetainedCanvasInput::Character('i'),
-        ));
-        bridge.update(SempalRuntimeMessage::RetainedInput(
-            RetainedCanvasInput::Character(','),
-        ));
-        bridge.update(SempalRuntimeMessage::RetainedInput(
-            RetainedCanvasInput::Character('h'),
-        ));
+        bridge.update(SempalRuntimeMessage::RetainedInput(WidgetInput::Character(
+            'k',
+        )));
+        bridge.update(SempalRuntimeMessage::RetainedInput(WidgetInput::Character(
+            'i',
+        )));
+        bridge.update(SempalRuntimeMessage::RetainedInput(WidgetInput::Character(
+            ',',
+        )));
+        bridge.update(SempalRuntimeMessage::RetainedInput(WidgetInput::Character(
+            'h',
+        )));
 
         assert_eq!(
             bridge.inner.reduced,
@@ -247,15 +247,15 @@ mod tests {
 
         bridge.update(SempalRuntimeMessage::Action(UiAction::FocusBrowserSearch));
         bridge.inner.reduced.clear();
-        bridge.update(SempalRuntimeMessage::RetainedInput(
-            RetainedCanvasInput::TextEdit(TextEditCommand::InsertText(String::from("kick"))),
-        ));
-        bridge.update(SempalRuntimeMessage::RetainedInput(
-            RetainedCanvasInput::TextEdit(TextEditCommand::SelectAll),
-        ));
-        bridge.update(SempalRuntimeMessage::RetainedInput(
-            RetainedCanvasInput::TextEdit(TextEditCommand::InsertText(String::from("snare"))),
-        ));
+        bridge.update(SempalRuntimeMessage::RetainedInput(WidgetInput::TextEdit(
+            TextEditCommand::InsertText(String::from("kick")),
+        )));
+        bridge.update(SempalRuntimeMessage::RetainedInput(WidgetInput::TextEdit(
+            TextEditCommand::SelectAll,
+        )));
+        bridge.update(SempalRuntimeMessage::RetainedInput(WidgetInput::TextEdit(
+            TextEditCommand::InsertText(String::from("snare")),
+        )));
 
         assert_eq!(
             bridge.inner.reduced.last(),
@@ -298,9 +298,9 @@ mod tests {
             },
             RadiantFocusSurface::None,
         );
-        bridge.update(SempalRuntimeMessage::RetainedInput(
-            RetainedCanvasInput::KeyPress(WidgetKey::Backspace),
-        ));
+        bridge.update(SempalRuntimeMessage::RetainedInput(WidgetInput::KeyPress(
+            WidgetKey::Backspace,
+        )));
 
         assert_eq!(
             bridge.inner.reduced.last(),
@@ -316,9 +316,9 @@ mod tests {
             "Backspace with selected draft text should edit text before removing an accepted chip"
         );
 
-        bridge.update(SempalRuntimeMessage::RetainedInput(
-            RetainedCanvasInput::KeyPress(WidgetKey::Backspace),
-        ));
+        bridge.update(SempalRuntimeMessage::RetainedInput(WidgetInput::KeyPress(
+            WidgetKey::Backspace,
+        )));
         assert!(bridge.inner.reduced.iter().any(|action| matches!(
             action,
             UiAction::ToggleBrowserSidebarNormalTag { label } if label == "Kick"
@@ -374,7 +374,7 @@ mod tests {
         assert!(
             bridge
                 .update(SempalRuntimeMessage::RetainedInput(
-                    RetainedCanvasInput::PointerMove {
+                    WidgetInput::PointerMove {
                         position: hover_point,
                     },
                 ))
@@ -453,7 +453,7 @@ mod tests {
         assert!(
             bridge
                 .update(SempalRuntimeMessage::RetainedInput(
-                    RetainedCanvasInput::PointerMove {
+                    WidgetInput::PointerMove {
                         position: radiant::gui::types::Point::new(12.0, 16.0),
                     },
                 ))
@@ -479,7 +479,7 @@ mod tests {
         assert!(
             bridge
                 .update(SempalRuntimeMessage::RetainedInput(
-                    RetainedCanvasInput::PointerPress {
+                    WidgetInput::PointerPress {
                         position: radiant::gui::types::Point::new(4.0, 5.0),
                         button: radiant::widgets::PointerButton::Primary,
                     },
