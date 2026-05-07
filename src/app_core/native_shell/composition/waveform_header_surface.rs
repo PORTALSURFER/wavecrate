@@ -13,7 +13,7 @@ use crate::{
         Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, MainAlign, OverflowPolicy,
         SizeModeCross, SizeModeMain, SlotParams, layout_tree,
     },
-    runtime::{SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
+    runtime::{SurfaceChild, SurfaceNode, UiSurface},
     widgets::{CanvasWidget, TextWidget, WidgetSizing},
 };
 
@@ -147,13 +147,10 @@ fn build_waveform_header_surface(
                     ),
                     SurfaceChild::new(
                         SlotParams::fill(),
-                        SurfaceNode::widget(
-                            CanvasWidget::new(
-                                WAVEFORM_HEADER_FILL_ID,
-                                WidgetSizing::fixed(Vector2::new(1.0, 1.0)),
-                            ),
-                            WidgetMessageMapper::none(),
-                        ),
+                        SurfaceNode::static_widget(CanvasWidget::new(
+                            WAVEFORM_HEADER_FILL_ID,
+                            WidgetSizing::fixed(Vector2::new(1.0, 1.0)),
+                        )),
                     ),
                 ],
             ),
@@ -162,15 +159,12 @@ fn build_waveform_header_surface(
 }
 
 fn text_widget(id: u64, text: &str, font_size: f32) -> SurfaceNode<()> {
-    SurfaceNode::widget(
-        TextWidget::new(
-            id,
-            text,
-            WidgetSizing::fixed(Vector2::new(1.0, font_size.max(1.0)))
-                .with_baseline((font_size * 0.75).max(0.0)),
-        ),
-        WidgetMessageMapper::none(),
-    )
+    SurfaceNode::static_widget(TextWidget::new(
+        id,
+        text,
+        WidgetSizing::fixed(Vector2::new(1.0, font_size.max(1.0)))
+            .with_baseline((font_size * 0.75).max(0.0)),
+    ))
 }
 
 fn text_slot(font_size: f32) -> SlotParams {

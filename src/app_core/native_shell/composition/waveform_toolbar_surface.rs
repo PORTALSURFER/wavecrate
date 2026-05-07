@@ -13,8 +13,8 @@ use crate::{
         Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, OverflowPolicy,
         SizeModeCross, SizeModeMain, SlotParams, layout_tree,
     },
-    runtime::{SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
-    widgets::{ButtonWidget, TextInputWidget, ToggleWidget, Widget, WidgetSizing},
+    runtime::{SurfaceChild, SurfaceNode, UiSurface},
+    widgets::{ButtonWidget, TextInputWidget, ToggleWidget, WidgetSizing},
 };
 
 const WAVEFORM_TOOLBAR_BASE_ID: u64 = 1320;
@@ -167,19 +167,19 @@ fn widget_for_item(
 ) -> SurfaceNode<()> {
     let id = waveform_toolbar_widget_id(item_index);
     let size = WidgetSizing::fixed(Vector2::new(rect.width().max(1.0), rect.height().max(1.0)));
-    let widget: Box<dyn Widget> = match item.kind {
+    match item.kind {
         WaveformToolbarSurfaceItemKind::Button => {
             let mut widget = ButtonWidget::new(id, &item.label, size);
             widget.common.state.disabled = !item.enabled;
             widget.common.state.active = item.active;
-            Box::new(widget)
+            SurfaceNode::static_widget(widget)
         }
         WaveformToolbarSurfaceItemKind::Toggle => {
             let mut widget = ToggleWidget::new(id, &item.label, size);
             widget.common.state.disabled = !item.enabled;
             widget.common.state.active = item.active;
             widget.state.checked = item.active;
-            Box::new(widget)
+            SurfaceNode::static_widget(widget)
         }
         WaveformToolbarSurfaceItemKind::TextInput => {
             let mut widget = TextInputWidget::new(id, item.value.clone().unwrap_or_default(), size);
@@ -187,10 +187,9 @@ fn widget_for_item(
             widget.common.state.active = item.active;
             widget.common.state.read_only = true;
             widget.props.placeholder = Some(item.label.clone());
-            Box::new(widget)
+            SurfaceNode::static_widget(widget)
         }
-    };
-    SurfaceNode::custom_widget_box(widget, WidgetMessageMapper::none())
+    }
 }
 
 fn legacy_toolbar_rects(
