@@ -190,7 +190,7 @@ fn widget_for_item(
             WidgetSpec::TextInput(widget)
         }
     };
-    SurfaceNode::widget(widget, WidgetMessageMapper::None)
+    SurfaceNode::widget(widget, WidgetMessageMapper::none())
 }
 
 fn legacy_toolbar_rects(

@@ -252,7 +252,7 @@ fn segment_surface(
                             WidgetSizing::fixed(Vector2::new(1.0, sizing.font_status.max(1.0)))
                                 .with_baseline((sizing.font_status * 0.75).max(0.0)),
                         )),
-                        WidgetMessageMapper::None,
+                        WidgetMessageMapper::none(),
                     ),
                 )],
             ),
@@ -316,7 +316,7 @@ fn progress_surface(
                                         ))
                                         .with_baseline((sizing.font_status * 0.75).max(0.0)),
                                     )),
-                                    WidgetMessageMapper::None,
+                                    WidgetMessageMapper::none(),
                                 ),
                             )],
                         ),
@@ -331,7 +331,7 @@ fn progress_surface(
                                     track_height.max(1.0),
                                 )),
                             )),
-                            WidgetMessageMapper::None,
+                            WidgetMessageMapper::none(),
                         ),
                     ),
                 ],
@@ -352,7 +352,7 @@ fn spacer_surface(id: u64) -> SurfaceNode<()> {
             id,
             WidgetSizing::fixed(Vector2::new(1.0, 1.0)),
         )),
-        WidgetMessageMapper::None,
+        WidgetMessageMapper::none(),
     )
 }
 

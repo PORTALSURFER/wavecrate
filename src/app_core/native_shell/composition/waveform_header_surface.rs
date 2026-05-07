@@ -152,7 +152,7 @@ fn build_waveform_header_surface(
                                 WAVEFORM_HEADER_FILL_ID,
                                 WidgetSizing::fixed(Vector2::new(1.0, 1.0)),
                             )),
-                            WidgetMessageMapper::None,
+                            WidgetMessageMapper::none(),
                         ),
                     ),
                 ],
@@ -169,7 +169,7 @@ fn text_widget(id: u64, text: &str, font_size: f32) -> SurfaceNode<()> {
             WidgetSizing::fixed(Vector2::new(1.0, font_size.max(1.0)))
                 .with_baseline((font_size * 0.75).max(0.0)),
         )),
-        WidgetMessageMapper::None,
+        WidgetMessageMapper::none(),
     )
 }
 
