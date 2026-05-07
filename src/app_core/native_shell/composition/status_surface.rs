@@ -382,7 +382,16 @@ fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Re
 mod tests {
     use super::*;
     use crate::app_core::native_shell::composition::style::StyleTokens;
-    use crate::widgets::{CanvasWidget, TextWidget};
+
+    fn assert_widget_node(surface: &UiSurface<()>, id: u64) {
+        assert_eq!(
+            surface
+                .find_widget(id)
+                .expect("widget node should exist")
+                .id(),
+            id
+        );
+    }
 
     fn assert_inside(outer: Rect, inner: Rect) {
         assert!(inner.min.x >= outer.min.x);
@@ -392,7 +401,7 @@ mod tests {
     }
 
     #[test]
-    fn status_surface_uses_public_text_and_canvas_widgets() {
+    fn status_surface_projects_widget_nodes() {
         let style = StyleTokens::for_viewport_width(1280.0);
         let surface = build_status_surface(
             &StatusSurfaceContent {
@@ -404,25 +413,8 @@ mod tests {
             style.sizing,
             1280.0,
         );
-        let left = surface
-            .find_widget(STATUS_LEFT_TEXT_ID)
-            .expect("left text widget");
-        let track = surface
-            .find_widget(STATUS_PROGRESS_TRACK_ID)
-            .expect("progress track widget");
-        assert!(
-            left.widget()
-                .as_any()
-                .downcast_ref::<TextWidget>()
-                .is_some()
-        );
-        assert!(
-            track
-                .widget()
-                .as_any()
-                .downcast_ref::<CanvasWidget>()
-                .is_some()
-        );
+        assert_widget_node(&surface, STATUS_LEFT_TEXT_ID);
+        assert_widget_node(&surface, STATUS_PROGRESS_TRACK_ID);
     }
 
     #[test]

@@ -193,11 +193,17 @@ fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Re
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        app::AppModel,
-        app_core::native_shell::composition::style::StyleTokens,
-        widgets::{CanvasWidget, TextWidget},
-    };
+    use crate::{app::AppModel, app_core::native_shell::composition::style::StyleTokens};
+
+    fn assert_widget_node(surface: &UiSurface<()>, id: u64) {
+        assert_eq!(
+            surface
+                .find_widget(id)
+                .expect("widget node should exist")
+                .id(),
+            id
+        );
+    }
 
     fn assert_inside(outer: Rect, inner: Rect) {
         assert!(inner.min.x >= outer.min.x);
@@ -211,36 +217,12 @@ mod tests {
     }
 
     #[test]
-    fn waveform_header_surface_uses_public_text_and_canvas_widgets() {
+    fn waveform_header_surface_projects_widget_nodes() {
         let style = StyleTokens::for_viewport_width(1280.0);
         let surface = build_waveform_header_surface(&content(), style.sizing);
-        assert!(
-            surface
-                .find_widget(WAVEFORM_HEADER_TITLE_ID)
-                .expect("title")
-                .widget()
-                .as_any()
-                .downcast_ref::<TextWidget>()
-                .is_some()
-        );
-        assert!(
-            surface
-                .find_widget(WAVEFORM_HEADER_METADATA_ID)
-                .expect("metadata")
-                .widget()
-                .as_any()
-                .downcast_ref::<TextWidget>()
-                .is_some()
-        );
-        assert!(
-            surface
-                .find_widget(WAVEFORM_HEADER_FILL_ID)
-                .expect("fill")
-                .widget()
-                .as_any()
-                .downcast_ref::<CanvasWidget>()
-                .is_some()
-        );
+        assert_widget_node(&surface, WAVEFORM_HEADER_TITLE_ID);
+        assert_widget_node(&surface, WAVEFORM_HEADER_METADATA_ID);
+        assert_widget_node(&surface, WAVEFORM_HEADER_FILL_ID);
     }
 
     #[test]

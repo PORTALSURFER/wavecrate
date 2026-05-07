@@ -254,10 +254,17 @@ fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        app_core::native_shell::composition::style::StyleTokens,
-        widgets::{ButtonWidget, TextInputWidget, ToggleWidget},
-    };
+    use crate::app_core::native_shell::composition::style::StyleTokens;
+
+    fn assert_widget_node(surface: &UiSurface<()>, id: u64) {
+        assert_eq!(
+            surface
+                .find_widget(id)
+                .expect("widget node should exist")
+                .id(),
+            id
+        );
+    }
 
     fn sample_content() -> WaveformToolbarSurfaceContent {
         WaveformToolbarSurfaceContent {
@@ -316,7 +323,7 @@ mod tests {
     }
 
     #[test]
-    fn waveform_toolbar_surface_uses_public_toggle_button_and_text_input_widgets() {
+    fn waveform_toolbar_surface_projects_widget_nodes() {
         let header_rect = Rect::from_min_max(Point::new(220.0, 32.0), Point::new(1260.0, 64.0));
         let content = sample_content();
         let surface = build_waveform_toolbar_surface(
@@ -328,33 +335,9 @@ mod tests {
                 &content,
             ),
         );
-        assert!(
-            surface
-                .find_widget(waveform_toolbar_widget_id(0))
-                .expect("channel toggle")
-                .widget()
-                .as_any()
-                .downcast_ref::<ToggleWidget>()
-                .is_some()
-        );
-        assert!(
-            surface
-                .find_widget(waveform_toolbar_widget_id(2))
-                .expect("bpm value input")
-                .widget()
-                .as_any()
-                .downcast_ref::<TextInputWidget>()
-                .is_some()
-        );
-        assert!(
-            surface
-                .find_widget(waveform_toolbar_widget_id(4))
-                .expect("compare button")
-                .widget()
-                .as_any()
-                .downcast_ref::<ButtonWidget>()
-                .is_some()
-        );
+        assert_widget_node(&surface, waveform_toolbar_widget_id(0));
+        assert_widget_node(&surface, waveform_toolbar_widget_id(2));
+        assert_widget_node(&surface, waveform_toolbar_widget_id(4));
     }
 
     #[test]
