@@ -5,16 +5,18 @@
 //! pattern used by the earlier chrome migrations while waveform plot rendering,
 //! overlays, and edit geometry stay on the compatibility renderer.
 
-use super::style::SizingTokens;
+use super::{
+    style::SizingTokens,
+    widget_nodes::{button_node_with, text_input_node_with, toggle_node_with},
+};
 use crate::{
-    gui::types::{Point, Rect, Vector2},
+    gui::types::{Point, Rect},
     layout::NodeId,
     layout::{
         Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, OverflowPolicy,
         SizeModeCross, SizeModeMain, SlotParams, layout_tree,
     },
     runtime::{SurfaceChild, SurfaceNode, UiSurface},
-    widgets::{ButtonWidget, TextInputWidget, ToggleWidget, WidgetSizing},
 };
 
 const WAVEFORM_TOOLBAR_BASE_ID: u64 = 1320;
@@ -166,29 +168,32 @@ fn widget_for_item(
     rect: Rect,
 ) -> SurfaceNode<()> {
     let id = waveform_toolbar_widget_id(item_index);
-    let size = WidgetSizing::fixed(Vector2::new(rect.width().max(1.0), rect.height().max(1.0)));
     match item.kind {
         WaveformToolbarSurfaceItemKind::Button => {
-            let mut widget = ButtonWidget::new(id, &item.label, size);
-            widget.common.state.disabled = !item.enabled;
-            widget.common.state.active = item.active;
-            SurfaceNode::static_widget(widget)
+            button_node_with(id, &item.label, rect.width(), rect.height(), |widget| {
+                widget.common.state.disabled = !item.enabled;
+                widget.common.state.active = item.active;
+            })
         }
         WaveformToolbarSurfaceItemKind::Toggle => {
-            let mut widget = ToggleWidget::new(id, &item.label, size);
-            widget.common.state.disabled = !item.enabled;
-            widget.common.state.active = item.active;
-            widget.state.checked = item.active;
-            SurfaceNode::static_widget(widget)
+            toggle_node_with(id, &item.label, rect.width(), rect.height(), |widget| {
+                widget.common.state.disabled = !item.enabled;
+                widget.common.state.active = item.active;
+                widget.state.checked = item.active;
+            })
         }
-        WaveformToolbarSurfaceItemKind::TextInput => {
-            let mut widget = TextInputWidget::new(id, item.value.clone().unwrap_or_default(), size);
-            widget.common.state.disabled = !item.enabled;
-            widget.common.state.active = item.active;
-            widget.common.state.read_only = true;
-            widget.props.placeholder = Some(item.label.clone());
-            SurfaceNode::static_widget(widget)
-        }
+        WaveformToolbarSurfaceItemKind::TextInput => text_input_node_with(
+            id,
+            item.value.as_deref().unwrap_or_default(),
+            rect.width(),
+            rect.height(),
+            |widget| {
+                widget.common.state.disabled = !item.enabled;
+                widget.common.state.active = item.active;
+                widget.common.state.read_only = true;
+                widget.props.placeholder = Some(item.label.clone());
+            },
+        ),
     }
 }
 

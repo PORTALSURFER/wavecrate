@@ -11,16 +11,15 @@ mod helpers;
 #[path = "browser_chrome_surface_tests.rs"]
 mod tests;
 
-use super::style::SizingTokens;
+use super::{style::SizingTokens, widget_nodes::button_node};
 use crate::{
     app::AppModel,
-    gui::types::{Point, Rect, Vector2},
+    gui::types::{Point, Rect},
     layout::{
         Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, MainAlign, OverflowPolicy,
         SizeModeCross, SizeModeMain, SlotParams, layout_tree,
     },
     runtime::{SurfaceChild, SurfaceNode, UiSurface},
-    widgets::{ButtonWidget, WidgetSizing},
 };
 use helpers::{
     BrowserToolbarSurfaceWidths, browser_sort_label, browser_toolbar_surface_widths,
@@ -286,11 +285,7 @@ fn build_browser_toolbar_surface(
 }
 
 fn button_widget(id: u64, label: &str, width: f32, height: f32) -> SurfaceNode<()> {
-    SurfaceNode::static_widget(ButtonWidget::new(
-        id,
-        label,
-        WidgetSizing::fixed(Vector2::new(width.max(1.0), height.max(1.0))),
-    ))
+    button_node(id, label, width, height)
 }
 
 fn fill_slot(min_width: f32) -> SlotParams {

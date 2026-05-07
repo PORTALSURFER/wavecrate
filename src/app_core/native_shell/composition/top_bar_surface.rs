@@ -5,16 +5,18 @@
 //! options, and update-action composition, while the compatibility shell still
 //! paints those resolved rects with the existing native theme.
 
-use super::style::SizingTokens;
+use super::{
+    style::SizingTokens,
+    widget_nodes::{button_node, canvas_node, text_node},
+};
 use crate::{
     app::{AppModel, UiAction, UpdateStatusModel},
-    gui::types::{Point, Rect, Vector2},
+    gui::types::{Point, Rect},
     layout::{
         Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, MainAlign, OverflowPolicy,
         SizeModeCross, SizeModeMain, SlotParams, layout_tree,
     },
     runtime::{SurfaceChild, SurfaceNode, UiSurface},
-    widgets::{ButtonWidget, CanvasWidget, TextWidget, WidgetSizing},
 };
 
 const TOP_ROOT_ID: u64 = 1040;
@@ -338,13 +340,7 @@ fn build_title_cluster(
                 vec![
                     SurfaceChild::new(
                         fixed_slot_with_cross(meter_width, meter_height),
-                        SurfaceNode::static_widget(CanvasWidget::new(
-                            TOP_VOLUME_METER_ID,
-                            WidgetSizing::fixed(Vector2::new(
-                                meter_width.max(1.0),
-                                meter_height.max(1.0),
-                            )),
-                        )),
+                        canvas_node(TOP_VOLUME_METER_ID, meter_width, meter_height),
                     ),
                     SurfaceChild::new(
                         fixed_slot(value_width),
@@ -395,20 +391,22 @@ fn build_action_cluster(
         let spec = &content.update_actions[hidden_count + index];
         children.push(SurfaceChild::new(
             fixed_slot(*width),
-            SurfaceNode::static_widget(ButtonWidget::new(
+            button_node(
                 TOP_UPDATE_BUTTON_BASE_ID + (hidden_count + index) as u64,
                 spec.label,
-                WidgetSizing::fixed(Vector2::new(width.max(1.0), button_height.max(1.0))),
-            )),
+                *width,
+                button_height,
+            ),
         ));
     }
     children.push(SurfaceChild::new(
         fixed_slot(options_width),
-        SurfaceNode::static_widget(ButtonWidget::new(
+        button_node(
             TOP_OPTIONS_BUTTON_ID,
             &content.options_label,
-            WidgetSizing::fixed(Vector2::new(options_width.max(1.0), button_height.max(1.0))),
-        )),
+            options_width,
+            button_height,
+        ),
     ));
     SurfaceNode::container(
         TOP_ACTION_CLUSTER_ID,
@@ -498,19 +496,11 @@ fn visible_suffix_widths(widths: &[f32], available_width: f32, gap: f32) -> Vec<
 }
 
 fn text_widget(id: u64, text: &str, width: f32, font_size: f32) -> SurfaceNode<()> {
-    SurfaceNode::static_widget(TextWidget::new(
-        id,
-        text,
-        WidgetSizing::fixed(Vector2::new(width.max(1.0), font_size.max(1.0)))
-            .with_baseline((font_size * 0.75).max(0.0)),
-    ))
+    text_node(id, text, width, font_size, font_size)
 }
 
 fn spacer_widget(id: u64) -> SurfaceNode<()> {
-    SurfaceNode::static_widget(CanvasWidget::new(
-        id,
-        WidgetSizing::fixed(Vector2::new(1.0, 1.0)),
-    ))
+    canvas_node(id, 1.0, 1.0)
 }
 
 fn fixed_slot(width: f32) -> SlotParams {
