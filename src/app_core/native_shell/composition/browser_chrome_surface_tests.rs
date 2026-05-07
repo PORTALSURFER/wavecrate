@@ -19,7 +19,7 @@ fn assert_inside(outer: Rect, inner: Rect) {
 }
 
 #[test]
-fn browser_tabs_surface_projects_widget_nodes() {
+fn browser_tabs_surface_projects_radiant_primitives() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let surface = build_browser_tabs_surface(
         &browser_tabs_surface_content(&AppModel::default()),
@@ -45,7 +45,7 @@ fn browser_tabs_surface_layout_stays_inside_tabs_band() {
 }
 
 #[test]
-fn browser_toolbar_surface_projects_widget_nodes() {
+fn browser_toolbar_surface_projects_radiant_primitives() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let content = browser_toolbar_surface_content(&AppModel::default());
     let surface = build_browser_toolbar_surface(

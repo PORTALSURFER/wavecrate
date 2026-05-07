@@ -20,7 +20,7 @@ fn assert_inside(outer: Rect, inner: Rect) {
 }
 
 #[test]
-fn sidebar_surfaces_project_widget_nodes() {
+fn sidebar_surfaces_project_radiant_primitives() {
     let style = StyleTokens::for_viewport_width(1280.0);
     let header =
         build_sidebar_header_surface(&SidebarHeaderSurfaceContent::default(), style.sizing);

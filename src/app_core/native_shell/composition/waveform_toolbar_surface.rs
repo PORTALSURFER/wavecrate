@@ -5,19 +5,15 @@
 //! pattern used by the earlier chrome migrations while waveform plot rendering,
 //! overlays, and edit geometry stay on the compatibility renderer.
 
-use super::{
-    style::SizingTokens,
-    widget_nodes::{button_node_with, text_input_node_with, toggle_node_with},
-};
+use super::style::SizingTokens;
 use crate::{
     gui::types::{Point, Rect},
     layout::NodeId,
-    layout::{
-        Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, OverflowPolicy,
-        SizeModeCross, SizeModeMain, SlotParams, layout_tree,
-    },
-    runtime::{SurfaceChild, SurfaceNode, UiSurface},
+    layout::layout_tree,
+    runtime::UiSurface,
 };
+use radiant::prelude as ui;
+use radiant::prelude::IntoView;
 
 const WAVEFORM_TOOLBAR_BASE_ID: u64 = 1320;
 
@@ -96,105 +92,74 @@ fn build_waveform_toolbar_surface(
 ) -> UiSurface<()> {
     let visible_start = content.items.len().saturating_sub(legacy_rects.len());
     let visible_items = &content.items[visible_start..];
-    UiSurface::new(SurfaceNode::container(
-        WAVEFORM_TOOLBAR_BASE_ID,
-        ContainerPolicy {
-            kind: ContainerKind::Row,
-            spacing: 0.0,
-            align_cross: CrossAlign::Start,
-            overflow: OverflowPolicy::Clip,
-            ..ContainerPolicy::default()
-        },
-        visible_items
-            .iter()
-            .zip(legacy_rects.iter().copied())
-            .enumerate()
-            .map(|(visible_index, (item, rect))| {
-                SurfaceChild::new(
-                    slot_for_rect(
-                        header_rect,
-                        legacy_rects,
-                        rect,
-                        visible_index,
-                        visible_items.len(),
-                    ),
-                    widget_for_item(visible_start + visible_index, item, rect),
-                )
-            })
-            .collect(),
-    ))
-}
-
-fn slot_for_rect(
-    header_rect: Rect,
-    legacy_rects: &[Rect],
-    rect: Rect,
-    visible_index: usize,
-    visible_len: usize,
-) -> SlotParams {
-    let previous_max_x = if visible_index == 0 {
-        header_rect.min.x
-    } else {
-        legacy_rects[visible_index - 1].max.x
-    };
-    let right_gap = if visible_index + 1 == visible_len {
-        (header_rect.max.x - rect.max.x).max(0.0)
-    } else {
-        0.0
-    };
-    SlotParams {
-        size_main: SizeModeMain::Fixed(rect.width().max(1.0)),
-        size_cross: SizeModeCross::Fixed(rect.height().max(1.0)),
-        constraints: Constraints::new(
-            rect.width().max(1.0),
-            rect.width().max(1.0),
-            rect.height().max(1.0),
-            rect.height().max(1.0),
-        ),
-        margin: Insets {
-            left: (rect.min.x - previous_max_x).max(0.0),
-            right: right_gap,
-            top: (rect.min.y - header_rect.min.y).max(0.0),
-            bottom: (header_rect.max.y - rect.max.y).max(0.0),
-        },
-        align_cross_override: Some(CrossAlign::Start),
-        allow_fixed_compress: false,
+    let mut children: Vec<ui::View<()>> = Vec::with_capacity(visible_items.len() * 2 + 1);
+    let mut previous_max_x = header_rect.min.x;
+    for (visible_index, (item, rect)) in visible_items
+        .iter()
+        .zip(legacy_rects.iter().copied())
+        .enumerate()
+    {
+        let gap = (rect.min.x - previous_max_x).max(0.0);
+        if gap > 0.0 {
+            children.push(ui::spacer().width(gap).fill_height());
+        }
+        children.push(widget_column_for_item(
+            header_rect,
+            visible_start + visible_index,
+            item,
+            rect,
+        ));
+        previous_max_x = rect.max.x;
     }
+    children.push(ui::spacer().fill());
+    UiSurface::new(
+        ui::row(children)
+            .id(WAVEFORM_TOOLBAR_BASE_ID)
+            .spacing(0.0)
+            .fill()
+            .into_node(),
+    )
 }
 
 fn widget_for_item(
     item_index: usize,
     item: &WaveformToolbarSurfaceItem,
     rect: Rect,
-) -> SurfaceNode<()> {
+) -> ui::View<()> {
     let id = waveform_toolbar_widget_id(item_index);
     match item.kind {
-        WaveformToolbarSurfaceItemKind::Button => {
-            button_node_with(id, &item.label, rect.width(), rect.height(), |widget| {
-                widget.common.state.disabled = !item.enabled;
-                widget.common.state.active = item.active;
-            })
+        WaveformToolbarSurfaceItemKind::Button => ui::passive_button(&item.label)
+            .id(id)
+            .size(rect.width(), rect.height()),
+        WaveformToolbarSurfaceItemKind::Toggle => ui::passive_toggle(&item.label, item.active)
+            .id(id)
+            .size(rect.width(), rect.height()),
+        WaveformToolbarSurfaceItemKind::TextInput => {
+            ui::passive_text_input(item.value.as_deref().unwrap_or_default(), &item.label)
+                .id(id)
+                .size(rect.width(), rect.height())
         }
-        WaveformToolbarSurfaceItemKind::Toggle => {
-            toggle_node_with(id, &item.label, rect.width(), rect.height(), |widget| {
-                widget.common.state.disabled = !item.enabled;
-                widget.common.state.active = item.active;
-                widget.state.checked = item.active;
-            })
-        }
-        WaveformToolbarSurfaceItemKind::TextInput => text_input_node_with(
-            id,
-            item.value.as_deref().unwrap_or_default(),
-            rect.width(),
-            rect.height(),
-            |widget| {
-                widget.common.state.disabled = !item.enabled;
-                widget.common.state.active = item.active;
-                widget.common.state.read_only = true;
-                widget.props.placeholder = Some(item.label.clone());
-            },
-        ),
     }
+}
+
+fn widget_column_for_item(
+    header_rect: Rect,
+    item_index: usize,
+    item: &WaveformToolbarSurfaceItem,
+    rect: Rect,
+) -> ui::View<()> {
+    let top = (rect.min.y - header_rect.min.y).max(0.0);
+    let bottom = (header_rect.max.y - rect.max.y).max(0.0);
+    ui::column([
+        ui::spacer().height(top).fill_width(),
+        widget_for_item(item_index, item, rect)
+            .width(rect.width().max(1.0))
+            .height(rect.height().max(1.0)),
+        ui::spacer().height(bottom).fill_width(),
+    ])
+    .spacing(0.0)
+    .width(rect.width().max(1.0))
+    .fill_height()
 }
 
 fn legacy_toolbar_rects(
@@ -323,7 +288,7 @@ mod tests {
     }
 
     #[test]
-    fn waveform_toolbar_surface_projects_widget_nodes() {
+    fn waveform_toolbar_surface_projects_radiant_primitives() {
         let header_rect = Rect::from_min_max(Point::new(220.0, 32.0), Point::new(1260.0, 64.0));
         let content = sample_content();
         let surface = build_waveform_toolbar_surface(

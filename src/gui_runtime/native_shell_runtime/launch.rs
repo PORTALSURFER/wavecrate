@@ -45,10 +45,10 @@ pub(crate) fn run_native_vello_app_with_artifacts<B: NativeAppBridge + 'static>(
     options: NativeRunOptions,
     bridge: B,
 ) -> NativeRunReport {
-    let report = radiant::gui_runtime::run_native_vello_runtime_with_artifacts(
-        options.into(),
-        SempalRuntimeBridge::new(bridge),
-    );
+    let title = options.title.clone();
+    let report = radiant::window(title)
+        .options(options.into())
+        .run_bridge_with_artifacts(SempalRuntimeBridge::new(bridge));
     NativeRunReport {
         artifacts: NativeRuntimeArtifacts {
             startup_timing: report.artifacts.startup_timing,

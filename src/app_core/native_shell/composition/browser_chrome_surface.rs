@@ -11,20 +11,19 @@ mod helpers;
 #[path = "browser_chrome_surface_tests.rs"]
 mod tests;
 
-use super::{style::SizingTokens, widget_nodes::button_node};
+use super::style::SizingTokens;
 use crate::{
     app::AppModel,
     gui::types::{Point, Rect},
-    layout::{
-        Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, MainAlign, OverflowPolicy,
-        SizeModeCross, SizeModeMain, SlotParams, layout_tree,
-    },
-    runtime::{SurfaceChild, SurfaceNode, UiSurface},
+    layout::layout_tree,
+    runtime::UiSurface,
 };
 use helpers::{
     BrowserToolbarSurfaceWidths, browser_sort_label, browser_toolbar_surface_widths,
     build_toolbar_children,
 };
+use radiant::prelude as ui;
+use radiant::prelude::IntoView;
 
 const TABS_ROOT_ID: u64 = 1200;
 const TABS_ITEMS_ID: u64 = 1202;
@@ -223,27 +222,19 @@ fn build_browser_tabs_surface(
     band_width: f32,
 ) -> UiSurface<()> {
     let tab_min_width = 64.0_f32.min(band_width.max(0.0));
-    UiSurface::new(SurfaceNode::container(
-        TABS_ROOT_ID,
-        ContainerPolicy {
-            kind: ContainerKind::Row,
-            spacing: sizing.action_button_gap.max(1.0),
-            align_main: MainAlign::Start,
-            align_cross: CrossAlign::Stretch,
-            overflow: OverflowPolicy::Clip,
-            ..ContainerPolicy::default()
-        },
-        vec![
-            SurfaceChild::new(
-                fill_slot(tab_min_width),
-                button_node(TABS_ITEMS_ID, &content.items_label, 1.0, 1.0),
-            ),
-            SurfaceChild::new(
-                fill_slot(tab_min_width),
-                button_node(TABS_MAP_ID, &content.map_label, 1.0, 1.0),
-            ),
-        ],
-    ))
+    ui::row([
+        ui::passive_button(&content.items_label)
+            .id(TABS_ITEMS_ID)
+            .fill_width()
+            .min_size(tab_min_width, 1.0),
+        ui::passive_button(&content.map_label)
+            .id(TABS_MAP_ID)
+            .fill_width()
+            .min_size(tab_min_width, 1.0),
+    ])
+    .id(TABS_ROOT_ID)
+    .spacing(sizing.action_button_gap.max(1.0))
+    .into_surface()
 }
 
 fn build_browser_toolbar_surface(
@@ -253,46 +244,19 @@ fn build_browser_toolbar_surface(
 ) -> UiSurface<()> {
     let search_height = band_height.max(1.0);
     let chip_label_height = widths.filter_side.max(1.0);
-    UiSurface::new(SurfaceNode::container(
-        TOOLBAR_ROOT_ID,
-        ContainerPolicy {
-            kind: ContainerKind::PaddingBox,
-            padding: Insets {
-                left: widths.horizontal_padding.max(0.0),
-                right: widths.horizontal_padding.max(0.0),
-                ..Insets::default()
-            },
-            align_cross: CrossAlign::Stretch,
-            overflow: OverflowPolicy::Clip,
-            ..ContainerPolicy::default()
-        },
-        vec![SurfaceChild::new(
-            SlotParams::fill(),
-            SurfaceNode::container(
-                TOOLBAR_ROW_ID,
-                ContainerPolicy {
-                    kind: ContainerKind::Row,
-                    spacing: 0.0,
-                    align_main: MainAlign::Start,
-                    align_cross: CrossAlign::Center,
-                    overflow: OverflowPolicy::Clip,
-                    ..ContainerPolicy::default()
-                },
-                build_toolbar_children(content, search_height, chip_label_height, widths),
-            ),
-        )],
+    ui::row([ui::row(build_toolbar_children(
+        content,
+        search_height,
+        chip_label_height,
+        widths,
     ))
-}
-
-fn fill_slot(min_width: f32) -> SlotParams {
-    SlotParams {
-        size_main: SizeModeMain::Fill(1.0),
-        size_cross: SizeModeCross::Fill,
-        constraints: Constraints::new(min_width, f32::INFINITY, 0.0, f32::INFINITY),
-        margin: Insets::default(),
-        align_cross_override: Some(CrossAlign::Stretch),
-        allow_fixed_compress: false,
-    }
+    .id(TOOLBAR_ROW_ID)
+    .spacing(0.0)
+    .fill()])
+    .id(TOOLBAR_ROOT_ID)
+    .padding_x(widths.horizontal_padding.max(0.0))
+    .fill()
+    .into_surface()
 }
 
 fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
