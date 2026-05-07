@@ -1,11 +1,13 @@
 //! Shared widget, slot, and clamp helpers for sidebar chrome surfaces.
 
-use crate::app_core::native_shell::composition::style::SizingTokens;
+use crate::app_core::native_shell::composition::{
+    style::SizingTokens,
+    widget_nodes::{button_node, text_node},
+};
 use crate::{
     gui::types::{Point, Rect, Vector2},
     layout::{Constraints, CrossAlign, Insets, SizeModeCross, SizeModeMain, SlotParams},
     runtime::SurfaceNode,
-    widgets::{ButtonWidget, TextWidget, WidgetSizing},
 };
 
 /// Return the canonical square sidebar-header add-button edge length.
@@ -34,21 +36,12 @@ pub(super) fn footer_action_button_width(
 
 /// Build one fixed-height text widget node for a generic sidebar surface.
 pub(super) fn text_widget(id: u64, text: &str, width: f32, height: f32) -> SurfaceNode<()> {
-    SurfaceNode::static_widget(TextWidget::new(
-        id,
-        text,
-        WidgetSizing::fixed(Vector2::new(width.max(1.0), height.max(1.0)))
-            .with_baseline((height * 0.75).max(0.0)),
-    ))
+    text_node(id, text, width, height, height)
 }
 
 /// Build one fixed-size button widget node for a generic sidebar surface.
 pub(super) fn button_widget(id: u64, label: &str, width: f32, height: f32) -> SurfaceNode<()> {
-    SurfaceNode::static_widget(ButtonWidget::new(
-        id,
-        label,
-        WidgetSizing::fixed(Vector2::new(width.max(1.0), height.max(1.0))),
-    ))
+    button_node(id, label, width, height)
 }
 
 /// Return a fixed-width slot that stretches vertically inside its parent row.

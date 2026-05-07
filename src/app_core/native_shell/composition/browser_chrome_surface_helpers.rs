@@ -1,9 +1,11 @@
 use super::*;
+use crate::app_core::native_shell::composition::widget_nodes::{
+    canvas_node, text_input_node, text_node, toggle_square_node,
+};
 use crate::{
-    gui::types::{Rect, Vector2},
+    gui::types::Rect,
     layout::{CrossAlign, Insets, SizeModeCross, SizeModeMain, SlotParams},
     runtime::{SurfaceChild, SurfaceNode},
-    widgets::{CanvasWidget, TextInputWidget, TextWidget, ToggleWidget, WidgetSizing},
 };
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -155,10 +157,11 @@ pub(super) fn build_toolbar_children(
     }
     children.push(SurfaceChild::new(
         SlotParams::fill(),
-        SurfaceNode::static_widget(CanvasWidget::new(
+        canvas_node(
             TOOLBAR_TRIAGE_BASE_ID + BROWSER_TRIAGE_CHIP_COUNT as u64,
-            WidgetSizing::fixed(Vector2::new(1.0, 1.0)),
-        )),
+            1.0,
+            1.0,
+        ),
     ));
     children
 }
@@ -260,11 +263,7 @@ fn playback_chip_label(index: usize) -> &'static str {
 }
 
 fn toggle_widget(id: u64, label: &str, side: f32) -> SurfaceNode<()> {
-    SurfaceNode::static_widget(ToggleWidget::new(
-        id,
-        label,
-        WidgetSizing::fixed(Vector2::new(side.max(1.0), side.max(1.0))),
-    ))
+    toggle_square_node(id, label, side)
 }
 
 fn text_input_widget(
@@ -274,22 +273,11 @@ fn text_input_widget(
     width: f32,
     height: f32,
 ) -> SurfaceNode<()> {
-    let mut widget = TextInputWidget::new(
-        id,
-        value,
-        WidgetSizing::fixed(Vector2::new(width.max(1.0), height.max(1.0))),
-    );
-    widget.props.placeholder = (!placeholder.is_empty()).then(|| placeholder.to_string());
-    SurfaceNode::static_widget(widget)
+    text_input_node(id, value, Some(placeholder), width, height)
 }
 
 fn text_widget(id: u64, text: &str, width: f32, height: f32, font_size: f32) -> SurfaceNode<()> {
-    SurfaceNode::static_widget(TextWidget::new(
-        id,
-        text,
-        WidgetSizing::fixed(Vector2::new(width.max(1.0), height.max(1.0)))
-            .with_baseline((font_size * 0.75).max(0.0)),
-    ))
+    text_node(id, text, width, height, font_size)
 }
 
 fn fixed_slot(width: f32, height: f32) -> SlotParams {
@@ -309,11 +297,5 @@ fn fixed_slot(width: f32, height: f32) -> SlotParams {
 }
 
 fn spacer_child(id: u64, width: f32) -> SurfaceChild<()> {
-    SurfaceChild::new(
-        fixed_slot(width.max(0.0), 1.0),
-        SurfaceNode::static_widget(CanvasWidget::new(
-            id,
-            WidgetSizing::fixed(Vector2::new(width.max(1.0), 1.0)),
-        )),
-    )
+    SurfaceChild::new(fixed_slot(width.max(0.0), 1.0), canvas_node(id, width, 1.0))
 }

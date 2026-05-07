@@ -5,15 +5,17 @@
 //! building blocks before the whole native window runtime migrates away from
 //! the legacy `AppModel` path.
 
-use super::style::SizingTokens;
+use super::{
+    style::SizingTokens,
+    widget_nodes::{canvas_node, text_node},
+};
 use crate::{
-    gui::types::{Point, Rect, Vector2},
+    gui::types::{Point, Rect},
     layout::{
         Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, MainAlign, OverflowPolicy,
         SizeModeCross, SizeModeMain, SlotParams, layout_tree,
     },
     runtime::{SurfaceChild, SurfaceNode, UiSurface},
-    widgets::{CanvasWidget, TextWidget, WidgetSizing},
 };
 
 const STATUS_ROOT_ID: u64 = 960;
@@ -245,12 +247,7 @@ fn segment_surface(
                 },
                 vec![SurfaceChild::new(
                     text_slot(sizing.font_status),
-                    SurfaceNode::static_widget(TextWidget::new(
-                        text_id,
-                        label,
-                        WidgetSizing::fixed(Vector2::new(1.0, sizing.font_status.max(1.0)))
-                            .with_baseline((sizing.font_status * 0.75).max(0.0)),
-                    )),
+                    text_node(text_id, label, 1.0, sizing.font_status, sizing.font_status),
                 )],
             ),
         )],
@@ -303,27 +300,19 @@ fn progress_surface(
                             },
                             vec![SurfaceChild::new(
                                 text_slot(sizing.font_status),
-                                SurfaceNode::static_widget(TextWidget::new(
+                                text_node(
                                     STATUS_PROGRESS_TEXT_ID,
                                     &content.progress_counter,
-                                    WidgetSizing::fixed(Vector2::new(
-                                        progress_width.max(1.0),
-                                        sizing.font_status.max(1.0),
-                                    ))
-                                    .with_baseline((sizing.font_status * 0.75).max(0.0)),
-                                )),
+                                    progress_width,
+                                    sizing.font_status,
+                                    sizing.font_status,
+                                ),
                             )],
                         ),
                     ),
                     SurfaceChild::new(
                         fixed_slot(track_height),
-                        SurfaceNode::static_widget(CanvasWidget::new(
-                            STATUS_PROGRESS_TRACK_ID,
-                            WidgetSizing::fixed(Vector2::new(
-                                progress_width.max(1.0),
-                                track_height.max(1.0),
-                            )),
-                        )),
+                        canvas_node(STATUS_PROGRESS_TRACK_ID, progress_width, track_height),
                     ),
                 ],
             ),
@@ -338,10 +327,7 @@ fn progress_slot_width(viewport_width: f32, sizing: SizingTokens) -> f32 {
 }
 
 fn spacer_surface(id: u64) -> SurfaceNode<()> {
-    SurfaceNode::static_widget(CanvasWidget::new(
-        id,
-        WidgetSizing::fixed(Vector2::new(1.0, 1.0)),
-    ))
+    canvas_node(id, 1.0, 1.0)
 }
 
 fn percent_slot(ratio: f32) -> SlotParams {

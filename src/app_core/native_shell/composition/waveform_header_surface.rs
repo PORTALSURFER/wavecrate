@@ -5,16 +5,18 @@
 //! pattern used by the top bar, status bar, and sidebar chrome bands while the
 //! waveform plot, overlays, and edit geometry remain on the compatibility path.
 
-use super::style::SizingTokens;
+use super::{
+    style::SizingTokens,
+    widget_nodes::{canvas_node, text_node},
+};
 use crate::{
     app::NativeMotionModel,
-    gui::types::{Point, Rect, Vector2},
+    gui::types::{Point, Rect},
     layout::{
         Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, MainAlign, OverflowPolicy,
         SizeModeCross, SizeModeMain, SlotParams, layout_tree,
     },
     runtime::{SurfaceChild, SurfaceNode, UiSurface},
-    widgets::{CanvasWidget, TextWidget, WidgetSizing},
 };
 
 const WAVEFORM_HEADER_ROOT_ID: u64 = 1120;
@@ -147,10 +149,7 @@ fn build_waveform_header_surface(
                     ),
                     SurfaceChild::new(
                         SlotParams::fill(),
-                        SurfaceNode::static_widget(CanvasWidget::new(
-                            WAVEFORM_HEADER_FILL_ID,
-                            WidgetSizing::fixed(Vector2::new(1.0, 1.0)),
-                        )),
+                        canvas_node(WAVEFORM_HEADER_FILL_ID, 1.0, 1.0),
                     ),
                 ],
             ),
@@ -159,12 +158,7 @@ fn build_waveform_header_surface(
 }
 
 fn text_widget(id: u64, text: &str, font_size: f32) -> SurfaceNode<()> {
-    SurfaceNode::static_widget(TextWidget::new(
-        id,
-        text,
-        WidgetSizing::fixed(Vector2::new(1.0, font_size.max(1.0)))
-            .with_baseline((font_size * 0.75).max(0.0)),
-    ))
+    text_node(id, text, 1.0, font_size, font_size)
 }
 
 fn text_slot(font_size: f32) -> SlotParams {
