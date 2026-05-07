@@ -1,6 +1,6 @@
 use super::*;
 use crate::app::controller::jobs::{JobMessage, WaveformRenderJob, WaveformRenderKey};
-use crate::app::controller::state::runtime::PendingWaveformRender;
+use crate::app::controller::state::runtime::{DerivedNodeId, DirtyReason, PendingWaveformRender};
 use crate::waveform::DecodedWaveform;
 use std::sync::Arc;
 use std::time::Instant;
@@ -141,6 +141,7 @@ impl AppController {
                     .map(JobMessage::WaveformRendered)
             });
         self.mark_waveform_projection_dirty();
+        self.mark_derived_source_dirty(DerivedNodeId::StatusState, DirtyReason::StatusAction);
     }
 
     fn plan_waveform_render_request(&mut self) -> Option<WaveformRenderRequest> {
@@ -220,6 +221,7 @@ impl AppController {
         self.projected_waveform_image = None;
         self.runtime.pending_waveform_render = None;
         self.mark_waveform_projection_dirty();
+        self.mark_derived_source_dirty(DerivedNodeId::StatusState, DirtyReason::StatusAction);
     }
 }
 

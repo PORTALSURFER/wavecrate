@@ -11,6 +11,7 @@ pub(super) fn build_waveform_projection_key(
 ) -> WaveformProjectionCacheKey {
     let scalars = derive_waveform_projection_scalars(controller);
     WaveformProjectionCacheKey {
+        waveform_image_rendering: controller.waveform_render_in_progress_for_projection(),
         waveform_signature: crate::app_core::native_shell::effective_waveform_image_signature(
             controller,
         ),

@@ -35,6 +35,7 @@ pub(crate) fn build_named_gui_fixture_controller(
         "transport" => build_transport_fixture(renderer),
         "map" => build_map_fixture(renderer),
         "waveform" => build_waveform_fixture(renderer),
+        "waveform_dense" => build_waveform_dense_fixture(renderer),
         "waveform_mixed" => build_waveform_mixed_fixture(renderer),
         "options" => build_options_fixture(renderer),
         "prompt" => build_prompt_fixture(renderer),
@@ -219,6 +220,19 @@ fn browser_fixture_samples(index: usize) -> Vec<f32> {
     ]
 }
 
+fn dense_waveform_fixture_samples() -> Vec<f32> {
+    let sample_count = 4096;
+    (0..sample_count)
+        .map(|index| {
+            let phase = index as f32 / 18.0;
+            let contour = ((index as f32 / sample_count as f32) * std::f32::consts::PI)
+                .sin()
+                .max(0.18);
+            (phase.sin() * 0.62 * contour).clamp(-0.95, 0.95)
+        })
+        .collect()
+}
+
 fn build_waveform_fixture(
     renderer: WaveformRenderer,
 ) -> Result<GuiFixtureControllerBundle, String> {
@@ -238,6 +252,43 @@ fn build_waveform_fixture(
     };
     bundle.controller.focus_waveform();
     Ok(bundle)
+}
+
+fn build_waveform_dense_fixture(
+    renderer: WaveformRenderer,
+) -> Result<GuiFixtureControllerBundle, String> {
+    let mut controller = AppController::new(renderer, None);
+    controller.settings.controls.advance_after_rating = false;
+    let sandbox =
+        tempfile::tempdir().map_err(|err| format!("create waveform fixture tempdir: {err}"))?;
+    let source_root = sandbox.path().join("waveform-source");
+    fs::create_dir_all(&source_root).map_err(|err| {
+        format!(
+            "create waveform fixture source root {}: {err}",
+            source_root.display()
+        )
+    })?;
+    let source = SampleSource::new(source_root);
+    let entries = vec![write_fixture_entry(
+        &source.root,
+        "visible_waveform.wav",
+        &dense_waveform_fixture_samples(),
+        crate::sample_sources::Rating::NEUTRAL,
+    )?];
+    seed_source_fixture(&mut controller, &source, entries)?;
+    controller.select_wav_by_path(Path::new("visible_waveform.wav"));
+    controller.load_waveform_for_selection(&source, Path::new("visible_waveform.wav"))?;
+    controller.ui.waveform.cursor = Some(0.38);
+    controller.ui.waveform.selection = Some(SelectionRange::new(0.35, 0.45));
+    controller.ui.waveform.view = WaveformView {
+        start: 0.0,
+        end: 1.0,
+    };
+    controller.focus_waveform();
+    Ok(GuiFixtureControllerBundle {
+        controller,
+        sandbox_guards: vec![sandbox],
+    })
 }
 
 fn build_waveform_mixed_fixture(

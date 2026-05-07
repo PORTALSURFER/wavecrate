@@ -60,6 +60,66 @@ fn bridge_reprojects_after_async_waveform_image_arrival() {
     assert_eq!(waveform_image.height, 1);
 }
 
+/// Projecting an arrived async image should not immediately schedule another image render.
+#[test]
+fn async_waveform_image_arrival_is_projection_only_dirty_work() {
+    let bundle = crate::app_core::controller::build_named_gui_fixture_controller(
+        WaveformRenderer::new(32, 16),
+        "waveform",
+    )
+    .expect("waveform fixture");
+    let _sandbox_guards = bundle.sandbox_guards;
+    let mut bridge = SempalNativeBridge::from_fixture_controller(bundle.controller);
+    bridge.controller.ui.waveform.view = crate::app::state::WaveformView {
+        start: 0.0,
+        end: 0.5,
+    };
+
+    let _ = bridge.project_model();
+    bridge.controller.ui.waveform.image = Some(crate::waveform::WaveformImage::new(
+        [1, 1],
+        vec![crate::waveform::WaveformRgba::from_rgb(12, 34, 56)],
+    ));
+    bridge.controller.ui.waveform.waveform_image_signature = Some(1);
+    bridge.controller.set_waveform_render_meta_for_tests(Some(
+        crate::app::controller::WaveformRenderMeta {
+            view_start: bridge.controller.ui.waveform.view.start,
+            view_end: bridge.controller.ui.waveform.view.end,
+            size: [32, 16],
+            samples_len: 4,
+            texture_width: 1,
+            channel_view: bridge.controller.ui.waveform.channel_view,
+            channels: 1,
+            edit_fade: None,
+            transient_visual_token: None,
+        },
+    ));
+    bridge.controller.projected_waveform_image = None;
+    bridge.controller.projected_waveform_image_signature = None;
+    bridge.controller.mark_derived_source_dirty(
+        crate::app_core::app_api::controller_state::DerivedNodeId::WaveformState,
+        crate::app_core::app_api::controller_state::DirtyReason::WaveformViewAction,
+    );
+    bridge.controller.mark_waveform_image_projection_dirty();
+
+    let updated = bridge.project_model();
+
+    assert!(
+        updated.waveform.waveform_image.is_some(),
+        "arrived async waveform image should project into the native model"
+    );
+    assert!(
+        !bridge
+            .controller
+            .waveform_render_in_progress_for_projection(),
+        "projection-only async image arrival must not enqueue a redundant render"
+    );
+    assert!(
+        !updated.status.center.contains("rendering waveform"),
+        "status projection should clear the render-progress suffix after async image arrival"
+    );
+}
+
 /// Initial full projection should bump all static segment revisions.
 #[test]
 fn pull_model_bumps_segment_revisions_on_first_projection() {

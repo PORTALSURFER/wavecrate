@@ -43,6 +43,7 @@ pub(super) fn build_status_projection_key(
         } else {
             None
         },
+        waveform_image_rendering: controller.waveform_render_in_progress_for_projection(),
         selected_column,
     }
 }

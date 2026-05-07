@@ -71,8 +71,8 @@ fn waveform_projection_passes_raster_image_payload() {
 }
 
 #[test]
-/// Projection must not publish a cached raster signature for a different waveform view.
-fn waveform_projection_withholds_stale_raster_for_changed_view() {
+/// Projection keeps the last raster visible while withholding its stale cache signature.
+fn waveform_projection_keeps_stale_raster_visible_without_signature_for_changed_view() {
     let mut controller = AppController::new(crate::waveform::WaveformRenderer::new(32, 32), None);
     controller.ui.waveform.image = Some(crate::waveform::WaveformImage {
         size: [2, 1],
@@ -101,7 +101,10 @@ fn waveform_projection_withholds_stale_raster_for_changed_view() {
     let projected = project_waveform_model(&mut controller);
 
     assert_eq!(projected.waveform_image_signature, None);
-    assert!(projected.waveform_image.is_none());
+    assert!(
+        projected.waveform_image.is_some(),
+        "a loaded waveform should not collapse to a black panel while a fresh raster catches up"
+    );
 }
 
 #[test]

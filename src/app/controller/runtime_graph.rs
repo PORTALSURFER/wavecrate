@@ -60,7 +60,9 @@ impl AppController {
     /// Async waveform-image completion can update controller state after the
     /// native bridge has already cached a projection key for the loaded sample.
     /// Marking the waveform source dirty ensures the next pull recomputes the
-    /// waveform segment instead of reusing a stale empty image.
+    /// waveform segment instead of reusing a stale empty image. This is a
+    /// projection-only invalidation; view-changing actions use
+    /// `WaveformViewAction` through the normal native-action classifier.
     pub(crate) fn mark_waveform_projection_dirty(&mut self) {
         if self.is_derived_node_dirty(DerivedNodeId::WaveformState)
             || self.is_derived_node_dirty(DerivedNodeId::WaveformRenderInputs)
@@ -70,8 +72,21 @@ impl AppController {
         }
         self.mark_derived_source_dirty(
             DerivedNodeId::WaveformState,
-            DirtyReason::WaveformViewAction,
+            DirtyReason::WaveformOverlayAction,
         );
+    }
+
+    /// Mark a freshly arrived waveform image as projection-ready, overriding any
+    /// stale waveform view-refresh reason that was still pending from the render
+    /// request that produced it.
+    pub(crate) fn mark_waveform_image_projection_dirty(&mut self) {
+        self.runtime
+            .derived_graph
+            .mark_source_dirty_overriding_reason(
+                DerivedNodeId::WaveformState,
+                DirtyReason::WaveformOverlayAction,
+            );
+        self.mark_derived_source_dirty(DerivedNodeId::StatusState, DirtyReason::StatusAction);
     }
 
     #[cfg(test)]

@@ -160,10 +160,6 @@ fn project_waveform_image(
     controller: &mut AppController,
     signature: Option<u64>,
 ) -> Option<Arc<ImageRgba>> {
-    if controller.ui.waveform.waveform_image_signature.is_some() && signature.is_none() {
-        controller.projected_waveform_image_signature = None;
-        return None;
-    }
     let has_item_image = controller.ui.waveform.image.is_some();
     let has_cached_image = controller.projected_waveform_image.is_some();
     if controller.projected_waveform_image_signature == signature

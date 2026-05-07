@@ -112,6 +112,20 @@ impl DerivedStateGraph {
         self.mark_dirty(source, reason);
     }
 
+    /// Mark a source node dirty and replace the recorded reason on descendants.
+    ///
+    /// This is for late-arriving async state that supersedes an earlier dirty
+    /// reason before the graph has flushed. Normal action invalidation should use
+    /// `mark_source_dirty` so the first action reason wins within one cycle.
+    pub(crate) fn mark_source_dirty_overriding_reason(
+        &mut self,
+        source: DerivedNodeId,
+        reason: DirtyReason,
+    ) {
+        debug_assert!(source.is_source());
+        self.mark_dirty_overriding_reason(source, reason);
+    }
+
     /// Return true when any graph node is dirty.
     pub(crate) fn has_dirty_nodes(&self) -> bool {
         self.dirty_mask != 0
@@ -176,6 +190,15 @@ impl DerivedStateGraph {
             }
         }
     }
+
+    fn mark_dirty_overriding_reason(&mut self, node: DerivedNodeId, reason: DirtyReason) {
+        let mut stack = vec![node];
+        while let Some(current) = stack.pop() {
+            self.dirty_mask |= current.bit();
+            self.last_reason_by_node[current.index()] = Some(reason);
+            stack.extend(graph_dependents(current));
+        }
+    }
 }
 
 impl Default for DerivedStateGraph {
@@ -232,6 +255,29 @@ mod tests {
             DerivedNodeId::WaveformState,
             DirtyReason::WaveformOverlayAction,
         );
+        assert_eq!(
+            graph.last_reason(DerivedNodeId::WaveformRenderInputs),
+            Some(DirtyReason::WaveformOverlayAction)
+        );
+        assert_eq!(
+            graph.last_reason(DerivedNodeId::NativeAppProjectionKey),
+            Some(DirtyReason::WaveformOverlayAction)
+        );
+    }
+
+    #[test]
+    fn waveform_reason_override_replaces_pending_view_refresh_reason() {
+        let mut graph = DerivedStateGraph::new();
+        graph.mark_source_dirty(
+            DerivedNodeId::WaveformState,
+            DirtyReason::WaveformViewAction,
+        );
+
+        graph.mark_source_dirty_overriding_reason(
+            DerivedNodeId::WaveformState,
+            DirtyReason::WaveformOverlayAction,
+        );
+
         assert_eq!(
             graph.last_reason(DerivedNodeId::WaveformRenderInputs),
             Some(DirtyReason::WaveformOverlayAction)

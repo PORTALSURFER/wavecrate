@@ -85,6 +85,7 @@ pub(super) fn derive_projection_key_parts(controller: &AppController) -> Derived
         progress_overlay_hash: non_segment_overlay_key.progress_overlay_hash,
         confirm_prompt_hash: non_segment_overlay_key.confirm_prompt_hash,
         drag_overlay_hash: non_segment_overlay_key.drag_overlay_hash,
+        waveform_image_rendering: waveform_key.waveform_image_rendering,
         waveform_signature: waveform_key.waveform_signature,
         waveform_selection_start_milli: waveform_key.waveform_selection_start_milli,
         waveform_selection_end_milli: waveform_key.waveform_selection_end_milli,

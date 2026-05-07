@@ -44,6 +44,7 @@ pub(crate) struct NativeProjectionCacheKey {
     pub(crate) progress_overlay_hash: u64,
     pub(crate) confirm_prompt_hash: u64,
     pub(crate) drag_overlay_hash: u64,
+    pub(crate) waveform_image_rendering: bool,
     pub(crate) waveform_signature: Option<u64>,
     pub(crate) waveform_selection_start_milli: Option<u16>,
     pub(crate) waveform_selection_end_milli: Option<u16>,
@@ -111,6 +112,7 @@ pub(crate) struct StatusProjectionCacheKey {
     pub(crate) inline_progress_cancel_requested: bool,
     pub(crate) inline_progress_title_hash: u64,
     pub(crate) inline_progress_detail_hash: Option<u64>,
+    pub(crate) waveform_image_rendering: bool,
     pub(crate) selected_column: usize,
 }
 
@@ -183,6 +185,7 @@ pub(crate) struct MapProjectionCacheKey {
 /// Waveform projection key scoped to waveform panel/chrome state.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct WaveformProjectionCacheKey {
+    pub(crate) waveform_image_rendering: bool,
     pub(crate) waveform_signature: Option<u64>,
     pub(crate) waveform_selection_start_milli: Option<u16>,
     pub(crate) waveform_selection_end_milli: Option<u16>,
