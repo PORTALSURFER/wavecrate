@@ -29,7 +29,8 @@ use radiant::gui::{
 };
 use radiant::runtime::{Command, RuntimeBridge, SurfaceNode, UiSurface};
 use radiant::widgets::{
-    CanvasMessage, PointerButton, RetainedSurfaceDescriptor, WidgetInput, WidgetKey, WidgetSizing,
+    CanvasMessage, PointerButton, RetainedSurfaceDescriptor, TextEditCommand, WidgetInput,
+    WidgetKey, WidgetSizing,
 };
 use std::{collections::BTreeMap, sync::Arc};
 
