@@ -14,7 +14,7 @@ use crate::{
         SizeModeCross, SizeModeMain, SlotParams, layout_tree,
     },
     runtime::{SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
-    widgets::{ButtonWidget, TextInputWidget, ToggleWidget, WidgetSizing, WidgetSpec},
+    widgets::{ButtonWidget, TextInputWidget, ToggleWidget, Widget, WidgetSizing},
 };
 
 const WAVEFORM_TOOLBAR_BASE_ID: u64 = 1320;
@@ -167,19 +167,19 @@ fn widget_for_item(
 ) -> SurfaceNode<()> {
     let id = waveform_toolbar_widget_id(item_index);
     let size = WidgetSizing::fixed(Vector2::new(rect.width().max(1.0), rect.height().max(1.0)));
-    let widget = match item.kind {
+    let widget: Box<dyn Widget> = match item.kind {
         WaveformToolbarSurfaceItemKind::Button => {
             let mut widget = ButtonWidget::new(id, &item.label, size);
             widget.common.state.disabled = !item.enabled;
             widget.common.state.active = item.active;
-            WidgetSpec::Button(widget)
+            Box::new(widget)
         }
         WaveformToolbarSurfaceItemKind::Toggle => {
             let mut widget = ToggleWidget::new(id, &item.label, size);
             widget.common.state.disabled = !item.enabled;
             widget.common.state.active = item.active;
             widget.state.checked = item.active;
-            WidgetSpec::Toggle(widget)
+            Box::new(widget)
         }
         WaveformToolbarSurfaceItemKind::TextInput => {
             let mut widget = TextInputWidget::new(id, item.value.clone().unwrap_or_default(), size);
@@ -187,10 +187,10 @@ fn widget_for_item(
             widget.common.state.active = item.active;
             widget.common.state.read_only = true;
             widget.props.placeholder = Some(item.label.clone());
-            WidgetSpec::TextInput(widget)
+            Box::new(widget)
         }
     };
-    SurfaceNode::widget(widget, WidgetMessageMapper::none())
+    SurfaceNode::custom_widget_box(widget, WidgetMessageMapper::none())
 }
 
 fn legacy_toolbar_rects(
@@ -250,7 +250,10 @@ fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{app_core::native_shell::composition::style::StyleTokens, widgets::WidgetKind};
+    use crate::{
+        app_core::native_shell::composition::style::StyleTokens,
+        widgets::{ButtonWidget, TextInputWidget, ToggleWidget},
+    };
 
     fn sample_content() -> WaveformToolbarSurfaceContent {
         WaveformToolbarSurfaceContent {
@@ -321,29 +324,32 @@ mod tests {
                 &content,
             ),
         );
-        assert_eq!(
+        assert!(
             surface
                 .find_widget(waveform_toolbar_widget_id(0))
                 .expect("channel toggle")
                 .widget()
-                .kind(),
-            WidgetKind::Toggle
+                .as_any()
+                .downcast_ref::<ToggleWidget>()
+                .is_some()
         );
-        assert_eq!(
+        assert!(
             surface
                 .find_widget(waveform_toolbar_widget_id(2))
                 .expect("bpm value input")
                 .widget()
-                .kind(),
-            WidgetKind::TextInput
+                .as_any()
+                .downcast_ref::<TextInputWidget>()
+                .is_some()
         );
-        assert_eq!(
+        assert!(
             surface
                 .find_widget(waveform_toolbar_widget_id(4))
                 .expect("compare button")
                 .widget()
-                .kind(),
-            WidgetKind::Button
+                .as_any()
+                .downcast_ref::<ButtonWidget>()
+                .is_some()
         );
     }
 

@@ -13,7 +13,7 @@ use crate::{
         SizeModeCross, SizeModeMain, SlotParams, layout_tree,
     },
     runtime::{SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
-    widgets::{CanvasWidget, TextWidget, WidgetSizing, WidgetSpec},
+    widgets::{CanvasWidget, TextWidget, WidgetSizing},
 };
 
 const STATUS_ROOT_ID: u64 = 960;
@@ -246,12 +246,12 @@ fn segment_surface(
                 vec![SurfaceChild::new(
                     text_slot(sizing.font_status),
                     SurfaceNode::widget(
-                        WidgetSpec::Text(TextWidget::new(
+                        TextWidget::new(
                             text_id,
                             label,
                             WidgetSizing::fixed(Vector2::new(1.0, sizing.font_status.max(1.0)))
                                 .with_baseline((sizing.font_status * 0.75).max(0.0)),
-                        )),
+                        ),
                         WidgetMessageMapper::none(),
                     ),
                 )],
@@ -307,7 +307,7 @@ fn progress_surface(
                             vec![SurfaceChild::new(
                                 text_slot(sizing.font_status),
                                 SurfaceNode::widget(
-                                    WidgetSpec::Text(TextWidget::new(
+                                    TextWidget::new(
                                         STATUS_PROGRESS_TEXT_ID,
                                         &content.progress_counter,
                                         WidgetSizing::fixed(Vector2::new(
@@ -315,7 +315,7 @@ fn progress_surface(
                                             sizing.font_status.max(1.0),
                                         ))
                                         .with_baseline((sizing.font_status * 0.75).max(0.0)),
-                                    )),
+                                    ),
                                     WidgetMessageMapper::none(),
                                 ),
                             )],
@@ -324,13 +324,13 @@ fn progress_surface(
                     SurfaceChild::new(
                         fixed_slot(track_height),
                         SurfaceNode::widget(
-                            WidgetSpec::Canvas(CanvasWidget::new(
+                            CanvasWidget::new(
                                 STATUS_PROGRESS_TRACK_ID,
                                 WidgetSizing::fixed(Vector2::new(
                                     progress_width.max(1.0),
                                     track_height.max(1.0),
                                 )),
-                            )),
+                            ),
                             WidgetMessageMapper::none(),
                         ),
                     ),
@@ -348,10 +348,7 @@ fn progress_slot_width(viewport_width: f32, sizing: SizingTokens) -> f32 {
 
 fn spacer_surface(id: u64) -> SurfaceNode<()> {
     SurfaceNode::widget(
-        WidgetSpec::Canvas(CanvasWidget::new(
-            id,
-            WidgetSizing::fixed(Vector2::new(1.0, 1.0)),
-        )),
+        CanvasWidget::new(id, WidgetSizing::fixed(Vector2::new(1.0, 1.0))),
         WidgetMessageMapper::none(),
     )
 }
@@ -408,6 +405,7 @@ fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Re
 mod tests {
     use super::*;
     use crate::app_core::native_shell::composition::style::StyleTokens;
+    use crate::widgets::{CanvasWidget, TextWidget};
 
     fn assert_inside(outer: Rect, inner: Rect) {
         assert!(inner.min.x >= outer.min.x);
@@ -435,8 +433,19 @@ mod tests {
         let track = surface
             .find_widget(STATUS_PROGRESS_TRACK_ID)
             .expect("progress track widget");
-        assert_eq!(left.widget().kind(), crate::widgets::WidgetKind::Text);
-        assert_eq!(track.widget().kind(), crate::widgets::WidgetKind::Canvas);
+        assert!(
+            left.widget()
+                .as_any()
+                .downcast_ref::<TextWidget>()
+                .is_some()
+        );
+        assert!(
+            track
+                .widget()
+                .as_any()
+                .downcast_ref::<CanvasWidget>()
+                .is_some()
+        );
     }
 
     #[test]

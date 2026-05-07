@@ -20,7 +20,7 @@ use crate::{
         SizeModeCross, SizeModeMain, SlotParams, layout_tree,
     },
     runtime::{SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
-    widgets::{ButtonWidget, WidgetSizing, WidgetSpec},
+    widgets::{ButtonWidget, WidgetSizing},
 };
 use helpers::{
     BrowserToolbarSurfaceWidths, browser_sort_label, browser_toolbar_surface_widths,
@@ -287,11 +287,11 @@ fn build_browser_toolbar_surface(
 
 fn button_widget(id: u64, label: &str, width: f32, height: f32) -> SurfaceNode<()> {
     SurfaceNode::widget(
-        WidgetSpec::Button(ButtonWidget::new(
+        ButtonWidget::new(
             id,
             label,
             WidgetSizing::fixed(Vector2::new(width.max(1.0), height.max(1.0))),
-        )),
+        ),
         WidgetMessageMapper::none(),
     )
 }
