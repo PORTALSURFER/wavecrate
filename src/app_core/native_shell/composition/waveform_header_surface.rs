@@ -14,7 +14,7 @@ use crate::{
         SizeModeCross, SizeModeMain, SlotParams, layout_tree,
     },
     runtime::{SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
-    widgets::{CanvasWidget, TextWidget, WidgetSizing, WidgetSpec},
+    widgets::{CanvasWidget, TextWidget, WidgetSizing},
 };
 
 const WAVEFORM_HEADER_ROOT_ID: u64 = 1120;
@@ -148,10 +148,10 @@ fn build_waveform_header_surface(
                     SurfaceChild::new(
                         SlotParams::fill(),
                         SurfaceNode::widget(
-                            WidgetSpec::Canvas(CanvasWidget::new(
+                            CanvasWidget::new(
                                 WAVEFORM_HEADER_FILL_ID,
                                 WidgetSizing::fixed(Vector2::new(1.0, 1.0)),
-                            )),
+                            ),
                             WidgetMessageMapper::none(),
                         ),
                     ),
@@ -163,12 +163,12 @@ fn build_waveform_header_surface(
 
 fn text_widget(id: u64, text: &str, font_size: f32) -> SurfaceNode<()> {
     SurfaceNode::widget(
-        WidgetSpec::Text(TextWidget::new(
+        TextWidget::new(
             id,
             text,
             WidgetSizing::fixed(Vector2::new(1.0, font_size.max(1.0)))
                 .with_baseline((font_size * 0.75).max(0.0)),
-        )),
+        ),
         WidgetMessageMapper::none(),
     )
 }
@@ -206,7 +206,9 @@ fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Re
 mod tests {
     use super::*;
     use crate::{
-        app::AppModel, app_core::native_shell::composition::style::StyleTokens, widgets::WidgetKind,
+        app::AppModel,
+        app_core::native_shell::composition::style::StyleTokens,
+        widgets::{CanvasWidget, TextWidget},
     };
 
     fn assert_inside(outer: Rect, inner: Rect) {
@@ -224,29 +226,32 @@ mod tests {
     fn waveform_header_surface_uses_public_text_and_canvas_widgets() {
         let style = StyleTokens::for_viewport_width(1280.0);
         let surface = build_waveform_header_surface(&content(), style.sizing);
-        assert_eq!(
+        assert!(
             surface
                 .find_widget(WAVEFORM_HEADER_TITLE_ID)
                 .expect("title")
                 .widget()
-                .kind(),
-            WidgetKind::Text
+                .as_any()
+                .downcast_ref::<TextWidget>()
+                .is_some()
         );
-        assert_eq!(
+        assert!(
             surface
                 .find_widget(WAVEFORM_HEADER_METADATA_ID)
                 .expect("metadata")
                 .widget()
-                .kind(),
-            WidgetKind::Text
+                .as_any()
+                .downcast_ref::<TextWidget>()
+                .is_some()
         );
-        assert_eq!(
+        assert!(
             surface
                 .find_widget(WAVEFORM_HEADER_FILL_ID)
                 .expect("fill")
                 .widget()
-                .kind(),
-            WidgetKind::Canvas
+                .as_any()
+                .downcast_ref::<CanvasWidget>()
+                .is_some()
         );
     }
 

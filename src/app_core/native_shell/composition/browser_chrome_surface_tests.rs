@@ -1,7 +1,15 @@
 use super::*;
 use crate::{
-    app_core::native_shell::composition::style::StyleTokens, gui::types::Point, widgets::WidgetKind,
+    app_core::native_shell::composition::style::StyleTokens,
+    gui::types::Point,
+    widgets::{ButtonWidget, TextInputWidget, ToggleWidget, Widget},
 };
+
+fn is_widget<T: Widget + 'static>(surface: &UiSurface<()>, id: u64) -> bool {
+    surface
+        .find_widget(id)
+        .is_some_and(|widget| widget.widget().as_any().downcast_ref::<T>().is_some())
+}
 
 fn assert_inside(outer: Rect, inner: Rect) {
     assert!(inner.min.x >= outer.min.x);
@@ -18,22 +26,8 @@ fn browser_tabs_surface_uses_public_button_widgets() {
         style.sizing,
         800.0,
     );
-    assert_eq!(
-        surface
-            .find_widget(TABS_ITEMS_ID)
-            .expect("primary tab")
-            .widget()
-            .kind(),
-        WidgetKind::Button
-    );
-    assert_eq!(
-        surface
-            .find_widget(TABS_MAP_ID)
-            .expect("map tab")
-            .widget()
-            .kind(),
-        WidgetKind::Button
-    );
+    assert!(is_widget::<ButtonWidget>(&surface, TABS_ITEMS_ID));
+    assert!(is_widget::<ButtonWidget>(&surface, TABS_MAP_ID));
 }
 
 #[test]
@@ -62,30 +56,9 @@ fn browser_toolbar_surface_uses_public_toggle_button_and_text_input_widgets() {
             style.sizing,
         ),
     );
-    assert_eq!(
-        surface
-            .find_widget(TOOLBAR_RATING_BASE_ID)
-            .expect("compatibility-only rating chip widget")
-            .widget()
-            .kind(),
-        WidgetKind::Toggle
-    );
-    assert_eq!(
-        surface
-            .find_widget(TOOLBAR_RANDOM_ID)
-            .expect("random button")
-            .widget()
-            .kind(),
-        WidgetKind::Button
-    );
-    assert_eq!(
-        surface
-            .find_widget(TOOLBAR_SEARCH_ID)
-            .expect("search field")
-            .widget()
-            .kind(),
-        WidgetKind::TextInput
-    );
+    assert!(is_widget::<ToggleWidget>(&surface, TOOLBAR_RATING_BASE_ID));
+    assert!(is_widget::<ButtonWidget>(&surface, TOOLBAR_RANDOM_ID));
+    assert!(is_widget::<TextInputWidget>(&surface, TOOLBAR_SEARCH_ID));
 }
 
 #[test]

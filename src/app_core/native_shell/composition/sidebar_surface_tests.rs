@@ -1,7 +1,13 @@
 use super::*;
 use crate::app_core::native_shell::composition::style::StyleTokens;
 use crate::gui::types::Point;
-use crate::widgets::WidgetKind;
+use crate::widgets::{ButtonWidget, TextWidget, Widget};
+
+fn is_widget<T: Widget + 'static>(surface: &UiSurface<()>, id: u64) -> bool {
+    surface
+        .find_widget(id)
+        .is_some_and(|widget| widget.widget().as_any().downcast_ref::<T>().is_some())
+}
 
 fn assert_inside(outer: Rect, inner: Rect) {
     assert!(inner.min.x >= outer.min.x);
@@ -23,30 +29,9 @@ fn sidebar_surfaces_use_public_text_and_button_widgets() {
         style.sizing,
         208.0,
     );
-    assert_eq!(
-        header
-            .find_widget(HEADER_TITLE_ID)
-            .expect("title")
-            .widget()
-            .kind(),
-        WidgetKind::Text
-    );
-    assert_eq!(
-        header
-            .find_widget(HEADER_ADD_BUTTON_ID)
-            .expect("add")
-            .widget()
-            .kind(),
-        WidgetKind::Button
-    );
-    assert_eq!(
-        footer
-            .find_widget(FOOTER_ACTION_BASE_ID)
-            .expect("footer action")
-            .widget()
-            .kind(),
-        WidgetKind::Button
-    );
+    assert!(is_widget::<TextWidget>(&header, HEADER_TITLE_ID));
+    assert!(is_widget::<ButtonWidget>(&header, HEADER_ADD_BUTTON_ID));
+    assert!(is_widget::<ButtonWidget>(&footer, FOOTER_ACTION_BASE_ID));
 }
 
 #[test]

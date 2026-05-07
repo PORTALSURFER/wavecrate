@@ -14,7 +14,7 @@ use crate::{
         SizeModeCross, SizeModeMain, SlotParams, layout_tree,
     },
     runtime::{SurfaceChild, SurfaceNode, UiSurface, WidgetMessageMapper},
-    widgets::{ButtonWidget, CanvasWidget, TextWidget, WidgetSizing, WidgetSpec},
+    widgets::{ButtonWidget, CanvasWidget, TextWidget, WidgetSizing},
 };
 
 const TOP_ROOT_ID: u64 = 1040;
@@ -339,13 +339,13 @@ fn build_title_cluster(
                     SurfaceChild::new(
                         fixed_slot_with_cross(meter_width, meter_height),
                         SurfaceNode::widget(
-                            WidgetSpec::Canvas(CanvasWidget::new(
+                            CanvasWidget::new(
                                 TOP_VOLUME_METER_ID,
                                 WidgetSizing::fixed(Vector2::new(
                                     meter_width.max(1.0),
                                     meter_height.max(1.0),
                                 )),
-                            )),
+                            ),
                             WidgetMessageMapper::none(),
                         ),
                     ),
@@ -399,11 +399,11 @@ fn build_action_cluster(
         children.push(SurfaceChild::new(
             fixed_slot(*width),
             SurfaceNode::widget(
-                WidgetSpec::Button(ButtonWidget::new(
+                ButtonWidget::new(
                     TOP_UPDATE_BUTTON_BASE_ID + (hidden_count + index) as u64,
                     spec.label,
                     WidgetSizing::fixed(Vector2::new(width.max(1.0), button_height.max(1.0))),
-                )),
+                ),
                 WidgetMessageMapper::none(),
             ),
         ));
@@ -411,11 +411,11 @@ fn build_action_cluster(
     children.push(SurfaceChild::new(
         fixed_slot(options_width),
         SurfaceNode::widget(
-            WidgetSpec::Button(ButtonWidget::new(
+            ButtonWidget::new(
                 TOP_OPTIONS_BUTTON_ID,
                 &content.options_label,
                 WidgetSizing::fixed(Vector2::new(options_width.max(1.0), button_height.max(1.0))),
-            )),
+            ),
             WidgetMessageMapper::none(),
         ),
     ));
@@ -508,22 +508,19 @@ fn visible_suffix_widths(widths: &[f32], available_width: f32, gap: f32) -> Vec<
 
 fn text_widget(id: u64, text: &str, width: f32, font_size: f32) -> SurfaceNode<()> {
     SurfaceNode::widget(
-        WidgetSpec::Text(TextWidget::new(
+        TextWidget::new(
             id,
             text,
             WidgetSizing::fixed(Vector2::new(width.max(1.0), font_size.max(1.0)))
                 .with_baseline((font_size * 0.75).max(0.0)),
-        )),
+        ),
         WidgetMessageMapper::none(),
     )
 }
 
 fn spacer_widget(id: u64) -> SurfaceNode<()> {
     SurfaceNode::widget(
-        WidgetSpec::Canvas(CanvasWidget::new(
-            id,
-            WidgetSizing::fixed(Vector2::new(1.0, 1.0)),
-        )),
+        CanvasWidget::new(id, WidgetSizing::fixed(Vector2::new(1.0, 1.0))),
         WidgetMessageMapper::none(),
     )
 }
@@ -569,7 +566,10 @@ fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Re
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{app_core::native_shell::composition::style::StyleTokens, widgets::WidgetKind};
+    use crate::{
+        app_core::native_shell::composition::style::StyleTokens,
+        widgets::{ButtonWidget, CanvasWidget, TextWidget},
+    };
 
     fn assert_inside(outer: Rect, inner: Rect) {
         assert!(inner.min.x >= outer.min.x);
@@ -611,29 +611,32 @@ mod tests {
     fn top_bar_surface_uses_public_text_button_and_canvas_widgets() {
         let style = StyleTokens::for_viewport_width(1280.0);
         let surface = build_top_bar_surface(&content(), style.sizing, 1280.0);
-        assert_eq!(
+        assert!(
             surface
                 .find_widget(TOP_TITLE_TEXT_ID)
                 .expect("title")
                 .widget()
-                .kind(),
-            WidgetKind::Text
+                .as_any()
+                .downcast_ref::<TextWidget>()
+                .is_some()
         );
-        assert_eq!(
+        assert!(
             surface
                 .find_widget(TOP_VOLUME_METER_ID)
                 .expect("meter")
                 .widget()
-                .kind(),
-            WidgetKind::Canvas
+                .as_any()
+                .downcast_ref::<CanvasWidget>()
+                .is_some()
         );
-        assert_eq!(
+        assert!(
             surface
                 .find_widget(TOP_OPTIONS_BUTTON_ID)
                 .expect("options")
                 .widget()
-                .kind(),
-            WidgetKind::Button
+                .as_any()
+                .downcast_ref::<ButtonWidget>()
+                .is_some()
         );
     }
 
