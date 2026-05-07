@@ -94,7 +94,7 @@ mod tests {
         let message = surface
             .dispatch_widget_output(
                 1,
-                WidgetOutput::Canvas(CanvasMessage::Input {
+                WidgetOutput::typed(CanvasMessage::Input {
                     input: WidgetInput::PointerPress {
                         position: radiant::gui::types::Point::new(4.0, 5.0),
                         button: radiant::widgets::PointerButton::Primary,
