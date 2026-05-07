@@ -27,9 +27,6 @@ pub(in crate::app_core::native_shell::composition::state) fn push_waveform_playh
         emit_waveform_loading_placeholder(primitives, layout.waveform_plot, style, motion_wave);
         return;
     }
-    if image_preview.image.is_none() && image_preview.loaded_label.is_some() {
-        emit_waveform_loading_placeholder(primitives, layout.waveform_plot, style, motion_wave);
-    }
     emit_waveform_slice_previews(primitives, layout.waveform_plot, style, model);
     let annotations = compute_waveform_annotation_rects_with_nanos(
         layout.waveform_plot,
