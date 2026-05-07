@@ -86,58 +86,12 @@ pub(in crate::app_core::native_shell::composition::state) fn push_border(
     color: crate::gui::types::Rgba8,
     stroke: f32,
 ) {
-    let stroke = stroke.max(1.0);
-    if rect.width() <= stroke * 2.0 || rect.height() <= stroke * 2.0 {
-        return;
-    }
-    emit_primitive(
-        primitives,
-        Primitive::Rect(FillRect {
-            rect: Rect::from_min_max(rect.min, Point::new(rect.max.x, rect.min.y + stroke)),
-            color,
-        }),
-    );
-    emit_primitive(
-        primitives,
-        Primitive::Rect(FillRect {
-            rect: Rect::from_min_max(Point::new(rect.min.x, rect.max.y - stroke), rect.max),
-            color,
-        }),
-    );
-    emit_primitive(
-        primitives,
-        Primitive::Rect(FillRect {
-            rect: Rect::from_min_max(rect.min, Point::new(rect.min.x + stroke, rect.max.y)),
-            color,
-        }),
-    );
-    emit_primitive(
-        primitives,
-        Primitive::Rect(FillRect {
-            rect: Rect::from_min_max(Point::new(rect.max.x - stroke, rect.min.y), rect.max),
-            color,
-        }),
-    );
+    push_border_sides(primitives, rect, color, stroke, BorderSides::ALL);
 }
 
 /// Per-edge border ownership used to avoid double-width seams between touching panels.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(in crate::app_core::native_shell::composition::state) struct BorderSides {
-    pub(in crate::app_core::native_shell::composition::state) top: bool,
-    pub(in crate::app_core::native_shell::composition::state) bottom: bool,
-    pub(in crate::app_core::native_shell::composition::state) left: bool,
-    pub(in crate::app_core::native_shell::composition::state) right: bool,
-}
-
-impl BorderSides {
-    /// Draw all four edges.
-    pub(in crate::app_core::native_shell::composition::state) const ALL: Self = Self {
-        top: true,
-        bottom: true,
-        left: true,
-        right: true,
-    };
-}
+pub(in crate::app_core::native_shell::composition::state) type BorderSides =
+    crate::gui::paint::BorderSides;
 
 /// Draw only the requested border edges for one rect.
 pub(in crate::app_core::native_shell::composition::state) fn push_border_sides(
@@ -147,45 +101,8 @@ pub(in crate::app_core::native_shell::composition::state) fn push_border_sides(
     stroke: f32,
     sides: BorderSides,
 ) {
-    let stroke = stroke.max(1.0);
-    if rect.width() <= stroke * 2.0 || rect.height() <= stroke * 2.0 {
-        return;
-    }
-    if sides.top {
-        emit_primitive(
-            primitives,
-            Primitive::Rect(FillRect {
-                rect: Rect::from_min_max(rect.min, Point::new(rect.max.x, rect.min.y + stroke)),
-                color,
-            }),
-        );
-    }
-    if sides.bottom {
-        emit_primitive(
-            primitives,
-            Primitive::Rect(FillRect {
-                rect: Rect::from_min_max(Point::new(rect.min.x, rect.max.y - stroke), rect.max),
-                color,
-            }),
-        );
-    }
-    if sides.left {
-        emit_primitive(
-            primitives,
-            Primitive::Rect(FillRect {
-                rect: Rect::from_min_max(rect.min, Point::new(rect.min.x + stroke, rect.max.y)),
-                color,
-            }),
-        );
-    }
-    if sides.right {
-        emit_primitive(
-            primitives,
-            Primitive::Rect(FillRect {
-                rect: Rect::from_min_max(Point::new(rect.max.x - stroke, rect.min.y), rect.max),
-                color,
-            }),
-        );
+    for fill in crate::gui::paint::border_fill_rects(rect, color, stroke, sides) {
+        emit_primitive(primitives, Primitive::Rect(fill));
     }
 }
 

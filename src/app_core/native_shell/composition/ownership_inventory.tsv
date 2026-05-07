@@ -56,6 +56,7 @@ status_surface.rs	sempal_composition	OPT-187	Status surface projection moves wit
 top_bar_surface.rs	sempal_composition	OPT-187	Top bar surface projection moves with top, status, options, and overlay composition.
 waveform_header_surface.rs	sempal_composition	OPT-190	Waveform header surface projection moves with waveform composition.
 waveform_toolbar_surface.rs	sempal_composition	OPT-190	Waveform toolbar surface projection moves with waveform composition.
+widget_nodes.rs	sempal_composition	OPT-191	Sempal retained-shell surfaces share one local Radiant widget construction helper while the runtime boundary remains on SurfaceNode.
 state.rs	compat_adapter	OPT-191	NativeShellState facade coordinates Sempal model sync, frame build, automation, and retained caches.
 state/automation.rs	sempal_composition	OPT-191	Automation facade moves after surface DTO and composition moves settle.
 state/automation/**	sempal_composition	OPT-191	Sempal automation nodes move after surface DTO and composition moves settle.

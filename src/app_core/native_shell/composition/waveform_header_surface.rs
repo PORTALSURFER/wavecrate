@@ -133,17 +133,21 @@ fn build_waveform_header_surface(
                 vec![
                     SurfaceChild::new(
                         text_slot(sizing.font_header),
-                        text_widget(
+                        text_node(
                             WAVEFORM_HEADER_TITLE_ID,
                             &content.title,
+                            1.0,
+                            sizing.font_header.max(1.0),
                             sizing.font_header.max(1.0),
                         ),
                     ),
                     SurfaceChild::new(
                         text_slot(sizing.font_meta),
-                        text_widget(
+                        text_node(
                             WAVEFORM_HEADER_METADATA_ID,
                             &content.metadata,
+                            1.0,
+                            sizing.font_meta.max(1.0),
                             sizing.font_meta.max(1.0),
                         ),
                     ),
@@ -155,10 +159,6 @@ fn build_waveform_header_surface(
             ),
         )],
     ))
-}
-
-fn text_widget(id: u64, text: &str, font_size: f32) -> SurfaceNode<()> {
-    text_node(id, text, 1.0, font_size, font_size)
 }
 
 fn text_slot(font_size: f32) -> SlotParams {

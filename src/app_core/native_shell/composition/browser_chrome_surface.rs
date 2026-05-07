@@ -236,11 +236,11 @@ fn build_browser_tabs_surface(
         vec![
             SurfaceChild::new(
                 fill_slot(tab_min_width),
-                button_widget(TABS_ITEMS_ID, &content.items_label, 1.0, 1.0),
+                button_node(TABS_ITEMS_ID, &content.items_label, 1.0, 1.0),
             ),
             SurfaceChild::new(
                 fill_slot(tab_min_width),
-                button_widget(TABS_MAP_ID, &content.map_label, 1.0, 1.0),
+                button_node(TABS_MAP_ID, &content.map_label, 1.0, 1.0),
             ),
         ],
     ))
@@ -282,10 +282,6 @@ fn build_browser_toolbar_surface(
             ),
         )],
     ))
-}
-
-fn button_widget(id: u64, label: &str, width: f32, height: f32) -> SurfaceNode<()> {
-    button_node(id, label, width, height)
 }
 
 fn fill_slot(min_width: f32) -> SlotParams {

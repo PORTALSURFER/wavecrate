@@ -27,55 +27,27 @@ pub(crate) fn render_active_text_field(
     selection_color: Rgba8,
     caret_color: Rgba8,
 ) {
-    emit_primitive(
-        primitives,
-        Primitive::Rect(FillRect {
-            rect: field_rect,
-            color: fill_color,
-        }),
-    );
-    push_border(primitives, field_rect, border_color, sizing.border_width);
-    if let Some((start, end)) = visual.selection_offsets
-        && end > start
-    {
-        emit_primitive(
-            primitives,
-            Primitive::Rect(FillRect {
-                rect: Rect::from_min_max(
-                    Point::new(text_rect.min.x + start, text_rect.min.y),
-                    Point::new(text_rect.min.x + end, text_rect.max.y),
-                ),
-                color: selection_color,
-            }),
-        );
+    let output = crate::gui::paint::text_field_paint(crate::gui::paint::TextFieldPaint {
+        field_rect,
+        text_rect,
+        text: visual.text.clone(),
+        caret_offset: visual.caret_offset,
+        selection_offsets: visual.selection_offsets,
+        font_size: sizing.font_meta,
+        fill_color,
+        border_color,
+        selection_color,
+        caret_color,
+        text_color: style.text_primary,
+        stroke_width: sizing.border_width,
+    });
+
+    for primitive in output.primitives {
+        emit_primitive(primitives, primitive);
     }
-    if !visual.text.is_empty() {
-        emit_text(
-            text_runs,
-            TextRun {
-                text: visual.text.clone(),
-                position: text_rect.min,
-                font_size: sizing.font_meta,
-                color: style.text_primary,
-                max_width: Some(text_rect.width().max(24.0)),
-                align: TextAlign::Left,
-            },
-        );
+    if let Some(text_run) = output.text_run {
+        emit_text(text_runs, text_run);
     }
-    let caret_rect = Rect::from_min_max(
-        Point::new(text_rect.min.x + visual.caret_offset, text_rect.min.y),
-        Point::new(
-            text_rect.min.x + visual.caret_offset + sizing.border_width.max(1.0),
-            text_rect.max.y,
-        ),
-    );
-    emit_primitive(
-        primitives,
-        Primitive::Rect(FillRect {
-            rect: caret_rect,
-            color: caret_color,
-        }),
-    );
 }
 
 /// Render the active browser-search editor fill, selection, text, and caret.

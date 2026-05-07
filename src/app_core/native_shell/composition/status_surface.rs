@@ -7,7 +7,7 @@
 
 use super::{
     style::SizingTokens,
-    widget_nodes::{canvas_node, text_node},
+    widget_nodes::{canvas_node, spacer_node, text_node},
 };
 use crate::{
     gui::types::{Point, Rect},
@@ -124,7 +124,7 @@ pub(crate) fn build_status_surface(
                     ),
                     SurfaceChild::new(
                         fixed_slot(sizing.status_segment_gap),
-                        spacer_surface(STATUS_LEFT_GAP_ID),
+                        spacer_node(STATUS_LEFT_GAP_ID),
                     ),
                     SurfaceChild::new(
                         SlotParams::fill(),
@@ -138,7 +138,7 @@ pub(crate) fn build_status_surface(
                     ),
                     SurfaceChild::new(
                         fixed_slot(sizing.status_segment_gap),
-                        spacer_surface(STATUS_RIGHT_GAP_ID),
+                        spacer_node(STATUS_RIGHT_GAP_ID),
                     ),
                     SurfaceChild::new(
                         percent_slot(STATUS_RIGHT_RATIO),
@@ -152,7 +152,7 @@ pub(crate) fn build_status_surface(
                     ),
                     SurfaceChild::new(
                         fixed_slot(sizing.status_segment_gap),
-                        spacer_surface(STATUS_PROGRESS_GAP_ID),
+                        spacer_node(STATUS_PROGRESS_GAP_ID),
                     ),
                     SurfaceChild::new(
                         fixed_slot(progress_width),
@@ -324,10 +324,6 @@ fn progress_slot_width(viewport_width: f32, sizing: SizingTokens) -> f32 {
     let inner_width = (viewport_width - (sizing.panel_inset.max(0.0) * 2.0)).max(0.0);
     (inner_width * STATUS_PROGRESS_RATIO)
         .clamp(STATUS_PROGRESS_MIN_WIDTH, STATUS_PROGRESS_MAX_WIDTH)
-}
-
-fn spacer_surface(id: u64) -> SurfaceNode<()> {
-    canvas_node(id, 1.0, 1.0)
 }
 
 fn percent_slot(ratio: f32) -> SlotParams {

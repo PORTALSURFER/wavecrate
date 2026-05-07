@@ -7,7 +7,7 @@
 
 use super::{
     style::SizingTokens,
-    widget_nodes::{button_node, canvas_node, text_node},
+    widget_nodes::{button_node, canvas_node, spacer_node, text_node},
 };
 use crate::{
     app::{AppModel, UiAction, UpdateStatusModel},
@@ -344,25 +344,33 @@ fn build_title_cluster(
                     ),
                     SurfaceChild::new(
                         fixed_slot(value_width),
-                        text_widget(
+                        text_node(
                             TOP_VOLUME_VALUE_ID,
                             &content.volume_value,
                             value_width,
+                            sizing.font_meta,
                             sizing.font_meta,
                         ),
                     ),
                     SurfaceChild::new(
                         fixed_slot(label_width),
-                        text_widget(
+                        text_node(
                             TOP_VOLUME_LABEL_ID,
                             &content.volume_label,
                             label_width,
+                            sizing.font_meta,
                             sizing.font_meta,
                         ),
                     ),
                     SurfaceChild::new(
                         SlotParams::fill(),
-                        text_widget(TOP_TITLE_TEXT_ID, &content.title, 1.0, title_height),
+                        text_node(
+                            TOP_TITLE_TEXT_ID,
+                            &content.title,
+                            1.0,
+                            title_height,
+                            title_height,
+                        ),
                     ),
                 ],
             ),
@@ -381,7 +389,7 @@ fn build_action_cluster(
     let mut children = Vec::with_capacity(visible_update_count + 2);
     children.push(SurfaceChild::new(
         SlotParams::fill(),
-        spacer_widget(TOP_ACTION_SPACER_ID),
+        spacer_node(TOP_ACTION_SPACER_ID),
     ));
     let hidden_count = content
         .update_actions
@@ -493,14 +501,6 @@ fn visible_suffix_widths(widths: &[f32], available_width: f32, gap: f32) -> Vec<
     }
     reversed.reverse();
     reversed
-}
-
-fn text_widget(id: u64, text: &str, width: f32, font_size: f32) -> SurfaceNode<()> {
-    text_node(id, text, width, font_size, font_size)
-}
-
-fn spacer_widget(id: u64) -> SurfaceNode<()> {
-    canvas_node(id, 1.0, 1.0)
 }
 
 fn fixed_slot(width: f32) -> SlotParams {

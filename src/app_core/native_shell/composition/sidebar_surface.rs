@@ -11,7 +11,10 @@ mod helpers;
 #[path = "sidebar_surface_tests.rs"]
 mod tests;
 
-use super::style::SizingTokens;
+use super::{
+    style::SizingTokens,
+    widget_nodes::{button_node, spacer_node, text_node},
+};
 use crate::{
     app::AppModel,
     gui::types::Rect,
@@ -21,8 +24,8 @@ use crate::{
     runtime::{SurfaceChild, SurfaceNode, UiSurface},
 };
 use helpers::{
-    button_widget, clamp_rect_to_bounds, fixed_slot, fixed_slot_cross_fill, fixed_slot_with_cross,
-    footer_action_button_width, header_button_side, rect_for, text_widget,
+    clamp_rect_to_bounds, fixed_slot, fixed_slot_cross_fill, fixed_slot_with_cross,
+    footer_action_button_width, header_button_side, rect_for,
 };
 
 const HEADER_ROOT_ID: u64 = 1120;
@@ -251,7 +254,7 @@ fn build_sidebar_header_surface(
                     SurfaceChild::new(SlotParams::fill(), header_text_column(content, sizing)),
                     SurfaceChild::new(
                         fixed_slot_with_cross(button_side, button_side),
-                        button_widget(HEADER_ADD_BUTTON_ID, "+", button_side, button_side),
+                        button_node(HEADER_ADD_BUTTON_ID, "+", button_side, button_side),
                     ),
                 ],
             ),
@@ -269,12 +272,12 @@ fn build_sidebar_footer_surface(
     let mut action_children = Vec::with_capacity(content.actions.len() + 1);
     action_children.push(SurfaceChild::new(
         SlotParams::fill(),
-        text_widget(FOOTER_ACTION_SPACER_ID, "", 1.0, 1.0),
+        spacer_node(FOOTER_ACTION_SPACER_ID),
     ));
     for (index, action) in content.actions.iter().enumerate() {
         action_children.push(SurfaceChild::new(
             fixed_slot(button_width),
-            button_widget(
+            button_node(
                 FOOTER_ACTION_BASE_ID + index as u64,
                 action.label,
                 button_width,
@@ -345,11 +348,23 @@ fn header_text_column(
         vec![
             SurfaceChild::new(
                 fixed_slot_cross_fill(sizing.font_header.max(1.0)),
-                text_widget(HEADER_TITLE_ID, &content.title, 1.0, sizing.font_header),
+                text_node(
+                    HEADER_TITLE_ID,
+                    &content.title,
+                    1.0,
+                    sizing.font_header,
+                    sizing.font_header,
+                ),
             ),
             SurfaceChild::new(
                 fixed_slot_cross_fill(sizing.font_meta.max(1.0)),
-                text_widget(HEADER_QUERY_ID, &content.query, 1.0, sizing.font_meta),
+                text_node(
+                    HEADER_QUERY_ID,
+                    &content.query,
+                    1.0,
+                    sizing.font_meta,
+                    sizing.font_meta,
+                ),
             ),
         ],
     )
@@ -385,19 +400,21 @@ fn footer_summary_surface(
                 vec![
                     SurfaceChild::new(
                         fixed_slot_cross_fill(sizing.font_meta.max(1.0)),
-                        text_widget(
+                        text_node(
                             FOOTER_PRIMARY_ID,
                             &content.primary_summary,
                             1.0,
+                            sizing.font_meta,
                             sizing.font_meta,
                         ),
                     ),
                     SurfaceChild::new(
                         fixed_slot_cross_fill(sizing.font_meta.max(1.0)),
-                        text_widget(
+                        text_node(
                             FOOTER_SECONDARY_ID,
                             &content.secondary_summary,
                             1.0,
+                            sizing.font_meta,
                             sizing.font_meta,
                         ),
                     ),

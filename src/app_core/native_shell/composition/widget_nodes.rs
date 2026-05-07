@@ -86,6 +86,10 @@ pub(super) fn canvas_node(id: u64, width: f32, height: f32) -> SurfaceNode<()> {
     SurfaceNode::static_widget(CanvasWidget::new(id, fixed_size(width, height)))
 }
 
+pub(super) fn spacer_node(id: u64) -> SurfaceNode<()> {
+    canvas_node(id, 1.0, 1.0)
+}
+
 fn fixed_size(width: f32, height: f32) -> WidgetSizing {
     WidgetSizing::fixed(Vector2::new(width.max(1.0), height.max(1.0)))
 }

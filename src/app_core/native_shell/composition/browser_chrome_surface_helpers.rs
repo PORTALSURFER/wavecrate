@@ -1,6 +1,6 @@
 use super::*;
 use crate::app_core::native_shell::composition::widget_nodes::{
-    canvas_node, text_input_node, text_node, toggle_square_node,
+    button_node, canvas_node, text_input_node, text_node, toggle_square_node,
 };
 use crate::{
     gui::types::Rect,
@@ -37,7 +37,7 @@ pub(super) fn build_toolbar_children(
         }
         children.push(SurfaceChild::new(
             fixed_slot(widths.filter_side, widths.filter_side),
-            toggle_widget(
+            toggle_square_node(
                 TOOLBAR_RATING_BASE_ID + index as u64,
                 chip_label(index),
                 widths.filter_side,
@@ -53,7 +53,7 @@ pub(super) fn build_toolbar_children(
         }
         children.push(SurfaceChild::new(
             fixed_slot(widths.filter_side, widths.filter_side),
-            toggle_widget(
+            toggle_square_node(
                 TOOLBAR_PLAYBACK_BASE_ID + index as u64,
                 playback_chip_label(index),
                 widths.filter_side,
@@ -64,13 +64,13 @@ pub(super) fn build_toolbar_children(
     spacer_id += 1;
     children.push(SurfaceChild::new(
         fixed_slot(widths.filter_side, widths.filter_side),
-        toggle_widget(TOOLBAR_MARKED_ID, "Marked", widths.filter_side),
+        toggle_square_node(TOOLBAR_MARKED_ID, "Marked", widths.filter_side),
     ));
     children.push(spacer_child(spacer_id, widths.filter_gap));
     spacer_id += 1;
     children.push(SurfaceChild::new(
         fixed_slot(widths.filter_side, widths.filter_side),
-        toggle_widget(
+        toggle_square_node(
             TOOLBAR_DERIVED_LABEL_ID,
             "Derived label",
             widths.filter_side,
@@ -80,7 +80,7 @@ pub(super) fn build_toolbar_children(
     spacer_id += 1;
     children.push(SurfaceChild::new(
         fixed_slot(widths.action_side, widths.action_side),
-        button_widget(
+        button_node(
             TOOLBAR_RANDOM_ID,
             "Random",
             widths.action_side,
@@ -91,7 +91,7 @@ pub(super) fn build_toolbar_children(
     spacer_id += 1;
     children.push(SurfaceChild::new(
         fixed_slot(widths.action_side, widths.action_side),
-        button_widget(
+        button_node(
             TOOLBAR_CLEANUP_ID,
             "Cleanup",
             widths.action_side,
@@ -102,10 +102,10 @@ pub(super) fn build_toolbar_children(
     spacer_id += 1;
     children.push(SurfaceChild::new(
         fixed_slot(widths.search_width, search_height),
-        text_input_widget(
+        text_input_node(
             TOOLBAR_SEARCH_ID,
             &content.search_value,
-            &content.search_placeholder,
+            Some(&content.search_placeholder),
             widths.search_width,
             search_height,
         ),
@@ -114,7 +114,7 @@ pub(super) fn build_toolbar_children(
     spacer_id += 1;
     children.push(SurfaceChild::new(
         fixed_slot(widths.tag_width, search_height),
-        button_widget(TOOLBAR_TAGS_ID, "Tags", widths.tag_width, search_height),
+        button_node(TOOLBAR_TAGS_ID, "Tags", widths.tag_width, search_height),
     ));
     if widths.activity_width > 0.0 {
         children.push(spacer_child(spacer_id, widths.gap));
@@ -122,7 +122,7 @@ pub(super) fn build_toolbar_children(
     }
     children.push(SurfaceChild::new(
         fixed_slot(widths.activity_width, chip_label_height),
-        text_widget(
+        text_node(
             TOOLBAR_ACTIVITY_ID,
             &content.activity_label,
             widths.activity_width,
@@ -135,7 +135,7 @@ pub(super) fn build_toolbar_children(
     }
     children.push(SurfaceChild::new(
         fixed_slot(widths.sort_width, chip_label_height),
-        text_widget(
+        text_node(
             TOOLBAR_SORT_ID,
             &content.sort_label,
             widths.sort_width,
@@ -146,7 +146,7 @@ pub(super) fn build_toolbar_children(
     for index in 0..BROWSER_TRIAGE_CHIP_COUNT {
         children.push(SurfaceChild::new(
             fixed_slot(0.0, chip_label_height),
-            text_widget(
+            text_node(
                 TOOLBAR_TRIAGE_BASE_ID + index as u64,
                 "",
                 0.0,
@@ -260,24 +260,6 @@ fn playback_chip_label(index: usize) -> &'static str {
         2 => "Week",
         _ => "",
     }
-}
-
-fn toggle_widget(id: u64, label: &str, side: f32) -> SurfaceNode<()> {
-    toggle_square_node(id, label, side)
-}
-
-fn text_input_widget(
-    id: u64,
-    value: &str,
-    placeholder: &str,
-    width: f32,
-    height: f32,
-) -> SurfaceNode<()> {
-    text_input_node(id, value, Some(placeholder), width, height)
-}
-
-fn text_widget(id: u64, text: &str, width: f32, height: f32, font_size: f32) -> SurfaceNode<()> {
-    text_node(id, text, width, height, font_size)
 }
 
 fn fixed_slot(width: f32, height: f32) -> SlotParams {
