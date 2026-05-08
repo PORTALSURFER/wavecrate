@@ -35,6 +35,7 @@ mod tests {
         assert!(compat.maximized);
         assert!(!compat.decorations);
         assert_eq!(compat.target_fps, 90);
+        assert!(compat.drag_and_drop);
         let icon = compat.icon.expect("icon should be forwarded");
         assert_eq!(icon.rgba, vec![255, 0, 0, 255]);
         assert_eq!(icon.width, 1);
