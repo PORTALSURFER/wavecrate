@@ -38,9 +38,9 @@ validation expectations for `C:\dev\sempal`.
    - macOS/Linux/WSL: `bash scripts/doctor.sh`
 
 ## Non-Negotiable Workflow Rules
-- Use `main` as the development branch for `C:\dev\sempal` unless the user explicitly directs otherwise.
-- Keep `C:\dev\sempal` on local `main` tracking `origin/main`; the repo hook installer and `scripts/check.* main-branch` branch guard are the enforcement path.
-- `C:\dev\sempal\vendor\radiant` remains a nested repo with its own branch policy; use its current default branch unless explicitly changing the Radiant repo too.
+- Use `main` as the default base branch for `C:\dev\sempal`; feature work should happen on a feature branch and merge through a PR.
+- Keep local `main` tracking `origin/main`; the repo hook installer and `scripts/check.* main-branch` branch guard enforce the base-branch contract while allowing feature branches for PR work.
+- `C:\dev\sempal\vendor\radiant` also uses local `main` tracking `origin/main`; update the submodule pointer from a Sempal feature branch and merge it through a Sempal PR.
 - During the tight edit loop:
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 smoke`
   - macOS/Linux/WSL: `bash scripts/ci.sh smoke`

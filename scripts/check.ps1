@@ -34,7 +34,6 @@ $commands = @{
   "markdown-links" = "check_markdown_links.ps1"
   "main-branch" = "check_next_branch.ps1"
   "migration-boundary" = "check_migration_boundary.ps1"
-  "next-branch" = "check_next_branch.ps1"
   "private-docs" = "check_rust_private_docs.ps1"
   "prune-file-budget" = "prune_file_size_budget_allowlist.ps1"
   "public-docs" = "check_rust_public_docs.ps1"

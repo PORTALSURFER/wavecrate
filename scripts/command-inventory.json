@@ -220,10 +220,6 @@
           "target": "check_next_branch.ps1"
         },
         {
-          "name": "next-branch",
-          "target": "check_next_branch.ps1"
-        },
-        {
           "name": "private-docs",
           "target": "check_rust_private_docs.ps1"
         },
