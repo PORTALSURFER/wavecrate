@@ -57,9 +57,6 @@ pub(crate) mod layout {
 pub(crate) mod runtime {
     pub(crate) use radiant::runtime::*;
 }
-pub(crate) mod widgets {
-    pub(crate) use radiant::widgets::*;
-}
 /// Backend-agnostic GUI façade for the `radiant`-based UI stack.
 ///
 /// This crate exposes GUI declarations (`radiant` APIs) to application code while

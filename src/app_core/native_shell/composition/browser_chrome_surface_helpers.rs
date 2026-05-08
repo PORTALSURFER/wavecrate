@@ -1,12 +1,6 @@
 use super::*;
-use crate::app_core::native_shell::composition::widget_nodes::{
-    canvas_node, text_input_node, text_node, toggle_square_node,
-};
-use crate::{
-    gui::types::Rect,
-    layout::{CrossAlign, Insets, SizeModeCross, SizeModeMain, SlotParams},
-    runtime::{SurfaceChild, SurfaceNode},
-};
+use crate::gui::types::Rect;
+use radiant::prelude as ui;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct BrowserToolbarSurfaceWidths {
@@ -27,7 +21,7 @@ pub(super) fn build_toolbar_children(
     search_height: f32,
     chip_label_height: f32,
     widths: BrowserToolbarSurfaceWidths,
-) -> Vec<SurfaceChild<()>> {
+) -> Vec<ui::ViewNode<()>> {
     let mut spacer_id = TOOLBAR_SORT_ID + 1;
     let mut children = Vec::new();
     for index in 0..BROWSER_RATING_FILTER_COUNT {
@@ -35,14 +29,13 @@ pub(super) fn build_toolbar_children(
             children.push(spacer_child(spacer_id, widths.filter_gap));
             spacer_id += 1;
         }
-        children.push(SurfaceChild::new(
-            fixed_slot(widths.filter_side, widths.filter_side),
-            toggle_widget(
-                TOOLBAR_RATING_BASE_ID + index as u64,
-                chip_label(index),
-                widths.filter_side,
-            ),
-        ));
+        children.push(
+            ui::passive_toggle(chip_label(index), false)
+                .id(TOOLBAR_RATING_BASE_ID + index as u64)
+                .size(widths.filter_side, widths.filter_side)
+                .width(widths.filter_side)
+                .height(widths.filter_side),
+        );
     }
     children.push(spacer_child(spacer_id, widths.filter_group_gap));
     spacer_id += 1;
@@ -51,118 +44,106 @@ pub(super) fn build_toolbar_children(
             children.push(spacer_child(spacer_id, widths.filter_gap));
             spacer_id += 1;
         }
-        children.push(SurfaceChild::new(
-            fixed_slot(widths.filter_side, widths.filter_side),
-            toggle_widget(
-                TOOLBAR_PLAYBACK_BASE_ID + index as u64,
-                playback_chip_label(index),
-                widths.filter_side,
-            ),
-        ));
+        children.push(
+            ui::passive_toggle(playback_chip_label(index), false)
+                .id(TOOLBAR_PLAYBACK_BASE_ID + index as u64)
+                .size(widths.filter_side, widths.filter_side)
+                .width(widths.filter_side)
+                .height(widths.filter_side),
+        );
     }
     children.push(spacer_child(spacer_id, widths.filter_group_gap));
     spacer_id += 1;
-    children.push(SurfaceChild::new(
-        fixed_slot(widths.filter_side, widths.filter_side),
-        toggle_widget(TOOLBAR_MARKED_ID, "Marked", widths.filter_side),
-    ));
+    children.push(
+        ui::passive_toggle("Marked", false)
+            .id(TOOLBAR_MARKED_ID)
+            .size(widths.filter_side, widths.filter_side)
+            .width(widths.filter_side)
+            .height(widths.filter_side),
+    );
     children.push(spacer_child(spacer_id, widths.filter_gap));
     spacer_id += 1;
-    children.push(SurfaceChild::new(
-        fixed_slot(widths.filter_side, widths.filter_side),
-        toggle_widget(
-            TOOLBAR_DERIVED_LABEL_ID,
-            "Derived label",
-            widths.filter_side,
-        ),
-    ));
+    children.push(
+        ui::passive_toggle("Derived label", false)
+            .id(TOOLBAR_DERIVED_LABEL_ID)
+            .size(widths.filter_side, widths.filter_side)
+            .width(widths.filter_side)
+            .height(widths.filter_side),
+    );
     children.push(spacer_child(spacer_id, widths.gap));
     spacer_id += 1;
-    children.push(SurfaceChild::new(
-        fixed_slot(widths.action_side, widths.action_side),
-        button_widget(
-            TOOLBAR_RANDOM_ID,
-            "Random",
-            widths.action_side,
-            widths.action_side,
-        ),
-    ));
+    children.push(
+        ui::passive_button("Random")
+            .id(TOOLBAR_RANDOM_ID)
+            .size(widths.action_side, widths.action_side)
+            .width(widths.action_side)
+            .height(widths.action_side),
+    );
     children.push(spacer_child(spacer_id, widths.gap));
     spacer_id += 1;
-    children.push(SurfaceChild::new(
-        fixed_slot(widths.action_side, widths.action_side),
-        button_widget(
-            TOOLBAR_CLEANUP_ID,
-            "Cleanup",
-            widths.action_side,
-            widths.action_side,
-        ),
-    ));
+    children.push(
+        ui::passive_button("Cleanup")
+            .id(TOOLBAR_CLEANUP_ID)
+            .size(widths.action_side, widths.action_side)
+            .width(widths.action_side)
+            .height(widths.action_side),
+    );
     children.push(spacer_child(spacer_id, widths.gap));
     spacer_id += 1;
-    children.push(SurfaceChild::new(
-        fixed_slot(widths.search_width, search_height),
-        text_input_widget(
-            TOOLBAR_SEARCH_ID,
-            &content.search_value,
-            &content.search_placeholder,
-            widths.search_width,
-            search_height,
-        ),
-    ));
+    children.push(
+        ui::passive_text_input(&content.search_value, &content.search_placeholder)
+            .id(TOOLBAR_SEARCH_ID)
+            .size(widths.search_width, search_height)
+            .width(widths.search_width)
+            .height(search_height),
+    );
     children.push(spacer_child(spacer_id, widths.gap));
     spacer_id += 1;
-    children.push(SurfaceChild::new(
-        fixed_slot(widths.tag_width, search_height),
-        button_widget(TOOLBAR_TAGS_ID, "Tags", widths.tag_width, search_height),
-    ));
+    children.push(
+        ui::passive_button("Tags")
+            .id(TOOLBAR_TAGS_ID)
+            .size(widths.tag_width, search_height)
+            .width(widths.tag_width)
+            .height(search_height),
+    );
     if widths.activity_width > 0.0 {
         children.push(spacer_child(spacer_id, widths.gap));
         spacer_id += 1;
     }
-    children.push(SurfaceChild::new(
-        fixed_slot(widths.activity_width, chip_label_height),
-        text_widget(
-            TOOLBAR_ACTIVITY_ID,
-            &content.activity_label,
-            widths.activity_width,
-            chip_label_height,
-            chip_label_height,
-        ),
-    ));
+    children.push(
+        ui::text(&content.activity_label)
+            .id(TOOLBAR_ACTIVITY_ID)
+            .size(widths.activity_width, chip_label_height)
+            .baseline((chip_label_height * 0.75).max(0.0))
+            .width(widths.activity_width)
+            .height(chip_label_height),
+    );
     if widths.sort_width > 0.0 {
         children.push(spacer_child(spacer_id, widths.gap));
     }
-    children.push(SurfaceChild::new(
-        fixed_slot(widths.sort_width, chip_label_height),
-        text_widget(
-            TOOLBAR_SORT_ID,
-            &content.sort_label,
-            widths.sort_width,
-            chip_label_height,
-            chip_label_height,
-        ),
-    ));
+    children.push(
+        ui::text(&content.sort_label)
+            .id(TOOLBAR_SORT_ID)
+            .size(widths.sort_width, chip_label_height)
+            .baseline((chip_label_height * 0.75).max(0.0))
+            .width(widths.sort_width)
+            .height(chip_label_height),
+    );
     for index in 0..BROWSER_TRIAGE_CHIP_COUNT {
-        children.push(SurfaceChild::new(
-            fixed_slot(0.0, chip_label_height),
-            text_widget(
-                TOOLBAR_TRIAGE_BASE_ID + index as u64,
-                "",
-                0.0,
-                chip_label_height,
-                chip_label_height,
-            ),
-        ));
+        children.push(
+            ui::text("")
+                .id(TOOLBAR_TRIAGE_BASE_ID + index as u64)
+                .size(1.0, chip_label_height)
+                .baseline((chip_label_height * 0.75).max(0.0))
+                .width(0.0)
+                .height(chip_label_height),
+        );
     }
-    children.push(SurfaceChild::new(
-        SlotParams::fill(),
-        canvas_node(
-            TOOLBAR_TRIAGE_BASE_ID + BROWSER_TRIAGE_CHIP_COUNT as u64,
-            1.0,
-            1.0,
-        ),
-    ));
+    children.push(
+        ui::canvas()
+            .id(TOOLBAR_TRIAGE_BASE_ID + BROWSER_TRIAGE_CHIP_COUNT as u64)
+            .fill(),
+    );
     children
 }
 
@@ -262,40 +243,10 @@ fn playback_chip_label(index: usize) -> &'static str {
     }
 }
 
-fn toggle_widget(id: u64, label: &str, side: f32) -> SurfaceNode<()> {
-    toggle_square_node(id, label, side)
-}
-
-fn text_input_widget(
-    id: u64,
-    value: &str,
-    placeholder: &str,
-    width: f32,
-    height: f32,
-) -> SurfaceNode<()> {
-    text_input_node(id, value, Some(placeholder), width, height)
-}
-
-fn text_widget(id: u64, text: &str, width: f32, height: f32, font_size: f32) -> SurfaceNode<()> {
-    text_node(id, text, width, height, font_size)
-}
-
-fn fixed_slot(width: f32, height: f32) -> SlotParams {
-    SlotParams {
-        size_main: SizeModeMain::Fixed(width.max(0.0)),
-        size_cross: SizeModeCross::Fixed(height.max(0.0)),
-        constraints: Constraints::new(
-            width.max(0.0),
-            width.max(0.0),
-            height.max(0.0),
-            height.max(0.0),
-        ),
-        margin: Insets::default(),
-        align_cross_override: Some(CrossAlign::Center),
-        allow_fixed_compress: false,
-    }
-}
-
-fn spacer_child(id: u64, width: f32) -> SurfaceChild<()> {
-    SurfaceChild::new(fixed_slot(width.max(0.0), 1.0), canvas_node(id, width, 1.0))
+fn spacer_child(id: u64, width: f32) -> ui::ViewNode<()> {
+    ui::spacer()
+        .id(id)
+        .size(width.max(1.0), 1.0)
+        .width(width.max(0.0))
+        .height(1.0)
 }

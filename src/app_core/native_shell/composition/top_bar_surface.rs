@@ -5,19 +5,15 @@
 //! options, and update-action composition, while the compatibility shell still
 //! paints those resolved rects with the existing native theme.
 
-use super::{
-    style::SizingTokens,
-    widget_nodes::{button_node, canvas_node, text_node},
-};
+use super::style::SizingTokens;
 use crate::{
     app::{AppModel, UiAction, UpdateStatusModel},
     gui::types::{Point, Rect},
-    layout::{
-        Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, MainAlign, OverflowPolicy,
-        SizeModeCross, SizeModeMain, SlotParams, layout_tree,
-    },
-    runtime::{SurfaceChild, SurfaceNode, UiSurface},
+    layout::layout_tree,
+    runtime::UiSurface,
 };
+use radiant::prelude as ui;
+use radiant::prelude::IntoView;
 
 const TOP_ROOT_ID: u64 = 1040;
 const TOP_ROW_ID: u64 = 1041;
@@ -246,60 +242,39 @@ fn build_top_bar_surface(
     );
     let visible_update_count = update_widths.len();
 
-    UiSurface::new(SurfaceNode::container(
-        TOP_ROOT_ID,
-        ContainerPolicy {
-            kind: ContainerKind::PaddingBox,
-            padding: Insets {
-                left: sizing.panel_inset.max(0.0),
-                right: sizing.panel_inset.max(0.0),
-                ..Insets::default()
-            },
-            align_cross: CrossAlign::Stretch,
-            overflow: OverflowPolicy::Clip,
-            ..ContainerPolicy::default()
-        },
-        vec![SurfaceChild::new(
-            SlotParams::fill(),
-            SurfaceNode::container(
-                TOP_ROW_ID,
-                ContainerPolicy {
-                    kind: ContainerKind::Row,
-                    spacing: sizing.top_bar_cluster_gap.max(0.0),
-                    align_main: MainAlign::Start,
-                    align_cross: CrossAlign::Stretch,
-                    overflow: OverflowPolicy::Clip,
-                    ..ContainerPolicy::default()
-                },
-                vec![
-                    SurfaceChild::new(
-                        SlotParams::fill(),
-                        build_title_cluster(
-                            content,
-                            sizing,
-                            volume_meter_width,
-                            volume_meter_height,
-                            volume_value_width,
-                            volume_label_width,
-                            volume_gap,
-                            title_text_height,
-                        ),
-                    ),
-                    SurfaceChild::new(
-                        fixed_slot(action_cluster_width),
-                        build_action_cluster(
-                            content,
-                            sizing,
-                            options_button_width,
-                            button_height,
-                            &update_widths,
-                            visible_update_count,
-                        ),
-                    ),
-                ],
-            ),
-        )],
-    ))
+    let row = ui::row([
+        build_title_cluster(
+            content,
+            sizing,
+            volume_meter_width,
+            volume_meter_height,
+            volume_value_width,
+            volume_label_width,
+            volume_gap,
+            title_text_height,
+        )
+        .fill(),
+        build_action_cluster(
+            content,
+            sizing,
+            options_button_width,
+            button_height,
+            &update_widths,
+            visible_update_count,
+        )
+        .width(action_cluster_width)
+        .fill_height(),
+    ])
+    .id(TOP_ROW_ID)
+    .spacing(sizing.top_bar_cluster_gap.max(0.0))
+    .fill();
+    UiSurface::new(
+        ui::column([row])
+            .id(TOP_ROOT_ID)
+            .padding_x(sizing.panel_inset.max(0.0))
+            .fill()
+            .into_node(),
+    )
 }
 
 fn build_title_cluster(
@@ -311,63 +286,40 @@ fn build_title_cluster(
     label_width: f32,
     gap: f32,
     title_height: f32,
-) -> SurfaceNode<()> {
-    SurfaceNode::container(
-        TOP_TITLE_CLUSTER_ID,
-        ContainerPolicy {
-            kind: ContainerKind::PaddingBox,
-            padding: Insets {
-                left: (sizing.text_inset_x + sizing.header_label_gutter).max(0.0),
-                right: (sizing.text_inset_x + sizing.header_label_gutter).max(0.0),
-                ..Insets::default()
-            },
-            align_cross: CrossAlign::Stretch,
-            overflow: OverflowPolicy::Clip,
-            ..ContainerPolicy::default()
-        },
-        vec![SurfaceChild::new(
-            SlotParams::fill(),
-            SurfaceNode::container(
-                TOP_TITLE_ROW_ID,
-                ContainerPolicy {
-                    kind: ContainerKind::Row,
-                    spacing: gap,
-                    align_main: MainAlign::Start,
-                    align_cross: CrossAlign::Center,
-                    overflow: OverflowPolicy::Clip,
-                    ..ContainerPolicy::default()
-                },
-                vec![
-                    SurfaceChild::new(
-                        fixed_slot_with_cross(meter_width, meter_height),
-                        canvas_node(TOP_VOLUME_METER_ID, meter_width, meter_height),
-                    ),
-                    SurfaceChild::new(
-                        fixed_slot(value_width),
-                        text_widget(
-                            TOP_VOLUME_VALUE_ID,
-                            &content.volume_value,
-                            value_width,
-                            sizing.font_meta,
-                        ),
-                    ),
-                    SurfaceChild::new(
-                        fixed_slot(label_width),
-                        text_widget(
-                            TOP_VOLUME_LABEL_ID,
-                            &content.volume_label,
-                            label_width,
-                            sizing.font_meta,
-                        ),
-                    ),
-                    SurfaceChild::new(
-                        SlotParams::fill(),
-                        text_widget(TOP_TITLE_TEXT_ID, &content.title, 1.0, title_height),
-                    ),
-                ],
-            ),
-        )],
-    )
+) -> ui::View<()> {
+    let meta_height = sizing.font_meta.max(1.0);
+    let row = ui::row([
+        ui::canvas()
+            .id(TOP_VOLUME_METER_ID)
+            .size(meter_width, meter_height)
+            .width(meter_width)
+            .height(meter_height),
+        ui::text(&content.volume_value)
+            .id(TOP_VOLUME_VALUE_ID)
+            .size(value_width, meta_height)
+            .baseline((meta_height * 0.75).max(0.0))
+            .width(value_width)
+            .height(meta_height),
+        ui::text(&content.volume_label)
+            .id(TOP_VOLUME_LABEL_ID)
+            .size(label_width, meta_height)
+            .baseline((meta_height * 0.75).max(0.0))
+            .width(label_width)
+            .height(meta_height),
+        ui::text(&content.title)
+            .id(TOP_TITLE_TEXT_ID)
+            .size(1.0, title_height)
+            .baseline((title_height * 0.75).max(0.0))
+            .fill_width()
+            .height(title_height),
+    ])
+    .id(TOP_TITLE_ROW_ID)
+    .spacing(gap)
+    .fill();
+    ui::column([row])
+        .id(TOP_TITLE_CLUSTER_ID)
+        .padding_x((sizing.text_inset_x + sizing.header_label_gutter).max(0.0))
+        .fill()
 }
 
 fn build_action_cluster(
@@ -377,65 +329,38 @@ fn build_action_cluster(
     button_height: f32,
     update_widths: &[f32],
     visible_update_count: usize,
-) -> SurfaceNode<()> {
-    let mut children = Vec::with_capacity(visible_update_count + 2);
-    children.push(SurfaceChild::new(
-        SlotParams::fill(),
-        spacer_widget(TOP_ACTION_SPACER_ID),
-    ));
+) -> ui::View<()> {
+    let mut children: Vec<ui::View<()>> = Vec::with_capacity(visible_update_count + 2);
+    children.push(ui::spacer().id(TOP_ACTION_SPACER_ID).fill());
     let hidden_count = content
         .update_actions
         .len()
         .saturating_sub(visible_update_count);
     for (index, width) in update_widths.iter().enumerate() {
         let spec = &content.update_actions[hidden_count + index];
-        children.push(SurfaceChild::new(
-            fixed_slot(*width),
-            button_node(
-                TOP_UPDATE_BUTTON_BASE_ID + (hidden_count + index) as u64,
-                spec.label,
-                *width,
-                button_height,
-            ),
-        ));
+        children.push(
+            ui::passive_button(spec.label)
+                .id(TOP_UPDATE_BUTTON_BASE_ID + (hidden_count + index) as u64)
+                .size(*width, button_height)
+                .width(*width)
+                .height(button_height),
+        );
     }
-    children.push(SurfaceChild::new(
-        fixed_slot(options_width),
-        button_node(
-            TOP_OPTIONS_BUTTON_ID,
-            &content.options_label,
-            options_width,
-            button_height,
-        ),
-    ));
-    SurfaceNode::container(
-        TOP_ACTION_CLUSTER_ID,
-        ContainerPolicy {
-            kind: ContainerKind::PaddingBox,
-            padding: Insets {
-                right: sizing.text_inset_x.max(3.0),
-                ..Insets::default()
-            },
-            align_cross: CrossAlign::Stretch,
-            overflow: OverflowPolicy::Clip,
-            ..ContainerPolicy::default()
-        },
-        vec![SurfaceChild::new(
-            SlotParams::fill(),
-            SurfaceNode::container(
-                TOP_ACTION_ROW_ID,
-                ContainerPolicy {
-                    kind: ContainerKind::Row,
-                    spacing: sizing.action_button_gap.max(1.0),
-                    align_main: MainAlign::Start,
-                    align_cross: CrossAlign::Center,
-                    overflow: OverflowPolicy::Clip,
-                    ..ContainerPolicy::default()
-                },
-                children,
-            ),
-        )],
-    )
+    children.push(
+        ui::passive_button(&content.options_label)
+            .id(TOP_OPTIONS_BUTTON_ID)
+            .size(options_width, button_height)
+            .width(options_width)
+            .height(button_height),
+    );
+    let row = ui::row(children)
+        .id(TOP_ACTION_ROW_ID)
+        .spacing(sizing.action_button_gap.max(1.0))
+        .fill();
+    ui::column([row])
+        .id(TOP_ACTION_CLUSTER_ID)
+        .padding_x(sizing.text_inset_x.max(3.0))
+        .fill()
 }
 
 fn top_bar_action_cluster_width(viewport_width: f32, sizing: SizingTokens) -> f32 {
@@ -493,39 +418,6 @@ fn visible_suffix_widths(widths: &[f32], available_width: f32, gap: f32) -> Vec<
     }
     reversed.reverse();
     reversed
-}
-
-fn text_widget(id: u64, text: &str, width: f32, font_size: f32) -> SurfaceNode<()> {
-    text_node(id, text, width, font_size, font_size)
-}
-
-fn spacer_widget(id: u64) -> SurfaceNode<()> {
-    canvas_node(id, 1.0, 1.0)
-}
-
-fn fixed_slot(width: f32) -> SlotParams {
-    let width = width.max(0.0);
-    SlotParams {
-        size_main: SizeModeMain::Fixed(width),
-        size_cross: SizeModeCross::Fill,
-        constraints: Constraints::new(width, width, 0.0, f32::INFINITY),
-        margin: Insets::default(),
-        align_cross_override: Some(CrossAlign::Stretch),
-        allow_fixed_compress: false,
-    }
-}
-
-fn fixed_slot_with_cross(width: f32, height: f32) -> SlotParams {
-    let width = width.max(0.0);
-    let height = height.max(0.0);
-    SlotParams {
-        size_main: SizeModeMain::Fixed(width),
-        size_cross: SizeModeCross::Fixed(height),
-        constraints: Constraints::new(width, width, height, height),
-        margin: Insets::default(),
-        align_cross_override: Some(CrossAlign::Center),
-        allow_fixed_compress: false,
-    }
 }
 
 fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
@@ -593,7 +485,7 @@ mod tests {
     }
 
     #[test]
-    fn top_bar_surface_projects_widget_nodes() {
+    fn top_bar_surface_projects_radiant_primitives() {
         let style = StyleTokens::for_viewport_width(1280.0);
         let surface = build_top_bar_surface(&content(), style.sizing, 1280.0);
         assert_widget_node(&surface, TOP_TITLE_TEXT_ID);

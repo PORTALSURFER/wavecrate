@@ -1,14 +1,7 @@
 //! Shared widget, slot, and clamp helpers for sidebar chrome surfaces.
 
-use crate::app_core::native_shell::composition::{
-    style::SizingTokens,
-    widget_nodes::{button_node, text_node},
-};
-use crate::{
-    gui::types::{Point, Rect, Vector2},
-    layout::{Constraints, CrossAlign, Insets, SizeModeCross, SizeModeMain, SlotParams},
-    runtime::SurfaceNode,
-};
+use crate::app_core::native_shell::composition::style::SizingTokens;
+use crate::gui::types::{Point, Rect, Vector2};
 
 /// Return the canonical square sidebar-header add-button edge length.
 pub(super) fn header_button_side(sizing: SizingTokens) -> f32 {
@@ -32,57 +25,6 @@ pub(super) fn footer_action_button_width(
         / button_count as f32)
         .min(sizing.sidebar_action_button_width)
         .max(1.0)
-}
-
-/// Build one fixed-height text widget node for a generic sidebar surface.
-pub(super) fn text_widget(id: u64, text: &str, width: f32, height: f32) -> SurfaceNode<()> {
-    text_node(id, text, width, height, height)
-}
-
-/// Build one fixed-size button widget node for a generic sidebar surface.
-pub(super) fn button_widget(id: u64, label: &str, width: f32, height: f32) -> SurfaceNode<()> {
-    button_node(id, label, width, height)
-}
-
-/// Return a fixed-width slot that stretches vertically inside its parent row.
-pub(super) fn fixed_slot(width: f32) -> SlotParams {
-    SlotParams {
-        size_main: SizeModeMain::Fixed(width.max(0.0)),
-        size_cross: SizeModeCross::Fill,
-        constraints: Constraints::new(width.max(0.0), width.max(0.0), 0.0, f32::INFINITY),
-        margin: Insets::default(),
-        align_cross_override: Some(CrossAlign::Stretch),
-        allow_fixed_compress: false,
-    }
-}
-
-/// Return a fixed-height slot that stretches horizontally inside its parent column.
-pub(super) fn fixed_slot_cross_fill(height: f32) -> SlotParams {
-    SlotParams {
-        size_main: SizeModeMain::Fixed(height.max(0.0)),
-        size_cross: SizeModeCross::Fill,
-        constraints: Constraints::new(0.0, f32::INFINITY, height.max(0.0), height.max(0.0)),
-        margin: Insets::default(),
-        align_cross_override: Some(CrossAlign::Stretch),
-        allow_fixed_compress: false,
-    }
-}
-
-/// Return a fixed-size slot used for square chrome buttons.
-pub(super) fn fixed_slot_with_cross(width: f32, height: f32) -> SlotParams {
-    SlotParams {
-        size_main: SizeModeMain::Fixed(width.max(0.0)),
-        size_cross: SizeModeCross::Fixed(height.max(0.0)),
-        constraints: Constraints::new(
-            width.max(0.0),
-            width.max(0.0),
-            height.max(0.0),
-            height.max(0.0),
-        ),
-        margin: Insets::default(),
-        align_cross_override: Some(CrossAlign::Center),
-        allow_fixed_compress: false,
-    }
 }
 
 /// Clamp one resolved layout rect back inside the original surface bounds.

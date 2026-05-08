@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 
-# Install local git hooks that keep sempal and the radiant submodule on their
-# shared development branches and rerun lightweight preflight checks after
+# Install local git hooks that keep sempal and the radiant submodule aligned
+# with their main-base workflow and rerun lightweight preflight checks after
 # branch/source updates.
 #
 # Hooks installed for sempal:
 # - post-merge / post-checkout: rerun agent preflight
-# - pre-commit / pre-push: fail unless sempal uses local `main` tracking `origin/main`
+# - pre-commit / pre-push: verify local `main` tracks `origin/main`; feature branches are allowed for PR work
 #
 # Hooks installed for vendor/radiant:
 # - post-merge / post-checkout / pre-commit / pre-push: fail unless radiant uses
-#   local `next` tracking `origin/next`
+#   local `main` tracking `origin/main`
 #
 # To temporarily disable hook execution, set SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK=1.
 
@@ -25,8 +25,8 @@ usage() {
   cat <<'USAGE'
 Usage: scripts/internal/agent/install_agent_preflight_hooks.sh [--force]
 
-Install local git hooks that keep sempal and vendor/radiant on their expected
-development branches and rerun agent preflight checks after repo-level source
+Install local git hooks that keep sempal and vendor/radiant aligned with their
+main-base workflow and rerun agent preflight checks after repo-level source
 updates.
 
 Options:
@@ -195,7 +195,7 @@ if git -C "$RADIANT_DIR" rev-parse --git-common-dir >/dev/null 2>&1; then
   ensure_hook_dir "$RADIANT_HOOK_DIR"
 
   for hook_name in post-merge post-checkout pre-commit pre-push; do
-    write_hook "$RADIANT_HOOK_DIR" "$hook_name" "vendor/radiant must use local 'next'" <<'EOF'
+    write_hook "$RADIANT_HOOK_DIR" "$hook_name" "vendor/radiant must use local 'main'" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -214,23 +214,23 @@ if [[ -z "$branch" ]]; then
 fi
 
 if [[ "$branch" == "HEAD" ]]; then
-  echo "[branch_guard] ERROR: vendor/radiant must use local 'next'; detached HEAD is not allowed." >&2
+  echo "[branch_guard] ERROR: vendor/radiant must use local 'main'; detached HEAD is not allowed." >&2
   exit 1
 fi
 
-if [[ "$branch" != "next" ]]; then
-  echo "[branch_guard] ERROR: vendor/radiant must use local 'next'. Current branch: '$branch'." >&2
+if [[ "$branch" != "main" ]]; then
+  echo "[branch_guard] ERROR: vendor/radiant must use local 'main'. Current branch: '$branch'." >&2
   exit 1
 fi
 
 upstream="$(git for-each-ref --format='%(upstream:short)' "refs/heads/$branch")"
 if [[ -z "$upstream" ]]; then
-  echo "[branch_guard] ERROR: vendor/radiant branch '$branch' has no upstream. Expected 'origin/next'." >&2
+  echo "[branch_guard] ERROR: vendor/radiant branch '$branch' has no upstream. Expected 'origin/main'." >&2
   exit 1
 fi
 
-if [[ "$upstream" != "origin/next" ]]; then
-  echo "[branch_guard] ERROR: vendor/radiant branch '$branch' must track 'origin/next'. Current upstream: '$upstream'." >&2
+if [[ "$upstream" != "origin/main" ]]; then
+  echo "[branch_guard] ERROR: vendor/radiant branch '$branch' must track 'origin/main'. Current upstream: '$upstream'." >&2
   exit 1
 fi
 EOF

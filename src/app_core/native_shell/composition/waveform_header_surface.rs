@@ -5,19 +5,15 @@
 //! pattern used by the top bar, status bar, and sidebar chrome bands while the
 //! waveform plot, overlays, and edit geometry remain on the compatibility path.
 
-use super::{
-    style::SizingTokens,
-    widget_nodes::{canvas_node, text_node},
-};
+use super::style::SizingTokens;
 use crate::{
     app::NativeMotionModel,
     gui::types::{Point, Rect},
-    layout::{
-        Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, MainAlign, OverflowPolicy,
-        SizeModeCross, SizeModeMain, SlotParams, layout_tree,
-    },
-    runtime::{SurfaceChild, SurfaceNode, UiSurface},
+    layout::layout_tree,
+    runtime::UiSurface,
 };
+use radiant::prelude as ui;
+use radiant::prelude::IntoView;
 
 const WAVEFORM_HEADER_ROOT_ID: u64 = 1120;
 const WAVEFORM_HEADER_COLUMN_ID: u64 = 1121;
@@ -104,73 +100,34 @@ fn build_waveform_header_surface(
     content: &WaveformHeaderSurfaceContent,
     sizing: SizingTokens,
 ) -> UiSurface<()> {
-    UiSurface::new(SurfaceNode::container(
-        WAVEFORM_HEADER_ROOT_ID,
-        ContainerPolicy {
-            kind: ContainerKind::PaddingBox,
-            padding: Insets {
-                left: (sizing.text_inset_x + sizing.header_label_gutter).max(0.0),
-                right: sizing.text_inset_x.max(0.0),
-                top: sizing.text_inset_y.max(0.0),
-                bottom: sizing.text_inset_y.max(0.0),
-            },
-            align_cross: CrossAlign::Stretch,
-            overflow: OverflowPolicy::Clip,
-            ..ContainerPolicy::default()
-        },
-        vec![SurfaceChild::new(
-            SlotParams::fill(),
-            SurfaceNode::container(
-                WAVEFORM_HEADER_COLUMN_ID,
-                ContainerPolicy {
-                    kind: ContainerKind::Column,
-                    spacing: sizing.text_row_gap.max(0.0),
-                    align_main: MainAlign::Start,
-                    align_cross: CrossAlign::Stretch,
-                    overflow: OverflowPolicy::Clip,
-                    ..ContainerPolicy::default()
-                },
-                vec![
-                    SurfaceChild::new(
-                        text_slot(sizing.font_header),
-                        text_widget(
-                            WAVEFORM_HEADER_TITLE_ID,
-                            &content.title,
-                            sizing.font_header.max(1.0),
-                        ),
-                    ),
-                    SurfaceChild::new(
-                        text_slot(sizing.font_meta),
-                        text_widget(
-                            WAVEFORM_HEADER_METADATA_ID,
-                            &content.metadata,
-                            sizing.font_meta.max(1.0),
-                        ),
-                    ),
-                    SurfaceChild::new(
-                        SlotParams::fill(),
-                        canvas_node(WAVEFORM_HEADER_FILL_ID, 1.0, 1.0),
-                    ),
-                ],
-            ),
-        )],
-    ))
-}
-
-fn text_widget(id: u64, text: &str, font_size: f32) -> SurfaceNode<()> {
-    text_node(id, text, 1.0, font_size, font_size)
-}
-
-fn text_slot(font_size: f32) -> SlotParams {
-    let font_size = font_size.max(1.0);
-    SlotParams {
-        size_main: SizeModeMain::Fixed(font_size),
-        size_cross: SizeModeCross::Fill,
-        constraints: Constraints::new(0.0, f32::INFINITY, font_size, font_size),
-        margin: Insets::default(),
-        align_cross_override: Some(CrossAlign::Stretch),
-        allow_fixed_compress: false,
-    }
+    let title_height = sizing.font_header.max(1.0);
+    let meta_height = sizing.font_meta.max(1.0);
+    let content_column = ui::column([
+        ui::text(&content.title)
+            .id(WAVEFORM_HEADER_TITLE_ID)
+            .size(1.0, title_height)
+            .baseline((title_height * 0.75).max(0.0))
+            .fill_width()
+            .height(title_height),
+        ui::text(&content.metadata)
+            .id(WAVEFORM_HEADER_METADATA_ID)
+            .size(1.0, meta_height)
+            .baseline((meta_height * 0.75).max(0.0))
+            .fill_width()
+            .height(meta_height),
+        ui::spacer().id(WAVEFORM_HEADER_FILL_ID).fill(),
+    ])
+    .id(WAVEFORM_HEADER_COLUMN_ID)
+    .spacing(sizing.text_row_gap.max(0.0))
+    .fill();
+    UiSurface::new(
+        ui::column([content_column])
+            .id(WAVEFORM_HEADER_ROOT_ID)
+            .padding_x((sizing.text_inset_x + sizing.header_label_gutter).max(0.0))
+            .padding_y(sizing.text_inset_y.max(0.0))
+            .fill()
+            .into_node(),
+    )
 }
 
 fn format_milli_value(value: u16) -> String {
@@ -217,7 +174,7 @@ mod tests {
     }
 
     #[test]
-    fn waveform_header_surface_projects_widget_nodes() {
+    fn waveform_header_surface_projects_radiant_primitives() {
         let style = StyleTokens::for_viewport_width(1280.0);
         let surface = build_waveform_header_surface(&content(), style.sizing);
         assert_widget_node(&surface, WAVEFORM_HEADER_TITLE_ID);

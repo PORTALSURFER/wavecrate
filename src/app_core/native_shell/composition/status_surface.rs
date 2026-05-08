@@ -5,18 +5,14 @@
 //! building blocks before the whole native window runtime migrates away from
 //! the legacy `AppModel` path.
 
-use super::{
-    style::SizingTokens,
-    widget_nodes::{canvas_node, text_node},
-};
+use super::style::SizingTokens;
 use crate::{
     gui::types::{Point, Rect},
-    layout::{
-        Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, MainAlign, OverflowPolicy,
-        SizeModeCross, SizeModeMain, SlotParams, layout_tree,
-    },
-    runtime::{SurfaceChild, SurfaceNode, UiSurface},
+    layout::{MainAlign, layout_tree},
+    runtime::UiSurface,
 };
+use radiant::prelude as ui;
+use radiant::prelude::IntoView;
 
 const STATUS_ROOT_ID: u64 = 960;
 const STATUS_ROW_ID: u64 = 961;
@@ -24,10 +20,6 @@ const STATUS_LEFT_SEGMENT_ID: u64 = 962;
 const STATUS_CENTER_SEGMENT_ID: u64 = 963;
 const STATUS_RIGHT_SEGMENT_ID: u64 = 964;
 const STATUS_PROGRESS_SEGMENT_ID: u64 = 965;
-const STATUS_LEFT_ALIGN_ID: u64 = 966;
-const STATUS_CENTER_ALIGN_ID: u64 = 967;
-const STATUS_RIGHT_ALIGN_ID: u64 = 968;
-const STATUS_PROGRESS_COLUMN_ID: u64 = 969;
 const STATUS_LEFT_TEXT_ID: u64 = 970;
 const STATUS_CENTER_TEXT_ID: u64 = 971;
 const STATUS_RIGHT_TEXT_ID: u64 = 972;
@@ -86,82 +78,56 @@ pub(crate) fn build_status_surface(
     viewport_width: f32,
 ) -> UiSurface<()> {
     let progress_width = progress_slot_width(viewport_width, sizing);
-    UiSurface::new(SurfaceNode::container(
-        STATUS_ROOT_ID,
-        ContainerPolicy {
-            kind: ContainerKind::PaddingBox,
-            padding: Insets {
-                left: sizing.panel_inset.max(0.0),
-                right: sizing.panel_inset.max(0.0),
-                ..Insets::default()
-            },
-            align_cross: CrossAlign::Stretch,
-            overflow: OverflowPolicy::Clip,
-            ..ContainerPolicy::default()
-        },
-        vec![SurfaceChild::new(
-            SlotParams::fill(),
-            SurfaceNode::container(
-                STATUS_ROW_ID,
-                ContainerPolicy {
-                    kind: ContainerKind::Row,
-                    spacing: 0.0,
-                    align_main: MainAlign::Start,
-                    align_cross: CrossAlign::Stretch,
-                    overflow: OverflowPolicy::Clip,
-                    ..ContainerPolicy::default()
-                },
-                vec![
-                    SurfaceChild::new(
-                        percent_slot(STATUS_LEFT_RATIO),
-                        segment_surface(
-                            STATUS_LEFT_SEGMENT_ID,
-                            STATUS_LEFT_ALIGN_ID,
-                            STATUS_LEFT_TEXT_ID,
-                            &content.left_label,
-                            sizing,
-                        ),
-                    ),
-                    SurfaceChild::new(
-                        fixed_slot(sizing.status_segment_gap),
-                        spacer_surface(STATUS_LEFT_GAP_ID),
-                    ),
-                    SurfaceChild::new(
-                        SlotParams::fill(),
-                        segment_surface(
-                            STATUS_CENTER_SEGMENT_ID,
-                            STATUS_CENTER_ALIGN_ID,
-                            STATUS_CENTER_TEXT_ID,
-                            &content.center_label,
-                            sizing,
-                        ),
-                    ),
-                    SurfaceChild::new(
-                        fixed_slot(sizing.status_segment_gap),
-                        spacer_surface(STATUS_RIGHT_GAP_ID),
-                    ),
-                    SurfaceChild::new(
-                        percent_slot(STATUS_RIGHT_RATIO),
-                        segment_surface(
-                            STATUS_RIGHT_SEGMENT_ID,
-                            STATUS_RIGHT_ALIGN_ID,
-                            STATUS_RIGHT_TEXT_ID,
-                            &content.right_label,
-                            sizing,
-                        ),
-                    ),
-                    SurfaceChild::new(
-                        fixed_slot(sizing.status_segment_gap),
-                        spacer_surface(STATUS_PROGRESS_GAP_ID),
-                    ),
-                    SurfaceChild::new(
-                        fixed_slot(progress_width),
-                        progress_surface(content, sizing, progress_width),
-                    ),
-                ],
-            ),
-        )],
-    ))
+    let row = ui::row([
+        segment_surface(
+            STATUS_LEFT_SEGMENT_ID,
+            STATUS_LEFT_TEXT_ID,
+            &content.left_label,
+            sizing,
+        )
+        .width_percent(STATUS_LEFT_RATIO)
+        .fill_height(),
+        ui::spacer()
+            .id(STATUS_LEFT_GAP_ID)
+            .width(sizing.status_segment_gap)
+            .fill_height(),
+        segment_surface(
+            STATUS_CENTER_SEGMENT_ID,
+            STATUS_CENTER_TEXT_ID,
+            &content.center_label,
+            sizing,
+        )
+        .fill(),
+        ui::spacer()
+            .id(STATUS_RIGHT_GAP_ID)
+            .width(sizing.status_segment_gap)
+            .fill_height(),
+        segment_surface(
+            STATUS_RIGHT_SEGMENT_ID,
+            STATUS_RIGHT_TEXT_ID,
+            &content.right_label,
+            sizing,
+        )
+        .width_percent(STATUS_RIGHT_RATIO)
+        .fill_height(),
+        ui::spacer()
+            .id(STATUS_PROGRESS_GAP_ID)
+            .width(sizing.status_segment_gap)
+            .fill_height(),
+        progress_surface(content, sizing, progress_width)
+            .width(progress_width)
+            .fill_height(),
+    ])
+    .id(STATUS_ROW_ID)
+    .spacing(0.0)
+    .fill();
+    UiSurface::new(
+        ui::column([row])
+            .id(STATUS_ROOT_ID)
+            .padding_x(sizing.panel_inset.max(0.0))
+            .fill()
+            .into_node(),
+    )
 }
 
 /// Resolve the generic status-bar surface layout inside one footer rect.
@@ -215,154 +181,56 @@ pub(crate) fn resolve_status_surface_layout(
 
 fn segment_surface(
     segment_id: u64,
-    align_id: u64,
     text_id: u64,
     label: &str,
     sizing: SizingTokens,
-) -> SurfaceNode<()> {
-    SurfaceNode::container(
-        segment_id,
-        ContainerPolicy {
-            kind: ContainerKind::PaddingBox,
-            padding: Insets {
-                left: (sizing.text_inset_x + sizing.header_label_gutter).max(0.0),
-                right: sizing.text_inset_x.max(0.0),
-                top: sizing.text_inset_y.max(0.0),
-                bottom: sizing.text_inset_y.max(0.0),
-            },
-            align_cross: CrossAlign::Stretch,
-            overflow: OverflowPolicy::Clip,
-            ..ContainerPolicy::default()
-        },
-        vec![SurfaceChild::new(
-            SlotParams::fill(),
-            SurfaceNode::container(
-                align_id,
-                ContainerPolicy {
-                    kind: ContainerKind::AlignBox,
-                    align_main: MainAlign::Center,
-                    align_cross: CrossAlign::Stretch,
-                    overflow: OverflowPolicy::Clip,
-                    ..ContainerPolicy::default()
-                },
-                vec![SurfaceChild::new(
-                    text_slot(sizing.font_status),
-                    text_node(text_id, label, 1.0, sizing.font_status, sizing.font_status),
-                )],
-            ),
-        )],
-    )
+) -> ui::View<()> {
+    let text_height = sizing.font_status.max(1.0);
+    ui::column([ui::text(label)
+        .id(text_id)
+        .size(1.0, text_height)
+        .baseline((text_height * 0.75).max(0.0))
+        .fill_width()
+        .height(text_height)])
+    .id(segment_id)
+    .padding_x((sizing.text_inset_x + sizing.header_label_gutter).max(0.0))
+    .padding_y(sizing.text_inset_y.max(0.0))
+    .align_main(MainAlign::Center)
+    .fill()
 }
 
 fn progress_surface(
     content: &StatusSurfaceContent,
     sizing: SizingTokens,
     progress_width: f32,
-) -> SurfaceNode<()> {
+) -> ui::View<()> {
     let track_height = (sizing.border_width * 2.0).max(4.0);
-    SurfaceNode::container(
-        STATUS_PROGRESS_SEGMENT_ID,
-        ContainerPolicy {
-            kind: ContainerKind::PaddingBox,
-            padding: Insets {
-                left: (sizing.text_inset_x + sizing.header_label_gutter).max(0.0),
-                right: sizing.text_inset_x.max(0.0),
-                top: sizing.text_inset_y.max(0.0),
-                bottom: sizing.text_inset_y.max(1.0),
-            },
-            align_cross: CrossAlign::Stretch,
-            overflow: OverflowPolicy::Clip,
-            ..ContainerPolicy::default()
-        },
-        vec![SurfaceChild::new(
-            SlotParams::fill(),
-            SurfaceNode::container(
-                STATUS_PROGRESS_COLUMN_ID,
-                ContainerPolicy {
-                    kind: ContainerKind::Column,
-                    spacing: 0.0,
-                    align_main: MainAlign::End,
-                    align_cross: CrossAlign::Stretch,
-                    overflow: OverflowPolicy::Clip,
-                    ..ContainerPolicy::default()
-                },
-                vec![
-                    SurfaceChild::new(
-                        SlotParams::fill(),
-                        SurfaceNode::container(
-                            STATUS_PROGRESS_ALIGN_ID,
-                            ContainerPolicy {
-                                kind: ContainerKind::AlignBox,
-                                align_main: MainAlign::Center,
-                                align_cross: CrossAlign::Stretch,
-                                overflow: OverflowPolicy::Clip,
-                                ..ContainerPolicy::default()
-                            },
-                            vec![SurfaceChild::new(
-                                text_slot(sizing.font_status),
-                                text_node(
-                                    STATUS_PROGRESS_TEXT_ID,
-                                    &content.progress_counter,
-                                    progress_width,
-                                    sizing.font_status,
-                                    sizing.font_status,
-                                ),
-                            )],
-                        ),
-                    ),
-                    SurfaceChild::new(
-                        fixed_slot(track_height),
-                        canvas_node(STATUS_PROGRESS_TRACK_ID, progress_width, track_height),
-                    ),
-                ],
-            ),
-        )],
-    )
+    let text_height = sizing.font_status.max(1.0);
+    ui::column([
+        ui::spacer().id(STATUS_PROGRESS_ALIGN_ID).fill(),
+        ui::text(&content.progress_counter)
+            .id(STATUS_PROGRESS_TEXT_ID)
+            .size(progress_width, text_height)
+            .baseline((text_height * 0.75).max(0.0))
+            .fill_width()
+            .height(text_height),
+        ui::canvas()
+            .id(STATUS_PROGRESS_TRACK_ID)
+            .size(progress_width, track_height)
+            .fill_width()
+            .height(track_height),
+    ])
+    .id(STATUS_PROGRESS_SEGMENT_ID)
+    .spacing(0.0)
+    .padding_x((sizing.text_inset_x + sizing.header_label_gutter).max(0.0))
+    .padding_y(sizing.text_inset_y.max(0.0))
+    .fill()
 }
 
 fn progress_slot_width(viewport_width: f32, sizing: SizingTokens) -> f32 {
     let inner_width = (viewport_width - (sizing.panel_inset.max(0.0) * 2.0)).max(0.0);
     (inner_width * STATUS_PROGRESS_RATIO)
         .clamp(STATUS_PROGRESS_MIN_WIDTH, STATUS_PROGRESS_MAX_WIDTH)
-}
-
-fn spacer_surface(id: u64) -> SurfaceNode<()> {
-    canvas_node(id, 1.0, 1.0)
-}
-
-fn percent_slot(ratio: f32) -> SlotParams {
-    SlotParams {
-        size_main: SizeModeMain::Percent(ratio.max(0.0)),
-        size_cross: SizeModeCross::Fill,
-        constraints: Constraints::new(0.0, f32::INFINITY, 0.0, f32::INFINITY),
-        margin: Insets::default(),
-        align_cross_override: Some(CrossAlign::Stretch),
-        allow_fixed_compress: false,
-    }
-}
-
-fn fixed_slot(width: f32) -> SlotParams {
-    let width = width.max(0.0);
-    SlotParams {
-        size_main: SizeModeMain::Fixed(width),
-        size_cross: SizeModeCross::Fill,
-        constraints: Constraints::new(width, width, 0.0, f32::INFINITY),
-        margin: Insets::default(),
-        align_cross_override: Some(CrossAlign::Stretch),
-        allow_fixed_compress: false,
-    }
-}
-
-fn text_slot(font_size: f32) -> SlotParams {
-    let font_size = font_size.max(1.0);
-    SlotParams {
-        size_main: SizeModeMain::Fixed(font_size),
-        size_cross: SizeModeCross::Fill,
-        constraints: Constraints::new(0.0, f32::INFINITY, font_size, font_size),
-        margin: Insets::default(),
-        align_cross_override: Some(CrossAlign::Stretch),
-        allow_fixed_compress: false,
-    }
 }
 
 fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
@@ -401,7 +269,7 @@ mod tests {
     }
 
     #[test]
-    fn status_surface_projects_widget_nodes() {
+    fn status_surface_projects_radiant_primitives() {
         let style = StyleTokens::for_viewport_width(1280.0);
         let surface = build_status_surface(
             &StatusSurfaceContent {

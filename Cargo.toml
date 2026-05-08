@@ -26,9 +26,11 @@ warnings = "deny"
 missing_docs = "deny"
 
 [features]
-default = []
+default = ["radiant-rebuild"]
 gui-performance = []
+legacy-sample = []
 native-bridge-metrics = []
+radiant-rebuild = []
 sqlite-ext-unsafe = ["sempal-library/sqlite-ext-unsafe"]
 
 [dependencies]

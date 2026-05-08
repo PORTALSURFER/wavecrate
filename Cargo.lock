@@ -4026,6 +4026,7 @@ name = "radiant"
 version = "0.1.0"
 dependencies = [
  "arboard",
+ "hound",
  "image",
  "pollster",
  "raw-window-handle",

@@ -12,18 +12,10 @@ mod helpers;
 mod tests;
 
 use super::style::SizingTokens;
-use crate::{
-    app::AppModel,
-    gui::types::Rect,
-    layout::{
-        ContainerKind, ContainerPolicy, CrossAlign, Insets, OverflowPolicy, SlotParams, layout_tree,
-    },
-    runtime::{SurfaceChild, SurfaceNode, UiSurface},
-};
-use helpers::{
-    button_widget, clamp_rect_to_bounds, fixed_slot, fixed_slot_cross_fill, fixed_slot_with_cross,
-    footer_action_button_width, header_button_side, rect_for, text_widget,
-};
+use crate::{app::AppModel, gui::types::Rect, layout::layout_tree, runtime::UiSurface};
+use helpers::{clamp_rect_to_bounds, footer_action_button_width, header_button_side, rect_for};
+use radiant::prelude as ui;
+use radiant::prelude::IntoView;
 
 const HEADER_ROOT_ID: u64 = 1120;
 const HEADER_ROW_ID: u64 = 1121;
@@ -222,41 +214,25 @@ fn build_sidebar_header_surface(
     sizing: SizingTokens,
 ) -> UiSurface<()> {
     let button_side = header_button_side(sizing);
-    UiSurface::new(SurfaceNode::container(
-        HEADER_ROOT_ID,
-        ContainerPolicy {
-            kind: ContainerKind::PaddingBox,
-            padding: Insets {
-                left: (sizing.text_inset_x + sizing.header_label_gutter).max(0.0),
-                right: sizing.text_inset_x.max(0.0),
-                top: sizing.text_inset_y.max(0.0),
-                bottom: sizing.text_inset_y.max(0.0),
-            },
-            align_cross: CrossAlign::Stretch,
-            overflow: OverflowPolicy::Clip,
-            ..ContainerPolicy::default()
-        },
-        vec![SurfaceChild::new(
-            SlotParams::fill(),
-            SurfaceNode::container(
-                HEADER_ROW_ID,
-                ContainerPolicy {
-                    kind: ContainerKind::Row,
-                    spacing: sizing.text_inset_x.max(2.0),
-                    align_cross: CrossAlign::Center,
-                    overflow: OverflowPolicy::Clip,
-                    ..ContainerPolicy::default()
-                },
-                vec![
-                    SurfaceChild::new(SlotParams::fill(), header_text_column(content, sizing)),
-                    SurfaceChild::new(
-                        fixed_slot_with_cross(button_side, button_side),
-                        button_widget(HEADER_ADD_BUTTON_ID, "+", button_side, button_side),
-                    ),
-                ],
-            ),
-        )],
-    ))
+    let row = ui::row([
+        header_text_column(content, sizing).fill(),
+        ui::passive_button("+")
+            .id(HEADER_ADD_BUTTON_ID)
+            .size(button_side, button_side)
+            .width(button_side)
+            .height(button_side),
+    ])
+    .id(HEADER_ROW_ID)
+    .spacing(sizing.text_inset_x.max(2.0))
+    .fill();
+    UiSurface::new(
+        ui::column([row])
+            .id(HEADER_ROOT_ID)
+            .padding_x((sizing.text_inset_x + sizing.header_label_gutter).max(0.0))
+            .padding_y(sizing.text_inset_y.max(0.0))
+            .fill()
+            .into_node(),
+    )
 }
 
 fn build_sidebar_footer_surface(
@@ -266,143 +242,79 @@ fn build_sidebar_footer_surface(
 ) -> UiSurface<()> {
     let button_height = sizing.sidebar_action_button_height.max(1.0);
     let button_width = footer_action_button_width(footer_width, sizing, content.actions.len());
-    let mut action_children = Vec::with_capacity(content.actions.len() + 1);
-    action_children.push(SurfaceChild::new(
-        SlotParams::fill(),
-        text_widget(FOOTER_ACTION_SPACER_ID, "", 1.0, 1.0),
-    ));
+    let mut action_children: Vec<ui::View<()>> = Vec::with_capacity(content.actions.len() + 1);
+    action_children.push(ui::spacer().id(FOOTER_ACTION_SPACER_ID).fill());
     for (index, action) in content.actions.iter().enumerate() {
-        action_children.push(SurfaceChild::new(
-            fixed_slot(button_width),
-            button_widget(
-                FOOTER_ACTION_BASE_ID + index as u64,
-                action.label,
-                button_width,
-                button_height,
-            ),
-        ));
+        action_children.push(
+            ui::passive_button(action.label)
+                .id(FOOTER_ACTION_BASE_ID + index as u64)
+                .size(button_width, button_height)
+                .width(button_width)
+                .fill_height(),
+        );
     }
-    UiSurface::new(SurfaceNode::container(
-        FOOTER_ROOT_ID,
-        ContainerPolicy {
-            kind: ContainerKind::PaddingBox,
-            padding: Insets {
-                left: sizing.text_inset_x.max(0.0),
-                right: sizing.text_inset_x.max(0.0),
-                top: sizing.text_inset_y.max(0.0),
-                bottom: sizing.text_inset_y.max(0.0),
-            },
-            align_cross: CrossAlign::Stretch,
-            overflow: OverflowPolicy::Clip,
-            ..ContainerPolicy::default()
-        },
-        vec![SurfaceChild::new(
-            SlotParams::fill(),
-            SurfaceNode::container(
-                FOOTER_COLUMN_ID,
-                ContainerPolicy {
-                    kind: ContainerKind::Column,
-                    spacing: sizing.text_row_gap.max(0.0),
-                    align_cross: CrossAlign::Stretch,
-                    overflow: OverflowPolicy::Clip,
-                    ..ContainerPolicy::default()
-                },
-                vec![
-                    SurfaceChild::new(SlotParams::fill(), footer_summary_surface(content, sizing)),
-                    SurfaceChild::new(
-                        fixed_slot_cross_fill(button_height),
-                        SurfaceNode::container(
-                            FOOTER_ACTION_ROW_ID,
-                            ContainerPolicy {
-                                kind: ContainerKind::Row,
-                                spacing: sizing.sidebar_action_button_gap.max(0.0),
-                                align_cross: CrossAlign::Center,
-                                overflow: OverflowPolicy::Clip,
-                                ..ContainerPolicy::default()
-                            },
-                            action_children,
-                        ),
-                    ),
-                ],
-            ),
-        )],
-    ))
+    let action_row = ui::row(action_children)
+        .id(FOOTER_ACTION_ROW_ID)
+        .spacing(sizing.sidebar_action_button_gap.max(0.0))
+        .fill_width()
+        .height(button_height);
+    let column = ui::column([footer_summary_surface(content, sizing).fill(), action_row])
+        .id(FOOTER_COLUMN_ID)
+        .spacing(sizing.text_row_gap.max(0.0))
+        .fill();
+    UiSurface::new(
+        ui::column([column])
+            .id(FOOTER_ROOT_ID)
+            .padding_x(sizing.text_inset_x.max(0.0))
+            .padding_y(sizing.text_inset_y.max(0.0))
+            .fill()
+            .into_node(),
+    )
 }
 
-fn header_text_column(
-    content: &SidebarHeaderSurfaceContent,
-    sizing: SizingTokens,
-) -> SurfaceNode<()> {
-    SurfaceNode::container(
-        HEADER_TEXT_COLUMN_ID,
-        ContainerPolicy {
-            kind: ContainerKind::Column,
-            spacing: sizing.text_row_gap.max(0.0),
-            align_cross: CrossAlign::Stretch,
-            overflow: OverflowPolicy::Clip,
-            ..ContainerPolicy::default()
-        },
-        vec![
-            SurfaceChild::new(
-                fixed_slot_cross_fill(sizing.font_header.max(1.0)),
-                text_widget(HEADER_TITLE_ID, &content.title, 1.0, sizing.font_header),
-            ),
-            SurfaceChild::new(
-                fixed_slot_cross_fill(sizing.font_meta.max(1.0)),
-                text_widget(HEADER_QUERY_ID, &content.query, 1.0, sizing.font_meta),
-            ),
-        ],
-    )
+fn header_text_column(content: &SidebarHeaderSurfaceContent, sizing: SizingTokens) -> ui::View<()> {
+    let title_height = sizing.font_header.max(1.0);
+    let meta_height = sizing.font_meta.max(1.0);
+    ui::column([
+        ui::text(&content.title)
+            .id(HEADER_TITLE_ID)
+            .size(1.0, title_height)
+            .baseline((title_height * 0.75).max(0.0))
+            .fill_width()
+            .height(title_height),
+        ui::text(&content.query)
+            .id(HEADER_QUERY_ID)
+            .size(1.0, meta_height)
+            .baseline((meta_height * 0.75).max(0.0))
+            .fill_width()
+            .height(meta_height),
+    ])
+    .id(HEADER_TEXT_COLUMN_ID)
+    .spacing(sizing.text_row_gap.max(0.0))
+    .fill()
 }
 
 fn footer_summary_surface(
     content: &SidebarFooterSurfaceContent,
     sizing: SizingTokens,
-) -> SurfaceNode<()> {
-    SurfaceNode::container(
-        FOOTER_SUMMARY_ID,
-        ContainerPolicy {
-            kind: ContainerKind::PaddingBox,
-            padding: Insets {
-                left: sizing.header_label_gutter.max(0.0),
-                ..Insets::default()
-            },
-            align_cross: CrossAlign::Stretch,
-            overflow: OverflowPolicy::Clip,
-            ..ContainerPolicy::default()
-        },
-        vec![SurfaceChild::new(
-            SlotParams::fill(),
-            SurfaceNode::container(
-                FOOTER_SUMMARY_ID + 1,
-                ContainerPolicy {
-                    kind: ContainerKind::Column,
-                    spacing: sizing.text_row_gap.max(0.0),
-                    align_cross: CrossAlign::Stretch,
-                    overflow: OverflowPolicy::Clip,
-                    ..ContainerPolicy::default()
-                },
-                vec![
-                    SurfaceChild::new(
-                        fixed_slot_cross_fill(sizing.font_meta.max(1.0)),
-                        text_widget(
-                            FOOTER_PRIMARY_ID,
-                            &content.primary_summary,
-                            1.0,
-                            sizing.font_meta,
-                        ),
-                    ),
-                    SurfaceChild::new(
-                        fixed_slot_cross_fill(sizing.font_meta.max(1.0)),
-                        text_widget(
-                            FOOTER_SECONDARY_ID,
-                            &content.secondary_summary,
-                            1.0,
-                            sizing.font_meta,
-                        ),
-                    ),
-                ],
-            ),
-        )],
-    )
+) -> ui::View<()> {
+    let meta_height = sizing.font_meta.max(1.0);
+    ui::column([
+        ui::text(&content.primary_summary)
+            .id(FOOTER_PRIMARY_ID)
+            .size(1.0, meta_height)
+            .baseline((meta_height * 0.75).max(0.0))
+            .fill_width()
+            .height(meta_height),
+        ui::text(&content.secondary_summary)
+            .id(FOOTER_SECONDARY_ID)
+            .size(1.0, meta_height)
+            .baseline((meta_height * 0.75).max(0.0))
+            .fill_width()
+            .height(meta_height),
+    ])
+    .id(FOOTER_SUMMARY_ID)
+    .spacing(sizing.text_row_gap.max(0.0))
+    .padding_x(sizing.header_label_gutter.max(0.0))
+    .fill()
 }

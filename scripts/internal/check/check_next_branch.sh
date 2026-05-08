@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 
-# Verify that the current repository uses the shared development branch.
+# Verify that the current repository uses main as its base branch.
 #
-# The script fails unless the repo root is on local `main` and that branch
-# tracks `origin/main`. Use it from hooks and validation scripts to keep local
-# work on the agreed branch.
+# Feature branches are allowed for PR work, but local `main` must exist and
+# track `origin/main`.
 
 set -euo pipefail
 
@@ -18,7 +17,7 @@ usage() {
   cat <<'USAGE'
 Usage: scripts/internal/check/check_next_branch.sh
 
-Fail unless the current repository is on local main tracking origin/main.
+Verify that local main tracks origin/main; feature branches are allowed for PR work.
 USAGE
 }
 
@@ -38,24 +37,28 @@ done
 
 branch="$(git -C "$ROOT_DIR" rev-parse --abbrev-ref HEAD)"
 if [[ "$branch" == "HEAD" ]]; then
-  echo "[branch_guard] Detached HEAD is not allowed. Switch this repository to local '$EXPECTED_BRANCH'." >&2
+  echo "[branch_guard] Detached HEAD is not allowed. Use local '$EXPECTED_BRANCH' or a feature branch." >&2
   exit 1
 fi
 
-if [[ "$branch" != "$EXPECTED_BRANCH" ]]; then
-  echo "[branch_guard] Development must happen on '$EXPECTED_BRANCH'. Current branch: '$branch'." >&2
+if [[ "$branch" == "next" ]]; then
+  echo "[branch_guard] Local 'next' is retired. Use '$EXPECTED_BRANCH' as the base branch and feature branches for PR work." >&2
   exit 1
 fi
 
-upstream="$(git -C "$ROOT_DIR" for-each-ref --format='%(upstream:short)' "refs/heads/$branch")"
-if [[ -z "$upstream" ]]; then
-  echo "[branch_guard] Branch '$branch' has no upstream. Set it to '$EXPECTED_UPSTREAM'." >&2
+main_upstream="$(git -C "$ROOT_DIR" for-each-ref --format='%(upstream:short)' "refs/heads/$EXPECTED_BRANCH")"
+if [[ -z "$main_upstream" ]]; then
+  echo "[branch_guard] Local '$EXPECTED_BRANCH' must exist and track '$EXPECTED_UPSTREAM'." >&2
   exit 1
 fi
 
-if [[ "$upstream" != "$EXPECTED_UPSTREAM" ]]; then
-  echo "[branch_guard] Branch '$branch' must track '$EXPECTED_UPSTREAM'. Current upstream: '$upstream'." >&2
+if [[ "$main_upstream" != "$EXPECTED_UPSTREAM" ]]; then
+  echo "[branch_guard] Local '$EXPECTED_BRANCH' must track '$EXPECTED_UPSTREAM'. Current upstream: '$main_upstream'." >&2
   exit 1
 fi
 
-echo "[branch_guard] OK ($branch -> $upstream)"
+if [[ "$branch" == "$EXPECTED_BRANCH" ]]; then
+  echo "[branch_guard] OK ($branch -> $main_upstream)"
+else
+  echo "[branch_guard] OK (feature branch '$branch', base $EXPECTED_BRANCH -> $main_upstream)"
+fi
