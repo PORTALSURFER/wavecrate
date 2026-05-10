@@ -1,11 +1,9 @@
 //! Slotized helpers for status-bar segment and text-line geometry.
 
-use super::super::status_surface::{StatusSurfaceContent, resolve_status_surface_layout};
+use super::super::status_surface::{resolve_status_surface_layout, StatusSurfaceContent};
 use super::super::style::SizingTokens;
-use crate::gui::text_layout::{TextLineInsets, centered_text_line};
+use crate::gui::text_layout::{centered_text_line, TextLineInsets};
 use crate::gui::types::Rect;
-
-const STATUS_TEXT_LINE_ID: u64 = 922;
 
 /// Slot-resolved left/center/right status-bar segment geometry.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -51,7 +49,6 @@ pub(crate) fn compute_status_text_line_rect(
             bottom: sizing.text_inset_y.max(0.0),
         },
         0.0,
-        STATUS_TEXT_LINE_ID,
     )
 }
 

@@ -1,20 +1,12 @@
 //! Slotized text-line geometry helpers for control rows and action buttons.
 
 use super::super::style::SizingTokens;
-use crate::gui::text_layout::{TextLineInsets, centered_text_line};
+use crate::gui::text_layout::{centered_text_line, TextLineInsets};
 use crate::gui::types::{Point, Rect};
-
-const ACTION_BUTTON_TEXT_BASE_ID: u64 = 1610;
 
 /// Compute an action-button label line rect with horizontal inset.
 pub(crate) fn compute_action_button_text_rect(rect: Rect, sizing: SizingTokens) -> Rect {
-    compute_text_line_rect(
-        rect,
-        sizing,
-        sizing.font_meta,
-        sizing.text_inset_x.max(0.0),
-        ACTION_BUTTON_TEXT_BASE_ID,
-    )
+    compute_text_line_rect(rect, sizing, sizing.font_meta, sizing.text_inset_x.max(0.0))
 }
 
 fn compute_text_line_rect(
@@ -22,7 +14,6 @@ fn compute_text_line_rect(
     sizing: SizingTokens,
     font_size: f32,
     horizontal_inset: f32,
-    node_id: u64,
 ) -> Rect {
     let empty = empty_rect(rect);
     if rect.width() <= 0.0 || rect.height() <= 0.0 || font_size <= 0.0 {
@@ -37,7 +28,6 @@ fn compute_text_line_rect(
         font_size,
         TextLineInsets::horizontal(0.0),
         sizing.text_inset_y.max(0.0),
-        node_id,
     )
 }
 

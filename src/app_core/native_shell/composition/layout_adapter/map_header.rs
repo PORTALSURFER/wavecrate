@@ -2,17 +2,16 @@
 
 use super::super::style::SizingTokens;
 use crate::gui::layout_core::{
-    Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
-    OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams, layout_tree,
+    layout_tree, Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode,
+    MainAlign, OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams,
 };
-use crate::gui::text_layout::{TextLineInsets, centered_text_line};
+use crate::gui::text_layout::{centered_text_line, TextLineInsets};
 use crate::gui::types::{Point, Rect, Vector2};
 
 const MAP_HEADER_ROOT_ID: u64 = 1300;
 const MAP_HEADER_ROW_ID: u64 = 1301;
 const MAP_HEADER_LEFT_ID: u64 = 1302;
 const MAP_HEADER_RIGHT_ID: u64 = 1303;
-const MAP_HEADER_TEXT_LINE_ID: u64 = 1312;
 const RIGHT_LABEL_RATIO: f32 = 0.42;
 const RIGHT_LABEL_MIN_WIDTH: f32 = 36.0;
 
@@ -118,7 +117,6 @@ fn compute_map_header_text_line(rect: Rect, sizing: SizingTokens, font_size: f32
             bottom: sizing.text_inset_y.max(0.0),
         },
         0.0,
-        MAP_HEADER_TEXT_LINE_ID,
     )
 }
 
