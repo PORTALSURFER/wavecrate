@@ -1,11 +1,8 @@
 //! Slotized sidebar row and recovery-badge text-line geometry helpers.
 
 use super::super::style::SizingTokens;
-use crate::gui::text_layout::{TextLineInsets, centered_text_line};
+use crate::gui::text_layout::{centered_text_line, TextLineInsets};
 use crate::gui::types::{Point, Rect};
-
-const SIDEBAR_TEXT_LINE_ID: u64 = 1702;
-const SIDEBAR_BADGE_TEXT_ID: u64 = 1710;
 
 /// Shared geometry for one sidebar folder row.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -22,12 +19,7 @@ pub(crate) struct SidebarFolderRowLayout {
 pub(crate) fn compute_sidebar_source_row_text_rect(row_rect: Rect, sizing: SizingTokens) -> Rect {
     let inset = sizing.text_inset_x + sizing.row_corner_inset;
     let bounds = inset_rect_horizontal(row_rect, inset, inset);
-    compute_sidebar_text_line(
-        bounds,
-        sizing.font_body,
-        sizing.text_inset_y,
-        SIDEBAR_TEXT_LINE_ID,
-    )
+    compute_sidebar_text_line(bounds, sizing.font_body, sizing.text_inset_y)
 }
 
 /// Compute the horizontal indent for one tree depth level.
@@ -57,12 +49,7 @@ pub(crate) fn compute_sidebar_folder_row_layout(
     );
     let left_inset = base_inset + depth_indent + gutter_width + gutter_spacing;
     let bounds = inset_rect_horizontal(row_rect, left_inset, base_inset);
-    let label_rect = compute_sidebar_text_line(
-        bounds,
-        sizing.font_body,
-        sizing.text_inset_y,
-        SIDEBAR_TEXT_LINE_ID + 1,
-    );
+    let label_rect = compute_sidebar_text_line(bounds, sizing.font_body, sizing.text_inset_y);
     SidebarFolderRowLayout {
         depth_indent,
         disclosure_rect,
@@ -77,15 +64,10 @@ pub(crate) fn compute_sidebar_recovery_badge_text_rect(
 ) -> Rect {
     let inset = sizing.text_inset_x.max(0.0);
     let bounds = inset_rect_horizontal(badge_rect, inset, inset);
-    compute_sidebar_text_line(
-        bounds,
-        sizing.font_meta,
-        sizing.text_inset_y,
-        SIDEBAR_BADGE_TEXT_ID,
-    )
+    compute_sidebar_text_line(bounds, sizing.font_meta, sizing.text_inset_y)
 }
 
-fn compute_sidebar_text_line(rect: Rect, font_size: f32, inset_y: f32, node_seed: u64) -> Rect {
+fn compute_sidebar_text_line(rect: Rect, font_size: f32, inset_y: f32) -> Rect {
     let empty = empty_rect(rect);
     if rect.width() <= 0.0 || rect.height() <= 0.0 || font_size <= 0.0 {
         return empty;
@@ -95,7 +77,6 @@ fn compute_sidebar_text_line(rect: Rect, font_size: f32, inset_y: f32, node_seed
         font_size,
         TextLineInsets::horizontal(0.0),
         inset_y.max(0.0),
-        SIDEBAR_TEXT_LINE_ID + node_seed,
     )
 }
 

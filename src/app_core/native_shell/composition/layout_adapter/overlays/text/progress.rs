@@ -1,4 +1,4 @@
-use super::super::{ProgressOverlaySections, ProgressOverlayTextLayout, shared};
+use super::super::{shared, ProgressOverlaySections, ProgressOverlayTextLayout};
 use super::common::{centered_line_in_rect, column_tree, fixed_height_child, top_line_in_bounds};
 use crate::app_core::native_shell::composition::style::SizingTokens;
 use crate::gui::types::{Point, Rect};
@@ -6,8 +6,6 @@ use crate::gui::types::{Point, Rect};
 const PROGRESS_TEXT_ROOT_ID: u64 = 990;
 const PROGRESS_TEXT_TITLE_ID: u64 = 991;
 const PROGRESS_TEXT_DETAIL_ID: u64 = 992;
-const PROGRESS_TEXT_COUNTER_ID: u64 = 993;
-const PROGRESS_TEXT_CANCEL_ID: u64 = 994;
 
 struct ProgressDialogRows {
     title: Rect,
@@ -34,15 +32,9 @@ pub(crate) fn compute_progress_overlay_text_layout(
                 None
             },
             sizing,
-            PROGRESS_TEXT_COUNTER_ID,
         ),
         cancel_label: if has_cancel_button {
-            centered_line_in_rect(
-                sections.cancel_button,
-                sizing,
-                sizing.font_meta,
-                PROGRESS_TEXT_CANCEL_ID,
-            )
+            centered_line_in_rect(sections.cancel_button, sizing, sizing.font_meta)
         } else {
             shared::empty_rect(sections.cancel_button)
         },
@@ -94,7 +86,6 @@ fn compute_progress_counter_line(
     progress_bar: Rect,
     cancel_button: Option<Rect>,
     sizing: SizingTokens,
-    node_id: u64,
 ) -> Rect {
     let top = progress_bar.max.y + sizing.text_row_gap.max(0.0);
     let bottom = cancel_button
@@ -107,5 +98,5 @@ fn compute_progress_counter_line(
         Point::new(progress_bar.min.x, top),
         Point::new(progress_bar.max.x, bottom),
     );
-    top_line_in_bounds(bounds, sizing.font_meta, node_id)
+    top_line_in_bounds(bounds, sizing.font_meta)
 }

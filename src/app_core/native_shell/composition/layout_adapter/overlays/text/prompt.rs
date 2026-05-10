@@ -1,4 +1,4 @@
-use super::super::{PromptOverlaySections, PromptOverlayTextLayout, shared};
+use super::super::{shared, PromptOverlaySections, PromptOverlayTextLayout};
 use super::common::{centered_line_in_rect, column_tree, fixed_height_child, top_line_in_rect};
 use crate::app_core::native_shell::composition::style::SizingTokens;
 use crate::gui::types::{Point, Rect};
@@ -7,10 +7,6 @@ const PROMPT_TEXT_ROOT_ID: u64 = 980;
 const PROMPT_TEXT_TITLE_ID: u64 = 981;
 const PROMPT_TEXT_MESSAGE_ID: u64 = 982;
 const PROMPT_TEXT_TARGET_ID: u64 = 983;
-const PROMPT_TEXT_INPUT_ID: u64 = 984;
-const PROMPT_TEXT_INPUT_ERROR_ID: u64 = 985;
-const PROMPT_TEXT_CONFIRM_ID: u64 = 986;
-const PROMPT_TEXT_CANCEL_ID: u64 = 987;
 
 struct PromptDialogRows {
     title: Rect,
@@ -28,31 +24,16 @@ pub(crate) fn compute_prompt_overlay_text_layout(
     let rows = compute_prompt_dialog_rows(sections.dialog, sizing, has_target_label);
     let input_text = sections
         .input
-        .map(|input| top_line_in_rect(input, sizing, sizing.font_meta, PROMPT_TEXT_INPUT_ID));
-    let input_error = compute_prompt_input_error_line(
-        sections,
-        sizing,
-        has_input_error,
-        PROMPT_TEXT_INPUT_ERROR_ID,
-    );
+        .map(|input| top_line_in_rect(input, sizing, sizing.font_meta));
+    let input_error = compute_prompt_input_error_line(sections, sizing, has_input_error);
     PromptOverlayTextLayout {
         title: rows.title,
         message: rows.message,
         target: rows.target,
         input_text,
         input_error,
-        confirm_label: centered_line_in_rect(
-            sections.confirm_button,
-            sizing,
-            sizing.font_meta,
-            PROMPT_TEXT_CONFIRM_ID,
-        ),
-        cancel_label: centered_line_in_rect(
-            sections.cancel_button,
-            sizing,
-            sizing.font_meta,
-            PROMPT_TEXT_CANCEL_ID,
-        ),
+        confirm_label: centered_line_in_rect(sections.confirm_button, sizing, sizing.font_meta),
+        cancel_label: centered_line_in_rect(sections.cancel_button, sizing, sizing.font_meta),
     }
 }
 
@@ -104,7 +85,6 @@ fn compute_prompt_input_error_line(
     sections: PromptOverlaySections,
     sizing: SizingTokens,
     has_input_error: bool,
-    node_id: u64,
 ) -> Option<Rect> {
     if !has_input_error {
         return None;
@@ -123,5 +103,5 @@ fn compute_prompt_input_error_line(
         Point::new(input.min.x, top),
         Point::new(input.max.x.max(input.min.x), bottom),
     );
-    Some(top_line_in_rect(bounds, sizing, sizing.font_meta, node_id))
+    Some(top_line_in_rect(bounds, sizing, sizing.font_meta))
 }

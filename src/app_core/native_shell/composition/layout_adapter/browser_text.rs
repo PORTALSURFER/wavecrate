@@ -2,16 +2,15 @@
 
 use super::super::style::SizingTokens;
 use crate::gui::layout_core::{
-    Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
-    OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams, layout_tree,
+    layout_tree, Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode,
+    MainAlign, OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams,
 };
-use crate::gui::text_layout::{TextLineInsets, centered_text_line};
+use crate::gui::text_layout::{centered_text_line, TextLineInsets};
 use crate::gui::types::{Point, Rect, Vector2};
 
 const BROWSER_COLUMNS_ROOT_ID: u64 = 1200;
 const BROWSER_COL_INDEX_ID: u64 = 1201;
 const BROWSER_COL_SAMPLE_ID: u64 = 1202;
-const BROWSER_TEXT_ROOT_ID: u64 = 1210;
 
 /// Slot-resolved browser table columns.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -161,7 +160,6 @@ fn compute_text_line_rect(rect: Rect, sizing: SizingTokens, font_size: f32) -> R
         font_size,
         TextLineInsets::symmetric(sizing.text_inset_x.max(0.0), sizing.text_inset_y.max(0.0)),
         0.0,
-        BROWSER_TEXT_ROOT_ID,
     )
 }
 

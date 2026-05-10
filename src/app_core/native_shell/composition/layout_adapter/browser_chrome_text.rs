@@ -1,15 +1,8 @@
 //! Slotized browser chrome text-line geometry helpers.
 
 use super::super::style::SizingTokens;
-use crate::gui::text_layout::{TextLineInsets, centered_text_line};
+use crate::gui::text_layout::{centered_text_line, TextLineInsets};
 use crate::gui::types::Rect;
-
-const TABS_TEXT_ITEM_ID: u64 = 1500;
-const TABS_TEXT_MAP_ID: u64 = 1501;
-const TOOLBAR_TEXT_SEARCH_ID: u64 = 1510;
-const TOOLBAR_TEXT_ACTIVITY_ID: u64 = 1511;
-const TOOLBAR_TEXT_SORT_ID: u64 = 1512;
-const FOOTER_TEXT_SUMMARY_ID: u64 = 1520;
 
 /// Slot-resolved browser-tab label bounds.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -33,13 +26,8 @@ pub(crate) fn compute_browser_tabs_text_layout(
     sizing: SizingTokens,
 ) -> BrowserTabsTextLayout {
     BrowserTabsTextLayout {
-        items_label: compute_text_line_rect(
-            items_tab,
-            sizing,
-            sizing.font_header,
-            TABS_TEXT_ITEM_ID,
-        ),
-        map_label: compute_text_line_rect(map_tab, sizing, sizing.font_header, TABS_TEXT_MAP_ID),
+        items_label: compute_text_line_rect(items_tab, sizing, sizing.font_header),
+        map_label: compute_text_line_rect(map_tab, sizing, sizing.font_header),
     }
 }
 
@@ -51,33 +39,18 @@ pub(crate) fn compute_browser_toolbar_text_layout(
     sizing: SizingTokens,
 ) -> BrowserToolbarTextLayout {
     BrowserToolbarTextLayout {
-        search_label: compute_text_line_rect(
-            search_field,
-            sizing,
-            sizing.font_meta,
-            TOOLBAR_TEXT_SEARCH_ID,
-        ),
-        activity_label: compute_text_line_rect(
-            activity_chip,
-            sizing,
-            sizing.font_meta,
-            TOOLBAR_TEXT_ACTIVITY_ID,
-        ),
-        sort_label: compute_text_line_rect(
-            sort_chip,
-            sizing,
-            sizing.font_meta,
-            TOOLBAR_TEXT_SORT_ID,
-        ),
+        search_label: compute_text_line_rect(search_field, sizing, sizing.font_meta),
+        activity_label: compute_text_line_rect(activity_chip, sizing, sizing.font_meta),
+        sort_label: compute_text_line_rect(sort_chip, sizing, sizing.font_meta),
     }
 }
 
 /// Compute browser footer summary label bounds.
 pub(crate) fn compute_browser_footer_text_rect(footer: Rect, sizing: SizingTokens) -> Rect {
-    compute_text_line_rect(footer, sizing, sizing.font_meta, FOOTER_TEXT_SUMMARY_ID)
+    compute_text_line_rect(footer, sizing, sizing.font_meta)
 }
 
-fn compute_text_line_rect(rect: Rect, sizing: SizingTokens, font_size: f32, node_id: u64) -> Rect {
+fn compute_text_line_rect(rect: Rect, sizing: SizingTokens, font_size: f32) -> Rect {
     let empty = empty_rect(rect);
     if rect.width() <= 0.0 || rect.height() <= 0.0 || font_size <= 0.0 {
         return empty;
@@ -87,7 +60,6 @@ fn compute_text_line_rect(rect: Rect, sizing: SizingTokens, font_size: f32, node
         font_size,
         TextLineInsets::symmetric(sizing.text_inset_x.max(0.0), sizing.text_inset_y.max(0.0)),
         0.0,
-        node_id,
     )
 }
 

@@ -4,15 +4,10 @@ use crate::gui::layout_core::{
     Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
     OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams,
 };
-use crate::gui::text_layout::{TextLineInsets, centered_text_line, top_text_line};
+use crate::gui::text_layout::{centered_text_line, top_text_line, TextLineInsets};
 use crate::gui::types::{Rect, Vector2};
 
-pub(super) fn centered_line_in_rect(
-    rect: Rect,
-    sizing: SizingTokens,
-    font_size: f32,
-    node_id: u64,
-) -> Rect {
+pub(super) fn centered_line_in_rect(rect: Rect, sizing: SizingTokens, font_size: f32) -> Rect {
     let empty = shared::empty_rect(rect);
     if rect.width() <= 0.0 || rect.height() <= 0.0 || font_size <= 0.0 {
         return empty;
@@ -22,7 +17,6 @@ pub(super) fn centered_line_in_rect(
         font_size,
         TextLineInsets::symmetric(sizing.text_inset_x.max(0.0), sizing.text_inset_y.max(0.0)),
         0.0,
-        node_id,
     )
 }
 
@@ -40,20 +34,15 @@ pub(super) fn fixed_height_child(node_id: u64, height: f32) -> SlotChild {
     }
 }
 
-pub(super) fn top_line_in_bounds(bounds: Rect, font_size: f32, node_id: u64) -> Rect {
+pub(super) fn top_line_in_bounds(bounds: Rect, font_size: f32) -> Rect {
     let empty = shared::empty_rect(bounds);
     if bounds.width() <= 0.0 || bounds.height() <= 0.0 || font_size <= 0.0 {
         return empty;
     }
-    top_text_line(bounds, font_size, TextLineInsets::horizontal(0.0), node_id)
+    top_text_line(bounds, font_size, TextLineInsets::horizontal(0.0))
 }
 
-pub(super) fn top_line_in_rect(
-    rect: Rect,
-    sizing: SizingTokens,
-    font_size: f32,
-    node_id: u64,
-) -> Rect {
+pub(super) fn top_line_in_rect(rect: Rect, sizing: SizingTokens, font_size: f32) -> Rect {
     let empty = shared::empty_rect(rect);
     if rect.width() <= 0.0 || rect.height() <= 0.0 || font_size <= 0.0 {
         return empty;
@@ -62,7 +51,6 @@ pub(super) fn top_line_in_rect(
         shared::clamp_rect_to_bounds(rect, rect),
         font_size,
         TextLineInsets::horizontal(sizing.text_inset_x.max(0.0)),
-        node_id,
     )
 }
 
