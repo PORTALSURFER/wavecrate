@@ -36,6 +36,14 @@ mod tests {
         assert!(!compat.decorations);
         assert_eq!(compat.target_fps, 90);
         assert!(compat.drag_and_drop);
+        assert_eq!(
+            compat.gpu,
+            radiant::gui_runtime::NativeGpuOptions::default()
+        );
+        assert_eq!(
+            compat.text,
+            radiant::gui_runtime::NativeTextOptions::default()
+        );
         let icon = compat.icon.expect("icon should be forwarded");
         assert_eq!(icon.rgba, vec![255, 0, 0, 255]);
         assert_eq!(icon.width, 1);
