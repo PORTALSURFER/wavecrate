@@ -9,7 +9,8 @@ use radiant::{
     },
     theme::ThemeTokens,
     widgets::{
-        FocusBehavior, PaintBounds, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
+        FocusBehavior, PaintBounds, PointerButton, Widget, WidgetCommon, WidgetInput, WidgetOutput,
+        WidgetSizing,
     },
 };
 use std::{
@@ -86,10 +87,11 @@ impl WaveformState {
         self.playhead_ratio
     }
 
-    pub(super) fn start_playback(&mut self) {
+    pub(super) fn start_playback(&mut self, ratio: f32) {
+        let ratio = ratio.clamp(0.0, 1.0);
         self.playing = true;
-        self.playhead_ratio = Some(0.0);
-        self.zoom_anchor_ratio = 0.0;
+        self.playhead_ratio = Some(ratio);
+        self.zoom_anchor_ratio = ratio;
     }
 
     pub(super) fn set_playhead_ratio(&mut self, ratio: f32) {
@@ -147,10 +149,21 @@ impl WaveformState {
             WaveformInteraction::ScrollTo { offset_fraction } => {
                 self.set_offset_fraction(offset_fraction);
             }
+            WaveformInteraction::PlayFrom { visible_ratio } => {
+                self.set_playhead_ratio(self.absolute_ratio_from_visible(visible_ratio));
+            }
             WaveformInteraction::Frame => {
                 // Playback progress is driven by the audio engine; frames only keep repainting.
             }
         }
+    }
+
+    pub(super) fn absolute_ratio_from_visible(&self, visible_ratio: f32) -> f32 {
+        let total = self.file.frames.max(1);
+        let viewport = self.viewport.clamp(total);
+        let visible_ratio = visible_ratio.clamp(0.0, 1.0);
+        let frame = viewport.start as f64 + viewport.visible_frames() as f64 * visible_ratio as f64;
+        ((frame / total as f64) as f32).clamp(0.0, 1.0)
     }
 
     fn handle_wheel(&mut self, delta: Vector2, anchor_ratio: f32) {
@@ -214,6 +227,7 @@ impl WaveformState {
 pub(super) enum WaveformInteraction {
     Wheel { delta: Vector2, anchor_ratio: f32 },
     ScrollTo { offset_fraction: f32 },
+    PlayFrom { visible_ratio: f32 },
     Frame,
 }
 
@@ -542,6 +556,14 @@ impl Widget for WaveformWidget {
                     anchor_ratio: self.ratio_from_position(bounds, position),
                 }))
             }
+            WidgetInput::PointerPress {
+                position,
+                button: PointerButton::Primary,
+            } if bounds.contains(position) => {
+                Some(WidgetOutput::typed(WaveformInteraction::PlayFrom {
+                    visible_ratio: self.ratio_from_position(bounds, position),
+                }))
+            }
             _ => None,
         }
     }
@@ -578,7 +600,7 @@ impl Widget for WaveformWidget {
                         b: 255,
                         a: 235,
                     },
-                    width: 1.5,
+                    width: 1.0,
                 }),
             },
             overlays: self.playhead_overlay(),
@@ -614,8 +636,12 @@ impl WaveformWidget {
 #[cfg(test)]
 mod tests {
     use super::{
-        BAND_COUNT, WaveformState, WaveformWidget, split_frequency_bands,
-        waveform_file_from_mono_samples,
+        split_frequency_bands, waveform_file_from_mono_samples, WaveformInteraction, WaveformState,
+        WaveformWidget, BAND_COUNT,
+    };
+    use radiant::{
+        gui::types::{Point, Rect, Vector2},
+        widgets::{PointerButton, Widget, WidgetInput},
     };
 
     #[test]
@@ -689,7 +715,7 @@ mod tests {
         assert!(!state.is_playing());
         assert_eq!(state.playhead_ratio(), None);
 
-        state.start_playback();
+        state.start_playback(0.0);
         assert!(state.is_playing());
         assert_eq!(state.playhead_ratio(), Some(0.0));
 
@@ -704,7 +730,7 @@ mod tests {
     #[test]
     fn playhead_overlay_projects_visible_playback_ratio() {
         let mut state = WaveformState::synthetic_for_tests();
-        state.start_playback();
+        state.start_playback(0.0);
         state.set_playhead_ratio(0.25);
 
         let widget = WaveformWidget::new(
@@ -730,5 +756,51 @@ mod tests {
                 panic!("playhead overlay should be app-owned");
             }
         }
+    }
+
+    #[test]
+    fn visible_ratio_maps_to_absolute_audio_position_inside_viewport() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.viewport = super::WaveformViewport {
+            start: 12_000,
+            end: 36_000,
+        };
+
+        let ratio = state.absolute_ratio_from_visible(0.5);
+
+        assert!((ratio - 0.5).abs() < 0.0001);
+    }
+
+    #[test]
+    fn primary_press_emits_playback_ratio_matching_hover_cursor_ratio() {
+        let state = WaveformState::synthetic_for_tests();
+        let mut widget = WaveformWidget::new(
+            state.file(),
+            state.viewport(),
+            state.cursor_ratio(),
+            state.playhead_ratio(),
+        );
+        let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(200.0, 80.0));
+
+        let output = widget
+            .handle_input(
+                bounds,
+                WidgetInput::PointerPress {
+                    position: Point::new(60.0, 40.0),
+                    button: PointerButton::Primary,
+                },
+            )
+            .expect("playback interaction");
+        let interaction = output
+            .typed_ref::<WaveformInteraction>()
+            .copied()
+            .expect("waveform interaction");
+
+        assert_eq!(
+            interaction,
+            WaveformInteraction::PlayFrom {
+                visible_ratio: 0.25
+            }
+        );
     }
 }

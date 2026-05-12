@@ -149,6 +149,9 @@ impl RebuildLayoutState {
             RebuildMessage::FolderScanFinished(result) => self.finish_folder_scan(result),
             RebuildMessage::SelectSample(path) => self.select_sample(path),
             RebuildMessage::PlaySelectedSample => self.play_selected_sample(),
+            RebuildMessage::Waveform(WaveformInteraction::PlayFrom { visible_ratio }) => {
+                self.play_waveform_from_visible_ratio(visible_ratio);
+            }
             RebuildMessage::Waveform(message) => self.waveform.apply_interaction(message),
             RebuildMessage::Frame => {
                 self.waveform.apply_interaction(WaveformInteraction::Frame);
@@ -267,7 +270,7 @@ impl RebuildLayoutState {
                 self.folder_browser.select_file(path.clone());
                 let file_name = waveform.file_name();
                 self.waveform = waveform;
-                match self.start_playback_path(Path::new(&path)) {
+                match self.start_playback_path(Path::new(&path), 0.0) {
                     Ok(()) => {
                         self.sample_status = format!("Playing {file_name}");
                     }
@@ -290,7 +293,7 @@ impl RebuildLayoutState {
             .map(Path::new)
             .map(Path::to_path_buf)
             .unwrap_or_else(|| self.waveform.path());
-        match self.start_playback_path(&path) {
+        match self.start_playback_path(&path, 0.0) {
             Ok(()) => {
                 self.sample_status = format!("Playing {}", self.waveform.file_name());
             }
@@ -300,19 +303,37 @@ impl RebuildLayoutState {
         }
     }
 
-    fn start_playback_path(&mut self, path: &Path) -> Result<(), String> {
+    fn play_waveform_from_visible_ratio(&mut self, visible_ratio: f32) {
+        let start_ratio = self.waveform.absolute_ratio_from_visible(visible_ratio);
+        let path = self.waveform.path();
+        match self.start_playback_path(&path, start_ratio) {
+            Ok(()) => {
+                self.sample_status = format!(
+                    "Playing {} from {:.1}%",
+                    self.waveform.file_name(),
+                    start_ratio * 100.0
+                );
+            }
+            Err(err) => {
+                self.sample_status = format!("Playback unavailable: {err}");
+            }
+        }
+    }
+
+    fn start_playback_path(&mut self, path: &Path, start_ratio: f32) -> Result<(), String> {
         let bytes = fs::read(path).map_err(|err| format!("failed to read sample: {err}"))?;
         if self.audio_player.is_none() {
             self.audio_player = Some(AudioPlayer::new()?);
         }
+        let start_ratio = start_ratio.clamp(0.0, 1.0);
         let duration = self.waveform.frames() as f32 / self.waveform.sample_rate().max(1) as f32;
         let player = self
             .audio_player
             .as_mut()
             .ok_or_else(|| String::from("audio player did not initialize"))?;
         player.set_audio(bytes, duration);
-        player.play()?;
-        self.waveform.start_playback();
+        player.play_from_fraction(f64::from(start_ratio))?;
+        self.waveform.start_playback(start_ratio);
         Ok(())
     }
 
