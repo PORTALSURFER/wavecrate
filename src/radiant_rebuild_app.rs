@@ -23,6 +23,8 @@ const DEBUG_LAYOUT_SHORT_ARG: &str = "-debug-layout";
 const DEFAULT_FOLDER_WIDTH: f32 = 260.0;
 const MIN_FOLDER_WIDTH: f32 = 180.0;
 const MAX_FOLDER_WIDTH: f32 = 420.0;
+const WAVEFORM_VIEW_HEIGHT: f32 = 172.0;
+const WAVEFORM_PANEL_HEIGHT: f32 = 226.0;
 
 #[derive(Clone, Debug, PartialEq)]
 enum RebuildMessage {
@@ -372,13 +374,13 @@ fn waveform_panel(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
             .truncate(),
         waveform::waveform_viewport_view(&state.waveform)
             .fill_width()
-            .height(86.0),
+            .height(WAVEFORM_VIEW_HEIGHT),
         waveform_scrollbar(&state.waveform),
     ])
     .spacing(2.0)
     .style(ui::WidgetStyle::default())
     .fill_width()
-    .height(120.0)
+    .height(WAVEFORM_PANEL_HEIGHT)
 }
 
 fn waveform_title(waveform: &WaveformState) -> String {
