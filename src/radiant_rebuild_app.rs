@@ -2,9 +2,12 @@
 
 use radiant::prelude as ui;
 use radiant::runtime::{NativeRunOptions, NativeTextOptions};
-use radiant::widgets::DragHandleMessage;
+use radiant::widgets::{DragHandleMessage, ScrollbarMessage};
 use sempal::gui_runtime::sempal_ui_font_path;
 use std::ffi::OsString;
+
+mod waveform;
+use waveform::{WaveformInteraction, WaveformState};
 
 const DEBUG_LAYOUT_ARG: &str = "--debug-layout";
 const DEBUG_LAYOUT_SHORT_ARG: &str = "-debug-layout";
@@ -12,28 +15,29 @@ const DEFAULT_FOLDER_WIDTH: f32 = 260.0;
 const MIN_FOLDER_WIDTH: f32 = 180.0;
 const MAX_FOLDER_WIDTH: f32 = 420.0;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum RebuildMessage {
+    ResizeFolder(DragHandleMessage),
+    Waveform(WaveformInteraction),
+    Frame,
+}
+
+#[derive(Clone, Debug)]
 struct RebuildLayoutState {
     folder_width: f32,
     folder_resize: Option<FolderResize>,
-}
-
-impl Default for RebuildLayoutState {
-    fn default() -> Self {
-        Self {
-            folder_width: DEFAULT_FOLDER_WIDTH,
-            folder_resize: None,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-struct FolderResize {
-    start_x: f32,
-    start_width: f32,
+    waveform: WaveformState,
 }
 
 impl RebuildLayoutState {
+    fn load_default() -> Result<Self, String> {
+        Ok(Self {
+            folder_width: DEFAULT_FOLDER_WIDTH,
+            folder_resize: None,
+            waveform: WaveformState::load_default()?,
+        })
+    }
+
     fn resize_folder_browser(&mut self, message: DragHandleMessage) {
         match message {
             DragHandleMessage::Started { position } => {
@@ -55,6 +59,20 @@ impl RebuildLayoutState {
             }
         }
     }
+
+    fn apply_message(&mut self, message: RebuildMessage) {
+        match message {
+            RebuildMessage::ResizeFolder(message) => self.resize_folder_browser(message),
+            RebuildMessage::Waveform(message) => self.waveform.apply_interaction(message),
+            RebuildMessage::Frame => self.waveform.apply_interaction(WaveformInteraction::Frame),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct FolderResize {
+    start_x: f32,
+    start_width: f32,
 }
 
 /// Run the new Radiant-first application shell.
@@ -70,9 +88,15 @@ pub(crate) fn run() -> Result<(), String> {
         ..NativeRunOptions::default()
     };
 
-    radiant::app(RebuildLayoutState::default())
+    radiant::app(RebuildLayoutState::load_default()?)
         .options(options)
         .view(view)
+        .animation(|state| state.waveform.is_playing())
+        .on_frame(|| RebuildMessage::Frame)
+        .update_with(|state, message, context| {
+            state.apply_message(message);
+            context.request_repaint();
+        })
         .run()
 }
 
@@ -84,13 +108,13 @@ where
         .any(|arg| arg == DEBUG_LAYOUT_ARG || arg == DEBUG_LAYOUT_SHORT_ARG)
 }
 
-fn view(state: &mut RebuildLayoutState) -> ui::StateView<RebuildLayoutState> {
+fn view(state: &mut RebuildLayoutState) -> ui::View<RebuildMessage> {
     ui::column([top_status_bar(), center_panel(state), bottom_status_bar()])
         .spacing(0.0)
         .fill()
 }
 
-fn top_status_bar() -> ui::StateView<RebuildLayoutState> {
+fn top_status_bar() -> ui::View<RebuildMessage> {
     ui::row([
         ui::text("Sempal").height(20.0).width(120.0),
         ui::text("Radiant rebuild").height(20.0).fill_width(),
@@ -103,13 +127,13 @@ fn top_status_bar() -> ui::StateView<RebuildLayoutState> {
     .height(30.0)
 }
 
-fn center_panel(state: &RebuildLayoutState) -> ui::StateView<RebuildLayoutState> {
-    ui::row([folder_sidebar(state), folder_splitter(), main_area()])
+fn center_panel(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
+    ui::row([folder_sidebar(state), folder_splitter(), main_area(state)])
         .padding(6.0)
         .fill()
 }
 
-fn folder_sidebar(state: &RebuildLayoutState) -> ui::StateView<RebuildLayoutState> {
+fn folder_sidebar(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
     ui::column([
         ui::text("Folders").height(22.0).fill_width(),
         ui::spacer().fill(),
@@ -120,13 +144,11 @@ fn folder_sidebar(state: &RebuildLayoutState) -> ui::StateView<RebuildLayoutStat
     .fill_height()
 }
 
-fn folder_splitter() -> ui::StateView<RebuildLayoutState> {
+fn folder_splitter() -> ui::View<RebuildMessage> {
     ui::column([
         ui::spacer().fill(),
         ui::drag_handle()
-            .on_drag(|state: &mut RebuildLayoutState, message| {
-                state.resize_folder_browser(message);
-            })
+            .mapped(RebuildMessage::ResizeFolder)
             .key("folder-browser-splitter-handle")
             .size(5.0, 32.0),
         ui::spacer().fill(),
@@ -141,17 +163,20 @@ fn folder_splitter() -> ui::StateView<RebuildLayoutState> {
     .spacing(4.0)
 }
 
-fn main_area() -> ui::StateView<RebuildLayoutState> {
-    ui::column([main_toolbar(), waveform_panel(), sample_browser()])
+fn main_area(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
+    ui::column([main_toolbar(), waveform_panel(state), sample_browser()])
         .padding(4.0)
         .fill()
 }
 
-fn main_toolbar() -> ui::StateView<RebuildLayoutState> {
+fn main_toolbar() -> ui::View<RebuildMessage> {
     ui::row([
         ui::text("Source").height(22.0).width(80.0),
-        ui::text("No folder loaded").height(22.0).fill_width(),
-        ui::text("0 selected").height(22.0).width(96.0),
+        ui::text("assets/portal_SS_kick_003.wav")
+            .height(22.0)
+            .fill_width()
+            .truncate(),
+        ui::text("1 selected").height(22.0).width(96.0),
     ])
     .padding_y(3.0)
     .style(ui::WidgetStyle::default())
@@ -159,10 +184,18 @@ fn main_toolbar() -> ui::StateView<RebuildLayoutState> {
     .height(34.0)
 }
 
-fn waveform_panel() -> ui::StateView<RebuildLayoutState> {
+fn waveform_panel(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
     ui::column([
-        ui::text("Waveform").height(20.0).fill_width(),
-        ui::spacer().fill(),
+        ui::text("Waveform").height(18.0).fill_width(),
+        ui::text(waveform_title(&state.waveform))
+            .height(18.0)
+            .fill_width()
+            .truncate(),
+        waveform::waveform_viewport_view(&state.waveform)
+            .fill_width()
+            .height(86.0),
+        waveform_scrollbar(&state.waveform),
+        waveform_controls(),
     ])
     .spacing(2.0)
     .style(ui::WidgetStyle::default())
@@ -170,7 +203,76 @@ fn waveform_panel() -> ui::StateView<RebuildLayoutState> {
     .height(150.0)
 }
 
-fn sample_browser() -> ui::StateView<RebuildLayoutState> {
+fn waveform_title(waveform: &WaveformState) -> String {
+    format!(
+        "Portal SS Kick 003 | {} Hz | {} channel{} -> mono | {} frames",
+        waveform.sample_rate(),
+        waveform.channels(),
+        if waveform.channels() == 1 { "" } else { "s" },
+        waveform.frames()
+    )
+}
+
+fn waveform_scrollbar(waveform: &WaveformState) -> ui::View<RebuildMessage> {
+    let mut scrollbar = radiant::widgets::ScrollbarWidget::new(
+        0,
+        radiant::widgets::ScrollbarAxis::Horizontal,
+        radiant::widgets::WidgetSizing::fixed(radiant::gui::types::Vector2::new(1200.0, 12.0)),
+    );
+    scrollbar.props.viewport_fraction = waveform.visible_fraction();
+    scrollbar.state.offset_fraction = waveform.offset_fraction();
+    ui::custom_widget(scrollbar, |output| {
+        output
+            .typed_ref::<ScrollbarMessage>()
+            .copied()
+            .map(|message| match message {
+                ScrollbarMessage::OffsetChanged { offset_fraction } => {
+                    RebuildMessage::Waveform(WaveformInteraction::ScrollTo { offset_fraction })
+                }
+            })
+    })
+    .fill_width()
+    .height(12.0)
+}
+
+fn waveform_controls() -> ui::View<RebuildMessage> {
+    ui::row([
+        ui::button("Zoom -")
+            .subtle()
+            .message(RebuildMessage::Waveform(WaveformInteraction::Zoom {
+                factor: 2.0,
+            })),
+        ui::button("Zoom +")
+            .primary()
+            .message(RebuildMessage::Waveform(WaveformInteraction::Zoom {
+                factor: 0.5,
+            })),
+        ui::button("Pan <")
+            .subtle()
+            .message(RebuildMessage::Waveform(WaveformInteraction::Pan {
+                visible_fraction: -0.25,
+            })),
+        ui::button("Pan >")
+            .subtle()
+            .message(RebuildMessage::Waveform(WaveformInteraction::Pan {
+                visible_fraction: 0.25,
+            })),
+        ui::button("Play")
+            .subtle()
+            .message(RebuildMessage::Waveform(
+                WaveformInteraction::TogglePlayback,
+            )),
+        ui::button("Reset")
+            .subtle()
+            .message(RebuildMessage::Waveform(WaveformInteraction::Reset)),
+        ui::spacer().fill(),
+    ])
+    .spacing(6.0)
+    .fill_width()
+    .height(28.0)
+}
+
+fn sample_browser() -> ui::View<RebuildMessage> {
     ui::column([
         sample_browser_header(),
         ui::spacer().fill(),
@@ -181,7 +283,7 @@ fn sample_browser() -> ui::StateView<RebuildLayoutState> {
     .fill()
 }
 
-fn sample_browser_header() -> ui::StateView<RebuildLayoutState> {
+fn sample_browser_header() -> ui::View<RebuildMessage> {
     ui::row([
         ui::text("Name").height(22.0).fill_width(),
         ui::text("Type").height(22.0).width(120.0),
@@ -193,22 +295,25 @@ fn sample_browser_header() -> ui::StateView<RebuildLayoutState> {
     .height(28.0)
 }
 
-fn sample_browser_status() -> ui::StateView<RebuildLayoutState> {
+fn sample_browser_status() -> ui::View<RebuildMessage> {
     ui::row([
-        ui::text("Browser").height(20.0).width(90.0),
-        ui::text("Samples will be listed here")
+        ui::text("Loaded").height(20.0).width(90.0),
+        ui::text("portal_SS_kick_003.wav")
             .height(20.0)
-            .fill_width(),
+            .fill_width()
+            .truncate(),
     ])
     .padding_x(3.0)
     .fill_width()
     .height(28.0)
 }
 
-fn bottom_status_bar() -> ui::StateView<RebuildLayoutState> {
+fn bottom_status_bar() -> ui::View<RebuildMessage> {
     ui::row([
-        ui::text("0 samples").height(20.0).width(120.0),
-        ui::text("No source loaded").height(20.0).fill_width(),
+        ui::text("1 sample").height(20.0).width(120.0),
+        ui::text("Default sample loaded from assets")
+            .height(20.0)
+            .fill_width(),
     ])
     .spacing(8.0)
     .padding_x(12.0)
@@ -252,7 +357,11 @@ mod tests {
 
     #[test]
     fn folder_browser_splitter_resizes_and_clamps_width() {
-        let mut state = RebuildLayoutState::default();
+        let mut state = RebuildLayoutState {
+            folder_width: DEFAULT_FOLDER_WIDTH,
+            folder_resize: None,
+            waveform: super::WaveformState::synthetic_for_tests(),
+        };
         state.resize_folder_browser(DragHandleMessage::Started {
             position: Point::new(100.0, 0.0),
         });
@@ -272,5 +381,19 @@ mod tests {
         });
         assert_eq!(state.folder_width, MIN_FOLDER_WIDTH);
         assert!(state.folder_resize.is_none());
+    }
+
+    #[test]
+    fn default_waveform_sample_is_bundled_asset() {
+        let path = super::waveform::default_sample_path();
+        assert!(path.ends_with("assets/portal_SS_kick_003.wav"));
+        assert!(path.is_file());
+    }
+
+    #[test]
+    fn default_waveform_sample_loads_for_rebuild_ui() {
+        let waveform = super::WaveformState::load_default().expect("default sample loads");
+        assert!(waveform.frames() > 0);
+        assert!(waveform.sample_rate() > 0);
     }
 }
