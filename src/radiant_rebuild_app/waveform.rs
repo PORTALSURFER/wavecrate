@@ -37,7 +37,7 @@ pub(super) struct WaveformState {
     viewport: WaveformViewport,
     zoom_anchor_ratio: f32,
     playing: bool,
-    playhead_ratio: f32,
+    playhead_ratio: Option<f32>,
 }
 
 impl WaveformState {
@@ -62,7 +62,7 @@ impl WaveformState {
             viewport,
             zoom_anchor_ratio: 0.5,
             playing: false,
-            playhead_ratio: 0.5,
+            playhead_ratio: None,
         }
     }
 
@@ -79,11 +79,28 @@ impl WaveformState {
     }
 
     pub(super) fn cursor_ratio(&self) -> Option<f32> {
-        Some(if self.playing {
-            self.playhead_ratio
-        } else {
-            self.zoom_anchor_ratio
-        })
+        Some(self.zoom_anchor_ratio)
+    }
+
+    pub(super) fn playhead_ratio(&self) -> Option<f32> {
+        self.playhead_ratio
+    }
+
+    pub(super) fn start_playback(&mut self) {
+        self.playing = true;
+        self.playhead_ratio = Some(0.0);
+        self.zoom_anchor_ratio = 0.0;
+    }
+
+    pub(super) fn set_playhead_ratio(&mut self, ratio: f32) {
+        let ratio = ratio.clamp(0.0, 1.0);
+        self.playhead_ratio = Some(ratio);
+        self.zoom_anchor_ratio = ratio;
+    }
+
+    pub(super) fn stop_playback(&mut self) {
+        self.playing = false;
+        self.playhead_ratio = None;
     }
 
     pub(super) fn sample_rate(&self) -> u32 {
@@ -104,6 +121,10 @@ impl WaveformState {
             .file_name()
             .map(|name| name.to_string_lossy().to_string())
             .unwrap_or_else(|| self.file.path.display().to_string())
+    }
+
+    pub(super) fn path(&self) -> PathBuf {
+        self.file.path.clone()
     }
 
     pub(super) fn visible_fraction(&self) -> f32 {
@@ -127,13 +148,7 @@ impl WaveformState {
                 self.set_offset_fraction(offset_fraction);
             }
             WaveformInteraction::Frame => {
-                if self.playing {
-                    self.playhead_ratio += 0.01;
-                    if self.playhead_ratio > 1.0 {
-                        self.playhead_ratio = 0.0;
-                    }
-                    self.zoom_anchor_ratio = self.playhead_ratio;
-                }
+                // Playback progress is driven by the audio engine; frames only keep repainting.
             }
         }
     }
@@ -234,7 +249,12 @@ pub(super) fn default_sample_path() -> PathBuf {
 
 pub(super) fn waveform_viewport_view(state: &WaveformState) -> ui::View<super::RebuildMessage> {
     ui::custom_widget(
-        WaveformWidget::new(state.file(), state.viewport(), state.cursor_ratio()),
+        WaveformWidget::new(
+            state.file(),
+            state.viewport(),
+            state.cursor_ratio(),
+            state.playhead_ratio(),
+        ),
         |output| {
             output
                 .typed_ref::<WaveformInteraction>()
@@ -466,6 +486,7 @@ struct WaveformWidget {
     common: WidgetCommon,
     file: Arc<WaveformFile>,
     viewport: WaveformViewport,
+    playhead_ratio: Option<f32>,
 }
 
 impl WaveformWidget {
@@ -473,6 +494,7 @@ impl WaveformWidget {
         file: Arc<WaveformFile>,
         viewport: WaveformViewport,
         _cursor_ratio: Option<f32>,
+        playhead_ratio: Option<f32>,
     ) -> Self {
         let mut common = WidgetCommon::new(
             0,
@@ -486,6 +508,7 @@ impl WaveformWidget {
             common,
             file,
             viewport,
+            playhead_ratio,
         }
     }
 
@@ -558,14 +581,42 @@ impl Widget for WaveformWidget {
                     width: 1.5,
                 }),
             },
-            overlays: Vec::new(),
+            overlays: self.playhead_overlay(),
         }));
+    }
+}
+
+impl WaveformWidget {
+    fn playhead_overlay(&self) -> Vec<radiant::runtime::GpuSurfaceOverlay> {
+        let Some(playhead_ratio) = self.playhead_ratio else {
+            return Vec::new();
+        };
+        let playhead_frame = playhead_ratio.clamp(0.0, 1.0) * self.file.frames.max(1) as f32;
+        let visible_start = self.viewport.start as f32;
+        let visible_width = self.viewport.visible_frames() as f32;
+        let visible_ratio = (playhead_frame - visible_start) / visible_width.max(1.0);
+        if !(0.0..=1.0).contains(&visible_ratio) {
+            return Vec::new();
+        }
+        vec![radiant::runtime::GpuSurfaceOverlay::VerticalCursor {
+            ratio: visible_ratio,
+            color: Rgba8 {
+                r: 71,
+                g: 220,
+                b: 255,
+                a: 245,
+            },
+            width: 1.75,
+        }]
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{split_frequency_bands, waveform_file_from_mono_samples, BAND_COUNT};
+    use super::{
+        split_frequency_bands, waveform_file_from_mono_samples, WaveformState, WaveformWidget,
+        BAND_COUNT,
+    };
 
     #[test]
     fn waveform_summary_preserves_raw_transient_detail() {
@@ -629,5 +680,52 @@ mod tests {
         assert!(mid_peak > 0.0);
         assert!(high_peak > 0.0);
         assert!(raw_peak >= high_peak);
+    }
+
+    #[test]
+    fn playback_state_starts_at_head_and_clears_on_stop() {
+        let mut state = WaveformState::synthetic_for_tests();
+
+        assert!(!state.is_playing());
+        assert_eq!(state.playhead_ratio(), None);
+
+        state.start_playback();
+        assert!(state.is_playing());
+        assert_eq!(state.playhead_ratio(), Some(0.0));
+
+        state.set_playhead_ratio(0.375);
+        assert_eq!(state.playhead_ratio(), Some(0.375));
+
+        state.stop_playback();
+        assert!(!state.is_playing());
+        assert_eq!(state.playhead_ratio(), None);
+    }
+
+    #[test]
+    fn playhead_overlay_projects_visible_playback_ratio() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.start_playback();
+        state.set_playhead_ratio(0.25);
+
+        let widget = WaveformWidget::new(
+            state.file(),
+            state.viewport(),
+            state.cursor_ratio(),
+            state.playhead_ratio(),
+        );
+
+        let overlays = widget.playhead_overlay();
+        assert_eq!(overlays.len(), 1);
+        match overlays[0] {
+            radiant::runtime::GpuSurfaceOverlay::VerticalCursor {
+                ratio,
+                color,
+                width,
+            } => {
+                assert!((ratio - 0.25).abs() < 0.001);
+                assert_eq!((color.r, color.g, color.b), (71, 220, 255));
+                assert_eq!(width, 1.75);
+            }
+        }
     }
 }

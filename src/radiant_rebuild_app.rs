@@ -5,9 +5,12 @@ use radiant::prelude as ui;
 use radiant::runtime::{NativeRunOptions, NativeTextOptions};
 use radiant::widgets::{DragHandleMessage, ScrollbarMessage, TextInputWidget, WidgetSizing};
 use rfd::FileDialog;
+use sempal::audio::AudioPlayer;
 use sempal::gui_runtime::sempal_ui_font_path;
 use std::{
     ffi::OsString,
+    fs,
+    path::Path,
     sync::mpsc::{self, Receiver, Sender},
 };
 
@@ -35,6 +38,7 @@ enum RebuildMessage {
     FolderScanDiscoveryBatch(FolderScanDiscoveryBatch),
     FolderScanFinished(FolderScanResult),
     SelectSample(String),
+    PlaySelectedSample,
     Waveform(WaveformInteraction),
     Frame,
 }
@@ -50,6 +54,7 @@ struct RebuildLayoutState {
     next_task_id: u64,
     folder_progress: Option<FolderScanProgress>,
     progress_tick: f32,
+    audio_player: Option<AudioPlayer>,
 }
 
 impl RebuildLayoutState {
@@ -66,6 +71,7 @@ impl RebuildLayoutState {
             next_task_id: 1,
             folder_progress: None,
             progress_tick: 0.0,
+            audio_player: None,
         })
     }
 
@@ -142,9 +148,11 @@ impl RebuildLayoutState {
             }
             RebuildMessage::FolderScanFinished(result) => self.finish_folder_scan(result),
             RebuildMessage::SelectSample(path) => self.select_sample(path),
+            RebuildMessage::PlaySelectedSample => self.play_selected_sample(),
             RebuildMessage::Waveform(message) => self.waveform.apply_interaction(message),
             RebuildMessage::Frame => {
                 self.waveform.apply_interaction(WaveformInteraction::Frame);
+                self.refresh_playback_progress();
                 if self.folder_progress.is_some() {
                     self.progress_tick = (self.progress_tick + 0.035) % 1.0;
                 }
@@ -256,14 +264,73 @@ impl RebuildLayoutState {
     fn select_sample(&mut self, path: String) {
         match WaveformState::load_path(path.clone().into()) {
             Ok(waveform) => {
-                self.folder_browser.select_file(path);
+                self.folder_browser.select_file(path.clone());
                 let file_name = waveform.file_name();
                 self.waveform = waveform;
-                self.sample_status = format!("Loaded {file_name}");
+                match self.start_playback_path(Path::new(&path)) {
+                    Ok(()) => {
+                        self.sample_status = format!("Playing {file_name}");
+                    }
+                    Err(err) => {
+                        self.sample_status =
+                            format!("Loaded {file_name} | playback unavailable: {err}");
+                    }
+                }
             }
             Err(err) => {
                 self.sample_status = format!("Could not load sample: {err}");
             }
+        }
+    }
+
+    fn play_selected_sample(&mut self) {
+        let path = self
+            .folder_browser
+            .selected_file_id()
+            .map(Path::new)
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| self.waveform.path());
+        match self.start_playback_path(&path) {
+            Ok(()) => {
+                self.sample_status = format!("Playing {}", self.waveform.file_name());
+            }
+            Err(err) => {
+                self.sample_status = format!("Playback unavailable: {err}");
+            }
+        }
+    }
+
+    fn start_playback_path(&mut self, path: &Path) -> Result<(), String> {
+        let bytes = fs::read(path).map_err(|err| format!("failed to read sample: {err}"))?;
+        if self.audio_player.is_none() {
+            self.audio_player = Some(AudioPlayer::new()?);
+        }
+        let duration = self.waveform.frames() as f32 / self.waveform.sample_rate().max(1) as f32;
+        let player = self
+            .audio_player
+            .as_mut()
+            .ok_or_else(|| String::from("audio player did not initialize"))?;
+        player.set_audio(bytes, duration);
+        player.play()?;
+        self.waveform.start_playback();
+        Ok(())
+    }
+
+    fn refresh_playback_progress(&mut self) {
+        let Some(player) = self.audio_player.as_mut() else {
+            return;
+        };
+        if let Some(error) = player.take_error() {
+            self.waveform.stop_playback();
+            self.sample_status = format!("Playback stopped: {error}");
+            return;
+        }
+        if player.is_playing() {
+            if let Some(progress) = player.progress() {
+                self.waveform.set_playhead_ratio(progress);
+            }
+        } else if self.waveform.is_playing() {
+            self.waveform.stop_playback();
         }
     }
 }
@@ -298,6 +365,8 @@ pub(crate) fn run() -> Result<(), String> {
                 ui::ShortcutResolution::action(RebuildMessage::FolderBrowser(
                     FolderBrowserMessage::BeginRenameSelected,
                 ))
+            } else if press == ui::KeyPress::new(ui::KeyCode::Space) {
+                ui::ShortcutResolution::action(RebuildMessage::PlaySelectedSample)
             } else {
                 ui::ShortcutResolution::unhandled()
             }
@@ -735,6 +804,7 @@ mod tests {
             next_task_id: 1,
             folder_progress: None,
             progress_tick: 0.0,
+            audio_player: None,
         };
         state.resize_folder_browser(DragHandleMessage::Started {
             position: Point::new(100.0, 0.0),
@@ -784,6 +854,7 @@ mod tests {
             next_task_id: 1,
             folder_progress: None,
             progress_tick: 0.0,
+            audio_player: None,
         };
         let sample_path = state.folder_browser.selected_audio_files()[0].id.clone();
 
