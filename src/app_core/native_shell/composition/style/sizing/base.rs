@@ -38,7 +38,7 @@ pub(super) fn base_sizing() -> SizingTokens {
         panel_inset: 4.0,
         header_label_gutter: 3.0,
         browser_row_gap: 0.0,
-        browser_row_height: 16.5,
+        browser_row_height: 16.0,
         source_row_gap: 1.0,
         source_row_height: 16.0,
         source_rows_max: 12,
