@@ -13,8 +13,8 @@ use std::{
 mod folder_browser;
 mod waveform;
 use folder_browser::{
-    FileEntry, FolderBrowserMessage, FolderBrowserState, FolderScanProgress, FolderScanRequest,
-    FolderScanResult,
+    FileEntry, FolderBrowserMessage, FolderBrowserState, FolderScanDiscovery, FolderScanProgress,
+    FolderScanRequest, FolderScanResult,
 };
 use waveform::{WaveformInteraction, WaveformState};
 
@@ -29,6 +29,7 @@ enum RebuildMessage {
     ResizeFolder(DragHandleMessage),
     FolderBrowser(FolderBrowserMessage),
     FolderScanProgress(FolderScanProgress),
+    FolderScanDiscovery(FolderScanDiscovery),
     FolderScanFinished(FolderScanResult),
     SelectSample(String),
     Waveform(WaveformInteraction),
@@ -102,7 +103,15 @@ impl RebuildLayoutState {
             }
             RebuildMessage::FolderBrowser(message) => self.folder_browser.apply_message(message),
             RebuildMessage::FolderScanProgress(progress) => {
-                self.folder_progress = Some(progress);
+                if self
+                    .folder_browser
+                    .scan_is_active(&progress.source_id, progress.task_id)
+                {
+                    self.folder_progress = Some(progress);
+                }
+            }
+            RebuildMessage::FolderScanDiscovery(event) => {
+                self.folder_browser.apply_scan_discovered(event);
             }
             RebuildMessage::FolderScanFinished(result) => self.finish_folder_scan(result),
             RebuildMessage::SelectSample(path) => self.select_sample(path),
@@ -153,6 +162,7 @@ impl RebuildLayoutState {
     ) {
         self.folder_progress = Some(FolderScanProgress {
             task_id: request.task_id,
+            source_id: request.source_id.clone(),
             label: request.label.clone(),
             phase: String::from("Queued"),
             completed: 0,
@@ -164,9 +174,16 @@ impl RebuildLayoutState {
         context.spawn(
             "rebuild-folder-scan",
             move || {
-                folder_browser::scan_source_with_progress(request, |progress| {
-                    let _ = sender.send(RebuildMessage::FolderScanProgress(progress));
-                })
+                let discovery_sender = sender.clone();
+                folder_browser::scan_source_with_progress(
+                    request,
+                    |progress| {
+                        let _ = sender.send(RebuildMessage::FolderScanProgress(progress));
+                    },
+                    |event| {
+                        let _ = discovery_sender.send(RebuildMessage::FolderScanDiscovery(event));
+                    },
+                )
             },
             RebuildMessage::FolderScanFinished,
         );
@@ -547,15 +564,13 @@ fn bottom_status_text(state: &RebuildLayoutState) -> String {
 
 fn worker_progress_bar(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
     let Some(progress) = state.folder_progress.as_ref() else {
-        return ui::text("").width(180.0).height(10.0);
+        return ui::text("").width(0.0).height(10.0);
     };
-    let track_width = 180.0;
-    let fraction = if progress.total == 0 {
-        state.progress_tick
-    } else {
-        progress.completed as f32 / progress.total.max(1) as f32
+    if progress.total == 0 {
+        return ui::text("").width(0.0).height(10.0);
     }
-    .clamp(0.0, 1.0);
+    let track_width = 180.0;
+    let fraction = (progress.completed as f32 / progress.total.max(1) as f32).clamp(0.0, 1.0);
     let filled = (track_width * fraction).clamp(8.0, track_width);
     let empty = (track_width - filled).max(0.0);
     ui::row([
