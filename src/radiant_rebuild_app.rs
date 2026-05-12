@@ -6,7 +6,9 @@ use radiant::widgets::{DragHandleMessage, ScrollbarMessage};
 use sempal::gui_runtime::sempal_ui_font_path;
 use std::ffi::OsString;
 
+mod folder_browser;
 mod waveform;
+use folder_browser::{FolderBrowserMessage, FolderBrowserState};
 use waveform::{WaveformInteraction, WaveformState};
 
 const DEBUG_LAYOUT_ARG: &str = "--debug-layout";
@@ -15,9 +17,10 @@ const DEFAULT_FOLDER_WIDTH: f32 = 260.0;
 const MIN_FOLDER_WIDTH: f32 = 180.0;
 const MAX_FOLDER_WIDTH: f32 = 420.0;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 enum RebuildMessage {
     ResizeFolder(DragHandleMessage),
+    FolderBrowser(FolderBrowserMessage),
     Waveform(WaveformInteraction),
     Frame,
 }
@@ -26,6 +29,7 @@ enum RebuildMessage {
 struct RebuildLayoutState {
     folder_width: f32,
     folder_resize: Option<FolderResize>,
+    folder_browser: FolderBrowserState,
     waveform: WaveformState,
 }
 
@@ -34,6 +38,7 @@ impl RebuildLayoutState {
         Ok(Self {
             folder_width: DEFAULT_FOLDER_WIDTH,
             folder_resize: None,
+            folder_browser: FolderBrowserState::load_default(),
             waveform: WaveformState::load_default()?,
         })
     }
@@ -63,6 +68,7 @@ impl RebuildLayoutState {
     fn apply_message(&mut self, message: RebuildMessage) {
         match message {
             RebuildMessage::ResizeFolder(message) => self.resize_folder_browser(message),
+            RebuildMessage::FolderBrowser(message) => self.folder_browser.apply_message(message),
             RebuildMessage::Waveform(message) => self.waveform.apply_interaction(message),
             RebuildMessage::Frame => self.waveform.apply_interaction(WaveformInteraction::Frame),
         }
@@ -134,14 +140,9 @@ fn center_panel(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
 }
 
 fn folder_sidebar(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
-    ui::column([
-        ui::text("Folders").height(22.0).fill_width(),
-        ui::spacer().fill(),
-    ])
-    .spacing(3.0)
-    .padding(4.0)
-    .width(state.folder_width)
-    .fill_height()
+    folder_browser::folder_browser_view(&state.folder_browser)
+        .width(state.folder_width)
+        .fill_height()
 }
 
 fn folder_splitter() -> ui::View<RebuildMessage> {
@@ -360,6 +361,7 @@ mod tests {
         let mut state = RebuildLayoutState {
             folder_width: DEFAULT_FOLDER_WIDTH,
             folder_resize: None,
+            folder_browser: super::FolderBrowserState::load_default(),
             waveform: super::WaveformState::synthetic_for_tests(),
         };
         state.resize_folder_browser(DragHandleMessage::Started {
@@ -395,5 +397,15 @@ mod tests {
         let waveform = super::WaveformState::load_default().expect("default sample loads");
         assert!(waveform.frames() > 0);
         assert!(waveform.sample_rate() > 0);
+    }
+
+    #[test]
+    fn default_folder_browser_loads_assets_root() {
+        let browser = super::FolderBrowserState::load_default();
+        assert!(browser.root_path().ends_with("assets"));
+        assert!(browser
+            .selected_files()
+            .iter()
+            .any(|file| file.name == "portal_SS_kick_003.wav"));
     }
 }
