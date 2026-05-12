@@ -225,12 +225,11 @@ fn waveform_panel(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
             .fill_width()
             .height(86.0),
         waveform_scrollbar(&state.waveform),
-        waveform_controls(),
     ])
     .spacing(2.0)
     .style(ui::WidgetStyle::default())
     .fill_width()
-    .height(150.0)
+    .height(120.0)
 }
 
 fn waveform_title(waveform: &WaveformState) -> String {
@@ -264,43 +263,6 @@ fn waveform_scrollbar(waveform: &WaveformState) -> ui::View<RebuildMessage> {
     })
     .fill_width()
     .height(12.0)
-}
-
-fn waveform_controls() -> ui::View<RebuildMessage> {
-    ui::row([
-        ui::button("Zoom -")
-            .subtle()
-            .message(RebuildMessage::Waveform(WaveformInteraction::Zoom {
-                factor: 2.0,
-            })),
-        ui::button("Zoom +")
-            .primary()
-            .message(RebuildMessage::Waveform(WaveformInteraction::Zoom {
-                factor: 0.5,
-            })),
-        ui::button("Pan <")
-            .subtle()
-            .message(RebuildMessage::Waveform(WaveformInteraction::Pan {
-                visible_fraction: -0.25,
-            })),
-        ui::button("Pan >")
-            .subtle()
-            .message(RebuildMessage::Waveform(WaveformInteraction::Pan {
-                visible_fraction: 0.25,
-            })),
-        ui::button("Play")
-            .subtle()
-            .message(RebuildMessage::Waveform(
-                WaveformInteraction::TogglePlayback,
-            )),
-        ui::button("Reset")
-            .subtle()
-            .message(RebuildMessage::Waveform(WaveformInteraction::Reset)),
-        ui::spacer().fill(),
-    ])
-    .spacing(6.0)
-    .fill_width()
-    .height(28.0)
 }
 
 fn sample_browser(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {

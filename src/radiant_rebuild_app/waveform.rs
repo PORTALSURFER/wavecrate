@@ -126,15 +126,6 @@ impl WaveformState {
             WaveformInteraction::ScrollTo { offset_fraction } => {
                 self.set_offset_fraction(offset_fraction);
             }
-            WaveformInteraction::Zoom { factor } => {
-                self.zoom_around_anchor(factor, self.zoom_anchor_ratio);
-            }
-            WaveformInteraction::Pan { visible_fraction } => {
-                self.pan_by_visible_fraction(visible_fraction);
-            }
-            WaveformInteraction::TogglePlayback => {
-                self.playing = !self.playing;
-            }
             WaveformInteraction::Frame => {
                 if self.playing {
                     self.playhead_ratio += 0.01;
@@ -143,10 +134,6 @@ impl WaveformState {
                     }
                     self.zoom_anchor_ratio = self.playhead_ratio;
                 }
-            }
-            WaveformInteraction::Reset => {
-                self.viewport = WaveformViewport::full(self.file.frames);
-                self.playhead_ratio = 0.5;
             }
         }
     }
@@ -212,11 +199,7 @@ impl WaveformState {
 pub(super) enum WaveformInteraction {
     Wheel { delta: Vector2, anchor_ratio: f32 },
     ScrollTo { offset_fraction: f32 },
-    Zoom { factor: f32 },
-    Pan { visible_fraction: f32 },
-    TogglePlayback,
     Frame,
-    Reset,
 }
 
 #[derive(Clone, Debug)]
