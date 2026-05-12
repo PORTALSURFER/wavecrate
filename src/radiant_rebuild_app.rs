@@ -466,15 +466,15 @@ fn sample_browser(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
 fn sample_browser_header() -> ui::View<RebuildMessage> {
     details_header_row([
         sample_header_cell("Name", SAMPLE_NAME_WIDTH),
+        sample_header_cell("Ext", SAMPLE_EXT_WIDTH),
         sample_header_cell("Size", SAMPLE_SIZE_WIDTH),
-        sample_header_cell("Type", SAMPLE_TYPE_WIDTH),
         sample_header_cell("Modified", SAMPLE_MODIFIED_WIDTH),
     ])
 }
 
 const SAMPLE_NAME_WIDTH: f32 = 240.0;
+const SAMPLE_EXT_WIDTH: f32 = 54.0;
 const SAMPLE_SIZE_WIDTH: f32 = 78.0;
-const SAMPLE_TYPE_WIDTH: f32 = 118.0;
 const SAMPLE_MODIFIED_WIDTH: f32 = 112.0;
 
 fn sample_header_cell(label: &str, width: f32) -> ui::View<RebuildMessage> {
@@ -518,8 +518,8 @@ fn sample_browser_row(
 ) -> ui::View<RebuildMessage> {
     let row = compact_details_row([
         sample_name_cell(file, rename),
+        sample_file_cell(file, file.extension.clone(), SAMPLE_EXT_WIDTH, "extension"),
         sample_file_cell(file, file.size.clone(), SAMPLE_SIZE_WIDTH, "size"),
-        sample_file_cell(file, file.kind.clone(), SAMPLE_TYPE_WIDTH, "kind"),
         sample_file_cell(
             file,
             file.modified.clone(),
@@ -544,7 +544,7 @@ fn sample_name_cell(
     rename: Option<folder_browser::FileRenameView>,
 ) -> ui::View<RebuildMessage> {
     let Some(rename) = rename else {
-        return sample_file_cell(file, file.name.clone(), SAMPLE_NAME_WIDTH, "name");
+        return sample_file_cell(file, file.stem.clone(), SAMPLE_NAME_WIDTH, "name");
     };
     let mut input = TextInputWidget::new(
         0,

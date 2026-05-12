@@ -624,6 +624,8 @@ pub(super) struct FileRenameView {
 pub(super) struct FileEntry {
     pub(super) id: String,
     pub(super) name: String,
+    pub(super) stem: String,
+    pub(super) extension: String,
     pub(super) kind: String,
     pub(super) size: String,
     pub(super) size_bytes: u64,
@@ -1112,6 +1114,8 @@ fn file_entry(path: &PathBuf) -> FileEntry {
     FileEntry {
         id: path_id(path),
         name: file_label(path),
+        stem: file_stem_label(path),
+        extension: file_extension_label(path),
         kind: file_kind(path),
         size: format_size(size_bytes),
         size_bytes,
@@ -1262,6 +1266,19 @@ fn file_label(path: &Path) -> String {
     path.file_name()
         .map(|name| name.to_string_lossy().to_string())
         .unwrap_or_else(|| path.display().to_string())
+}
+
+fn file_stem_label(path: &Path) -> String {
+    path.file_stem()
+        .map(|name| name.to_string_lossy().to_string())
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| file_label(path))
+}
+
+fn file_extension_label(path: &Path) -> String {
+    path.extension()
+        .map(|extension| extension.to_string_lossy().to_string())
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -1470,9 +1487,13 @@ mod tests {
             browser
                 .selected_audio_files()
                 .iter()
-                .map(|file| file.name.as_str())
+                .map(|file| (
+                    file.name.as_str(),
+                    file.stem.as_str(),
+                    file.extension.as_str()
+                ))
                 .collect::<Vec<_>>(),
-            vec!["snare loop.wav"]
+            vec![("snare loop.wav", "snare loop", "wav")]
         );
         let _ = fs::remove_dir_all(root);
     }
