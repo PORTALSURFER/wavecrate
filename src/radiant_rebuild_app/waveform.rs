@@ -25,7 +25,7 @@ use super::RebuildMessage;
 const WAVEFORM_WIDTH: usize = 1200;
 const WAVEFORM_HEIGHT: usize = 320;
 const MIN_VISIBLE_FRAMES: usize = 256;
-const BAND_COUNT: usize = 1;
+const BAND_COUNT: usize = 4;
 #[cfg(test)]
 const SYNTHETIC_SAMPLE_RATE: u32 = 48_000;
 #[cfg(test)]
@@ -302,11 +302,7 @@ fn waveform_file_from_mono_samples(
     channels: usize,
     mono_samples: Vec<f32>,
 ) -> WaveformFile {
-    let gpu_signal_samples = mono_samples
-        .iter()
-        .copied()
-        .map(|sample| sample.clamp(-1.0, 1.0))
-        .collect::<Arc<[f32]>>();
+    let gpu_signal_samples = split_frequency_bands(&mono_samples, sample_rate);
     let gpu_signal_summary = Arc::new(
         radiant::runtime::GpuSignalSummary::from_interleaved_samples(
             &gpu_signal_samples,
@@ -383,6 +379,33 @@ fn load_wav_waveform_file(path: PathBuf) -> Result<WaveformFile, String> {
         channels,
         mono_samples,
     ))
+}
+
+fn split_frequency_bands(samples: &[f32], sample_rate: u32) -> Arc<[f32]> {
+    if samples.is_empty() {
+        return Arc::from([]);
+    }
+    let alpha_low = lowpass_alpha(sample_rate, 180.0);
+    let alpha_mid = lowpass_alpha(sample_rate, 2_600.0);
+    let mut low = 0.0_f32;
+    let mut mid_low = 0.0_f32;
+    let mut bands = Vec::with_capacity(samples.len().saturating_mul(BAND_COUNT));
+    for sample in samples {
+        let sample = sample.clamp(-1.0, 1.0);
+        low += alpha_low * (sample - low);
+        mid_low += alpha_mid * (sample - mid_low);
+        let mid = (mid_low - low).clamp(-1.0, 1.0);
+        let high = (sample - mid_low).clamp(-1.0, 1.0);
+        bands.push(low.clamp(-1.0, 1.0));
+        bands.push(mid);
+        bands.push(high);
+        bands.push(sample);
+    }
+    bands.into()
+}
+
+fn lowpass_alpha(sample_rate: u32, cutoff_hz: f32) -> f32 {
+    (1.0 - (-std::f32::consts::TAU * cutoff_hz / sample_rate.max(1) as f32).exp()).clamp(0.0, 1.0)
 }
 
 fn downmix_to_mono(samples: &[f32], channels: usize, frames: usize) -> Vec<f32> {
@@ -542,7 +565,7 @@ impl Widget for WaveformWidget {
 
 #[cfg(test)]
 mod tests {
-    use super::{waveform_file_from_mono_samples, BAND_COUNT};
+    use super::{split_frequency_bands, waveform_file_from_mono_samples, BAND_COUNT};
 
     #[test]
     fn waveform_summary_preserves_raw_transient_detail() {
@@ -550,7 +573,7 @@ mod tests {
 
         let file = waveform_file_from_mono_samples("test.wav".into(), 48_000, 1, samples.clone());
 
-        assert_eq!(BAND_COUNT, 1);
+        assert_eq!(BAND_COUNT, 4);
         let raw_peak_index = samples
             .iter()
             .enumerate()
@@ -571,7 +594,40 @@ mod tests {
             .expect("peak band sample");
 
         assert_eq!(rendered_peak_index, raw_peak_index);
-        let bucket = file.gpu_signal_summary.levels[0].buckets[raw_peak_index];
-        assert!(bucket.min.abs().max(bucket.max.abs()) > 0.89);
+        let frame_peak = file.gpu_signal_summary.levels[0].buckets
+            [raw_peak_index * BAND_COUNT..(raw_peak_index + 1) * BAND_COUNT]
+            .iter()
+            .map(|bucket| bucket.min.abs().max(bucket.max.abs()))
+            .fold(0.0_f32, f32::max);
+        assert!(frame_peak > 0.89);
+    }
+
+    #[test]
+    fn frequency_bands_keep_low_mid_high_and_raw_lanes_separate() {
+        let samples = [0.0, 0.7, -0.7, 0.18, -0.18, 0.02, -0.02, 0.0];
+        let bands = split_frequency_bands(&samples, 48_000);
+
+        assert_eq!(bands.len(), samples.len() * BAND_COUNT);
+        let low_peak = bands
+            .chunks_exact(BAND_COUNT)
+            .map(|frame| frame[0].abs())
+            .fold(0.0_f32, f32::max);
+        let mid_peak = bands
+            .chunks_exact(BAND_COUNT)
+            .map(|frame| frame[1].abs())
+            .fold(0.0_f32, f32::max);
+        let high_peak = bands
+            .chunks_exact(BAND_COUNT)
+            .map(|frame| frame[2].abs())
+            .fold(0.0_f32, f32::max);
+        let raw_peak = bands
+            .chunks_exact(BAND_COUNT)
+            .map(|frame| frame[3].abs())
+            .fold(0.0_f32, f32::max);
+
+        assert!(low_peak > 0.0);
+        assert!(mid_peak > 0.0);
+        assert!(high_peak > 0.0);
+        assert!(raw_peak >= high_peak);
     }
 }
