@@ -537,6 +537,7 @@ fn folder_row(folder: VisibleFolder) -> ui::View<RebuildMessage> {
     let mut label = ui::button(label_text)
         .message(label_message)
         .key(format!("folder-row-button-{id}"))
+        .align_text(ui::TextAlign::Left)
         .fill_width()
         .height(22.0);
     if folder.selected {
