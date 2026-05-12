@@ -53,8 +53,8 @@ fn top_status_bar() -> ui::View<()> {
 
 fn center_panel() -> ui::View<()> {
     ui::row([folder_sidebar(), main_area()])
-        .spacing(8.0)
-        .padding(12.0)
+        .spacing(4.0)
+        .padding(6.0)
         .fill()
 }
 
@@ -63,16 +63,16 @@ fn folder_sidebar() -> ui::View<()> {
         ui::text("Folders").height(22.0).fill_width(),
         ui::spacer().fill(),
     ])
-    .spacing(6.0)
-    .padding(8.0)
+    .spacing(3.0)
+    .padding(4.0)
     .width(260.0)
     .fill_height()
 }
 
 fn main_area() -> ui::View<()> {
     ui::column([main_toolbar(), waveform_panel(), sample_browser()])
-        .spacing(8.0)
-        .padding(8.0)
+        .spacing(4.0)
+        .padding(4.0)
         .fill()
 }
 
@@ -82,8 +82,8 @@ fn main_toolbar() -> ui::View<()> {
         ui::text("No folder loaded").height(22.0).fill_width(),
         ui::text("0 selected").height(22.0).width(96.0),
     ])
-    .spacing(8.0)
-    .padding_x(8.0)
+    .spacing(4.0)
+    .padding_x(4.0)
     .padding_y(3.0)
     .style(ui::WidgetStyle::default())
     .fill_width()
@@ -95,8 +95,8 @@ fn waveform_panel() -> ui::View<()> {
         ui::text("Waveform").height(20.0).fill_width(),
         ui::spacer().fill(),
     ])
-    .spacing(4.0)
-    .padding(8.0)
+    .spacing(2.0)
+    .padding(4.0)
     .style(ui::WidgetStyle::default())
     .fill_width()
     .height(150.0)
@@ -109,7 +109,7 @@ fn sample_browser() -> ui::View<()> {
         sample_browser_status(),
     ])
     .spacing(0.0)
-    .padding(8.0)
+    .padding(4.0)
     .style(ui::WidgetStyle::default())
     .fill()
 }
@@ -121,8 +121,8 @@ fn sample_browser_header() -> ui::View<()> {
         ui::text("Length").height(22.0).width(90.0),
         ui::text("Tags").height(22.0).width(140.0),
     ])
-    .spacing(8.0)
-    .padding_x(6.0)
+    .spacing(4.0)
+    .padding_x(3.0)
     .fill_width()
     .height(28.0)
 }
@@ -134,8 +134,8 @@ fn sample_browser_status() -> ui::View<()> {
             .height(20.0)
             .fill_width(),
     ])
-    .spacing(8.0)
-    .padding_x(6.0)
+    .spacing(4.0)
+    .padding_x(3.0)
     .fill_width()
     .height(28.0)
 }
