@@ -20,13 +20,22 @@
 
 use crate::app_core::actions::{NativeAppBridge, NativeAppModel, NativeGuiAutomationSnapshot};
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use tracing::{error, info};
 
 mod native_shell_runtime;
 
 pub use radiant::gui_runtime::{
-    DEFAULT_NATIVE_WINDOW_TITLE, NativeStartupTimingArtifact, RuntimeRunReport,
+    NativeStartupTimingArtifact, RuntimeRunReport, DEFAULT_NATIVE_WINDOW_TITLE,
 };
+
+/// Bundled Sempal UI font asset.
+pub const SEMPAL_UI_FONT_ASSET: &str = "assets/FORCED SQUARE.ttf";
+
+/// Return the bundled Sempal UI font path used before native font fallbacks.
+pub fn sempal_ui_font_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(SEMPAL_UI_FONT_ASSET)
+}
 
 /// Machine-readable native shutdown timing payload exported by Sempal bridges.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]

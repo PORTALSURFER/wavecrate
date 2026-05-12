@@ -43,9 +43,10 @@ mod tests {
             radiant::gui_runtime::NativeGpuOptions::default()
         );
         assert_eq!(
-            compat.text,
-            radiant::gui_runtime::NativeTextOptions::default()
+            compat.text.font_paths,
+            vec![crate::gui_runtime::sempal_ui_font_path()]
         );
+        assert!(compat.text.font_paths[0].exists());
         let icon = compat.icon.expect("icon should be forwarded");
         assert_eq!(icon.rgba, vec![255, 0, 0, 255]);
         assert_eq!(icon.width, 1);
