@@ -19,6 +19,7 @@ const MAX_CHILD_FOLDERS: usize = 80;
 const TREE_ROW_HEIGHT: f32 = 23.0;
 const TREE_DEPTH_INDENT: f32 = 4.0;
 const FOLDER_RENAME_INPUT_BASE_ID: u64 = 70_000_000;
+const FILE_RENAME_INPUT_BASE_ID: u64 = 80_000_000;
 
 #[derive(Clone, Debug)]
 pub(super) struct FolderBrowserState {
@@ -29,6 +30,7 @@ pub(super) struct FolderBrowserState {
     expanded_folders: HashSet<String>,
     folders: Vec<FolderEntry>,
     rename_edit: Option<FolderRenameEdit>,
+    file_rename_edit: Option<FileRenameEdit>,
 }
 
 impl FolderBrowserState {
@@ -59,6 +61,7 @@ impl FolderBrowserState {
             expanded_folders: [root_id].into_iter().collect(),
             folders: vec![root_folder],
             rename_edit: None,
+            file_rename_edit: None,
         }
     }
 
@@ -95,6 +98,18 @@ impl FolderBrowserState {
         self.selected_file.as_deref()
     }
 
+    pub(super) fn file_rename_view(&self, file_id: &str) -> Option<FileRenameView> {
+        self.file_rename_edit
+            .as_ref()
+            .filter(|edit| edit.file_id == file_id)
+            .map(|edit| FileRenameView {
+                draft: edit.draft.clone(),
+                input_id: edit.input_id,
+                selection_start: edit.selection_start,
+                selection_end: edit.selection_end,
+            })
+    }
+
     pub(super) fn scan_is_active(&self, source_id: &str, task_id: u64) -> bool {
         self.sources
             .iter()
@@ -115,6 +130,27 @@ impl FolderBrowserState {
     }
 
     pub(super) fn begin_rename_selected(&mut self) -> Result<Option<u64>, String> {
+        if let Some(file_id) = self.selected_file.clone() {
+            if let Some((file_id, file_name)) = self
+                .selected_audio_files()
+                .into_iter()
+                .find(|file| file.id == file_id)
+                .map(|file| (file.id.clone(), file.name.clone()))
+            {
+                let input_id = file_rename_input_id(&file_id);
+                let selection_end = file_stem_len(&file_name);
+                self.rename_edit = None;
+                self.file_rename_edit = Some(FileRenameEdit {
+                    file_id,
+                    draft: file_name,
+                    input_id,
+                    selection_start: 0,
+                    selection_end,
+                });
+                return Ok(Some(input_id));
+            }
+        }
+
         let Some(folder) = self.find_folder(&self.selected_folder) else {
             return Ok(None);
         };
@@ -124,6 +160,7 @@ impl FolderBrowserState {
         let folder_id = folder.id.clone();
         let draft = folder.name.clone();
         let input_id = rename_input_id(&folder_id);
+        self.file_rename_edit = None;
         self.rename_edit = Some(FolderRenameEdit {
             folder_id,
             draft,
@@ -135,12 +172,20 @@ impl FolderBrowserState {
     pub(super) fn apply_rename_input(&mut self, message: TextInputMessage) -> Option<String> {
         match message {
             TextInputMessage::Changed { value } => {
-                if let Some(edit) = &mut self.rename_edit {
+                if let Some(edit) = &mut self.file_rename_edit {
+                    edit.draft = value;
+                } else if let Some(edit) = &mut self.rename_edit {
                     edit.draft = value;
                 }
                 None
             }
-            TextInputMessage::Submitted { value } => Some(self.commit_rename(value)),
+            TextInputMessage::Submitted { value } => {
+                if self.file_rename_edit.is_some() {
+                    Some(self.commit_file_rename(value))
+                } else {
+                    Some(self.commit_rename(value))
+                }
+            }
         }
     }
 
@@ -260,6 +305,7 @@ impl FolderBrowserState {
         self.expanded_folders.insert(root_id);
         self.folders = vec![folder];
         self.rename_edit = None;
+        self.file_rename_edit = None;
     }
 
     fn select_loaded_source(&mut self, id: String, root_folder: FolderEntry) {
@@ -271,6 +317,7 @@ impl FolderBrowserState {
         self.expanded_folders.insert(root_id);
         self.folders = vec![root_folder];
         self.rename_edit = None;
+        self.file_rename_edit = None;
     }
 
     fn selected_folder(&self) -> Option<&FolderEntry> {
@@ -318,6 +365,7 @@ impl FolderBrowserState {
 
     fn cancel_rename(&mut self) {
         self.rename_edit = None;
+        self.file_rename_edit = None;
     }
 
     fn commit_rename(&mut self, value: String) -> String {
@@ -344,6 +392,34 @@ impl FolderBrowserState {
         }
         self.rewrite_renamed_folder_paths(&old_path, &new_path);
         format!("Renamed folder to {new_name}")
+    }
+
+    fn commit_file_rename(&mut self, value: String) -> String {
+        let Some(edit) = self.file_rename_edit.take() else {
+            return String::from("No file rename in progress");
+        };
+        let old_path = PathBuf::from(&edit.file_id);
+        let Some(parent) = old_path.parent() else {
+            return String::from("File rename failed: selected file has no parent");
+        };
+        let Some(new_name) = resolved_file_rename(&old_path, value.trim()) else {
+            return String::from("File rename failed: use a plain file name");
+        };
+        if !valid_file_name(&new_name) {
+            return String::from("File rename failed: use a plain file name");
+        }
+        let new_path = parent.join(&new_name);
+        if old_path == new_path {
+            return String::from("File rename unchanged");
+        }
+        if new_path.exists() {
+            return format!("File rename failed: {new_name} already exists");
+        }
+        if let Err(error) = fs::rename(&old_path, &new_path) {
+            return format!("File rename failed: {error}");
+        }
+        self.rewrite_renamed_file_path(&old_path, &new_path);
+        format!("Renamed file to {new_name}")
     }
 
     fn rewrite_renamed_folder_paths(&mut self, old_path: &Path, new_path: &Path) {
@@ -375,8 +451,25 @@ impl FolderBrowserState {
             .collect();
     }
 
+    fn rewrite_renamed_file_path(&mut self, old_path: &Path, new_path: &Path) {
+        let Some(source) = self
+            .sources
+            .iter_mut()
+            .find(|source| source.id == self.selected_source)
+        else {
+            return;
+        };
+        if let Some(root_folder) = &mut source.root_folder {
+            root_folder.rewrite_file_path(old_path, new_path);
+            self.folders = vec![root_folder.clone()];
+        }
+        let new_id = path_id(new_path);
+        self.selected_file = Some(new_id);
+    }
+
     pub(super) fn select_file(&mut self, id: String) {
         if self.selected_files().iter().any(|file| file.id == id) {
+            self.cancel_rename();
             self.selected_file = Some(id);
         }
     }
@@ -483,6 +576,24 @@ impl FolderEntry {
             file.id = rewrite_path_id(&file.id, old_path, new_path);
         }
     }
+
+    fn rewrite_file_path(&mut self, old_path: &Path, new_path: &Path) -> bool {
+        let old_id = path_id(old_path);
+        for file in &mut self.files {
+            if file.id == old_id {
+                *file = file_entry(&new_path.to_path_buf());
+                self.files.sort_by(|a, b| {
+                    a.name
+                        .to_ascii_lowercase()
+                        .cmp(&b.name.to_ascii_lowercase())
+                });
+                return true;
+            }
+        }
+        self.children
+            .iter_mut()
+            .any(|child| child.rewrite_file_path(old_path, new_path))
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -490,6 +601,23 @@ struct FolderRenameEdit {
     folder_id: String,
     draft: String,
     input_id: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct FileRenameEdit {
+    file_id: String,
+    draft: String,
+    input_id: u64,
+    selection_start: usize,
+    selection_end: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct FileRenameView {
+    pub(super) draft: String,
+    pub(super) input_id: u64,
+    pub(super) selection_start: usize,
+    pub(super) selection_end: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1081,10 +1209,44 @@ fn valid_folder_name(name: &str) -> bool {
             .any(|ch| matches!(ch, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*'))
 }
 
+fn valid_file_name(name: &str) -> bool {
+    valid_folder_name(name)
+}
+
+fn resolved_file_rename(old_path: &Path, submitted: &str) -> Option<String> {
+    if submitted.is_empty() {
+        return None;
+    }
+    let submitted_path = Path::new(submitted);
+    if submitted_path.components().count() != 1 {
+        return None;
+    }
+    if submitted_path.extension().is_some() {
+        return Some(submitted.to_string());
+    }
+    let extension = old_path.extension()?.to_string_lossy();
+    Some(format!("{submitted}.{extension}"))
+}
+
+fn file_stem_len(name: &str) -> usize {
+    Path::new(name)
+        .file_stem()
+        .map(|stem| stem.to_string_lossy().chars().count())
+        .unwrap_or_else(|| name.chars().count())
+}
+
 fn rename_input_id(folder_id: &str) -> u64 {
     folder_id
         .bytes()
         .fold(FOLDER_RENAME_INPUT_BASE_ID, |hash, byte| {
+            hash.wrapping_mul(16_777_619) ^ u64::from(byte)
+        })
+}
+
+fn file_rename_input_id(file_id: &str) -> u64 {
+    file_id
+        .bytes()
+        .fold(FILE_RENAME_INPUT_BASE_ID, |hash, byte| {
             hash.wrapping_mul(16_777_619) ^ u64::from(byte)
         })
 }
@@ -1264,6 +1426,53 @@ mod tests {
                 .map(|file| file.id.as_str())
                 .collect::<Vec<_>>(),
             vec![path_id(&root.join("breaks").join("kick.wav"))]
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn file_rename_selects_stem_and_preserves_extension_when_submitted_without_one() {
+        let root = temp_source_root("radiant-rebuild-file-rename");
+        let drums = root.join("drums");
+        fs::create_dir_all(&drums).expect("create nested folder");
+        let kick = drums.join("kick loop.wav");
+        fs::write(&kick, [0_u8; 8]).expect("write wav");
+        let mut browser = FolderBrowserState::from_root(root.clone());
+        browser.activate_folder(path_id(&drums));
+        browser.select_file(path_id(&kick));
+
+        let input_id = browser
+            .begin_rename_selected()
+            .expect("rename can start")
+            .expect("rename input id");
+        let rename = browser
+            .file_rename_view(&path_id(&kick))
+            .expect("file rename view");
+        assert_eq!(rename.input_id, input_id);
+        assert_eq!(rename.draft, "kick loop.wav");
+        assert_eq!(rename.selection_start, 0);
+        assert_eq!(rename.selection_end, "kick loop".chars().count());
+
+        let status = browser
+            .apply_rename_input(TextInputMessage::Submitted {
+                value: String::from("snare loop"),
+            })
+            .expect("rename status");
+
+        assert_eq!(status, "Renamed file to snare loop.wav");
+        assert!(!kick.exists());
+        assert!(drums.join("snare loop.wav").is_file());
+        assert_eq!(
+            browser.selected_file_id(),
+            Some(path_id(&drums.join("snare loop.wav")).as_str())
+        );
+        assert_eq!(
+            browser
+                .selected_audio_files()
+                .iter()
+                .map(|file| file.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["snare loop.wav"]
         );
         let _ = fs::remove_dir_all(root);
     }

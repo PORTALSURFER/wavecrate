@@ -1,8 +1,9 @@
 //! Radiant-first Sempal application rebuilt incrementally beside the legacy sample.
 
+use radiant::layout::Vector2;
 use radiant::prelude as ui;
 use radiant::runtime::{NativeRunOptions, NativeTextOptions};
-use radiant::widgets::{DragHandleMessage, ScrollbarMessage};
+use radiant::widgets::{DragHandleMessage, ScrollbarMessage, TextInputWidget, WidgetSizing};
 use rfd::FileDialog;
 use sempal::gui_runtime::sempal_ui_font_path;
 use std::{
@@ -104,9 +105,14 @@ impl RebuildLayoutState {
                 self.select_source(id, context);
             }
             RebuildMessage::FolderBrowser(FolderBrowserMessage::BeginRenameSelected) => {
+                let renaming_file = self.folder_browser.selected_file_id().is_some();
                 match self.folder_browser.begin_rename_selected() {
                     Ok(Some(input_id)) => {
-                        self.sample_status = String::from("Renaming selected folder");
+                        self.sample_status = if renaming_file {
+                            String::from("Renaming selected file")
+                        } else {
+                            String::from("Renaming selected folder")
+                        };
                         context.focus(input_id);
                     }
                     Ok(None) => {
@@ -446,10 +452,11 @@ fn waveform_scrollbar(waveform: &WaveformState) -> ui::View<RebuildMessage> {
 
 fn sample_browser(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
     let audio_files = state.folder_browser.selected_audio_files();
+    let audio_count = audio_files.len();
     ui::column([
         sample_browser_header(),
-        sample_browser_rows(&audio_files, state.folder_browser.selected_file_id()),
-        sample_browser_status(audio_files.len()),
+        sample_browser_rows(&state.folder_browser, &audio_files),
+        sample_browser_status(audio_count),
     ])
     .spacing(0.0)
     .style(ui::WidgetStyle::default())
@@ -475,8 +482,8 @@ fn sample_header_cell(label: &str, width: f32) -> ui::View<RebuildMessage> {
 }
 
 fn sample_browser_rows(
+    folder_browser: &FolderBrowserState,
     files: &[&FileEntry],
-    selected_file_id: Option<&str>,
 ) -> ui::View<RebuildMessage> {
     if files.is_empty() {
         return ui::text("No audio files in selected folder")
@@ -489,7 +496,13 @@ fn sample_browser_rows(
         ui::column(
             files
                 .iter()
-                .map(|file| sample_browser_row(file, selected_file_id == Some(file.id.as_str())))
+                .map(|file| {
+                    sample_browser_row(
+                        file,
+                        folder_browser.selected_file_id() == Some(file.id.as_str()),
+                        folder_browser.file_rename_view(&file.id),
+                    )
+                })
                 .collect::<Vec<_>>(),
         )
         .spacing(1.0)
@@ -498,9 +511,13 @@ fn sample_browser_rows(
     .fill()
 }
 
-fn sample_browser_row(file: &FileEntry, selected: bool) -> ui::View<RebuildMessage> {
+fn sample_browser_row(
+    file: &FileEntry,
+    selected: bool,
+    rename: Option<folder_browser::FileRenameView>,
+) -> ui::View<RebuildMessage> {
     let row = compact_details_row([
-        sample_file_cell(file, file.name.clone(), SAMPLE_NAME_WIDTH, "name"),
+        sample_name_cell(file, rename),
         sample_file_cell(file, file.size.clone(), SAMPLE_SIZE_WIDTH, "size"),
         sample_file_cell(file, file.kind.clone(), SAMPLE_TYPE_WIDTH, "kind"),
         sample_file_cell(
@@ -520,6 +537,29 @@ fn sample_browser_row(file: &FileEntry, selected: bool) -> ui::View<RebuildMessa
     } else {
         row
     }
+}
+
+fn sample_name_cell(
+    file: &FileEntry,
+    rename: Option<folder_browser::FileRenameView>,
+) -> ui::View<RebuildMessage> {
+    let Some(rename) = rename else {
+        return sample_file_cell(file, file.name.clone(), SAMPLE_NAME_WIDTH, "name");
+    };
+    let mut input = TextInputWidget::new(
+        0,
+        rename.draft,
+        WidgetSizing::fixed(Vector2::new(SAMPLE_NAME_WIDTH, 20.0)),
+    );
+    input.state.selection_anchor = rename.selection_start;
+    input.state.caret = rename.selection_end;
+    ui::custom_widget_mapped(input, |message| {
+        RebuildMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message))
+    })
+    .id(rename.input_id)
+    .key(format!("sample-rename-input-{}", file.id))
+    .width(SAMPLE_NAME_WIDTH)
+    .height(20.0)
 }
 
 fn sample_file_cell(
