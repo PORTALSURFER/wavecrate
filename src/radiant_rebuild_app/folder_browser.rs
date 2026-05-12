@@ -1,8 +1,9 @@
 #![allow(missing_docs)]
 
 use radiant::{
+    layout::Vector2,
     prelude as ui,
-    widgets::{WidgetStyle, WidgetTone},
+    widgets::{TextInputMessage, TextInputWidget, WidgetSizing, WidgetStyle, WidgetTone},
 };
 use std::{
     collections::HashSet,
@@ -17,6 +18,7 @@ const MAX_SCAN_DEPTH: usize = 3;
 const MAX_CHILD_FOLDERS: usize = 80;
 const TREE_ROW_HEIGHT: f32 = 23.0;
 const TREE_DEPTH_INDENT: f32 = 4.0;
+const FOLDER_RENAME_INPUT_BASE_ID: u64 = 70_000_000;
 
 #[derive(Clone, Debug)]
 pub(super) struct FolderBrowserState {
@@ -26,6 +28,7 @@ pub(super) struct FolderBrowserState {
     selected_file: Option<String>,
     expanded_folders: HashSet<String>,
     folders: Vec<FolderEntry>,
+    rename_edit: Option<FolderRenameEdit>,
 }
 
 impl FolderBrowserState {
@@ -55,6 +58,7 @@ impl FolderBrowserState {
             selected_file: None,
             expanded_folders: [root_id].into_iter().collect(),
             folders: vec![root_folder],
+            rename_edit: None,
         }
     }
 
@@ -99,8 +103,44 @@ impl FolderBrowserState {
 
     pub(super) fn apply_message(&mut self, message: FolderBrowserMessage) {
         match message {
-            FolderBrowserMessage::AddSource | FolderBrowserMessage::SelectSource(_) => {}
-            FolderBrowserMessage::ActivateFolder(id) => self.activate_folder(id),
+            FolderBrowserMessage::AddSource
+            | FolderBrowserMessage::SelectSource(_)
+            | FolderBrowserMessage::BeginRenameSelected
+            | FolderBrowserMessage::RenameInput(_) => {}
+            FolderBrowserMessage::ActivateFolder(id) => {
+                self.cancel_rename();
+                self.activate_folder(id);
+            }
+        }
+    }
+
+    pub(super) fn begin_rename_selected(&mut self) -> Result<Option<u64>, String> {
+        let Some(folder) = self.find_folder(&self.selected_folder) else {
+            return Ok(None);
+        };
+        if self.selected_folder_is_source_root() {
+            return Err(String::from("Select a subfolder to rename"));
+        }
+        let folder_id = folder.id.clone();
+        let draft = folder.name.clone();
+        let input_id = rename_input_id(&folder_id);
+        self.rename_edit = Some(FolderRenameEdit {
+            folder_id,
+            draft,
+            input_id,
+        });
+        Ok(Some(input_id))
+    }
+
+    pub(super) fn apply_rename_input(&mut self, message: TextInputMessage) -> Option<String> {
+        match message {
+            TextInputMessage::Changed { value } => {
+                if let Some(edit) = &mut self.rename_edit {
+                    edit.draft = value;
+                }
+                None
+            }
+            TextInputMessage::Submitted { value } => Some(self.commit_rename(value)),
         }
     }
 
@@ -219,6 +259,7 @@ impl FolderBrowserState {
         self.expanded_folders.clear();
         self.expanded_folders.insert(root_id);
         self.folders = vec![folder];
+        self.rename_edit = None;
     }
 
     fn select_loaded_source(&mut self, id: String, root_folder: FolderEntry) {
@@ -229,6 +270,7 @@ impl FolderBrowserState {
         self.expanded_folders.clear();
         self.expanded_folders.insert(root_id);
         self.folders = vec![root_folder];
+        self.rename_edit = None;
     }
 
     fn selected_folder(&self) -> Option<&FolderEntry> {
@@ -268,6 +310,71 @@ impl FolderBrowserState {
         self.selected_file = None;
     }
 
+    fn selected_folder_is_source_root(&self) -> bool {
+        self.sources.iter().any(|source| {
+            source.id == self.selected_source && path_id(&source.root) == self.selected_folder
+        })
+    }
+
+    fn cancel_rename(&mut self) {
+        self.rename_edit = None;
+    }
+
+    fn commit_rename(&mut self, value: String) -> String {
+        let Some(edit) = self.rename_edit.take() else {
+            return String::from("No folder rename in progress");
+        };
+        let new_name = value.trim();
+        if !valid_folder_name(new_name) {
+            return String::from("Folder rename failed: use a plain folder name");
+        }
+        let old_path = PathBuf::from(&edit.folder_id);
+        let Some(parent) = old_path.parent() else {
+            return String::from("Folder rename failed: selected folder has no parent");
+        };
+        let new_path = parent.join(new_name);
+        if old_path == new_path {
+            return String::from("Folder rename unchanged");
+        }
+        if new_path.exists() {
+            return format!("Folder rename failed: {new_name} already exists");
+        }
+        if let Err(error) = fs::rename(&old_path, &new_path) {
+            return format!("Folder rename failed: {error}");
+        }
+        self.rewrite_renamed_folder_paths(&old_path, &new_path);
+        format!("Renamed folder to {new_name}")
+    }
+
+    fn rewrite_renamed_folder_paths(&mut self, old_path: &Path, new_path: &Path) {
+        let old_id = path_id(old_path);
+        let new_id = path_id(new_path);
+        let Some(source) = self
+            .sources
+            .iter_mut()
+            .find(|source| source.id == self.selected_source)
+        else {
+            return;
+        };
+        if let Some(root_folder) = &mut source.root_folder {
+            root_folder.rewrite_path_prefix(old_path, new_path);
+            self.folders = vec![root_folder.clone()];
+        }
+        self.selected_folder = rewrite_path_id(&self.selected_folder, old_path, new_path);
+        if self.selected_folder == old_id {
+            self.selected_folder = new_id;
+        }
+        self.selected_file = self
+            .selected_file
+            .take()
+            .map(|id| rewrite_path_id(&id, old_path, new_path));
+        self.expanded_folders = self
+            .expanded_folders
+            .iter()
+            .map(|id| rewrite_path_id(id, old_path, new_path))
+            .collect();
+    }
+
     pub(super) fn select_file(&mut self, id: String) {
         if self.selected_files().iter().any(|file| file.id == id) {
             self.selected_file = Some(id);
@@ -295,6 +402,16 @@ impl FolderBrowserState {
             has_children: folder.has_children(),
             expanded: self.is_expanded(&folder.id),
             selected: self.selected_folder == folder.id,
+            rename_draft: self
+                .rename_edit
+                .as_ref()
+                .filter(|edit| edit.folder_id == folder.id)
+                .map(|edit| edit.draft.clone()),
+            rename_input_id: self
+                .rename_edit
+                .as_ref()
+                .filter(|edit| edit.folder_id == folder.id)
+                .map(|edit| edit.input_id),
         });
         if self.is_expanded(&folder.id) {
             for child in &folder.children {
@@ -353,6 +470,26 @@ impl FolderEntry {
     fn has_children(&self) -> bool {
         !self.children.is_empty()
     }
+
+    fn rewrite_path_prefix(&mut self, old_path: &Path, new_path: &Path) {
+        self.id = rewrite_path_id(&self.id, old_path, new_path);
+        if Path::new(&self.id) == new_path {
+            self.name = folder_label(new_path);
+        }
+        for child in &mut self.children {
+            child.rewrite_path_prefix(old_path, new_path);
+        }
+        for file in &mut self.files {
+            file.id = rewrite_path_id(&file.id, old_path, new_path);
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct FolderRenameEdit {
+    folder_id: String,
+    draft: String,
+    input_id: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -380,6 +517,8 @@ struct VisibleFolder {
     has_children: bool,
     expanded: bool,
     selected: bool,
+    rename_draft: Option<String>,
+    rename_input_id: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -387,6 +526,8 @@ pub(super) enum FolderBrowserMessage {
     AddSource,
     SelectSource(String),
     ActivateFolder(String),
+    BeginRenameSelected,
+    RenameInput(TextInputMessage),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -525,6 +666,36 @@ fn source_row(state: &FolderBrowserState, source: &SourceEntry) -> ui::View<Rebu
 
 fn folder_row(folder: VisibleFolder) -> ui::View<RebuildMessage> {
     let id = folder.id.clone();
+    if let (Some(draft), Some(input_id)) = (folder.rename_draft.clone(), folder.rename_input_id) {
+        let mut input = TextInputWidget::new(
+            0,
+            draft.clone(),
+            WidgetSizing::fixed(Vector2::new(120.0, 22.0)),
+        );
+        input.state.selection_anchor = 0;
+        input.state.caret = draft.chars().count();
+        let indent = (folder.depth as f32) * TREE_DEPTH_INDENT;
+        return ui::row([
+            ui::spacer().width(indent).height(22.0),
+            ui::custom_widget_mapped(input, |message| {
+                RebuildMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message))
+            })
+            .id(input_id)
+            .key(format!("folder-rename-input-{id}"))
+            .fill_width()
+            .height(22.0),
+        ])
+        .key(format!("folder-row-{id}"))
+        .style(WidgetStyle {
+            tone: WidgetTone::Accent,
+            prominence: ui::WidgetProminence::Subtle,
+        })
+        .fill_width()
+        .height(TREE_ROW_HEIGHT)
+        .spacing(1.0)
+        .hoverable();
+    }
+
     let expander = if folder.expanded { "[-]" } else { "[+]" };
     let indent = (folder.depth as f32) * TREE_DEPTH_INDENT;
     let label_message =
@@ -894,6 +1065,30 @@ fn path_id(path: &Path) -> String {
     path.to_string_lossy().to_string()
 }
 
+fn rewrite_path_id(id: &str, old_path: &Path, new_path: &Path) -> String {
+    let path = Path::new(id);
+    path.strip_prefix(old_path)
+        .map(|relative| path_id(&new_path.join(relative)))
+        .unwrap_or_else(|_| id.to_string())
+}
+
+fn valid_folder_name(name: &str) -> bool {
+    !name.is_empty()
+        && name != "."
+        && name != ".."
+        && !name
+            .chars()
+            .any(|ch| matches!(ch, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*'))
+}
+
+fn rename_input_id(folder_id: &str) -> u64 {
+    folder_id
+        .bytes()
+        .fold(FOLDER_RENAME_INPUT_BASE_ID, |hash, byte| {
+            hash.wrapping_mul(16_777_619) ^ u64::from(byte)
+        })
+}
+
 fn folder_label(path: &Path) -> String {
     path.file_name()
         .map(|name| name.to_string_lossy().to_string())
@@ -910,6 +1105,7 @@ fn file_label(path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::{path_id, scan_source_with_progress, FolderBrowserState, FolderScanDiscoveryBatch};
+    use radiant::widgets::TextInputMessage;
     use std::{fs, path::PathBuf};
 
     #[test]
@@ -1035,6 +1231,53 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(sibling_depths, vec![2, 2, 2]);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn folder_rename_updates_filesystem_tree_and_selected_audio_files() {
+        let root = temp_source_root("radiant-rebuild-folder-rename");
+        let drums = root.join("drums");
+        fs::create_dir_all(&drums).expect("create nested folder");
+        fs::write(drums.join("kick.wav"), [0_u8; 8]).expect("write wav");
+        let mut browser = FolderBrowserState::from_root(root.clone());
+        browser.activate_folder(path_id(&drums));
+
+        let input_id = browser
+            .begin_rename_selected()
+            .expect("rename can start")
+            .expect("rename input id");
+        assert_ne!(input_id, 0);
+        let status = browser
+            .apply_rename_input(TextInputMessage::Submitted {
+                value: String::from("breaks"),
+            })
+            .expect("rename status");
+
+        assert_eq!(status, "Renamed folder to breaks");
+        assert!(!drums.exists());
+        assert!(root.join("breaks").join("kick.wav").is_file());
+        assert_eq!(
+            browser
+                .selected_audio_files()
+                .iter()
+                .map(|file| file.id.as_str())
+                .collect::<Vec<_>>(),
+            vec![path_id(&root.join("breaks").join("kick.wav"))]
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn root_folder_rename_is_rejected_from_tree() {
+        let root = temp_source_root("radiant-rebuild-root-rename");
+        let mut browser = FolderBrowserState::from_root(root.clone());
+
+        assert_eq!(
+            browser.begin_rename_selected(),
+            Err(String::from("Select a subfolder to rename"))
+        );
+        assert!(root.is_dir());
         let _ = fs::remove_dir_all(root);
     }
 

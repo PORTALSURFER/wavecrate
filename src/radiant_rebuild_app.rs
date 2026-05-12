@@ -103,6 +103,25 @@ impl RebuildLayoutState {
             RebuildMessage::FolderBrowser(FolderBrowserMessage::SelectSource(id)) => {
                 self.select_source(id, context);
             }
+            RebuildMessage::FolderBrowser(FolderBrowserMessage::BeginRenameSelected) => {
+                match self.folder_browser.begin_rename_selected() {
+                    Ok(Some(input_id)) => {
+                        self.sample_status = String::from("Renaming selected folder");
+                        context.focus(input_id);
+                    }
+                    Ok(None) => {
+                        self.sample_status = String::from("Select a folder to rename");
+                    }
+                    Err(error) => {
+                        self.sample_status = error;
+                    }
+                }
+            }
+            RebuildMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message)) => {
+                if let Some(status) = self.folder_browser.apply_rename_input(message) {
+                    self.sample_status = status;
+                }
+            }
             RebuildMessage::FolderBrowser(message) => self.folder_browser.apply_message(message),
             RebuildMessage::FolderScanProgress(progress) => {
                 if self
@@ -268,6 +287,15 @@ pub(crate) fn run() -> Result<(), String> {
         .animation(|state| state.waveform.is_playing() || state.folder_progress.is_some())
         .on_frame(|| RebuildMessage::Frame)
         .subscriptions(RebuildLayoutState::worker_subscription)
+        .shortcuts(|_, _, press, _| {
+            if press == ui::KeyPress::new(ui::KeyCode::F2) {
+                ui::ShortcutResolution::action(RebuildMessage::FolderBrowser(
+                    FolderBrowserMessage::BeginRenameSelected,
+                ))
+            } else {
+                ui::ShortcutResolution::unhandled()
+            }
+        })
         .update_with(|state, message, context| {
             state.apply_message(message, context);
             context.request_repaint();
