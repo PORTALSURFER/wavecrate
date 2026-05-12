@@ -1,13 +1,35 @@
 //! Radiant-first Sempal application rebuilt incrementally beside the legacy sample.
 
 use radiant::prelude as ui;
+use radiant::runtime::{NativeRunOptions, NativeTextOptions};
+use sempal::gui_runtime::sempal_ui_font_path;
+use std::ffi::OsString;
+
+const DEBUG_LAYOUT_ARG: &str = "--debug-layout";
+const DEBUG_LAYOUT_SHORT_ARG: &str = "-debug-layout";
 
 /// Run the new Radiant-first application shell.
 pub(crate) fn run() -> Result<(), String> {
-    radiant::window("Sempal")
-        .size(960, 540)
-        .min_size(640, 360)
-        .run(view())
+    let options = NativeRunOptions {
+        title: String::from("Sempal"),
+        inner_size: Some([960.0, 540.0]),
+        min_inner_size: Some([640.0, 360.0]),
+        debug_layout: debug_layout_requested(std::env::args_os()),
+        text: NativeTextOptions {
+            font_paths: vec![sempal_ui_font_path()],
+        },
+        ..NativeRunOptions::default()
+    };
+
+    radiant::window("Sempal").options(options).run(view())
+}
+
+fn debug_layout_requested<I>(args: I) -> bool
+where
+    I: IntoIterator<Item = OsString>,
+{
+    args.into_iter()
+        .any(|arg| arg == DEBUG_LAYOUT_ARG || arg == DEBUG_LAYOUT_SHORT_ARG)
 }
 
 fn view() -> ui::View<()> {
@@ -108,7 +130,9 @@ fn sample_browser_header() -> ui::View<()> {
 fn sample_browser_status() -> ui::View<()> {
     ui::row([
         ui::text("Browser").height(20.0).width(90.0),
-        ui::text("Samples will be listed here").height(20.0).fill_width(),
+        ui::text("Samples will be listed here")
+            .height(20.0)
+            .fill_width(),
     ])
     .spacing(8.0)
     .padding_x(6.0)
@@ -126,4 +150,34 @@ fn bottom_status_bar() -> ui::View<()> {
     .padding_y(4.0)
     .fill_width()
     .height(30.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{debug_layout_requested, DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG};
+    use std::ffi::OsString;
+
+    #[test]
+    fn canonical_debug_layout_arg_enables_new_ui_overlay() {
+        assert!(debug_layout_requested([
+            OsString::from("sempal"),
+            OsString::from(DEBUG_LAYOUT_ARG),
+        ]));
+    }
+
+    #[test]
+    fn short_debug_layout_arg_enables_new_ui_overlay() {
+        assert!(debug_layout_requested([
+            OsString::from("sempal"),
+            OsString::from(DEBUG_LAYOUT_SHORT_ARG),
+        ]));
+    }
+
+    #[test]
+    fn unrelated_args_leave_new_ui_overlay_disabled() {
+        assert!(!debug_layout_requested([
+            OsString::from("sempal"),
+            OsString::from("--debug-log"),
+        ]));
+    }
 }
