@@ -614,8 +614,8 @@ impl WaveformWidget {
 #[cfg(test)]
 mod tests {
     use super::{
-        split_frequency_bands, waveform_file_from_mono_samples, WaveformState, WaveformWidget,
-        BAND_COUNT,
+        BAND_COUNT, WaveformState, WaveformWidget, split_frequency_bands,
+        waveform_file_from_mono_samples,
     };
 
     #[test]
@@ -725,6 +725,9 @@ mod tests {
                 assert!((ratio - 0.25).abs() < 0.001);
                 assert_eq!((color.r, color.g, color.b), (71, 220, 255));
                 assert_eq!(width, 1.75);
+            }
+            radiant::runtime::GpuSurfaceOverlay::NativeHoverCursor { .. } => {
+                panic!("playhead overlay should be app-owned");
             }
         }
     }
