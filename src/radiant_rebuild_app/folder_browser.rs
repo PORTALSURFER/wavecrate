@@ -16,7 +16,7 @@ use super::RebuildMessage;
 const MAX_SCAN_DEPTH: usize = 3;
 const MAX_CHILD_FOLDERS: usize = 80;
 const TREE_ROW_HEIGHT: f32 = 23.0;
-const TREE_CHILD_INDENT: f32 = 12.0;
+const TREE_DEPTH_INDENT: f32 = 4.0;
 
 #[derive(Clone, Debug)]
 pub(super) struct FolderBrowserState {
@@ -464,11 +464,7 @@ fn folder_row(folder: VisibleFolder) -> ui::View<RebuildMessage> {
     let id = folder.id.clone();
     let toggle_id = folder.id.clone();
     let expander = if folder.expanded { "[-]" } else { "[+]" };
-    let indent = if folder.depth == 0 {
-        0.0
-    } else {
-        TREE_CHILD_INDENT
-    };
+    let indent = (folder.depth as f32) * TREE_DEPTH_INDENT;
     let label_message =
         RebuildMessage::FolderBrowser(FolderBrowserMessage::ActivateFolder(id.clone()));
     let mut label = ui::button(folder.name)
