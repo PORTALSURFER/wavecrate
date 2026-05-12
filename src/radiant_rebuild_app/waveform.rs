@@ -352,15 +352,14 @@ fn split_frequency_bands(samples: &[f32], sample_rate: u32) -> [WaveformBand; BA
     let low_160 = lowpass(samples, sample_rate, 160.0);
     let low_700 = lowpass(samples, sample_rate, 700.0);
     let low_2k8 = lowpass(samples, sample_rate, 2_800.0);
-    let low = low_160.clone();
     let low_mid = subtract_samples(&low_700, &low_160);
     let mid = subtract_samples(&low_2k8, &low_700);
     let high = subtract_samples(samples, &low_2k8);
     [
-        WaveformBand::new(normalized_band(low, 1.45)),
+        WaveformBand::new(normalized_band(samples.to_vec(), 1.12)),
         WaveformBand::new(normalized_band(low_mid, 1.25)),
         WaveformBand::new(normalized_band(mid, 1.1)),
-        WaveformBand::new(normalized_band(high, 0.95)),
+        WaveformBand::new(normalized_band(high, 1.08)),
     ]
 }
 
@@ -541,5 +540,35 @@ impl Widget for WaveformWidget {
             },
             overlays: Vec::new(),
         }));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{split_frequency_bands, BAND_COUNT};
+
+    #[test]
+    fn first_waveform_band_preserves_raw_transient_detail() {
+        let samples = vec![0.0, 0.12, -0.9, 0.08, 0.0, 0.42, -0.18, 0.0];
+
+        let bands = split_frequency_bands(&samples, 48_000);
+
+        assert_eq!(bands.len(), BAND_COUNT);
+        let raw_peak_index = samples
+            .iter()
+            .enumerate()
+            .max_by(|(_, left), (_, right)| left.abs().total_cmp(&right.abs()))
+            .map(|(index, _)| index)
+            .expect("peak sample");
+        let rendered_peak_index = bands[0]
+            .samples
+            .iter()
+            .enumerate()
+            .max_by(|(_, left), (_, right)| left.abs().total_cmp(&right.abs()))
+            .map(|(index, _)| index)
+            .expect("peak band sample");
+
+        assert_eq!(rendered_peak_index, raw_peak_index);
+        assert!(bands[0].samples[raw_peak_index].abs() > 0.99);
     }
 }
