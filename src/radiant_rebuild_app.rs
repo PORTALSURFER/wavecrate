@@ -12,6 +12,7 @@ use std::{
     fs,
     path::Path,
     sync::mpsc::{self, Receiver, Sender},
+    time::Duration,
 };
 
 mod folder_browser;
@@ -39,6 +40,7 @@ enum RebuildMessage {
     FolderScanFinished(FolderScanResult),
     SelectSample(String),
     PlaySelectedSample,
+    FocusRenameInput(u64),
     Waveform(WaveformInteraction),
     Frame,
 }
@@ -119,7 +121,10 @@ impl RebuildLayoutState {
                         } else {
                             String::from("Renaming selected folder")
                         };
-                        context.focus(input_id);
+                        context.after(
+                            Duration::from_millis(1),
+                            RebuildMessage::FocusRenameInput(input_id),
+                        );
                     }
                     Ok(None) => {
                         self.sample_status = String::from("Select a folder to rename");
@@ -149,6 +154,9 @@ impl RebuildLayoutState {
             RebuildMessage::FolderScanFinished(result) => self.finish_folder_scan(result),
             RebuildMessage::SelectSample(path) => self.select_sample(path),
             RebuildMessage::PlaySelectedSample => self.play_selected_sample(),
+            RebuildMessage::FocusRenameInput(input_id) => {
+                context.focus(input_id);
+            }
             RebuildMessage::Waveform(WaveformInteraction::PlayFrom { visible_ratio }) => {
                 self.play_waveform_from_visible_ratio(visible_ratio);
             }
