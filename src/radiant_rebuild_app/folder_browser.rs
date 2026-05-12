@@ -75,6 +75,13 @@ impl FolderBrowserState {
             .unwrap_or(&[])
     }
 
+    pub(super) fn selected_audio_files(&self) -> Vec<&FileEntry> {
+        self.selected_files()
+            .iter()
+            .filter(|file| file.is_audio())
+            .collect()
+    }
+
     pub(super) fn apply_message(&mut self, message: FolderBrowserMessage) {
         match message {
             FolderBrowserMessage::AddSource => self.add_source_from_dialog(),
@@ -231,6 +238,14 @@ impl FolderEntry {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct FileEntry {
     pub(super) name: String,
+    pub(super) kind: String,
+    pub(super) size: String,
+}
+
+impl FileEntry {
+    fn is_audio(&self) -> bool {
+        self.kind == "Audio"
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -388,9 +403,16 @@ fn folder_row(folder: VisibleFolder) -> ui::View<RebuildMessage> {
 
 fn selected_folder_status(state: &FolderBrowserState) -> ui::View<RebuildMessage> {
     let file_count = state.selected_files().len();
+    let audio_count = state.selected_audio_files().len();
     let label = state
         .selected_folder()
-        .map(|folder| format!("{} | {file_count} item{}", folder.name, plural(file_count)))
+        .map(|folder| {
+            format!(
+                "{} | {audio_count} audio | {file_count} item{}",
+                folder.name,
+                plural(file_count)
+            )
+        })
         .unwrap_or_else(|| String::from("No folder selected"));
     ui::text(label).height(20.0).fill_width().truncate()
 }
@@ -430,9 +452,7 @@ fn load_folder(path: &Path, depth: usize) -> Option<FolderEntry> {
     let files = entries
         .iter()
         .filter(|entry| entry.is_file())
-        .map(|entry| FileEntry {
-            name: file_label(entry),
-        })
+        .map(file_entry)
         .collect::<Vec<_>>();
     Some(FolderEntry {
         id: path_id(path),
@@ -440,6 +460,42 @@ fn load_folder(path: &Path, depth: usize) -> Option<FolderEntry> {
         children,
         files,
     })
+}
+
+fn file_entry(path: &PathBuf) -> FileEntry {
+    let metadata = fs::metadata(path).ok();
+    let size_bytes = metadata.as_ref().map(fs::Metadata::len).unwrap_or_default();
+    FileEntry {
+        name: file_label(path),
+        kind: file_kind(path),
+        size: format_size(size_bytes),
+    }
+}
+
+fn file_kind(path: &Path) -> String {
+    match path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(str::to_ascii_lowercase)
+        .as_deref()
+    {
+        Some("wav" | "aif" | "aiff" | "flac" | "mp3") => String::from("Audio"),
+        Some("png" | "jpg" | "jpeg" | "gif" | "webp") => String::from("Image"),
+        Some("json" | "txt" | "md" | "toml" | "rs") => String::from("Text"),
+        _ => String::from("File"),
+    }
+}
+
+fn format_size(bytes: u64) -> String {
+    const KB: u64 = 1024;
+    const MB: u64 = KB * 1024;
+    if bytes >= MB {
+        format!("{} MB", bytes / MB)
+    } else if bytes >= KB {
+        format!("{} KB", bytes / KB)
+    } else {
+        format!("{bytes} B")
+    }
 }
 
 fn read_sorted_entries(path: &Path) -> Vec<PathBuf> {

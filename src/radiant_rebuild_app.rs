@@ -8,7 +8,7 @@ use std::ffi::OsString;
 
 mod folder_browser;
 mod waveform;
-use folder_browser::{FolderBrowserMessage, FolderBrowserState};
+use folder_browser::{FileEntry, FolderBrowserMessage, FolderBrowserState};
 use waveform::{WaveformInteraction, WaveformState};
 
 const DEBUG_LAYOUT_ARG: &str = "--debug-layout";
@@ -165,19 +165,26 @@ fn folder_splitter() -> ui::View<RebuildMessage> {
 }
 
 fn main_area(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
-    ui::column([main_toolbar(), waveform_panel(state), sample_browser()])
-        .padding(4.0)
-        .fill()
+    ui::column([
+        main_toolbar(state),
+        waveform_panel(state),
+        sample_browser(state),
+    ])
+    .padding(4.0)
+    .fill()
 }
 
-fn main_toolbar() -> ui::View<RebuildMessage> {
+fn main_toolbar(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
+    let audio_count = state.folder_browser.selected_audio_files().len();
     ui::row([
         ui::text("Source").height(22.0).width(80.0),
         ui::text("assets/portal_SS_kick_003.wav")
             .height(22.0)
             .fill_width()
             .truncate(),
-        ui::text("1 selected").height(22.0).width(96.0),
+        ui::text(format!("{audio_count} audio"))
+            .height(22.0)
+            .width(96.0),
     ])
     .padding_y(3.0)
     .style(ui::WidgetStyle::default())
@@ -273,11 +280,12 @@ fn waveform_controls() -> ui::View<RebuildMessage> {
     .height(28.0)
 }
 
-fn sample_browser() -> ui::View<RebuildMessage> {
+fn sample_browser(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
+    let audio_files = state.folder_browser.selected_audio_files();
     ui::column([
         sample_browser_header(),
-        ui::spacer().fill(),
-        sample_browser_status(),
+        sample_browser_rows(&audio_files),
+        sample_browser_status(audio_files.len()),
     ])
     .spacing(0.0)
     .style(ui::WidgetStyle::default())
@@ -296,13 +304,52 @@ fn sample_browser_header() -> ui::View<RebuildMessage> {
     .height(28.0)
 }
 
-fn sample_browser_status() -> ui::View<RebuildMessage> {
+fn sample_browser_rows(files: &[&FileEntry]) -> ui::View<RebuildMessage> {
+    if files.is_empty() {
+        return ui::text("No audio files in selected folder")
+            .height(24.0)
+            .fill_width()
+            .fill_height();
+    }
+
+    ui::scroll(
+        ui::column(
+            files
+                .iter()
+                .map(|file| sample_browser_row(file))
+                .collect::<Vec<_>>(),
+        )
+        .spacing(1.0)
+        .fill_width(),
+    )
+    .fill()
+}
+
+fn sample_browser_row(file: &FileEntry) -> ui::View<RebuildMessage> {
     ui::row([
-        ui::text("Loaded").height(20.0).width(90.0),
-        ui::text("portal_SS_kick_003.wav")
-            .height(20.0)
+        ui::text(file.name.clone())
+            .height(22.0)
             .fill_width()
             .truncate(),
+        ui::text(file.kind.clone()).height(22.0).width(120.0),
+        ui::text(file.size.clone()).height(22.0).width(90.0),
+        ui::text("-").height(22.0).width(140.0),
+    ])
+    .padding_x(3.0)
+    .fill_width()
+    .height(24.0)
+    .hoverable()
+}
+
+fn sample_browser_status(audio_count: usize) -> ui::View<RebuildMessage> {
+    ui::row([
+        ui::text("Listed").height(20.0).width(90.0),
+        ui::text(format!(
+            "{audio_count} audio file{} in selected folder",
+            if audio_count == 1 { "" } else { "s" }
+        ))
+        .height(20.0)
+        .fill_width(),
     ])
     .padding_x(3.0)
     .fill_width()
@@ -408,5 +455,13 @@ mod tests {
             .selected_files()
             .iter()
             .any(|file| file.name == "portal_SS_kick_003.wav"));
+        assert_eq!(
+            browser
+                .selected_audio_files()
+                .iter()
+                .map(|file| file.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["portal_SS_kick_003.wav"]
+        );
     }
 }
