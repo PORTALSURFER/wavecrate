@@ -403,6 +403,7 @@ mod tests {
     fn default_folder_browser_loads_assets_root() {
         let browser = super::FolderBrowserState::load_default();
         assert!(browser.root_path().ends_with("assets"));
+        assert_eq!(browser.source_labels(), vec![String::from("Assets")]);
         assert!(browser
             .selected_files()
             .iter()

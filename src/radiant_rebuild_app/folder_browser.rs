@@ -4,6 +4,7 @@ use radiant::{
     prelude as ui,
     widgets::{ButtonMessage, WidgetStyle, WidgetTone},
 };
+use rfd::FileDialog;
 use std::{
     collections::HashSet,
     fs,
@@ -60,6 +61,14 @@ impl FolderBrowserState {
             .unwrap_or_else(|| Path::new(""))
     }
 
+    #[cfg(test)]
+    pub(super) fn source_labels(&self) -> Vec<String> {
+        self.sources
+            .iter()
+            .map(|source| source.label.clone())
+            .collect()
+    }
+
     pub(super) fn selected_files(&self) -> &[FileEntry] {
         self.selected_folder()
             .map(|folder| folder.files.as_slice())
@@ -68,10 +77,29 @@ impl FolderBrowserState {
 
     pub(super) fn apply_message(&mut self, message: FolderBrowserMessage) {
         match message {
+            FolderBrowserMessage::AddSource => self.add_source_from_dialog(),
             FolderBrowserMessage::SelectSource(id) => self.select_source(id),
             FolderBrowserMessage::ActivateFolder(id) => self.activate_folder(id),
             FolderBrowserMessage::ToggleFolder(id) => self.toggle_folder(id),
         }
+    }
+
+    fn add_source_from_dialog(&mut self) {
+        let Some(path) = FileDialog::new().set_title("Add source").pick_folder() else {
+            return;
+        };
+        self.add_source_path(path);
+    }
+
+    fn add_source_path(&mut self, root: PathBuf) {
+        if let Some(source) = self.sources.iter().find(|source| source.root == root) {
+            self.select_source(source.id.clone());
+            return;
+        }
+        let id = path_id(&root);
+        let label = folder_label(&root);
+        self.sources.push(SourceEntry::new(id.clone(), label, root));
+        self.select_source(id);
     }
 
     fn select_source(&mut self, id: String) {
@@ -166,17 +194,14 @@ impl FolderBrowserState {
 struct SourceEntry {
     id: String,
     label: String,
-    detail: String,
     root: PathBuf,
 }
 
 impl SourceEntry {
     fn new(id: impl Into<String>, label: impl Into<String>, root: PathBuf) -> Self {
-        let detail = root.display().to_string();
         Self {
             id: id.into(),
             label: label.into(),
-            detail,
             root,
         }
     }
@@ -220,6 +245,7 @@ struct VisibleFolder {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum FolderBrowserMessage {
+    AddSource,
     SelectSource(String),
     ActivateFolder(String),
     ToggleFolder(String),
@@ -251,7 +277,19 @@ pub(super) fn folder_browser_view(state: &FolderBrowserState) -> ui::View<Rebuil
 
 fn source_selector(state: &FolderBrowserState) -> ui::View<RebuildMessage> {
     ui::column([
-        ui::text("Sources").height(20.0).fill_width(),
+        ui::row([
+            ui::text("Sources").height(20.0).fill_width(),
+            ui::button("+")
+                .primary()
+                .message(RebuildMessage::FolderBrowser(
+                    FolderBrowserMessage::AddSource,
+                ))
+                .key("source-add-button")
+                .size(28.0, 22.0),
+        ])
+        .spacing(3.0)
+        .fill_width()
+        .height(24.0),
         ui::column(
             state
                 .sources
@@ -281,16 +319,7 @@ fn source_row(state: &FolderBrowserState, source: &SourceEntry) -> ui::View<Rebu
     } else {
         row = row.subtle();
     }
-    ui::column([
-        row,
-        ui::text(source.detail.clone())
-            .key(format!("source-detail-{id}"))
-            .height(18.0)
-            .fill_width()
-            .truncate(),
-    ])
-    .spacing(1.0)
-    .style(if selected {
+    row.style(if selected {
         WidgetStyle {
             tone: WidgetTone::Accent,
             prominence: ui::WidgetProminence::Subtle,
