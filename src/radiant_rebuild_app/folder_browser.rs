@@ -138,11 +138,12 @@ impl FolderBrowserState {
                 .map(|file| (file.id.clone(), file.name.clone()))
             {
                 let input_id = file_rename_input_id(&file_id);
-                let selection_end = file_stem_len(&file_name);
+                let draft = file_rename_draft(&file_name);
+                let selection_end = draft.chars().count();
                 self.rename_edit = None;
                 self.file_rename_edit = Some(FileRenameEdit {
                     file_id,
-                    draft: file_name,
+                    draft,
                     input_id,
                     selection_start: 0,
                     selection_end,
@@ -1225,18 +1226,15 @@ fn resolved_file_rename(old_path: &Path, submitted: &str) -> Option<String> {
     if submitted_path.components().count() != 1 {
         return None;
     }
-    if submitted_path.extension().is_some() {
-        return Some(submitted.to_string());
-    }
     let extension = old_path.extension()?.to_string_lossy();
     Some(format!("{submitted}.{extension}"))
 }
 
-fn file_stem_len(name: &str) -> usize {
+fn file_rename_draft(name: &str) -> String {
     Path::new(name)
         .file_stem()
-        .map(|stem| stem.to_string_lossy().chars().count())
-        .unwrap_or_else(|| name.chars().count())
+        .map(|stem| stem.to_string_lossy().to_string())
+        .unwrap_or_else(|| name.to_string())
 }
 
 fn rename_input_id(folder_id: &str) -> u64 {
@@ -1448,7 +1446,7 @@ mod tests {
     }
 
     #[test]
-    fn file_rename_selects_stem_and_preserves_extension_when_submitted_without_one() {
+    fn file_rename_hides_and_preserves_extension() {
         let root = temp_source_root("radiant-rebuild-file-rename");
         let drums = root.join("drums");
         fs::create_dir_all(&drums).expect("create nested folder");
@@ -1466,7 +1464,7 @@ mod tests {
             .file_rename_view(&path_id(&kick))
             .expect("file rename view");
         assert_eq!(rename.input_id, input_id);
-        assert_eq!(rename.draft, "kick loop.wav");
+        assert_eq!(rename.draft, "kick loop");
         assert_eq!(rename.selection_start, 0);
         assert_eq!(rename.selection_end, "kick loop".chars().count());
 
@@ -1494,6 +1492,38 @@ mod tests {
                 ))
                 .collect::<Vec<_>>(),
             vec![("snare loop.wav", "snare loop", "wav")]
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn file_rename_submission_cannot_change_extension() {
+        let root = temp_source_root("radiant-rebuild-file-rename-extension");
+        let drums = root.join("drums");
+        fs::create_dir_all(&drums).expect("create nested folder");
+        let kick = drums.join("kick.wav");
+        fs::write(&kick, [0_u8; 8]).expect("write wav");
+        let mut browser = FolderBrowserState::from_root(root.clone());
+        browser.activate_folder(path_id(&drums));
+        browser.select_file(path_id(&kick));
+        browser
+            .begin_rename_selected()
+            .expect("rename can start")
+            .expect("rename input id");
+
+        let status = browser
+            .apply_rename_input(TextInputMessage::Submitted {
+                value: String::from("snare.aiff"),
+            })
+            .expect("rename status");
+
+        assert_eq!(status, "Renamed file to snare.aiff.wav");
+        assert!(!kick.exists());
+        assert!(drums.join("snare.aiff.wav").is_file());
+        assert!(!drums.join("snare.aiff").exists());
+        assert_eq!(
+            browser.selected_file_id(),
+            Some(path_id(&drums.join("snare.aiff.wav")).as_str())
         );
         let _ = fs::remove_dir_all(root);
     }
