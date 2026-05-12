@@ -13,8 +13,8 @@ use std::{
 mod folder_browser;
 mod waveform;
 use folder_browser::{
-    FileEntry, FolderBrowserMessage, FolderBrowserState, FolderScanDiscovery, FolderScanProgress,
-    FolderScanRequest, FolderScanResult,
+    FileEntry, FolderBrowserMessage, FolderBrowserState, FolderScanDiscoveryBatch,
+    FolderScanProgress, FolderScanRequest, FolderScanResult,
 };
 use waveform::{WaveformInteraction, WaveformState};
 
@@ -29,7 +29,7 @@ enum RebuildMessage {
     ResizeFolder(DragHandleMessage),
     FolderBrowser(FolderBrowserMessage),
     FolderScanProgress(FolderScanProgress),
-    FolderScanDiscovery(FolderScanDiscovery),
+    FolderScanDiscoveryBatch(FolderScanDiscoveryBatch),
     FolderScanFinished(FolderScanResult),
     SelectSample(String),
     Waveform(WaveformInteraction),
@@ -110,8 +110,8 @@ impl RebuildLayoutState {
                     self.folder_progress = Some(progress);
                 }
             }
-            RebuildMessage::FolderScanDiscovery(event) => {
-                self.folder_browser.apply_scan_discovered(event);
+            RebuildMessage::FolderScanDiscoveryBatch(batch) => {
+                self.folder_browser.apply_scan_discovered_batch(batch);
             }
             RebuildMessage::FolderScanFinished(result) => self.finish_folder_scan(result),
             RebuildMessage::SelectSample(path) => self.select_sample(path),
@@ -175,15 +175,40 @@ impl RebuildLayoutState {
             "rebuild-folder-scan",
             move || {
                 let discovery_sender = sender.clone();
-                folder_browser::scan_source_with_progress(
+                let mut pending_discoveries = Vec::with_capacity(64);
+                let task_id = request.task_id;
+                let source_id = request.source_id.clone();
+                let result = folder_browser::scan_source_with_progress(
                     request,
                     |progress| {
                         let _ = sender.send(RebuildMessage::FolderScanProgress(progress));
                     },
                     |event| {
-                        let _ = discovery_sender.send(RebuildMessage::FolderScanDiscovery(event));
+                        pending_discoveries.push(event);
+                        if pending_discoveries.len() >= 64 {
+                            let events = std::mem::take(&mut pending_discoveries);
+                            let _ =
+                                discovery_sender.send(RebuildMessage::FolderScanDiscoveryBatch(
+                                    FolderScanDiscoveryBatch {
+                                        task_id,
+                                        source_id: source_id.clone(),
+                                        events,
+                                    },
+                                ));
+                        }
                     },
-                )
+                );
+                if !pending_discoveries.is_empty() {
+                    let events = std::mem::take(&mut pending_discoveries);
+                    let _ = discovery_sender.send(RebuildMessage::FolderScanDiscoveryBatch(
+                        FolderScanDiscoveryBatch {
+                            task_id,
+                            source_id,
+                            events,
+                        },
+                    ));
+                }
+                result
             },
             RebuildMessage::FolderScanFinished,
         );

@@ -2,7 +2,7 @@
 
 use radiant::{
     prelude as ui,
-    widgets::{ButtonMessage, WidgetStyle, WidgetTone},
+    widgets::{WidgetStyle, WidgetTone},
 };
 use std::{
     collections::HashSet,
@@ -101,7 +101,6 @@ impl FolderBrowserState {
         match message {
             FolderBrowserMessage::AddSource | FolderBrowserMessage::SelectSource(_) => {}
             FolderBrowserMessage::ActivateFolder(id) => self.activate_folder(id),
-            FolderBrowserMessage::ToggleFolder(id) => self.toggle_folder(id),
         }
     }
 
@@ -178,23 +177,35 @@ impl FolderBrowserState {
         true
     }
 
+    #[cfg(test)]
     pub(super) fn apply_scan_discovered(&mut self, event: FolderScanDiscovery) -> bool {
+        self.apply_scan_discovered_batch(FolderScanDiscoveryBatch {
+            task_id: event.task_id,
+            source_id: event.source_id.clone(),
+            events: vec![event],
+        })
+    }
+
+    pub(super) fn apply_scan_discovered_batch(&mut self, batch: FolderScanDiscoveryBatch) -> bool {
         let Some(source) = self
             .sources
             .iter_mut()
-            .find(|source| source.id == event.source_id)
+            .find(|source| source.id == batch.source_id)
         else {
             return false;
         };
-        if source.loading_task != Some(event.task_id) {
+        if source.loading_task != Some(batch.task_id) {
             return false;
         }
 
         let root_folder = source
             .root_folder
             .get_or_insert_with(|| placeholder_folder(&source.root));
-        let changed = merge_scan_discovery(root_folder, &event);
-        if changed && self.selected_source == event.source_id {
+        let mut changed = false;
+        for event in &batch.events {
+            changed |= merge_scan_discovery(root_folder, event);
+        }
+        if changed && self.selected_source == batch.source_id {
             self.folders = vec![root_folder.clone()];
         }
         changed
@@ -249,12 +260,6 @@ impl FolderBrowserState {
             self.expanded_folders.remove(&id);
         } else {
             self.select_folder(id);
-        }
-    }
-
-    fn toggle_folder(&mut self, id: String) {
-        if self.folder_has_children(&id) && !self.expanded_folders.remove(&id) {
-            self.expanded_folders.insert(id);
         }
     }
 
@@ -382,7 +387,6 @@ pub(super) enum FolderBrowserMessage {
     AddSource,
     SelectSource(String),
     ActivateFolder(String),
-    ToggleFolder(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -416,6 +420,13 @@ pub(super) struct FolderScanDiscovery {
     pub(super) source_id: String,
     pub(super) parent_id: String,
     pub(super) item: FolderScanItem,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct FolderScanDiscoveryBatch {
+    pub(super) task_id: u64,
+    pub(super) source_id: String,
+    pub(super) events: Vec<FolderScanDiscovery>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -514,14 +525,18 @@ fn source_row(state: &FolderBrowserState, source: &SourceEntry) -> ui::View<Rebu
 
 fn folder_row(folder: VisibleFolder) -> ui::View<RebuildMessage> {
     let id = folder.id.clone();
-    let toggle_id = folder.id.clone();
     let expander = if folder.expanded { "[-]" } else { "[+]" };
     let indent = (folder.depth as f32) * TREE_DEPTH_INDENT;
     let label_message =
         RebuildMessage::FolderBrowser(FolderBrowserMessage::ActivateFolder(id.clone()));
-    let mut label = ui::button(folder.name)
+    let label_text = if folder.has_children {
+        format!("{expander} {}", folder.name)
+    } else {
+        format!("    {}", folder.name)
+    };
+    let mut label = ui::button(label_text)
         .message(label_message)
-        .key(format!("folder-label-{id}"))
+        .key(format!("folder-row-button-{id}"))
         .fill_width()
         .height(22.0);
     if folder.selected {
@@ -530,43 +545,20 @@ fn folder_row(folder: VisibleFolder) -> ui::View<RebuildMessage> {
         label = label.subtle();
     }
 
-    ui::row([
-        ui::text("").size(indent, 22.0),
-        if folder.has_children {
-            ui::button(expander)
-                .mapped(move |message| match message {
-                    ButtonMessage::Activate => RebuildMessage::FolderBrowser(
-                        FolderBrowserMessage::ToggleFolder(toggle_id.clone()),
-                    ),
-                    ButtonMessage::SecondaryActivate { .. } | ButtonMessage::Drag(_) => {
-                        RebuildMessage::FolderBrowser(FolderBrowserMessage::ActivateFolder(
-                            toggle_id.clone(),
-                        ))
-                    }
-                })
-                .key(format!("folder-toggle-{id}"))
-                .size(32.0, 22.0)
-                .subtle()
+    ui::row([ui::spacer().width(indent).height(22.0), label])
+        .key(format!("folder-row-{id}"))
+        .style(if folder.selected {
+            WidgetStyle {
+                tone: WidgetTone::Accent,
+                prominence: ui::WidgetProminence::Subtle,
+            }
         } else {
-            ui::text("")
-                .key(format!("folder-toggle-spacer-{id}"))
-                .size(32.0, 22.0)
-        },
-        label,
-    ])
-    .key(format!("folder-row-{id}"))
-    .style(if folder.selected {
-        WidgetStyle {
-            tone: WidgetTone::Accent,
-            prominence: ui::WidgetProminence::Subtle,
-        }
-    } else {
-        WidgetStyle::default()
-    })
-    .fill_width()
-    .height(TREE_ROW_HEIGHT)
-    .spacing(1.0)
-    .hoverable()
+            WidgetStyle::default()
+        })
+        .fill_width()
+        .height(TREE_ROW_HEIGHT)
+        .spacing(1.0)
+        .hoverable()
 }
 
 fn selected_folder_status(state: &FolderBrowserState) -> ui::View<RebuildMessage> {
@@ -916,7 +908,7 @@ fn file_label(path: &Path) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{path_id, scan_source_with_progress, FolderBrowserState};
+    use super::{path_id, scan_source_with_progress, FolderBrowserState, FolderScanDiscoveryBatch};
     use std::{fs, path::PathBuf};
 
     #[test]
@@ -992,6 +984,56 @@ mod tests {
 
         assert!(browser.apply_scan_finished(result));
         assert!(progress_events.iter().all(|progress| progress.total == 0));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn batched_scan_discoveries_clone_selected_tree_once_per_batch() {
+        let root = temp_source_root("radiant-rebuild-source-batch");
+        let drums = root.join("drums");
+        fs::create_dir_all(&drums).expect("create nested folder");
+        fs::write(drums.join("kick.wav"), [0_u8; 8]).expect("write wav");
+        fs::write(drums.join("snare.wav"), [0_u8; 8]).expect("write wav");
+        let mut browser = FolderBrowserState::load_default();
+        let request = browser
+            .begin_add_source_path(root.clone(), 88)
+            .expect("new source should request scan");
+
+        let mut discovery_events = Vec::new();
+        let result =
+            scan_source_with_progress(request, |_| {}, |event| discovery_events.push(event));
+        assert!(
+            browser.apply_scan_discovered_batch(FolderScanDiscoveryBatch {
+                task_id: 88,
+                source_id: path_id(&root),
+                events: discovery_events,
+            })
+        );
+        browser.activate_folder(path_id(&drums));
+        assert_eq!(browser.selected_audio_files().len(), 2);
+
+        assert!(browser.apply_scan_finished(result));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn visible_folder_depths_are_stable_for_siblings() {
+        let root = temp_source_root("radiant-rebuild-folder-depths");
+        for child in ["alpha", "beta", "gamma"] {
+            fs::create_dir_all(root.join("parent").join(child)).expect("create nested folder");
+        }
+        let browser = FolderBrowserState::from_root(root.clone());
+        let mut browser = browser;
+        browser.activate_folder(path_id(&root.join("parent")));
+
+        let sibling_depths = browser
+            .visible_folders()
+            .into_iter()
+            .filter(|folder| ["alpha", "beta", "gamma"].contains(&folder.name.as_str()))
+            .map(|folder| folder.depth)
+            .collect::<Vec<_>>();
+
+        assert_eq!(sibling_depths, vec![2, 2, 2]);
         let _ = fs::remove_dir_all(root);
     }
 
