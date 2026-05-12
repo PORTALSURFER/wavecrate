@@ -18,6 +18,8 @@ const TREE_ROW_HEIGHT: f32 = 23.0;
 
 #[derive(Clone, Debug)]
 pub(super) struct FolderBrowserState {
+    selected_source: String,
+    sources: Vec<SourceEntry>,
     selected_folder: String,
     expanded_folders: HashSet<String>,
     folders: Vec<FolderEntry>,
@@ -29,9 +31,21 @@ impl FolderBrowserState {
     }
 
     fn from_root(root: PathBuf) -> Self {
-        let root_folder = load_root_folder(root);
+        let sources = vec![SourceEntry::new("assets", "Assets", root)];
+        Self::from_sources(sources, String::from("assets"))
+    }
+
+    fn from_sources(sources: Vec<SourceEntry>, selected_source: String) -> Self {
+        let source = sources
+            .iter()
+            .find(|source| source.id == selected_source)
+            .or_else(|| sources.first())
+            .expect("folder browser needs at least one source");
+        let root_folder = load_root_folder(source.root.clone());
         let root_id = root_folder.id.clone();
         Self {
+            selected_source: source.id.clone(),
+            sources,
             selected_folder: root_id.clone(),
             expanded_folders: [root_id].into_iter().collect(),
             folders: vec![root_folder],
@@ -54,9 +68,26 @@ impl FolderBrowserState {
 
     pub(super) fn apply_message(&mut self, message: FolderBrowserMessage) {
         match message {
+            FolderBrowserMessage::SelectSource(id) => self.select_source(id),
             FolderBrowserMessage::ActivateFolder(id) => self.activate_folder(id),
             FolderBrowserMessage::ToggleFolder(id) => self.toggle_folder(id),
         }
+    }
+
+    fn select_source(&mut self, id: String) {
+        if self.selected_source == id {
+            return;
+        }
+        let Some(source) = self.sources.iter().find(|source| source.id == id) else {
+            return;
+        };
+        let root_folder = load_root_folder(source.root.clone());
+        let root_id = root_folder.id.clone();
+        self.selected_source = source.id.clone();
+        self.selected_folder = root_id.clone();
+        self.expanded_folders.clear();
+        self.expanded_folders.insert(root_id);
+        self.folders = vec![root_folder];
     }
 
     fn selected_folder(&self) -> Option<&FolderEntry> {
@@ -131,6 +162,26 @@ impl FolderBrowserState {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct SourceEntry {
+    id: String,
+    label: String,
+    detail: String,
+    root: PathBuf,
+}
+
+impl SourceEntry {
+    fn new(id: impl Into<String>, label: impl Into<String>, root: PathBuf) -> Self {
+        let detail = root.display().to_string();
+        Self {
+            id: id.into(),
+            label: label.into(),
+            detail,
+            root,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 struct FolderEntry {
     id: String,
@@ -169,12 +220,14 @@ struct VisibleFolder {
 
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum FolderBrowserMessage {
+    SelectSource(String),
     ActivateFolder(String),
     ToggleFolder(String),
 }
 
 pub(super) fn folder_browser_view(state: &FolderBrowserState) -> ui::View<RebuildMessage> {
     ui::column([
+        source_selector(state),
         ui::text("Folders").height(22.0).fill_width(),
         ui::scroll(
             ui::column(
@@ -194,6 +247,58 @@ pub(super) fn folder_browser_view(state: &FolderBrowserState) -> ui::View<Rebuil
     .padding(4.0)
     .style(WidgetStyle::default())
     .fill_height()
+}
+
+fn source_selector(state: &FolderBrowserState) -> ui::View<RebuildMessage> {
+    ui::column([
+        ui::text("Sources").height(20.0).fill_width(),
+        ui::column(
+            state
+                .sources
+                .iter()
+                .map(|source| source_row(state, source))
+                .collect::<Vec<_>>(),
+        )
+        .spacing(2.0)
+        .fill_width(),
+    ])
+    .spacing(3.0)
+    .fill_width()
+}
+
+fn source_row(state: &FolderBrowserState, source: &SourceEntry) -> ui::View<RebuildMessage> {
+    let id = source.id.clone();
+    let selected = state.selected_source == source.id;
+    let mut row = ui::button(source.label.clone())
+        .message(RebuildMessage::FolderBrowser(
+            FolderBrowserMessage::SelectSource(id.clone()),
+        ))
+        .key(format!("source-row-{id}"))
+        .fill_width()
+        .height(24.0);
+    if selected {
+        row = row.primary();
+    } else {
+        row = row.subtle();
+    }
+    ui::column([
+        row,
+        ui::text(source.detail.clone())
+            .key(format!("source-detail-{id}"))
+            .height(18.0)
+            .fill_width()
+            .truncate(),
+    ])
+    .spacing(1.0)
+    .style(if selected {
+        WidgetStyle {
+            tone: WidgetTone::Accent,
+            prominence: ui::WidgetProminence::Subtle,
+        }
+    } else {
+        WidgetStyle::default()
+    })
+    .fill_width()
 }
 
 fn folder_row(folder: VisibleFolder) -> ui::View<RebuildMessage> {
