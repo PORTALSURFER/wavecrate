@@ -25,7 +25,7 @@ use super::RebuildMessage;
 const WAVEFORM_WIDTH: usize = 1200;
 const WAVEFORM_HEIGHT: usize = 320;
 const MIN_VISIBLE_FRAMES: usize = 256;
-const BAND_COUNT: usize = 4;
+const BAND_COUNT: usize = 1;
 #[cfg(test)]
 const SYNTHETIC_SAMPLE_RATE: u32 = 48_000;
 #[cfg(test)]
@@ -222,11 +222,6 @@ impl WaveformFile {
     }
 }
 
-#[derive(Clone, Debug)]
-struct WaveformBand {
-    samples: Vec<f32>,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct WaveformViewport {
     start: usize,
@@ -252,6 +247,11 @@ pub(super) fn waveform_viewport_view(state: &WaveformState) -> ui::View<super::R
 }
 
 fn load_waveform_file(path: PathBuf) -> Result<WaveformFile, String> {
+    if is_wav_path(&path) {
+        if let Ok(file) = load_wav_waveform_file(path.clone()) {
+            return Ok(file);
+        }
+    }
     let bytes = fs::read(&path).map_err(|err| format!("failed to read audio file: {err}"))?;
     let decoded =
         sempal::waveform::WaveformRenderer::new(WAVEFORM_WIDTH as u32, WAVEFORM_HEIGHT as u32)
@@ -302,8 +302,11 @@ fn waveform_file_from_mono_samples(
     channels: usize,
     mono_samples: Vec<f32>,
 ) -> WaveformFile {
-    let bands = split_frequency_bands(&mono_samples, sample_rate);
-    let gpu_signal_samples = interleaved_band_samples(&bands);
+    let gpu_signal_samples = mono_samples
+        .iter()
+        .copied()
+        .map(|sample| sample.clamp(-1.0, 1.0))
+        .collect::<Arc<[f32]>>();
     let gpu_signal_summary = Arc::new(
         radiant::runtime::GpuSignalSummary::from_interleaved_samples(
             &gpu_signal_samples,
@@ -320,18 +323,66 @@ fn waveform_file_from_mono_samples(
     }
 }
 
-fn interleaved_band_samples(bands: &[WaveformBand; BAND_COUNT]) -> Arc<[f32]> {
-    let frames = bands
-        .first()
-        .map(|band| band.samples.len())
-        .unwrap_or_default();
-    let mut samples = Vec::with_capacity(frames.saturating_mul(BAND_COUNT));
-    for frame in 0..frames {
-        for band in bands {
-            samples.push(band.samples.get(frame).copied().unwrap_or_default());
+fn is_wav_path(path: &std::path::Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("wav"))
+}
+
+fn load_wav_waveform_file(path: PathBuf) -> Result<WaveformFile, String> {
+    let mut reader =
+        hound::WavReader::open(&path).map_err(|err| format!("failed to open WAV: {err}"))?;
+    let spec = reader.spec();
+    let channels = usize::from(spec.channels).max(1);
+    let samples = match spec.sample_format {
+        hound::SampleFormat::Float => reader
+            .samples::<f32>()
+            .map(|sample| {
+                sample
+                    .map(|value| value.clamp(-1.0, 1.0))
+                    .map_err(|err| format!("failed to read float sample: {err}"))
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+        hound::SampleFormat::Int if spec.bits_per_sample <= 16 => {
+            let max =
+                ((1_i32 << (u32::from(spec.bits_per_sample).saturating_sub(1))) - 1).max(1) as f32;
+            reader
+                .samples::<i16>()
+                .map(|sample| {
+                    sample
+                        .map(|value| (f32::from(value) / max).clamp(-1.0, 1.0))
+                        .map_err(|err| format!("failed to read integer sample: {err}"))
+                })
+                .collect::<Result<Vec<_>, _>>()?
         }
+        hound::SampleFormat::Int => {
+            let max =
+                ((1_i64 << (u32::from(spec.bits_per_sample).saturating_sub(1))) - 1).max(1) as f32;
+            reader
+                .samples::<i32>()
+                .map(|sample| {
+                    sample
+                        .map(|value| ((value as f32) / max).clamp(-1.0, 1.0))
+                        .map_err(|err| format!("failed to read integer sample: {err}"))
+                })
+                .collect::<Result<Vec<_>, _>>()?
+        }
+    };
+    if samples.is_empty() {
+        return Err(String::from("WAV contains no samples"));
     }
-    samples.into()
+
+    let frames = samples.len() / channels;
+    let mono_samples = downmix_to_mono(&samples, channels, frames);
+    if mono_samples.is_empty() {
+        return Err(String::from("WAV contains no complete frames"));
+    }
+    Ok(waveform_file_from_mono_samples(
+        path,
+        spec.sample_rate,
+        channels,
+        mono_samples,
+    ))
 }
 
 fn downmix_to_mono(samples: &[f32], channels: usize, frames: usize) -> Vec<f32> {
@@ -346,60 +397,6 @@ fn downmix_to_mono(samples: &[f32], channels: usize, frames: usize) -> Vec<f32> 
             (sum / channels as f32).clamp(-1.0, 1.0)
         })
         .collect()
-}
-
-fn split_frequency_bands(samples: &[f32], sample_rate: u32) -> [WaveformBand; BAND_COUNT] {
-    let low_160 = lowpass(samples, sample_rate, 160.0);
-    let low_700 = lowpass(samples, sample_rate, 700.0);
-    let low_2k8 = lowpass(samples, sample_rate, 2_800.0);
-    let low_mid = subtract_samples(&low_700, &low_160);
-    let mid = subtract_samples(&low_2k8, &low_700);
-    let high = subtract_samples(samples, &low_2k8);
-    [
-        WaveformBand::new(normalized_band(samples.to_vec(), 1.12)),
-        WaveformBand::new(normalized_band(low_mid, 1.25)),
-        WaveformBand::new(normalized_band(mid, 1.1)),
-        WaveformBand::new(normalized_band(high, 1.08)),
-    ]
-}
-
-fn lowpass(samples: &[f32], sample_rate: u32, cutoff_hz: f32) -> Vec<f32> {
-    let alpha = (1.0 - (-std::f32::consts::TAU * cutoff_hz / sample_rate.max(1) as f32).exp())
-        .clamp(0.0, 1.0);
-    let mut value = 0.0_f32;
-    samples
-        .iter()
-        .map(|sample| {
-            value += alpha * (*sample - value);
-            value
-        })
-        .collect()
-}
-
-fn subtract_samples(left: &[f32], right: &[f32]) -> Vec<f32> {
-    left.iter()
-        .zip(right)
-        .map(|(left, right)| (left - right).clamp(-1.0, 1.0))
-        .collect()
-}
-
-fn normalized_band(mut samples: Vec<f32>, gain: f32) -> Vec<f32> {
-    let peak = samples
-        .iter()
-        .map(|sample| sample.abs())
-        .fold(0.0_f32, f32::max)
-        .max(0.001);
-    let scale = gain / peak.max(0.32);
-    for sample in &mut samples {
-        *sample = (*sample * scale).clamp(-1.0, 1.0);
-    }
-    samples
-}
-
-impl WaveformBand {
-    fn new(samples: Vec<f32>) -> Self {
-        Self { samples }
-    }
 }
 
 impl WaveformViewport {
@@ -545,30 +542,36 @@ impl Widget for WaveformWidget {
 
 #[cfg(test)]
 mod tests {
-    use super::{split_frequency_bands, BAND_COUNT};
+    use super::{waveform_file_from_mono_samples, BAND_COUNT};
 
     #[test]
-    fn first_waveform_band_preserves_raw_transient_detail() {
+    fn waveform_summary_preserves_raw_transient_detail() {
         let samples = vec![0.0, 0.12, -0.9, 0.08, 0.0, 0.42, -0.18, 0.0];
 
-        let bands = split_frequency_bands(&samples, 48_000);
+        let file = waveform_file_from_mono_samples("test.wav".into(), 48_000, 1, samples.clone());
 
-        assert_eq!(bands.len(), BAND_COUNT);
+        assert_eq!(BAND_COUNT, 1);
         let raw_peak_index = samples
             .iter()
             .enumerate()
             .max_by(|(_, left), (_, right)| left.abs().total_cmp(&right.abs()))
             .map(|(index, _)| index)
             .expect("peak sample");
-        let rendered_peak_index = bands[0]
-            .samples
+        let rendered_peak_index = file.gpu_signal_summary.levels[0]
+            .buckets
             .iter()
             .enumerate()
-            .max_by(|(_, left), (_, right)| left.abs().total_cmp(&right.abs()))
-            .map(|(index, _)| index)
+            .max_by(|(_, left), (_, right)| {
+                left.max
+                    .abs()
+                    .max(left.min.abs())
+                    .total_cmp(&right.max.abs().max(right.min.abs()))
+            })
+            .map(|(index, _)| index / BAND_COUNT)
             .expect("peak band sample");
 
         assert_eq!(rendered_peak_index, raw_peak_index);
-        assert!(bands[0].samples[raw_peak_index].abs() > 0.99);
+        let bucket = file.gpu_signal_summary.levels[0].buckets[raw_peak_index];
+        assert!(bucket.min.abs().max(bucket.max.abs()) > 0.89);
     }
 }
