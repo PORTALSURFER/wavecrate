@@ -9,6 +9,7 @@ use std::{
     collections::HashSet,
     fs,
     path::{Path, PathBuf},
+    time::{Duration, SystemTime},
 };
 
 use super::RebuildMessage;
@@ -22,6 +23,7 @@ pub(super) struct FolderBrowserState {
     selected_source: String,
     sources: Vec<SourceEntry>,
     selected_folder: String,
+    selected_file: Option<String>,
     expanded_folders: HashSet<String>,
     folders: Vec<FolderEntry>,
 }
@@ -48,6 +50,7 @@ impl FolderBrowserState {
             selected_source: source.id.clone(),
             sources,
             selected_folder: root_id.clone(),
+            selected_file: None,
             expanded_folders: [root_id].into_iter().collect(),
             folders: vec![root_folder],
         }
@@ -80,6 +83,10 @@ impl FolderBrowserState {
             .iter()
             .filter(|file| file.is_audio())
             .collect()
+    }
+
+    pub(super) fn selected_file_id(&self) -> Option<&str> {
+        self.selected_file.as_deref()
     }
 
     pub(super) fn apply_message(&mut self, message: FolderBrowserMessage) {
@@ -120,6 +127,7 @@ impl FolderBrowserState {
         let root_id = root_folder.id.clone();
         self.selected_source = source.id.clone();
         self.selected_folder = root_id.clone();
+        self.selected_file = None;
         self.expanded_folders.clear();
         self.expanded_folders.insert(root_id);
         self.folders = vec![root_folder];
@@ -165,6 +173,13 @@ impl FolderBrowserState {
 
     fn select_folder(&mut self, id: String) {
         self.selected_folder = id;
+        self.selected_file = None;
+    }
+
+    pub(super) fn select_file(&mut self, id: String) {
+        if self.selected_files().iter().any(|file| file.id == id) {
+            self.selected_file = Some(id);
+        }
     }
 
     fn visible_folders(&self) -> Vec<VisibleFolder> {
@@ -237,9 +252,13 @@ impl FolderEntry {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct FileEntry {
+    pub(super) id: String,
     pub(super) name: String,
     pub(super) kind: String,
     pub(super) size: String,
+    pub(super) size_bytes: u64,
+    pub(super) modified: String,
+    pub(super) modified_rank: u64,
 }
 
 impl FileEntry {
@@ -465,10 +484,15 @@ fn load_folder(path: &Path, depth: usize) -> Option<FolderEntry> {
 fn file_entry(path: &PathBuf) -> FileEntry {
     let metadata = fs::metadata(path).ok();
     let size_bytes = metadata.as_ref().map(fs::Metadata::len).unwrap_or_default();
+    let modified = metadata.and_then(|metadata| metadata.modified().ok());
     FileEntry {
+        id: path_id(path),
         name: file_label(path),
         kind: file_kind(path),
         size: format_size(size_bytes),
+        size_bytes,
+        modified: modified_label(modified),
+        modified_rank: modified_rank(modified),
     }
 }
 
@@ -489,13 +513,40 @@ fn file_kind(path: &Path) -> String {
 fn format_size(bytes: u64) -> String {
     const KB: u64 = 1024;
     const MB: u64 = KB * 1024;
-    if bytes >= MB {
+    const GB: u64 = MB * 1024;
+    if bytes >= GB {
+        format!("{} GB", bytes / GB)
+    } else if bytes >= MB {
         format!("{} MB", bytes / MB)
     } else if bytes >= KB {
         format!("{} KB", bytes / KB)
     } else {
         format!("{bytes} B")
     }
+}
+
+fn modified_label(modified: Option<SystemTime>) -> String {
+    let Some(modified) = modified else {
+        return String::from("-");
+    };
+    let age = SystemTime::now()
+        .duration_since(modified)
+        .unwrap_or(Duration::ZERO);
+    let days = age.as_secs() / 86_400;
+    if days == 0 {
+        String::from("Today")
+    } else if days == 1 {
+        String::from("1 day")
+    } else {
+        format!("{days} days")
+    }
+}
+
+fn modified_rank(modified: Option<SystemTime>) -> u64 {
+    modified
+        .and_then(|modified| SystemTime::now().duration_since(modified).ok())
+        .map(|age| age.as_secs())
+        .unwrap_or(u64::MAX)
 }
 
 fn read_sorted_entries(path: &Path) -> Vec<PathBuf> {

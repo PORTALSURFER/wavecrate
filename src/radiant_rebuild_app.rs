@@ -21,6 +21,7 @@ const MAX_FOLDER_WIDTH: f32 = 420.0;
 enum RebuildMessage {
     ResizeFolder(DragHandleMessage),
     FolderBrowser(FolderBrowserMessage),
+    SelectSample(String),
     Waveform(WaveformInteraction),
     Frame,
 }
@@ -31,6 +32,7 @@ struct RebuildLayoutState {
     folder_resize: Option<FolderResize>,
     folder_browser: FolderBrowserState,
     waveform: WaveformState,
+    sample_status: String,
 }
 
 impl RebuildLayoutState {
@@ -40,6 +42,7 @@ impl RebuildLayoutState {
             folder_resize: None,
             folder_browser: FolderBrowserState::load_default(),
             waveform: WaveformState::load_default()?,
+            sample_status: String::from("Default sample loaded from assets"),
         })
     }
 
@@ -69,8 +72,23 @@ impl RebuildLayoutState {
         match message {
             RebuildMessage::ResizeFolder(message) => self.resize_folder_browser(message),
             RebuildMessage::FolderBrowser(message) => self.folder_browser.apply_message(message),
+            RebuildMessage::SelectSample(path) => self.select_sample(path),
             RebuildMessage::Waveform(message) => self.waveform.apply_interaction(message),
             RebuildMessage::Frame => self.waveform.apply_interaction(WaveformInteraction::Frame),
+        }
+    }
+
+    fn select_sample(&mut self, path: String) {
+        match WaveformState::load_path(path.clone().into()) {
+            Ok(waveform) => {
+                self.folder_browser.select_file(path);
+                let file_name = waveform.file_name();
+                self.waveform = waveform;
+                self.sample_status = format!("Loaded {file_name}");
+            }
+            Err(err) => {
+                self.sample_status = format!("Could not load sample: {err}");
+            }
         }
     }
 }
@@ -115,9 +133,13 @@ where
 }
 
 fn view(state: &mut RebuildLayoutState) -> ui::View<RebuildMessage> {
-    ui::column([top_status_bar(), center_panel(state), bottom_status_bar()])
-        .spacing(0.0)
-        .fill()
+    ui::column([
+        top_status_bar(),
+        center_panel(state),
+        bottom_status_bar(state),
+    ])
+    .spacing(0.0)
+    .fill()
 }
 
 fn top_status_bar() -> ui::View<RebuildMessage> {
@@ -213,7 +235,8 @@ fn waveform_panel(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
 
 fn waveform_title(waveform: &WaveformState) -> String {
     format!(
-        "Portal SS Kick 003 | {} Hz | {} channel{} -> mono | {} frames",
+        "{} | {} Hz | {} channel{} -> mono | {} frames",
+        waveform.file_name(),
         waveform.sample_rate(),
         waveform.channels(),
         if waveform.channels() == 1 { "" } else { "s" },
@@ -284,7 +307,7 @@ fn sample_browser(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
     let audio_files = state.folder_browser.selected_audio_files();
     ui::column([
         sample_browser_header(),
-        sample_browser_rows(&audio_files),
+        sample_browser_rows(&audio_files, state.folder_browser.selected_file_id()),
         sample_browser_status(audio_files.len()),
     ])
     .spacing(0.0)
@@ -293,18 +316,27 @@ fn sample_browser(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
 }
 
 fn sample_browser_header() -> ui::View<RebuildMessage> {
-    ui::row([
-        ui::text("Name").height(22.0).fill_width(),
-        ui::text("Type").height(22.0).width(120.0),
-        ui::text("Length").height(22.0).width(90.0),
-        ui::text("Tags").height(22.0).width(140.0),
+    details_header_row([
+        sample_header_cell("Name", SAMPLE_NAME_WIDTH),
+        sample_header_cell("Size", SAMPLE_SIZE_WIDTH),
+        sample_header_cell("Type", SAMPLE_TYPE_WIDTH),
+        sample_header_cell("Modified", SAMPLE_MODIFIED_WIDTH),
     ])
-    .padding_x(3.0)
-    .fill_width()
-    .height(28.0)
 }
 
-fn sample_browser_rows(files: &[&FileEntry]) -> ui::View<RebuildMessage> {
+const SAMPLE_NAME_WIDTH: f32 = 240.0;
+const SAMPLE_SIZE_WIDTH: f32 = 78.0;
+const SAMPLE_TYPE_WIDTH: f32 = 118.0;
+const SAMPLE_MODIFIED_WIDTH: f32 = 112.0;
+
+fn sample_header_cell(label: &str, width: f32) -> ui::View<RebuildMessage> {
+    ui::text(label).height(20.0).width(width)
+}
+
+fn sample_browser_rows(
+    files: &[&FileEntry],
+    selected_file_id: Option<&str>,
+) -> ui::View<RebuildMessage> {
     if files.is_empty() {
         return ui::text("No audio files in selected folder")
             .height(24.0)
@@ -316,7 +348,7 @@ fn sample_browser_rows(files: &[&FileEntry]) -> ui::View<RebuildMessage> {
         ui::column(
             files
                 .iter()
-                .map(|file| sample_browser_row(file))
+                .map(|file| sample_browser_row(file, selected_file_id == Some(file.id.as_str())))
                 .collect::<Vec<_>>(),
         )
         .spacing(1.0)
@@ -325,20 +357,69 @@ fn sample_browser_rows(files: &[&FileEntry]) -> ui::View<RebuildMessage> {
     .fill()
 }
 
-fn sample_browser_row(file: &FileEntry) -> ui::View<RebuildMessage> {
-    ui::row([
-        ui::text(file.name.clone())
-            .height(22.0)
-            .fill_width()
-            .truncate(),
-        ui::text(file.kind.clone()).height(22.0).width(120.0),
-        ui::text(file.size.clone()).height(22.0).width(90.0),
-        ui::text("-").height(22.0).width(140.0),
+fn sample_browser_row(file: &FileEntry, selected: bool) -> ui::View<RebuildMessage> {
+    let row = compact_details_row([
+        sample_file_cell(file, file.name.clone(), SAMPLE_NAME_WIDTH, "name"),
+        sample_file_cell(file, file.size.clone(), SAMPLE_SIZE_WIDTH, "size"),
+        sample_file_cell(file, file.kind.clone(), SAMPLE_TYPE_WIDTH, "kind"),
+        sample_file_cell(
+            file,
+            file.modified.clone(),
+            SAMPLE_MODIFIED_WIDTH,
+            "modified",
+        ),
     ])
-    .padding_x(3.0)
-    .fill_width()
-    .height(24.0)
-    .hoverable()
+    .key(format!("sample-row-{}", file.id))
+    .hoverable();
+    if selected {
+        row.style(ui::WidgetStyle {
+            tone: ui::WidgetTone::Accent,
+            prominence: ui::WidgetProminence::Subtle,
+        })
+    } else {
+        row
+    }
+}
+
+fn sample_file_cell(
+    file: &FileEntry,
+    value: String,
+    width: f32,
+    column_id: &str,
+) -> ui::View<RebuildMessage> {
+    ui::button(value)
+        .message(RebuildMessage::SelectSample(file.id.clone()))
+        .key(format!("sample-{}-{column_id}", file.id))
+        .fill_width()
+        .height(20.0)
+        .input_only()
+        .width(width)
+}
+
+fn compact_details_row(
+    children: impl IntoIterator<Item = ui::View<RebuildMessage>>,
+) -> ui::View<RebuildMessage> {
+    ui::row(children)
+        .fill_width()
+        .height(22.0)
+        .padding_x(8.0)
+        .padding_y(1.0)
+        .spacing(10.0)
+}
+
+fn details_header_row(
+    children: impl IntoIterator<Item = ui::View<RebuildMessage>>,
+) -> ui::View<RebuildMessage> {
+    ui::row(children)
+        .style(ui::WidgetStyle {
+            tone: ui::WidgetTone::Accent,
+            prominence: ui::WidgetProminence::Subtle,
+        })
+        .fill_width()
+        .height(24.0)
+        .padding_x(8.0)
+        .padding_y(2.0)
+        .spacing(10.0)
 }
 
 fn sample_browser_status(audio_count: usize) -> ui::View<RebuildMessage> {
@@ -356,10 +437,10 @@ fn sample_browser_status(audio_count: usize) -> ui::View<RebuildMessage> {
     .height(28.0)
 }
 
-fn bottom_status_bar() -> ui::View<RebuildMessage> {
+fn bottom_status_bar(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
     ui::row([
         ui::text("1 sample").height(20.0).width(120.0),
-        ui::text("Default sample loaded from assets")
+        ui::text(state.sample_status.clone())
             .height(20.0)
             .fill_width(),
     ])
@@ -410,6 +491,7 @@ mod tests {
             folder_resize: None,
             folder_browser: super::FolderBrowserState::load_default(),
             waveform: super::WaveformState::synthetic_for_tests(),
+            sample_status: String::new(),
         };
         state.resize_folder_browser(DragHandleMessage::Started {
             position: Point::new(100.0, 0.0),
@@ -444,6 +526,28 @@ mod tests {
         let waveform = super::WaveformState::load_default().expect("default sample loads");
         assert!(waveform.frames() > 0);
         assert!(waveform.sample_rate() > 0);
+    }
+
+    #[test]
+    fn sample_selection_loads_selected_file_into_waveform() {
+        let mut state = RebuildLayoutState {
+            folder_width: DEFAULT_FOLDER_WIDTH,
+            folder_resize: None,
+            folder_browser: super::FolderBrowserState::load_default(),
+            waveform: super::WaveformState::synthetic_for_tests(),
+            sample_status: String::new(),
+        };
+        let sample_path = state.folder_browser.selected_audio_files()[0].id.clone();
+
+        state.apply_message(super::RebuildMessage::SelectSample(sample_path.clone()));
+
+        assert_eq!(
+            state.folder_browser.selected_file_id(),
+            Some(sample_path.as_str())
+        );
+        assert_eq!(state.waveform.file_name(), "portal_SS_kick_003.wav");
+        assert!(state.waveform.frames() > 0);
+        assert!(state.sample_status.contains("portal_SS_kick_003.wav"));
     }
 
     #[test]
