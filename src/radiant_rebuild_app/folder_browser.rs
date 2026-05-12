@@ -4,7 +4,6 @@ use radiant::{
     prelude as ui,
     widgets::{ButtonMessage, WidgetStyle, WidgetTone},
 };
-use rfd::FileDialog;
 use std::{
     collections::HashSet,
     fs,
@@ -39,15 +38,17 @@ impl FolderBrowserState {
     }
 
     fn from_sources(sources: Vec<SourceEntry>, selected_source: String) -> Self {
-        let source = sources
+        let mut sources = sources;
+        let source_index = sources
             .iter()
-            .find(|source| source.id == selected_source)
-            .or_else(|| sources.first())
+            .position(|source| source.id == selected_source)
+            .or(if sources.is_empty() { None } else { Some(0) })
             .expect("folder browser needs at least one source");
-        let root_folder = load_root_folder(source.root.clone());
+        let root_folder = load_root_folder(sources[source_index].root.clone());
+        sources[source_index].root_folder = Some(root_folder.clone());
         let root_id = root_folder.id.clone();
         Self {
-            selected_source: source.id.clone(),
+            selected_source: sources[source_index].id.clone(),
             sources,
             selected_folder: root_id.clone(),
             selected_file: None,
@@ -91,41 +92,98 @@ impl FolderBrowserState {
 
     pub(super) fn apply_message(&mut self, message: FolderBrowserMessage) {
         match message {
-            FolderBrowserMessage::AddSource => self.add_source_from_dialog(),
-            FolderBrowserMessage::SelectSource(id) => self.select_source(id),
+            FolderBrowserMessage::AddSource | FolderBrowserMessage::SelectSource(_) => {}
             FolderBrowserMessage::ActivateFolder(id) => self.activate_folder(id),
             FolderBrowserMessage::ToggleFolder(id) => self.toggle_folder(id),
         }
     }
 
-    fn add_source_from_dialog(&mut self) {
-        let Some(path) = FileDialog::new().set_title("Add source").pick_folder() else {
-            return;
-        };
-        self.add_source_path(path);
-    }
-
-    fn add_source_path(&mut self, root: PathBuf) {
-        if let Some(source) = self.sources.iter().find(|source| source.root == root) {
-            self.select_source(source.id.clone());
-            return;
+    pub(super) fn begin_add_source_path(
+        &mut self,
+        root: PathBuf,
+        task_id: u64,
+    ) -> Option<FolderScanRequest> {
+        if let Some(index) = self.sources.iter().position(|source| source.root == root) {
+            let id = self.sources[index].id.clone();
+            return self.begin_select_source(id, task_id);
         }
         let id = path_id(&root);
         let label = folder_label(&root);
-        self.sources.push(SourceEntry::new(id.clone(), label, root));
-        self.select_source(id);
+        let mut source = SourceEntry::new(id.clone(), label.clone(), root.clone());
+        source.loading_task = Some(task_id);
+        self.sources.push(source);
+        self.select_pending_source(id.clone(), placeholder_folder(&root));
+        Some(FolderScanRequest {
+            task_id,
+            source_id: id,
+            label,
+            root,
+        })
     }
 
-    fn select_source(&mut self, id: String) {
-        if self.selected_source == id {
-            return;
+    pub(super) fn begin_select_source(
+        &mut self,
+        id: String,
+        task_id: u64,
+    ) -> Option<FolderScanRequest> {
+        let index = self.sources.iter().position(|source| source.id == id)?;
+        if self.selected_source == id && self.sources[index].root_folder.is_some() {
+            return None;
         }
-        let Some(source) = self.sources.iter().find(|source| source.id == id) else {
-            return;
+        if let Some(root_folder) = self.sources[index].root_folder.clone() {
+            self.select_loaded_source(id, root_folder);
+            return None;
+        }
+        if self.sources[index].loading_task.is_some() {
+            let root = self.sources[index].root.clone();
+            self.select_pending_source(id, placeholder_folder(&root));
+            return None;
+        }
+        self.sources[index].loading_task = Some(task_id);
+        let source = self.sources[index].clone();
+        self.select_pending_source(source.id.clone(), placeholder_folder(&source.root));
+        Some(FolderScanRequest {
+            task_id,
+            source_id: source.id,
+            label: source.label,
+            root: source.root,
+        })
+    }
+
+    pub(super) fn apply_scan_finished(&mut self, result: FolderScanResult) -> bool {
+        let Some(source) = self
+            .sources
+            .iter_mut()
+            .find(|source| source.id == result.source_id)
+        else {
+            return false;
         };
-        let root_folder = load_root_folder(source.root.clone());
+        if source.loading_task != Some(result.task_id) {
+            return false;
+        }
+        let source_id = source.id.clone();
+        let should_select = self.selected_source == source_id;
+        source.loading_task = None;
+        source.root_folder = Some(result.folder.clone());
+        if should_select {
+            self.select_loaded_source(source_id, result.folder);
+        }
+        true
+    }
+
+    fn select_pending_source(&mut self, id: String, folder: FolderEntry) {
+        let root_id = folder.id.clone();
+        self.selected_source = id;
+        self.selected_folder = root_id.clone();
+        self.selected_file = None;
+        self.expanded_folders.clear();
+        self.expanded_folders.insert(root_id);
+        self.folders = vec![folder];
+    }
+
+    fn select_loaded_source(&mut self, id: String, root_folder: FolderEntry) {
         let root_id = root_folder.id.clone();
-        self.selected_source = source.id.clone();
+        self.selected_source = id;
         self.selected_folder = root_id.clone();
         self.selected_file = None;
         self.expanded_folders.clear();
@@ -217,6 +275,8 @@ struct SourceEntry {
     id: String,
     label: String,
     root: PathBuf,
+    root_folder: Option<FolderEntry>,
+    loading_task: Option<u64>,
 }
 
 impl SourceEntry {
@@ -225,12 +285,14 @@ impl SourceEntry {
             id: id.into(),
             label: label.into(),
             root,
+            root_folder: None,
+            loading_task: None,
         }
     }
 }
 
-#[derive(Clone, Debug)]
-struct FolderEntry {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct FolderEntry {
     id: String,
     name: String,
     children: Vec<FolderEntry>,
@@ -283,6 +345,34 @@ pub(super) enum FolderBrowserMessage {
     SelectSource(String),
     ActivateFolder(String),
     ToggleFolder(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct FolderScanRequest {
+    pub(super) task_id: u64,
+    pub(super) source_id: String,
+    pub(super) label: String,
+    pub(super) root: PathBuf,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct FolderScanProgress {
+    pub(super) task_id: u64,
+    pub(super) label: String,
+    pub(super) phase: String,
+    pub(super) completed: usize,
+    pub(super) total: usize,
+    pub(super) detail: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct FolderScanResult {
+    pub(super) task_id: u64,
+    pub(super) source_id: String,
+    pub(super) label: String,
+    pub(super) folder: FolderEntry,
+    pub(super) file_count: usize,
+    pub(super) folder_count: usize,
 }
 
 pub(super) fn folder_browser_view(state: &FolderBrowserState) -> ui::View<RebuildMessage> {
@@ -341,7 +431,12 @@ fn source_selector(state: &FolderBrowserState) -> ui::View<RebuildMessage> {
 fn source_row(state: &FolderBrowserState, source: &SourceEntry) -> ui::View<RebuildMessage> {
     let id = source.id.clone();
     let selected = state.selected_source == source.id;
-    let mut row = ui::button(source.label.clone())
+    let label = if source.loading_task.is_some() {
+        format!("{} (scanning)", source.label)
+    } else {
+        source.label.clone()
+    };
+    let mut row = ui::button(label)
         .message(RebuildMessage::FolderBrowser(
             FolderBrowserMessage::SelectSource(id.clone()),
         ))
@@ -457,6 +552,48 @@ fn load_root_folder(root: PathBuf) -> FolderEntry {
     })
 }
 
+fn placeholder_folder(root: &Path) -> FolderEntry {
+    FolderEntry {
+        id: path_id(root),
+        name: folder_label(root),
+        children: Vec::new(),
+        files: Vec::new(),
+    }
+}
+
+pub(super) fn scan_source_with_progress(
+    request: FolderScanRequest,
+    mut progress: impl FnMut(FolderScanProgress),
+) -> FolderScanResult {
+    let mut count = ScanCount::default();
+    count_entries(&request.root, 0, &request, &mut count, &mut progress);
+    let total = count.files.saturating_add(count.folders).max(1);
+    let mut scan = ScanProgressCounter {
+        completed: 0,
+        total,
+        files: 0,
+        folders: 0,
+    };
+    progress(FolderScanProgress {
+        task_id: request.task_id,
+        label: request.label.clone(),
+        phase: String::from("Scanning"),
+        completed: 0,
+        total,
+        detail: request.root.display().to_string(),
+    });
+    let folder = load_folder_with_progress(&request.root, 0, &request, &mut scan, &mut progress)
+        .unwrap_or_else(|| placeholder_folder(&request.root));
+    FolderScanResult {
+        task_id: request.task_id,
+        source_id: request.source_id,
+        label: request.label,
+        folder,
+        file_count: scan.files,
+        folder_count: scan.folders,
+    }
+}
+
 fn load_folder(path: &Path, depth: usize) -> Option<FolderEntry> {
     if depth > MAX_SCAN_DEPTH {
         return None;
@@ -479,6 +616,121 @@ fn load_folder(path: &Path, depth: usize) -> Option<FolderEntry> {
         children,
         files,
     })
+}
+
+#[derive(Default)]
+struct ScanCount {
+    files: usize,
+    folders: usize,
+    reported: usize,
+}
+
+struct ScanProgressCounter {
+    completed: usize,
+    total: usize,
+    files: usize,
+    folders: usize,
+}
+
+fn count_entries(
+    path: &Path,
+    depth: usize,
+    request: &FolderScanRequest,
+    count: &mut ScanCount,
+    progress: &mut impl FnMut(FolderScanProgress),
+) {
+    if depth > MAX_SCAN_DEPTH {
+        return;
+    }
+    let entries = read_sorted_entries(path);
+    for entry in entries {
+        if entry.is_dir() {
+            count.folders += 1;
+            count.reported += 1;
+            maybe_report_count_progress(path, request, count, progress);
+            count_entries(&entry, depth + 1, request, count, progress);
+        } else if entry.is_file() {
+            count.files += 1;
+            count.reported += 1;
+            maybe_report_count_progress(path, request, count, progress);
+        }
+    }
+}
+
+fn maybe_report_count_progress(
+    path: &Path,
+    request: &FolderScanRequest,
+    count: &ScanCount,
+    progress: &mut impl FnMut(FolderScanProgress),
+) {
+    if count.reported == 1 || count.reported.is_multiple_of(64) {
+        progress(FolderScanProgress {
+            task_id: request.task_id,
+            label: request.label.clone(),
+            phase: String::from("Counting"),
+            completed: count.reported,
+            total: 0,
+            detail: path.display().to_string(),
+        });
+    }
+}
+
+fn load_folder_with_progress(
+    path: &Path,
+    depth: usize,
+    request: &FolderScanRequest,
+    scan: &mut ScanProgressCounter,
+    progress: &mut impl FnMut(FolderScanProgress),
+) -> Option<FolderEntry> {
+    if depth > MAX_SCAN_DEPTH {
+        return None;
+    }
+    let entries = read_sorted_entries(path);
+    let children = entries
+        .iter()
+        .filter(|entry| entry.is_dir())
+        .take(MAX_CHILD_FOLDERS)
+        .filter_map(|entry| {
+            scan.completed += 1;
+            scan.folders += 1;
+            maybe_report_scan_progress(entry, request, scan, progress);
+            load_folder_with_progress(entry, depth + 1, request, scan, progress)
+        })
+        .collect::<Vec<_>>();
+    let files = entries
+        .iter()
+        .filter(|entry| entry.is_file())
+        .map(|entry| {
+            scan.completed += 1;
+            scan.files += 1;
+            maybe_report_scan_progress(entry, request, scan, progress);
+            file_entry(entry)
+        })
+        .collect::<Vec<_>>();
+    Some(FolderEntry {
+        id: path_id(path),
+        name: folder_label(path),
+        children,
+        files,
+    })
+}
+
+fn maybe_report_scan_progress(
+    path: &Path,
+    request: &FolderScanRequest,
+    scan: &ScanProgressCounter,
+    progress: &mut impl FnMut(FolderScanProgress),
+) {
+    if scan.completed == 1 || scan.completed == scan.total || scan.completed.is_multiple_of(64) {
+        progress(FolderScanProgress {
+            task_id: request.task_id,
+            label: request.label.clone(),
+            phase: String::from("Scanning"),
+            completed: scan.completed,
+            total: scan.total,
+            detail: path.display().to_string(),
+        });
+    }
 }
 
 fn file_entry(path: &PathBuf) -> FileEntry {
@@ -580,4 +832,55 @@ fn file_label(path: &Path) -> String {
     path.file_name()
         .map(|name| name.to_string_lossy().to_string())
         .unwrap_or_else(|| path.display().to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{path_id, scan_source_with_progress, FolderBrowserState};
+    use std::{fs, path::PathBuf};
+
+    #[test]
+    fn source_scan_installs_finished_tree_after_placeholder_selection() {
+        let root = temp_source_root("radiant-rebuild-source-scan");
+        fs::create_dir_all(root.join("drums")).expect("create nested folder");
+        fs::write(root.join("drums").join("kick.wav"), [0_u8; 8]).expect("write wav");
+        let mut browser = FolderBrowserState::load_default();
+        let request = browser
+            .begin_add_source_path(root.clone(), 42)
+            .expect("new source should request scan");
+
+        assert_eq!(browser.root_path(), root.as_path());
+        assert!(browser.selected_audio_files().is_empty());
+
+        let mut progress_events = Vec::new();
+        let result = scan_source_with_progress(request, |progress| progress_events.push(progress));
+        assert!(browser.apply_scan_finished(result));
+
+        browser.begin_select_source(root.to_string_lossy().to_string(), 43);
+        browser.activate_folder(path_id(&root.join("drums")));
+        assert_eq!(
+            browser
+                .selected_audio_files()
+                .iter()
+                .map(|file| file.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["kick.wav"]
+        );
+        assert!(progress_events
+            .iter()
+            .any(|progress| progress.phase == "Scanning" && progress.total > 0));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    fn temp_source_root(name: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "{name}-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).expect("create temp root");
+        root
+    }
 }

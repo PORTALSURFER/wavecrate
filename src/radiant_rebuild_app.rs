@@ -3,12 +3,19 @@
 use radiant::prelude as ui;
 use radiant::runtime::{NativeRunOptions, NativeTextOptions};
 use radiant::widgets::{DragHandleMessage, ScrollbarMessage};
+use rfd::FileDialog;
 use sempal::gui_runtime::sempal_ui_font_path;
-use std::ffi::OsString;
+use std::{
+    ffi::OsString,
+    sync::mpsc::{self, Receiver, Sender},
+};
 
 mod folder_browser;
 mod waveform;
-use folder_browser::{FileEntry, FolderBrowserMessage, FolderBrowserState};
+use folder_browser::{
+    FileEntry, FolderBrowserMessage, FolderBrowserState, FolderScanProgress, FolderScanRequest,
+    FolderScanResult,
+};
 use waveform::{WaveformInteraction, WaveformState};
 
 const DEBUG_LAYOUT_ARG: &str = "--debug-layout";
@@ -21,28 +28,40 @@ const MAX_FOLDER_WIDTH: f32 = 420.0;
 enum RebuildMessage {
     ResizeFolder(DragHandleMessage),
     FolderBrowser(FolderBrowserMessage),
+    FolderScanProgress(FolderScanProgress),
+    FolderScanFinished(FolderScanResult),
     SelectSample(String),
     Waveform(WaveformInteraction),
     Frame,
 }
 
-#[derive(Clone, Debug)]
 struct RebuildLayoutState {
     folder_width: f32,
     folder_resize: Option<FolderResize>,
     folder_browser: FolderBrowserState,
     waveform: WaveformState,
     sample_status: String,
+    worker_sender: Sender<RebuildMessage>,
+    worker_receiver: Option<Receiver<RebuildMessage>>,
+    next_task_id: u64,
+    folder_progress: Option<FolderScanProgress>,
+    progress_tick: f32,
 }
 
 impl RebuildLayoutState {
     fn load_default() -> Result<Self, String> {
+        let (worker_sender, worker_receiver) = mpsc::channel();
         Ok(Self {
             folder_width: DEFAULT_FOLDER_WIDTH,
             folder_resize: None,
             folder_browser: FolderBrowserState::load_default(),
             waveform: WaveformState::load_default()?,
             sample_status: String::from("Default sample loaded from assets"),
+            worker_sender,
+            worker_receiver: Some(worker_receiver),
+            next_task_id: 1,
+            folder_progress: None,
+            progress_tick: 0.0,
         })
     }
 
@@ -68,13 +87,100 @@ impl RebuildLayoutState {
         }
     }
 
-    fn apply_message(&mut self, message: RebuildMessage) {
+    fn apply_message(
+        &mut self,
+        message: RebuildMessage,
+        context: &mut ui::UpdateContext<RebuildMessage>,
+    ) {
         match message {
             RebuildMessage::ResizeFolder(message) => self.resize_folder_browser(message),
+            RebuildMessage::FolderBrowser(FolderBrowserMessage::AddSource) => {
+                self.add_source_from_dialog(context);
+            }
+            RebuildMessage::FolderBrowser(FolderBrowserMessage::SelectSource(id)) => {
+                self.select_source(id, context);
+            }
             RebuildMessage::FolderBrowser(message) => self.folder_browser.apply_message(message),
+            RebuildMessage::FolderScanProgress(progress) => {
+                self.folder_progress = Some(progress);
+            }
+            RebuildMessage::FolderScanFinished(result) => self.finish_folder_scan(result),
             RebuildMessage::SelectSample(path) => self.select_sample(path),
             RebuildMessage::Waveform(message) => self.waveform.apply_interaction(message),
-            RebuildMessage::Frame => self.waveform.apply_interaction(WaveformInteraction::Frame),
+            RebuildMessage::Frame => {
+                self.waveform.apply_interaction(WaveformInteraction::Frame);
+                if self.folder_progress.is_some() {
+                    self.progress_tick = (self.progress_tick + 0.035) % 1.0;
+                }
+            }
+        }
+    }
+
+    fn worker_subscription(&mut self) -> ui::Subscription<RebuildMessage> {
+        self.worker_receiver
+            .take()
+            .map(|receiver| ui::Subscription::worker("rebuild-workers", receiver))
+            .unwrap_or_else(ui::Subscription::none)
+    }
+
+    fn next_folder_task_id(&mut self) -> u64 {
+        let task_id = self.next_task_id;
+        self.next_task_id = self.next_task_id.saturating_add(1);
+        task_id
+    }
+
+    fn add_source_from_dialog(&mut self, context: &mut ui::UpdateContext<RebuildMessage>) {
+        let Some(path) = FileDialog::new().set_title("Add source").pick_folder() else {
+            return;
+        };
+        let task_id = self.next_folder_task_id();
+        if let Some(request) = self.folder_browser.begin_add_source_path(path, task_id) {
+            self.launch_folder_scan(request, context);
+        }
+    }
+
+    fn select_source(&mut self, id: String, context: &mut ui::UpdateContext<RebuildMessage>) {
+        let task_id = self.next_folder_task_id();
+        if let Some(request) = self.folder_browser.begin_select_source(id, task_id) {
+            self.launch_folder_scan(request, context);
+        }
+    }
+
+    fn launch_folder_scan(
+        &mut self,
+        request: FolderScanRequest,
+        context: &mut ui::UpdateContext<RebuildMessage>,
+    ) {
+        self.folder_progress = Some(FolderScanProgress {
+            task_id: request.task_id,
+            label: request.label.clone(),
+            phase: String::from("Queued"),
+            completed: 0,
+            total: 0,
+            detail: request.root.display().to_string(),
+        });
+        self.sample_status = format!("Scanning source {}", request.label);
+        let sender = self.worker_sender.clone();
+        context.spawn(
+            "rebuild-folder-scan",
+            move || {
+                folder_browser::scan_source_with_progress(request, |progress| {
+                    let _ = sender.send(RebuildMessage::FolderScanProgress(progress));
+                })
+            },
+            RebuildMessage::FolderScanFinished,
+        );
+    }
+
+    fn finish_folder_scan(&mut self, result: FolderScanResult) {
+        let label = result.label.clone();
+        let file_count = result.file_count;
+        let folder_count = result.folder_count;
+        if self.folder_browser.apply_scan_finished(result) {
+            self.folder_progress = None;
+            self.progress_tick = 0.0;
+            self.sample_status =
+                format!("Loaded source {label}: {file_count} files in {folder_count} folders");
         }
     }
 
@@ -115,10 +221,11 @@ pub(crate) fn run() -> Result<(), String> {
     radiant::app(RebuildLayoutState::load_default()?)
         .options(options)
         .view(view)
-        .animation(|state| state.waveform.is_playing())
+        .animation(|state| state.waveform.is_playing() || state.folder_progress.is_some())
         .on_frame(|| RebuildMessage::Frame)
+        .subscriptions(RebuildLayoutState::worker_subscription)
         .update_with(|state, message, context| {
-            state.apply_message(message);
+            state.apply_message(message, context);
             context.request_repaint();
         })
         .run()
@@ -402,9 +509,10 @@ fn sample_browser_status(audio_count: usize) -> ui::View<RebuildMessage> {
 fn bottom_status_bar(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
     ui::row([
         ui::text("1 sample").height(20.0).width(120.0),
-        ui::text(state.sample_status.clone())
+        ui::text(bottom_status_text(state))
             .height(20.0)
             .fill_width(),
+        worker_progress_bar(state),
     ])
     .spacing(8.0)
     .padding_x(12.0)
@@ -413,14 +521,72 @@ fn bottom_status_bar(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
     .height(30.0)
 }
 
+fn bottom_status_text(state: &RebuildLayoutState) -> String {
+    state
+        .folder_progress
+        .as_ref()
+        .map(|progress| {
+            if progress.total == 0 {
+                format!(
+                    "{} {} | {} items found",
+                    progress.phase, progress.label, progress.completed
+                )
+            } else {
+                format!(
+                    "{} {} | {}/{} | {}",
+                    progress.phase,
+                    progress.label,
+                    progress.completed.min(progress.total),
+                    progress.total,
+                    progress.detail
+                )
+            }
+        })
+        .unwrap_or_else(|| state.sample_status.clone())
+}
+
+fn worker_progress_bar(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
+    let Some(progress) = state.folder_progress.as_ref() else {
+        return ui::text("").width(180.0).height(10.0);
+    };
+    let track_width = 180.0;
+    let fraction = if progress.total == 0 {
+        state.progress_tick
+    } else {
+        progress.completed as f32 / progress.total.max(1) as f32
+    }
+    .clamp(0.0, 1.0);
+    let filled = (track_width * fraction).clamp(8.0, track_width);
+    let empty = (track_width - filled).max(0.0);
+    ui::row([
+        ui::text("")
+            .style(ui::WidgetStyle {
+                tone: ui::WidgetTone::Accent,
+                prominence: ui::WidgetProminence::Strong,
+            })
+            .width(filled)
+            .height(8.0),
+        ui::text("")
+            .style(ui::WidgetStyle::default())
+            .width(empty)
+            .height(8.0),
+    ])
+    .style(ui::WidgetStyle {
+        tone: ui::WidgetTone::Accent,
+        prominence: ui::WidgetProminence::Subtle,
+    })
+    .width(track_width)
+    .height(10.0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         debug_layout_requested, RebuildLayoutState, DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG,
         DEFAULT_FOLDER_WIDTH, MAX_FOLDER_WIDTH, MIN_FOLDER_WIDTH,
     };
-    use radiant::{gui::types::Point, widgets::DragHandleMessage};
-    use std::ffi::OsString;
+    use radiant::{gui::types::Point, prelude as ui, widgets::DragHandleMessage};
+    use std::{ffi::OsString, sync::mpsc};
 
     #[test]
     fn canonical_debug_layout_arg_enables_new_ui_overlay() {
@@ -454,6 +620,11 @@ mod tests {
             folder_browser: super::FolderBrowserState::load_default(),
             waveform: super::WaveformState::synthetic_for_tests(),
             sample_status: String::new(),
+            worker_sender: mpsc::channel().0,
+            worker_receiver: None,
+            next_task_id: 1,
+            folder_progress: None,
+            progress_tick: 0.0,
         };
         state.resize_folder_browser(DragHandleMessage::Started {
             position: Point::new(100.0, 0.0),
@@ -498,10 +669,19 @@ mod tests {
             folder_browser: super::FolderBrowserState::load_default(),
             waveform: super::WaveformState::synthetic_for_tests(),
             sample_status: String::new(),
+            worker_sender: mpsc::channel().0,
+            worker_receiver: None,
+            next_task_id: 1,
+            folder_progress: None,
+            progress_tick: 0.0,
         };
         let sample_path = state.folder_browser.selected_audio_files()[0].id.clone();
 
-        state.apply_message(super::RebuildMessage::SelectSample(sample_path.clone()));
+        let mut context = ui::UpdateContext::default();
+        state.apply_message(
+            super::RebuildMessage::SelectSample(sample_path.clone()),
+            &mut context,
+        );
 
         assert_eq!(
             state.folder_browser.selected_file_id(),
