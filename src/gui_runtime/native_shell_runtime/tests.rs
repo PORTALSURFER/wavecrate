@@ -25,6 +25,7 @@ mod tests {
                 height: 1,
             }),
             target_fps: 90,
+            debug_layout: true,
         };
 
         let compat: radiant::gui_runtime::NativeRunOptions = options.into();
@@ -35,6 +36,7 @@ mod tests {
         assert!(compat.maximized);
         assert!(!compat.decorations);
         assert_eq!(compat.target_fps, 90);
+        assert!(compat.debug_layout);
         assert!(compat.drag_and_drop);
         assert_eq!(
             compat.gpu,

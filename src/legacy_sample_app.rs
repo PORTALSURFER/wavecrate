@@ -18,6 +18,9 @@ use crate::run_contract::{
     start_contract,
 };
 
+const DEBUG_LAYOUT_ARG: &str = "--debug-layout";
+const DEBUG_LAYOUT_SHORT_ARG: &str = "-debug-layout";
+
 /// Run the legacy native-shell sample application.
 pub(crate) fn run() -> Result<(), String> {
     logging::install_panic_hook();
@@ -131,6 +134,7 @@ fn run_application(
         maximized: true,
         decorations: true,
         target_fps: 120,
+        debug_layout: debug_layout_requested(std::env::args_os()),
         icon: crate::app_icon::load_app_icon(),
     };
     if let Some(config) = gui_test_mode.as_ref() {
@@ -149,6 +153,7 @@ fn run_application(
     info!(
         fixture_tag,
         ?viewport,
+        debug_layout = options.debug_layout,
         "sempal startup: preparing GUI bridge"
     );
     emit_action_debug_event(ActionDebugEvent {
@@ -237,6 +242,44 @@ fn run_application(
     }
 
     report.result
+}
+
+fn debug_layout_requested<I>(args: I) -> bool
+where
+    I: IntoIterator<Item = OsString>,
+{
+    args.into_iter()
+        .any(|arg| arg == DEBUG_LAYOUT_ARG || arg == DEBUG_LAYOUT_SHORT_ARG)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG, debug_layout_requested};
+    use std::ffi::OsString;
+
+    #[test]
+    fn canonical_debug_layout_arg_enables_layout_overlay() {
+        assert!(debug_layout_requested([
+            OsString::from("sempal"),
+            OsString::from(DEBUG_LAYOUT_ARG),
+        ]));
+    }
+
+    #[test]
+    fn short_debug_layout_arg_enables_layout_overlay() {
+        assert!(debug_layout_requested([
+            OsString::from("sempal"),
+            OsString::from(DEBUG_LAYOUT_SHORT_ARG),
+        ]));
+    }
+
+    #[test]
+    fn unrelated_args_leave_layout_overlay_disabled() {
+        assert!(!debug_layout_requested([
+            OsString::from("sempal"),
+            OsString::from("--debug-log"),
+        ]));
+    }
 }
 
 fn panic_payload_to_string(panic_payload: Box<dyn Any + Send>) -> String {

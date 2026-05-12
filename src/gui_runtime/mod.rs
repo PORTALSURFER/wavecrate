@@ -95,6 +95,8 @@ pub struct NativeRunOptions {
     pub icon: Option<WindowIconRgba>,
     /// Target frame rate for animation-driven redraws.
     pub target_fps: u32,
+    /// Paint red layout-boundary strokes over every projected layout element.
+    pub debug_layout: bool,
 }
 
 /// Run the native Vello backend with a host-provided application bridge.

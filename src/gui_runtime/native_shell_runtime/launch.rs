@@ -14,6 +14,7 @@ impl From<NativeRunOptions> for radiant::gui_runtime::NativeRunOptions {
             decorations: value.decorations,
             icon: value.icon.map(Into::into),
             target_fps: value.target_fps,
+            debug_layout: value.debug_layout,
             drag_and_drop: true,
             gpu: radiant::gui_runtime::NativeGpuOptions::default(),
             text: radiant::gui_runtime::NativeTextOptions::default(),

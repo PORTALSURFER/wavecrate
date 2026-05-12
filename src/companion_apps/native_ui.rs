@@ -31,6 +31,7 @@ pub fn standard_window_options(
         maximized: false,
         decorations: true,
         target_fps: 120,
+        debug_layout: false,
         icon,
     }
 }
