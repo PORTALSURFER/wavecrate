@@ -41,6 +41,9 @@ enum RebuildMessage {
     SelectSample(String),
     PlaySelectedSample,
     FocusRenameInput(u64),
+    NavigateBrowser(i32),
+    CollapseSelectedFolder,
+    ExpandSelectedFolder,
     Waveform(WaveformInteraction),
     Frame,
 }
@@ -156,6 +159,17 @@ impl RebuildLayoutState {
             RebuildMessage::PlaySelectedSample => self.play_selected_sample(),
             RebuildMessage::FocusRenameInput(input_id) => {
                 context.focus(input_id);
+            }
+            RebuildMessage::NavigateBrowser(delta) => {
+                if let Some(path) = self.folder_browser.navigate_vertical(delta) {
+                    self.select_sample(path);
+                }
+            }
+            RebuildMessage::CollapseSelectedFolder => {
+                self.folder_browser.collapse_selected_folder();
+            }
+            RebuildMessage::ExpandSelectedFolder => {
+                self.folder_browser.expand_selected_folder();
             }
             RebuildMessage::Waveform(WaveformInteraction::PlayFrom { visible_ratio }) => {
                 self.play_waveform_from_visible_ratio(visible_ratio);
@@ -389,13 +403,23 @@ pub(crate) fn run() -> Result<(), String> {
         .animation(|state| state.waveform.is_playing() || state.folder_progress.is_some())
         .on_frame(|| RebuildMessage::Frame)
         .subscriptions(RebuildLayoutState::worker_subscription)
-        .shortcuts(|_, _, press, _| {
-            if press == ui::KeyPress::new(ui::KeyCode::F2) {
+        .shortcuts(|state, _, press, _| {
+            if state.folder_browser.rename_active() {
+                ui::ShortcutResolution::unhandled()
+            } else if press == ui::KeyPress::new(ui::KeyCode::F2) {
                 ui::ShortcutResolution::action(RebuildMessage::FolderBrowser(
                     FolderBrowserMessage::BeginRenameSelected,
                 ))
             } else if press == ui::KeyPress::new(ui::KeyCode::Space) {
                 ui::ShortcutResolution::action(RebuildMessage::PlaySelectedSample)
+            } else if press == ui::KeyPress::new(ui::KeyCode::ArrowUp) {
+                ui::ShortcutResolution::action(RebuildMessage::NavigateBrowser(-1))
+            } else if press == ui::KeyPress::new(ui::KeyCode::ArrowDown) {
+                ui::ShortcutResolution::action(RebuildMessage::NavigateBrowser(1))
+            } else if press == ui::KeyPress::new(ui::KeyCode::ArrowLeft) {
+                ui::ShortcutResolution::action(RebuildMessage::CollapseSelectedFolder)
+            } else if press == ui::KeyPress::new(ui::KeyCode::ArrowRight) {
+                ui::ShortcutResolution::action(RebuildMessage::ExpandSelectedFolder)
             } else {
                 ui::ShortcutResolution::unhandled()
             }

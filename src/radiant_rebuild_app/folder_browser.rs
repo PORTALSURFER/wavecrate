@@ -98,6 +98,10 @@ impl FolderBrowserState {
         self.selected_file.as_deref()
     }
 
+    pub(super) fn rename_active(&self) -> bool {
+        self.rename_edit.is_some() || self.file_rename_edit.is_some()
+    }
+
     pub(super) fn file_rename_view(&self, file_id: &str) -> Option<FileRenameView> {
         self.file_rename_edit
             .as_ref()
@@ -187,6 +191,39 @@ impl FolderBrowserState {
                     Some(self.commit_rename(value))
                 }
             }
+        }
+    }
+
+    pub(super) fn navigate_vertical(&mut self, delta: i32) -> Option<String> {
+        if delta == 0 || self.rename_active() {
+            return None;
+        }
+        if self.selected_file.is_some() {
+            return self.navigate_selected_file(delta);
+        }
+        self.navigate_selected_folder(delta);
+        None
+    }
+
+    pub(super) fn collapse_selected_folder(&mut self) -> bool {
+        if self.rename_active() {
+            return false;
+        }
+        if self.folder_has_children(&self.selected_folder) {
+            self.expanded_folders.remove(&self.selected_folder)
+        } else {
+            false
+        }
+    }
+
+    pub(super) fn expand_selected_folder(&mut self) -> bool {
+        if self.rename_active() {
+            return false;
+        }
+        if self.folder_has_children(&self.selected_folder) {
+            self.expanded_folders.insert(self.selected_folder.clone())
+        } else {
+            false
         }
     }
 
@@ -354,8 +391,36 @@ impl FolderBrowserState {
     }
 
     fn select_folder(&mut self, id: String) {
+        self.cancel_rename();
         self.selected_folder = id;
         self.selected_file = None;
+    }
+
+    fn navigate_selected_folder(&mut self, delta: i32) -> bool {
+        let folders = self.visible_folders();
+        let Some(current_index) = folders
+            .iter()
+            .position(|folder| folder.id == self.selected_folder)
+        else {
+            return false;
+        };
+        let target_index = offset_index(current_index, delta, folders.len());
+        if target_index == current_index {
+            return false;
+        }
+        self.select_folder(folders[target_index].id.clone());
+        true
+    }
+
+    fn navigate_selected_file(&mut self, delta: i32) -> Option<String> {
+        let files = self.selected_audio_files();
+        let current = self.selected_file.as_deref()?;
+        let current_index = files.iter().position(|file| file.id == current)?;
+        let target_index = offset_index(current_index, delta, files.len());
+        if target_index == current_index {
+            return None;
+        }
+        Some(files[target_index].id.clone())
     }
 
     fn selected_folder_is_source_root(&self) -> bool {
@@ -1279,6 +1344,19 @@ fn file_extension_label(path: &Path) -> String {
         .unwrap_or_default()
 }
 
+fn offset_index(current: usize, delta: i32, len: usize) -> usize {
+    if len == 0 {
+        return 0;
+    }
+    if delta.is_negative() {
+        current.saturating_sub(delta.unsigned_abs() as usize)
+    } else {
+        current
+            .saturating_add(delta as usize)
+            .min(len.saturating_sub(1))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{path_id, scan_source_with_progress, FolderBrowserState, FolderScanDiscoveryBatch};
@@ -1408,6 +1486,85 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(sibling_depths, vec![2, 2, 2]);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn folder_keyboard_navigation_moves_visible_selection_and_expands_collapses() {
+        let root = temp_source_root("radiant-rebuild-folder-keyboard");
+        let drums = root.join("drums");
+        let kicks = drums.join("kicks");
+        let snares = drums.join("snares");
+        fs::create_dir_all(&kicks).expect("create kicks folder");
+        fs::create_dir_all(&snares).expect("create snares folder");
+        let mut browser = FolderBrowserState::from_root(root.clone());
+
+        assert_eq!(browser.selected_folder, path_id(&root));
+        assert!(browser.navigate_selected_folder(1));
+        assert_eq!(browser.selected_folder, path_id(&drums));
+        assert!(!browser.is_expanded(&path_id(&drums)));
+        assert!(browser.expand_selected_folder());
+        assert!(browser.is_expanded(&path_id(&drums)));
+        assert!(browser.collapse_selected_folder());
+        assert!(!browser.is_expanded(&path_id(&drums)));
+        assert!(browser.expand_selected_folder());
+        assert!(browser.is_expanded(&path_id(&drums)));
+        assert!(browser.navigate_selected_folder(1));
+        assert_eq!(browser.selected_folder, path_id(&kicks));
+        assert!(browser.navigate_selected_folder(1));
+        assert_eq!(browser.selected_folder, path_id(&snares));
+        assert!(!browser.navigate_selected_folder(1));
+        assert_eq!(browser.selected_folder, path_id(&snares));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn file_keyboard_navigation_moves_audio_selection_without_leaving_folder() {
+        let root = temp_source_root("radiant-rebuild-file-keyboard");
+        let drums = root.join("drums");
+        fs::create_dir_all(&drums).expect("create drums folder");
+        let hat = drums.join("hat.wav");
+        let kick = drums.join("kick.wav");
+        let snare = drums.join("snare.wav");
+        fs::write(&hat, [0_u8; 8]).expect("write hat");
+        fs::write(&kick, [0_u8; 8]).expect("write kick");
+        fs::write(&snare, [0_u8; 8]).expect("write snare");
+        let mut browser = FolderBrowserState::from_root(root.clone());
+        browser.activate_folder(path_id(&drums));
+        browser.select_file(path_id(&hat));
+
+        assert_eq!(browser.navigate_vertical(1), Some(path_id(&kick)));
+        browser.select_file(path_id(&kick));
+        assert_eq!(browser.navigate_vertical(1), Some(path_id(&snare)));
+        browser.select_file(path_id(&snare));
+        assert_eq!(browser.navigate_vertical(1), None);
+        assert_eq!(browser.selected_file_id(), Some(path_id(&snare).as_str()));
+        assert_eq!(browser.navigate_vertical(-1), Some(path_id(&kick)));
+        assert_eq!(browser.selected_folder, path_id(&drums));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn browser_keyboard_navigation_is_disabled_while_renaming() {
+        let root = temp_source_root("radiant-rebuild-keyboard-rename");
+        let drums = root.join("drums");
+        let kicks = drums.join("kicks");
+        fs::create_dir_all(&kicks).expect("create kicks folder");
+        let mut browser = FolderBrowserState::from_root(root.clone());
+        browser.activate_folder(path_id(&drums));
+        browser
+            .begin_rename_selected()
+            .expect("rename can start")
+            .expect("rename input id");
+
+        assert!(browser.rename_active());
+        assert_eq!(browser.navigate_vertical(1), None);
+        assert!(!browser.expand_selected_folder());
+        assert!(!browser.collapse_selected_folder());
+        assert_eq!(browser.selected_folder, path_id(&drums));
+
         let _ = fs::remove_dir_all(root);
     }
 
