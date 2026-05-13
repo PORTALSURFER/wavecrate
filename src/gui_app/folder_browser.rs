@@ -3,7 +3,9 @@
 use radiant::{
     layout::Vector2,
     prelude as ui,
-    widgets::{TextInputMessage, TextInputWidget, WidgetSizing, WidgetStyle, WidgetTone},
+    widgets::{
+        DragHandleMessage, TextInputMessage, TextInputWidget, WidgetSizing, WidgetStyle, WidgetTone,
+    },
 };
 use std::{
     collections::HashSet,
@@ -20,6 +22,8 @@ const TREE_ROW_HEIGHT: f32 = 23.0;
 const TREE_DEPTH_INDENT: f32 = 4.0;
 const FOLDER_RENAME_INPUT_BASE_ID: u64 = 70_000_000;
 const FILE_RENAME_INPUT_BASE_ID: u64 = 80_000_000;
+const MIN_FILE_COLUMN_WIDTH: f32 = 48.0;
+const MAX_FILE_COLUMN_WIDTH: f32 = 420.0;
 
 #[derive(Clone, Debug)]
 pub(super) struct FolderBrowserState {
@@ -31,6 +35,9 @@ pub(super) struct FolderBrowserState {
     folders: Vec<FolderEntry>,
     rename_edit: Option<FolderRenameEdit>,
     file_rename_edit: Option<FileRenameEdit>,
+    file_columns: Vec<FileColumn>,
+    file_sort: ui::DetailsSort,
+    file_column_resize: Option<FileColumnResize>,
 }
 
 impl FolderBrowserState {
@@ -62,6 +69,9 @@ impl FolderBrowserState {
             folders: vec![root_folder],
             rename_edit: None,
             file_rename_edit: None,
+            file_columns: default_file_columns(),
+            file_sort: ui::DetailsSort::new("name", ui::SortDirection::Ascending),
+            file_column_resize: None,
         }
     }
 
@@ -88,10 +98,21 @@ impl FolderBrowserState {
     }
 
     pub(super) fn selected_audio_files(&self) -> Vec<&FileEntry> {
-        self.selected_files()
+        let mut files = self
+            .selected_files()
             .iter()
             .filter(|file| file.is_audio())
-            .collect()
+            .collect::<Vec<_>>();
+        self.sort_files(&mut files);
+        files
+    }
+
+    pub(super) fn visible_file_columns(&self) -> Vec<&FileColumn> {
+        self.file_columns.iter().collect()
+    }
+
+    pub(super) fn file_sort(&self) -> &ui::DetailsSort {
+        &self.file_sort
     }
 
     pub(super) fn selected_file_id(&self) -> Option<&str> {
@@ -156,6 +177,12 @@ impl FolderBrowserState {
             FolderBrowserMessage::ActivateFolder(id) => {
                 self.cancel_rename();
                 self.activate_folder(id);
+            }
+            FolderBrowserMessage::SortFileColumn(column_id) => {
+                self.sort_file_column(column_id);
+            }
+            FolderBrowserMessage::ResizeFileColumn(column_id, message) => {
+                self.resize_file_column(column_id, message);
             }
         }
     }
@@ -480,6 +507,88 @@ impl FolderBrowserState {
         Some(files[target_index].id.clone())
     }
 
+    fn sort_file_column(&mut self, column_id: String) {
+        if self.file_sort.column_id == column_id {
+            self.file_sort.direction = self.file_sort.direction.toggled();
+        } else {
+            self.file_sort = ui::DetailsSort::new(column_id, ui::SortDirection::Ascending);
+        }
+    }
+
+    fn resize_file_column(&mut self, column_id: String, message: DragHandleMessage) {
+        match message {
+            DragHandleMessage::Started { position } => {
+                if let Some(column) = self
+                    .file_columns
+                    .iter()
+                    .find(|column| column.id == column_id)
+                {
+                    self.file_column_resize = Some(FileColumnResize {
+                        column_id,
+                        start_x: position.x,
+                        start_width: column.width,
+                    });
+                }
+            }
+            DragHandleMessage::Moved { position } | DragHandleMessage::Ended { position } => {
+                let Some(resize) = self.file_column_resize.clone() else {
+                    return;
+                };
+                if let Some(column) = self
+                    .file_columns
+                    .iter_mut()
+                    .find(|column| column.id == resize.column_id)
+                {
+                    column.width = (resize.start_width + position.x - resize.start_x)
+                        .clamp(MIN_FILE_COLUMN_WIDTH, MAX_FILE_COLUMN_WIDTH);
+                }
+                if matches!(message, DragHandleMessage::Ended { .. }) {
+                    self.file_column_resize = None;
+                }
+            }
+        }
+    }
+
+    fn sort_files<'a>(&self, files: &mut Vec<&'a FileEntry>) {
+        files.sort_by(|a, b| {
+            let ordering = match self.file_sort.column_id.as_str() {
+                "extension" => a
+                    .extension
+                    .to_ascii_lowercase()
+                    .cmp(&b.extension.to_ascii_lowercase())
+                    .then_with(|| {
+                        a.name
+                            .to_ascii_lowercase()
+                            .cmp(&b.name.to_ascii_lowercase())
+                    }),
+                "size" => a.size_bytes.cmp(&b.size_bytes).then_with(|| {
+                    a.name
+                        .to_ascii_lowercase()
+                        .cmp(&b.name.to_ascii_lowercase())
+                }),
+                "modified" => a.modified_rank.cmp(&b.modified_rank).then_with(|| {
+                    a.name
+                        .to_ascii_lowercase()
+                        .cmp(&b.name.to_ascii_lowercase())
+                }),
+                "kind" => a.kind.cmp(&b.kind).then_with(|| {
+                    a.name
+                        .to_ascii_lowercase()
+                        .cmp(&b.name.to_ascii_lowercase())
+                }),
+                "path" => a.id.cmp(&b.id),
+                _ => a
+                    .name
+                    .to_ascii_lowercase()
+                    .cmp(&b.name.to_ascii_lowercase()),
+            };
+            match self.file_sort.direction {
+                ui::SortDirection::Ascending => ordering,
+                ui::SortDirection::Descending => ordering.reverse(),
+            }
+        });
+    }
+
     fn selected_folder_is_source_root(&self) -> bool {
         self.sources.iter().any(|source| {
             source.id == self.selected_source && path_id(&source.root) == self.selected_folder
@@ -800,6 +909,37 @@ struct FileRenameEdit {
     selection_end: usize,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct FileColumn {
+    pub(super) id: String,
+    pub(super) label: String,
+    pub(super) width: f32,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct FileColumnResize {
+    column_id: String,
+    start_x: f32,
+    start_width: f32,
+}
+
+fn default_file_columns() -> Vec<FileColumn> {
+    vec![
+        file_column("name", "Name", 240.0),
+        file_column("extension", "Ext", 54.0),
+        file_column("size", "Size", 78.0),
+        file_column("modified", "Modified", 112.0),
+    ]
+}
+
+fn file_column(id: &str, label: &str, width: f32) -> FileColumn {
+    FileColumn {
+        id: id.to_owned(),
+        label: label.to_owned(),
+        width,
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct FileRenameView {
     pub(super) draft: String,
@@ -852,6 +992,8 @@ pub(super) enum FolderBrowserMessage {
     ActivateFolder(String),
     BeginRenameSelected,
     RenameInput(TextInputMessage),
+    SortFileColumn(String),
+    ResizeFileColumn(String, DragHandleMessage),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1487,8 +1629,11 @@ fn offset_index(current: usize, delta: i32, len: usize) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::{FolderBrowserState, FolderScanDiscoveryBatch, path_id, scan_source_with_progress};
-    use radiant::widgets::TextInputMessage;
+    use super::{
+        FolderBrowserMessage, FolderBrowserState, FolderScanDiscoveryBatch, MIN_FILE_COLUMN_WIDTH,
+        path_id, scan_source_with_progress,
+    };
+    use radiant::{layout::Point, widgets::TextInputMessage};
     use std::{fs, path::PathBuf};
 
     #[test]
@@ -1674,6 +1819,69 @@ mod tests {
         assert_eq!(browser.selected_folder, path_id(&drums));
 
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn sample_file_sort_toggles_by_column_and_navigation_uses_sorted_order() {
+        let root = temp_source_root("radiant-gui-file-sort");
+        let drums = root.join("drums");
+        fs::create_dir_all(&drums).expect("create drums folder");
+        let small = drums.join("small.wav");
+        let large = drums.join("large.wav");
+        fs::write(&small, [0_u8; 8]).expect("write small");
+        fs::write(&large, [0_u8; 128]).expect("write large");
+        let mut browser = FolderBrowserState::from_root(root.clone());
+        browser.activate_folder(path_id(&drums));
+
+        browser.apply_message(FolderBrowserMessage::SortFileColumn(String::from("size")));
+        assert_eq!(
+            browser
+                .selected_audio_files()
+                .iter()
+                .map(|file| file.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["small.wav", "large.wav"]
+        );
+
+        browser.apply_message(FolderBrowserMessage::SortFileColumn(String::from("size")));
+        assert_eq!(
+            browser
+                .selected_audio_files()
+                .iter()
+                .map(|file| file.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["large.wav", "small.wav"]
+        );
+        browser.select_file(path_id(&large));
+        assert_eq!(browser.navigate_vertical(1), Some(path_id(&small)));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn sample_file_column_resize_clamps_width() {
+        let mut browser = FolderBrowserState::load_default();
+
+        browser.apply_message(FolderBrowserMessage::ResizeFileColumn(
+            String::from("extension"),
+            radiant::widgets::DragHandleMessage::Started {
+                position: Point::new(100.0, 0.0),
+            },
+        ));
+        browser.apply_message(FolderBrowserMessage::ResizeFileColumn(
+            String::from("extension"),
+            radiant::widgets::DragHandleMessage::Moved {
+                position: Point::new(-200.0, 0.0),
+            },
+        ));
+
+        let extension_width = browser
+            .visible_file_columns()
+            .into_iter()
+            .find(|column| column.id == "extension")
+            .map(|column| column.width)
+            .unwrap();
+        assert_eq!(extension_width, MIN_FILE_COLUMN_WIDTH);
     }
 
     #[test]

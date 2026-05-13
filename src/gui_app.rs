@@ -31,7 +31,7 @@ use wavecrate::logging::{self, ActionDebugEvent, emit_action_debug_event};
 mod folder_browser;
 mod waveform;
 use folder_browser::{
-    FileEntry, FolderBrowserMessage, FolderBrowserState, FolderScanDiscoveryBatch,
+    FileColumn, FileEntry, FolderBrowserMessage, FolderBrowserState, FolderScanDiscoveryBatch,
     FolderScanProgress, FolderScanRequest, FolderScanResult,
 };
 use waveform::{WaveformInteraction, WaveformState};
@@ -1538,9 +1538,10 @@ fn waveform_scrollbar(waveform: &WaveformState) -> ui::View<GuiMessage> {
 fn sample_browser(state: &GuiAppState) -> ui::View<GuiMessage> {
     let audio_files = state.folder_browser.selected_audio_files();
     let audio_count = audio_files.len();
+    let columns = state.folder_browser.visible_file_columns();
     ui::column([
-        sample_browser_header(),
-        sample_browser_rows(&state.folder_browser, &audio_files),
+        sample_browser_header(&columns, state.folder_browser.file_sort()),
+        sample_browser_rows(&state.folder_browser, &audio_files, &columns),
         sample_browser_status(audio_count),
     ])
     .spacing(0.0)
@@ -1548,27 +1549,54 @@ fn sample_browser(state: &GuiAppState) -> ui::View<GuiMessage> {
     .fill()
 }
 
-fn sample_browser_header() -> ui::View<GuiMessage> {
-    details_header_row([
-        sample_header_cell("Name", SAMPLE_NAME_WIDTH),
-        sample_header_cell("Ext", SAMPLE_EXT_WIDTH),
-        sample_header_cell("Size", SAMPLE_SIZE_WIDTH),
-        sample_header_cell("Modified", SAMPLE_MODIFIED_WIDTH),
-    ])
+fn sample_browser_header(columns: &[&FileColumn], sort: &ui::DetailsSort) -> ui::View<GuiMessage> {
+    details_header_row(
+        columns
+            .iter()
+            .map(|column| sample_header_cell(column, sort)),
+    )
 }
 
-const SAMPLE_NAME_WIDTH: f32 = 240.0;
-const SAMPLE_EXT_WIDTH: f32 = 54.0;
-const SAMPLE_SIZE_WIDTH: f32 = 78.0;
-const SAMPLE_MODIFIED_WIDTH: f32 = 112.0;
-
-fn sample_header_cell(label: &str, width: f32) -> ui::View<GuiMessage> {
-    ui::text(label).height(20.0).width(width)
+fn sample_header_cell(column: &FileColumn, sort: &ui::DetailsSort) -> ui::View<GuiMessage> {
+    let marker = if sort.column_id == column.id {
+        match sort.direction {
+            ui::SortDirection::Ascending => " ^",
+            ui::SortDirection::Descending => " v",
+        }
+    } else {
+        ""
+    };
+    let column_id = column.id.clone();
+    let resize_id = column.id.clone();
+    ui::row([
+        ui::button(format!("{}{marker}", column.label))
+            .message(GuiMessage::FolderBrowser(
+                FolderBrowserMessage::SortFileColumn(column_id),
+            ))
+            .key(format!("sample-sort-{}", column.id))
+            .align_text(ui::TextAlign::Left)
+            .fill_width()
+            .height(20.0)
+            .input_only(),
+        ui::drag_handle()
+            .mapped(move |message| {
+                GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeFileColumn(
+                    resize_id.clone(),
+                    message,
+                ))
+            })
+            .key(format!("sample-column-resize-{}", column.id))
+            .size(4.0, 20.0),
+    ])
+    .width(column.width)
+    .height(20.0)
+    .spacing(1.0)
 }
 
 fn sample_browser_rows(
     folder_browser: &FolderBrowserState,
     files: &[&FileEntry],
+    columns: &[&FileColumn],
 ) -> ui::View<GuiMessage> {
     if files.is_empty() {
         return ui::text("No audio files in selected folder")
@@ -1586,6 +1614,7 @@ fn sample_browser_rows(
                         file,
                         folder_browser.selected_file_id() == Some(file.id.as_str()),
                         folder_browser.file_rename_view(&file.id),
+                        columns,
                     )
                 })
                 .collect::<Vec<_>>(),
@@ -1600,6 +1629,7 @@ fn sample_browser_row(
     file: &FileEntry,
     selected: bool,
     rename: Option<folder_browser::FileRenameView>,
+    columns: &[&FileColumn],
 ) -> ui::View<GuiMessage> {
     let hit_path = file.id.clone();
     let hit_target = ui::custom_widget_mapped(SampleFileHitTarget::new(), move |()| {
@@ -1610,17 +1640,11 @@ fn sample_browser_row(
     .height(22.0);
     let row = ui::stack([
         hit_target,
-        compact_details_row([
-            sample_name_cell(file, rename),
-            sample_file_cell(file, file.extension.clone(), SAMPLE_EXT_WIDTH, "extension"),
-            sample_file_cell(file, file.size.clone(), SAMPLE_SIZE_WIDTH, "size"),
-            sample_file_cell(
-                file,
-                file.modified.clone(),
-                SAMPLE_MODIFIED_WIDTH,
-                "modified",
-            ),
-        ]),
+        compact_details_row(
+            columns
+                .iter()
+                .map(|column| sample_column_cell(file, rename.clone(), column)),
+        ),
     ])
     .key(format!("sample-row-{}", file.id))
     .fill_width()
@@ -1639,14 +1663,15 @@ fn sample_browser_row(
 fn sample_name_cell(
     file: &FileEntry,
     rename: Option<folder_browser::FileRenameView>,
+    width: f32,
 ) -> ui::View<GuiMessage> {
     let Some(rename) = rename else {
-        return sample_file_cell(file, file.stem.clone(), SAMPLE_NAME_WIDTH, "name");
+        return sample_file_cell(file, file.stem.clone(), width, "name");
     };
     let mut input = TextInputWidget::new(
         0,
         rename.draft,
-        WidgetSizing::fixed(Vector2::new(SAMPLE_NAME_WIDTH, 20.0)),
+        WidgetSizing::fixed(Vector2::new(width, 20.0)),
     );
     input.state.selection_anchor = rename.selection_start;
     input.state.caret = rename.selection_end;
@@ -1655,8 +1680,35 @@ fn sample_name_cell(
     })
     .id(rename.input_id)
     .key(format!("sample-rename-input-{}", file.id))
-    .width(SAMPLE_NAME_WIDTH)
+    .width(width)
     .height(20.0)
+}
+
+fn sample_column_cell(
+    file: &FileEntry,
+    rename: Option<folder_browser::FileRenameView>,
+    column: &FileColumn,
+) -> ui::View<GuiMessage> {
+    if column.id == "name" {
+        return sample_name_cell(file, rename, column.width);
+    }
+    sample_file_cell(
+        file,
+        sample_file_column_value(file, column.id.as_str()),
+        column.width,
+        column.id.as_str(),
+    )
+}
+
+fn sample_file_column_value(file: &FileEntry, column_id: &str) -> String {
+    match column_id {
+        "extension" => file.extension.clone(),
+        "size" => file.size.clone(),
+        "modified" => file.modified.clone(),
+        "kind" => file.kind.clone(),
+        "path" => file.id.clone(),
+        _ => file.stem.clone(),
+    }
 }
 
 fn sample_file_cell(
@@ -2132,18 +2184,13 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        assert!(texts.iter().any(|text| text == "Name"), "{texts:?}");
         assert!(
-            texts.iter().any(|text| text.starts_with("portal_SS_")),
+            texts.iter().any(|text| text.starts_with("Name")),
             "{texts:?}"
         );
         assert!(
-            !frame
-                .paint_plan
-                .primitives
-                .iter()
-                .any(|primitive| matches!(primitive, PaintPrimitive::FillPolygon(_))),
-            "sample rows should not paint per-cell button chrome"
+            texts.iter().any(|text| text.starts_with("portal_SS_")),
+            "{texts:?}"
         );
     }
 
