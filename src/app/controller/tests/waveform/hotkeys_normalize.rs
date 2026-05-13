@@ -37,6 +37,7 @@ fn t_hotkey_prompts_trim_selection_in_waveform_focus() {
         &[0.0, 0.1, 0.2, 0.3],
         SelectionRange::new(0.25, 0.75),
     );
+    controller.set_destructive_yolo_mode(false);
 
     let action = hotkeys::iter_actions()
         .find(|action| action.id == "trim-selection")
@@ -69,6 +70,7 @@ fn slash_hotkeys_prompt_fade_selection_in_waveform_focus() {
         &[0.0, 0.1, 0.2, 0.3],
         SelectionRange::new(0.25, 0.75),
     );
+    controller.set_destructive_yolo_mode(false);
 
     let backslash = hotkeys::iter_actions()
         .find(|action| action.id == "fade-selection-left-to-right")
@@ -144,6 +146,52 @@ fn enter_hotkey_commits_edit_fades_without_exporting() {
 }
 
 #[test]
+fn enter_hotkey_prompts_before_committing_edit_fades_without_yolo_mode() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "apply_edit_fades_prompt_hotkey.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    load_waveform_selection(
+        &mut controller,
+        &source,
+        "apply_edit_fades_prompt_hotkey.wav",
+        &[0.0, 0.1, 0.2, 0.3],
+        SelectionRange::new(0.25, 0.75),
+    );
+    controller.set_destructive_yolo_mode(false);
+    let edit_selection = SelectionRange::new(0.25, 0.75).with_fade_out(0.5, 0.0);
+    controller.set_edit_selection_range(edit_selection);
+
+    let action = hotkeys::iter_actions()
+        .find(|action| action.id == "commit-waveform-edit-fades")
+        .unwrap();
+    let apply_before = controller.ui.waveform.edit_selection_apply_flash_nonce;
+
+    controller.handle_hotkey(action, FocusContext::Waveform);
+
+    assert_eq!(
+        controller.ui.waveform.edit_selection_apply_flash_nonce,
+        apply_before
+    );
+    assert_eq!(
+        controller
+            .ui
+            .waveform
+            .pending_destructive
+            .as_ref()
+            .unwrap()
+            .edit,
+        DestructiveSelectionEdit::CommitEditSelectionFades
+    );
+    let updated = controller
+        .ui
+        .waveform
+        .edit_selection
+        .expect("edit selection after prompt");
+    assert!(updated.has_edit_effects());
+}
+
+#[test]
 fn m_hotkey_prompts_mute_selection_in_waveform_focus() {
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
         "mute_hotkey.wav",
@@ -156,6 +204,7 @@ fn m_hotkey_prompts_mute_selection_in_waveform_focus() {
         &[0.0, 0.1, 0.2, 0.3],
         SelectionRange::new(0.25, 0.75),
     );
+    controller.set_destructive_yolo_mode(false);
 
     let action = hotkeys::iter_actions()
         .find(|action| action.id == "mute-selection")
@@ -187,6 +236,7 @@ fn n_hotkey_prompts_normalize_selection_when_selection_present() {
         &[0.0, 0.2, -0.6, 0.3],
         SelectionRange::new(0.25, 0.75),
     );
+    controller.set_destructive_yolo_mode(false);
 
     let action = hotkeys::iter_actions()
         .find(|action| action.id == "normalize-waveform")
@@ -243,6 +293,7 @@ fn c_hotkey_prompts_crop_selection_in_waveform_focus() {
         &[0.0, 0.1, 0.2, 0.3],
         SelectionRange::new(0.25, 0.75),
     );
+    controller.set_destructive_yolo_mode(false);
 
     let action = hotkeys::iter_actions()
         .find(|action| action.id == "crop-selection")

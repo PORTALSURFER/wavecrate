@@ -261,6 +261,8 @@ Edit commands should follow this priority:
 
 The play selection and edit selection should not interfere with each other visually or behaviorally.
 
+Previewed fade handles on an edit selection are audition and preview state until explicitly applied. Pressing Enter while an edit selection has active fades should route through the destructive-edit system and bake those fades into the current audio file. After a successful apply, the edit-marked area should flash as confirmation.
+
 ### Extracted Region History
 
 When a user extracts a region from a longer audio file into a new sample file, the original audio file should show a visual history mark for the extracted range where practical.
@@ -385,6 +387,8 @@ Destructive editing should have two user-facing safety modes.
 In default mode, destructive edits should warn the user clearly before modifying the file in place.
 
 The warning should explain that the edit will modify the audio file on disk. The user should be able to confirm, cancel, and optionally enable advanced destructive workflow mode if they understand the behavior.
+
+During active development, fresh development defaults may start in YOLO mode so fade-apply and other destructive edit flows can be tested quickly. The product target remains warning-protected default safety mode unless YOLO mode is explicitly enabled.
 
 ### Advanced Destructive Workflow / YOLO Mode
 

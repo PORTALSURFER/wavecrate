@@ -39,7 +39,7 @@ impl Default for InteractionOptionsState {
             anti_clip_fade_enabled: true,
             anti_clip_fade_ms: 2.0,
             auto_edge_fades_on_selection_exports: true,
-            destructive_yolo_mode: false,
+            destructive_yolo_mode: true,
             waveform_channel_view: WaveformChannelView::Mono,
             input_monitoring_enabled: true,
             advance_after_rating: true,
@@ -69,6 +69,8 @@ pub enum DestructiveSelectionEdit {
     NormalizeSelection,
     /// Attempt to remove clicks in the selection.
     ClickRemoval,
+    /// Apply pending edit-selection fades to the current audio file.
+    CommitEditSelectionFades,
     /// Remove later duplicate windows from the loaded file.
     CleanExactDuplicateBeats,
 }
