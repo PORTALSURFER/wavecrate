@@ -78,7 +78,7 @@ pub(super) fn update_edit_fade_in_mute_start_from_micros(
         ((fade_in_end - new_start) / new_width).clamp(0.0, 1.0)
     };
     let old_outer_start = range.start() - (width * fade_in.mute);
-    let new_mute = if new_width <= f32::EPSILON {
+    let new_mute = if fade_in.mute <= 0.0 || new_width <= f32::EPSILON {
         0.0
     } else {
         ((new_start - old_outer_start) / new_width).max(0.0)
@@ -170,7 +170,7 @@ pub(super) fn update_edit_fade_out_mute_end_from_micros(
         ((new_end - fade_out_start) / new_width).clamp(0.0, 1.0)
     };
     let old_outer_end = range.end() + (width * fade_out.mute);
-    let new_mute = if new_width <= f32::EPSILON {
+    let new_mute = if fade_out.mute <= 0.0 || new_width <= f32::EPSILON {
         0.0
     } else {
         ((old_outer_end - new_end) / new_width).max(0.0)
@@ -218,16 +218,10 @@ fn rebuild_edit_range(
 ) -> SelectionRange {
     let mut next = SelectionRange::new(start, end).with_gain(range.gain());
     if let Some(fade) = fade_in {
-        next = next.with_fade_in(fade.length, fade.curve);
-        if fade.mute > 0.0 {
-            next = next.with_fade_in_mute(fade.mute);
-        }
+        next = next.with_fade_in_and_mute(fade.length, fade.curve, fade.mute);
     }
     if let Some(fade) = fade_out {
-        next = next.with_fade_out(fade.length, fade.curve);
-        if fade.mute > 0.0 {
-            next = next.with_fade_out_mute(fade.mute);
-        }
+        next = next.with_fade_out_and_mute(fade.length, fade.curve, fade.mute);
     }
     next
 }
