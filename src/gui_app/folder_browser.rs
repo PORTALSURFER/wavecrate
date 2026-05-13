@@ -102,6 +102,33 @@ impl FolderBrowserState {
         self.rename_edit.is_some() || self.file_rename_edit.is_some()
     }
 
+    pub(super) fn selected_rename_target(&self) -> RenameTargetView {
+        if let Some(file_id) = self.selected_file.as_deref()
+            && let Some(file) = self
+                .selected_audio_files()
+                .into_iter()
+                .find(|file| file.id == file_id)
+        {
+            return RenameTargetView {
+                kind: "file",
+                label: file.name.clone(),
+                is_source_root: false,
+            };
+        }
+        let Some(folder) = self.selected_folder() else {
+            return RenameTargetView {
+                kind: "none",
+                label: String::new(),
+                is_source_root: false,
+            };
+        };
+        RenameTargetView {
+            kind: "folder",
+            label: folder.name.clone(),
+            is_source_root: self.selected_folder_is_source_root(),
+        }
+    }
+
     pub(super) fn file_rename_view(&self, file_id: &str) -> Option<FileRenameView> {
         self.file_rename_edit
             .as_ref()
@@ -732,6 +759,13 @@ pub(super) struct FolderScanRequest {
     pub(super) source_id: String,
     pub(super) label: String,
     pub(super) root: PathBuf,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct RenameTargetView {
+    pub(super) kind: &'static str,
+    pub(super) label: String,
+    pub(super) is_source_root: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

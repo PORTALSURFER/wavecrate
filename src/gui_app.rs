@@ -171,6 +171,19 @@ impl GuiAppState {
             }
             GuiMessage::FolderBrowser(FolderBrowserMessage::BeginRenameSelected) => {
                 let started_at = Instant::now();
+                let target = self.folder_browser.selected_rename_target();
+                if logging::debug_logging_enabled() {
+                    tracing::debug!(
+                        target: logging::ACTION_EVENT_TARGET,
+                        event = "action_detail",
+                        action = "folder_browser.rename.begin",
+                        pane = "folder_browser",
+                        target_kind = target.kind,
+                        target_label = target.label,
+                        is_source_root = target.is_source_root,
+                        "Folder browser rename requested"
+                    );
+                }
                 let renaming_file = self.folder_browser.selected_file_id().is_some();
                 match self.folder_browser.begin_rename_selected() {
                     Ok(Some(input_id)) => {
@@ -186,7 +199,7 @@ impl GuiAppState {
                         emit_gui_action(
                             "folder_browser.rename.begin",
                             Some("folder_browser"),
-                            Some(if renaming_file { "file" } else { "folder" }),
+                            Some(target.kind),
                             "success",
                             started_at,
                             None,
