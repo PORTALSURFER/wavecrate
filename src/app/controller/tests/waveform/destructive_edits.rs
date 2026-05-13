@@ -346,6 +346,7 @@ fn destructive_edit_request_prompts_without_yolo_mode() {
         &[0.0, 0.1, 0.2, 0.3],
         SelectionRange::new(0.25, 0.75),
     );
+    controller.set_destructive_yolo_mode(false);
 
     let outcome = controller
         .request_destructive_selection_edit(DestructiveSelectionEdit::CropSelection)
@@ -403,6 +404,7 @@ fn confirming_pending_destructive_edit_clears_prompt() {
         &[0.0, 0.1, 0.2, 0.3],
         SelectionRange::new(0.25, 0.75),
     );
+    controller.set_destructive_yolo_mode(false);
     controller
         .request_destructive_selection_edit(DestructiveSelectionEdit::TrimSelection)
         .unwrap();
@@ -438,6 +440,7 @@ fn exact_duplicate_cleanup_request_prompts_without_selection() {
         .detect_waveform_exact_duplicate_slices_from_selection()
         .unwrap();
     controller.ui.waveform.selection = None;
+    controller.set_destructive_yolo_mode(false);
 
     let outcome = controller
         .request_destructive_selection_edit(DestructiveSelectionEdit::CleanExactDuplicateBeats)
