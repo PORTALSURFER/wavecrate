@@ -12,7 +12,7 @@ assets/ml/panns_cnn14_16k/*.onnx.data
 assets/ml/panns_cnn14_16k/*.pth
 
 .ssl
-.wav
+*.wav
 
 # Generated desktop GUI test artifacts and exports.
 /artifacts/
