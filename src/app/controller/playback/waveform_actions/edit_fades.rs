@@ -77,7 +77,14 @@ pub(super) fn update_edit_fade_in_mute_start_from_micros(
     } else {
         ((fade_in_end - new_start) / new_width).clamp(0.0, 1.0)
     };
-    let next_fade_in = crate::selection::FadeParams::with_curve(new_length, fade_in.curve);
+    let old_outer_start = range.start() - (width * fade_in.mute);
+    let new_mute = if new_width <= f32::EPSILON {
+        0.0
+    } else {
+        ((new_start - old_outer_start) / new_width).max(0.0)
+    };
+    let next_fade_in =
+        crate::selection::FadeParams::with_curve_and_mute(new_length, fade_in.curve, new_mute);
     rebuild_edit_range(
         range,
         new_start,
@@ -162,7 +169,14 @@ pub(super) fn update_edit_fade_out_mute_end_from_micros(
     } else {
         ((new_end - fade_out_start) / new_width).clamp(0.0, 1.0)
     };
-    let next_fade_out = crate::selection::FadeParams::with_curve(new_length, fade_out.curve);
+    let old_outer_end = range.end() + (width * fade_out.mute);
+    let new_mute = if new_width <= f32::EPSILON {
+        0.0
+    } else {
+        ((old_outer_end - new_end) / new_width).max(0.0)
+    };
+    let next_fade_out =
+        crate::selection::FadeParams::with_curve_and_mute(new_length, fade_out.curve, new_mute);
     rebuild_edit_range(
         range,
         range.start(),
