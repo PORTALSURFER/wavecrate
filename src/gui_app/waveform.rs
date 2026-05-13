@@ -33,6 +33,7 @@ const BAND_COUNT: usize = 4;
 const SELECTION_DRAG_EPSILON: f32 = 0.001;
 const EDIT_FADE_HANDLE_TAB_SIZE: f32 = 10.0;
 const EDIT_FADE_HANDLE_WIDTH: f32 = 3.0;
+const SELECTION_FLASH_FRAMES: u8 = 12;
 #[cfg(test)]
 const SYNTHETIC_SAMPLE_RATE: u32 = 48_000;
 #[cfg(test)]
@@ -49,18 +50,23 @@ pub(super) struct WaveformState {
     edit_mark_ratio: Option<f32>,
     play_selection: Option<wavecrate::selection::SelectionRange>,
     edit_selection: Option<wavecrate::selection::SelectionRange>,
+    play_selection_flash_frames: u8,
     active_drag: Option<WaveformDrag>,
     pending_playback_start: Option<f32>,
 }
 
 impl WaveformState {
     pub(super) fn load_default() -> Result<Self, String> {
-        Self::load_path(default_sample_path())
+        Ok(Self::empty())
     }
 
     pub(super) fn load_path(path: PathBuf) -> Result<Self, String> {
         let file = Arc::new(load_waveform_file(path)?);
         Ok(Self::from_file(file))
+    }
+
+    pub(super) fn empty() -> Self {
+        Self::from_file(Arc::new(empty_waveform_file()))
     }
 
     #[cfg(test)]
@@ -80,6 +86,7 @@ impl WaveformState {
             edit_mark_ratio: None,
             play_selection: None,
             edit_selection: None,
+            play_selection_flash_frames: 0,
             active_drag: None,
             pending_playback_start: None,
         }
@@ -119,6 +126,32 @@ impl WaveformState {
 
     pub(super) fn edit_selection(&self) -> Option<wavecrate::selection::SelectionRange> {
         self.edit_selection
+    }
+
+    pub(super) fn play_selection_flash_frames(&self) -> u8 {
+        self.play_selection_flash_frames
+    }
+
+    pub(super) fn play_selection_flash_active(&self) -> bool {
+        self.play_selection_flash_frames > 0
+    }
+
+    pub(super) fn flash_play_selection(&mut self) {
+        self.play_selection_flash_frames = SELECTION_FLASH_FRAMES;
+    }
+
+    pub(super) fn extract_play_selection_to_sibling(&self) -> Result<PathBuf, String> {
+        let selection = self
+            .play_selection
+            .filter(|selection| selection.width() > 0.0)
+            .ok_or_else(|| String::from("Mark a play range before extracting"))?;
+        if !self.has_loaded_sample() {
+            return Err(String::from("Load a sample before extracting"));
+        }
+        if !is_wav_path(&self.file.path) {
+            return Err(String::from("Extraction currently supports WAV files"));
+        }
+        extract_wav_range_to_sibling(&self.file.path, &self.file.audio_bytes, selection)
     }
 
     fn active_drag_kind(&self) -> Option<WaveformActiveDragKind> {
@@ -161,6 +194,9 @@ impl WaveformState {
     }
 
     pub(super) fn file_name(&self) -> String {
+        if self.file.path.as_os_str().is_empty() {
+            return String::from("No sample loaded");
+        }
         self.file
             .path
             .file_name()
@@ -170,6 +206,10 @@ impl WaveformState {
 
     pub(super) fn path(&self) -> PathBuf {
         self.file.path.clone()
+    }
+
+    pub(super) fn has_loaded_sample(&self) -> bool {
+        !self.file.audio_bytes.is_empty() && !self.file.path.as_os_str().is_empty()
     }
 
     pub(super) fn audio_bytes(&self) -> Arc<[u8]> {
@@ -212,6 +252,7 @@ impl WaveformState {
                     WaveformSelectionKind::Play => {
                         self.play_mark_ratio = Some(ratio);
                         self.play_selection = None;
+                        self.play_selection_flash_frames = 0;
                     }
                     WaveformSelectionKind::Edit => {
                         self.edit_mark_ratio = Some(ratio);
@@ -263,7 +304,8 @@ impl WaveformState {
                 self.finish_active_drag(visible_ratio);
             }
             WaveformInteraction::Frame => {
-                // Playback progress is driven by the audio engine; frames only keep repainting.
+                self.play_selection_flash_frames =
+                    self.play_selection_flash_frames.saturating_sub(1);
             }
         }
     }
@@ -1066,10 +1108,6 @@ pub(super) struct WaveformViewport {
     end: usize,
 }
 
-pub(super) fn default_sample_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/portal_SS_kick_003.wav")
-}
-
 pub(super) fn waveform_viewport_view(state: &WaveformState) -> ui::View<super::GuiMessage> {
     ui::stack([
         ui::custom_widget(
@@ -1088,6 +1126,7 @@ pub(super) fn waveform_viewport_view(state: &WaveformState) -> ui::View<super::G
                 state.edit_mark_ratio(),
                 state.play_selection(),
                 state.edit_selection(),
+                state.play_selection_flash_frames(),
                 state.active_drag_kind(),
             ),
             |output| {
@@ -1156,6 +1195,10 @@ fn synthetic_waveform_file() -> WaveformFile {
         1,
         samples,
     )
+}
+
+fn empty_waveform_file() -> WaveformFile {
+    waveform_file_from_mono_samples(PathBuf::new(), Arc::from([]), 0, 1, vec![0.0])
 }
 
 fn waveform_file_from_mono_samples(
@@ -1237,6 +1280,109 @@ fn is_wav_path(path: &std::path::Path) -> bool {
     path.extension()
         .and_then(|extension| extension.to_str())
         .is_some_and(|extension| extension.eq_ignore_ascii_case("wav"))
+}
+
+fn extract_wav_range_to_sibling(
+    source_path: &std::path::Path,
+    bytes: &[u8],
+    selection: wavecrate::selection::SelectionRange,
+) -> Result<PathBuf, String> {
+    let cursor = Cursor::new(bytes);
+    let reader =
+        hound::WavReader::new(cursor).map_err(|err| format!("failed to open WAV: {err}"))?;
+    let spec = reader.spec();
+    let channels = usize::from(spec.channels).max(1);
+    let total_frames = reader.duration() as usize / channels;
+    if total_frames == 0 {
+        return Err(String::from("WAV contains no complete frames"));
+    }
+    let start_frame = (selection.start().clamp(0.0, 1.0) * total_frames as f32).floor() as usize;
+    let end_frame = (selection.end().clamp(0.0, 1.0) * total_frames as f32).ceil() as usize;
+    let start_frame = start_frame.min(total_frames.saturating_sub(1));
+    let end_frame = end_frame.clamp(start_frame + 1, total_frames);
+    let output_path = next_extraction_path(source_path)?;
+    write_wav_frame_range(reader, spec, channels, start_frame, end_frame, &output_path)?;
+    Ok(output_path)
+}
+
+fn next_extraction_path(source_path: &std::path::Path) -> Result<PathBuf, String> {
+    let parent = source_path
+        .parent()
+        .ok_or_else(|| String::from("Source sample has no parent folder"))?;
+    let stem = source_path
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .filter(|stem| !stem.is_empty())
+        .ok_or_else(|| String::from("Source sample has no file name"))?;
+    for index in 0..10_000 {
+        let suffix = if index == 0 {
+            String::from("_extraction")
+        } else {
+            format!("_extraction_{index}")
+        };
+        let candidate = parent.join(format!("{stem}{suffix}.wav"));
+        if !candidate.exists() {
+            return Ok(candidate);
+        }
+    }
+    Err(String::from(
+        "Could not find an available extraction file name",
+    ))
+}
+
+fn write_wav_frame_range<R: std::io::Read>(
+    mut reader: hound::WavReader<R>,
+    spec: hound::WavSpec,
+    channels: usize,
+    start_frame: usize,
+    end_frame: usize,
+    output_path: &std::path::Path,
+) -> Result<(), String> {
+    let start_sample = start_frame.saturating_mul(channels);
+    let sample_count = end_frame
+        .saturating_sub(start_frame)
+        .saturating_mul(channels);
+    let mut writer = hound::WavWriter::create(output_path, spec)
+        .map_err(|err| format!("failed to create extraction: {err}"))?;
+    match spec.sample_format {
+        hound::SampleFormat::Float => {
+            for sample in reader
+                .samples::<f32>()
+                .skip(start_sample)
+                .take(sample_count)
+            {
+                writer
+                    .write_sample(sample.map_err(|err| format!("failed to read sample: {err}"))?)
+                    .map_err(|err| format!("failed to write extraction: {err}"))?;
+            }
+        }
+        hound::SampleFormat::Int if spec.bits_per_sample <= 16 => {
+            for sample in reader
+                .samples::<i16>()
+                .skip(start_sample)
+                .take(sample_count)
+            {
+                writer
+                    .write_sample(sample.map_err(|err| format!("failed to read sample: {err}"))?)
+                    .map_err(|err| format!("failed to write extraction: {err}"))?;
+            }
+        }
+        hound::SampleFormat::Int => {
+            for sample in reader
+                .samples::<i32>()
+                .skip(start_sample)
+                .take(sample_count)
+            {
+                writer
+                    .write_sample(sample.map_err(|err| format!("failed to read sample: {err}"))?)
+                    .map_err(|err| format!("failed to write extraction: {err}"))?;
+            }
+        }
+    }
+    writer
+        .finalize()
+        .map_err(|err| format!("failed to finalize extraction: {err}"))?;
+    Ok(())
 }
 
 fn load_wav_waveform_file(path: PathBuf, bytes: Arc<[u8]>) -> Result<WaveformFile, String> {
@@ -1491,6 +1637,7 @@ struct WaveformWidget {
     edit_mark_ratio: Option<f32>,
     play_selection: Option<wavecrate::selection::SelectionRange>,
     edit_selection: Option<wavecrate::selection::SelectionRange>,
+    play_selection_flash_frames: u8,
     edit_preview: TimelineEditPreview,
     active_drag_kind: Option<WaveformActiveDragKind>,
 }
@@ -1505,6 +1652,7 @@ impl WaveformWidget {
         edit_mark_ratio: Option<f32>,
         play_selection: Option<wavecrate::selection::SelectionRange>,
         edit_selection: Option<wavecrate::selection::SelectionRange>,
+        play_selection_flash_frames: u8,
         active_drag_kind: Option<WaveformActiveDragKind>,
     ) -> Self {
         let mut common = WidgetCommon::new(
@@ -1524,6 +1672,7 @@ impl WaveformWidget {
             edit_mark_ratio,
             play_selection,
             edit_selection,
+            play_selection_flash_frames,
             edit_preview: edit_preview_for_selection(edit_selection),
             active_drag_kind,
         }
@@ -1696,6 +1845,7 @@ impl WaveformWidget {
         bounds: Rect,
     ) {
         if let Some((start, end)) = self.visible_range_for_selection(self.play_selection) {
+            let flash_active = self.play_selection_flash_frames > 0;
             self.push_visible_range_fill(
                 primitives,
                 bounds,
@@ -1705,7 +1855,7 @@ impl WaveformWidget {
                     r: 255,
                     g: 142,
                     b: 92,
-                    a: 48,
+                    a: if flash_active { 118 } else { 48 },
                 },
             );
             self.append_selection_resize_handles(
@@ -1717,7 +1867,7 @@ impl WaveformWidget {
                     r: 255,
                     g: 142,
                     b: 92,
-                    a: 220,
+                    a: if flash_active { 255 } else { 220 },
                 },
             );
         }
@@ -2260,7 +2410,7 @@ mod tests {
         theme::ThemeTokens,
         widgets::{PointerButton, Widget, WidgetInput},
     };
-    use std::sync::Arc;
+    use std::{fs, sync::Arc};
 
     #[test]
     fn waveform_summary_preserves_raw_transient_detail() {
@@ -2301,6 +2451,41 @@ mod tests {
             .map(|bucket| bucket.min.abs().max(bucket.max.abs()))
             .fold(0.0_f32, f32::max);
         assert!(frame_peak > 0.89);
+    }
+
+    #[test]
+    fn playmark_extraction_writes_sibling_wav_range() {
+        let root = std::env::temp_dir().join(format!(
+            "wavecrate-playmark-extract-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).expect("create temp root");
+        let source = root.join("source.wav");
+        write_test_wav_i16(&source, &[0, 100, 200, 300, 400, 500]);
+        let mut state = WaveformState::load_path(source).expect("load source");
+        state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.25, 0.75));
+
+        let output = state
+            .extract_play_selection_to_sibling()
+            .expect("extract range");
+
+        assert_eq!(output.file_name().unwrap(), "source_extraction.wav");
+        assert_eq!(read_test_wav_i16(&output), vec![100, 200, 300, 400]);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn empty_waveform_rejects_playmark_extraction() {
+        let mut state = WaveformState::empty();
+        state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.1, 0.2));
+
+        assert_eq!(
+            state.extract_play_selection_to_sibling(),
+            Err(String::from("Load a sample before extracting"))
+        );
     }
 
     #[test]
@@ -2377,6 +2562,7 @@ mod tests {
             state.edit_mark_ratio(),
             state.play_selection(),
             state.edit_selection(),
+            state.play_selection_flash_frames(),
             state.active_drag_kind(),
         );
         let mut primitives = Vec::new();
@@ -2435,6 +2621,7 @@ mod tests {
             state.edit_mark_ratio(),
             state.play_selection(),
             state.edit_selection(),
+            state.play_selection_flash_frames(),
             state.active_drag_kind(),
         );
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
@@ -2480,6 +2667,7 @@ mod tests {
             state.edit_mark_ratio(),
             state.play_selection(),
             state.edit_selection(),
+            state.play_selection_flash_frames(),
             state.active_drag_kind(),
         );
         let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(200.0, 80.0));
@@ -2519,6 +2707,7 @@ mod tests {
             state.edit_mark_ratio(),
             state.play_selection(),
             state.edit_selection(),
+            state.play_selection_flash_frames(),
             state.active_drag_kind(),
         );
         let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(200.0, 80.0));
@@ -2600,6 +2789,7 @@ mod tests {
             state.edit_mark_ratio(),
             state.play_selection(),
             state.edit_selection(),
+            state.play_selection_flash_frames(),
             state.active_drag_kind(),
         );
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
@@ -2765,6 +2955,7 @@ mod tests {
             state.edit_mark_ratio(),
             state.play_selection(),
             state.edit_selection(),
+            state.play_selection_flash_frames(),
             state.active_drag_kind(),
         );
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
@@ -3005,6 +3196,7 @@ mod tests {
             state.edit_mark_ratio(),
             state.play_selection(),
             state.edit_selection(),
+            state.play_selection_flash_frames(),
             state.active_drag_kind(),
         );
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
@@ -3189,6 +3381,7 @@ mod tests {
             state.edit_mark_ratio(),
             state.play_selection(),
             state.edit_selection(),
+            state.play_selection_flash_frames(),
             state.active_drag_kind(),
         );
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
@@ -3256,6 +3449,7 @@ mod tests {
             state.edit_mark_ratio(),
             state.play_selection(),
             state.edit_selection(),
+            state.play_selection_flash_frames(),
             state.active_drag_kind(),
         );
         let (start, end) = widget
@@ -3283,6 +3477,7 @@ mod tests {
             state.edit_mark_ratio(),
             state.play_selection(),
             state.edit_selection(),
+            state.play_selection_flash_frames(),
             state.active_drag_kind(),
         );
         let mut primitives = Vec::new();
@@ -3329,6 +3524,7 @@ mod tests {
             state.edit_mark_ratio(),
             state.play_selection(),
             state.edit_selection(),
+            state.play_selection_flash_frames(),
             state.active_drag_kind(),
         );
         let mut primitives = Vec::new();
@@ -3433,5 +3629,27 @@ mod tests {
                 _ => None,
             })
             .collect()
+    }
+
+    fn write_test_wav_i16(path: &std::path::Path, samples: &[i16]) {
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate: 48_000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut writer = hound::WavWriter::create(path, spec).expect("create wav");
+        for sample in samples {
+            writer.write_sample(*sample).expect("write sample");
+        }
+        writer.finalize().expect("finalize wav");
+    }
+
+    fn read_test_wav_i16(path: &std::path::Path) -> Vec<i16> {
+        let mut reader = hound::WavReader::open(path).expect("open wav");
+        reader
+            .samples::<i16>()
+            .collect::<Result<Vec<_>, _>>()
+            .expect("read samples")
     }
 }

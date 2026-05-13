@@ -201,6 +201,36 @@ impl FolderBrowserState {
         Ok(Some(input_id))
     }
 
+    pub(super) fn selected_delete_target(&self) -> Result<FolderDeleteTargetView, String> {
+        if self.rename_active() {
+            return Err(String::from("Finish rename before deleting a folder"));
+        }
+        if self.selected_file.is_some() {
+            return Err(String::from("Select a folder to delete"));
+        }
+        let Some(folder) = self.selected_folder() else {
+            return Err(String::from("Select a folder to delete"));
+        };
+        if self.selected_folder_is_source_root() {
+            return Err(String::from("Root folder cannot be deleted"));
+        }
+        Ok(FolderDeleteTargetView {
+            path: PathBuf::from(&folder.id),
+            name: folder.name.clone(),
+        })
+    }
+
+    pub(super) fn delete_selected_folder(&mut self) -> Result<String, String> {
+        let target = self.selected_delete_target()?;
+        if !target.path.is_dir() {
+            return Err(format!("Folder delete failed: {} is missing", target.name));
+        }
+        fs::remove_dir_all(&target.path)
+            .map_err(|error| format!("Folder delete failed: {error}"))?;
+        self.remove_deleted_folder(&target.path);
+        Ok(format!("Deleted folder {}", target.name))
+    }
+
     pub(super) fn apply_rename_input(&mut self, message: TextInputMessage) -> Option<String> {
         match message {
             TextInputMessage::Changed { value } => {
@@ -560,11 +590,66 @@ impl FolderBrowserState {
         self.selected_file = Some(new_id);
     }
 
+    fn remove_deleted_folder(&mut self, target: &Path) {
+        let target_id = path_id(target);
+        let parent_id = target
+            .parent()
+            .map(path_id)
+            .unwrap_or_else(|| self.selected_folder.clone());
+        let Some(source) = self
+            .sources
+            .iter_mut()
+            .find(|source| source.id == self.selected_source)
+        else {
+            return;
+        };
+        if let Some(root_folder) = &mut source.root_folder {
+            root_folder.remove_child_by_id(&target_id);
+            self.folders = vec![root_folder.clone()];
+        }
+        self.selected_file = None;
+        self.selected_folder = if self.find_folder(&parent_id).is_some() {
+            parent_id
+        } else {
+            self.folders
+                .first()
+                .map(|folder| folder.id.clone())
+                .unwrap_or_default()
+        };
+        self.expanded_folders.retain(|id| {
+            let path = Path::new(id);
+            id != &target_id && !path.starts_with(target)
+        });
+    }
+
     pub(super) fn select_file(&mut self, id: String) {
         if self.selected_files().iter().any(|file| file.id == id) {
             self.cancel_rename();
             self.selected_file = Some(id);
         }
+    }
+
+    pub(super) fn refresh_file_path(&mut self, path: &Path) -> bool {
+        let Some(parent) = path.parent() else {
+            return false;
+        };
+        let parent_id = path_id(parent);
+        let Some(source) = self
+            .sources
+            .iter_mut()
+            .find(|source| source.id == self.selected_source)
+        else {
+            return false;
+        };
+        let Some(root_folder) = &mut source.root_folder else {
+            return false;
+        };
+        let Some(parent_folder) = root_folder.find_mut(&parent_id) else {
+            return false;
+        };
+        upsert_file(&mut parent_folder.files, file_entry(&path.to_path_buf()));
+        self.folders = vec![root_folder.clone()];
+        true
     }
 
     fn visible_folders(&self) -> Vec<VisibleFolder> {
@@ -687,6 +772,16 @@ impl FolderEntry {
             .iter_mut()
             .any(|child| child.rewrite_file_path(old_path, new_path))
     }
+
+    fn remove_child_by_id(&mut self, target_id: &str) -> bool {
+        if let Some(index) = self.children.iter().position(|child| child.id == target_id) {
+            self.children.remove(index);
+            return true;
+        }
+        self.children
+            .iter_mut()
+            .any(|child| child.remove_child_by_id(target_id))
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -711,6 +806,12 @@ pub(super) struct FileRenameView {
     pub(super) input_id: u64,
     pub(super) selection_start: usize,
     pub(super) selection_end: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct FolderDeleteTargetView {
+    pub(super) path: PathBuf,
+    pub(super) name: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1722,6 +1823,47 @@ mod tests {
         assert_eq!(
             browser.begin_rename_selected(),
             Err(String::from("Select a subfolder to rename"))
+        );
+        assert!(root.is_dir());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn folder_delete_removes_selected_subtree_and_selects_parent() {
+        let root = temp_source_root("radiant-gui-folder-delete");
+        let drums = root.join("drums");
+        let kicks = drums.join("kicks");
+        fs::create_dir_all(&kicks).expect("create nested folder");
+        fs::write(kicks.join("kick.wav"), [0_u8; 8]).expect("write wav");
+        let mut browser = FolderBrowserState::from_root(root.clone());
+        browser.activate_folder(path_id(&drums));
+        browser.expand_selected_folder();
+        browser.activate_folder(path_id(&kicks));
+
+        let target = browser
+            .selected_delete_target()
+            .expect("subfolder can be deleted");
+        assert_eq!(target.name, "kicks");
+        let status = browser
+            .delete_selected_folder()
+            .expect("delete should remove subtree");
+
+        assert_eq!(status, "Deleted folder kicks");
+        assert!(!kicks.exists());
+        assert_eq!(browser.selected_folder, path_id(&drums));
+        assert!(browser.find_folder(&path_id(&kicks)).is_none());
+        assert!(!browser.expanded_folders.contains(&path_id(&kicks)));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn root_folder_delete_is_rejected_from_tree() {
+        let root = temp_source_root("radiant-gui-root-delete");
+        let browser = FolderBrowserState::from_root(root.clone());
+
+        assert_eq!(
+            browser.selected_delete_target(),
+            Err(String::from("Root folder cannot be deleted"))
         );
         assert!(root.is_dir());
         let _ = fs::remove_dir_all(root);
