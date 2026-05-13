@@ -56,6 +56,7 @@ enum GuiMessage {
     SampleLoadFinished(SampleLoadResult),
     PlaySelectedSample,
     StopPlayback,
+    ToggleLoopPlayback,
     FocusRenameInput(u64),
     DeleteSelectedFolder,
     ExtractPlaymarkedRange,
@@ -96,6 +97,8 @@ struct GuiAppState {
     folder_progress: Option<FolderScanProgress>,
     progress_tick: f32,
     audio_player: Option<AudioPlayer>,
+    loop_playback: bool,
+    current_playback_span: Option<(f32, f32)>,
 }
 
 impl GuiAppState {
@@ -116,6 +119,8 @@ impl GuiAppState {
             folder_progress: None,
             progress_tick: 0.0,
             audio_player: None,
+            loop_playback: false,
+            current_playback_span: None,
         };
         emit_gui_action(
             "runtime.startup.load_default_state",
@@ -297,6 +302,7 @@ impl GuiAppState {
             GuiMessage::SampleLoadFinished(result) => self.finish_sample_load(result),
             GuiMessage::PlaySelectedSample => self.play_selected_sample(context),
             GuiMessage::StopPlayback => self.stop_playback(),
+            GuiMessage::ToggleLoopPlayback => self.toggle_loop_playback(),
             GuiMessage::FocusRenameInput(input_id) => {
                 let started_at = Instant::now();
                 context.focus(input_id);
@@ -846,6 +852,7 @@ impl GuiAppState {
             player.stop();
         }
         self.waveform.stop_playback();
+        self.current_playback_span = None;
         let file_name = self.waveform.file_name();
         self.sample_status = format!("Stopped {file_name}");
         emit_gui_action(
@@ -878,9 +885,44 @@ impl GuiAppState {
             .ok_or_else(|| String::from("audio player did not initialize"))?;
         player.set_audio(self.waveform.audio_bytes(), duration);
         player.set_edit_fade_state(self.waveform.edit_selection());
-        player.play_range(f64::from(start_ratio), f64::from(end_ratio), false)?;
+        player.play_range(
+            f64::from(start_ratio),
+            f64::from(end_ratio),
+            self.loop_playback,
+        )?;
         self.waveform.start_playback(start_ratio);
+        self.current_playback_span = Some((start_ratio, end_ratio));
         Ok(())
+    }
+
+    fn toggle_loop_playback(&mut self) {
+        let started_at = Instant::now();
+        self.loop_playback = !self.loop_playback;
+        let mut outcome = "success";
+        let mut error = None;
+        if self.waveform.is_playing()
+            && let Some((start, end)) = self.current_playback_span
+            && let Err(err) = self.start_playback_current_span(start, end)
+        {
+            self.sample_status = format!("Loop toggle failed: {err}");
+            outcome = "error";
+            error = Some(err);
+        }
+        if outcome == "success" {
+            self.sample_status = if self.loop_playback {
+                String::from("Loop playback enabled")
+            } else {
+                String::from("Loop playback disabled")
+            };
+        }
+        emit_gui_action(
+            "playback.loop.toggle",
+            Some("transport"),
+            None,
+            outcome,
+            started_at,
+            error.as_deref(),
+        );
     }
 
     fn sync_edit_fade_audio_state(&mut self) {
@@ -918,6 +960,7 @@ impl GuiAppState {
         } else if self.waveform.is_playing() {
             let started_at = Instant::now();
             self.waveform.stop_playback();
+            self.current_playback_span = None;
             emit_gui_action(
                 "playback.progress",
                 Some("transport"),
@@ -1273,6 +1316,7 @@ fn main_area(state: &GuiAppState) -> ui::View<GuiMessage> {
 fn main_toolbar(state: &GuiAppState) -> ui::View<GuiMessage> {
     ui::row([
         ui::spacer().height(24.0).fill_width(),
+        toolbar_icon_button(19, ToolbarIcon::Loop, true, state.loop_playback),
         toolbar_icon_button(20, ToolbarIcon::Play, true, state.waveform.is_playing()),
         toolbar_icon_button(21, ToolbarIcon::Stop, state.waveform.is_playing(), false),
     ])
@@ -1298,6 +1342,7 @@ fn toolbar_icon_button(
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ToolbarIcon {
+    Loop,
     Play,
     Stop,
 }
@@ -1305,6 +1350,9 @@ enum ToolbarIcon {
 impl ToolbarIcon {
     fn svg(self) -> &'static str {
         match self {
+            Self::Loop => include_str!(
+                "app_core/native_shell/composition/assets/icons/waveform_toolbar/loop.svg"
+            ),
             Self::Play => include_str!(
                 "app_core/native_shell/composition/assets/icons/waveform_toolbar/play.svg"
             ),
@@ -1449,6 +1497,7 @@ impl Widget for ToolbarIconButton {
 
 fn toolbar_button_message(icon: ToolbarIcon) -> GuiMessage {
     match icon {
+        ToolbarIcon::Loop => GuiMessage::ToggleLoopPlayback,
         ToolbarIcon::Play => GuiMessage::PlaySelectedSample,
         ToolbarIcon::Stop => GuiMessage::StopPlayback,
     }
@@ -2017,6 +2066,8 @@ mod tests {
             folder_progress: None,
             progress_tick: 0.0,
             audio_player: None,
+            loop_playback: false,
+            current_playback_span: None,
         };
         state.resize_folder_browser(DragHandleMessage::Started {
             position: Point::new(100.0, 0.0),
@@ -2062,6 +2113,8 @@ mod tests {
             folder_progress: None,
             progress_tick: 0.0,
             audio_player: None,
+            loop_playback: false,
+            current_playback_span: None,
         };
         let sample_path = selected_asset_file_path(&state.folder_browser, "portal_SS_kick_003.wav");
 
@@ -2115,12 +2168,20 @@ mod tests {
             .apply_interaction(WaveformInteraction::FinishSelection {
                 visible_ratio: 0.60,
             });
+        state.loop_playback = true;
 
         let mut context = ui::UpdateContext::default();
         state.play_selected_sample(&mut context);
 
         assert!(state.waveform.is_playing());
         assert_eq!(state.waveform.play_mark_ratio(), Some(0.25));
+        assert_eq!(state.current_playback_span, Some((0.25, 0.6)));
+        assert!(
+            state
+                .audio_player
+                .as_ref()
+                .is_some_and(|player| player.is_looping())
+        );
         let progress = state
             .audio_player
             .as_ref()
@@ -2134,7 +2195,11 @@ mod tests {
 
     #[test]
     fn toolbar_icon_assets_parse_and_rasterize() {
-        for icon in [super::ToolbarIcon::Play, super::ToolbarIcon::Stop] {
+        for icon in [
+            super::ToolbarIcon::Loop,
+            super::ToolbarIcon::Play,
+            super::ToolbarIcon::Stop,
+        ] {
             assert!(super::parse_svg_document(icon.svg()).is_some());
             let image = super::rasterize_toolbar_icon(
                 icon,
@@ -2155,7 +2220,7 @@ mod tests {
 
     #[test]
     fn toolbar_icon_button_emits_transport_message_on_release() {
-        let mut button = super::ToolbarIconButton::new(super::ToolbarIcon::Stop, true, false);
+        let mut button = super::ToolbarIconButton::new(super::ToolbarIcon::Loop, true, false);
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(28.0, 24.0));
 
         assert_eq!(
@@ -2180,7 +2245,7 @@ mod tests {
 
         assert_eq!(
             output.typed_ref::<super::GuiMessage>(),
-            Some(&super::GuiMessage::StopPlayback)
+            Some(&super::GuiMessage::ToggleLoopPlayback)
         );
     }
 
