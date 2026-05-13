@@ -228,6 +228,20 @@ impl WaveformState {
                 )));
                 self.update_active_edit_fade(ratio);
             }
+            WaveformInteraction::BeginSelectionResize {
+                kind,
+                edge,
+                visible_ratio,
+            } => {
+                let Some(selection) = self.selection_for_kind(kind) else {
+                    return;
+                };
+                let ratio = self.absolute_ratio_from_visible(visible_ratio);
+                self.active_drag = Some(WaveformDrag::SelectionResize(
+                    WaveformSelectionResizeDrag::new(kind, edge, selection),
+                ));
+                self.update_active_selection_resize(ratio);
+            }
             WaveformInteraction::UpdateSelection { visible_ratio } => {
                 self.update_active_drag(visible_ratio);
             }
@@ -320,6 +334,9 @@ impl WaveformState {
             WaveformDrag::EditFade(_) => {
                 self.update_active_edit_fade(ratio);
             }
+            WaveformDrag::SelectionResize(_) => {
+                self.update_active_selection_resize(ratio);
+            }
         }
     }
 
@@ -352,6 +369,11 @@ impl WaveformState {
                 self.update_active_edit_fade(ratio);
                 self.active_drag = None;
             }
+            WaveformDrag::SelectionResize(_) => {
+                self.active_drag = Some(drag);
+                self.update_active_selection_resize(ratio);
+                self.active_drag = None;
+            }
         }
     }
 
@@ -378,6 +400,36 @@ impl WaveformState {
         };
         self.edit_selection = Some(drag.apply(selection, ratio));
     }
+
+    fn update_active_selection_resize(&mut self, ratio: f32) {
+        let Some(WaveformDrag::SelectionResize(drag)) = self.active_drag else {
+            return;
+        };
+        let Some(selection) = self.selection_for_kind(drag.kind) else {
+            return;
+        };
+        let selection = drag.apply(selection, ratio);
+        match drag.kind {
+            WaveformSelectionKind::Play => {
+                self.play_mark_ratio = Some(selection.start());
+                self.play_selection = Some(selection);
+            }
+            WaveformSelectionKind::Edit => {
+                self.edit_mark_ratio = Some(selection.start());
+                self.edit_selection = Some(selection);
+            }
+        }
+    }
+
+    fn selection_for_kind(
+        &self,
+        kind: WaveformSelectionKind,
+    ) -> Option<sempal::selection::SelectionRange> {
+        match kind {
+            WaveformSelectionKind::Play => self.play_selection,
+            WaveformSelectionKind::Edit => self.edit_selection,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -397,6 +449,11 @@ pub(super) enum WaveformInteraction {
         handle: WaveformEditFadeHandle,
         visible_ratio: f32,
     },
+    BeginSelectionResize {
+        kind: WaveformSelectionKind,
+        edge: WaveformSelectionEdge,
+        visible_ratio: f32,
+    },
     UpdateSelection {
         visible_ratio: f32,
     },
@@ -413,6 +470,12 @@ pub(super) enum WaveformSelectionKind {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum WaveformSelectionEdge {
+    Start,
+    End,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum WaveformEditFadeHandle {
     FadeInEnd,
     FadeInStart,
@@ -423,12 +486,14 @@ pub(super) enum WaveformEditFadeHandle {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum WaveformActiveDragKind {
     Selection(WaveformSelectionKind),
+    SelectionResize(WaveformSelectionKind, WaveformSelectionEdge),
     EditFade(WaveformEditFadeHandle),
 }
 
 #[derive(Clone, Copy, Debug)]
 enum WaveformDrag {
     Selection(WaveformSelectionDrag),
+    SelectionResize(WaveformSelectionResizeDrag),
     EditFade(WaveformEditFadeDrag),
 }
 
@@ -436,6 +501,9 @@ impl WaveformDrag {
     fn kind(self) -> WaveformActiveDragKind {
         match self {
             WaveformDrag::Selection(drag) => WaveformActiveDragKind::Selection(drag.kind),
+            WaveformDrag::SelectionResize(drag) => {
+                WaveformActiveDragKind::SelectionResize(drag.kind, drag.edge)
+            }
             WaveformDrag::EditFade(drag) => WaveformActiveDragKind::EditFade(drag.handle),
         }
     }
@@ -462,6 +530,47 @@ impl WaveformSelectionDrag {
     fn update(&mut self, ratio: f32) {
         self.current_ratio = ratio;
         self.moved |= (self.current_ratio - self.anchor_ratio).abs() > SELECTION_DRAG_EPSILON;
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct WaveformSelectionResizeDrag {
+    kind: WaveformSelectionKind,
+    edge: WaveformSelectionEdge,
+    fixed_ratio: f32,
+}
+
+impl WaveformSelectionResizeDrag {
+    fn new(
+        kind: WaveformSelectionKind,
+        edge: WaveformSelectionEdge,
+        selection: sempal::selection::SelectionRange,
+    ) -> Self {
+        let fixed_ratio = match edge {
+            WaveformSelectionEdge::Start => selection.end(),
+            WaveformSelectionEdge::End => selection.start(),
+        };
+        Self {
+            kind,
+            edge,
+            fixed_ratio,
+        }
+    }
+
+    fn apply(
+        self,
+        _selection: sempal::selection::SelectionRange,
+        ratio: f32,
+    ) -> sempal::selection::SelectionRange {
+        let ratio = ratio.clamp(0.0, 1.0);
+        match self.edge {
+            WaveformSelectionEdge::Start => {
+                sempal::selection::SelectionRange::new(ratio, self.fixed_ratio)
+            }
+            WaveformSelectionEdge::End => {
+                sempal::selection::SelectionRange::new(self.fixed_ratio, ratio)
+            }
+        }
     }
 }
 
@@ -1158,6 +1267,17 @@ impl Widget for WaveformWidget {
                         visible_ratio: self.ratio_from_position(bounds, position),
                     }));
                 }
+                if let Some(edge) =
+                    self.selection_resize_handle_at(bounds, position, WaveformSelectionKind::Play)
+                {
+                    return Some(WidgetOutput::typed(
+                        WaveformInteraction::BeginSelectionResize {
+                            kind: WaveformSelectionKind::Play,
+                            edge,
+                            visible_ratio: self.ratio_from_position(bounds, position),
+                        },
+                    ));
+                }
                 Some(WidgetOutput::typed(WaveformInteraction::BeginSelection {
                     kind: WaveformSelectionKind::Play,
                     visible_ratio: self.ratio_from_position(bounds, position),
@@ -1187,7 +1307,13 @@ impl Widget for WaveformWidget {
                 ))
                 || matches!(
                     self.active_drag_kind,
-                    Some(WaveformActiveDragKind::EditFade(_))
+                    Some(
+                        WaveformActiveDragKind::EditFade(_)
+                            | WaveformActiveDragKind::SelectionResize(
+                                WaveformSelectionKind::Play,
+                                _
+                            )
+                    )
                 ) =>
             {
                 Some(WidgetOutput::typed(WaveformInteraction::FinishSelection {
@@ -1247,6 +1373,18 @@ impl WaveformWidget {
                     g: 142,
                     b: 92,
                     a: 48,
+                },
+            );
+            self.append_selection_resize_handles(
+                primitives,
+                bounds,
+                start,
+                end,
+                Rgba8 {
+                    r: 255,
+                    g: 142,
+                    b: 92,
+                    a: 220,
                 },
             );
         }
@@ -1338,6 +1476,66 @@ impl WaveformWidget {
                 self.push_fill(primitives, rect, Rgba8 { a: 205, ..accent });
             }
         }
+    }
+
+    fn append_selection_resize_handles(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        start: f32,
+        end: f32,
+        color: Rgba8,
+    ) {
+        for edge in [WaveformSelectionEdge::Start, WaveformSelectionEdge::End] {
+            if let Some(rect) = self.selection_resize_handle_rect(bounds, start, end, edge) {
+                self.push_fill(primitives, rect, color);
+            }
+        }
+    }
+
+    fn selection_resize_handle_at(
+        &self,
+        bounds: Rect,
+        position: Point,
+        kind: WaveformSelectionKind,
+    ) -> Option<WaveformSelectionEdge> {
+        let range = match kind {
+            WaveformSelectionKind::Play => self.play_selection,
+            WaveformSelectionKind::Edit => self.edit_selection,
+        };
+        let (start, end) = self.visible_range_for_selection(range)?;
+        [WaveformSelectionEdge::Start, WaveformSelectionEdge::End]
+            .into_iter()
+            .find(|edge| {
+                self.selection_resize_handle_rect(bounds, start, end, *edge)
+                    .is_some_and(|rect| rect.contains(position))
+            })
+    }
+
+    fn selection_resize_handle_rect(
+        &self,
+        bounds: Rect,
+        start: f32,
+        end: f32,
+        edge: WaveformSelectionEdge,
+    ) -> Option<Rect> {
+        let x_ratio = match edge {
+            WaveformSelectionEdge::Start => start,
+            WaveformSelectionEdge::End => end,
+        };
+        let x = bounds.min.x + bounds.width() * x_ratio.clamp(0.0, 1.0);
+        let width = 7.0_f32.min(bounds.width().max(1.0));
+        let half_width = width * 0.5;
+        let top = bounds.min.y;
+        let bottom = (bounds.min.y + 22.0)
+            .min(bounds.max.y)
+            .max(bounds.min.y + 1.0);
+        let left = (x - half_width).clamp(bounds.min.x, bounds.max.x - width.max(1.0));
+        let right = (left + width).min(bounds.max.x).max(left + 1.0);
+        Some(Rect::from_min_max(
+            Point::new(left, top),
+            Point::new(right, bottom),
+        ))
     }
 
     fn append_edit_fade_curve_paint(
@@ -1651,9 +1849,9 @@ impl WaveformWidget {
 #[cfg(test)]
 mod tests {
     use super::{
-        BAND_COUNT, WaveformEditFadeHandle, WaveformInteraction, WaveformSelectionKind,
-        WaveformSignalWidget, WaveformState, WaveformWidget, split_frequency_bands,
-        waveform_file_from_mono_samples,
+        BAND_COUNT, WaveformEditFadeHandle, WaveformInteraction, WaveformSelectionEdge,
+        WaveformSelectionKind, WaveformSignalWidget, WaveformState, WaveformWidget,
+        split_frequency_bands, waveform_file_from_mono_samples,
     };
     use radiant::{
         gui::types::{Point, Rect, Vector2},
@@ -1914,6 +2112,70 @@ mod tests {
         assert!((selection.start() - 0.2).abs() < 0.001);
         assert!((selection.end() - 0.6).abs() < 0.001);
         assert_eq!(state.play_mark_ratio(), Some(0.2));
+    }
+
+    #[test]
+    fn playmark_range_edges_are_resizable() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.play_selection = Some(sempal::selection::SelectionRange::new(0.2, 0.6));
+        state.play_mark_ratio = Some(0.2);
+
+        state.apply_interaction(WaveformInteraction::BeginSelectionResize {
+            kind: WaveformSelectionKind::Play,
+            edge: WaveformSelectionEdge::End,
+            visible_ratio: 0.6,
+        });
+        state.apply_interaction(WaveformInteraction::FinishSelection {
+            visible_ratio: 0.75,
+        });
+
+        let selection = state.play_selection().expect("playmark selection");
+        assert!((selection.start() - 0.2).abs() < 0.001);
+        assert!((selection.end() - 0.75).abs() < 0.001);
+        assert_eq!(state.play_mark_ratio(), Some(selection.start()));
+        assert!(!state.is_playing());
+    }
+
+    #[test]
+    fn primary_press_on_playmark_handle_starts_resize_instead_of_new_selection() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.play_selection = Some(sempal::selection::SelectionRange::new(0.2, 0.6));
+        state.play_mark_ratio = Some(0.2);
+        let mut widget = WaveformWidget::new(
+            state.file(),
+            state.viewport(),
+            state.cursor_ratio(),
+            state.playhead_ratio(),
+            state.play_mark_ratio(),
+            state.edit_mark_ratio(),
+            state.play_selection(),
+            state.edit_selection(),
+            state.active_drag_kind(),
+        );
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
+
+        let output = widget
+            .handle_input(
+                bounds,
+                WidgetInput::PointerPress {
+                    position: Point::new(120.0, 8.0),
+                    button: PointerButton::Primary,
+                },
+            )
+            .expect("playmark resize interaction");
+        let interaction = output
+            .typed_ref::<WaveformInteraction>()
+            .copied()
+            .expect("waveform interaction");
+
+        assert_eq!(
+            interaction,
+            WaveformInteraction::BeginSelectionResize {
+                kind: WaveformSelectionKind::Play,
+                edge: WaveformSelectionEdge::End,
+                visible_ratio: 0.6
+            }
+        );
     }
 
     #[test]
