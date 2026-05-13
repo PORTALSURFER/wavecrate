@@ -31,7 +31,7 @@ use wavecrate::logging::{self, ActionDebugEvent, emit_action_debug_event};
 mod folder_browser;
 mod waveform;
 use folder_browser::{
-    FileEntry, FolderBrowserMessage, FolderBrowserState, FolderScanDiscoveryBatch,
+    FileColumn, FileEntry, FolderBrowserMessage, FolderBrowserState, FolderScanDiscoveryBatch,
     FolderScanProgress, FolderScanRequest, FolderScanResult,
 };
 use waveform::{WaveformInteraction, WaveformState};
@@ -58,6 +58,7 @@ enum GuiMessage {
     FocusRenameInput(u64),
     DeleteSelectedFolder,
     ExtractPlaymarkedRange,
+    ClearExtractionHistory,
     NavigateBrowser(i32),
     CollapseSelectedFolder,
     ExpandSelectedFolder,
@@ -309,6 +310,18 @@ impl GuiAppState {
             }
             GuiMessage::DeleteSelectedFolder => self.delete_selected_folder(),
             GuiMessage::ExtractPlaymarkedRange => self.extract_playmarked_range(),
+            GuiMessage::ClearExtractionHistory => {
+                let started_at = Instant::now();
+                self.waveform.clear_extraction_history();
+                emit_gui_action(
+                    "waveform.extraction_history.clear",
+                    Some("waveform"),
+                    None,
+                    "success",
+                    started_at,
+                    None,
+                );
+            }
             GuiMessage::NavigateBrowser(delta) => {
                 let started_at = Instant::now();
                 if let Some(path) = self.folder_browser.navigate_vertical(delta) {
@@ -520,6 +533,7 @@ impl GuiAppState {
         match self.waveform.extract_play_selection_to_sibling() {
             Ok(path) => {
                 let label = sample_path_label(&path);
+                self.waveform.record_current_play_selection_extracted();
                 self.waveform.flash_play_selection();
                 self.folder_browser.refresh_file_path(&path);
                 self.sample_status = format!("Extracted {label}");
@@ -1480,7 +1494,7 @@ fn rasterize_toolbar_icon(icon: ToolbarIcon, side: usize, color: Rgba8) -> Optio
 
 fn waveform_panel(state: &GuiAppState) -> ui::View<GuiMessage> {
     ui::column([
-        ui::text("Waveform").height(18.0).fill_width(),
+        waveform_panel_header(&state.waveform),
         ui::text(waveform_title(&state.waveform))
             .height(18.0)
             .fill_width()
@@ -1494,6 +1508,24 @@ fn waveform_panel(state: &GuiAppState) -> ui::View<GuiMessage> {
     .style(ui::WidgetStyle::default())
     .fill_width()
     .height(WAVEFORM_PANEL_HEIGHT)
+}
+
+fn waveform_panel_header(waveform: &WaveformState) -> ui::View<GuiMessage> {
+    if waveform.has_extraction_history() {
+        ui::row([
+            ui::text("Waveform").height(18.0).fill_width(),
+            ui::button("o")
+                .message(GuiMessage::ClearExtractionHistory)
+                .key("clear-extraction-history")
+                .subtle()
+                .size(22.0, 18.0),
+        ])
+        .fill_width()
+        .height(18.0)
+        .spacing(4.0)
+    } else {
+        ui::text("Waveform").height(18.0).fill_width()
+    }
 }
 
 fn waveform_title(waveform: &WaveformState) -> String {
@@ -1538,9 +1570,10 @@ fn waveform_scrollbar(waveform: &WaveformState) -> ui::View<GuiMessage> {
 fn sample_browser(state: &GuiAppState) -> ui::View<GuiMessage> {
     let audio_files = state.folder_browser.selected_audio_files();
     let audio_count = audio_files.len();
+    let columns = state.folder_browser.visible_file_columns();
     ui::column([
-        sample_browser_header(),
-        sample_browser_rows(&state.folder_browser, &audio_files),
+        sample_browser_header(&columns, state.folder_browser.file_sort()),
+        sample_browser_rows(&state.folder_browser, &audio_files, &columns),
         sample_browser_status(audio_count),
     ])
     .spacing(0.0)
@@ -1548,27 +1581,54 @@ fn sample_browser(state: &GuiAppState) -> ui::View<GuiMessage> {
     .fill()
 }
 
-fn sample_browser_header() -> ui::View<GuiMessage> {
-    details_header_row([
-        sample_header_cell("Name", SAMPLE_NAME_WIDTH),
-        sample_header_cell("Ext", SAMPLE_EXT_WIDTH),
-        sample_header_cell("Size", SAMPLE_SIZE_WIDTH),
-        sample_header_cell("Modified", SAMPLE_MODIFIED_WIDTH),
-    ])
+fn sample_browser_header(columns: &[&FileColumn], sort: &ui::DetailsSort) -> ui::View<GuiMessage> {
+    details_header_row(
+        columns
+            .iter()
+            .map(|column| sample_header_cell(column, sort)),
+    )
 }
 
-const SAMPLE_NAME_WIDTH: f32 = 240.0;
-const SAMPLE_EXT_WIDTH: f32 = 54.0;
-const SAMPLE_SIZE_WIDTH: f32 = 78.0;
-const SAMPLE_MODIFIED_WIDTH: f32 = 112.0;
-
-fn sample_header_cell(label: &str, width: f32) -> ui::View<GuiMessage> {
-    ui::text(label).height(20.0).width(width)
+fn sample_header_cell(column: &FileColumn, sort: &ui::DetailsSort) -> ui::View<GuiMessage> {
+    let marker = if sort.column_id == column.id {
+        match sort.direction {
+            ui::SortDirection::Ascending => " ^",
+            ui::SortDirection::Descending => " v",
+        }
+    } else {
+        ""
+    };
+    let column_id = column.id.clone();
+    let resize_id = column.id.clone();
+    ui::row([
+        ui::button(format!("{}{marker}", column.label))
+            .message(GuiMessage::FolderBrowser(
+                FolderBrowserMessage::SortFileColumn(column_id),
+            ))
+            .key(format!("sample-sort-{}", column.id))
+            .align_text(ui::TextAlign::Left)
+            .fill_width()
+            .height(20.0)
+            .input_only(),
+        ui::drag_handle()
+            .mapped(move |message| {
+                GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeFileColumn(
+                    resize_id.clone(),
+                    message,
+                ))
+            })
+            .key(format!("sample-column-resize-{}", column.id))
+            .size(4.0, 20.0),
+    ])
+    .width(column.width)
+    .height(20.0)
+    .spacing(1.0)
 }
 
 fn sample_browser_rows(
     folder_browser: &FolderBrowserState,
     files: &[&FileEntry],
+    columns: &[&FileColumn],
 ) -> ui::View<GuiMessage> {
     if files.is_empty() {
         return ui::text("No audio files in selected folder")
@@ -1586,6 +1646,7 @@ fn sample_browser_rows(
                         file,
                         folder_browser.selected_file_id() == Some(file.id.as_str()),
                         folder_browser.file_rename_view(&file.id),
+                        columns,
                     )
                 })
                 .collect::<Vec<_>>(),
@@ -1600,19 +1661,26 @@ fn sample_browser_row(
     file: &FileEntry,
     selected: bool,
     rename: Option<folder_browser::FileRenameView>,
+    columns: &[&FileColumn],
 ) -> ui::View<GuiMessage> {
-    let row = compact_details_row([
-        sample_name_cell(file, rename),
-        sample_file_cell(file, file.extension.clone(), SAMPLE_EXT_WIDTH, "extension"),
-        sample_file_cell(file, file.size.clone(), SAMPLE_SIZE_WIDTH, "size"),
-        sample_file_cell(
-            file,
-            file.modified.clone(),
-            SAMPLE_MODIFIED_WIDTH,
-            "modified",
+    let hit_path = file.id.clone();
+    let hit_target = ui::custom_widget_mapped(SampleFileHitTarget::new(), move |()| {
+        GuiMessage::SelectSample(hit_path.clone())
+    })
+    .key(format!("sample-row-hit-{}", file.id))
+    .fill_width()
+    .height(22.0);
+    let row = ui::stack([
+        hit_target,
+        compact_details_row(
+            columns
+                .iter()
+                .map(|column| sample_column_cell(file, rename.clone(), column)),
         ),
     ])
     .key(format!("sample-row-{}", file.id))
+    .fill_width()
+    .height(22.0)
     .hoverable();
     if selected {
         row.style(ui::WidgetStyle {
@@ -1627,14 +1695,15 @@ fn sample_browser_row(
 fn sample_name_cell(
     file: &FileEntry,
     rename: Option<folder_browser::FileRenameView>,
+    width: f32,
 ) -> ui::View<GuiMessage> {
     let Some(rename) = rename else {
-        return sample_file_cell(file, file.stem.clone(), SAMPLE_NAME_WIDTH, "name");
+        return sample_file_cell(file, file.stem.clone(), width, "name");
     };
     let mut input = TextInputWidget::new(
         0,
         rename.draft,
-        WidgetSizing::fixed(Vector2::new(SAMPLE_NAME_WIDTH, 20.0)),
+        WidgetSizing::fixed(Vector2::new(width, 20.0)),
     );
     input.state.selection_anchor = rename.selection_start;
     input.state.caret = rename.selection_end;
@@ -1643,8 +1712,35 @@ fn sample_name_cell(
     })
     .id(rename.input_id)
     .key(format!("sample-rename-input-{}", file.id))
-    .width(SAMPLE_NAME_WIDTH)
+    .width(width)
     .height(20.0)
+}
+
+fn sample_column_cell(
+    file: &FileEntry,
+    rename: Option<folder_browser::FileRenameView>,
+    column: &FileColumn,
+) -> ui::View<GuiMessage> {
+    if column.id == "name" {
+        return sample_name_cell(file, rename, column.width);
+    }
+    sample_file_cell(
+        file,
+        sample_file_column_value(file, column.id.as_str()),
+        column.width,
+        column.id.as_str(),
+    )
+}
+
+fn sample_file_column_value(file: &FileEntry, column_id: &str) -> String {
+    match column_id {
+        "extension" => file.extension.clone(),
+        "size" => file.size.clone(),
+        "modified" => file.modified.clone(),
+        "kind" => file.kind.clone(),
+        "path" => file.id.clone(),
+        _ => file.stem.clone(),
+    }
 }
 
 fn sample_file_cell(
@@ -1653,12 +1749,11 @@ fn sample_file_cell(
     width: f32,
     column_id: &str,
 ) -> ui::View<GuiMessage> {
-    ui::button(value)
-        .message(GuiMessage::SelectSample(file.id.clone()))
+    ui::text(value)
         .key(format!("sample-{}-{column_id}", file.id))
-        .fill_width()
         .height(20.0)
         .width(width)
+        .truncate()
 }
 
 fn compact_details_row(
@@ -1700,6 +1795,66 @@ fn sample_browser_status(audio_count: usize) -> ui::View<GuiMessage> {
     .padding_x(3.0)
     .fill_width()
     .height(28.0)
+}
+
+#[derive(Clone, Debug)]
+struct SampleFileHitTarget {
+    common: WidgetCommon,
+    pressed: bool,
+}
+
+impl SampleFileHitTarget {
+    fn new() -> Self {
+        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 22.0)));
+        common.focus = FocusBehavior::None;
+        common.paint.bounds = PaintBounds::ClipToRect;
+        common.paint.paints_focus = false;
+        common.paint.paints_state_layers = false;
+        Self {
+            common,
+            pressed: false,
+        }
+    }
+}
+
+impl Widget for SampleFileHitTarget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        match input {
+            WidgetInput::PointerPress {
+                position,
+                button: PointerButton::Primary,
+            } if bounds.contains(position) => {
+                self.pressed = true;
+                None
+            }
+            WidgetInput::PointerRelease {
+                position,
+                button: PointerButton::Primary,
+            } => {
+                let activated = self.pressed && bounds.contains(position);
+                self.pressed = false;
+                activated.then(|| WidgetOutput::typed(()))
+            }
+            _ => None,
+        }
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
 }
 
 fn bottom_status_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
@@ -1801,7 +1956,8 @@ mod tests {
     };
     use radiant::{
         gui::types::{Point, Rect, Vector2},
-        prelude as ui,
+        prelude::{self as ui, IntoView},
+        runtime::PaintPrimitive,
         widgets::{DragHandleMessage, PointerButton, Widget, WidgetInput},
     };
     use std::{ffi::OsString, sync::mpsc};
@@ -2040,5 +2196,110 @@ mod tests {
                 .iter()
                 .any(|file| file.name == "portal_SS_kick_003.wav")
         );
+    }
+
+    #[test]
+    fn sample_browser_frame_paints_column_and_file_text() {
+        let state = GuiAppState::load_default().expect("default state loads");
+        let surface = super::sample_browser(&state).into_node();
+        let frame = radiant::runtime::UiSurface::new(surface).frame(
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 360.0)),
+            &radiant::theme::ThemeTokens::default(),
+        );
+        let texts = frame
+            .paint_plan
+            .primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::Text(text) => Some(text.text.as_str().to_string()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert!(
+            texts.iter().any(|text| text.starts_with("Name")),
+            "{texts:?}"
+        );
+        assert!(
+            texts.iter().any(|text| text.starts_with("portal_SS_")),
+            "{texts:?}"
+        );
+    }
+
+    #[test]
+    fn full_gui_frame_places_sample_browser_text_inside_visible_area() {
+        let mut state = GuiAppState::load_default().expect("default state loads");
+        let surface = super::view(&mut state).into_node();
+        let frame = radiant::runtime::UiSurface::new(surface).frame(
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(1517.0, 758.0)),
+            &radiant::theme::ThemeTokens::default(),
+        );
+        let sample_texts = frame
+            .paint_plan
+            .primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::Text(text)
+                    if text.text.as_str() == "Name"
+                        || text.text.as_str().starts_with("portal_SS_") =>
+                {
+                    Some((text.text.as_str().to_string(), text.rect, text.baseline))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert!(!sample_texts.is_empty(), "{sample_texts:?}");
+        assert!(
+            sample_texts.iter().any(|(_, rect, baseline)| {
+                rect.width() > 20.0
+                    && rect.height() >= 10.0
+                    && rect.min.x >= 280.0
+                    && rect.min.y >= 320.0
+                    && rect.max.y <= 730.0
+                    && baseline.is_some()
+            }),
+            "{sample_texts:?}"
+        );
+    }
+
+    #[test]
+    fn waveform_panel_shows_clear_extraction_history_control_only_when_needed() {
+        let mut state = GuiAppState::load_default().expect("default state loads");
+        let empty_frame =
+            radiant::runtime::UiSurface::new(super::waveform_panel(&state).into_node()).frame(
+                Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 240.0)),
+                &radiant::theme::ThemeTokens::default(),
+            );
+        assert!(!frame_has_text(&empty_frame, "o"));
+
+        state
+            .waveform
+            .apply_interaction(WaveformInteraction::BeginSelection {
+                kind: WaveformSelectionKind::Play,
+                visible_ratio: 0.2,
+            });
+        state
+            .waveform
+            .apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.4 });
+        state.waveform.record_current_play_selection_extracted();
+        let history_frame =
+            radiant::runtime::UiSurface::new(super::waveform_panel(&state).into_node()).frame(
+                Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 240.0)),
+                &radiant::theme::ThemeTokens::default(),
+            );
+
+        assert!(frame_has_text(&history_frame, "o"));
+    }
+
+    fn frame_has_text(frame: &ui::SurfaceFrame, expected: &str) -> bool {
+        frame
+            .paint_plan
+            .primitives
+            .iter()
+            .any(|primitive| match primitive {
+                PaintPrimitive::Text(text) => text.text.as_str() == expected,
+                _ => false,
+            })
     }
 }
