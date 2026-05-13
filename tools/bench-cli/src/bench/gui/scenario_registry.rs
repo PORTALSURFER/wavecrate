@@ -8,9 +8,9 @@ use super::interactions::{
     bench_waveform_pan_zoom_adjacent_latency, bench_wheel_latency,
 };
 use super::{BenchOptions, stats};
-use sempal::app_core::actions::{NativeAppBridge, NativeAppModel, NativeMotionModel};
-use sempal::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
-use sempal::app_core::native_bridge::{SempalNativeBridge, measure_projection_segment_probe};
+use wavecrate::app_core::actions::{NativeAppBridge, NativeAppModel, NativeMotionModel};
+use wavecrate::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
+use wavecrate::app_core::native_bridge::{WavecrateNativeBridge, measure_projection_segment_probe};
 
 /// Latency summaries collected for every GUI benchmark scenario.
 pub(super) struct GuiScenarioMetrics {
@@ -56,7 +56,7 @@ pub(super) fn collect_gui_scenario_metrics(
     controller: AppController,
     mut execute_interaction_step: impl FnMut(&mut AppController, usize),
 ) -> Result<GuiScenarioMetrics, String> {
-    let mut bridge = SempalNativeBridge::from_fixture_controller(controller);
+    let mut bridge = WavecrateNativeBridge::from_fixture_controller(controller);
     Ok(GuiScenarioMetrics {
         app_model_projection: bench_retained_app_model_projection(options, &mut bridge)?,
         controller_app_model_projection: bench_controller_app_model_projection(
@@ -93,7 +93,7 @@ pub(super) fn collect_gui_scenario_metrics(
 
 fn bench_retained_app_model_projection_p95_us(
     options: &BenchOptions,
-    bridge: &mut SempalNativeBridge,
+    bridge: &mut WavecrateNativeBridge,
 ) -> u64 {
     bridge.mutate_controller(|controller| {
         measure_projection_segment_probe(
@@ -108,7 +108,7 @@ fn bench_retained_app_model_projection_p95_us(
 
 fn bench_retained_app_model_projection(
     options: &BenchOptions,
-    bridge: &mut SempalNativeBridge,
+    bridge: &mut WavecrateNativeBridge,
 ) -> Result<stats::LatencySummary, String> {
     stats::bench_action(options, || {
         let _: std::sync::Arc<NativeAppModel> = bridge.project_model();
@@ -118,7 +118,7 @@ fn bench_retained_app_model_projection(
 
 fn bench_controller_app_model_projection(
     options: &BenchOptions,
-    bridge: &mut SempalNativeBridge,
+    bridge: &mut WavecrateNativeBridge,
 ) -> Result<stats::LatencySummary, String> {
     stats::bench_action(options, || {
         bridge.mutate_controller(|controller| {
@@ -131,7 +131,7 @@ fn bench_controller_app_model_projection(
 
 fn bench_motion_model_projection(
     options: &BenchOptions,
-    bridge: &mut SempalNativeBridge,
+    bridge: &mut WavecrateNativeBridge,
 ) -> Result<stats::LatencySummary, String> {
     stats::bench_action(options, || {
         let _: Option<NativeMotionModel> = bridge.project_motion_model();
@@ -141,7 +141,7 @@ fn bench_motion_model_projection(
 
 fn bench_interactive_projection(
     options: &BenchOptions,
-    bridge: &mut SempalNativeBridge,
+    bridge: &mut WavecrateNativeBridge,
     execute_interaction_step: &mut impl FnMut(&mut AppController, usize),
 ) -> Result<stats::StagedLatencySummary, String> {
     let mut interaction_step = 0usize;

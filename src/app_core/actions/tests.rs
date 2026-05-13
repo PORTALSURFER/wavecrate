@@ -209,7 +209,7 @@ fn runtime_internal_waveform_shift_actions_are_not_public_dispatch() {
 }
 
 #[test]
-fn native_app_default_keeps_sempal_product_labels_owned_in_app_core() {
+fn native_app_default_keeps_wavecrate_product_labels_owned_in_app_core() {
     let model = crate::app_core::actions::NativeAppModel::default();
 
     assert_eq!(model.columns[1].title, "Samples");

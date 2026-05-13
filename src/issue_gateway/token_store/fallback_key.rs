@@ -56,7 +56,7 @@ impl IssueTokenStore {
         *lock_fallback_key_cache() = Some(key);
     }
 
-    /// Parse a hex-encoded key from `SEMPAL_FALLBACK_KEY` when present.
+    /// Parse a hex-encoded key from `WAVECRATE_FALLBACK_KEY` when present.
     pub(super) fn get_key_from_env(&self) -> Result<Option<[u8; 32]>, IssueTokenStoreError> {
         match std::env::var(FALLBACK_KEY_ENV_VAR) {
             Ok(hex_key) => {

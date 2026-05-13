@@ -113,25 +113,25 @@ def render_env(summary_path: Path, recommendations: Recommendations) -> str:
         f"# Generated at (UTC): {generated_at}",
         "# shellcheck shell=bash",
         (
-            ': "${SEMPAL_PERF_WARN_STARTUP_FIRST_PRESENT_MS:='
+            ': "${WAVECRATE_PERF_WARN_STARTUP_FIRST_PRESENT_MS:='
             f"{recommendations.warn_first_present_ms}" '}"'
         ),
-        "export SEMPAL_PERF_WARN_STARTUP_FIRST_PRESENT_MS",
+        "export WAVECRATE_PERF_WARN_STARTUP_FIRST_PRESENT_MS",
         (
-            ': "${SEMPAL_PERF_FAIL_STARTUP_FIRST_PRESENT_MS:='
+            ': "${WAVECRATE_PERF_FAIL_STARTUP_FIRST_PRESENT_MS:='
             f"{recommendations.fail_first_present_ms}" '}"'
         ),
-        "export SEMPAL_PERF_FAIL_STARTUP_FIRST_PRESENT_MS",
+        "export WAVECRATE_PERF_FAIL_STARTUP_FIRST_PRESENT_MS",
         (
-            ': "${SEMPAL_PERF_WARN_STARTUP_FIRST_PRESENT_SPREAD_MS:='
+            ': "${WAVECRATE_PERF_WARN_STARTUP_FIRST_PRESENT_SPREAD_MS:='
             f"{recommendations.warn_first_present_spread_ms}" '}"'
         ),
-        "export SEMPAL_PERF_WARN_STARTUP_FIRST_PRESENT_SPREAD_MS",
+        "export WAVECRATE_PERF_WARN_STARTUP_FIRST_PRESENT_SPREAD_MS",
         (
-            ': "${SEMPAL_PERF_FAIL_STARTUP_FIRST_PRESENT_SPREAD_MS:='
+            ': "${WAVECRATE_PERF_FAIL_STARTUP_FIRST_PRESENT_SPREAD_MS:='
             f"{recommendations.fail_first_present_spread_ms}" '}"'
         ),
-        "export SEMPAL_PERF_FAIL_STARTUP_FIRST_PRESENT_SPREAD_MS",
+        "export WAVECRATE_PERF_FAIL_STARTUP_FIRST_PRESENT_SPREAD_MS",
         "",
     ]
     return "\n".join(lines)

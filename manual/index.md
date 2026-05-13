@@ -1,22 +1,22 @@
 ---
 layout: default
-title: Sempal
+title: Wavecrate
 permalink: /
 description: Sample manager with fast waveform review and destructive edits.
 ---
 
-# Sempal
+# Wavecrate
 
-Sempal is a sample manager with fast waveform preview, destructive edits. Tuned for music producers.
+Wavecrate is a sample manager with fast waveform preview, destructive edits. Tuned for music producers.
 
 > This manual (`manual/`) is user-facing documentation only.
 > Developer documentation lives in `docs/` in the repository.
 
-[![Build release assets](https://github.com/PORTALSURFER/sempal/actions/workflows/release-build.yml/badge.svg)](https://github.com/PORTALSURFER/sempal/actions/workflows/release-build.yml)
+[![Build release assets](https://github.com/PORTALSURFER/wavecrate/actions/workflows/release-build.yml/badge.svg)](https://github.com/PORTALSURFER/wavecrate/actions/workflows/release-build.yml)
 
 <div class="download-hero">
   <div class="download-copy">Download the latest portable bundle.</div>
-  <a class="download-link" href="https://github.com/portalsurfer/sempal/releases/latest" id="release-link">
+  <a class="download-link" href="https://github.com/portalsurfer/wavecrate/releases/latest" id="release-link">
     View latest releases
   </a>
 </div>
@@ -36,13 +36,13 @@ Sempal is a sample manager with fast waveform preview, destructive edits. Tuned 
   </a>
 </div>
 
-<img src="{{ '/assets/screenshot.png' | relative_url }}" alt="Sempal screenshot" style="max-width: 100%; height: auto; margin: 1.5rem 0;" />
+<img src="{{ '/assets/screenshot.png' | relative_url }}" alt="Wavecrate screenshot" style="max-width: 100%; height: auto; margin: 1.5rem 0;" />
 
 ## Quick links
-- [Usage guide](/sempal/usage)
-- [Changelog](https://github.com/portalsurfer/sempal/blob/main/CHANGELOG.md)
-- [Latest downloads](https://github.com/portalsurfer/sempal/releases)
-- [Source on GitHub](https://github.com/portalsurfer/sempal)
+- [Usage guide](/wavecrate/usage)
+- [Changelog](https://github.com/portalsurfer/wavecrate/blob/main/CHANGELOG.md)
+- [Latest downloads](https://github.com/portalsurfer/wavecrate/releases)
+- [Source on GitHub](https://github.com/portalsurfer/wavecrate)
 
 <script>
   (function () {
@@ -50,7 +50,7 @@ Sempal is a sample manager with fast waveform preview, destructive edits. Tuned 
     if (!link) {
       return;
     }
-    fetch("https://api.github.com/repos/PORTALSURFER/sempal/releases?per_page=10")
+    fetch("https://api.github.com/repos/PORTALSURFER/wavecrate/releases?per_page=10")
       .then(function (response) {
         if (!response.ok) {
           throw new Error("release fetch failed");
@@ -63,7 +63,7 @@ Sempal is a sample manager with fast waveform preview, destructive edits. Tuned 
         }
         var match = null;
         var assetPattern =
-          /^sempal-v\d+\.\d+\.\d+-(windows|linux|macos)-(x86_64|aarch64)\.zip$/i;
+          /^wavecrate-v\d+\.\d+\.\d+-(windows|linux|macos)-(x86_64|aarch64)\.zip$/i;
         for (var i = 0; i < releases.length; i += 1) {
           var release = releases[i];
           if (!release || release.draft) {

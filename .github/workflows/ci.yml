@@ -183,7 +183,7 @@ jobs:
       - name: Docs correctness
         env:
           RUSTDOCFLAGS: "-D warnings"
-        run: cargo doc -p sempal --no-deps
+        run: cargo doc -p wavecrate --no-deps
       - name: Doc tests
         run: cargo test --workspace --doc
 
@@ -414,9 +414,9 @@ jobs:
             git submodule update --init --recursive vendor/radiant
       - name: Dead dependency/unused code sweep
         env:
-          SEMPAL_DEAD_SWEEP_INSTALL_MISSING: "1"
-          SEMPAL_DEAD_SWEEP_RUN_UDEPS: "0"
-          SEMPAL_DEAD_SWEEP_REPORT_PATH: "target/dead_sweep_ci.txt"
+          WAVECRATE_DEAD_SWEEP_INSTALL_MISSING: "1"
+          WAVECRATE_DEAD_SWEEP_RUN_UDEPS: "0"
+          WAVECRATE_DEAD_SWEEP_REPORT_PATH: "target/dead_sweep_ci.txt"
         run: |
           ./scripts/check.sh dead-deps --advisory || {
             status=$?

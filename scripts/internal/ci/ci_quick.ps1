@@ -48,7 +48,7 @@ function Invoke-NativeStep {
 
 Push-Location $rootDir
 try {
-  Enable-SempalCargoCache
+  Enable-WavecrateCargoCache
   Write-Host "[ci_quick] branch policy"
   Invoke-NativeStep -Label "branch policy" -Command {
     & (Join-Path $rootDir "scripts/check.ps1") main-branch
@@ -57,12 +57,12 @@ try {
   if ($Workspace) {
     Write-Host "[ci_quick] cargo nextest run --workspace --profile quick --all-targets"
     Invoke-NativeStep -Label "cargo nextest run --workspace --profile quick --all-targets" -Command {
-      Invoke-SempalCargo nextest run --workspace --profile quick --all-targets
+      Invoke-WavecrateCargo nextest run --workspace --profile quick --all-targets
     }
   } else {
-    Write-Host "[ci_quick] cargo nextest run -p sempal --profile quick --lib --tests"
-    Invoke-NativeStep -Label "cargo nextest run -p sempal --profile quick --lib --tests" -Command {
-      Invoke-SempalCargo nextest run -p sempal --profile quick --lib --tests
+    Write-Host "[ci_quick] cargo nextest run -p wavecrate --profile quick --lib --tests"
+    Invoke-NativeStep -Label "cargo nextest run -p wavecrate --profile quick --lib --tests" -Command {
+      Invoke-WavecrateCargo nextest run -p wavecrate --profile quick --lib --tests
     }
   }
 

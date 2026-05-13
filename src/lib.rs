@@ -38,7 +38,7 @@ mod app;
 /// Backend-neutral app-core projection and action helpers used during GUI migration.
 pub mod app_core;
 /// Application directory helpers.
-pub use sempal_library::app_dirs;
+pub use wavecrate_library::app_dirs;
 #[cfg(test)]
 mod app_dirs_tests;
 /// Audio playback utilities.
@@ -136,7 +136,7 @@ pub(crate) mod theme {
         }
     }
 }
-/// GitHub issue reporting via the Sempal gateway.
+/// GitHub issue reporting via the Wavecrate gateway.
 pub mod issue_gateway;
 /// Logging setup helpers.
 pub mod logging;
@@ -145,7 +145,7 @@ pub mod sample_sources;
 /// Selection math utilities.
 pub mod selection;
 /// Optional SQLite extension loader.
-pub use sempal_library::sqlite_ext;
+pub use wavecrate_library::sqlite_ext;
 /// Update check + installer helper utilities.
 pub mod updater;
 /// WAV header sanitization helpers.

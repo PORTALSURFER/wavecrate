@@ -20,7 +20,7 @@ pub(crate) fn register_uninstall_entry(install_dir: &Path) -> Result<(), String>
         let (key, _) = hkcu
             .create_subkey(UNINSTALL_KEY)
             .map_err(|err| format!("Failed to create uninstall registry key: {err}"))?;
-        let exe_path = install_dir.join("sempal-installer.exe");
+        let exe_path = install_dir.join("wavecrate-installer.exe");
         let uninstall = format!("\"{}\" --uninstall", exe_path.display());
         key.set_value("DisplayName", &APP_NAME)
             .map_err(|err| format!("Failed to set DisplayName: {err}"))?;
@@ -34,7 +34,7 @@ pub(crate) fn register_uninstall_entry(install_dir: &Path) -> Result<(), String>
             .map_err(|err| format!("Failed to set UninstallString: {err}"))?;
         key.set_value(
             "DisplayIcon",
-            &install_dir.join("sempal.ico").display().to_string(),
+            &install_dir.join("wavecrate.ico").display().to_string(),
         )
         .map_err(|err| format!("Failed to set DisplayIcon: {err}"))?;
         return Ok(());

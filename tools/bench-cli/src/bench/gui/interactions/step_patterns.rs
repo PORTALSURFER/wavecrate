@@ -1,7 +1,7 @@
 //! Deterministic interaction-step helpers shared by GUI benchmark scenarios.
 
-use sempal::app_core::actions::NativeUiAction;
-use sempal::app_core::state::{SampleBrowserSort, TriageFlagFilter};
+use wavecrate::app_core::actions::NativeUiAction;
+use wavecrate::app_core::state::{SampleBrowserSort, TriageFlagFilter};
 
 /// Return a deterministic waveform action for a benchmark step index.
 pub(in crate::bench::gui) fn waveform_action_for_step(step: usize) -> NativeUiAction {

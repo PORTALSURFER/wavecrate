@@ -61,7 +61,7 @@ pub(crate) fn worker_count_with_override(override_count: u32) -> usize {
     if override_count >= 1 {
         return override_count as usize;
     }
-    if let Ok(value) = std::env::var("SEMPAL_ANALYSIS_WORKERS")
+    if let Ok(value) = std::env::var("WAVECRATE_ANALYSIS_WORKERS")
         && let Ok(parsed) = value.trim().parse::<usize>()
         && parsed >= 1
     {
@@ -78,7 +78,7 @@ pub(crate) fn decode_worker_count_with_override(worker_count: usize, override_co
     if override_count >= 1 {
         return override_count as usize;
     }
-    if let Ok(value) = std::env::var("SEMPAL_DECODE_WORKERS")
+    if let Ok(value) = std::env::var("WAVECRATE_DECODE_WORKERS")
         && let Ok(parsed) = value.trim().parse::<usize>()
         && parsed >= 1
     {
@@ -91,7 +91,7 @@ pub(crate) fn decode_worker_count_with_override(worker_count: usize, override_co
 }
 
 pub(crate) fn claim_batch_size() -> usize {
-    if let Ok(value) = std::env::var("SEMPAL_ANALYSIS_CLAIM_BATCH")
+    if let Ok(value) = std::env::var("WAVECRATE_ANALYSIS_CLAIM_BATCH")
         && let Ok(parsed) = value.trim().parse::<usize>()
         && parsed >= 1
     {
@@ -101,7 +101,7 @@ pub(crate) fn claim_batch_size() -> usize {
 }
 
 pub(crate) fn decode_queue_target(embedding_batch_max: usize, worker_count: usize) -> usize {
-    if let Ok(value) = std::env::var("SEMPAL_DECODE_QUEUE_TARGET")
+    if let Ok(value) = std::env::var("WAVECRATE_DECODE_QUEUE_TARGET")
         && let Ok(parsed) = value.trim().parse::<usize>()
         && parsed >= 1
     {
@@ -139,9 +139,9 @@ mod tests {
     impl ClaimBatchEnv {
         fn set(value: &str) -> Self {
             let guard = ENV_LOCK.lock().expect("claim batch env lock poisoned");
-            let previous = std::env::var("SEMPAL_ANALYSIS_CLAIM_BATCH").ok();
+            let previous = std::env::var("WAVECRATE_ANALYSIS_CLAIM_BATCH").ok();
             unsafe {
-                std::env::set_var("SEMPAL_ANALYSIS_CLAIM_BATCH", value);
+                std::env::set_var("WAVECRATE_ANALYSIS_CLAIM_BATCH", value);
             }
             Self {
                 _guard: guard,
@@ -154,9 +154,9 @@ mod tests {
         fn drop(&mut self) {
             unsafe {
                 if let Some(previous) = self.previous.as_ref() {
-                    std::env::set_var("SEMPAL_ANALYSIS_CLAIM_BATCH", previous);
+                    std::env::set_var("WAVECRATE_ANALYSIS_CLAIM_BATCH", previous);
                 } else {
-                    std::env::remove_var("SEMPAL_ANALYSIS_CLAIM_BATCH");
+                    std::env::remove_var("WAVECRATE_ANALYSIS_CLAIM_BATCH");
                 }
             }
         }

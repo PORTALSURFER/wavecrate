@@ -457,7 +457,7 @@ mod tests {
 
     fn content() -> TopBarSurfaceContent {
         TopBarSurfaceContent {
-            title: String::from("Sempal"),
+            title: String::from("Wavecrate"),
             volume_value: String::from("0.75"),
             volume_label: String::from("Vol"),
             options_label: String::from("48 kHz"),

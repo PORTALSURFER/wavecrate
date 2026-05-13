@@ -10,7 +10,7 @@ use std::sync::{
 use std::time::Duration;
 
 /// Environment variable used to toggle hot-path telemetry snapshots.
-pub(crate) const HOTPATH_TELEMETRY_ENV: &str = "SEMPAL_HOTPATH_TELEMETRY";
+pub(crate) const HOTPATH_TELEMETRY_ENV: &str = "WAVECRATE_HOTPATH_TELEMETRY";
 
 /// Resolve hot-path telemetry mode once and cache it in `state`.
 pub(crate) fn enabled(state: &OnceLock<bool>) -> bool {

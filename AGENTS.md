@@ -2,19 +2,19 @@
 
 This file stays repo-specific and lightweight. Built-in Codex memory is the
 durable session-memory layer; this file should only capture stable workflow and
-validation expectations for `C:\dev\sempal`.
+validation expectations for `C:\dev\wavecrate`.
 
 ## Orientation
-- Repository: `C:\dev\sempal`
-- Product: Sempal
+- Repository: `C:\dev\wavecrate`
+- Product: Wavecrate
 - Branch: `main`
 - Linear team: `PORTALSURFER`
-- Linear project: `Sempal` — https://linear.app/boostnlvp/project/sempal-7230ebfad82d
+- Linear project: `Wavecrate` — https://linear.app/boostnlvp/project/wavecrate-7230ebfad82d
 - Primary docs entrypoint: `docs/README.md`
 
 ## Planning System
 - Linear is the source of truth for planning and backlog state in this repo.
-- When a plan is needed, create or update Linear issues in the `Sempal` project under the `PORTALSURFER` team.
+- When a plan is needed, create or update Linear issues in the `Wavecrate` project under the `PORTALSURFER` team.
 - Each planning issue must be implementation-ready in isolation:
   - clear problem statement
   - concrete scope and non-goals
@@ -38,9 +38,9 @@ validation expectations for `C:\dev\sempal`.
    - macOS/Linux/WSL: `bash scripts/doctor.sh`
 
 ## Non-Negotiable Workflow Rules
-- Use `main` as the default base branch for `C:\dev\sempal`; feature work should happen on a feature branch and merge through a PR.
+- Use `main` as the default base branch for `C:\dev\wavecrate`; feature work should happen on a feature branch and merge through a PR.
 - Keep local `main` tracking `origin/main`; the repo hook installer and `scripts/check.* main-branch` branch guard enforce the base-branch contract while allowing feature branches for PR work.
-- `C:\dev\sempal\vendor\radiant` also uses local `main` tracking `origin/main`; update the submodule pointer from a Sempal feature branch and merge it through a Sempal PR.
+- `C:\dev\wavecrate\vendor\radiant` also uses local `main` tracking `origin/main`; update the submodule pointer from a Wavecrate feature branch and merge it through a Wavecrate PR.
 - During the tight edit loop:
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 smoke`
   - macOS/Linux/WSL: `bash scripts/ci.sh smoke`

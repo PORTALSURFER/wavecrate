@@ -36,7 +36,7 @@ use crate::app_dirs;
 
 /// Maximum number of log files to retain.
 const MAX_LOG_FILES: usize = 10;
-const LOG_FILE_PREFIX: &str = "sempal";
+const LOG_FILE_PREFIX: &str = "wavecrate";
 
 static LOG_GUARD: OnceLock<WorkerGuard> = OnceLock::new();
 static DEBUG_LOGGING_ENABLED: AtomicBool = AtomicBool::new(false);
@@ -132,7 +132,7 @@ where
     tracing::subscriber::set_global_default(subscriber).map_err(LoggingError::SetGlobal)?;
     let _ = LOG_GUARD.set(guard);
     DEBUG_LOGGING_ENABLED.store(settings.mode().enabled(), Ordering::Relaxed);
-    sempal_library::diagnostics::set_debug_logging_enabled(settings.mode().enabled());
+    wavecrate_library::diagnostics::set_debug_logging_enabled(settings.mode().enabled());
 
     tracing::info!(
         log_path = %log_path.display(),
@@ -152,7 +152,7 @@ where
     Ok(())
 }
 
-/// Returns `true` when the Sempal-owned debug logging mode is enabled.
+/// Returns `true` when the Wavecrate-owned debug logging mode is enabled.
 ///
 /// Rich action/database diagnostics should use this gate instead of treating a
 /// broad `RUST_LOG` override as product intent.
@@ -286,14 +286,14 @@ mod tests {
     fn log_filename_has_timestamp_and_prefix() {
         let fixed = OffsetDateTime::from_unix_timestamp(1_700_000_000).unwrap();
         let name = format_log_file_name(fixed).unwrap();
-        assert_eq!(name, "sempal_2023-11-14_22-13-20.log");
+        assert_eq!(name, "wavecrate_2023-11-14_22-13-20.log");
     }
 
     #[test]
     fn prune_removes_oldest_files_beyond_limit() {
         let dir = tempdir().unwrap();
         for idx in 0..12 {
-            let path = dir.path().join(format!("sempal_{idx}.log"));
+            let path = dir.path().join(format!("wavecrate_{idx}.log"));
             ensure_file_exists(&path).unwrap();
             thread::sleep(Duration::from_millis(10));
         }
@@ -317,7 +317,7 @@ mod tests {
     fn prune_keeps_newest_log_files() {
         let dir = tempdir().unwrap();
         for idx in 0..12 {
-            let path = dir.path().join(format!("sempal_{idx}.log"));
+            let path = dir.path().join(format!("wavecrate_{idx}.log"));
             ensure_file_exists(&path).unwrap();
             thread::sleep(Duration::from_millis(10));
         }
@@ -335,16 +335,16 @@ mod tests {
         assert_eq!(
             remaining,
             vec![
-                "sempal_10.log".to_string(),
-                "sempal_11.log".to_string(),
-                "sempal_2.log".to_string(),
-                "sempal_3.log".to_string(),
-                "sempal_4.log".to_string(),
-                "sempal_5.log".to_string(),
-                "sempal_6.log".to_string(),
-                "sempal_7.log".to_string(),
-                "sempal_8.log".to_string(),
-                "sempal_9.log".to_string(),
+                "wavecrate_10.log".to_string(),
+                "wavecrate_11.log".to_string(),
+                "wavecrate_2.log".to_string(),
+                "wavecrate_3.log".to_string(),
+                "wavecrate_4.log".to_string(),
+                "wavecrate_5.log".to_string(),
+                "wavecrate_6.log".to_string(),
+                "wavecrate_7.log".to_string(),
+                "wavecrate_8.log".to_string(),
+                "wavecrate_9.log".to_string(),
             ]
         );
     }
@@ -353,7 +353,7 @@ mod tests {
     fn prune_ignores_non_log_files() {
         let dir = tempdir().unwrap();
         for idx in 0..12 {
-            let path = dir.path().join(format!("sempal_{idx}.log"));
+            let path = dir.path().join(format!("wavecrate_{idx}.log"));
             ensure_file_exists(&path).unwrap();
             thread::sleep(Duration::from_millis(10));
         }

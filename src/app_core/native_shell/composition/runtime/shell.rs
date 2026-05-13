@@ -1,4 +1,4 @@
-//! Sempal shell and overlay models used by the runtime compatibility contract.
+//! Wavecrate shell and overlay models used by the runtime compatibility contract.
 
 pub use crate::app_core::actions::{
     NativeDragOverlayModel as DragOverlayModel, NativeProgressOverlayModel as ProgressOverlayModel,
@@ -63,7 +63,7 @@ pub struct AppModel {
     pub sources: SourcesPanelModel,
     /// Browser panel summary consumed by the native renderer.
     pub browser: BrowserPanelModel,
-    /// Browser sidebar metadata-facet filter state consumed by Sempal sidebar chrome.
+    /// Browser sidebar metadata-facet filter state consumed by Wavecrate sidebar chrome.
     pub sidebar_filters: crate::app_core::state::BrowserSidebarFilterState,
     /// Browser chrome labels consumed by native tabs/toolbar/footer text.
     pub browser_chrome: BrowserChromeModel,

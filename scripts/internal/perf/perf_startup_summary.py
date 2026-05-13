@@ -41,7 +41,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Parse native startup timing logs emitted by "
-            "SEMPAL_NATIVE_STARTUP_PROFILE and print a guard summary."
+            "WAVECRATE_NATIVE_STARTUP_PROFILE and print a guard summary."
         )
     )
     parser.add_argument(
@@ -123,7 +123,7 @@ def classify_missing_reason(lines: list[str]) -> str:
         return "startup_profile_missing_after_runtime_start"
     if "The system cannot find the file specified" in text:
         return "launch_path_error"
-    if "Running `target/debug/sempal`" not in text:
+    if "Running `target/debug/wavecrate`" not in text:
         return "build_or_launch_timeout"
     if "runtime returned error" in text:
         return "runtime_error_before_first_present"

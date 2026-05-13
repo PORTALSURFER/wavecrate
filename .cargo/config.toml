@@ -1,3 +1,3 @@
 [alias]
-run-fast = "run -p sempal --bin sempal --profile release-local"
-check-fast = "check -p sempal --lib --bin sempal --profile release-local"
+run-fast = "run -p wavecrate --bin wavecrate --profile release-local"
+check-fast = "check -p wavecrate --lib --bin wavecrate --profile release-local"

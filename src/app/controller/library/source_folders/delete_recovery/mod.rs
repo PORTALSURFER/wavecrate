@@ -16,7 +16,7 @@ mod retained_restore;
 mod retained_restore_reconcile;
 
 /// Folder name used to stage pending deletes inside a source root.
-pub(crate) const DELETE_STAGING_DIR: &str = ".sempal_delete_staging";
+pub(crate) const DELETE_STAGING_DIR: &str = ".wavecrate_delete_staging";
 
 pub(crate) use journal::{
     DeleteStagingInfo, cleanup_staging_root, mark_delete_restore_pending_db, mark_delete_retained,

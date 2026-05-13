@@ -14,7 +14,7 @@ mod tests {
     #[test]
     fn native_run_options_map_field_for_field_to_radiant_runtime_options() {
         let options = NativeRunOptions {
-            title: String::from("Sempal test host"),
+            title: String::from("Wavecrate test host"),
             inner_size: Some([1280.0, 720.0]),
             min_inner_size: Some([640.0, 360.0]),
             maximized: true,
@@ -30,7 +30,7 @@ mod tests {
 
         let compat: radiant::gui_runtime::NativeRunOptions = options.into();
 
-        assert_eq!(compat.title, "Sempal test host");
+        assert_eq!(compat.title, "Wavecrate test host");
         assert_eq!(compat.inner_size, Some([1280.0, 720.0]));
         assert_eq!(compat.min_inner_size, Some([640.0, 360.0]));
         assert!(compat.maximized);
@@ -44,7 +44,7 @@ mod tests {
         );
         assert_eq!(
             compat.text.font_paths,
-            vec![crate::gui_runtime::sempal_ui_font_path()]
+            vec![crate::gui_runtime::wavecrate_ui_font_path()]
         );
         assert!(compat.text.font_paths[0].exists());
         let icon = compat.icon.expect("icon should be forwarded");
@@ -54,9 +54,9 @@ mod tests {
     }
 
     #[test]
-    fn sempal_generic_runtime_bridge_routes_messages_repaint_exit_and_snapshots() {
+    fn wavecrate_generic_runtime_bridge_routes_messages_repaint_exit_and_snapshots() {
         let repaint_installed = Arc::new(AtomicBool::new(false));
-        let mut bridge = SempalRuntimeBridge::new(RecordingBridge {
+        let mut bridge = WavecrateRuntimeBridge::new(RecordingBridge {
             model: Arc::new(NativeAppModel::default()),
             reduced: Vec::new(),
             repaint_installed: Arc::clone(&repaint_installed),
@@ -86,7 +86,7 @@ mod tests {
         );
         assert!(
             retained.volatile,
-            "Sempal retained shell overlays must opt out of Radiant full-frame cache hits"
+            "Wavecrate retained shell overlays must opt out of Radiant full-frame cache hits"
         );
         let frame = bridge
             .render_retained_surface(
@@ -97,10 +97,10 @@ mod tests {
                 ),
                 radiant::gui::types::Vector2::new(1280.0, 720.0),
             )
-            .expect("generic runtime should ask Sempal for real retained shell paint");
+            .expect("generic runtime should ask Wavecrate for real retained shell paint");
         assert!(
             frame.primitives.len() > 8 && !frame.text_runs.is_empty(),
-            "retained shell paint should contain the real Sempal frame, not a placeholder canvas"
+            "retained shell paint should contain the real Wavecrate frame, not a placeholder canvas"
         );
 
         let message = surface
@@ -113,32 +113,32 @@ mod tests {
                     },
                 }),
             )
-            .expect("generic canvas should map input into a Sempal action");
+            .expect("generic canvas should map input into a Wavecrate action");
         assert!(matches!(
             message,
-            SempalRuntimeMessage::RetainedInput(WidgetInput::PointerPress { .. })
+            WavecrateRuntimeMessage::RetainedInput(WidgetInput::PointerPress { .. })
         ));
         assert!(bridge.update(message).requests_repaint());
         assert_ne!(bridge.inner.reduced, vec![UiAction::HandleEscape]);
         assert_eq!(bridge.inner.reduced, vec![UiAction::ToggleTransport]);
         bridge.inner.reduced.clear();
 
-        let hover_message = SempalRuntimeMessage::RetainedInput(WidgetInput::PointerMove {
+        let hover_message = WavecrateRuntimeMessage::RetainedInput(WidgetInput::PointerMove {
             position: radiant::gui::types::Point::new(12.0, 16.0),
         });
         assert!(
             bridge.update(hover_message).requests_repaint(),
-            "retained hover moves should repaint even when Sempal classifies the hover as a local overlay update"
+            "retained hover moves should repaint even when Wavecrate classifies the hover as a local overlay update"
         );
 
-        bridge.update(SempalRuntimeMessage::RetainedInput(
+        bridge.update(WavecrateRuntimeMessage::RetainedInput(
             WidgetInput::FocusChanged(true),
         ));
-        bridge.update(SempalRuntimeMessage::Action(UiAction::FocusBrowserSearch));
+        bridge.update(WavecrateRuntimeMessage::Action(UiAction::FocusBrowserSearch));
         bridge.inner.reduced.clear();
         assert!(
             bridge
-                .update(SempalRuntimeMessage::RetainedInput(WidgetInput::Character(
+                .update(WavecrateRuntimeMessage::RetainedInput(WidgetInput::Character(
                     'k'
                 )))
                 .requests_repaint()
@@ -159,7 +159,7 @@ mod tests {
         let snapshot = bridge.capture_gui_automation_snapshot([1280.0, 720.0]);
         assert_eq!(snapshot.root.id.0, "shell.root");
 
-        bridge.update(SempalRuntimeMessage::Action(UiAction::HandleEscape));
+        bridge.update(WavecrateRuntimeMessage::Action(UiAction::HandleEscape));
         let shortcut = bridge.resolve_key_press(
             None,
             RadiantKeyPress {
@@ -194,19 +194,19 @@ mod tests {
         assert!(shortcut.handled);
         assert_eq!(
             shortcut.action,
-            Some(SempalRuntimeMessage::Action(UiAction::PlayFromStart))
+            Some(WavecrateRuntimeMessage::Action(UiAction::PlayFromStart))
         );
     }
 
     #[test]
     fn focused_browser_pill_editor_shields_typing_from_shortcuts_and_commits_commas() {
-        let mut bridge = SempalRuntimeBridge::new(RecordingBridge {
+        let mut bridge = WavecrateRuntimeBridge::new(RecordingBridge {
             model: Arc::new(NativeAppModel::default()),
             reduced: Vec::new(),
             repaint_installed: Arc::new(AtomicBool::new(false)),
             exit_status: None,
         });
-        bridge.update(SempalRuntimeMessage::Action(
+        bridge.update(WavecrateRuntimeMessage::Action(
             UiAction::FocusBrowserTagSidebarInput,
         ));
 
@@ -230,16 +230,16 @@ mod tests {
             "focused tag text entry should clear pending chords without consuming printable text"
         );
 
-        bridge.update(SempalRuntimeMessage::RetainedInput(WidgetInput::Character(
+        bridge.update(WavecrateRuntimeMessage::RetainedInput(WidgetInput::Character(
             'k',
         )));
-        bridge.update(SempalRuntimeMessage::RetainedInput(WidgetInput::Character(
+        bridge.update(WavecrateRuntimeMessage::RetainedInput(WidgetInput::Character(
             'i',
         )));
-        bridge.update(SempalRuntimeMessage::RetainedInput(WidgetInput::Character(
+        bridge.update(WavecrateRuntimeMessage::RetainedInput(WidgetInput::Character(
             ',',
         )));
-        bridge.update(SempalRuntimeMessage::RetainedInput(WidgetInput::Character(
+        bridge.update(WavecrateRuntimeMessage::RetainedInput(WidgetInput::Character(
             'h',
         )));
 
@@ -266,22 +266,22 @@ mod tests {
 
     #[test]
     fn retained_text_edit_commands_preserve_selection_and_paste_flow() {
-        let mut bridge = SempalRuntimeBridge::new(RecordingBridge {
+        let mut bridge = WavecrateRuntimeBridge::new(RecordingBridge {
             model: Arc::new(NativeAppModel::default()),
             reduced: Vec::new(),
             repaint_installed: Arc::new(AtomicBool::new(false)),
             exit_status: None,
         });
 
-        bridge.update(SempalRuntimeMessage::Action(UiAction::FocusBrowserSearch));
+        bridge.update(WavecrateRuntimeMessage::Action(UiAction::FocusBrowserSearch));
         bridge.inner.reduced.clear();
-        bridge.update(SempalRuntimeMessage::RetainedInput(WidgetInput::TextEdit(
+        bridge.update(WavecrateRuntimeMessage::RetainedInput(WidgetInput::TextEdit(
             TextEditCommand::InsertText(String::from("kick")),
         )));
-        bridge.update(SempalRuntimeMessage::RetainedInput(WidgetInput::TextEdit(
+        bridge.update(WavecrateRuntimeMessage::RetainedInput(WidgetInput::TextEdit(
             TextEditCommand::SelectAll,
         )));
-        bridge.update(SempalRuntimeMessage::RetainedInput(WidgetInput::TextEdit(
+        bridge.update(WavecrateRuntimeMessage::RetainedInput(WidgetInput::TextEdit(
             TextEditCommand::InsertText(String::from("snare")),
         )));
 
@@ -306,16 +306,16 @@ mod tests {
                 label: String::from("Kick"),
                 state: crate::app_core::actions::NativeBrowserTagState::On,
             });
-        let mut bridge = SempalRuntimeBridge::new(RecordingBridge {
+        let mut bridge = WavecrateRuntimeBridge::new(RecordingBridge {
             model: Arc::new(model),
             reduced: Vec::new(),
             repaint_installed: Arc::new(AtomicBool::new(false)),
             exit_status: None,
         });
-        bridge.update(SempalRuntimeMessage::Action(
+        bridge.update(WavecrateRuntimeMessage::Action(
             UiAction::FocusBrowserTagSidebarInput,
         ));
-        bridge.update(SempalRuntimeMessage::LocalTextEdit);
+        bridge.update(WavecrateRuntimeMessage::LocalTextEdit);
         let _ = bridge.resolve_key_press(
             None,
             RadiantKeyPress {
@@ -326,7 +326,7 @@ mod tests {
             },
             RadiantFocusSurface::None,
         );
-        bridge.update(SempalRuntimeMessage::RetainedInput(WidgetInput::KeyPress(
+        bridge.update(WavecrateRuntimeMessage::RetainedInput(WidgetInput::KeyPress(
             WidgetKey::Backspace,
         )));
 
@@ -344,7 +344,7 @@ mod tests {
             "Backspace with selected draft text should edit text before removing an accepted chip"
         );
 
-        bridge.update(SempalRuntimeMessage::RetainedInput(WidgetInput::KeyPress(
+        bridge.update(WavecrateRuntimeMessage::RetainedInput(WidgetInput::KeyPress(
             WidgetKey::Backspace,
         )));
         assert!(bridge.inner.reduced.iter().any(|action| matches!(
@@ -373,7 +373,7 @@ mod tests {
         model.waveform.playhead_micros = Some(250_000);
         model.transport_running = true;
 
-        let mut bridge = SempalRuntimeBridge::new(RecordingBridge {
+        let mut bridge = WavecrateRuntimeBridge::new(RecordingBridge {
             model: Arc::new(model.into()),
             reduced: Vec::new(),
             repaint_installed,
@@ -401,7 +401,7 @@ mod tests {
         );
         assert!(
             bridge
-                .update(SempalRuntimeMessage::RetainedInput(
+                .update(WavecrateRuntimeMessage::RetainedInput(
                     WidgetInput::PointerMove {
                         position: hover_point,
                     },
@@ -430,7 +430,7 @@ mod tests {
         motion_model.waveform_playhead_milli = Some(450);
         motion_model.waveform_playhead_micros = Some(450_000);
 
-        let mut bridge = SempalRuntimeBridge::new(MotionOnlyRecordingBridge {
+        let mut bridge = WavecrateRuntimeBridge::new(MotionOnlyRecordingBridge {
             model: Arc::new(native_model),
             motion_model: Some(motion_model.into()),
             model_pull_count: 0,
@@ -469,7 +469,7 @@ mod tests {
 
     #[test]
     fn retained_hover_refresh_skips_app_model_pull() {
-        let mut bridge = SempalRuntimeBridge::new(MotionOnlyRecordingBridge {
+        let mut bridge = WavecrateRuntimeBridge::new(MotionOnlyRecordingBridge {
             model: Arc::new(NativeAppModel::default()),
             motion_model: None,
             model_pull_count: 0,
@@ -480,7 +480,7 @@ mod tests {
         assert_eq!(bridge.inner.model_pull_count, 1);
         assert!(
             bridge
-                .update(SempalRuntimeMessage::RetainedInput(
+                .update(WavecrateRuntimeMessage::RetainedInput(
                     WidgetInput::PointerMove {
                         position: radiant::gui::types::Point::new(12.0, 16.0),
                     },
@@ -497,7 +497,7 @@ mod tests {
 
     #[test]
     fn retained_action_refresh_reuses_emit_projection() {
-        let mut bridge = SempalRuntimeBridge::new(MotionOnlyRecordingBridge {
+        let mut bridge = WavecrateRuntimeBridge::new(MotionOnlyRecordingBridge {
             model: Arc::new(NativeAppModel::default()),
             motion_model: None,
             model_pull_count: 0,
@@ -506,7 +506,7 @@ mod tests {
 
         assert!(
             bridge
-                .update(SempalRuntimeMessage::RetainedInput(
+                .update(WavecrateRuntimeMessage::RetainedInput(
                     WidgetInput::PointerPress {
                         position: radiant::gui::types::Point::new(4.0, 5.0),
                         button: radiant::widgets::PointerButton::Primary,
@@ -525,7 +525,7 @@ mod tests {
 
     #[test]
     fn retained_shell_render_rebuilds_only_dirty_static_segments() {
-        let mut bridge = SempalRuntimeBridge::new(RecordingBridge {
+        let mut bridge = WavecrateRuntimeBridge::new(RecordingBridge {
             model: Arc::new(NativeAppModel::default()),
             reduced: Vec::new(),
             repaint_installed: Arc::new(AtomicBool::new(false)),
@@ -576,13 +576,13 @@ mod tests {
     }
 
     #[test]
-    fn sempal_root_dependency_uses_default_radiant_package() {
+    fn wavecrate_root_dependency_uses_default_radiant_package() {
         let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
         let cargo = fs::read_to_string(manifest_dir.join("Cargo.toml")).expect("root manifest");
 
         assert!(
             cargo.contains("radiant = { path = \"vendor/radiant\" }"),
-            "Sempal should consume the local Radiant package directly"
+            "Wavecrate should consume the local Radiant package directly"
         );
     }
 
@@ -670,7 +670,7 @@ mod tests {
 
     /// Return the retained shell descriptor projected by the bridge surface.
     fn retained_shell_descriptor(
-        bridge: &mut SempalRuntimeBridge<RecordingBridge>,
+        bridge: &mut WavecrateRuntimeBridge<RecordingBridge>,
     ) -> RetainedSurfaceDescriptor {
         let surface = bridge.project_surface();
         let layout = radiant::layout::layout_tree(
@@ -692,7 +692,7 @@ mod tests {
 
     /// Return the retained shell descriptor projected by a motion-only bridge.
     fn retained_motion_descriptor(
-        bridge: &mut SempalRuntimeBridge<MotionOnlyRecordingBridge>,
+        bridge: &mut WavecrateRuntimeBridge<MotionOnlyRecordingBridge>,
     ) -> RetainedSurfaceDescriptor {
         let surface = bridge.project_surface();
         let layout = radiant::layout::layout_tree(

@@ -1,19 +1,19 @@
 use super::*;
 use crate::ui::state::{ReleaseOption, ReleaseState, UpdateNativeBridge};
-use sempal::updater::{RuntimeIdentity, UpdateChannel, UpdaterRunArgs};
 use std::path::PathBuf;
+use wavecrate::updater::{RuntimeIdentity, UpdateChannel, UpdaterRunArgs};
 
 fn test_args() -> UpdaterRunArgs {
     UpdaterRunArgs {
         repo: "owner/repo".to_string(),
         identity: RuntimeIdentity {
-            app: "Sempal".to_string(),
+            app: "Wavecrate".to_string(),
             channel: UpdateChannel::Stable,
             target: "x86_64".to_string(),
             platform: "windows".to_string(),
             arch: "x86_64".to_string(),
         },
-        install_dir: PathBuf::from("/tmp/sempal"),
+        install_dir: PathBuf::from("/tmp/wavecrate"),
         relaunch: true,
         requested_tag: None,
     }

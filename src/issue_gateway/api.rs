@@ -8,10 +8,10 @@ use uuid::Uuid;
 use crate::http_client;
 
 /// Base URL for the issue gateway API.
-pub const BASE_URL: &str = "https://sempal-gitissue-gateway.portalsurfer.workers.dev";
+pub const BASE_URL: &str = "https://wavecrate-gitissue-gateway.portalsurfer.workers.dev";
 /// Direct URL for starting the auth flow in a browser.
 pub const AUTH_START_URL: &str =
-    "https://sempal-gitissue-gateway.portalsurfer.workers.dev/auth/start";
+    "https://wavecrate-gitissue-gateway.portalsurfer.workers.dev/auth/start";
 
 const MAX_AUTH_RESPONSE_BYTES: usize = 64 * 1024;
 const MAX_ISSUE_RESPONSE_BYTES: usize = 256 * 1024;
@@ -349,7 +349,7 @@ mod tests {
 
     #[test]
     fn parses_success_without_ok_field() {
-        let body = r#"{ "issue_url": "https://github.com/PORTALSURFER/sempal/issues/123", "number": 123 }"#;
+        let body = r#"{ "issue_url": "https://github.com/PORTALSURFER/wavecrate/issues/123", "number": 123 }"#;
         let parsed = parse_create_issue_response(body).unwrap();
         assert!(parsed.ok);
         assert_eq!(parsed.number, 123);

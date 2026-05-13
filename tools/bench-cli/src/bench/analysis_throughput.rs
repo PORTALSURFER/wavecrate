@@ -23,19 +23,19 @@ pub(super) fn run(options: &BenchOptions) -> Result<AnalysisBenchResult, String>
             options.analysis_duration_ms,
             &mut rng,
         );
-        let vec = sempal::analysis::compute_feature_vector_v1_for_mono_samples(
+        let vec = wavecrate::analysis::compute_feature_vector_v1_for_mono_samples(
             &samples,
             options.analysis_sample_rate,
         )?;
-        if vec.len() != sempal::analysis::FEATURE_VECTOR_LEN_V1 {
+        if vec.len() != wavecrate::analysis::FEATURE_VECTOR_LEN_V1 {
             source_err(vec.len())?;
         }
         if options.analysis_full {
-            let embedding = sempal::analysis::compute_similarity_embedding_for_mono_samples(
+            let embedding = wavecrate::analysis::compute_similarity_embedding_for_mono_samples(
                 &samples,
                 options.analysis_sample_rate,
             )?;
-            if embedding.len() != sempal::analysis::similarity::SIMILARITY_DIM {
+            if embedding.len() != wavecrate::analysis::similarity::SIMILARITY_DIM {
                 return Err(format!("Unexpected embedding dim: {}", embedding.len()));
             }
         }

@@ -1,4 +1,4 @@
-# CODEOWNERS for Sempal
+# CODEOWNERS for Wavecrate
 #
 # This file mirrors the component buckets in `docs/ARCHITECTURE.md` so routing
 # decisions are enforceable in reviews. Owners can be refined over time by

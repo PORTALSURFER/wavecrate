@@ -2,13 +2,13 @@
 
 # Shared local Cargo cache setup for repository scripts.
 #
-# Scripts should source this file and call `sempal_enable_cargo_cache` before
+# Scripts should source this file and call `wavecrate_enable_cargo_cache` before
 # invoking Cargo so local runs use direct `rustc` by default and can opt in to
 # `sccache` when needed.
 
 set -euo pipefail
 
-sempal_ensure_cargo_available() {
+wavecrate_ensure_cargo_available() {
   if command -v cargo >/dev/null 2>&1; then
     return 0
   fi
@@ -29,7 +29,7 @@ sempal_ensure_cargo_available() {
   shopt -u nullglob
 }
 
-sempal_is_sccache_wrapper() {
+wavecrate_is_sccache_wrapper() {
   local wrapper="${1:-}"
   if [[ -z "$wrapper" ]]; then
     return 1
@@ -40,11 +40,11 @@ sempal_is_sccache_wrapper() {
   [[ "$file_name" == "sccache" || "$file_name" == "sccache.exe" ]]
 }
 
-sempal_clear_sccache_wrapper() {
+wavecrate_clear_sccache_wrapper() {
   local reason="$1"
 
-  if sempal_is_sccache_wrapper "${RUSTC_WRAPPER:-}" ||
-    sempal_is_sccache_wrapper "${CARGO_BUILD_RUSTC_WRAPPER:-}"; then
+  if wavecrate_is_sccache_wrapper "${RUSTC_WRAPPER:-}" ||
+    wavecrate_is_sccache_wrapper "${CARGO_BUILD_RUSTC_WRAPPER:-}"; then
     unset RUSTC_WRAPPER
     unset CARGO_BUILD_RUSTC_WRAPPER
     echo "[cargo-cache] $reason; falling back to direct rustc"
@@ -54,16 +54,16 @@ sempal_clear_sccache_wrapper() {
   echo "[cargo-cache] $reason"
 }
 
-sempal_enable_cargo_cache() {
-  sempal_ensure_cargo_available
+wavecrate_enable_cargo_cache() {
+  wavecrate_ensure_cargo_available
 
-  if [[ "${SEMPAL_DISABLE_SCCACHE:-0}" == "1" ]]; then
-    sempal_clear_sccache_wrapper "sccache disabled by SEMPAL_DISABLE_SCCACHE=1"
+  if [[ "${WAVECRATE_DISABLE_SCCACHE:-0}" == "1" ]]; then
+    wavecrate_clear_sccache_wrapper "sccache disabled by WAVECRATE_DISABLE_SCCACHE=1"
     return 0
   fi
 
-  if [[ "${SEMPAL_ENABLE_SCCACHE:-0}" != "1" ]]; then
-    sempal_clear_sccache_wrapper "sccache disabled by default"
+  if [[ "${WAVECRATE_ENABLE_SCCACHE:-0}" != "1" ]]; then
+    wavecrate_clear_sccache_wrapper "sccache disabled by default"
     return 0
   fi
 

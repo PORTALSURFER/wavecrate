@@ -5,10 +5,10 @@ pub(super) mod step_patterns;
 
 use super::super::{options::BenchOptions, stats};
 use super::workspace::wait_for_rows;
-use sempal::app_core::actions::{NativeAppBridge, NativeMotionModel, NativeUiAction};
-use sempal::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
-use sempal::app_core::native_bridge::SempalNativeBridge;
-use sempal::app_core::state::{
+use wavecrate::app_core::actions::{NativeAppBridge, NativeMotionModel, NativeUiAction};
+use wavecrate::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
+use wavecrate::app_core::native_bridge::WavecrateNativeBridge;
+use wavecrate::app_core::state::{
     MapBounds, MapPoint, MapQueryBounds, SampleBrowserSort, TriageFlagFilter,
 };
 
@@ -30,7 +30,7 @@ pub(super) fn execute_interaction_step(controller: &mut AppController, step: usi
 /// Measure pointer-hover style row focus update latency.
 pub(super) fn bench_hover_latency(
     options: &BenchOptions,
-    bridge: &mut SempalNativeBridge,
+    bridge: &mut WavecrateNativeBridge,
 ) -> Result<stats::StagedLatencySummary, String> {
     let interaction_rows = options.gui_interaction_rows.max(1);
     bridge.mutate_controller(|controller| wait_for_rows(controller, interaction_rows))?;
@@ -54,7 +54,7 @@ pub(super) fn bench_hover_latency(
 /// Measure wheel-like row navigation latency.
 pub(super) fn bench_wheel_latency(
     options: &BenchOptions,
-    bridge: &mut SempalNativeBridge,
+    bridge: &mut WavecrateNativeBridge,
 ) -> Result<stats::StagedLatencySummary, String> {
     let interaction_rows = options.gui_interaction_rows.max(1);
     bridge.mutate_controller(|controller| wait_for_rows(controller, interaction_rows))?;
@@ -83,7 +83,7 @@ pub(super) fn bench_wheel_latency(
 /// Measure filter-only browser recompute latency.
 pub(super) fn bench_browser_filter_churn_latency(
     options: &BenchOptions,
-    bridge: &mut SempalNativeBridge,
+    bridge: &mut WavecrateNativeBridge,
 ) -> Result<stats::StagedLatencySummary, String> {
     bridge.mutate_controller(|controller| {
         wait_for_rows(controller, options.gui_interaction_rows.max(1))?;
@@ -112,7 +112,7 @@ pub(super) fn bench_browser_filter_churn_latency(
 /// Measure query-only browser recompute latency.
 pub(super) fn bench_browser_query_churn_latency(
     options: &BenchOptions,
-    bridge: &mut SempalNativeBridge,
+    bridge: &mut WavecrateNativeBridge,
 ) -> Result<stats::StagedLatencySummary, String> {
     bridge.mutate_controller(|controller| {
         wait_for_rows(controller, options.gui_interaction_rows.max(1))?;
@@ -141,7 +141,7 @@ pub(super) fn bench_browser_query_churn_latency(
 /// Measure sort-only browser recompute latency.
 pub(super) fn bench_browser_sort_toggle_latency(
     options: &BenchOptions,
-    bridge: &mut SempalNativeBridge,
+    bridge: &mut WavecrateNativeBridge,
 ) -> Result<stats::StagedLatencySummary, String> {
     bridge.mutate_controller(|controller| {
         wait_for_rows(controller, options.gui_interaction_rows.max(1))?;
@@ -170,7 +170,7 @@ pub(super) fn bench_browser_sort_toggle_latency(
 /// Measure lightweight preview-focus navigation latency.
 pub(super) fn bench_browser_focus_preview_latency(
     options: &BenchOptions,
-    bridge: &mut SempalNativeBridge,
+    bridge: &mut WavecrateNativeBridge,
 ) -> Result<stats::StagedLatencySummary, String> {
     let interaction_rows = options.gui_interaction_rows.max(1);
     bridge.mutate_controller(|controller| wait_for_rows(controller, interaction_rows))?;
@@ -194,7 +194,7 @@ pub(super) fn bench_browser_focus_preview_latency(
 /// Measure commit-focus latency after preview navigation.
 pub(super) fn bench_browser_focus_commit_latency(
     options: &BenchOptions,
-    bridge: &mut SempalNativeBridge,
+    bridge: &mut WavecrateNativeBridge,
 ) -> Result<stats::StagedLatencySummary, String> {
     let interaction_rows = options.gui_interaction_rows.max(1);
     bridge.mutate_controller(|controller| wait_for_rows(controller, interaction_rows))?;
@@ -221,7 +221,7 @@ pub(super) fn bench_browser_focus_commit_latency(
 /// Measure map pan/zoom projection latency using cached map state.
 pub(super) fn bench_map_pan_proxy_latency(
     options: &BenchOptions,
-    bridge: &mut SempalNativeBridge,
+    bridge: &mut WavecrateNativeBridge,
 ) -> Result<stats::StagedLatencySummary, String> {
     bridge.mutate_controller(prime_map_cache_for_benchmark)?;
     let mut step = 0usize;
@@ -250,7 +250,7 @@ pub(super) fn bench_map_pan_proxy_latency(
 /// Measure waveform interaction latency across seek/cursor/selection/zoom actions.
 pub(super) fn bench_waveform_interactions(
     options: &BenchOptions,
-    bridge: &mut SempalNativeBridge,
+    bridge: &mut WavecrateNativeBridge,
 ) -> Result<stats::StagedLatencySummary, String> {
     let mut step = 0usize;
     stats::bench_staged_action_with_iters(
@@ -273,7 +273,7 @@ pub(super) fn bench_waveform_interactions(
 /// Measure continuous volume-drag update latency.
 pub(super) fn bench_volume_drag_latency(
     options: &BenchOptions,
-    bridge: &mut SempalNativeBridge,
+    bridge: &mut WavecrateNativeBridge,
 ) -> Result<stats::StagedLatencySummary, String> {
     bridge.mutate_controller(|controller| {
         wait_for_rows(controller, options.gui_interaction_rows.max(1))
@@ -299,7 +299,7 @@ pub(super) fn bench_volume_drag_latency(
 /// Measure idle cursor-motion latency using motion-only frame preparation.
 pub(super) fn bench_idle_cursor_motion_latency(
     options: &BenchOptions,
-    bridge: &mut SempalNativeBridge,
+    bridge: &mut WavecrateNativeBridge,
 ) -> Result<stats::StagedLatencySummary, String> {
     let mut step = 0usize;
     stats::bench_staged_action_with_iters(
@@ -322,7 +322,7 @@ pub(super) fn bench_idle_cursor_motion_latency(
 /// Measure adjacent waveform pan/zoom interactions.
 pub(super) fn bench_waveform_pan_zoom_adjacent_latency(
     options: &BenchOptions,
-    bridge: &mut SempalNativeBridge,
+    bridge: &mut WavecrateNativeBridge,
 ) -> Result<stats::LatencySummary, String> {
     let mut step = 0usize;
     stats::bench_action_with_iters(

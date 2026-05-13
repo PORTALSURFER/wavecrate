@@ -1,6 +1,6 @@
 //! Icon loading helpers for the native bootstrap path.
 
-use sempal::gui_runtime::WindowIconRgba;
+use wavecrate::gui_runtime::WindowIconRgba;
 
 /// Loads the application icon, preferring the ICO asset and falling back to PNG.
 pub fn load_app_icon() -> Option<WindowIconRgba> {

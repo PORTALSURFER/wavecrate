@@ -2,8 +2,8 @@
 
 #[cfg(test)]
 mod tests {
-    use sempal::audio::Source;
     use std::time::Duration;
+    use wavecrate::audio::Source;
 
     /// A dummy source that produces infinite interleaved samples.
     struct EndlessSource {

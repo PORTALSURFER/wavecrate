@@ -1,9 +1,9 @@
-//! Sempal-owned compatibility contract for the current native shell.
+//! Wavecrate-owned compatibility contract for the current native shell.
 //!
-//! These types are the app-specific bridge surface used by Sempal while the
+//! These types are the app-specific bridge surface used by Wavecrate while the
 //! native shell migrates onto generic Radiant runtime APIs. Generic widget,
 //! layout, input, rendering, and invalidation primitives still come from
-//! `radiant`; Sempal-specific shell models and actions live here.
+//! `radiant`; Wavecrate-specific shell models and actions live here.
 #![allow(dead_code, unused_imports)]
 
 #[path = "composition/runtime/actions/mod.rs"]

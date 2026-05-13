@@ -1,7 +1,7 @@
 //! Slotized sidebar row and recovery-badge text-line geometry helpers.
 
 use super::super::style::SizingTokens;
-use crate::gui::text_layout::{centered_text_line, TextLineInsets};
+use crate::gui::text_layout::{TextLineInsets, centered_text_line};
 use crate::gui::types::{Point, Rect};
 
 /// Shared geometry for one sidebar folder row.

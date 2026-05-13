@@ -1,11 +1,11 @@
 use super::*;
 
-/// Sempal-owned generic Radiant runtime bridge.
+/// Wavecrate-owned generic Radiant runtime bridge.
 ///
-/// This bridge is the ownership boundary for the runtime cutover: Sempal model
+/// This bridge is the ownership boundary for the runtime cutover: Wavecrate model
 /// projection, action reduction, shortcut resolution, repaint wiring, and
 /// shutdown artifacts are routed through Radiant's generic runtime API.
-pub(super) struct SempalRuntimeBridge<B> {
+pub(super) struct WavecrateRuntimeBridge<B> {
     pub(super) inner: B,
     model: Arc<runtime_contract::AppModel>,
     shell_state: NativeShellState,
@@ -22,18 +22,18 @@ pub(super) struct SempalRuntimeBridge<B> {
     text_edit: RetainedTextEditState,
 }
 
-/// Private message surface used by the generic runtime before Sempal action reduction.
+/// Private message surface used by the generic runtime before Wavecrate action reduction.
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum SempalRuntimeMessage {
+pub(super) enum WavecrateRuntimeMessage {
     /// Existing application action emitted by shortcut resolution or translated retained input.
     Action(UiAction),
-    /// Radiant retained-canvas input that still needs Sempal shell hit-testing.
+    /// Radiant retained-canvas input that still needs Wavecrate shell hit-testing.
     RetainedInput(WidgetInput),
     /// Local retained text-edit state changed without reducing an app action.
     LocalTextEdit,
 }
 
-/// Local text-input target tracked after Sempal focus actions.
+/// Local text-input target tracked after Wavecrate focus actions.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) enum RetainedTextInputTarget {
     /// No retained text input owns keyboard editing.
@@ -142,7 +142,7 @@ impl RetainedTextEditState {
     }
 }
 
-impl<B> SempalRuntimeBridge<B> {
+impl<B> WavecrateRuntimeBridge<B> {
     pub(super) fn new(inner: B) -> Self {
         Self {
             inner,
@@ -162,16 +162,16 @@ impl<B> SempalRuntimeBridge<B> {
         }
     }
 
-    /// Build the generic retained canvas surface that Radiant owns around Sempal rendering.
+    /// Build the generic retained canvas surface that Radiant owns around Wavecrate rendering.
     fn generic_shell_surface(
         retained: RetainedSurfaceDescriptor,
-    ) -> Arc<UiSurface<SempalRuntimeMessage>> {
+    ) -> Arc<UiSurface<WavecrateRuntimeMessage>> {
         Arc::new(UiSurface::new(SurfaceNode::retained_canvas_mapped(
             1,
             WidgetSizing::fixed(Vector2::new(1280.0, 720.0)),
             retained,
             |message: CanvasMessage| match message {
-                CanvasMessage::Input { input } => SempalRuntimeMessage::RetainedInput(input),
+                CanvasMessage::Input { input } => WavecrateRuntimeMessage::RetainedInput(input),
             },
         )))
     }
@@ -207,7 +207,7 @@ impl<B> SempalRuntimeBridge<B> {
     }
 }
 
-impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
+impl<B: NativeAppBridge> WavecrateRuntimeBridge<B> {
     /// Reduce one app action through the host and refresh the retained compatibility model.
     fn emit_action(&mut self, action: UiAction) {
         self.inner.reduce_action(action.clone());
@@ -237,7 +237,7 @@ impl<B: NativeAppBridge> SempalRuntimeBridge<B> {
         );
     }
 
-    /// Translate retained-canvas input into Sempal actions or local repaint-only state.
+    /// Translate retained-canvas input into Wavecrate actions or local repaint-only state.
     fn handle_retained_canvas_input(&mut self, input: WidgetInput) -> bool {
         match input {
             WidgetInput::PointerMove { position } => {
@@ -585,9 +585,9 @@ fn replace_char_range(text: &mut String, start: usize, end: usize, replacement: 
     text.replace_range(start..end, replacement);
 }
 
-impl<B: NativeAppBridge> RuntimeBridge<SempalRuntimeMessage> for SempalRuntimeBridge<B> {
-    /// Project Sempal state into the retained canvas surface visible to Radiant.
-    fn project_surface(&mut self) -> Arc<UiSurface<SempalRuntimeMessage>> {
+impl<B: NativeAppBridge> RuntimeBridge<WavecrateRuntimeMessage> for WavecrateRuntimeBridge<B> {
+    /// Project Wavecrate state into the retained canvas surface visible to Radiant.
+    fn project_surface(&mut self) -> Arc<UiSurface<WavecrateRuntimeMessage>> {
         if let Some(descriptor) = self.pending_surface_descriptor.take() {
             self.local_overlay_surface_refresh = false;
             self.motion_only_surface_refresh = false;
@@ -626,14 +626,14 @@ impl<B: NativeAppBridge> RuntimeBridge<SempalRuntimeMessage> for SempalRuntimeBr
     }
 
     /// Apply one generic runtime message and request repaint when retained state changed.
-    fn update(&mut self, message: SempalRuntimeMessage) -> Command<SempalRuntimeMessage> {
+    fn update(&mut self, message: WavecrateRuntimeMessage) -> Command<WavecrateRuntimeMessage> {
         match message {
-            SempalRuntimeMessage::Action(action) => {
+            WavecrateRuntimeMessage::Action(action) => {
                 self.emit_action(action);
                 Command::none()
             }
-            SempalRuntimeMessage::LocalTextEdit => Command::request_repaint(),
-            SempalRuntimeMessage::RetainedInput(input) => {
+            WavecrateRuntimeMessage::LocalTextEdit => Command::request_repaint(),
+            WavecrateRuntimeMessage::RetainedInput(input) => {
                 let repaint = self.handle_retained_canvas_input(input);
                 if repaint {
                     Command::request_repaint()
@@ -649,12 +649,12 @@ impl<B: NativeAppBridge> RuntimeBridge<SempalRuntimeMessage> for SempalRuntimeBr
         pending_chord: Option<RadiantKeyPress>,
         press: RadiantKeyPress,
         focus: RadiantFocusSurface,
-    ) -> RadiantShortcutResolution<SempalRuntimeMessage> {
+    ) -> RadiantShortcutResolution<WavecrateRuntimeMessage> {
         if self.text_input_target != RetainedTextInputTarget::None {
             self.sync_text_edit_from_model();
             if self.resolve_retained_text_key_press(press) {
                 return RadiantShortcutResolution {
-                    action: Some(SempalRuntimeMessage::LocalTextEdit),
+                    action: Some(WavecrateRuntimeMessage::LocalTextEdit),
                     handled: true,
                     pending_chord: None,
                 };
@@ -664,10 +664,10 @@ impl<B: NativeAppBridge> RuntimeBridge<SempalRuntimeMessage> for SempalRuntimeBr
         let resolution = hotkeys::resolve_hotkey_press(
             pending_chord.map(keypress_from_radiant),
             keypress_from_radiant(press),
-            sempal_focus_context(&self.model, focus),
+            wavecrate_focus_context(&self.model, focus),
         );
         RadiantShortcutResolution {
-            action: resolution.action.map(SempalRuntimeMessage::Action),
+            action: resolution.action.map(WavecrateRuntimeMessage::Action),
             handled: resolution.handled,
             pending_chord: resolution.pending_chord.map(keypress_to_radiant),
         }
@@ -695,7 +695,7 @@ impl<B: NativeAppBridge> RuntimeBridge<SempalRuntimeMessage> for SempalRuntimeBr
         self.shell_state.needs_animation()
     }
 
-    /// Render the retained Sempal shell into a paint frame when Radiant requests the canvas.
+    /// Render the retained Wavecrate shell into a paint frame when Radiant requests the canvas.
     fn render_retained_surface(
         &mut self,
         descriptor: RetainedSurfaceDescriptor,

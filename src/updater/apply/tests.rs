@@ -8,14 +8,14 @@ use tempfile::tempdir;
 fn relaunch_app_errors_when_executable_missing() {
     let tmp = tempdir().unwrap();
     let manifest = UpdateManifest {
-        app: "sempal".to_string(),
+        app: "wavecrate".to_string(),
         channel: "stable".to_string(),
         target: "target".to_string(),
         platform: "linux".to_string(),
         arch: "x86_64".to_string(),
         files: Vec::new(),
     };
-    let err = relaunch_app(tmp.path(), "sempal", &manifest).unwrap_err();
+    let err = relaunch_app(tmp.path(), "wavecrate", &manifest).unwrap_err();
     assert!(err.to_string().contains("Updated executable missing"));
 }
 
@@ -37,7 +37,7 @@ fn apply_files_and_dirs_keeps_running_executable_on_stage_failure() {
     fs::write(&running_dest, "old-binary").unwrap();
 
     let manifest = UpdateManifest {
-        app: "sempal".to_string(),
+        app: "wavecrate".to_string(),
         channel: "stable".to_string(),
         target: "target".to_string(),
         platform: "linux".to_string(),
@@ -60,7 +60,7 @@ fn apply_files_and_dirs_removes_stale_files_from_prior_manifest() {
     fs::create_dir_all(&root_dir).unwrap();
 
     let installed_manifest_json = r#"{
-  "app": "sempal",
+  "app": "wavecrate",
   "channel": "stable",
   "target": "target",
   "platform": "linux",
@@ -77,7 +77,7 @@ fn apply_files_and_dirs_removes_stale_files_from_prior_manifest() {
     fs::write(install_dir.join("old.txt"), "old-stale").unwrap();
 
     let next_manifest = UpdateManifest {
-        app: "sempal".to_string(),
+        app: "wavecrate".to_string(),
         channel: "stable".to_string(),
         target: "target".to_string(),
         platform: "linux".to_string(),
@@ -108,7 +108,7 @@ fn apply_files_and_dirs_removes_stale_resources_dir() {
     fs::create_dir_all(&root_dir).unwrap();
 
     let installed_manifest_json = r#"{
-  "app": "sempal",
+  "app": "wavecrate",
   "channel": "stable",
   "target": "target",
   "platform": "linux",
@@ -128,7 +128,7 @@ fn apply_files_and_dirs_removes_stale_resources_dir() {
     fs::write(resources_dir.join("old.dat"), "resource").unwrap();
 
     let next_manifest = UpdateManifest {
-        app: "sempal".to_string(),
+        app: "wavecrate".to_string(),
         channel: "stable".to_string(),
         target: "target".to_string(),
         platform: "linux".to_string(),
@@ -167,7 +167,7 @@ fn apply_files_and_dirs_reports_stale_removal_failures() {
     fs::set_permissions(&stale_dir, perms).unwrap();
 
     let installed_manifest_json = r#"{
-  "app": "sempal",
+  "app": "wavecrate",
   "channel": "stable",
   "target": "target",
   "platform": "linux",
@@ -183,7 +183,7 @@ fn apply_files_and_dirs_reports_stale_removal_failures() {
     fs::write(install_dir.join("current.txt"), "old-current").unwrap();
 
     let next_manifest = UpdateManifest {
-        app: "sempal".to_string(),
+        app: "wavecrate".to_string(),
         channel: "stable".to_string(),
         target: "target".to_string(),
         platform: "linux".to_string(),

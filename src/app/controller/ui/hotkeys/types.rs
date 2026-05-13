@@ -109,7 +109,7 @@ impl HotkeyGesture {
     }
 }
 
-/// Sempal-owned hotkey metadata for native runtime and help surfaces.
+/// Wavecrate-owned hotkey metadata for native runtime and help surfaces.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct HotkeyAction {
     pub(crate) id: &'static str,
@@ -129,7 +129,7 @@ impl HotkeyAction {
     }
 }
 
-/// Result of resolving one keypress against the Sempal-owned hotkey catalog.
+/// Result of resolving one keypress against the Wavecrate-owned hotkey catalog.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct HotkeyResolution {
     pub(crate) action: Option<NativeUiAction>,

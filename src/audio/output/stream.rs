@@ -180,7 +180,7 @@ struct BuiltStreamState {
 
 /// Open an audio stream honoring user preferences with safe fallbacks.
 ///
-/// On test builds, set `SEMPAL_TEST_AUDIO_OUTPUT=1` to exercise real output
+/// On test builds, set `WAVECRATE_TEST_AUDIO_OUTPUT=1` to exercise real output
 /// devices; otherwise the function returns `NoOutputDevices` to keep automated
 /// test runs deterministic on hosts without stable audio hardware.
 pub fn open_output_stream(
@@ -188,7 +188,7 @@ pub fn open_output_stream(
 ) -> Result<OpenStreamOutcome, AudioOutputError> {
     #[cfg(test)]
     {
-        if !crate::env_flags::env_var_truthy("SEMPAL_TEST_AUDIO_OUTPUT") {
+        if !crate::env_flags::env_var_truthy("WAVECRATE_TEST_AUDIO_OUTPUT") {
             return Err(AudioOutputError::NoOutputDevices);
         }
     }

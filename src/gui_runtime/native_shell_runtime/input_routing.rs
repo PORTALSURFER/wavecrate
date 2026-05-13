@@ -10,8 +10,8 @@ fn focus_context_from_radiant(focus: RadiantFocusSurface) -> FocusContext {
     }
 }
 
-/// Resolve Sempal focus from the projected model, falling back to Radiant focus.
-pub(super) fn sempal_focus_context(
+/// Resolve Wavecrate focus from the projected model, falling back to Radiant focus.
+pub(super) fn wavecrate_focus_context(
     model: &runtime_contract::AppModel,
     focus: RadiantFocusSurface,
 ) -> FocusContext {
@@ -42,7 +42,7 @@ pub(super) fn keypress_to_radiant(press: KeyPress) -> RadiantKeyPress {
     }
 }
 
-/// Resolve a retained pointer press into a Sempal compatibility action.
+/// Resolve a retained pointer press into a Wavecrate compatibility action.
 pub(super) fn action_from_retained_pointer(
     layout: &ShellLayout,
     model: &runtime_contract::AppModel,

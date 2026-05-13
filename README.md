@@ -1,11 +1,11 @@
 
 ⚠️ **Warning:** Early alpha software. Use at your own risk, this tool can modify, rename, or delete files, and bugs could damage your sample library. Keep backups and proceed with caution. ⚠️
 
-# SEMPAL
+# WAVECRATE
 
 Audio sample triage tool built with Rust.
 
-[![Build release assets](https://github.com/PORTALSURFER/sempal/actions/workflows/release-build.yml/badge.svg)](https://github.com/PORTALSURFER/sempal/actions/workflows/release-build.yml)
+[![Build release assets](https://github.com/PORTALSURFER/wavecrate/actions/workflows/release-build.yml/badge.svg)](https://github.com/PORTALSURFER/wavecrate/actions/workflows/release-build.yml)
 
 ---
 
@@ -24,14 +24,14 @@ Audio sample triage tool built with Rust.
 - Requires Rust (stable toolchain) and `cargo`.
 - Initialize submodules after clone: `git submodule update --init --recursive`.
 - For the fastest local app loop from the project root: `cargo run-fast`.
-- For exact shipping-profile behavior: `cargo run -p sempal --bin sempal --release`.
-- Or build once and run the shipping binary: `cargo build -p sempal --release` then `target/release/sempal`.
+- For exact shipping-profile behavior: `cargo run -p wavecrate --bin wavecrate --release`.
+- Or build once and run the shipping binary: `cargo build -p wavecrate --release` then `target/release/wavecrate`.
 - Playback uses your default audio output device.
 - GUI backend:
   - Main app uses `native_vello` (radiant runtime path) by default and no longer exposes a legacy backend switch.
   - `app_core` defines the domain action/projection layer that feeds `radiant` without owning widget behavior.
   - Architecture and migration guidance: `docs/ARCHITECTURE.md`.
-  - Native shell text rendering can use `SEMPAL_NATIVE_FONT_PATH=/path/to/font.ttf` if automatic system font discovery fails.
+  - Native shell text rendering can use `WAVECRATE_NATIVE_FONT_PATH=/path/to/font.ttf` if automatic system font discovery fails.
 - Windows (ASIO): If you want to build with ASIO support (or your build fails looking for the ASIO SDK), download the Steinberg ASIO SDK and set `CPAL_ASIO_DIR` to the SDK path (e.g. a folder named `ASIOSDK`) before running `cargo build`/`cargo run`.
 
 Local CI parity command (canonical):
@@ -46,7 +46,7 @@ Fast local app loop:
 Agent-safe local validation loop for constrained environments:
 - macOS/Linux/WSL: `bash scripts/ci.sh agent`
 - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 agent`
-- Runs `devcheck` plus `cargo test -p sempal --lib -- --test-threads=1` without `cargo nextest`.
+- Runs `devcheck` plus `cargo test -p wavecrate --lib -- --test-threads=1` without `cargo nextest`.
 
 Broader integrated local validation loop:
 - macOS/Linux/WSL: `bash scripts/ci.sh quick`
@@ -64,7 +64,7 @@ set) to route audio probing to a dummy sink and reduce ALSA warning noise.
 - `vendor/radiant` owns GUI abstractions, widgets, layout, input handling, diff/update
   logic, and rendering coordination.
 - `src/gui` re-exports backend-neutral `radiant` GUI primitives for app code.
-- `src/gui_runtime` is the thin host-bridge layer between Sempal and `radiant`.
+- `src/gui_runtime` is the thin host-bridge layer between Wavecrate and `radiant`.
 - `src/app_core` is the stable application-core projection and state transition surface used by the native runtime and automation/test hosts.
 - `src/app` still owns the compatibility-heavy application model/controller logic that has not yet migrated into `app_core`.
 - Core domain logic, sample indexing, playback, and persistence remain in `src/` modules
@@ -118,7 +118,7 @@ avoid duplicate state mutation in UI callbacks.
   - `native-bridge-metrics` (build with `--features native-bridge-metrics`) for host bridge timing
 - Enable runtime logs by setting:
   - `RADIANT_NATIVE_RENDER_PROFILE=true`
-  - `SEMPAL_NATIVE_BRIDGE_PROFILE=true`
+  - `WAVECRATE_NATIVE_BRIDGE_PROFILE=true`
   - Accepts `1`, `true`, `on`, and `yes` (case-insensitive for `TRUE`/`On`/`ON` style variants)
 - Logging includes frame build, model access, motion overlay, and frame-submit timing for render; bridge profiling also includes adapter transition and event-funnel timing.
   plus per-frame scene/motion/static rebuild and text cache counters.
@@ -136,8 +136,8 @@ Legacy golden regression tests still use PANNs reference artifacts:
   - `bash scripts/check.sh golden-tests`
   - `powershell -ExecutionPolicy Bypass -File scripts/check.ps1 golden-tests`
 - These scripts set:
-  - `SEMPAL_PANNS_GOLDEN_PATH`
-  - `SEMPAL_PANNS_EMBED_GOLDEN_PATH`
+  - `WAVECRATE_PANNS_GOLDEN_PATH`
+  - `WAVECRATE_PANNS_EMBED_GOLDEN_PATH`
 
 ## Code style and linting
 
@@ -149,29 +149,29 @@ Legacy golden regression tests still use PANNs reference artifacts:
 
 ## Configuration and data
 
-- Each source folder gets a hidden `.sempal_samples.db` that tracks indexed `.wav` files and their tags.
-- App files live in a single `.sempal` folder inside your OS config directory:
-  - Linux: `$HOME/.config/.sempal/config.toml`
-  - Windows: `%APPDATA%\\.sempal\\config.toml`
-  - macOS: `~/Library/Application Support/.sempal/config.toml`
-- Non-live persistence profiles live under the same root at `.sempal/profiles/<name>`.
+- Each source folder gets a hidden `.wavecrate_samples.db` that tracks indexed `.wav` files and their tags.
+- App files live in a single `.wavecrate` folder inside your OS config directory:
+  - Linux: `$HOME/.config/.wavecrate/config.toml`
+  - Windows: `%APPDATA%\\.wavecrate\\config.toml`
+  - macOS: `~/Library/Application Support/.wavecrate/config.toml`
+- Non-live persistence profiles live under the same root at `.wavecrate/profiles/<name>`.
 - `sandbox` is the canonical manual-QA profile; `automated-tests` is the canonical automated-validation profile.
 - Automated test and GUI-validation flows default to isolated non-live profiles so they do not rewrite the live `library.db` source list.
 - Manual GUI validation against the real persisted startup path is still available by opting into the `live` GUI fixture explicitly.
 
 ## SQLite extensions (optional)
 
-- Sempal can load a SQLite extension for faster vector operations via `SEMPAL_SQLITE_EXT`.
-- Loading is opt-in with `SEMPAL_SQLITE_EXT_ENABLE=1` and restricted to `<app_root>/sqlite_extensions`.
-- Unsafe mode (`SEMPAL_SQLITE_EXT_UNSAFE=1`) bypasses the allowlist, but it is ignored unless the build enables the `sqlite-ext-unsafe` cargo feature.
+- Wavecrate can load a SQLite extension for faster vector operations via `WAVECRATE_SQLITE_EXT`.
+- Loading is opt-in with `WAVECRATE_SQLITE_EXT_ENABLE=1` and restricted to `<app_root>/sqlite_extensions`.
+- Unsafe mode (`WAVECRATE_SQLITE_EXT_UNSAFE=1`) bypasses the allowlist, but it is ignored unless the build enables the `sqlite-ext-unsafe` cargo feature.
 - If you need unsafe mode, rebuild with `cargo build --release --features sqlite-ext-unsafe` and supply a fully trusted extension path.
 
 ## Logging
 
-- Startup initializes console logging and a per-launch log file under the same `.sempal` folder:
-  - Linux: `$HOME/.config/.sempal/logs`
-  - Windows: `%APPDATA%\\.sempal\\logs`
-  - macOS: `~/Library/Application Support/.sempal/logs`
+- Startup initializes console logging and a per-launch log file under the same `.wavecrate` folder:
+  - Linux: `$HOME/.config/.wavecrate/logs`
+  - Windows: `%APPDATA%\\.wavecrate\\logs`
+  - macOS: `~/Library/Application Support/.wavecrate/logs`
 - Log filenames include the launch timestamp, and the 10 most recent files are retained by pruning the oldest.
 
 ## Documentation

@@ -1,7 +1,7 @@
 //! Update-check and update-application helpers.
 //!
 //! This module is consumed both by the main app shell (to check for new releases)
-//! and by the optional `sempal-updater` helper binary (to apply updates).
+//! and by the optional `wavecrate-updater` helper binary (to apply updates).
 
 mod apply;
 mod archive;
@@ -25,9 +25,9 @@ pub use check::{UpdateCheckOutcome, UpdateCheckRequest};
 pub use github::ReleaseSummary;
 
 /// Canonical app name used by the release contract.
-pub const APP_NAME: &str = "sempal";
+pub const APP_NAME: &str = "wavecrate";
 /// Canonical GitHub repository slug (`OWNER/REPO`) used for update checks.
-pub const REPO_SLUG: &str = "PORTALSURFER/sempal";
+pub const REPO_SLUG: &str = "PORTALSURFER/wavecrate";
 /// Base64-encoded Ed25519 public key used to verify checksum signatures.
 pub(crate) const CHECKSUMS_PUBLIC_KEY_BASE64: &str = "8Z7dQJBRMbxCFkFMeBYa1FMSWOUm6nePFgoK5c43jT4=";
 
@@ -57,7 +57,7 @@ pub struct RuntimeIdentity {
     pub arch: String,
 }
 
-/// Updater run configuration (used by `sempal-updater`).
+/// Updater run configuration (used by `wavecrate-updater`).
 #[derive(Debug, Clone)]
 pub struct UpdaterRunArgs {
     /// GitHub repository slug.

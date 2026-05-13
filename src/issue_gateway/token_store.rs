@@ -18,11 +18,11 @@ mod fallback_store;
 /// Keyring-backed token/key read-write operations.
 mod keyring_backend;
 
-const KEYRING_SERVICE: &str = "sempal";
-const KEYRING_KEY: &str = "sempal_github_issue_token";
-const FALLBACK_KEYRING_KEY: &str = "sempal_github_issue_token_fallback_key";
-const FALLBACK_ALLOW_ENV: &str = "SEMPAL_ALLOW_FALLBACK_TOKEN_STORAGE";
-const FALLBACK_KEY_ENV_VAR: &str = "SEMPAL_FALLBACK_KEY";
+const KEYRING_SERVICE: &str = "wavecrate";
+const KEYRING_KEY: &str = "wavecrate_github_issue_token";
+const FALLBACK_KEYRING_KEY: &str = "wavecrate_github_issue_token_fallback_key";
+const FALLBACK_ALLOW_ENV: &str = "WAVECRATE_ALLOW_FALLBACK_TOKEN_STORAGE";
+const FALLBACK_KEY_ENV_VAR: &str = "WAVECRATE_FALLBACK_KEY";
 const MAX_FALLBACK_TOKEN_BYTES: u64 = 16 * 1024;
 
 static FALLBACK_WARNING_EMITTED: AtomicBool = AtomicBool::new(false);
@@ -51,7 +51,7 @@ pub enum IssueTokenStoreError {
 /// Stores the issue token in the OS keyring with an opt-in encrypted file fallback.
 ///
 /// The fallback stores ciphertext on disk. The encryption key must live in the OS
-/// keyring or be provided via `SEMPAL_FALLBACK_KEY` when keyring storage is
+/// keyring or be provided via `WAVECRATE_FALLBACK_KEY` when keyring storage is
 /// unavailable.
 #[derive(Clone, Debug)]
 pub struct IssueTokenStore {
@@ -164,7 +164,7 @@ impl IssueTokenStore {
 }
 
 fn keyring_disabled() -> bool {
-    env_var_truthy("SEMPAL_DISABLE_KEYRING")
+    env_var_truthy("WAVECRATE_DISABLE_KEYRING")
 }
 
 fn fallback_allowed() -> bool {

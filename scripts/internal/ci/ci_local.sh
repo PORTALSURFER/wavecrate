@@ -12,10 +12,10 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$ROOT_DIR"
 # shellcheck source=scripts/internal/setup_headless_audio.sh
 source "$ROOT_DIR/scripts/internal/setup_headless_audio.sh"
-sempal_setup_headless_audio "ci_local"
+wavecrate_setup_headless_audio "ci_local"
 # shellcheck source=scripts/internal/use_cargo_cache.sh
 source "$ROOT_DIR/scripts/internal/use_cargo_cache.sh"
-sempal_enable_cargo_cache
+wavecrate_enable_cargo_cache
 
 SKIP_AGENT_PREFLIGHT=0
 
@@ -55,8 +55,8 @@ fi
 echo "[ci_local] cargo clippy --workspace --all-targets"
 cargo clippy --workspace --all-targets
 
-echo "[ci_local] cargo doc -p sempal --no-deps (RUSTDOCFLAGS=-D warnings)"
-RUSTDOCFLAGS="-D warnings" cargo doc -p sempal --no-deps
+echo "[ci_local] cargo doc -p wavecrate --no-deps (RUSTDOCFLAGS=-D warnings)"
+RUSTDOCFLAGS="-D warnings" cargo doc -p wavecrate --no-deps
 
 echo "[ci_local] cargo nextest run --workspace --profile ci-required --all-targets --no-fail-fast"
 cargo nextest run --workspace --profile ci-required --all-targets --no-fail-fast

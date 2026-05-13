@@ -340,10 +340,10 @@ mod tests {
             "release",
             "windows",
             "x86_64",
-            "C:\\Users\\me\\AppData\\Roaming\\.sempal\\logs",
+            "C:\\Users\\me\\AppData\\Roaming\\.wavecrate\\logs",
         );
 
-        assert!(block.contains("Logs dir: C:\\Users\\me\\AppData\\Roaming\\.sempal\\logs"));
+        assert!(block.contains("Logs dir: C:\\Users\\me\\AppData\\Roaming\\.wavecrate\\logs"));
         assert!(block.contains("Latest run log: newest `*.log` file in Logs dir"));
     }
 }

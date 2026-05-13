@@ -15,10 +15,10 @@ pub(crate) const BRIDGE_PROFILE_INTERVAL: u64 = 240;
 pub(crate) const BRIDGE_PROFILE_INTERVAL: u64 = 1;
 
 #[cfg(feature = "native-bridge-metrics")]
-const BRIDGE_PROFILE_ENV: &str = "SEMPAL_NATIVE_BRIDGE_PROFILE";
+const BRIDGE_PROFILE_ENV: &str = "WAVECRATE_NATIVE_BRIDGE_PROFILE";
 #[cfg(feature = "native-bridge-metrics")]
 /// Enable runtime validation that cached projection-key snapshots stay in sync.
-const PROJECTION_KEY_ASSERT_ENV: &str = "SEMPAL_NATIVE_BRIDGE_ASSERT_PROJECTION_SNAPSHOT";
+const PROJECTION_KEY_ASSERT_ENV: &str = "WAVECRATE_NATIVE_BRIDGE_ASSERT_PROJECTION_SNAPSHOT";
 
 #[cfg(feature = "native-bridge-metrics")]
 /// Total number of projection-cache lookups that reused a cached model.

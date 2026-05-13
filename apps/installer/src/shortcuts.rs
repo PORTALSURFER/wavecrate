@@ -27,8 +27,8 @@ pub(crate) fn create_start_menu_shortcut(install_dir: &Path) -> Result<(), Strin
             .map_err(|err| format!("Failed to create Start Menu folder: {err}"))?;
 
         let shortcut_path = start_menu.join("SemPal.lnk");
-        let target_path = install_dir.join("sempal.exe");
-        let icon_path = install_dir.join("sempal.ico");
+        let target_path = install_dir.join("wavecrate.exe");
+        let icon_path = install_dir.join("wavecrate.ico");
 
         struct ComGuard;
         impl Drop for ComGuard {

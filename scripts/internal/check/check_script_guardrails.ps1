@@ -159,7 +159,7 @@ function Invoke-ExpectOutput {
 }
 
 function New-TempDir {
-  $tempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("sempal-guardrails-" + [System.Guid]::NewGuid().ToString("N"))
+  $tempPath = Join-Path ([System.IO.Path]::GetTempPath()) ("wavecrate-guardrails-" + [System.Guid]::NewGuid().ToString("N"))
   New-Item -ItemType Directory -Path $tempPath | Out-Null
   return $tempPath
 }
@@ -435,8 +435,8 @@ try {
     )
 
     git -C $repoDir init -q
-    git -C $repoDir config user.name "sempal-ci"
-    git -C $repoDir config user.email "ci@sempal.test"
+    git -C $repoDir config user.name "wavecrate-ci"
+    git -C $repoDir config user.email "ci@wavecrate.test"
     git -C $repoDir add src/too_many_lines.rs src/blank_lines_count.rs
     git -C $repoDir commit -qm "seed"
 
@@ -452,8 +452,8 @@ try {
       "}"
     )
     git -C $vendorRepoDir init -q
-    git -C $vendorRepoDir config user.name "sempal-ci"
-    git -C $vendorRepoDir config user.email "ci@sempal.test"
+    git -C $vendorRepoDir config user.name "wavecrate-ci"
+    git -C $vendorRepoDir config user.email "ci@wavecrate.test"
     git -C $vendorRepoDir add src/too_many_lines.rs
     git -C $vendorRepoDir commit -qm "seed"
 
@@ -507,21 +507,21 @@ try {
 
     $vendorRepoDir = Join-Path $repoDir "vendor/radiant"
     git -C $vendorRepoDir init -q
-    git -C $vendorRepoDir config user.name "sempal-ci"
-    git -C $vendorRepoDir config user.email "ci@sempal.test"
+    git -C $vendorRepoDir config user.name "wavecrate-ci"
+    git -C $vendorRepoDir config user.email "ci@wavecrate.test"
     git -C $vendorRepoDir add .
     git -C $vendorRepoDir commit -qm "seed"
 
     git -C $repoDir init -q
-    git -C $repoDir config user.name "sempal-ci"
-    git -C $repoDir config user.email "ci@sempal.test"
+    git -C $repoDir config user.name "wavecrate-ci"
+    git -C $repoDir config user.email "ci@wavecrate.test"
     git -C $repoDir add src scripts
     git -C $repoDir commit -qm "seed"
 
     $outputPath = Join-Path $repoDir "tmp/cleanup.md"
     Invoke-ExpectExitCode -Label "cleanup audit fixture succeeds" -ExpectedCode 0 -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/internal/check/audit_cleanup_hotspots.ps1") -Arguments @("-Output", $outputPath, "-TestGapMinLines", "3", "-TopFiles", "10")
     $reportText = Get-Content -Path $outputPath -Raw
-    $sectionStart = $reportText.IndexOf("## Sempal-root likely test-gap hotspots (heuristic)")
+    $sectionStart = $reportText.IndexOf("## Wavecrate-root likely test-gap hotspots (heuristic)")
     $sectionEnd = $reportText.IndexOf("## Vendor/Radiant likely test-gap hotspots (heuristic)")
     $testGapSection = if ($sectionStart -ge 0 -and $sectionEnd -gt $sectionStart) {
       $reportText.Substring($sectionStart, $sectionEnd - $sectionStart)
@@ -536,7 +536,7 @@ try {
       $reportText
     }
     Assert-TextContains -Label "cleanup audit fixture reports two heuristic gaps across scopes" -Text $reportText -Fragment "Likely large-file test-gap hotspots (heuristic): 2"
-    Assert-TextContains -Label "cleanup audit fixture emits root section" -Text $reportText -Fragment "## Sempal-root largest Rust files"
+    Assert-TextContains -Label "cleanup audit fixture emits root section" -Text $reportText -Fragment "## Wavecrate-root largest Rust files"
     Assert-TextContains -Label "cleanup audit fixture emits vendor section" -Text $reportText -Fragment "## Vendor/Radiant largest Rust files"
     Assert-TextContains -Label "cleanup audit fixture keeps the real gap" -Text $testGapSection -Fragment 'src/real_gap.rs'
     Assert-TextContains -Label "cleanup audit fixture keeps the vendor gap separate" -Text $vendorTestGapSection -Fragment 'vendor/radiant/src/vendor_gap.rs'
@@ -575,7 +575,7 @@ try {
       '- `docs/TROUBLESHOOTING.md`',
       '- `AGENTS.md`',
       '- Planning and backlog',
-      '  - live in Linear project `Sempal` under team `PORTALSURFER`'
+      '  - live in Linear project `Wavecrate` under team `PORTALSURFER`'
     )
 
     Invoke-ExpectExitCode -Label "docs index fixture accepts Linear planning pointer" -ExpectedCode 0 -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/internal/check/check_docs_index.ps1")
@@ -607,7 +607,7 @@ try {
     Copy-Item (Join-Path $scriptsDir "internal/run/latest_log.ps1") (Join-Path $repoDir "scripts/internal/run/latest_log.ps1")
 
     $configBase = Join-Path $repoDir "fixture-config"
-    $liveLogsDir = Join-Path $configBase ".sempal/logs"
+    $liveLogsDir = Join-Path $configBase ".wavecrate/logs"
     New-Item -ItemType Directory -Path $liveLogsDir -Force | Out-Null
     Set-Content -Path (Join-Path $liveLogsDir "older.log") -Value "older live log"
     Start-Sleep -Milliseconds 20
@@ -616,8 +616,8 @@ try {
 
     Invoke-ExpectOutput -Label "latest log helper resolves live profile log file" -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/run.ps1") -Arguments @("logs") -EnvVars @{
       APPDATA = $configBase
-      SEMPAL_CONFIG_HOME = ""
-      SEMPAL_CONFIG_PROFILE = ""
+      WAVECRATE_CONFIG_HOME = ""
+      WAVECRATE_CONFIG_PROFILE = ""
     } -ExpectedSubstrings @(
       "[latest_log] persistence_profile=live",
       "[latest_log] logs_dir=$liveLogsDir",
@@ -629,8 +629,8 @@ try {
     if ($null -ne $windowsPowerShell) {
       Invoke-ExpectOutput -Label "latest log helper resolves live profile log file in Windows PowerShell strict mode" -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/run.ps1") -Arguments @("logs") -PowerShellPath $windowsPowerShell.Path -EnvVars @{
         APPDATA = $configBase
-        SEMPAL_CONFIG_HOME = ""
-        SEMPAL_CONFIG_PROFILE = ""
+        WAVECRATE_CONFIG_HOME = ""
+        WAVECRATE_CONFIG_PROFILE = ""
       } -ExpectedSubstrings @(
         "[latest_log] persistence_profile=live",
         "[latest_log] logs_dir=$liveLogsDir",
@@ -639,8 +639,8 @@ try {
       )
     }
 
-    $sandboxBase = Join-Path $repoDir ".sandbox/sempal"
-    $sandboxDefaultRoot = Join-Path $sandboxBase ".sempal/profiles/sandbox"
+    $sandboxBase = Join-Path $repoDir ".sandbox/wavecrate"
+    $sandboxDefaultRoot = Join-Path $sandboxBase ".wavecrate/profiles/sandbox"
     New-Item -ItemType Directory -Path $sandboxDefaultRoot -Force | Out-Null
     $overrideRoot = Join-Path $repoDir "sandbox-override"
     $overrideLogsDir = Join-Path $overrideRoot "logs"
@@ -656,8 +656,8 @@ try {
 
     Invoke-ExpectOutput -Label "latest log helper resolves sandbox profile and app_data_dir override" -WorkDir $repoDir -ScriptPath (Join-Path $repoDir "scripts/run.ps1") -Arguments @("logs", "-Sandbox") -EnvVars @{
       APPDATA = $configBase
-      SEMPAL_CONFIG_HOME = ""
-      SEMPAL_CONFIG_PROFILE = ""
+      WAVECRATE_CONFIG_HOME = ""
+      WAVECRATE_CONFIG_PROFILE = ""
     } -ExpectedSubstrings @(
       "[latest_log] persistence_profile=sandbox",
       "[latest_log] app_root=$overrideRootConfigStyle",

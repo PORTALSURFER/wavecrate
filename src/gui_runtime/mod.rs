@@ -1,21 +1,21 @@
-//! Sempal GUI runtime host integration.
+//! Wavecrate GUI runtime host integration.
 //!
-//! The runtime layer in `sempal` is intentionally minimal and has a strict
+//! The runtime layer in `wavecrate` is intentionally minimal and has a strict
 //! contract:
 //!
-//! * it converts `sempal` launch options into `radiant`-native options,
+//! * it converts `wavecrate` launch options into `radiant`-native options,
 //! * it launches through Radiant's generic native runtime bridge,
 //! * it routes runtime errors into project logging.
 //!
 //! Product shell composition, automation snapshots, and compatibility DTO
-//! conversion are Sempal-owned. Generic widget state, layout primitives,
+//! conversion are Wavecrate-owned. Generic widget state, layout primitives,
 //! rendering command construction, event policy, diffing, and reusable GUI
 //! infrastructure remain in `radiant`.
 //!
 //! This separation allows deterministic ownership of interaction and layout logic
 //! in one place while keeping host bootstrapping lightweight.
 //!
-//! Sempal intentionally confines native-shell compatibility glue to this runtime
+//! Wavecrate intentionally confines native-shell compatibility glue to this runtime
 //! boundary while the live launch path goes through Radiant's generic runtime.
 
 use crate::app_core::actions::{NativeAppBridge, NativeAppModel, NativeGuiAutomationSnapshot};
@@ -26,18 +26,18 @@ use tracing::{error, info};
 mod native_shell_runtime;
 
 pub use radiant::gui_runtime::{
-    NativeStartupTimingArtifact, RuntimeRunReport, DEFAULT_NATIVE_WINDOW_TITLE,
+    DEFAULT_NATIVE_WINDOW_TITLE, NativeStartupTimingArtifact, RuntimeRunReport,
 };
 
-/// Bundled Sempal UI font asset.
-pub const SEMPAL_UI_FONT_ASSET: &str = "assets/FORCED SQUARE.ttf";
+/// Bundled Wavecrate UI font asset.
+pub const WAVECRATE_UI_FONT_ASSET: &str = "assets/FORCED SQUARE.ttf";
 
-/// Return the bundled Sempal UI font path used before native font fallbacks.
-pub fn sempal_ui_font_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(SEMPAL_UI_FONT_ASSET)
+/// Return the bundled Wavecrate UI font path used before native font fallbacks.
+pub fn wavecrate_ui_font_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(WAVECRATE_UI_FONT_ASSET)
 }
 
-/// Machine-readable native shutdown timing payload exported by Sempal bridges.
+/// Machine-readable native shutdown timing payload exported by Wavecrate bridges.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct NativeShutdownTimingArtifact {
     /// Whether all shutdown phases completed without a captured error.
@@ -58,16 +58,16 @@ pub struct NativeShutdownTimingArtifact {
     pub runtime_exit_total_ms: Option<f64>,
 }
 
-/// Structured runtime artifacts exported after one Sempal native run completes.
+/// Structured runtime artifacts exported after one Wavecrate native run completes.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct NativeRuntimeArtifacts {
     /// Native startup timing artifact captured for this run, when startup began.
     pub startup_timing: Option<NativeStartupTimingArtifact>,
-    /// Sempal shutdown timing artifact captured after the runtime exit hook runs.
+    /// Wavecrate shutdown timing artifact captured after the runtime exit hook runs.
     pub shutdown_timing: Option<NativeShutdownTimingArtifact>,
 }
 
-/// Result plus structured artifacts returned by one Sempal native runtime execution.
+/// Result plus structured artifacts returned by one Wavecrate native runtime execution.
 #[derive(Debug)]
 pub struct NativeRunReport {
     /// Structured artifacts captured during the run.
@@ -116,14 +116,14 @@ pub fn run_native_vello_app<B: NativeAppBridge + 'static>(
     options: NativeRunOptions,
     bridge: B,
 ) -> Result<(), String> {
-    info!("Launching Sempal native Vello runtime");
+    info!("Launching Wavecrate native Vello runtime");
     let result = native_shell_runtime::run_native_vello_app(options, bridge).map_err(|err| {
-        error!(%err, "Sempal native Vello runtime returned error");
+        error!(%err, "Wavecrate native Vello runtime returned error");
         err
     });
 
     if result.is_ok() {
-        info!("Sempal native Vello runtime returned successfully");
+        info!("Wavecrate native Vello runtime returned successfully");
     }
 
     result
@@ -135,12 +135,12 @@ pub fn run_native_vello_app_with_artifacts<B: NativeAppBridge + 'static>(
     options: NativeRunOptions,
     bridge: B,
 ) -> NativeRunReport {
-    info!("Launching Sempal native Vello runtime");
+    info!("Launching Wavecrate native Vello runtime");
     let report = native_shell_runtime::run_native_vello_app_with_artifacts(options, bridge);
     if let Err(err) = &report.result {
-        error!(%err, "Sempal native Vello runtime returned error");
+        error!(%err, "Wavecrate native Vello runtime returned error");
     } else {
-        info!("Sempal native Vello runtime returned successfully");
+        info!("Wavecrate native Vello runtime returned successfully");
     }
     report
 }
@@ -153,14 +153,14 @@ pub fn run_native_vello_app_declarative<B: NativeAppBridge + 'static>(
     options: NativeRunOptions,
     bridge: B,
 ) -> Result<(), String> {
-    info!("Launching Sempal native Vello runtime (declarative host)");
+    info!("Launching Wavecrate native Vello runtime (declarative host)");
     let result = native_shell_runtime::run_native_vello_app(options, bridge).map_err(|err| {
-        error!(%err, "Sempal native Vello runtime returned error");
+        error!(%err, "Wavecrate native Vello runtime returned error");
         err
     });
 
     if result.is_ok() {
-        info!("Sempal native Vello runtime returned successfully");
+        info!("Wavecrate native Vello runtime returned successfully");
     }
 
     result
@@ -172,12 +172,12 @@ pub fn run_native_vello_app_declarative_with_artifacts<B: NativeAppBridge + 'sta
     options: NativeRunOptions,
     bridge: B,
 ) -> NativeRunReport {
-    info!("Launching Sempal native Vello runtime (declarative host)");
+    info!("Launching Wavecrate native Vello runtime (declarative host)");
     let report = native_shell_runtime::run_native_vello_app_with_artifacts(options, bridge);
     if let Err(err) = &report.result {
-        error!(%err, "Sempal native Vello runtime returned error");
+        error!(%err, "Wavecrate native Vello runtime returned error");
     } else {
-        info!("Sempal native Vello runtime returned successfully");
+        info!("Wavecrate native Vello runtime returned successfully");
     }
     report
 }
@@ -215,12 +215,12 @@ mod tests {
         assert!(module.contains("pub use radiant::gui_runtime::NativeStartupTimingArtifact;"));
         assert!(
             !module.contains(legacy_compat_export),
-            "startup timing is a generic Radiant runtime artifact, not a Sempal compat DTO"
+            "startup timing is a generic Radiant runtime artifact, not a Wavecrate compat DTO"
         );
     }
 
     #[test]
-    fn automation_snapshot_adapter_exposes_shell_root_from_sempal_model() {
+    fn automation_snapshot_adapter_exposes_shell_root_from_wavecrate_model() {
         let model = NativeAppModel::default();
         let snapshot = capture_gui_automation_snapshot([1440.0, 810.0], &model);
 

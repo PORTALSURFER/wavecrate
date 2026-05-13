@@ -8,9 +8,9 @@ use std::{
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=build/windows/sempal.rc");
+    println!("cargo:rerun-if-changed=build/windows/wavecrate.rc");
     println!("cargo:rerun-if-changed=assets/logo3.ico");
-    println!("cargo:rerun-if-env-changed=SEMPAL_GIT_SHA");
+    println!("cargo:rerun-if-env-changed=WAVECRATE_GIT_SHA");
 
     emit_git_rerun_hints();
     emit_git_sha();
@@ -30,7 +30,8 @@ fn compiling_for_windows_target() -> bool {
 }
 
 fn compile_windows_resources() -> Result<(), Box<dyn std::error::Error>> {
-    embed_resource::compile("build/windows/sempal.rc", embed_resource::NONE).manifest_optional()?;
+    embed_resource::compile("build/windows/wavecrate.rc", embed_resource::NONE)
+        .manifest_optional()?;
     Ok(())
 }
 
@@ -46,12 +47,12 @@ fn emit_git_rerun_hints() {
 }
 
 fn emit_git_sha() {
-    let git_sha = env::var("SEMPAL_GIT_SHA")
+    let git_sha = env::var("WAVECRATE_GIT_SHA")
         .ok()
         .and_then(trim_nonempty)
         .or_else(resolve_git_sha)
         .unwrap_or_else(|| String::from("<unknown>"));
-    println!("cargo:rustc-env=SEMPAL_BUILD_GIT_SHA={git_sha}");
+    println!("cargo:rustc-env=WAVECRATE_BUILD_GIT_SHA={git_sha}");
 }
 
 fn resolve_head_reference_path(head_path: &Path) -> Option<PathBuf> {

@@ -57,7 +57,7 @@ fn fallback_key_cache_recovers_after_poison() {
     let _env_guard = env_lock();
     reset_cache();
     unsafe {
-        std::env::set_var("SEMPAL_DISABLE_KEYRING", "1");
+        std::env::set_var("WAVECRATE_DISABLE_KEYRING", "1");
     }
     allow_fallback();
     set_env_key();
@@ -79,7 +79,7 @@ fn fallback_key_cache_recovers_after_poison() {
     );
     store.delete().unwrap();
     unsafe {
-        std::env::remove_var("SEMPAL_DISABLE_KEYRING");
+        std::env::remove_var("WAVECRATE_DISABLE_KEYRING");
     }
     disallow_fallback();
     clear_env_key();
@@ -91,7 +91,7 @@ fn fallback_roundtrip_when_keyring_disabled() {
     let _env_guard = env_lock();
     reset_cache();
     unsafe {
-        std::env::set_var("SEMPAL_DISABLE_KEYRING", "1");
+        std::env::set_var("WAVECRATE_DISABLE_KEYRING", "1");
     }
     allow_fallback();
     set_env_key();
@@ -107,7 +107,7 @@ fn fallback_roundtrip_when_keyring_disabled() {
     store.delete().unwrap();
     assert_eq!(store.get().unwrap(), None);
     unsafe {
-        std::env::remove_var("SEMPAL_DISABLE_KEYRING");
+        std::env::remove_var("WAVECRATE_DISABLE_KEYRING");
     }
     disallow_fallback();
     clear_env_key();
@@ -119,7 +119,7 @@ fn set_empty_token_clears_storage() {
     let _env_guard = env_lock();
     reset_cache();
     unsafe {
-        std::env::set_var("SEMPAL_DISABLE_KEYRING", "1");
+        std::env::set_var("WAVECRATE_DISABLE_KEYRING", "1");
     }
     allow_fallback();
     set_env_key();
@@ -130,7 +130,7 @@ fn set_empty_token_clears_storage() {
     store.set("").unwrap();
     assert_eq!(store.get().unwrap(), None);
     unsafe {
-        std::env::remove_var("SEMPAL_DISABLE_KEYRING");
+        std::env::remove_var("WAVECRATE_DISABLE_KEYRING");
     }
     disallow_fallback();
     clear_env_key();
@@ -144,7 +144,7 @@ fn fallback_is_only_used_when_explicitly_allowed() {
     disallow_fallback();
     clear_env_key();
     unsafe {
-        std::env::set_var("SEMPAL_DISABLE_KEYRING", "1");
+        std::env::set_var("WAVECRATE_DISABLE_KEYRING", "1");
     }
     let base = tempdir().unwrap();
     let _guard = crate::app_dirs::ConfigBaseGuard::set(base.path().to_path_buf());
@@ -161,7 +161,7 @@ fn fallback_is_only_used_when_explicitly_allowed() {
     assert!(!store.fallback_token_path().exists());
 
     unsafe {
-        std::env::remove_var("SEMPAL_DISABLE_KEYRING");
+        std::env::remove_var("WAVECRATE_DISABLE_KEYRING");
     }
     clear_env_key();
 }
@@ -172,7 +172,7 @@ fn fallback_get_rejects_corrupted_payload() {
     let _env_guard = env_lock();
     reset_cache();
     unsafe {
-        std::env::set_var("SEMPAL_DISABLE_KEYRING", "1");
+        std::env::set_var("WAVECRATE_DISABLE_KEYRING", "1");
     }
     allow_fallback();
     set_env_key();
@@ -188,7 +188,7 @@ fn fallback_get_rejects_corrupted_payload() {
     }
 
     unsafe {
-        std::env::remove_var("SEMPAL_DISABLE_KEYRING");
+        std::env::remove_var("WAVECRATE_DISABLE_KEYRING");
     }
     disallow_fallback();
     clear_env_key();
@@ -202,7 +202,7 @@ fn fallback_token_file_is_private_on_unix() {
     reset_cache();
     use std::os::unix::fs::PermissionsExt;
     unsafe {
-        std::env::set_var("SEMPAL_DISABLE_KEYRING", "1");
+        std::env::set_var("WAVECRATE_DISABLE_KEYRING", "1");
     }
     allow_fallback();
     set_env_key();
@@ -220,7 +220,7 @@ fn fallback_token_file_is_private_on_unix() {
     assert_eq!(token_mode, 0o600);
 
     unsafe {
-        std::env::remove_var("SEMPAL_DISABLE_KEYRING");
+        std::env::remove_var("WAVECRATE_DISABLE_KEYRING");
     }
     disallow_fallback();
     clear_env_key();
@@ -232,7 +232,7 @@ fn fallback_get_rejects_oversized_payload() {
     let _env_guard = env_lock();
     reset_cache();
     unsafe {
-        std::env::set_var("SEMPAL_DISABLE_KEYRING", "1");
+        std::env::set_var("WAVECRATE_DISABLE_KEYRING", "1");
     }
     allow_fallback();
     set_env_key();
@@ -251,7 +251,7 @@ fn fallback_get_rejects_oversized_payload() {
     }
 
     unsafe {
-        std::env::remove_var("SEMPAL_DISABLE_KEYRING");
+        std::env::remove_var("WAVECRATE_DISABLE_KEYRING");
     }
     disallow_fallback();
     clear_env_key();
@@ -263,7 +263,7 @@ fn fallback_get_clears_unreadable_payload() {
     let _env_guard = env_lock();
     reset_cache();
     unsafe {
-        std::env::set_var("SEMPAL_DISABLE_KEYRING", "1");
+        std::env::set_var("WAVECRATE_DISABLE_KEYRING", "1");
     }
     allow_fallback();
     set_env_key();
@@ -278,7 +278,7 @@ fn fallback_get_clears_unreadable_payload() {
     assert!(!store.fallback_token_path().exists());
 
     unsafe {
-        std::env::remove_var("SEMPAL_DISABLE_KEYRING");
+        std::env::remove_var("WAVECRATE_DISABLE_KEYRING");
     }
     disallow_fallback();
     clear_env_key();
@@ -317,7 +317,7 @@ fn fallback_requires_env_key_without_keyring() {
     let _env_guard = env_lock();
     reset_cache();
     unsafe {
-        std::env::set_var("SEMPAL_DISABLE_KEYRING", "1");
+        std::env::set_var("WAVECRATE_DISABLE_KEYRING", "1");
     }
     allow_fallback();
     let base = tempdir().unwrap();
@@ -333,7 +333,7 @@ fn fallback_requires_env_key_without_keyring() {
     }
 
     unsafe {
-        std::env::remove_var("SEMPAL_DISABLE_KEYRING");
+        std::env::remove_var("WAVECRATE_DISABLE_KEYRING");
     }
     disallow_fallback();
 }
@@ -344,7 +344,7 @@ fn fallback_works_with_env_key() {
     let _env_guard = env_lock();
     reset_cache();
     unsafe {
-        std::env::set_var("SEMPAL_DISABLE_KEYRING", "1");
+        std::env::set_var("WAVECRATE_DISABLE_KEYRING", "1");
     }
     allow_fallback();
     set_env_key();
@@ -362,7 +362,7 @@ fn fallback_works_with_env_key() {
     store.delete().unwrap();
 
     unsafe {
-        std::env::remove_var("SEMPAL_DISABLE_KEYRING");
+        std::env::remove_var("WAVECRATE_DISABLE_KEYRING");
     }
     disallow_fallback();
     clear_env_key();
@@ -373,7 +373,7 @@ fn fallback_warns_when_active() {
     enable_mock_keyring();
     let _env_guard = env_lock();
     unsafe {
-        std::env::set_var("SEMPAL_DISABLE_KEYRING", "1");
+        std::env::set_var("WAVECRATE_DISABLE_KEYRING", "1");
     }
     allow_fallback();
     set_env_key();
@@ -386,7 +386,7 @@ fn fallback_warns_when_active() {
     assert!(FALLBACK_WARNING_EMITTED.load(Ordering::SeqCst));
 
     unsafe {
-        std::env::remove_var("SEMPAL_DISABLE_KEYRING");
+        std::env::remove_var("WAVECRATE_DISABLE_KEYRING");
     }
     disallow_fallback();
     clear_env_key();

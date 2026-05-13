@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_NAME="sempal"
+APP_NAME="wavecrate"
 REPO_ROOT="$(pwd)"
-BUILD_CARGO_BIN="${SEMPAL_CARGO_BIN:-cargo}"
-SKIP_BUILD="${SEMPAL_SKIP_BUILD:-0}"
+BUILD_CARGO_BIN="${WAVECRATE_CARGO_BIN:-cargo}"
+SKIP_BUILD="${WAVECRATE_SKIP_BUILD:-0}"
 OUT_DIR="dist/release"
 TARGET=""
 PLATFORM=""

@@ -154,8 +154,8 @@ fn assert_owner_and_scope_sets_are_represented(rules: &[OwnershipRule]) {
     for expected_owner in [
         "radiant_generic",
         "compat_adapter",
-        "sempal_composition",
-        "sempal_fixture",
+        "wavecrate_composition",
+        "wavecrate_fixture",
     ] {
         assert!(
             rules.iter().any(|rule| rule.owner == expected_owner),
@@ -196,7 +196,10 @@ fn parse_ownership_rules() -> Vec<OwnershipRule> {
         assert!(
             matches!(
                 owner.as_str(),
-                "radiant_generic" | "compat_adapter" | "sempal_composition" | "sempal_fixture"
+                "radiant_generic"
+                    | "compat_adapter"
+                    | "wavecrate_composition"
+                    | "wavecrate_fixture"
             ),
             "unknown owner {owner:?} on ownership inventory line {}",
             line_index + 1

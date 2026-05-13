@@ -1,6 +1,6 @@
-//! Sempal native-shell adapter for Radiant's generic runtime path.
+//! Wavecrate native-shell adapter for Radiant's generic runtime path.
 //!
-//! This module owns the focused Sempal runtime adapter modules that project the
+//! This module owns the focused Wavecrate runtime adapter modules that project the
 //! app model into Radiant's generic native runtime, route retained-shell input,
 //! convert local action/model shapes, and expose automation/snapshot helpers.
 
@@ -44,11 +44,12 @@ mod model_mapping;
 pub(super) use automation::capture_gui_automation_snapshot;
 #[cfg(test)]
 pub(super) use automation::capture_native_shell_shot_snapshot;
-use bridge::SempalRuntimeBridge;
+use bridge::WavecrateRuntimeBridge;
 #[cfg(test)]
-use bridge::SempalRuntimeMessage;
+use bridge::WavecrateRuntimeMessage;
 use input_routing::{
-    action_from_retained_pointer, keypress_from_radiant, keypress_to_radiant, sempal_focus_context,
+    action_from_retained_pointer, keypress_from_radiant, keypress_to_radiant,
+    wavecrate_focus_context,
 };
 pub(super) use launch::{run_native_vello_app, run_native_vello_app_with_artifacts};
 use model_mapping::local_app_model_from_native_model;

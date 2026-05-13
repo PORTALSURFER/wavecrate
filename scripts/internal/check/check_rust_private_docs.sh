@@ -13,7 +13,7 @@ if [[ -f "$ROOT_DIR/scripts/internal/git_diff_env.sh" ]]; then
   # shellcheck source=scripts/internal/git_diff_env.sh
   source "$ROOT_DIR/scripts/internal/git_diff_env.sh"
 else
-  sempal_git() {
+  wavecrate_git() {
     git "$@"
   }
 fi
@@ -55,7 +55,7 @@ fi
 ALLOWLIST_PATH="$ROOT_DIR/scripts/internal/check/allowlists/rust_private_docs_allowlist.txt"
 
 git_has_commit() {
-  sempal_git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1
+  wavecrate_git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1
 }
 
 scan_diff() {
@@ -64,7 +64,7 @@ scan_diff() {
   local head_ref="$3"
   shift 3
 
-  sempal_git diff --unified=0 --diff-filter=AMR "$@" -- src vendor/radiant/src \
+  wavecrate_git diff --unified=0 --diff-filter=AMR "$@" -- src vendor/radiant/src \
     | python3 scripts/internal/check/check_rust_private_docs_impl.py \
         --label "$label" \
         --source "$source" \

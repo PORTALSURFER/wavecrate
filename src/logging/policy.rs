@@ -1,29 +1,29 @@
 //! Debug logging policy resolution.
 //!
 //! This module keeps the enablement contract for richer per-launch diagnostics
-//! narrow and explicit so later instrumentation can rely on one Sempal-owned
+//! narrow and explicit so later instrumentation can rely on one Wavecrate-owned
 //! switch instead of subsystem-specific ad-hoc toggles.
 
 use std::ffi::OsString;
 
 use tracing_subscriber::EnvFilter;
 
-/// Environment variable that opt-ins Sempal-owned debug diagnostics.
-pub const DEBUG_LOGGING_ENV_VAR: &str = "SEMPAL_DEBUG_LOGGING";
-/// Command-line argument that opt-ins Sempal-owned debug diagnostics.
+/// Environment variable that opt-ins Wavecrate-owned debug diagnostics.
+pub const DEBUG_LOGGING_ENV_VAR: &str = "WAVECRATE_DEBUG_LOGGING";
+/// Command-line argument that opt-ins Wavecrate-owned debug diagnostics.
 pub const DEBUG_LOGGING_ARG: &str = "--log";
-/// Legacy short command-line argument that opt-ins Sempal-owned debug diagnostics.
+/// Legacy short command-line argument that opt-ins Wavecrate-owned debug diagnostics.
 pub const DEBUG_LOGGING_SHORT_ARG: &str = "-log";
 const RUST_LOG_ENV_VAR: &str = "RUST_LOG";
 const DEFAULT_FILTER: &str = "info";
-const DEBUG_FILTER: &str = "sempal=debug,info";
+const DEBUG_FILTER: &str = "wavecrate=debug,info";
 
-/// Resolved mode for Sempal-owned debug diagnostics.
+/// Resolved mode for Wavecrate-owned debug diagnostics.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum DebugLoggingMode {
     /// Rich debug diagnostics remain disabled.
     Standard,
-    /// Rich debug diagnostics are enabled for Sempal-owned events.
+    /// Rich debug diagnostics are enabled for Wavecrate-owned events.
     Enabled,
 }
 
@@ -66,7 +66,7 @@ impl DebugLoggingSettings {
         )
     }
 
-    /// Returns the resolved Sempal-owned debug logging mode.
+    /// Returns the resolved Wavecrate-owned debug logging mode.
     pub const fn mode(&self) -> DebugLoggingMode {
         self.mode
     }
@@ -200,7 +200,7 @@ mod tests {
     }
 
     #[test]
-    fn launch_arg_enables_debug_mode_with_sempal_owned_filter() {
+    fn launch_arg_enables_debug_mode_with_wavecrate_owned_filter() {
         let settings = DebugLoggingSettings::from_values(true, None, None);
         assert_eq!(settings.mode(), DebugLoggingMode::Enabled);
         assert_eq!(settings.filter_description(), DEBUG_FILTER);
@@ -210,7 +210,7 @@ mod tests {
     #[test]
     fn legacy_short_launch_arg_enables_debug_mode() {
         let settings = DebugLoggingSettings::from_process([
-            OsString::from("sempal"),
+            OsString::from("wavecrate"),
             OsString::from(DEBUG_LOGGING_SHORT_ARG),
         ]);
         assert_eq!(settings.mode(), DebugLoggingMode::Enabled);
@@ -219,14 +219,16 @@ mod tests {
 
     #[test]
     fn canonical_launch_arg_enables_debug_mode() {
-        let settings =
-            DebugLoggingSettings::from_process([OsString::from("sempal"), OsString::from("--log")]);
+        let settings = DebugLoggingSettings::from_process([
+            OsString::from("wavecrate"),
+            OsString::from("--log"),
+        ]);
         assert_eq!(settings.mode(), DebugLoggingMode::Enabled);
         assert!(settings.enabled_by_launch_arg());
     }
 
     #[test]
-    fn env_var_enables_debug_mode_with_sempal_owned_filter() {
+    fn env_var_enables_debug_mode_with_wavecrate_owned_filter() {
         let settings = DebugLoggingSettings::from_values(false, Some("1".to_string()), None);
         assert_eq!(settings.mode(), DebugLoggingMode::Enabled);
         assert_eq!(settings.filter_description(), DEBUG_FILTER);

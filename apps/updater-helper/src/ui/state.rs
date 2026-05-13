@@ -1,5 +1,7 @@
-use sempal::updater::{ApplyPlan, ReleaseSummary, UpdateChannel, UpdateProgress, UpdaterRunArgs};
 use std::sync::mpsc::Receiver;
+use wavecrate::updater::{
+    ApplyPlan, ReleaseSummary, UpdateChannel, UpdateProgress, UpdaterRunArgs,
+};
 
 /// One selectable release entry shown in the updater browser list.
 #[derive(Debug, Clone)]

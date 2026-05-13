@@ -3,15 +3,15 @@ $ErrorActionPreference = "Stop"
 
 <#
 .SYNOPSIS
-Runs Sempal in an isolated sandbox config directory.
+Runs Wavecrate in an isolated sandbox config directory.
 
 .DESCRIPTION
-Runs `cargo run --release` with `SEMPAL_CONFIG_HOME` set to an isolated sandbox
-base directory plus `SEMPAL_CONFIG_PROFILE=sandbox` so local runs (including
+Runs `cargo run --release` with `WAVECRATE_CONFIG_HOME` set to an isolated sandbox
+base directory plus `WAVECRATE_CONFIG_PROFILE=sandbox` so local runs (including
 agent runs) do not touch real user data.
 
 Derived paths:
-- app root:  <SEMPAL_CONFIG_HOME>\.sempal\profiles\sandbox
+- app root:  <WAVECRATE_CONFIG_HOME>\.wavecrate\profiles\sandbox
 - config:    <app root>\config.toml
 - logs:      <app root>\logs
 #>
@@ -36,14 +36,14 @@ function New-SandboxBase {
   if ($UseTemp) {
     $stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
     $rand = [Guid]::NewGuid().ToString("N").Substring(0, 8)
-    $base = Join-Path $env:TEMP ("sempal-sandbox-" + $stamp + "-" + $rand)
+    $base = Join-Path $env:TEMP ("wavecrate-sandbox-" + $stamp + "-" + $rand)
     New-Item -ItemType Directory -Path $base -Force | Out-Null
     return (Resolve-Path $base).Path
   } else {
     if (-not [string]::IsNullOrWhiteSpace($SandboxName)) {
-      $base = Join-Path $rootDir (".sandbox/sempal/" + $SandboxName)
+      $base = Join-Path $rootDir (".sandbox/wavecrate/" + $SandboxName)
     } else {
-      $base = Join-Path $rootDir ".sandbox/sempal"
+      $base = Join-Path $rootDir ".sandbox/wavecrate"
     }
     New-Item -ItemType Directory -Path $base -Force | Out-Null
     return (Resolve-Path $base).Path
@@ -58,31 +58,31 @@ if (-not [string]::IsNullOrWhiteSpace($Dir) -and -not [string]::IsNullOrWhiteSpa
 }
 
 if ($WriteDb) {
-  Remove-Item Env:SEMPAL_SOURCE_DB_READ_ONLY -ErrorAction SilentlyContinue
+  Remove-Item Env:WAVECRATE_SOURCE_DB_READ_ONLY -ErrorAction SilentlyContinue
 } else {
-  $env:SEMPAL_SOURCE_DB_READ_ONLY = "1"
+  $env:WAVECRATE_SOURCE_DB_READ_ONLY = "1"
 }
 if ($AllowUserLibraryDbWrite) {
-  $env:SEMPAL_ALLOW_USER_LIBRARY_DB_WRITE = "1"
+  $env:WAVECRATE_ALLOW_USER_LIBRARY_DB_WRITE = "1"
 } else {
-  Remove-Item Env:SEMPAL_ALLOW_USER_LIBRARY_DB_WRITE -ErrorAction SilentlyContinue
+  Remove-Item Env:WAVECRATE_ALLOW_USER_LIBRARY_DB_WRITE -ErrorAction SilentlyContinue
 }
 
 $sandboxBase = New-SandboxBase -Requested $Dir -SandboxName $Name -UseTemp ([bool]$Temp)
-$env:SEMPAL_CONFIG_HOME = $sandboxBase
-$env:SEMPAL_CONFIG_PROFILE = "sandbox"
+$env:WAVECRATE_CONFIG_HOME = $sandboxBase
+$env:WAVECRATE_CONFIG_PROFILE = "sandbox"
 
-$appRoot = Join-Path $sandboxBase ".sempal\\profiles\\sandbox"
+$appRoot = Join-Path $sandboxBase ".wavecrate\\profiles\\sandbox"
 $configPath = Join-Path $appRoot "config.toml"
 $logsDir = Join-Path $appRoot "logs"
 
 Write-Host ("[run_sandbox] repo_root={0}" -f $rootDir)
-Write-Host ("[run_sandbox] SEMPAL_CONFIG_HOME={0}" -f $sandboxBase)
-Write-Host ("[run_sandbox] SEMPAL_CONFIG_PROFILE={0}" -f $env:SEMPAL_CONFIG_PROFILE)
+Write-Host ("[run_sandbox] WAVECRATE_CONFIG_HOME={0}" -f $sandboxBase)
+Write-Host ("[run_sandbox] WAVECRATE_CONFIG_PROFILE={0}" -f $env:WAVECRATE_CONFIG_PROFILE)
 Write-Host ("[run_sandbox] app_root={0}" -f $appRoot)
 Write-Host ("[run_sandbox] config={0}" -f $configPath)
 Write-Host ("[run_sandbox] logs={0}" -f $logsDir)
-Write-Host "[run_sandbox] CONTRACT: app config/logs will NOT be read/written from your real user profile dirs (it uses SEMPAL_CONFIG_HOME)."
+Write-Host "[run_sandbox] CONTRACT: app config/logs will NOT be read/written from your real user profile dirs (it uses WAVECRATE_CONFIG_HOME)."
 if ($WriteDb) {
   Write-Host "[run_sandbox] Source DB mode: write-enabled (explicit override)."
 } else {

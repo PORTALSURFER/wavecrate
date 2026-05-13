@@ -115,7 +115,7 @@ mod tests {
 
     #[test]
     fn verify_checksums_signature_rejects_invalid_signature() {
-        let checksums = b"deadbeef  sempal.zip\n";
+        let checksums = b"deadbeef  wavecrate.zip\n";
         let signing_key = SigningKey::from_bytes(&[7u8; 32]);
         let signature = signing_key.sign(b"other");
         let signature_text = base64::engine::general_purpose::STANDARD.encode(signature.to_bytes());
@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn verify_checksums_signature_rejects_empty_signature() {
-        let checksums = b"deadbeef  sempal.zip\n";
+        let checksums = b"deadbeef  wavecrate.zip\n";
         let signing_key = SigningKey::from_bytes(&[7u8; 32]);
         let public_key_text = base64::engine::general_purpose::STANDARD
             .encode(signing_key.verifying_key().to_bytes());
@@ -143,8 +143,8 @@ mod tests {
 
     #[test]
     fn verify_checksums_signature_rejects_tampered_checksums() {
-        let checksums = b"deadbeef  sempal.zip\n";
-        let tampered = b"beefdead  sempal.zip\n";
+        let checksums = b"deadbeef  wavecrate.zip\n";
+        let tampered = b"beefdead  wavecrate.zip\n";
         let signing_key = SigningKey::from_bytes(&[7u8; 32]);
         let signature = signing_key.sign(checksums);
         let signature_text = base64::engine::general_purpose::STANDARD.encode(signature.to_bytes());
@@ -161,7 +161,7 @@ mod tests {
 
     #[test]
     fn verify_checksums_signature_accepts_valid_signature() {
-        let checksums = b"deadbeef  sempal.zip\n";
+        let checksums = b"deadbeef  wavecrate.zip\n";
         let signing_key = SigningKey::from_bytes(&[7u8; 32]);
         let signature = signing_key.sign(checksums);
         let signature_text = base64::engine::general_purpose::STANDARD.encode(signature.to_bytes());

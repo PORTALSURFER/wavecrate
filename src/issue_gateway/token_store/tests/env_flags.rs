@@ -5,7 +5,7 @@ use super::*;
 fn strict_env_var_truthy_only_accepts_one_and_true() {
     let _env_guard = env_lock();
     /// Test-only env var for strict token parsing behavior.
-    const STRICT_ENV: &str = "SEMPAL_TOKEN_STORE_STRICT_PARSE_TEST";
+    const STRICT_ENV: &str = "WAVECRATE_TOKEN_STORE_STRICT_PARSE_TEST";
     unsafe {
         std::env::remove_var(STRICT_ENV);
     }

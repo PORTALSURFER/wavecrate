@@ -14,7 +14,7 @@ if [[ -f "$ROOT_DIR/scripts/internal/git_diff_env.sh" ]]; then
   # shellcheck source=scripts/internal/git_diff_env.sh
   source "$ROOT_DIR/scripts/internal/git_diff_env.sh"
 else
-  sempal_git() {
+  wavecrate_git() {
     git "$@"
   }
 fi
@@ -97,20 +97,20 @@ is_allowlisted() {
 }
 
 git_has_commit() {
-  sempal_git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1
+  wavecrate_git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1
 }
 
 repo_has_commit() {
   local repo_path="$1"
   local ref="$2"
   [[ -n "$ref" ]] || return 1
-  sempal_git -C "$repo_path" rev-parse --verify --quiet "$ref^{commit}" >/dev/null 2>&1
+  wavecrate_git -C "$repo_path" rev-parse --verify --quiet "$ref^{commit}" >/dev/null 2>&1
 }
 
 repo_is_ready() {
   local repo_path="$1"
   [[ -d "$repo_path" ]] || return 1
-  sempal_git -C "$repo_path" rev-parse --is-inside-work-tree >/dev/null 2>&1
+  wavecrate_git -C "$repo_path" rev-parse --is-inside-work-tree >/dev/null 2>&1
 }
 
 emit_vendor_working_tree_files() {
@@ -131,39 +131,39 @@ collect_vendor_files() {
   fi
 
   if (( CHECK_ALL == 1 )); then
-    sempal_git -C "$VENDOR_REPO_PATH" ls-files -- "$VENDOR_SCOPE_PATH" \
+    wavecrate_git -C "$VENDOR_REPO_PATH" ls-files -- "$VENDOR_SCOPE_PATH" \
       | sed "s#^#$VENDOR_REPO_PATH/#"
     return
   fi
 
   local pointer_changed=0
   if [[ -n "$base" ]] && git_has_commit "$base" && git_has_commit "$head"; then
-    if sempal_git diff --name-only --diff-filter=AM "$base...$head" -- "$VENDOR_REPO_PATH" | grep -q .; then
+    if wavecrate_git diff --name-only --diff-filter=AM "$base...$head" -- "$VENDOR_REPO_PATH" | grep -q .; then
       pointer_changed=1
     fi
   elif git_has_commit "$head"; then
-    if sempal_git show --name-only --pretty=format: "$head" -- "$VENDOR_REPO_PATH" | grep -q .; then
+    if wavecrate_git show --name-only --pretty=format: "$head" -- "$VENDOR_REPO_PATH" | grep -q .; then
       pointer_changed=1
     fi
   fi
 
   if (( pointer_changed == 1 )); then
-    sempal_git -C "$VENDOR_REPO_PATH" ls-files -- "$VENDOR_SCOPE_PATH" \
+    wavecrate_git -C "$VENDOR_REPO_PATH" ls-files -- "$VENDOR_SCOPE_PATH" \
       | sed "s#^#$VENDOR_REPO_PATH/#"
     return
   fi
 
   if [[ -n "$base" ]] && repo_has_commit "$VENDOR_REPO_PATH" "$base" && repo_has_commit "$VENDOR_REPO_PATH" "$head"; then
-    sempal_git -C "$VENDOR_REPO_PATH" diff --name-only --diff-filter=AM "$base...$head" -- "$VENDOR_SCOPE_PATH" \
+    wavecrate_git -C "$VENDOR_REPO_PATH" diff --name-only --diff-filter=AM "$base...$head" -- "$VENDOR_SCOPE_PATH" \
       | sed "s#^#$VENDOR_REPO_PATH/#"
   elif repo_has_commit "$VENDOR_REPO_PATH" "$head"; then
-    sempal_git -C "$VENDOR_REPO_PATH" show --name-only --pretty=format: "$head" -- "$VENDOR_SCOPE_PATH" \
+    wavecrate_git -C "$VENDOR_REPO_PATH" show --name-only --pretty=format: "$head" -- "$VENDOR_SCOPE_PATH" \
       | sed "s#^#$VENDOR_REPO_PATH/#"
   fi
 
-  sempal_git -C "$VENDOR_REPO_PATH" diff --name-only --diff-filter=AM --cached -- "$VENDOR_SCOPE_PATH" \
+  wavecrate_git -C "$VENDOR_REPO_PATH" diff --name-only --diff-filter=AM --cached -- "$VENDOR_SCOPE_PATH" \
     | sed "s#^#$VENDOR_REPO_PATH/#"
-  sempal_git -C "$VENDOR_REPO_PATH" diff --name-only --diff-filter=AM -- "$VENDOR_SCOPE_PATH" \
+  wavecrate_git -C "$VENDOR_REPO_PATH" diff --name-only --diff-filter=AM -- "$VENDOR_SCOPE_PATH" \
     | sed "s#^#$VENDOR_REPO_PATH/#"
 }
 
@@ -176,13 +176,13 @@ collect_files() {
   if (( CHECK_ALL == 1 )); then
     while IFS= read -r path; do
       raw_files+=("$path")
-    done < <(sempal_git ls-files -- "${PROJECT_TRACKED_PATHS[@]}" || true)
+    done < <(wavecrate_git ls-files -- "${PROJECT_TRACKED_PATHS[@]}" || true)
     COLLECT_SCOPE="all"
   elif [[ -n "$base" ]] && git_has_commit "$base" && git_has_commit "$head"; then
     while IFS= read -r path; do
       raw_files+=("$path")
     done < <(
-      sempal_git diff --name-only --diff-filter=AM "$base...$head" -- "${PROJECT_TRACKED_PATHS[@]}" \
+      wavecrate_git diff --name-only --diff-filter=AM "$base...$head" -- "${PROJECT_TRACKED_PATHS[@]}" \
         || true
     )
     COLLECT_SCOPE="diff(base...head)"
@@ -191,7 +191,7 @@ collect_files() {
     while IFS= read -r path; do
       raw_files+=("$path")
     done < <(
-      sempal_git show --name-only --pretty=format: "$head" -- "${PROJECT_TRACKED_PATHS[@]}" || true
+      wavecrate_git show --name-only --pretty=format: "$head" -- "${PROJECT_TRACKED_PATHS[@]}" || true
     )
     COLLECT_SCOPE="diff(head)"
   else
@@ -207,12 +207,12 @@ collect_files() {
     while IFS= read -r path; do
       staged+=("$path")
     done < <(
-      sempal_git diff --name-only --diff-filter=AM --cached -- "${PROJECT_TRACKED_PATHS[@]}" || true
+      wavecrate_git diff --name-only --diff-filter=AM --cached -- "${PROJECT_TRACKED_PATHS[@]}" || true
     )
     while IFS= read -r path; do
       unstaged+=("$path")
     done < <(
-      sempal_git diff --name-only --diff-filter=AM -- "${PROJECT_TRACKED_PATHS[@]}" || true
+      wavecrate_git diff --name-only --diff-filter=AM -- "${PROJECT_TRACKED_PATHS[@]}" || true
     )
     staged_count="${#staged[@]}"
     unstaged_count="${#unstaged[@]}"

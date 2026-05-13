@@ -37,26 +37,26 @@ function Invoke-NativeStep {
 
 Push-Location $rootDir
 try {
-  Enable-SempalCargoCache
+  Enable-WavecrateCargoCache
 
   Write-Host "[gui-contract] cargo test app_core::actions::tests"
   Invoke-NativeStep -Label "cargo test app_core::actions::tests" -Command {
-    Invoke-SempalCargo test app_core::actions::tests
+    Invoke-WavecrateCargo test app_core::actions::tests
   }
 
   Write-Host "[gui-contract] cargo test gui_test::"
   Invoke-NativeStep -Label "cargo test gui_test::" -Command {
-    Invoke-SempalCargo test gui_test::
+    Invoke-WavecrateCargo test gui_test::
   }
 
   Write-Host "[gui-contract] cargo test app_core::controller::tests::persistence_boundary::"
   Invoke-NativeStep -Label "cargo test app_core::controller::tests::persistence_boundary::" -Command {
-    Invoke-SempalCargo test app_core::controller::tests::persistence_boundary::
+    Invoke-WavecrateCargo test app_core::controller::tests::persistence_boundary::
   }
 
   Write-Host "[gui-contract] cargo test --manifest-path vendor/radiant/Cargo.toml toolbar_hit_test_focuses_browser_search"
   Invoke-NativeStep -Label "cargo test --manifest-path vendor/radiant/Cargo.toml toolbar_hit_test_focuses_browser_search" -Command {
-    Invoke-SempalCargo test --manifest-path vendor/radiant/Cargo.toml toolbar_hit_test_focuses_browser_search
+    Invoke-WavecrateCargo test --manifest-path vendor/radiant/Cargo.toml toolbar_hit_test_focuses_browser_search
   }
 } finally {
   Pop-Location

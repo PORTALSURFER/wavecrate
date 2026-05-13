@@ -45,10 +45,10 @@ jobs:
       - name: Run advisory dependency sweep
         shell: bash
         env:
-          SEMPAL_DEAD_SWEEP_INSTALL_MISSING: "1"
-          SEMPAL_DEAD_SWEEP_RUN_UDEPS: "1"
-          SEMPAL_DEAD_SWEEP_UDEPS_TOOLCHAIN: nightly
-          SEMPAL_DEAD_SWEEP_REPORT_PATH: target/dead_sweep_report.txt
+          WAVECRATE_DEAD_SWEEP_INSTALL_MISSING: "1"
+          WAVECRATE_DEAD_SWEEP_RUN_UDEPS: "1"
+          WAVECRATE_DEAD_SWEEP_UDEPS_TOOLCHAIN: nightly
+          WAVECRATE_DEAD_SWEEP_REPORT_PATH: target/dead_sweep_report.txt
         run: ./scripts/check.sh dead-deps --advisory
       - name: Upload advisory sweep report
         if: always()

@@ -3,7 +3,7 @@ use serde::Serialize;
 
 #[derive(Clone, Debug, Serialize)]
 pub(super) struct BenchReport {
-    pub(super) sempal_version: String,
+    pub(super) wavecrate_version: String,
     pub(super) os: String,
     pub(super) arch: String,
     pub(super) cpu_cores: usize,
@@ -20,7 +20,7 @@ pub(super) struct BenchReport {
 impl BenchReport {
     pub(super) fn new(params: BenchOptions, system: SystemInfo) -> Self {
         Self {
-            sempal_version: env!("CARGO_PKG_VERSION").to_string(),
+            wavecrate_version: env!("CARGO_PKG_VERSION").to_string(),
             os: std::env::consts::OS.to_string(),
             arch: std::env::consts::ARCH.to_string(),
             cpu_cores: std::thread::available_parallelism()

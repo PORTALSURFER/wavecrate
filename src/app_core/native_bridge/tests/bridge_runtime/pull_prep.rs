@@ -11,7 +11,7 @@ fn apply_browser_focus_delta_immediate_noop_keeps_projection_cache_key() {
         ..NativeProjectionCache::default()
     };
 
-    let mut bridge = SempalNativeBridge {
+    let mut bridge = WavecrateNativeBridge {
         controller,
         projection_cache: cache,
         projection_key_snapshot: None,
@@ -155,7 +155,7 @@ fn metadata_work_uses_metadata_retained_pull_plan() {
         "waveform",
     )
     .expect("build waveform fixture");
-    let mut bridge = SempalNativeBridge {
+    let mut bridge = WavecrateNativeBridge {
         controller: bundle.controller,
         projection_cache: NativeProjectionCache::default(),
         projection_key_snapshot: None,

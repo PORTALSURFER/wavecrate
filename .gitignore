@@ -5,7 +5,7 @@
 staging
 profile.kernel.etl
 bundle-staging
-.sempal_delete_staging/
+.wavecrate_delete_staging/
 assets/ml/panns_cnn14_16k/*.bpk
 assets/ml/panns_cnn14_16k/*.onnx
 assets/ml/panns_cnn14_16k/*.onnx.data

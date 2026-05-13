@@ -1,4 +1,4 @@
-//! Compatibility-only chrome tokens for the current Sempal native shell.
+//! Compatibility-only chrome tokens for the current Wavecrate native shell.
 //!
 //! These values intentionally stay out of the public `radiant::theme` surface
 //! because they describe shell-specific sidebar chrome rather than reusable

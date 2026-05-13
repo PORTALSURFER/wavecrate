@@ -8,5 +8,5 @@ warnings = "deny"
 missing_docs = "deny"
 
 [dependencies]
-sempal = { path = "../.." }
+wavecrate = { path = "../.." }
 serde_json = "1.0.145"

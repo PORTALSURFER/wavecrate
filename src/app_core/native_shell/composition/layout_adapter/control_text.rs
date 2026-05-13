@@ -1,7 +1,7 @@
 //! Slotized text-line geometry helpers for control rows and action buttons.
 
 use super::super::style::SizingTokens;
-use crate::gui::text_layout::{centered_text_line, TextLineInsets};
+use crate::gui::text_layout::{TextLineInsets, centered_text_line};
 use crate::gui::types::{Point, Rect};
 
 /// Compute an action-button label line rect with horizontal inset.

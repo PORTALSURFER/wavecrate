@@ -95,7 +95,7 @@ pub fn pick_transients_from_novelty(
         .round()
         .max(1.0) as usize;
     let max_transients = max_transients(duration_seconds, params.min_gap_seconds);
-    if std::env::var("SEMPAL_TRANSIENT_DEBUG").is_ok() {
+    if std::env::var("WAVECRATE_TRANSIENT_DEBUG").is_ok() {
         let min_value = novelty_smoothed
             .iter()
             .copied()
@@ -148,7 +148,7 @@ pub fn pick_transients_from_novelty(
             position.clamp(0.0, 1.0)
         })
         .collect();
-    if std::env::var("SEMPAL_TRANSIENT_DEBUG").is_ok() {
+    if std::env::var("WAVECRATE_TRANSIENT_DEBUG").is_ok() {
         info!("transients: picked {} markers", positions.len());
     }
     positions

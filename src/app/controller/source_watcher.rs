@@ -392,7 +392,7 @@ mod tests {
 
     #[test]
     fn path_is_candidate_allows_extensionless_directories() {
-        let root = std::env::temp_dir().join("sempal_source_watch_dir");
+        let root = std::env::temp_dir().join("wavecrate_source_watch_dir");
         std::fs::create_dir_all(&root).unwrap();
         assert!(path_is_candidate(&root));
         std::fs::remove_dir_all(&root).unwrap();

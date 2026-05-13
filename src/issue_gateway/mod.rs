@@ -1,4 +1,4 @@
-//! GitHub issue reporting via the Sempal Cloudflare Worker gateway.
+//! GitHub issue reporting via the Wavecrate Cloudflare Worker gateway.
 
 mod token_store;
 

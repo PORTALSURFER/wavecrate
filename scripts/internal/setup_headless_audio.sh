@@ -2,7 +2,7 @@
 
 # Configure a dummy ALSA backend for headless Linux runs so CI logs are not
 # flooded with "cannot find card" / "Unknown PCM default" noise.
-sempal_setup_headless_audio() {
+wavecrate_setup_headless_audio() {
   local log_prefix="${1:-headless_audio}"
 
   if [[ "$(uname -s)" != "Linux" ]]; then

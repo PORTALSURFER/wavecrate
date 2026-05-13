@@ -2,10 +2,10 @@
 
 use super::super::style::SizingTokens;
 use crate::gui::layout_core::{
-    layout_tree, Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode,
-    MainAlign, OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams,
+    Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
+    OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams, layout_tree,
 };
-use crate::gui::text_layout::{centered_text_line, TextLineInsets};
+use crate::gui::text_layout::{TextLineInsets, centered_text_line};
 use crate::gui::types::{Point, Rect, Vector2};
 
 const BROWSER_COLUMNS_ROOT_ID: u64 = 1200;

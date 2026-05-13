@@ -2,10 +2,10 @@
 layout: default
 title: Usage
 permalink: /usage
-description: How to set up Sempal, triage samples, edit waveforms, and manage sources.
+description: How to set up Wavecrate, triage samples, edit waveforms, and manage sources.
 ---
 
-# Sempal Usage Guide
+# Wavecrate Usage Guide
 
 * TOC
 {:toc}
@@ -24,22 +24,22 @@ description: How to set up Sempal, triage samples, edit waveforms, and manage so
 - **Resizable sidebar:** Drag the divider to resize Sources and the main view.
 
 ## Configuration and storage
-- App files live in a single `.sempal` folder inside your OS config directory (Linux respects `$XDG_CONFIG_HOME`; you can override the base dir with `SEMPAL_CONFIG_HOME`).
-  - Linux: `~/.config/.sempal/`
-  - Windows: `%APPDATA%\\.sempal\\`
-  - macOS: `~/Library/Application Support/.sempal/`
+- App files live in a single `.wavecrate` folder inside your OS config directory (Linux respects `$XDG_CONFIG_HOME`; you can override the base dir with `WAVECRATE_CONFIG_HOME`).
+  - Linux: `~/.config/.wavecrate/`
+  - Windows: `%APPDATA%\\.wavecrate\\`
+  - macOS: `~/Library/Application Support/.wavecrate/`
 - App settings live in `config.toml`; sources are stored in `library.db` in the same folder. Legacy `config.json` files migrate automatically.
-- You can override the app data root by setting `app_data_dir` in `config.toml` (absolute path to the `.sempal` folder). This controls where models, logs, and the library DB live.
-- Each source keeps `.sempal_samples.db` beside the audio. Logs live under `.sempal/logs`.
+- You can override the app data root by setting `app_data_dir` in `config.toml` (absolute path to the `.wavecrate` folder). This controls where models, logs, and the library DB live.
+- Each source keeps `.wavecrate_samples.db` beside the audio. Logs live under `.wavecrate/logs`.
 - Portable bundles may include ML assets under `models/`; the Windows installer copies them into the app data directory if present.
-- Model assets (when present) live in `.sempal/models` (Windows: `%APPDATA%\\.sempal\\models\\`, macOS: `~/Library/Application Support/.sempal/models/`, Linux: `~/.config/.sempal/models/`).
+- Model assets (when present) live in `.wavecrate/models` (Windows: `%APPDATA%\\.wavecrate\\models\\`, macOS: `~/Library/Application Support/.wavecrate/models/`, Linux: `~/.config/.wavecrate/models/`).
 - Set `RUST_LOG=info` (or `debug`, etc.) to change log verbosity.
 - Windows release builds hide the console by default; launch with `-log` / `--log` to open a console window and show live log output.
 - Tip: Use **Options → Open config folder** to jump to the right place on disk.
 
 ## Manage sources
-- Click **+** or drop a folder to add. Sempal creates/uses `.sempal_samples.db` and loads `.wav` entries.
-- Right-click a source row: **Quick sync**, **Hard sync (full rescan)**, **Prepare similarity search**, similarity prep options, **Open in file explorer**, **Remap source...**, **Remove source**. Add new files outside Sempal? Run a sync.
+- Click **+** or drop a folder to add. Wavecrate creates/uses `.wavecrate_samples.db` and loads `.wav` entries.
+- Right-click a source row: **Quick sync**, **Hard sync (full rescan)**, **Prepare similarity search**, similarity prep options, **Open in file explorer**, **Remap source...**, **Remove source**. Add new files outside Wavecrate? Run a sync.
 - Selecting any row loads the waveform and (by default) starts playback. Missing sources are prefixed with `!`. Similarity prep starts automatically after adding a source.
 - Use the **Folders** tree to filter which subfolders appear in the Samples list. Drag samples onto folders to move files on disk.
 

@@ -1,5 +1,5 @@
-app_name = "sempal"
-repo_slug = "PORTALSURFER/sempal"
+app_name = "wavecrate"
+repo_slug = "PORTALSURFER/wavecrate"
 channels = ["nightly", "stable"]
 targets = [
   "x86_64-pc-windows-msvc"

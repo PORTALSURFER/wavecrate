@@ -7,7 +7,7 @@ This lane avoids `cargo-nextest` and the broader GUI contract/integration
 wrappers so it can run in constrained Windows environments where Application
 Control blocks the `cargo-nextest.exe` binary. It keeps the edit loop grounded
 by running the normal compile smoke gate, Radiant's standalone no-default test
-suite, and the full sempal library test suite.
+suite, and the full wavecrate library test suite.
 #>
 
 param(
@@ -45,7 +45,7 @@ function Invoke-NativeStep {
 
 Push-Location $rootDir
 try {
-  Enable-SempalCargoCache
+  Enable-WavecrateCargoCache
   Write-Host "[ci_agent] branch policy"
   Invoke-NativeStep -Label "branch policy" -Command {
     & (Join-Path $rootDir "scripts/check.ps1") main-branch
@@ -56,12 +56,12 @@ try {
 
   Write-Host "[ci_agent] cargo test --manifest-path vendor/radiant/Cargo.toml --no-default-features"
   Invoke-NativeStep -Label "cargo test --manifest-path vendor/radiant/Cargo.toml --no-default-features" -Command {
-    Invoke-SempalCargo test --manifest-path vendor/radiant/Cargo.toml --no-default-features
+    Invoke-WavecrateCargo test --manifest-path vendor/radiant/Cargo.toml --no-default-features
   }
 
-  Write-Host "[ci_agent] cargo test -p sempal --lib"
-  Invoke-NativeStep -Label "cargo test -p sempal --lib" -Command {
-    Invoke-SempalCargo test -p sempal --lib
+  Write-Host "[ci_agent] cargo test -p wavecrate --lib"
+  Invoke-NativeStep -Label "cargo test -p wavecrate --lib" -Command {
+    Invoke-WavecrateCargo test -p wavecrate --lib
   }
 
   Write-Host "[ci_agent] OK"

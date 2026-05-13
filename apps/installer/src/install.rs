@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use ::sempal::app_dirs;
+use ::wavecrate::app_dirs;
 
 use crate::{download, paths, registry, shortcuts, ui};
 

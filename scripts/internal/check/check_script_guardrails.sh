@@ -110,14 +110,14 @@ pub fn vendor_three() {}
 EOF
 
   git -C "$repo_dir/vendor/radiant" init -q
-  git -C "$repo_dir/vendor/radiant" config user.name "sempal-ci"
-  git -C "$repo_dir/vendor/radiant" config user.email "ci@sempal.test"
+  git -C "$repo_dir/vendor/radiant" config user.name "wavecrate-ci"
+  git -C "$repo_dir/vendor/radiant" config user.email "ci@wavecrate.test"
   git -C "$repo_dir/vendor/radiant" add .
   git -C "$repo_dir/vendor/radiant" commit -qm "seed"
 
   git -C "$repo_dir" init -q
-  git -C "$repo_dir" config user.name "sempal-ci"
-  git -C "$repo_dir" config user.email "ci@sempal.test"
+  git -C "$repo_dir" config user.name "wavecrate-ci"
+  git -C "$repo_dir" config user.email "ci@wavecrate.test"
   git -C "$repo_dir" add src scripts
   git -C "$repo_dir" commit -qm "seed"
 
@@ -133,7 +133,7 @@ EOF
     --top-files \
     10
 
-  root_gap_section="$(sed -n '/^## Sempal-root likely test-gap hotspots (heuristic)/,/^## Vendor\/Radiant likely test-gap hotspots (heuristic)/p' "$output_path")"
+  root_gap_section="$(sed -n '/^## Wavecrate-root likely test-gap hotspots (heuristic)/,/^## Vendor\/Radiant likely test-gap hotspots (heuristic)/p' "$output_path")"
   vendor_gap_section="$(sed -n '/^## Vendor\/Radiant likely test-gap hotspots (heuristic)/,/^## Suggested follow-up/p' "$output_path")"
 
   if grep -Fq 'Likely large-file test-gap hotspots (heuristic): 2' "$output_path"; then
@@ -144,7 +144,7 @@ EOF
     failures=$((failures + 1))
   fi
 
-  if grep -Fq '## Sempal-root largest Rust files' "$output_path" && grep -Fq '## Vendor/Radiant largest Rust files' "$output_path"; then
+  if grep -Fq '## Wavecrate-root largest Rust files' "$output_path" && grep -Fq '## Vendor/Radiant largest Rust files' "$output_path"; then
     echo "[guardrails] PASS: cleanup-audit fixture emits root/vendor sections"
   else
     echo "[guardrails] FAIL: cleanup-audit fixture did not emit root/vendor sections" >&2
@@ -217,7 +217,7 @@ run_docs_index_fixture() {
 - `docs/TROUBLESHOOTING.md`
 - `AGENTS.md`
 - Planning and backlog
-  - live in Linear project `Sempal` under team `PORTALSURFER`
+  - live in Linear project `Wavecrate` under team `PORTALSURFER`
 EOF
 
   run_expect_exit_code \
@@ -257,8 +257,8 @@ run_file_size_budget_fixture() {
   chmod +x "$script_path"
 
   git -C "$fixture_dir/repo" init -q
-  git -C "$fixture_dir/repo" config user.name "sempal-ci"
-  git -C "$fixture_dir/repo" config user.email "ci@sempal.test"
+  git -C "$fixture_dir/repo" config user.name "wavecrate-ci"
+  git -C "$fixture_dir/repo" config user.email "ci@wavecrate.test"
 
   mkdir -p "$fixture_dir/repo/tests"
   cat >"$fixture_dir/repo/src/too_many_lines.rs" <<'EOF'
@@ -276,8 +276,8 @@ EOF
 
   mkdir -p "$fixture_dir/repo/vendor/radiant/src"
   git -C "$fixture_dir/repo/vendor/radiant" init -q
-  git -C "$fixture_dir/repo/vendor/radiant" config user.name "sempal-ci"
-  git -C "$fixture_dir/repo/vendor/radiant" config user.email "ci@sempal.test"
+  git -C "$fixture_dir/repo/vendor/radiant" config user.name "wavecrate-ci"
+  git -C "$fixture_dir/repo/vendor/radiant" config user.email "ci@wavecrate.test"
   cat >"$fixture_dir/repo/vendor/radiant/src/too_many_lines.rs" <<'EOF'
 fn main() {
     println!("a");
@@ -364,8 +364,8 @@ run_taste_invariants_fixture() {
   chmod +x "$script_path"
 
   git -C "$repo_dir" init -q
-  git -C "$repo_dir" config user.name "sempal-ci"
-  git -C "$repo_dir" config user.email "ci@sempal.test"
+  git -C "$repo_dir" config user.name "wavecrate-ci"
+  git -C "$repo_dir" config user.email "ci@wavecrate.test"
 
   cat >"$repo_dir/src/lib.rs" <<'EOF'
 fn main() {

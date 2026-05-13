@@ -246,7 +246,7 @@ fn value_after<'a>(args: &'a [String], idx: &mut usize, flag: &str) -> Result<&'
 }
 
 fn help_text() -> &'static str {
-    "Usage: sempal-bench [options]\n\n\
+    "Usage: wavecrate-bench [options]\n\n\
 Options:\n\
   --out <path>                Output JSON path (default: bench.json)\n\
   --analysis / --no-analysis   Enable/disable analysis throughput bench (default: enabled)\n\

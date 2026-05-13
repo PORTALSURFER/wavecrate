@@ -156,7 +156,7 @@ mod tests {
     }
 
     #[test]
-    fn sempal_catalog_resolves_chords_and_contextual_actions() {
+    fn wavecrate_catalog_resolves_chords_and_contextual_actions() {
         let first = hotkeys::resolve_hotkey_press(
             None,
             KeyPress::new(KeyCode::G),
@@ -191,7 +191,7 @@ mod tests {
     }
 
     #[test]
-    fn source_hotkeys_are_owned_by_sempal_catalog() {
+    fn source_hotkeys_are_owned_by_wavecrate_catalog() {
         let source_focus = hotkeys::focused_actions(FocusContext::SourcesList);
         assert!(source_focus.iter().any(|action| matches!(
             action.action,

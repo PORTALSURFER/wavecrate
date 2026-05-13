@@ -1,13 +1,13 @@
 //! Run contract and startup milestone recording for machine-readable run artifacts.
 
-use sempal::app_dirs;
-use sempal::gui_runtime::{NativeShutdownTimingArtifact, NativeStartupTimingArtifact};
 use std::{
     fmt, fs,
     path::{Path, PathBuf},
     process,
     time::{SystemTime, UNIX_EPOCH},
 };
+use wavecrate::app_dirs;
+use wavecrate::gui_runtime::{NativeShutdownTimingArtifact, NativeStartupTimingArtifact};
 
 mod artifacts;
 mod storage;
@@ -37,7 +37,7 @@ pub(crate) const MILESTONE_STARTUP_FAILED: &str = "startup_failed";
 pub(crate) const MILESTONE_NATIVE_STARTUP_TIMING: &str = "native_startup_timing";
 /// Shutdown milestone emitted when detailed native shutdown timing is exported.
 pub(crate) const MILESTONE_NATIVE_SHUTDOWN_TIMING: &str = "native_shutdown_timing";
-const BUILD_GIT_SHA: Option<&str> = option_env!("SEMPAL_BUILD_GIT_SHA");
+const BUILD_GIT_SHA: Option<&str> = option_env!("WAVECRATE_BUILD_GIT_SHA");
 
 /// Writable manifest and event trace writer for a single application run.
 pub(crate) struct RunContract {
@@ -259,7 +259,7 @@ fn make_run_contract_id() -> String {
 }
 
 fn resolve_git_sha() -> String {
-    if let Ok(git_sha) = std::env::var("SEMPAL_GIT_SHA")
+    if let Ok(git_sha) = std::env::var("WAVECRATE_GIT_SHA")
         && let Some(trimmed) = trim_nonempty(&git_sha)
     {
         return trimmed.to_string();

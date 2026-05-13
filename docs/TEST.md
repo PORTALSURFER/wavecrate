@@ -61,7 +61,7 @@ Windows note:
 - use the PowerShell wrappers in this repository
 - the wrappers use direct `rustc` by default and still fall back to repo-local
   temp space when the default temp directory is unusable
-- set `SEMPAL_ENABLE_SCCACHE=1` only when you explicitly want wrapper caching
+- set `WAVECRATE_ENABLE_SCCACHE=1` only when you explicitly want wrapper caching
 - do not run multiple cargo test commands concurrently
 
 ## Safe feature-change checklist
@@ -90,7 +90,7 @@ Use for most app/domain behavior under `src/`.
 - quick app-development subset:
   - `cargo nextest run --profile quick --lib --tests`
 - agent-safe library suite:
-  - `cargo test -p sempal --lib`
+  - `cargo test -p wavecrate --lib`
 
 ### Script and golden checks
 
@@ -100,16 +100,16 @@ Use for tooling, fixtures, and numerical-reference flows.
 - `cargo nextest run golden_log_mel_matches_python`
 - `cargo nextest run golden_embedding_matches_python`
 
-### Sempal native-shell tests
+### Wavecrate native-shell tests
 
-Use for compatibility-shell visual and behavior changes that are Sempal-owned.
+Use for compatibility-shell visual and behavior changes that are Wavecrate-owned.
 
 - targeted snapshot suites:
   - `startup_shot_matches_fixture`
   - `browser_dense_shot_matches_fixture`
   - `waveform_selection_shot_matches_fixture`
   - update fixtures with
-    `cargo test -p sempal --lib update_shot_fixtures -- --ignored`
+    `cargo test -p wavecrate --lib update_shot_fixtures -- --ignored`
 
 ### Radiant native-shell tests
 
@@ -151,9 +151,9 @@ Use these checks when the change could affect startup config loading/saving,
 sample-source persistence, or GUI fixture profile selection.
 
 - profile model:
-  - live runs use `<config-base>/.sempal/`
-  - sandbox/manual QA runs use `<config-base>/.sempal/profiles/sandbox/`
-  - automated validation runs use `<config-base>/.sempal/profiles/automated-tests/`
+  - live runs use `<config-base>/.wavecrate/`
+  - sandbox/manual QA runs use `<config-base>/.wavecrate/profiles/sandbox/`
+  - automated validation runs use `<config-base>/.wavecrate/profiles/automated-tests/`
 - regression anchors:
   - `cargo test app_core::controller::tests::persistence_boundary::`
   - `cargo test gui_test::`
@@ -162,7 +162,7 @@ sample-source persistence, or GUI fixture profile selection.
     now includes the persistence-boundary regression that snapshots the live
     `library.db` bytes before and after an isolated controller run
   - `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 agent`
-    still covers the same regression through `cargo test -p sempal --lib`
+    still covers the same regression through `cargo test -p wavecrate --lib`
 
 ### Windows manual confirmation
 
@@ -171,8 +171,8 @@ that validation did not leak fixture sources into the real startup profile.
 
 1. Run `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 agent`.
 2. Run `powershell -ExecutionPolicy Bypass -File scripts/gui.ps1 contract`.
-3. Start one normal live runtime without `SEMPAL_CONFIG_HOME` or
-   `SEMPAL_CONFIG_PROFILE` overrides:
+3. Start one normal live runtime without `WAVECRATE_CONFIG_HOME` or
+   `WAVECRATE_CONFIG_PROFILE` overrides:
    `cargo run --release`
 4. Confirm the app opens with the intended real source list instead of temp or
    fixture paths.
@@ -186,7 +186,7 @@ that validation did not leak fixture sources into the real startup profile.
 Use this when reproducing a release/manual bug that needs the richer
 per-launch diagnostics trail.
 
-1. Start a repro run with the Sempal-owned debug flag:
+1. Start a repro run with the Wavecrate-owned debug flag:
    `cargo run --release -- --log`
 2. For isolated manual QA, use the sandbox profile instead:
    `powershell -ExecutionPolicy Bypass -File scripts/run.ps1 sandbox -- --log`
@@ -200,7 +200,7 @@ per-launch diagnostics trail.
    with `--log` enabled.
 6. Extra-verbose hot-path traces are separate:
    default `--log` keeps routine loop-cycle and similar hot-path chatter out of
-   the file; only enable `SEMPAL_HOTPATH_TELEMETRY=1` when you deliberately need
+   the file; only enable `WAVECRATE_HOTPATH_TELEMETRY=1` when you deliberately need
    developer-level loop/hot-path tracing during a focused repro.
 
 ### Benchmarks and perf checks

@@ -230,37 +230,37 @@ mod tests {
     fn startup_update_check_skips_local_cargo_target_exes() {
         assert!(startup_update_check_should_skip_for_exe(
             &Path::new("dev")
-                .join("sempal")
+                .join("wavecrate")
                 .join("target")
                 .join("release")
-                .join("sempal")
+                .join("wavecrate")
         ));
         assert!(startup_update_check_should_skip_for_exe(
             &Path::new("dev")
-                .join("sempal")
+                .join("wavecrate")
                 .join("target")
                 .join("debug")
-                .join("sempal")
+                .join("wavecrate")
         ));
     }
 
     #[test]
     fn startup_update_check_runs_for_installed_or_non_cargo_exes() {
         assert!(!startup_update_check_should_skip_for_exe(
-            &Path::new("opt").join("Sempal").join("sempal")
+            &Path::new("opt").join("Wavecrate").join("wavecrate")
         ));
         assert!(!startup_update_check_should_skip_for_exe(
             &Path::new("dev")
-                .join("sempal")
+                .join("wavecrate")
                 .join("target")
                 .join("custom")
-                .join("sempal")
+                .join("wavecrate")
         ));
         assert!(!startup_update_check_should_skip_for_exe(
             &Path::new("dev")
-                .join("sempal")
+                .join("wavecrate")
                 .join("target-release")
-                .join("sempal")
+                .join("wavecrate")
         ));
     }
 }

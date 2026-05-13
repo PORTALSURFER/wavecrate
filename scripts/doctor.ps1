@@ -8,13 +8,13 @@ Environment sanity checks for local development and agent runs.
 .DESCRIPTION
 Checks the common footguns called out in README:
 - `CPAL_ASIO_DIR` (Windows ASIO builds)
-- `SEMPAL_NATIVE_FONT_PATH` (native shell font override)
+- `WAVECRATE_NATIVE_FONT_PATH` (native shell font override)
 - presence of `git lfs`
 Also checks toolchain sanity:
 - pinned Rust toolchain vs rust-toolchain.toml
 - rustfmt/clippy present for the pinned toolchain
 - presence of `rg` (ripgrep)
-Also prints the expected `.sempal/logs` locations for each OS.
+Also prints the expected `.wavecrate/logs` locations for each OS.
 #>
 
 $failures = 0
@@ -136,14 +136,14 @@ if ($null -eq $git) {
   }
 }
 
-Write-Info "Checking SEMPAL_NATIVE_FONT_PATH..."
-$fontPath = $env:SEMPAL_NATIVE_FONT_PATH
+Write-Info "Checking WAVECRATE_NATIVE_FONT_PATH..."
+$fontPath = $env:WAVECRATE_NATIVE_FONT_PATH
 if ([string]::IsNullOrWhiteSpace($fontPath)) {
-  Write-Info "SEMPAL_NATIVE_FONT_PATH: not set (OK)"
+  Write-Info "WAVECRATE_NATIVE_FONT_PATH: not set (OK)"
 } elseif (Test-Path -LiteralPath $fontPath -PathType Leaf) {
-  Write-Info "SEMPAL_NATIVE_FONT_PATH: OK ($fontPath)"
+  Write-Info "WAVECRATE_NATIVE_FONT_PATH: OK ($fontPath)"
 } else {
-  Write-Err "SEMPAL_NATIVE_FONT_PATH is set but not a file: $fontPath"
+  Write-Err "WAVECRATE_NATIVE_FONT_PATH is set but not a file: $fontPath"
 }
 
 Write-Info "Checking CPAL_ASIO_DIR (Windows ASIO builds)..."
@@ -163,18 +163,18 @@ if ([string]::IsNullOrWhiteSpace($asioDir)) {
 }
 
 Write-Info "Expected log locations:"
-Write-Info "  Linux:   `$HOME/.config/.sempal/logs"
-Write-Info "  macOS:   `$HOME/Library/Application Support/.sempal/logs"
+Write-Info "  Linux:   `$HOME/.config/.wavecrate/logs"
+Write-Info "  macOS:   `$HOME/Library/Application Support/.wavecrate/logs"
 if ($IsWindows -and -not [string]::IsNullOrWhiteSpace($env:APPDATA)) {
-  Write-Info ("  Windows: {0}" -f (Join-Path $env:APPDATA ".sempal\\logs"))
+  Write-Info ("  Windows: {0}" -f (Join-Path $env:APPDATA ".wavecrate\\logs"))
 } else {
-  Write-Info "  Windows: %APPDATA%\\.sempal\\logs"
+  Write-Info "  Windows: %APPDATA%\\.wavecrate\\logs"
 }
 if ($IsLinux -and (Test-Path -LiteralPath "/proc/version")) {
   try {
     $procVersion = Get-Content -LiteralPath "/proc/version" -Raw
     if ($procVersion -match "(?i)microsoft") {
-      Write-Info "  WSL hint: /mnt/c/Users/<you>/AppData/Roaming/.sempal/logs"
+      Write-Info "  WSL hint: /mnt/c/Users/<you>/AppData/Roaming/.wavecrate/logs"
     }
   } catch {
     # best-effort WSL detection; ignore errors

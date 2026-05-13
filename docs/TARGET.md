@@ -1,12 +1,12 @@
-# Sempal Project Target: A Fast, Reliable Sample Exploration Workstation
+# Wavecrate Project Target: A Fast, Reliable Sample Exploration Workstation
 
 ## Vision
 
-Sempal should become a focused desktop application for browsing, auditioning,
+Wavecrate should become a focused desktop application for browsing, auditioning,
 marking, organizing, and curating large audio sample libraries without breaking
 the user's listening flow.
 
-Sempal is not a generic GUI library, a DAW, a plugin host, or a file-manager
+Wavecrate is not a generic GUI library, a DAW, a plugin host, or a file-manager
 skin. It is an audition-first sample workstation: the user should be able to
 move quickly through folders and files, hear material immediately, see useful
 waveform context, mark ranges, rename or organize material, and trust that the
@@ -18,16 +18,16 @@ fast enough to feel direct.
 
 ## Scope and Interpretation
 
-This document is a product and architecture target for Sempal, not a one-shot
+This document is a product and architecture target for Wavecrate, not a one-shot
 implementation task.
 
 Use it when reviewing features, refactors, UI changes, background work, and the
-Sempal/Radiant boundary. Prefer incremental changes that move the product closer
+Wavecrate/Radiant boundary. Prefer incremental changes that move the product closer
 to this target while preserving working validation lanes.
 
 ## Core Product Goals
 
-Sempal should provide:
+Wavecrate should provide:
 
 1. Fast source and folder browsing for large sample libraries.
 2. Immediate sample auditioning from keyboard, mouse, and selection changes.
@@ -38,12 +38,12 @@ Sempal should provide:
    the GUI thread.
 7. Predictable status and progress feedback for long-running work.
 8. Stable metadata, tagging, filtering, and organization workflows.
-9. Clean separation between Sempal product logic and Radiant GUI-library logic.
+9. Clean separation between Wavecrate product logic and Radiant GUI-library logic.
 10. Tests and diagnostics that protect real user workflows and performance.
 
 ## Product Principles
 
-Sempal should optimize for:
+Wavecrate should optimize for:
 
 - audition-first workflows
 - realtime-feeling navigation and playback
@@ -60,7 +60,7 @@ with clear state handoff back to the UI.
 
 ## Non-Goals
 
-Sempal should not become:
+Wavecrate should not become:
 
 - a general-purpose GUI framework
 - a DAW or multitrack arrangement tool
@@ -70,13 +70,13 @@ Sempal should not become:
 - a database administration tool
 - a collection of one-off UI experiments
 
-Sempal may need DAW-like visual primitives such as waveforms, ranges, meters, or
+Wavecrate may need DAW-like visual primitives such as waveforms, ranges, meters, or
 transport controls, but those should serve sample exploration rather than expand
 the product into full music production.
 
 ## Radiant Boundary
 
-Radiant owns reusable GUI capability. Sempal owns sample-manager product logic.
+Radiant owns reusable GUI capability. Wavecrate owns sample-manager product logic.
 
 Move functionality into Radiant when it is generic enough to support other
 applications:
@@ -89,22 +89,22 @@ applications:
   surfaces
 - repaint, invalidation, subscriptions, and background-resource ergonomics
 
-Keep functionality in Sempal when it is product or domain behavior:
+Keep functionality in Wavecrate when it is product or domain behavior:
 
 - source configuration and sample-library policy
 - audio-file discovery and supported media rules
 - playback and audition semantics
 - sample metadata, tags, and filters
 - rename, move, trash, restore, and recovery workflows
-- Sempal-specific status wording and command behavior
+- Wavecrate-specific status wording and command behavior
 
-If Sempal has to build a custom UI primitive only because Radiant lacks the
-right general API, prefer improving Radiant and then migrating Sempal back to
+If Wavecrate has to build a custom UI primitive only because Radiant lacks the
+right general API, prefer improving Radiant and then migrating Wavecrate back to
 the generic primitive.
 
 ## UI Target
 
-The Sempal UI should be compact, stable, and optimized for scanning:
+The Wavecrate UI should be compact, stable, and optimized for scanning:
 
 - tight margins and predictable panel geometry
 - resizable sidebars and durable split positions
@@ -119,7 +119,7 @@ happening without monopolizing the interface.
 
 ## Performance Target
 
-Sempal should handle large sources without freezing or rebuilding unnecessary UI
+Wavecrate should handle large sources without freezing or rebuilding unnecessary UI
 work.
 
 Important performance rules:
@@ -138,7 +138,7 @@ or manual validation notes when practical.
 
 ## Reliability Target
 
-Sempal should treat the filesystem and source database as user-trust surfaces.
+Wavecrate should treat the filesystem and source database as user-trust surfaces.
 
 File and folder operations should:
 
@@ -166,14 +166,14 @@ Meaningful changes should usually include:
 
 ## Completion Criteria
 
-Sempal is moving toward the target when:
+Wavecrate is moving toward the target when:
 
 - browsing remains responsive on large sample sources
 - sample selection starts playback quickly and reliably
 - waveform marks, playhead, cursor, and selections are precise and stable
 - long-running work is visible but non-blocking
 - file operations preserve trust and recovery behavior
-- Sempal code owns sample-domain decisions
+- Wavecrate code owns sample-domain decisions
 - Radiant code owns reusable GUI/runtime primitives
 - the current Radiant GUI can replace deprecated legacy UI paths without losing
   core workflows

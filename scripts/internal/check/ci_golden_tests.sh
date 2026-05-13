@@ -9,10 +9,10 @@ if [ -f tools/generate_panns_golden_embedding.py ]; then
 fi
 
 if [ -f assets/ml/panns_cnn14_16k/golden_mel.json ]; then
-  export SEMPAL_PANNS_GOLDEN_PATH="assets/ml/panns_cnn14_16k/golden_mel.json"
+  export WAVECRATE_PANNS_GOLDEN_PATH="assets/ml/panns_cnn14_16k/golden_mel.json"
 fi
 if [ -f assets/ml/panns_cnn14_16k/golden_embedding.json ]; then
-  export SEMPAL_PANNS_EMBED_GOLDEN_PATH="assets/ml/panns_cnn14_16k/golden_embedding.json"
+  export WAVECRATE_PANNS_EMBED_GOLDEN_PATH="assets/ml/panns_cnn14_16k/golden_embedding.json"
 fi
 
 cargo nextest run golden_log_mel_matches_python

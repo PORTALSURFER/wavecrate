@@ -1,6 +1,6 @@
-//! Sempal-owned native runtime bridge trait.
+//! Wavecrate-owned native runtime bridge trait.
 //!
-//! Sempal code implements this trait so projected DTOs and actions remain owned
+//! Wavecrate code implements this trait so projected DTOs and actions remain owned
 //! in `app_core` while the native runtime adapter handles the Radiant launch
 //! boundary.
 
@@ -11,7 +11,7 @@ use super::{
 use crate::{gui::repaint::RepaintSignal, gui_runtime::NativeShutdownTimingArtifact};
 use std::sync::Arc;
 
-/// Host bridge used by Sempal's native runtime adapter.
+/// Host bridge used by Wavecrate's native runtime adapter.
 pub trait NativeAppBridge {
     /// Project the latest app model snapshot before frame build.
     fn project_model(&mut self) -> Arc<NativeAppModel>;

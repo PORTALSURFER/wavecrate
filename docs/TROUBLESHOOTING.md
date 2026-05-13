@@ -24,7 +24,7 @@ Use this document when local setup, validation, or invariant checks fail.
 
 Use this when you need a richer reconstruction of runtime actions or DB work.
 
-- enable Sempal-owned debug diagnostics for one run:
+- enable Wavecrate-owned debug diagnostics for one run:
   - Windows PowerShell:
     `cargo run --release -- --log`
   - macOS/Linux/WSL:
@@ -36,7 +36,7 @@ Use this when you need a richer reconstruction of runtime actions or DB work.
     `bash scripts/run.sh logs`
 - for sandbox/manual QA runs created through `scripts/run.ps1 sandbox`, use the
   matching sandbox retrieval path so the helper resolves
-  `<config-base>/.sempal/profiles/sandbox/logs` instead of the live profile:
+  `<config-base>/.wavecrate/profiles/sandbox/logs` instead of the live profile:
   - Windows PowerShell:
     `powershell -ExecutionPolicy Bypass -File scripts/run.ps1 logs -Sandbox`
   - macOS/Linux/WSL:
@@ -52,7 +52,7 @@ Use this when you need a richer reconstruction of runtime actions or DB work.
 - if you also set `RUST_LOG`, remember that it overrides the default filter;
   leave it unset for the standard debug contract unless you intentionally need a
   custom filter
-- use `SEMPAL_DEBUG_LOGGING=1` only for non-interactive launch surfaces where
+- use `WAVECRATE_DEBUG_LOGGING=1` only for non-interactive launch surfaces where
   adding `--log` is awkward
 - do not log secrets, tokens, auth headers, raw credentials, or large
   unredacted user payloads while extending diagnostics coverage
@@ -79,9 +79,9 @@ Fix:
 
 - preferred: repair the local keyring backend
 - fallback:
-  - `SEMPAL_DISABLE_KEYRING=1`
-  - `SEMPAL_ALLOW_FALLBACK_TOKEN_STORAGE=1`
-  - `SEMPAL_FALLBACK_KEY=<base64 32-byte key>`
+  - `WAVECRATE_DISABLE_KEYRING=1`
+  - `WAVECRATE_ALLOW_FALLBACK_TOKEN_STORAGE=1`
+  - `WAVECRATE_FALLBACK_KEY=<base64 32-byte key>`
 
 ### Native font fallback issues
 
@@ -101,7 +101,7 @@ Symptoms:
 
 Fix:
 
-- set both `SEMPAL_SQLITE_EXT` and `SEMPAL_SQLITE_EXT_ENABLE=1`
+- set both `WAVECRATE_SQLITE_EXT` and `WAVECRATE_SQLITE_EXT_ENABLE=1`
 - keep the extension under the allowed path unless you are intentionally using
   the unsafe mode and matching cargo feature
 
@@ -115,7 +115,7 @@ Fix:
 
 - prefer a non-symlink install path
 - for dev/test-only validation issues, use
-  `SEMPAL_UPDATER_ALLOW_SYMLINK_ERRORS=1`
+  `WAVECRATE_UPDATER_ALLOW_SYMLINK_ERRORS=1`
 
 ## Guardrail policy
 

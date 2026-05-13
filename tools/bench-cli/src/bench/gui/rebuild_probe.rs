@@ -12,12 +12,12 @@ use super::interactions::{
     },
 };
 use super::workspace::wait_for_rows;
-use sempal::app_core::actions::NativeUiAction;
-use sempal::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
-use sempal::app_core::native_bridge::{
+use wavecrate::app_core::actions::NativeUiAction;
+use wavecrate::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
+use wavecrate::app_core::native_bridge::{
     ProjectionRebuildCauseCounts, measure_projection_rebuild_cause_counts,
 };
-use sempal::app_core::state::{SampleBrowserSort, TriageFlagFilter};
+use wavecrate::app_core::state::{SampleBrowserSort, TriageFlagFilter};
 
 /// Collect rebuild-cause counters from focused controller-mode action probes.
 pub(super) fn collect_interaction_rebuild_cause_attribution(

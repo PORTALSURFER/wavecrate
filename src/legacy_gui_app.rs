@@ -1,16 +1,16 @@
-//! Deprecated legacy Sempal GUI entrypoint retained behind `legacy-gui`.
+//! Deprecated legacy Wavecrate GUI entrypoint retained behind `legacy-gui`.
 
-use sempal::app_core::ui::MIN_VIEWPORT_SIZE;
-use sempal::app_dirs;
-use sempal::gui_runtime::{NativeRunOptions, run_native_vello_app_declarative_with_artifacts};
-use sempal::gui_test::{GuiFixtureBridge, GuiTestModeConfig};
-use sempal::logging::{self, ActionDebugEvent, emit_action_debug_event};
 use std::any::Any;
 use std::ffi::OsString;
 use std::panic::{self, AssertUnwindSafe};
 use std::process;
 use std::time::{Instant, SystemTime};
 use tracing::{error, info};
+use wavecrate::app_core::ui::MIN_VIEWPORT_SIZE;
+use wavecrate::app_dirs;
+use wavecrate::gui_runtime::{NativeRunOptions, run_native_vello_app_declarative_with_artifacts};
+use wavecrate::gui_test::{GuiFixtureBridge, GuiTestModeConfig};
+use wavecrate::logging::{self, ActionDebugEvent, emit_action_debug_event};
 
 use crate::run_contract::{
     MILESTONE_RUNTIME_EXIT, MILESTONE_RUNTIME_STARTED, MILESTONE_STARTUP_BEGIN,
@@ -49,16 +49,16 @@ pub(crate) fn run() -> Result<(), String> {
         arg_count = args.len(),
         timestamp = ?now,
         debug = cfg!(debug_assertions),
-        "sempal startup: process metadata captured"
+        "wavecrate startup: process metadata captured"
     );
-    info!("sempal startup: logging initialized");
+    info!("wavecrate startup: logging initialized");
     match app_dirs::resolve_persistence() {
         Ok(persistence) => {
             info!(
                 persistence_mode = %persistence.mode,
                 config_base = %persistence.config_base.display(),
                 app_root = %persistence.app_root.display(),
-                "sempal startup: persistence profile resolved"
+                "wavecrate startup: persistence profile resolved"
             );
             let mode = persistence.mode.to_string();
             emit_action_debug_event(ActionDebugEvent {
@@ -71,7 +71,7 @@ pub(crate) fn run() -> Result<(), String> {
             });
         }
         Err(err) => {
-            error!(err = %err, "sempal startup: failed to resolve persistence profile");
+            error!(err = %err, "wavecrate startup: failed to resolve persistence profile");
             let error = err.to_string();
             emit_action_debug_event(ActionDebugEvent {
                 action: "runtime.startup.resolve_persistence",
@@ -94,7 +94,7 @@ pub(crate) fn run() -> Result<(), String> {
         Ok(Err(err)) => Err(err),
         Err(payload) => {
             let message = panic_payload_to_string(payload);
-            error!("sempal startup: panic captured while running: {message}");
+            error!("wavecrate startup: panic captured while running: {message}");
             if let Some(contract) = &mut contract {
                 if runtime_started {
                     contract.record(RUN_PHASE_SHUTDOWN, MILESTONE_RUNTIME_EXIT, "error");
@@ -125,7 +125,7 @@ fn run_application(
     );
 
     let mut options = NativeRunOptions {
-        title: String::from("Sempal"),
+        title: String::from("Wavecrate"),
         inner_size: None,
         min_inner_size: Some(MIN_VIEWPORT_SIZE),
         maximized: true,
@@ -135,7 +135,7 @@ fn run_application(
         icon: crate::app_icon::load_app_icon(),
     };
     if let Some(config) = gui_test_mode.as_ref() {
-        options.title = String::from("Sempal GUI Test");
+        options.title = String::from("Wavecrate GUI Test");
         config.apply_to_run_options(&mut options);
     }
 
@@ -151,7 +151,7 @@ fn run_application(
         fixture_tag,
         ?viewport,
         debug_layout = options.debug_layout,
-        "sempal startup: preparing GUI bridge"
+        "wavecrate startup: preparing GUI bridge"
     );
     emit_action_debug_event(ActionDebugEvent {
         action: "runtime.startup.prepare_gui_bridge",
@@ -164,7 +164,7 @@ fn run_application(
     let mut bridge = match GuiFixtureBridge::new_with_viewport(&fixture_tag, viewport) {
         Ok(bridge) => bridge,
         Err(err) => {
-            error!(err = %err, "sempal startup: failed to construct native bridge");
+            error!(err = %err, "wavecrate startup: failed to construct native bridge");
             emit_action_debug_event(ActionDebugEvent {
                 action: "runtime.startup.prepare_gui_bridge",
                 pane: Some("background"),
@@ -184,7 +184,7 @@ fn run_application(
         bridge.install_gui_test_mode(config);
     }
 
-    info!("sempal startup: native bridge constructed");
+    info!("wavecrate startup: native bridge constructed");
     emit_action_debug_event(ActionDebugEvent {
         action: "runtime.startup.prepare_gui_bridge",
         pane: Some("background"),
@@ -202,7 +202,7 @@ fn run_application(
     let runtime_elapsed = startup_started_at.elapsed();
     let exit_status = match &report.result {
         Ok(_) => {
-            info!("sempal startup: native runtime exited normally");
+            info!("wavecrate startup: native runtime exited normally");
             emit_action_debug_event(ActionDebugEvent {
                 action: "runtime.exit.native_runtime",
                 pane: Some("background"),
@@ -214,7 +214,7 @@ fn run_application(
             String::from("success")
         }
         Err(err) => {
-            error!(err = %err, "sempal startup: runtime exited with error");
+            error!(err = %err, "wavecrate startup: runtime exited with error");
             emit_action_debug_event(ActionDebugEvent {
                 action: "runtime.exit.native_runtime",
                 pane: Some("background"),

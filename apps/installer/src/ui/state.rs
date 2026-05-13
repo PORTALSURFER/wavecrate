@@ -148,7 +148,7 @@ impl InstallerNativeBridge {
                 .push(format!("Failed to open install folder: {err}"));
         }
         if self.launch_on_finish {
-            let exe = self.install_dir.join("sempal.exe");
+            let exe = self.install_dir.join("wavecrate.exe");
             if let Err(err) = std::process::Command::new(exe).spawn() {
                 self.finish_errors
                     .push(format!("Failed to launch SemPal: {err}"));

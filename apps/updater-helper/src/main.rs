@@ -1,13 +1,13 @@
 //! Standalone updater helper used to apply updates on Windows.
 //!
-//! The main `sempal` app can spawn this executable and exit so that the helper can
+//! The main `wavecrate` app can spawn this executable and exit so that the helper can
 //! safely replace the installed binaries.
 
 mod ui;
 
 use std::path::PathBuf;
 
-use sempal::updater::{
+use wavecrate::updater::{
     APP_NAME, ApplyPlan, REPO_SLUG, RuntimeIdentity, UpdateChannel, UpdateError, UpdaterRunArgs,
     apply_update,
 };

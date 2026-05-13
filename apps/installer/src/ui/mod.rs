@@ -2,7 +2,7 @@
 
 use std::{sync::Arc, sync::mpsc};
 
-use sempal::{
+use wavecrate::{
     app_core::actions::{NativeAppBridge, NativeAppModel as AppModel, NativeUiAction as UiAction},
     companion_apps::native_ui::decode_first_window_icon,
     gui_runtime::run_native_vello_app_declarative,
@@ -62,14 +62,14 @@ impl NativeAppBridge for InstallerNativeBridge {
 
 /// Run the installer UI using the native radiant runtime.
 pub(crate) fn run_installer_app() -> Result<(), String> {
-    let options = sempal::companion_apps::native_ui::standard_window_options(
+    let options = wavecrate::companion_apps::native_ui::standard_window_options(
         "SemPal Installer",
         load_installer_icon(),
     );
     run_native_vello_app_declarative(options, InstallerNativeBridge::new())
 }
 
-fn load_installer_icon() -> Option<sempal::gui_runtime::WindowIconRgba> {
+fn load_installer_icon() -> Option<wavecrate::gui_runtime::WindowIconRgba> {
     let icon = decode_first_window_icon(&[
         include_bytes!("../../../../assets/logo3.ico"),
         include_bytes!("../../../../assets/logo3.png"),
@@ -120,7 +120,7 @@ pub(crate) fn send_finished(sender: &mpsc::Sender<InstallerEvent>) -> Result<(),
 mod tests {
     use super::*;
     use crate::ui::projection::step_label;
-    use sempal::app_core::actions::NativeUiAction as UiAction;
+    use wavecrate::app_core::actions::NativeUiAction as UiAction;
 
     #[test]
     fn step_transitions_follow_expected_order() {

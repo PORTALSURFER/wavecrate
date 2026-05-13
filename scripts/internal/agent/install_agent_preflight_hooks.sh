@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
-# Install local git hooks that keep sempal and the radiant submodule aligned
+# Install local git hooks that keep wavecrate and the radiant submodule aligned
 # with their main-base workflow and rerun lightweight preflight checks after
 # branch/source updates.
 #
-# Hooks installed for sempal:
+# Hooks installed for wavecrate:
 # - post-merge / post-checkout: rerun agent preflight
 # - pre-commit / pre-push: verify local `main` tracks `origin/main`; feature branches are allowed for PR work
 #
@@ -12,7 +12,7 @@
 # - post-merge / post-checkout / pre-commit / pre-push: fail unless radiant uses
 #   local `main` tracking `origin/main`
 #
-# To temporarily disable hook execution, set SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK=1.
+# To temporarily disable hook execution, set WAVECRATE_SKIP_AGENT_PREFLIGHT_HOOK=1.
 
 set -euo pipefail
 
@@ -25,7 +25,7 @@ usage() {
   cat <<'USAGE'
 Usage: scripts/internal/agent/install_agent_preflight_hooks.sh [--force]
 
-Install local git hooks that keep sempal and vendor/radiant aligned with their
+Install local git hooks that keep wavecrate and vendor/radiant aligned with their
 main-base workflow and rerun agent preflight checks after repo-level source
 updates.
 
@@ -95,7 +95,7 @@ write_hook "$ROOT_HOOK_DIR" "post-merge" "run_agent_preflight.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ "${SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK:-0}" == "1" ]]; then
+if [[ "${WAVECRATE_SKIP_AGENT_PREFLIGHT_HOOK:-0}" == "1" ]]; then
   exit 0
 fi
 
@@ -122,7 +122,7 @@ write_hook "$ROOT_HOOK_DIR" "post-checkout" "run_agent_preflight.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ "${SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK:-0}" == "1" ]]; then
+if [[ "${WAVECRATE_SKIP_AGENT_PREFLIGHT_HOOK:-0}" == "1" ]]; then
   exit 0
 fi
 
@@ -148,7 +148,7 @@ write_hook "$ROOT_HOOK_DIR" "pre-commit" "check_next_branch.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ "${SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK:-0}" == "1" ]]; then
+if [[ "${WAVECRATE_SKIP_AGENT_PREFLIGHT_HOOK:-0}" == "1" ]]; then
   exit 0
 fi
 
@@ -170,7 +170,7 @@ write_hook "$ROOT_HOOK_DIR" "pre-push" "check_next_branch.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ "${SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK:-0}" == "1" ]]; then
+if [[ "${WAVECRATE_SKIP_AGENT_PREFLIGHT_HOOK:-0}" == "1" ]]; then
   exit 0
 fi
 
@@ -199,7 +199,7 @@ if git -C "$RADIANT_DIR" rev-parse --git-common-dir >/dev/null 2>&1; then
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ "${SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK:-0}" == "1" ]]; then
+if [[ "${WAVECRATE_SKIP_AGENT_PREFLIGHT_HOOK:-0}" == "1" ]]; then
   exit 0
 fi
 
@@ -248,4 +248,4 @@ if [[ -n "$RADIANT_HOOK_DIR" ]]; then
   echo "[agent_hook_install]   - $RADIANT_HOOK_DIR/pre-commit"
   echo "[agent_hook_install]   - $RADIANT_HOOK_DIR/pre-push"
 fi
-echo "[agent_hook_install] Override with: export SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK=1"
+echo "[agent_hook_install] Override with: export WAVECRATE_SKIP_AGENT_PREFLIGHT_HOOK=1"

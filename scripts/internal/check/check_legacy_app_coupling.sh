@@ -19,7 +19,7 @@ if [[ -f "$ROOT_DIR/scripts/internal/git_diff_env.sh" ]]; then
   # shellcheck source=scripts/internal/git_diff_env.sh
   source "$ROOT_DIR/scripts/internal/git_diff_env.sh"
 else
-  sempal_git() {
+  wavecrate_git() {
     git "$@"
   }
 fi
@@ -55,7 +55,7 @@ done
 ALLOWLIST_PATH="$ROOT_DIR/scripts/internal/check/allowlists/legacy_app_coupling_allowlist.txt"
 
 git_has_commit() {
-  sempal_git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1
+  wavecrate_git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1
 }
 
 is_legacy_path() {
@@ -120,7 +120,7 @@ scan_diff_stream() {
 scan_git_diff() {
   local label="$1"
   shift
-  if ! sempal_git diff --unified=0 --diff-filter=AMR "$@" -- src | scan_diff_stream "$label"; then
+  if ! wavecrate_git diff --unified=0 --diff-filter=AMR "$@" -- src | scan_diff_stream "$label"; then
     return 1
   fi
   return 0

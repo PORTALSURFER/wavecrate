@@ -1,4 +1,4 @@
-//! Default Sempal GUI application built on Radiant's current public API.
+//! Default Wavecrate GUI application built on Radiant's current public API.
 
 use radiant::gui::types::{ImageRgba, Point, Rect, Rgba8};
 use radiant::layout::{LayoutOutput, Vector2};
@@ -12,9 +12,6 @@ use radiant::widgets::{
     TextInputWidget, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
 };
 use rfd::FileDialog;
-use sempal::audio::AudioPlayer;
-use sempal::gui::svg::{parse_svg_document, point_in_svg_shapes};
-use sempal::gui_runtime::sempal_ui_font_path;
 use std::{
     ffi::OsString,
     path::PathBuf,
@@ -24,6 +21,9 @@ use std::{
     },
     time::Duration,
 };
+use wavecrate::audio::AudioPlayer;
+use wavecrate::gui::svg::{parse_svg_document, point_in_svg_shapes};
+use wavecrate::gui_runtime::wavecrate_ui_font_path;
 
 mod folder_browser;
 mod waveform;
@@ -461,13 +461,13 @@ struct FolderResize {
 /// Run the default Radiant GUI application shell.
 pub(crate) fn run() -> Result<(), String> {
     let options = NativeRunOptions {
-        title: String::from("Sempal"),
+        title: String::from("Wavecrate"),
         inner_size: Some([960.0, 540.0]),
         min_inner_size: Some([640.0, 360.0]),
         debug_layout: debug_layout_requested(std::env::args_os()),
         text: NativeTextOptions {
             embedded_fonts: Vec::new(),
-            font_paths: vec![sempal_ui_font_path()],
+            font_paths: vec![wavecrate_ui_font_path()],
         },
         ..NativeRunOptions::default()
     };
@@ -533,8 +533,8 @@ fn view(state: &mut GuiAppState) -> ui::View<GuiMessage> {
 
 fn top_status_bar() -> ui::View<GuiMessage> {
     ui::row([
-        ui::text("Sempal").height(20.0).width(120.0),
-        ui::text("Sempal GUI").height(20.0).fill_width(),
+        ui::text("Wavecrate").height(20.0).width(120.0),
+        ui::text("Wavecrate GUI").height(20.0).fill_width(),
         ui::text("ready").height(20.0).width(80.0),
     ])
     .spacing(8.0)
@@ -1119,7 +1119,7 @@ mod tests {
     #[test]
     fn canonical_debug_layout_arg_enables_default_gui_overlay() {
         assert!(debug_layout_requested([
-            OsString::from("sempal"),
+            OsString::from("wavecrate"),
             OsString::from(DEBUG_LAYOUT_ARG),
         ]));
     }
@@ -1127,7 +1127,7 @@ mod tests {
     #[test]
     fn short_debug_layout_arg_enables_default_gui_overlay() {
         assert!(debug_layout_requested([
-            OsString::from("sempal"),
+            OsString::from("wavecrate"),
             OsString::from(DEBUG_LAYOUT_SHORT_ARG),
         ]));
     }
@@ -1135,7 +1135,7 @@ mod tests {
     #[test]
     fn unrelated_args_leave_default_gui_overlay_disabled() {
         assert!(!debug_layout_requested([
-            OsString::from("sempal"),
+            OsString::from("wavecrate"),
             OsString::from("--debug-log"),
         ]));
     }
@@ -1237,7 +1237,7 @@ mod tests {
 
     #[test]
     fn play_selected_sample_uses_active_playmark_selection_span() {
-        let Ok(player) = sempal::audio::AudioPlayer::new() else {
+        let Ok(player) = wavecrate::audio::AudioPlayer::new() else {
             return;
         };
         let mut state = GuiAppState::load_default().expect("default state loads");
