@@ -1,12 +1,11 @@
 #![allow(missing_docs)]
 
 use radiant::{
-    gui::types::{Point, Rect, Rgba8, Vector2},
+    gui::types::{ImageRgba, Point, Rect, Rgba8, Vector2},
     layout::LayoutOutput,
     prelude as ui,
     runtime::{
-        GpuHoverCursor, GpuSurfaceCapabilities, GpuSurfaceContent, PaintFillRect, PaintGpuSurface,
-        PaintPrimitive,
+        GpuHoverCursor, GpuSurfaceCapabilities, GpuSurfaceContent, PaintGpuSurface, PaintPrimitive,
     },
     theme::ThemeTokens,
     widgets::{
@@ -851,16 +850,17 @@ impl WaveformWidget {
 
     fn push_selection_fill(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
         if let Some(rect) = self.selection_rect(bounds, self.play_selection) {
-            primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-                widget_id: self.common.id,
+            self.push_selection_gpu_rect(
+                primitives,
                 rect,
-                color: Rgba8 {
+                Rgba8 {
                     r: 255,
                     g: 142,
                     b: 92,
                     a: 48,
                 },
-            }));
+                0x10,
+            );
             self.push_selection_edges(
                 primitives,
                 bounds,
@@ -874,16 +874,17 @@ impl WaveformWidget {
             );
         }
         if let Some(rect) = self.selection_rect(bounds, self.edit_selection) {
-            primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-                widget_id: self.common.id,
+            self.push_selection_gpu_rect(
+                primitives,
                 rect,
-                color: Rgba8 {
+                Rgba8 {
                     r: 82,
                     g: 168,
                     b: 255,
                     a: 46,
                 },
-            }));
+                0x20,
+            );
             self.push_selection_edges(
                 primitives,
                 bounds,
@@ -905,16 +906,48 @@ impl WaveformWidget {
         rect: Rect,
         color: Rgba8,
     ) {
-        for x in [rect.min.x, rect.max.x] {
-            primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-                widget_id: self.common.id,
-                rect: Rect::from_min_size(
+        for (index, x) in [rect.min.x, rect.max.x].into_iter().enumerate() {
+            self.push_selection_gpu_rect(
+                primitives,
+                Rect::from_min_size(
                     Point::new(x - 0.75, bounds.min.y),
                     Vector2::new(1.5, bounds.height()),
                 ),
                 color,
-            }));
+                0x30 + index as u64,
+            );
         }
+    }
+
+    fn push_selection_gpu_rect(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        rect: Rect,
+        color: Rgba8,
+        key_tag: u64,
+    ) {
+        let Some(atlas) = ImageRgba::new(1, 1, vec![color.r, color.g, color.b, color.a]) else {
+            return;
+        };
+        primitives.push(PaintPrimitive::GpuSurface(PaintGpuSurface {
+            widget_id: self.common.id,
+            key: self.selection_surface_key(key_tag),
+            revision: selection_color_revision(color),
+            rect,
+            content: GpuSurfaceContent::RgbaAtlas {
+                source_rect: Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(1.0, 1.0)),
+                atlas: Arc::new(atlas),
+            },
+            capabilities: GpuSurfaceCapabilities::default(),
+            overlays: Vec::new(),
+        }));
+    }
+
+    fn selection_surface_key(&self, tag: u64) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        self.file.path_hash().hash(&mut hasher);
+        tag.hash(&mut hasher);
+        hasher.finish()
     }
 
     fn selection_rect(
@@ -957,6 +990,13 @@ impl WaveformWidget {
     }
 }
 
+fn selection_color_revision(color: Rgba8) -> u64 {
+    u64::from(color.r)
+        | (u64::from(color.g) << 8)
+        | (u64::from(color.b) << 16)
+        | (u64::from(color.a) << 24)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -965,6 +1005,8 @@ mod tests {
     };
     use radiant::{
         gui::types::{Point, Rect, Vector2},
+        runtime::{GpuSurfaceContent, PaintPrimitive},
+        theme::ThemeTokens,
         widgets::{PointerButton, Widget, WidgetInput},
     };
 
@@ -1308,5 +1350,64 @@ mod tests {
         assert!((rect.max.x - 160.0).abs() < 0.001);
         assert_eq!(rect.min.y, 20.0);
         assert_eq!(rect.max.y, 100.0);
+    }
+
+    #[test]
+    fn selection_fill_paints_as_gpu_surface_above_waveform() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.apply_interaction(WaveformInteraction::BeginSelection {
+            kind: WaveformSelectionKind::Play,
+            visible_ratio: 0.2,
+        });
+        state.apply_interaction(WaveformInteraction::UpdateSelection { visible_ratio: 0.6 });
+        let widget = WaveformWidget::new(
+            state.file(),
+            state.viewport(),
+            state.cursor_ratio(),
+            state.playhead_ratio(),
+            state.play_mark_ratio(),
+            state.edit_mark_ratio(),
+            state.play_selection(),
+            state.edit_selection(),
+            state.active_drag_kind(),
+        );
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0)),
+            &Default::default(),
+            &ThemeTokens::default(),
+        );
+
+        let waveform_index = primitives
+            .iter()
+            .position(|primitive| {
+                matches!(
+                    primitive,
+                    PaintPrimitive::GpuSurface(surface)
+                        if matches!(surface.content, GpuSurfaceContent::SignalSummaryBands { .. })
+                )
+            })
+            .expect("waveform gpu surface");
+        let selection_indices = primitives
+            .iter()
+            .enumerate()
+            .filter_map(|(index, primitive)| match primitive {
+                PaintPrimitive::GpuSurface(surface)
+                    if matches!(surface.content, GpuSurfaceContent::RgbaAtlas { .. }) =>
+                {
+                    Some(index)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(selection_indices.len(), 3);
+        assert!(
+            selection_indices
+                .iter()
+                .all(|index| *index > waveform_index)
+        );
     }
 }
