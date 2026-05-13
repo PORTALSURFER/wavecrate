@@ -23,7 +23,7 @@ use std::{
     sync::Arc,
 };
 
-use super::RebuildMessage;
+use super::GuiMessage;
 
 const WAVEFORM_WIDTH: usize = 1200;
 const WAVEFORM_HEIGHT: usize = 320;
@@ -419,7 +419,7 @@ pub(super) fn default_sample_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/portal_SS_kick_003.wav")
 }
 
-pub(super) fn waveform_viewport_view(state: &WaveformState) -> ui::View<super::RebuildMessage> {
+pub(super) fn waveform_viewport_view(state: &WaveformState) -> ui::View<super::GuiMessage> {
     ui::custom_widget(
         WaveformWidget::new(
             state.file(),
@@ -436,7 +436,7 @@ pub(super) fn waveform_viewport_view(state: &WaveformState) -> ui::View<super::R
             output
                 .typed_ref::<WaveformInteraction>()
                 .copied()
-                .map(RebuildMessage::Waveform)
+                .map(GuiMessage::Waveform)
         },
     )
     .id(10)

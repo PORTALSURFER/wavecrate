@@ -1,4 +1,4 @@
-//! Legacy Sempal sample application entrypoint retained behind `legacy-sample`.
+//! Deprecated legacy Sempal GUI entrypoint retained behind `legacy-gui`.
 
 use sempal::app_core::ui::MIN_VIEWPORT_SIZE;
 use sempal::app_dirs;
@@ -18,7 +18,7 @@ use crate::run_contract::{
     start_contract,
 };
 
-/// Run the legacy native-shell sample application.
+/// Run the deprecated legacy native-shell GUI application.
 pub(crate) fn run() -> Result<(), String> {
     logging::install_panic_hook();
     let args: Vec<OsString> = std::env::args_os().collect();

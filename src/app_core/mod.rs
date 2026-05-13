@@ -1,7 +1,7 @@
 //! Backend-neutral application-core helpers shared by GUI runtimes.
 //!
-//! This module centralizes migration-facing types so runtime hosts can rely on
-//! `app_core` without taking direct `app` module dependencies.
+//! This module centralizes migration-facing types so legacy runtime hosts can
+//! rely on `app_core` without taking direct `app` module dependencies.
 pub mod app_api;
 
 /// Controller aliases and helpers used by migration-facing runtimes.

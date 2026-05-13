@@ -12,7 +12,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
-use super::RebuildMessage;
+use super::GuiMessage;
 
 const MAX_SCAN_DEPTH: usize = 3;
 const MAX_CHILD_FOLDERS: usize = 80;
@@ -776,7 +776,7 @@ pub(super) struct FolderScanResult {
     pub(super) folder_count: usize,
 }
 
-pub(super) fn folder_browser_view(state: &FolderBrowserState) -> ui::View<RebuildMessage> {
+pub(super) fn folder_browser_view(state: &FolderBrowserState) -> ui::View<GuiMessage> {
     ui::column([
         source_selector(state),
         ui::text("Folders").height(22.0).fill_width(),
@@ -800,15 +800,13 @@ pub(super) fn folder_browser_view(state: &FolderBrowserState) -> ui::View<Rebuil
     .fill_height()
 }
 
-fn source_selector(state: &FolderBrowserState) -> ui::View<RebuildMessage> {
+fn source_selector(state: &FolderBrowserState) -> ui::View<GuiMessage> {
     ui::column([
         ui::row([
             ui::text("Sources").height(20.0).fill_width(),
             ui::button("+")
                 .primary()
-                .message(RebuildMessage::FolderBrowser(
-                    FolderBrowserMessage::AddSource,
-                ))
+                .message(GuiMessage::FolderBrowser(FolderBrowserMessage::AddSource))
                 .key("source-add-button")
                 .size(28.0, 22.0),
         ])
@@ -829,7 +827,7 @@ fn source_selector(state: &FolderBrowserState) -> ui::View<RebuildMessage> {
     .fill_width()
 }
 
-fn source_row(state: &FolderBrowserState, source: &SourceEntry) -> ui::View<RebuildMessage> {
+fn source_row(state: &FolderBrowserState, source: &SourceEntry) -> ui::View<GuiMessage> {
     let id = source.id.clone();
     let selected = state.selected_source == source.id;
     let label = if source.loading_task.is_some() {
@@ -838,7 +836,7 @@ fn source_row(state: &FolderBrowserState, source: &SourceEntry) -> ui::View<Rebu
         source.label.clone()
     };
     let mut row = ui::button(label)
-        .message(RebuildMessage::FolderBrowser(
+        .message(GuiMessage::FolderBrowser(
             FolderBrowserMessage::SelectSource(id.clone()),
         ))
         .key(format!("source-row-{id}"))
@@ -860,7 +858,7 @@ fn source_row(state: &FolderBrowserState, source: &SourceEntry) -> ui::View<Rebu
     .fill_width()
 }
 
-fn folder_row(folder: VisibleFolder) -> ui::View<RebuildMessage> {
+fn folder_row(folder: VisibleFolder) -> ui::View<GuiMessage> {
     let id = folder.id.clone();
     if let (Some(draft), Some(input_id)) = (folder.rename_draft.clone(), folder.rename_input_id) {
         let mut input = TextInputWidget::new(
@@ -874,7 +872,7 @@ fn folder_row(folder: VisibleFolder) -> ui::View<RebuildMessage> {
         return ui::row([
             ui::spacer().width(indent).height(22.0),
             ui::custom_widget_mapped(input, |message| {
-                RebuildMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message))
+                GuiMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message))
             })
             .id(input_id)
             .key(format!("folder-rename-input-{id}"))
@@ -894,8 +892,7 @@ fn folder_row(folder: VisibleFolder) -> ui::View<RebuildMessage> {
 
     let expander = if folder.expanded { "[-]" } else { "[+]" };
     let indent = (folder.depth as f32) * TREE_DEPTH_INDENT;
-    let label_message =
-        RebuildMessage::FolderBrowser(FolderBrowserMessage::ActivateFolder(id.clone()));
+    let label_message = GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateFolder(id.clone()));
     let label_text = if folder.has_children {
         format!("{expander} {}", folder.name)
     } else {
@@ -929,7 +926,7 @@ fn folder_row(folder: VisibleFolder) -> ui::View<RebuildMessage> {
         .hoverable()
 }
 
-fn selected_folder_status(state: &FolderBrowserState) -> ui::View<RebuildMessage> {
+fn selected_folder_status(state: &FolderBrowserState) -> ui::View<GuiMessage> {
     let file_count = state.selected_files().len();
     let audio_count = state.selected_audio_files().len();
     let label = state
@@ -946,11 +943,7 @@ fn selected_folder_status(state: &FolderBrowserState) -> ui::View<RebuildMessage
 }
 
 fn plural(count: usize) -> &'static str {
-    if count == 1 {
-        ""
-    } else {
-        "s"
-    }
+    if count == 1 { "" } else { "s" }
 }
 
 fn default_root_path() -> PathBuf {
@@ -1359,13 +1352,13 @@ fn offset_index(current: usize, delta: i32, len: usize) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use super::{path_id, scan_source_with_progress, FolderBrowserState, FolderScanDiscoveryBatch};
+    use super::{FolderBrowserState, FolderScanDiscoveryBatch, path_id, scan_source_with_progress};
     use radiant::widgets::TextInputMessage;
     use std::{fs, path::PathBuf};
 
     #[test]
     fn source_scan_installs_finished_tree_after_placeholder_selection() {
-        let root = temp_source_root("radiant-rebuild-source-scan");
+        let root = temp_source_root("radiant-gui-source-scan");
         fs::create_dir_all(root.join("drums")).expect("create nested folder");
         fs::write(root.join("drums").join("kick.wav"), [0_u8; 8]).expect("write wav");
         let mut browser = FolderBrowserState::load_default();
@@ -1395,16 +1388,18 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["kick.wav"]
         );
-        assert!(progress_events
-            .iter()
-            .any(|progress| progress.phase == "Scanning" && progress.total == 0));
+        assert!(
+            progress_events
+                .iter()
+                .any(|progress| progress.phase == "Scanning" && progress.total == 0)
+        );
         assert!(!discovery_events.is_empty());
         let _ = fs::remove_dir_all(root);
     }
 
     #[test]
     fn source_scan_discoveries_populate_selected_tree_before_finish() {
-        let root = temp_source_root("radiant-rebuild-source-streaming");
+        let root = temp_source_root("radiant-gui-source-streaming");
         let drums = root.join("drums");
         fs::create_dir_all(&drums).expect("create nested folder");
         fs::write(drums.join("kick.wav"), [0_u8; 8]).expect("write wav");
@@ -1441,7 +1436,7 @@ mod tests {
 
     #[test]
     fn batched_scan_discoveries_clone_selected_tree_once_per_batch() {
-        let root = temp_source_root("radiant-rebuild-source-batch");
+        let root = temp_source_root("radiant-gui-source-batch");
         let drums = root.join("drums");
         fs::create_dir_all(&drums).expect("create nested folder");
         fs::write(drums.join("kick.wav"), [0_u8; 8]).expect("write wav");
@@ -1470,7 +1465,7 @@ mod tests {
 
     #[test]
     fn visible_folder_depths_are_stable_for_siblings() {
-        let root = temp_source_root("radiant-rebuild-folder-depths");
+        let root = temp_source_root("radiant-gui-folder-depths");
         for child in ["alpha", "beta", "gamma"] {
             fs::create_dir_all(root.join("parent").join(child)).expect("create nested folder");
         }
@@ -1491,7 +1486,7 @@ mod tests {
 
     #[test]
     fn folder_keyboard_navigation_moves_visible_selection_and_expands_collapses() {
-        let root = temp_source_root("radiant-rebuild-folder-keyboard");
+        let root = temp_source_root("radiant-gui-folder-keyboard");
         let drums = root.join("drums");
         let kicks = drums.join("kicks");
         let snares = drums.join("snares");
@@ -1521,7 +1516,7 @@ mod tests {
 
     #[test]
     fn file_keyboard_navigation_moves_audio_selection_without_leaving_folder() {
-        let root = temp_source_root("radiant-rebuild-file-keyboard");
+        let root = temp_source_root("radiant-gui-file-keyboard");
         let drums = root.join("drums");
         fs::create_dir_all(&drums).expect("create drums folder");
         let hat = drums.join("hat.wav");
@@ -1548,7 +1543,7 @@ mod tests {
 
     #[test]
     fn browser_keyboard_navigation_is_disabled_while_renaming() {
-        let root = temp_source_root("radiant-rebuild-keyboard-rename");
+        let root = temp_source_root("radiant-gui-keyboard-rename");
         let drums = root.join("drums");
         let kicks = drums.join("kicks");
         fs::create_dir_all(&kicks).expect("create kicks folder");
@@ -1570,7 +1565,7 @@ mod tests {
 
     #[test]
     fn folder_rename_updates_filesystem_tree_and_selected_audio_files() {
-        let root = temp_source_root("radiant-rebuild-folder-rename");
+        let root = temp_source_root("radiant-gui-folder-rename");
         let drums = root.join("drums");
         fs::create_dir_all(&drums).expect("create nested folder");
         fs::write(drums.join("kick.wav"), [0_u8; 8]).expect("write wav");
@@ -1604,7 +1599,7 @@ mod tests {
 
     #[test]
     fn file_rename_hides_and_preserves_extension() {
-        let root = temp_source_root("radiant-rebuild-file-rename");
+        let root = temp_source_root("radiant-gui-file-rename");
         let drums = root.join("drums");
         fs::create_dir_all(&drums).expect("create nested folder");
         let kick = drums.join("kick loop.wav");
@@ -1655,7 +1650,7 @@ mod tests {
 
     #[test]
     fn file_rename_submission_cannot_change_extension() {
-        let root = temp_source_root("radiant-rebuild-file-rename-extension");
+        let root = temp_source_root("radiant-gui-file-rename-extension");
         let drums = root.join("drums");
         fs::create_dir_all(&drums).expect("create nested folder");
         let kick = drums.join("kick.wav");
@@ -1687,7 +1682,7 @@ mod tests {
 
     #[test]
     fn root_folder_rename_is_rejected_from_tree() {
-        let root = temp_source_root("radiant-rebuild-root-rename");
+        let root = temp_source_root("radiant-gui-root-rename");
         let mut browser = FolderBrowserState::from_root(root.clone());
 
         assert_eq!(

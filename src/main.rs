@@ -8,27 +8,27 @@
     windows_subsystem = "windows"
 )]
 
-#[cfg(all(feature = "legacy-sample", feature = "radiant-rebuild"))]
-compile_error!("enable either legacy-sample or radiant-rebuild, not both");
+#[cfg(all(feature = "legacy-gui", feature = "radiant-gui"))]
+compile_error!("enable either legacy-gui or radiant-gui, not both");
 
-#[cfg(not(any(feature = "legacy-sample", feature = "radiant-rebuild")))]
-compile_error!("enable either legacy-sample or radiant-rebuild");
+#[cfg(not(any(feature = "legacy-gui", feature = "radiant-gui")))]
+compile_error!("enable either legacy-gui or radiant-gui");
 
-#[cfg(feature = "legacy-sample")]
+#[cfg(feature = "legacy-gui")]
 mod app_icon;
-#[cfg(feature = "legacy-sample")]
-mod legacy_sample_app;
-#[cfg(feature = "radiant-rebuild")]
-mod radiant_rebuild_app;
-#[cfg(feature = "legacy-sample")]
+#[cfg(feature = "radiant-gui")]
+mod gui_app;
+#[cfg(feature = "legacy-gui")]
+mod legacy_gui_app;
+#[cfg(feature = "legacy-gui")]
 mod run_contract;
 
-#[cfg(feature = "radiant-rebuild")]
+#[cfg(feature = "radiant-gui")]
 fn main() -> Result<(), String> {
-    radiant_rebuild_app::run()
+    gui_app::run()
 }
 
-#[cfg(feature = "legacy-sample")]
+#[cfg(feature = "legacy-gui")]
 fn main() -> Result<(), String> {
-    legacy_sample_app::run()
+    legacy_gui_app::run()
 }

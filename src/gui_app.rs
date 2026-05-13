@@ -1,4 +1,4 @@
-//! Radiant-first Sempal application rebuilt incrementally beside the legacy sample.
+//! Default Sempal GUI application built on Radiant's current public API.
 
 use radiant::gui::types::{ImageRgba, Point, Rect, Rgba8};
 use radiant::layout::{LayoutOutput, Vector2};
@@ -42,7 +42,7 @@ const WAVEFORM_VIEW_HEIGHT: f32 = 172.0;
 const WAVEFORM_PANEL_HEIGHT: f32 = 226.0;
 
 #[derive(Clone, Debug, PartialEq)]
-enum RebuildMessage {
+enum GuiMessage {
     ResizeFolder(DragHandleMessage),
     FolderBrowser(FolderBrowserMessage),
     FolderScanProgress(FolderScanProgress),
@@ -75,14 +75,14 @@ impl PartialEq for SampleLoadResult {
     }
 }
 
-struct RebuildLayoutState {
+struct GuiAppState {
     folder_width: f32,
     folder_resize: Option<FolderResize>,
     folder_browser: FolderBrowserState,
     waveform: WaveformState,
     sample_status: String,
-    worker_sender: Sender<RebuildMessage>,
-    worker_receiver: Option<Receiver<RebuildMessage>>,
+    worker_sender: Sender<GuiMessage>,
+    worker_receiver: Option<Receiver<GuiMessage>>,
     next_task_id: u64,
     next_sample_task_id: u64,
     pending_sample_task_id: Option<u64>,
@@ -91,7 +91,7 @@ struct RebuildLayoutState {
     audio_player: Option<AudioPlayer>,
 }
 
-impl RebuildLayoutState {
+impl GuiAppState {
     fn load_default() -> Result<Self, String> {
         let (worker_sender, worker_receiver) = mpsc::channel();
         Ok(Self {
@@ -133,20 +133,16 @@ impl RebuildLayoutState {
         }
     }
 
-    fn apply_message(
-        &mut self,
-        message: RebuildMessage,
-        context: &mut ui::UpdateContext<RebuildMessage>,
-    ) {
+    fn apply_message(&mut self, message: GuiMessage, context: &mut ui::UpdateContext<GuiMessage>) {
         match message {
-            RebuildMessage::ResizeFolder(message) => self.resize_folder_browser(message),
-            RebuildMessage::FolderBrowser(FolderBrowserMessage::AddSource) => {
+            GuiMessage::ResizeFolder(message) => self.resize_folder_browser(message),
+            GuiMessage::FolderBrowser(FolderBrowserMessage::AddSource) => {
                 self.add_source_from_dialog(context);
             }
-            RebuildMessage::FolderBrowser(FolderBrowserMessage::SelectSource(id)) => {
+            GuiMessage::FolderBrowser(FolderBrowserMessage::SelectSource(id)) => {
                 self.select_source(id, context);
             }
-            RebuildMessage::FolderBrowser(FolderBrowserMessage::BeginRenameSelected) => {
+            GuiMessage::FolderBrowser(FolderBrowserMessage::BeginRenameSelected) => {
                 let renaming_file = self.folder_browser.selected_file_id().is_some();
                 match self.folder_browser.begin_rename_selected() {
                     Ok(Some(input_id)) => {
@@ -157,7 +153,7 @@ impl RebuildLayoutState {
                         };
                         context.after(
                             Duration::from_millis(1),
-                            RebuildMessage::FocusRenameInput(input_id),
+                            GuiMessage::FocusRenameInput(input_id),
                         );
                     }
                     Ok(None) => {
@@ -168,13 +164,13 @@ impl RebuildLayoutState {
                     }
                 }
             }
-            RebuildMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message)) => {
+            GuiMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message)) => {
                 if let Some(status) = self.folder_browser.apply_rename_input(message) {
                     self.sample_status = status;
                 }
             }
-            RebuildMessage::FolderBrowser(message) => self.folder_browser.apply_message(message),
-            RebuildMessage::FolderScanProgress(progress) => {
+            GuiMessage::FolderBrowser(message) => self.folder_browser.apply_message(message),
+            GuiMessage::FolderScanProgress(progress) => {
                 if self
                     .folder_browser
                     .scan_is_active(&progress.source_id, progress.task_id)
@@ -182,35 +178,35 @@ impl RebuildLayoutState {
                     self.folder_progress = Some(progress);
                 }
             }
-            RebuildMessage::FolderScanDiscoveryBatch(batch) => {
+            GuiMessage::FolderScanDiscoveryBatch(batch) => {
                 self.folder_browser.apply_scan_discovered_batch(batch);
             }
-            RebuildMessage::FolderScanFinished(result) => self.finish_folder_scan(result),
-            RebuildMessage::SelectSample(path) => self.select_sample(path, context),
-            RebuildMessage::SampleLoadFinished(result) => self.finish_sample_load(result),
-            RebuildMessage::PlaySelectedSample => self.play_selected_sample(context),
-            RebuildMessage::StopPlayback => self.stop_playback(),
-            RebuildMessage::FocusRenameInput(input_id) => {
+            GuiMessage::FolderScanFinished(result) => self.finish_folder_scan(result),
+            GuiMessage::SelectSample(path) => self.select_sample(path, context),
+            GuiMessage::SampleLoadFinished(result) => self.finish_sample_load(result),
+            GuiMessage::PlaySelectedSample => self.play_selected_sample(context),
+            GuiMessage::StopPlayback => self.stop_playback(),
+            GuiMessage::FocusRenameInput(input_id) => {
                 context.focus(input_id);
             }
-            RebuildMessage::NavigateBrowser(delta) => {
+            GuiMessage::NavigateBrowser(delta) => {
                 if let Some(path) = self.folder_browser.navigate_vertical(delta) {
                     self.select_sample(path, context);
                 }
             }
-            RebuildMessage::CollapseSelectedFolder => {
+            GuiMessage::CollapseSelectedFolder => {
                 self.folder_browser.collapse_selected_folder();
             }
-            RebuildMessage::ExpandSelectedFolder => {
+            GuiMessage::ExpandSelectedFolder => {
                 self.folder_browser.expand_selected_folder();
             }
-            RebuildMessage::Waveform(message) => {
+            GuiMessage::Waveform(message) => {
                 self.waveform.apply_interaction(message);
                 if let Some(start_ratio) = self.waveform.take_pending_playback_start() {
                     self.play_waveform_from_ratio(start_ratio);
                 }
             }
-            RebuildMessage::Frame => {
+            GuiMessage::Frame => {
                 self.waveform.apply_interaction(WaveformInteraction::Frame);
                 self.refresh_playback_progress();
                 if self.folder_progress.is_some() {
@@ -220,10 +216,10 @@ impl RebuildLayoutState {
         }
     }
 
-    fn worker_subscription(&mut self) -> ui::Subscription<RebuildMessage> {
+    fn worker_subscription(&mut self) -> ui::Subscription<GuiMessage> {
         self.worker_receiver
             .take()
-            .map(|receiver| ui::Subscription::worker("rebuild-workers", receiver))
+            .map(|receiver| ui::Subscription::worker("gui-workers", receiver))
             .unwrap_or_else(ui::Subscription::none)
     }
 
@@ -239,7 +235,7 @@ impl RebuildLayoutState {
         task_id
     }
 
-    fn add_source_from_dialog(&mut self, context: &mut ui::UpdateContext<RebuildMessage>) {
+    fn add_source_from_dialog(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
         let Some(path) = FileDialog::new().set_title("Add source").pick_folder() else {
             return;
         };
@@ -249,7 +245,7 @@ impl RebuildLayoutState {
         }
     }
 
-    fn select_source(&mut self, id: String, context: &mut ui::UpdateContext<RebuildMessage>) {
+    fn select_source(&mut self, id: String, context: &mut ui::UpdateContext<GuiMessage>) {
         let task_id = self.next_folder_task_id();
         if let Some(request) = self.folder_browser.begin_select_source(id, task_id) {
             self.launch_folder_scan(request, context);
@@ -259,7 +255,7 @@ impl RebuildLayoutState {
     fn launch_folder_scan(
         &mut self,
         request: FolderScanRequest,
-        context: &mut ui::UpdateContext<RebuildMessage>,
+        context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         self.folder_progress = Some(FolderScanProgress {
             task_id: request.task_id,
@@ -273,7 +269,7 @@ impl RebuildLayoutState {
         self.sample_status = format!("Scanning source {}", request.label);
         let sender = self.worker_sender.clone();
         context.spawn(
-            "rebuild-folder-scan",
+            "gui-folder-scan",
             move || {
                 let discovery_sender = sender.clone();
                 let mut pending_discoveries = Vec::with_capacity(64);
@@ -282,26 +278,25 @@ impl RebuildLayoutState {
                 let result = folder_browser::scan_source_with_progress(
                     request,
                     |progress| {
-                        let _ = sender.send(RebuildMessage::FolderScanProgress(progress));
+                        let _ = sender.send(GuiMessage::FolderScanProgress(progress));
                     },
                     |event| {
                         pending_discoveries.push(event);
                         if pending_discoveries.len() >= 64 {
                             let events = std::mem::take(&mut pending_discoveries);
-                            let _ =
-                                discovery_sender.send(RebuildMessage::FolderScanDiscoveryBatch(
-                                    FolderScanDiscoveryBatch {
-                                        task_id,
-                                        source_id: source_id.clone(),
-                                        events,
-                                    },
-                                ));
+                            let _ = discovery_sender.send(GuiMessage::FolderScanDiscoveryBatch(
+                                FolderScanDiscoveryBatch {
+                                    task_id,
+                                    source_id: source_id.clone(),
+                                    events,
+                                },
+                            ));
                         }
                     },
                 );
                 if !pending_discoveries.is_empty() {
                     let events = std::mem::take(&mut pending_discoveries);
-                    let _ = discovery_sender.send(RebuildMessage::FolderScanDiscoveryBatch(
+                    let _ = discovery_sender.send(GuiMessage::FolderScanDiscoveryBatch(
                         FolderScanDiscoveryBatch {
                             task_id,
                             source_id,
@@ -311,7 +306,7 @@ impl RebuildLayoutState {
                 }
                 result
             },
-            RebuildMessage::FolderScanFinished,
+            GuiMessage::FolderScanFinished,
         );
     }
 
@@ -327,13 +322,13 @@ impl RebuildLayoutState {
         }
     }
 
-    fn select_sample(&mut self, path: String, context: &mut ui::UpdateContext<RebuildMessage>) {
+    fn select_sample(&mut self, path: String, context: &mut ui::UpdateContext<GuiMessage>) {
         self.folder_browser.select_file(path.clone());
         let task_id = self.next_sample_task_id();
         self.pending_sample_task_id = Some(task_id);
         self.sample_status = format!("Loading {}", sample_path_label(&path));
         context.spawn(
-            "rebuild-sample-load",
+            "gui-sample-load",
             move || {
                 let result = WaveformState::load_path(PathBuf::from(&path));
                 SampleLoadResult {
@@ -342,7 +337,7 @@ impl RebuildLayoutState {
                     result,
                 }
             },
-            RebuildMessage::SampleLoadFinished,
+            GuiMessage::SampleLoadFinished,
         );
     }
 
@@ -371,7 +366,7 @@ impl RebuildLayoutState {
         }
     }
 
-    fn play_selected_sample(&mut self, context: &mut ui::UpdateContext<RebuildMessage>) {
+    fn play_selected_sample(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
         if let Some(path) = self.folder_browser.selected_file_id()
             && PathBuf::from(path) != self.waveform.path()
         {
@@ -452,7 +447,7 @@ struct FolderResize {
     start_width: f32,
 }
 
-/// Run the new Radiant-first application shell.
+/// Run the default Radiant GUI application shell.
 pub(crate) fn run() -> Result<(), String> {
     let options = NativeRunOptions {
         title: String::from("Sempal"),
@@ -466,29 +461,29 @@ pub(crate) fn run() -> Result<(), String> {
         ..NativeRunOptions::default()
     };
 
-    radiant::app(RebuildLayoutState::load_default()?)
+    radiant::app(GuiAppState::load_default()?)
         .options(options)
         .view(view)
         .animation(|state| state.waveform.is_playing() || state.folder_progress.is_some())
-        .on_frame(|| RebuildMessage::Frame)
-        .subscriptions(RebuildLayoutState::worker_subscription)
+        .on_frame(|| GuiMessage::Frame)
+        .subscriptions(GuiAppState::worker_subscription)
         .shortcuts(|state, _, press, _| {
             if state.folder_browser.rename_active() {
                 ui::ShortcutResolution::unhandled()
             } else if press == ui::KeyPress::new(ui::KeyCode::F2) {
-                ui::ShortcutResolution::action(RebuildMessage::FolderBrowser(
+                ui::ShortcutResolution::action(GuiMessage::FolderBrowser(
                     FolderBrowserMessage::BeginRenameSelected,
                 ))
             } else if press == ui::KeyPress::new(ui::KeyCode::Space) {
-                ui::ShortcutResolution::action(RebuildMessage::PlaySelectedSample)
+                ui::ShortcutResolution::action(GuiMessage::PlaySelectedSample)
             } else if press == ui::KeyPress::new(ui::KeyCode::ArrowUp) {
-                ui::ShortcutResolution::action(RebuildMessage::NavigateBrowser(-1))
+                ui::ShortcutResolution::action(GuiMessage::NavigateBrowser(-1))
             } else if press == ui::KeyPress::new(ui::KeyCode::ArrowDown) {
-                ui::ShortcutResolution::action(RebuildMessage::NavigateBrowser(1))
+                ui::ShortcutResolution::action(GuiMessage::NavigateBrowser(1))
             } else if press == ui::KeyPress::new(ui::KeyCode::ArrowLeft) {
-                ui::ShortcutResolution::action(RebuildMessage::CollapseSelectedFolder)
+                ui::ShortcutResolution::action(GuiMessage::CollapseSelectedFolder)
             } else if press == ui::KeyPress::new(ui::KeyCode::ArrowRight) {
-                ui::ShortcutResolution::action(RebuildMessage::ExpandSelectedFolder)
+                ui::ShortcutResolution::action(GuiMessage::ExpandSelectedFolder)
             } else {
                 ui::ShortcutResolution::unhandled()
             }
@@ -515,7 +510,7 @@ fn sample_path_label(path: &str) -> String {
         .unwrap_or_else(|| path.to_string())
 }
 
-fn view(state: &mut RebuildLayoutState) -> ui::View<RebuildMessage> {
+fn view(state: &mut GuiAppState) -> ui::View<GuiMessage> {
     ui::column([
         top_status_bar(),
         center_panel(state),
@@ -525,10 +520,10 @@ fn view(state: &mut RebuildLayoutState) -> ui::View<RebuildMessage> {
     .fill()
 }
 
-fn top_status_bar() -> ui::View<RebuildMessage> {
+fn top_status_bar() -> ui::View<GuiMessage> {
     ui::row([
         ui::text("Sempal").height(20.0).width(120.0),
-        ui::text("Radiant rebuild").height(20.0).fill_width(),
+        ui::text("Sempal GUI").height(20.0).fill_width(),
         ui::text("ready").height(20.0).width(80.0),
     ])
     .spacing(8.0)
@@ -538,23 +533,23 @@ fn top_status_bar() -> ui::View<RebuildMessage> {
     .height(30.0)
 }
 
-fn center_panel(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
+fn center_panel(state: &GuiAppState) -> ui::View<GuiMessage> {
     ui::row([folder_sidebar(state), folder_splitter(), main_area(state)])
         .padding(6.0)
         .fill()
 }
 
-fn folder_sidebar(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
+fn folder_sidebar(state: &GuiAppState) -> ui::View<GuiMessage> {
     folder_browser::folder_browser_view(&state.folder_browser)
         .width(state.folder_width)
         .fill_height()
 }
 
-fn folder_splitter() -> ui::View<RebuildMessage> {
+fn folder_splitter() -> ui::View<GuiMessage> {
     ui::column([
         ui::spacer().fill(),
         ui::drag_handle()
-            .mapped(RebuildMessage::ResizeFolder)
+            .mapped(GuiMessage::ResizeFolder)
             .key("folder-browser-splitter-handle")
             .size(5.0, 32.0),
         ui::spacer().fill(),
@@ -569,7 +564,7 @@ fn folder_splitter() -> ui::View<RebuildMessage> {
     .spacing(4.0)
 }
 
-fn main_area(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
+fn main_area(state: &GuiAppState) -> ui::View<GuiMessage> {
     ui::column([
         main_toolbar(state),
         waveform_panel(state),
@@ -579,7 +574,7 @@ fn main_area(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
     .fill()
 }
 
-fn main_toolbar(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
+fn main_toolbar(state: &GuiAppState) -> ui::View<GuiMessage> {
     ui::row([
         ui::spacer().height(24.0).fill_width(),
         toolbar_icon_button(20, ToolbarIcon::Play, true, state.waveform.is_playing()),
@@ -597,9 +592,9 @@ fn toolbar_icon_button(
     icon: ToolbarIcon,
     enabled: bool,
     active: bool,
-) -> ui::View<RebuildMessage> {
+) -> ui::View<GuiMessage> {
     ui::custom_widget(ToolbarIconButton::new(icon, enabled, active), |output| {
-        output.typed_ref::<RebuildMessage>().cloned()
+        output.typed_ref::<GuiMessage>().cloned()
     })
     .id(id)
     .size(28.0, 24.0)
@@ -756,10 +751,10 @@ impl Widget for ToolbarIconButton {
     }
 }
 
-fn toolbar_button_message(icon: ToolbarIcon) -> RebuildMessage {
+fn toolbar_button_message(icon: ToolbarIcon) -> GuiMessage {
     match icon {
-        ToolbarIcon::Play => RebuildMessage::PlaySelectedSample,
-        ToolbarIcon::Stop => RebuildMessage::StopPlayback,
+        ToolbarIcon::Play => GuiMessage::PlaySelectedSample,
+        ToolbarIcon::Stop => GuiMessage::StopPlayback,
     }
 }
 
@@ -806,7 +801,7 @@ fn rasterize_toolbar_icon(icon: ToolbarIcon, side: usize, color: Rgba8) -> Optio
     ImageRgba::new(side, side, pixels)
 }
 
-fn waveform_panel(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
+fn waveform_panel(state: &GuiAppState) -> ui::View<GuiMessage> {
     ui::column([
         ui::text("Waveform").height(18.0).fill_width(),
         ui::text(waveform_title(&state.waveform))
@@ -835,7 +830,7 @@ fn waveform_title(waveform: &WaveformState) -> String {
     )
 }
 
-fn waveform_scrollbar(waveform: &WaveformState) -> ui::View<RebuildMessage> {
+fn waveform_scrollbar(waveform: &WaveformState) -> ui::View<GuiMessage> {
     let mut scrollbar = radiant::widgets::ScrollbarWidget::new(
         0,
         radiant::widgets::ScrollbarAxis::Horizontal,
@@ -849,7 +844,7 @@ fn waveform_scrollbar(waveform: &WaveformState) -> ui::View<RebuildMessage> {
             .copied()
             .map(|message| match message {
                 ScrollbarMessage::OffsetChanged { offset_fraction } => {
-                    RebuildMessage::Waveform(WaveformInteraction::ScrollTo { offset_fraction })
+                    GuiMessage::Waveform(WaveformInteraction::ScrollTo { offset_fraction })
                 }
             })
     })
@@ -857,7 +852,7 @@ fn waveform_scrollbar(waveform: &WaveformState) -> ui::View<RebuildMessage> {
     .height(12.0)
 }
 
-fn sample_browser(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
+fn sample_browser(state: &GuiAppState) -> ui::View<GuiMessage> {
     let audio_files = state.folder_browser.selected_audio_files();
     let audio_count = audio_files.len();
     ui::column([
@@ -870,7 +865,7 @@ fn sample_browser(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
     .fill()
 }
 
-fn sample_browser_header() -> ui::View<RebuildMessage> {
+fn sample_browser_header() -> ui::View<GuiMessage> {
     details_header_row([
         sample_header_cell("Name", SAMPLE_NAME_WIDTH),
         sample_header_cell("Ext", SAMPLE_EXT_WIDTH),
@@ -884,14 +879,14 @@ const SAMPLE_EXT_WIDTH: f32 = 54.0;
 const SAMPLE_SIZE_WIDTH: f32 = 78.0;
 const SAMPLE_MODIFIED_WIDTH: f32 = 112.0;
 
-fn sample_header_cell(label: &str, width: f32) -> ui::View<RebuildMessage> {
+fn sample_header_cell(label: &str, width: f32) -> ui::View<GuiMessage> {
     ui::text(label).height(20.0).width(width)
 }
 
 fn sample_browser_rows(
     folder_browser: &FolderBrowserState,
     files: &[&FileEntry],
-) -> ui::View<RebuildMessage> {
+) -> ui::View<GuiMessage> {
     if files.is_empty() {
         return ui::text("No audio files in selected folder")
             .height(24.0)
@@ -922,7 +917,7 @@ fn sample_browser_row(
     file: &FileEntry,
     selected: bool,
     rename: Option<folder_browser::FileRenameView>,
-) -> ui::View<RebuildMessage> {
+) -> ui::View<GuiMessage> {
     let row = compact_details_row([
         sample_name_cell(file, rename),
         sample_file_cell(file, file.extension.clone(), SAMPLE_EXT_WIDTH, "extension"),
@@ -949,7 +944,7 @@ fn sample_browser_row(
 fn sample_name_cell(
     file: &FileEntry,
     rename: Option<folder_browser::FileRenameView>,
-) -> ui::View<RebuildMessage> {
+) -> ui::View<GuiMessage> {
     let Some(rename) = rename else {
         return sample_file_cell(file, file.stem.clone(), SAMPLE_NAME_WIDTH, "name");
     };
@@ -961,7 +956,7 @@ fn sample_name_cell(
     input.state.selection_anchor = rename.selection_start;
     input.state.caret = rename.selection_end;
     ui::custom_widget_mapped(input, |message| {
-        RebuildMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message))
+        GuiMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message))
     })
     .id(rename.input_id)
     .key(format!("sample-rename-input-{}", file.id))
@@ -974,9 +969,9 @@ fn sample_file_cell(
     value: String,
     width: f32,
     column_id: &str,
-) -> ui::View<RebuildMessage> {
+) -> ui::View<GuiMessage> {
     ui::button(value)
-        .message(RebuildMessage::SelectSample(file.id.clone()))
+        .message(GuiMessage::SelectSample(file.id.clone()))
         .key(format!("sample-{}-{column_id}", file.id))
         .fill_width()
         .height(20.0)
@@ -985,8 +980,8 @@ fn sample_file_cell(
 }
 
 fn compact_details_row(
-    children: impl IntoIterator<Item = ui::View<RebuildMessage>>,
-) -> ui::View<RebuildMessage> {
+    children: impl IntoIterator<Item = ui::View<GuiMessage>>,
+) -> ui::View<GuiMessage> {
     ui::row(children)
         .fill_width()
         .height(22.0)
@@ -996,8 +991,8 @@ fn compact_details_row(
 }
 
 fn details_header_row(
-    children: impl IntoIterator<Item = ui::View<RebuildMessage>>,
-) -> ui::View<RebuildMessage> {
+    children: impl IntoIterator<Item = ui::View<GuiMessage>>,
+) -> ui::View<GuiMessage> {
     ui::row(children)
         .style(ui::WidgetStyle {
             tone: ui::WidgetTone::Accent,
@@ -1010,7 +1005,7 @@ fn details_header_row(
         .spacing(10.0)
 }
 
-fn sample_browser_status(audio_count: usize) -> ui::View<RebuildMessage> {
+fn sample_browser_status(audio_count: usize) -> ui::View<GuiMessage> {
     ui::row([
         ui::text("Listed").height(20.0).width(90.0),
         ui::text(format!(
@@ -1025,7 +1020,7 @@ fn sample_browser_status(audio_count: usize) -> ui::View<RebuildMessage> {
     .height(28.0)
 }
 
-fn bottom_status_bar(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
+fn bottom_status_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
     ui::row([
         ui::text("1 sample").height(20.0).width(120.0),
         ui::text(bottom_status_text(state))
@@ -1040,7 +1035,7 @@ fn bottom_status_bar(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
     .height(30.0)
 }
 
-fn bottom_status_text(state: &RebuildLayoutState) -> String {
+fn bottom_status_text(state: &GuiAppState) -> String {
     state
         .folder_progress
         .as_ref()
@@ -1064,7 +1059,7 @@ fn bottom_status_text(state: &RebuildLayoutState) -> String {
         .unwrap_or_else(|| state.sample_status.clone())
 }
 
-fn worker_progress_bar(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
+fn worker_progress_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
     let Some(progress) = state.folder_progress.as_ref() else {
         return ui::text("").width(0.0).height(10.0);
     };
@@ -1099,8 +1094,8 @@ fn worker_progress_bar(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
 #[cfg(test)]
 mod tests {
     use super::{
-        DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG, DEFAULT_FOLDER_WIDTH, MAX_FOLDER_WIDTH,
-        MIN_FOLDER_WIDTH, RebuildLayoutState, debug_layout_requested,
+        DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG, DEFAULT_FOLDER_WIDTH, GuiAppState,
+        MAX_FOLDER_WIDTH, MIN_FOLDER_WIDTH, debug_layout_requested,
     };
     use radiant::{
         gui::types::{Point, Rect, Vector2},
@@ -1110,7 +1105,7 @@ mod tests {
     use std::{ffi::OsString, sync::mpsc};
 
     #[test]
-    fn canonical_debug_layout_arg_enables_new_ui_overlay() {
+    fn canonical_debug_layout_arg_enables_default_gui_overlay() {
         assert!(debug_layout_requested([
             OsString::from("sempal"),
             OsString::from(DEBUG_LAYOUT_ARG),
@@ -1118,7 +1113,7 @@ mod tests {
     }
 
     #[test]
-    fn short_debug_layout_arg_enables_new_ui_overlay() {
+    fn short_debug_layout_arg_enables_default_gui_overlay() {
         assert!(debug_layout_requested([
             OsString::from("sempal"),
             OsString::from(DEBUG_LAYOUT_SHORT_ARG),
@@ -1126,7 +1121,7 @@ mod tests {
     }
 
     #[test]
-    fn unrelated_args_leave_new_ui_overlay_disabled() {
+    fn unrelated_args_leave_default_gui_overlay_disabled() {
         assert!(!debug_layout_requested([
             OsString::from("sempal"),
             OsString::from("--debug-log"),
@@ -1135,7 +1130,7 @@ mod tests {
 
     #[test]
     fn folder_browser_splitter_resizes_and_clamps_width() {
-        let mut state = RebuildLayoutState {
+        let mut state = GuiAppState {
             folder_width: DEFAULT_FOLDER_WIDTH,
             folder_resize: None,
             folder_browser: super::FolderBrowserState::load_default(),
@@ -1179,7 +1174,7 @@ mod tests {
     }
 
     #[test]
-    fn default_waveform_sample_loads_for_rebuild_ui() {
+    fn default_waveform_sample_loads_for_default_gui() {
         let waveform = super::WaveformState::load_default().expect("default sample loads");
         assert!(waveform.frames() > 0);
         assert!(waveform.sample_rate() > 0);
@@ -1187,7 +1182,7 @@ mod tests {
 
     #[test]
     fn sample_selection_loads_selected_file_into_waveform() {
-        let mut state = RebuildLayoutState {
+        let mut state = GuiAppState {
             folder_width: DEFAULT_FOLDER_WIDTH,
             folder_resize: None,
             folder_browser: super::FolderBrowserState::load_default(),
@@ -1206,12 +1201,12 @@ mod tests {
 
         let mut context = ui::UpdateContext::default();
         state.apply_message(
-            super::RebuildMessage::SelectSample(sample_path.clone()),
+            super::GuiMessage::SelectSample(sample_path.clone()),
             &mut context,
         );
         let task_id = state.pending_sample_task_id.expect("sample load queued");
         state.apply_message(
-            super::RebuildMessage::SampleLoadFinished(super::SampleLoadResult {
+            super::GuiMessage::SampleLoadFinished(super::SampleLoadResult {
                 task_id,
                 path: sample_path.clone(),
                 result: super::WaveformState::load_path(sample_path.clone().into()),
@@ -1275,8 +1270,8 @@ mod tests {
             .expect("button output");
 
         assert_eq!(
-            output.typed_ref::<super::RebuildMessage>(),
-            Some(&super::RebuildMessage::StopPlayback)
+            output.typed_ref::<super::GuiMessage>(),
+            Some(&super::GuiMessage::StopPlayback)
         );
     }
 
