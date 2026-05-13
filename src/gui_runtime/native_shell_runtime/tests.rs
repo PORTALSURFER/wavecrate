@@ -204,7 +204,7 @@ mod tests {
         let mut model = NativeAppModel::default();
         model.waveform.view_start_micros = 250_000;
         model.waveform.view_end_micros = 500_000;
-        let mut bridge = SempalRuntimeBridge::new(RecordingBridge {
+        let mut bridge = WavecrateRuntimeBridge::new(RecordingBridge {
             model: Arc::new(model),
             reduced: Vec::new(),
             repaint_installed,
@@ -216,7 +216,7 @@ mod tests {
 
         assert!(
             bridge
-                .update(SempalRuntimeMessage::RetainedInput(
+                .update(WavecrateRuntimeMessage::RetainedInput(
                     WidgetInput::PointerPress {
                         position: anchor,
                         button: PointerButton::Auxiliary,
@@ -226,7 +226,7 @@ mod tests {
         );
         assert!(
             bridge
-                .update(SempalRuntimeMessage::RetainedInput(
+                .update(WavecrateRuntimeMessage::RetainedInput(
                     WidgetInput::PointerMove {
                         position: Point::new(
                             anchor.x - layout.waveform_plot.width() * 0.25,

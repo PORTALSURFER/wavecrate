@@ -452,7 +452,7 @@ impl WaveformState {
     fn selection_for_kind(
         &self,
         kind: WaveformSelectionKind,
-    ) -> Option<sempal::selection::SelectionRange> {
+    ) -> Option<wavecrate::selection::SelectionRange> {
         match kind {
             WaveformSelectionKind::Play => self.play_selection,
             WaveformSelectionKind::Edit => self.edit_selection,
@@ -595,7 +595,7 @@ impl WaveformSelectionResizeDrag {
     fn new(
         kind: WaveformSelectionKind,
         edge: WaveformSelectionEdge,
-        selection: sempal::selection::SelectionRange,
+        selection: wavecrate::selection::SelectionRange,
     ) -> Self {
         let fixed_ratio = match edge {
             WaveformSelectionEdge::Start => selection.end(),
@@ -610,16 +610,16 @@ impl WaveformSelectionResizeDrag {
 
     fn apply(
         self,
-        _selection: sempal::selection::SelectionRange,
+        _selection: wavecrate::selection::SelectionRange,
         ratio: f32,
-    ) -> sempal::selection::SelectionRange {
+    ) -> wavecrate::selection::SelectionRange {
         let ratio = ratio.clamp(0.0, 1.0);
         match self.edge {
             WaveformSelectionEdge::Start => {
-                sempal::selection::SelectionRange::new(ratio, self.fixed_ratio)
+                wavecrate::selection::SelectionRange::new(ratio, self.fixed_ratio)
             }
             WaveformSelectionEdge::End => {
-                sempal::selection::SelectionRange::new(self.fixed_ratio, ratio)
+                wavecrate::selection::SelectionRange::new(self.fixed_ratio, ratio)
             }
         }
     }
@@ -630,7 +630,7 @@ struct WaveformEditFadeDrag {
     handle: WaveformEditFadeHandle,
     fixed_ratio: f32,
     curve: f32,
-    baseline: sempal::selection::SelectionRange,
+    baseline: wavecrate::selection::SelectionRange,
 }
 
 impl WaveformEditFadeDrag {
@@ -716,11 +716,11 @@ fn fade_out_length_for_start(
 }
 
 fn resize_fade_in_end_with_collision(
-    selection: sempal::selection::SelectionRange,
-    baseline: sempal::selection::SelectionRange,
+    selection: wavecrate::selection::SelectionRange,
+    baseline: wavecrate::selection::SelectionRange,
     end_ratio: f32,
     curve: f32,
-) -> sempal::selection::SelectionRange {
+) -> wavecrate::selection::SelectionRange {
     let width = selection.width();
     if width <= f32::EPSILON {
         return selection;
@@ -751,11 +751,11 @@ fn resize_fade_in_end_with_collision(
 }
 
 fn resize_fade_out_start_with_collision(
-    selection: sempal::selection::SelectionRange,
-    baseline: sempal::selection::SelectionRange,
+    selection: wavecrate::selection::SelectionRange,
+    baseline: wavecrate::selection::SelectionRange,
     start_ratio: f32,
     curve: f32,
-) -> sempal::selection::SelectionRange {
+) -> wavecrate::selection::SelectionRange {
     let width = selection.width();
     if width <= f32::EPSILON {
         return selection;
@@ -786,9 +786,9 @@ fn resize_fade_out_start_with_collision(
 }
 
 fn resize_fade_in_outer_start(
-    selection: sempal::selection::SelectionRange,
+    selection: wavecrate::selection::SelectionRange,
     outer_start_ratio: f32,
-) -> sempal::selection::SelectionRange {
+) -> wavecrate::selection::SelectionRange {
     let Some(fade) = selection.fade_in() else {
         return selection;
     };
@@ -805,9 +805,9 @@ fn resize_fade_in_outer_start(
 }
 
 fn resize_fade_out_outer_end(
-    selection: sempal::selection::SelectionRange,
+    selection: wavecrate::selection::SelectionRange,
     outer_end_ratio: f32,
-) -> sempal::selection::SelectionRange {
+) -> wavecrate::selection::SelectionRange {
     let Some(fade) = selection.fade_out() else {
         return selection;
     };
@@ -824,11 +824,11 @@ fn resize_fade_out_outer_end(
 }
 
 fn rebuild_edit_fades_for_same_range(
-    selection: sempal::selection::SelectionRange,
+    selection: wavecrate::selection::SelectionRange,
     fade_in: Option<(f32, f32)>,
     fade_out: Option<(f32, f32)>,
-) -> sempal::selection::SelectionRange {
-    let mut rebuilt = sempal::selection::SelectionRange::new(selection.start(), selection.end())
+) -> wavecrate::selection::SelectionRange {
+    let mut rebuilt = wavecrate::selection::SelectionRange::new(selection.start(), selection.end())
         .with_gain(selection.gain());
     if let Some((length, curve)) = fade_in {
         rebuilt = rebuilt.with_fade_in(length.clamp(0.0, 1.0), curve);
@@ -846,8 +846,8 @@ fn rebuild_edit_fades_for_same_range(
 }
 
 fn fade_in_for_same_width(
-    selection: sempal::selection::SelectionRange,
-    baseline: sempal::selection::SelectionRange,
+    selection: wavecrate::selection::SelectionRange,
+    baseline: wavecrate::selection::SelectionRange,
     fade_in_abs: f32,
 ) -> Option<f32> {
     baseline.fade_in()?;
@@ -855,8 +855,8 @@ fn fade_in_for_same_width(
 }
 
 fn fade_out_for_same_width(
-    selection: sempal::selection::SelectionRange,
-    baseline: sempal::selection::SelectionRange,
+    selection: wavecrate::selection::SelectionRange,
+    baseline: wavecrate::selection::SelectionRange,
     fade_out_abs: f32,
 ) -> Option<f32> {
     baseline.fade_out()?;
@@ -1096,7 +1096,7 @@ fn apply_edit_fade_to_signal_samples(
     samples: &mut [f32],
     frames: usize,
     band_count: usize,
-    selection: sempal::selection::SelectionRange,
+    selection: wavecrate::selection::SelectionRange,
 ) {
     if frames == 0 || band_count == 0 || !selection.has_edit_effects() {
         return;
@@ -1117,7 +1117,7 @@ fn apply_edit_fade_to_signal_samples(
     }
 }
 
-fn edit_selection_revision(selection: Option<sempal::selection::SelectionRange>) -> u64 {
+fn edit_selection_revision(selection: Option<wavecrate::selection::SelectionRange>) -> u64 {
     let Some(selection) = selection else {
         return 0;
     };
@@ -1290,14 +1290,14 @@ struct WaveformSignalWidget {
     common: WidgetCommon,
     file: Arc<WaveformFile>,
     viewport: WaveformViewport,
-    edit_selection: Option<sempal::selection::SelectionRange>,
+    edit_selection: Option<wavecrate::selection::SelectionRange>,
 }
 
 impl WaveformSignalWidget {
     fn new(
         file: Arc<WaveformFile>,
         viewport: WaveformViewport,
-        edit_selection: Option<sempal::selection::SelectionRange>,
+        edit_selection: Option<wavecrate::selection::SelectionRange>,
     ) -> Self {
         let mut common = WidgetCommon::new(
             0,
@@ -1819,7 +1819,7 @@ impl WaveformWidget {
         primitives: &mut Vec<PaintPrimitive>,
         bounds: Rect,
         selection_rect: Rect,
-        selection: sempal::selection::SelectionRange,
+        selection: wavecrate::selection::SelectionRange,
         start: f32,
         end: f32,
         color: Rgba8,
@@ -2460,7 +2460,7 @@ mod tests {
     #[test]
     fn playmark_range_edges_are_resizable() {
         let mut state = WaveformState::synthetic_for_tests();
-        state.play_selection = Some(sempal::selection::SelectionRange::new(0.2, 0.6));
+        state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
         state.play_mark_ratio = Some(0.2);
 
         state.apply_interaction(WaveformInteraction::BeginSelectionResize {
@@ -2482,7 +2482,7 @@ mod tests {
     #[test]
     fn primary_press_on_playmark_handle_starts_resize_instead_of_new_selection() {
         let mut state = WaveformState::synthetic_for_tests();
-        state.play_selection = Some(sempal::selection::SelectionRange::new(0.2, 0.6));
+        state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
         state.play_mark_ratio = Some(0.2);
         let mut widget = WaveformWidget::new(
             state.file(),
@@ -2571,7 +2571,7 @@ mod tests {
     fn edit_fade_top_handles_push_and_restore_opposite_fade() {
         let mut state = WaveformState::synthetic_for_tests();
         state.edit_selection = Some(
-            sempal::selection::SelectionRange::new(0.2, 0.6)
+            wavecrate::selection::SelectionRange::new(0.2, 0.6)
                 .with_fade_in(0.25, 0.2)
                 .with_fade_out(0.25, 0.7),
         );
@@ -2602,7 +2602,7 @@ mod tests {
     fn edit_fade_outer_handles_set_crossfade_lengths_without_resizing_selection() {
         let mut state = WaveformState::synthetic_for_tests();
         state.edit_selection =
-            Some(sempal::selection::SelectionRange::new(0.2, 0.6).with_fade_in(0.25, 0.2));
+            Some(wavecrate::selection::SelectionRange::new(0.2, 0.6).with_fade_in(0.25, 0.2));
 
         state.apply_interaction(WaveformInteraction::BeginEditFade {
             handle: WaveformEditFadeHandle::FadeInOuterStart,
@@ -2629,7 +2629,7 @@ mod tests {
         assert!(fade.mute.abs() < 0.001);
 
         state.edit_selection =
-            Some(sempal::selection::SelectionRange::new(0.2, 0.6).with_fade_out(0.25, 0.7));
+            Some(wavecrate::selection::SelectionRange::new(0.2, 0.6).with_fade_out(0.25, 0.7));
         state.apply_interaction(WaveformInteraction::BeginEditFade {
             handle: WaveformEditFadeHandle::FadeOutOuterEnd,
             visible_ratio: 0.6,
@@ -2648,7 +2648,7 @@ mod tests {
     fn primary_press_on_outer_fade_handle_uses_distinct_handle() {
         let mut state = WaveformState::synthetic_for_tests();
         state.edit_selection =
-            Some(sempal::selection::SelectionRange::new(0.2, 0.6).with_fade_in(0.25, 0.2));
+            Some(wavecrate::selection::SelectionRange::new(0.2, 0.6).with_fade_in(0.25, 0.2));
         let mut widget = WaveformWidget::new(
             state.file(),
             state.viewport(),
@@ -2709,7 +2709,7 @@ mod tests {
     fn edit_fade_out_bottom_handle_keeps_opposite_fade_boundary_stable() {
         let mut state = WaveformState::synthetic_for_tests();
         state.edit_selection = Some(
-            sempal::selection::SelectionRange::new(0.2, 0.6)
+            wavecrate::selection::SelectionRange::new(0.2, 0.6)
                 .with_fade_in(0.25, 0.2)
                 .with_fade_out(0.25, 0.7),
         );
@@ -2735,7 +2735,7 @@ mod tests {
     fn edit_fade_in_bottom_handle_keeps_opposite_fade_boundary_stable() {
         let mut state = WaveformState::synthetic_for_tests();
         state.edit_selection = Some(
-            sempal::selection::SelectionRange::new(0.2, 0.6)
+            wavecrate::selection::SelectionRange::new(0.2, 0.6)
                 .with_fade_in(0.25, 0.2)
                 .with_fade_out(0.25, 0.7),
         );
@@ -2897,7 +2897,7 @@ mod tests {
     fn edit_fade_curve_paints_volume_trace_as_overlay_rects() {
         let mut state = WaveformState::synthetic_for_tests();
         state.edit_selection = Some(
-            sempal::selection::SelectionRange::new(0.2, 0.6)
+            wavecrate::selection::SelectionRange::new(0.2, 0.6)
                 .with_fade_in(0.5, 0.8)
                 .with_fade_out(0.25, 0.0),
         );
@@ -2976,7 +2976,7 @@ mod tests {
         ));
         let viewport = super::WaveformViewport::full(file.frames);
         let edit_selection =
-            Some(sempal::selection::SelectionRange::new(0.0, 1.0).with_fade_in(1.0, 0.0));
+            Some(wavecrate::selection::SelectionRange::new(0.0, 1.0).with_fade_in(1.0, 0.0));
         let widget = WaveformSignalWidget::new(file, viewport, edit_selection);
         let mut primitives = Vec::new();
 

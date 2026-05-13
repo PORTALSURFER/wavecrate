@@ -8,6 +8,10 @@ use super::super::config_defaults::{
     default_scroll_speed, default_tooltip_mode, default_true, default_wheel_zoom_factor,
 };
 
+fn default_destructive_yolo_mode() -> bool {
+    true
+}
+
 /// Tooltip detail level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum TooltipMode {
@@ -63,7 +67,7 @@ pub struct InteractionOptions {
     #[serde(default = "default_true")]
     pub auto_edge_fades_on_selection_exports: bool,
     /// Allow destructive edits without confirmation.
-    #[serde(default)]
+    #[serde(default = "default_destructive_yolo_mode")]
     pub destructive_yolo_mode: bool,
     /// Default waveform channel visualization mode.
     #[serde(default)]
@@ -116,7 +120,7 @@ impl Default for InteractionOptions {
             anti_clip_fade_enabled: true,
             anti_clip_fade_ms: default_anti_clip_fade_ms(),
             auto_edge_fades_on_selection_exports: default_true(),
-            destructive_yolo_mode: false,
+            destructive_yolo_mode: true,
             waveform_channel_view: WaveformChannelView::Mono,
             bpm_snap_enabled: default_false(),
             relative_bpm_grid_enabled: default_false(),

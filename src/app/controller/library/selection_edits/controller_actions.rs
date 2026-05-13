@@ -362,6 +362,16 @@ impl AppController {
             DestructiveSelectionEdit::CleanExactDuplicateBeats => {
                 self.exact_duplicate_cleanup_ranges().map(|_| ())
             }
+            DestructiveSelectionEdit::CommitEditSelectionFades => {
+                self.selection_target()?;
+                let Some(selection) = self.ui.waveform.edit_selection else {
+                    return Err("Set an edit selection with a fade before applying it".to_string());
+                };
+                if !selection.has_edit_effects() {
+                    return Err("Set an edit fade before applying it".to_string());
+                }
+                Ok(())
+            }
             _ => {
                 self.selection_target()?;
                 Ok(())
@@ -384,6 +394,9 @@ impl AppController {
             DestructiveSelectionEdit::MuteSelection => self.mute_waveform_selection(),
             DestructiveSelectionEdit::NormalizeSelection => self.normalize_waveform_selection(),
             DestructiveSelectionEdit::ClickRemoval => self.repair_clicks_selection(),
+            DestructiveSelectionEdit::CommitEditSelectionFades => {
+                self.commit_edit_selection_fades().map(|_| ())
+            }
             DestructiveSelectionEdit::CleanExactDuplicateBeats => {
                 self.clean_exact_duplicate_beats()
             }

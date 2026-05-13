@@ -12,6 +12,7 @@ impl DestructiveSelectionEdit {
             DestructiveSelectionEdit::MuteSelection => "Mute selection",
             DestructiveSelectionEdit::NormalizeSelection => "Normalize selection",
             DestructiveSelectionEdit::ClickRemoval => "Remove clicks in selection",
+            DestructiveSelectionEdit::CommitEditSelectionFades => "Apply edit fades",
             DestructiveSelectionEdit::CleanExactDuplicateBeats => "Clean duplicate windows",
         }
     }
@@ -44,6 +45,9 @@ impl DestructiveSelectionEdit {
             }
             DestructiveSelectionEdit::ClickRemoval => {
                 "This will overwrite the selection with an interpolated repair to remove clicks."
+            }
+            DestructiveSelectionEdit::CommitEditSelectionFades => {
+                "This will overwrite the edit selection with the currently previewed fades."
             }
             DestructiveSelectionEdit::CleanExactDuplicateBeats => {
                 "This will remove later duplicate windows and close the gaps in the source file."

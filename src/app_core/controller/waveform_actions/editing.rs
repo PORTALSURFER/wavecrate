@@ -21,7 +21,9 @@ pub(super) fn apply_waveform_edit_action(
                 Some(crate::sample_sources::Rating::new(2)),
             ),
         NativeUiAction::CommitWaveformEditFades => {
-            let _ = controller.commit_edit_selection_fades();
+            let _ = controller.request_destructive_selection_edit(
+                DestructiveSelectionEdit::CommitEditSelectionFades,
+            );
         }
         NativeUiAction::DetectWaveformSilenceSlices => {
             controller.detect_waveform_silence_slices_action();
