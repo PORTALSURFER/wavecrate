@@ -14,16 +14,19 @@ use radiant::widgets::{
 use rfd::FileDialog;
 use std::{
     ffi::OsString,
+    panic::{self, AssertUnwindSafe},
     path::PathBuf,
+    process,
     sync::{
         Arc,
         mpsc::{self, Receiver, Sender},
     },
-    time::Duration,
+    time::{Duration, Instant, SystemTime},
 };
 use wavecrate::audio::AudioPlayer;
 use wavecrate::gui::svg::{parse_svg_document, point_in_svg_shapes};
 use wavecrate::gui_runtime::wavecrate_ui_font_path;
+use wavecrate::logging::{self, ActionDebugEvent, emit_action_debug_event};
 
 mod folder_browser;
 mod waveform;
@@ -93,8 +96,9 @@ struct GuiAppState {
 
 impl GuiAppState {
     fn load_default() -> Result<Self, String> {
+        let started_at = Instant::now();
         let (worker_sender, worker_receiver) = mpsc::channel();
-        Ok(Self {
+        let state = Self {
             folder_width: DEFAULT_FOLDER_WIDTH,
             folder_resize: None,
             folder_browser: FolderBrowserState::load_default(),
@@ -108,10 +112,25 @@ impl GuiAppState {
             folder_progress: None,
             progress_tick: 0.0,
             audio_player: None,
-        })
+        };
+        emit_gui_action(
+            "runtime.startup.load_default_state",
+            Some("background"),
+            Some("assets"),
+            "success",
+            started_at,
+            None,
+        );
+        Ok(state)
     }
 
     fn resize_folder_browser(&mut self, message: DragHandleMessage) {
+        let started_at = Instant::now();
+        let outcome = match message {
+            DragHandleMessage::Started { .. } => "started",
+            DragHandleMessage::Moved { .. } => "moved",
+            DragHandleMessage::Ended { .. } => "ended",
+        };
         match message {
             DragHandleMessage::Started { position } => {
                 self.folder_resize = Some(FolderResize {
@@ -131,6 +150,14 @@ impl GuiAppState {
                 }
             }
         }
+        emit_gui_action(
+            "layout.resize_folder_browser",
+            Some("folder_browser"),
+            None,
+            outcome,
+            started_at,
+            None,
+        );
     }
 
     fn apply_message(&mut self, message: GuiMessage, context: &mut ui::UpdateContext<GuiMessage>) {
@@ -143,6 +170,20 @@ impl GuiAppState {
                 self.select_source(id, context);
             }
             GuiMessage::FolderBrowser(FolderBrowserMessage::BeginRenameSelected) => {
+                let started_at = Instant::now();
+                let target = self.folder_browser.selected_rename_target();
+                if logging::debug_logging_enabled() {
+                    tracing::debug!(
+                        target: logging::ACTION_EVENT_TARGET,
+                        event = "action_detail",
+                        action = "folder_browser.rename.begin",
+                        pane = "folder_browser",
+                        target_kind = target.kind,
+                        target_label = target.label,
+                        is_source_root = target.is_source_root,
+                        "Folder browser rename requested"
+                    );
+                }
                 let renaming_file = self.folder_browser.selected_file_id().is_some();
                 match self.folder_browser.begin_rename_selected() {
                     Ok(Some(input_id)) => {
@@ -155,31 +196,97 @@ impl GuiAppState {
                             Duration::from_millis(1),
                             GuiMessage::FocusRenameInput(input_id),
                         );
+                        emit_gui_action(
+                            "folder_browser.rename.begin",
+                            Some("folder_browser"),
+                            Some(target.kind),
+                            "success",
+                            started_at,
+                            None,
+                        );
                     }
                     Ok(None) => {
                         self.sample_status = String::from("Select a folder to rename");
+                        emit_gui_action(
+                            "folder_browser.rename.begin",
+                            Some("folder_browser"),
+                            None,
+                            "short_circuit",
+                            started_at,
+                            Some("nothing_selected"),
+                        );
                     }
                     Err(error) => {
                         self.sample_status = error;
+                        emit_gui_action(
+                            "folder_browser.rename.begin",
+                            Some("folder_browser"),
+                            None,
+                            "error",
+                            started_at,
+                            Some("rename_begin_failed"),
+                        );
                     }
                 }
             }
             GuiMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message)) => {
+                let started_at = Instant::now();
+                let input_action = rename_input_action(&message);
                 if let Some(status) = self.folder_browser.apply_rename_input(message) {
                     self.sample_status = status;
+                }
+                if let Some(action) = input_action {
+                    emit_gui_action(
+                        action,
+                        Some("folder_browser"),
+                        None,
+                        "applied",
+                        started_at,
+                        None,
+                    );
                 }
             }
             GuiMessage::FolderBrowser(message) => self.folder_browser.apply_message(message),
             GuiMessage::FolderScanProgress(progress) => {
+                let started_at = Instant::now();
                 if self
                     .folder_browser
                     .scan_is_active(&progress.source_id, progress.task_id)
                 {
+                    let phase = progress.phase.clone();
                     self.folder_progress = Some(progress);
+                    emit_gui_action(
+                        "folder_browser.scan.progress",
+                        Some("folder_browser"),
+                        Some(&phase),
+                        "active",
+                        started_at,
+                        None,
+                    );
                 }
             }
             GuiMessage::FolderScanDiscoveryBatch(batch) => {
+                let started_at = Instant::now();
+                let count = batch.events.len();
                 self.folder_browser.apply_scan_discovered_batch(batch);
+                if logging::debug_logging_enabled() {
+                    tracing::debug!(
+                        target: logging::ACTION_EVENT_TARGET,
+                        event = "action_detail",
+                        action = "folder_browser.scan.discovery_batch",
+                        pane = "folder_browser",
+                        item_count = count,
+                        "Folder browser scan discovery batch applied"
+                    );
+                }
+                emit_gui_action(
+                    "folder_browser.scan.discovery_batch",
+                    Some("folder_browser"),
+                    None,
+                    "applied",
+                    started_at,
+                    None,
+                );
             }
             GuiMessage::FolderScanFinished(result) => self.finish_folder_scan(result),
             GuiMessage::SelectSample(path) => self.select_sample(path, context),
@@ -187,22 +294,72 @@ impl GuiAppState {
             GuiMessage::PlaySelectedSample => self.play_selected_sample(context),
             GuiMessage::StopPlayback => self.stop_playback(),
             GuiMessage::FocusRenameInput(input_id) => {
+                let started_at = Instant::now();
                 context.focus(input_id);
+                emit_gui_action(
+                    "folder_browser.rename.focus_input",
+                    Some("folder_browser"),
+                    None,
+                    "success",
+                    started_at,
+                    None,
+                );
             }
             GuiMessage::NavigateBrowser(delta) => {
+                let started_at = Instant::now();
                 if let Some(path) = self.folder_browser.navigate_vertical(delta) {
+                    emit_gui_action(
+                        "folder_browser.navigate",
+                        Some("browser"),
+                        Some(if delta < 0 { "previous" } else { "next" }),
+                        "selected",
+                        started_at,
+                        None,
+                    );
                     self.select_sample(path, context);
+                } else {
+                    emit_gui_action(
+                        "folder_browser.navigate",
+                        Some("browser"),
+                        Some(if delta < 0 { "previous" } else { "next" }),
+                        "edge",
+                        started_at,
+                        None,
+                    );
                 }
             }
             GuiMessage::CollapseSelectedFolder => {
+                let started_at = Instant::now();
                 self.folder_browser.collapse_selected_folder();
+                emit_gui_action(
+                    "folder_browser.collapse_selected",
+                    Some("folder_browser"),
+                    None,
+                    "success",
+                    started_at,
+                    None,
+                );
             }
             GuiMessage::ExpandSelectedFolder => {
+                let started_at = Instant::now();
                 self.folder_browser.expand_selected_folder();
+                emit_gui_action(
+                    "folder_browser.expand_selected",
+                    Some("folder_browser"),
+                    None,
+                    "success",
+                    started_at,
+                    None,
+                );
             }
             GuiMessage::Waveform(message) => {
+                let started_at = Instant::now();
+                let action = waveform_interaction_action(&message);
                 self.waveform.apply_interaction(message);
                 self.sync_edit_fade_audio_state();
+                if let Some(action) = action {
+                    emit_gui_action(action, Some("waveform"), None, "applied", started_at, None);
+                }
                 if let Some(start_ratio) = self.waveform.take_pending_playback_start() {
                     self.play_waveform_from_ratio(start_ratio);
                 }
@@ -237,19 +394,65 @@ impl GuiAppState {
     }
 
     fn add_source_from_dialog(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
+        let started_at = Instant::now();
         let Some(path) = FileDialog::new().set_title("Add source").pick_folder() else {
+            emit_gui_action(
+                "folder_browser.add_source_dialog",
+                Some("folder_browser"),
+                None,
+                "cancelled",
+                started_at,
+                None,
+            );
             return;
         };
         let task_id = self.next_folder_task_id();
         if let Some(request) = self.folder_browser.begin_add_source_path(path, task_id) {
+            let label = request.label.clone();
+            emit_gui_action(
+                "folder_browser.add_source_dialog",
+                Some("folder_browser"),
+                Some(&label),
+                "scan_queued",
+                started_at,
+                None,
+            );
             self.launch_folder_scan(request, context);
+        } else {
+            emit_gui_action(
+                "folder_browser.add_source_dialog",
+                Some("folder_browser"),
+                None,
+                "short_circuit",
+                started_at,
+                Some("source_not_queued"),
+            );
         }
     }
 
     fn select_source(&mut self, id: String, context: &mut ui::UpdateContext<GuiMessage>) {
+        let started_at = Instant::now();
         let task_id = self.next_folder_task_id();
         if let Some(request) = self.folder_browser.begin_select_source(id, task_id) {
+            let label = request.label.clone();
+            emit_gui_action(
+                "folder_browser.select_source",
+                Some("folder_browser"),
+                Some(&label),
+                "scan_queued",
+                started_at,
+                None,
+            );
             self.launch_folder_scan(request, context);
+        } else {
+            emit_gui_action(
+                "folder_browser.select_source",
+                Some("folder_browser"),
+                None,
+                "short_circuit",
+                started_at,
+                Some("source_not_found"),
+            );
         }
     }
 
@@ -258,6 +461,9 @@ impl GuiAppState {
         request: FolderScanRequest,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
+        let started_at = Instant::now();
+        let label = request.label.clone();
+        let root = request.root.display().to_string();
         self.folder_progress = Some(FolderScanProgress {
             task_id: request.task_id,
             source_id: request.source_id.clone(),
@@ -268,6 +474,20 @@ impl GuiAppState {
             detail: request.root.display().to_string(),
         });
         self.sample_status = format!("Scanning source {}", request.label);
+        tracing::info!(
+            source = label,
+            root = root,
+            task_id = request.task_id,
+            "default gui: folder scan queued"
+        );
+        emit_gui_action(
+            "folder_browser.scan.queue",
+            Some("folder_browser"),
+            Some(&label),
+            "queued",
+            started_at,
+            None,
+        );
         let sender = self.worker_sender.clone();
         context.spawn(
             "gui-folder-scan",
@@ -312,6 +532,7 @@ impl GuiAppState {
     }
 
     fn finish_folder_scan(&mut self, result: FolderScanResult) {
+        let started_at = Instant::now();
         let label = result.label.clone();
         let file_count = result.file_count;
         let folder_count = result.folder_count;
@@ -320,14 +541,47 @@ impl GuiAppState {
             self.progress_tick = 0.0;
             self.sample_status =
                 format!("Loaded source {label}: {file_count} files in {folder_count} folders");
+            tracing::info!(
+                source = label,
+                file_count,
+                folder_count,
+                "default gui: folder scan finished"
+            );
+            emit_gui_action(
+                "folder_browser.scan.finish",
+                Some("folder_browser"),
+                Some(&label),
+                "success",
+                started_at,
+                None,
+            );
+        } else {
+            emit_gui_action(
+                "folder_browser.scan.finish",
+                Some("folder_browser"),
+                Some(&label),
+                "stale",
+                started_at,
+                None,
+            );
         }
     }
 
     fn select_sample(&mut self, path: String, context: &mut ui::UpdateContext<GuiMessage>) {
+        let started_at = Instant::now();
         self.folder_browser.select_file(path.clone());
         let task_id = self.next_sample_task_id();
         self.pending_sample_task_id = Some(task_id);
         self.sample_status = format!("Loading {}", sample_path_label(&path));
+        let label = sample_path_label(&path);
+        emit_gui_action(
+            "browser.select_sample",
+            Some("browser"),
+            Some(&label),
+            "load_queued",
+            started_at,
+            None,
+        );
         context.spawn(
             "gui-sample-load",
             move || {
@@ -343,7 +597,17 @@ impl GuiAppState {
     }
 
     fn finish_sample_load(&mut self, load: SampleLoadResult) {
+        let started_at = Instant::now();
+        let label = sample_path_label(&load.path);
         if self.pending_sample_task_id != Some(load.task_id) {
+            emit_gui_action(
+                "browser.sample_load.finish",
+                Some("browser"),
+                Some(&label),
+                "stale",
+                started_at,
+                None,
+            );
             return;
         }
         self.pending_sample_task_id = None;
@@ -354,23 +618,57 @@ impl GuiAppState {
                 match self.start_playback_current_span(0.0, 1.0) {
                     Ok(()) => {
                         self.sample_status = format!("Playing {file_name}");
+                        emit_gui_action(
+                            "browser.sample_load.finish",
+                            Some("browser"),
+                            Some(&file_name),
+                            "playing",
+                            started_at,
+                            None,
+                        );
                     }
                     Err(err) => {
                         self.sample_status =
                             format!("Loaded {file_name} | playback unavailable: {err}");
+                        emit_gui_action(
+                            "browser.sample_load.finish",
+                            Some("browser"),
+                            Some(&file_name),
+                            "loaded_playback_error",
+                            started_at,
+                            Some(&err),
+                        );
                     }
                 }
             }
             Err(err) => {
                 self.sample_status = format!("Could not load sample: {err}");
+                emit_gui_action(
+                    "browser.sample_load.finish",
+                    Some("browser"),
+                    Some(&label),
+                    "error",
+                    started_at,
+                    Some(&err),
+                );
             }
         }
     }
 
     fn play_selected_sample(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
+        let started_at = Instant::now();
         if let Some(path) = self.folder_browser.selected_file_id()
             && PathBuf::from(path) != self.waveform.path()
         {
+            let label = sample_path_label(path);
+            emit_gui_action(
+                "playback.play_selected_sample",
+                Some("transport"),
+                Some(&label),
+                "load_queued",
+                started_at,
+                None,
+            );
             self.select_sample(path.to_string(), context);
             return;
         }
@@ -382,35 +680,77 @@ impl GuiAppState {
             .unwrap_or((0.0, 1.0));
         match self.start_playback_current_span(start, end) {
             Ok(()) => {
-                self.sample_status = format!("Playing {}", self.waveform.file_name());
+                let file_name = self.waveform.file_name();
+                self.sample_status = format!("Playing {file_name}");
+                emit_gui_action(
+                    "playback.play_selected_sample",
+                    Some("transport"),
+                    Some(&file_name),
+                    "success",
+                    started_at,
+                    None,
+                );
             }
             Err(err) => {
                 self.sample_status = format!("Playback unavailable: {err}");
+                emit_gui_action(
+                    "playback.play_selected_sample",
+                    Some("transport"),
+                    None,
+                    "error",
+                    started_at,
+                    Some(&err),
+                );
             }
         }
     }
 
     fn play_waveform_from_ratio(&mut self, start_ratio: f32) {
+        let started_at = Instant::now();
         match self.start_playback_current_span(start_ratio, 1.0) {
             Ok(()) => {
-                self.sample_status = format!(
-                    "Playing {} from {:.1}%",
-                    self.waveform.file_name(),
-                    start_ratio * 100.0
+                let file_name = self.waveform.file_name();
+                self.sample_status =
+                    format!("Playing {} from {:.1}%", file_name, start_ratio * 100.0);
+                emit_gui_action(
+                    "playback.play_waveform_from_ratio",
+                    Some("waveform"),
+                    Some(&file_name),
+                    "success",
+                    started_at,
+                    None,
                 );
             }
             Err(err) => {
                 self.sample_status = format!("Playback unavailable: {err}");
+                emit_gui_action(
+                    "playback.play_waveform_from_ratio",
+                    Some("waveform"),
+                    None,
+                    "error",
+                    started_at,
+                    Some(&err),
+                );
             }
         }
     }
 
     fn stop_playback(&mut self) {
+        let started_at = Instant::now();
         if let Some(player) = self.audio_player.as_mut() {
             player.stop();
         }
         self.waveform.stop_playback();
-        self.sample_status = format!("Stopped {}", self.waveform.file_name());
+        let file_name = self.waveform.file_name();
+        self.sample_status = format!("Stopped {file_name}");
+        emit_gui_action(
+            "playback.stop",
+            Some("transport"),
+            Some(&file_name),
+            "success",
+            started_at,
+            None,
+        );
     }
 
     fn start_playback_current_span(
@@ -446,8 +786,17 @@ impl GuiAppState {
             return;
         };
         if let Some(error) = player.take_error() {
+            let started_at = Instant::now();
             self.waveform.stop_playback();
             self.sample_status = format!("Playback stopped: {error}");
+            emit_gui_action(
+                "playback.progress",
+                Some("transport"),
+                None,
+                "error",
+                started_at,
+                Some(&error),
+            );
             return;
         }
         if player.is_playing() {
@@ -455,7 +804,16 @@ impl GuiAppState {
                 self.waveform.set_playhead_ratio(progress);
             }
         } else if self.waveform.is_playing() {
+            let started_at = Instant::now();
             self.waveform.stop_playback();
+            emit_gui_action(
+                "playback.progress",
+                Some("transport"),
+                None,
+                "completed",
+                started_at,
+                None,
+            );
         }
     }
 }
@@ -468,50 +826,119 @@ struct FolderResize {
 
 /// Run the default Radiant GUI application shell.
 pub(crate) fn run() -> Result<(), String> {
+    logging::install_panic_hook();
+    let args: Vec<OsString> = std::env::args_os().collect();
+    let startup_started_at = Instant::now();
+
+    #[cfg(all(target_os = "windows", not(debug_assertions)))]
+    if log_console_requested(&args) {
+        enable_windows_console();
+    }
+
+    if let Err(err) = logging::init(args.iter().cloned()) {
+        eprintln!("logging disabled: {err}");
+    }
+
+    log_default_gui_startup(&args);
+    let state = GuiAppState::load_default()?;
     let options = NativeRunOptions {
         title: String::from("Wavecrate"),
         inner_size: Some([960.0, 540.0]),
         min_inner_size: Some([640.0, 360.0]),
-        debug_layout: debug_layout_requested(std::env::args_os()),
+        debug_layout: debug_layout_requested(args.iter().cloned()),
         text: NativeTextOptions {
             embedded_fonts: Vec::new(),
             font_paths: vec![wavecrate_ui_font_path()],
         },
         ..NativeRunOptions::default()
     };
+    tracing::info!(
+        debug_layout = options.debug_layout,
+        "default gui: preparing Radiant application"
+    );
+    emit_gui_action(
+        "runtime.startup.prepare_radiant_app",
+        Some("background"),
+        None,
+        "running",
+        startup_started_at,
+        None,
+    );
 
-    radiant::app(GuiAppState::load_default()?)
-        .options(options)
-        .view(view)
-        .animation(|state| state.waveform.is_playing() || state.folder_progress.is_some())
-        .on_frame(|| GuiMessage::Frame)
-        .subscriptions(GuiAppState::worker_subscription)
-        .shortcuts(|state, _, press, _| {
-            if state.folder_browser.rename_active() {
-                ui::ShortcutResolution::unhandled()
-            } else if press == ui::KeyPress::new(ui::KeyCode::F2) {
-                ui::ShortcutResolution::action(GuiMessage::FolderBrowser(
-                    FolderBrowserMessage::BeginRenameSelected,
-                ))
-            } else if press == ui::KeyPress::new(ui::KeyCode::Space) {
-                ui::ShortcutResolution::action(GuiMessage::PlaySelectedSample)
-            } else if press == ui::KeyPress::new(ui::KeyCode::ArrowUp) {
-                ui::ShortcutResolution::action(GuiMessage::NavigateBrowser(-1))
-            } else if press == ui::KeyPress::new(ui::KeyCode::ArrowDown) {
-                ui::ShortcutResolution::action(GuiMessage::NavigateBrowser(1))
-            } else if press == ui::KeyPress::new(ui::KeyCode::ArrowLeft) {
-                ui::ShortcutResolution::action(GuiMessage::CollapseSelectedFolder)
-            } else if press == ui::KeyPress::new(ui::KeyCode::ArrowRight) {
-                ui::ShortcutResolution::action(GuiMessage::ExpandSelectedFolder)
-            } else {
-                ui::ShortcutResolution::unhandled()
-            }
-        })
-        .update_with(|state, message, context| {
-            state.apply_message(message, context);
-            context.request_repaint();
-        })
-        .run()
+    let run_result = panic::catch_unwind(AssertUnwindSafe(|| {
+        radiant::app(state)
+            .options(options)
+            .view(view)
+            .animation(|state| state.waveform.is_playing() || state.folder_progress.is_some())
+            .on_frame(|| GuiMessage::Frame)
+            .subscriptions(GuiAppState::worker_subscription)
+            .shortcuts(|state, _, press, _| {
+                if state.folder_browser.rename_active() {
+                    ui::ShortcutResolution::unhandled()
+                } else if press == ui::KeyPress::new(ui::KeyCode::F2) {
+                    ui::ShortcutResolution::action(GuiMessage::FolderBrowser(
+                        FolderBrowserMessage::BeginRenameSelected,
+                    ))
+                } else if press == ui::KeyPress::new(ui::KeyCode::Space) {
+                    ui::ShortcutResolution::action(GuiMessage::PlaySelectedSample)
+                } else if press == ui::KeyPress::new(ui::KeyCode::ArrowUp) {
+                    ui::ShortcutResolution::action(GuiMessage::NavigateBrowser(-1))
+                } else if press == ui::KeyPress::new(ui::KeyCode::ArrowDown) {
+                    ui::ShortcutResolution::action(GuiMessage::NavigateBrowser(1))
+                } else if press == ui::KeyPress::new(ui::KeyCode::ArrowLeft) {
+                    ui::ShortcutResolution::action(GuiMessage::CollapseSelectedFolder)
+                } else if press == ui::KeyPress::new(ui::KeyCode::ArrowRight) {
+                    ui::ShortcutResolution::action(GuiMessage::ExpandSelectedFolder)
+                } else {
+                    ui::ShortcutResolution::unhandled()
+                }
+            })
+            .update_with(|state, message, context| {
+                state.apply_message(message, context);
+                context.request_repaint();
+            })
+            .run()
+    }));
+
+    match run_result {
+        Ok(Ok(())) => {
+            tracing::info!("default gui: Radiant runtime exited normally");
+            emit_gui_action(
+                "runtime.exit.radiant_app",
+                Some("background"),
+                None,
+                "success",
+                startup_started_at,
+                None,
+            );
+            Ok(())
+        }
+        Ok(Err(err)) => {
+            tracing::error!(err = %err, "default gui: Radiant runtime exited with error");
+            emit_gui_action(
+                "runtime.exit.radiant_app",
+                Some("background"),
+                None,
+                "error",
+                startup_started_at,
+                Some(&err),
+            );
+            Err(err)
+        }
+        Err(payload) => {
+            let message = panic_payload_to_string(payload);
+            tracing::error!("default gui: panic captured while running: {message}");
+            emit_gui_action(
+                "runtime.exit.radiant_app",
+                Some("background"),
+                None,
+                "panic",
+                startup_started_at,
+                Some(&message),
+            );
+            Err(format!("startup panic: {message}"))
+        }
+    }
 }
 
 fn debug_layout_requested<I>(args: I) -> bool
@@ -527,6 +954,136 @@ fn sample_path_label(path: &str) -> String {
         .file_name()
         .map(|name| name.to_string_lossy().to_string())
         .unwrap_or_else(|| path.to_string())
+}
+
+fn log_default_gui_startup(args: &[OsString]) {
+    let exe = std::env::current_exe()
+        .ok()
+        .and_then(|path| path.into_os_string().into_string().ok())
+        .unwrap_or_else(|| String::from("<unknown>"));
+    let cwd = std::env::current_dir()
+        .map(|cwd| cwd.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| String::from("<unknown>"));
+    tracing::info!(
+        pid = process::id(),
+        exe = exe,
+        cwd = cwd,
+        arg_count = args.len(),
+        timestamp = ?SystemTime::now(),
+        debug = cfg!(debug_assertions),
+        "default gui startup: process metadata captured"
+    );
+    match wavecrate::app_dirs::resolve_persistence() {
+        Ok(persistence) => {
+            tracing::info!(
+                persistence_mode = %persistence.mode,
+                config_base = %persistence.config_base.display(),
+                app_root = %persistence.app_root.display(),
+                "default gui startup: persistence profile resolved"
+            );
+        }
+        Err(err) => {
+            tracing::error!(err = %err, "default gui startup: failed to resolve persistence profile");
+        }
+    }
+}
+
+fn emit_gui_action(
+    action: &'static str,
+    pane: Option<&'static str>,
+    source: Option<&str>,
+    outcome: &'static str,
+    started_at: Instant,
+    error: Option<&str>,
+) {
+    emit_action_debug_event(ActionDebugEvent {
+        action,
+        pane,
+        source,
+        outcome,
+        elapsed: started_at.elapsed(),
+        error,
+    });
+}
+
+fn rename_input_action(message: &radiant::widgets::TextInputMessage) -> Option<&'static str> {
+    match message {
+        radiant::widgets::TextInputMessage::Submitted { .. } => {
+            Some("folder_browser.rename.submit")
+        }
+        _ => None,
+    }
+}
+
+fn waveform_interaction_action(interaction: &WaveformInteraction) -> Option<&'static str> {
+    match interaction {
+        WaveformInteraction::Wheel { .. } => Some("waveform.zoom_wheel"),
+        WaveformInteraction::ScrollTo { .. } => Some("waveform.scroll"),
+        WaveformInteraction::BeginSelection { .. } => Some("waveform.selection.begin"),
+        WaveformInteraction::BeginEditFade { .. } => Some("waveform.edit_fade.begin"),
+        WaveformInteraction::ClearEditFadeSilence { .. } => {
+            Some("waveform.edit_fade.clear_silence")
+        }
+        WaveformInteraction::BeginSelectionResize { .. } => Some("waveform.selection.resize_begin"),
+        WaveformInteraction::BeginPan { .. } => Some("waveform.pan_begin"),
+        WaveformInteraction::FinishSelection { .. } => Some("waveform.selection.finish"),
+        WaveformInteraction::UpdateSelection { .. } | WaveformInteraction::Frame => None,
+    }
+}
+
+fn panic_payload_to_string(panic_payload: Box<dyn std::any::Any + Send>) -> String {
+    if let Some(message) = panic_payload.downcast_ref::<&str>() {
+        return message.to_string();
+    }
+    if let Some(message) = panic_payload.downcast_ref::<String>() {
+        return message.clone();
+    }
+
+    "<non-string panic payload>".to_string()
+}
+
+#[cfg(all(target_os = "windows", not(debug_assertions)))]
+fn log_console_requested(args: &[OsString]) -> bool {
+    args.iter().any(|arg| {
+        arg == &OsString::from(logging::DEBUG_LOGGING_SHORT_ARG)
+            || arg == &OsString::from(logging::DEBUG_LOGGING_ARG)
+    })
+}
+
+#[cfg(all(target_os = "windows", not(debug_assertions)))]
+fn enable_windows_console() {
+    use windows::Win32::Foundation::HANDLE;
+    use windows::Win32::Storage::FileSystem::{
+        CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_GENERIC_WRITE, FILE_SHARE_READ, FILE_SHARE_WRITE,
+        OPEN_EXISTING,
+    };
+    use windows::Win32::System::Console::{
+        ATTACH_PARENT_PROCESS, AllocConsole, AttachConsole, STD_ERROR_HANDLE, STD_OUTPUT_HANDLE,
+        SetStdHandle,
+    };
+
+    unsafe {
+        let attached = AttachConsole(ATTACH_PARENT_PROCESS).is_ok();
+        if !attached {
+            let _ = AllocConsole();
+        }
+
+        let Ok(handle) = CreateFileW(
+            windows::core::w!("CONOUT$"),
+            FILE_GENERIC_WRITE.0,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            None,
+            OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL,
+            None,
+        ) else {
+            return;
+        };
+
+        let handle = HANDLE(handle.0);
+        let _ = SetStdHandle(STD_OUTPUT_HANDLE, handle);
+        let _ = SetStdHandle(STD_ERROR_HANDLE, handle);
+    }
 }
 
 fn view(state: &mut GuiAppState) -> ui::View<GuiMessage> {
@@ -850,10 +1407,13 @@ fn waveform_title(waveform: &WaveformState) -> String {
 }
 
 fn waveform_scrollbar(waveform: &WaveformState) -> ui::View<GuiMessage> {
+    if waveform.fully_zoomed_out() {
+        return ui::text("").fill_width().height(0.0);
+    }
     let mut scrollbar = radiant::widgets::ScrollbarWidget::new(
         0,
         radiant::widgets::ScrollbarAxis::Horizontal,
-        radiant::widgets::WidgetSizing::fixed(radiant::gui::types::Vector2::new(1200.0, 12.0)),
+        radiant::widgets::WidgetSizing::fixed(radiant::gui::types::Vector2::new(1200.0, 6.0)),
     );
     scrollbar.props.viewport_fraction = waveform.visible_fraction();
     scrollbar.state.offset_fraction = waveform.offset_fraction();
@@ -868,7 +1428,7 @@ fn waveform_scrollbar(waveform: &WaveformState) -> ui::View<GuiMessage> {
             })
     })
     .fill_width()
-    .height(12.0)
+    .height(6.0)
 }
 
 fn sample_browser(state: &GuiAppState) -> ui::View<GuiMessage> {

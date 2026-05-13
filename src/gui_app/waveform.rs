@@ -180,6 +180,10 @@ impl WaveformState {
         self.viewport.visible_fraction(self.file.frames)
     }
 
+    pub(super) fn fully_zoomed_out(&self) -> bool {
+        self.viewport.clamp(self.file.frames).visible_frames() >= self.file.frames.max(1)
+    }
+
     pub(super) fn offset_fraction(&self) -> f32 {
         self.viewport.offset_fraction(self.file.frames)
     }
