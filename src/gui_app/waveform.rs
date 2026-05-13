@@ -50,6 +50,7 @@ pub(super) struct WaveformState {
     edit_mark_ratio: Option<f32>,
     play_selection: Option<wavecrate::selection::SelectionRange>,
     edit_selection: Option<wavecrate::selection::SelectionRange>,
+    extraction_history: Vec<wavecrate::selection::SelectionRange>,
     play_selection_flash_frames: u8,
     active_drag: Option<WaveformDrag>,
     pending_playback_start: Option<f32>,
@@ -86,6 +87,7 @@ impl WaveformState {
             edit_mark_ratio: None,
             play_selection: None,
             edit_selection: None,
+            extraction_history: Vec::new(),
             play_selection_flash_frames: 0,
             active_drag: None,
             pending_playback_start: None,
@@ -126,6 +128,28 @@ impl WaveformState {
 
     pub(super) fn edit_selection(&self) -> Option<wavecrate::selection::SelectionRange> {
         self.edit_selection
+    }
+
+    pub(super) fn extraction_history(&self) -> &[wavecrate::selection::SelectionRange] {
+        &self.extraction_history
+    }
+
+    pub(super) fn has_extraction_history(&self) -> bool {
+        !self.extraction_history.is_empty()
+    }
+
+    pub(super) fn record_current_play_selection_extracted(&mut self) {
+        let Some(selection) = self
+            .play_selection
+            .filter(|selection| selection.width() > 0.0)
+        else {
+            return;
+        };
+        self.extraction_history.push(selection);
+    }
+
+    pub(super) fn clear_extraction_history(&mut self) {
+        self.extraction_history.clear();
     }
 
     pub(super) fn play_selection_flash_frames(&self) -> u8 {
@@ -1126,6 +1150,7 @@ pub(super) fn waveform_viewport_view(state: &WaveformState) -> ui::View<super::G
                 state.edit_mark_ratio(),
                 state.play_selection(),
                 state.edit_selection(),
+                state.extraction_history(),
                 state.play_selection_flash_frames(),
                 state.active_drag_kind(),
             ),
@@ -1637,6 +1662,7 @@ struct WaveformWidget {
     edit_mark_ratio: Option<f32>,
     play_selection: Option<wavecrate::selection::SelectionRange>,
     edit_selection: Option<wavecrate::selection::SelectionRange>,
+    extraction_history: Vec<wavecrate::selection::SelectionRange>,
     play_selection_flash_frames: u8,
     edit_preview: TimelineEditPreview,
     active_drag_kind: Option<WaveformActiveDragKind>,
@@ -1652,6 +1678,7 @@ impl WaveformWidget {
         edit_mark_ratio: Option<f32>,
         play_selection: Option<wavecrate::selection::SelectionRange>,
         edit_selection: Option<wavecrate::selection::SelectionRange>,
+        extraction_history: &[wavecrate::selection::SelectionRange],
         play_selection_flash_frames: u8,
         active_drag_kind: Option<WaveformActiveDragKind>,
     ) -> Self {
@@ -1672,6 +1699,7 @@ impl WaveformWidget {
             edit_mark_ratio,
             play_selection,
             edit_selection,
+            extraction_history: extraction_history.to_vec(),
             play_selection_flash_frames,
             edit_preview: edit_preview_for_selection(edit_selection),
             active_drag_kind,
@@ -1833,12 +1861,45 @@ impl Widget for WaveformWidget {
         _layout: &LayoutOutput,
         _theme: &ThemeTokens,
     ) {
+        self.append_extraction_history_paint(primitives, bounds);
         self.append_selection_and_marker_paint(primitives, bounds);
         self.append_edit_fade_paint(primitives, bounds);
     }
 }
 
 impl WaveformWidget {
+    fn append_extraction_history_paint(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
+        for selection in &self.extraction_history {
+            let Some((start, end)) = self.visible_range_for_selection(Some(*selection)) else {
+                continue;
+            };
+            self.push_visible_range_fill(
+                primitives,
+                bounds,
+                start,
+                end,
+                Rgba8 {
+                    r: 155,
+                    g: 155,
+                    b: 155,
+                    a: 54,
+                },
+            );
+            self.append_selection_boundary_cursors(
+                primitives,
+                bounds,
+                Some(*selection),
+                Rgba8 {
+                    r: 185,
+                    g: 185,
+                    b: 185,
+                    a: 105,
+                },
+                1.0,
+            );
+        }
+    }
+
     fn append_selection_and_marker_paint(
         &self,
         primitives: &mut Vec<PaintPrimitive>,
@@ -2537,6 +2598,25 @@ mod tests {
     }
 
     #[test]
+    fn extraction_history_records_and_clears_play_selection() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+
+        state.record_current_play_selection_extracted();
+
+        assert!(state.has_extraction_history());
+        assert_eq!(
+            state.extraction_history(),
+            &[wavecrate::selection::SelectionRange::new(0.2, 0.6)]
+        );
+
+        state.clear_extraction_history();
+
+        assert!(!state.has_extraction_history());
+        assert!(state.extraction_history().is_empty());
+    }
+
+    #[test]
     fn frequency_bands_keep_low_mid_high_and_raw_lanes_separate() {
         let samples = [0.0, 0.7, -0.7, 0.18, -0.18, 0.02, -0.02, 0.0];
         let bands = split_frequency_bands(&samples, 48_000);
@@ -2610,6 +2690,7 @@ mod tests {
             state.edit_mark_ratio(),
             state.play_selection(),
             state.edit_selection(),
+            state.extraction_history(),
             state.play_selection_flash_frames(),
             state.active_drag_kind(),
         );
@@ -2669,6 +2750,7 @@ mod tests {
             state.edit_mark_ratio(),
             state.play_selection(),
             state.edit_selection(),
+            state.extraction_history(),
             state.play_selection_flash_frames(),
             state.active_drag_kind(),
         );
@@ -2715,6 +2797,7 @@ mod tests {
             state.edit_mark_ratio(),
             state.play_selection(),
             state.edit_selection(),
+            state.extraction_history(),
             state.play_selection_flash_frames(),
             state.active_drag_kind(),
         );
@@ -2755,6 +2838,7 @@ mod tests {
             state.edit_mark_ratio(),
             state.play_selection(),
             state.edit_selection(),
+            state.extraction_history(),
             state.play_selection_flash_frames(),
             state.active_drag_kind(),
         );
@@ -2837,6 +2921,7 @@ mod tests {
             state.edit_mark_ratio(),
             state.play_selection(),
             state.edit_selection(),
+            state.extraction_history(),
             state.play_selection_flash_frames(),
             state.active_drag_kind(),
         );
@@ -3003,6 +3088,7 @@ mod tests {
             state.edit_mark_ratio(),
             state.play_selection(),
             state.edit_selection(),
+            state.extraction_history(),
             state.play_selection_flash_frames(),
             state.active_drag_kind(),
         );
@@ -3244,6 +3330,7 @@ mod tests {
             state.edit_mark_ratio(),
             state.play_selection(),
             state.edit_selection(),
+            state.extraction_history(),
             state.play_selection_flash_frames(),
             state.active_drag_kind(),
         );
@@ -3429,6 +3516,7 @@ mod tests {
             state.edit_mark_ratio(),
             state.play_selection(),
             state.edit_selection(),
+            state.extraction_history(),
             state.play_selection_flash_frames(),
             state.active_drag_kind(),
         );
@@ -3497,6 +3585,7 @@ mod tests {
             state.edit_mark_ratio(),
             state.play_selection(),
             state.edit_selection(),
+            state.extraction_history(),
             state.play_selection_flash_frames(),
             state.active_drag_kind(),
         );
@@ -3525,6 +3614,7 @@ mod tests {
             state.edit_mark_ratio(),
             state.play_selection(),
             state.edit_selection(),
+            state.extraction_history(),
             state.play_selection_flash_frames(),
             state.active_drag_kind(),
         );
@@ -3560,6 +3650,56 @@ mod tests {
     }
 
     #[test]
+    fn extraction_history_paints_soft_gray_range_under_active_selection() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.3, 0.5));
+        state.record_current_play_selection_extracted();
+        state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+        let widget = WaveformWidget::new(
+            state.file(),
+            state.viewport(),
+            state.cursor_ratio(),
+            state.playhead_ratio(),
+            state.play_mark_ratio(),
+            state.edit_mark_ratio(),
+            state.play_selection(),
+            state.edit_selection(),
+            state.extraction_history(),
+            state.play_selection_flash_frames(),
+            state.active_drag_kind(),
+        );
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0)),
+            &Default::default(),
+            &ThemeTokens::default(),
+        );
+
+        let fills = fill_rects(&primitives);
+        let history_index = fills
+            .iter()
+            .position(|fill| {
+                (fill.rect.min.x - 60.0).abs() < 0.001
+                    && (fill.rect.max.x - 100.0).abs() < 0.001
+                    && (fill.color.r, fill.color.g, fill.color.b, fill.color.a)
+                        == (155, 155, 155, 54)
+            })
+            .expect("history fill");
+        let active_index = fills
+            .iter()
+            .position(|fill| {
+                (fill.rect.min.x - 40.0).abs() < 0.001
+                    && (fill.rect.max.x - 120.0).abs() < 0.001
+                    && (fill.color.r, fill.color.g, fill.color.b, fill.color.a)
+                        == (255, 142, 92, 48)
+            })
+            .expect("active play selection fill");
+        assert!(history_index < active_index);
+    }
+
+    #[test]
     fn edit_selection_paints_start_and_end_boundary_lines() {
         let mut state = WaveformState::synthetic_for_tests();
         state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
@@ -3572,6 +3712,7 @@ mod tests {
             state.edit_mark_ratio(),
             state.play_selection(),
             state.edit_selection(),
+            state.extraction_history(),
             state.play_selection_flash_frames(),
             state.active_drag_kind(),
         );
@@ -3612,6 +3753,7 @@ mod tests {
             state.edit_mark_ratio(),
             state.play_selection(),
             state.edit_selection(),
+            state.extraction_history(),
             state.play_selection_flash_frames(),
             state.active_drag_kind(),
         );
