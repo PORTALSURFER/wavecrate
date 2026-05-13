@@ -479,8 +479,10 @@ pub(super) enum WaveformSelectionEdge {
 pub(super) enum WaveformEditFadeHandle {
     FadeInEnd,
     FadeInStart,
+    FadeInOuterStart,
     FadeOutStart,
     FadeOutEnd,
+    FadeOutOuterEnd,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -585,10 +587,14 @@ struct WaveformEditFadeDrag {
 impl WaveformEditFadeDrag {
     fn new(handle: WaveformEditFadeHandle, selection: sempal::selection::SelectionRange) -> Self {
         let curve = match handle {
-            WaveformEditFadeHandle::FadeInEnd | WaveformEditFadeHandle::FadeInStart => {
+            WaveformEditFadeHandle::FadeInEnd
+            | WaveformEditFadeHandle::FadeInStart
+            | WaveformEditFadeHandle::FadeInOuterStart => {
                 selection.fade_in().map(|fade| fade.curve).unwrap_or(0.5)
             }
-            WaveformEditFadeHandle::FadeOutStart | WaveformEditFadeHandle::FadeOutEnd => {
+            WaveformEditFadeHandle::FadeOutStart
+            | WaveformEditFadeHandle::FadeOutEnd
+            | WaveformEditFadeHandle::FadeOutOuterEnd => {
                 selection.fade_out().map(|fade| fade.curve).unwrap_or(0.5)
             }
         };
@@ -601,7 +607,10 @@ impl WaveformEditFadeDrag {
                 .fade_out()
                 .map(|fade| selection.end() - selection.width() * fade.length)
                 .unwrap_or(selection.end()),
-            WaveformEditFadeHandle::FadeInEnd | WaveformEditFadeHandle::FadeOutStart => 0.0,
+            WaveformEditFadeHandle::FadeInEnd
+            | WaveformEditFadeHandle::FadeOutStart
+            | WaveformEditFadeHandle::FadeInOuterStart
+            | WaveformEditFadeHandle::FadeOutOuterEnd => 0.0,
         };
         Self {
             handle,
@@ -630,6 +639,10 @@ impl WaveformEditFadeDrag {
             WaveformEditFadeHandle::FadeOutEnd => {
                 resize_fade_out_end(selection, self.fixed_ratio, ratio, self.curve)
             }
+            WaveformEditFadeHandle::FadeInOuterStart => {
+                resize_fade_in_outer_start(selection, ratio)
+            }
+            WaveformEditFadeHandle::FadeOutOuterEnd => resize_fade_out_outer_end(selection, ratio),
         }
     }
 }
@@ -721,6 +734,44 @@ fn resize_fade_out_start_with_collision(
         }),
         Some((fade_out_abs / width, curve)),
     )
+}
+
+fn resize_fade_in_outer_start(
+    selection: sempal::selection::SelectionRange,
+    outer_start_ratio: f32,
+) -> sempal::selection::SelectionRange {
+    let Some(fade) = selection.fade_in() else {
+        return selection;
+    };
+    let width = selection.width();
+    if width <= f32::EPSILON {
+        return selection;
+    }
+    let outer_start = outer_start_ratio.clamp(0.0, selection.start());
+    let mute =
+        ((selection.start() - outer_start) / width).clamp(0.0, selection.max_fade_in_mute_length());
+    selection
+        .with_fade_in(fade.length, fade.curve)
+        .with_fade_in_mute(mute)
+}
+
+fn resize_fade_out_outer_end(
+    selection: sempal::selection::SelectionRange,
+    outer_end_ratio: f32,
+) -> sempal::selection::SelectionRange {
+    let Some(fade) = selection.fade_out() else {
+        return selection;
+    };
+    let width = selection.width();
+    if width <= f32::EPSILON {
+        return selection;
+    }
+    let outer_end = outer_end_ratio.clamp(selection.end(), 1.0);
+    let mute =
+        ((outer_end - selection.end()) / width).clamp(0.0, selection.max_fade_out_mute_length());
+    selection
+        .with_fade_out(fade.length, fade.curve)
+        .with_fade_out_mute(mute)
 }
 
 fn rebuild_edit_fades_for_same_range(
@@ -1575,12 +1626,20 @@ impl WaveformWidget {
         if let Some(fade_rect) = self.fade_out_rect(bounds, selection, selection_rect) {
             self.push_fill(primitives, fade_rect, Rgba8 { a: 52, ..accent });
         }
+        if let Some(fade_rect) = self.fade_in_outer_rect(bounds, selection, selection_rect) {
+            self.push_fill(primitives, fade_rect, Rgba8 { a: 38, ..accent });
+        }
+        if let Some(fade_rect) = self.fade_out_outer_rect(bounds, selection, selection_rect) {
+            self.push_fill(primitives, fade_rect, Rgba8 { a: 38, ..accent });
+        }
         self.append_edit_fade_curve_paint(primitives, bounds, selection_rect, accent);
         for handle in [
             WaveformEditFadeHandle::FadeInEnd,
             WaveformEditFadeHandle::FadeOutStart,
             WaveformEditFadeHandle::FadeInStart,
             WaveformEditFadeHandle::FadeOutEnd,
+            WaveformEditFadeHandle::FadeInOuterStart,
+            WaveformEditFadeHandle::FadeOutOuterEnd,
         ] {
             if let Some(rect) = self.edit_fade_handle_rect(bounds, selection_rect, handle) {
                 self.push_fill(primitives, rect, Rgba8 { a: 205, ..accent });
@@ -1663,8 +1722,8 @@ impl WaveformWidget {
             return;
         }
         if let Some(fade_in) = selection.fade_in().filter(|fade| fade.length > 0.0) {
-            let start = selection.start();
-            let end = (start + width * fade_in.length).min(selection.end());
+            let start = (selection.start() - width * fade_in.mute).max(0.0);
+            let end = (selection.start() + width * fade_in.length).min(selection.end());
             self.push_edit_fade_curve_points(
                 primitives,
                 bounds,
@@ -1676,8 +1735,8 @@ impl WaveformWidget {
             );
         }
         if let Some(fade_out) = selection.fade_out().filter(|fade| fade.length > 0.0) {
-            let end = selection.end();
-            let start = (end - width * fade_out.length).max(selection.start());
+            let end = (selection.end() + width * fade_out.mute).min(1.0);
+            let start = (selection.end() - width * fade_out.length).max(selection.start());
             self.push_edit_fade_curve_points(
                 primitives,
                 bounds,
@@ -1738,6 +1797,8 @@ impl WaveformWidget {
             WaveformEditFadeHandle::FadeOutStart,
             WaveformEditFadeHandle::FadeInStart,
             WaveformEditFadeHandle::FadeOutEnd,
+            WaveformEditFadeHandle::FadeInOuterStart,
+            WaveformEditFadeHandle::FadeOutOuterEnd,
         ]
         .into_iter()
         .find(|handle| {
@@ -1792,6 +1853,46 @@ impl WaveformWidget {
         ))
     }
 
+    fn fade_in_outer_rect(
+        &self,
+        bounds: Rect,
+        selection: NormalizedRange,
+        selection_rect: Rect,
+    ) -> Option<Rect> {
+        let start = self.edit_preview.leading_inner_start_micros?;
+        if start >= selection.start_micros {
+            return None;
+        }
+        let x = self.x_for_micros(bounds, start)?;
+        Some(Rect::from_min_max(
+            Point::new(
+                x.clamp(bounds.min.x, selection_rect.min.x),
+                selection_rect.min.y,
+            ),
+            Point::new(selection_rect.min.x, selection_rect.max.y),
+        ))
+    }
+
+    fn fade_out_outer_rect(
+        &self,
+        bounds: Rect,
+        selection: NormalizedRange,
+        selection_rect: Rect,
+    ) -> Option<Rect> {
+        let end = self.edit_preview.trailing_inner_end_micros?;
+        if end <= selection.end_micros {
+            return None;
+        }
+        let x = self.x_for_micros(bounds, end)?;
+        Some(Rect::from_min_max(
+            Point::new(selection_rect.max.x, selection_rect.min.y),
+            Point::new(
+                x.clamp(selection_rect.max.x, bounds.max.x),
+                selection_rect.max.y,
+            ),
+        ))
+    }
+
     fn edit_fade_handle_rect(
         &self,
         bounds: Rect,
@@ -1808,16 +1909,26 @@ impl WaveformWidget {
                 .edit_preview
                 .trailing_start_micros
                 .unwrap_or(selection.end_micros),
-            WaveformEditFadeHandle::FadeInStart => self.edit_preview.leading_end_micros.and(
+            WaveformEditFadeHandle::FadeInStart => self
+                .edit_preview
+                .leading_end_micros
+                .map(|_| selection.start_micros)?,
+            WaveformEditFadeHandle::FadeOutEnd => self
+                .edit_preview
+                .trailing_start_micros
+                .map(|_| selection.end_micros)?,
+            WaveformEditFadeHandle::FadeInOuterStart => self.edit_preview.leading_end_micros.and(
                 self.edit_preview
                     .leading_inner_start_micros
                     .or(Some(selection.start_micros)),
             )?,
-            WaveformEditFadeHandle::FadeOutEnd => self.edit_preview.trailing_start_micros.and(
-                self.edit_preview
-                    .trailing_inner_end_micros
-                    .or(Some(selection.end_micros)),
-            )?,
+            WaveformEditFadeHandle::FadeOutOuterEnd => {
+                self.edit_preview.trailing_start_micros.and(
+                    self.edit_preview
+                        .trailing_inner_end_micros
+                        .or(Some(selection.end_micros)),
+                )?
+            }
         };
         let x = self.x_for_micros(bounds, micros)?;
         let size = EDIT_FADE_HANDLE_TAB_SIZE
@@ -1839,6 +1950,14 @@ impl WaveformWidget {
                     .max(selection_rect.min.y)
                     .min(selection_rect.max.y - 1.0);
                 (top, selection_rect.max.y)
+            }
+            WaveformEditFadeHandle::FadeInOuterStart | WaveformEditFadeHandle::FadeOutOuterEnd => {
+                let center_y = selection_rect.center().y;
+                let top = (center_y - half)
+                    .max(selection_rect.min.y)
+                    .min(selection_rect.max.y - 1.0);
+                let bottom = (top + size).min(selection_rect.max.y).max(top + 1.0);
+                (top, bottom)
             }
         };
         Some(Rect::from_min_max(
@@ -2363,6 +2482,93 @@ mod tests {
         assert!((fade_out_start - 0.5).abs() < 0.001);
         assert!((restored_fade_in.curve - 0.2).abs() < 0.001);
         assert!((restored_fade_out.curve - 0.7).abs() < 0.001);
+    }
+
+    #[test]
+    fn edit_fade_outer_handles_set_crossfade_lengths_without_resizing_selection() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.edit_selection =
+            Some(sempal::selection::SelectionRange::new(0.2, 0.6).with_fade_in(0.25, 0.2));
+
+        state.apply_interaction(WaveformInteraction::BeginEditFade {
+            handle: WaveformEditFadeHandle::FadeInOuterStart,
+            visible_ratio: 0.2,
+        });
+        state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.1 });
+
+        let selection = state.edit_selection().expect("edit selection");
+        let fade = selection.fade_in().expect("fade-in after outer drag");
+        assert!((selection.start() - 0.2).abs() < 0.001);
+        assert!((selection.end() - 0.6).abs() < 0.001);
+        assert!((fade.length - 0.25).abs() < 0.001);
+        assert!((fade.mute - 0.25).abs() < 0.001);
+
+        state.apply_interaction(WaveformInteraction::BeginEditFade {
+            handle: WaveformEditFadeHandle::FadeInOuterStart,
+            visible_ratio: 0.1,
+        });
+        state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.2 });
+
+        let selection = state.edit_selection().expect("edit selection");
+        let fade = selection.fade_in().expect("fade-in should remain");
+        assert!((fade.length - 0.25).abs() < 0.001);
+        assert!(fade.mute.abs() < 0.001);
+
+        state.edit_selection =
+            Some(sempal::selection::SelectionRange::new(0.2, 0.6).with_fade_out(0.25, 0.7));
+        state.apply_interaction(WaveformInteraction::BeginEditFade {
+            handle: WaveformEditFadeHandle::FadeOutOuterEnd,
+            visible_ratio: 0.6,
+        });
+        state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.7 });
+
+        let selection = state.edit_selection().expect("edit selection");
+        let fade = selection.fade_out().expect("fade-out after outer drag");
+        assert!((selection.start() - 0.2).abs() < 0.001);
+        assert!((selection.end() - 0.6).abs() < 0.001);
+        assert!((fade.length - 0.25).abs() < 0.001);
+        assert!((fade.mute - 0.25).abs() < 0.001);
+    }
+
+    #[test]
+    fn primary_press_on_outer_fade_handle_uses_distinct_handle() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.edit_selection =
+            Some(sempal::selection::SelectionRange::new(0.2, 0.6).with_fade_in(0.25, 0.2));
+        let mut widget = WaveformWidget::new(
+            state.file(),
+            state.viewport(),
+            state.cursor_ratio(),
+            state.playhead_ratio(),
+            state.play_mark_ratio(),
+            state.edit_mark_ratio(),
+            state.play_selection(),
+            state.edit_selection(),
+            state.active_drag_kind(),
+        );
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
+
+        let output = widget
+            .handle_input(
+                bounds,
+                WidgetInput::PointerPress {
+                    position: Point::new(40.0, 40.0),
+                    button: PointerButton::Primary,
+                },
+            )
+            .expect("outer fade handle interaction");
+        let interaction = output
+            .typed_ref::<WaveformInteraction>()
+            .copied()
+            .expect("waveform interaction");
+
+        assert_eq!(
+            interaction,
+            WaveformInteraction::BeginEditFade {
+                handle: WaveformEditFadeHandle::FadeInOuterStart,
+                visible_ratio: 0.2
+            }
+        );
     }
 
     #[test]
