@@ -22,9 +22,31 @@ pub(super) fn update_edit_fade_in_end_from_micros(
     let start = range.start();
     let end = range.end();
     let clamped_position = normalized_from_micros(position_micros).clamp(start, end);
-    let length = ((clamped_position - start) / width).clamp(0.0, 1.0);
     let curve = range.fade_in().map(|fade| fade.curve).unwrap_or(0.5);
-    range.with_fade_in(length, curve)
+    let fade_in_abs = clamped_position - start;
+    let baseline_fade_out_abs = range.fade_out().map_or(0.0, |fade| width * fade.length);
+    let baseline_fade_out_start = end - baseline_fade_out_abs;
+    let fade_out_abs = if clamped_position > baseline_fade_out_start {
+        (end - clamped_position).max(0.0)
+    } else {
+        baseline_fade_out_abs
+    };
+    rebuild_edit_range(
+        range,
+        start,
+        end,
+        Some(crate::selection::FadeParams::with_curve(
+            fade_in_abs / width,
+            curve,
+        )),
+        range.fade_out().map(|fade| {
+            crate::selection::FadeParams::with_curve_and_mute(
+                fade_out_abs / width,
+                fade.curve,
+                fade.mute,
+            )
+        }),
+    )
 }
 
 /// Update the edit-selection start from the fade-in bottom handle position.
@@ -85,9 +107,31 @@ pub(super) fn update_edit_fade_out_start_from_micros(
     let start = range.start();
     let end = range.end();
     let clamped_position = normalized_from_micros(position_micros).clamp(start, end);
-    let length = ((end - clamped_position) / width).clamp(0.0, 1.0);
     let curve = range.fade_out().map(|fade| fade.curve).unwrap_or(0.5);
-    range.with_fade_out(length, curve)
+    let fade_out_abs = end - clamped_position;
+    let baseline_fade_in_abs = range.fade_in().map_or(0.0, |fade| width * fade.length);
+    let baseline_fade_in_end = start + baseline_fade_in_abs;
+    let fade_in_abs = if clamped_position < baseline_fade_in_end {
+        (clamped_position - start).max(0.0)
+    } else {
+        baseline_fade_in_abs
+    };
+    rebuild_edit_range(
+        range,
+        start,
+        end,
+        range.fade_in().map(|fade| {
+            crate::selection::FadeParams::with_curve_and_mute(
+                fade_in_abs / width,
+                fade.curve,
+                fade.mute,
+            )
+        }),
+        Some(crate::selection::FadeParams::with_curve(
+            fade_out_abs / width,
+            curve,
+        )),
+    )
 }
 
 /// Update the edit-selection end from the fade-out bottom handle position.

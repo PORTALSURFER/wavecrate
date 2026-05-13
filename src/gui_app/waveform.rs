@@ -579,6 +579,7 @@ struct WaveformEditFadeDrag {
     handle: WaveformEditFadeHandle,
     fixed_ratio: f32,
     curve: f32,
+    baseline: sempal::selection::SelectionRange,
 }
 
 impl WaveformEditFadeDrag {
@@ -606,6 +607,7 @@ impl WaveformEditFadeDrag {
             handle,
             fixed_ratio,
             curve,
+            baseline: selection,
         }
     }
 
@@ -617,12 +619,10 @@ impl WaveformEditFadeDrag {
         let ratio = ratio.clamp(0.0, 1.0);
         match self.handle {
             WaveformEditFadeHandle::FadeInEnd => {
-                let length = fade_in_length_for_end(selection, ratio);
-                selection.with_fade_in(length, self.curve)
+                resize_fade_in_end_with_collision(selection, self.baseline, ratio, self.curve)
             }
             WaveformEditFadeHandle::FadeOutStart => {
-                let length = fade_out_length_for_start(selection, ratio);
-                selection.with_fade_out(length, self.curve)
+                resize_fade_out_start_with_collision(selection, self.baseline, ratio, self.curve)
             }
             WaveformEditFadeHandle::FadeInStart => {
                 resize_fade_in_start(selection, self.fixed_ratio, ratio, self.curve)
@@ -651,6 +651,116 @@ fn fade_out_length_for_start(
     }
     ((selection.end() - start_ratio.clamp(selection.start(), selection.end())) / selection.width())
         .clamp(0.0, 1.0)
+}
+
+fn resize_fade_in_end_with_collision(
+    selection: sempal::selection::SelectionRange,
+    baseline: sempal::selection::SelectionRange,
+    end_ratio: f32,
+    curve: f32,
+) -> sempal::selection::SelectionRange {
+    let width = selection.width();
+    if width <= f32::EPSILON {
+        return selection;
+    }
+    let start = selection.start();
+    let end = selection.end();
+    let fade_in_end = end_ratio.clamp(start, end);
+    let fade_in_abs = fade_in_end - start;
+    let baseline_fade_out_abs = baseline.fade_out().map_or(0.0, |fade| {
+        (baseline.end() - (baseline.end() - baseline.width() * fade.length)).max(0.0)
+    });
+    let baseline_fade_out_start = end - baseline_fade_out_abs;
+    let fade_out_abs = if fade_in_end > baseline_fade_out_start {
+        (end - fade_in_end).max(0.0)
+    } else {
+        baseline_fade_out_abs
+    };
+    rebuild_edit_fades_for_same_range(
+        selection,
+        Some((fade_in_abs / width, curve)),
+        fade_out_for_same_width(selection, baseline, fade_out_abs).map(|length| {
+            (
+                length,
+                baseline.fade_out().map(|fade| fade.curve).unwrap_or(0.5),
+            )
+        }),
+    )
+}
+
+fn resize_fade_out_start_with_collision(
+    selection: sempal::selection::SelectionRange,
+    baseline: sempal::selection::SelectionRange,
+    start_ratio: f32,
+    curve: f32,
+) -> sempal::selection::SelectionRange {
+    let width = selection.width();
+    if width <= f32::EPSILON {
+        return selection;
+    }
+    let start = selection.start();
+    let end = selection.end();
+    let fade_out_start = start_ratio.clamp(start, end);
+    let fade_out_abs = end - fade_out_start;
+    let baseline_fade_in_abs = baseline.fade_in().map_or(0.0, |fade| {
+        ((baseline.start() + baseline.width() * fade.length) - baseline.start()).max(0.0)
+    });
+    let baseline_fade_in_end = start + baseline_fade_in_abs;
+    let fade_in_abs = if fade_out_start < baseline_fade_in_end {
+        (fade_out_start - start).max(0.0)
+    } else {
+        baseline_fade_in_abs
+    };
+    rebuild_edit_fades_for_same_range(
+        selection,
+        fade_in_for_same_width(selection, baseline, fade_in_abs).map(|length| {
+            (
+                length,
+                baseline.fade_in().map(|fade| fade.curve).unwrap_or(0.5),
+            )
+        }),
+        Some((fade_out_abs / width, curve)),
+    )
+}
+
+fn rebuild_edit_fades_for_same_range(
+    selection: sempal::selection::SelectionRange,
+    fade_in: Option<(f32, f32)>,
+    fade_out: Option<(f32, f32)>,
+) -> sempal::selection::SelectionRange {
+    let mut rebuilt = sempal::selection::SelectionRange::new(selection.start(), selection.end())
+        .with_gain(selection.gain());
+    if let Some((length, curve)) = fade_in {
+        rebuilt = rebuilt.with_fade_in(length.clamp(0.0, 1.0), curve);
+        if let Some(fade) = selection.fade_in().filter(|fade| fade.mute > 0.0) {
+            rebuilt = rebuilt.with_fade_in_mute(fade.mute);
+        }
+    }
+    if let Some((length, curve)) = fade_out {
+        rebuilt = rebuilt.with_fade_out(length.clamp(0.0, 1.0), curve);
+        if let Some(fade) = selection.fade_out().filter(|fade| fade.mute > 0.0) {
+            rebuilt = rebuilt.with_fade_out_mute(fade.mute);
+        }
+    }
+    rebuilt
+}
+
+fn fade_in_for_same_width(
+    selection: sempal::selection::SelectionRange,
+    baseline: sempal::selection::SelectionRange,
+    fade_in_abs: f32,
+) -> Option<f32> {
+    baseline.fade_in()?;
+    Some((fade_in_abs / selection.width().max(f32::EPSILON)).clamp(0.0, 1.0))
+}
+
+fn fade_out_for_same_width(
+    selection: sempal::selection::SelectionRange,
+    baseline: sempal::selection::SelectionRange,
+    fade_out_abs: f32,
+) -> Option<f32> {
+    baseline.fade_out()?;
+    Some((fade_out_abs / selection.width().max(f32::EPSILON)).clamp(0.0, 1.0))
 }
 
 fn resize_fade_in_start(
@@ -2222,6 +2332,37 @@ mod tests {
         assert!((selection.end() - 0.6).abs() < 0.001);
         assert!((fade.length - 0.25).abs() < 0.001);
         assert!((fade.curve - 0.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn edit_fade_top_handles_push_and_restore_opposite_fade() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.edit_selection = Some(
+            sempal::selection::SelectionRange::new(0.2, 0.6)
+                .with_fade_in(0.25, 0.2)
+                .with_fade_out(0.25, 0.7),
+        );
+
+        state.apply_interaction(WaveformInteraction::BeginEditFade {
+            handle: WaveformEditFadeHandle::FadeInEnd,
+            visible_ratio: 0.3,
+        });
+        state.apply_interaction(WaveformInteraction::UpdateSelection { visible_ratio: 0.6 });
+        let pushed = state.edit_selection().expect("pushed edit selection");
+        let pushed_fade_in = pushed.fade_in().expect("fade-in after push");
+        assert!(pushed.fade_out().is_none());
+        assert!((pushed.start() + pushed.width() * pushed_fade_in.length - 0.6).abs() < 0.001);
+
+        state.apply_interaction(WaveformInteraction::UpdateSelection { visible_ratio: 0.3 });
+        let restored = state.edit_selection().expect("restored edit selection");
+        let restored_fade_in = restored.fade_in().expect("restored fade-in");
+        let restored_fade_out = restored.fade_out().expect("restored fade-out");
+        let fade_in_end = restored.start() + restored.width() * restored_fade_in.length;
+        let fade_out_start = restored.end() - restored.width() * restored_fade_out.length;
+        assert!((fade_in_end - 0.3).abs() < 0.001);
+        assert!((fade_out_start - 0.5).abs() < 0.001);
+        assert!((restored_fade_in.curve - 0.2).abs() < 0.001);
+        assert!((restored_fade_out.curve - 0.7).abs() < 0.001);
     }
 
     #[test]
