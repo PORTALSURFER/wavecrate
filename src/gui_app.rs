@@ -1413,7 +1413,7 @@ fn waveform_scrollbar(waveform: &WaveformState) -> ui::View<GuiMessage> {
     let mut scrollbar = radiant::widgets::ScrollbarWidget::new(
         0,
         radiant::widgets::ScrollbarAxis::Horizontal,
-        radiant::widgets::WidgetSizing::fixed(radiant::gui::types::Vector2::new(1200.0, 12.0)),
+        radiant::widgets::WidgetSizing::fixed(radiant::gui::types::Vector2::new(1200.0, 6.0)),
     );
     scrollbar.props.viewport_fraction = waveform.visible_fraction();
     scrollbar.state.offset_fraction = waveform.offset_fraction();
@@ -1428,7 +1428,7 @@ fn waveform_scrollbar(waveform: &WaveformState) -> ui::View<GuiMessage> {
             })
     })
     .fill_width()
-    .height(12.0)
+    .height(6.0)
 }
 
 fn sample_browser(state: &GuiAppState) -> ui::View<GuiMessage> {
