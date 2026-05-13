@@ -1,9 +1,6 @@
 //! Radiant-first Sempal application rebuilt incrementally beside the legacy sample.
 
-use radiant::gui::{
-    svg::{parse_svg_document, point_in_svg_shapes},
-    types::{ImageRgba, Point, Rect, Rgba8},
-};
+use radiant::gui::types::{ImageRgba, Point, Rect, Rgba8};
 use radiant::layout::{LayoutOutput, Vector2};
 use radiant::prelude as ui;
 use radiant::runtime::{
@@ -16,6 +13,7 @@ use radiant::widgets::{
 };
 use rfd::FileDialog;
 use sempal::audio::AudioPlayer;
+use sempal::gui::svg::{parse_svg_document, point_in_svg_shapes};
 use sempal::gui_runtime::sempal_ui_font_path;
 use std::{
     ffi::OsString,
@@ -462,6 +460,7 @@ pub(crate) fn run() -> Result<(), String> {
         min_inner_size: Some([640.0, 360.0]),
         debug_layout: debug_layout_requested(std::env::args_os()),
         text: NativeTextOptions {
+            embedded_fonts: Vec::new(),
             font_paths: vec![sempal_ui_font_path()],
         },
         ..NativeRunOptions::default()

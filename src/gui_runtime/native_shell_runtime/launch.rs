@@ -18,6 +18,7 @@ impl From<NativeRunOptions> for radiant::gui_runtime::NativeRunOptions {
             drag_and_drop: true,
             gpu: radiant::gui_runtime::NativeGpuOptions::default(),
             text: radiant::gui_runtime::NativeTextOptions {
+                embedded_fonts: Vec::new(),
                 font_paths: vec![crate::gui_runtime::sempal_ui_font_path()],
             },
         }
