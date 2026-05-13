@@ -19,8 +19,7 @@ use sempal::audio::AudioPlayer;
 use sempal::gui_runtime::sempal_ui_font_path;
 use std::{
     ffi::OsString,
-    fs,
-    path::Path,
+    path::PathBuf,
     sync::{
         Arc,
         mpsc::{self, Receiver, Sender},
@@ -52,6 +51,7 @@ enum RebuildMessage {
     FolderScanDiscoveryBatch(FolderScanDiscoveryBatch),
     FolderScanFinished(FolderScanResult),
     SelectSample(String),
+    SampleLoadFinished(SampleLoadResult),
     PlaySelectedSample,
     StopPlayback,
     FocusRenameInput(u64),
@@ -60,6 +60,21 @@ enum RebuildMessage {
     ExpandSelectedFolder,
     Waveform(WaveformInteraction),
     Frame,
+}
+
+#[derive(Clone, Debug)]
+struct SampleLoadResult {
+    task_id: u64,
+    path: String,
+    result: Result<WaveformState, String>,
+}
+
+impl PartialEq for SampleLoadResult {
+    fn eq(&self, other: &Self) -> bool {
+        self.task_id == other.task_id
+            && self.path == other.path
+            && self.result.as_ref().err() == other.result.as_ref().err()
+    }
 }
 
 struct RebuildLayoutState {
@@ -71,6 +86,8 @@ struct RebuildLayoutState {
     worker_sender: Sender<RebuildMessage>,
     worker_receiver: Option<Receiver<RebuildMessage>>,
     next_task_id: u64,
+    next_sample_task_id: u64,
+    pending_sample_task_id: Option<u64>,
     folder_progress: Option<FolderScanProgress>,
     progress_tick: f32,
     audio_player: Option<AudioPlayer>,
@@ -88,6 +105,8 @@ impl RebuildLayoutState {
             worker_sender,
             worker_receiver: Some(worker_receiver),
             next_task_id: 1,
+            next_sample_task_id: 1,
+            pending_sample_task_id: None,
             folder_progress: None,
             progress_tick: 0.0,
             audio_player: None,
@@ -169,15 +188,16 @@ impl RebuildLayoutState {
                 self.folder_browser.apply_scan_discovered_batch(batch);
             }
             RebuildMessage::FolderScanFinished(result) => self.finish_folder_scan(result),
-            RebuildMessage::SelectSample(path) => self.select_sample(path),
-            RebuildMessage::PlaySelectedSample => self.play_selected_sample(),
+            RebuildMessage::SelectSample(path) => self.select_sample(path, context),
+            RebuildMessage::SampleLoadFinished(result) => self.finish_sample_load(result),
+            RebuildMessage::PlaySelectedSample => self.play_selected_sample(context),
             RebuildMessage::StopPlayback => self.stop_playback(),
             RebuildMessage::FocusRenameInput(input_id) => {
                 context.focus(input_id);
             }
             RebuildMessage::NavigateBrowser(delta) => {
                 if let Some(path) = self.folder_browser.navigate_vertical(delta) {
-                    self.select_sample(path);
+                    self.select_sample(path, context);
                 }
             }
             RebuildMessage::CollapseSelectedFolder => {
@@ -212,6 +232,12 @@ impl RebuildLayoutState {
     fn next_folder_task_id(&mut self) -> u64 {
         let task_id = self.next_task_id;
         self.next_task_id = self.next_task_id.saturating_add(1);
+        task_id
+    }
+
+    fn next_sample_task_id(&mut self) -> u64 {
+        let task_id = self.next_sample_task_id;
+        self.next_sample_task_id = self.next_sample_task_id.saturating_add(1);
         task_id
     }
 
@@ -303,13 +329,35 @@ impl RebuildLayoutState {
         }
     }
 
-    fn select_sample(&mut self, path: String) {
-        match WaveformState::load_path(path.clone().into()) {
+    fn select_sample(&mut self, path: String, context: &mut ui::UpdateContext<RebuildMessage>) {
+        self.folder_browser.select_file(path.clone());
+        let task_id = self.next_sample_task_id();
+        self.pending_sample_task_id = Some(task_id);
+        self.sample_status = format!("Loading {}", sample_path_label(&path));
+        context.spawn(
+            "rebuild-sample-load",
+            move || {
+                let result = WaveformState::load_path(PathBuf::from(&path));
+                SampleLoadResult {
+                    task_id,
+                    path,
+                    result,
+                }
+            },
+            RebuildMessage::SampleLoadFinished,
+        );
+    }
+
+    fn finish_sample_load(&mut self, load: SampleLoadResult) {
+        if self.pending_sample_task_id != Some(load.task_id) {
+            return;
+        }
+        self.pending_sample_task_id = None;
+        match load.result {
             Ok(waveform) => {
-                self.folder_browser.select_file(path.clone());
                 let file_name = waveform.file_name();
                 self.waveform = waveform;
-                match self.start_playback_path(Path::new(&path), 0.0) {
+                match self.start_playback_current(0.0) {
                     Ok(()) => {
                         self.sample_status = format!("Playing {file_name}");
                     }
@@ -325,14 +373,14 @@ impl RebuildLayoutState {
         }
     }
 
-    fn play_selected_sample(&mut self) {
-        let path = self
-            .folder_browser
-            .selected_file_id()
-            .map(Path::new)
-            .map(Path::to_path_buf)
-            .unwrap_or_else(|| self.waveform.path());
-        match self.start_playback_path(&path, 0.0) {
+    fn play_selected_sample(&mut self, context: &mut ui::UpdateContext<RebuildMessage>) {
+        if let Some(path) = self.folder_browser.selected_file_id()
+            && PathBuf::from(path) != self.waveform.path()
+        {
+            self.select_sample(path.to_string(), context);
+            return;
+        }
+        match self.start_playback_current(0.0) {
             Ok(()) => {
                 self.sample_status = format!("Playing {}", self.waveform.file_name());
             }
@@ -343,8 +391,7 @@ impl RebuildLayoutState {
     }
 
     fn play_waveform_from_ratio(&mut self, start_ratio: f32) {
-        let path = self.waveform.path();
-        match self.start_playback_path(&path, start_ratio) {
+        match self.start_playback_current(start_ratio) {
             Ok(()) => {
                 self.sample_status = format!(
                     "Playing {} from {:.1}%",
@@ -366,8 +413,7 @@ impl RebuildLayoutState {
         self.sample_status = format!("Stopped {}", self.waveform.file_name());
     }
 
-    fn start_playback_path(&mut self, path: &Path, start_ratio: f32) -> Result<(), String> {
-        let bytes = fs::read(path).map_err(|err| format!("failed to read sample: {err}"))?;
+    fn start_playback_current(&mut self, start_ratio: f32) -> Result<(), String> {
         if self.audio_player.is_none() {
             self.audio_player = Some(AudioPlayer::new()?);
         }
@@ -377,7 +423,7 @@ impl RebuildLayoutState {
             .audio_player
             .as_mut()
             .ok_or_else(|| String::from("audio player did not initialize"))?;
-        player.set_audio(bytes, duration);
+        player.set_audio(self.waveform.audio_bytes(), duration);
         player.play_from_fraction(f64::from(start_ratio))?;
         self.waveform.start_playback(start_ratio);
         Ok(())
@@ -461,6 +507,13 @@ where
 {
     args.into_iter()
         .any(|arg| arg == DEBUG_LAYOUT_ARG || arg == DEBUG_LAYOUT_SHORT_ARG)
+}
+
+fn sample_path_label(path: &str) -> String {
+    PathBuf::from(path)
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_else(|| path.to_string())
 }
 
 fn view(state: &mut RebuildLayoutState) -> ui::View<RebuildMessage> {
@@ -1092,6 +1145,8 @@ mod tests {
             worker_sender: mpsc::channel().0,
             worker_receiver: None,
             next_task_id: 1,
+            next_sample_task_id: 1,
+            pending_sample_task_id: None,
             folder_progress: None,
             progress_tick: 0.0,
             audio_player: None,
@@ -1142,6 +1197,8 @@ mod tests {
             worker_sender: mpsc::channel().0,
             worker_receiver: None,
             next_task_id: 1,
+            next_sample_task_id: 1,
+            pending_sample_task_id: None,
             folder_progress: None,
             progress_tick: 0.0,
             audio_player: None,
@@ -1151,6 +1208,15 @@ mod tests {
         let mut context = ui::UpdateContext::default();
         state.apply_message(
             super::RebuildMessage::SelectSample(sample_path.clone()),
+            &mut context,
+        );
+        let task_id = state.pending_sample_task_id.expect("sample load queued");
+        state.apply_message(
+            super::RebuildMessage::SampleLoadFinished(super::SampleLoadResult {
+                task_id,
+                path: sample_path.clone(),
+                result: super::WaveformState::load_path(sample_path.clone().into()),
+            }),
             &mut context,
         );
 
