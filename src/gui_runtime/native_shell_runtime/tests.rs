@@ -25,6 +25,7 @@ mod tests {
                 height: 1,
             }),
             target_fps: 90,
+            debug_layout: true,
         };
 
         let compat: radiant::gui_runtime::NativeRunOptions = options.into();
@@ -35,15 +36,17 @@ mod tests {
         assert!(compat.maximized);
         assert!(!compat.decorations);
         assert_eq!(compat.target_fps, 90);
+        assert!(compat.debug_layout);
         assert!(compat.drag_and_drop);
         assert_eq!(
             compat.gpu,
             radiant::gui_runtime::NativeGpuOptions::default()
         );
         assert_eq!(
-            compat.text,
-            radiant::gui_runtime::NativeTextOptions::default()
+            compat.text.font_paths,
+            vec![crate::gui_runtime::sempal_ui_font_path()]
         );
+        assert!(compat.text.font_paths[0].exists());
         let icon = compat.icon.expect("icon should be forwarded");
         assert_eq!(icon.rgba, vec![255, 0, 0, 255]);
         assert_eq!(icon.width, 1);

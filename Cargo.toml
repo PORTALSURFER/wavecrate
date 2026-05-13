@@ -52,6 +52,7 @@ winit = "0.30.12"
 arboard = "3.6.1"
 pollster = "0.4.0"
 vello = "0.7.0"
+roxmltree = "0.21.1"
 skrifa = "0.40.0"
 radiant = { path = "vendor/radiant" }
 open = "5.3.3"

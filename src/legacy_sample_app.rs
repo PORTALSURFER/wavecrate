@@ -131,6 +131,7 @@ fn run_application(
         maximized: true,
         decorations: true,
         target_fps: 120,
+        debug_layout: false,
         icon: crate::app_icon::load_app_icon(),
     };
     if let Some(config) = gui_test_mode.as_ref() {
@@ -149,6 +150,7 @@ fn run_application(
     info!(
         fixture_tag,
         ?viewport,
+        debug_layout = options.debug_layout,
         "sempal startup: preparing GUI bridge"
     );
     emit_action_debug_event(ActionDebugEvent {

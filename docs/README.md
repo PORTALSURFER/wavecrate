@@ -19,6 +19,9 @@ Machine-consumed check allowlists do not live here anymore. They now live under
   - development workflow, validation gates, and test suite map
 - `docs/SYSTEMS.md`
   - runtime contracts, recovery rules, automation surfaces, and data formats
+- `docs/TARGET.md`
+  - product target, UI/performance direction, and the Sempal/Radiant ownership
+    boundary
 - `docs/TROUBLESHOOTING.md`
   - common failure modes, diagnostics, and guardrail-change workflow
 
