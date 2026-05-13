@@ -171,10 +171,12 @@ impl RebuildLayoutState {
             RebuildMessage::ExpandSelectedFolder => {
                 self.folder_browser.expand_selected_folder();
             }
-            RebuildMessage::Waveform(WaveformInteraction::PlayFrom { visible_ratio }) => {
-                self.play_waveform_from_visible_ratio(visible_ratio);
+            RebuildMessage::Waveform(message) => {
+                self.waveform.apply_interaction(message);
+                if let Some(start_ratio) = self.waveform.take_pending_playback_start() {
+                    self.play_waveform_from_ratio(start_ratio);
+                }
             }
-            RebuildMessage::Waveform(message) => self.waveform.apply_interaction(message),
             RebuildMessage::Frame => {
                 self.waveform.apply_interaction(WaveformInteraction::Frame);
                 self.refresh_playback_progress();
@@ -325,8 +327,7 @@ impl RebuildLayoutState {
         }
     }
 
-    fn play_waveform_from_visible_ratio(&mut self, visible_ratio: f32) {
-        let start_ratio = self.waveform.absolute_ratio_from_visible(visible_ratio);
+    fn play_waveform_from_ratio(&mut self, start_ratio: f32) {
         let path = self.waveform.path();
         match self.start_playback_path(&path, start_ratio) {
             Ok(()) => {
@@ -814,8 +815,8 @@ fn worker_progress_bar(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
 #[cfg(test)]
 mod tests {
     use super::{
-        debug_layout_requested, RebuildLayoutState, DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG,
-        DEFAULT_FOLDER_WIDTH, MAX_FOLDER_WIDTH, MIN_FOLDER_WIDTH,
+        DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG, DEFAULT_FOLDER_WIDTH, MAX_FOLDER_WIDTH,
+        MIN_FOLDER_WIDTH, RebuildLayoutState, debug_layout_requested,
     };
     use radiant::{gui::types::Point, prelude as ui, widgets::DragHandleMessage};
     use std::{ffi::OsString, sync::mpsc};
@@ -931,10 +932,12 @@ mod tests {
         let browser = super::FolderBrowserState::load_default();
         assert!(browser.root_path().ends_with("assets"));
         assert_eq!(browser.source_labels(), vec![String::from("Assets")]);
-        assert!(browser
-            .selected_files()
-            .iter()
-            .any(|file| file.name == "portal_SS_kick_003.wav"));
+        assert!(
+            browser
+                .selected_files()
+                .iter()
+                .any(|file| file.name == "portal_SS_kick_003.wav")
+        );
         assert_eq!(
             browser
                 .selected_audio_files()

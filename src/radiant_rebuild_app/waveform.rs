@@ -5,7 +5,8 @@ use radiant::{
     layout::LayoutOutput,
     prelude as ui,
     runtime::{
-        GpuHoverCursor, GpuSurfaceCapabilities, GpuSurfaceContent, PaintGpuSurface, PaintPrimitive,
+        GpuHoverCursor, GpuSurfaceCapabilities, GpuSurfaceContent, PaintFillRect, PaintGpuSurface,
+        PaintPrimitive,
     },
     theme::ThemeTokens,
     widgets::{
@@ -27,6 +28,7 @@ const WAVEFORM_WIDTH: usize = 1200;
 const WAVEFORM_HEIGHT: usize = 320;
 const MIN_VISIBLE_FRAMES: usize = 256;
 const BAND_COUNT: usize = 4;
+const SELECTION_DRAG_EPSILON: f32 = 0.001;
 #[cfg(test)]
 const SYNTHETIC_SAMPLE_RATE: u32 = 48_000;
 #[cfg(test)]
@@ -39,7 +41,12 @@ pub(super) struct WaveformState {
     zoom_anchor_ratio: f32,
     playing: bool,
     playhead_ratio: Option<f32>,
-    play_start_ratio: Option<f32>,
+    play_mark_ratio: Option<f32>,
+    edit_mark_ratio: Option<f32>,
+    play_selection: Option<sempal::selection::SelectionRange>,
+    edit_selection: Option<sempal::selection::SelectionRange>,
+    active_drag: Option<WaveformSelectionDrag>,
+    pending_playback_start: Option<f32>,
 }
 
 impl WaveformState {
@@ -65,7 +72,12 @@ impl WaveformState {
             zoom_anchor_ratio: 0.5,
             playing: false,
             playhead_ratio: None,
-            play_start_ratio: None,
+            play_mark_ratio: None,
+            edit_mark_ratio: None,
+            play_selection: None,
+            edit_selection: None,
+            active_drag: None,
+            pending_playback_start: None,
         }
     }
 
@@ -89,14 +101,34 @@ impl WaveformState {
         self.playhead_ratio
     }
 
-    pub(super) fn play_start_ratio(&self) -> Option<f32> {
-        self.play_start_ratio
+    pub(super) fn play_mark_ratio(&self) -> Option<f32> {
+        self.play_mark_ratio
+    }
+
+    pub(super) fn edit_mark_ratio(&self) -> Option<f32> {
+        self.edit_mark_ratio
+    }
+
+    pub(super) fn play_selection(&self) -> Option<sempal::selection::SelectionRange> {
+        self.play_selection
+    }
+
+    pub(super) fn edit_selection(&self) -> Option<sempal::selection::SelectionRange> {
+        self.edit_selection
+    }
+
+    fn active_drag_kind(&self) -> Option<WaveformSelectionKind> {
+        self.active_drag.map(|drag| drag.kind)
+    }
+
+    pub(super) fn take_pending_playback_start(&mut self) -> Option<f32> {
+        self.pending_playback_start.take()
     }
 
     pub(super) fn start_playback(&mut self, ratio: f32) {
         let ratio = ratio.clamp(0.0, 1.0);
         self.playing = true;
-        self.play_start_ratio = Some(ratio);
+        self.play_mark_ratio = Some(ratio);
         self.playhead_ratio = Some(ratio);
         self.zoom_anchor_ratio = ratio;
     }
@@ -156,10 +188,28 @@ impl WaveformState {
             WaveformInteraction::ScrollTo { offset_fraction } => {
                 self.set_offset_fraction(offset_fraction);
             }
-            WaveformInteraction::PlayFrom { visible_ratio } => {
+            WaveformInteraction::BeginSelection {
+                kind,
+                visible_ratio,
+            } => {
                 let ratio = self.absolute_ratio_from_visible(visible_ratio);
-                self.play_start_ratio = Some(ratio);
-                self.set_playhead_ratio(ratio);
+                self.active_drag = Some(WaveformSelectionDrag::new(kind, ratio));
+                match kind {
+                    WaveformSelectionKind::Play => {
+                        self.play_mark_ratio = Some(ratio);
+                        self.play_selection = None;
+                    }
+                    WaveformSelectionKind::Edit => {
+                        self.edit_mark_ratio = Some(ratio);
+                        self.edit_selection = None;
+                    }
+                }
+            }
+            WaveformInteraction::UpdateSelection { visible_ratio } => {
+                self.update_active_selection(visible_ratio);
+            }
+            WaveformInteraction::FinishSelection { visible_ratio } => {
+                self.finish_active_selection(visible_ratio);
             }
             WaveformInteraction::Frame => {
                 // Playback progress is driven by the audio engine; frames only keep repainting.
@@ -230,14 +280,107 @@ impl WaveformState {
         }
         .clamp(total);
     }
+
+    fn update_active_selection(&mut self, visible_ratio: f32) {
+        let ratio = self.absolute_ratio_from_visible(visible_ratio);
+        let Some(mut drag) = self.active_drag else {
+            return;
+        };
+        drag.update(ratio);
+        self.active_drag = Some(drag);
+        if drag.moved {
+            self.set_selection_for_drag(drag);
+        }
+    }
+
+    fn finish_active_selection(&mut self, visible_ratio: f32) {
+        let ratio = self.absolute_ratio_from_visible(visible_ratio);
+        let Some(mut drag) = self.active_drag.take() else {
+            return;
+        };
+        drag.update(ratio);
+        if drag.moved {
+            self.set_selection_for_drag(drag);
+            return;
+        }
+        match drag.kind {
+            WaveformSelectionKind::Play => {
+                self.play_selection = None;
+                self.start_playback(ratio);
+                self.pending_playback_start = Some(ratio);
+            }
+            WaveformSelectionKind::Edit => {
+                self.edit_selection = None;
+                self.edit_mark_ratio = Some(ratio);
+            }
+        }
+    }
+
+    fn set_selection_for_drag(&mut self, drag: WaveformSelectionDrag) {
+        let range = sempal::selection::SelectionRange::new(drag.anchor_ratio, drag.current_ratio);
+        match drag.kind {
+            WaveformSelectionKind::Play => {
+                self.play_mark_ratio = Some(drag.anchor_ratio);
+                self.play_selection = Some(range);
+            }
+            WaveformSelectionKind::Edit => {
+                self.edit_mark_ratio = Some(drag.anchor_ratio);
+                self.edit_selection = Some(range);
+            }
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) enum WaveformInteraction {
-    Wheel { delta: Vector2, anchor_ratio: f32 },
-    ScrollTo { offset_fraction: f32 },
-    PlayFrom { visible_ratio: f32 },
+    Wheel {
+        delta: Vector2,
+        anchor_ratio: f32,
+    },
+    ScrollTo {
+        offset_fraction: f32,
+    },
+    BeginSelection {
+        kind: WaveformSelectionKind,
+        visible_ratio: f32,
+    },
+    UpdateSelection {
+        visible_ratio: f32,
+    },
+    FinishSelection {
+        visible_ratio: f32,
+    },
     Frame,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum WaveformSelectionKind {
+    Play,
+    Edit,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct WaveformSelectionDrag {
+    kind: WaveformSelectionKind,
+    anchor_ratio: f32,
+    current_ratio: f32,
+    moved: bool,
+}
+
+impl WaveformSelectionDrag {
+    fn new(kind: WaveformSelectionKind, ratio: f32) -> Self {
+        Self {
+            kind,
+            anchor_ratio: ratio,
+            current_ratio: ratio,
+            moved: false,
+        }
+    }
+
+    fn update(&mut self, ratio: f32) {
+        self.current_ratio = ratio;
+        self.moved |= (self.current_ratio - self.anchor_ratio).abs() > SELECTION_DRAG_EPSILON;
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -277,7 +420,11 @@ pub(super) fn waveform_viewport_view(state: &WaveformState) -> ui::View<super::R
             state.viewport(),
             state.cursor_ratio(),
             state.playhead_ratio(),
-            state.play_start_ratio(),
+            state.play_mark_ratio(),
+            state.edit_mark_ratio(),
+            state.play_selection(),
+            state.edit_selection(),
+            state.active_drag_kind(),
         ),
         |output| {
             output
@@ -511,7 +658,11 @@ struct WaveformWidget {
     file: Arc<WaveformFile>,
     viewport: WaveformViewport,
     playhead_ratio: Option<f32>,
-    play_start_ratio: Option<f32>,
+    play_mark_ratio: Option<f32>,
+    edit_mark_ratio: Option<f32>,
+    play_selection: Option<sempal::selection::SelectionRange>,
+    edit_selection: Option<sempal::selection::SelectionRange>,
+    active_drag_kind: Option<WaveformSelectionKind>,
 }
 
 impl WaveformWidget {
@@ -520,7 +671,11 @@ impl WaveformWidget {
         viewport: WaveformViewport,
         _cursor_ratio: Option<f32>,
         playhead_ratio: Option<f32>,
-        play_start_ratio: Option<f32>,
+        play_mark_ratio: Option<f32>,
+        edit_mark_ratio: Option<f32>,
+        play_selection: Option<sempal::selection::SelectionRange>,
+        edit_selection: Option<sempal::selection::SelectionRange>,
+        active_drag_kind: Option<WaveformSelectionKind>,
     ) -> Self {
         let mut common = WidgetCommon::new(
             0,
@@ -535,7 +690,11 @@ impl WaveformWidget {
             file,
             viewport,
             playhead_ratio,
-            play_start_ratio,
+            play_mark_ratio,
+            edit_mark_ratio,
+            play_selection,
+            edit_selection,
+            active_drag_kind,
         }
     }
 
@@ -555,13 +714,13 @@ impl Widget for WaveformWidget {
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
         match input {
-            WidgetInput::PointerMove { position } if bounds.contains(position) => {
-                self.common.state.hovered = true;
-                None
-            }
-            WidgetInput::PointerMove { .. } => {
-                self.common.state.hovered = false;
-                None
+            WidgetInput::PointerMove { position } => {
+                self.common.state.hovered = bounds.contains(position);
+                self.active_drag_kind.map(|_| {
+                    WidgetOutput::typed(WaveformInteraction::UpdateSelection {
+                        visible_ratio: self.ratio_from_position(bounds, position),
+                    })
+                })
             }
             WidgetInput::Wheel { position, delta } if bounds.contains(position) => {
                 Some(WidgetOutput::typed(WaveformInteraction::Wheel {
@@ -573,7 +732,33 @@ impl Widget for WaveformWidget {
                 position,
                 button: PointerButton::Primary,
             } if bounds.contains(position) => {
-                Some(WidgetOutput::typed(WaveformInteraction::PlayFrom {
+                Some(WidgetOutput::typed(WaveformInteraction::BeginSelection {
+                    kind: WaveformSelectionKind::Play,
+                    visible_ratio: self.ratio_from_position(bounds, position),
+                }))
+            }
+            WidgetInput::PointerPress {
+                position,
+                button: PointerButton::Secondary,
+            } if bounds.contains(position) => {
+                Some(WidgetOutput::typed(WaveformInteraction::BeginSelection {
+                    kind: WaveformSelectionKind::Edit,
+                    visible_ratio: self.ratio_from_position(bounds, position),
+                }))
+            }
+            WidgetInput::PointerRelease {
+                position,
+                button: PointerButton::Primary,
+            } if self.active_drag_kind == Some(WaveformSelectionKind::Play) => {
+                Some(WidgetOutput::typed(WaveformInteraction::FinishSelection {
+                    visible_ratio: self.ratio_from_position(bounds, position),
+                }))
+            }
+            WidgetInput::PointerRelease {
+                position,
+                button: PointerButton::Secondary,
+            } if self.active_drag_kind == Some(WaveformSelectionKind::Edit) => {
+                Some(WidgetOutput::typed(WaveformInteraction::FinishSelection {
                     visible_ratio: self.ratio_from_position(bounds, position),
                 }))
             }
@@ -618,19 +803,32 @@ impl Widget for WaveformWidget {
             },
             overlays: self.cursor_overlays(),
         }));
+        self.push_selection_fill(primitives, bounds);
     }
 }
 
 impl WaveformWidget {
     fn cursor_overlays(&self) -> Vec<radiant::runtime::GpuSurfaceOverlay> {
         let mut overlays = Vec::new();
-        if let Some(play_start_ratio) = self.visible_ratio_for_absolute(self.play_start_ratio) {
+        if let Some(play_mark_ratio) = self.visible_ratio_for_absolute(self.play_mark_ratio) {
             overlays.push(radiant::runtime::GpuSurfaceOverlay::VerticalCursor {
-                ratio: play_start_ratio,
+                ratio: play_mark_ratio,
                 color: Rgba8 {
                     r: 255,
                     g: 142,
                     b: 92,
+                    a: 230,
+                },
+                width: 1.25,
+            });
+        }
+        if let Some(edit_mark_ratio) = self.visible_ratio_for_absolute(self.edit_mark_ratio) {
+            overlays.push(radiant::runtime::GpuSurfaceOverlay::VerticalCursor {
+                ratio: edit_mark_ratio,
+                color: Rgba8 {
+                    r: 82,
+                    g: 168,
+                    b: 255,
                     a: 230,
                 },
                 width: 1.25,
@@ -651,6 +849,101 @@ impl WaveformWidget {
         overlays
     }
 
+    fn push_selection_fill(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
+        if let Some(rect) = self.selection_rect(bounds, self.play_selection) {
+            primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+                widget_id: self.common.id,
+                rect,
+                color: Rgba8 {
+                    r: 255,
+                    g: 142,
+                    b: 92,
+                    a: 48,
+                },
+            }));
+            self.push_selection_edges(
+                primitives,
+                bounds,
+                rect,
+                Rgba8 {
+                    r: 255,
+                    g: 142,
+                    b: 92,
+                    a: 220,
+                },
+            );
+        }
+        if let Some(rect) = self.selection_rect(bounds, self.edit_selection) {
+            primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+                widget_id: self.common.id,
+                rect,
+                color: Rgba8 {
+                    r: 82,
+                    g: 168,
+                    b: 255,
+                    a: 46,
+                },
+            }));
+            self.push_selection_edges(
+                primitives,
+                bounds,
+                rect,
+                Rgba8 {
+                    r: 82,
+                    g: 168,
+                    b: 255,
+                    a: 220,
+                },
+            );
+        }
+    }
+
+    fn push_selection_edges(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        rect: Rect,
+        color: Rgba8,
+    ) {
+        for x in [rect.min.x, rect.max.x] {
+            primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+                widget_id: self.common.id,
+                rect: Rect::from_min_size(
+                    Point::new(x - 0.75, bounds.min.y),
+                    Vector2::new(1.5, bounds.height()),
+                ),
+                color,
+            }));
+        }
+    }
+
+    fn selection_rect(
+        &self,
+        bounds: Rect,
+        range: Option<sempal::selection::SelectionRange>,
+    ) -> Option<Rect> {
+        let range = range?;
+        let total = self.file.frames.max(1) as f32;
+        let visible_start = self.viewport.start as f32;
+        let visible_end = self.viewport.end as f32;
+        let visible_width = self.viewport.visible_frames() as f32;
+        let start_frame = range.start().clamp(0.0, 1.0) * total;
+        let end_frame = range.end().clamp(0.0, 1.0) * total;
+        let left_frame = start_frame.min(end_frame).max(visible_start);
+        let right_frame = start_frame.max(end_frame).min(visible_end);
+        if right_frame <= left_frame {
+            return None;
+        }
+        let start = ((left_frame - visible_start) / visible_width.max(1.0)).clamp(0.0, 1.0);
+        let end = ((right_frame - visible_start) / visible_width.max(1.0)).clamp(0.0, 1.0);
+        let left = bounds.min.x + bounds.width() * start;
+        let right = bounds.min.x + bounds.width() * end;
+        Some(Rect::from_min_max(
+            Point::new(left, bounds.min.y),
+            Point::new(right, bounds.max.y),
+        ))
+    }
+
     fn visible_ratio_for_absolute(&self, ratio: Option<f32>) -> Option<f32> {
         let absolute_ratio = ratio?;
         let frame = absolute_ratio.clamp(0.0, 1.0) * self.file.frames.max(1) as f32;
@@ -667,8 +960,8 @@ impl WaveformWidget {
 #[cfg(test)]
 mod tests {
     use super::{
-        split_frequency_bands, waveform_file_from_mono_samples, WaveformInteraction, WaveformState,
-        WaveformWidget, BAND_COUNT,
+        BAND_COUNT, WaveformInteraction, WaveformSelectionKind, WaveformState, WaveformWidget,
+        split_frequency_bands, waveform_file_from_mono_samples,
     };
     use radiant::{
         gui::types::{Point, Rect, Vector2},
@@ -745,39 +1038,50 @@ mod tests {
 
         assert!(!state.is_playing());
         assert_eq!(state.playhead_ratio(), None);
-        assert_eq!(state.play_start_ratio(), None);
+        assert_eq!(state.play_mark_ratio(), None);
 
         state.start_playback(0.0);
         assert!(state.is_playing());
         assert_eq!(state.playhead_ratio(), Some(0.0));
-        assert_eq!(state.play_start_ratio(), Some(0.0));
+        assert_eq!(state.play_mark_ratio(), Some(0.0));
 
         state.set_playhead_ratio(0.375);
         assert_eq!(state.playhead_ratio(), Some(0.375));
-        assert_eq!(state.play_start_ratio(), Some(0.0));
+        assert_eq!(state.play_mark_ratio(), Some(0.0));
 
         state.stop_playback();
         assert!(!state.is_playing());
         assert_eq!(state.playhead_ratio(), None);
-        assert_eq!(state.play_start_ratio(), Some(0.0));
+        assert_eq!(state.play_mark_ratio(), Some(0.0));
     }
 
     #[test]
-    fn cursor_overlays_project_play_start_and_playhead_ratios() {
+    fn cursor_overlays_project_play_edit_and_playhead_ratios() {
         let mut state = WaveformState::synthetic_for_tests();
         state.start_playback(0.125);
         state.set_playhead_ratio(0.25);
+        state.apply_interaction(WaveformInteraction::BeginSelection {
+            kind: WaveformSelectionKind::Edit,
+            visible_ratio: 0.375,
+        });
+        state.apply_interaction(WaveformInteraction::FinishSelection {
+            visible_ratio: 0.375,
+        });
 
         let widget = WaveformWidget::new(
             state.file(),
             state.viewport(),
             state.cursor_ratio(),
             state.playhead_ratio(),
-            state.play_start_ratio(),
+            state.play_mark_ratio(),
+            state.edit_mark_ratio(),
+            state.play_selection(),
+            state.edit_selection(),
+            state.active_drag_kind(),
         );
 
         let overlays = widget.cursor_overlays();
-        assert_eq!(overlays.len(), 2);
+        assert_eq!(overlays.len(), 3);
         match overlays[0] {
             radiant::runtime::GpuSurfaceOverlay::VerticalCursor {
                 ratio,
@@ -789,10 +1093,24 @@ mod tests {
                 assert_eq!(width, 1.25);
             }
             radiant::runtime::GpuSurfaceOverlay::NativeHoverCursor { .. } => {
-                panic!("play start overlay should be app-owned");
+                panic!("play mark overlay should be app-owned");
             }
         }
         match overlays[1] {
+            radiant::runtime::GpuSurfaceOverlay::VerticalCursor {
+                ratio,
+                color,
+                width,
+            } => {
+                assert!((ratio - 0.375).abs() < 0.001);
+                assert_eq!((color.r, color.g, color.b), (82, 168, 255));
+                assert_eq!(width, 1.25);
+            }
+            radiant::runtime::GpuSurfaceOverlay::NativeHoverCursor { .. } => {
+                panic!("edit mark overlay should be app-owned");
+            }
+        }
+        match overlays[2] {
             radiant::runtime::GpuSurfaceOverlay::VerticalCursor {
                 ratio,
                 color,
@@ -829,7 +1147,11 @@ mod tests {
             state.viewport(),
             state.cursor_ratio(),
             state.playhead_ratio(),
-            state.play_start_ratio(),
+            state.play_mark_ratio(),
+            state.edit_mark_ratio(),
+            state.play_selection(),
+            state.edit_selection(),
+            state.active_drag_kind(),
         );
         let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(200.0, 80.0));
 
@@ -849,9 +1171,142 @@ mod tests {
 
         assert_eq!(
             interaction,
-            WaveformInteraction::PlayFrom {
+            WaveformInteraction::BeginSelection {
+                kind: WaveformSelectionKind::Play,
                 visible_ratio: 0.25
             }
         );
+    }
+
+    #[test]
+    fn secondary_press_emits_edit_selection_begin_ratio() {
+        let state = WaveformState::synthetic_for_tests();
+        let mut widget = WaveformWidget::new(
+            state.file(),
+            state.viewport(),
+            state.cursor_ratio(),
+            state.playhead_ratio(),
+            state.play_mark_ratio(),
+            state.edit_mark_ratio(),
+            state.play_selection(),
+            state.edit_selection(),
+            state.active_drag_kind(),
+        );
+        let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(200.0, 80.0));
+
+        let output = widget
+            .handle_input(
+                bounds,
+                WidgetInput::PointerPress {
+                    position: Point::new(160.0, 40.0),
+                    button: PointerButton::Secondary,
+                },
+            )
+            .expect("edit selection interaction");
+        let interaction = output
+            .typed_ref::<WaveformInteraction>()
+            .copied()
+            .expect("waveform interaction");
+
+        assert_eq!(
+            interaction,
+            WaveformInteraction::BeginSelection {
+                kind: WaveformSelectionKind::Edit,
+                visible_ratio: 0.75
+            }
+        );
+    }
+
+    #[test]
+    fn dragging_primary_creates_playmark_selection_without_starting_playback() {
+        let mut state = WaveformState::synthetic_for_tests();
+
+        state.apply_interaction(WaveformInteraction::BeginSelection {
+            kind: WaveformSelectionKind::Play,
+            visible_ratio: 0.2,
+        });
+        state.apply_interaction(WaveformInteraction::UpdateSelection { visible_ratio: 0.6 });
+        state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.6 });
+
+        let selection = state.play_selection().expect("playmark selection");
+        assert!(!state.is_playing());
+        assert!((selection.start() - 0.2).abs() < 0.001);
+        assert!((selection.end() - 0.6).abs() < 0.001);
+        assert_eq!(state.play_mark_ratio(), Some(0.2));
+    }
+
+    #[test]
+    fn dragging_secondary_creates_edit_selection() {
+        let mut state = WaveformState::synthetic_for_tests();
+
+        state.apply_interaction(WaveformInteraction::BeginSelection {
+            kind: WaveformSelectionKind::Edit,
+            visible_ratio: 0.7,
+        });
+        state.apply_interaction(WaveformInteraction::UpdateSelection {
+            visible_ratio: 0.25,
+        });
+        state.apply_interaction(WaveformInteraction::FinishSelection {
+            visible_ratio: 0.25,
+        });
+
+        let selection = state.edit_selection().expect("edit selection");
+        assert!((selection.start() - 0.25).abs() < 0.001);
+        assert!((selection.end() - 0.7).abs() < 0.001);
+        assert_eq!(state.edit_mark_ratio(), Some(0.7));
+    }
+
+    #[test]
+    fn primary_click_without_drag_still_starts_playback_from_click() {
+        let mut state = WaveformState::synthetic_for_tests();
+
+        state.apply_interaction(WaveformInteraction::BeginSelection {
+            kind: WaveformSelectionKind::Play,
+            visible_ratio: 0.45,
+        });
+        state.apply_interaction(WaveformInteraction::FinishSelection {
+            visible_ratio: 0.45,
+        });
+
+        assert!(state.is_playing());
+        assert_eq!(state.playhead_ratio(), Some(0.45));
+        assert_eq!(state.play_mark_ratio(), Some(0.45));
+        assert_eq!(state.play_selection(), None);
+    }
+
+    #[test]
+    fn selection_rect_projects_visible_range_inside_viewport() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.apply_interaction(WaveformInteraction::BeginSelection {
+            kind: WaveformSelectionKind::Edit,
+            visible_ratio: 0.25,
+        });
+        state.apply_interaction(WaveformInteraction::UpdateSelection {
+            visible_ratio: 0.75,
+        });
+        state.apply_interaction(WaveformInteraction::FinishSelection {
+            visible_ratio: 0.75,
+        });
+        let widget = WaveformWidget::new(
+            state.file(),
+            state.viewport(),
+            state.cursor_ratio(),
+            state.playhead_ratio(),
+            state.play_mark_ratio(),
+            state.edit_mark_ratio(),
+            state.play_selection(),
+            state.edit_selection(),
+            state.active_drag_kind(),
+        );
+        let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(200.0, 80.0));
+
+        let rect = widget
+            .selection_rect(bounds, state.edit_selection())
+            .expect("selection rect");
+
+        assert!((rect.min.x - 60.0).abs() < 0.001);
+        assert!((rect.max.x - 160.0).abs() < 0.001);
+        assert_eq!(rect.min.y, 20.0);
+        assert_eq!(rect.max.y, 100.0);
     }
 }
