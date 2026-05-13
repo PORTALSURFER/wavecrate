@@ -242,6 +242,12 @@ impl WaveformState {
                 ));
                 self.update_active_selection_resize(ratio);
             }
+            WaveformInteraction::BeginPan { visible_ratio } => {
+                self.active_drag = Some(WaveformDrag::Pan(WaveformPanDrag::new(
+                    visible_ratio,
+                    self.viewport.clamp(self.file.frames.max(1)),
+                )));
+            }
             WaveformInteraction::UpdateSelection { visible_ratio } => {
                 self.update_active_drag(visible_ratio);
             }
@@ -337,6 +343,9 @@ impl WaveformState {
             WaveformDrag::SelectionResize(_) => {
                 self.update_active_selection_resize(ratio);
             }
+            WaveformDrag::Pan(drag) => {
+                self.update_active_pan(drag, visible_ratio);
+            }
         }
     }
 
@@ -373,6 +382,9 @@ impl WaveformState {
                 self.active_drag = Some(drag);
                 self.update_active_selection_resize(ratio);
                 self.active_drag = None;
+            }
+            WaveformDrag::Pan(drag) => {
+                self.update_active_pan(drag, visible_ratio);
             }
         }
     }
@@ -421,6 +433,22 @@ impl WaveformState {
         }
     }
 
+    fn update_active_pan(&mut self, drag: WaveformPanDrag, visible_ratio: f32) {
+        let total = self.file.frames.max(1);
+        let viewport = drag.viewport.clamp(total);
+        let visible = viewport.visible_frames();
+        if visible >= total {
+            return;
+        }
+        let delta = ((visible_ratio - drag.anchor_visible_ratio) * visible as f32).round() as isize;
+        let start = viewport.start.saturating_add_signed(-delta);
+        self.viewport = WaveformViewport {
+            start,
+            end: start + visible,
+        }
+        .clamp(total);
+    }
+
     fn selection_for_kind(
         &self,
         kind: WaveformSelectionKind,
@@ -452,6 +480,9 @@ pub(super) enum WaveformInteraction {
     BeginSelectionResize {
         kind: WaveformSelectionKind,
         edge: WaveformSelectionEdge,
+        visible_ratio: f32,
+    },
+    BeginPan {
         visible_ratio: f32,
     },
     UpdateSelection {
@@ -490,6 +521,7 @@ pub(super) enum WaveformActiveDragKind {
     Selection(WaveformSelectionKind),
     SelectionResize(WaveformSelectionKind, WaveformSelectionEdge),
     EditFade(WaveformEditFadeHandle),
+    Pan,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -497,6 +529,7 @@ enum WaveformDrag {
     Selection(WaveformSelectionDrag),
     SelectionResize(WaveformSelectionResizeDrag),
     EditFade(WaveformEditFadeDrag),
+    Pan(WaveformPanDrag),
 }
 
 impl WaveformDrag {
@@ -507,6 +540,22 @@ impl WaveformDrag {
                 WaveformActiveDragKind::SelectionResize(drag.kind, drag.edge)
             }
             WaveformDrag::EditFade(drag) => WaveformActiveDragKind::EditFade(drag.handle),
+            WaveformDrag::Pan(_) => WaveformActiveDragKind::Pan,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct WaveformPanDrag {
+    anchor_visible_ratio: f32,
+    viewport: WaveformViewport,
+}
+
+impl WaveformPanDrag {
+    fn new(anchor_visible_ratio: f32, viewport: WaveformViewport) -> Self {
+        Self {
+            anchor_visible_ratio,
+            viewport,
         }
     }
 }
@@ -1459,6 +1508,14 @@ impl Widget for WaveformWidget {
                     visible_ratio: self.ratio_from_position(bounds, position),
                 }))
             }
+            WidgetInput::PointerPress {
+                position,
+                button: PointerButton::Auxiliary,
+            } if bounds.contains(position) => {
+                Some(WidgetOutput::typed(WaveformInteraction::BeginPan {
+                    visible_ratio: self.ratio_from_position(bounds, position),
+                }))
+            }
             WidgetInput::PointerRelease {
                 position,
                 button: PointerButton::Primary,
@@ -1493,6 +1550,14 @@ impl Widget for WaveformWidget {
                     Some(WaveformActiveDragKind::EditFade(_))
                 ) =>
             {
+                Some(WidgetOutput::typed(WaveformInteraction::FinishSelection {
+                    visible_ratio: self.ratio_from_position(bounds, position),
+                }))
+            }
+            WidgetInput::PointerRelease {
+                position,
+                button: PointerButton::Auxiliary,
+            } if self.active_drag_kind == Some(WaveformActiveDragKind::Pan) => {
                 Some(WidgetOutput::typed(WaveformInteraction::FinishSelection {
                     visible_ratio: self.ratio_from_position(bounds, position),
                 }))
@@ -2245,6 +2310,55 @@ mod tests {
         let ratio = state.absolute_ratio_from_visible(0.5);
 
         assert!((ratio - 0.5).abs() < 0.0001);
+    }
+
+    #[test]
+    fn auxiliary_drag_pans_zoomed_waveform_viewport() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.viewport = super::WaveformViewport {
+            start: 12_000,
+            end: 36_000,
+        };
+        let mut widget = WaveformWidget::new(
+            state.file(),
+            state.viewport(),
+            state.cursor_ratio(),
+            state.playhead_ratio(),
+            state.play_mark_ratio(),
+            state.edit_mark_ratio(),
+            state.play_selection(),
+            state.edit_selection(),
+            state.active_drag_kind(),
+        );
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
+        let output = widget
+            .handle_input(
+                bounds,
+                WidgetInput::PointerPress {
+                    position: Point::new(100.0, 40.0),
+                    button: PointerButton::Auxiliary,
+                },
+            )
+            .expect("middle press should arm waveform pan");
+        let interaction = output
+            .typed_ref::<WaveformInteraction>()
+            .copied()
+            .expect("waveform pan interaction");
+
+        assert_eq!(
+            interaction,
+            WaveformInteraction::BeginPan { visible_ratio: 0.5 }
+        );
+        state.apply_interaction(interaction);
+        state.apply_interaction(WaveformInteraction::UpdateSelection {
+            visible_ratio: 0.25,
+        });
+
+        assert!(
+            state.viewport().start > 12_000,
+            "dragging left should pan the viewport later in the sample"
+        );
+        assert_eq!(state.viewport().visible_frames(), 24_000);
     }
 
     #[test]
