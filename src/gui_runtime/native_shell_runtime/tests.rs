@@ -180,6 +180,22 @@ mod tests {
                 alt: false,
             })
         );
+
+        let shortcut = bridge.resolve_key_press(
+            None,
+            RadiantKeyPress {
+                key: radiant::gui::input::KeyCode::Space,
+                command: false,
+                shift: false,
+                alt: false,
+            },
+            RadiantFocusSurface::None,
+        );
+        assert!(shortcut.handled);
+        assert_eq!(
+            shortcut.action,
+            Some(SempalRuntimeMessage::Action(UiAction::PlayFromStart))
+        );
     }
 
     #[test]

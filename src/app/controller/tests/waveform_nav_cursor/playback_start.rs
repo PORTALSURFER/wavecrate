@@ -118,6 +118,53 @@ fn play_from_start_preserves_zoomed_view_inside_active_selection() {
 }
 
 #[test]
+fn space_play_from_start_uses_visible_playmark_selection_span() {
+    let Some(mut player) = crate::audio::AudioPlayer::playing_for_tests() else {
+        return;
+    };
+    let (mut controller, source) = dummy_controller();
+    let wav_path = source.root.join("visible-playmark-selection.wav");
+    let long_samples = vec![0.1_f32; 240];
+    write_test_wav(&wav_path, &long_samples);
+    let bytes: std::sync::Arc<[u8]> = std::fs::read(&wav_path).expect("wav bytes").into();
+    let duration = 30.0;
+    player.set_audio(bytes.clone(), duration);
+    controller.sample_view.wav.loaded_audio = Some(crate::app::controller::LoadedAudio {
+        source_id: source.id.clone(),
+        root: source.root.clone(),
+        relative_path: "visible-playmark-selection.wav".into(),
+        bytes,
+        duration_seconds: duration,
+        sample_rate: 8,
+    });
+    controller.audio.player = Some(std::rc::Rc::new(std::cell::RefCell::new(player)));
+    let selection = crate::selection::SelectionRange::new(0.25, 0.6);
+    controller.ui.waveform.selection = Some(selection);
+
+    controller.apply_native_ui_action(NativeUiAction::PlayFromStart);
+
+    assert!(controller.is_playing());
+    assert_eq!(
+        controller.ui.waveform.last_start_marker,
+        Some(selection.start())
+    );
+    assert_eq!(
+        controller.ui.waveform.playhead.active_span_end,
+        Some(selection.end())
+    );
+    let (start, end) = controller
+        .audio
+        .player
+        .as_ref()
+        .expect("player")
+        .borrow()
+        .play_span()
+        .expect("play span");
+    assert!((start - duration * selection.start()).abs() < 0.02);
+    assert!((end - duration * selection.end()).abs() < 0.02);
+}
+
+#[test]
 fn replay_from_last_start_falls_back_to_cursor() {
     let (mut controller, source) = dummy_controller();
     prepare_browser_sample(&mut controller, &source, "marker.wav");
