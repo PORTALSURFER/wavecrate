@@ -101,6 +101,45 @@ fn confirm_prompt_projects_folder_drop_conflict_prompt() {
     );
 }
 
+/// Browser delete prompts should project through the shared destructive prompt overlay.
+#[test]
+fn confirm_prompt_projects_browser_delete_prompt() {
+    let mut ui = UiState::default();
+    ui.browser.pending_action = Some(SampleBrowserActionPrompt::Delete {
+        targets: vec![
+            std::path::PathBuf::from("kick.wav"),
+            std::path::PathBuf::from("snare.wav"),
+        ],
+    });
+
+    let projected = project_confirm_prompt_model(&ui);
+
+    assert!(projected.visible);
+    assert_eq!(projected.kind, Some(ConfirmPromptKind::DestructiveEdit));
+    assert_eq!(projected.title, "Delete samples");
+    assert_eq!(projected.confirm_label, "Delete");
+    assert_eq!(projected.target_label.as_deref(), Some("2 samples"));
+    assert_eq!(projected.input_value, None);
+}
+
+/// Folder delete prompts should project through the shared destructive prompt overlay.
+#[test]
+fn confirm_prompt_projects_folder_delete_prompt() {
+    let mut ui = UiState::default();
+    ui.sources.folders.pending_action = Some(FolderActionPrompt::Delete {
+        target: std::path::PathBuf::from("Drums"),
+    });
+
+    let projected = project_confirm_prompt_model(&ui);
+
+    assert!(projected.visible);
+    assert_eq!(projected.kind, Some(ConfirmPromptKind::DestructiveEdit));
+    assert_eq!(projected.title, "Delete folder");
+    assert_eq!(projected.confirm_label, "Delete");
+    assert_eq!(projected.target_label.as_deref(), Some("Drums"));
+    assert_eq!(projected.input_value, None);
+}
+
 /// Options-panel identifier editing should project through the shared prompt overlay.
 #[test]
 fn confirm_prompt_projects_default_identifier_prompt() {

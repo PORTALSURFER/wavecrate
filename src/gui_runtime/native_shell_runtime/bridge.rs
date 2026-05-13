@@ -214,6 +214,19 @@ impl<B> WavecrateRuntimeBridge<B> {
     pub(super) fn retained_model_for_tests(&self) -> &runtime_contract::AppModel {
         self.model.as_ref()
     }
+
+    #[cfg(test)]
+    pub(super) fn text_target_value_after_action_for_tests(
+        &mut self,
+        action: &UiAction,
+    ) -> Option<String>
+    where
+        B: NativeAppBridge,
+    {
+        self.update_text_target_after_action(action);
+        (self.text_input_target != RetainedTextInputTarget::None)
+            .then(|| self.text_edit.value.clone())
+    }
 }
 
 impl<B: NativeAppBridge> WavecrateRuntimeBridge<B> {
@@ -388,7 +401,7 @@ impl<B: NativeAppBridge> WavecrateRuntimeBridge<B> {
                 }
                 self.edit_retained_text(|edit| edit.backspace())
             }
-            WidgetKey::Delete => self.edit_retained_text(|edit| edit.delete()),
+            WidgetKey::Delete => self.handle_retained_delete_key(),
             WidgetKey::ArrowLeft => self.edit_retained_text(|edit| {
                 edit.move_caret(edit.caret.saturating_sub(1), false);
                 false
@@ -456,6 +469,19 @@ impl<B: NativeAppBridge> WavecrateRuntimeBridge<B> {
         if character.is_control() {
             return false;
         }
+        if self.model.confirm_prompt.visible && self.model.confirm_prompt.input_value.is_none() {
+            match character {
+                'y' | 'Y' => {
+                    self.emit_action(UiAction::ConfirmPrompt);
+                    return true;
+                }
+                'n' | 'N' => {
+                    self.emit_action(UiAction::CancelPrompt);
+                    return true;
+                }
+                _ => {}
+            }
+        }
         self.sync_text_edit_from_model();
         if self.text_input_target == RetainedTextInputTarget::BrowserPillEditor && character == ','
         {
@@ -479,6 +505,31 @@ impl<B: NativeAppBridge> WavecrateRuntimeBridge<B> {
             edit.insert_char(character);
             true
         })
+    }
+
+    fn handle_retained_delete_key(&mut self) -> bool {
+        if self.model.confirm_prompt.visible {
+            if self.text_input_target == RetainedTextInputTarget::Prompt
+                && self.model.confirm_prompt.input_value.is_some()
+            {
+                return self.edit_retained_text(|edit| edit.delete());
+            }
+            return true;
+        }
+        if self.text_input_target != RetainedTextInputTarget::None {
+            return self.edit_retained_text(|edit| edit.delete());
+        }
+        match self.model.focus_context {
+            runtime_contract::FocusContextModel::ContentList => {
+                self.emit_action(UiAction::DeleteBrowserSelection);
+                true
+            }
+            runtime_contract::FocusContextModel::NavigationTree => {
+                self.emit_action(UiAction::DeleteFocusedFolder);
+                true
+            }
+            _ => false,
+        }
     }
 
     /// Rewrite the active retained text target and emit the matching host action.
@@ -536,21 +587,24 @@ impl<B: NativeAppBridge> WavecrateRuntimeBridge<B> {
             RetainedTextInputTarget::BrowserPillEditor => {
                 Some(self.model.browser.pill_editor.input_value.clone())
             }
-            RetainedTextInputTarget::FolderCreate => self
-                .model
-                .sources
-                .tree_rows
-                .iter()
-                .find(|row| {
-                    matches!(
-                        row.kind,
-                        runtime_contract::FolderRowKind::CreateDraft
-                            | runtime_contract::FolderRowKind::RenameDraft
-                    )
-                })
-                .map(|row| row.label.clone()),
+            RetainedTextInputTarget::FolderCreate => self.folder_inline_editor_value(),
             RetainedTextInputTarget::Prompt => self.model.confirm_prompt.input_value.clone(),
         }
+    }
+
+    fn folder_inline_editor_value(&self) -> Option<String> {
+        self.model
+            .sources
+            .tree_rows
+            .iter()
+            .find(|row| {
+                matches!(
+                    row.kind,
+                    runtime_contract::FolderRowKind::CreateDraft
+                        | runtime_contract::FolderRowKind::RenameDraft
+                )
+            })
+            .and_then(|row| row.input_value.clone())
     }
 
     /// Keep the local retained text target synchronized with host focus actions.
@@ -565,9 +619,12 @@ impl<B: NativeAppBridge> WavecrateRuntimeBridge<B> {
             UiAction::FocusBrowserTagSidebarInput | UiAction::SetBrowserTagSidebarInput { .. } => {
                 RetainedTextInputTarget::BrowserPillEditor
             }
-            UiAction::FocusFolderCreateInput | UiAction::SetFolderCreateInput { .. } => {
-                RetainedTextInputTarget::FolderCreate
-            }
+            UiAction::StartNewFolder
+            | UiAction::StartNewFolderAtFolderRow { .. }
+            | UiAction::StartNewFolderAtRoot
+            | UiAction::StartFolderRename
+            | UiAction::FocusFolderCreateInput
+            | UiAction::SetFolderCreateInput { .. } => RetainedTextInputTarget::FolderCreate,
             UiAction::SetPromptInput { .. } => RetainedTextInputTarget::Prompt,
             UiAction::BlurBrowserSearch
             | UiAction::CommitBrowserTagSidebarInput
@@ -578,6 +635,11 @@ impl<B: NativeAppBridge> WavecrateRuntimeBridge<B> {
             | UiAction::HandleEscape => RetainedTextInputTarget::None,
             _ => self.text_input_target,
         };
+        if self.text_input_target == RetainedTextInputTarget::FolderCreate
+            && self.folder_inline_editor_value().is_none()
+        {
+            self.text_input_target = RetainedTextInputTarget::None;
+        }
         self.sync_text_edit_from_model();
     }
 

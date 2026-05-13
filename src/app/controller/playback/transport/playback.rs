@@ -91,6 +91,9 @@ pub(crate) fn stop_playback_if_active(controller: &mut AppController) -> bool {
 }
 
 pub(crate) fn handle_escape(controller: &mut AppController) {
+    if controller.cancel_active_prompt() {
+        return;
+    }
     if controller.clear_browser_duplicate_cleanup() {
         controller.set_status("Duplicate cleanup canceled", StatusTone::Info);
         return;

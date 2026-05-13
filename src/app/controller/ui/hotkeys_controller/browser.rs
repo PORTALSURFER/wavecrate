@@ -67,7 +67,7 @@ impl HotkeysController<'_> {
     }
 
     fn delete_focused_browser_sample(&mut self) {
-        if !self.delete_active_browser_selection() {
+        if !self.request_delete_active_browser_selection() {
             self.set_status("Focus a sample to delete it", StatusTone::Info);
         }
     }

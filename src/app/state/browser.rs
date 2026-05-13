@@ -78,6 +78,11 @@ impl Default for SampleBrowserState {
 /// Pending inline action for the sample browser.
 #[derive(Clone, Debug)]
 pub enum SampleBrowserActionPrompt {
+    /// Confirm deleting the selected browser entries.
+    Delete {
+        /// Paths selected for deletion when the prompt was opened.
+        targets: Vec<PathBuf>,
+    },
     /// Rename the selected entry.
     Rename {
         /// Path to rename.

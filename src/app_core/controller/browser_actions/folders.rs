@@ -51,7 +51,9 @@ pub(super) fn apply_folder_native_ui_action(
         }
         NativeUiAction::FocusFolderCreateInput => controller.focus_inline_folder_edit_input(),
         NativeUiAction::StartFolderRename => controller.start_folder_rename(),
-        NativeUiAction::DeleteFocusedFolder => controller.delete_focused_folder(),
+        NativeUiAction::DeleteFocusedFolder => {
+            controller.request_delete_focused_folder();
+        }
         NativeUiAction::RestoreRetainedFolderDeletes => {
             controller.start_restore_retained_folder_deletes()
         }
