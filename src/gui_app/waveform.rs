@@ -1846,6 +1846,12 @@ impl WaveformWidget {
     ) {
         if let Some((start, end)) = self.visible_range_for_selection(self.play_selection) {
             let flash_active = self.play_selection_flash_frames > 0;
+            let cursor_color = Rgba8 {
+                r: 255,
+                g: 142,
+                b: 92,
+                a: if flash_active { 255 } else { 230 },
+            };
             self.push_visible_range_fill(
                 primitives,
                 bounds,
@@ -1857,6 +1863,13 @@ impl WaveformWidget {
                     b: 92,
                     a: if flash_active { 118 } else { 48 },
                 },
+            );
+            self.append_selection_boundary_cursors(
+                primitives,
+                bounds,
+                self.play_selection,
+                cursor_color,
+                1.25,
             );
             self.append_selection_resize_handles(
                 primitives,
@@ -1872,6 +1885,12 @@ impl WaveformWidget {
             );
         }
         if let Some((start, end)) = self.visible_range_for_selection(self.edit_selection) {
+            let cursor_color = Rgba8 {
+                r: 82,
+                g: 168,
+                b: 255,
+                a: 230,
+            };
             self.push_visible_range_fill(
                 primitives,
                 bounds,
@@ -1884,8 +1903,17 @@ impl WaveformWidget {
                     a: 46,
                 },
             );
+            self.append_selection_boundary_cursors(
+                primitives,
+                bounds,
+                self.edit_selection,
+                cursor_color,
+                1.25,
+            );
         }
-        if let Some(play_mark_ratio) = self.visible_ratio_for_absolute(self.play_mark_ratio) {
+        if self.play_selection.is_none()
+            && let Some(play_mark_ratio) = self.visible_ratio_for_absolute(self.play_mark_ratio)
+        {
             self.push_visible_cursor(
                 primitives,
                 bounds,
@@ -1899,7 +1927,9 @@ impl WaveformWidget {
                 1.25,
             );
         }
-        if let Some(edit_mark_ratio) = self.visible_ratio_for_absolute(self.edit_mark_ratio) {
+        if self.edit_selection.is_none()
+            && let Some(edit_mark_ratio) = self.visible_ratio_for_absolute(self.edit_mark_ratio)
+        {
             self.push_visible_cursor(
                 primitives,
                 bounds,
@@ -1926,6 +1956,24 @@ impl WaveformWidget {
                 },
                 1.75,
             );
+        }
+    }
+
+    fn append_selection_boundary_cursors(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        selection: Option<wavecrate::selection::SelectionRange>,
+        color: Rgba8,
+        width: f32,
+    ) {
+        let Some(selection) = selection else {
+            return;
+        };
+        for ratio in [selection.start(), selection.end()] {
+            if let Some(visible_ratio) = self.visible_ratio_for_absolute(Some(ratio)) {
+                self.push_visible_cursor(primitives, bounds, visible_ratio, color, width);
+            }
         }
     }
 
@@ -3504,6 +3552,46 @@ mod tests {
         assert!(fills.iter().any(|fill| {
             (fill.rect.center().x - 40.0).abs() < 1.0
                 && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 230)
+        }));
+        assert!(fills.iter().any(|fill| {
+            (fill.rect.center().x - 120.0).abs() < 1.0
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 230)
+        }));
+    }
+
+    #[test]
+    fn edit_selection_paints_start_and_end_boundary_lines() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+        let widget = WaveformWidget::new(
+            state.file(),
+            state.viewport(),
+            state.cursor_ratio(),
+            state.playhead_ratio(),
+            state.play_mark_ratio(),
+            state.edit_mark_ratio(),
+            state.play_selection(),
+            state.edit_selection(),
+            state.play_selection_flash_frames(),
+            state.active_drag_kind(),
+        );
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0)),
+            &Default::default(),
+            &ThemeTokens::default(),
+        );
+
+        let fills = fill_rects(&primitives);
+        assert!(fills.iter().any(|fill| {
+            (fill.rect.center().x - 40.0).abs() < 1.0
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 230)
+        }));
+        assert!(fills.iter().any(|fill| {
+            (fill.rect.center().x - 120.0).abs() < 1.0
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 230)
         }));
     }
 
