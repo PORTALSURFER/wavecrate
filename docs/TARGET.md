@@ -175,5 +175,6 @@ Sempal is moving toward the target when:
 - file operations preserve trust and recovery behavior
 - Sempal code owns sample-domain decisions
 - Radiant code owns reusable GUI/runtime primitives
-- the new GUI can replace legacy UI paths without losing core workflows
+- the current Radiant GUI can replace deprecated legacy UI paths without losing
+  core workflows
 

@@ -33,8 +33,9 @@ predictable, and lower-latency design.
 
 - domain workflows, persistence orchestration, and application state belong in
   `src/`
-- new product-specific UI behavior should prefer `src/app_core/**` over the
-  legacy `src/app/**` layer unless the task is explicitly legacy-runtime work
+- default product-specific GUI behavior should prefer `src/gui_app.rs` and
+  `src/app_core/**` over the deprecated legacy `src/app/**` layer unless the
+  task is explicitly legacy-runtime work
 - reusable UI/runtime/layout work belongs in `vendor/radiant`
 - shell-compatibility behavior should stay inside the compatibility surfaces
   rather than leaking back into generic Radiant modules
@@ -66,6 +67,31 @@ Should avoid:
 
 - direct filesystem mutation policy outside the persistence layer
 - new coupling back into the legacy runtime boundary
+
+### `src/gui_app.rs`
+
+Owns:
+
+- the default Sempal desktop GUI entrypoint
+- composition of Radiant's current application, runtime, widget, and GPU-surface
+  APIs for Sempal's sample-workstation UI
+
+Should avoid:
+
+- owning reusable Radiant behavior that should live in `vendor/radiant`
+- reintroducing dependencies on the deprecated legacy GUI path
+
+### `src/legacy_gui_app.rs`
+
+Owns:
+
+- deprecated legacy native-shell startup retained for migration fallback only
+
+Should avoid:
+
+- becoming the default operator path again
+- receiving new product UI work unless the task is explicitly legacy fallback
+  maintenance
 
 ### `src/sample_sources/**`
 
