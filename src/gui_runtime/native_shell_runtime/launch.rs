@@ -21,6 +21,7 @@ impl From<NativeRunOptions> for radiant::gui_runtime::NativeRunOptions {
                 embedded_fonts: Vec::new(),
                 font_paths: vec![crate::gui_runtime::sempal_ui_font_path()],
             },
+            window_mode: radiant::gui_runtime::NativeWindowMode::default(),
         }
     }
 }
