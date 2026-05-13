@@ -1407,6 +1407,9 @@ fn waveform_title(waveform: &WaveformState) -> String {
 }
 
 fn waveform_scrollbar(waveform: &WaveformState) -> ui::View<GuiMessage> {
+    if waveform.fully_zoomed_out() {
+        return ui::text("").fill_width().height(0.0);
+    }
     let mut scrollbar = radiant::widgets::ScrollbarWidget::new(
         0,
         radiant::widgets::ScrollbarAxis::Horizontal,
