@@ -58,6 +58,7 @@ pub(crate) const HOTKEY_ACTIONS: &[HotkeyAction] = &[
     folders::EXPAND_FOCUSED_FOLDER,
     folders::DELETE_FOLDER,
     folders::RENAME_FOLDER,
+    folders::RENAME_FOLDER_LEGACY,
     folders::CREATE_FOLDER,
     folders::FOCUS_SEARCH,
     sources::MOVE_SOURCE_FOCUS_UP,

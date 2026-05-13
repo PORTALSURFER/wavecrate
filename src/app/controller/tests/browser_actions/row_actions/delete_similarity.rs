@@ -212,7 +212,7 @@ fn confirming_duplicate_cleanup_moves_only_unkept_duplicates_to_trash() {
 }
 
 #[test]
-fn delete_hotkey_applies_to_all_selected_rows() {
+fn delete_hotkey_prompts_then_applies_to_all_selected_rows() {
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
         sample_entry("one.wav", Rating::NEUTRAL),
         sample_entry("two.wav", Rating::NEUTRAL),
@@ -231,10 +231,42 @@ fn delete_hotkey_applies_to_all_selected_rows() {
 
     controller.handle_hotkey(action, FocusContext::SampleBrowser);
 
+    assert!(matches!(
+        controller.ui.browser.pending_action,
+        Some(crate::app::state::SampleBrowserActionPrompt::Delete { .. })
+    ));
+    assert_eq!(controller.wav_entries_len(), 3);
+    assert!(source.root.join("one.wav").exists());
+
+    controller.confirm_active_prompt_action();
+
     assert_eq!(controller.wav_entries_len(), 0);
     assert!(!source.root.join("one.wav").exists());
     assert!(!source.root.join("two.wav").exists());
     assert!(!source.root.join("three.wav").exists());
+}
+
+#[test]
+fn canceling_delete_hotkey_keeps_selected_rows() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
+        sample_entry("one.wav", Rating::NEUTRAL),
+        sample_entry("two.wav", Rating::NEUTRAL),
+    ]);
+    write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
+    write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
+    controller.focus_browser_row_only(0);
+    controller.toggle_browser_row_selection(1);
+    let action = hotkeys::iter_actions()
+        .find(|action| action.id == "delete-browser")
+        .expect("delete-browser hotkey");
+
+    controller.handle_hotkey(action, FocusContext::SampleBrowser);
+    controller.cancel_active_prompt_action();
+
+    assert!(controller.ui.browser.pending_action.is_none());
+    assert_eq!(controller.wav_entries_len(), 2);
+    assert!(source.root.join("one.wav").exists());
+    assert!(source.root.join("two.wav").exists());
 }
 
 #[test]
@@ -252,6 +284,7 @@ fn delete_hotkey_keeps_focus_when_file_delete_fails() {
         .expect("delete-browser hotkey");
 
     controller.handle_hotkey(action, FocusContext::SampleBrowser);
+    controller.confirm_active_prompt_action();
 
     assert_eq!(
         controller.focused_browser_path().as_deref(),
@@ -287,6 +320,13 @@ fn delete_hotkey_waits_for_loading_sample() {
         .expect("delete-browser hotkey");
 
     controller.handle_hotkey(action, FocusContext::SampleBrowser);
+
+    assert!(source.root.join("one.wav").exists());
+    assert!(matches!(
+        controller.ui.browser.pending_action,
+        Some(crate::app::state::SampleBrowserActionPrompt::Delete { .. })
+    ));
+    controller.confirm_active_prompt_action();
 
     assert!(source.root.join("one.wav").exists());
     assert_eq!(

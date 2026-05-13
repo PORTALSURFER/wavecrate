@@ -280,6 +280,11 @@ pub struct FolderRowView {
 /// Pending inline action for the folder browser.
 #[derive(Clone, Debug)]
 pub enum FolderActionPrompt {
+    /// Confirm deleting one folder.
+    Delete {
+        /// Folder path selected for deletion when the prompt was opened.
+        target: PathBuf,
+    },
     /// Confirm restoring all retained folder deletes currently tracked in Recovery.
     RestoreRetainedDeletes {
         /// Number of retained folder deletes that will be restored.

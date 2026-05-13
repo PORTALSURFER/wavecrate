@@ -50,6 +50,13 @@ pub(super) const DELETE_FOLDER: HotkeyAction = HotkeyAction {
 pub(super) const RENAME_FOLDER: HotkeyAction = HotkeyAction {
     id: "rename-folder",
     label: "Rename folder",
+    gesture: HotkeyGesture::new(Key::F2),
+    scope: SOURCE_FOLDERS,
+    action: NativeUiAction::StartFolderRename,
+};
+pub(super) const RENAME_FOLDER_LEGACY: HotkeyAction = HotkeyAction {
+    id: "rename-folder-r",
+    label: "Rename folder",
     gesture: HotkeyGesture::new(Key::R),
     scope: SOURCE_FOLDERS,
     action: NativeUiAction::StartFolderRename,

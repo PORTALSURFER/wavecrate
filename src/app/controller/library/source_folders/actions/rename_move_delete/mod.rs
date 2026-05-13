@@ -5,6 +5,7 @@ use super::ops;
 use super::*;
 use crate::app::controller::jobs::{FileOpResult, FolderDeleteResult, FolderRenameResult};
 use crate::app::controller::undo::{UndoEntry, UndoExecution};
+use crate::app::state::FolderActionPrompt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, atomic::AtomicBool};
 
@@ -15,12 +16,50 @@ mod rename_execution;
 use self::rename_execution::run_folder_rename_job;
 
 impl AppController {
+    /// Open a confirmation prompt for deleting the currently focused folder.
+    pub(crate) fn request_delete_focused_folder(&mut self) -> bool {
+        let Some(target) = self.focused_folder_path() else {
+            self.set_status("Focus a folder to delete it", StatusTone::Info);
+            return false;
+        };
+        self.ui.sources.folders.pending_action = Some(FolderActionPrompt::Delete { target });
+        true
+    }
+
+    /// Confirm the active folder delete prompt.
+    pub(crate) fn apply_pending_folder_delete(&mut self) -> bool {
+        let Some(FolderActionPrompt::Delete { target }) =
+            self.ui.sources.folders.pending_action.clone()
+        else {
+            return false;
+        };
+        self.ui.sources.folders.pending_action = None;
+        self.delete_folder_at_path(&target);
+        true
+    }
+
+    /// Cancel the active folder delete prompt.
+    pub(crate) fn cancel_pending_folder_delete(&mut self) -> bool {
+        if matches!(
+            self.ui.sources.folders.pending_action,
+            Some(FolderActionPrompt::Delete { .. })
+        ) {
+            self.ui.sources.folders.pending_action = None;
+            return true;
+        }
+        false
+    }
+
     /// Delete the currently focused folder after validating recovery and root-folder constraints.
     pub(crate) fn delete_focused_folder(&mut self) {
         let Some(target) = self.focused_folder_path() else {
             self.set_status("Focus a folder to delete it", StatusTone::Info);
             return;
         };
+        self.delete_folder_at_path(&target);
+    }
+
+    fn delete_folder_at_path(&mut self, target: &Path) {
         let Some(source) = self.current_source() else {
             self.set_status("Select a source first", StatusTone::Info);
             return;

@@ -11,6 +11,20 @@ pub(crate) fn project_confirm_prompt_model(ui: &UiState) -> ConfirmPromptModel {
     if let Some(prompt) = ui.options_panel.pending_prompt.clone() {
         return project_options_panel_prompt(prompt);
     }
+    if let Some(FolderActionPrompt::Delete { target }) = ui.sources.folders.pending_action.clone() {
+        return ConfirmPromptModel {
+            visible: true,
+            kind: Some(ConfirmPromptKind::DestructiveEdit),
+            title: String::from("Delete folder"),
+            message: String::from("Delete this folder and its samples?"),
+            confirm_label: String::from("Delete"),
+            cancel_label: String::from("Cancel"),
+            target_label: Some(folder_delete_target_label(&target)),
+            input_value: None,
+            input_placeholder: None,
+            input_error: None,
+        };
+    }
     if let Some(FolderActionPrompt::RestoreRetainedDeletes { entry_count }) =
         ui.sources.folders.pending_action.clone()
     {
@@ -81,6 +95,29 @@ fn project_options_panel_prompt(prompt: OptionsPanelPrompt) -> ConfirmPromptMode
 
 fn project_browser_prompt(prompt: SampleBrowserActionPrompt) -> ConfirmPromptModel {
     match prompt {
+        SampleBrowserActionPrompt::Delete { targets } => {
+            let target_count = targets.len();
+            ConfirmPromptModel {
+                visible: true,
+                kind: Some(ConfirmPromptKind::DestructiveEdit),
+                title: if target_count == 1 {
+                    String::from("Delete sample")
+                } else {
+                    String::from("Delete samples")
+                },
+                message: if target_count == 1 {
+                    String::from("Delete this selected sample?")
+                } else {
+                    format!("Delete {target_count} selected samples?")
+                },
+                confirm_label: String::from("Delete"),
+                cancel_label: String::from("Cancel"),
+                target_label: browser_delete_target_label(&targets),
+                input_value: None,
+                input_placeholder: None,
+                input_error: None,
+            }
+        }
         SampleBrowserActionPrompt::Rename {
             target,
             name,
@@ -124,5 +161,21 @@ fn folder_drop_target_label(target_folder: &std::path::Path) -> String {
         String::from("Source root")
     } else {
         format!("Folder: {}", target_folder.display())
+    }
+}
+
+fn browser_delete_target_label(targets: &[std::path::PathBuf]) -> Option<String> {
+    match targets {
+        [] => None,
+        [target] => Some(target.display().to_string()),
+        _ => Some(format!("{} samples", targets.len())),
+    }
+}
+
+fn folder_delete_target_label(target: &std::path::Path) -> String {
+    if target.as_os_str().is_empty() {
+        String::from("Source root")
+    } else {
+        target.display().to_string()
     }
 }

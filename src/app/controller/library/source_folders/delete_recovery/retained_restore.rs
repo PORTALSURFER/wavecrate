@@ -63,6 +63,7 @@ impl AppController {
             return false;
         };
         let started = match action {
+            FolderActionPrompt::Delete { .. } => return false,
             FolderActionPrompt::RestoreRetainedDeletes { .. } => {
                 self.begin_retained_delete_resolution(RetainedDeleteResolutionMode::Restore)
             }

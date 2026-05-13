@@ -134,13 +134,15 @@ mod tests {
         bridge.update(WavecrateRuntimeMessage::RetainedInput(
             WidgetInput::FocusChanged(true),
         ));
-        bridge.update(WavecrateRuntimeMessage::Action(UiAction::FocusBrowserSearch));
+        bridge.update(WavecrateRuntimeMessage::Action(
+            UiAction::FocusBrowserSearch,
+        ));
         bridge.inner.reduced.clear();
         assert!(
             bridge
-                .update(WavecrateRuntimeMessage::RetainedInput(WidgetInput::Character(
-                    'k'
-                )))
+                .update(WavecrateRuntimeMessage::RetainedInput(
+                    WidgetInput::Character('k')
+                ))
                 .requests_repaint()
         );
         assert_eq!(
@@ -278,18 +280,18 @@ mod tests {
             "focused tag text entry should clear pending chords without consuming printable text"
         );
 
-        bridge.update(WavecrateRuntimeMessage::RetainedInput(WidgetInput::Character(
-            'k',
-        )));
-        bridge.update(WavecrateRuntimeMessage::RetainedInput(WidgetInput::Character(
-            'i',
-        )));
-        bridge.update(WavecrateRuntimeMessage::RetainedInput(WidgetInput::Character(
-            ',',
-        )));
-        bridge.update(WavecrateRuntimeMessage::RetainedInput(WidgetInput::Character(
-            'h',
-        )));
+        bridge.update(WavecrateRuntimeMessage::RetainedInput(
+            WidgetInput::Character('k'),
+        ));
+        bridge.update(WavecrateRuntimeMessage::RetainedInput(
+            WidgetInput::Character('i'),
+        ));
+        bridge.update(WavecrateRuntimeMessage::RetainedInput(
+            WidgetInput::Character(','),
+        ));
+        bridge.update(WavecrateRuntimeMessage::RetainedInput(
+            WidgetInput::Character('h'),
+        ));
 
         assert_eq!(
             bridge.inner.reduced,
@@ -321,17 +323,19 @@ mod tests {
             exit_status: None,
         });
 
-        bridge.update(WavecrateRuntimeMessage::Action(UiAction::FocusBrowserSearch));
+        bridge.update(WavecrateRuntimeMessage::Action(
+            UiAction::FocusBrowserSearch,
+        ));
         bridge.inner.reduced.clear();
-        bridge.update(WavecrateRuntimeMessage::RetainedInput(WidgetInput::TextEdit(
-            TextEditCommand::InsertText(String::from("kick")),
-        )));
-        bridge.update(WavecrateRuntimeMessage::RetainedInput(WidgetInput::TextEdit(
-            TextEditCommand::SelectAll,
-        )));
-        bridge.update(WavecrateRuntimeMessage::RetainedInput(WidgetInput::TextEdit(
-            TextEditCommand::InsertText(String::from("snare")),
-        )));
+        bridge.update(WavecrateRuntimeMessage::RetainedInput(
+            WidgetInput::TextEdit(TextEditCommand::InsertText(String::from("kick"))),
+        ));
+        bridge.update(WavecrateRuntimeMessage::RetainedInput(
+            WidgetInput::TextEdit(TextEditCommand::SelectAll),
+        ));
+        bridge.update(WavecrateRuntimeMessage::RetainedInput(
+            WidgetInput::TextEdit(TextEditCommand::InsertText(String::from("snare"))),
+        ));
 
         assert_eq!(
             bridge.inner.reduced.last(),
@@ -339,6 +343,131 @@ mod tests {
                 query: String::from("snare"),
             })
         );
+    }
+
+    #[test]
+    fn delete_key_routes_to_focused_browser_or_folder_when_no_text_target_is_active() {
+        let mut model = runtime_contract::AppModel {
+            focus_context: runtime_contract::FocusContextModel::ContentList,
+            ..runtime_contract::AppModel::default()
+        };
+        let mut bridge = WavecrateRuntimeBridge::new(RecordingBridge {
+            model: Arc::new(NativeAppModel::default()),
+            reduced: Vec::new(),
+            repaint_installed: Arc::new(AtomicBool::new(false)),
+            exit_status: None,
+        });
+        bridge.set_retained_model_for_tests(model.clone());
+
+        bridge.update(WavecrateRuntimeMessage::RetainedInput(
+            WidgetInput::TextEdit(TextEditCommand::Delete),
+        ));
+        assert_eq!(
+            bridge.inner.reduced.last(),
+            Some(&UiAction::DeleteBrowserSelection)
+        );
+
+        model.focus_context = runtime_contract::FocusContextModel::NavigationTree;
+        let mut bridge = WavecrateRuntimeBridge::new(RecordingBridge {
+            model: Arc::new(NativeAppModel::default()),
+            reduced: Vec::new(),
+            repaint_installed: Arc::new(AtomicBool::new(false)),
+            exit_status: None,
+        });
+        bridge.set_retained_model_for_tests(model);
+        bridge.update(WavecrateRuntimeMessage::RetainedInput(
+            WidgetInput::TextEdit(TextEditCommand::Delete),
+        ));
+
+        assert_eq!(
+            bridge.inner.reduced.last(),
+            Some(&UiAction::DeleteFocusedFolder)
+        );
+    }
+
+    #[test]
+    fn folder_tree_f2_resolves_to_folder_rename_action() {
+        let mut model = runtime_contract::AppModel {
+            focus_context: runtime_contract::FocusContextModel::NavigationTree,
+            ..runtime_contract::AppModel::default()
+        };
+        model.sources.focused_tree_row = Some(1);
+        let mut bridge = WavecrateRuntimeBridge::new(RecordingBridge {
+            model: Arc::new(NativeAppModel::default()),
+            reduced: Vec::new(),
+            repaint_installed: Arc::new(AtomicBool::new(false)),
+            exit_status: None,
+        });
+        bridge.set_retained_model_for_tests(model);
+
+        let shortcut = bridge.resolve_key_press(
+            None,
+            RadiantKeyPress {
+                key: RadiantKeyCode::F2,
+                command: false,
+                shift: false,
+                alt: false,
+            },
+            RadiantFocusSurface::None,
+        );
+
+        assert!(shortcut.handled);
+        assert_eq!(
+            shortcut.action,
+            Some(WavecrateRuntimeMessage::Action(UiAction::StartFolderRename))
+        );
+    }
+
+    #[test]
+    fn starting_folder_rename_syncs_retained_text_from_inline_input_value() {
+        let mut model = runtime_contract::AppModel::default();
+        model.sources.tree_rows.push(
+            runtime_contract::FolderRowModel::rename_draft(1, "drums", "Folder name", None, true)
+                .with_select_all_on_focus(true),
+        );
+        let mut bridge = WavecrateRuntimeBridge::new(RecordingBridge {
+            model: Arc::new(NativeAppModel::default()),
+            reduced: Vec::new(),
+            repaint_installed: Arc::new(AtomicBool::new(false)),
+            exit_status: None,
+        });
+        bridge.set_retained_model_for_tests(model);
+
+        assert_eq!(
+            bridge.text_target_value_after_action_for_tests(&UiAction::StartFolderRename),
+            Some(String::from("drums"))
+        );
+    }
+
+    #[test]
+    fn visible_prompt_accepts_yes_and_cancels_no_without_text_input() {
+        let mut model = runtime_contract::AppModel::default();
+        model.confirm_prompt.visible = true;
+        model.confirm_prompt.input_value = None;
+        let mut yes_bridge = WavecrateRuntimeBridge::new(RecordingBridge {
+            model: Arc::new(NativeAppModel::default()),
+            reduced: Vec::new(),
+            repaint_installed: Arc::new(AtomicBool::new(false)),
+            exit_status: None,
+        });
+        yes_bridge.set_retained_model_for_tests(model.clone());
+
+        yes_bridge.update(WavecrateRuntimeMessage::RetainedInput(
+            WidgetInput::Character('Y'),
+        ));
+        assert_eq!(yes_bridge.inner.reduced, vec![UiAction::ConfirmPrompt]);
+
+        let mut no_bridge = WavecrateRuntimeBridge::new(RecordingBridge {
+            model: Arc::new(NativeAppModel::default()),
+            reduced: Vec::new(),
+            repaint_installed: Arc::new(AtomicBool::new(false)),
+            exit_status: None,
+        });
+        no_bridge.set_retained_model_for_tests(model);
+        no_bridge.update(WavecrateRuntimeMessage::RetainedInput(
+            WidgetInput::Character('n'),
+        ));
+        assert_eq!(no_bridge.inner.reduced, vec![UiAction::CancelPrompt]);
     }
 
     #[test]
@@ -374,9 +503,9 @@ mod tests {
             },
             RadiantFocusSurface::None,
         );
-        bridge.update(WavecrateRuntimeMessage::RetainedInput(WidgetInput::KeyPress(
-            WidgetKey::Backspace,
-        )));
+        bridge.update(WavecrateRuntimeMessage::RetainedInput(
+            WidgetInput::KeyPress(WidgetKey::Backspace),
+        ));
 
         assert_eq!(
             bridge.inner.reduced.last(),
@@ -392,9 +521,9 @@ mod tests {
             "Backspace with selected draft text should edit text before removing an accepted chip"
         );
 
-        bridge.update(WavecrateRuntimeMessage::RetainedInput(WidgetInput::KeyPress(
-            WidgetKey::Backspace,
-        )));
+        bridge.update(WavecrateRuntimeMessage::RetainedInput(
+            WidgetInput::KeyPress(WidgetKey::Backspace),
+        ));
         assert!(bridge.inner.reduced.iter().any(|action| matches!(
             action,
             UiAction::ToggleBrowserSidebarNormalTag { label } if label == "Kick"
