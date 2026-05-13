@@ -61,7 +61,7 @@ pub(super) fn update_edit_fade_in_mute_start_from_micros(
         new_start,
         range.end(),
         Some(next_fade_in),
-        range.fade_out(),
+        fade_out_preserved_at_width(range, new_width),
     )
 }
 
@@ -123,7 +123,7 @@ pub(super) fn update_edit_fade_out_mute_end_from_micros(
         range,
         range.start(),
         new_end,
-        range.fade_in(),
+        fade_in_preserved_at_width(range, new_width),
         Some(next_fade_out),
     )
 }
@@ -172,4 +172,36 @@ fn rebuild_edit_range(
         }
     }
     next
+}
+
+fn fade_in_preserved_at_width(
+    range: SelectionRange,
+    next_width: f32,
+) -> Option<crate::selection::FadeParams> {
+    let fade = range.fade_in()?;
+    if next_width <= f32::EPSILON {
+        return Some(crate::selection::FadeParams::with_curve(0.0, fade.curve));
+    }
+    let length = ((range.width() * fade.length) / next_width).clamp(0.0, 1.0);
+    Some(crate::selection::FadeParams::with_curve_and_mute(
+        length,
+        fade.curve,
+        ((range.width() * fade.mute) / next_width).max(0.0),
+    ))
+}
+
+fn fade_out_preserved_at_width(
+    range: SelectionRange,
+    next_width: f32,
+) -> Option<crate::selection::FadeParams> {
+    let fade = range.fade_out()?;
+    if next_width <= f32::EPSILON {
+        return Some(crate::selection::FadeParams::with_curve(0.0, fade.curve));
+    }
+    let length = ((range.width() * fade.length) / next_width).clamp(0.0, 1.0);
+    Some(crate::selection::FadeParams::with_curve_and_mute(
+        length,
+        fade.curve,
+        ((range.width() * fade.mute) / next_width).max(0.0),
+    ))
 }

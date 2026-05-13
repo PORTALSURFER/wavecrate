@@ -202,6 +202,7 @@ impl GuiAppState {
             }
             GuiMessage::Waveform(message) => {
                 self.waveform.apply_interaction(message);
+                self.sync_edit_fade_audio_state();
                 if let Some(start_ratio) = self.waveform.take_pending_playback_start() {
                     self.play_waveform_from_ratio(start_ratio);
                 }
@@ -428,9 +429,16 @@ impl GuiAppState {
             .as_mut()
             .ok_or_else(|| String::from("audio player did not initialize"))?;
         player.set_audio(self.waveform.audio_bytes(), duration);
+        player.set_edit_fade_state(self.waveform.edit_selection());
         player.play_range(f64::from(start_ratio), f64::from(end_ratio), false)?;
         self.waveform.start_playback(start_ratio);
         Ok(())
+    }
+
+    fn sync_edit_fade_audio_state(&mut self) {
+        if let Some(player) = self.audio_player.as_ref() {
+            player.set_edit_fade_state(self.waveform.edit_selection());
+        }
     }
 
     fn refresh_playback_progress(&mut self) {

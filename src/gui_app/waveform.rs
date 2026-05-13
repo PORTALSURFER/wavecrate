@@ -553,8 +553,14 @@ fn resize_fade_in_start(
     let new_start = start_ratio.clamp(0.0, selection.end());
     let mut resized = sempal::selection::SelectionRange::new(new_start, selection.end());
     if let Some(fade_out) = selection.fade_out() {
+        let fade_out_abs = selection.width() * fade_out.length;
+        let length = if resized.width() <= f32::EPSILON {
+            0.0
+        } else {
+            (fade_out_abs / resized.width()).clamp(0.0, 1.0)
+        };
         resized = resized
-            .with_fade_out(fade_out.length, fade_out.curve)
+            .with_fade_out(length, fade_out.curve)
             .with_fade_out_mute(fade_out.mute);
     }
     let length = fade_in_length_for_end(resized, fade_end);
@@ -570,8 +576,14 @@ fn resize_fade_out_end(
     let new_end = end_ratio.clamp(selection.start(), 1.0);
     let mut resized = sempal::selection::SelectionRange::new(selection.start(), new_end);
     if let Some(fade_in) = selection.fade_in() {
+        let fade_in_abs = selection.width() * fade_in.length;
+        let length = if resized.width() <= f32::EPSILON {
+            0.0
+        } else {
+            (fade_in_abs / resized.width()).clamp(0.0, 1.0)
+        };
         resized = resized
-            .with_fade_in(fade_in.length, fade_in.curve)
+            .with_fade_in(length, fade_in.curve)
             .with_fade_in_mute(fade_in.mute);
     }
     let length = fade_out_length_for_start(resized, fade_start);
@@ -1968,6 +1980,58 @@ mod tests {
         assert!((selection.end() - 0.6).abs() < 0.001);
         assert!((selection.start() + selection.width() * fade.length - 0.3).abs() < 0.001);
         assert!((fade.curve - 0.2).abs() < 0.001);
+    }
+
+    #[test]
+    fn edit_fade_out_bottom_handle_keeps_opposite_fade_boundary_stable() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.edit_selection = Some(
+            sempal::selection::SelectionRange::new(0.2, 0.6)
+                .with_fade_in(0.25, 0.2)
+                .with_fade_out(0.25, 0.7),
+        );
+
+        state.apply_interaction(WaveformInteraction::BeginEditFade {
+            handle: WaveformEditFadeHandle::FadeOutEnd,
+            visible_ratio: 0.6,
+        });
+        state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.8 });
+
+        let selection = state.edit_selection().expect("edit selection");
+        let fade_in = selection.fade_in().expect("fade-in should remain");
+        let fade_out = selection.fade_out().expect("fade-out should remain");
+        let fade_in_end = selection.start() + selection.width() * fade_in.length;
+        let fade_out_start = selection.end() - selection.width() * fade_out.length;
+        assert!((fade_in_end - 0.3).abs() < 0.001);
+        assert!((fade_out_start - 0.5).abs() < 0.001);
+        assert!((fade_in.curve - 0.2).abs() < 0.001);
+        assert!((fade_out.curve - 0.7).abs() < 0.001);
+    }
+
+    #[test]
+    fn edit_fade_in_bottom_handle_keeps_opposite_fade_boundary_stable() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.edit_selection = Some(
+            sempal::selection::SelectionRange::new(0.2, 0.6)
+                .with_fade_in(0.25, 0.2)
+                .with_fade_out(0.25, 0.7),
+        );
+
+        state.apply_interaction(WaveformInteraction::BeginEditFade {
+            handle: WaveformEditFadeHandle::FadeInStart,
+            visible_ratio: 0.2,
+        });
+        state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.1 });
+
+        let selection = state.edit_selection().expect("edit selection");
+        let fade_in = selection.fade_in().expect("fade-in should remain");
+        let fade_out = selection.fade_out().expect("fade-out should remain");
+        let fade_in_end = selection.start() + selection.width() * fade_in.length;
+        let fade_out_start = selection.end() - selection.width() * fade_out.length;
+        assert!((fade_in_end - 0.3).abs() < 0.001);
+        assert!((fade_out_start - 0.5).abs() < 0.001);
+        assert!((fade_in.curve - 0.2).abs() < 0.001);
+        assert!((fade_out.curve - 0.7).abs() < 0.001);
     }
 
     #[test]
