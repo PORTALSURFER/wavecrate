@@ -63,6 +63,12 @@ impl AudioPlayer {
         self.stream.active_source_count() > 0 && self.started_at.is_some()
     }
 
+    /// Wall-clock elapsed time since the current playback span was started.
+    pub fn playback_elapsed(&self) -> Option<Duration> {
+        self.started_at
+            .map(|started_at| self.elapsed_since(started_at))
+    }
+
     /// True when the current sink is configured to loop.
     pub fn is_looping(&self) -> bool {
         self.looping
@@ -148,6 +154,26 @@ mod tests {
         let progress = player.progress().expect("progress");
         let expected = 12_000.0 / 48_000.0;
         assert!((progress - expected).abs() < 1e-6);
+    }
+
+    #[test]
+    fn playback_elapsed_tracks_started_playback_state() {
+        let Ok(outcome) = open_output_stream(&AudioOutputConfig::default()) else {
+            return;
+        };
+        let stream = outcome.stream;
+        let elapsed = duration_for_frames(1_200, 48_000);
+        let player = AudioPlayer::test_with_state(
+            stream,
+            Some(1.0),
+            Some(Instant::now()),
+            Some((0.0, 1.0)),
+            false,
+            None,
+            Some(elapsed),
+        );
+
+        assert_eq!(player.playback_elapsed(), Some(elapsed));
     }
 
     #[test]
