@@ -65,6 +65,6 @@ pub(crate) fn run_native_vello_app_with_artifacts<B: NativeAppBridge + 'static>(
                 .shutdown_timing
                 .and_then(|value| serde_json::from_value(value).ok()),
         },
-        result: report.result,
+        result: report.result.map_err(|err| err.to_string()),
     }
 }

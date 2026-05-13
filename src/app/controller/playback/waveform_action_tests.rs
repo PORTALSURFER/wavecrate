@@ -369,6 +369,59 @@ fn set_waveform_edit_fade_out_mute_end_milli_preserves_crossfade_when_fade_colla
     assert!((fade_out.curve - 0.7).abs() < 0.001);
 }
 
+/// Crossing the silence handle during one bottom-handle drag should not pick it up.
+#[test]
+fn set_waveform_edit_fade_out_mute_end_milli_does_not_pick_up_silence_during_same_drag() {
+    let (mut controller, _source) = test_support::dummy_controller();
+    let range = SelectionRange::new(0.2, 0.6)
+        .with_fade_out(0.25, 0.7)
+        .with_fade_out_mute(1.0);
+    controller.selection_state.edit_range.set_range(Some(range));
+    controller.ui.waveform.edit_selection = Some(range);
+
+    controller.set_waveform_edit_fade_out_mute_end_milli(1000);
+    controller.set_waveform_edit_fade_out_mute_end_milli(700);
+
+    let updated = controller
+        .ui
+        .waveform
+        .edit_selection
+        .expect("updated edit selection");
+    let fade_out = updated
+        .fade_out()
+        .expect("fade-out silence handle should remain");
+    let fade_out_start = updated.end() - (updated.width() * fade_out.length);
+    let fade_out_outer_end = updated.end() + (updated.width() * fade_out.mute);
+    assert!((updated.end() - 0.7).abs() < 0.001);
+    assert!((fade_out_start - 0.5).abs() < 0.001);
+    assert!((fade_out_outer_end - 1.0).abs() < 0.000_001);
+}
+
+/// Releasing after collapsing into the silence handle should commit that collapsed state.
+#[test]
+fn finish_waveform_edit_fade_drag_commits_silence_collapse_after_bottom_handle_release() {
+    let (mut controller, _source) = test_support::dummy_controller();
+    let range = SelectionRange::new(0.2, 0.6)
+        .with_fade_out(0.25, 0.7)
+        .with_fade_out_mute(1.0);
+    controller.selection_state.edit_range.set_range(Some(range));
+    controller.ui.waveform.edit_selection = Some(range);
+
+    controller.set_waveform_edit_fade_out_mute_end_milli(1000);
+    controller.finish_waveform_edit_fade_drag();
+    controller.set_waveform_edit_fade_out_mute_end_milli(700);
+
+    let updated = controller
+        .ui
+        .waveform
+        .edit_selection
+        .expect("updated edit selection");
+    let fade_out = updated.fade_out().expect("fade-out should remain");
+    let fade_out_outer_end = updated.end() + (updated.width() * fade_out.mute);
+    assert!((updated.end() - 0.7).abs() < 0.001);
+    assert!((fade_out_outer_end - 0.7).abs() < 0.000_001);
+}
+
 /// Edit fade-in bottom-handle updates should keep the opposite fade-out boundary fixed.
 #[test]
 fn set_waveform_edit_fade_in_mute_start_milli_preserves_fade_out_boundary() {

@@ -285,6 +285,24 @@ impl<B: NativeAppBridge> WavecrateRuntimeBridge<B> {
                 }
                 true
             }
+            WidgetInput::PointerDoubleClick { position, button } => {
+                let layout = self.build_current_layout();
+                if button != PointerButton::Primary {
+                    return true;
+                }
+                if let Some(action) = action_from_retained_pointer(
+                    &layout,
+                    &self.model,
+                    &mut self.shell_state,
+                    position,
+                ) {
+                    self.emit_action(action.into());
+                    if self.text_input_target != RetainedTextInputTarget::None {
+                        self.sync_text_edit_from_model();
+                    }
+                }
+                true
+            }
             WidgetInput::PointerRelease {
                 button: PointerButton::Auxiliary,
                 ..
