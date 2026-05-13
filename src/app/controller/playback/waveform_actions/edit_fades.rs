@@ -31,14 +31,16 @@ pub(super) fn update_edit_fade_in_end_from_micros(
     } else {
         baseline_fade_out_abs
     };
+    let fade_in = range.fade_in().map(|fade| {
+        crate::selection::FadeParams::with_curve_and_mute(fade_in_abs / width, curve, fade.mute)
+    });
     rebuild_edit_range(
         range,
         start,
         end,
-        Some(crate::selection::FadeParams::with_curve(
-            fade_in_abs / width,
-            curve,
-        )),
+        Some(fade_in.unwrap_or_else(|| {
+            crate::selection::FadeParams::with_curve(fade_in_abs / width, curve)
+        })),
         range.fade_out().map(|fade| {
             crate::selection::FadeParams::with_curve_and_mute(
                 fade_out_abs / width,
@@ -81,7 +83,7 @@ pub(super) fn update_edit_fade_in_mute_start_from_micros(
     let new_mute = if fade_in.mute <= 0.0 || new_width <= f32::EPSILON {
         0.0
     } else {
-        ((new_start - old_outer_start) / new_width).max(0.0)
+        fade_in_mute_for_outer_start(new_start, new_width, old_outer_start)
     };
     let next_fade_in =
         crate::selection::FadeParams::with_curve_and_mute(new_length, fade_in.curve, new_mute);
@@ -134,10 +136,20 @@ pub(super) fn update_edit_fade_out_start_from_micros(
                 fade.mute,
             )
         }),
-        Some(crate::selection::FadeParams::with_curve(
-            fade_out_abs / width,
-            curve,
-        )),
+        Some(
+            range
+                .fade_out()
+                .map(|fade| {
+                    crate::selection::FadeParams::with_curve_and_mute(
+                        fade_out_abs / width,
+                        curve,
+                        fade.mute,
+                    )
+                })
+                .unwrap_or_else(|| {
+                    crate::selection::FadeParams::with_curve(fade_out_abs / width, curve)
+                }),
+        ),
     )
 }
 
@@ -173,7 +185,7 @@ pub(super) fn update_edit_fade_out_mute_end_from_micros(
     let new_mute = if fade_out.mute <= 0.0 || new_width <= f32::EPSILON {
         0.0
     } else {
-        ((old_outer_end - new_end) / new_width).max(0.0)
+        fade_out_mute_for_outer_end(new_end, new_width, old_outer_end)
     };
     let next_fade_out =
         crate::selection::FadeParams::with_curve_and_mute(new_length, fade_out.curve, new_mute);
@@ -235,10 +247,11 @@ fn fade_in_preserved_at_width(
         return Some(crate::selection::FadeParams::with_curve(0.0, fade.curve));
     }
     let length = ((range.width() * fade.length) / next_width).clamp(0.0, 1.0);
+    let outer_start = range.start() - range.width() * fade.mute;
     Some(crate::selection::FadeParams::with_curve_and_mute(
         length,
         fade.curve,
-        ((range.width() * fade.mute) / next_width).max(0.0),
+        fade_in_mute_for_outer_start(range.start(), next_width, outer_start),
     ))
 }
 
@@ -251,9 +264,37 @@ fn fade_out_preserved_at_width(
         return Some(crate::selection::FadeParams::with_curve(0.0, fade.curve));
     }
     let length = ((range.width() * fade.length) / next_width).clamp(0.0, 1.0);
+    let outer_end = range.end() + range.width() * fade.mute;
     Some(crate::selection::FadeParams::with_curve_and_mute(
         length,
         fade.curve,
-        ((range.width() * fade.mute) / next_width).max(0.0),
+        fade_out_mute_for_outer_end(range.end(), next_width, outer_end),
     ))
+}
+
+fn fade_in_mute_for_outer_start(start: f32, width: f32, outer_start: f32) -> f32 {
+    if width <= f32::EPSILON {
+        return 0.0;
+    }
+    let outer_start = snap_to_sample_edge(outer_start).clamp(0.0, start);
+    ((start - outer_start) / width).max(0.0)
+}
+
+fn fade_out_mute_for_outer_end(end: f32, width: f32, outer_end: f32) -> f32 {
+    if width <= f32::EPSILON {
+        return 0.0;
+    }
+    let outer_end = snap_to_sample_edge(outer_end).clamp(end, 1.0);
+    ((outer_end - end) / width).max(0.0)
+}
+
+fn snap_to_sample_edge(position: f32) -> f32 {
+    const EDGE_EPSILON: f32 = 1.0e-6;
+    if position <= EDGE_EPSILON {
+        0.0
+    } else if position >= 1.0 - EDGE_EPSILON {
+        1.0
+    } else {
+        position
+    }
 }

@@ -390,7 +390,8 @@ impl WaveformState {
     }
 
     fn set_selection_for_drag(&mut self, drag: WaveformSelectionDrag) {
-        let range = wavecrate::selection::SelectionRange::new(drag.anchor_ratio, drag.current_ratio);
+        let range =
+            wavecrate::selection::SelectionRange::new(drag.anchor_ratio, drag.current_ratio);
         match drag.kind {
             WaveformSelectionKind::Play => {
                 self.play_mark_ratio = Some(drag.anchor_ratio);
@@ -634,7 +635,10 @@ struct WaveformEditFadeDrag {
 }
 
 impl WaveformEditFadeDrag {
-    fn new(handle: WaveformEditFadeHandle, selection: wavecrate::selection::SelectionRange) -> Self {
+    fn new(
+        handle: WaveformEditFadeHandle,
+        selection: wavecrate::selection::SelectionRange,
+    ) -> Self {
         let curve = match handle {
             WaveformEditFadeHandle::FadeInEnd
             | WaveformEditFadeHandle::FadeInStart
@@ -831,16 +835,12 @@ fn rebuild_edit_fades_for_same_range(
     let mut rebuilt = wavecrate::selection::SelectionRange::new(selection.start(), selection.end())
         .with_gain(selection.gain());
     if let Some((length, curve)) = fade_in {
-        rebuilt = rebuilt.with_fade_in(length.clamp(0.0, 1.0), curve);
-        if let Some(fade) = selection.fade_in().filter(|fade| fade.mute > 0.0) {
-            rebuilt = rebuilt.with_fade_in_mute(fade.mute);
-        }
+        let mute = selection.fade_in().map(|fade| fade.mute).unwrap_or(0.0);
+        rebuilt = rebuilt.with_fade_in_and_mute(length.clamp(0.0, 1.0), curve, mute);
     }
     if let Some((length, curve)) = fade_out {
-        rebuilt = rebuilt.with_fade_out(length.clamp(0.0, 1.0), curve);
-        if let Some(fade) = selection.fade_out().filter(|fade| fade.mute > 0.0) {
-            rebuilt = rebuilt.with_fade_out_mute(fade.mute);
-        }
+        let mute = selection.fade_out().map(|fade| fade.mute).unwrap_or(0.0);
+        rebuilt = rebuilt.with_fade_out_and_mute(length.clamp(0.0, 1.0), curve, mute);
     }
     rebuilt
 }
@@ -879,10 +879,11 @@ fn resize_fade_in_start(
         } else {
             (fade_out_abs / resized.width()).clamp(0.0, 1.0)
         };
+        let old_outer_end = selection.end() + old_width * fade_out.mute;
         let mute = if fade_out.mute <= 0.0 || resized.width() <= f32::EPSILON {
             0.0
         } else {
-            (old_width * fade_out.mute / resized.width()).max(0.0)
+            fade_out_mute_for_outer_end(resized, old_outer_end)
         };
         resized = resized.with_fade_out_and_mute(length, fade_out.curve, mute);
     }
@@ -893,7 +894,7 @@ fn resize_fade_in_start(
         let mute = if fade_in.mute <= 0.0 || resized.width() <= f32::EPSILON {
             0.0
         } else {
-            ((resized.start() - old_outer_start) / resized.width()).max(0.0)
+            fade_in_mute_for_outer_start(resized, old_outer_start)
         };
         resized = resized.with_fade_in_and_mute(length, curve, mute);
     }
@@ -916,10 +917,11 @@ fn resize_fade_out_end(
         } else {
             (fade_in_abs / resized.width()).clamp(0.0, 1.0)
         };
+        let old_outer_start = selection.start() - old_width * fade_in.mute;
         let mute = if fade_in.mute <= 0.0 || resized.width() <= f32::EPSILON {
             0.0
         } else {
-            (old_width * fade_in.mute / resized.width()).max(0.0)
+            fade_in_mute_for_outer_start(resized, old_outer_start)
         };
         resized = resized.with_fade_in_and_mute(length, fade_in.curve, mute);
     }
@@ -930,11 +932,44 @@ fn resize_fade_out_end(
         let mute = if fade_out.mute <= 0.0 || resized.width() <= f32::EPSILON {
             0.0
         } else {
-            ((old_outer_end - resized.end()) / resized.width()).max(0.0)
+            fade_out_mute_for_outer_end(resized, old_outer_end)
         };
         resized = resized.with_fade_out_and_mute(length, curve, mute);
     }
     resized
+}
+
+fn fade_in_mute_for_outer_start(
+    selection: wavecrate::selection::SelectionRange,
+    outer_start: f32,
+) -> f32 {
+    if selection.width() <= f32::EPSILON {
+        return 0.0;
+    }
+    let outer_start = snap_to_sample_edge(outer_start).clamp(0.0, selection.start());
+    ((selection.start() - outer_start) / selection.width()).max(0.0)
+}
+
+fn fade_out_mute_for_outer_end(
+    selection: wavecrate::selection::SelectionRange,
+    outer_end: f32,
+) -> f32 {
+    if selection.width() <= f32::EPSILON {
+        return 0.0;
+    }
+    let outer_end = snap_to_sample_edge(outer_end).clamp(selection.end(), 1.0);
+    ((outer_end - selection.end()) / selection.width()).max(0.0)
+}
+
+fn snap_to_sample_edge(position: f32) -> f32 {
+    const EDGE_EPSILON: f32 = 1.0e-6;
+    if position <= EDGE_EPSILON {
+        0.0
+    } else if position >= 1.0 - EDGE_EPSILON {
+        1.0
+    } else {
+        position
+    }
 }
 
 fn edit_preview_for_selection(
@@ -2825,6 +2860,40 @@ mod tests {
     }
 
     #[test]
+    fn edit_fade_out_top_handle_preserves_silence_after_bottom_handle_collapse() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.edit_selection = Some(
+            wavecrate::selection::SelectionRange::new(0.2, 0.6)
+                .with_fade_out(0.25, 0.7)
+                .with_fade_out_mute(1.0),
+        );
+
+        state.apply_interaction(WaveformInteraction::BeginEditFade {
+            handle: WaveformEditFadeHandle::FadeOutEnd,
+            visible_ratio: 0.6,
+        });
+        state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.5 });
+        state.apply_interaction(WaveformInteraction::BeginEditFade {
+            handle: WaveformEditFadeHandle::FadeOutStart,
+            visible_ratio: 0.5,
+        });
+        state.apply_interaction(WaveformInteraction::FinishSelection {
+            visible_ratio: 0.45,
+        });
+
+        let selection = state.edit_selection().expect("edit selection");
+        let fade_out = selection
+            .fade_out()
+            .expect("fade-out silence handle should remain");
+        let fade_out_start = selection.end() - selection.width() * fade_out.length;
+        let fade_out_outer_end = selection.end() + selection.width() * fade_out.mute;
+
+        assert!((selection.end() - 0.5).abs() < 0.001);
+        assert!((fade_out_start - 0.45).abs() < 0.001);
+        assert!((fade_out_outer_end - 1.0).abs() < 0.000_001);
+    }
+
+    #[test]
     fn edit_fade_out_bottom_handle_keeps_left_crossfade_pinned_to_sample_edge() {
         let mut state = WaveformState::synthetic_for_tests();
         state.edit_selection = Some(
@@ -2845,6 +2914,33 @@ mod tests {
         let fade_in_outer_start = selection.start() - selection.width() * fade_in.mute;
 
         assert!(fade_in_outer_start.abs() < 0.000_001);
+    }
+
+    #[test]
+    fn edit_fade_out_bottom_handle_keeps_left_crossfade_pinned_across_wiggles() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.edit_selection = Some(
+            wavecrate::selection::SelectionRange::new(0.2, 0.6)
+                .with_fade_in(0.25, 0.2)
+                .with_fade_in_mute(0.5)
+                .with_fade_out(0.25, 0.7),
+        );
+
+        state.apply_interaction(WaveformInteraction::BeginEditFade {
+            handle: WaveformEditFadeHandle::FadeOutEnd,
+            visible_ratio: 0.6,
+        });
+        for visible_ratio in [0.7, 0.69, 0.71, 0.705, 0.7] {
+            state.apply_interaction(WaveformInteraction::UpdateSelection { visible_ratio });
+            let selection = state.edit_selection().expect("edit selection");
+            let fade_in = selection.fade_in().expect("fade-in should remain");
+            let fade_in_outer_start = selection.start() - selection.width() * fade_in.mute;
+            assert!(
+                fade_in_outer_start.abs() < 0.000_001,
+                "left silence handle drifted to {fade_in_outer_start}"
+            );
+        }
+        state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.7 });
     }
 
     #[test]
