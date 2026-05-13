@@ -647,25 +647,35 @@ pub(super) fn default_sample_path() -> PathBuf {
 }
 
 pub(super) fn waveform_viewport_view(state: &WaveformState) -> ui::View<super::GuiMessage> {
-    ui::custom_widget(
-        WaveformWidget::new(
-            state.file(),
-            state.viewport(),
-            state.cursor_ratio(),
-            state.playhead_ratio(),
-            state.play_mark_ratio(),
-            state.edit_mark_ratio(),
-            state.play_selection(),
-            state.edit_selection(),
-            state.active_drag_kind(),
-        ),
-        |output| {
-            output
-                .typed_ref::<WaveformInteraction>()
-                .copied()
-                .map(GuiMessage::Waveform)
-        },
-    )
+    ui::stack([
+        ui::custom_widget(
+            WaveformSignalWidget::new(state.file(), state.viewport()),
+            |_| None,
+        )
+        .id(11)
+        .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32),
+        ui::custom_widget(
+            WaveformWidget::new(
+                state.file(),
+                state.viewport(),
+                state.cursor_ratio(),
+                state.playhead_ratio(),
+                state.play_mark_ratio(),
+                state.edit_mark_ratio(),
+                state.play_selection(),
+                state.edit_selection(),
+                state.active_drag_kind(),
+            ),
+            |output| {
+                output
+                    .typed_ref::<WaveformInteraction>()
+                    .copied()
+                    .map(GuiMessage::Waveform)
+            },
+        )
+        .id(12)
+        .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32),
+    ])
     .id(10)
     .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)
 }
@@ -894,6 +904,81 @@ impl WaveformViewport {
 }
 
 #[derive(Clone, Debug)]
+struct WaveformSignalWidget {
+    common: WidgetCommon,
+    file: Arc<WaveformFile>,
+    viewport: WaveformViewport,
+}
+
+impl WaveformSignalWidget {
+    fn new(file: Arc<WaveformFile>, viewport: WaveformViewport) -> Self {
+        let mut common = WidgetCommon::new(
+            0,
+            WidgetSizing::fixed(Vector2::new(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)),
+        );
+        common.paint.bounds = PaintBounds::ClipToRect;
+        common.paint.paints_focus = false;
+        common.paint.paints_state_layers = false;
+        Self {
+            common,
+            file,
+            viewport,
+        }
+    }
+}
+
+impl Widget for WaveformSignalWidget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+        None
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+        primitives.push(PaintPrimitive::GpuSurface(PaintGpuSurface {
+            widget_id: self.common.id,
+            key: self.file.path_hash(),
+            revision: 0,
+            rect: bounds,
+            content: GpuSurfaceContent::SignalSummaryBands {
+                frames: self.file.frames,
+                band_count: BAND_COUNT,
+                frame_range: [self.viewport.start as f32, self.viewport.end as f32],
+                summary: Arc::clone(&self.file.gpu_signal_summary),
+            },
+            capabilities: GpuSurfaceCapabilities {
+                fast_pointer_move: true,
+                coalesce_vertical_wheel: true,
+                runtime_overlays: GpuSurfaceRuntimeOverlays::pointer_vertical_line(
+                    GpuSurfaceLineStyle {
+                        color: Rgba8 {
+                            r: 255,
+                            g: 255,
+                            b: 255,
+                            a: 235,
+                        },
+                        width: 1.0,
+                    },
+                ),
+            },
+            overlays: Vec::new(),
+        }));
+    }
+}
+
+#[derive(Clone, Debug)]
 struct WaveformWidget {
     common: WidgetCommon,
     file: Arc<WaveformFile>,
@@ -1048,102 +1133,87 @@ impl Widget for WaveformWidget {
         _layout: &LayoutOutput,
         _theme: &ThemeTokens,
     ) {
-        primitives.push(PaintPrimitive::GpuSurface(PaintGpuSurface {
-            widget_id: self.common.id,
-            key: self.file.path_hash(),
-            revision: 0,
-            rect: bounds,
-            content: GpuSurfaceContent::SignalSummaryBands {
-                frames: self.file.frames,
-                band_count: BAND_COUNT,
-                frame_range: [self.viewport.start as f32, self.viewport.end as f32],
-                summary: Arc::clone(&self.file.gpu_signal_summary),
-            },
-            capabilities: GpuSurfaceCapabilities {
-                fast_pointer_move: true,
-                coalesce_vertical_wheel: true,
-                runtime_overlays: GpuSurfaceRuntimeOverlays::pointer_vertical_line(
-                    GpuSurfaceLineStyle {
-                        color: Rgba8 {
-                            r: 255,
-                            g: 255,
-                            b: 255,
-                            a: 235,
-                        },
-                        width: 1.0,
-                    },
-                ),
-            },
-            overlays: self.cursor_overlays(),
-        }));
+        self.append_selection_and_marker_paint(primitives, bounds);
         self.append_edit_fade_paint(primitives, bounds);
     }
 }
 
 impl WaveformWidget {
-    fn cursor_overlays(&self) -> Vec<radiant::runtime::GpuSurfaceOverlay> {
-        let mut overlays = Vec::new();
+    fn append_selection_and_marker_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+    ) {
         if let Some((start, end)) = self.visible_range_for_selection(self.play_selection) {
-            overlays.push(radiant::runtime::GpuSurfaceOverlay::HorizontalRange {
+            self.push_visible_range_fill(
+                primitives,
+                bounds,
                 start,
                 end,
-                color: Rgba8 {
+                Rgba8 {
                     r: 255,
                     g: 142,
                     b: 92,
                     a: 48,
                 },
-            });
+            );
         }
         if let Some((start, end)) = self.visible_range_for_selection(self.edit_selection) {
-            overlays.push(radiant::runtime::GpuSurfaceOverlay::HorizontalRange {
+            self.push_visible_range_fill(
+                primitives,
+                bounds,
                 start,
                 end,
-                color: Rgba8 {
+                Rgba8 {
                     r: 82,
                     g: 168,
                     b: 255,
                     a: 46,
                 },
-            });
+            );
         }
         if let Some(play_mark_ratio) = self.visible_ratio_for_absolute(self.play_mark_ratio) {
-            overlays.push(radiant::runtime::GpuSurfaceOverlay::VerticalCursor {
-                ratio: play_mark_ratio,
-                color: Rgba8 {
+            self.push_visible_cursor(
+                primitives,
+                bounds,
+                play_mark_ratio,
+                Rgba8 {
                     r: 255,
                     g: 142,
                     b: 92,
                     a: 230,
                 },
-                width: 1.25,
-            });
+                1.25,
+            );
         }
         if let Some(edit_mark_ratio) = self.visible_ratio_for_absolute(self.edit_mark_ratio) {
-            overlays.push(radiant::runtime::GpuSurfaceOverlay::VerticalCursor {
-                ratio: edit_mark_ratio,
-                color: Rgba8 {
+            self.push_visible_cursor(
+                primitives,
+                bounds,
+                edit_mark_ratio,
+                Rgba8 {
                     r: 82,
                     g: 168,
                     b: 255,
                     a: 230,
                 },
-                width: 1.25,
-            });
+                1.25,
+            );
         }
         if let Some(playhead_ratio) = self.visible_ratio_for_absolute(self.playhead_ratio) {
-            overlays.push(radiant::runtime::GpuSurfaceOverlay::VerticalCursor {
-                ratio: playhead_ratio,
-                color: Rgba8 {
+            self.push_visible_cursor(
+                primitives,
+                bounds,
+                playhead_ratio,
+                Rgba8 {
                     r: 71,
                     g: 220,
                     b: 255,
                     a: 245,
                 },
-                width: 1.75,
-            });
+                1.75,
+            );
         }
-        overlays
     }
 
     fn append_edit_fade_paint(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
@@ -1329,6 +1399,46 @@ impl WaveformWidget {
         }));
     }
 
+    fn push_visible_range_fill(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        start: f32,
+        end: f32,
+        color: Rgba8,
+    ) {
+        let min_x = bounds.min.x + bounds.width() * start.min(end).clamp(0.0, 1.0);
+        let max_x = bounds.min.x + bounds.width() * start.max(end).clamp(0.0, 1.0);
+        self.push_fill(
+            primitives,
+            Rect::from_min_max(
+                Point::new(min_x, bounds.min.y),
+                Point::new(max_x, bounds.max.y),
+            ),
+            color,
+        );
+    }
+
+    fn push_visible_cursor(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        ratio: f32,
+        color: Rgba8,
+        width: f32,
+    ) {
+        let x = bounds.min.x + bounds.width() * ratio.clamp(0.0, 1.0);
+        let half_width = (width * 0.5).max(0.5);
+        self.push_fill(
+            primitives,
+            Rect::from_min_max(
+                Point::new((x - half_width).max(bounds.min.x), bounds.min.y),
+                Point::new((x + half_width).min(bounds.max.x), bounds.max.y),
+            ),
+            color,
+        );
+    }
+
     fn visible_range_for_selection(
         &self,
         range: Option<sempal::selection::SelectionRange>,
@@ -1367,11 +1477,12 @@ impl WaveformWidget {
 mod tests {
     use super::{
         BAND_COUNT, WaveformEditFadeHandle, WaveformInteraction, WaveformSelectionKind,
-        WaveformState, WaveformWidget, split_frequency_bands, waveform_file_from_mono_samples,
+        WaveformSignalWidget, WaveformState, WaveformWidget, split_frequency_bands,
+        waveform_file_from_mono_samples,
     };
     use radiant::{
         gui::types::{Point, Rect, Vector2},
-        runtime::{GpuSurfaceContent, PaintPrimitive},
+        runtime::{GpuSurfaceContent, PaintFillRect, PaintPrimitive},
         theme::ThemeTokens,
         widgets::{PointerButton, Widget, WidgetInput},
     };
@@ -1471,7 +1582,7 @@ mod tests {
     }
 
     #[test]
-    fn cursor_overlays_project_play_edit_and_playhead_ratios() {
+    fn overlay_paint_projects_play_edit_and_playhead_markers() {
         let mut state = WaveformState::synthetic_for_tests();
         state.start_playback(0.125);
         state.set_playhead_ratio(0.25);
@@ -1494,60 +1605,31 @@ mod tests {
             state.edit_selection(),
             state.active_drag_kind(),
         );
+        let mut primitives = Vec::new();
 
-        let overlays = widget.cursor_overlays();
-        assert_eq!(overlays.len(), 3);
-        match overlays[0] {
-            radiant::runtime::GpuSurfaceOverlay::VerticalCursor {
-                ratio,
-                color,
-                width,
-            } => {
-                assert!((ratio - 0.125).abs() < 0.001);
-                assert_eq!((color.r, color.g, color.b), (255, 142, 92));
-                assert_eq!(width, 1.25);
-            }
-            radiant::runtime::GpuSurfaceOverlay::RuntimeVerticalLine { .. } => {
-                panic!("play mark overlay should be app-owned");
-            }
-            radiant::runtime::GpuSurfaceOverlay::HorizontalRange { .. } => {
-                panic!("play mark overlay should be a vertical line");
-            }
-        }
-        match overlays[1] {
-            radiant::runtime::GpuSurfaceOverlay::VerticalCursor {
-                ratio,
-                color,
-                width,
-            } => {
-                assert!((ratio - 0.375).abs() < 0.001);
-                assert_eq!((color.r, color.g, color.b), (82, 168, 255));
-                assert_eq!(width, 1.25);
-            }
-            radiant::runtime::GpuSurfaceOverlay::RuntimeVerticalLine { .. } => {
-                panic!("edit mark overlay should be app-owned");
-            }
-            radiant::runtime::GpuSurfaceOverlay::HorizontalRange { .. } => {
-                panic!("edit mark overlay should be a vertical line");
-            }
-        }
-        match overlays[2] {
-            radiant::runtime::GpuSurfaceOverlay::VerticalCursor {
-                ratio,
-                color,
-                width,
-            } => {
-                assert!((ratio - 0.25).abs() < 0.001);
-                assert_eq!((color.r, color.g, color.b), (71, 220, 255));
-                assert_eq!(width, 1.75);
-            }
-            radiant::runtime::GpuSurfaceOverlay::RuntimeVerticalLine { .. } => {
-                panic!("playhead overlay should be app-owned");
-            }
-            radiant::runtime::GpuSurfaceOverlay::HorizontalRange { .. } => {
-                panic!("playhead overlay should be a vertical line");
-            }
-        }
+        widget.append_paint(
+            &mut primitives,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(400.0, 80.0)),
+            &Default::default(),
+            &ThemeTokens::default(),
+        );
+
+        let fills = fill_rects(&primitives);
+        assert!(fills.iter().any(|fill| {
+            (fill.rect.center().x / 400.0 - 0.125).abs() < 0.01
+                && (fill.color.r, fill.color.g, fill.color.b) == (255, 142, 92)
+                && fill.color.a == 230
+        }));
+        assert!(fills.iter().any(|fill| {
+            (fill.rect.center().x / 400.0 - 0.375).abs() < 0.01
+                && (fill.color.r, fill.color.g, fill.color.b) == (82, 168, 255)
+                && fill.color.a == 230
+        }));
+        assert!(fills.iter().any(|fill| {
+            (fill.rect.center().x / 400.0 - 0.25).abs() < 0.01
+                && (fill.color.r, fill.color.g, fill.color.b) == (71, 220, 255)
+                && fill.color.a == 245
+        }));
     }
 
     #[test]
@@ -1816,7 +1898,7 @@ mod tests {
     }
 
     #[test]
-    fn selection_fill_paints_as_gpu_surface_overlay() {
+    fn selection_fill_paints_as_overlay_widget_rects() {
         let mut state = WaveformState::synthetic_for_tests();
         state.apply_interaction(WaveformInteraction::BeginSelection {
             kind: WaveformSelectionKind::Play,
@@ -1843,6 +1925,37 @@ mod tests {
             &ThemeTokens::default(),
         );
 
+        assert!(
+            !primitives
+                .iter()
+                .any(|primitive| matches!(primitive, PaintPrimitive::GpuSurface(_))),
+            "ordinary waveform overlay widget must not emit the GPU waveform"
+        );
+        let fills = fill_rects(&primitives);
+        assert!(fills.iter().any(|fill| {
+            (fill.rect.min.x - 40.0).abs() < 0.001
+                && (fill.rect.max.x - 120.0).abs() < 0.001
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 48)
+        }));
+        assert!(fills.iter().any(|fill| {
+            (fill.rect.center().x - 40.0).abs() < 1.0
+                && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 230)
+        }));
+    }
+
+    #[test]
+    fn signal_widget_paints_gpu_surface_without_app_overlay_handles() {
+        let state = WaveformState::synthetic_for_tests();
+        let widget = WaveformSignalWidget::new(state.file(), state.viewport());
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0)),
+            &Default::default(),
+            &ThemeTokens::default(),
+        );
+
         let surface = primitives
             .iter()
             .find_map(|primitive| match primitive {
@@ -1858,15 +1971,16 @@ mod tests {
             })
             .expect("waveform gpu surface");
 
-        assert!(surface.overlays.iter().any(|overlay| matches!(
-            overlay,
-            radiant::runtime::GpuSurfaceOverlay::HorizontalRange { start, end, .. }
-                if (*start - 0.2).abs() < 0.001 && (*end - 0.6).abs() < 0.001
-        )));
-        assert!(surface.overlays.iter().any(|overlay| matches!(
-            overlay,
-            radiant::runtime::GpuSurfaceOverlay::VerticalCursor { ratio, .. }
-                if (*ratio - 0.2).abs() < 0.001
-        )));
+        assert!(surface.overlays.is_empty());
+    }
+
+    fn fill_rects(primitives: &[PaintPrimitive]) -> Vec<&PaintFillRect> {
+        primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::FillRect(fill) => Some(fill),
+                _ => None,
+            })
+            .collect()
     }
 }
