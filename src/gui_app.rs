@@ -11,7 +11,7 @@ use radiant::widgets::{
     DragHandleMessage, FocusBehavior, PaintBounds, PointerButton, ScrollbarMessage,
     TextInputWidget, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
 };
-use rfd::FileDialog;
+use rfd::{FileDialog, MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
 use std::{
     ffi::OsString,
     panic::{self, AssertUnwindSafe},
@@ -56,6 +56,7 @@ enum GuiMessage {
     PlaySelectedSample,
     StopPlayback,
     FocusRenameInput(u64),
+    DeleteSelectedFolder,
     NavigateBrowser(i32),
     CollapseSelectedFolder,
     ExpandSelectedFolder,
@@ -305,6 +306,7 @@ impl GuiAppState {
                     None,
                 );
             }
+            GuiMessage::DeleteSelectedFolder => self.delete_selected_folder(),
             GuiMessage::NavigateBrowser(delta) => {
                 let started_at = Instant::now();
                 if let Some(path) = self.folder_browser.navigate_vertical(delta) {
@@ -453,6 +455,61 @@ impl GuiAppState {
                 started_at,
                 Some("source_not_found"),
             );
+        }
+    }
+
+    fn delete_selected_folder(&mut self) {
+        let started_at = Instant::now();
+        let target = match self.folder_browser.selected_delete_target() {
+            Ok(target) => target,
+            Err(error) => {
+                self.sample_status = error.clone();
+                emit_gui_action(
+                    "folder_browser.delete_selected",
+                    Some("folder_browser"),
+                    None,
+                    "short_circuit",
+                    started_at,
+                    Some(&error),
+                );
+                return;
+            }
+        };
+        if !confirm_folder_delete(&target) {
+            self.sample_status = format!("Delete cancelled for {}", target.name);
+            emit_gui_action(
+                "folder_browser.delete_selected",
+                Some("folder_browser"),
+                Some(&target.name),
+                "cancelled",
+                started_at,
+                None,
+            );
+            return;
+        }
+        match self.folder_browser.delete_selected_folder() {
+            Ok(status) => {
+                self.sample_status = status;
+                emit_gui_action(
+                    "folder_browser.delete_selected",
+                    Some("folder_browser"),
+                    Some(&target.name),
+                    "success",
+                    started_at,
+                    None,
+                );
+            }
+            Err(error) => {
+                self.sample_status = error.clone();
+                emit_gui_action(
+                    "folder_browser.delete_selected",
+                    Some("folder_browser"),
+                    Some(&target.name),
+                    "error",
+                    started_at,
+                    Some(&error),
+                );
+            }
         }
     }
 
@@ -879,6 +936,8 @@ pub(crate) fn run() -> Result<(), String> {
                     ui::ShortcutResolution::action(GuiMessage::FolderBrowser(
                         FolderBrowserMessage::BeginRenameSelected,
                     ))
+                } else if press == ui::KeyPress::new(ui::KeyCode::Delete) {
+                    ui::ShortcutResolution::action(GuiMessage::DeleteSelectedFolder)
                 } else if press == ui::KeyPress::new(ui::KeyCode::Space) {
                     ui::ShortcutResolution::action(GuiMessage::PlaySelectedSample)
                 } else if press == ui::KeyPress::new(ui::KeyCode::ArrowUp) {
@@ -1668,6 +1727,25 @@ fn worker_progress_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
     })
     .width(track_width)
     .height(10.0)
+}
+
+fn confirm_folder_delete(target: &folder_browser::FolderDeleteTargetView) -> bool {
+    if cfg!(test) {
+        return true;
+    }
+    let message = format!(
+        "Delete {} and all files inside it?\n\nThis cannot be undone from the default GUI.",
+        target.path.display()
+    );
+    matches!(
+        MessageDialog::new()
+            .set_title("Delete folder")
+            .set_description(message)
+            .set_level(MessageLevel::Warning)
+            .set_buttons(MessageButtons::YesNo)
+            .show(),
+        MessageDialogResult::Yes
+    )
 }
 
 #[cfg(test)]

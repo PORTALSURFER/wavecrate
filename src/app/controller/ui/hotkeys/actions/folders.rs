@@ -43,7 +43,7 @@ pub(super) const EXPAND_FOCUSED_FOLDER: HotkeyAction = HotkeyAction {
 pub(super) const DELETE_FOLDER: HotkeyAction = HotkeyAction {
     id: "delete-folder",
     label: "Delete folder",
-    gesture: HotkeyGesture::new(Key::D),
+    gesture: HotkeyGesture::new(Key::Delete),
     scope: SOURCE_FOLDERS,
     action: NativeUiAction::DeleteFocusedFolder,
 };
