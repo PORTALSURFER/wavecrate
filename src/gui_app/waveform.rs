@@ -145,11 +145,31 @@ impl WaveformState {
         else {
             return;
         };
-        self.extraction_history.push(selection);
+        self.insert_extraction_history_range(selection);
     }
 
     pub(super) fn clear_extraction_history(&mut self) {
         self.extraction_history.clear();
+    }
+
+    fn insert_extraction_history_range(&mut self, selection: wavecrate::selection::SelectionRange) {
+        let mut merged_start = selection.start_f64();
+        let mut merged_end = selection.end_f64();
+        self.extraction_history.retain(|existing| {
+            let overlaps = existing.start_f64() <= merged_end && existing.end_f64() >= merged_start;
+            if overlaps {
+                merged_start = merged_start.min(existing.start_f64());
+                merged_end = merged_end.max(existing.end_f64());
+            }
+            !overlaps
+        });
+        self.extraction_history
+            .push(wavecrate::selection::SelectionRange::new_precise(
+                merged_start,
+                merged_end,
+            ));
+        self.extraction_history
+            .sort_by(|a, b| a.start_f64().total_cmp(&b.start_f64()));
     }
 
     pub(super) fn play_selection_flash_frames(&self) -> u8 {
@@ -2614,6 +2634,26 @@ mod tests {
 
         assert!(!state.has_extraction_history());
         assert!(state.extraction_history().is_empty());
+    }
+
+    #[test]
+    fn extraction_history_merges_overlapping_ranges() {
+        let mut state = WaveformState::synthetic_for_tests();
+
+        state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.1, 0.3));
+        state.record_current_play_selection_extracted();
+        state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.25, 0.5));
+        state.record_current_play_selection_extracted();
+        state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.7, 0.8));
+        state.record_current_play_selection_extracted();
+
+        assert_eq!(
+            state.extraction_history(),
+            &[
+                wavecrate::selection::SelectionRange::new(0.1, 0.5),
+                wavecrate::selection::SelectionRange::new(0.7, 0.8),
+            ]
+        );
     }
 
     #[test]
