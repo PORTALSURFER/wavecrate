@@ -15,7 +15,7 @@ use rfd::{FileDialog, MessageButtons, MessageDialog, MessageDialogResult, Messag
 use std::{
     ffi::OsString,
     panic::{self, AssertUnwindSafe},
-    path::PathBuf,
+    path::{Path, PathBuf},
     process,
     sync::{
         Arc,
@@ -57,6 +57,7 @@ enum GuiMessage {
     StopPlayback,
     FocusRenameInput(u64),
     DeleteSelectedFolder,
+    ExtractPlaymarkedRange,
     NavigateBrowser(i32),
     CollapseSelectedFolder,
     ExpandSelectedFolder,
@@ -104,7 +105,7 @@ impl GuiAppState {
             folder_resize: None,
             folder_browser: FolderBrowserState::load_default(),
             waveform: WaveformState::load_default()?,
-            sample_status: String::from("Default sample loaded from assets"),
+            sample_status: String::from("Select a sample to load"),
             worker_sender,
             worker_receiver: Some(worker_receiver),
             next_task_id: 1,
@@ -307,6 +308,7 @@ impl GuiAppState {
                 );
             }
             GuiMessage::DeleteSelectedFolder => self.delete_selected_folder(),
+            GuiMessage::ExtractPlaymarkedRange => self.extract_playmarked_range(),
             GuiMessage::NavigateBrowser(delta) => {
                 let started_at = Instant::now();
                 if let Some(path) = self.folder_browser.navigate_vertical(delta) {
@@ -513,6 +515,37 @@ impl GuiAppState {
         }
     }
 
+    fn extract_playmarked_range(&mut self) {
+        let started_at = Instant::now();
+        match self.waveform.extract_play_selection_to_sibling() {
+            Ok(path) => {
+                let label = sample_path_label(&path);
+                self.waveform.flash_play_selection();
+                self.folder_browser.refresh_file_path(&path);
+                self.sample_status = format!("Extracted {label}");
+                emit_gui_action(
+                    "waveform.extract_playmarked_range",
+                    Some("waveform"),
+                    Some(&label),
+                    "success",
+                    started_at,
+                    None,
+                );
+            }
+            Err(error) => {
+                self.sample_status = error.clone();
+                emit_gui_action(
+                    "waveform.extract_playmarked_range",
+                    Some("waveform"),
+                    None,
+                    "error",
+                    started_at,
+                    Some(&error),
+                );
+            }
+        }
+    }
+
     fn launch_folder_scan(
         &mut self,
         request: FolderScanRequest,
@@ -629,8 +662,8 @@ impl GuiAppState {
         self.folder_browser.select_file(path.clone());
         let task_id = self.next_sample_task_id();
         self.pending_sample_task_id = Some(task_id);
-        self.sample_status = format!("Loading {}", sample_path_label(&path));
-        let label = sample_path_label(&path);
+        self.sample_status = format!("Loading {}", sample_path_label(path.as_str()));
+        let label = sample_path_label(path.as_str());
         emit_gui_action(
             "browser.select_sample",
             Some("browser"),
@@ -655,7 +688,7 @@ impl GuiAppState {
 
     fn finish_sample_load(&mut self, load: SampleLoadResult) {
         let started_at = Instant::now();
-        let label = sample_path_label(&load.path);
+        let label = sample_path_label(load.path.as_str());
         if self.pending_sample_task_id != Some(load.task_id) {
             emit_gui_action(
                 "browser.sample_load.finish",
@@ -818,6 +851,9 @@ impl GuiAppState {
         if self.audio_player.is_none() {
             self.audio_player = Some(AudioPlayer::new()?);
         }
+        if !self.waveform.has_loaded_sample() {
+            return Err(String::from("Select a sample to load"));
+        }
         let start_ratio = start_ratio.clamp(0.0, 1.0);
         let end_ratio = end_ratio.clamp(start_ratio, 1.0);
         let duration = self.waveform.frames() as f32 / self.waveform.sample_rate().max(1) as f32;
@@ -926,7 +962,11 @@ pub(crate) fn run() -> Result<(), String> {
         radiant::app(state)
             .options(options)
             .view(view)
-            .animation(|state| state.waveform.is_playing() || state.folder_progress.is_some())
+            .animation(|state| {
+                state.waveform.is_playing()
+                    || state.waveform.play_selection_flash_active()
+                    || state.folder_progress.is_some()
+            })
             .on_frame(|| GuiMessage::Frame)
             .subscriptions(GuiAppState::worker_subscription)
             .shortcuts(|state, _, press, _| {
@@ -938,6 +978,8 @@ pub(crate) fn run() -> Result<(), String> {
                     ))
                 } else if press == ui::KeyPress::new(ui::KeyCode::Delete) {
                     ui::ShortcutResolution::action(GuiMessage::DeleteSelectedFolder)
+                } else if press == ui::KeyPress::new(ui::KeyCode::E) {
+                    ui::ShortcutResolution::action(GuiMessage::ExtractPlaymarkedRange)
                 } else if press == ui::KeyPress::new(ui::KeyCode::Space) {
                     ui::ShortcutResolution::action(GuiMessage::PlaySelectedSample)
                 } else if press == ui::KeyPress::new(ui::KeyCode::ArrowUp) {
@@ -1008,11 +1050,11 @@ where
         .any(|arg| arg == DEBUG_LAYOUT_ARG || arg == DEBUG_LAYOUT_SHORT_ARG)
 }
 
-fn sample_path_label(path: &str) -> String {
-    PathBuf::from(path)
-        .file_name()
+fn sample_path_label(path: impl AsRef<Path>) -> String {
+    let path = path.as_ref();
+    path.file_name()
         .map(|name| name.to_string_lossy().to_string())
-        .unwrap_or_else(|| path.to_string())
+        .unwrap_or_else(|| path.display().to_string())
 }
 
 fn log_default_gui_startup(args: &[OsString]) {
@@ -1455,6 +1497,9 @@ fn waveform_panel(state: &GuiAppState) -> ui::View<GuiMessage> {
 }
 
 fn waveform_title(waveform: &WaveformState) -> String {
+    if !waveform.has_loaded_sample() {
+        return String::from("No sample loaded");
+    }
     format!(
         "{} | {} Hz | {} channel{} -> mono | {} frames",
         waveform.file_name(),
@@ -1613,7 +1658,6 @@ fn sample_file_cell(
         .key(format!("sample-{}-{column_id}", file.id))
         .fill_width()
         .height(20.0)
-        .input_only()
         .width(width)
 }
 
@@ -1762,6 +1806,16 @@ mod tests {
     };
     use std::{ffi::OsString, sync::mpsc};
 
+    fn selected_asset_file_path(browser: &super::FolderBrowserState, name: &str) -> String {
+        browser
+            .selected_audio_files()
+            .iter()
+            .find(|file| file.name == name)
+            .unwrap_or_else(|| panic!("expected bundled asset {name} to be visible"))
+            .id
+            .clone()
+    }
+
     #[test]
     fn canonical_debug_layout_arg_enables_default_gui_overlay() {
         assert!(debug_layout_requested([
@@ -1825,17 +1879,10 @@ mod tests {
     }
 
     #[test]
-    fn default_waveform_sample_is_bundled_asset() {
-        let path = super::waveform::default_sample_path();
-        assert!(path.ends_with("assets/portal_SS_kick_003.wav"));
-        assert!(path.is_file());
-    }
-
-    #[test]
-    fn default_waveform_sample_loads_for_default_gui() {
+    fn default_gui_starts_without_loading_a_sample() {
         let waveform = super::WaveformState::load_default().expect("default sample loads");
-        assert!(waveform.frames() > 0);
-        assert!(waveform.sample_rate() > 0);
+        assert!(!waveform.has_loaded_sample());
+        assert_eq!(waveform.file_name(), "No sample loaded");
     }
 
     #[test]
@@ -1855,7 +1902,7 @@ mod tests {
             progress_tick: 0.0,
             audio_player: None,
         };
-        let sample_path = state.folder_browser.selected_audio_files()[0].id.clone();
+        let sample_path = selected_asset_file_path(&state.folder_browser, "portal_SS_kick_003.wav");
 
         let mut context = ui::UpdateContext::default();
         state.apply_message(
@@ -1888,6 +1935,9 @@ mod tests {
         };
         let mut state = GuiAppState::load_default().expect("default state loads");
         state.audio_player = Some(player);
+        let sample_path = selected_asset_file_path(&state.folder_browser, "portal_SS_kick_003.wav");
+        state.waveform =
+            super::WaveformState::load_path(sample_path.into()).expect("test sample loads");
         state
             .waveform
             .apply_interaction(WaveformInteraction::BeginSelection {
@@ -1984,13 +2034,11 @@ mod tests {
                 .iter()
                 .any(|file| file.name == "portal_SS_kick_003.wav")
         );
-        assert_eq!(
+        assert!(
             browser
                 .selected_audio_files()
                 .iter()
-                .map(|file| file.name.as_str())
-                .collect::<Vec<_>>(),
-            vec!["portal_SS_kick_003.wav"]
+                .any(|file| file.name == "portal_SS_kick_003.wav")
         );
     }
 }

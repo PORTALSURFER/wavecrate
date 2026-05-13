@@ -629,6 +629,29 @@ impl FolderBrowserState {
         }
     }
 
+    pub(super) fn refresh_file_path(&mut self, path: &Path) -> bool {
+        let Some(parent) = path.parent() else {
+            return false;
+        };
+        let parent_id = path_id(parent);
+        let Some(source) = self
+            .sources
+            .iter_mut()
+            .find(|source| source.id == self.selected_source)
+        else {
+            return false;
+        };
+        let Some(root_folder) = &mut source.root_folder else {
+            return false;
+        };
+        let Some(parent_folder) = root_folder.find_mut(&parent_id) else {
+            return false;
+        };
+        upsert_file(&mut parent_folder.files, file_entry(&path.to_path_buf()));
+        self.folders = vec![root_folder.clone()];
+        true
+    }
+
     fn visible_folders(&self) -> Vec<VisibleFolder> {
         let mut folders = Vec::new();
         for folder in &self.folders {
