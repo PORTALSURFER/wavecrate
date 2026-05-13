@@ -2146,4 +2146,41 @@ mod tests {
             "sample rows should not paint per-cell button chrome"
         );
     }
+
+    #[test]
+    fn full_gui_frame_places_sample_browser_text_inside_visible_area() {
+        let mut state = GuiAppState::load_default().expect("default state loads");
+        let surface = super::view(&mut state).into_node();
+        let frame = radiant::runtime::UiSurface::new(surface).frame(
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(1517.0, 758.0)),
+            &radiant::theme::ThemeTokens::default(),
+        );
+        let sample_texts = frame
+            .paint_plan
+            .primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::Text(text)
+                    if text.text.as_str() == "Name"
+                        || text.text.as_str().starts_with("portal_SS_") =>
+                {
+                    Some((text.text.as_str().to_string(), text.rect, text.baseline))
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert!(!sample_texts.is_empty(), "{sample_texts:?}");
+        assert!(
+            sample_texts.iter().any(|(_, rect, baseline)| {
+                rect.width() > 20.0
+                    && rect.height() >= 10.0
+                    && rect.min.x >= 280.0
+                    && rect.min.y >= 320.0
+                    && rect.max.y <= 730.0
+                    && baseline.is_some()
+            }),
+            "{sample_texts:?}"
+        );
+    }
 }
