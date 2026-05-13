@@ -1601,18 +1601,30 @@ fn sample_browser_row(
     selected: bool,
     rename: Option<folder_browser::FileRenameView>,
 ) -> ui::View<GuiMessage> {
-    let row = compact_details_row([
-        sample_name_cell(file, rename),
-        sample_file_cell(file, file.extension.clone(), SAMPLE_EXT_WIDTH, "extension"),
-        sample_file_cell(file, file.size.clone(), SAMPLE_SIZE_WIDTH, "size"),
-        sample_file_cell(
-            file,
-            file.modified.clone(),
-            SAMPLE_MODIFIED_WIDTH,
-            "modified",
-        ),
+    let hit_path = file.id.clone();
+    let hit_target = ui::custom_widget_mapped(SampleFileHitTarget::new(), move |()| {
+        GuiMessage::SelectSample(hit_path.clone())
+    })
+    .key(format!("sample-row-hit-{}", file.id))
+    .fill_width()
+    .height(22.0);
+    let row = ui::stack([
+        hit_target,
+        compact_details_row([
+            sample_name_cell(file, rename),
+            sample_file_cell(file, file.extension.clone(), SAMPLE_EXT_WIDTH, "extension"),
+            sample_file_cell(file, file.size.clone(), SAMPLE_SIZE_WIDTH, "size"),
+            sample_file_cell(
+                file,
+                file.modified.clone(),
+                SAMPLE_MODIFIED_WIDTH,
+                "modified",
+            ),
+        ]),
     ])
     .key(format!("sample-row-{}", file.id))
+    .fill_width()
+    .height(22.0)
     .hoverable();
     if selected {
         row.style(ui::WidgetStyle {
@@ -1653,12 +1665,11 @@ fn sample_file_cell(
     width: f32,
     column_id: &str,
 ) -> ui::View<GuiMessage> {
-    ui::button(value)
-        .message(GuiMessage::SelectSample(file.id.clone()))
+    ui::text(value)
         .key(format!("sample-{}-{column_id}", file.id))
-        .fill_width()
         .height(20.0)
         .width(width)
+        .truncate()
 }
 
 fn compact_details_row(
@@ -1700,6 +1711,66 @@ fn sample_browser_status(audio_count: usize) -> ui::View<GuiMessage> {
     .padding_x(3.0)
     .fill_width()
     .height(28.0)
+}
+
+#[derive(Clone, Debug)]
+struct SampleFileHitTarget {
+    common: WidgetCommon,
+    pressed: bool,
+}
+
+impl SampleFileHitTarget {
+    fn new() -> Self {
+        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 22.0)));
+        common.focus = FocusBehavior::None;
+        common.paint.bounds = PaintBounds::ClipToRect;
+        common.paint.paints_focus = false;
+        common.paint.paints_state_layers = false;
+        Self {
+            common,
+            pressed: false,
+        }
+    }
+}
+
+impl Widget for SampleFileHitTarget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        match input {
+            WidgetInput::PointerPress {
+                position,
+                button: PointerButton::Primary,
+            } if bounds.contains(position) => {
+                self.pressed = true;
+                None
+            }
+            WidgetInput::PointerRelease {
+                position,
+                button: PointerButton::Primary,
+            } => {
+                let activated = self.pressed && bounds.contains(position);
+                self.pressed = false;
+                activated.then(|| WidgetOutput::typed(()))
+            }
+            _ => None,
+        }
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
 }
 
 fn bottom_status_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
@@ -1801,7 +1872,8 @@ mod tests {
     };
     use radiant::{
         gui::types::{Point, Rect, Vector2},
-        prelude as ui,
+        prelude::{self as ui, IntoView},
+        runtime::PaintPrimitive,
         widgets::{DragHandleMessage, PointerButton, Widget, WidgetInput},
     };
     use std::{ffi::OsString, sync::mpsc};
@@ -2039,6 +2111,39 @@ mod tests {
                 .selected_audio_files()
                 .iter()
                 .any(|file| file.name == "portal_SS_kick_003.wav")
+        );
+    }
+
+    #[test]
+    fn sample_browser_frame_paints_column_and_file_text() {
+        let state = GuiAppState::load_default().expect("default state loads");
+        let surface = super::sample_browser(&state).into_node();
+        let frame = radiant::runtime::UiSurface::new(surface).frame(
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 360.0)),
+            &radiant::theme::ThemeTokens::default(),
+        );
+        let texts = frame
+            .paint_plan
+            .primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::Text(text) => Some(text.text.as_str().to_string()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert!(texts.iter().any(|text| text == "Name"), "{texts:?}");
+        assert!(
+            texts.iter().any(|text| text.starts_with("portal_SS_")),
+            "{texts:?}"
+        );
+        assert!(
+            !frame
+                .paint_plan
+                .primitives
+                .iter()
+                .any(|primitive| matches!(primitive, PaintPrimitive::FillPolygon(_))),
+            "sample rows should not paint per-cell button chrome"
         );
     }
 }
