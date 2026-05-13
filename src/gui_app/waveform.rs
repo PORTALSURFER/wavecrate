@@ -622,6 +622,7 @@ pub(super) struct WaveformFile {
     sample_rate: u32,
     channels: usize,
     frames: usize,
+    gpu_signal_samples: Arc<[f32]>,
     gpu_signal_summary: Arc<radiant::runtime::GpuSignalSummary>,
 }
 
@@ -649,7 +650,7 @@ pub(super) fn default_sample_path() -> PathBuf {
 pub(super) fn waveform_viewport_view(state: &WaveformState) -> ui::View<super::GuiMessage> {
     ui::stack([
         ui::custom_widget(
-            WaveformSignalWidget::new(state.file(), state.viewport()),
+            WaveformSignalWidget::new(state.file(), state.viewport(), state.edit_selection()),
             |_| None,
         )
         .id(11)
@@ -755,8 +756,58 @@ fn waveform_file_from_mono_samples(
         sample_rate,
         channels,
         frames: mono_samples.len(),
+        gpu_signal_samples: Arc::from(gpu_signal_samples),
         gpu_signal_summary,
     }
+}
+
+fn apply_edit_fade_to_signal_samples(
+    samples: &mut [f32],
+    frames: usize,
+    band_count: usize,
+    selection: sempal::selection::SelectionRange,
+) {
+    if frames == 0 || band_count == 0 || !selection.has_edit_effects() {
+        return;
+    }
+    let max_frame = frames.saturating_sub(1).max(1);
+    for frame in 0..frames {
+        let position = frame as f32 / max_frame as f32;
+        let gain = selection.gain_at_position(position, 0.0);
+        if (gain - 1.0).abs() <= f32::EPSILON {
+            continue;
+        }
+        let base = frame * band_count;
+        for band in 0..band_count {
+            if let Some(sample) = samples.get_mut(base + band) {
+                *sample *= gain;
+            }
+        }
+    }
+}
+
+fn edit_selection_revision(selection: Option<sempal::selection::SelectionRange>) -> u64 {
+    let Some(selection) = selection else {
+        return 0;
+    };
+    if !selection.has_edit_effects() {
+        return 0;
+    }
+    let mut hasher = DefaultHasher::new();
+    selection.start().to_bits().hash(&mut hasher);
+    selection.end().to_bits().hash(&mut hasher);
+    selection.gain().to_bits().hash(&mut hasher);
+    if let Some(fade) = selection.fade_in() {
+        fade.length.to_bits().hash(&mut hasher);
+        fade.curve.to_bits().hash(&mut hasher);
+        fade.mute.to_bits().hash(&mut hasher);
+    }
+    if let Some(fade) = selection.fade_out() {
+        fade.length.to_bits().hash(&mut hasher);
+        fade.curve.to_bits().hash(&mut hasher);
+        fade.mute.to_bits().hash(&mut hasher);
+    }
+    hasher.finish().max(1)
 }
 
 fn is_wav_path(path: &std::path::Path) -> bool {
@@ -908,10 +959,15 @@ struct WaveformSignalWidget {
     common: WidgetCommon,
     file: Arc<WaveformFile>,
     viewport: WaveformViewport,
+    edit_selection: Option<sempal::selection::SelectionRange>,
 }
 
 impl WaveformSignalWidget {
-    fn new(file: Arc<WaveformFile>, viewport: WaveformViewport) -> Self {
+    fn new(
+        file: Arc<WaveformFile>,
+        viewport: WaveformViewport,
+        edit_selection: Option<sempal::selection::SelectionRange>,
+    ) -> Self {
         let mut common = WidgetCommon::new(
             0,
             WidgetSizing::fixed(Vector2::new(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)),
@@ -923,7 +979,30 @@ impl WaveformSignalWidget {
             common,
             file,
             viewport,
+            edit_selection,
         }
+    }
+
+    fn signal_summary(&self) -> Arc<radiant::runtime::GpuSignalSummary> {
+        let Some(selection) = self.edit_selection else {
+            return Arc::clone(&self.file.gpu_signal_summary);
+        };
+        if !selection.has_edit_effects() {
+            return Arc::clone(&self.file.gpu_signal_summary);
+        }
+        let mut samples = self.file.gpu_signal_samples.as_ref().to_vec();
+        apply_edit_fade_to_signal_samples(&mut samples, self.file.frames, BAND_COUNT, selection);
+        Arc::new(
+            radiant::runtime::GpuSignalSummary::from_interleaved_samples(
+                &samples,
+                self.file.frames,
+                BAND_COUNT,
+            ),
+        )
+    }
+
+    fn signal_revision(&self) -> u64 {
+        edit_selection_revision(self.edit_selection)
     }
 }
 
@@ -947,16 +1026,17 @@ impl Widget for WaveformSignalWidget {
         _layout: &LayoutOutput,
         _theme: &ThemeTokens,
     ) {
+        let summary = self.signal_summary();
         primitives.push(PaintPrimitive::GpuSurface(PaintGpuSurface {
             widget_id: self.common.id,
             key: self.file.path_hash(),
-            revision: 0,
+            revision: self.signal_revision(),
             rect: bounds,
             content: GpuSurfaceContent::SignalSummaryBands {
                 frames: self.file.frames,
                 band_count: BAND_COUNT,
                 frame_range: [self.viewport.start as f32, self.viewport.end as f32],
-                summary: Arc::clone(&self.file.gpu_signal_summary),
+                summary,
             },
             capabilities: GpuSurfaceCapabilities {
                 fast_pointer_move: true,
@@ -1235,6 +1315,7 @@ impl WaveformWidget {
         if let Some(fade_rect) = self.fade_out_rect(bounds, selection, selection_rect) {
             self.push_fill(primitives, fade_rect, Rgba8 { a: 52, ..accent });
         }
+        self.append_edit_fade_curve_paint(primitives, bounds, selection_rect, accent);
         for handle in [
             WaveformEditFadeHandle::FadeInEnd,
             WaveformEditFadeHandle::FadeOutStart,
@@ -1244,6 +1325,88 @@ impl WaveformWidget {
             if let Some(rect) = self.edit_fade_handle_rect(bounds, selection_rect, handle) {
                 self.push_fill(primitives, rect, Rgba8 { a: 205, ..accent });
             }
+        }
+    }
+
+    fn append_edit_fade_curve_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        selection_rect: Rect,
+        color: Rgba8,
+    ) {
+        let Some(selection) = self.edit_selection else {
+            return;
+        };
+        let width = selection.width();
+        if width <= 0.0 {
+            return;
+        }
+        if let Some(fade_in) = selection.fade_in().filter(|fade| fade.length > 0.0) {
+            let start = selection.start();
+            let end = (start + width * fade_in.length).min(selection.end());
+            self.push_edit_fade_curve_points(
+                primitives,
+                bounds,
+                selection_rect,
+                selection,
+                start,
+                end,
+                Rgba8 { a: 225, ..color },
+            );
+        }
+        if let Some(fade_out) = selection.fade_out().filter(|fade| fade.length > 0.0) {
+            let end = selection.end();
+            let start = (end - width * fade_out.length).max(selection.start());
+            self.push_edit_fade_curve_points(
+                primitives,
+                bounds,
+                selection_rect,
+                selection,
+                start,
+                end,
+                Rgba8 { a: 225, ..color },
+            );
+        }
+    }
+
+    fn push_edit_fade_curve_points(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        selection_rect: Rect,
+        selection: sempal::selection::SelectionRange,
+        start: f32,
+        end: f32,
+        color: Rgba8,
+    ) {
+        let width = ((end - start).abs() * bounds.width()).max(1.0);
+        let steps = ((width / 4.0).round() as usize).clamp(10, 96);
+        let marker = 2.25_f32.min(selection_rect.height().max(1.0));
+        for step in 0..=steps {
+            let t = step as f32 / steps as f32;
+            let position = start + (end - start) * t;
+            let Some(visible_ratio) = self.visible_ratio_for_absolute(Some(position)) else {
+                continue;
+            };
+            let x = bounds.min.x + bounds.width() * visible_ratio.clamp(0.0, 1.0);
+            let gain = selection.gain_at_position(position, 0.0).clamp(0.0, 1.0);
+            let y = selection_rect.max.y - selection_rect.height() * gain;
+            let half = marker * 0.5;
+            self.push_fill(
+                primitives,
+                Rect::from_min_max(
+                    Point::new(
+                        (x - half).clamp(bounds.min.x, bounds.max.x),
+                        (y - half).clamp(selection_rect.min.y, selection_rect.max.y),
+                    ),
+                    Point::new(
+                        (x + half).clamp(bounds.min.x, bounds.max.x),
+                        (y + half).clamp(selection_rect.min.y, selection_rect.max.y),
+                    ),
+                ),
+                color,
+            );
         }
     }
 
@@ -1944,9 +2107,50 @@ mod tests {
     }
 
     #[test]
+    fn edit_fade_curve_paints_volume_trace_as_overlay_rects() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.edit_selection = Some(
+            sempal::selection::SelectionRange::new(0.2, 0.6)
+                .with_fade_in(0.5, 0.8)
+                .with_fade_out(0.25, 0.0),
+        );
+        let widget = WaveformWidget::new(
+            state.file(),
+            state.viewport(),
+            state.cursor_ratio(),
+            state.playhead_ratio(),
+            state.play_mark_ratio(),
+            state.edit_mark_ratio(),
+            state.play_selection(),
+            state.edit_selection(),
+            state.active_drag_kind(),
+        );
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0)),
+            &Default::default(),
+            &ThemeTokens::default(),
+        );
+
+        let curve_points = fill_rects(&primitives)
+            .into_iter()
+            .filter(|fill| {
+                (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 225)
+            })
+            .count();
+        assert!(
+            curve_points >= 16,
+            "expected visible fade curve trace points, got {curve_points}"
+        );
+    }
+
+    #[test]
     fn signal_widget_paints_gpu_surface_without_app_overlay_handles() {
         let state = WaveformState::synthetic_for_tests();
-        let widget = WaveformSignalWidget::new(state.file(), state.viewport());
+        let widget =
+            WaveformSignalWidget::new(state.file(), state.viewport(), state.edit_selection());
         let mut primitives = Vec::new();
 
         widget.append_paint(
@@ -1972,6 +2176,47 @@ mod tests {
             .expect("waveform gpu surface");
 
         assert!(surface.overlays.is_empty());
+    }
+
+    #[test]
+    fn signal_widget_applies_active_edit_fade_to_gpu_summary() {
+        let file = Arc::new(waveform_file_from_mono_samples(
+            "fade-preview.wav".into(),
+            Arc::from([]),
+            48_000,
+            1,
+            vec![1.0; 16],
+        ));
+        let viewport = super::WaveformViewport::full(file.frames);
+        let edit_selection =
+            Some(sempal::selection::SelectionRange::new(0.0, 1.0).with_fade_in(1.0, 0.0));
+        let widget = WaveformSignalWidget::new(file, viewport, edit_selection);
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0)),
+            &Default::default(),
+            &ThemeTokens::default(),
+        );
+
+        let surface = primitives
+            .iter()
+            .find_map(|primitive| match primitive {
+                PaintPrimitive::GpuSurface(surface) => Some(surface),
+                _ => None,
+            })
+            .expect("waveform gpu surface");
+
+        assert!(surface.revision > 0);
+        let GpuSurfaceContent::SignalSummaryBands { summary, .. } = &surface.content else {
+            panic!("expected signal summary bands");
+        };
+        let buckets = &summary.levels[0].buckets;
+        let first_raw = &buckets[3];
+        let last_raw = &buckets[(15 * BAND_COUNT) + 3];
+        assert!(first_raw.max.abs().max(first_raw.min.abs()) < 0.001);
+        assert!(last_raw.max.abs().max(last_raw.min.abs()) > 0.9);
     }
 
     fn fill_rects(primitives: &[PaintPrimitive]) -> Vec<&PaintFillRect> {

@@ -248,6 +248,19 @@ impl SelectionRange {
             || (self.gain - 1.0).abs() > f32::EPSILON
     }
 
+    /// Gain at one normalized position according to this selection's edit effects.
+    pub fn gain_at_position(&self, position: f32, min_fade_len: f32) -> f32 {
+        fade_gain_at_position(
+            position,
+            self.start(),
+            self.end(),
+            self.gain(),
+            self.fade_in(),
+            self.fade_out(),
+            min_fade_len,
+        )
+    }
+
     /// Set fade-in parameters.
     ///
     /// Keeps a zero-length fade when a mute region is configured so mute handles persist.
