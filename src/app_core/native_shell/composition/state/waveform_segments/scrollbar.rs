@@ -3,9 +3,9 @@ use super::*;
 /// Horizontal inset used by the waveform scrollbar track.
 const WAVEFORM_SCROLLBAR_INSET_X: f32 = 10.0;
 /// Bottom inset used by the waveform scrollbar track.
-const WAVEFORM_SCROLLBAR_INSET_BOTTOM: f32 = 3.0;
+const WAVEFORM_SCROLLBAR_INSET_BOTTOM: f32 = 5.0;
 /// Track height used by the waveform scrollbar.
-const WAVEFORM_SCROLLBAR_TRACK_HEIGHT: f32 = 6.0;
+const WAVEFORM_SCROLLBAR_TRACK_HEIGHT: f32 = 3.0;
 /// Minimum thumb width for the waveform scrollbar.
 const WAVEFORM_SCROLLBAR_MIN_THUMB_WIDTH: f32 = 28.0;
 
@@ -37,14 +37,14 @@ pub(super) fn emit_waveform_scrollbar(
         primitives,
         Primitive::Rect(FillRect {
             rect: scrollbar.track,
-            color: blend_color(style.border, style.bg_secondary, 0.22),
+            color: blend_color(style.border, style.bg_secondary, 0.12),
         }),
     );
     emit_primitive(
         primitives,
         Primitive::Rect(FillRect {
             rect: scrollbar.thumb,
-            color: blend_color(style.text_muted, style.text_primary, 0.32),
+            color: blend_color(style.text_muted, style.text_primary, 0.18),
         }),
     );
 }
@@ -77,6 +77,9 @@ pub(crate) fn waveform_scrollbar_layout(
         .min(1_000_000)
         .max(clamped_start.saturating_add(1));
     let span = clamped_end.saturating_sub(clamped_start).max(1);
+    if span >= 999_999 {
+        return None;
+    }
     let min_thumb_width = WAVEFORM_SCROLLBAR_MIN_THUMB_WIDTH.min(track.width());
     let thumb_width = (track.width() * (span as f32 / 1_000_000.0))
         .round()

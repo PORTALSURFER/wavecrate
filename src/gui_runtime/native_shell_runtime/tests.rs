@@ -199,6 +199,54 @@ mod tests {
     }
 
     #[test]
+    fn retained_auxiliary_drag_pans_zoomed_waveform_view() {
+        let repaint_installed = Arc::new(AtomicBool::new(false));
+        let mut model = NativeAppModel::default();
+        model.waveform.view_start_micros = 250_000;
+        model.waveform.view_end_micros = 500_000;
+        let mut bridge = SempalRuntimeBridge::new(RecordingBridge {
+            model: Arc::new(model),
+            reduced: Vec::new(),
+            repaint_installed,
+            exit_status: None,
+        });
+        let _ = bridge.project_surface();
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let anchor = layout.waveform_plot.center();
+
+        assert!(
+            bridge
+                .update(SempalRuntimeMessage::RetainedInput(
+                    WidgetInput::PointerPress {
+                        position: anchor,
+                        button: PointerButton::Auxiliary,
+                    }
+                ))
+                .requests_repaint()
+        );
+        assert!(
+            bridge
+                .update(SempalRuntimeMessage::RetainedInput(
+                    WidgetInput::PointerMove {
+                        position: Point::new(
+                            anchor.x - layout.waveform_plot.width() * 0.25,
+                            anchor.y
+                        ),
+                    }
+                ))
+                .requests_repaint()
+        );
+
+        assert!(matches!(
+            bridge.inner.reduced.last(),
+            Some(UiAction::SetWaveformViewCenter {
+                center_micros,
+                center_nanos: None,
+            }) if *center_micros > 375_000
+        ));
+    }
+
+    #[test]
     fn focused_browser_pill_editor_shields_typing_from_shortcuts_and_commits_commas() {
         let mut bridge = WavecrateRuntimeBridge::new(RecordingBridge {
             model: Arc::new(NativeAppModel::default()),

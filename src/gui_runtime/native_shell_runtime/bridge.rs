@@ -20,6 +20,7 @@ pub(super) struct WavecrateRuntimeBridge<B> {
     pending_surface_descriptor: Option<RetainedSurfaceDescriptor>,
     text_input_target: RetainedTextInputTarget,
     text_edit: RetainedTextEditState,
+    waveform_pan_drag: Option<WaveformPanDrag>,
 }
 
 /// Private message surface used by the generic runtime before Wavecrate action reduction.
@@ -57,6 +58,13 @@ struct RetainedTextEditState {
     value: String,
     caret: usize,
     selection_anchor: Option<usize>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct WaveformPanDrag {
+    anchor_x: f32,
+    start_micros: u32,
+    end_micros: u32,
 }
 
 impl RetainedTextEditState {
@@ -159,6 +167,7 @@ impl<B> WavecrateRuntimeBridge<B> {
             pending_surface_descriptor: None,
             text_input_target: RetainedTextInputTarget::None,
             text_edit: RetainedTextEditState::default(),
+            waveform_pan_drag: None,
         }
     }
 
@@ -242,6 +251,11 @@ impl<B: NativeAppBridge> WavecrateRuntimeBridge<B> {
         match input {
             WidgetInput::PointerMove { position } => {
                 let layout = self.build_current_layout();
+                if let Some(action) = self.waveform_pan_drag_action(&layout, position) {
+                    self.emit_action(action);
+                    self.local_overlay_surface_refresh = true;
+                    return true;
+                }
                 let _effect =
                     self.shell_state
                         .handle_cursor_move_effect(&layout, &self.model, position);
@@ -249,10 +263,15 @@ impl<B: NativeAppBridge> WavecrateRuntimeBridge<B> {
                 true
             }
             WidgetInput::PointerPress { position, button } => {
+                let layout = self.build_current_layout();
+                if button == PointerButton::Auxiliary {
+                    self.begin_waveform_pan_drag(&layout, position);
+                    self.local_overlay_surface_refresh = true;
+                    return true;
+                }
                 if button != PointerButton::Primary {
                     return true;
                 }
-                let layout = self.build_current_layout();
                 if let Some(action) = action_from_retained_pointer(
                     &layout,
                     &self.model,
@@ -264,6 +283,14 @@ impl<B: NativeAppBridge> WavecrateRuntimeBridge<B> {
                         self.sync_text_edit_from_model();
                     }
                 }
+                true
+            }
+            WidgetInput::PointerRelease {
+                button: PointerButton::Auxiliary,
+                ..
+            } => {
+                self.waveform_pan_drag = None;
+                self.local_overlay_surface_refresh = true;
                 true
             }
             WidgetInput::PointerRelease { .. } | WidgetInput::FocusChanged(_) => {
@@ -284,6 +311,39 @@ impl<B: NativeAppBridge> WavecrateRuntimeBridge<B> {
             .unwrap_or_else(|| Vector2::new(1280.0, 720.0));
         let style = StyleTokens::for_viewport_with_scale(viewport.x, 1.0);
         ShellLayout::build_with_style_and_runtime(viewport, &style, &mut self.layout_runtime)
+    }
+
+    fn begin_waveform_pan_drag(&mut self, layout: &ShellLayout, position: Point) {
+        self.waveform_pan_drag = None;
+        if !layout.waveform_plot.contains(position) {
+            return;
+        }
+        let viewport = self.model.waveform.viewport();
+        if viewport.end_micros.saturating_sub(viewport.start_micros) >= 999_999 {
+            return;
+        }
+        self.waveform_pan_drag = Some(WaveformPanDrag {
+            anchor_x: position.x,
+            start_micros: viewport.start_micros,
+            end_micros: viewport.end_micros,
+        });
+    }
+
+    fn waveform_pan_drag_action(&self, layout: &ShellLayout, position: Point) -> Option<UiAction> {
+        let drag = self.waveform_pan_drag?;
+        let span = drag.end_micros.saturating_sub(drag.start_micros).max(1);
+        if span >= 999_999 || layout.waveform_plot.width() <= 1.0 {
+            return None;
+        }
+        let delta_ratio = (position.x - drag.anchor_x) / layout.waveform_plot.width().max(1.0);
+        let delta_micros = (delta_ratio * span as f32).round() as i64;
+        let max_start = 1_000_000i64.saturating_sub(i64::from(span));
+        let start = (i64::from(drag.start_micros) - delta_micros).clamp(0, max_start);
+        let center_micros = (start + i64::from(span / 2)).clamp(0, 1_000_000) as u32;
+        Some(UiAction::SetWaveformViewCenter {
+            center_micros,
+            center_nanos: None,
+        })
     }
 
     /// Handle one non-text key intent routed through the focused retained canvas.

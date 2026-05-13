@@ -823,4 +823,25 @@ mod opt_272_tests {
             Some(model.sources.upper_folder_pane.tree_rows.len() - rows.len())
         );
     }
+
+    #[test]
+    fn waveform_scrollbar_thumb_tracks_zoomed_view_position() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let scrollbar = waveform_scrollbar_layout(layout.waveform_scrollbar_lane, 250_000, 500_000)
+            .expect("zoomed waveform view should render a scrollbar");
+
+        assert!(scrollbar.track.min.y >= layout.waveform_scrollbar_lane.min.y);
+        assert!(scrollbar.track.max.y <= layout.waveform_scrollbar_lane.max.y);
+        assert!(scrollbar.track.min.y >= layout.waveform_plot.max.y);
+        assert!(scrollbar.thumb.min.x > scrollbar.track.min.x);
+        assert!(scrollbar.thumb.max.x < scrollbar.track.max.x);
+        assert!(scrollbar.track.height() <= 3.0);
+    }
+
+    #[test]
+    fn waveform_scrollbar_hides_when_view_is_fully_zoomed_out() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+
+        assert!(waveform_scrollbar_layout(layout.waveform_scrollbar_lane, 0, 1_000_000).is_none());
+    }
 }
