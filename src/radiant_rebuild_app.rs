@@ -1,9 +1,19 @@
 //! Radiant-first Sempal application rebuilt incrementally beside the legacy sample.
 
-use radiant::layout::Vector2;
+use radiant::gui::{
+    svg::{parse_svg_document, point_in_svg_shapes},
+    types::{ImageRgba, Point, Rect, Rgba8},
+};
+use radiant::layout::{LayoutOutput, Vector2};
 use radiant::prelude as ui;
-use radiant::runtime::{NativeRunOptions, NativeTextOptions};
-use radiant::widgets::{DragHandleMessage, ScrollbarMessage, TextInputWidget, WidgetSizing};
+use radiant::runtime::{
+    NativeRunOptions, NativeTextOptions, PaintFillRect, PaintImage, PaintPrimitive, PaintStrokeRect,
+};
+use radiant::theme::ThemeTokens;
+use radiant::widgets::{
+    DragHandleMessage, FocusBehavior, PaintBounds, PointerButton, ScrollbarMessage,
+    TextInputWidget, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
+};
 use rfd::FileDialog;
 use sempal::audio::AudioPlayer;
 use sempal::gui_runtime::sempal_ui_font_path;
@@ -11,7 +21,10 @@ use std::{
     ffi::OsString,
     fs,
     path::Path,
-    sync::mpsc::{self, Receiver, Sender},
+    sync::{
+        Arc,
+        mpsc::{self, Receiver, Sender},
+    },
     time::Duration,
 };
 
@@ -40,6 +53,7 @@ enum RebuildMessage {
     FolderScanFinished(FolderScanResult),
     SelectSample(String),
     PlaySelectedSample,
+    StopPlayback,
     FocusRenameInput(u64),
     NavigateBrowser(i32),
     CollapseSelectedFolder,
@@ -157,6 +171,7 @@ impl RebuildLayoutState {
             RebuildMessage::FolderScanFinished(result) => self.finish_folder_scan(result),
             RebuildMessage::SelectSample(path) => self.select_sample(path),
             RebuildMessage::PlaySelectedSample => self.play_selected_sample(),
+            RebuildMessage::StopPlayback => self.stop_playback(),
             RebuildMessage::FocusRenameInput(input_id) => {
                 context.focus(input_id);
             }
@@ -343,6 +358,14 @@ impl RebuildLayoutState {
         }
     }
 
+    fn stop_playback(&mut self) {
+        if let Some(player) = self.audio_player.as_mut() {
+            player.stop();
+        }
+        self.waveform.stop_playback();
+        self.sample_status = format!("Stopped {}", self.waveform.file_name());
+    }
+
     fn start_playback_path(&mut self, path: &Path, start_ratio: f32) -> Result<(), String> {
         let bytes = fs::read(path).map_err(|err| format!("failed to read sample: {err}"))?;
         if self.audio_player.is_none() {
@@ -507,6 +530,8 @@ fn main_area(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
 fn main_toolbar(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
     let audio_count = state.folder_browser.selected_audio_files().len();
     ui::row([
+        toolbar_icon_button(20, ToolbarIcon::Play, true, state.waveform.is_playing()),
+        toolbar_icon_button(21, ToolbarIcon::Stop, state.waveform.is_playing(), false),
         ui::text("Source").height(22.0).width(80.0),
         ui::text("assets/portal_SS_kick_003.wav")
             .height(22.0)
@@ -518,8 +543,223 @@ fn main_toolbar(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
     ])
     .padding_y(3.0)
     .style(ui::WidgetStyle::default())
+    .spacing(4.0)
     .fill_width()
     .height(34.0)
+}
+
+fn toolbar_icon_button(
+    id: u64,
+    icon: ToolbarIcon,
+    enabled: bool,
+    active: bool,
+) -> ui::View<RebuildMessage> {
+    ui::custom_widget(ToolbarIconButton::new(icon, enabled, active), |output| {
+        output.typed_ref::<RebuildMessage>().cloned()
+    })
+    .id(id)
+    .size(28.0, 24.0)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ToolbarIcon {
+    Play,
+    Stop,
+}
+
+impl ToolbarIcon {
+    fn svg(self) -> &'static str {
+        match self {
+            Self::Play => include_str!(
+                "app_core/native_shell/composition/assets/icons/waveform_toolbar/play.svg"
+            ),
+            Self::Stop => include_str!(
+                "app_core/native_shell/composition/assets/icons/waveform_toolbar/stop.svg"
+            ),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct ToolbarIconButton {
+    common: WidgetCommon,
+    icon: ToolbarIcon,
+}
+
+impl ToolbarIconButton {
+    fn new(icon: ToolbarIcon, enabled: bool, active: bool) -> Self {
+        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(28.0, 24.0)));
+        common.focus = FocusBehavior::Keyboard;
+        common.paint.bounds = PaintBounds::ClipToRect;
+        common.state.disabled = !enabled;
+        common.state.active = active;
+        Self { common, icon }
+    }
+}
+
+impl Widget for ToolbarIconButton {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        if self.common.state.disabled {
+            self.common.state.pressed = false;
+            return None;
+        }
+        match input {
+            WidgetInput::PointerMove { position } => {
+                self.common.state.hovered = bounds.contains(position);
+                None
+            }
+            WidgetInput::PointerPress {
+                position,
+                button: PointerButton::Primary,
+            } if bounds.contains(position) => {
+                self.common.state.hovered = true;
+                self.common.state.pressed = true;
+                self.common.state.focused = true;
+                None
+            }
+            WidgetInput::PointerRelease {
+                position,
+                button: PointerButton::Primary,
+            } => {
+                let activated = self.common.state.pressed && bounds.contains(position);
+                self.common.state.pressed = false;
+                self.common.state.hovered = bounds.contains(position);
+                activated.then(|| WidgetOutput::typed(toolbar_button_message(self.icon)))
+            }
+            WidgetInput::FocusChanged(focused) => {
+                self.common.state.focused = focused;
+                if !focused {
+                    self.common.state.pressed = false;
+                }
+                None
+            }
+            WidgetInput::KeyPress(key) if self.common.state.focused => match key {
+                radiant::widgets::WidgetKey::Enter | radiant::widgets::WidgetKey::Space => {
+                    Some(WidgetOutput::typed(toolbar_button_message(self.icon)))
+                }
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        true
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        theme: &ThemeTokens,
+    ) {
+        let tokens = radiant::widgets::resolve_widget_visual_tokens(
+            theme,
+            self.common.style,
+            self.common.state,
+        );
+        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: self.common.id,
+            rect: bounds,
+            color: tokens.fill,
+        }));
+        primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
+            widget_id: self.common.id,
+            rect: bounds,
+            color: tokens.border,
+            width: 1.0,
+        }));
+        if self.common.state.focused && self.common.paint.paints_focus {
+            primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
+                widget_id: self.common.id,
+                rect: Rect::from_min_max(
+                    Point::new(bounds.min.x - 1.0, bounds.min.y - 1.0),
+                    Point::new(bounds.max.x + 1.0, bounds.max.y + 1.0),
+                ),
+                color: tokens.emphasis,
+                width: 1.0,
+            }));
+        }
+        let side = bounds.width().min(bounds.height()).min(16.0).max(8.0);
+        let icon_rect = Rect::from_min_size(
+            Point::new(
+                bounds.min.x + (bounds.width() - side) * 0.5,
+                bounds.min.y + (bounds.height() - side) * 0.5,
+            ),
+            Vector2::new(side, side),
+        );
+        if let Some(image) = rasterize_toolbar_icon(
+            self.icon,
+            side.round() as usize,
+            toolbar_icon_color(tokens.foreground, self.common.state.disabled),
+        ) {
+            primitives.push(PaintPrimitive::Image(PaintImage {
+                widget_id: self.common.id,
+                source_rect: None,
+                rect: icon_rect,
+                image: Arc::new(image),
+            }));
+        }
+    }
+}
+
+fn toolbar_button_message(icon: ToolbarIcon) -> RebuildMessage {
+    match icon {
+        ToolbarIcon::Play => RebuildMessage::PlaySelectedSample,
+        ToolbarIcon::Stop => RebuildMessage::StopPlayback,
+    }
+}
+
+fn toolbar_icon_color(mut color: Rgba8, disabled: bool) -> Rgba8 {
+    if disabled {
+        color.a = (u16::from(color.a) / 2) as u8;
+    }
+    color
+}
+
+fn rasterize_toolbar_icon(icon: ToolbarIcon, side: usize, color: Rgba8) -> Option<ImageRgba> {
+    let document = parse_svg_document(icon.svg())?;
+    let mut pixels = vec![0_u8; side.saturating_mul(side).saturating_mul(4)];
+    let sample_offsets = [
+        (0.25_f32, 0.25_f32),
+        (0.75, 0.25),
+        (0.25, 0.75),
+        (0.75, 0.75),
+    ];
+    for y in 0..side {
+        for x in 0..side {
+            let mut hits = 0_u8;
+            for (offset_x, offset_y) in sample_offsets {
+                let world_x = document.view_box_min_x
+                    + ((x as f32 + offset_x) / side as f32) * document.view_box_width;
+                let world_y = document.view_box_min_y
+                    + ((y as f32 + offset_y) / side as f32) * document.view_box_height;
+                if point_in_svg_shapes(world_x, world_y, &document.shapes) {
+                    hits = hits.saturating_add(1);
+                }
+            }
+            if hits == 0 {
+                continue;
+            }
+            let coverage = hits as f32 / sample_offsets.len() as f32;
+            let alpha = ((color.a as f32) * coverage).round().clamp(0.0, 255.0) as u8;
+            let index = (y * side + x) * 4;
+            pixels[index] = color.r;
+            pixels[index + 1] = color.g;
+            pixels[index + 2] = color.b;
+            pixels[index + 3] = alpha;
+        }
+    }
+    ImageRgba::new(side, side, pixels)
 }
 
 fn waveform_panel(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
@@ -818,7 +1058,11 @@ mod tests {
         DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG, DEFAULT_FOLDER_WIDTH, MAX_FOLDER_WIDTH,
         MIN_FOLDER_WIDTH, RebuildLayoutState, debug_layout_requested,
     };
-    use radiant::{gui::types::Point, prelude as ui, widgets::DragHandleMessage};
+    use radiant::{
+        gui::types::{Point, Rect, Vector2},
+        prelude as ui,
+        widgets::{DragHandleMessage, PointerButton, Widget, WidgetInput},
+    };
     use std::{ffi::OsString, sync::mpsc};
 
     #[test]
@@ -925,6 +1169,58 @@ mod tests {
         assert_eq!(state.waveform.file_name(), "portal_SS_kick_003.wav");
         assert!(state.waveform.frames() > 0);
         assert!(state.sample_status.contains("portal_SS_kick_003.wav"));
+    }
+
+    #[test]
+    fn toolbar_icon_assets_parse_and_rasterize() {
+        for icon in [super::ToolbarIcon::Play, super::ToolbarIcon::Stop] {
+            assert!(super::parse_svg_document(icon.svg()).is_some());
+            let image = super::rasterize_toolbar_icon(
+                icon,
+                16,
+                super::Rgba8 {
+                    r: 255,
+                    g: 255,
+                    b: 255,
+                    a: 255,
+                },
+            )
+            .expect("icon should rasterize");
+            assert_eq!(image.width, 16);
+            assert_eq!(image.height, 16);
+            assert!(image.pixels.chunks_exact(4).any(|pixel| pixel[3] > 0));
+        }
+    }
+
+    #[test]
+    fn toolbar_icon_button_emits_transport_message_on_release() {
+        let mut button = super::ToolbarIconButton::new(super::ToolbarIcon::Stop, true, false);
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(28.0, 24.0));
+
+        assert_eq!(
+            button.handle_input(
+                bounds,
+                WidgetInput::PointerPress {
+                    position: Point::new(12.0, 12.0),
+                    button: PointerButton::Primary,
+                },
+            ),
+            None
+        );
+        let output = button
+            .handle_input(
+                bounds,
+                WidgetInput::PointerRelease {
+                    position: Point::new(12.0, 12.0),
+                    button: PointerButton::Primary,
+                },
+            )
+            .expect("button output");
+
+        assert_eq!(
+            output.typed_ref::<super::RebuildMessage>(),
+            Some(&super::RebuildMessage::StopPlayback)
+        );
     }
 
     #[test]
