@@ -144,7 +144,10 @@ fn space_play_from_start_uses_visible_playmark_selection_span() {
     controller.apply_native_ui_action(NativeUiAction::PlayFromStart);
 
     assert!(controller.is_playing());
-    assert_eq!(controller.ui.waveform.last_start_marker, Some(selection.start()));
+    assert_eq!(
+        controller.ui.waveform.last_start_marker,
+        Some(selection.start())
+    );
     assert_eq!(
         controller.ui.waveform.playhead.active_span_end,
         Some(selection.end())

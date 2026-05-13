@@ -350,7 +350,7 @@ impl GuiAppState {
             Ok(waveform) => {
                 let file_name = waveform.file_name();
                 self.waveform = waveform;
-                match self.start_playback_current(0.0) {
+                match self.start_playback_current_span(0.0, 1.0) {
                     Ok(()) => {
                         self.sample_status = format!("Playing {file_name}");
                     }
@@ -373,7 +373,13 @@ impl GuiAppState {
             self.select_sample(path.to_string(), context);
             return;
         }
-        match self.start_playback_current(0.0) {
+        let (start, end) = self
+            .waveform
+            .play_selection()
+            .filter(|selection| selection.width() > 0.0)
+            .map(|selection| (selection.start(), selection.end()))
+            .unwrap_or((0.0, 1.0));
+        match self.start_playback_current_span(start, end) {
             Ok(()) => {
                 self.sample_status = format!("Playing {}", self.waveform.file_name());
             }
@@ -384,7 +390,7 @@ impl GuiAppState {
     }
 
     fn play_waveform_from_ratio(&mut self, start_ratio: f32) {
-        match self.start_playback_current(start_ratio) {
+        match self.start_playback_current_span(start_ratio, 1.0) {
             Ok(()) => {
                 self.sample_status = format!(
                     "Playing {} from {:.1}%",
@@ -406,18 +412,23 @@ impl GuiAppState {
         self.sample_status = format!("Stopped {}", self.waveform.file_name());
     }
 
-    fn start_playback_current(&mut self, start_ratio: f32) -> Result<(), String> {
+    fn start_playback_current_span(
+        &mut self,
+        start_ratio: f32,
+        end_ratio: f32,
+    ) -> Result<(), String> {
         if self.audio_player.is_none() {
             self.audio_player = Some(AudioPlayer::new()?);
         }
         let start_ratio = start_ratio.clamp(0.0, 1.0);
+        let end_ratio = end_ratio.clamp(start_ratio, 1.0);
         let duration = self.waveform.frames() as f32 / self.waveform.sample_rate().max(1) as f32;
         let player = self
             .audio_player
             .as_mut()
             .ok_or_else(|| String::from("audio player did not initialize"))?;
         player.set_audio(self.waveform.audio_bytes(), duration);
-        player.play_from_fraction(f64::from(start_ratio))?;
+        player.play_range(f64::from(start_ratio), f64::from(end_ratio), false)?;
         self.waveform.start_playback(start_ratio);
         Ok(())
     }
@@ -1093,9 +1104,10 @@ fn worker_progress_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
 
 #[cfg(test)]
 mod tests {
+    use super::waveform::WaveformSelectionKind;
     use super::{
         DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG, DEFAULT_FOLDER_WIDTH, GuiAppState,
-        MAX_FOLDER_WIDTH, MIN_FOLDER_WIDTH, debug_layout_requested,
+        MAX_FOLDER_WIDTH, MIN_FOLDER_WIDTH, WaveformInteraction, debug_layout_requested,
     };
     use radiant::{
         gui::types::{Point, Rect, Vector2},
@@ -1221,6 +1233,46 @@ mod tests {
         assert_eq!(state.waveform.file_name(), "portal_SS_kick_003.wav");
         assert!(state.waveform.frames() > 0);
         assert!(state.sample_status.contains("portal_SS_kick_003.wav"));
+    }
+
+    #[test]
+    fn play_selected_sample_uses_active_playmark_selection_span() {
+        let Ok(player) = sempal::audio::AudioPlayer::new() else {
+            return;
+        };
+        let mut state = GuiAppState::load_default().expect("default state loads");
+        state.audio_player = Some(player);
+        state
+            .waveform
+            .apply_interaction(WaveformInteraction::BeginSelection {
+                kind: WaveformSelectionKind::Play,
+                visible_ratio: 0.25,
+            });
+        state
+            .waveform
+            .apply_interaction(WaveformInteraction::UpdateSelection {
+                visible_ratio: 0.60,
+            });
+        state
+            .waveform
+            .apply_interaction(WaveformInteraction::FinishSelection {
+                visible_ratio: 0.60,
+            });
+
+        let mut context = ui::UpdateContext::default();
+        state.play_selected_sample(&mut context);
+
+        assert!(state.waveform.is_playing());
+        assert_eq!(state.waveform.play_mark_ratio(), Some(0.25));
+        let progress = state
+            .audio_player
+            .as_ref()
+            .and_then(|player| player.progress())
+            .expect("playback progress");
+        assert!(
+            (0.24..=0.35).contains(&progress),
+            "spacebar playback should start inside the playmark selection, got {progress}"
+        );
     }
 
     #[test]
