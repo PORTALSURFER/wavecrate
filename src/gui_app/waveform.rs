@@ -228,6 +228,10 @@ impl WaveformState {
                 )));
                 self.update_active_edit_fade(ratio);
             }
+            WaveformInteraction::ClearEditFadeSilence { handle } => {
+                self.clear_edit_fade_silence(handle);
+                self.active_drag = None;
+            }
             WaveformInteraction::BeginSelectionResize {
                 kind,
                 edge,
@@ -414,6 +418,24 @@ impl WaveformState {
         self.edit_selection = Some(drag.apply(selection, ratio));
     }
 
+    fn clear_edit_fade_silence(&mut self, handle: WaveformEditFadeHandle) {
+        let Some(selection) = self.edit_selection else {
+            return;
+        };
+        let next = match handle {
+            WaveformEditFadeHandle::FadeInOuterStart => selection
+                .fade_in()
+                .map(|fade| selection.with_fade_in_and_mute(fade.length, fade.curve, 0.0)),
+            WaveformEditFadeHandle::FadeOutOuterEnd => selection
+                .fade_out()
+                .map(|fade| selection.with_fade_out_and_mute(fade.length, fade.curve, 0.0)),
+            _ => None,
+        };
+        if let Some(next) = next {
+            self.edit_selection = Some(next);
+        }
+    }
+
     fn update_active_selection_resize(&mut self, ratio: f32) {
         let Some(WaveformDrag::SelectionResize(drag)) = self.active_drag else {
             return;
@@ -477,6 +499,9 @@ pub(super) enum WaveformInteraction {
     BeginEditFade {
         handle: WaveformEditFadeHandle,
         visible_ratio: f32,
+    },
+    ClearEditFadeSilence {
+        handle: WaveformEditFadeHandle,
     },
     BeginSelectionResize {
         kind: WaveformSelectionKind,
@@ -687,10 +712,10 @@ impl WaveformEditFadeDrag {
                 resize_fade_out_start_with_collision(selection, self.baseline, ratio, self.curve)
             }
             WaveformEditFadeHandle::FadeInStart => {
-                resize_fade_in_start(selection, self.fixed_ratio, ratio, self.curve)
+                resize_fade_in_start(self.baseline, self.fixed_ratio, ratio, self.curve)
             }
             WaveformEditFadeHandle::FadeOutEnd => {
-                resize_fade_out_end(selection, self.fixed_ratio, ratio, self.curve)
+                resize_fade_out_end(self.baseline, self.fixed_ratio, ratio, self.curve)
             }
             WaveformEditFadeHandle::FadeInOuterStart => {
                 resize_fade_in_outer_start(selection, ratio)
@@ -1555,6 +1580,21 @@ impl Widget for WaveformWidget {
                     kind: WaveformSelectionKind::Play,
                     visible_ratio: self.ratio_from_position(bounds, position),
                 }))
+            }
+            WidgetInput::PointerDoubleClick {
+                position,
+                button: PointerButton::Primary,
+            } if bounds.contains(position) => {
+                if let Some(
+                    handle @ (WaveformEditFadeHandle::FadeInOuterStart
+                    | WaveformEditFadeHandle::FadeOutOuterEnd),
+                ) = self.edit_fade_handle_at(bounds, position)
+                {
+                    return Some(WidgetOutput::typed(
+                        WaveformInteraction::ClearEditFadeSilence { handle },
+                    ));
+                }
+                None
             }
             WidgetInput::PointerPress {
                 position,
@@ -2857,6 +2897,134 @@ mod tests {
         assert!((fade_out_outer_end - 1.0).abs() < 0.001);
         assert!(fade_out.length.abs() < 0.001);
         assert!((fade_out.curve - 0.7).abs() < 0.001);
+    }
+
+    #[test]
+    fn edit_fade_out_bottom_handle_does_not_pick_up_silence_during_same_drag() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.edit_selection = Some(
+            wavecrate::selection::SelectionRange::new(0.2, 0.6)
+                .with_fade_out(0.25, 0.7)
+                .with_fade_out_mute(1.0),
+        );
+
+        state.apply_interaction(WaveformInteraction::BeginEditFade {
+            handle: WaveformEditFadeHandle::FadeOutEnd,
+            visible_ratio: 0.6,
+        });
+        state.apply_interaction(WaveformInteraction::UpdateSelection { visible_ratio: 1.0 });
+        state.apply_interaction(WaveformInteraction::UpdateSelection { visible_ratio: 0.7 });
+
+        let selection = state.edit_selection().expect("edit selection");
+        let fade_out = selection
+            .fade_out()
+            .expect("fade-out silence handle should remain");
+        let fade_out_start = selection.end() - selection.width() * fade_out.length;
+        let fade_out_outer_end = selection.end() + selection.width() * fade_out.mute;
+
+        assert!((selection.end() - 0.7).abs() < 0.001);
+        assert!((fade_out_start - 0.5).abs() < 0.001);
+        assert!((fade_out_outer_end - 1.0).abs() < 0.000_001);
+    }
+
+    #[test]
+    fn edit_fade_out_bottom_handle_keeps_collapsed_silence_after_release() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.edit_selection = Some(
+            wavecrate::selection::SelectionRange::new(0.2, 0.6)
+                .with_fade_out(0.25, 0.7)
+                .with_fade_out_mute(1.0),
+        );
+
+        state.apply_interaction(WaveformInteraction::BeginEditFade {
+            handle: WaveformEditFadeHandle::FadeOutEnd,
+            visible_ratio: 0.6,
+        });
+        state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 1.0 });
+        state.apply_interaction(WaveformInteraction::BeginEditFade {
+            handle: WaveformEditFadeHandle::FadeOutEnd,
+            visible_ratio: 1.0,
+        });
+        state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.7 });
+
+        let selection = state.edit_selection().expect("edit selection");
+        let fade_out = selection.fade_out().expect("fade-out should remain");
+        let fade_out_outer_end = selection.end() + selection.width() * fade_out.mute;
+
+        assert!((selection.end() - 0.7).abs() < 0.001);
+        assert!((fade_out_outer_end - 0.7).abs() < 0.000_001);
+    }
+
+    #[test]
+    fn double_click_outer_fade_handles_collapses_silence_without_clearing_fade() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.edit_selection = Some(
+            wavecrate::selection::SelectionRange::new(0.2, 0.6)
+                .with_fade_in(0.25, 0.2)
+                .with_fade_in_mute(0.5)
+                .with_fade_out(0.25, 0.7)
+                .with_fade_out_mute(0.75),
+        );
+
+        state.apply_interaction(WaveformInteraction::ClearEditFadeSilence {
+            handle: WaveformEditFadeHandle::FadeInOuterStart,
+        });
+        state.apply_interaction(WaveformInteraction::ClearEditFadeSilence {
+            handle: WaveformEditFadeHandle::FadeOutOuterEnd,
+        });
+
+        let selection = state.edit_selection().expect("edit selection");
+        let fade_in = selection.fade_in().expect("fade-in should remain");
+        let fade_out = selection.fade_out().expect("fade-out should remain");
+        assert!((fade_in.length - 0.25).abs() < 0.001);
+        assert!((fade_in.curve - 0.2).abs() < 0.001);
+        assert!(fade_in.mute.abs() < 0.001);
+        assert!((fade_out.length - 0.25).abs() < 0.001);
+        assert!((fade_out.curve - 0.7).abs() < 0.001);
+        assert!(fade_out.mute.abs() < 0.001);
+    }
+
+    #[test]
+    fn double_click_on_outer_fade_handle_emits_silence_clear_interaction() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.edit_selection = Some(
+            wavecrate::selection::SelectionRange::new(0.2, 0.6)
+                .with_fade_out(0.25, 0.7)
+                .with_fade_out_mute(0.25),
+        );
+        let mut widget = WaveformWidget::new(
+            state.file(),
+            state.viewport(),
+            state.cursor_ratio(),
+            state.playhead_ratio(),
+            state.play_mark_ratio(),
+            state.edit_mark_ratio(),
+            state.play_selection(),
+            state.edit_selection(),
+            state.active_drag_kind(),
+        );
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
+
+        let output = widget
+            .handle_input(
+                bounds,
+                WidgetInput::PointerDoubleClick {
+                    position: Point::new(140.0, 40.0),
+                    button: PointerButton::Primary,
+                },
+            )
+            .expect("outer fade double-click interaction");
+        let interaction = output
+            .typed_ref::<WaveformInteraction>()
+            .copied()
+            .expect("waveform interaction");
+
+        assert_eq!(
+            interaction,
+            WaveformInteraction::ClearEditFadeSilence {
+                handle: WaveformEditFadeHandle::FadeOutOuterEnd
+            }
+        );
     }
 
     #[test]
