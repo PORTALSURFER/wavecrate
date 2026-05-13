@@ -43,6 +43,7 @@ const MIN_FOLDER_WIDTH: f32 = 180.0;
 const MAX_FOLDER_WIDTH: f32 = 420.0;
 const WAVEFORM_VIEW_HEIGHT: f32 = 172.0;
 const WAVEFORM_PANEL_HEIGHT: f32 = 226.0;
+const PLAYBACK_START_ACTIVE_SOURCE_GRACE: Duration = Duration::from_millis(120);
 
 #[derive(Clone, Debug, PartialEq)]
 enum GuiMessage {
@@ -906,7 +907,11 @@ impl GuiAppState {
             );
             return;
         }
-        if player.is_playing() {
+        if player.is_playing()
+            || player
+                .playback_elapsed()
+                .is_some_and(|elapsed| elapsed <= PLAYBACK_START_ACTIVE_SOURCE_GRACE)
+        {
             if let Some(progress) = player.progress() {
                 self.waveform.set_playhead_ratio(progress);
             }
