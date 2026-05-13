@@ -528,18 +528,10 @@ fn main_area(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
 }
 
 fn main_toolbar(state: &RebuildLayoutState) -> ui::View<RebuildMessage> {
-    let audio_count = state.folder_browser.selected_audio_files().len();
     ui::row([
+        ui::spacer().height(24.0).fill_width(),
         toolbar_icon_button(20, ToolbarIcon::Play, true, state.waveform.is_playing()),
         toolbar_icon_button(21, ToolbarIcon::Stop, state.waveform.is_playing(), false),
-        ui::text("Source").height(22.0).width(80.0),
-        ui::text("assets/portal_SS_kick_003.wav")
-            .height(22.0)
-            .fill_width()
-            .truncate(),
-        ui::text(format!("{audio_count} audio"))
-            .height(22.0)
-            .width(96.0),
     ])
     .padding_y(3.0)
     .style(ui::WidgetStyle::default())
