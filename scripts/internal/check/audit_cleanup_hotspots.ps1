@@ -120,7 +120,7 @@ function Get-ScopeLabel {
   if (Test-IsVendorPath -FilePath $FilePath) {
     return "Vendor/Radiant"
   }
-  return "Sempal root"
+  return "Wavecrate root"
 }
 
 function Get-SuppressionCounts {
@@ -300,17 +300,17 @@ try {
   if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($commit)) {
     $commit = "unknown"
   }
-  $rootEntries = @($fileEntries | Where-Object { $_.Scope -eq "Sempal root" })
+  $rootEntries = @($fileEntries | Where-Object { $_.Scope -eq "Wavecrate root" })
   $vendorEntries = @($fileEntries | Where-Object { $_.Scope -eq "Vendor/Radiant" })
-  $rootOverLimit = @($overLimit | Where-Object { $_.Scope -eq "Sempal root" })
+  $rootOverLimit = @($overLimit | Where-Object { $_.Scope -eq "Wavecrate root" })
   $vendorOverLimit = @($overLimit | Where-Object { $_.Scope -eq "Vendor/Radiant" })
   $rootFunctionSpans = @($functionSpans | Where-Object { -not (Test-IsVendorPath -FilePath $_.Location) })
   $vendorFunctionSpans = @($functionSpans | Where-Object { Test-IsVendorPath -FilePath $_.Location })
-  $rootDeadCounts = @($deadCounts | Where-Object { $_.Scope -eq "Sempal root" })
+  $rootDeadCounts = @($deadCounts | Where-Object { $_.Scope -eq "Wavecrate root" })
   $vendorDeadCounts = @($deadCounts | Where-Object { $_.Scope -eq "Vendor/Radiant" })
-  $rootTmaCounts = @($tmaCounts | Where-Object { $_.Scope -eq "Sempal root" })
+  $rootTmaCounts = @($tmaCounts | Where-Object { $_.Scope -eq "Wavecrate root" })
   $vendorTmaCounts = @($tmaCounts | Where-Object { $_.Scope -eq "Vendor/Radiant" })
-  $rootTestGaps = @($testGaps | Where-Object { $_.Scope -eq "Sempal root" })
+  $rootTestGaps = @($testGaps | Where-Object { $_.Scope -eq "Wavecrate root" })
   $vendorTestGaps = @($testGaps | Where-Object { $_.Scope -eq "Vendor/Radiant" })
 
   $writer = [System.IO.StreamWriter]::new((Resolve-Path -LiteralPath (New-Item -ItemType File -Path $Output -Force)).Path, $false, [System.Text.UTF8Encoding]::new($false))
@@ -331,13 +331,13 @@ try {
     $writer.WriteLine(("- Files with {0} suppressions: {1}" -f (Format-Code "dead_code"), ($deadCounts | Measure-Object | Select-Object -ExpandProperty Count)))
     $writer.WriteLine(("- Files with {0} suppressions: {1}" -f (Format-Code "clippy::too_many_arguments"), ($tmaCounts | Measure-Object | Select-Object -ExpandProperty Count)))
     $writer.WriteLine(("- Likely large-file test-gap hotspots (heuristic): {0}" -f ($testGaps | Measure-Object | Select-Object -ExpandProperty Count)))
-    $writer.WriteLine(("- Sempal-root Rust files scanned: {0}" -f ($rootEntries | Measure-Object | Select-Object -ExpandProperty Count)))
+    $writer.WriteLine(("- Wavecrate-root Rust files scanned: {0}" -f ($rootEntries | Measure-Object | Select-Object -ExpandProperty Count)))
     $writer.WriteLine(("- Vendor/Radiant Rust files scanned: {0}" -f ($vendorEntries | Measure-Object | Select-Object -ExpandProperty Count)))
-    $writer.WriteLine(("- Sempal-root files over budget: {0}" -f ($rootOverLimit | Measure-Object | Select-Object -ExpandProperty Count)))
+    $writer.WriteLine(("- Wavecrate-root files over budget: {0}" -f ($rootOverLimit | Measure-Object | Select-Object -ExpandProperty Count)))
     $writer.WriteLine(("- Vendor/Radiant files over budget: {0}" -f ($vendorOverLimit | Measure-Object | Select-Object -ExpandProperty Count)))
     $writer.WriteLine()
 
-    Write-RankedSection -Writer $writer -Title "## Sempal-root largest Rust files" -Headers @("Lines", "File") -Rows (
+    Write-RankedSection -Writer $writer -Title "## Wavecrate-root largest Rust files" -Headers @("Lines", "File") -Rows (
       $rootEntries |
         Sort-Object LineCount, File -Descending |
         Select-Object -First $TopFiles |
@@ -351,7 +351,7 @@ try {
         ForEach-Object { [pscustomobject]@{ Cells = @($_.LineCount, (Format-Code $_.File)) } }
     )
 
-    Write-RankedSection -Writer $writer -Title "## Sempal-root largest function spans (heuristic)" -Headers @("Span (lines)", "Function") -Rows (
+    Write-RankedSection -Writer $writer -Title "## Wavecrate-root largest function spans (heuristic)" -Headers @("Span (lines)", "Function") -Rows (
       $rootFunctionSpans |
         Sort-Object Span, Location -Descending |
         Select-Object -First $TopFunctionSpans |
@@ -365,7 +365,7 @@ try {
         ForEach-Object { [pscustomobject]@{ Cells = @($_.Span, ("{0} ({1})" -f (Format-Code $_.Name), (Format-Code $_.Location))) } }
     )
 
-    Write-RankedSection -Writer $writer -Title "## Sempal-root files over budget" -Headers @("Lines", "File") -Rows (
+    Write-RankedSection -Writer $writer -Title "## Wavecrate-root files over budget" -Headers @("Lines", "File") -Rows (
       $rootOverLimit | ForEach-Object { [pscustomobject]@{ Cells = @($_.LineCount, (Format-Code $_.File)) } }
     )
 
@@ -373,7 +373,7 @@ try {
       $vendorOverLimit | ForEach-Object { [pscustomobject]@{ Cells = @($_.LineCount, (Format-Code $_.File)) } }
     )
 
-    Write-RankedSection -Writer $writer -Title "## Sempal-root dead_code suppression density" -Headers @("Occurrences", "File") -Rows (
+    Write-RankedSection -Writer $writer -Title "## Wavecrate-root dead_code suppression density" -Headers @("Occurrences", "File") -Rows (
       $rootDeadCounts |
         Select-Object -First $TopSuppressions |
         ForEach-Object { [pscustomobject]@{ Cells = @($_.Count, (Format-Code $_.File)) } }
@@ -385,7 +385,7 @@ try {
         ForEach-Object { [pscustomobject]@{ Cells = @($_.Count, (Format-Code $_.File)) } }
     )
 
-    Write-RankedSection -Writer $writer -Title "## Sempal-root too_many_arguments suppression density" -Headers @("Occurrences", "File") -Rows (
+    Write-RankedSection -Writer $writer -Title "## Wavecrate-root too_many_arguments suppression density" -Headers @("Occurrences", "File") -Rows (
       $rootTmaCounts |
         Select-Object -First $TopSuppressions |
         ForEach-Object { [pscustomobject]@{ Cells = @($_.Count, (Format-Code $_.File)) } }
@@ -397,7 +397,7 @@ try {
         ForEach-Object { [pscustomobject]@{ Cells = @($_.Count, (Format-Code $_.File)) } }
     )
 
-    $writer.WriteLine("## Sempal-root likely test-gap hotspots (heuristic)")
+    $writer.WriteLine("## Wavecrate-root likely test-gap hotspots (heuristic)")
     $writer.WriteLine()
     $writer.WriteLine(("Files with at least {0} lines and no local {1} or {2} marker." -f (Format-Code ([string]$TestGapMinLines)), (Format-Code "#[cfg(test)]"), (Format-Code "mod tests")))
     $writer.WriteLine(("Skips dedicated test modules/paths ({0}, {1}, {2}, {3}) and sibling module tests declared through {4} + {5}." -f (Format-Code "tests/**"), (Format-Code "tests.rs"), (Format-Code "*_test.rs"), (Format-Code "*_tests.rs"), (Format-Code "mod.rs"), (Format-Code "tests.rs")))
@@ -421,7 +421,7 @@ try {
 
     $writer.WriteLine("## Suggested follow-up")
     $writer.WriteLine()
-    $writer.WriteLine("1. Triage Sempal-root and Vendor/Radiant candidates as separate issue tracks.")
+    $writer.WriteLine("1. Triage Wavecrate-root and Vendor/Radiant candidates as separate issue tracks.")
     $writer.WriteLine("2. Remove or test-gate high-density suppressions after each refactor slice.")
     $writer.WriteLine("3. Add focused tests for top heuristic gaps where behavior is non-trivial.")
   } finally {

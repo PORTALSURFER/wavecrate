@@ -49,8 +49,8 @@ done
 install_agent_preflight_hooks() {
   local hook_script="$ROOT_DIR/scripts/agent.sh"
 
-  if [[ "${SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK_INSTALL:-0}" == "1" ]]; then
-    echo "[bootstrap] SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK_INSTALL=1: skipping hook install."
+  if [[ "${WAVECRATE_SKIP_AGENT_PREFLIGHT_HOOK_INSTALL:-0}" == "1" ]]; then
+    echo "[bootstrap] WAVECRATE_SKIP_AGENT_PREFLIGHT_HOOK_INSTALL=1: skipping hook install."
     return 0
   fi
 
@@ -202,7 +202,7 @@ else
 fi
 
 if command -v sccache >/dev/null 2>&1; then
-  echo "[bootstrap] sccache: installed (set SEMPAL_ENABLE_SCCACHE=1 to use it)"
+  echo "[bootstrap] sccache: installed (set WAVECRATE_ENABLE_SCCACHE=1 to use it)"
 else
   echo "[bootstrap] sccache: optional but missing"
   echo "[bootstrap]   Install for faster repeated builds. Examples:" >&2

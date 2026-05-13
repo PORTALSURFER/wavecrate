@@ -20,7 +20,7 @@ use std::time::{Duration, Instant};
 use tempfile::tempdir;
 
 use super::{
-    PendingModelPullPreparation, PendingWaveformActions, SempalNativeBridge,
+    PendingModelPullPreparation, PendingWaveformActions, WavecrateNativeBridge,
     build_waveform_projection_key,
 };
 
@@ -53,8 +53,8 @@ fn assert_segment_lookup_counts(
 }
 
 /// Build one bridge test harness with default state.
-fn test_bridge(size: u32) -> SempalNativeBridge {
-    SempalNativeBridge {
+fn test_bridge(size: u32) -> WavecrateNativeBridge {
+    WavecrateNativeBridge {
         controller: AppController::new(WaveformRenderer::new(size, size), None),
         projection_cache: NativeProjectionCache::default(),
         projection_key_snapshot: None,

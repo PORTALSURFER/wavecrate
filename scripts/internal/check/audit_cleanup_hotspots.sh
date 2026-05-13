@@ -399,13 +399,13 @@ vendor_over_budget_count="$(count_rows_for_scope "$tmp_over_limit" vendor 2)"
   echo "- Files with \`dead_code\` suppressions: $dead_supp_files"
   echo "- Files with \`clippy::too_many_arguments\` suppressions: $tma_supp_files"
   echo "- Likely large-file test-gap hotspots (heuristic): $test_gap_count"
-  echo "- Sempal-root Rust files scanned: $root_rust_files"
+  echo "- Wavecrate-root Rust files scanned: $root_rust_files"
   echo "- Vendor/Radiant Rust files scanned: $vendor_rust_files"
-  echo "- Sempal-root files over budget: $root_over_budget_count"
+  echo "- Wavecrate-root files over budget: $root_over_budget_count"
   echo "- Vendor/Radiant files over budget: $vendor_over_budget_count"
   echo
 
-  echo "## Sempal-root largest Rust files"
+  echo "## Wavecrate-root largest Rust files"
   echo
   LC_ALL=C sort -t$'\t' -k1,1nr -k2,2 "$tmp_line_counts" \
     | emit_line_table_for_scope /dev/stdin root "$TOP_FILES"
@@ -417,7 +417,7 @@ vendor_over_budget_count="$(count_rows_for_scope "$tmp_over_limit" vendor 2)"
     | emit_line_table_for_scope /dev/stdin vendor "$TOP_FILES"
   echo
 
-  echo "## Sempal-root largest function spans (heuristic)"
+  echo "## Wavecrate-root largest function spans (heuristic)"
   echo
   LC_ALL=C sort -t$'\t' -k1,1nr -k2,2 "$tmp_function_spans" \
     | emit_function_table_for_scope /dev/stdin root "$TOP_FUNCTION_SPANS"
@@ -429,7 +429,7 @@ vendor_over_budget_count="$(count_rows_for_scope "$tmp_over_limit" vendor 2)"
     | emit_function_table_for_scope /dev/stdin vendor "$TOP_FUNCTION_SPANS"
   echo
 
-  echo "## Sempal-root files over budget"
+  echo "## Wavecrate-root files over budget"
   echo
   LC_ALL=C sort -t$'\t' -k1,1nr -k2,2 "$tmp_over_limit" \
     | emit_line_table_for_scope /dev/stdin root 0
@@ -441,7 +441,7 @@ vendor_over_budget_count="$(count_rows_for_scope "$tmp_over_limit" vendor 2)"
     | emit_line_table_for_scope /dev/stdin vendor 0
   echo
 
-  echo "## Sempal-root dead_code suppression density"
+  echo "## Wavecrate-root dead_code suppression density"
   echo
   emit_count_table_for_scope "$tmp_dead_counts" root "$TOP_SUPPRESSIONS"
   echo
@@ -451,7 +451,7 @@ vendor_over_budget_count="$(count_rows_for_scope "$tmp_over_limit" vendor 2)"
   emit_count_table_for_scope "$tmp_dead_counts" vendor "$TOP_SUPPRESSIONS"
   echo
 
-  echo "## Sempal-root too_many_arguments suppression density"
+  echo "## Wavecrate-root too_many_arguments suppression density"
   echo
   emit_count_table_for_scope "$tmp_tma_counts" root "$TOP_SUPPRESSIONS"
   echo
@@ -461,7 +461,7 @@ vendor_over_budget_count="$(count_rows_for_scope "$tmp_over_limit" vendor 2)"
   emit_count_table_for_scope "$tmp_tma_counts" vendor "$TOP_SUPPRESSIONS"
   echo
 
-  echo "## Sempal-root likely test-gap hotspots (heuristic)"
+  echo "## Wavecrate-root likely test-gap hotspots (heuristic)"
   echo
   echo "Files with at least \`$TEST_GAP_MIN_LINES\` lines and no local \`#[cfg(test)]\` or \`mod tests\` marker."
   echo "Skips dedicated test modules/paths (\`tests/**\`, \`tests.rs\`, \`*_test.rs\`, \`*_tests.rs\`) and sibling module tests declared through \`mod.rs\` + \`tests.rs\`."
@@ -479,7 +479,7 @@ vendor_over_budget_count="$(count_rows_for_scope "$tmp_over_limit" vendor 2)"
 
   echo "## Suggested follow-up"
   echo
-  echo "1. Triage Sempal-root and Vendor/Radiant candidates as separate issue tracks."
+  echo "1. Triage Wavecrate-root and Vendor/Radiant candidates as separate issue tracks."
   echo "2. Remove or test-gate high-density suppressions after each refactor slice."
   echo "3. Add focused tests for top heuristic gaps where behavior is non-trivial."
 } >"$OUTPUT_PATH"

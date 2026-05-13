@@ -34,9 +34,9 @@ fn count_node(parent: &NativeAutomationNodeSnapshot, id: &str) -> usize {
 }
 
 #[test]
-fn automation_snapshot_exposes_semantic_shell_nodes_from_sempal_fixture() {
+fn automation_snapshot_exposes_semantic_shell_nodes_from_wavecrate_fixture() {
     let mut model = NativeAppModel::default();
-    model.title = String::from("Sempal");
+    model.title = String::from("Wavecrate");
     model.status.center = String::from("rows: 3 | selected: 1 | anchor: 1 | search: kick");
     model.sources.rows.push(NativeSourceRowModel::new(
         "Primary source",
@@ -71,7 +71,7 @@ fn automation_snapshot_exposes_semantic_shell_nodes_from_sempal_fixture() {
 
     let snapshot = capture_gui_automation_snapshot([1440.0, 810.0], &model);
     assert_eq!(snapshot.root.id.0, "shell.root");
-    assert_eq!(snapshot.root.label.as_deref(), Some("Sempal shell"));
+    assert_eq!(snapshot.root.label.as_deref(), Some("Wavecrate shell"));
 
     let top_bar = child(&snapshot.root, "shell.top_bar");
     let sources = child(&snapshot.root, "sources.panel");

@@ -5,7 +5,7 @@ use super::interactions::step_patterns::{
 };
 use super::workspace::{build_controller_with_db_rows, wait_for_rows};
 use super::*;
-use sempal::app_core::actions::NativeUiAction;
+use wavecrate::app_core::actions::NativeUiAction;
 
 /// Panic with context if a GUI benchmark test setup step fails.
 fn must<T, E: std::fmt::Display>(result: Result<T, E>, context: &str) -> T {
@@ -19,11 +19,11 @@ fn must<T, E: std::fmt::Display>(result: Result<T, E>, context: &str) -> T {
 fn with_isolated_app_config() {
     // Keep GUI benchmark unit tests deterministic by forcing synchronous browser updates.
     unsafe {
-        std::env::set_var("SEMPAL_BROWSER_ASYNC_PIPELINE", "0");
+        std::env::set_var("WAVECRATE_BROWSER_ASYNC_PIPELINE", "0");
     }
     let config_root = must(tempfile::tempdir(), "create isolated app config directory");
     must(
-        sempal::app_dirs::set_app_root_override(config_root.path().to_path_buf()),
+        wavecrate::app_dirs::set_app_root_override(config_root.path().to_path_buf()),
         "configure isolated app root",
     );
     std::mem::forget(config_root);

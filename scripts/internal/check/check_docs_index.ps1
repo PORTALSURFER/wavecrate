@@ -32,7 +32,7 @@ try {
     "AGENTS.md"
   )
   $requiredPhrases = @(
-    'Linear project `Sempal` under team `PORTALSURFER`'
+    'Linear project `Wavecrate` under team `PORTALSURFER`'
   )
 
   $text = Get-Content -LiteralPath $docsReadme -Raw

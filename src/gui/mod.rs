@@ -10,7 +10,7 @@
 //! * it performs no rendering orchestration.
 //!
 //! Keeping these modules as pure re-exports prevents accidental duplication of GUI
-//! primitives in `sempal` and makes ownership boundaries enforceable in code review.
+//! primitives in `wavecrate` and makes ownership boundaries enforceable in code review.
 
 pub mod input {
     //! Shared key, pointer, and modifier tokens from `radiant`.
@@ -78,7 +78,7 @@ pub mod invalidation {
 pub mod list {
     //! Generic list and virtualization primitives from `radiant`.
     //!
-    //! Re-exports keep Sempal's large-list behavior on the framework-owned
+    //! Re-exports keep Wavecrate's large-list behavior on the framework-owned
     //! virtualization contract instead of duplicating list-window math locally.
     pub use radiant::gui::list::*;
 }
@@ -96,7 +96,7 @@ pub mod panel {
 pub mod range {
     //! Normalized range and viewport projection primitives from `radiant`.
     //!
-    //! Re-exported so Sempal-owned waveform and timeline surfaces use generic
+    //! Re-exported so Wavecrate-owned waveform and timeline surfaces use generic
     //! normalized coordinate math instead of duplicating projection helpers.
     pub use radiant::gui::range::*;
 }
@@ -130,9 +130,9 @@ pub mod repaint {
 }
 
 pub mod svg {
-    //! SVG helpers used by Sempal-owned native-shell icon rasterization.
+    //! SVG helpers used by Wavecrate-owned native-shell icon rasterization.
     //!
-    //! Radiant owns retained SVG painting now. Sempal keeps this small subset
+    //! Radiant owns retained SVG painting now. Wavecrate keeps this small subset
     //! parser only for native-shell paths that still rasterize SVG assets into
     //! image primitives before handing them to the runtime.
     pub use radiant::gui::svg::*;
@@ -432,7 +432,7 @@ pub mod types {
 pub mod visualization {
     //! Generic visualization primitives from `radiant`.
     //!
-    //! Re-exported so Sempal-owned waveform, timeline, and map surfaces consume
+    //! Re-exported so Wavecrate-owned waveform, timeline, and map surfaces consume
     //! framework-owned data contracts instead of compatibility aliases.
     pub use radiant::gui::visualization::*;
 }

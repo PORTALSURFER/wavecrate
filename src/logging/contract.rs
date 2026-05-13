@@ -7,9 +7,9 @@
 use std::time::Duration;
 
 /// Target used for standardized action debug events.
-pub const ACTION_EVENT_TARGET: &str = "sempal::debug::action";
+pub const ACTION_EVENT_TARGET: &str = "wavecrate::debug::action";
 /// Target used for standardized database debug events.
-pub const DB_EVENT_TARGET: &str = "sempal::debug::db";
+pub const DB_EVENT_TARGET: &str = "wavecrate::debug::db";
 
 /// Standardized action event fields for richer debug diagnostics.
 ///

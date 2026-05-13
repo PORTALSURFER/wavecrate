@@ -13,7 +13,7 @@ if [[ -f "$ROOT_DIR/scripts/internal/git_diff_env.sh" ]]; then
   # shellcheck source=scripts/internal/git_diff_env.sh
   source "$ROOT_DIR/scripts/internal/git_diff_env.sh"
 else
-  sempal_git() {
+  wavecrate_git() {
     git "$@"
   }
 fi
@@ -58,7 +58,7 @@ while (( $# > 0 )); do
 done
 
 git_has_commit() {
-  sempal_git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1
+  wavecrate_git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1
 }
 
 collect_manual_changes() {
@@ -71,19 +71,19 @@ collect_manual_changes() {
   if [[ -n "$base" ]] && git_has_commit "$base" && git_has_commit "$head"; then
     while IFS= read -r path; do
       out+=("$path")
-    done < <(sempal_git diff --name-only --diff-filter=AM "$base...$head" -- manual || true)
+    done < <(wavecrate_git diff --name-only --diff-filter=AM "$base...$head" -- manual || true)
   elif git_has_commit "$head"; then
     while IFS= read -r path; do
       out+=("$path")
-    done < <(sempal_git show --name-only --pretty=format: "$head" -- manual || true)
+    done < <(wavecrate_git show --name-only --pretty=format: "$head" -- manual || true)
   fi
 
   while IFS= read -r path; do
     staged+=("$path")
-  done < <(sempal_git diff --name-only --diff-filter=AM --cached -- manual || true)
+  done < <(wavecrate_git diff --name-only --diff-filter=AM --cached -- manual || true)
   while IFS= read -r path; do
     unstaged+=("$path")
-  done < <(sempal_git diff --name-only --diff-filter=AM -- manual || true)
+  done < <(wavecrate_git diff --name-only --diff-filter=AM -- manual || true)
 
   printf "%s\n" ${out[@]+"${out[@]}"} ${staged[@]+"${staged[@]}"} ${unstaged[@]+"${unstaged[@]}"} \
     | sed 's#^\\./##' \

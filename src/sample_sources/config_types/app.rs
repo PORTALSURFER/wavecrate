@@ -80,7 +80,7 @@ pub struct AppSettingsCore {
     #[serde(default = "default_job_message_queue_capacity")]
     /// Maximum number of pending controller job messages.
     pub job_message_queue_capacity: u32,
-    /// Optional override for the `.sempal` data folder.
+    /// Optional override for the `.wavecrate` data folder.
     #[serde(default)]
     pub app_data_dir: Option<PathBuf>,
     #[serde(default)]

@@ -1,4 +1,4 @@
-//! Windows installer entry point for Sempal.
+//! Windows installer entry point for Wavecrate.
 #![cfg_attr(
     all(not(debug_assertions), target_os = "windows"),
     windows_subsystem = "windows"
@@ -93,7 +93,7 @@ mod tests {
         let bundle = temp.path().join("bundle");
         let install = temp.path().join("install");
         fs::create_dir_all(bundle.join("bin")).expect("bundle dir");
-        fs::write(bundle.join("bin").join("sempal.exe"), "test").expect("exe");
+        fs::write(bundle.join("bin").join("wavecrate.exe"), "test").expect("exe");
 
         let plan = plan_install(&bundle, &install).expect("plan");
         let copies = plan
@@ -106,14 +106,14 @@ mod tests {
 
     #[test]
     fn select_entry_command_defaults_to_launch_ui() {
-        let command = select_entry_command(vec![String::from("sempal-installer")]);
+        let command = select_entry_command(vec![String::from("wavecrate-installer")]);
         assert_eq!(command, InstallerEntryCommand::LaunchUi);
     }
 
     #[test]
     fn select_entry_command_uses_dry_run_when_requested() {
         let command = select_entry_command(vec![
-            String::from("sempal-installer"),
+            String::from("wavecrate-installer"),
             String::from("--dry-run"),
         ]);
         assert_eq!(command, InstallerEntryCommand::DryRun);
@@ -122,7 +122,7 @@ mod tests {
     #[test]
     fn select_entry_command_prefers_uninstall_over_dry_run() {
         let command = select_entry_command(vec![
-            String::from("sempal-installer"),
+            String::from("wavecrate-installer"),
             String::from("--dry-run"),
             String::from("--uninstall"),
         ]);
@@ -137,7 +137,7 @@ mod tests {
 
         let result = run_with_args(
             vec![
-                String::from("sempal-installer"),
+                String::from("wavecrate-installer"),
                 String::from("--uninstall"),
             ],
             || {
@@ -167,7 +167,10 @@ mod tests {
         let ui_called = Cell::new(false);
 
         let result = run_with_args(
-            vec![String::from("sempal-installer"), String::from("--dry-run")],
+            vec![
+                String::from("wavecrate-installer"),
+                String::from("--dry-run"),
+            ],
             || {
                 uninstall_called.set(true);
                 Ok(())
@@ -195,7 +198,7 @@ mod tests {
         let ui_called = Cell::new(false);
 
         let result = run_with_args(
-            vec![String::from("sempal-installer")],
+            vec![String::from("wavecrate-installer")],
             || {
                 uninstall_called.set(true);
                 Ok(())
@@ -219,7 +222,7 @@ mod tests {
     #[test]
     fn run_with_args_propagates_ui_launch_errors() {
         let result = run_with_args(
-            vec![String::from("sempal-installer")],
+            vec![String::from("wavecrate-installer")],
             || Ok(()),
             || Ok(()),
             || Err(String::from("ui failed")),

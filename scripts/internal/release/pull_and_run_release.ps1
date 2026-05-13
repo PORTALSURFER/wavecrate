@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-Fast-forwards both development repos and runs Sempal in release sandbox mode.
+Fast-forwards both development repos and runs Wavecrate in release sandbox mode.
 
 .DESCRIPTION
 Verifies that the main repo is on local `main` tracking `origin/main` and

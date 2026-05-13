@@ -1,10 +1,10 @@
-use sempal::{
+use std::sync::Arc;
+use wavecrate::{
     app_core::actions::{NativeAppBridge, NativeAppModel as AppModel, NativeUiAction as UiAction},
     companion_apps::native_ui::standard_window_options,
     gui_runtime::run_native_vello_app_declarative,
     updater::{APP_NAME, UpdaterRunArgs, open_release_page},
 };
-use std::sync::Arc;
 
 mod projection;
 mod state;

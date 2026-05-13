@@ -152,7 +152,7 @@ pub(crate) fn assemble_project_app_model(
     overlay_and_chrome_models: ProjectAppModelOverlayAndChromeModels,
 ) -> AppModel {
     AppModel {
-        title: String::from("Sempal"),
+        title: String::from("Wavecrate"),
         backend_label: String::from("backend: native_vello"),
         sources_label: format!("Sources ({})", core_models.sources.rows.len()),
         status_text: derived_inputs.status_text,

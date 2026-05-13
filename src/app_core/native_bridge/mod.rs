@@ -4,7 +4,7 @@
 //! depend on `app_core` instead of legacy runtime module paths.
 //!
 //! Bridge profiling is opt-in and controlled by the `native-bridge-metrics`
-//! cargo feature. When enabled, setting `SEMPAL_NATIVE_BRIDGE_PROFILE`
+//! cargo feature. When enabled, setting `WAVECRATE_NATIVE_BRIDGE_PROFILE`
 //! (`1`, `true`, `on`, or `yes`, case-insensitive) enables periodic logging
 //! of bridge execution timing and renderer work counts.
 //!
@@ -72,7 +72,7 @@ pub use self::projection_cache::{
 };
 
 /// Host bridge used by the native `radiant` runtime.
-pub struct SempalNativeBridge {
+pub struct WavecrateNativeBridge {
     controller: AppController,
     projection_cache: projection_cache::NativeProjectionCache,
     /// Lazily recomputed projection cache key snapshot for controller state.
@@ -97,7 +97,7 @@ pub struct SempalNativeBridge {
     runtime_exit_emitted: bool,
 }
 
-impl SempalNativeBridge {
+impl WavecrateNativeBridge {
     /// Wrap an already-seeded controller for deterministic fixture-driven runtimes.
     ///
     /// Benchmark and fixture harnesses use this to drive the retained native
@@ -120,7 +120,7 @@ impl SempalNativeBridge {
         }
     }
 
-    /// Build a new native bridge initialized with persisted sempal configuration.
+    /// Build a new native bridge initialized with persisted wavecrate configuration.
     pub fn new(
         renderer: WaveformRenderer,
         player: Option<Rc<RefCell<AudioPlayer>>>,
@@ -172,27 +172,27 @@ impl SempalNativeBridge {
     }
 
     #[cfg(test)]
-    /// Project the latest Sempal-owned app model snapshot for app-core tests.
+    /// Project the latest Wavecrate-owned app model snapshot for app-core tests.
     pub(crate) fn project_model(&mut self) -> Arc<crate::app_core::actions::NativeAppModel> {
         self.pull_model_arc_snapshot()
     }
 
-    /// Project motion-only fields for Sempal-owned app-core callers.
+    /// Project motion-only fields for Wavecrate-owned app-core callers.
     pub(crate) fn project_motion_model(&mut self) -> Option<NativeMotionModel> {
         self.project_motion_model_snapshot()
     }
 
-    /// Return and clear the Sempal-owned bridge segment mask from the most recent model pull.
+    /// Return and clear the Wavecrate-owned bridge segment mask from the most recent model pull.
     pub(crate) fn take_dirty_segments(&mut self) -> NativeDirtySegments {
         std::mem::replace(&mut self.last_dirty_segments, NativeDirtySegments::empty())
     }
 
-    /// Return the latest Sempal-owned static-segment revision snapshot.
+    /// Return the latest Wavecrate-owned static-segment revision snapshot.
     pub(crate) fn take_segment_revisions(&mut self) -> NativeSegmentRevisions {
         self.segment_revisions
     }
 
-    /// Reduce one Sempal-owned runtime UI action into controller state.
+    /// Reduce one Wavecrate-owned runtime UI action into controller state.
     pub(crate) fn reduce_action(&mut self, action: NativeUiAction) {
         let handled = if let NativeUiAction::MoveBrowserFocus { delta } = action.clone() {
             self.reduce_browser_focus_action(delta);
@@ -215,12 +215,12 @@ impl SempalNativeBridge {
     }
 
     #[cfg(test)]
-    /// Handle one Sempal-owned action emitted by app-core tests.
+    /// Handle one Wavecrate-owned action emitted by app-core tests.
     pub(crate) fn on_action(&mut self, action: NativeUiAction) {
         self.reduce_action(action);
     }
 
-    /// Observe one Sempal-owned frame-build result for optional profiling telemetry.
+    /// Observe one Wavecrate-owned frame-build result for optional profiling telemetry.
     pub(crate) fn observe_frame_result(&mut self, result: NativeFrameBuildResult) {
         if !bridge_profiling_enabled() {
             return;
@@ -232,7 +232,7 @@ impl SempalNativeBridge {
     }
 }
 
-impl NativeAppBridge for SempalNativeBridge {
+impl NativeAppBridge for WavecrateNativeBridge {
     /// Project the latest app model snapshot as a shared immutable arc.
     fn project_model(&mut self) -> Arc<crate::app_core::actions::NativeAppModel> {
         let model = self.pull_model_arc_snapshot();
@@ -257,12 +257,12 @@ impl NativeAppBridge for SempalNativeBridge {
 
     /// Return and clear the bridge segment mask from the most recent model pull.
     fn take_dirty_segments(&mut self) -> NativeDirtySegments {
-        SempalNativeBridge::take_dirty_segments(self)
+        WavecrateNativeBridge::take_dirty_segments(self)
     }
 
     /// Return the latest static-segment revision snapshot.
     fn take_segment_revisions(&mut self) -> NativeSegmentRevisions {
-        SempalNativeBridge::take_segment_revisions(self)
+        WavecrateNativeBridge::take_segment_revisions(self)
     }
 
     /// Install runtime repaint signal for async job completion wakeups.
@@ -293,12 +293,12 @@ impl NativeAppBridge for SempalNativeBridge {
 
     /// Project motion-only fields for animation-only redraw phases.
     fn project_motion_model(&mut self) -> Option<NativeMotionModel> {
-        SempalNativeBridge::project_motion_model(self)
+        WavecrateNativeBridge::project_motion_model(self)
     }
 
     /// Reduce one runtime UI action into controller state.
     fn reduce_action(&mut self, action: NativeUiAction) {
-        SempalNativeBridge::reduce_action(self, action);
+        WavecrateNativeBridge::reduce_action(self, action);
     }
 
     fn take_last_action_handled(&mut self) -> Option<bool> {
@@ -307,7 +307,7 @@ impl NativeAppBridge for SempalNativeBridge {
 
     /// Observe one frame-build result for optional profiling telemetry.
     fn observe_frame_result(&mut self, result: NativeFrameBuildResult) {
-        SempalNativeBridge::observe_frame_result(self, result);
+        WavecrateNativeBridge::observe_frame_result(self, result);
     }
 
     /// Flush pending work and persist config during runtime shutdown.
@@ -361,7 +361,7 @@ fn ms_duration(duration: Duration) -> f64 {
     duration.as_secs_f64() * 1000.0
 }
 
-/// Construct a native runtime bridge for the current `sempal` controller stack.
+/// Construct a native runtime bridge for the current `wavecrate` controller stack.
 ///
 /// This is the application-facing constructor used by host integrations. It
 /// keeps bridge construction in `app_core` and returns a controller-backed
@@ -369,8 +369,8 @@ fn ms_duration(duration: Duration) -> f64 {
 pub fn new_native_bridge(
     renderer: WaveformRenderer,
     player: Option<Rc<RefCell<AudioPlayer>>>,
-) -> Result<SempalNativeBridge, String> {
-    SempalNativeBridge::new(renderer, player)
+) -> Result<WavecrateNativeBridge, String> {
+    WavecrateNativeBridge::new(renderer, player)
 }
 
 /// Construct a native bridge from an already-seeded controller instance.
@@ -378,8 +378,10 @@ pub fn new_native_bridge(
 /// GUI test fixtures use this to bypass persisted startup config while still
 /// exercising the same bridge, projection cache, and action-reduction logic as
 /// the real runtime.
-pub(crate) fn new_native_bridge_with_controller(controller: AppController) -> SempalNativeBridge {
-    SempalNativeBridge::from_fixture_controller(controller)
+pub(crate) fn new_native_bridge_with_controller(
+    controller: AppController,
+) -> WavecrateNativeBridge {
+    WavecrateNativeBridge::from_fixture_controller(controller)
 }
 
 #[cfg(test)]

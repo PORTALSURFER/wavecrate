@@ -61,7 +61,7 @@ pub(crate) struct RetainedDeleteResolutionEntry {
     pub(crate) source_label: String,
     /// Original retained folder path relative to the source root.
     pub(crate) relative_path: PathBuf,
-    /// Staged folder path relative to `.sempal_delete_staging`.
+    /// Staged folder path relative to `.wavecrate_delete_staging`.
     pub(crate) staged_relative: PathBuf,
     /// Deleted wav metadata snapshot used to rebuild DB state on restore.
     pub(crate) deleted_entries: Vec<WavEntry>,

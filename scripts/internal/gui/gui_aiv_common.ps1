@@ -233,13 +233,13 @@ function Start-CaseProcess {
     $startInfo.FileName = $ResolvedBinary
     $startInfo.WorkingDirectory = $RepoRoot
     $startInfo.UseShellExecute = $false
-    $startInfo.Environment["SEMPAL_CONFIG_HOME"] = $SandboxDir
-    $startInfo.Environment["SEMPAL_CONFIG_PROFILE"] = "automated-tests"
-    $startInfo.Environment["SEMPAL_GUI_TEST_MODE"] = "1"
-    $startInfo.Environment["SEMPAL_GUI_TEST_ARTIFACT_DIR"] = $RuntimeArtifactsDir
-    $startInfo.Environment["SEMPAL_GUI_TEST_FIXTURE"] = [string]$Case.fixture_tag
-    $startInfo.Environment["SEMPAL_GUI_TEST_VIEWPORT"] = "$($Case.viewport[0])x$($Case.viewport[1])"
-    $startInfo.Environment["SEMPAL_GUI_TEST_SCENARIO"] = [string]$Case.name
+    $startInfo.Environment["WAVECRATE_CONFIG_HOME"] = $SandboxDir
+    $startInfo.Environment["WAVECRATE_CONFIG_PROFILE"] = "automated-tests"
+    $startInfo.Environment["WAVECRATE_GUI_TEST_MODE"] = "1"
+    $startInfo.Environment["WAVECRATE_GUI_TEST_ARTIFACT_DIR"] = $RuntimeArtifactsDir
+    $startInfo.Environment["WAVECRATE_GUI_TEST_FIXTURE"] = [string]$Case.fixture_tag
+    $startInfo.Environment["WAVECRATE_GUI_TEST_VIEWPORT"] = "$($Case.viewport[0])x$($Case.viewport[1])"
+    $startInfo.Environment["WAVECRATE_GUI_TEST_SCENARIO"] = [string]$Case.name
     return [System.Diagnostics.Process]::Start($startInfo)
 }
 

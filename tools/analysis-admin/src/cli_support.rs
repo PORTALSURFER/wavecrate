@@ -20,8 +20,8 @@ pub fn resolve_library_db_path(db_path: Option<&Path>) -> Result<PathBuf, String
     if let Some(path) = db_path {
         return Ok(path.to_path_buf());
     }
-    let root = sempal::app_dirs::app_root_dir().map_err(|err| err.to_string())?;
-    Ok(root.join(sempal::sample_sources::library::LIBRARY_DB_FILE_NAME))
+    let root = wavecrate::app_dirs::app_root_dir().map_err(|err| err.to_string())?;
+    Ok(root.join(wavecrate::sample_sources::library::LIBRARY_DB_FILE_NAME))
 }
 
 /// Return whether any command-line argument requested help output.

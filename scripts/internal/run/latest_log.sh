@@ -2,11 +2,11 @@
 
 # Prints the resolved log directory, the newest log file, and a tail snippet.
 #
-# Resolution order for the `.sempal` root:
-# 1) `SEMPAL_CONFIG_HOME` (config base override, if set)
+# Resolution order for the `.wavecrate` root:
+# 1) `WAVECRATE_CONFIG_HOME` (config base override, if set)
 # 2) OS default config base (`XDG_CONFIG_HOME` or `~/.config`, macOS app-support, Windows APPDATA via WSL hint)
-# 3) `SEMPAL_CONFIG_PROFILE` (`live`, `sandbox`, `automated-tests`, or another named profile)
-# 4) `app_data_dir` in `<app_root>/config.toml` (absolute path expected; overrides `.sempal` root)
+# 3) `WAVECRATE_CONFIG_PROFILE` (`live`, `sandbox`, `automated-tests`, or another named profile)
+# 4) `app_data_dir` in `<app_root>/config.toml` (absolute path expected; overrides `.wavecrate` root)
 #
 # This is best-effort and intended for quick diagnostics (humans + agents).
 
@@ -23,15 +23,15 @@ usage() {
 Usage: scripts/run.sh logs [--lines <n>] [--sandbox]
 
 Prints:
-- resolved `.sempal` root (best-effort)
+- resolved `.wavecrate` root (best-effort)
 - resolved logs dir
 - newest `*.log` file under logs dir (if any)
 - tail snippet from that newest log (default: 200 lines)
 
 Sandbox behavior:
-- If `SEMPAL_CONFIG_HOME` is set, it is always used.
-- Otherwise, if `<repo>/.sandbox/sempal` exists, this script prefers it.
-- Pass `--sandbox` to force using `<repo>/.sandbox/sempal`.
+- If `WAVECRATE_CONFIG_HOME` is set, it is always used.
+- Otherwise, if `<repo>/.sandbox/wavecrate` exists, this script prefers it.
+- Pass `--sandbox` to force using `<repo>/.sandbox/wavecrate`.
 EOF
 }
 
@@ -51,11 +51,11 @@ while (( $# > 0 )); do
 done
 
 os_name="$(uname -s | tr '[:upper:]' '[:lower:]')"
-sandbox_config_home="${ROOT_DIR}/.sandbox/sempal"
+sandbox_config_home="${ROOT_DIR}/.sandbox/wavecrate"
 
 default_config_base_dir() {
-  if [[ -n "${SEMPAL_CONFIG_HOME:-}" ]]; then
-    printf "%s" "$SEMPAL_CONFIG_HOME"
+  if [[ -n "${WAVECRATE_CONFIG_HOME:-}" ]]; then
+    printf "%s" "$WAVECRATE_CONFIG_HOME"
     return 0
   fi
   if (( USE_SANDBOX == 1 )) || [[ -d "$sandbox_config_home" ]]; then
@@ -77,8 +77,8 @@ default_config_base_dir() {
 }
 
 current_persistence_profile() {
-  if [[ -n "${SEMPAL_CONFIG_PROFILE:-}" ]]; then
-    printf "%s" "${SEMPAL_CONFIG_PROFILE}"
+  if [[ -n "${WAVECRATE_CONFIG_PROFILE:-}" ]]; then
+    printf "%s" "${WAVECRATE_CONFIG_PROFILE}"
     return 0
   fi
   if (( USE_SANDBOX == 1 )); then
@@ -90,7 +90,7 @@ current_persistence_profile() {
 
 config_base_dir="$(default_config_base_dir)"
 used_sandbox_config_home="false"
-if [[ -z "${SEMPAL_CONFIG_HOME:-}" ]] && [[ "$config_base_dir" == "$sandbox_config_home" ]]; then
+if [[ -z "${WAVECRATE_CONFIG_HOME:-}" ]] && [[ "$config_base_dir" == "$sandbox_config_home" ]]; then
   used_sandbox_config_home="true"
 fi
 
@@ -120,7 +120,7 @@ extract_app_data_dir_from_config() {
 resolve_app_root_dir() {
   local profile
   profile="$(current_persistence_profile)"
-  local default_root="${config_base_dir}/.sempal"
+  local default_root="${config_base_dir}/.wavecrate"
   if [[ "$profile" != "live" ]]; then
     default_root="${default_root}/profiles/${profile}"
   fi

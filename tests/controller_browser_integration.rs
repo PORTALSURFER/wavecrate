@@ -2,16 +2,16 @@
 
 mod support;
 
-use support::{sempal_env::SempalEnvGuard, wav::write_test_wav};
+use support::{wav::write_test_wav, wavecrate_env::WavecrateEnvGuard};
 
-use sempal::{
-    app_core::controller::AppController, sample_sources::Rating, waveform::WaveformRenderer,
-};
 use std::{path::PathBuf, time::Duration};
 use tempfile::TempDir;
+use wavecrate::{
+    app_core::controller::AppController, sample_sources::Rating, waveform::WaveformRenderer,
+};
 
 struct ControllerHarness {
-    _config: SempalEnvGuard,
+    _config: WavecrateEnvGuard,
     _temp: TempDir,
     pub controller: AppController,
 }
@@ -21,7 +21,7 @@ impl ControllerHarness {
         let temp = tempfile::tempdir().expect("create tempdir");
         let config_home = temp.path().join("config");
         std::fs::create_dir_all(&config_home).expect("create config dir");
-        let env = SempalEnvGuard::set_config_home(config_home);
+        let env = WavecrateEnvGuard::set_config_home(config_home);
 
         let source_root = temp.path().join("source");
         std::fs::create_dir_all(&source_root).expect("create source dir");

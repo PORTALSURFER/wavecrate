@@ -1,8 +1,8 @@
-//! Sempal-owned native shell projection DTOs.
+//! Wavecrate-owned native shell projection DTOs.
 //!
-//! These models describe Sempal application state as projected for the current
+//! These models describe Wavecrate application state as projected for the current
 //! native shell. The runtime adapter in `gui_runtime` converts these app-core
-//! DTOs into the Sempal-owned native runtime contract consumed by Radiant.
+//! DTOs into the Wavecrate-owned native runtime contract consumed by Radiant.
 
 use radiant::gui::automation;
 use radiant::gui::badge;
@@ -86,7 +86,7 @@ pub enum BrowserRowProcessingState {
     Failed,
 }
 
-/// Summary of one Sempal browser/list row consumed by the native shell.
+/// Summary of one Wavecrate browser/list row consumed by the native shell.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BrowserRowModel {
     /// Visible row index in the filtered browser list.
@@ -238,7 +238,7 @@ pub type WaveformTransportModel = visualization::TimelineTransportState;
 /// Waveform edit selection and fade-preview state exposed to the native shell.
 pub type WaveformEditPreviewModel = visualization::TimelineEditPreview;
 
-/// One detected Sempal waveform slice preview exposed to the native shell.
+/// One detected Wavecrate waveform slice preview exposed to the native shell.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct WaveformSlicePreviewModel {
     /// Slice range in normalized waveform precision.
@@ -304,7 +304,7 @@ impl Default for WaveformToolStateModel {
 }
 
 impl WaveformToolStateModel {
-    /// Build waveform tool state from explicit Sempal workflow flags.
+    /// Build waveform tool state from explicit Wavecrate workflow flags.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         lock_enabled: bool,
@@ -374,7 +374,7 @@ pub enum PlaybackAgeFilterChip {
 /// Generic preference/settings panel state used by native overlay projections.
 pub type PreferencePanelStateModel<const TOGGLES: usize> = form::PreferencePanelState<TOGGLES>;
 
-// Sempal-owned GUI automation snapshot DTOs.
+// Wavecrate-owned GUI automation snapshot DTOs.
 
 /// Semantic role describing how an automation node behaves in the GUI.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -452,7 +452,7 @@ pub struct GuiAutomationSnapshot {
     pub root: AutomationNodeSnapshot,
 }
 
-// Sempal-owned retained-render segment invalidation DTOs.
+// Wavecrate-owned retained-render segment invalidation DTOs.
 
 /// Bitmask describing which projection segments changed during the last model pull.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -596,7 +596,7 @@ impl SegmentRevisions {
     }
 }
 
-// Sempal-owned motion-only projection DTOs.
+// Wavecrate-owned motion-only projection DTOs.
 
 /// Motion-sensitive slice of the app model used for incremental overlay rendering.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1635,7 +1635,7 @@ impl SourcesPanelModel {
     }
 }
 
-/// Snapshot of Sempal state required by the native shell renderer.
+/// Snapshot of Wavecrate state required by the native shell renderer.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AppModel {
     /// Main title rendered in the top bar.

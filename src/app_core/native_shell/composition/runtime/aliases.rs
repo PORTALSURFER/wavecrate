@@ -29,7 +29,7 @@ pub type HotkeyResolution = ShortcutResolution<UiAction>;
 
 /// Summary of browser/list state consumed by the native shell.
 ///
-/// This compatibility DTO stays Sempal-owned because it carries product
+/// This compatibility DTO stays Wavecrate-owned because it carries product
 /// workflow state such as rating filters, metadata editing, and cleanup mode.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BrowserPanelModel {

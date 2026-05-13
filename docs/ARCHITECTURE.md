@@ -1,12 +1,12 @@
 # Architecture and Ownership
 
-This document is the durable architecture map for Sempal. It explains what the
-system is optimizing for, where code should live, and how the Sempal and
+This document is the durable architecture map for Wavecrate. It explains what the
+system is optimizing for, where code should live, and how the Wavecrate and
 Radiant boundaries are meant to stay clean over time.
 
 ## Product principles
 
-Sempal is a realtime-oriented sample manager for exploratory listening,
+Wavecrate is a realtime-oriented sample manager for exploratory listening,
 selection, and curation of audio material. The architecture should preserve a
 few non-negotiable product properties:
 
@@ -72,9 +72,9 @@ Should avoid:
 
 Owns:
 
-- the default Sempal desktop GUI entrypoint
+- the default Wavecrate desktop GUI entrypoint
 - composition of Radiant's current application, runtime, widget, and GPU-surface
-  APIs for Sempal's sample-workstation UI
+  APIs for Wavecrate's sample-workstation UI
 
 Should avoid:
 
@@ -119,11 +119,11 @@ Owns:
 - reusable layout primitives
 - reusable widgets
 - runtime/backend integration
-- compatibility shell rendering for Sempal while migration continues
+- compatibility shell rendering for Wavecrate while migration continues
 
 Should avoid:
 
-- taking ownership of Sempal-specific controller or domain policy
+- taking ownership of Wavecrate-specific controller or domain policy
 
 ## Radiant boundary
 
@@ -134,7 +134,7 @@ areas:
 - `radiant::widgets`
 - `radiant::runtime`
 
-The current native shell remains a compatibility surface for Sempal. Treat it
+The current native shell remains a compatibility surface for Wavecrate. Treat it
 as `radiant::compat::legacy_shell` in spirit even where module names still
 reflect the older structure.
 
@@ -142,7 +142,7 @@ Practical rule:
 
 - new generic GUI abstractions belong in the public Radiant layers
 - compatibility fixes may still touch the native shell
-- new Sempal product behavior should compose generic Radiant surfaces where
+- new Wavecrate product behavior should compose generic Radiant surfaces where
   possible instead of expanding shell-only APIs
 
 ## UI design direction

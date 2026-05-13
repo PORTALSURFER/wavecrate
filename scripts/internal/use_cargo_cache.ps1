@@ -4,19 +4,19 @@ Configures optional local Cargo compile caching for repository scripts.
 
 .DESCRIPTION
 Cargo runs default to direct `rustc`. Scripts can opt in to `sccache` with
-`SEMPAL_ENABLE_SCCACHE=1`, and can force the direct compiler path with
-`SEMPAL_DISABLE_SCCACHE=1`. When `sccache` is enabled or already inherited
+`WAVECRATE_ENABLE_SCCACHE=1`, and can force the direct compiler path with
+`WAVECRATE_DISABLE_SCCACHE=1`. When `sccache` is enabled or already inherited
 through `RUSTC_WRAPPER`, this helper probes it in wrapper mode and falls back
 to direct `rustc` if the probe fails or times out.
 #>
 
-$script:SempalCargoConfigOverrideArgs = @()
+$script:WavecrateCargoConfigOverrideArgs = @()
 
-function Get-SempalRustcPassthroughWrapperPath {
+function Get-WavecrateRustcPassthroughWrapperPath {
   return (Join-Path $PSScriptRoot "rustc_passthrough.cmd")
 }
 
-function Test-SempalWritableDirectory {
+function Test-WavecrateWritableDirectory {
   param(
     [AllowEmptyString()]
     [string]$Path
@@ -26,7 +26,7 @@ function Test-SempalWritableDirectory {
     return $false
   }
 
-  $probeFile = Join-Path $Path "sempal-write-probe-$([guid]::NewGuid().ToString('N')).tmp"
+  $probeFile = Join-Path $Path "wavecrate-write-probe-$([guid]::NewGuid().ToString('N')).tmp"
   try {
     Set-Content -Path $probeFile -Value "probe" -NoNewline
     return $true
@@ -37,9 +37,9 @@ function Test-SempalWritableDirectory {
   }
 }
 
-function Ensure-SempalWritableTempDir {
-  $tempWritable = Test-SempalWritableDirectory $env:TEMP
-  $tmpWritable = Test-SempalWritableDirectory $env:TMP
+function Ensure-WavecrateWritableTempDir {
+  $tempWritable = Test-WavecrateWritableDirectory $env:TEMP
+  $tmpWritable = Test-WavecrateWritableDirectory $env:TMP
   if ($tempWritable -and $tmpWritable) {
     return
   }
@@ -51,7 +51,7 @@ function Ensure-SempalWritableTempDir {
   Write-Host "[cargo-cache] using repo temp dir $fallback"
 }
 
-function Test-SempalSccacheWrapperValue {
+function Test-WavecrateSccacheWrapperValue {
   param(
     [AllowEmptyString()]
     [string]$Wrapper
@@ -65,20 +65,20 @@ function Test-SempalSccacheWrapperValue {
   return $fileName -eq "sccache" -or $fileName -eq "sccache.exe"
 }
 
-function Get-SempalCargoConfigOverrideArgs {
-  return $script:SempalCargoConfigOverrideArgs
+function Get-WavecrateCargoConfigOverrideArgs {
+  return $script:WavecrateCargoConfigOverrideArgs
 }
 
-function Invoke-SempalCargo {
+function Invoke-WavecrateCargo {
   param(
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$Arguments
   )
 
-  & cargo @(Get-SempalCargoConfigOverrideArgs) @Arguments
+  & cargo @(Get-WavecrateCargoConfigOverrideArgs) @Arguments
 }
 
-function Set-SempalCargoWrapperOverride {
+function Set-WavecrateCargoWrapperOverride {
   param(
     [AllowEmptyString()]
     [string]$Wrapper
@@ -87,24 +87,24 @@ function Set-SempalCargoWrapperOverride {
   if ([string]::IsNullOrWhiteSpace($Wrapper)) {
     Remove-Item Env:RUSTC_WRAPPER -ErrorAction SilentlyContinue
     Remove-Item Env:CARGO_BUILD_RUSTC_WRAPPER -ErrorAction SilentlyContinue
-    $script:SempalCargoConfigOverrideArgs = @()
+    $script:WavecrateCargoConfigOverrideArgs = @()
     return
   }
 
   $env:RUSTC_WRAPPER = $Wrapper
   $env:CARGO_BUILD_RUSTC_WRAPPER = $Wrapper
-  $script:SempalCargoConfigOverrideArgs = @()
+  $script:WavecrateCargoConfigOverrideArgs = @()
 }
 
-function Clear-SempalSccacheWrapper {
+function Clear-WavecrateSccacheWrapper {
   param(
     [Parameter(Mandatory = $true)]
     [string]$Reason
   )
 
-  if ((Test-SempalSccacheWrapperValue $env:RUSTC_WRAPPER) -or
-      (Test-SempalSccacheWrapperValue $env:CARGO_BUILD_RUSTC_WRAPPER)) {
-    Set-SempalCargoWrapperOverride ""
+  if ((Test-WavecrateSccacheWrapperValue $env:RUSTC_WRAPPER) -or
+      (Test-WavecrateSccacheWrapperValue $env:CARGO_BUILD_RUSTC_WRAPPER)) {
+    Set-WavecrateCargoWrapperOverride ""
     Write-Host "[cargo-cache] $Reason; falling back to direct rustc"
     return
   }
@@ -112,7 +112,7 @@ function Clear-SempalSccacheWrapper {
   Write-Host "[cargo-cache] $Reason"
 }
 
-function Test-SempalSccacheHealth {
+function Test-WavecrateSccacheHealth {
   param(
     [Parameter(Mandatory = $true)]
     [string]$SccachePath
@@ -170,32 +170,32 @@ function Test-SempalSccacheHealth {
   }
 }
 
-function Enable-SempalCargoCache {
-  Ensure-SempalWritableTempDir
+function Enable-WavecrateCargoCache {
+  Ensure-WavecrateWritableTempDir
 
-  if ($env:SEMPAL_DISABLE_SCCACHE -eq "1") {
-    Clear-SempalSccacheWrapper "sccache disabled by SEMPAL_DISABLE_SCCACHE=1"
+  if ($env:WAVECRATE_DISABLE_SCCACHE -eq "1") {
+    Clear-WavecrateSccacheWrapper "sccache disabled by WAVECRATE_DISABLE_SCCACHE=1"
     return
   }
 
-  if ($env:SEMPAL_ENABLE_SCCACHE -ne "1") {
-    Clear-SempalSccacheWrapper "sccache disabled by default"
+  if ($env:WAVECRATE_ENABLE_SCCACHE -ne "1") {
+    Clear-WavecrateSccacheWrapper "sccache disabled by default"
     return
   }
 
   if (-not [string]::IsNullOrWhiteSpace($env:RUSTC_WRAPPER)) {
-    if (Test-SempalSccacheWrapperValue $env:RUSTC_WRAPPER) {
-      if (Test-SempalSccacheHealth $env:RUSTC_WRAPPER) {
-        Set-SempalCargoWrapperOverride $env:RUSTC_WRAPPER
+    if (Test-WavecrateSccacheWrapperValue $env:RUSTC_WRAPPER) {
+      if (Test-WavecrateSccacheHealth $env:RUSTC_WRAPPER) {
+        Set-WavecrateCargoWrapperOverride $env:RUSTC_WRAPPER
         Write-Host "[cargo-cache] keeping healthy existing RUSTC_WRAPPER=$($env:RUSTC_WRAPPER)"
         return
       }
 
-      Clear-SempalSccacheWrapper "existing sccache wrapper failed health probe"
+      Clear-WavecrateSccacheWrapper "existing sccache wrapper failed health probe"
       return
     }
 
-    Set-SempalCargoWrapperOverride $env:RUSTC_WRAPPER
+    Set-WavecrateCargoWrapperOverride $env:RUSTC_WRAPPER
     Write-Host "[cargo-cache] keeping existing RUSTC_WRAPPER=$($env:RUSTC_WRAPPER)"
     return
   }
@@ -205,12 +205,12 @@ function Enable-SempalCargoCache {
     return
   }
 
-  if (-not (Test-SempalSccacheHealth $sccache.Source)) {
-    Set-SempalCargoWrapperOverride ""
+  if (-not (Test-WavecrateSccacheHealth $sccache.Source)) {
+    Set-WavecrateCargoWrapperOverride ""
     Write-Host "[cargo-cache] skipping sccache because the wrapper probe failed"
     return
   }
 
-  Set-SempalCargoWrapperOverride $sccache.Source
+  Set-WavecrateCargoWrapperOverride $sccache.Source
   Write-Host "[cargo-cache] using sccache via RUSTC_WRAPPER=$($env:RUSTC_WRAPPER)"
 }

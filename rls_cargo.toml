@@ -1,6 +1,6 @@
 [defaults]
-app_name = "sempal"
-repo = "PORTALSURFER/sempal"
+app_name = "wavecrate"
+repo = "PORTALSURFER/wavecrate"
 channel = "nightly"
 merge_method = "squash"
 platforms = []

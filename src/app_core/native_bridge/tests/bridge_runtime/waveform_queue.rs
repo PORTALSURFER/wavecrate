@@ -58,7 +58,7 @@ fn flush_pending_waveform_actions_clears_queue_and_marks_waveform_dirty() {
         app_key: Some(build_projection_cache_key(&controller)),
         ..NativeProjectionCache::default()
     };
-    let mut bridge = SempalNativeBridge {
+    let mut bridge = WavecrateNativeBridge {
         controller,
         projection_cache: cache,
         projection_key_snapshot: None,

@@ -14,7 +14,7 @@ impl TempWavFile {
     fn new(label: &str, bytes: &[u8]) -> Self {
         let id = NEXT_TEMP_FILE_ID.fetch_add(1, Ordering::Relaxed);
         let path = std::env::temp_dir().join(format!(
-            "sempal_wav_sanitize_{label}_{}_{}.wav",
+            "wavecrate_wav_sanitize_{label}_{}_{}.wav",
             std::process::id(),
             id
         ));
@@ -162,7 +162,7 @@ fn sanitize_wav_header_handles_large_chunk_sizes_safely() {
 #[test]
 fn read_sanitized_wav_bytes_rejects_large_files() {
     let path = std::env::temp_dir().join(format!(
-        "sempal_wav_sanitize_large_{}_{}.wav",
+        "wavecrate_wav_sanitize_large_{}_{}.wav",
         std::process::id(),
         NEXT_TEMP_FILE_ID.fetch_add(1, Ordering::Relaxed)
     ));

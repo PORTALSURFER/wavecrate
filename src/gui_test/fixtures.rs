@@ -7,7 +7,9 @@ use crate::{
             NativeSegmentRevisions, NativeUiAction,
         },
         controller::build_named_gui_fixture_controller,
-        native_bridge::{SempalNativeBridge, new_native_bridge, new_native_bridge_with_controller},
+        native_bridge::{
+            WavecrateNativeBridge, new_native_bridge, new_native_bridge_with_controller,
+        },
     },
     app_dirs::PersistenceProfileGuard,
     gui::repaint::RepaintSignal,
@@ -24,9 +26,9 @@ use tempfile::TempDir;
 ///
 /// Named GUI fixtures create temporary source trees and databases. Those must
 /// outlive the runtime bridge, so this wrapper owns the tempdir guards while
-/// delegating all bridge behavior to `SempalNativeBridge`.
+/// delegating all bridge behavior to `WavecrateNativeBridge`.
 pub struct GuiFixtureBridge {
-    bridge: SempalNativeBridge,
+    bridge: WavecrateNativeBridge,
     _profile_guard: Option<PersistenceProfileGuard>,
     _sandbox_guards: Vec<TempDir>,
     shutdown_emitted: bool,
@@ -88,22 +90,22 @@ impl GuiFixtureBridge {
         self.bridge.install_gui_test_mode(config);
     }
 
-    /// Project motion-only fields from the Sempal-owned bridge model.
+    /// Project motion-only fields from the Wavecrate-owned bridge model.
     pub(crate) fn project_motion_model(&mut self) -> Option<NativeMotionModel> {
         self.bridge.project_motion_model()
     }
 
-    /// Return and clear dirty segments from the Sempal-owned bridge model.
+    /// Return and clear dirty segments from the Wavecrate-owned bridge model.
     pub(crate) fn take_dirty_segments(&mut self) -> NativeDirtySegments {
         self.bridge.take_dirty_segments()
     }
 
-    /// Return static-segment revisions from the Sempal-owned bridge model.
+    /// Return static-segment revisions from the Wavecrate-owned bridge model.
     pub(crate) fn take_segment_revisions(&mut self) -> NativeSegmentRevisions {
         self.bridge.take_segment_revisions()
     }
 
-    /// Reduce one Sempal-owned UI action into the fixture bridge.
+    /// Reduce one Wavecrate-owned UI action into the fixture bridge.
     pub(crate) fn reduce_action(&mut self, action: NativeUiAction) {
         self.bridge.reduce_action(action);
     }
@@ -113,7 +115,7 @@ impl GuiFixtureBridge {
         self.bridge.take_last_action_handled()
     }
 
-    /// Observe one Sempal-owned frame result.
+    /// Observe one Wavecrate-owned frame result.
     pub(crate) fn observe_frame_result(&mut self, result: NativeFrameBuildResult) {
         self.bridge.observe_frame_result(result);
     }
@@ -131,15 +133,15 @@ impl GuiFixtureBridge {
 
 impl NativeAppBridge for GuiFixtureBridge {
     fn project_model(&mut self) -> Arc<crate::app_core::actions::NativeAppModel> {
-        <SempalNativeBridge as NativeAppBridge>::project_model(&mut self.bridge)
+        <WavecrateNativeBridge as NativeAppBridge>::project_model(&mut self.bridge)
     }
 
     fn pull_model(&mut self) -> crate::app_core::actions::NativeAppModel {
-        <SempalNativeBridge as NativeAppBridge>::pull_model(&mut self.bridge)
+        <WavecrateNativeBridge as NativeAppBridge>::pull_model(&mut self.bridge)
     }
 
     fn pull_model_arc(&mut self) -> Arc<crate::app_core::actions::NativeAppModel> {
-        <SempalNativeBridge as NativeAppBridge>::pull_model_arc(&mut self.bridge)
+        <WavecrateNativeBridge as NativeAppBridge>::pull_model_arc(&mut self.bridge)
     }
 
     fn project_motion_model(&mut self) -> Option<NativeMotionModel> {

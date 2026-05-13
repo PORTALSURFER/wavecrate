@@ -1,11 +1,11 @@
 pub(crate) fn analysis_log_enabled() -> bool {
-    std::env::var("SEMPAL_ANALYSIS_LOG_JOBS")
+    std::env::var("WAVECRATE_ANALYSIS_LOG_JOBS")
         .map(|value| value.trim() == "1")
         .unwrap_or(false)
 }
 
 pub(crate) fn analysis_log_queue_enabled() -> bool {
-    std::env::var("SEMPAL_ANALYSIS_LOG_QUEUE")
+    std::env::var("WAVECRATE_ANALYSIS_LOG_QUEUE")
         .map(|value| value.trim() == "1")
         .unwrap_or(false)
 }

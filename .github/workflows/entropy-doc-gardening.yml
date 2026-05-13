@@ -45,7 +45,7 @@ jobs:
           script: |
             const fs = require('fs');
             const title = 'Tech debt: doc gardening';
-            const marker = '<!-- sempal-doc-gardening -->';
+            const marker = '<!-- wavecrate-doc-gardening -->';
 
             function readOrPlaceholder(path) {
               return fs.existsSync(path)

@@ -12,7 +12,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$ROOT_DIR"
 # shellcheck source=scripts/internal/use_cargo_cache.sh
 source "$ROOT_DIR/scripts/internal/use_cargo_cache.sh"
-sempal_enable_cargo_cache
+wavecrate_enable_cargo_cache
 
 usage() {
   cat <<'EOF'
@@ -66,14 +66,14 @@ echo "[devcheck] cargo check --manifest-path vendor/radiant/Cargo.toml --example
 cargo check --manifest-path vendor/radiant/Cargo.toml --example generic_native --no-default-features
 
 if (( APP_ONLY == 1 )); then
-  echo "[devcheck] cargo check -p sempal --lib --bin sempal"
-  cargo check -p sempal --lib --bin sempal
+  echo "[devcheck] cargo check -p wavecrate --lib --bin wavecrate"
+  cargo check -p wavecrate --lib --bin wavecrate
 elif (( WORKSPACE == 1 )); then
   echo "[devcheck] cargo check --workspace --tests --bins"
   cargo check --workspace --tests --bins
 else
-  echo "[devcheck] cargo check -p sempal --tests --bins"
-  cargo check -p sempal --tests --bins
+  echo "[devcheck] cargo check -p wavecrate --tests --bins"
+  cargo check -p wavecrate --tests --bins
 fi
 
 echo "[devcheck] OK"

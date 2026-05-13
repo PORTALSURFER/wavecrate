@@ -5,7 +5,7 @@
 //! early reduction flow.
 
 use super::{
-    PendingWaveformActions, SempalNativeBridge,
+    PendingWaveformActions, WavecrateNativeBridge,
     action_classification::{
         InteractionActionClass, classify_action_interaction, uses_local_model_pull_fast_path,
     },
@@ -39,7 +39,7 @@ fn additional_dirty_sources_for_action(
     }
 }
 
-impl SempalNativeBridge {
+impl WavecrateNativeBridge {
     /// Apply one action immediately, optionally forcing the local pull fast path.
     fn apply_action_immediately_with_pull_mode(
         &mut self,

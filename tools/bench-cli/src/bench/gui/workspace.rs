@@ -2,12 +2,12 @@
 
 use super::BenchOptions;
 use hound::{SampleFormat, WavSpec, WavWriter};
-use sempal::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
-use sempal::waveform::WaveformRenderer;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use tempfile::TempDir;
+use wavecrate::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
+use wavecrate::waveform::WaveformRenderer;
 
 /// Number of frames written into each synthetic GUI benchmark wav.
 ///
@@ -70,8 +70,8 @@ pub(super) fn wait_for_rows(controller: &mut AppController, target: usize) -> Re
 fn configure_benchmark_app_root(_temp_root: &TempDir) -> Result<(), String> {
     #[cfg(not(test))]
     {
-        let bench_app_root = _temp_root.path().join(".sempal-bench");
-        sempal::app_dirs::set_app_root_override(bench_app_root.clone()).map_err(|err| {
+        let bench_app_root = _temp_root.path().join(".wavecrate-bench");
+        wavecrate::app_dirs::set_app_root_override(bench_app_root.clone()).map_err(|err| {
             format!(
                 "Configure isolated benchmark app root {} failed: {err}",
                 bench_app_root.display()
@@ -113,7 +113,7 @@ fn finalize_wait_for_rows(controller: &mut AppController, target: usize) -> Resu
 }
 
 fn format_timeout_message(
-    model: &sempal::app_core::actions::NativeAppModel,
+    model: &wavecrate::app_core::actions::NativeAppModel,
     visible_rows: usize,
     target: usize,
 ) -> String {

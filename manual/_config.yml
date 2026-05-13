@@ -1,6 +1,6 @@
-# GitHub Pages configuration for Sempal documentation site
+# GitHub Pages configuration for Wavecrate documentation site
 # Uses custom layout and styling to match the app's dark theme.
-title: Sempal
+title: Wavecrate
 description: Audio sample triage
 markdown: kramdown
 theme: null

@@ -1,4 +1,4 @@
-use super::super::{shared, PromptOverlaySections, PromptOverlayTextLayout};
+use super::super::{PromptOverlaySections, PromptOverlayTextLayout, shared};
 use super::common::{centered_line_in_rect, column_tree, fixed_height_child, top_line_in_rect};
 use crate::app_core::native_shell::composition::style::SizingTokens;
 use crate::gui::types::{Point, Rect};

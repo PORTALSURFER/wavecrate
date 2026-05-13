@@ -3,9 +3,9 @@ members = [
     ".",
     "apps/installer",
     "apps/updater-helper",
-    "crates/sempal-analysis",
-    "crates/sempal-library",
-    "crates/sempal-scan",
+    "crates/wavecrate-analysis",
+    "crates/wavecrate-library",
+    "crates/wavecrate-scan",
     "tools/analysis-admin",
     "tools/bench-cli",
     "tools/gui-test-cli",
@@ -15,10 +15,10 @@ default-members = ["."]
 resolver = "3"
 
 [package]
-name = "sempal"
+name = "wavecrate"
 version = "19.0.0"
 edition = "2024"
-default-run = "sempal"
+default-run = "wavecrate"
 autobins = false
 
 [lints.rust]
@@ -35,7 +35,7 @@ native-bridge-metrics = []
 radiant-gui = []
 # Deprecated compatibility alias; prefer `radiant-gui`.
 radiant-rebuild = ["radiant-gui"]
-sqlite-ext-unsafe = ["sempal-library/sqlite-ext-unsafe"]
+sqlite-ext-unsafe = ["wavecrate-library/sqlite-ext-unsafe"]
 
 [dependencies]
 hound = "3.5.1"
@@ -90,9 +90,9 @@ keyring = "3.6.2"
 chacha20poly1305 = "0.10.1"
 base64 = "0.22.1"
 ed25519-dalek = "2.2.0"
-sempal-analysis = { path = "crates/sempal-analysis" }
-sempal-library = { path = "crates/sempal-library" }
-sempal-scan = { path = "crates/sempal-scan" }
+wavecrate-analysis = { path = "crates/wavecrate-analysis" }
+wavecrate-library = { path = "crates/wavecrate-library" }
+wavecrate-scan = { path = "crates/wavecrate-scan" }
 symphonia = { version = "0.5.4", features = ["wav", "pcm", "mp3", "flac"] }
 rayon = "1.10"
 crossbeam-queue = "0.3.12"
@@ -143,7 +143,7 @@ filetime = "0.2.26"
 embed-resource = "3.0"
 
 [[bin]]
-name = "sempal"
+name = "wavecrate"
 path = "src/main.rs"
 
 [[bench]]

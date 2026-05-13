@@ -411,7 +411,7 @@ fn bridge_metrics_track_projection_cache_and_waveform_refresh_paths() {
     let _ = cache.resolve_or_project(&mut controller);
     let _ = cache.resolve_or_project(&mut controller);
 
-    let mut bridge = SempalNativeBridge {
+    let mut bridge = WavecrateNativeBridge {
         controller,
         projection_cache: NativeProjectionCache::default(),
         projection_key_snapshot: None,

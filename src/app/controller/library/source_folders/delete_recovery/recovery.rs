@@ -71,7 +71,7 @@ pub(crate) struct RetainedDeleteEntry {
     pub(crate) source_root: PathBuf,
     /// Original relative folder path within the source.
     pub(crate) original_relative: PathBuf,
-    /// Relative staged path inside `.sempal_delete_staging`.
+    /// Relative staged path inside `.wavecrate_delete_staging`.
     pub(crate) staged_relative: PathBuf,
     /// Deleted wav metadata snapshot used to reconstruct DB state after restart.
     pub(crate) deleted_entries: Vec<WavEntry>,

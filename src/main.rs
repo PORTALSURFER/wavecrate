@@ -2,7 +2,7 @@
 #![deny(warnings)]
 #![allow(clippy::too_many_arguments)]
 
-//! Feature-selected Sempal application entry point.
+//! Feature-selected Wavecrate application entry point.
 #![cfg_attr(
     all(not(debug_assertions), target_os = "windows"),
     windows_subsystem = "windows"

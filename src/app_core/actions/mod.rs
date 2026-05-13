@@ -2,7 +2,7 @@
 //!
 //! These aliases centralize runtime-facing type dependencies in `app_core`,
 //! so bridge/controller glue does not import concrete runtime types directly.
-//! Sempal-owned projection DTOs live here while Radiant-specific compatibility
+//! Wavecrate-owned projection DTOs live here while Radiant-specific compatibility
 //! types remain isolated to the runtime boundary.
 
 mod catalog;
@@ -46,7 +46,7 @@ pub type NativeBrowserRowModel = self::native_shell_dtos::BrowserRowModel;
 /// Native runtime browser row processing state.
 pub type NativeBrowserRowProcessingState = self::native_shell_dtos::BrowserRowProcessingState;
 
-/// Native runtime retained vector used by Sempal-owned projection DTOs.
+/// Native runtime retained vector used by Wavecrate-owned projection DTOs.
 pub type NativeRetainedVec<T> = self::native_shell_dtos::RetainedVec<T>;
 
 /// Native runtime automation node identifier.

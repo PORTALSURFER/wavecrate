@@ -9,9 +9,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use std::{cell::Cell, thread_local};
 
 /// Environment override for the browser-search offload threshold.
-const SEARCH_OFFLOAD_THRESHOLD_ENV: &str = "SEMPAL_BROWSER_SEARCH_OFFLOAD_THRESHOLD";
+const SEARCH_OFFLOAD_THRESHOLD_ENV: &str = "WAVECRATE_BROWSER_SEARCH_OFFLOAD_THRESHOLD";
 /// Environment override for enabling/disabling async browser search for UI interactions.
-const SEARCH_ASYNC_PIPELINE_ENV: &str = "SEMPAL_BROWSER_ASYNC_PIPELINE";
+const SEARCH_ASYNC_PIPELINE_ENV: &str = "WAVECRATE_BROWSER_ASYNC_PIPELINE";
 /// Default wav-entry count threshold above which search work offloads to jobs.
 const DEFAULT_SEARCH_OFFLOAD_THRESHOLD: usize = 5_000;
 

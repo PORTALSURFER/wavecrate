@@ -176,7 +176,7 @@ fn waveform_selection_shot_matches_fixture() {
     );
 }
 
-#[ignore = "Generate snapshot fixtures with `cargo test -p sempal --lib update_shot_fixtures -- --ignored`"]
+#[ignore = "Generate snapshot fixtures with `cargo test -p wavecrate --lib update_shot_fixtures -- --ignored`"]
 #[test]
 fn update_shot_fixtures() {
     write_or_compare_shot("startup", [1280.0, 720.0], startup_scene_model(), true);
@@ -196,7 +196,7 @@ fn update_shot_fixtures() {
 
 fn startup_scene_model() -> NativeAppModel {
     let mut model = NativeAppModel::default();
-    model.title = String::from("Sempal Native");
+    model.title = String::from("Wavecrate Native");
     model.backend_label = String::from("radiant/native_vello");
     model.transport_running = true;
     model.status.left = String::from("Ready");
@@ -254,7 +254,7 @@ fn startup_scene_model() -> NativeAppModel {
 
 fn browser_dense_model() -> NativeAppModel {
     let mut model = NativeAppModel::default();
-    model.title = String::from("Sempal - Dense Browser");
+    model.title = String::from("Wavecrate - Dense Browser");
     model.status.left = String::from("Focus list");
     model.status.center = String::from("rows: 500 | selected: 7 | anchor: 72 | search: dense");
     model.status.right = String::from("col: 2/3");
@@ -322,7 +322,7 @@ fn browser_dense_model() -> NativeAppModel {
 
 fn waveform_selection_model() -> NativeAppModel {
     let mut model = NativeAppModel::default();
-    model.title = String::from("Sempal Native Waveform");
+    model.title = String::from("Wavecrate Native Waveform");
     model.status.left = String::from("Waveform focus");
     model.status.center = String::from("rows: 48 | selected: 2 | anchor: 1 | search: wav");
     model.status.right = String::from("col: 2/3");

@@ -4,7 +4,7 @@ use crate::app_core::actions::NativeUiAction;
 use crate::app_core::app_api::controller_state::DirtyReason;
 
 /// Toggle immediate application of waveform overlay preview actions.
-const IMMEDIATE_WAVEFORM_PREVIEW_ENV: &str = "SEMPAL_NATIVE_BRIDGE_IMMEDIATE_WAVEFORM_PREVIEW";
+const IMMEDIATE_WAVEFORM_PREVIEW_ENV: &str = "WAVECRATE_NATIVE_BRIDGE_IMMEDIATE_WAVEFORM_PREVIEW";
 /// Default mode for immediate waveform overlay preview actions.
 const IMMEDIATE_WAVEFORM_PREVIEW_DEFAULT: bool = true;
 /// Cached immediate-waveform-preview mode resolved from environment.

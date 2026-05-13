@@ -4,11 +4,11 @@ use crate::{app_dirs, env_flags::env_var_truthy, gui_runtime::NativeRunOptions};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-const GUI_TEST_MODE_ENV: &str = "SEMPAL_GUI_TEST_MODE";
-const GUI_TEST_ARTIFACT_DIR_ENV: &str = "SEMPAL_GUI_TEST_ARTIFACT_DIR";
-const GUI_TEST_FIXTURE_ENV: &str = "SEMPAL_GUI_TEST_FIXTURE";
-const GUI_TEST_VIEWPORT_ENV: &str = "SEMPAL_GUI_TEST_VIEWPORT";
-const GUI_TEST_SCENARIO_ENV: &str = "SEMPAL_GUI_TEST_SCENARIO";
+const GUI_TEST_MODE_ENV: &str = "WAVECRATE_GUI_TEST_MODE";
+const GUI_TEST_ARTIFACT_DIR_ENV: &str = "WAVECRATE_GUI_TEST_ARTIFACT_DIR";
+const GUI_TEST_FIXTURE_ENV: &str = "WAVECRATE_GUI_TEST_FIXTURE";
+const GUI_TEST_VIEWPORT_ENV: &str = "WAVECRATE_GUI_TEST_VIEWPORT";
+const GUI_TEST_SCENARIO_ENV: &str = "WAVECRATE_GUI_TEST_SCENARIO";
 const LEGACY_DEFAULT_GUI_TEST_FIXTURE_TAG: &str = "default";
 
 /// Canonical GUI fixture tag that exercises persisted startup in an isolated profile.

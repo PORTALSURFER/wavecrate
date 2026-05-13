@@ -20,7 +20,7 @@ Machine-consumed check allowlists do not live here anymore. They now live under
 - `docs/SYSTEMS.md`
   - runtime contracts, recovery rules, automation surfaces, and data formats
 - `docs/TARGET.md`
-  - product target, UI/performance direction, and the Sempal/Radiant ownership
+  - product target, UI/performance direction, and the Wavecrate/Radiant ownership
     boundary
 - `docs/TROUBLESHOOTING.md`
   - common failure modes, diagnostics, and guardrail-change workflow
@@ -31,7 +31,7 @@ Machine-consumed check allowlists do not live here anymore. They now live under
   - repo-specific workflow rules, validation entrypoints, branch policy, and
     repo-to-Linear project mapping
 - Planning and backlog
-  - live in Linear project `Sempal` under team `PORTALSURFER`
+  - live in Linear project `Wavecrate` under team `PORTALSURFER`
 - `tmp/database_system_audit_plan.md`
   - database-system audit notes and follow-up context
 - `tmp/source_runtime_test_isolation_audit_plan.md`

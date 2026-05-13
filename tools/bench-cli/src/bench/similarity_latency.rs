@@ -3,10 +3,10 @@ use super::stats;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
 use rusqlite::{Connection, params};
-use sempal::analysis::vector::encode_f32_le_blob;
-use sempal::analysis::{ann_index, similarity};
 use serde::Serialize;
 use tempfile::tempdir;
+use wavecrate::analysis::vector::encode_f32_le_blob;
+use wavecrate::analysis::{ann_index, similarity};
 
 #[derive(Clone, Debug, Serialize)]
 pub(super) struct SimilarityBenchResult {

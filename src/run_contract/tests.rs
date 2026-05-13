@@ -1,9 +1,9 @@
 use super::RunContract;
-use sempal::app_dirs::{ConfigBaseGuard, PersistenceProfileGuard};
-use sempal::gui_runtime::{NativeShutdownTimingArtifact, NativeStartupTimingArtifact};
 use serde_json::Value;
 use std::fs;
 use tempfile::tempdir;
+use wavecrate::app_dirs::{ConfigBaseGuard, PersistenceProfileGuard};
+use wavecrate::gui_runtime::{NativeShutdownTimingArtifact, NativeStartupTimingArtifact};
 
 #[test]
 fn run_contract_id_is_nonempty() {

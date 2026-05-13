@@ -21,7 +21,7 @@ if [[ -f "$ROOT_DIR/scripts/internal/git_diff_env.sh" ]]; then
   # shellcheck source=scripts/internal/git_diff_env.sh
   source "$ROOT_DIR/scripts/internal/git_diff_env.sh"
 else
-  sempal_git() {
+  wavecrate_git() {
     git "$@"
   }
 fi
@@ -53,7 +53,7 @@ while (( $# > 0 )); do
 done
 
 git_has_commit() {
-  sempal_git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1
+  wavecrate_git rev-parse --verify --quiet "$1^{commit}" >/dev/null 2>&1
 }
 
 collect_markdown_files() {
@@ -66,19 +66,19 @@ collect_markdown_files() {
   if [[ -n "$base" ]] && git_has_commit "$base" && git_has_commit "$head"; then
     while IFS= read -r path; do
       out+=("$path")
-    done < <(sempal_git diff --name-only --diff-filter=AM "$base...$head" -- '*.md' || true)
+    done < <(wavecrate_git diff --name-only --diff-filter=AM "$base...$head" -- '*.md' || true)
   elif git_has_commit "$head"; then
     while IFS= read -r path; do
       out+=("$path")
-    done < <(sempal_git show --name-only --pretty=format: "$head" -- '*.md' || true)
+    done < <(wavecrate_git show --name-only --pretty=format: "$head" -- '*.md' || true)
   fi
 
   while IFS= read -r path; do
     staged+=("$path")
-  done < <(sempal_git diff --name-only --diff-filter=AM --cached -- '*.md' || true)
+  done < <(wavecrate_git diff --name-only --diff-filter=AM --cached -- '*.md' || true)
   while IFS= read -r path; do
     unstaged+=("$path")
-  done < <(sempal_git diff --name-only --diff-filter=AM -- '*.md' || true)
+  done < <(wavecrate_git diff --name-only --diff-filter=AM -- '*.md' || true)
 
   printf "%s\n" ${out[@]+"${out[@]}"} ${staged[@]+"${staged[@]}"} ${unstaged[@]+"${unstaged[@]}"} \
     | sed 's#^\\./##' \

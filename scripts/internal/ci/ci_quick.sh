@@ -13,7 +13,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$ROOT_DIR"
 # shellcheck source=scripts/internal/use_cargo_cache.sh
 source "$ROOT_DIR/scripts/internal/use_cargo_cache.sh"
-sempal_enable_cargo_cache
+wavecrate_enable_cargo_cache
 
 usage() {
   cat <<'USAGE'
@@ -56,8 +56,8 @@ if (( WORKSPACE == 1 )); then
   echo "[ci_quick] cargo nextest run --workspace --profile quick --all-targets"
   cargo nextest run --workspace --profile quick --all-targets
 else
-  echo "[ci_quick] cargo nextest run -p sempal --profile quick --lib --tests"
-  cargo nextest run -p sempal --profile quick --lib --tests
+  echo "[ci_quick] cargo nextest run -p wavecrate --profile quick --lib --tests"
+  cargo nextest run -p wavecrate --profile quick --lib --tests
 fi
 
 echo "[ci_quick] OK"

@@ -1,17 +1,17 @@
 [package]
-name = "sempal-installer"
+name = "wavecrate-installer"
 version = "19.0.0"
 edition = "2024"
 
 [[bin]]
-name = "sempal-installer"
+name = "wavecrate-installer"
 path = "src/main.rs"
 
 [dependencies]
 image = "0.25.9"
 open = "5.3.3"
 rfd = "0.16.0"
-sempal = { path = "../.." }
+wavecrate = { path = "../.." }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.62.2", features = [

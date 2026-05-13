@@ -2068,8 +2068,8 @@ dependencies = [
 name = "gui-test-cli"
 version = "0.1.0"
 dependencies = [
- "sempal",
  "serde_json",
+ "wavecrate",
 ]
 
 [[package]]
@@ -4590,176 +4590,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sempal"
-version = "19.0.0"
-dependencies = [
- "arboard",
- "base64",
- "bincode",
- "blake3",
- "chacha20poly1305",
- "cpal",
- "criterion",
- "crossbeam-queue",
- "directories",
- "ed25519-dalek",
- "embed-resource",
- "filetime",
- "fuzzy-matcher",
- "hound",
- "image",
- "keyring",
- "libc",
- "notify",
- "open",
- "ordered-float 3.9.2",
- "pollster",
- "radiant",
- "rand 0.8.5",
- "rand 0.9.2",
- "raw-window-handle",
- "rayon",
- "regex",
- "rfd",
- "ringbuf",
- "roxmltree 0.21.1",
- "rusqlite",
- "sempal-analysis",
- "sempal-library",
- "sempal-scan",
- "semver",
- "serde",
- "serde_json",
- "sha2",
- "skrifa",
- "symphonia",
- "sysinfo",
- "tempfile",
- "thiserror 2.0.18",
- "time",
- "toml 0.8.23",
- "tracing",
- "tracing-appender",
- "tracing-subscriber",
- "ureq",
- "url",
- "uuid",
- "vello",
- "windows 0.62.2",
- "windows-core 0.62.2",
- "windows-implement 0.60.2",
- "windows-sys 0.61.2",
- "winit",
- "winreg 0.52.0",
- "zip",
-]
-
-[[package]]
-name = "sempal-analysis"
-version = "19.0.0"
-dependencies = [
- "blake3",
- "directories",
- "hdbscan",
- "hnsw_rs",
- "hound",
- "linfa",
- "linfa-reduction",
- "linfa-tsne",
- "ndarray",
- "rand 0.8.5",
- "rayon",
- "rusqlite",
- "rustfft",
- "serde",
- "serde_json",
- "sha2",
- "symphonia",
- "tempfile",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "sempal-analysis-admin"
-version = "19.0.0"
-dependencies = [
- "hdbscan",
- "rusqlite",
- "sempal",
- "sempal-analysis",
-]
-
-[[package]]
-name = "sempal-bench-cli"
-version = "19.0.0"
-dependencies = [
- "hound",
- "rand 0.9.2",
- "rusqlite",
- "sempal",
- "serde",
- "serde_json",
- "sysinfo",
- "tempfile",
-]
-
-[[package]]
-name = "sempal-installer"
-version = "19.0.0"
-dependencies = [
- "image",
- "open",
- "rfd",
- "sempal",
- "tempfile",
- "windows 0.62.2",
- "winreg 0.52.0",
-]
-
-[[package]]
-name = "sempal-library"
-version = "19.0.0"
-dependencies = [
- "directories",
- "libc",
- "rusqlite",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.18",
- "toml 0.8.23",
- "tracing",
- "uuid",
- "windows 0.62.2",
-]
-
-[[package]]
-name = "sempal-scan"
-version = "19.0.0"
-dependencies = [
- "blake3",
- "libc",
- "sempal-library",
- "tempfile",
- "thiserror 2.0.18",
- "tracing",
-]
-
-[[package]]
-name = "sempal-similarity-prep"
-version = "19.0.0"
-dependencies = [
- "sempal",
-]
-
-[[package]]
-name = "sempal-updater-helper"
-version = "19.0.0"
-dependencies = [
- "sempal",
-]
-
-[[package]]
 name = "semver"
 version = "1.0.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5978,6 +5808,176 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cbc538057e648b67f72a982e708d485b2efa771e1ac05fec311f9f63e5800db4"
 dependencies = [
  "unicode-ident",
+]
+
+[[package]]
+name = "wavecrate"
+version = "19.0.0"
+dependencies = [
+ "arboard",
+ "base64",
+ "bincode",
+ "blake3",
+ "chacha20poly1305",
+ "cpal",
+ "criterion",
+ "crossbeam-queue",
+ "directories",
+ "ed25519-dalek",
+ "embed-resource",
+ "filetime",
+ "fuzzy-matcher",
+ "hound",
+ "image",
+ "keyring",
+ "libc",
+ "notify",
+ "open",
+ "ordered-float 3.9.2",
+ "pollster",
+ "radiant",
+ "rand 0.8.5",
+ "rand 0.9.2",
+ "raw-window-handle",
+ "rayon",
+ "regex",
+ "rfd",
+ "ringbuf",
+ "roxmltree 0.21.1",
+ "rusqlite",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha2",
+ "skrifa",
+ "symphonia",
+ "sysinfo",
+ "tempfile",
+ "thiserror 2.0.18",
+ "time",
+ "toml 0.8.23",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+ "ureq",
+ "url",
+ "uuid",
+ "vello",
+ "wavecrate-analysis",
+ "wavecrate-library",
+ "wavecrate-scan",
+ "windows 0.62.2",
+ "windows-core 0.62.2",
+ "windows-implement 0.60.2",
+ "windows-sys 0.61.2",
+ "winit",
+ "winreg 0.52.0",
+ "zip",
+]
+
+[[package]]
+name = "wavecrate-analysis"
+version = "19.0.0"
+dependencies = [
+ "blake3",
+ "directories",
+ "hdbscan",
+ "hnsw_rs",
+ "hound",
+ "linfa",
+ "linfa-reduction",
+ "linfa-tsne",
+ "ndarray",
+ "rand 0.8.5",
+ "rayon",
+ "rusqlite",
+ "rustfft",
+ "serde",
+ "serde_json",
+ "sha2",
+ "symphonia",
+ "tempfile",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "wavecrate-analysis-admin"
+version = "19.0.0"
+dependencies = [
+ "hdbscan",
+ "rusqlite",
+ "wavecrate",
+ "wavecrate-analysis",
+]
+
+[[package]]
+name = "wavecrate-bench-cli"
+version = "19.0.0"
+dependencies = [
+ "hound",
+ "rand 0.9.2",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sysinfo",
+ "tempfile",
+ "wavecrate",
+]
+
+[[package]]
+name = "wavecrate-installer"
+version = "19.0.0"
+dependencies = [
+ "image",
+ "open",
+ "rfd",
+ "tempfile",
+ "wavecrate",
+ "windows 0.62.2",
+ "winreg 0.52.0",
+]
+
+[[package]]
+name = "wavecrate-library"
+version = "19.0.0"
+dependencies = [
+ "directories",
+ "libc",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "toml 0.8.23",
+ "tracing",
+ "uuid",
+ "windows 0.62.2",
+]
+
+[[package]]
+name = "wavecrate-scan"
+version = "19.0.0"
+dependencies = [
+ "blake3",
+ "libc",
+ "tempfile",
+ "thiserror 2.0.18",
+ "tracing",
+ "wavecrate-library",
+]
+
+[[package]]
+name = "wavecrate-similarity-prep"
+version = "19.0.0"
+dependencies = [
+ "wavecrate",
+]
+
+[[package]]
+name = "wavecrate-updater-helper"
+version = "19.0.0"
+dependencies = [
+ "wavecrate",
 ]
 
 [[package]]

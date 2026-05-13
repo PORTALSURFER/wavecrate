@@ -99,15 +99,15 @@ else
   warn "git not found on PATH"
 fi
 
-info "Checking SEMPAL_NATIVE_FONT_PATH..."
-if [[ -n "${SEMPAL_NATIVE_FONT_PATH:-}" ]]; then
-  if [[ -f "$SEMPAL_NATIVE_FONT_PATH" ]]; then
-    info "SEMPAL_NATIVE_FONT_PATH: OK ($SEMPAL_NATIVE_FONT_PATH)"
+info "Checking WAVECRATE_NATIVE_FONT_PATH..."
+if [[ -n "${WAVECRATE_NATIVE_FONT_PATH:-}" ]]; then
+  if [[ -f "$WAVECRATE_NATIVE_FONT_PATH" ]]; then
+    info "WAVECRATE_NATIVE_FONT_PATH: OK ($WAVECRATE_NATIVE_FONT_PATH)"
   else
-    err "SEMPAL_NATIVE_FONT_PATH is set but not a file: $SEMPAL_NATIVE_FONT_PATH"
+    err "WAVECRATE_NATIVE_FONT_PATH is set but not a file: $WAVECRATE_NATIVE_FONT_PATH"
   fi
 else
-  info "SEMPAL_NATIVE_FONT_PATH: not set (OK)"
+  info "WAVECRATE_NATIVE_FONT_PATH: not set (OK)"
 fi
 
 info "Checking CPAL_ASIO_DIR (Windows ASIO builds)..."
@@ -126,11 +126,11 @@ else
 fi
 
 info "Expected log locations:"
-info "  Linux:   \$HOME/.config/.sempal/logs"
-info "  macOS:   \$HOME/Library/Application Support/.sempal/logs"
-info "  Windows: %APPDATA%\\\\.sempal\\\\logs"
+info "  Linux:   \$HOME/.config/.wavecrate/logs"
+info "  macOS:   \$HOME/Library/Application Support/.wavecrate/logs"
+info "  Windows: %APPDATA%\\\\.wavecrate\\\\logs"
 if (( is_wsl == 1 )); then
-  info "  WSL hint: /mnt/c/Users/<you>/AppData/Roaming/.sempal/logs"
+  info "  WSL hint: /mnt/c/Users/<you>/AppData/Roaming/.wavecrate/logs"
 fi
 
 if (( failures > 0 )); then

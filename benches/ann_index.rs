@@ -1,10 +1,10 @@
 //! Benchmarks for ANN index build and query behavior.
 use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
 use rusqlite::{Connection, params};
-use sempal::analysis::vector::encode_f32_le_blob;
-use sempal::analysis::{ann_index, similarity};
 use std::path::Path;
 use tempfile::tempdir;
+use wavecrate::analysis::vector::encode_f32_le_blob;
+use wavecrate::analysis::{ann_index, similarity};
 
 const SAMPLE_COUNT: usize = 256;
 const EXTRA_COUNT: usize = 32;
@@ -58,7 +58,7 @@ fn unit_vec(dim: usize, idx: usize) -> Vec<f32> {
 
 fn set_config_home(path: &Path) {
     unsafe {
-        std::env::set_var("SEMPAL_CONFIG_HOME", path);
+        std::env::set_var("WAVECRATE_CONFIG_HOME", path);
     }
 }
 

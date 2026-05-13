@@ -371,7 +371,7 @@
 - *(release)* V0.174.0 (#9)
 - Add collection delete option to context menu
 - *(release)* V0.189.0 (#11)
-- Unify sempal dirs and add config menu entry
+- Unify wavecrate dirs and add config menu entry
 - Outline plan for audio output settings and ASIO support
 - *(release)* V0.230.0 (#14)
 - *(release)* V0.239.0 (#15)

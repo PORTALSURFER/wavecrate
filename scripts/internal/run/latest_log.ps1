@@ -11,18 +11,18 @@ $ErrorActionPreference = "Stop"
 Prints the resolved log directory, the newest log file, and a tail snippet.
 
 .DESCRIPTION
-Resolution order for the `.sempal` root:
-1) `SEMPAL_CONFIG_HOME` (config base override, if set)
+Resolution order for the `.wavecrate` root:
+1) `WAVECRATE_CONFIG_HOME` (config base override, if set)
 2) OS default config base (`%APPDATA%` on Windows, app-support on macOS, XDG on Linux)
-3) `SEMPAL_CONFIG_PROFILE` (`live`, `sandbox`, `automated-tests`, or another named profile)
-4) `app_data_dir` in `<app_root>/config.toml` (absolute path expected; overrides `.sempal` root)
+3) `WAVECRATE_CONFIG_PROFILE` (`live`, `sandbox`, `automated-tests`, or another named profile)
+4) `app_data_dir` in `<app_root>/config.toml` (absolute path expected; overrides `.wavecrate` root)
 
 This is best-effort and intended for quick diagnostics (humans + agents).
 #>
 
 function Get-SandboxConfigBase {
   $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
-  return (Join-Path $rootDir ".sandbox\\sempal")
+  return (Join-Path $rootDir ".sandbox\\wavecrate")
 }
 
 function Test-IsWindowsPlatform {
@@ -42,8 +42,8 @@ function Test-IsMacOSPlatform {
 }
 
 function Get-DefaultConfigBase {
-  if (-not [string]::IsNullOrWhiteSpace($env:SEMPAL_CONFIG_HOME)) {
-    return $env:SEMPAL_CONFIG_HOME
+  if (-not [string]::IsNullOrWhiteSpace($env:WAVECRATE_CONFIG_HOME)) {
+    return $env:WAVECRATE_CONFIG_HOME
   }
   $sandboxBase = Get-SandboxConfigBase
   if ($script:Sandbox -or (Test-Path -LiteralPath $sandboxBase -PathType Container)) {
@@ -65,8 +65,8 @@ function Get-DefaultConfigBase {
 }
 
 function Get-PersistenceProfile {
-  if (-not [string]::IsNullOrWhiteSpace($env:SEMPAL_CONFIG_PROFILE)) {
-    return $env:SEMPAL_CONFIG_PROFILE.Trim()
+  if (-not [string]::IsNullOrWhiteSpace($env:WAVECRATE_CONFIG_PROFILE)) {
+    return $env:WAVECRATE_CONFIG_PROFILE.Trim()
   }
   if ($script:Sandbox) {
     return "sandbox"
@@ -78,7 +78,7 @@ $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
 $sandboxBase = Get-SandboxConfigBase
 $configBase = Get-DefaultConfigBase
 $usedSandbox = $false
-if ([string]::IsNullOrWhiteSpace($env:SEMPAL_CONFIG_HOME) -and ($configBase -eq $sandboxBase)) {
+if ([string]::IsNullOrWhiteSpace($env:WAVECRATE_CONFIG_HOME) -and ($configBase -eq $sandboxBase)) {
   $usedSandbox = $true
 }
 
@@ -115,9 +115,9 @@ function Get-AppDataDirOverrideFromConfig {
 function Resolve-AppRoot {
   $profile = Get-PersistenceProfile
   $defaultRoot = if ($profile -ieq "live") {
-    Join-Path $configBase ".sempal"
+    Join-Path $configBase ".wavecrate"
   } else {
-    Join-Path $configBase (".sempal\\profiles\\" + $profile)
+    Join-Path $configBase (".wavecrate\\profiles\\" + $profile)
   }
   $configPath = Join-Path $defaultRoot "config.toml"
 

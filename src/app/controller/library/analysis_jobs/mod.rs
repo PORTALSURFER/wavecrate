@@ -53,7 +53,7 @@ pub(crate) fn default_worker_count() -> u32 {
 }
 
 pub(crate) fn stale_running_job_seconds() -> i64 {
-    if let Ok(value) = std::env::var("SEMPAL_ANALYSIS_STALE_SECS")
+    if let Ok(value) = std::env::var("WAVECRATE_ANALYSIS_STALE_SECS")
         && let Ok(parsed) = value.trim().parse::<i64>()
         && parsed >= 60
     {

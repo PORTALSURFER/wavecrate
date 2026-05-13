@@ -4,7 +4,7 @@ use crate::gui::layout_core::{
     Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
     OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams,
 };
-use crate::gui::text_layout::{centered_text_line, top_text_line, TextLineInsets};
+use crate::gui::text_layout::{TextLineInsets, centered_text_line, top_text_line};
 use crate::gui::types::{Rect, Vector2};
 
 pub(super) fn centered_line_in_rect(rect: Rect, sizing: SizingTokens, font_size: f32) -> Rect {

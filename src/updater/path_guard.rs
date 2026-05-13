@@ -74,7 +74,7 @@ fn ensure_no_symlink_path(path: &Path) -> Result<(), UpdateError> {
 }
 
 fn allow_symlink_validation_errors() -> bool {
-    std::env::var("SEMPAL_UPDATER_ALLOW_SYMLINK_ERRORS")
+    std::env::var("WAVECRATE_UPDATER_ALLOW_SYMLINK_ERRORS")
         .ok()
         .map(|value| {
             let value = value.trim().to_ascii_lowercase();
@@ -218,7 +218,7 @@ mod tests {
     #[test]
     fn ensure_child_path_allows_relative_path() {
         let _lock = updater_test_lock().lock().expect("updater test lock");
-        let _guard = EnvVarGuard::set("SEMPAL_UPDATER_ALLOW_SYMLINK_ERRORS", "1");
+        let _guard = EnvVarGuard::set("WAVECRATE_UPDATER_ALLOW_SYMLINK_ERRORS", "1");
         let dir = tempdir().expect("tempdir");
         let path = ensure_child_path(dir.path(), "./ok/file.txt").expect("relative path");
         let canonical = dir.path().canonicalize().expect("canonical install dir");
@@ -254,7 +254,7 @@ mod tests {
             ))
         }
 
-        let _env = EnvVarGuard::set("SEMPAL_UPDATER_ALLOW_SYMLINK_ERRORS", "0");
+        let _env = EnvVarGuard::set("WAVECRATE_UPDATER_ALLOW_SYMLINK_ERRORS", "0");
         let _guard = SymlinkMetadataHookGuard::new(Some(fail_metadata));
         let dir = tempdir().expect("tempdir");
         let err = ensure_child_path(dir.path(), "ok/file.txt")

@@ -1,10 +1,10 @@
 use super::state::{ReleaseOption, ReleaseState, UiStatus, UpdateNativeBridge};
-use sempal::updater::{
-    ApplyPlan, ReleaseSummary, UpdateChannel, apply_update_with_progress, list_recent_releases,
-};
 use std::{
     sync::mpsc::{self},
     thread,
+};
+use wavecrate::updater::{
+    ApplyPlan, ReleaseSummary, UpdateChannel, apply_update_with_progress, list_recent_releases,
 };
 
 const MAX_LOG_LINES: usize = 200;

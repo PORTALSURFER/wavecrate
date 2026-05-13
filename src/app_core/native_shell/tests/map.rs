@@ -7,7 +7,7 @@ fn add_selected_source(controller: &mut AppController) {
         .duration_since(UNIX_EPOCH)
         .expect("clock")
         .as_nanos();
-    let root = std::env::temp_dir().join(format!("sempal-map-projection-{unique}"));
+    let root = std::env::temp_dir().join(format!("wavecrate-map-projection-{unique}"));
     std::fs::create_dir_all(&root).expect("create source root");
     controller
         .add_source_from_path(root)

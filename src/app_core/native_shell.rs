@@ -1,7 +1,7 @@
 //! Native-shell projection helpers used by the `radiant` bridge.
 //!
 //! The bridge consumes these helpers to project controller state into the
-//! Sempal-owned native shell contract and to translate normalized UI ranges
+//! Wavecrate-owned native shell contract and to translate normalized UI ranges
 //! back into controller-domain selection math.
 
 use super::controller::{
@@ -60,7 +60,7 @@ use tracing::info;
 mod app_model;
 /// Browser panel/frame/row projection helpers and retained browser caches.
 mod browser_projection;
-/// Sempal-owned native shell composition tree.
+/// Wavecrate-owned native shell composition tree.
 #[path = "native_shell/composition/mod.rs"]
 pub(crate) mod composition;
 /// Confirm-prompt projection helpers and folder-name validation utilities.
@@ -82,7 +82,7 @@ mod waveform_projection;
 
 pub(crate) use app_model::project_app_model;
 
-/// Sempal-owned runtime contract consumed by native-shell composition and the runtime adapter.
+/// Wavecrate-owned runtime contract consumed by native-shell composition and the runtime adapter.
 #[path = "native_shell/runtime_contract.rs"]
 pub(crate) mod runtime_contract;
 #[cfg(test)]

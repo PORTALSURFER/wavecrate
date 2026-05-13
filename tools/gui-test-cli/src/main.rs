@@ -3,7 +3,8 @@
 
 //! Command-line entrypoint for deterministic GUI test artifacts and scenario runs.
 
-use sempal::{
+use std::path::PathBuf;
+use wavecrate::{
     app_core::actions::NativeUiAction,
     gui_test::{
         GuiScenario, GuiTestModeConfig, capture_default_bundle, dispatch_action_bundle,
@@ -12,7 +13,6 @@ use sempal::{
         write_artifact_bundle,
     },
 };
-use std::path::PathBuf;
 
 fn main() -> Result<(), String> {
     match parse_command(std::env::args().skip(1).collect())? {

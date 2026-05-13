@@ -215,7 +215,7 @@ fn flush_derived_updates_clears_nodes_and_invalidates_key() {
         app_key: Some(build_projection_cache_key(&controller)),
         ..NativeProjectionCache::default()
     };
-    let mut bridge = SempalNativeBridge {
+    let mut bridge = WavecrateNativeBridge {
         controller,
         projection_cache: cache,
         projection_key_snapshot: None,

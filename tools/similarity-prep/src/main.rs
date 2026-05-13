@@ -1,10 +1,10 @@
 //! CLI tool to run similarity preparation workflows.
 
-use sempal::app_core::controller::build_native_app_controller;
-use sempal::waveform::WaveformRenderer;
 use std::io::Write;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
+use wavecrate::app_core::controller::build_native_app_controller;
+use wavecrate::waveform::WaveformRenderer;
 
 struct Options {
     source: PathBuf,
@@ -54,11 +54,11 @@ fn main() {
     }
     if opts.log_jobs {
         unsafe {
-            std::env::set_var("SEMPAL_ANALYSIS_LOG_JOBS", "1");
+            std::env::set_var("WAVECRATE_ANALYSIS_LOG_JOBS", "1");
         }
     }
 
-    let normalized = sempal::sample_sources::config::normalize_path(&opts.source);
+    let normalized = wavecrate::sample_sources::config::normalize_path(&opts.source);
     if opts.reset_failed
         && let Err(err) = reset_stalled_analysis_jobs(&normalized)
     {
@@ -220,7 +220,7 @@ fn parse_f32(value: &str, flag: &str) -> Result<f32, String> {
 }
 
 fn help_text() -> &'static str {
-    "Usage: sempal-similarity-prep --source <path> [options]\n\n\
+    "Usage: wavecrate-similarity-prep --source <path> [options]\n\n\
 Options:\n\
   --source <path>             Source folder to prepare\n\
   --fast                      Enable fast similarity prep mode\n\
@@ -236,7 +236,7 @@ Options:\n\
 }
 
 fn reset_stalled_analysis_jobs(source_root: &PathBuf) -> Result<(), String> {
-    let conn = sempal::sample_sources::SourceDatabase::open_connection(source_root)
+    let conn = wavecrate::sample_sources::SourceDatabase::open_connection(source_root)
         .map_err(|err| format!("Open source DB failed: {err}"))?;
     conn.execute(
         "UPDATE analysis_jobs

@@ -1,8 +1,8 @@
-//! Sempal-owned native runtime action DTOs.
+//! Wavecrate-owned native runtime action DTOs.
 //!
-//! These actions describe Sempal user intent inside app-core. Radiant still
+//! These actions describe Wavecrate user intent inside app-core. Radiant still
 //! emits and consumes a compatibility copy at the runtime boundary, so this
-//! module keeps narrow adapters without making Radiant the owner of Sempal
+//! module keeps narrow adapters without making Radiant the owner of Wavecrate
 //! dispatch payloads.
 
 use super::native_shell_dtos::{FolderPaneIdModel, PlaybackAgeFilterChip};

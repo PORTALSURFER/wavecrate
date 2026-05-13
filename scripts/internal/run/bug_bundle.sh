@@ -28,9 +28,9 @@ Creates an archive under <out-dir> containing:
 - version/system info
 
 Sandbox behavior:
-- If `SEMPAL_CONFIG_HOME` is set, it is always used.
-- Otherwise, if `<repo>/.sandbox/sempal` exists, this script prefers it.
-- Pass `--sandbox` to force using `<repo>/.sandbox/sempal`.
+- If `WAVECRATE_CONFIG_HOME` is set, it is always used.
+- Otherwise, if `<repo>/.sandbox/wavecrate` exists, this script prefers it.
+- Pass `--sandbox` to force using `<repo>/.sandbox/wavecrate`.
 EOF
 }
 
@@ -52,11 +52,11 @@ while (( $# > 0 )); do
 done
 
 os_name="$(uname -s | tr '[:upper:]' '[:lower:]')"
-sandbox_config_home="${ROOT_DIR}/.sandbox/sempal"
+sandbox_config_home="${ROOT_DIR}/.sandbox/wavecrate"
 
 default_config_base_dir() {
-  if [[ -n "${SEMPAL_CONFIG_HOME:-}" ]]; then
-    printf "%s" "$SEMPAL_CONFIG_HOME"
+  if [[ -n "${WAVECRATE_CONFIG_HOME:-}" ]]; then
+    printf "%s" "$WAVECRATE_CONFIG_HOME"
     return 0
   fi
   if (( USE_SANDBOX == 1 )) || [[ -d "$sandbox_config_home" ]]; then
@@ -78,8 +78,8 @@ default_config_base_dir() {
 }
 
 current_persistence_profile() {
-  if [[ -n "${SEMPAL_CONFIG_PROFILE:-}" ]]; then
-    printf "%s" "${SEMPAL_CONFIG_PROFILE}"
+  if [[ -n "${WAVECRATE_CONFIG_PROFILE:-}" ]]; then
+    printf "%s" "${WAVECRATE_CONFIG_PROFILE}"
     return 0
   fi
   if (( USE_SANDBOX == 1 )); then
@@ -91,7 +91,7 @@ current_persistence_profile() {
 
 config_base_dir="$(default_config_base_dir)"
 used_sandbox_config_home="false"
-if [[ -z "${SEMPAL_CONFIG_HOME:-}" ]] && [[ "$config_base_dir" == "$sandbox_config_home" ]]; then
+if [[ -z "${WAVECRATE_CONFIG_HOME:-}" ]] && [[ "$config_base_dir" == "$sandbox_config_home" ]]; then
   used_sandbox_config_home="true"
 fi
 
@@ -112,7 +112,7 @@ extract_app_data_dir_from_config() {
 resolve_app_root_dir() {
   local profile
   profile="$(current_persistence_profile)"
-  local default_root="${config_base_dir}/.sempal"
+  local default_root="${config_base_dir}/.wavecrate"
   if [[ "$profile" != "live" ]]; then
     default_root="${default_root}/profiles/${profile}"
   fi
@@ -136,7 +136,7 @@ timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 bundle_root="$(mktemp -d)"
 trap 'rm -rf "$bundle_root"' EXIT
 
-bundle_dir="${bundle_root}/sempal-bug-bundle-${timestamp}"
+bundle_dir="${bundle_root}/wavecrate-bug-bundle-${timestamp}"
 mkdir -p "$bundle_dir"
 
 mkdir -p "${bundle_dir}/meta"
@@ -172,7 +172,7 @@ if [[ -d "$logs_dir" ]]; then
 fi
 
 mkdir -p "$OUT_DIR"
-archive_base="${OUT_DIR}/sempal-bug-bundle-${timestamp}"
+archive_base="${OUT_DIR}/wavecrate-bug-bundle-${timestamp}"
 
 if command -v zip >/dev/null 2>&1; then
   (cd "$bundle_root" && zip -r "${archive_base}.zip" "$(basename "$bundle_dir")" >/dev/null)

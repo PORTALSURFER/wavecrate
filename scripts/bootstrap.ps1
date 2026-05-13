@@ -27,8 +27,8 @@ if ($args -contains "-h" -or $args -contains "--help") {
 }
 
 function Install-AgentPreflightHooks {
-  if ($env:SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK_INSTALL -eq "1") {
-    Write-Host "[bootstrap] SEMPAL_SKIP_AGENT_PREFLIGHT_HOOK_INSTALL=1: skipping hook install."
+  if ($env:WAVECRATE_SKIP_AGENT_PREFLIGHT_HOOK_INSTALL -eq "1") {
+    Write-Host "[bootstrap] WAVECRATE_SKIP_AGENT_PREFLIGHT_HOOK_INSTALL=1: skipping hook install."
     return $true
   }
 
@@ -210,7 +210,7 @@ try {
 
   $sccache = Get-Command sccache -ErrorAction SilentlyContinue
   if ($null -ne $sccache) {
-    Write-Host "[bootstrap] sccache: installed (set SEMPAL_ENABLE_SCCACHE=1 to use it)"
+    Write-Host "[bootstrap] sccache: installed (set WAVECRATE_ENABLE_SCCACHE=1 to use it)"
   } else {
     Write-Host "[bootstrap] sccache: optional but missing"
     Write-Host "[bootstrap]   Install for faster repeated builds. Examples:"

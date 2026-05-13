@@ -1,11 +1,11 @@
 [package]
-name = "sempal-updater-helper"
+name = "wavecrate-updater-helper"
 version = "19.0.0"
 edition = "2024"
 
 [[bin]]
-name = "sempal-updater"
+name = "wavecrate-updater"
 path = "src/main.rs"
 
 [dependencies]
-sempal = { path = "../.." }
+wavecrate = { path = "../.." }

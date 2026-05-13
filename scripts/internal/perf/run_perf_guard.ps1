@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 Runs the local runtime performance guard on Windows.
 
 .DESCRIPTION
-Executes the GUI-focused `sempal-bench` workspace package with the same
+Executes the GUI-focused `wavecrate-bench` workspace package with the same
 benchmark inputs used by local CI, then validates the generated JSON report
 against the repository's warning and fail thresholds.
 
@@ -207,7 +207,7 @@ function Invoke-PerfBenchRun {
     [int]$MeasureIters
   )
 
-  cargo run -p sempal-bench-cli --bin sempal-bench -- `
+  cargo run -p wavecrate-bench-cli --bin wavecrate-bench -- `
     --out $OutputPath `
     --no-analysis `
     --no-similarity `
@@ -218,7 +218,7 @@ function Invoke-PerfBenchRun {
     --warmup-iters $WarmupIters `
     --measure-iters $MeasureIters
   if ($LASTEXITCODE -ne 0) {
-    throw "[perf_guard] ERROR: sempal-bench failed with exit code $LASTEXITCODE."
+    throw "[perf_guard] ERROR: wavecrate-bench failed with exit code $LASTEXITCODE."
   }
 }
 
@@ -255,8 +255,8 @@ function Invoke-StartupProfileRun {
   $stderrPath = "$OutputPath.stderr.log"
   Remove-Item -LiteralPath $stdoutPath, $stderrPath, $OutputPath -ErrorAction SilentlyContinue
 
-  $previousStartupProfile = $env:SEMPAL_NATIVE_STARTUP_PROFILE
-  $env:SEMPAL_NATIVE_STARTUP_PROFILE = "1"
+  $previousStartupProfile = $env:WAVECRATE_NATIVE_STARTUP_PROFILE
+  $env:WAVECRATE_NATIVE_STARTUP_PROFILE = "1"
   try {
     $process = Start-Process `
       -FilePath $BinaryPath `
@@ -271,9 +271,9 @@ function Invoke-StartupProfileRun {
     }
   } finally {
     if ($null -eq $previousStartupProfile) {
-      Remove-Item Env:SEMPAL_NATIVE_STARTUP_PROFILE -ErrorAction SilentlyContinue
+      Remove-Item Env:WAVECRATE_NATIVE_STARTUP_PROFILE -ErrorAction SilentlyContinue
     } else {
-      $env:SEMPAL_NATIVE_STARTUP_PROFILE = $previousStartupProfile
+      $env:WAVECRATE_NATIVE_STARTUP_PROFILE = $previousStartupProfile
     }
   }
 
@@ -284,22 +284,22 @@ function Invoke-StartupProfileRun {
 }
 
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
-$outPath = Get-EnvString -Name "SEMPAL_PERF_GUARD_OUT" -Default "target/perf/bench.json"
-$guiRows = Get-EnvInt -Name "SEMPAL_PERF_GUARD_GUI_ROWS" -Default 2500
-$guiInteractionRows = Get-EnvInt -Name "SEMPAL_PERF_GUARD_GUI_INTERACTION_ROWS" -Default 1500
-$guiInteractionIters = Get-EnvInt -Name "SEMPAL_PERF_GUARD_GUI_INTERACTION_ITERS" -Default 24
-$warmupIters = Get-EnvInt -Name "SEMPAL_PERF_GUARD_WARMUP_ITERS" -Default 3
-$measureIters = Get-EnvInt -Name "SEMPAL_PERF_GUARD_MEASURE_ITERS" -Default 16
-$runs = Get-EnvInt -Name "SEMPAL_PERF_GUARD_RUNS" -Default 1
-$startupProfileEnabled = Get-BoolEnvFlag -Name "SEMPAL_PERF_GUARD_STARTUP_PROFILE"
-$startupTimeoutSecs = Get-EnvInt -Name "SEMPAL_PERF_GUARD_STARTUP_TIMEOUT_SECS" -Default 6
-$startupRequireValidRuns = Get-BoolEnvFlag -Name "SEMPAL_PERF_GUARD_STARTUP_REQUIRE_VALID_RUNS"
-$startupLockEnvOut = [Environment]::GetEnvironmentVariable("SEMPAL_PERF_GUARD_STARTUP_LOCK_ENV_OUT")
-$startupLockEnvIn = Get-EnvString -Name "SEMPAL_PERF_GUARD_STARTUP_LOCK_ENV_IN" -Default (Join-Path $rootDir "scripts\perf\locks\startup_thresholds.env")
-$startupLockMinValidRuns = Get-OptionalEnvInt -Name "SEMPAL_PERF_GUARD_STARTUP_LOCK_MIN_VALID_RUNS"
+$outPath = Get-EnvString -Name "WAVECRATE_PERF_GUARD_OUT" -Default "target/perf/bench.json"
+$guiRows = Get-EnvInt -Name "WAVECRATE_PERF_GUARD_GUI_ROWS" -Default 2500
+$guiInteractionRows = Get-EnvInt -Name "WAVECRATE_PERF_GUARD_GUI_INTERACTION_ROWS" -Default 1500
+$guiInteractionIters = Get-EnvInt -Name "WAVECRATE_PERF_GUARD_GUI_INTERACTION_ITERS" -Default 24
+$warmupIters = Get-EnvInt -Name "WAVECRATE_PERF_GUARD_WARMUP_ITERS" -Default 3
+$measureIters = Get-EnvInt -Name "WAVECRATE_PERF_GUARD_MEASURE_ITERS" -Default 16
+$runs = Get-EnvInt -Name "WAVECRATE_PERF_GUARD_RUNS" -Default 1
+$startupProfileEnabled = Get-BoolEnvFlag -Name "WAVECRATE_PERF_GUARD_STARTUP_PROFILE"
+$startupTimeoutSecs = Get-EnvInt -Name "WAVECRATE_PERF_GUARD_STARTUP_TIMEOUT_SECS" -Default 6
+$startupRequireValidRuns = Get-BoolEnvFlag -Name "WAVECRATE_PERF_GUARD_STARTUP_REQUIRE_VALID_RUNS"
+$startupLockEnvOut = [Environment]::GetEnvironmentVariable("WAVECRATE_PERF_GUARD_STARTUP_LOCK_ENV_OUT")
+$startupLockEnvIn = Get-EnvString -Name "WAVECRATE_PERF_GUARD_STARTUP_LOCK_ENV_IN" -Default (Join-Path $rootDir "scripts\perf\locks\startup_thresholds.env")
+$startupLockMinValidRuns = Get-OptionalEnvInt -Name "WAVECRATE_PERF_GUARD_STARTUP_LOCK_MIN_VALID_RUNS"
 
 if ($runs -lt 1) {
-  throw "[perf_guard] ERROR: SEMPAL_PERF_GUARD_RUNS must be an integer >= 1."
+  throw "[perf_guard] ERROR: WAVECRATE_PERF_GUARD_RUNS must be an integer >= 1."
 }
 
 if ($startupProfileEnabled -and (Test-Path $startupLockEnvIn)) {
@@ -307,7 +307,7 @@ if ($startupProfileEnabled -and (Test-Path $startupLockEnvIn)) {
     if ($_ -match '^\s*(?:#|$)') {
       return
     }
-    if ($_ -match 'SEMPAL_PERF_[A-Z0-9_]+=') {
+    if ($_ -match 'WAVECRATE_PERF_[A-Z0-9_]+=') {
       $parts = $_ -split '=', 2
       $name = $parts[0].Trim(' :${}" ')
       $value = $parts[1].Trim(' "}')
@@ -323,43 +323,43 @@ if (-not [string]::IsNullOrWhiteSpace($reportDir)) {
 }
 
 $scenarioConfigs = @(
-  @{ Key = "browser_filter_churn_latency"; WarnEnv = "SEMPAL_PERF_WARN_P95_US_FILTER_CHURN"; WarnDefault = 10000; FailEnv = "SEMPAL_PERF_FAIL_P95_US_FILTER_CHURN"; FailDefault = $null },
-  @{ Key = "browser_query_churn_latency"; WarnEnv = "SEMPAL_PERF_WARN_P95_US_QUERY_CHURN"; WarnDefault = 12000; FailEnv = "SEMPAL_PERF_FAIL_P95_US_QUERY_CHURN"; FailDefault = $null },
-  @{ Key = "browser_sort_toggle_latency"; WarnEnv = "SEMPAL_PERF_WARN_P95_US_SORT_CHURN"; WarnDefault = 10000; FailEnv = "SEMPAL_PERF_FAIL_P95_US_SORT_CHURN"; FailDefault = $null },
-  @{ Key = "hover_latency"; WarnEnv = "SEMPAL_PERF_WARN_P95_US_HOVER"; WarnDefault = 8000; FailEnv = "SEMPAL_PERF_FAIL_P95_US_HOVER"; FailDefault = $null },
-  @{ Key = "wheel_latency"; WarnEnv = "SEMPAL_PERF_WARN_P95_US_WHEEL"; WarnDefault = 10000; FailEnv = "SEMPAL_PERF_FAIL_P95_US_WHEEL"; FailDefault = 30000 },
-  @{ Key = "browser_focus_preview_latency"; WarnEnv = "SEMPAL_PERF_WARN_P95_US_FOCUS_PREVIEW"; WarnDefault = 10000; FailEnv = "SEMPAL_PERF_FAIL_P95_US_FOCUS_PREVIEW"; FailDefault = $null },
-  @{ Key = "browser_focus_commit_latency"; WarnEnv = "SEMPAL_PERF_WARN_P95_US_FOCUS_COMMIT"; WarnDefault = 16000; FailEnv = "SEMPAL_PERF_FAIL_P95_US_FOCUS_COMMIT"; FailDefault = 100000 },
-  @{ Key = "map_pan_proxy_latency"; WarnEnv = "SEMPAL_PERF_WARN_P95_US_MAP_PAN_PROXY"; WarnDefault = 12000; FailEnv = "SEMPAL_PERF_FAIL_P95_US_MAP_PAN_PROXY"; FailDefault = 4000 },
-  @{ Key = "waveform_interaction_latency"; WarnEnv = "SEMPAL_PERF_WARN_P95_US_WAVEFORM"; WarnDefault = 10000; FailEnv = "SEMPAL_PERF_FAIL_P95_US_WAVEFORM"; FailDefault = $null },
-  @{ Key = "waveform_pan_zoom_adjacent_latency"; WarnEnv = "SEMPAL_PERF_WARN_P95_US_WAVEFORM_ADJACENT"; WarnDefault = 12000; FailEnv = "SEMPAL_PERF_FAIL_P95_US_WAVEFORM_ADJACENT"; FailDefault = $null },
-  @{ Key = "volume_drag_latency"; WarnEnv = "SEMPAL_PERF_WARN_P95_US_VOLUME"; WarnDefault = 8000; FailEnv = "SEMPAL_PERF_FAIL_P95_US_VOLUME"; FailDefault = $null },
-  @{ Key = "idle_cursor_motion_latency"; WarnEnv = "SEMPAL_PERF_WARN_P95_US_IDLE_CURSOR"; WarnDefault = 8000; FailEnv = "SEMPAL_PERF_FAIL_P95_US_IDLE_CURSOR"; FailDefault = $null }
+  @{ Key = "browser_filter_churn_latency"; WarnEnv = "WAVECRATE_PERF_WARN_P95_US_FILTER_CHURN"; WarnDefault = 10000; FailEnv = "WAVECRATE_PERF_FAIL_P95_US_FILTER_CHURN"; FailDefault = $null },
+  @{ Key = "browser_query_churn_latency"; WarnEnv = "WAVECRATE_PERF_WARN_P95_US_QUERY_CHURN"; WarnDefault = 12000; FailEnv = "WAVECRATE_PERF_FAIL_P95_US_QUERY_CHURN"; FailDefault = $null },
+  @{ Key = "browser_sort_toggle_latency"; WarnEnv = "WAVECRATE_PERF_WARN_P95_US_SORT_CHURN"; WarnDefault = 10000; FailEnv = "WAVECRATE_PERF_FAIL_P95_US_SORT_CHURN"; FailDefault = $null },
+  @{ Key = "hover_latency"; WarnEnv = "WAVECRATE_PERF_WARN_P95_US_HOVER"; WarnDefault = 8000; FailEnv = "WAVECRATE_PERF_FAIL_P95_US_HOVER"; FailDefault = $null },
+  @{ Key = "wheel_latency"; WarnEnv = "WAVECRATE_PERF_WARN_P95_US_WHEEL"; WarnDefault = 10000; FailEnv = "WAVECRATE_PERF_FAIL_P95_US_WHEEL"; FailDefault = 30000 },
+  @{ Key = "browser_focus_preview_latency"; WarnEnv = "WAVECRATE_PERF_WARN_P95_US_FOCUS_PREVIEW"; WarnDefault = 10000; FailEnv = "WAVECRATE_PERF_FAIL_P95_US_FOCUS_PREVIEW"; FailDefault = $null },
+  @{ Key = "browser_focus_commit_latency"; WarnEnv = "WAVECRATE_PERF_WARN_P95_US_FOCUS_COMMIT"; WarnDefault = 16000; FailEnv = "WAVECRATE_PERF_FAIL_P95_US_FOCUS_COMMIT"; FailDefault = 100000 },
+  @{ Key = "map_pan_proxy_latency"; WarnEnv = "WAVECRATE_PERF_WARN_P95_US_MAP_PAN_PROXY"; WarnDefault = 12000; FailEnv = "WAVECRATE_PERF_FAIL_P95_US_MAP_PAN_PROXY"; FailDefault = 4000 },
+  @{ Key = "waveform_interaction_latency"; WarnEnv = "WAVECRATE_PERF_WARN_P95_US_WAVEFORM"; WarnDefault = 10000; FailEnv = "WAVECRATE_PERF_FAIL_P95_US_WAVEFORM"; FailDefault = $null },
+  @{ Key = "waveform_pan_zoom_adjacent_latency"; WarnEnv = "WAVECRATE_PERF_WARN_P95_US_WAVEFORM_ADJACENT"; WarnDefault = 12000; FailEnv = "WAVECRATE_PERF_FAIL_P95_US_WAVEFORM_ADJACENT"; FailDefault = $null },
+  @{ Key = "volume_drag_latency"; WarnEnv = "WAVECRATE_PERF_WARN_P95_US_VOLUME"; WarnDefault = 8000; FailEnv = "WAVECRATE_PERF_FAIL_P95_US_VOLUME"; FailDefault = $null },
+  @{ Key = "idle_cursor_motion_latency"; WarnEnv = "WAVECRATE_PERF_WARN_P95_US_IDLE_CURSOR"; WarnDefault = 8000; FailEnv = "WAVECRATE_PERF_FAIL_P95_US_IDLE_CURSOR"; FailDefault = $null }
 )
 
-$warnJankRatio = Get-EnvDouble -Name "SEMPAL_PERF_WARN_FRAME_JANK_RATIO" -Default 0.10
-$warnMissedPresentRatio = Get-EnvDouble -Name "SEMPAL_PERF_WARN_MISSED_PRESENT_PROXY_RATIO" -Default 0.05
-$failJankRatio = Get-OptionalEnvDouble -Name "SEMPAL_PERF_FAIL_FRAME_JANK_RATIO"
-$failMissedPresentRatio = Get-OptionalEnvDouble -Name "SEMPAL_PERF_FAIL_MISSED_PRESENT_PROXY_RATIO"
+$warnJankRatio = Get-EnvDouble -Name "WAVECRATE_PERF_WARN_FRAME_JANK_RATIO" -Default 0.10
+$warnMissedPresentRatio = Get-EnvDouble -Name "WAVECRATE_PERF_WARN_MISSED_PRESENT_PROXY_RATIO" -Default 0.05
+$failJankRatio = Get-OptionalEnvDouble -Name "WAVECRATE_PERF_FAIL_FRAME_JANK_RATIO"
+$failMissedPresentRatio = Get-OptionalEnvDouble -Name "WAVECRATE_PERF_FAIL_MISSED_PRESENT_PROXY_RATIO"
 
 $reportPaths = New-Object System.Collections.Generic.List[string]
 $startupLogPaths = New-Object System.Collections.Generic.List[string]
 $canonicalReportPath = Join-Path $rootDir $outPath
-$startupSummaryOut = Get-EnvString -Name "SEMPAL_PERF_GUARD_STARTUP_SUMMARY_OUT" -Default ([System.IO.Path]::ChangeExtension($canonicalReportPath, $null) + ".startup_summary.json")
+$startupSummaryOut = Get-EnvString -Name "WAVECRATE_PERF_GUARD_STARTUP_SUMMARY_OUT" -Default ([System.IO.Path]::ChangeExtension($canonicalReportPath, $null) + ".startup_summary.json")
 
 if ($startupProfileEnabled) {
-  $startupBinary = Join-Path $rootDir "target\debug\sempal.exe"
-  Write-Host "[perf_guard] building sempal startup binary for profile capture"
-  cargo build --bin sempal | Out-Null
+  $startupBinary = Join-Path $rootDir "target\debug\wavecrate.exe"
+  Write-Host "[perf_guard] building wavecrate startup binary for profile capture"
+  cargo build --bin wavecrate | Out-Null
   if ($LASTEXITCODE -ne 0) {
-    throw "[perf_guard] ERROR: cargo build --bin sempal failed with exit code $LASTEXITCODE."
+    throw "[perf_guard] ERROR: cargo build --bin wavecrate failed with exit code $LASTEXITCODE."
   }
   if ($runs -ge 3) {
     $startupMinValidRunsDefault = 3
   } else {
     $startupMinValidRunsDefault = 1
   }
-  $startupMinValidRuns = Get-EnvInt -Name "SEMPAL_PERF_GUARD_STARTUP_MIN_VALID_RUNS" -Default $startupMinValidRunsDefault
+  $startupMinValidRuns = Get-EnvInt -Name "WAVECRATE_PERF_GUARD_STARTUP_MIN_VALID_RUNS" -Default $startupMinValidRunsDefault
 } else {
   $startupMinValidRuns = 1
 }
@@ -372,7 +372,7 @@ try {
       $runOut = [System.IO.Path]::ChangeExtension($canonicalReportPath, $null) + ".run$run.json"
     }
     $reportPaths.Add($runOut)
-    Write-Host "[perf_guard] running sempal-bench interaction profile (run $run/$runs)"
+    Write-Host "[perf_guard] running wavecrate-bench interaction profile (run $run/$runs)"
     Invoke-PerfBenchRun `
       -OutputPath $runOut `
       -GuiRows $guiRows `
@@ -520,25 +520,25 @@ try {
       "--output",
       $startupSummaryOut,
       "--warn-first-present-ms",
-      (Get-EnvDouble -Name "SEMPAL_PERF_WARN_STARTUP_FIRST_PRESENT_MS" -Default 800.0).ToString([System.Globalization.CultureInfo]::InvariantCulture),
+      (Get-EnvDouble -Name "WAVECRATE_PERF_WARN_STARTUP_FIRST_PRESENT_MS" -Default 800.0).ToString([System.Globalization.CultureInfo]::InvariantCulture),
       "--min-valid-runs",
       $startupMinValidRuns.ToString()
     )
-    $startupFailMs = Get-OptionalEnvDouble -Name "SEMPAL_PERF_FAIL_STARTUP_FIRST_PRESENT_MS"
+    $startupFailMs = Get-OptionalEnvDouble -Name "WAVECRATE_PERF_FAIL_STARTUP_FIRST_PRESENT_MS"
     if ($null -ne $startupFailMs) {
       $startupSummaryArgs += @(
         "--fail-first-present-ms",
         $startupFailMs.ToString([System.Globalization.CultureInfo]::InvariantCulture)
       )
     }
-    $startupWarnSpreadMs = Get-OptionalEnvDouble -Name "SEMPAL_PERF_WARN_STARTUP_FIRST_PRESENT_SPREAD_MS"
+    $startupWarnSpreadMs = Get-OptionalEnvDouble -Name "WAVECRATE_PERF_WARN_STARTUP_FIRST_PRESENT_SPREAD_MS"
     if ($null -ne $startupWarnSpreadMs) {
       $startupSummaryArgs += @(
         "--warn-first-present-spread-ms",
         $startupWarnSpreadMs.ToString([System.Globalization.CultureInfo]::InvariantCulture)
       )
     }
-    $startupFailSpreadMs = Get-OptionalEnvDouble -Name "SEMPAL_PERF_FAIL_STARTUP_FIRST_PRESENT_SPREAD_MS"
+    $startupFailSpreadMs = Get-OptionalEnvDouble -Name "WAVECRATE_PERF_FAIL_STARTUP_FIRST_PRESENT_SPREAD_MS"
     if ($null -ne $startupFailSpreadMs) {
       $startupSummaryArgs += @(
         "--fail-first-present-spread-ms",

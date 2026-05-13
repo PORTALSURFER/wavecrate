@@ -1,7 +1,7 @@
 //! Serialized run-contract artifact shapes and timing conversions.
 
-use sempal::gui_runtime::{NativeShutdownTimingArtifact, NativeStartupTimingArtifact};
 use serde::Serialize;
+use wavecrate::gui_runtime::{NativeShutdownTimingArtifact, NativeStartupTimingArtifact};
 
 #[derive(Serialize)]
 pub(super) struct RunContractEvent {

@@ -459,13 +459,13 @@ impl NativeShellState {
 }
 
 fn map_focus_action(content_id: String) -> UiAction {
-    // The current local composition contract is generic. The outer Sempal
+    // The current local composition contract is generic. The outer Wavecrate
     // adapter still maps this to UiAction::FocusMapSample for product code.
     UiAction::FocusSpatialContentItem { content_id }
 }
 
 fn focused_similarity_action() -> UiAction {
-    // The current local composition contract is generic. The outer Sempal
+    // The current local composition contract is generic. The outer Wavecrate
     // adapter still maps this to UiAction::ToggleFindSimilarFocusedSample.
     UiAction::ToggleFindSimilarFocusedContent
 }

@@ -108,7 +108,7 @@ jobs:
           fi
       - name: Build release zip
         env:
-          SEMPAL_CARGO_BIN: ${{ matrix.use_cross && 'cross' || 'cargo' }}
+          WAVECRATE_CARGO_BIN: ${{ matrix.use_cross && 'cross' || 'cargo' }}
         shell: bash
         run: |
           scripts/internal/release/build_release_zip.sh \
@@ -122,38 +122,38 @@ jobs:
         if: ${{ matrix.platform == 'windows' }}
         shell: bash
         run: |
-          cargo build --release -p sempal-installer --bin sempal-installer --target "${{ matrix.target }}"
+          cargo build --release -p wavecrate-installer --bin wavecrate-installer --target "${{ matrix.target }}"
       - name: Sign Windows executables
         if: ${{ matrix.platform == 'windows' }}
         shell: pwsh
         env:
-          SEMPAL_WINDOWS_SIGN_PFX_BASE64: ${{ secrets.SEMPAL_WINDOWS_SIGN_PFX_BASE64 }}
-          SEMPAL_WINDOWS_SIGN_PFX_PASSWORD: ${{ secrets.SEMPAL_WINDOWS_SIGN_PFX_PASSWORD }}
+          WAVECRATE_WINDOWS_SIGN_PFX_BASE64: ${{ secrets.WAVECRATE_WINDOWS_SIGN_PFX_BASE64 }}
+          WAVECRATE_WINDOWS_SIGN_PFX_PASSWORD: ${{ secrets.WAVECRATE_WINDOWS_SIGN_PFX_PASSWORD }}
         run: |
-          if (-not $env:SEMPAL_WINDOWS_SIGN_PFX_BASE64) {
-            throw "Missing SEMPAL_WINDOWS_SIGN_PFX_BASE64 secret."
+          if (-not $env:WAVECRATE_WINDOWS_SIGN_PFX_BASE64) {
+            throw "Missing WAVECRATE_WINDOWS_SIGN_PFX_BASE64 secret."
           }
-          if (-not $env:SEMPAL_WINDOWS_SIGN_PFX_PASSWORD) {
-            throw "Missing SEMPAL_WINDOWS_SIGN_PFX_PASSWORD secret."
+          if (-not $env:WAVECRATE_WINDOWS_SIGN_PFX_PASSWORD) {
+            throw "Missing WAVECRATE_WINDOWS_SIGN_PFX_PASSWORD secret."
           }
           $targetDir = Join-Path $env:GITHUB_WORKSPACE "target/${{ matrix.target }}/release"
           $binaries = @(
-            (Join-Path $targetDir "sempal.exe"),
-            (Join-Path $targetDir "sempal-updater.exe"),
-            (Join-Path $targetDir "sempal-installer.exe")
+            (Join-Path $targetDir "wavecrate.exe"),
+            (Join-Path $targetDir "wavecrate-updater.exe"),
+            (Join-Path $targetDir "wavecrate-installer.exe")
           )
           foreach ($binary in $binaries) {
             if (-not (Test-Path $binary)) {
               throw "Missing binary for signing: $binary"
             }
           }
-          $certPath = Join-Path $env:RUNNER_TEMP "sempal-codesign.pfx"
+          $certPath = Join-Path $env:RUNNER_TEMP "wavecrate-codesign.pfx"
           [System.IO.File]::WriteAllBytes(
             $certPath,
-            [System.Convert]::FromBase64String($env:SEMPAL_WINDOWS_SIGN_PFX_BASE64)
+            [System.Convert]::FromBase64String($env:WAVECRATE_WINDOWS_SIGN_PFX_BASE64)
           )
           foreach ($binary in $binaries) {
-            & signtool sign /fd SHA256 /f $certPath /p $env:SEMPAL_WINDOWS_SIGN_PFX_PASSWORD /tr http://timestamp.digicert.com /td SHA256 $binary
+            & signtool sign /fd SHA256 /f $certPath /p $env:WAVECRATE_WINDOWS_SIGN_PFX_PASSWORD /tr http://timestamp.digicert.com /td SHA256 $binary
             if ($LASTEXITCODE -ne 0) {
               throw "signtool sign failed for $binary"
             }
@@ -165,9 +165,9 @@ jobs:
         run: |
           $targetDir = Join-Path $env:GITHUB_WORKSPACE "target/${{ matrix.target }}/release"
           $binaries = @(
-            (Join-Path $targetDir "sempal.exe"),
-            (Join-Path $targetDir "sempal-updater.exe"),
-            (Join-Path $targetDir "sempal-installer.exe")
+            (Join-Path $targetDir "wavecrate.exe"),
+            (Join-Path $targetDir "wavecrate-updater.exe"),
+            (Join-Path $targetDir "wavecrate-installer.exe")
           )
           $rows = @("path`tstatus`tsigner_subject`ttimestamp_subject")
           foreach ($binary in $binaries) {
@@ -184,7 +184,7 @@ jobs:
       - name: Rebuild signed release zip (Windows)
         if: ${{ matrix.platform == 'windows' }}
         env:
-          SEMPAL_SKIP_BUILD: "1"
+          WAVECRATE_SKIP_BUILD: "1"
         shell: bash
         run: |
           scripts/internal/release/build_release_zip.sh \
@@ -238,10 +238,10 @@ jobs:
           cat "${entries[@]}" > "dist/release/${CHECKSUMS_NAME}"
       - name: Sign checksums
         env:
-          CHECKSUMS_SIGNING_KEY: ${{ secrets.SEMPAL_CHECKSUMS_ED25519_KEY }}
+          CHECKSUMS_SIGNING_KEY: ${{ secrets.WAVECRATE_CHECKSUMS_ED25519_KEY }}
         run: |
           if [[ -z "${CHECKSUMS_SIGNING_KEY}" ]]; then
-            echo "Missing SEMPAL_CHECKSUMS_ED25519_KEY secret." >&2
+            echo "Missing WAVECRATE_CHECKSUMS_ED25519_KEY secret." >&2
             exit 1
           fi
           key_path="dist/release/checksums-signing-key.pem"
@@ -254,10 +254,10 @@ jobs:
           rm -f "$key_path"
       - name: Verify checksums signature
         env:
-          CHECKSUMS_SIGNING_KEY: ${{ secrets.SEMPAL_CHECKSUMS_ED25519_KEY }}
+          CHECKSUMS_SIGNING_KEY: ${{ secrets.WAVECRATE_CHECKSUMS_ED25519_KEY }}
         run: |
           if [[ -z "${CHECKSUMS_SIGNING_KEY}" ]]; then
-            echo "Missing SEMPAL_CHECKSUMS_ED25519_KEY secret." >&2
+            echo "Missing WAVECRATE_CHECKSUMS_ED25519_KEY secret." >&2
             exit 1
           fi
           key_path="dist/release/checksums-signing-key.pem"

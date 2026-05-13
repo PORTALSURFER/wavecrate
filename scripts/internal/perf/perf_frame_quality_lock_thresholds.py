@@ -42,7 +42,7 @@ def parse_args() -> argparse.Namespace:
     """Parse command-line arguments for frame-quality threshold lock output."""
     parser = argparse.ArgumentParser(
         description=(
-            "Read sempal benchmark CLI GUI reports and write frame-quality threshold env assignments."
+            "Read wavecrate benchmark CLI GUI reports and write frame-quality threshold env assignments."
         )
     )
     parser.add_argument(
@@ -59,7 +59,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "reports",
         nargs="+",
-        help="One or more sempal benchmark CLI JSON report paths.",
+        help="One or more wavecrate benchmark CLI JSON report paths.",
     )
     return parser.parse_args()
 
@@ -151,14 +151,14 @@ def render_env(
             "# Observed max median missed_present_proxy_ratio="
             f"{thresholds.observed_max_median_missed_present_ratio:.6f}"
         ),
-        f"SEMPAL_PERF_WARN_FRAME_JANK_RATIO={thresholds.warn_jank_ratio:.3f}",
-        f"SEMPAL_PERF_FAIL_FRAME_JANK_RATIO={thresholds.fail_jank_ratio:.3f}",
+        f"WAVECRATE_PERF_WARN_FRAME_JANK_RATIO={thresholds.warn_jank_ratio:.3f}",
+        f"WAVECRATE_PERF_FAIL_FRAME_JANK_RATIO={thresholds.fail_jank_ratio:.3f}",
         (
-            "SEMPAL_PERF_WARN_MISSED_PRESENT_PROXY_RATIO="
+            "WAVECRATE_PERF_WARN_MISSED_PRESENT_PROXY_RATIO="
             f"{thresholds.warn_missed_present_ratio:.3f}"
         ),
         (
-            "SEMPAL_PERF_FAIL_MISSED_PRESENT_PROXY_RATIO="
+            "WAVECRATE_PERF_FAIL_MISSED_PRESENT_PROXY_RATIO="
             f"{thresholds.fail_missed_present_ratio:.3f}"
         ),
         "",

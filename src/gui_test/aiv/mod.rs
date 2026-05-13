@@ -13,7 +13,7 @@ pub const DEFAULT_GUI_AIV_PACK: &str = "desktop-smoke";
 /// Full desktop regression pack name used by the PowerShell suite runner.
 pub const REGRESSION_GUI_AIV_PACK: &str = "desktop-regression";
 pub(super) const GUI_AIV_SCHEMA_VERSION: u32 = 1;
-pub(super) const GUI_TEST_WINDOW_TITLE: &str = "Sempal GUI Test";
+pub(super) const GUI_TEST_WINDOW_TITLE: &str = "Wavecrate GUI Test";
 pub(super) const DEFAULT_VIEWPORT: [u32; 2] = [1440, 810];
 
 /// Named desktop AIV manifest exported for the Windows PowerShell runner.

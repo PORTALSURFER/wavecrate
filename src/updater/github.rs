@@ -73,7 +73,7 @@ fn get_json_with_retry<T: for<'de> Deserialize<'de>>(
     get_json_with_retry_from(retry_config, || {
         http_client::agent()
             .get(url)
-            .set("User-Agent", "sempal-updater")
+            .set("User-Agent", "wavecrate-updater")
             .set("Accept", "application/vnd.github+json")
             .call()
     })

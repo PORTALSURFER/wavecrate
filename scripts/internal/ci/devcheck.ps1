@@ -51,7 +51,7 @@ function Invoke-NativeStep {
 
 Push-Location $rootDir
 try {
-  Enable-SempalCargoCache
+  Enable-WavecrateCargoCache
   Write-Host "[devcheck] branch policy"
   Invoke-NativeStep -Label "branch policy" -Command {
     & (Join-Path $rootDir "scripts/check.ps1") main-branch
@@ -59,28 +59,28 @@ try {
 
   Write-Host "[devcheck] cargo check --manifest-path vendor/radiant/Cargo.toml"
   Invoke-NativeStep -Label "cargo check --manifest-path vendor/radiant/Cargo.toml" -Command {
-    Invoke-SempalCargo check --manifest-path vendor/radiant/Cargo.toml
+    Invoke-WavecrateCargo check --manifest-path vendor/radiant/Cargo.toml
   }
 
   Write-Host "[devcheck] cargo check --manifest-path vendor/radiant/Cargo.toml --example generic_native --no-default-features"
   Invoke-NativeStep -Label "cargo check --manifest-path vendor/radiant/Cargo.toml --example generic_native --no-default-features" -Command {
-    Invoke-SempalCargo check --manifest-path vendor/radiant/Cargo.toml --example generic_native --no-default-features
+    Invoke-WavecrateCargo check --manifest-path vendor/radiant/Cargo.toml --example generic_native --no-default-features
   }
 
   if ($AppOnly) {
-    Write-Host "[devcheck] cargo check -p sempal --lib --bin sempal"
-    Invoke-NativeStep -Label "cargo check -p sempal --lib --bin sempal" -Command {
-      Invoke-SempalCargo check -p sempal --lib --bin sempal
+    Write-Host "[devcheck] cargo check -p wavecrate --lib --bin wavecrate"
+    Invoke-NativeStep -Label "cargo check -p wavecrate --lib --bin wavecrate" -Command {
+      Invoke-WavecrateCargo check -p wavecrate --lib --bin wavecrate
     }
   } elseif ($Workspace) {
     Write-Host "[devcheck] cargo check --workspace --tests --bins"
     Invoke-NativeStep -Label "cargo check --workspace --tests --bins" -Command {
-      Invoke-SempalCargo check --workspace --tests --bins
+      Invoke-WavecrateCargo check --workspace --tests --bins
     }
   } else {
-    Write-Host "[devcheck] cargo check -p sempal --tests --bins"
-    Invoke-NativeStep -Label "cargo check -p sempal --tests --bins" -Command {
-      Invoke-SempalCargo check -p sempal --tests --bins
+    Write-Host "[devcheck] cargo check -p wavecrate --tests --bins"
+    Invoke-NativeStep -Label "cargo check -p wavecrate --tests --bins" -Command {
+      Invoke-WavecrateCargo check -p wavecrate --tests --bins
     }
   }
 

@@ -201,7 +201,7 @@ pub(crate) struct OverwriteBackup {
 impl OverwriteBackup {
     /// Capture the pre-edit file bytes for a deferred undo/redo entry.
     pub(crate) fn capture_before(target: &Path) -> Result<Self, String> {
-        let dir = std::env::temp_dir().join(format!("sempal_undo_{}", Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("wavecrate_undo_{}", Uuid::new_v4()));
         fs::create_dir_all(&dir).map_err(|err| format!("Failed to create undo folder: {err}"))?;
         let before = dir.join("before.wav");
         let after = dir.join("after.wav");

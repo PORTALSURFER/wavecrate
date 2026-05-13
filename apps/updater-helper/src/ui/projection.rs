@@ -1,5 +1,5 @@
 use super::state::{ReleaseState, UiStatus, UpdateNativeBridge, channel_label};
-use sempal::{
+use wavecrate::{
     app_core::actions::{
         NativeAppModel as AppModel, NativeBrowserRowModel as BrowserRowModel,
         NativeSourceRowModel as SourceRowModel, NativeStatusBarModel as StatusBarModel,

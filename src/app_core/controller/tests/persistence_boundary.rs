@@ -15,7 +15,7 @@ fn read_library_db_bytes(app_root: &std::path::Path) -> Vec<u8> {
 #[test]
 fn controller_test_runs_do_not_mutate_live_library_state() {
     let live_base = tempdir().expect("live base tempdir");
-    let live_root = live_base.path().join(".sempal-live");
+    let live_root = live_base.path().join(".wavecrate-live");
     let live_source_root = live_base.path().join("real-source");
     std::fs::create_dir_all(&live_source_root).expect("create live source root");
 

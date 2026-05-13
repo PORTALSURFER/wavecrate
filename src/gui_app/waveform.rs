@@ -47,8 +47,8 @@ pub(super) struct WaveformState {
     playhead_ratio: Option<f32>,
     play_mark_ratio: Option<f32>,
     edit_mark_ratio: Option<f32>,
-    play_selection: Option<sempal::selection::SelectionRange>,
-    edit_selection: Option<sempal::selection::SelectionRange>,
+    play_selection: Option<wavecrate::selection::SelectionRange>,
+    edit_selection: Option<wavecrate::selection::SelectionRange>,
     active_drag: Option<WaveformDrag>,
     pending_playback_start: Option<f32>,
 }
@@ -113,11 +113,11 @@ impl WaveformState {
         self.edit_mark_ratio
     }
 
-    pub(super) fn play_selection(&self) -> Option<sempal::selection::SelectionRange> {
+    pub(super) fn play_selection(&self) -> Option<wavecrate::selection::SelectionRange> {
         self.play_selection
     }
 
-    pub(super) fn edit_selection(&self) -> Option<sempal::selection::SelectionRange> {
+    pub(super) fn edit_selection(&self) -> Option<wavecrate::selection::SelectionRange> {
         self.edit_selection
     }
 
@@ -356,7 +356,7 @@ impl WaveformState {
     }
 
     fn set_selection_for_drag(&mut self, drag: WaveformSelectionDrag) {
-        let range = sempal::selection::SelectionRange::new(drag.anchor_ratio, drag.current_ratio);
+        let range = wavecrate::selection::SelectionRange::new(drag.anchor_ratio, drag.current_ratio);
         match drag.kind {
             WaveformSelectionKind::Play => {
                 self.play_mark_ratio = Some(drag.anchor_ratio);
@@ -473,7 +473,7 @@ struct WaveformEditFadeDrag {
 }
 
 impl WaveformEditFadeDrag {
-    fn new(handle: WaveformEditFadeHandle, selection: sempal::selection::SelectionRange) -> Self {
+    fn new(handle: WaveformEditFadeHandle, selection: wavecrate::selection::SelectionRange) -> Self {
         let curve = match handle {
             WaveformEditFadeHandle::FadeInEnd | WaveformEditFadeHandle::FadeInStart => {
                 selection.fade_in().map(|fade| fade.curve).unwrap_or(0.5)
@@ -502,9 +502,9 @@ impl WaveformEditFadeDrag {
 
     fn apply(
         self,
-        selection: sempal::selection::SelectionRange,
+        selection: wavecrate::selection::SelectionRange,
         ratio: f32,
-    ) -> sempal::selection::SelectionRange {
+    ) -> wavecrate::selection::SelectionRange {
         let ratio = ratio.clamp(0.0, 1.0);
         match self.handle {
             WaveformEditFadeHandle::FadeInEnd => {
@@ -525,7 +525,7 @@ impl WaveformEditFadeDrag {
     }
 }
 
-fn fade_in_length_for_end(selection: sempal::selection::SelectionRange, end_ratio: f32) -> f32 {
+fn fade_in_length_for_end(selection: wavecrate::selection::SelectionRange, end_ratio: f32) -> f32 {
     if selection.width() <= f32::EPSILON {
         return 0.0;
     }
@@ -534,7 +534,7 @@ fn fade_in_length_for_end(selection: sempal::selection::SelectionRange, end_rati
 }
 
 fn fade_out_length_for_start(
-    selection: sempal::selection::SelectionRange,
+    selection: wavecrate::selection::SelectionRange,
     start_ratio: f32,
 ) -> f32 {
     if selection.width() <= f32::EPSILON {
@@ -545,13 +545,13 @@ fn fade_out_length_for_start(
 }
 
 fn resize_fade_in_start(
-    selection: sempal::selection::SelectionRange,
+    selection: wavecrate::selection::SelectionRange,
     fade_end: f32,
     start_ratio: f32,
     curve: f32,
-) -> sempal::selection::SelectionRange {
+) -> wavecrate::selection::SelectionRange {
     let new_start = start_ratio.clamp(0.0, selection.end());
-    let mut resized = sempal::selection::SelectionRange::new(new_start, selection.end());
+    let mut resized = wavecrate::selection::SelectionRange::new(new_start, selection.end());
     if let Some(fade_out) = selection.fade_out() {
         resized = resized
             .with_fade_out(fade_out.length, fade_out.curve)
@@ -562,13 +562,13 @@ fn resize_fade_in_start(
 }
 
 fn resize_fade_out_end(
-    selection: sempal::selection::SelectionRange,
+    selection: wavecrate::selection::SelectionRange,
     fade_start: f32,
     end_ratio: f32,
     curve: f32,
-) -> sempal::selection::SelectionRange {
+) -> wavecrate::selection::SelectionRange {
     let new_end = end_ratio.clamp(selection.start(), 1.0);
-    let mut resized = sempal::selection::SelectionRange::new(selection.start(), new_end);
+    let mut resized = wavecrate::selection::SelectionRange::new(selection.start(), new_end);
     if let Some(fade_in) = selection.fade_in() {
         resized = resized
             .with_fade_in(fade_in.length, fade_in.curve)
@@ -579,7 +579,7 @@ fn resize_fade_out_end(
 }
 
 fn edit_preview_for_selection(
-    selection: Option<sempal::selection::SelectionRange>,
+    selection: Option<wavecrate::selection::SelectionRange>,
 ) -> TimelineEditPreview {
     let Some(selection) = selection else {
         return TimelineEditPreview::default();
@@ -690,7 +690,7 @@ fn load_waveform_file(path: PathBuf) -> Result<WaveformFile, String> {
         }
     }
     let decoded =
-        sempal::waveform::WaveformRenderer::new(WAVEFORM_WIDTH as u32, WAVEFORM_HEIGHT as u32)
+        wavecrate::waveform::WaveformRenderer::new(WAVEFORM_WIDTH as u32, WAVEFORM_HEIGHT as u32)
             .decode_from_bytes(&bytes)
             .map_err(|err| format!("failed to decode audio file: {err}"))?;
     let channels = decoded.channel_count();
@@ -986,8 +986,8 @@ struct WaveformWidget {
     playhead_ratio: Option<f32>,
     play_mark_ratio: Option<f32>,
     edit_mark_ratio: Option<f32>,
-    play_selection: Option<sempal::selection::SelectionRange>,
-    edit_selection: Option<sempal::selection::SelectionRange>,
+    play_selection: Option<wavecrate::selection::SelectionRange>,
+    edit_selection: Option<wavecrate::selection::SelectionRange>,
     edit_preview: TimelineEditPreview,
     active_drag_kind: Option<WaveformActiveDragKind>,
 }
@@ -1000,8 +1000,8 @@ impl WaveformWidget {
         playhead_ratio: Option<f32>,
         play_mark_ratio: Option<f32>,
         edit_mark_ratio: Option<f32>,
-        play_selection: Option<sempal::selection::SelectionRange>,
-        edit_selection: Option<sempal::selection::SelectionRange>,
+        play_selection: Option<wavecrate::selection::SelectionRange>,
+        edit_selection: Option<wavecrate::selection::SelectionRange>,
         active_drag_kind: Option<WaveformActiveDragKind>,
     ) -> Self {
         let mut common = WidgetCommon::new(
@@ -1441,7 +1441,7 @@ impl WaveformWidget {
 
     fn visible_range_for_selection(
         &self,
-        range: Option<sempal::selection::SelectionRange>,
+        range: Option<wavecrate::selection::SelectionRange>,
     ) -> Option<(f32, f32)> {
         let range = range?;
         let total = self.file.frames.max(1) as f32;
@@ -1791,7 +1791,7 @@ mod tests {
     fn edit_fade_bottom_handle_resizes_selection_and_keeps_fade_boundary() {
         let mut state = WaveformState::synthetic_for_tests();
         state.edit_selection =
-            Some(sempal::selection::SelectionRange::new(0.2, 0.6).with_fade_in(0.25, 0.2));
+            Some(wavecrate::selection::SelectionRange::new(0.2, 0.6).with_fade_in(0.25, 0.2));
 
         state.apply_interaction(WaveformInteraction::BeginEditFade {
             handle: WaveformEditFadeHandle::FadeInStart,
@@ -1810,7 +1810,7 @@ mod tests {
     #[test]
     fn primary_press_on_edit_fade_handle_starts_fade_drag_instead_of_playmark() {
         let mut state = WaveformState::synthetic_for_tests();
-        state.edit_selection = Some(sempal::selection::SelectionRange::new(0.2, 0.6));
+        state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
         let mut widget = WaveformWidget::new(
             state.file(),
             state.viewport(),

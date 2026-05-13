@@ -2,7 +2,7 @@ use super::*;
 use std::cell::RefCell;
 
 fn sample_install_dir() -> PathBuf {
-    PathBuf::from(r"C:\tmp\sempal")
+    PathBuf::from(r"C:\tmp\wavecrate")
 }
 
 fn sample_args() -> UpdaterRunArgs {

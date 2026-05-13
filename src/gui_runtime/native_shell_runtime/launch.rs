@@ -19,7 +19,7 @@ impl From<NativeRunOptions> for radiant::gui_runtime::NativeRunOptions {
             gpu: radiant::gui_runtime::NativeGpuOptions::default(),
             text: radiant::gui_runtime::NativeTextOptions {
                 embedded_fonts: Vec::new(),
-                font_paths: vec![crate::gui_runtime::sempal_ui_font_path()],
+                font_paths: vec![crate::gui_runtime::wavecrate_ui_font_path()],
             },
             window_mode: radiant::gui_runtime::NativeWindowMode::default(),
         }
@@ -40,7 +40,7 @@ impl From<WindowIconRgba> for radiant::gui_runtime::WindowIconRgba {
     }
 }
 
-/// Run Sempal through the generic Radiant Vello runtime.
+/// Run Wavecrate through the generic Radiant Vello runtime.
 pub(crate) fn run_native_vello_app<B: NativeAppBridge + 'static>(
     options: NativeRunOptions,
     bridge: B,
@@ -48,7 +48,7 @@ pub(crate) fn run_native_vello_app<B: NativeAppBridge + 'static>(
     run_native_vello_app_with_artifacts(options, bridge).result
 }
 
-/// Run Sempal through the generic Radiant Vello runtime and return launch artifacts.
+/// Run Wavecrate through the generic Radiant Vello runtime and return launch artifacts.
 pub(crate) fn run_native_vello_app_with_artifacts<B: NativeAppBridge + 'static>(
     options: NativeRunOptions,
     bridge: B,
@@ -56,7 +56,7 @@ pub(crate) fn run_native_vello_app_with_artifacts<B: NativeAppBridge + 'static>(
     let title = options.title.clone();
     let report = radiant::window(title)
         .options(options.into())
-        .run_bridge_with_artifacts(SempalRuntimeBridge::new(bridge));
+        .run_bridge_with_artifacts(WavecrateRuntimeBridge::new(bridge));
     NativeRunReport {
         artifacts: NativeRuntimeArtifacts {
             startup_timing: report.artifacts.startup_timing,

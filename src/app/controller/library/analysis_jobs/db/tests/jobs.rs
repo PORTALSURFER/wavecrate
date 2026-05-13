@@ -48,9 +48,9 @@ where
         .with_writer(buffer.clone())
         .finish();
     crate::logging::set_debug_logging_enabled_for_tests(true);
-    sempal_library::diagnostics::set_debug_logging_enabled(true);
+    wavecrate_library::diagnostics::set_debug_logging_enabled(true);
     tracing::subscriber::with_default(subscriber, run);
-    sempal_library::diagnostics::set_debug_logging_enabled(false);
+    wavecrate_library::diagnostics::set_debug_logging_enabled(false);
     crate::logging::set_debug_logging_enabled_for_tests(false);
     buffer.captured()
 }

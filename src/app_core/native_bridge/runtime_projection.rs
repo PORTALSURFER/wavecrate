@@ -5,7 +5,7 @@
 //! opt-in through the feature/env-controlled metrics path.
 
 use super::{
-    PendingModelPullPreparation, SempalNativeBridge,
+    PendingModelPullPreparation, WavecrateNativeBridge,
     metrics::{
         BRIDGE_PROFILE_INTERVAL, bridge_profiling_enabled, maybe_log_bridge_profile,
         projection_key_assertions_enabled, trace_derived_flush, trace_projection_key_assertion,
@@ -27,7 +27,7 @@ use std::{
 };
 use tracing::debug;
 
-impl SempalNativeBridge {
+impl WavecrateNativeBridge {
     /// Resolve which native-frame maintenance lane to run for the next model pull.
     fn model_pull_preparation_plan(&self) -> NativeFramePreparationPlan {
         if self.controller.can_prepare_browser_retained_pull() {

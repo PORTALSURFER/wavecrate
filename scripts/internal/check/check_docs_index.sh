@@ -26,7 +26,7 @@ required_non_doc_refs=(
   "AGENTS.md"
 )
 required_phrases=(
-  'Linear project `Sempal` under team `PORTALSURFER`'
+  'Linear project `Wavecrate` under team `PORTALSURFER`'
 )
 
 if [[ ! -f "$DOCS_README" ]]; then

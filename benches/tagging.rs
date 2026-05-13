@@ -2,9 +2,9 @@
 use std::path::PathBuf;
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
-use sempal::sample_sources::{Rating, SourceDatabase};
 use std::hint::black_box;
 use tempfile::tempdir;
+use wavecrate::sample_sources::{Rating, SourceDatabase};
 
 const SAMPLE_COUNT: usize = 1_000;
 

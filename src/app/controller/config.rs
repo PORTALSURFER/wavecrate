@@ -356,7 +356,7 @@ impl AppController {
         })
     }
 
-    /// Open the `.sempal` config directory in the OS file explorer.
+    /// Open the `.wavecrate` config directory in the OS file explorer.
     pub fn open_config_folder(&mut self) {
         match crate::app_dirs::app_root_dir() {
             Ok(path) => {

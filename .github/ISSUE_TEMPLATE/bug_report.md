@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a bug in Sempal
+about: Report a bug in Wavecrate
 labels: bug
 ---
 
@@ -26,10 +26,10 @@ What actually happened:
 
 - OS:
 - Commit / branch:
-- Any relevant env vars (for example `SEMPAL_CONFIG_HOME`, `CPAL_ASIO_DIR`, `SEMPAL_NATIVE_FONT_PATH`):
+- Any relevant env vars (for example `WAVECRATE_CONFIG_HOME`, `CPAL_ASIO_DIR`, `WAVECRATE_NATIVE_FONT_PATH`):
 
 ## Diagnostics
 
 - Attach a bundle from `scripts/run.sh bug-bundle` / `scripts/run.ps1 bug-bundle` when useful (review before sharing; may contain local paths).
-- If you used the sandbox runner, mention whether it was persistent (`<repo>/.sandbox/sempal`) or ephemeral (`--temp/-Temp`).
+- If you used the sandbox runner, mention whether it was persistent (`<repo>/.sandbox/wavecrate`) or ephemeral (`--temp/-Temp`).
 

@@ -1,4 +1,4 @@
-//! Sempal user-intent actions emitted through the runtime compatibility contract.
+//! Wavecrate user-intent actions emitted through the runtime compatibility contract.
 //!
 //! [`UiAction`] intentionally remains the single compatibility surface between
 //! the native runtime and the host bridge. The enum stays centralized so hosts

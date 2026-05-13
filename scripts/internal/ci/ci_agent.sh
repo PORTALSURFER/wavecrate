@@ -4,7 +4,7 @@
 #
 # This lane avoids cargo-nextest and the broader GUI contract wrappers so it
 # can run in constrained environments while still providing a real compile +
-# Radiant standalone-test + Sempal library-test cycle.
+# Radiant standalone-test + Wavecrate library-test cycle.
 
 set -euo pipefail
 
@@ -12,7 +12,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$ROOT_DIR"
 # shellcheck source=scripts/internal/use_cargo_cache.sh
 source "$ROOT_DIR/scripts/internal/use_cargo_cache.sh"
-sempal_enable_cargo_cache
+wavecrate_enable_cargo_cache
 
 usage() {
   cat <<'USAGE'
@@ -47,7 +47,7 @@ echo "[ci_agent] ./scripts/ci.sh smoke"
 echo "[ci_agent] cargo test --manifest-path vendor/radiant/Cargo.toml --no-default-features"
 cargo test --manifest-path vendor/radiant/Cargo.toml --no-default-features
 
-echo "[ci_agent] cargo test -p sempal --lib"
-cargo test -p sempal --lib
+echo "[ci_agent] cargo test -p wavecrate --lib"
+cargo test -p wavecrate --lib
 
 echo "[ci_agent] OK"

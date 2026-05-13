@@ -3,8 +3,8 @@ use std::path::Path;
 use tempfile::tempdir;
 
 fn explicit_persistence_env_present() -> bool {
-    std::env::var_os("SEMPAL_CONFIG_HOME").is_some()
-        || std::env::var_os("SEMPAL_CONFIG_PROFILE").is_some()
+    std::env::var_os("WAVECRATE_CONFIG_HOME").is_some()
+        || std::env::var_os("WAVECRATE_CONFIG_PROFILE").is_some()
 }
 
 #[test]
@@ -17,7 +17,7 @@ fn dependency_app_root_defaults_to_automated_test_profile() {
 
     assert!(
         root.ends_with(
-            Path::new(".sempal")
+            Path::new(".wavecrate")
                 .join("profiles")
                 .join("automated-tests")
         )
@@ -36,7 +36,7 @@ fn dependency_live_profile_override_keeps_live_root_shape() {
 
     let root = app_dirs::app_root_dir().expect("resolve live app root");
 
-    assert_eq!(root, base.path().join(".sempal"));
+    assert_eq!(root, base.path().join(".wavecrate"));
     assert!(root.is_dir());
 }
 
@@ -51,7 +51,7 @@ fn dependency_live_logs_dir_stays_under_live_app_root() {
 
     let logs_dir = app_dirs::logs_dir().expect("resolve live logs dir");
 
-    assert_eq!(logs_dir, base.path().join(".sempal").join("logs"));
+    assert_eq!(logs_dir, base.path().join(".wavecrate").join("logs"));
     assert!(logs_dir.is_dir());
 }
 
@@ -69,7 +69,7 @@ fn dependency_sandbox_logs_dir_stays_under_sandbox_profile_root() {
     assert_eq!(
         logs_dir,
         base.path()
-            .join(".sempal")
+            .join(".wavecrate")
             .join("profiles")
             .join("sandbox")
             .join("logs")

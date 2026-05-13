@@ -1,7 +1,7 @@
 //! Slotized browser chrome text-line geometry helpers.
 
 use super::super::style::SizingTokens;
-use crate::gui::text_layout::{centered_text_line, TextLineInsets};
+use crate::gui::text_layout::{TextLineInsets, centered_text_line};
 use crate::gui::types::Rect;
 
 /// Slot-resolved browser-tab label bounds.

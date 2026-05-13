@@ -1,8 +1,8 @@
 //! Slotized helpers for status-bar segment and text-line geometry.
 
-use super::super::status_surface::{resolve_status_surface_layout, StatusSurfaceContent};
+use super::super::status_surface::{StatusSurfaceContent, resolve_status_surface_layout};
 use super::super::style::SizingTokens;
-use crate::gui::text_layout::{centered_text_line, TextLineInsets};
+use crate::gui::text_layout::{TextLineInsets, centered_text_line};
 use crate::gui::types::Rect;
 
 /// Slot-resolved left/center/right status-bar segment geometry.

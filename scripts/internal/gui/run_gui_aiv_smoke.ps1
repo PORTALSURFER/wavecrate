@@ -2,7 +2,7 @@
 param(
     [string]$CaseFilter,
     [string]$ArtifactsDir = "artifacts/gui-aiv-smoke",
-    [string]$BinaryPath = "target/debug/sempal.exe",
+    [string]$BinaryPath = "target/debug/wavecrate.exe",
     [switch]$SkipBuild
 )
 

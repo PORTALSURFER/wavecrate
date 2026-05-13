@@ -9,8 +9,8 @@ $ErrorActionPreference = "Stop"
 powershell -ExecutionPolicy Bypass -File scripts/internal/gui/run_gui_contract.ps1
 if ($LASTEXITCODE -ne 0) { throw "gui contract lane failed" }
 
-Write-Host "[gui-suite] cargo test -p sempal --lib startup_shot_matches_fixture"
-cargo test -p sempal --lib startup_shot_matches_fixture
+Write-Host "[gui-suite] cargo test -p wavecrate --lib startup_shot_matches_fixture"
+cargo test -p wavecrate --lib startup_shot_matches_fixture
 if ($LASTEXITCODE -ne 0) { throw "gui snapshot fixture smoke failed" }
 
 $artifactDir = Split-Path -Parent $ArtifactPath

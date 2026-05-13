@@ -39,7 +39,7 @@ jobs:
             const isLarge =
               changedFiles > thresholds.changedFiles || churn > thresholds.churnLines;
 
-            const marker = '<!-- sempal-pr-hygiene -->';
+            const marker = '<!-- wavecrate-pr-hygiene -->';
             const body = [
               marker,
               '### PR size nudge',

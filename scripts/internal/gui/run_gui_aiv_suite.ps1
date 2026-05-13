@@ -3,7 +3,7 @@ param(
     [string]$PackName = "desktop-regression",
     [string]$CaseFilter,
     [string]$ArtifactsDir = "artifacts/gui-aiv-suite",
-    [string]$BinaryPath = "target/debug/sempal.exe",
+    [string]$BinaryPath = "target/debug/wavecrate.exe",
     [switch]$SkipBuild
 )
 
@@ -21,9 +21,9 @@ $suiteSummaryPath = Join-Path $artifactsRoot "suite-summary.md"
 New-CleanDirectory -Path $artifactsRoot
 
 if (-not $SkipBuild) {
-    Write-Host "[gui-aiv] cargo build --bin sempal"
-    cargo build --bin sempal
-    if ($LASTEXITCODE -ne 0) { throw "failed to build sempal binary" }
+    Write-Host "[gui-aiv] cargo build --bin wavecrate"
+    cargo build --bin wavecrate
+    if ($LASTEXITCODE -ne 0) { throw "failed to build wavecrate binary" }
 
     Write-Host "[gui-aiv] cargo build -p gui-test-cli"
     cargo build -p gui-test-cli
@@ -82,7 +82,7 @@ foreach ($case in $cases) {
         Write-Host "[gui-aiv] start case $($case.name)"
         $process = Start-CaseProcess -ResolvedBinary $resolvedBinary -RepoRoot $repoRoot -SandboxDir $sandboxDir -RuntimeArtifactsDir $runtimeArtifactsDir -Case $case
         if ($null -eq $process) {
-            throw "failed to start sempal process for case $($case.name)"
+            throw "failed to start wavecrate process for case $($case.name)"
         }
         Ensure-WindowForegroundOrThrow -Title $case.window_title -Context "case-start:$($case.name)" -WaitTimeoutMs 30000
         Wait-ForFile -Path $guiArtifactPath -TimeoutMs 30000
