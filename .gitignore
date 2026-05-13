@@ -10,7 +10,9 @@ assets/ml/panns_cnn14_16k/*.bpk
 assets/ml/panns_cnn14_16k/*.onnx
 assets/ml/panns_cnn14_16k/*.onnx.data
 assets/ml/panns_cnn14_16k/*.pth
+
 .ssl
+.wav
 
 # Generated desktop GUI test artifacts and exports.
 /artifacts/
@@ -22,3 +24,5 @@ assets/ml/panns_cnn14_16k/*.pth
 /model.json
 /profile.json.gz
 /flamegraph.svg
+
+
