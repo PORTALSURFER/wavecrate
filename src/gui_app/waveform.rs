@@ -1155,7 +1155,12 @@ pub(super) struct WaveformViewport {
 pub(super) fn waveform_viewport_view(state: &WaveformState) -> ui::View<super::GuiMessage> {
     ui::stack([
         ui::custom_widget(
-            WaveformSignalWidget::new(state.file(), state.viewport(), state.edit_selection()),
+            WaveformSignalWidget::new(
+                state.file(),
+                state.viewport(),
+                state.edit_selection(),
+                state.active_drag_kind(),
+            ),
             |_| None,
         )
         .id(11)
@@ -1574,6 +1579,7 @@ struct WaveformSignalWidget {
     file: Arc<WaveformFile>,
     viewport: WaveformViewport,
     edit_selection: Option<wavecrate::selection::SelectionRange>,
+    active_drag_kind: Option<WaveformActiveDragKind>,
 }
 
 impl WaveformSignalWidget {
@@ -1581,6 +1587,7 @@ impl WaveformSignalWidget {
         file: Arc<WaveformFile>,
         viewport: WaveformViewport,
         edit_selection: Option<wavecrate::selection::SelectionRange>,
+        active_drag_kind: Option<WaveformActiveDragKind>,
     ) -> Self {
         let mut common = WidgetCommon::new(
             0,
@@ -1594,14 +1601,22 @@ impl WaveformSignalWidget {
             file,
             viewport,
             edit_selection,
+            active_drag_kind,
         }
+    }
+
+    fn uses_live_fade_preview(&self) -> bool {
+        matches!(
+            self.active_drag_kind,
+            Some(WaveformActiveDragKind::EditFade(_))
+        )
     }
 
     fn signal_summary(&self) -> Arc<radiant::runtime::GpuSignalSummary> {
         let Some(selection) = self.edit_selection else {
             return Arc::clone(&self.file.gpu_signal_summary);
         };
-        if !selection.has_edit_effects() {
+        if !selection.has_edit_effects() || self.uses_live_fade_preview() {
             return Arc::clone(&self.file.gpu_signal_summary);
         }
         let mut samples = self.file.gpu_signal_samples.as_ref().to_vec();
@@ -1616,6 +1631,9 @@ impl WaveformSignalWidget {
     }
 
     fn signal_revision(&self) -> u64 {
+        if self.uses_live_fade_preview() {
+            return 0;
+        }
         edit_selection_revision(self.edit_selection)
     }
 }
@@ -2529,9 +2547,9 @@ impl WaveformWidget {
 #[cfg(test)]
 mod tests {
     use super::{
-        BAND_COUNT, WaveformEditFadeHandle, WaveformInteraction, WaveformSelectionEdge,
-        WaveformSelectionKind, WaveformSignalWidget, WaveformState, WaveformWidget,
-        split_frequency_bands, waveform_file_from_mono_samples,
+        BAND_COUNT, WaveformActiveDragKind, WaveformEditFadeHandle, WaveformInteraction,
+        WaveformSelectionEdge, WaveformSelectionKind, WaveformSignalWidget, WaveformState,
+        WaveformWidget, split_frequency_bands, waveform_file_from_mono_samples,
     };
     use radiant::{
         gui::types::{Point, Rect, Vector2},
@@ -3821,8 +3839,12 @@ mod tests {
     #[test]
     fn signal_widget_paints_gpu_surface_without_app_overlay_handles() {
         let state = WaveformState::synthetic_for_tests();
-        let widget =
-            WaveformSignalWidget::new(state.file(), state.viewport(), state.edit_selection());
+        let widget = WaveformSignalWidget::new(
+            state.file(),
+            state.viewport(),
+            state.edit_selection(),
+            state.active_drag_kind(),
+        );
         let mut primitives = Vec::new();
 
         widget.append_paint(
@@ -3862,7 +3884,7 @@ mod tests {
         let viewport = super::WaveformViewport::full(file.frames);
         let edit_selection =
             Some(wavecrate::selection::SelectionRange::new(0.0, 1.0).with_fade_in(1.0, 0.0));
-        let widget = WaveformSignalWidget::new(file, viewport, edit_selection);
+        let widget = WaveformSignalWidget::new(file, viewport, edit_selection, None);
         let mut primitives = Vec::new();
 
         widget.append_paint(
@@ -3889,6 +3911,50 @@ mod tests {
         let last_raw = &buckets[(15 * BAND_COUNT) + 3];
         assert!(first_raw.max.abs().max(first_raw.min.abs()) < 0.001);
         assert!(last_raw.max.abs().max(last_raw.min.abs()) > 0.65);
+    }
+
+    #[test]
+    fn signal_widget_uses_cached_base_summary_during_live_edit_fade_drag() {
+        let file = Arc::new(waveform_file_from_mono_samples(
+            "fade-preview.wav".into(),
+            Arc::from([]),
+            48_000,
+            1,
+            vec![1.0; 16],
+        ));
+        let viewport = super::WaveformViewport::full(file.frames);
+        let edit_selection =
+            Some(wavecrate::selection::SelectionRange::new(0.0, 1.0).with_fade_in(1.0, 0.0));
+        let widget = WaveformSignalWidget::new(
+            Arc::clone(&file),
+            viewport,
+            edit_selection,
+            Some(WaveformActiveDragKind::EditFade(
+                WaveformEditFadeHandle::FadeInEnd,
+            )),
+        );
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0)),
+            &Default::default(),
+            &ThemeTokens::default(),
+        );
+
+        let surface = primitives
+            .iter()
+            .find_map(|primitive| match primitive {
+                PaintPrimitive::GpuSurface(surface) => Some(surface),
+                _ => None,
+            })
+            .expect("waveform gpu surface");
+
+        assert_eq!(surface.revision, 0);
+        let GpuSurfaceContent::SignalSummaryBands { summary, .. } = &surface.content else {
+            panic!("expected signal summary bands");
+        };
+        assert!(Arc::ptr_eq(summary, &file.gpu_signal_summary));
     }
 
     fn fill_rects(primitives: &[PaintPrimitive]) -> Vec<&PaintFillRect> {
