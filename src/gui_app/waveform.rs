@@ -1492,8 +1492,8 @@ fn split_frequency_bands(samples: &[f32], sample_rate: u32) -> Arc<[f32]> {
     if samples.is_empty() {
         return Arc::from([]);
     }
-    let alpha_low = lowpass_alpha(sample_rate, 180.0);
-    let alpha_mid = lowpass_alpha(sample_rate, 2_600.0);
+    let alpha_low = lowpass_alpha(sample_rate, 150.0);
+    let alpha_mid = lowpass_alpha(sample_rate, 2_200.0);
     let mut low = 0.0_f32;
     let mut mid_low = 0.0_f32;
     let mut bands = Vec::with_capacity(samples.len().saturating_mul(BAND_COUNT));
@@ -1501,12 +1501,12 @@ fn split_frequency_bands(samples: &[f32], sample_rate: u32) -> Arc<[f32]> {
         let sample = sample.clamp(-1.0, 1.0);
         low += alpha_low * (sample - low);
         mid_low += alpha_mid * (sample - mid_low);
-        let mid = (mid_low - low).clamp(-1.0, 1.0);
-        let high = (sample - mid_low).clamp(-1.0, 1.0);
-        bands.push(low.clamp(-1.0, 1.0));
+        let mid = ((mid_low - low) * 1.45).clamp(-1.0, 1.0);
+        let high = ((sample - mid_low) * 2.15).clamp(-1.0, 1.0);
+        bands.push((low * 1.08).clamp(-1.0, 1.0));
         bands.push(mid);
         bands.push(high);
-        bands.push(sample);
+        bands.push((sample * 0.72).clamp(-1.0, 1.0));
     }
     bands.into()
 }
@@ -2682,7 +2682,7 @@ mod tests {
         assert!(low_peak > 0.0);
         assert!(mid_peak > 0.0);
         assert!(high_peak > 0.0);
-        assert!(raw_peak >= high_peak);
+        assert!(high_peak > raw_peak);
     }
 
     #[test]
@@ -3888,7 +3888,7 @@ mod tests {
         let first_raw = &buckets[3];
         let last_raw = &buckets[(15 * BAND_COUNT) + 3];
         assert!(first_raw.max.abs().max(first_raw.min.abs()) < 0.001);
-        assert!(last_raw.max.abs().max(last_raw.min.abs()) > 0.9);
+        assert!(last_raw.max.abs().max(last_raw.min.abs()) > 0.65);
     }
 
     fn fill_rects(primitives: &[PaintPrimitive]) -> Vec<&PaintFillRect> {
