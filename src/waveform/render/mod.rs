@@ -208,7 +208,7 @@ impl WaveformRenderer {
 
 #[cfg(test)]
 mod tests {
-    use super::fade_preview::{apply_fade_to_columns, apply_fade_to_samples};
+    use super::fade_preview::{apply_fade_to_columns, apply_fade_to_samples, fade_intersects_view};
     use super::*;
     use crate::selection::SelectionRange;
     use crate::waveform::DecodedWaveform;
@@ -277,6 +277,16 @@ mod tests {
                 .last()
                 .is_some_and(|column| column.0.abs() < 1e-6 && column.1.abs() < 1e-6)
         );
+    }
+
+    #[test]
+    fn fade_preview_intersects_outer_crossfade_extensions() {
+        let selection = SelectionRange::new(0.4, 0.6)
+            .with_fade_in(0.25, 0.0)
+            .with_fade_in_mute(0.5);
+
+        assert!(fade_intersects_view(0.3, 0.35, Some(selection)));
+        assert!(!fade_intersects_view(0.2, 0.25, Some(selection)));
     }
 
     #[test]

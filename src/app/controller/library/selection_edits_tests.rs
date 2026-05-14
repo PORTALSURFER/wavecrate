@@ -152,6 +152,35 @@ fn selection_fades_ramp_in_and_out() {
 }
 
 #[test]
+fn selection_fades_crossfade_outer_extensions() {
+    let mut samples = vec![1.0_f32; 16];
+    let fade_in = FadeParams::with_curve_and_mute(0.25, 0.0, 0.25);
+    let fade_out = FadeParams::with_curve_and_mute(0.25, 0.0, 0.25);
+
+    apply_selection_fades(SelectionFadeRequest {
+        samples: &mut samples,
+        channels: 1,
+        sample_rate: 48_000,
+        start_frame: 4,
+        end_frame: 12,
+        selection_gain: 1.0,
+        fade_in: Some(fade_in),
+        fade_out: Some(fade_out),
+    });
+
+    assert!((samples[1] - 1.0).abs() < 1e-6);
+    assert!((samples[2] - 1.0).abs() < 1e-6);
+    assert!(samples[3].abs() < 1e-6);
+    assert!(samples[4].abs() < 1e-6);
+    assert!((samples[5] - 1.0).abs() < 1e-6);
+    assert!((samples[10] - 1.0).abs() < 1e-6);
+    assert!(samples[11].abs() < 1e-6);
+    assert!(samples[12].abs() < 1e-6);
+    assert!((samples[13] - 1.0).abs() < 1e-6);
+    assert!((samples[14] - 1.0).abs() < 1e-6);
+}
+
+#[test]
 fn mute_respects_selection_bounds() {
     let mut samples = vec![0.5_f32; 6];
     apply_muted_selection(&mut samples, 1, 2, 4);

@@ -100,9 +100,11 @@ Use for tooling, fixtures, and numerical-reference flows.
 - `cargo nextest run golden_log_mel_matches_python`
 - `cargo nextest run golden_embedding_matches_python`
 
-### Wavecrate native-shell tests
+### Wavecrate legacy native-shell compatibility tests
 
-Use for compatibility-shell visual and behavior changes that are Wavecrate-owned.
+Use for deprecated compatibility-shell visual and behavior changes that are
+Wavecrate-owned. Default GUI work should prefer focused tests around
+`src/gui_app.rs` and the relevant Radiant public API surface.
 
 - targeted snapshot suites:
   - `startup_shot_matches_fixture`
@@ -111,10 +113,10 @@ Use for compatibility-shell visual and behavior changes that are Wavecrate-owned
   - update fixtures with
     `cargo test -p wavecrate --lib update_shot_fixtures -- --ignored`
 
-### Radiant native-shell tests
+### Radiant legacy native-shell tests
 
-Use for generic Radiant behavior and explicit compatibility coverage while
-`compat::legacy_shell` exists.
+Use for generic Radiant behavior and explicit legacy compatibility coverage
+while `compat::legacy_shell` exists.
 
 - `cargo nextest run --manifest-path vendor/radiant/Cargo.toml`
 

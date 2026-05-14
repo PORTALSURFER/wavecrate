@@ -203,18 +203,20 @@ impl NativeMotionModel {
 
     /// Return this motion snapshot's generic timeline edit-preview state.
     pub fn waveform_edit_preview(&self) -> crate::gui::visualization::TimelineEditPreview {
-        crate::gui::visualization::TimelineEditPreview::new(
-            self.waveform_edit_selection_milli,
-            self.waveform_edit_fade_in_end_milli,
-            self.waveform_edit_fade_in_end_micros,
-            self.waveform_edit_fade_in_mute_start_milli,
-            self.waveform_edit_fade_in_mute_start_micros,
-            self.waveform_edit_fade_in_curve_milli,
-            self.waveform_edit_fade_out_start_milli,
-            self.waveform_edit_fade_out_start_micros,
-            self.waveform_edit_fade_out_mute_end_milli,
-            self.waveform_edit_fade_out_mute_end_micros,
-            self.waveform_edit_fade_out_curve_milli,
+        crate::gui::visualization::TimelineEditPreview::from_parts(
+            crate::gui::visualization::TimelineEditPreviewParts {
+                selection: self.waveform_edit_selection_milli,
+                leading_end_milli: self.waveform_edit_fade_in_end_milli,
+                leading_end_micros: self.waveform_edit_fade_in_end_micros,
+                leading_inner_start_milli: self.waveform_edit_fade_in_mute_start_milli,
+                leading_inner_start_micros: self.waveform_edit_fade_in_mute_start_micros,
+                leading_curve_milli: self.waveform_edit_fade_in_curve_milli,
+                trailing_start_milli: self.waveform_edit_fade_out_start_milli,
+                trailing_start_micros: self.waveform_edit_fade_out_start_micros,
+                trailing_inner_end_milli: self.waveform_edit_fade_out_mute_end_milli,
+                trailing_inner_end_micros: self.waveform_edit_fade_out_mute_end_micros,
+                trailing_curve_milli: self.waveform_edit_fade_out_curve_milli,
+            },
         )
     }
 
@@ -277,14 +279,16 @@ impl NativeMotionModel {
     pub fn timeline_motion(&self) -> WaveformMotionModel {
         WaveformMotionModel::new(
             self.transport_running,
-            crate::gui::visualization::TimelineSurfaceState::new(
-                self.waveform_viewport(),
-                self.waveform_transport(),
-                self.waveform_edit_preview(),
-                self.waveform_feedback_events(),
-                self.waveform_presentation(),
-                self.waveform_image_preview(),
-                self.waveform_slices.clone(),
+            crate::gui::visualization::TimelineSurfaceState::from_parts(
+                crate::gui::visualization::TimelineSurfaceParts {
+                    viewport: self.waveform_viewport(),
+                    transport: self.waveform_transport(),
+                    edit_preview: self.waveform_edit_preview(),
+                    feedback_events: self.waveform_feedback_events(),
+                    presentation: self.waveform_presentation(),
+                    raster_preview: self.waveform_image_preview(),
+                    markers: self.waveform_slices.clone(),
+                },
             ),
             self.signal_chrome(),
             self.signal_tools(),

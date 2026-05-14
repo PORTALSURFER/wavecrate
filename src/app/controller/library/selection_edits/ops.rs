@@ -188,7 +188,7 @@ pub(crate) fn apply_edge_fades(
 }
 
 /// Apply optional fade-in and fade-out ramps within the selection bounds.
-/// A minimal fade is applied when a mute region is present but the fade length is zero.
+/// A minimal fade is applied when an outer extension is present but the fade length is zero.
 pub(crate) fn apply_selection_fades(request: SelectionFadeRequest<'_>) {
     let SelectionFadeRequest {
         samples,
@@ -236,7 +236,14 @@ pub(crate) fn apply_selection_fades(request: SelectionFadeRequest<'_>) {
             if mute_frames > 0 {
                 let mute_start = clamped_start.saturating_sub(mute_frames);
                 if mute_start < clamped_start {
-                    apply_muted_selection(samples, channels, mute_start, clamped_start);
+                    apply_fade_ramp(
+                        samples,
+                        channels,
+                        mute_start,
+                        clamped_start,
+                        FadeDirection::LeftToRight,
+                        fade_in.curve,
+                    );
                 }
             }
             let fade_end = clamped_start.saturating_add(fade_frames).min(clamped_end);
@@ -268,7 +275,14 @@ pub(crate) fn apply_selection_fades(request: SelectionFadeRequest<'_>) {
             if mute_frames > 0 {
                 let mute_end = clamped_end.saturating_add(mute_frames).min(total_frames);
                 if clamped_end < mute_end {
-                    apply_muted_selection(samples, channels, clamped_end, mute_end);
+                    apply_fade_ramp(
+                        samples,
+                        channels,
+                        clamped_end,
+                        mute_end,
+                        FadeDirection::RightToLeft,
+                        fade_out.curve,
+                    );
                 }
             }
             let fade_start = clamped_end.saturating_sub(fade_frames).max(clamped_start);

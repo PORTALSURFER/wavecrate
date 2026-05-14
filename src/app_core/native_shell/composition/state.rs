@@ -486,7 +486,7 @@ impl NativeShellState {
 mod opt_272_tests {
     use super::*;
     use crate::app_core::native_shell::runtime_contract::{
-        FolderPaneIdModel, FolderRowModel, SourceRowModel,
+        FolderPaneIdModel, SourceRowModel, folder_row_model,
     };
     use crate::gui::types::Vector2;
 
@@ -525,7 +525,7 @@ mod opt_272_tests {
                 .sources
                 .upper_folder_pane
                 .tree_rows
-                .push(FolderRowModel::new(
+                .push(folder_row_model(
                     format!("folder_{row_index:03}"),
                     String::new(),
                     row_index % 3,

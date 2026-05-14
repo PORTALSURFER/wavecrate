@@ -32,6 +32,8 @@ fn normalize_selection_resumes_playback_when_playing() {
 
     assert!(controller.is_playing());
     assert!((controller.ui.waveform.playhead.position - 0.5).abs() < 1e-6);
+    assert!(controller.ui.waveform.playhead.recent_seek.is_none());
+    assert!(controller.ui.waveform.playhead.fading_trails.is_empty());
 }
 
 #[test]

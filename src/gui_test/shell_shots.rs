@@ -1,8 +1,8 @@
 use crate::{
     app_core::actions::{
         NativeAppModel, NativeBrowserRowModel, NativeBrowserRowProcessingState,
-        NativeFolderRowModel, NativeNormalizedRangeModel, NativeSourceRowModel,
-        NativeUpdateStatusModel,
+        NativeNormalizedRangeModel, NativeSourceRowModel, NativeUpdateStatusModel,
+        native_folder_row_model,
     },
     gui::types::ImageRgba,
     gui_runtime::capture_native_shell_shot_snapshot,
@@ -224,7 +224,7 @@ fn startup_scene_model() -> NativeAppModel {
         ));
     }
     for index in 0..10 {
-        model.sources.tree_rows.push(NativeFolderRowModel::new(
+        model.sources.tree_rows.push(native_folder_row_model(
             format!("folder_{index:02}"),
             String::new(),
             index % 2,
@@ -270,7 +270,7 @@ fn browser_dense_model() -> NativeAppModel {
         ));
     }
     for index in 0..16 {
-        model.sources.tree_rows.push(NativeFolderRowModel::new(
+        model.sources.tree_rows.push(native_folder_row_model(
             format!("folder_{index:02}"),
             String::new(),
             index % 3,

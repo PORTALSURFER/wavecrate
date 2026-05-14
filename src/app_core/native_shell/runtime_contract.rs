@@ -23,7 +23,7 @@ pub use crate::app_core::actions::{
     NativeDirtySegments as DirtySegments, NativeNormalizedRangeModel as NormalizedRangeModel,
     NativeOptionsPanelModel as OptionsPanelModel, NativeSegmentRevisions as SegmentRevisions,
     NativeSourcesPanelModel as SourcesPanelModel, NativeWaveformChromeModel as WaveformChromeModel,
-    NativeWaveformPanelModel as WaveformPanelModel,
+    NativeWaveformPanelModel as WaveformPanelModel, native_folder_row_model as folder_row_model,
 };
 pub use actions::{BrowserTriageTarget, UiAction};
 pub use aliases::{

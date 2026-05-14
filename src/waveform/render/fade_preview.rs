@@ -8,7 +8,19 @@ pub(super) fn fade_intersects_view(
     let Some(selection) = edit_fade else {
         return false;
     };
-    selection.has_edit_effects() && selection.end() >= view_start && selection.start() <= view_end
+    if !selection.has_edit_effects() {
+        return false;
+    }
+    let width = selection.width();
+    let mut effect_start = selection.start();
+    let mut effect_end = selection.end();
+    if let Some(fade_in) = selection.fade_in() {
+        effect_start = effect_start.min(selection.start() - width * fade_in.mute);
+    }
+    if let Some(fade_out) = selection.fade_out() {
+        effect_end = effect_end.max(selection.end() + width * fade_out.mute);
+    }
+    effect_end >= view_start && effect_start <= view_end
 }
 
 pub(super) fn apply_fade_to_columns(

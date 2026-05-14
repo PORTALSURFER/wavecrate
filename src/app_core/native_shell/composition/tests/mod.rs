@@ -44,7 +44,7 @@ fn canonical_shell_model() -> crate::app_core::native_shell::runtime_contract::A
     }
     for index in 0..14 {
         model.sources.tree_rows.push(
-            crate::app_core::native_shell::runtime_contract::FolderRowModel::new(
+            crate::app_core::native_shell::runtime_contract::folder_row_model(
                 format!("folder_{index:02}"),
                 String::new(),
                 index % 3,

@@ -4,8 +4,9 @@ Prevents introducing new dependencies from `src/app_core` into legacy/UI runtime
 
 .DESCRIPTION
 Diff-aware check: inspects only added lines in diffs for forbidden dependencies.
-`crate::legacy_runtime::` and `crate::gui_app::` remain historical compatibility
-tokens; `crate::gui_runtime::` is the current live runtime layer.
+`crate::legacy_runtime::` is historical compatibility. `crate::gui_app::` is the
+current default GUI entrypoint, and `crate::gui_runtime::` is the retained legacy
+runtime adapter layer. `app_core` should depend on neither direction directly.
 
 Allowlist file (last resort):
   scripts/internal/check/allowlists/app_core_dependency_boundary_allowlist.txt

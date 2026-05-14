@@ -193,7 +193,7 @@ impl AudioPlayer {
             pos: 0.0,
             step: 220.0 * 2.0 * std::f32::consts::PI / 44100.0,
         };
-        player.build_sink_with_fade(source);
+        player.build_sink_with_fade(source).ok()?;
         player.started_at = Some(Instant::now());
         Some(player)
     }

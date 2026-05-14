@@ -247,7 +247,7 @@ fn folder_model_with_rows(total_rows: usize, focused_row: usize) -> AppModel {
     let mut model = AppModel::default();
     model.sources.focused_tree_row = Some(focused_row.min(total_rows.saturating_sub(1)));
     for row_index in 0..total_rows {
-        let row = FolderRowModel::new(
+        let row = folder_row_model(
             format!("folder_{row_index:03}"),
             format!("folder_{row_index:03}"),
             0,

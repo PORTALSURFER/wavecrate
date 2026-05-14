@@ -13,7 +13,7 @@ pub struct FadeParams {
     pub length: f32,
     /// Curve tension: 0.0 = linear, 0.5 = medium S-curve, 1.0 = maximum S-curve.
     pub curve: f32,
-    /// Muted region length as a fraction of selection width.
+    /// Outer crossfade extension length as a fraction of selection width.
     /// This region extends outward from the selection edge.
     pub mute: f32,
 }
@@ -37,7 +37,7 @@ impl FadeParams {
         }
     }
 
-    /// Create fade parameters with custom curve and muted length.
+    /// Create fade parameters with custom curve and outer extension length.
     pub fn with_curve_and_mute(length: f32, curve: f32, mute: f32) -> Self {
         let clamped_length = length.clamp(0.0, 1.0);
         let clamped_mute = mute.max(0.0);
@@ -220,7 +220,7 @@ impl SelectionRange {
         self.fade_in.map(|f| f.length).unwrap_or(0.0)
     }
 
-    /// Get fade-in muted length (0.0 if no fade).
+    /// Get fade-in outer extension length (0.0 if no fade).
     pub fn fade_in_mute_length(&self) -> f32 {
         self.fade_in.map(|f| f.mute).unwrap_or(0.0)
     }
@@ -230,7 +230,7 @@ impl SelectionRange {
         self.fade_out.map(|f| f.length).unwrap_or(0.0)
     }
 
-    /// Get fade-out muted length (0.0 if no fade).
+    /// Get fade-out outer extension length (0.0 if no fade).
     pub fn fade_out_mute_length(&self) -> f32 {
         self.fade_out.map(|f| f.mute).unwrap_or(0.0)
     }
@@ -263,7 +263,7 @@ impl SelectionRange {
 
     /// Set fade-in parameters.
     ///
-    /// Keeps a zero-length fade when a mute region is configured so mute handles persist.
+    /// Keeps a zero-length fade when an outer extension is configured so handles persist.
     pub fn with_fade_in(mut self, length: f32, curve: f32) -> Self {
         let clamped_length = clamp_fade_length(length, self.fade_out_length());
         let current_mute = self.fade_in.map(|f| f.mute).unwrap_or(0.0);
@@ -280,7 +280,7 @@ impl SelectionRange {
         self
     }
 
-    /// Set fade-in parameters and muted length together.
+    /// Set fade-in parameters and outer extension length together.
     pub fn with_fade_in_and_mute(mut self, length: f32, curve: f32, mute: f32) -> Self {
         let clamped_length = clamp_fade_length(length, self.fade_out_length());
         let clamped_mute = clamp_mute_length(mute, self.max_fade_in_mute_length());
@@ -298,7 +298,7 @@ impl SelectionRange {
 
     /// Set fade-out parameters.
     ///
-    /// Keeps a zero-length fade when a mute region is configured so mute handles persist.
+    /// Keeps a zero-length fade when an outer extension is configured so handles persist.
     pub fn with_fade_out(mut self, length: f32, curve: f32) -> Self {
         let clamped_length = clamp_fade_length(length, self.fade_in_length());
         let current_mute = self.fade_out.map(|f| f.mute).unwrap_or(0.0);
@@ -315,7 +315,7 @@ impl SelectionRange {
         self
     }
 
-    /// Set fade-out parameters and muted length together.
+    /// Set fade-out parameters and outer extension length together.
     pub fn with_fade_out_and_mute(mut self, length: f32, curve: f32, mute: f32) -> Self {
         let clamped_length = clamp_fade_length(length, self.fade_in_length());
         let clamped_mute = clamp_mute_length(mute, self.max_fade_out_mute_length());
@@ -331,7 +331,7 @@ impl SelectionRange {
         self
     }
 
-    /// Set fade-in muted length while preserving the curve.
+    /// Set fade-in outer extension length while preserving the curve.
     pub fn with_fade_in_mute(mut self, mute: f32) -> Self {
         if let Some(fade) = self.fade_in {
             let clamped_mute = clamp_mute_length(mute, self.max_fade_in_mute_length());
@@ -344,7 +344,7 @@ impl SelectionRange {
         self
     }
 
-    /// Set fade-out muted length while preserving the curve.
+    /// Set fade-out outer extension length while preserving the curve.
     pub fn with_fade_out_mute(mut self, mute: f32) -> Self {
         if let Some(fade) = self.fade_out {
             let clamped_mute = clamp_mute_length(mute, self.max_fade_out_mute_length());
@@ -431,7 +431,7 @@ impl SelectionRange {
 
 /// Compute fade gain for one position inside/outside a selection span.
 /// Position and selection bounds share the same unit.
-/// `selection_gain` scales the result after fades/mutes; `min_fade_len` avoids clicky zero-length fades.
+/// `selection_gain` scales the result after inner fades; `min_fade_len` avoids clicky zero-length fades.
 pub(crate) fn fade_gain_at_position(
     position: f32,
     selection_start: f32,
@@ -448,20 +448,22 @@ pub(crate) fn fade_gain_at_position(
         return 1.0;
     }
     if let Some(fade_in) = fade_in {
-        let mute_len = (width * fade_in.mute).max(0.0);
-        if mute_len > 0.0 {
-            let mute_start = start - mute_len;
-            if position >= mute_start && position <= start {
-                return 0.0;
+        let extension_len = (width * fade_in.mute).max(0.0);
+        if extension_len > 0.0 {
+            let extension_start = start - extension_len;
+            if position >= extension_start && position <= start {
+                let t = ((position - extension_start) / extension_len).clamp(0.0, 1.0);
+                return (1.0 - fade_curve_value(t, fade_in.curve)).clamp(0.0, 1.0);
             }
         }
     }
     if let Some(fade_out) = fade_out {
-        let mute_len = (width * fade_out.mute).max(0.0);
-        if mute_len > 0.0 {
-            let mute_end = end + mute_len;
-            if position >= end && position <= mute_end {
-                return 0.0;
+        let extension_len = (width * fade_out.mute).max(0.0);
+        if extension_len > 0.0 {
+            let extension_end = end + extension_len;
+            if position >= end && position <= extension_end {
+                let t = ((position - end) / extension_len).clamp(0.0, 1.0);
+                return fade_curve_value(t, fade_out.curve).clamp(0.0, 1.0);
             }
         }
     }

@@ -1,7 +1,7 @@
 use super::*;
 use crate::app_core::native_shell::runtime_contract::{
     BrowserRowModel, FolderActionsModel, FolderRowModel, NativeMotionModel, NormalizedRangeModel,
-    SourceRowModel,
+    SourceRowModel, folder_row_model,
 };
 use crate::gui::types::{ImageRgba, Point, Rgba8, Vector2};
 
@@ -29,7 +29,7 @@ pub(crate) fn populated_sidebar_model() -> AppModel {
     model.sources.lower_folder_pane.item_detail = String::from("detail_05");
     model.sources.lower_folder_pane.has_item = true;
     for index in 0..24 {
-        let row = FolderRowModel::new(
+        let row = folder_row_model(
             format!("folder_{index:02}"),
             String::new(),
             index % 4,

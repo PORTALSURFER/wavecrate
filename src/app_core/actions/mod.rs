@@ -15,6 +15,7 @@ pub use self::catalog::{
     GuiEffectClass, GuiHistoryPolicy, GuiSurface, action_catalog_entry, action_catalog_entry_by_id,
     action_kind, representative_action_for_kind,
 };
+pub use self::native_shell_dtos::folder_row_model as native_folder_row_model;
 
 /// Native runtime browser action metadata model.
 pub type NativeBrowserActionsModel = self::native_shell_dtos::BrowserActionsModel;

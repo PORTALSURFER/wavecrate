@@ -1,10 +1,16 @@
 #![allow(missing_docs)]
 
 use radiant::{
+    gui::types::{Point, Rect, Rgba8},
+    layout::LayoutOutput,
     layout::Vector2,
     prelude as ui,
+    runtime::{PaintFillRect, PaintPrimitive, PaintStrokeRect},
+    theme::ThemeTokens,
     widgets::{
-        DragHandleMessage, TextInputMessage, TextInputWidget, WidgetSizing, WidgetStyle, WidgetTone,
+        DragHandleMessage, FocusBehavior, PaintBounds, PointerButton, PointerModifiers,
+        TextInputMessage, TextInputWidget, Widget, WidgetCommon, WidgetInput, WidgetOutput,
+        WidgetSizing, WidgetStyle, WidgetTone,
     },
 };
 use std::{
@@ -31,13 +37,18 @@ pub(super) struct FolderBrowserState {
     sources: Vec<SourceEntry>,
     selected_folder: String,
     selected_file: Option<String>,
+    selected_file_ids: HashSet<String>,
     expanded_folders: HashSet<String>,
     folders: Vec<FolderEntry>,
     rename_edit: Option<FolderRenameEdit>,
     file_rename_edit: Option<FileRenameEdit>,
+    drag: Option<FolderBrowserDrag>,
+    drag_pointer: Option<Point>,
+    drop_target_folder: Option<String>,
     file_columns: Vec<FileColumn>,
     file_sort: ui::DetailsSort,
     file_column_resize: Option<FileColumnResize>,
+    file_view_start: usize,
 }
 
 impl FolderBrowserState {
@@ -65,13 +76,18 @@ impl FolderBrowserState {
             sources,
             selected_folder: root_id.clone(),
             selected_file: None,
+            selected_file_ids: HashSet::new(),
             expanded_folders: [root_id].into_iter().collect(),
             folders: vec![root_folder],
             rename_edit: None,
             file_rename_edit: None,
+            drag: None,
+            drag_pointer: None,
+            drop_target_folder: None,
             file_columns: default_file_columns(),
             file_sort: ui::DetailsSort::new("name", ui::SortDirection::Ascending),
             file_column_resize: None,
+            file_view_start: 0,
         }
     }
 
@@ -117,6 +133,102 @@ impl FolderBrowserState {
 
     pub(super) fn selected_file_id(&self) -> Option<&str> {
         self.selected_file.as_deref()
+    }
+
+    pub(super) fn selected_file_paths(&self) -> Vec<PathBuf> {
+        let selected = if self.selected_file_ids.is_empty() {
+            self.selected_file
+                .as_deref()
+                .map(|id| [id.to_string()].into_iter().collect())
+                .unwrap_or_default()
+        } else {
+            self.selected_file_ids.clone()
+        };
+        self.selected_audio_files()
+            .into_iter()
+            .filter(|file| selected.contains(&file.id))
+            .map(|file| PathBuf::from(&file.id))
+            .collect()
+    }
+
+    pub(super) fn is_file_selected(&self, file_id: &str) -> bool {
+        if self.selected_file_ids.is_empty() {
+            return self.selected_file.as_deref() == Some(file_id);
+        }
+        self.selected_file_ids.contains(file_id)
+    }
+
+    pub(super) fn selected_audio_file_index(&self) -> Option<usize> {
+        let selected = self.selected_file.as_deref()?;
+        self.selected_audio_files()
+            .iter()
+            .position(|file| file.id == selected)
+    }
+
+    #[cfg(test)]
+    pub(super) fn file_view_start(&self) -> usize {
+        self.file_view_start
+    }
+
+    pub(super) fn set_file_view_start_from_scroll_offset(
+        &mut self,
+        offset_y: f32,
+        row_height: f32,
+    ) {
+        let total_items = self.selected_audio_files().len();
+        if total_items == 0 {
+            self.file_view_start = 0;
+            return;
+        }
+        self.file_view_start = ((offset_y.max(0.0) / row_height.max(1.0)).floor() as usize)
+            .min(total_items.saturating_sub(1));
+    }
+
+    #[cfg(test)]
+    pub(super) fn follow_selected_file_view(
+        &mut self,
+        viewport_rows: usize,
+        _overscan_rows: usize,
+        guard_rows: usize,
+    ) -> ui::VirtualListWindow {
+        let total_items = self.selected_audio_files().len();
+        if total_items == 0 || viewport_rows == 0 {
+            self.file_view_start = 0;
+            return ui::VirtualListWindow {
+                total_items,
+                ..Default::default()
+            };
+        }
+        let viewport_rows = viewport_rows.min(total_items).max(1);
+        let guard_rows = guard_rows.min(viewport_rows.saturating_sub(1) / 2);
+        let mut viewport_start = self.file_view_start.min(total_items.saturating_sub(1));
+        if let Some(focused_index) = self.selected_audio_file_index() {
+            let lower_guard = viewport_start.saturating_add(guard_rows);
+            let upper_guard = viewport_start
+                .saturating_add(viewport_rows.saturating_sub(1))
+                .saturating_sub(guard_rows.saturating_add(1));
+            if focused_index <= lower_guard {
+                viewport_start = focused_index.saturating_sub(guard_rows);
+            } else if focused_index >= upper_guard {
+                viewport_start = focused_index.saturating_sub(
+                    viewport_rows
+                        .saturating_sub(1)
+                        .saturating_sub(guard_rows.saturating_add(1)),
+                );
+            }
+        }
+        self.file_view_start = viewport_start.min(total_items.saturating_sub(1));
+        let viewport_end = self
+            .file_view_start
+            .saturating_add(viewport_rows)
+            .min(total_items);
+        ui::VirtualListWindow {
+            total_items,
+            viewport_start: self.file_view_start,
+            viewport_end,
+            window_start: self.file_view_start,
+            window_end: viewport_end,
+        }
     }
 
     pub(super) fn rename_active(&self) -> bool {
@@ -173,10 +285,21 @@ impl FolderBrowserState {
             FolderBrowserMessage::AddSource
             | FolderBrowserMessage::SelectSource(_)
             | FolderBrowserMessage::BeginRenameSelected
-            | FolderBrowserMessage::RenameInput(_) => {}
+            | FolderBrowserMessage::BeginCreateSubfolder
+            | FolderBrowserMessage::RenameInput(_)
+            | FolderBrowserMessage::DropOnFolder(_) => {}
+            FolderBrowserMessage::ClearDropTarget => {
+                self.drop_target_folder = None;
+            }
+            FolderBrowserMessage::HoverDropTarget(id) => {
+                self.hover_drop_target_folder(&id);
+            }
             FolderBrowserMessage::ActivateFolder(id) => {
                 self.cancel_rename();
                 self.activate_folder(id);
+            }
+            FolderBrowserMessage::DragFolder(id, message) => {
+                self.apply_folder_drag(id, message);
             }
             FolderBrowserMessage::SortFileColumn(column_id) => {
                 self.sort_file_column(column_id);
@@ -188,6 +311,7 @@ impl FolderBrowserState {
     }
 
     pub(super) fn begin_rename_selected(&mut self) -> Result<Option<u64>, String> {
+        self.discard_pending_created_folder();
         if let Some(file_id) = self.selected_file.clone() {
             if let Some((file_id, file_name)) = self
                 .selected_audio_files()
@@ -198,7 +322,6 @@ impl FolderBrowserState {
                 let input_id = file_rename_input_id(&file_id);
                 let draft = file_rename_draft(&file_name);
                 let selection_end = draft.chars().count();
-                self.rename_edit = None;
                 self.file_rename_edit = Some(FileRenameEdit {
                     file_id,
                     draft,
@@ -224,6 +347,52 @@ impl FolderBrowserState {
             folder_id,
             draft,
             input_id,
+            kind: FolderRenameKind::Rename,
+        });
+        Ok(Some(input_id))
+    }
+
+    pub(super) fn begin_create_subfolder(&mut self) -> Result<Option<u64>, String> {
+        if self.selected_file.is_some() {
+            return Err(String::from("Select a folder to add a subfolder"));
+        }
+        let Some(parent) = self.selected_folder().cloned() else {
+            return Ok(None);
+        };
+        let parent_id = parent.id.clone();
+        let parent_path = PathBuf::from(&parent.id);
+        if !parent_path.is_dir() {
+            return Err(String::from(
+                "New folder failed: selected folder is missing",
+            ));
+        }
+
+        let draft = next_available_folder_name(&parent_path);
+        let folder_path = parent_path.join(&draft);
+        let folder_id = path_id(&folder_path);
+        let input_id = rename_input_id(&folder_id);
+        let placeholder = FolderEntry {
+            id: folder_id.clone(),
+            name: draft.clone(),
+            children: Vec::new(),
+            files: Vec::new(),
+        };
+        self.file_rename_edit = None;
+        self.discard_pending_created_folder();
+        if !self.upsert_child_folder(&parent_id, placeholder) {
+            return Err(String::from(
+                "New folder failed: selected folder is unavailable",
+            ));
+        }
+        self.expanded_folders.insert(parent_id.clone());
+        self.selected_folder = folder_id.clone();
+        self.selected_file = None;
+        self.selected_file_ids.clear();
+        self.rename_edit = Some(FolderRenameEdit {
+            folder_id,
+            draft,
+            input_id,
+            kind: FolderRenameKind::Create { parent_id },
         });
         Ok(Some(input_id))
     }
@@ -247,6 +416,28 @@ impl FolderBrowserState {
         })
     }
 
+    pub(super) fn selected_file_delete_target(&self) -> Result<FileDeleteTargetView, String> {
+        if self.rename_active() {
+            return Err(String::from("Finish rename before deleting a file"));
+        }
+        if self.selected_file.is_none() {
+            return Err(String::from("Select a file to delete"));
+        }
+        let paths = self.selected_file_paths();
+        if paths.is_empty() {
+            return Err(String::from("Select a file to delete"));
+        }
+        let names = paths
+            .iter()
+            .map(|path| {
+                path.file_name()
+                    .map(|name| name.to_string_lossy().to_string())
+                    .unwrap_or_else(|| path.display().to_string())
+            })
+            .collect();
+        Ok(FileDeleteTargetView { paths, names })
+    }
+
     pub(super) fn delete_selected_folder(&mut self) -> Result<String, String> {
         let target = self.selected_delete_target()?;
         if !target.path.is_dir() {
@@ -256,6 +447,103 @@ impl FolderBrowserState {
             .map_err(|error| format!("Folder delete failed: {error}"))?;
         self.remove_deleted_folder(&target.path);
         Ok(format!("Deleted folder {}", target.name))
+    }
+
+    pub(super) fn delete_selected_files(&mut self) -> Result<String, String> {
+        let target = self.selected_file_delete_target()?;
+        for path in &target.paths {
+            if !path.is_file() {
+                return Err(format!(
+                    "File delete failed: {} is missing",
+                    path.file_name()
+                        .map(|name| name.to_string_lossy().to_string())
+                        .unwrap_or_else(|| path.display().to_string())
+                ));
+            }
+        }
+        for path in &target.paths {
+            fs::remove_file(path).map_err(|error| format!("File delete failed: {error}"))?;
+        }
+        self.remove_deleted_files(&target.paths);
+        Ok(format!(
+            "Deleted {} file{}",
+            target.paths.len(),
+            plural(target.paths.len())
+        ))
+    }
+
+    pub(super) fn begin_file_drag(&mut self, file_id: String, position: Point) {
+        if self.rename_active() || !self.selected_files().iter().any(|file| file.id == file_id) {
+            return;
+        }
+        let file_ids = if self.selected_file_ids.contains(&file_id) {
+            let mut ids = self.selected_file_ids.iter().cloned().collect::<Vec<_>>();
+            ids.sort();
+            ids
+        } else {
+            vec![file_id]
+        };
+        self.drag = Some(FolderBrowserDrag::Files { file_ids });
+        self.drag_pointer = Some(position);
+        self.drop_target_folder = None;
+    }
+
+    pub(super) fn update_drag_pointer(&mut self, position: Point) {
+        if self.drag.is_some() {
+            self.drag_pointer = Some(position);
+        }
+    }
+
+    pub(super) fn drag_preview(&self) -> Option<FolderDragPreview> {
+        let drag = self.drag.as_ref()?;
+        let pointer = self.drag_pointer?;
+        Some(FolderDragPreview {
+            label: self.drag_preview_label(drag)?,
+            pointer,
+        })
+    }
+
+    pub(super) fn external_drag_request(&self) -> Option<ui::ExternalDragRequest> {
+        let drag = self.drag.as_ref()?;
+        let label = self.drag_preview_label(drag)?;
+        let paths = match drag {
+            FolderBrowserDrag::Folder { folder_id } => vec![PathBuf::from(folder_id)],
+            FolderBrowserDrag::Files { file_ids } => file_ids.iter().map(PathBuf::from).collect(),
+        };
+        Some(ui::ExternalDragRequest::files(paths, label))
+    }
+
+    pub(super) fn clear_drag(&mut self) {
+        self.drag = None;
+        self.drag_pointer = None;
+        self.drop_target_folder = None;
+    }
+
+    pub(super) fn drop_drag_on_folder(
+        &mut self,
+        target_folder_id: &str,
+    ) -> Result<FolderDropResult, String> {
+        let Some(drag) = self.drag.clone() else {
+            return Ok(FolderDropResult::default());
+        };
+        if !self.can_drop_drag_on_folder(target_folder_id) {
+            self.clear_drag();
+            return Ok(FolderDropResult {
+                moved_paths: Vec::new(),
+                status: Some(String::from("Drop target unchanged")),
+            });
+        }
+        self.drop_target_folder = None;
+        let result = match drag {
+            FolderBrowserDrag::Folder { folder_id } => {
+                self.move_folder_to_folder(&folder_id, target_folder_id)?
+            }
+            FolderBrowserDrag::Files { file_ids } => {
+                self.move_files_to_folder(&file_ids, target_folder_id)?
+            }
+        };
+        self.clear_drag();
+        Ok(result)
     }
 
     pub(super) fn apply_rename_input(&mut self, message: TextInputMessage) -> Option<String> {
@@ -278,12 +566,12 @@ impl FolderBrowserState {
         }
     }
 
-    pub(super) fn navigate_vertical(&mut self, delta: i32) -> Option<String> {
+    pub(super) fn navigate_vertical(&mut self, delta: i32, extend: bool) -> Option<String> {
         if delta == 0 || self.rename_active() {
             return None;
         }
         if self.selected_file.is_some() {
-            return self.navigate_selected_file(delta);
+            return self.navigate_selected_file(delta, extend);
         }
         self.navigate_selected_folder(delta);
         None
@@ -419,27 +707,29 @@ impl FolderBrowserState {
     }
 
     fn select_pending_source(&mut self, id: String, folder: FolderEntry) {
+        self.cancel_rename();
         let root_id = folder.id.clone();
         self.selected_source = id;
         self.selected_folder = root_id.clone();
         self.selected_file = None;
+        self.selected_file_ids.clear();
+        self.file_view_start = 0;
         self.expanded_folders.clear();
         self.expanded_folders.insert(root_id);
         self.folders = vec![folder];
-        self.rename_edit = None;
-        self.file_rename_edit = None;
     }
 
     fn select_loaded_source(&mut self, id: String, root_folder: FolderEntry) {
+        self.cancel_rename();
         let root_id = root_folder.id.clone();
         self.selected_source = id;
         self.selected_folder = root_id.clone();
         self.selected_file = None;
+        self.selected_file_ids.clear();
+        self.file_view_start = 0;
         self.expanded_folders.clear();
         self.expanded_folders.insert(root_id);
         self.folders = vec![root_folder];
-        self.rename_edit = None;
-        self.file_rename_edit = None;
     }
 
     fn selected_folder(&self) -> Option<&FolderEntry> {
@@ -478,6 +768,8 @@ impl FolderBrowserState {
         self.cancel_rename();
         self.selected_folder = id;
         self.selected_file = None;
+        self.selected_file_ids.clear();
+        self.file_view_start = 0;
     }
 
     fn navigate_selected_folder(&mut self, delta: i32) -> bool {
@@ -496,7 +788,7 @@ impl FolderBrowserState {
         true
     }
 
-    fn navigate_selected_file(&mut self, delta: i32) -> Option<String> {
+    fn navigate_selected_file(&mut self, delta: i32, extend: bool) -> Option<String> {
         let files = self.selected_audio_files();
         let current = self.selected_file.as_deref()?;
         let current_index = files.iter().position(|file| file.id == current)?;
@@ -504,7 +796,16 @@ impl FolderBrowserState {
         if target_index == current_index {
             return None;
         }
-        Some(files[target_index].id.clone())
+        let target = files[target_index].id.clone();
+        if extend {
+            self.selected_file_ids.insert(current.to_string());
+            self.selected_file_ids.insert(target.clone());
+        } else {
+            self.selected_file_ids.clear();
+            self.selected_file_ids.insert(target.clone());
+        }
+        self.selected_file = Some(target.clone());
+        Some(target)
     }
 
     fn sort_file_column(&mut self, column_id: String) {
@@ -547,6 +848,214 @@ impl FolderBrowserState {
                 }
             }
         }
+    }
+
+    fn apply_folder_drag(&mut self, folder_id: String, message: DragHandleMessage) {
+        if self.rename_active() {
+            return;
+        }
+        match message {
+            DragHandleMessage::Started { position } => {
+                if self.selected_folder_is_source_root_id(&folder_id) {
+                    return;
+                }
+                if self.find_folder(&folder_id).is_some() {
+                    self.drag = Some(FolderBrowserDrag::Folder { folder_id });
+                    self.drag_pointer = Some(position);
+                    self.drop_target_folder = None;
+                }
+            }
+            DragHandleMessage::Moved { position } => {
+                self.update_drag_pointer(position);
+            }
+            DragHandleMessage::Ended { .. } => {
+                self.clear_drag();
+            }
+        }
+    }
+
+    fn hover_drop_target_folder(&mut self, folder_id: &str) {
+        if self.can_drop_drag_on_folder(folder_id) {
+            self.drop_target_folder = Some(folder_id.to_owned());
+        } else {
+            self.drop_target_folder = None;
+        }
+    }
+
+    fn drag_preview_label(&self, drag: &FolderBrowserDrag) -> Option<String> {
+        match drag {
+            FolderBrowserDrag::Folder { folder_id } => self
+                .find_folder(folder_id)
+                .map(|folder| folder.name.clone()),
+            FolderBrowserDrag::Files { file_ids } => match file_ids.as_slice() {
+                [] => None,
+                [file_id] => Some(file_label(Path::new(file_id))),
+                files => Some(format!("{} files", files.len())),
+            },
+        }
+    }
+
+    fn can_drop_drag_on_folder(&self, target_folder_id: &str) -> bool {
+        let Some(target) = self.find_folder(target_folder_id) else {
+            return false;
+        };
+        let target_path = Path::new(&target.id);
+        match &self.drag {
+            Some(FolderBrowserDrag::Folder { folder_id }) => {
+                let Some(source) = self.find_folder(folder_id) else {
+                    return false;
+                };
+                let source_path = Path::new(&source.id);
+                !self.selected_folder_is_source_root_id(folder_id)
+                    && source.id != target.id
+                    && !target_path.starts_with(source_path)
+            }
+            Some(FolderBrowserDrag::Files { file_ids }) => file_ids.iter().any(|id| {
+                let path = Path::new(id);
+                path.is_file() && path.parent() != Some(target_path)
+            }),
+            None => false,
+        }
+    }
+
+    fn move_folder_to_folder(
+        &mut self,
+        folder_id: &str,
+        target_folder_id: &str,
+    ) -> Result<FolderDropResult, String> {
+        if self.rename_active() {
+            return Err(String::from("Finish rename before moving a folder"));
+        }
+        if self.selected_folder_is_source_root_id(folder_id) {
+            return Err(String::from("Root folder cannot be moved"));
+        }
+        let source_folder = self
+            .find_folder(folder_id)
+            .cloned()
+            .ok_or_else(|| String::from("Folder move failed: source folder is missing"))?;
+        let target_folder = self
+            .find_folder(target_folder_id)
+            .cloned()
+            .ok_or_else(|| String::from("Folder move failed: target folder is missing"))?;
+        let old_path = PathBuf::from(&source_folder.id);
+        let target_path = PathBuf::from(&target_folder.id);
+        if target_path.starts_with(&old_path) {
+            return Err(String::from(
+                "Folder move failed: cannot move a folder into itself",
+            ));
+        }
+        let Some(folder_name) = old_path.file_name() else {
+            return Err(String::from(
+                "Folder move failed: source folder has no name",
+            ));
+        };
+        let new_path = target_path.join(folder_name);
+        if old_path == new_path {
+            return Ok(FolderDropResult {
+                moved_paths: Vec::new(),
+                status: Some(String::from("Folder move unchanged")),
+            });
+        }
+        if new_path.exists() {
+            return Err(format!(
+                "Folder move failed: {} already exists",
+                folder_name.to_string_lossy()
+            ));
+        }
+        fs::rename(&old_path, &new_path).map_err(|error| format!("Folder move failed: {error}"))?;
+        if let Err(error) = self.relocate_moved_folder(&old_path, &new_path, &target_path) {
+            let _ = fs::rename(&new_path, &old_path);
+            return Err(error);
+        }
+        Ok(FolderDropResult {
+            moved_paths: vec![(old_path, new_path.clone())],
+            status: Some(format!(
+                "Moved folder {}",
+                new_path
+                    .file_name()
+                    .map(|name| name.to_string_lossy().to_string())
+                    .unwrap_or_else(|| new_path.display().to_string())
+            )),
+        })
+    }
+
+    fn move_files_to_folder(
+        &mut self,
+        file_ids: &[String],
+        target_folder_id: &str,
+    ) -> Result<FolderDropResult, String> {
+        if self.rename_active() {
+            return Err(String::from("Finish rename before moving files"));
+        }
+        let target_folder = self
+            .find_folder(target_folder_id)
+            .cloned()
+            .ok_or_else(|| String::from("File move failed: target folder is missing"))?;
+        let target_path = PathBuf::from(&target_folder.id);
+        if !target_path.is_dir() {
+            return Err(String::from("File move failed: target folder is missing"));
+        }
+        let mut moves = Vec::new();
+        let mut seen = HashSet::new();
+        for id in file_ids {
+            if !seen.insert(id.clone()) {
+                continue;
+            }
+            let old_path = PathBuf::from(id);
+            if !old_path.is_file() {
+                return Err(format!(
+                    "File move failed: {} is missing",
+                    old_path
+                        .file_name()
+                        .map(|name| name.to_string_lossy().to_string())
+                        .unwrap_or_else(|| old_path.display().to_string())
+                ));
+            }
+            if old_path.parent() == Some(target_path.as_path()) {
+                continue;
+            }
+            let Some(file_name) = old_path.file_name() else {
+                return Err(String::from("File move failed: source file has no name"));
+            };
+            let new_path = target_path.join(file_name);
+            if new_path.exists() {
+                return Err(format!(
+                    "File move failed: {} already exists",
+                    file_name.to_string_lossy()
+                ));
+            }
+            moves.push((old_path, new_path));
+        }
+        if moves.is_empty() {
+            return Ok(FolderDropResult {
+                moved_paths: Vec::new(),
+                status: Some(String::from("File move unchanged")),
+            });
+        }
+        let mut completed = Vec::new();
+        for (old_path, new_path) in &moves {
+            if let Err(error) = fs::rename(old_path, new_path) {
+                for (moved_old, moved_new) in completed.iter().rev() {
+                    let _ = fs::rename(moved_new, moved_old);
+                }
+                return Err(format!("File move failed: {error}"));
+            }
+            completed.push((old_path.clone(), new_path.clone()));
+        }
+        if let Err(error) = self.relocate_moved_files(&completed, &target_path) {
+            for (moved_old, moved_new) in completed.iter().rev() {
+                let _ = fs::rename(moved_new, moved_old);
+            }
+            return Err(error);
+        }
+        Ok(FolderDropResult {
+            moved_paths: completed.clone(),
+            status: Some(format!(
+                "Moved {} file{}",
+                completed.len(),
+                plural(completed.len())
+            )),
+        })
     }
 
     fn sort_files<'a>(&self, files: &mut Vec<&'a FileEntry>) {
@@ -595,8 +1104,15 @@ impl FolderBrowserState {
         })
     }
 
+    fn selected_folder_is_source_root_id(&self, folder_id: &str) -> bool {
+        self.sources
+            .iter()
+            .any(|source| source.id == self.selected_source && path_id(&source.root) == folder_id)
+    }
+
     fn cancel_rename(&mut self) {
-        self.rename_edit = None;
+        self.clear_drag();
+        self.discard_pending_created_folder();
         self.file_rename_edit = None;
     }
 
@@ -604,6 +1120,15 @@ impl FolderBrowserState {
         let Some(edit) = self.rename_edit.take() else {
             return String::from("No folder rename in progress");
         };
+        match edit.kind.clone() {
+            FolderRenameKind::Rename => self.commit_existing_folder_rename(edit, value),
+            FolderRenameKind::Create { parent_id } => {
+                self.commit_created_subfolder(edit, parent_id, value)
+            }
+        }
+    }
+
+    fn commit_existing_folder_rename(&mut self, edit: FolderRenameEdit, value: String) -> String {
         let new_name = value.trim();
         if !valid_folder_name(new_name) {
             return String::from("Folder rename failed: use a plain folder name");
@@ -624,6 +1149,47 @@ impl FolderBrowserState {
         }
         self.rewrite_renamed_folder_paths(&old_path, &new_path);
         format!("Renamed folder to {new_name}")
+    }
+
+    fn commit_created_subfolder(
+        &mut self,
+        edit: FolderRenameEdit,
+        parent_id: String,
+        value: String,
+    ) -> String {
+        let new_name = value.trim();
+        if !valid_folder_name(new_name) {
+            self.remove_pending_created_folder(&edit.folder_id, &parent_id);
+            return String::from("New folder failed: use a plain folder name");
+        }
+        let parent_path = PathBuf::from(&parent_id);
+        let new_path = parent_path.join(new_name);
+        if new_path.exists() {
+            self.remove_pending_created_folder(&edit.folder_id, &parent_id);
+            return format!("New folder failed: {new_name} already exists");
+        }
+        if let Err(error) = fs::create_dir(&new_path) {
+            self.remove_pending_created_folder(&edit.folder_id, &parent_id);
+            return format!("New folder failed: {error}");
+        }
+
+        self.remove_pending_created_folder(&edit.folder_id, &parent_id);
+        let new_id = path_id(&new_path);
+        self.upsert_child_folder(
+            &parent_id,
+            FolderEntry {
+                id: new_id.clone(),
+                name: folder_label(&new_path),
+                children: Vec::new(),
+                files: Vec::new(),
+            },
+        );
+        self.expanded_folders.insert(parent_id);
+        self.selected_folder = new_id;
+        self.selected_file = None;
+        self.selected_file_ids.clear();
+        self.file_view_start = 0;
+        format!("Created folder {new_name}")
     }
 
     fn commit_file_rename(&mut self, value: String) -> String {
@@ -676,6 +1242,11 @@ impl FolderBrowserState {
             .selected_file
             .take()
             .map(|id| rewrite_path_id(&id, old_path, new_path));
+        self.selected_file_ids = self
+            .selected_file_ids
+            .iter()
+            .map(|id| rewrite_path_id(id, old_path, new_path))
+            .collect();
         self.expanded_folders = self
             .expanded_folders
             .iter()
@@ -697,6 +1268,171 @@ impl FolderBrowserState {
         }
         let new_id = path_id(new_path);
         self.selected_file = Some(new_id);
+        self.selected_file_ids.clear();
+        self.selected_file_ids.insert(path_id(new_path));
+    }
+
+    fn relocate_moved_folder(
+        &mut self,
+        old_path: &Path,
+        new_path: &Path,
+        target_parent: &Path,
+    ) -> Result<(), String> {
+        let old_id = path_id(old_path);
+        let target_parent_id = path_id(target_parent);
+        let Some(source) = self
+            .sources
+            .iter_mut()
+            .find(|source| source.id == self.selected_source)
+        else {
+            return Err(String::from(
+                "Folder move failed: selected source is unavailable",
+            ));
+        };
+        let Some(root_folder) = &mut source.root_folder else {
+            return Err(String::from(
+                "Folder move failed: source tree is unavailable",
+            ));
+        };
+        let Some(mut moved_folder) = root_folder.take_child_by_id(&old_id) else {
+            return Err(String::from(
+                "Folder move failed: source folder is unavailable",
+            ));
+        };
+        moved_folder.rewrite_path_prefix(old_path, new_path);
+        let Some(target_folder) = root_folder.find_mut(&target_parent_id) else {
+            return Err(String::from(
+                "Folder move failed: target folder is unavailable",
+            ));
+        };
+        upsert_folder(&mut target_folder.children, moved_folder);
+        self.folders = vec![root_folder.clone()];
+
+        self.selected_folder = rewrite_path_id(&self.selected_folder, old_path, new_path);
+        self.selected_file = self
+            .selected_file
+            .take()
+            .map(|id| rewrite_path_id(&id, old_path, new_path));
+        self.selected_file_ids = self
+            .selected_file_ids
+            .iter()
+            .map(|id| rewrite_path_id(id, old_path, new_path))
+            .collect();
+        self.expanded_folders = self
+            .expanded_folders
+            .iter()
+            .map(|id| rewrite_path_id(id, old_path, new_path))
+            .collect();
+        self.expanded_folders.insert(target_parent_id);
+        Ok(())
+    }
+
+    fn relocate_moved_files(
+        &mut self,
+        moves: &[(PathBuf, PathBuf)],
+        target_parent: &Path,
+    ) -> Result<(), String> {
+        let old_ids = moves
+            .iter()
+            .map(|(old_path, _)| path_id(old_path))
+            .collect::<HashSet<_>>();
+        let target_parent_id = path_id(target_parent);
+        let Some(source) = self
+            .sources
+            .iter_mut()
+            .find(|source| source.id == self.selected_source)
+        else {
+            return Err(String::from(
+                "File move failed: selected source is unavailable",
+            ));
+        };
+        let Some(root_folder) = &mut source.root_folder else {
+            return Err(String::from("File move failed: source tree is unavailable"));
+        };
+        root_folder.remove_files_by_ids(&old_ids);
+        let Some(target_folder) = root_folder.find_mut(&target_parent_id) else {
+            return Err(String::from(
+                "File move failed: target folder is unavailable",
+            ));
+        };
+        for (_, new_path) in moves {
+            upsert_file(&mut target_folder.files, file_entry(new_path));
+        }
+        self.folders = vec![root_folder.clone()];
+        let moved_ids = moves
+            .iter()
+            .map(|(_, new_path)| path_id(new_path))
+            .collect::<Vec<_>>();
+        let rewrite_file_id = |id: &str| {
+            moves
+                .iter()
+                .find(|(old_path, _)| path_id(old_path) == id)
+                .map(|(_, new_path)| path_id(new_path))
+                .unwrap_or_else(|| id.to_string())
+        };
+        let selected_file_was_moved = self
+            .selected_file
+            .as_ref()
+            .is_some_and(|id| old_ids.contains(id));
+        self.selected_file = if selected_file_was_moved {
+            self.selected_file.take().map(|id| rewrite_file_id(&id))
+        } else {
+            moved_ids.first().cloned()
+        };
+        self.selected_file_ids = if self.selected_file_ids.iter().any(|id| old_ids.contains(id)) {
+            self.selected_file_ids
+                .iter()
+                .map(|id| rewrite_file_id(id))
+                .collect()
+        } else {
+            moved_ids.iter().cloned().collect()
+        };
+        self.selected_folder = target_parent_id.clone();
+        self.file_view_start = 0;
+        self.expanded_folders.insert(target_parent_id);
+        Ok(())
+    }
+
+    fn remove_deleted_files(&mut self, targets: &[PathBuf]) {
+        let target_ids = targets
+            .iter()
+            .map(|path| path_id(path))
+            .collect::<HashSet<_>>();
+        let files_before = self.selected_audio_files();
+        let focused_index = self
+            .selected_file
+            .as_deref()
+            .and_then(|selected| files_before.iter().position(|file| file.id == selected));
+        drop(files_before);
+
+        let Some(source) = self
+            .sources
+            .iter_mut()
+            .find(|source| source.id == self.selected_source)
+        else {
+            return;
+        };
+        if let Some(root_folder) = &mut source.root_folder {
+            root_folder.remove_files_by_ids(&target_ids);
+            self.folders = vec![root_folder.clone()];
+        }
+
+        let files_after = self
+            .selected_audio_files()
+            .into_iter()
+            .map(|file| file.id.clone())
+            .collect::<Vec<_>>();
+        self.selected_file_ids.clear();
+        self.selected_file = focused_index.and_then(|index| {
+            files_after
+                .get(index.min(files_after.len().saturating_sub(1)))
+                .cloned()
+        });
+        if let Some(selected) = self.selected_file.clone() {
+            self.selected_file_ids.insert(selected);
+        }
+        let total_items = self.selected_audio_files().len();
+        self.file_view_start = self.file_view_start.min(total_items.saturating_sub(1));
     }
 
     fn remove_deleted_folder(&mut self, target: &Path) {
@@ -717,6 +1453,8 @@ impl FolderBrowserState {
             self.folders = vec![root_folder.clone()];
         }
         self.selected_file = None;
+        self.selected_file_ids.clear();
+        self.file_view_start = 0;
         self.selected_folder = if self.find_folder(&parent_id).is_some() {
             parent_id
         } else {
@@ -731,11 +1469,157 @@ impl FolderBrowserState {
         });
     }
 
+    fn discard_pending_created_folder(&mut self) {
+        let Some(edit) = self.rename_edit.take() else {
+            return;
+        };
+        if let FolderRenameKind::Create { parent_id } = edit.kind {
+            self.remove_pending_created_folder(&edit.folder_id, &parent_id);
+        }
+    }
+
+    fn remove_pending_created_folder(&mut self, folder_id: &str, parent_id: &str) {
+        self.remove_folder_by_id(folder_id);
+        if self.selected_folder == folder_id {
+            self.selected_folder = if self.find_folder(parent_id).is_some() {
+                parent_id.to_string()
+            } else {
+                self.folders
+                    .first()
+                    .map(|folder| folder.id.clone())
+                    .unwrap_or_default()
+            };
+        }
+        self.expanded_folders.remove(folder_id);
+    }
+
+    fn remove_folder_by_id(&mut self, folder_id: &str) -> bool {
+        let Some(source) = self
+            .sources
+            .iter_mut()
+            .find(|source| source.id == self.selected_source)
+        else {
+            return false;
+        };
+        let Some(root_folder) = &mut source.root_folder else {
+            return false;
+        };
+        let changed = root_folder.remove_child_by_id(folder_id);
+        if changed {
+            self.folders = vec![root_folder.clone()];
+        }
+        changed
+    }
+
+    fn upsert_child_folder(&mut self, parent_id: &str, folder: FolderEntry) -> bool {
+        let Some(source) = self
+            .sources
+            .iter_mut()
+            .find(|source| source.id == self.selected_source)
+        else {
+            return false;
+        };
+        let Some(root_folder) = &mut source.root_folder else {
+            return false;
+        };
+        let Some(parent) = root_folder.find_mut(parent_id) else {
+            return false;
+        };
+        let changed = upsert_folder(&mut parent.children, folder);
+        if changed {
+            self.folders = vec![root_folder.clone()];
+        }
+        changed
+    }
+
     pub(super) fn select_file(&mut self, id: String) {
         if self.selected_files().iter().any(|file| file.id == id) {
             self.cancel_rename();
-            self.selected_file = Some(id);
+            self.selected_file = Some(id.clone());
+            self.selected_file_ids.clear();
+            self.selected_file_ids.insert(id);
         }
+    }
+
+    pub(super) fn select_file_with_modifiers(&mut self, id: String, modifiers: PointerModifiers) {
+        if self.rename_active() || !self.selected_files().iter().any(|file| file.id == id) {
+            return;
+        }
+        self.cancel_rename();
+
+        if modifiers.shift {
+            self.select_file_range_to(id, modifiers.command);
+            return;
+        }
+
+        if modifiers.command {
+            self.toggle_file_selection(id);
+            return;
+        }
+
+        self.selected_file = Some(id.clone());
+        self.selected_file_ids.clear();
+        self.selected_file_ids.insert(id);
+    }
+
+    pub(super) fn focus_file_preserving_selection(&mut self, id: String) {
+        if self.selected_file_ids.contains(&id)
+            && self.selected_files().iter().any(|file| file.id == id)
+        {
+            self.selected_file = Some(id);
+        } else {
+            self.select_file(id);
+        }
+    }
+
+    pub(super) fn select_all_audio_files(&mut self) -> usize {
+        if self.rename_active() {
+            return self.selected_file_ids.len();
+        }
+        let ids = self
+            .selected_audio_files()
+            .into_iter()
+            .map(|file| file.id.clone())
+            .collect::<Vec<_>>();
+        self.selected_file_ids = ids.iter().cloned().collect();
+        if self.selected_file.is_none() {
+            self.selected_file = ids.first().cloned();
+        }
+        self.selected_file_ids.len()
+    }
+
+    fn select_file_range_to(&mut self, id: String, add_to_existing: bool) {
+        let files = self.selected_audio_files();
+        let Some(target_index) = files.iter().position(|file| file.id == id) else {
+            return;
+        };
+        let anchor = self
+            .selected_file
+            .as_deref()
+            .and_then(|selected| files.iter().position(|file| file.id == selected))
+            .unwrap_or(target_index);
+        let start = anchor.min(target_index);
+        let end = anchor.max(target_index);
+        let range_ids = files[start..=end]
+            .iter()
+            .map(|file| file.id.clone())
+            .collect::<Vec<_>>();
+        drop(files);
+
+        if !add_to_existing {
+            self.selected_file_ids.clear();
+        }
+        self.selected_file_ids.extend(range_ids);
+        self.selected_file = Some(id);
+    }
+
+    fn toggle_file_selection(&mut self, id: String) {
+        if self.selected_file_ids.contains(&id) && self.selected_file_ids.len() > 1 {
+            self.selected_file_ids.remove(&id);
+        } else {
+            self.selected_file_ids.insert(id.clone());
+        }
+        self.selected_file = Some(id);
     }
 
     pub(super) fn refresh_file_path(&mut self, path: &Path) -> bool {
@@ -775,6 +1659,8 @@ impl FolderBrowserState {
         depth: usize,
         folders: &mut Vec<VisibleFolder>,
     ) {
+        let drag_active = self.drag.is_some();
+        let drop_candidate = drag_active && self.can_drop_drag_on_folder(&folder.id);
         folders.push(VisibleFolder {
             id: folder.id.clone(),
             name: folder.name.clone(),
@@ -782,6 +1668,10 @@ impl FolderBrowserState {
             has_children: folder.has_children(),
             expanded: self.is_expanded(&folder.id),
             selected: self.selected_folder == folder.id,
+            drag_active,
+            drop_candidate,
+            drop_target: drop_candidate
+                && self.drop_target_folder.as_deref() == Some(folder.id.as_str()),
             rename_draft: self
                 .rename_edit
                 .as_ref()
@@ -891,6 +1781,25 @@ impl FolderEntry {
             .iter_mut()
             .any(|child| child.remove_child_by_id(target_id))
     }
+
+    fn take_child_by_id(&mut self, target_id: &str) -> Option<FolderEntry> {
+        if let Some(index) = self.children.iter().position(|child| child.id == target_id) {
+            return Some(self.children.remove(index));
+        }
+        self.children
+            .iter_mut()
+            .find_map(|child| child.take_child_by_id(target_id))
+    }
+
+    fn remove_files_by_ids(&mut self, target_ids: &HashSet<String>) -> bool {
+        let before = self.files.len();
+        self.files.retain(|file| !target_ids.contains(&file.id));
+        let mut changed = self.files.len() != before;
+        for child in &mut self.children {
+            changed |= child.remove_files_by_ids(target_ids);
+        }
+        changed
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -898,6 +1807,13 @@ struct FolderRenameEdit {
     folder_id: String,
     draft: String,
     input_id: u64,
+    kind: FolderRenameKind,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum FolderRenameKind {
+    Rename,
+    Create { parent_id: String },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -921,6 +1837,24 @@ struct FileColumnResize {
     column_id: String,
     start_x: f32,
     start_width: f32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum FolderBrowserDrag {
+    Folder { folder_id: String },
+    Files { file_ids: Vec<String> },
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(super) struct FolderDropResult {
+    pub(super) moved_paths: Vec<(PathBuf, PathBuf)>,
+    pub(super) status: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct FolderDragPreview {
+    pub(super) label: String,
+    pub(super) pointer: Point,
 }
 
 fn default_file_columns() -> Vec<FileColumn> {
@@ -955,6 +1889,22 @@ pub(super) struct FolderDeleteTargetView {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct FileDeleteTargetView {
+    pub(super) paths: Vec<PathBuf>,
+    pub(super) names: Vec<String>,
+}
+
+impl FileDeleteTargetView {
+    pub(super) fn label(&self) -> String {
+        match self.names.as_slice() {
+            [] => String::from("selected files"),
+            [name] => name.clone(),
+            names => format!("{} files", names.len()),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct FileEntry {
     pub(super) id: String,
     pub(super) name: String,
@@ -981,6 +1931,9 @@ struct VisibleFolder {
     has_children: bool,
     expanded: bool,
     selected: bool,
+    drag_active: bool,
+    drop_candidate: bool,
+    drop_target: bool,
     rename_draft: Option<String>,
     rename_input_id: Option<u64>,
 }
@@ -990,7 +1943,12 @@ pub(super) enum FolderBrowserMessage {
     AddSource,
     SelectSource(String),
     ActivateFolder(String),
+    DragFolder(String, DragHandleMessage),
+    HoverDropTarget(String),
+    ClearDropTarget,
+    DropOnFolder(String),
     BeginRenameSelected,
+    BeginCreateSubfolder,
     RenameInput(TextInputMessage),
     SortFileColumn(String),
     ResizeFileColumn(String, DragHandleMessage),
@@ -1057,24 +2015,35 @@ pub(super) fn folder_browser_view(state: &FolderBrowserState) -> ui::View<GuiMes
     ui::column([
         source_selector(state),
         ui::text("Folders").height(22.0).fill_width(),
-        ui::scroll(
-            ui::column(
-                state
-                    .visible_folders()
-                    .into_iter()
-                    .map(folder_row)
-                    .collect::<Vec<_>>(),
-            )
-            .fill_width()
-            .spacing(1.0),
-        )
-        .fill(),
+        ui::scroll(folder_tree_view(state)).fill(),
         selected_folder_status(state),
     ])
     .spacing(3.0)
     .padding(4.0)
     .style(WidgetStyle::default())
     .fill_height()
+}
+
+fn folder_tree_view(state: &FolderBrowserState) -> ui::View<GuiMessage> {
+    ui::stack([
+        ui::custom_widget_mapped(
+            FolderDropClearTarget::new(state.drag.is_some()),
+            |message| GuiMessage::FolderBrowser(message),
+        )
+        .key("folder-drop-clear-target")
+        .input_only()
+        .fill(),
+        ui::column(
+            state
+                .visible_folders()
+                .into_iter()
+                .map(folder_row)
+                .collect::<Vec<_>>(),
+        )
+        .fill_width()
+        .spacing(1.0),
+    ])
+    .fill()
 }
 
 fn source_selector(state: &FolderBrowserState) -> ui::View<GuiMessage> {
@@ -1169,38 +2138,287 @@ fn folder_row(folder: VisibleFolder) -> ui::View<GuiMessage> {
 
     let expander = if folder.expanded { "[-]" } else { "[+]" };
     let indent = (folder.depth as f32) * TREE_DEPTH_INDENT;
-    let label_message = GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateFolder(id.clone()));
     let label_text = if folder.has_children {
         format!("{expander} {}", folder.name)
     } else {
         format!("    {}", folder.name)
     };
-    let mut label = ui::button(label_text)
-        .message(label_message)
-        .key(format!("folder-row-button-{id}"))
-        .align_text(ui::TextAlign::Left)
+    let hit_id = id.clone();
+    let hit_target = ui::custom_widget_mapped(
+        FolderTreeHitTarget::new(
+            folder.selected,
+            folder.drop_target,
+            folder.drag_active,
+            folder.drop_candidate,
+        ),
+        move |message| match message {
+            FolderTreeHitMessage::Activate => {
+                GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateFolder(hit_id.clone()))
+            }
+            FolderTreeHitMessage::Drag(drag) => {
+                GuiMessage::FolderBrowser(FolderBrowserMessage::DragFolder(hit_id.clone(), drag))
+            }
+            FolderTreeHitMessage::Drop => {
+                GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnFolder(hit_id.clone()))
+            }
+            FolderTreeHitMessage::HoverDropTarget => {
+                GuiMessage::FolderBrowser(FolderBrowserMessage::HoverDropTarget(hit_id.clone()))
+            }
+        },
+    )
+    .key(format!("folder-row-hit-{id}"))
+    .fill_width()
+    .height(22.0);
+    let label = ui::text(label_text)
+        .key(format!("folder-row-label-{id}"))
         .fill_width()
-        .height(22.0);
-    if folder.selected {
-        label = label.primary();
+        .height(22.0)
+        .truncate();
+
+    ui::row([
+        ui::spacer().width(indent).height(22.0),
+        ui::stack([hit_target, label]).fill_width().height(22.0),
+    ])
+    .key(format!("folder-row-{id}"))
+    .style(if folder.selected || folder.drop_target {
+        WidgetStyle {
+            tone: WidgetTone::Accent,
+            prominence: ui::WidgetProminence::Subtle,
+        }
     } else {
-        label = label.subtle();
+        WidgetStyle::default()
+    })
+    .fill_width()
+    .height(TREE_ROW_HEIGHT)
+    .spacing(1.0)
+    .hoverable()
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum FolderTreeHitMessage {
+    Activate,
+    Drag(DragHandleMessage),
+    Drop,
+    HoverDropTarget,
+}
+
+#[derive(Clone, Debug)]
+struct FolderTreeHitTarget {
+    common: WidgetCommon,
+    selected: bool,
+    drop_target: bool,
+    drag_active: bool,
+    drop_candidate: bool,
+    dragged: bool,
+}
+
+impl FolderTreeHitTarget {
+    fn new(selected: bool, drop_target: bool, drag_active: bool, drop_candidate: bool) -> Self {
+        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 22.0)));
+        common.focus = FocusBehavior::None;
+        common.paint.bounds = PaintBounds::ClipToRect;
+        common.paint.paints_focus = false;
+        common.paint.paints_state_layers = false;
+        Self {
+            common,
+            selected,
+            drop_target,
+            drag_active,
+            drop_candidate,
+            dragged: false,
+        }
+    }
+}
+
+impl Widget for FolderTreeHitTarget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
     }
 
-    ui::row([ui::spacer().width(indent).height(22.0), label])
-        .key(format!("folder-row-{id}"))
-        .style(if folder.selected {
-            WidgetStyle {
-                tone: WidgetTone::Accent,
-                prominence: ui::WidgetProminence::Subtle,
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        match input {
+            WidgetInput::PointerMove { position } => {
+                self.common.state.hovered = bounds.contains(position);
+                if self.common.state.pressed {
+                    let message = if self.dragged {
+                        DragHandleMessage::Moved { position }
+                    } else {
+                        self.dragged = true;
+                        DragHandleMessage::Started { position }
+                    };
+                    return Some(WidgetOutput::typed(FolderTreeHitMessage::Drag(message)));
+                }
+                if self.common.state.hovered && self.drag_active {
+                    return Some(WidgetOutput::typed(FolderTreeHitMessage::HoverDropTarget));
+                }
+                None
             }
-        } else {
-            WidgetStyle::default()
-        })
-        .fill_width()
-        .height(TREE_ROW_HEIGHT)
-        .spacing(1.0)
-        .hoverable()
+            WidgetInput::PointerPress {
+                position,
+                button: PointerButton::Primary,
+                ..
+            } if bounds.contains(position) => {
+                self.common.state.hovered = true;
+                self.common.state.pressed = true;
+                self.dragged = false;
+                None
+            }
+            WidgetInput::PointerRelease {
+                position,
+                button: PointerButton::Primary,
+                ..
+            } => {
+                let activated =
+                    self.common.state.pressed && !self.dragged && bounds.contains(position);
+                let dragged = self.common.state.pressed && self.dragged;
+                self.common.state.pressed = false;
+                self.common.state.hovered = bounds.contains(position);
+                self.dragged = false;
+                if dragged {
+                    return Some(WidgetOutput::typed(FolderTreeHitMessage::Drag(
+                        DragHandleMessage::Ended { position },
+                    )));
+                }
+                activated.then(|| WidgetOutput::typed(FolderTreeHitMessage::Activate))
+            }
+            WidgetInput::PointerDrop {
+                position,
+                button: PointerButton::Primary,
+                ..
+            } if bounds.contains(position) => Some(WidgetOutput::typed(FolderTreeHitMessage::Drop)),
+            _ => {
+                if matches!(input, WidgetInput::PointerRelease { .. }) {
+                    self.common.state.pressed = false;
+                    self.dragged = false;
+                }
+                None
+            }
+        }
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        true
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+        let mut fill = None;
+        if self.drop_target {
+            fill = Some(Rgba8 {
+                r: 255,
+                g: 130,
+                b: 78,
+                a: 150,
+            });
+        } else if self.common.state.hovered && self.drop_candidate {
+            fill = Some(Rgba8 {
+                r: 255,
+                g: 122,
+                b: 74,
+                a: 110,
+            });
+        } else if self.common.state.pressed || self.common.state.hovered {
+            fill = Some(Rgba8 {
+                r: 255,
+                g: 110,
+                b: 85,
+                a: if self.common.state.pressed { 120 } else { 80 },
+            });
+        } else if self.selected {
+            fill = Some(Rgba8 {
+                r: 255,
+                g: 82,
+                b: 62,
+                a: 105,
+            });
+        }
+        if let Some(color) = fill {
+            primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+                widget_id: self.common.id,
+                rect: bounds,
+                color,
+            }));
+        }
+        if self.drop_target {
+            primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
+                widget_id: self.common.id,
+                rect: Rect::from_min_max(
+                    Point::new(bounds.min.x + 0.5, bounds.min.y + 0.5),
+                    Point::new(bounds.max.x - 0.5, bounds.max.y - 0.5),
+                ),
+                color: Rgba8 {
+                    r: 255,
+                    g: 180,
+                    b: 130,
+                    a: 210,
+                },
+                width: 1.0,
+            }));
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct FolderDropClearTarget {
+    common: WidgetCommon,
+    drag_active: bool,
+}
+
+impl FolderDropClearTarget {
+    fn new(drag_active: bool) -> Self {
+        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 1.0)));
+        common.focus = FocusBehavior::None;
+        common.paint.bounds = PaintBounds::ClipToRect;
+        common.paint.paints_focus = false;
+        common.paint.paints_state_layers = false;
+        Self {
+            common,
+            drag_active,
+        }
+    }
+}
+
+impl Widget for FolderDropClearTarget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        match input {
+            WidgetInput::PointerMove { position }
+                if self.drag_active && bounds.contains(position) =>
+            {
+                Some(WidgetOutput::typed(FolderBrowserMessage::ClearDropTarget))
+            }
+            _ => None,
+        }
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        true
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
 }
 
 fn selected_folder_status(state: &FolderBrowserState) -> ui::View<GuiMessage> {
@@ -1535,6 +2753,9 @@ fn path_id(path: &Path) -> String {
 
 fn rewrite_path_id(id: &str, old_path: &Path, new_path: &Path) -> String {
     let path = Path::new(id);
+    if path == old_path {
+        return path_id(new_path);
+    }
     path.strip_prefix(old_path)
         .map(|relative| path_id(&new_path.join(relative)))
         .unwrap_or_else(|_| id.to_string())
@@ -1551,6 +2772,17 @@ fn valid_folder_name(name: &str) -> bool {
 
 fn valid_file_name(name: &str) -> bool {
     valid_folder_name(name)
+}
+
+fn next_available_folder_name(parent: &Path) -> String {
+    const BASE_NAME: &str = "New folder";
+    if !parent.join(BASE_NAME).exists() {
+        return String::from(BASE_NAME);
+    }
+    (2..)
+        .map(|index| format!("{BASE_NAME} {index}"))
+        .find(|name| !parent.join(name).exists())
+        .unwrap_or_else(|| String::from(BASE_NAME))
 }
 
 fn resolved_file_rename(old_path: &Path, submitted: &str) -> Option<String> {
@@ -1630,10 +2862,14 @@ fn offset_index(current: usize, delta: i32, len: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use super::{
-        FolderBrowserMessage, FolderBrowserState, FolderScanDiscoveryBatch, MIN_FILE_COLUMN_WIDTH,
-        path_id, scan_source_with_progress,
+        FolderBrowserMessage, FolderBrowserState, FolderDragPreview, FolderScanDiscoveryBatch,
+        MIN_FILE_COLUMN_WIDTH, path_id, scan_source_with_progress,
     };
-    use radiant::{layout::Point, widgets::TextInputMessage};
+    use radiant::{
+        layout::Point,
+        runtime::ExternalDragPayload,
+        widgets::{DragHandleMessage, PointerModifiers, TextInputMessage},
+    };
     use std::{fs, path::PathBuf};
 
     #[test]
@@ -1809,14 +3045,191 @@ mod tests {
         browser.activate_folder(path_id(&drums));
         browser.select_file(path_id(&hat));
 
-        assert_eq!(browser.navigate_vertical(1), Some(path_id(&kick)));
+        assert_eq!(browser.navigate_vertical(1, false), Some(path_id(&kick)));
         browser.select_file(path_id(&kick));
-        assert_eq!(browser.navigate_vertical(1), Some(path_id(&snare)));
+        assert_eq!(browser.navigate_vertical(1, false), Some(path_id(&snare)));
         browser.select_file(path_id(&snare));
-        assert_eq!(browser.navigate_vertical(1), None);
+        assert_eq!(browser.navigate_vertical(1, false), None);
         assert_eq!(browser.selected_file_id(), Some(path_id(&snare).as_str()));
-        assert_eq!(browser.navigate_vertical(-1), Some(path_id(&kick)));
+        assert_eq!(browser.navigate_vertical(-1, false), Some(path_id(&kick)));
         assert_eq!(browser.selected_folder, path_id(&drums));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn file_keyboard_navigation_can_extend_audio_selection() {
+        let root = temp_source_root("radiant-gui-file-keyboard-extend");
+        let drums = root.join("drums");
+        fs::create_dir_all(&drums).expect("create drums folder");
+        let hat = drums.join("hat.wav");
+        let kick = drums.join("kick.wav");
+        let snare = drums.join("snare.wav");
+        fs::write(&hat, [0_u8; 8]).expect("write hat");
+        fs::write(&kick, [0_u8; 8]).expect("write kick");
+        fs::write(&snare, [0_u8; 8]).expect("write snare");
+        let mut browser = FolderBrowserState::from_root(root.clone());
+        browser.activate_folder(path_id(&drums));
+        browser.select_file(path_id(&hat));
+
+        assert_eq!(browser.navigate_vertical(1, true), Some(path_id(&kick)));
+        assert_eq!(browser.navigate_vertical(1, true), Some(path_id(&snare)));
+
+        assert_eq!(
+            browser.selected_file_paths(),
+            vec![hat.clone(), kick.clone(), snare.clone()]
+        );
+        assert_eq!(browser.selected_file_id(), Some(path_id(&snare).as_str()));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn file_mouse_selection_toggles_and_extends_audio_selection() {
+        let root = temp_source_root("radiant-gui-file-mouse-multi-select");
+        let drums = root.join("drums");
+        fs::create_dir_all(&drums).expect("create drums folder");
+        let hat = drums.join("hat.wav");
+        let kick = drums.join("kick.wav");
+        let snare = drums.join("snare.wav");
+        let tom = drums.join("tom.wav");
+        for file in [&hat, &kick, &snare, &tom] {
+            fs::write(file, [0_u8; 8]).expect("write wav");
+        }
+        let mut browser = FolderBrowserState::from_root(root.clone());
+        browser.activate_folder(path_id(&drums));
+        browser.select_file(path_id(&hat));
+
+        browser.select_file_with_modifiers(
+            path_id(&snare),
+            PointerModifiers {
+                command: true,
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            browser.selected_file_paths(),
+            vec![hat.clone(), snare.clone()]
+        );
+
+        browser.select_file_with_modifiers(
+            path_id(&tom),
+            PointerModifiers {
+                shift: true,
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            browser.selected_file_paths(),
+            vec![snare.clone(), tom.clone()]
+        );
+
+        browser.select_file_with_modifiers(
+            path_id(&kick),
+            PointerModifiers {
+                command: true,
+                shift: true,
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            browser.selected_file_paths(),
+            vec![kick.clone(), snare.clone(), tom.clone()]
+        );
+
+        browser.select_file_with_modifiers(
+            path_id(&snare),
+            PointerModifiers {
+                command: true,
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            browser.selected_file_paths(),
+            vec![kick.clone(), tom.clone()]
+        );
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn file_keyboard_navigation_follow_window_moves_only_near_edges() {
+        let root = temp_source_root("radiant-gui-file-follow-window");
+        let drums = root.join("drums");
+        fs::create_dir_all(&drums).expect("create drums folder");
+        let files = (0..20)
+            .map(|index| drums.join(format!("sample_{index:02}.wav")))
+            .collect::<Vec<_>>();
+        for file in &files {
+            fs::write(file, [0_u8; 8]).expect("write wav");
+        }
+        let mut browser = FolderBrowserState::from_root(root.clone());
+        browser.activate_folder(path_id(&drums));
+        browser.select_file(path_id(&files[4]));
+
+        let window = browser.follow_selected_file_view(6, 1, 1);
+        assert_eq!(window.viewport_start, 1);
+        assert_eq!(browser.file_view_start(), 1);
+
+        assert_eq!(
+            browser.navigate_vertical(1, false),
+            Some(path_id(&files[5]))
+        );
+        let window = browser.follow_selected_file_view(6, 1, 1);
+        assert_eq!(window.viewport_start, 2);
+        assert_eq!(browser.file_view_start(), 2);
+
+        assert_eq!(
+            browser.navigate_vertical(1, false),
+            Some(path_id(&files[6]))
+        );
+        let window = browser.follow_selected_file_view(6, 1, 1);
+        assert_eq!(window.viewport_start, 3);
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn file_scroll_tracking_allows_runtime_clamped_bottom_offsets() {
+        let root = temp_source_root("radiant-gui-file-scroll-bottom");
+        let drums = root.join("drums");
+        fs::create_dir_all(&drums).expect("create drums folder");
+        let files = (0..24)
+            .map(|index| drums.join(format!("sample_{index:02}.wav")))
+            .collect::<Vec<_>>();
+        for file in &files {
+            fs::write(file, [0_u8; 8]).expect("write wav");
+        }
+        let mut browser = FolderBrowserState::from_root(root.clone());
+        browser.activate_folder(path_id(&drums));
+
+        browser.set_file_view_start_from_scroll_offset(23.0 * 22.0, 22.0);
+
+        assert_eq!(browser.file_view_start(), 23);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn select_all_audio_files_selects_current_folder_samples() {
+        let root = temp_source_root("radiant-gui-file-select-all");
+        let drums = root.join("drums");
+        fs::create_dir_all(&drums).expect("create drums folder");
+        let hat = drums.join("hat.wav");
+        let kick = drums.join("kick.wav");
+        let note = drums.join("note.txt");
+        fs::write(&hat, [0_u8; 8]).expect("write hat");
+        fs::write(&kick, [0_u8; 8]).expect("write kick");
+        fs::write(&note, [0_u8; 8]).expect("write note");
+        let mut browser = FolderBrowserState::from_root(root.clone());
+        browser.activate_folder(path_id(&drums));
+
+        assert_eq!(browser.select_all_audio_files(), 2);
+
+        assert_eq!(
+            browser.selected_file_paths(),
+            vec![hat.clone(), kick.clone()]
+        );
+        assert!(!browser.is_file_selected(&path_id(&note)));
 
         let _ = fs::remove_dir_all(root);
     }
@@ -1853,7 +3266,7 @@ mod tests {
             vec!["large.wav", "small.wav"]
         );
         browser.select_file(path_id(&large));
-        assert_eq!(browser.navigate_vertical(1), Some(path_id(&small)));
+        assert_eq!(browser.navigate_vertical(1, false), Some(path_id(&small)));
 
         let _ = fs::remove_dir_all(root);
     }
@@ -1898,7 +3311,7 @@ mod tests {
             .expect("rename input id");
 
         assert!(browser.rename_active());
-        assert_eq!(browser.navigate_vertical(1), None);
+        assert_eq!(browser.navigate_vertical(1, false), None);
         assert!(!browser.expand_selected_folder());
         assert!(!browser.collapse_selected_folder());
         assert_eq!(browser.selected_folder, path_id(&drums));
@@ -1937,6 +3350,105 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![path_id(&root.join("breaks").join("kick.wav"))]
         );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn create_subfolder_starts_pending_rename_row_and_creates_on_submit() {
+        let root = temp_source_root("radiant-gui-folder-create");
+        let drums = root.join("drums");
+        fs::create_dir_all(&drums).expect("create nested folder");
+        let mut browser = FolderBrowserState::from_root(root.clone());
+        browser.activate_folder(path_id(&drums));
+
+        let input_id = browser
+            .begin_create_subfolder()
+            .expect("create can start")
+            .expect("rename input id");
+        let pending = drums.join("New folder");
+
+        assert_ne!(input_id, 0);
+        assert!(!pending.exists());
+        assert!(browser.is_expanded(&path_id(&drums)));
+        assert!(
+            browser.visible_folders().into_iter().any(|folder| {
+                folder.id == path_id(&pending)
+                    && folder.selected
+                    && folder.rename_draft.as_deref() == Some("New folder")
+                    && folder.rename_input_id == Some(input_id)
+            }),
+            "expected pending child rename row"
+        );
+
+        let status = browser
+            .apply_rename_input(TextInputMessage::Submitted {
+                value: String::from("loops"),
+            })
+            .expect("create status");
+
+        assert_eq!(status, "Created folder loops");
+        assert!(!pending.exists());
+        assert!(drums.join("loops").is_dir());
+        assert_eq!(browser.selected_folder, path_id(&drums.join("loops")));
+        assert!(
+            browser
+                .visible_folders()
+                .into_iter()
+                .any(|folder| folder.id == path_id(&drums.join("loops"))
+                    && folder.name == "loops"
+                    && folder.rename_draft.is_none())
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn create_subfolder_cancel_removes_pending_row_without_touching_disk() {
+        let root = temp_source_root("radiant-gui-folder-create-cancel");
+        let drums = root.join("drums");
+        fs::create_dir_all(&drums).expect("create nested folder");
+        let mut browser = FolderBrowserState::from_root(root.clone());
+        browser.activate_folder(path_id(&drums));
+
+        browser
+            .begin_create_subfolder()
+            .expect("create can start")
+            .expect("rename input id");
+        let pending = drums.join("New folder");
+
+        browser.activate_folder(path_id(&drums));
+
+        assert!(!pending.exists());
+        assert_eq!(browser.selected_folder, path_id(&drums));
+        assert!(
+            browser
+                .visible_folders()
+                .into_iter()
+                .all(|folder| folder.id != path_id(&pending))
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn create_subfolder_default_name_skips_existing_folder() {
+        let root = temp_source_root("radiant-gui-folder-create-unique");
+        let drums = root.join("drums");
+        fs::create_dir_all(drums.join("New folder")).expect("create existing folder");
+        let mut browser = FolderBrowserState::from_root(root.clone());
+        browser.activate_folder(path_id(&drums));
+
+        browser
+            .begin_create_subfolder()
+            .expect("create can start")
+            .expect("rename input id");
+
+        assert!(
+            browser.visible_folders().into_iter().any(|folder| {
+                folder.id == path_id(&drums.join("New folder 2"))
+                    && folder.rename_draft.as_deref() == Some("New folder 2")
+            }),
+            "expected unique default name"
+        );
+        assert!(!drums.join("New folder 2").exists());
         let _ = fs::remove_dir_all(root);
     }
 
@@ -2061,6 +3573,220 @@ mod tests {
         assert_eq!(browser.selected_folder, path_id(&drums));
         assert!(browser.find_folder(&path_id(&kicks)).is_none());
         assert!(!browser.expanded_folders.contains(&path_id(&kicks)));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn file_delete_removes_selected_files_and_selects_neighbor() {
+        let root = temp_source_root("radiant-gui-file-delete");
+        let drums = root.join("drums");
+        fs::create_dir_all(&drums).expect("create drums folder");
+        let hat = drums.join("hat.wav");
+        let kick = drums.join("kick.wav");
+        let snare = drums.join("snare.wav");
+        for file in [&hat, &kick, &snare] {
+            fs::write(file, [0_u8; 8]).expect("write wav");
+        }
+        let mut browser = FolderBrowserState::from_root(root.clone());
+        browser.activate_folder(path_id(&drums));
+        browser.select_file(path_id(&kick));
+
+        let target = browser
+            .selected_file_delete_target()
+            .expect("selected file can be deleted");
+        assert_eq!(target.names, vec![String::from("kick.wav")]);
+        let status = browser
+            .delete_selected_files()
+            .expect("delete should remove selected file");
+
+        assert_eq!(status, "Deleted 1 file");
+        assert!(!kick.exists());
+        assert!(
+            browser
+                .selected_files()
+                .iter()
+                .all(|file| file.name != "kick.wav")
+        );
+        assert_eq!(browser.selected_file_id(), Some(path_id(&snare).as_str()));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn folder_drag_drop_moves_subtree_into_target_folder() {
+        let root = temp_source_root("radiant-gui-folder-drag-drop");
+        let kicks = root.join("drums").join("kicks");
+        let loops = root.join("loops");
+        fs::create_dir_all(&kicks).expect("create kicks folder");
+        fs::create_dir_all(&loops).expect("create loops folder");
+        let kick = kicks.join("kick.wav");
+        fs::write(&kick, [0_u8; 8]).expect("write wav");
+        let mut browser = FolderBrowserState::from_root(root.clone());
+        browser.activate_folder(path_id(&root.join("drums")));
+        browser.expand_selected_folder();
+        browser.activate_folder(path_id(&kicks));
+        browser.select_file(path_id(&kick));
+
+        browser.apply_folder_drag(
+            path_id(&kicks),
+            DragHandleMessage::Started {
+                position: Point::new(0.0, 0.0),
+            },
+        );
+        let result = browser
+            .drop_drag_on_folder(&path_id(&loops))
+            .expect("folder drag/drop should move");
+
+        let moved_kicks = loops.join("kicks");
+        let moved_kick = moved_kicks.join("kick.wav");
+        assert_eq!(
+            result.moved_paths,
+            vec![(kicks.clone(), moved_kicks.clone())]
+        );
+        assert!(!kicks.exists());
+        assert!(moved_kick.is_file());
+        assert_eq!(browser.selected_folder, path_id(&moved_kicks));
+        assert_eq!(
+            browser.selected_file_id(),
+            Some(path_id(&moved_kick).as_str())
+        );
+        assert!(browser.find_folder(&path_id(&moved_kicks)).is_some());
+        assert!(browser.expanded_folders.contains(&path_id(&loops)));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn folder_drag_preview_tracks_pointer_and_hover_target() {
+        let root = temp_source_root("radiant-gui-folder-drag-preview");
+        let kicks = root.join("drums").join("kicks");
+        let loops = root.join("loops");
+        fs::create_dir_all(&kicks).expect("create kicks folder");
+        fs::create_dir_all(&loops).expect("create loops folder");
+        let mut browser = FolderBrowserState::from_root(root.clone());
+        browser.activate_folder(path_id(&root.join("drums")));
+        browser.expand_selected_folder();
+
+        browser.apply_folder_drag(
+            path_id(&kicks),
+            DragHandleMessage::Started {
+                position: Point::new(10.0, 20.0),
+            },
+        );
+        assert_eq!(
+            browser.drag_preview(),
+            Some(FolderDragPreview {
+                label: String::from("kicks"),
+                pointer: Point::new(10.0, 20.0),
+            })
+        );
+
+        browser.apply_folder_drag(
+            path_id(&kicks),
+            DragHandleMessage::Moved {
+                position: Point::new(30.0, 42.0),
+            },
+        );
+        assert_eq!(
+            browser.drag_preview().map(|preview| preview.pointer),
+            Some(Point::new(30.0, 42.0))
+        );
+
+        browser.apply_message(FolderBrowserMessage::HoverDropTarget(path_id(&loops)));
+        let hovered = browser
+            .visible_folders()
+            .into_iter()
+            .find(|folder| folder.id == path_id(&loops))
+            .expect("loops folder visible");
+        assert!(hovered.drop_candidate);
+        assert!(hovered.drop_target);
+
+        browser.apply_message(FolderBrowserMessage::HoverDropTarget(path_id(&kicks)));
+        assert!(
+            browser
+                .visible_folders()
+                .into_iter()
+                .all(|folder| !folder.drop_target)
+        );
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn folder_drag_external_request_uses_preview_label_and_paths() {
+        let root = temp_source_root("radiant-gui-folder-external-drag");
+        let kicks = root.join("drums").join("kicks");
+        fs::create_dir_all(&kicks).expect("create kicks folder");
+        let mut browser = FolderBrowserState::from_root(root.clone());
+        browser.activate_folder(path_id(&root.join("drums")));
+        browser.expand_selected_folder();
+
+        browser.apply_folder_drag(
+            path_id(&kicks),
+            DragHandleMessage::Started {
+                position: Point::new(10.0, 20.0),
+            },
+        );
+        let request = browser
+            .external_drag_request()
+            .expect("folder drag should expose external request");
+
+        assert_eq!(request.preview.label, "kicks");
+        assert_eq!(
+            request.payload,
+            ExternalDragPayload::Files(vec![kicks.clone()])
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn file_drag_drop_moves_selected_files_into_target_folder() {
+        let root = temp_source_root("radiant-gui-file-drag-drop");
+        let drums = root.join("drums");
+        let loops = root.join("loops");
+        fs::create_dir_all(&drums).expect("create drums folder");
+        fs::create_dir_all(&loops).expect("create loops folder");
+        let kick = drums.join("kick.wav");
+        let snare = drums.join("snare.wav");
+        let hat = drums.join("hat.wav");
+        for file in [&kick, &snare, &hat] {
+            fs::write(file, [0_u8; 8]).expect("write wav");
+        }
+        let mut browser = FolderBrowserState::from_root(root.clone());
+        browser.activate_folder(path_id(&drums));
+        browser.select_file(path_id(&kick));
+        browser.select_file_with_modifiers(
+            path_id(&snare),
+            PointerModifiers {
+                command: true,
+                ..Default::default()
+            },
+        );
+
+        browser.begin_file_drag(path_id(&kick), Point::new(4.0, 8.0));
+        let result = browser
+            .drop_drag_on_folder(&path_id(&loops))
+            .expect("file drag/drop should move");
+
+        let moved_kick = loops.join("kick.wav");
+        let moved_snare = loops.join("snare.wav");
+        assert_eq!(result.moved_paths.len(), 2);
+        assert!(!kick.exists());
+        assert!(!snare.exists());
+        assert!(hat.is_file());
+        assert!(moved_kick.is_file());
+        assert!(moved_snare.is_file());
+        assert_eq!(browser.selected_folder, path_id(&loops));
+        assert_eq!(
+            browser.selected_file_paths(),
+            vec![moved_kick.clone(), moved_snare.clone()]
+        );
+        assert_eq!(
+            browser
+                .selected_audio_files()
+                .iter()
+                .map(|file| file.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["kick.wav", "snare.wav"]
+        );
         let _ = fs::remove_dir_all(root);
     }
 

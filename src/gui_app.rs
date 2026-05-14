@@ -4,12 +4,14 @@ use radiant::gui::types::{ImageRgba, Point, Rect, Rgba8};
 use radiant::layout::{LayoutOutput, Vector2};
 use radiant::prelude as ui;
 use radiant::runtime::{
-    NativeRunOptions, NativeTextOptions, PaintFillRect, PaintImage, PaintPrimitive, PaintStrokeRect,
+    NativeRunOptions, NativeTextOptions, PaintFillRect, PaintImage, PaintPrimitive,
+    PaintStrokeRect, PaintText, PaintTextAlign, PaintTextRun,
 };
 use radiant::theme::ThemeTokens;
 use radiant::widgets::{
-    DragHandleMessage, FocusBehavior, PaintBounds, PointerButton, ScrollbarMessage,
-    TextInputWidget, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
+    DragHandleMessage, FocusBehavior, PaintBounds, PointerButton, PointerModifiers,
+    ScrollbarMessage, TextInputWidget, TextWrap, Widget, WidgetCommon, WidgetInput, WidgetOutput,
+    WidgetSizing,
 };
 use rfd::{FileDialog, MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
 use std::{
@@ -23,7 +25,10 @@ use std::{
     },
     time::{Duration, Instant, SystemTime},
 };
-use wavecrate::audio::AudioPlayer;
+use wavecrate::audio::{
+    AudioDeviceSummary, AudioHostSummary, AudioOutputConfig, AudioPlayer, ResolvedOutput,
+    available_devices, available_hosts, supported_sample_rates,
+};
 use wavecrate::gui::svg::{parse_svg_document, point_in_svg_shapes};
 use wavecrate::gui_runtime::wavecrate_ui_font_path;
 use wavecrate::logging::{self, ActionDebugEvent, emit_action_debug_event};
@@ -34,13 +39,30 @@ use folder_browser::{
     FileColumn, FileEntry, FolderBrowserMessage, FolderBrowserState, FolderScanDiscoveryBatch,
     FolderScanProgress, FolderScanRequest, FolderScanResult,
 };
-use waveform::{WaveformInteraction, WaveformState};
+use waveform::{WaveformActiveDragKind, WaveformInteraction, WaveformSelectionKind, WaveformState};
 
 const DEBUG_LAYOUT_ARG: &str = "--debug-layout";
 const DEBUG_LAYOUT_SHORT_ARG: &str = "-debug-layout";
 const DEFAULT_FOLDER_WIDTH: f32 = 260.0;
 const MIN_FOLDER_WIDTH: f32 = 180.0;
 const MAX_FOLDER_WIDTH: f32 = 420.0;
+const SAMPLE_BROWSER_LIST_ID: u64 = 30_000;
+const SAMPLE_BROWSER_ROW_HEIGHT: f32 = 22.0;
+const SAMPLE_BROWSER_EDGE_CONTEXT_ROWS: usize = 2;
+const SAMPLE_BROWSER_OVERSCAN_ROWS: usize = 4;
+const DEFAULT_VOLUME: f32 = 1.0;
+const VOLUME_SLIDER_ID: u64 = 31_000;
+const VOLUME_SLIDER_WIDTH: f32 = 92.0;
+const VOLUME_SLIDER_HEIGHT: f32 = 14.0;
+const AUDIO_ENGINE_PILL_ID: u64 = 31_100;
+const AUDIO_ENGINE_PILL_WIDTH: f32 = 66.0;
+const AUDIO_ENGINE_PILL_HEIGHT: f32 = 18.0;
+const AUDIO_SETTINGS_MODAL_BLOCKER_ID: u64 = 31_150;
+const AUDIO_SETTINGS_MODAL_PILL_ID: u64 = 31_151;
+const AUDIO_SETTINGS_POPUP_WIDTH: f32 = 360.0;
+const AUDIO_SETTINGS_POPUP_HEIGHT: f32 = 316.0;
+const DRAG_PREVIEW_MAX_WIDTH: f32 = 280.0;
+const DRAG_PREVIEW_HEIGHT: f32 = 24.0;
 const WAVEFORM_VIEW_HEIGHT: f32 = 172.0;
 const WAVEFORM_PANEL_HEIGHT: f32 = 226.0;
 const PLAYBACK_START_ACTIVE_SOURCE_GRACE: Duration = Duration::from_millis(120);
@@ -52,16 +74,35 @@ enum GuiMessage {
     FolderScanProgress(FolderScanProgress),
     FolderScanDiscoveryBatch(FolderScanDiscoveryBatch),
     FolderScanFinished(FolderScanResult),
-    SelectSample(String),
+    SelectSampleWithModifiers {
+        path: String,
+        modifiers: PointerModifiers,
+    },
+    DragSampleFile {
+        path: String,
+        drag: DragHandleMessage,
+    },
+    ExternalDragCompleted(Result<ui::ExternalDragOutcome, String>),
     SampleLoadFinished(SampleLoadResult),
     PlaySelectedSample,
     StopPlayback,
     ToggleLoopPlayback,
+    SetVolume(f32),
+    ToggleAudioSettings,
+    CloseAudioSettings,
+    SetAudioOutputHost(Option<String>),
+    SetAudioOutputDevice(Option<String>),
+    SetAudioOutputSampleRate(Option<u32>),
+    NormalizeSelectedSamples,
     FocusRenameInput(u64),
-    DeleteSelectedFolder,
+    DeleteSelectedItem,
     ExtractPlaymarkedRange,
     ClearExtractionHistory,
-    NavigateBrowser(i32),
+    NavigateBrowser {
+        delta: i32,
+        extend: bool,
+    },
+    SelectAllSamples,
     CollapseSelectedFolder,
     ExpandSelectedFolder,
     Waveform(WaveformInteraction),
@@ -98,6 +139,14 @@ struct GuiAppState {
     progress_tick: f32,
     audio_player: Option<AudioPlayer>,
     loop_playback: bool,
+    volume: f32,
+    audio_output_config: AudioOutputConfig,
+    audio_output_resolved: Option<ResolvedOutput>,
+    audio_hosts: Vec<AudioHostSummary>,
+    audio_devices: Vec<AudioDeviceSummary>,
+    audio_sample_rates: Vec<u32>,
+    audio_settings_open: bool,
+    audio_settings_error: Option<String>,
     current_playback_span: Option<(f32, f32)>,
 }
 
@@ -105,7 +154,7 @@ impl GuiAppState {
     fn load_default() -> Result<Self, String> {
         let started_at = Instant::now();
         let (worker_sender, worker_receiver) = mpsc::channel();
-        let state = Self {
+        let mut state = Self {
             folder_width: DEFAULT_FOLDER_WIDTH,
             folder_resize: None,
             folder_browser: FolderBrowserState::load_default(),
@@ -120,8 +169,20 @@ impl GuiAppState {
             progress_tick: 0.0,
             audio_player: None,
             loop_playback: false,
+            volume: DEFAULT_VOLUME,
+            audio_output_config: AudioOutputConfig::default(),
+            audio_output_resolved: None,
+            audio_hosts: Vec::new(),
+            audio_devices: Vec::new(),
+            audio_sample_rates: Vec::new(),
+            audio_settings_open: false,
+            audio_settings_error: None,
             current_playback_span: None,
         };
+        state.refresh_audio_options();
+        if let Err(error) = state.open_configured_audio_player() {
+            state.audio_settings_error = Some(error);
+        }
         emit_gui_action(
             "runtime.startup.load_default_state",
             Some("background"),
@@ -238,6 +299,48 @@ impl GuiAppState {
                     }
                 }
             }
+            GuiMessage::FolderBrowser(FolderBrowserMessage::BeginCreateSubfolder) => {
+                let started_at = Instant::now();
+                match self.folder_browser.begin_create_subfolder() {
+                    Ok(Some(input_id)) => {
+                        self.sample_status = String::from("Creating new folder");
+                        context.after(
+                            Duration::from_millis(1),
+                            GuiMessage::FocusRenameInput(input_id),
+                        );
+                        emit_gui_action(
+                            "folder_browser.folder.create_begin",
+                            Some("folder_browser"),
+                            Some("folder"),
+                            "success",
+                            started_at,
+                            None,
+                        );
+                    }
+                    Ok(None) => {
+                        self.sample_status = String::from("Select a folder to add a subfolder");
+                        emit_gui_action(
+                            "folder_browser.folder.create_begin",
+                            Some("folder_browser"),
+                            None,
+                            "short_circuit",
+                            started_at,
+                            Some("nothing_selected"),
+                        );
+                    }
+                    Err(error) => {
+                        self.sample_status = error;
+                        emit_gui_action(
+                            "folder_browser.folder.create_begin",
+                            Some("folder_browser"),
+                            None,
+                            "error",
+                            started_at,
+                            Some("create_begin_failed"),
+                        );
+                    }
+                }
+            }
             GuiMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message)) => {
                 let started_at = Instant::now();
                 let input_action = rename_input_action(&message);
@@ -254,6 +357,12 @@ impl GuiAppState {
                         None,
                     );
                 }
+            }
+            GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnFolder(folder_id)) => {
+                self.drop_browser_drag_on_folder(folder_id, context);
+            }
+            GuiMessage::FolderBrowser(FolderBrowserMessage::DragFolder(folder_id, drag)) => {
+                self.drag_folder(folder_id, drag, context);
             }
             GuiMessage::FolderBrowser(message) => self.folder_browser.apply_message(message),
             GuiMessage::FolderScanProgress(progress) => {
@@ -298,11 +407,28 @@ impl GuiAppState {
                 );
             }
             GuiMessage::FolderScanFinished(result) => self.finish_folder_scan(result),
-            GuiMessage::SelectSample(path) => self.select_sample(path, context),
+            GuiMessage::SelectSampleWithModifiers { path, modifiers } => {
+                self.select_sample_with_modifiers(path, modifiers, context);
+            }
+            GuiMessage::DragSampleFile { path, drag } => {
+                self.drag_sample_file(path, drag, context);
+            }
+            GuiMessage::ExternalDragCompleted(result) => self.external_drag_completed(result),
             GuiMessage::SampleLoadFinished(result) => self.finish_sample_load(result),
             GuiMessage::PlaySelectedSample => self.play_selected_sample(context),
             GuiMessage::StopPlayback => self.stop_playback(),
             GuiMessage::ToggleLoopPlayback => self.toggle_loop_playback(),
+            GuiMessage::SetVolume(volume) => self.set_volume(volume),
+            GuiMessage::ToggleAudioSettings => self.toggle_audio_settings(),
+            GuiMessage::CloseAudioSettings => {
+                self.audio_settings_open = false;
+            }
+            GuiMessage::SetAudioOutputHost(host) => self.set_audio_output_host(host),
+            GuiMessage::SetAudioOutputDevice(device) => self.set_audio_output_device(device),
+            GuiMessage::SetAudioOutputSampleRate(sample_rate) => {
+                self.set_audio_output_sample_rate(sample_rate);
+            }
+            GuiMessage::NormalizeSelectedSamples => self.normalize_selected_samples(),
             GuiMessage::FocusRenameInput(input_id) => {
                 let started_at = Instant::now();
                 context.focus(input_id);
@@ -315,7 +441,7 @@ impl GuiAppState {
                     None,
                 );
             }
-            GuiMessage::DeleteSelectedFolder => self.delete_selected_folder(),
+            GuiMessage::DeleteSelectedItem => self.delete_selected_item(),
             GuiMessage::ExtractPlaymarkedRange => self.extract_playmarked_range(),
             GuiMessage::ClearExtractionHistory => {
                 let started_at = Instant::now();
@@ -329,9 +455,19 @@ impl GuiAppState {
                     None,
                 );
             }
-            GuiMessage::NavigateBrowser(delta) => {
+            GuiMessage::NavigateBrowser { delta, extend } => {
                 let started_at = Instant::now();
-                if let Some(path) = self.folder_browser.navigate_vertical(delta) {
+                if let Some(path) = self.folder_browser.navigate_vertical(delta, extend) {
+                    if let Some(index) = self.folder_browser.selected_audio_file_index() {
+                        context.scroll_fixed_row_into_view(
+                            SAMPLE_BROWSER_LIST_ID,
+                            index,
+                            SAMPLE_BROWSER_ROW_HEIGHT,
+                            SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
+                            SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
+                            delta,
+                        );
+                    }
                     emit_gui_action(
                         "folder_browser.navigate",
                         Some("browser"),
@@ -351,6 +487,22 @@ impl GuiAppState {
                         None,
                     );
                 }
+            }
+            GuiMessage::SelectAllSamples => {
+                let started_at = Instant::now();
+                let count = self.folder_browser.select_all_audio_files();
+                self.sample_status = format!(
+                    "Selected {count} sample{}",
+                    if count == 1 { "" } else { "s" }
+                );
+                emit_gui_action(
+                    "browser.select_all_samples",
+                    Some("browser"),
+                    None,
+                    "success",
+                    started_at,
+                    None,
+                );
             }
             GuiMessage::CollapseSelectedFolder => {
                 let started_at = Instant::now();
@@ -379,8 +531,25 @@ impl GuiAppState {
             GuiMessage::Waveform(message) => {
                 let started_at = Instant::now();
                 let action = waveform_interaction_action(&message);
+                let active_drag = self.waveform.active_drag_kind();
+                if self.audio_settings_open {
+                    if let Some(action) = action {
+                        emit_gui_action(
+                            action,
+                            Some("waveform"),
+                            None,
+                            "ignored",
+                            started_at,
+                            Some("audio_settings_open"),
+                        );
+                    }
+                    return;
+                }
                 self.waveform.apply_interaction(message);
                 self.sync_edit_fade_audio_state();
+                if waveform_interaction_finishes_play_selection_edit(&message, active_drag) {
+                    self.retarget_loop_playback_to_play_selection();
+                }
                 if let Some(action) = action {
                     emit_gui_action(action, Some("waveform"), None, "applied", started_at, None);
                 }
@@ -480,6 +649,14 @@ impl GuiAppState {
         }
     }
 
+    fn delete_selected_item(&mut self) {
+        if self.folder_browser.selected_file_id().is_some() {
+            self.delete_selected_files();
+        } else {
+            self.delete_selected_folder();
+        }
+    }
+
     fn delete_selected_folder(&mut self) {
         let started_at = Instant::now();
         let target = match self.folder_browser.selected_delete_target() {
@@ -535,6 +712,72 @@ impl GuiAppState {
         }
     }
 
+    fn delete_selected_files(&mut self) {
+        let started_at = Instant::now();
+        let target = match self.folder_browser.selected_file_delete_target() {
+            Ok(target) => target,
+            Err(error) => {
+                self.sample_status = error.clone();
+                emit_gui_action(
+                    "browser.delete_selected_files",
+                    Some("browser"),
+                    None,
+                    "short_circuit",
+                    started_at,
+                    Some(&error),
+                );
+                return;
+            }
+        };
+        if !confirm_file_delete(&target) {
+            self.sample_status = format!("Delete cancelled for {}", target.label());
+            emit_gui_action(
+                "browser.delete_selected_files",
+                Some("browser"),
+                Some(&target.label()),
+                "cancelled",
+                started_at,
+                None,
+            );
+            return;
+        }
+
+        let loaded_path = self.waveform.path();
+        let deleting_loaded_sample = target.paths.iter().any(|path| path == &loaded_path);
+        if deleting_loaded_sample {
+            if let Some(player) = self.audio_player.as_mut() {
+                player.stop();
+            }
+            self.waveform = WaveformState::empty();
+            self.current_playback_span = None;
+        }
+
+        match self.folder_browser.delete_selected_files() {
+            Ok(status) => {
+                self.sample_status = status;
+                emit_gui_action(
+                    "browser.delete_selected_files",
+                    Some("browser"),
+                    Some(&target.label()),
+                    "success",
+                    started_at,
+                    None,
+                );
+            }
+            Err(error) => {
+                self.sample_status = error.clone();
+                emit_gui_action(
+                    "browser.delete_selected_files",
+                    Some("browser"),
+                    Some(&target.label()),
+                    "error",
+                    started_at,
+                    Some(&error),
+                );
+            }
+        }
+    }
+
     fn extract_playmarked_range(&mut self) {
         let started_at = Instant::now();
         match self.waveform.extract_play_selection_to_sibling() {
@@ -565,6 +808,115 @@ impl GuiAppState {
                 );
             }
         }
+    }
+
+    fn normalize_selected_samples(&mut self) {
+        let started_at = Instant::now();
+        let paths = self.folder_browser.selected_file_paths();
+        if paths.is_empty() {
+            self.sample_status = String::from("Select a sample to normalize");
+            emit_gui_action(
+                "browser.normalize_selected_samples",
+                Some("browser"),
+                None,
+                "empty",
+                started_at,
+                None,
+            );
+            return;
+        }
+
+        let loaded_path = self.waveform.path();
+        let normalizing_loaded = paths.iter().any(|path| path == &loaded_path);
+        let was_playing = self.waveform.is_playing() && normalizing_loaded;
+        let restart_ratio = self
+            .audio_player
+            .as_ref()
+            .and_then(AudioPlayer::progress)
+            .or(self.waveform.playhead_ratio())
+            .unwrap_or(0.0);
+        let restart_span = self.current_playback_span;
+        if was_playing {
+            if let Some(player) = self.audio_player.as_mut() {
+                player.stop();
+            }
+            self.waveform.stop_playback();
+            self.current_playback_span = None;
+        }
+
+        let mut normalized = Vec::new();
+        let mut last_error = None;
+        for path in &paths {
+            match normalize_wav_file_in_place(path) {
+                Ok(()) => {
+                    self.folder_browser.refresh_file_path(path);
+                    normalized.push(path.clone());
+                }
+                Err(error) => {
+                    last_error = Some(format!("{}: {error}", sample_path_label(path)));
+                }
+            }
+        }
+
+        if normalizing_loaded && normalized.iter().any(|path| path == &loaded_path) {
+            if let Err(error) = self.reload_normalized_waveform(
+                &loaded_path,
+                was_playing,
+                restart_ratio,
+                restart_span,
+            ) {
+                last_error = Some(error);
+            }
+        }
+
+        if let Some(error) = last_error {
+            self.sample_status = format!(
+                "Normalized {} sample{} | {error}",
+                normalized.len(),
+                if normalized.len() == 1 { "" } else { "s" }
+            );
+            emit_gui_action(
+                "browser.normalize_selected_samples",
+                Some("browser"),
+                None,
+                "partial_or_error",
+                started_at,
+                Some(&error),
+            );
+            return;
+        }
+
+        self.sample_status = match normalized.as_slice() {
+            [] => String::from("No selected samples were normalized"),
+            [path] => format!("Normalized {}", sample_path_label(path)),
+            _ => format!("Normalized {} samples", normalized.len()),
+        };
+        emit_gui_action(
+            "browser.normalize_selected_samples",
+            Some("browser"),
+            None,
+            "success",
+            started_at,
+            None,
+        );
+    }
+
+    fn reload_normalized_waveform(
+        &mut self,
+        path: &Path,
+        resume_playback: bool,
+        restart_ratio: f32,
+        restart_span: Option<(f32, f32)>,
+    ) -> Result<(), String> {
+        self.waveform = WaveformState::load_path(path.to_path_buf())?;
+        self.folder_browser.select_file(path.display().to_string());
+        if resume_playback {
+            let (_, previous_end) = restart_span.unwrap_or((0.0, 1.0));
+            let start = restart_ratio.clamp(0.0, 1.0);
+            let end = previous_end.max(start).clamp(start, 1.0);
+            self.start_playback_current_span(start, end)?;
+        }
+        Ok(())
     }
 
     fn launch_folder_scan(
@@ -679,6 +1031,125 @@ impl GuiAppState {
     }
 
     fn select_sample(&mut self, path: String, context: &mut ui::UpdateContext<GuiMessage>) {
+        self.folder_browser
+            .focus_file_preserving_selection(path.clone());
+        self.load_sample(path, context);
+    }
+
+    fn select_sample_with_modifiers(
+        &mut self,
+        path: String,
+        modifiers: PointerModifiers,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        self.folder_browser
+            .select_file_with_modifiers(path.clone(), modifiers);
+        self.load_sample(path, context);
+    }
+
+    fn drag_sample_file(
+        &mut self,
+        path: String,
+        drag: DragHandleMessage,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        match drag {
+            DragHandleMessage::Started { position } => {
+                self.folder_browser.begin_file_drag(path, position);
+                self.arm_browser_external_drag(context);
+            }
+            DragHandleMessage::Moved { position } => {
+                self.folder_browser.update_drag_pointer(position);
+            }
+            DragHandleMessage::Ended { .. } => {
+                self.folder_browser.clear_drag();
+                context.end_external_drag();
+            }
+        }
+    }
+
+    fn drag_folder(
+        &mut self,
+        folder_id: String,
+        drag: DragHandleMessage,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        let started = matches!(drag, DragHandleMessage::Started { .. });
+        let ended = matches!(drag, DragHandleMessage::Ended { .. });
+        self.folder_browser
+            .apply_message(FolderBrowserMessage::DragFolder(folder_id, drag));
+        if started {
+            self.arm_browser_external_drag(context);
+        } else if ended {
+            context.end_external_drag();
+        }
+    }
+
+    fn arm_browser_external_drag(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
+        let Some(request) = self.folder_browser.external_drag_request() else {
+            return;
+        };
+        context.begin_external_drag(request, GuiMessage::ExternalDragCompleted);
+    }
+
+    fn external_drag_completed(&mut self, result: Result<ui::ExternalDragOutcome, String>) {
+        self.folder_browser.clear_drag();
+        self.sample_status = match result {
+            Ok(outcome) if outcome.accepted() => match outcome.effect {
+                ui::ExternalDragEffect::Copy => String::from("Dragged item externally"),
+                ui::ExternalDragEffect::Move => String::from("Moved item externally"),
+                ui::ExternalDragEffect::Link => String::from("Linked item externally"),
+                ui::ExternalDragEffect::None => String::from("External drag cancelled"),
+            },
+            Ok(_) => String::from("External drag cancelled"),
+            Err(error) => format!("External drag failed: {error}"),
+        };
+    }
+
+    fn drop_browser_drag_on_folder(
+        &mut self,
+        folder_id: String,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        let started_at = Instant::now();
+        context.end_external_drag();
+        match self.folder_browser.drop_drag_on_folder(&folder_id) {
+            Ok(result) => {
+                for (old_path, new_path) in &result.moved_paths {
+                    self.waveform.rewrite_path_prefix(old_path, new_path);
+                }
+                if let Some(status) = result.status {
+                    self.sample_status = status;
+                }
+                emit_gui_action(
+                    "browser.drag_drop.move",
+                    Some("browser"),
+                    None,
+                    if result.moved_paths.is_empty() {
+                        "unchanged"
+                    } else {
+                        "success"
+                    },
+                    started_at,
+                    None,
+                );
+            }
+            Err(error) => {
+                self.sample_status = error.clone();
+                self.folder_browser.clear_drag();
+                emit_gui_action(
+                    "browser.drag_drop.move",
+                    Some("browser"),
+                    None,
+                    "error",
+                    started_at,
+                    Some(&error),
+                );
+            }
+        }
+    }
+
+    fn load_sample(&mut self, path: String, context: &mut ui::UpdateContext<GuiMessage>) {
         let started_at = Instant::now();
         if self.waveform.is_playing() {
             if let Some(player) = self.audio_player.as_mut() {
@@ -687,7 +1158,6 @@ impl GuiAppState {
             self.waveform.stop_playback();
             self.current_playback_span = None;
         }
-        self.folder_browser.select_file(path.clone());
         let task_id = self.next_sample_task_id();
         self.pending_sample_task_id = Some(task_id);
         self.sample_status = format!("Loading {}", sample_path_label(path.as_str()));
@@ -877,29 +1347,300 @@ impl GuiAppState {
         start_ratio: f32,
         end_ratio: f32,
     ) -> Result<(), String> {
+        self.start_playback_span(start_ratio, end_ratio, None)
+    }
+
+    fn start_playback_span(
+        &mut self,
+        start_ratio: f32,
+        end_ratio: f32,
+        loop_offset_ratio: Option<f32>,
+    ) -> Result<(), String> {
         if self.audio_player.is_none() {
-            self.audio_player = Some(AudioPlayer::new()?);
+            self.open_configured_audio_player()?;
         }
         if !self.waveform.has_loaded_sample() {
             return Err(String::from("Select a sample to load"));
         }
-        let start_ratio = start_ratio.clamp(0.0, 1.0);
-        let end_ratio = end_ratio.clamp(start_ratio, 1.0);
+        let playback_span = self.resolve_playback_span(start_ratio, end_ratio, loop_offset_ratio);
+        let start_ratio = playback_span.start_ratio;
+        let end_ratio = playback_span.end_ratio;
         let duration = self.waveform.frames() as f32 / self.waveform.sample_rate().max(1) as f32;
         let player = self
             .audio_player
             .as_mut()
             .ok_or_else(|| String::from("audio player did not initialize"))?;
+        player.set_volume(self.volume);
+        self.audio_output_resolved = Some(player.output_details().clone());
         player.set_audio(self.waveform.audio_bytes(), duration);
         player.set_edit_fade_state(self.waveform.edit_selection());
-        player.play_range(
-            f64::from(start_ratio),
-            f64::from(end_ratio),
-            self.loop_playback,
-        )?;
-        self.waveform.start_playback(start_ratio);
+        let playback_start = if self.loop_playback {
+            player.play_looped_range_from(
+                f64::from(start_ratio),
+                f64::from(end_ratio),
+                f64::from(playback_span.offset_ratio),
+            )?;
+            playback_span.offset_ratio
+        } else {
+            player.play_range(f64::from(start_ratio), f64::from(end_ratio), false)?;
+            start_ratio
+        };
+        self.waveform.start_playback(playback_start);
         self.current_playback_span = Some((start_ratio, end_ratio));
         Ok(())
+    }
+
+    fn resolve_playback_span(
+        &self,
+        start_ratio: f32,
+        end_ratio: f32,
+        loop_offset_ratio: Option<f32>,
+    ) -> ResolvedPlaybackSpan {
+        let requested_start = start_ratio.clamp(0.0, 1.0);
+        let requested_end = end_ratio.clamp(requested_start, 1.0);
+        if !self.loop_playback {
+            return ResolvedPlaybackSpan {
+                start_ratio: requested_start,
+                end_ratio: requested_end,
+                offset_ratio: requested_start,
+            };
+        }
+
+        let (loop_start, loop_end) = self
+            .waveform
+            .play_selection()
+            .filter(|selection| selection.width() > 0.0)
+            .map(|selection| (selection.start(), selection.end()))
+            .unwrap_or((0.0, 1.0));
+        let start_ratio = loop_start.clamp(0.0, 1.0);
+        let end_ratio = loop_end.clamp(start_ratio, 1.0);
+        let requested_offset = loop_offset_ratio.unwrap_or(requested_start).clamp(0.0, 1.0);
+        let offset_ratio = if (start_ratio..=end_ratio).contains(&requested_offset) {
+            requested_offset
+        } else {
+            start_ratio
+        };
+
+        ResolvedPlaybackSpan {
+            start_ratio,
+            end_ratio,
+            offset_ratio,
+        }
+    }
+
+    fn set_volume(&mut self, volume: f32) {
+        let started_at = Instant::now();
+        self.volume = volume.clamp(0.0, 1.0);
+        if let Some(player) = self.audio_player.as_mut() {
+            player.set_volume(self.volume);
+        }
+        emit_gui_action(
+            "playback.volume.set",
+            Some("transport"),
+            None,
+            "success",
+            started_at,
+            None,
+        );
+    }
+
+    fn toggle_audio_settings(&mut self) {
+        let started_at = Instant::now();
+        self.audio_settings_open = !self.audio_settings_open;
+        emit_gui_action(
+            "audio.settings.toggle",
+            Some("top_bar"),
+            None,
+            if self.audio_settings_open {
+                "opened"
+            } else {
+                "closed"
+            },
+            started_at,
+            None,
+        );
+    }
+
+    fn set_audio_output_host(&mut self, host: Option<String>) {
+        let started_at = Instant::now();
+        self.audio_output_config.host = host;
+        self.audio_output_config.device = None;
+        self.audio_output_config.sample_rate = None;
+        self.apply_audio_output_config_change(started_at, "audio.output.host.set");
+    }
+
+    fn set_audio_output_device(&mut self, device: Option<String>) {
+        let started_at = Instant::now();
+        self.audio_output_config.device = device;
+        self.audio_output_config.sample_rate = None;
+        self.apply_audio_output_config_change(started_at, "audio.output.device.set");
+    }
+
+    fn set_audio_output_sample_rate(&mut self, sample_rate: Option<u32>) {
+        let started_at = Instant::now();
+        self.audio_output_config.sample_rate = sample_rate;
+        self.apply_audio_output_config_change(started_at, "audio.output.sample_rate.set");
+    }
+
+    fn apply_audio_output_config_change(&mut self, started_at: Instant, action: &'static str) {
+        let restart_span = self
+            .waveform
+            .is_playing()
+            .then_some(self.current_playback_span)
+            .flatten();
+        if let Some(player) = self.audio_player.as_mut() {
+            player.stop();
+        }
+        self.audio_player = None;
+        self.audio_output_resolved = None;
+        self.refresh_audio_options();
+
+        let mut outcome = "success";
+        let mut error = None;
+        match self.open_configured_audio_player() {
+            Ok(()) => {
+                if let Some((start, end)) = restart_span {
+                    if let Err(err) = self.start_playback_current_span(start, end) {
+                        self.waveform.stop_playback();
+                        self.current_playback_span = None;
+                        self.sample_status =
+                            format!("Audio output changed | playback failed: {err}");
+                        outcome = "playback_error";
+                        error = Some(err);
+                    } else {
+                        self.sample_status = format!(
+                            "Audio output changed | {}",
+                            self.audio_engine_detail_label()
+                        );
+                    }
+                } else {
+                    self.waveform.stop_playback();
+                    self.current_playback_span = None;
+                    self.sample_status = format!(
+                        "Audio output changed | {}",
+                        self.audio_engine_detail_label()
+                    );
+                }
+            }
+            Err(err) => {
+                self.waveform.stop_playback();
+                self.current_playback_span = None;
+                self.audio_settings_error = Some(err.clone());
+                self.sample_status = format!("Audio output unavailable: {err}");
+                outcome = "error";
+                error = Some(err);
+            }
+        }
+        emit_gui_action(
+            action,
+            Some("audio_settings"),
+            None,
+            outcome,
+            started_at,
+            error.as_deref(),
+        );
+    }
+
+    fn open_configured_audio_player(&mut self) -> Result<(), String> {
+        let mut player = AudioPlayer::from_config(&self.audio_output_config)?;
+        player.set_volume(self.volume);
+        self.audio_output_resolved = Some(player.output_details().clone());
+        self.audio_settings_error = None;
+        self.audio_player = Some(player);
+        Ok(())
+    }
+
+    fn refresh_audio_options(&mut self) {
+        let mut error = None;
+        self.audio_hosts = available_hosts();
+        let host_id = self.selected_audio_host_id();
+        self.audio_devices = host_id
+            .as_deref()
+            .and_then(|host_id| match available_devices(host_id) {
+                Ok(devices) => Some(devices),
+                Err(err) => {
+                    error = Some(err.to_string());
+                    None
+                }
+            })
+            .unwrap_or_default();
+        let device_name = self.selected_audio_device_name();
+        self.audio_sample_rates = match (host_id.as_deref(), device_name.as_deref()) {
+            (Some(host_id), Some(device_name)) => {
+                match supported_sample_rates(host_id, device_name) {
+                    Ok(rates) => rates,
+                    Err(err) => {
+                        error = Some(err.to_string());
+                        Vec::new()
+                    }
+                }
+            }
+            _ => Vec::new(),
+        };
+        if error.is_some() {
+            self.audio_settings_error = error;
+        }
+    }
+
+    fn selected_audio_host_id(&self) -> Option<String> {
+        self.audio_output_config.host.clone().or_else(|| {
+            self.audio_hosts
+                .iter()
+                .find(|host| host.is_default)
+                .or_else(|| self.audio_hosts.first())
+                .map(|host| host.id.clone())
+        })
+    }
+
+    fn selected_audio_device_name(&self) -> Option<String> {
+        self.audio_output_config.device.clone().or_else(|| {
+            self.audio_devices
+                .iter()
+                .find(|device| device.is_default)
+                .or_else(|| self.audio_devices.first())
+                .map(|device| device.name.clone())
+        })
+    }
+
+    fn audio_engine_pill_label(&self) -> String {
+        self.audio_output_resolved
+            .as_ref()
+            .map(|output| format_sample_rate_label(output.sample_rate))
+            .or_else(|| {
+                self.audio_output_config
+                    .sample_rate
+                    .map(format_sample_rate_label)
+            })
+            .unwrap_or_else(|| {
+                if self.audio_settings_error.is_some() {
+                    String::from("Audio Err")
+                } else {
+                    String::from("Audio")
+                }
+            })
+    }
+
+    fn audio_engine_detail_label(&self) -> String {
+        self.audio_output_resolved
+            .as_ref()
+            .map(|output| {
+                format!(
+                    "{} | {} | {}",
+                    self.audio_host_label(output.host_id.as_str()),
+                    output.device_name,
+                    format_sample_rate_label(output.sample_rate)
+                )
+            })
+            .or_else(|| self.audio_settings_error.clone())
+            .unwrap_or_else(|| String::from("Audio output idle"))
+    }
+
+    fn audio_host_label(&self, id: &str) -> String {
+        self.audio_hosts
+            .iter()
+            .find(|host| host.id == id)
+            .map(|host| host.label.clone())
+            .unwrap_or_else(|| id.to_string())
     }
 
     fn toggle_loop_playback(&mut self) {
@@ -909,11 +1650,19 @@ impl GuiAppState {
         let mut error = None;
         if self.waveform.is_playing()
             && let Some((start, end)) = self.current_playback_span
-            && let Err(err) = self.start_playback_current_span(start, end)
         {
-            self.sample_status = format!("Loop toggle failed: {err}");
-            outcome = "error";
-            error = Some(err);
+            let current = self.current_audio_progress_ratio().unwrap_or(start);
+            let result = if self.loop_playback {
+                self.start_playback_span(start, end, Some(current))
+            } else {
+                self.start_playback_current_span(current.clamp(start, end), end)
+            };
+            if let Err(err) = result {
+                self.loop_playback = false;
+                self.sample_status = format!("Loop toggle failed: {err}");
+                outcome = "error";
+                error = Some(err);
+            }
         }
         if outcome == "success" {
             self.sample_status = if self.loop_playback {
@@ -930,6 +1679,77 @@ impl GuiAppState {
             started_at,
             error.as_deref(),
         );
+    }
+
+    fn current_audio_progress_ratio(&self) -> Option<f32> {
+        self.audio_player
+            .as_ref()
+            .and_then(AudioPlayer::progress)
+            .or_else(|| self.waveform.playhead_ratio())
+    }
+
+    fn recover_loop_playback(&mut self, reason: &'static str) -> Result<(), String> {
+        let Some((start, end)) = self.current_playback_span else {
+            return Err(String::from("No active playback span to loop"));
+        };
+        let offset = self.current_audio_progress_ratio().unwrap_or(start);
+        self.start_playback_span(start, end, Some(offset))?;
+        emit_gui_action(
+            "playback.loop.recover",
+            Some("transport"),
+            None,
+            reason,
+            Instant::now(),
+            None,
+        );
+        Ok(())
+    }
+
+    fn retarget_loop_playback_to_play_selection(&mut self) {
+        if !self.loop_playback || !self.waveform.is_playing() {
+            return;
+        }
+        let Some(selection) = self
+            .waveform
+            .play_selection()
+            .filter(|selection| selection.width() > 0.0)
+        else {
+            return;
+        };
+        if playback_span_matches_selection(self.current_playback_span, selection) {
+            return;
+        }
+
+        let started_at = Instant::now();
+        let current = self
+            .current_audio_progress_ratio()
+            .unwrap_or_else(|| selection.start());
+        let offset = loop_retarget_offset_for_selection(current, selection);
+        match self.start_playback_span(selection.start(), selection.end(), Some(offset)) {
+            Ok(()) => {
+                let file_name = self.waveform.file_name();
+                self.sample_status = format!("Loop range updated | {file_name}");
+                emit_gui_action(
+                    "playback.loop.retarget",
+                    Some("waveform"),
+                    Some(&file_name),
+                    "success",
+                    started_at,
+                    None,
+                );
+            }
+            Err(err) => {
+                self.sample_status = format!("Loop retarget failed: {err}");
+                emit_gui_action(
+                    "playback.loop.retarget",
+                    Some("waveform"),
+                    None,
+                    "error",
+                    started_at,
+                    Some(&err),
+                );
+            }
+        }
     }
 
     fn sync_edit_fade_audio_state(&mut self) {
@@ -956,12 +1776,40 @@ impl GuiAppState {
             );
             return;
         }
-        if player.is_playing()
-            || player
-                .playback_elapsed()
-                .is_some_and(|elapsed| elapsed <= PLAYBACK_START_ACTIVE_SOURCE_GRACE)
-        {
-            if let Some(progress) = player.progress() {
+
+        let active = player.is_playing();
+        let elapsed = player.playback_elapsed();
+        let player_looping = player.is_looping();
+        let progress = player.progress();
+        let should_be_looping = self.loop_playback && self.waveform.is_playing();
+        let within_start_grace =
+            elapsed.is_some_and(|elapsed| elapsed <= PLAYBACK_START_ACTIVE_SOURCE_GRACE);
+
+        if should_be_looping && (!player_looping || (!active && !within_start_grace)) {
+            let reason = if !player_looping {
+                "player_not_looping"
+            } else {
+                "loop_source_inactive"
+            };
+            if let Err(err) = self.recover_loop_playback(reason) {
+                self.loop_playback = false;
+                self.waveform.stop_playback();
+                self.current_playback_span = None;
+                self.sample_status = format!("Loop playback stopped: {err}");
+                emit_gui_action(
+                    "playback.loop.recover",
+                    Some("transport"),
+                    None,
+                    "error",
+                    Instant::now(),
+                    Some(&err),
+                );
+            }
+            return;
+        }
+
+        if active || within_start_grace || (should_be_looping && player_looping) {
+            if let Some(progress) = progress {
                 self.waveform.set_playhead_ratio(progress);
             }
         } else if self.waveform.is_playing() {
@@ -978,6 +1826,56 @@ impl GuiAppState {
             );
         }
     }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct ResolvedPlaybackSpan {
+    start_ratio: f32,
+    end_ratio: f32,
+    offset_ratio: f32,
+}
+
+fn waveform_interaction_finishes_play_selection_edit(
+    interaction: &WaveformInteraction,
+    active_drag: Option<WaveformActiveDragKind>,
+) -> bool {
+    if !matches!(interaction, WaveformInteraction::FinishSelection { .. }) {
+        return false;
+    }
+    matches!(
+        active_drag,
+        Some(WaveformActiveDragKind::Selection(
+            WaveformSelectionKind::Play
+        )) | Some(WaveformActiveDragKind::SelectionResize(
+            WaveformSelectionKind::Play,
+            _
+        )) | Some(WaveformActiveDragKind::SelectionMove(
+            WaveformSelectionKind::Play
+        ))
+    )
+}
+
+fn loop_retarget_offset_for_selection(
+    playhead: f32,
+    selection: wavecrate::selection::SelectionRange,
+) -> f32 {
+    let start = selection.start();
+    let end = selection.end();
+    if (start..=end).contains(&playhead) {
+        playhead
+    } else {
+        start
+    }
+}
+
+fn playback_span_matches_selection(
+    span: Option<(f32, f32)>,
+    selection: wavecrate::selection::SelectionRange,
+) -> bool {
+    let Some((start, end)) = span else {
+        return false;
+    };
+    (start - selection.start()).abs() <= 0.000_1 && (end - selection.end()).abs() <= 0.000_1
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -1038,31 +1936,15 @@ pub(crate) fn run() -> Result<(), String> {
             })
             .on_frame(|| GuiMessage::Frame)
             .subscriptions(GuiAppState::worker_subscription)
-            .shortcuts(|state, _, press, _| {
-                if state.folder_browser.rename_active() {
-                    ui::ShortcutResolution::unhandled()
-                } else if press == ui::KeyPress::new(ui::KeyCode::F2) {
-                    ui::ShortcutResolution::action(GuiMessage::FolderBrowser(
-                        FolderBrowserMessage::BeginRenameSelected,
-                    ))
-                } else if press == ui::KeyPress::new(ui::KeyCode::Delete) {
-                    ui::ShortcutResolution::action(GuiMessage::DeleteSelectedFolder)
-                } else if press == ui::KeyPress::new(ui::KeyCode::E) {
-                    ui::ShortcutResolution::action(GuiMessage::ExtractPlaymarkedRange)
-                } else if press == ui::KeyPress::new(ui::KeyCode::Space) {
-                    ui::ShortcutResolution::action(GuiMessage::PlaySelectedSample)
-                } else if press == ui::KeyPress::new(ui::KeyCode::ArrowUp) {
-                    ui::ShortcutResolution::action(GuiMessage::NavigateBrowser(-1))
-                } else if press == ui::KeyPress::new(ui::KeyCode::ArrowDown) {
-                    ui::ShortcutResolution::action(GuiMessage::NavigateBrowser(1))
-                } else if press == ui::KeyPress::new(ui::KeyCode::ArrowLeft) {
-                    ui::ShortcutResolution::action(GuiMessage::CollapseSelectedFolder)
-                } else if press == ui::KeyPress::new(ui::KeyCode::ArrowRight) {
-                    ui::ShortcutResolution::action(GuiMessage::ExpandSelectedFolder)
-                } else {
-                    ui::ShortcutResolution::unhandled()
+            .on_scroll(|state, update, _context| {
+                if update.node_id == SAMPLE_BROWSER_LIST_ID {
+                    state.folder_browser.set_file_view_start_from_scroll_offset(
+                        update.offset.y,
+                        SAMPLE_BROWSER_ROW_HEIGHT,
+                    );
                 }
             })
+            .shortcuts(|state, _, press, _| default_gui_shortcut_resolution(state, press))
             .update_with(|state, message, context| {
                 state.apply_message(message, context);
                 context.request_repaint();
@@ -1124,6 +2006,99 @@ fn sample_path_label(path: impl AsRef<Path>) -> String {
     path.file_name()
         .map(|name| name.to_string_lossy().to_string())
         .unwrap_or_else(|| path.display().to_string())
+}
+
+fn normalize_wav_file_in_place(path: &Path) -> Result<(), String> {
+    ensure_normalizable_wav(path)?;
+    let reader_source = wavecrate::wav_sanitize::open_sanitized_wav(path)?;
+    let buf_reader = std::io::BufReader::with_capacity(1024 * 1024, reader_source);
+    let mut reader =
+        hound::WavReader::new(buf_reader).map_err(|err| format!("Invalid wav: {err}"))?;
+    let spec = reader.spec();
+    let mut samples = read_wav_samples_as_f32(&mut reader, spec)?;
+    if samples.is_empty() {
+        return Err(String::from("No audio data to normalize"));
+    }
+    normalize_peak_in_place(&mut samples);
+    let target_spec = hound::WavSpec {
+        channels: spec.channels.max(1),
+        sample_rate: spec.sample_rate.max(1),
+        bits_per_sample: 32,
+        sample_format: hound::SampleFormat::Float,
+    };
+    write_f32_wav(path, &samples, target_spec)
+}
+
+fn ensure_normalizable_wav(path: &Path) -> Result<(), String> {
+    if path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("wav"))
+    {
+        return Ok(());
+    }
+    let extension = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(|extension| format!(".{extension}"))
+        .unwrap_or_else(|| String::from("this file type"));
+    Err(format!(
+        "Normalize overwrite only supports WAV files; {extension} is not supported"
+    ))
+}
+
+fn read_wav_samples_as_f32<R: std::io::Read>(
+    reader: &mut hound::WavReader<R>,
+    spec: hound::WavSpec,
+) -> Result<Vec<f32>, String> {
+    match spec.sample_format {
+        hound::SampleFormat::Float => reader
+            .samples::<f32>()
+            .map(|sample| sample.map_err(|err| format!("Sample error: {err}")))
+            .collect(),
+        hound::SampleFormat::Int => {
+            let scale = (1i64 << spec.bits_per_sample.saturating_sub(1)).max(1) as f32;
+            reader
+                .samples::<i32>()
+                .map(|sample| {
+                    sample
+                        .map(|value| value as f32 / scale)
+                        .map_err(|err| format!("Sample error: {err}"))
+                })
+                .collect()
+        }
+    }
+}
+
+fn normalize_peak_in_place(samples: &mut [f32]) {
+    let peak = samples
+        .iter()
+        .copied()
+        .map(f32::abs)
+        .fold(0.0_f32, f32::max);
+    if !peak.is_finite() || peak <= f32::EPSILON {
+        return;
+    }
+    let gain = 1.0 / peak;
+    for sample in samples {
+        *sample = (*sample * gain).clamp(-1.0, 1.0);
+    }
+}
+
+fn write_f32_wav(path: &Path, samples: &[f32], spec: hound::WavSpec) -> Result<(), String> {
+    let file =
+        std::fs::File::create(path).map_err(|err| format!("Failed to create file: {err}"))?;
+    let buf_writer = std::io::BufWriter::with_capacity(1024 * 1024, file);
+    let mut writer = hound::WavWriter::new(buf_writer, spec)
+        .map_err(|err| format!("Failed to write wav: {err}"))?;
+    for sample in samples {
+        writer
+            .write_sample(*sample)
+            .map_err(|err| format!("Failed to write sample: {err}"))?;
+    }
+    writer
+        .finalize()
+        .map_err(|err| format!("Failed to finalize wav: {err}"))
 }
 
 fn log_default_gui_startup(args: &[OsString]) {
@@ -1195,6 +2170,7 @@ fn waveform_interaction_action(interaction: &WaveformInteraction) -> Option<&'st
             Some("waveform.edit_fade.clear_silence")
         }
         WaveformInteraction::BeginSelectionResize { .. } => Some("waveform.selection.resize_begin"),
+        WaveformInteraction::BeginSelectionMove { .. } => Some("waveform.selection.move_begin"),
         WaveformInteraction::BeginPan { .. } => Some("waveform.pan_begin"),
         WaveformInteraction::FinishSelection { .. } => Some("waveform.selection.finish"),
         WaveformInteraction::UpdateSelection { .. } | WaveformInteraction::Frame => None,
@@ -1257,20 +2233,96 @@ fn enable_windows_console() {
 }
 
 fn view(state: &mut GuiAppState) -> ui::View<GuiMessage> {
-    ui::column([
-        top_status_bar(),
+    let content = ui::column([
+        top_status_bar(state),
         center_panel(state),
         bottom_status_bar(state),
     ])
     .spacing(0.0)
-    .fill()
+    .fill();
+    let mut layers = vec![content];
+    if let Some(preview) = state.folder_browser.drag_preview() {
+        layers.push(folder_drag_preview_overlay(preview));
+    }
+    if state.audio_settings_open {
+        layers.push(audio_settings_popover(state));
+    }
+    if layers.len() > 1 {
+        ui::stack(layers).fill()
+    } else {
+        layers.pop().expect("view should contain base content")
+    }
 }
 
-fn top_status_bar() -> ui::View<GuiMessage> {
+fn folder_drag_preview_overlay(preview: folder_browser::FolderDragPreview) -> ui::View<GuiMessage> {
+    let width =
+        (preview.label.chars().count() as f32 * 7.0 + 118.0).clamp(150.0, DRAG_PREVIEW_MAX_WIDTH);
+    ui::drag_preview_sized(
+        preview.label,
+        preview.pointer,
+        Vector2::new(width, DRAG_PREVIEW_HEIGHT),
+    )
+    .key("folder-browser-drag-preview")
+}
+
+fn default_gui_shortcut_resolution(
+    state: &GuiAppState,
+    press: ui::KeyPress,
+) -> ui::ShortcutResolution<GuiMessage> {
+    if state.folder_browser.rename_active() {
+        ui::ShortcutResolution::unhandled()
+    } else if state.audio_settings_open {
+        if press == ui::KeyPress::new(ui::KeyCode::Escape) {
+            ui::ShortcutResolution::action(GuiMessage::CloseAudioSettings)
+        } else {
+            ui::ShortcutResolution::handled()
+        }
+    } else if press == ui::KeyPress::new(ui::KeyCode::Escape) {
+        ui::ShortcutResolution::action(GuiMessage::StopPlayback)
+    } else if press == ui::KeyPress::new(ui::KeyCode::F2) {
+        ui::ShortcutResolution::action(GuiMessage::FolderBrowser(
+            FolderBrowserMessage::BeginRenameSelected,
+        ))
+    } else if press == ui::KeyPress::new(ui::KeyCode::Delete) {
+        ui::ShortcutResolution::action(GuiMessage::DeleteSelectedItem)
+    } else if press == ui::KeyPress::new(ui::KeyCode::E) {
+        ui::ShortcutResolution::action(GuiMessage::ExtractPlaymarkedRange)
+    } else if press == ui::KeyPress::new(ui::KeyCode::N) {
+        if state.folder_browser.selected_file_id().is_some() {
+            ui::ShortcutResolution::action(GuiMessage::NormalizeSelectedSamples)
+        } else {
+            ui::ShortcutResolution::action(GuiMessage::FolderBrowser(
+                FolderBrowserMessage::BeginCreateSubfolder,
+            ))
+        }
+    } else if press == ui::KeyPress::new(ui::KeyCode::Space) {
+        ui::ShortcutResolution::action(GuiMessage::PlaySelectedSample)
+    } else if press == ui::KeyPress::with_command(ui::KeyCode::A) {
+        ui::ShortcutResolution::action(GuiMessage::SelectAllSamples)
+    } else if press.key == ui::KeyCode::ArrowUp {
+        ui::ShortcutResolution::action(GuiMessage::NavigateBrowser {
+            delta: -1,
+            extend: press.shift,
+        })
+    } else if press.key == ui::KeyCode::ArrowDown {
+        ui::ShortcutResolution::action(GuiMessage::NavigateBrowser {
+            delta: 1,
+            extend: press.shift,
+        })
+    } else if press == ui::KeyPress::new(ui::KeyCode::ArrowLeft) {
+        ui::ShortcutResolution::action(GuiMessage::CollapseSelectedFolder)
+    } else if press == ui::KeyPress::new(ui::KeyCode::ArrowRight) {
+        ui::ShortcutResolution::action(GuiMessage::ExpandSelectedFolder)
+    } else {
+        ui::ShortcutResolution::unhandled()
+    }
+}
+
+fn top_status_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
     ui::row([
-        ui::text("Wavecrate").height(20.0).width(120.0),
-        ui::text("Wavecrate GUI").height(20.0).fill_width(),
-        ui::text("ready").height(20.0).width(80.0),
+        volume_slider(state.volume),
+        ui::spacer().height(20.0).fill_width(),
+        audio_engine_pill(state.audio_engine_pill_label(), state.audio_settings_open),
     ])
     .spacing(8.0)
     .padding_x(12.0)
@@ -1279,7 +2331,262 @@ fn top_status_bar() -> ui::View<GuiMessage> {
     .height(30.0)
 }
 
-fn center_panel(state: &GuiAppState) -> ui::View<GuiMessage> {
+fn audio_engine_pill(label: String, active: bool) -> ui::View<GuiMessage> {
+    audio_engine_pill_with_id(label, active, AUDIO_ENGINE_PILL_ID, "top-audio-engine-pill")
+}
+
+fn audio_engine_pill_with_id(
+    label: String,
+    active: bool,
+    id: u64,
+    key: &'static str,
+) -> ui::View<GuiMessage> {
+    ui::custom_widget(AudioEnginePill::new(label, active), |output| {
+        output.typed_ref::<GuiMessage>().cloned()
+    })
+    .id(id)
+    .key(key)
+    .size(AUDIO_ENGINE_PILL_WIDTH, AUDIO_ENGINE_PILL_HEIGHT)
+}
+
+fn volume_slider(volume: f32) -> ui::View<GuiMessage> {
+    ui::custom_widget(VolumeSlider::new(volume), |output| {
+        output
+            .typed_ref::<VolumeSliderMessage>()
+            .copied()
+            .map(|message| GuiMessage::SetVolume(message.volume))
+    })
+    .id(VOLUME_SLIDER_ID)
+    .key("top-volume-slider")
+    .size(VOLUME_SLIDER_WIDTH, VOLUME_SLIDER_HEIGHT)
+}
+
+fn audio_settings_popover(state: &GuiAppState) -> ui::View<GuiMessage> {
+    let panel = ui::column(audio_settings_panel_rows(state))
+        .key("audio-settings-panel")
+        .style(ui::WidgetStyle {
+            tone: ui::WidgetTone::Neutral,
+            prominence: ui::WidgetProminence::Strong,
+        })
+        .spacing(7.0)
+        .padding(8.0)
+        .width(AUDIO_SETTINGS_POPUP_WIDTH)
+        .height(AUDIO_SETTINGS_POPUP_HEIGHT);
+    let centered_panel = ui::column(vec![
+        ui::spacer().fill_height(),
+        ui::row(vec![
+            ui::spacer().height(1.0).fill_width(),
+            panel,
+            ui::spacer().height(1.0).fill_width(),
+        ])
+        .fill_width()
+        .height(AUDIO_SETTINGS_POPUP_HEIGHT),
+        ui::spacer().fill_height(),
+    ])
+    .fill();
+    ui::stack(vec![
+        audio_settings_modal_blocker(),
+        centered_panel,
+        audio_settings_modal_pill(state.audio_engine_pill_label()),
+    ])
+    .fill()
+}
+
+fn audio_settings_modal_blocker() -> ui::View<GuiMessage> {
+    ui::custom_widget(AudioSettingsModalBlocker::new(), |_| None)
+        .id(AUDIO_SETTINGS_MODAL_BLOCKER_ID)
+        .key("audio-settings-modal-blocker")
+        .fill()
+}
+
+fn audio_settings_modal_pill(label: String) -> ui::View<GuiMessage> {
+    ui::row(vec![
+        ui::spacer().height(1.0).fill_width(),
+        audio_engine_pill_with_id(
+            label,
+            true,
+            AUDIO_SETTINGS_MODAL_PILL_ID,
+            "audio-settings-modal-pill",
+        ),
+    ])
+    .spacing(8.0)
+    .padding_x(12.0)
+    .padding_y(4.0)
+    .fill_width()
+    .height(30.0)
+}
+
+fn audio_settings_panel_rows(state: &GuiAppState) -> Vec<ui::View<GuiMessage>> {
+    let mut rows = vec![
+        ui::row(vec![
+            ui::text("Audio Engine").height(20.0).fill_width(),
+            ui::button("x")
+                .subtle()
+                .message(GuiMessage::CloseAudioSettings)
+                .width(24.0)
+                .height(20.0),
+        ])
+        .fill_width()
+        .height(22.0),
+        ui::text(state.audio_engine_detail_label())
+            .key("audio-settings-detail")
+            .fill_width()
+            .height(20.0)
+            .truncate(),
+    ];
+    if let Some(error) = state.audio_settings_error.as_ref() {
+        rows.push(
+            ui::text(error.clone())
+                .key("audio-settings-error")
+                .style(ui::WidgetStyle {
+                    tone: ui::WidgetTone::Danger,
+                    prominence: ui::WidgetProminence::Subtle,
+                })
+                .fill_width()
+                .height(20.0)
+                .truncate(),
+        );
+    }
+    rows.push(audio_settings_section(
+        "Backend",
+        audio_host_option_buttons(state),
+        2,
+    ));
+    rows.push(audio_settings_section(
+        "Output",
+        audio_device_option_buttons(state),
+        2,
+    ));
+    rows.push(audio_settings_section(
+        "Sample Rate",
+        audio_sample_rate_option_buttons(state),
+        4,
+    ));
+    rows
+}
+
+fn audio_settings_section(
+    label: &'static str,
+    options: Vec<ui::View<GuiMessage>>,
+    columns: usize,
+) -> ui::View<GuiMessage> {
+    let grid_height = audio_option_grid_height(options.len(), columns);
+    let mut rows = vec![
+        ui::text(label)
+            .style(ui::WidgetStyle {
+                tone: ui::WidgetTone::Accent,
+                prominence: ui::WidgetProminence::Subtle,
+            })
+            .fill_width()
+            .height(18.0),
+    ];
+    if options.is_empty() {
+        rows.push(ui::text("Unavailable").fill_width().height(20.0));
+    } else {
+        rows.push(
+            ui::grid(options, columns.max(1))
+                .fill_width()
+                .height(grid_height),
+        );
+    }
+    ui::column(rows)
+        .spacing(3.0)
+        .fill_width()
+        .height(21.0 + grid_height)
+}
+
+fn audio_host_option_buttons(state: &GuiAppState) -> Vec<ui::View<GuiMessage>> {
+    let mut buttons = vec![audio_option_button(
+        "System default".to_string(),
+        state.audio_output_config.host.is_none(),
+        GuiMessage::SetAudioOutputHost(None),
+    )];
+    buttons.extend(state.audio_hosts.iter().map(|host| {
+        audio_option_button(
+            default_option_label(host.label.as_str(), host.is_default),
+            state.audio_output_config.host.as_deref() == Some(host.id.as_str()),
+            GuiMessage::SetAudioOutputHost(Some(host.id.clone())),
+        )
+    }));
+    buttons
+}
+
+fn audio_device_option_buttons(state: &GuiAppState) -> Vec<ui::View<GuiMessage>> {
+    let mut buttons = vec![audio_option_button(
+        "Host default".to_string(),
+        state.audio_output_config.device.is_none(),
+        GuiMessage::SetAudioOutputDevice(None),
+    )];
+    buttons.extend(state.audio_devices.iter().map(|device| {
+        audio_option_button(
+            default_option_label(device.name.as_str(), device.is_default),
+            state.audio_output_config.device.as_deref() == Some(device.name.as_str()),
+            GuiMessage::SetAudioOutputDevice(Some(device.name.clone())),
+        )
+    }));
+    buttons
+}
+
+fn audio_sample_rate_option_buttons(state: &GuiAppState) -> Vec<ui::View<GuiMessage>> {
+    let mut buttons = vec![audio_option_button(
+        "Device default".to_string(),
+        state.audio_output_config.sample_rate.is_none(),
+        GuiMessage::SetAudioOutputSampleRate(None),
+    )];
+    buttons.extend(state.audio_sample_rates.iter().copied().map(|rate| {
+        audio_option_button(
+            format_sample_rate_label(rate),
+            state.audio_output_config.sample_rate == Some(rate),
+            GuiMessage::SetAudioOutputSampleRate(Some(rate)),
+        )
+    }));
+    buttons
+}
+
+fn audio_option_button(label: String, selected: bool, message: GuiMessage) -> ui::View<GuiMessage> {
+    ui::button(label)
+        .style(ui::WidgetStyle {
+            tone: if selected {
+                ui::WidgetTone::Accent
+            } else {
+                ui::WidgetTone::Neutral
+            },
+            prominence: if selected {
+                ui::WidgetProminence::Strong
+            } else {
+                ui::WidgetProminence::Subtle
+            },
+        })
+        .message(message)
+        .fill_width()
+        .height(20.0)
+}
+
+fn default_option_label(label: &str, is_default: bool) -> String {
+    if is_default {
+        format!("{label} (default)")
+    } else {
+        label.to_string()
+    }
+}
+
+fn audio_option_grid_height(option_count: usize, columns: usize) -> f32 {
+    let columns = columns.max(1);
+    let rows = option_count.max(1).div_ceil(columns);
+    rows as f32 * 20.0 + rows.saturating_sub(1) as f32 * 4.0
+}
+
+fn format_sample_rate_label(sample_rate: u32) -> String {
+    if sample_rate >= 1000 && sample_rate.is_multiple_of(1000) {
+        format!("{} kHz", sample_rate / 1000)
+    } else if sample_rate >= 1000 {
+        format!("{:.1} kHz", sample_rate as f32 / 1000.0)
+    } else {
+        format!("{sample_rate} Hz")
+    }
+}
+
+fn center_panel(state: &mut GuiAppState) -> ui::View<GuiMessage> {
     ui::row([folder_sidebar(state), folder_splitter(), main_area(state)])
         .padding(6.0)
         .fill()
@@ -1310,7 +2617,7 @@ fn folder_splitter() -> ui::View<GuiMessage> {
     .spacing(4.0)
 }
 
-fn main_area(state: &GuiAppState) -> ui::View<GuiMessage> {
+fn main_area(state: &mut GuiAppState) -> ui::View<GuiMessage> {
     ui::column([
         main_toolbar(state),
         waveform_panel(state),
@@ -1381,6 +2688,7 @@ impl ToolbarIconButton {
         let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(28.0, 24.0)));
         common.focus = FocusBehavior::Keyboard;
         common.paint.bounds = PaintBounds::ClipToRect;
+        common.paint.paints_focus = false;
         common.state.disabled = !enabled;
         common.state.active = active;
         Self { common, icon }
@@ -1409,6 +2717,7 @@ impl Widget for ToolbarIconButton {
             WidgetInput::PointerPress {
                 position,
                 button: PointerButton::Primary,
+                ..
             } if bounds.contains(position) => {
                 self.common.state.hovered = true;
                 self.common.state.pressed = true;
@@ -1418,6 +2727,7 @@ impl Widget for ToolbarIconButton {
             WidgetInput::PointerRelease {
                 position,
                 button: PointerButton::Primary,
+                ..
             } => {
                 let activated = self.common.state.pressed && bounds.contains(position);
                 self.common.state.pressed = false;
@@ -1452,33 +2762,6 @@ impl Widget for ToolbarIconButton {
         _layout: &LayoutOutput,
         theme: &ThemeTokens,
     ) {
-        let tokens = radiant::widgets::resolve_widget_visual_tokens(
-            theme,
-            self.common.style,
-            self.common.state,
-        );
-        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-            widget_id: self.common.id,
-            rect: bounds,
-            color: tokens.fill,
-        }));
-        primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
-            widget_id: self.common.id,
-            rect: bounds,
-            color: tokens.border,
-            width: 1.0,
-        }));
-        if self.common.state.focused && self.common.paint.paints_focus {
-            primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
-                widget_id: self.common.id,
-                rect: Rect::from_min_max(
-                    Point::new(bounds.min.x - 1.0, bounds.min.y - 1.0),
-                    Point::new(bounds.max.x + 1.0, bounds.max.y + 1.0),
-                ),
-                color: tokens.emphasis,
-                width: 1.0,
-            }));
-        }
         let side = bounds.width().min(bounds.height()).min(16.0).max(8.0);
         let icon_rect = Rect::from_min_size(
             Point::new(
@@ -1490,7 +2773,7 @@ impl Widget for ToolbarIconButton {
         if let Some(image) = rasterize_toolbar_icon(
             self.icon,
             side.round() as usize,
-            toolbar_icon_color(tokens.foreground, self.common.state.disabled),
+            toolbar_icon_color(theme, self.common.state.disabled, self.common.state.active),
         ) {
             primitives.push(PaintPrimitive::Image(PaintImage {
                 widget_id: self.common.id,
@@ -1510,7 +2793,377 @@ fn toolbar_button_message(icon: ToolbarIcon) -> GuiMessage {
     }
 }
 
-fn toolbar_icon_color(mut color: Rgba8, disabled: bool) -> Rgba8 {
+#[derive(Clone, Debug)]
+struct AudioEnginePill {
+    common: WidgetCommon,
+    label: String,
+}
+
+impl AudioEnginePill {
+    fn new(label: String, active: bool) -> Self {
+        let mut common = WidgetCommon::new(
+            0,
+            WidgetSizing::fixed(Vector2::new(
+                AUDIO_ENGINE_PILL_WIDTH,
+                AUDIO_ENGINE_PILL_HEIGHT,
+            )),
+        );
+        common.focus = FocusBehavior::Keyboard;
+        common.paint.bounds = PaintBounds::ClipToRect;
+        common.paint.paints_state_layers = false;
+        common.state.active = active;
+        Self { common, label }
+    }
+}
+
+impl Widget for AudioEnginePill {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        match input {
+            WidgetInput::PointerMove { position } => {
+                self.common.state.hovered = bounds.contains(position);
+                None
+            }
+            WidgetInput::PointerPress {
+                position,
+                button: PointerButton::Primary,
+                ..
+            } if bounds.contains(position) => {
+                self.common.state.hovered = true;
+                self.common.state.pressed = true;
+                self.common.state.focused = true;
+                None
+            }
+            WidgetInput::PointerRelease {
+                position,
+                button: PointerButton::Primary,
+                ..
+            } => {
+                let activated = self.common.state.pressed && bounds.contains(position);
+                self.common.state.pressed = false;
+                self.common.state.hovered = bounds.contains(position);
+                activated.then(|| WidgetOutput::typed(GuiMessage::ToggleAudioSettings))
+            }
+            WidgetInput::FocusChanged(focused) => {
+                self.common.state.focused = focused;
+                if !focused {
+                    self.common.state.pressed = false;
+                }
+                None
+            }
+            WidgetInput::KeyPress(key) if self.common.state.focused => match key {
+                radiant::widgets::WidgetKey::Enter | radiant::widgets::WidgetKey::Space => {
+                    Some(WidgetOutput::typed(GuiMessage::ToggleAudioSettings))
+                }
+                _ => None,
+            },
+            _ => {
+                if matches!(input, WidgetInput::PointerRelease { .. }) {
+                    self.common.state.pressed = false;
+                }
+                None
+            }
+        }
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        true
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+        let hovered_or_pressed = self.common.state.hovered || self.common.state.pressed;
+        let fill = if self.common.state.active {
+            Rgba8 {
+                r: 50,
+                g: 54,
+                b: 56,
+                a: 245,
+            }
+        } else if hovered_or_pressed {
+            Rgba8 {
+                r: 42,
+                g: 43,
+                b: 44,
+                a: 245,
+            }
+        } else {
+            Rgba8 {
+                r: 31,
+                g: 32,
+                b: 33,
+                a: 235,
+            }
+        };
+        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: self.common.id,
+            rect: bounds,
+            color: fill,
+        }));
+        primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
+            widget_id: self.common.id,
+            rect: Rect::from_min_max(
+                Point::new(bounds.min.x + 0.5, bounds.min.y + 0.5),
+                Point::new(bounds.max.x - 0.5, bounds.max.y - 0.5),
+            ),
+            color: Rgba8 {
+                r: 78,
+                g: 79,
+                b: 80,
+                a: if hovered_or_pressed { 230 } else { 165 },
+            },
+            width: 1.0,
+        }));
+        if self.common.state.focused {
+            primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
+                widget_id: self.common.id,
+                rect: Rect::from_min_max(
+                    Point::new(bounds.min.x - 1.0, bounds.min.y - 1.0),
+                    Point::new(bounds.max.x + 1.0, bounds.max.y + 1.0),
+                ),
+                color: Rgba8 {
+                    r: 255,
+                    g: 112,
+                    b: 86,
+                    a: 190,
+                },
+                width: 1.0,
+            }));
+        }
+        let font_size = 9.0;
+        let text_rect = Rect::from_min_max(
+            Point::new(bounds.min.x + 5.0, bounds.min.y),
+            Point::new(bounds.max.x - 5.0, bounds.max.y),
+        );
+        primitives.push(PaintPrimitive::Text(PaintTextRun {
+            widget_id: self.common.id,
+            text: PaintText::from(self.label.as_str()),
+            rect: text_rect,
+            font_size,
+            baseline: Some(((text_rect.height() - font_size) * 0.5 + font_size * 0.78).round()),
+            color: Rgba8 {
+                r: 183,
+                g: 184,
+                b: 184,
+                a: 235,
+            },
+            align: PaintTextAlign::Center,
+            wrap: TextWrap::None,
+        }));
+    }
+}
+
+#[derive(Clone, Debug)]
+struct AudioSettingsModalBlocker {
+    common: WidgetCommon,
+}
+
+impl AudioSettingsModalBlocker {
+    fn new() -> Self {
+        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 1.0)));
+        common.focus = FocusBehavior::Pointer;
+        common.paint.paints_focus = false;
+        common.paint.paints_state_layers = false;
+        Self { common }
+    }
+}
+
+impl Widget for AudioSettingsModalBlocker {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+        None
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        false
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct VolumeSliderMessage {
+    volume: f32,
+}
+
+#[derive(Clone, Debug)]
+struct VolumeSlider {
+    common: WidgetCommon,
+    volume: f32,
+}
+
+impl VolumeSlider {
+    fn new(volume: f32) -> Self {
+        let mut common = WidgetCommon::new(
+            0,
+            WidgetSizing::fixed(Vector2::new(VOLUME_SLIDER_WIDTH, VOLUME_SLIDER_HEIGHT)),
+        );
+        common.focus = FocusBehavior::None;
+        common.paint.bounds = PaintBounds::ClipToRect;
+        common.paint.paints_focus = false;
+        common.paint.paints_state_layers = false;
+        Self {
+            common,
+            volume: volume.clamp(0.0, 1.0),
+        }
+    }
+}
+
+impl Widget for VolumeSlider {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        match input {
+            WidgetInput::PointerMove { position } => {
+                self.common.state.hovered = bounds.contains(position);
+                if self.common.state.pressed {
+                    self.volume = volume_from_point(bounds, position);
+                    return Some(WidgetOutput::typed(VolumeSliderMessage {
+                        volume: self.volume,
+                    }));
+                }
+                None
+            }
+            WidgetInput::PointerPress {
+                position,
+                button: PointerButton::Primary,
+                ..
+            } if bounds.contains(position) => {
+                self.common.state.hovered = true;
+                self.common.state.pressed = true;
+                self.volume = volume_from_point(bounds, position);
+                Some(WidgetOutput::typed(VolumeSliderMessage {
+                    volume: self.volume,
+                }))
+            }
+            WidgetInput::PointerRelease {
+                position,
+                button: PointerButton::Primary,
+                ..
+            } => {
+                let was_pressed = self.common.state.pressed;
+                self.common.state.pressed = false;
+                self.common.state.hovered = bounds.contains(position);
+                if was_pressed {
+                    self.volume = volume_from_point(bounds, position);
+                    return Some(WidgetOutput::typed(VolumeSliderMessage {
+                        volume: self.volume,
+                    }));
+                }
+                None
+            }
+            _ => {
+                if matches!(input, WidgetInput::PointerRelease { .. }) {
+                    self.common.state.pressed = false;
+                }
+                None
+            }
+        }
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        true
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+        let track_rect = Rect::from_min_max(
+            Point::new(bounds.min.x, bounds.min.y + (bounds.height() - 6.0) * 0.5),
+            Point::new(bounds.max.x, bounds.min.y + (bounds.height() + 6.0) * 0.5),
+        );
+        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: self.common.id,
+            rect: track_rect,
+            color: Rgba8 {
+                r: 44,
+                g: 44,
+                b: 44,
+                a: 230,
+            },
+        }));
+        let fill_width = (track_rect.width() * self.volume).clamp(
+            if self.volume > 0.0 { 1.0 } else { 0.0 },
+            track_rect.width(),
+        );
+        if fill_width > 0.0 {
+            primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+                widget_id: self.common.id,
+                rect: Rect::from_min_max(
+                    track_rect.min,
+                    Point::new(track_rect.min.x + fill_width, track_rect.max.y),
+                ),
+                color: Rgba8 {
+                    r: 255,
+                    g: 100,
+                    b: 76,
+                    a: 205,
+                },
+            }));
+        }
+        primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
+            widget_id: self.common.id,
+            rect: Rect::from_min_max(
+                Point::new(track_rect.min.x + 0.5, track_rect.min.y + 0.5),
+                Point::new(track_rect.max.x - 0.5, track_rect.max.y - 0.5),
+            ),
+            color: Rgba8 {
+                r: 98,
+                g: 98,
+                b: 98,
+                a: if self.common.state.hovered { 230 } else { 170 },
+            },
+            width: 1.0,
+        }));
+    }
+}
+
+fn volume_from_point(bounds: Rect, position: Point) -> f32 {
+    ((position.x - bounds.min.x) / bounds.width().max(1.0)).clamp(0.0, 1.0)
+}
+
+fn toolbar_icon_color(theme: &ThemeTokens, disabled: bool, active: bool) -> Rgba8 {
+    let mut color = if active {
+        theme.highlight_orange
+    } else {
+        theme.text_primary
+    };
     if disabled {
         color.a = (u16::from(color.a) / 2) as u8;
     }
@@ -1628,7 +3281,7 @@ fn waveform_scrollbar(waveform: &WaveformState) -> ui::View<GuiMessage> {
     .height(6.0)
 }
 
-fn sample_browser(state: &GuiAppState) -> ui::View<GuiMessage> {
+fn sample_browser(state: &mut GuiAppState) -> ui::View<GuiMessage> {
     let audio_files = state.folder_browser.selected_audio_files();
     let audio_count = audio_files.len();
     let columns = state.folder_browser.visible_file_columns();
@@ -1698,23 +3351,19 @@ fn sample_browser_rows(
             .fill_height();
     }
 
-    ui::scroll(
-        ui::column(
-            files
-                .iter()
-                .map(|file| {
-                    sample_browser_row(
-                        file,
-                        folder_browser.selected_file_id() == Some(file.id.as_str()),
-                        folder_browser.file_rename_view(&file.id),
-                        columns,
-                    )
-                })
-                .collect::<Vec<_>>(),
-        )
-        .spacing(1.0)
-        .fill_width(),
+    ui::virtual_list(
+        files.iter().copied(),
+        |file| {
+            sample_browser_row(
+                file,
+                folder_browser.is_file_selected(&file.id),
+                folder_browser.file_rename_view(&file.id),
+                columns,
+            )
+        },
+        SAMPLE_BROWSER_ROW_HEIGHT * SAMPLE_BROWSER_OVERSCAN_ROWS as f32,
     )
+    .id(SAMPLE_BROWSER_LIST_ID)
     .fill()
 }
 
@@ -1725,12 +3374,25 @@ fn sample_browser_row(
     columns: &[&FileColumn],
 ) -> ui::View<GuiMessage> {
     let hit_path = file.id.clone();
-    let hit_target = ui::custom_widget_mapped(SampleFileHitTarget::new(), move |()| {
-        GuiMessage::SelectSample(hit_path.clone())
-    })
-    .key(format!("sample-row-hit-{}", file.id))
-    .fill_width()
-    .height(22.0);
+    let hit_target =
+        ui::custom_widget_mapped(
+            SampleFileHitTarget::new(selected),
+            move |message| match message {
+                SampleFileHitMessage::Activate(modifiers) => {
+                    GuiMessage::SelectSampleWithModifiers {
+                        path: hit_path.clone(),
+                        modifiers,
+                    }
+                }
+                SampleFileHitMessage::Drag(drag) => GuiMessage::DragSampleFile {
+                    path: hit_path.clone(),
+                    drag,
+                },
+            },
+        )
+        .key(format!("sample-row-hit-{}", file.id))
+        .fill_width()
+        .height(22.0);
     let row = ui::stack([
         hit_target,
         compact_details_row(
@@ -1741,16 +3403,8 @@ fn sample_browser_row(
     ])
     .key(format!("sample-row-{}", file.id))
     .fill_width()
-    .height(22.0)
-    .hoverable();
-    if selected {
-        row.style(ui::WidgetStyle {
-            tone: ui::WidgetTone::Accent,
-            prominence: ui::WidgetProminence::Subtle,
-        })
-    } else {
-        row
-    }
+    .height(22.0);
+    row.style(ui::WidgetStyle::default())
 }
 
 fn sample_name_cell(
@@ -1861,11 +3515,18 @@ fn sample_browser_status(audio_count: usize) -> ui::View<GuiMessage> {
 #[derive(Clone, Debug)]
 struct SampleFileHitTarget {
     common: WidgetCommon,
-    pressed: bool,
+    selected: bool,
+    dragged: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum SampleFileHitMessage {
+    Activate(PointerModifiers),
+    Drag(DragHandleMessage),
 }
 
 impl SampleFileHitTarget {
-    fn new() -> Self {
+    fn new(selected: bool) -> Self {
         let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 22.0)));
         common.focus = FocusBehavior::None;
         common.paint.bounds = PaintBounds::ClipToRect;
@@ -1873,7 +3534,8 @@ impl SampleFileHitTarget {
         common.paint.paints_state_layers = false;
         Self {
             common,
-            pressed: false,
+            selected,
+            dragged: false,
         }
     }
 }
@@ -1889,32 +3551,115 @@ impl Widget for SampleFileHitTarget {
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
         match input {
+            WidgetInput::PointerMove { position } => {
+                self.common.state.hovered = bounds.contains(position);
+                if self.common.state.pressed {
+                    let message = if self.dragged {
+                        DragHandleMessage::Moved { position }
+                    } else {
+                        self.dragged = true;
+                        DragHandleMessage::Started { position }
+                    };
+                    return Some(WidgetOutput::typed(SampleFileHitMessage::Drag(message)));
+                }
+                None
+            }
             WidgetInput::PointerPress {
                 position,
                 button: PointerButton::Primary,
+                ..
             } if bounds.contains(position) => {
-                self.pressed = true;
+                self.common.state.hovered = true;
+                self.common.state.pressed = true;
+                self.dragged = false;
                 None
             }
             WidgetInput::PointerRelease {
                 position,
                 button: PointerButton::Primary,
+                modifiers,
             } => {
-                let activated = self.pressed && bounds.contains(position);
-                self.pressed = false;
-                activated.then(|| WidgetOutput::typed(()))
+                let activated =
+                    self.common.state.pressed && !self.dragged && bounds.contains(position);
+                let dragged = self.common.state.pressed && self.dragged;
+                self.common.state.pressed = false;
+                self.common.state.hovered = bounds.contains(position);
+                self.dragged = false;
+                if dragged {
+                    return Some(WidgetOutput::typed(SampleFileHitMessage::Drag(
+                        DragHandleMessage::Ended { position },
+                    )));
+                }
+                activated.then(|| WidgetOutput::typed(SampleFileHitMessage::Activate(modifiers)))
             }
-            _ => None,
+            _ => {
+                if matches!(input, WidgetInput::PointerRelease { .. }) {
+                    self.common.state.pressed = false;
+                    self.dragged = false;
+                }
+                None
+            }
         }
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        true
     }
 
     fn append_paint(
         &self,
-        _primitives: &mut Vec<PaintPrimitive>,
-        _bounds: Rect,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
         _layout: &LayoutOutput,
         _theme: &ThemeTokens,
     ) {
+        if self.selected {
+            primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+                widget_id: self.common.id,
+                rect: bounds,
+                color: Rgba8 {
+                    r: 255,
+                    g: 82,
+                    b: 62,
+                    a: 120,
+                },
+            }));
+        }
+
+        if self.common.state.pressed || self.common.state.hovered {
+            let alpha = if self.common.state.pressed { 170 } else { 155 };
+            primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+                widget_id: self.common.id,
+                rect: bounds,
+                color: Rgba8 {
+                    r: 255,
+                    g: 108,
+                    b: 88,
+                    a: alpha,
+                },
+            }));
+        }
+
+        if !self.selected {
+            return;
+        }
+        let marker_height = (bounds.height() - 8.0).max(8.0).min(bounds.height());
+        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: self.common.id,
+            rect: Rect::from_min_size(
+                Point::new(
+                    bounds.min.x + 1.0,
+                    bounds.min.y + (bounds.height() - marker_height) * 0.5,
+                ),
+                Vector2::new(3.0, marker_height),
+            ),
+            color: Rgba8 {
+                r: 255,
+                g: 82,
+                b: 62,
+                a: 245,
+            },
+        }));
     }
 }
 
@@ -2008,9 +3753,35 @@ fn confirm_folder_delete(target: &folder_browser::FolderDeleteTargetView) -> boo
     )
 }
 
+fn confirm_file_delete(target: &folder_browser::FileDeleteTargetView) -> bool {
+    if cfg!(test) {
+        return true;
+    }
+    let message = if target.paths.len() == 1 {
+        format!(
+            "Delete {}?\n\nThis cannot be undone from the default GUI.",
+            target.label()
+        )
+    } else {
+        format!(
+            "Delete {} selected files?\n\nThis cannot be undone from the default GUI.",
+            target.paths.len()
+        )
+    };
+    matches!(
+        MessageDialog::new()
+            .set_title("Delete file")
+            .set_description(message)
+            .set_level(MessageLevel::Warning)
+            .set_buttons(MessageButtons::YesNo)
+            .show(),
+        MessageDialogResult::Yes
+    )
+}
+
 #[cfg(test)]
 mod tests {
-    use super::waveform::WaveformSelectionKind;
+    use super::waveform::{WaveformSelectionEdge, WaveformSelectionKind};
     use super::{
         DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG, DEFAULT_FOLDER_WIDTH, GuiAppState,
         MAX_FOLDER_WIDTH, MIN_FOLDER_WIDTH, WaveformInteraction, debug_layout_requested,
@@ -2018,10 +3789,14 @@ mod tests {
     use radiant::{
         gui::types::{Point, Rect, Vector2},
         prelude::{self as ui, IntoView},
-        runtime::PaintPrimitive,
-        widgets::{DragHandleMessage, PointerButton, Widget, WidgetInput},
+        runtime::{PaintPrimitive, RuntimeBridge, SurfaceRuntime, UiSurface},
+        widgets::{DragHandleMessage, PointerButton, PointerModifiers, Widget, WidgetInput},
     };
-    use std::{ffi::OsString, sync::mpsc};
+    use std::{
+        ffi::OsString,
+        fs,
+        sync::{Arc, Mutex, mpsc},
+    };
 
     fn selected_asset_file_path(browser: &super::FolderBrowserState, name: &str) -> String {
         browser
@@ -2031,6 +3806,59 @@ mod tests {
             .unwrap_or_else(|| panic!("expected bundled asset {name} to be visible"))
             .id
             .clone()
+    }
+
+    fn gui_state_for_span_tests() -> GuiAppState {
+        GuiAppState {
+            folder_width: DEFAULT_FOLDER_WIDTH,
+            folder_resize: None,
+            folder_browser: super::FolderBrowserState::load_default(),
+            waveform: super::WaveformState::synthetic_for_tests(),
+            sample_status: String::new(),
+            worker_sender: mpsc::channel().0,
+            worker_receiver: None,
+            next_task_id: 1,
+            next_sample_task_id: 1,
+            pending_sample_task_id: None,
+            folder_progress: None,
+            progress_tick: 0.0,
+            audio_player: None,
+            loop_playback: false,
+            volume: super::DEFAULT_VOLUME,
+            audio_output_config: super::AudioOutputConfig::default(),
+            audio_output_resolved: None,
+            audio_hosts: Vec::new(),
+            audio_devices: Vec::new(),
+            audio_sample_rates: Vec::new(),
+            audio_settings_open: false,
+            audio_settings_error: None,
+            current_playback_span: None,
+        }
+    }
+
+    struct StaticSurfaceBridge {
+        surface: Arc<UiSurface<super::GuiMessage>>,
+    }
+
+    impl RuntimeBridge<super::GuiMessage> for StaticSurfaceBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<super::GuiMessage>> {
+            Arc::clone(&self.surface)
+        }
+    }
+
+    struct CapturingSurfaceBridge {
+        surface: Arc<UiSurface<super::GuiMessage>>,
+        messages: Arc<Mutex<Vec<super::GuiMessage>>>,
+    }
+
+    impl RuntimeBridge<super::GuiMessage> for CapturingSurfaceBridge {
+        fn project_surface(&mut self) -> Arc<UiSurface<super::GuiMessage>> {
+            Arc::clone(&self.surface)
+        }
+
+        fn reduce_message(&mut self, message: super::GuiMessage) {
+            self.messages.lock().expect("message capture").push(message);
+        }
     }
 
     #[test]
@@ -2058,6 +3886,59 @@ mod tests {
     }
 
     #[test]
+    fn escape_shortcut_routes_to_stop_playback() {
+        let state = GuiAppState::load_default().expect("default state loads");
+        let resolution =
+            super::default_gui_shortcut_resolution(&state, ui::KeyPress::new(ui::KeyCode::Escape));
+
+        assert_eq!(resolution.action, Some(super::GuiMessage::StopPlayback));
+        assert!(resolution.handled);
+    }
+
+    #[test]
+    fn escape_shortcut_is_shielded_while_renaming() {
+        let mut state = GuiAppState::load_default().expect("default state loads");
+        let sample_path = selected_asset_file_path(&state.folder_browser, "portal_SS_kick_003.wav");
+        state.folder_browser.select_file(sample_path);
+        state
+            .folder_browser
+            .begin_rename_selected()
+            .expect("begin rename should not fail");
+
+        let resolution =
+            super::default_gui_shortcut_resolution(&state, ui::KeyPress::new(ui::KeyCode::Escape));
+
+        assert_eq!(resolution, ui::ShortcutResolution::unhandled());
+    }
+
+    #[test]
+    fn audio_settings_escape_shortcut_closes_modal() {
+        let mut state = GuiAppState::load_default().expect("default state loads");
+        state.audio_settings_open = true;
+
+        let resolution =
+            super::default_gui_shortcut_resolution(&state, ui::KeyPress::new(ui::KeyCode::Escape));
+
+        assert_eq!(
+            resolution.action,
+            Some(super::GuiMessage::CloseAudioSettings)
+        );
+        assert!(resolution.handled);
+    }
+
+    #[test]
+    fn audio_settings_modal_blocks_background_shortcuts() {
+        let mut state = GuiAppState::load_default().expect("default state loads");
+        state.audio_settings_open = true;
+
+        let resolution =
+            super::default_gui_shortcut_resolution(&state, ui::KeyPress::new(ui::KeyCode::N));
+
+        assert_eq!(resolution.action, None);
+        assert!(resolution.handled);
+    }
+
+    #[test]
     fn folder_browser_splitter_resizes_and_clamps_width() {
         let mut state = GuiAppState {
             folder_width: DEFAULT_FOLDER_WIDTH,
@@ -2074,6 +3955,14 @@ mod tests {
             progress_tick: 0.0,
             audio_player: None,
             loop_playback: false,
+            volume: super::DEFAULT_VOLUME,
+            audio_output_config: super::AudioOutputConfig::default(),
+            audio_output_resolved: None,
+            audio_hosts: Vec::new(),
+            audio_devices: Vec::new(),
+            audio_sample_rates: Vec::new(),
+            audio_settings_open: false,
+            audio_settings_error: None,
             current_playback_span: None,
         };
         state.resize_folder_browser(DragHandleMessage::Started {
@@ -2105,6 +3994,77 @@ mod tests {
     }
 
     #[test]
+    fn looped_waveform_click_resolves_to_full_sample_without_playmark() {
+        let mut state = gui_state_for_span_tests();
+        state.loop_playback = true;
+
+        let span = state.resolve_playback_span(0.45, 1.0, None);
+
+        assert_eq!(span.start_ratio, 0.0);
+        assert_eq!(span.end_ratio, 1.0);
+        assert_eq!(span.offset_ratio, 0.45);
+    }
+
+    #[test]
+    fn looped_waveform_click_resolves_to_playmark_span_when_selected() {
+        let mut state = gui_state_for_span_tests();
+        state.loop_playback = true;
+        state
+            .waveform
+            .apply_interaction(WaveformInteraction::BeginSelection {
+                kind: WaveformSelectionKind::Play,
+                visible_ratio: 0.25,
+            });
+        state
+            .waveform
+            .apply_interaction(WaveformInteraction::UpdateSelection {
+                visible_ratio: 0.60,
+            });
+        state
+            .waveform
+            .apply_interaction(WaveformInteraction::FinishSelection {
+                visible_ratio: 0.60,
+            });
+
+        let inside_span = state.resolve_playback_span(0.45, 1.0, None);
+        assert_eq!(inside_span.start_ratio, 0.25);
+        assert_eq!(inside_span.end_ratio, 0.60);
+        assert_eq!(inside_span.offset_ratio, 0.45);
+
+        let outside_span = state.resolve_playback_span(0.85, 1.0, None);
+        assert_eq!(outside_span.start_ratio, 0.25);
+        assert_eq!(outside_span.end_ratio, 0.60);
+        assert_eq!(outside_span.offset_ratio, 0.25);
+    }
+
+    #[test]
+    fn normalize_wav_file_in_place_scales_loaded_sample_peak() {
+        let root = std::env::temp_dir().join(format!(
+            "wavecrate-default-gui-normalize-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).expect("create temp root");
+        let path = root.join("quiet.wav");
+        write_test_wav_i16(&path, &[0, 1024, -2048, 4096]);
+
+        super::normalize_wav_file_in_place(&path).expect("normalize wav");
+
+        let samples = read_test_wav_f32(&path);
+        let peak = samples
+            .iter()
+            .copied()
+            .map(f32::abs)
+            .fold(0.0_f32, f32::max);
+        assert!((peak - 1.0).abs() < 0.000_001, "peak was {peak}");
+        assert!(samples.iter().all(|sample| sample.is_finite()));
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn sample_selection_loads_selected_file_into_waveform() {
         let mut state = GuiAppState {
             folder_width: DEFAULT_FOLDER_WIDTH,
@@ -2121,13 +4081,24 @@ mod tests {
             progress_tick: 0.0,
             audio_player: None,
             loop_playback: false,
+            volume: super::DEFAULT_VOLUME,
+            audio_output_config: super::AudioOutputConfig::default(),
+            audio_output_resolved: None,
+            audio_hosts: Vec::new(),
+            audio_devices: Vec::new(),
+            audio_sample_rates: Vec::new(),
+            audio_settings_open: false,
+            audio_settings_error: None,
             current_playback_span: None,
         };
         let sample_path = selected_asset_file_path(&state.folder_browser, "portal_SS_kick_003.wav");
 
         let mut context = ui::UpdateContext::default();
         state.apply_message(
-            super::GuiMessage::SelectSample(sample_path.clone()),
+            super::GuiMessage::SelectSampleWithModifiers {
+                path: sample_path.clone(),
+                modifiers: Default::default(),
+            },
             &mut context,
         );
         let task_id = state.pending_sample_task_id.expect("sample load queued");
@@ -2201,6 +4172,103 @@ mod tests {
     }
 
     #[test]
+    fn looped_playback_retargets_when_playmark_selection_is_created_and_resized() {
+        let Ok(player) = wavecrate::audio::AudioPlayer::new() else {
+            return;
+        };
+        let mut state = gui_state_for_span_tests();
+        state.audio_player = Some(player);
+        let sample_path = selected_asset_file_path(&state.folder_browser, "portal_SS_kick_003.wav");
+        state.waveform =
+            super::WaveformState::load_path(sample_path.into()).expect("test sample loads");
+        state.loop_playback = true;
+        state
+            .start_playback_current_span(0.0, 1.0)
+            .expect("full sample loop starts");
+        assert_player_progress_inside_span(&state, 0.0, 1.0);
+
+        let mut context = ui::UpdateContext::default();
+        state.apply_message(
+            super::GuiMessage::Waveform(WaveformInteraction::BeginSelection {
+                kind: WaveformSelectionKind::Play,
+                visible_ratio: 0.25,
+            }),
+            &mut context,
+        );
+        state.apply_message(
+            super::GuiMessage::Waveform(WaveformInteraction::UpdateSelection {
+                visible_ratio: 0.60,
+            }),
+            &mut context,
+        );
+        state.apply_message(
+            super::GuiMessage::Waveform(WaveformInteraction::FinishSelection {
+                visible_ratio: 0.60,
+            }),
+            &mut context,
+        );
+
+        assert_playback_span_state(&state, 0.25, 0.60);
+        assert_player_progress_inside_span(&state, 0.25, 0.60);
+        assert!(
+            state
+                .audio_player
+                .as_ref()
+                .is_some_and(|player| player.is_looping())
+        );
+
+        state.apply_message(
+            super::GuiMessage::Waveform(WaveformInteraction::BeginSelectionResize {
+                kind: WaveformSelectionKind::Play,
+                edge: WaveformSelectionEdge::Start,
+                visible_ratio: 0.25,
+            }),
+            &mut context,
+        );
+        state.apply_message(
+            super::GuiMessage::Waveform(WaveformInteraction::UpdateSelection {
+                visible_ratio: 0.10,
+            }),
+            &mut context,
+        );
+        state.apply_message(
+            super::GuiMessage::Waveform(WaveformInteraction::FinishSelection {
+                visible_ratio: 0.10,
+            }),
+            &mut context,
+        );
+
+        assert_playback_span_state(&state, 0.10, 0.60);
+        assert_player_progress_inside_span(&state, 0.10, 0.60);
+    }
+
+    fn assert_playback_span_state(state: &GuiAppState, expected_start: f32, expected_end: f32) {
+        let (start, end) = state
+            .current_playback_span
+            .expect("current playback span should be set");
+        assert!(
+            (start - expected_start).abs() < 0.001,
+            "start {start}, expected {expected_start}"
+        );
+        assert!(
+            (end - expected_end).abs() < 0.001,
+            "end {end}, expected {expected_end}"
+        );
+    }
+
+    fn assert_player_progress_inside_span(state: &GuiAppState, start: f32, end: f32) {
+        let progress = state
+            .audio_player
+            .as_ref()
+            .and_then(|player| player.progress())
+            .expect("audio player progress should be available");
+        assert!(
+            progress >= start - 0.02 && progress <= end + 0.02,
+            "progress {progress}, expected inside {start}..={end}"
+        );
+    }
+
+    #[test]
     fn toolbar_icon_assets_parse_and_rasterize() {
         for icon in [
             super::ToolbarIcon::Loop,
@@ -2236,6 +4304,7 @@ mod tests {
                 WidgetInput::PointerPress {
                     position: Point::new(12.0, 12.0),
                     button: PointerButton::Primary,
+                    modifiers: Default::default(),
                 },
             ),
             None
@@ -2246,6 +4315,7 @@ mod tests {
                 WidgetInput::PointerRelease {
                     position: Point::new(12.0, 12.0),
                     button: PointerButton::Primary,
+                    modifiers: Default::default(),
                 },
             )
             .expect("button output");
@@ -2254,6 +4324,420 @@ mod tests {
             output.typed_ref::<super::GuiMessage>(),
             Some(&super::GuiMessage::ToggleLoopPlayback)
         );
+    }
+
+    #[test]
+    fn toolbar_icon_button_active_state_tints_icon_without_button_chrome() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(28.0, 24.0));
+        let theme = radiant::theme::ThemeTokens::default();
+        let active = super::ToolbarIconButton::new(super::ToolbarIcon::Loop, true, true);
+        let idle = super::ToolbarIconButton::new(super::ToolbarIcon::Loop, true, false);
+        let mut active_primitives = Vec::new();
+        let mut idle_primitives = Vec::new();
+
+        active.append_paint(&mut active_primitives, bounds, &Default::default(), &theme);
+        idle.append_paint(&mut idle_primitives, bounds, &Default::default(), &theme);
+
+        assert_no_button_chrome(&active_primitives);
+        assert_eq!(
+            first_visible_icon_rgb(&active_primitives),
+            toolbar_rgb(theme.highlight_orange)
+        );
+        assert_eq!(
+            first_visible_icon_rgb(&idle_primitives),
+            toolbar_rgb(theme.text_primary)
+        );
+    }
+
+    fn assert_no_button_chrome(primitives: &[PaintPrimitive]) {
+        assert!(
+            primitives.iter().all(|primitive| !matches!(
+                primitive,
+                PaintPrimitive::FillRect(_) | PaintPrimitive::StrokeRect(_)
+            )),
+            "toolbar icon buttons should not paint a fill or border"
+        );
+    }
+
+    fn first_visible_icon_rgb(primitives: &[PaintPrimitive]) -> (u8, u8, u8) {
+        primitives
+            .iter()
+            .find_map(|primitive| match primitive {
+                PaintPrimitive::Image(image) => image
+                    .image
+                    .pixels
+                    .chunks_exact(4)
+                    .find(|pixel| pixel[3] > 0)
+                    .map(|pixel| (pixel[0], pixel[1], pixel[2])),
+                _ => None,
+            })
+            .expect("toolbar icon paints visible pixels")
+    }
+
+    fn toolbar_rgb(color: super::Rgba8) -> (u8, u8, u8) {
+        (color.r, color.g, color.b)
+    }
+
+    fn write_test_wav_i16(path: &std::path::Path, samples: &[i16]) {
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate: 48_000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut writer = hound::WavWriter::create(path, spec).expect("create wav");
+        for sample in samples {
+            writer.write_sample(*sample).expect("write sample");
+        }
+        writer.finalize().expect("finalize wav");
+    }
+
+    fn read_test_wav_f32(path: &std::path::Path) -> Vec<f32> {
+        let mut reader = hound::WavReader::open(path).expect("open wav");
+        reader
+            .samples::<f32>()
+            .collect::<Result<Vec<_>, _>>()
+            .expect("read samples")
+    }
+
+    #[test]
+    fn sample_row_hit_target_survives_frame_refresh_between_press_and_release() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(160.0, 22.0));
+        let mut hit_target = super::SampleFileHitTarget::new(false);
+
+        assert_eq!(
+            hit_target.handle_input(
+                bounds,
+                WidgetInput::PointerPress {
+                    position: Point::new(24.0, 10.0),
+                    button: PointerButton::Primary,
+                    modifiers: Default::default(),
+                },
+            ),
+            None
+        );
+
+        let mut refreshed_hit_target = super::SampleFileHitTarget::new(false);
+        refreshed_hit_target.common_mut().state = hit_target.common().state;
+        let output = refreshed_hit_target
+            .handle_input(
+                bounds,
+                WidgetInput::PointerRelease {
+                    position: Point::new(24.0, 10.0),
+                    button: PointerButton::Primary,
+                    modifiers: PointerModifiers {
+                        command: true,
+                        shift: true,
+                        ..Default::default()
+                    },
+                },
+            )
+            .expect("sample row should activate after a frame refresh");
+
+        assert_eq!(
+            output.typed_ref::<super::SampleFileHitMessage>(),
+            Some(&super::SampleFileHitMessage::Activate(PointerModifiers {
+                command: true,
+                shift: true,
+                ..Default::default()
+            }))
+        );
+        assert!(!refreshed_hit_target.common().state.pressed);
+    }
+
+    #[test]
+    fn top_status_bar_replaces_text_labels_with_volume_slider_and_audio_pill() {
+        let mut state = GuiAppState::load_default().expect("default state loads");
+        state.audio_output_resolved = Some(super::ResolvedOutput {
+            host_id: String::from("wasapi"),
+            device_name: String::from("Studio"),
+            sample_rate: 48_000,
+            buffer_size_frames: None,
+            channel_count: 2,
+            used_fallback: false,
+        });
+        let frame = radiant::runtime::UiSurface::new(super::top_status_bar(&state).into_node())
+            .frame(
+                Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(320.0, 30.0)),
+                &radiant::theme::ThemeTokens::default(),
+            );
+        let texts = frame
+            .paint_plan
+            .primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::Text(text) => Some(text.text.as_str().to_string()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let slider_fills = frame
+            .paint_plan
+            .primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::FillRect(fill)
+                    if fill.widget_id == super::VOLUME_SLIDER_ID
+                        && fill.rect.width() > 0.0
+                        && fill.rect.height() > 0.0 =>
+                {
+                    Some(fill)
+                }
+                _ => None,
+            })
+            .count();
+
+        assert!(!texts.iter().any(|text| text == "Wavecrate"));
+        assert!(!texts.iter().any(|text| text == "Wavecrate GUI"));
+        assert!(!texts.iter().any(|text| text == "ready"));
+        assert!(texts.iter().any(|text| text == "48 kHz"), "{texts:?}");
+        assert!(slider_fills >= 2, "expected track and fill rects");
+    }
+
+    #[test]
+    fn volume_slider_drag_emits_normalized_volume() {
+        let mut slider = super::VolumeSlider::new(0.25);
+        let bounds = Rect::from_min_size(Point::new(10.0, 0.0), Vector2::new(100.0, 14.0));
+
+        let output = slider
+            .handle_input(
+                bounds,
+                WidgetInput::PointerPress {
+                    position: Point::new(85.0, 7.0),
+                    button: PointerButton::Primary,
+                    modifiers: Default::default(),
+                },
+            )
+            .expect("volume press should emit");
+        assert_eq!(
+            output.typed_ref::<super::VolumeSliderMessage>(),
+            Some(&super::VolumeSliderMessage { volume: 0.75 })
+        );
+
+        let output = slider
+            .handle_input(
+                bounds,
+                WidgetInput::PointerMove {
+                    position: Point::new(35.0, 7.0),
+                },
+            )
+            .expect("volume drag should emit");
+        assert_eq!(
+            output.typed_ref::<super::VolumeSliderMessage>(),
+            Some(&super::VolumeSliderMessage { volume: 0.25 })
+        );
+    }
+
+    #[test]
+    fn default_gui_volume_state_clamps() {
+        let mut state = GuiAppState::load_default().expect("default state loads");
+
+        state.set_volume(1.5);
+        assert_eq!(state.volume, 1.0);
+
+        state.set_volume(-0.5);
+        assert_eq!(state.volume, 0.0);
+    }
+
+    #[test]
+    fn audio_engine_pill_activates_settings_toggle() {
+        let mut pill = super::AudioEnginePill::new(String::from("48 kHz"), false);
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(66.0, 18.0));
+        assert!(
+            pill.handle_input(
+                bounds,
+                WidgetInput::PointerPress {
+                    position: Point::new(24.0, 8.0),
+                    button: PointerButton::Primary,
+                    modifiers: Default::default(),
+                },
+            )
+            .is_none()
+        );
+        let output = pill
+            .handle_input(
+                bounds,
+                WidgetInput::PointerRelease {
+                    position: Point::new(24.0, 8.0),
+                    button: PointerButton::Primary,
+                    modifiers: Default::default(),
+                },
+            )
+            .expect("audio pill should activate");
+
+        assert_eq!(
+            output.typed_ref::<super::GuiMessage>(),
+            Some(&super::GuiMessage::ToggleAudioSettings)
+        );
+    }
+
+    #[test]
+    fn audio_settings_toggle_uses_cached_device_options() {
+        let mut state = gui_state_for_span_tests();
+        state.audio_hosts = vec![super::AudioHostSummary {
+            id: String::from("cached-host"),
+            label: String::from("Cached Host"),
+            is_default: true,
+        }];
+
+        state.toggle_audio_settings();
+
+        assert!(state.audio_settings_open);
+        assert_eq!(state.audio_hosts.len(), 1);
+        assert_eq!(state.audio_hosts[0].id, "cached-host");
+    }
+
+    #[test]
+    fn audio_sample_rate_label_matches_status_chip_format() {
+        assert_eq!(super::format_sample_rate_label(48_000), "48 kHz");
+        assert_eq!(super::format_sample_rate_label(44_100), "44.1 kHz");
+        assert_eq!(super::format_sample_rate_label(960), "960 Hz");
+    }
+
+    #[test]
+    fn audio_settings_popover_stays_output_only() {
+        let mut state = GuiAppState::load_default().expect("default state loads");
+        state.audio_settings_error = None;
+        state.audio_hosts = vec![super::AudioHostSummary {
+            id: String::from("asio"),
+            label: String::from("ASIO"),
+            is_default: false,
+        }];
+        state.audio_devices = vec![super::AudioDeviceSummary {
+            host_id: String::from("asio"),
+            name: String::from("Studio Out"),
+            is_default: true,
+        }];
+        state.audio_sample_rates = vec![44_100, 48_000];
+        let frame =
+            radiant::runtime::UiSurface::new(super::audio_settings_popover(&state).into_node())
+                .frame(
+                    Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(480.0, 360.0)),
+                    &radiant::theme::ThemeTokens::default(),
+                );
+        let texts = frame
+            .paint_plan
+            .primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::Text(text) => Some(text.text.as_str().to_string()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert!(texts.iter().any(|text| text == "Audio Engine"), "{texts:?}");
+        assert!(texts.iter().any(|text| text == "Backend"), "{texts:?}");
+        assert!(texts.iter().any(|text| text == "Output"), "{texts:?}");
+        assert!(texts.iter().any(|text| text == "Sample Rate"), "{texts:?}");
+        assert!(
+            !texts.iter().any(|text| text.contains("Input")),
+            "{texts:?}"
+        );
+    }
+
+    #[test]
+    fn audio_settings_popover_centers_panel_in_window() {
+        let mut state = GuiAppState::load_default().expect("default state loads");
+        state.audio_settings_error = None;
+        let frame =
+            radiant::runtime::UiSurface::new(super::audio_settings_popover(&state).into_node())
+                .frame(
+                    Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(480.0, 360.0)),
+                    &radiant::theme::ThemeTokens::default(),
+                );
+        let title_rect = frame
+            .paint_plan
+            .primitives
+            .iter()
+            .find_map(|primitive| match primitive {
+                PaintPrimitive::Text(text) if text.text.as_str() == "Audio Engine" => {
+                    Some(text.rect)
+                }
+                _ => None,
+            })
+            .expect("audio settings title paints");
+
+        assert!((60.0..=80.0).contains(&title_rect.min.x), "{title_rect:?}");
+        assert!((28.0..=40.0).contains(&title_rect.min.y), "{title_rect:?}");
+    }
+
+    #[test]
+    fn audio_settings_popover_blocks_pointer_input_behind_panel() {
+        let mut state = GuiAppState::load_default().expect("default state loads");
+        state.audio_settings_open = true;
+        let surface = Arc::new(UiSurface::new(super::view(&mut state).into_node()));
+        let mut runtime =
+            SurfaceRuntime::new(StaticSurfaceBridge { surface }, Vector2::new(960.0, 540.0));
+        let waveform_point = Point::new(340.0, 145.0);
+
+        let target = runtime.dispatch_input_at(
+            waveform_point,
+            WidgetInput::PointerPress {
+                position: waveform_point,
+                button: PointerButton::Primary,
+                modifiers: Default::default(),
+            },
+        );
+
+        assert!(target.is_some());
+        assert_ne!(target, Some(12));
+    }
+
+    #[test]
+    fn audio_settings_modal_top_pill_toggles_settings_closed() {
+        let mut state = GuiAppState::load_default().expect("default state loads");
+        state.audio_settings_open = true;
+        let surface = Arc::new(UiSurface::new(super::view(&mut state).into_node()));
+        let messages = Arc::new(Mutex::new(Vec::new()));
+        let mut runtime = SurfaceRuntime::new(
+            CapturingSurfaceBridge {
+                surface,
+                messages: Arc::clone(&messages),
+            },
+            Vector2::new(960.0, 540.0),
+        );
+        let pill_point = Point::new(920.0, 14.0);
+
+        let press_target = runtime.dispatch_input_at(
+            pill_point,
+            WidgetInput::PointerPress {
+                position: pill_point,
+                button: PointerButton::Primary,
+                modifiers: Default::default(),
+            },
+        );
+        let release_target = runtime.dispatch_input_at(
+            pill_point,
+            WidgetInput::PointerRelease {
+                position: pill_point,
+                button: PointerButton::Primary,
+                modifiers: Default::default(),
+            },
+        );
+
+        assert_eq!(press_target, Some(super::AUDIO_SETTINGS_MODAL_PILL_ID));
+        assert_eq!(release_target, Some(super::AUDIO_SETTINGS_MODAL_PILL_ID));
+        assert_eq!(
+            messages.lock().expect("message capture").as_slice(),
+            &[super::GuiMessage::ToggleAudioSettings]
+        );
+    }
+
+    #[test]
+    fn audio_settings_modal_ignores_waveform_selection_messages() {
+        let mut state = gui_state_for_span_tests();
+        state.audio_settings_open = true;
+        let mut context = ui::UpdateContext::default();
+
+        state.apply_message(
+            super::GuiMessage::Waveform(WaveformInteraction::BeginSelection {
+                kind: WaveformSelectionKind::Play,
+                visible_ratio: 0.45,
+            }),
+            &mut context,
+        );
+
+        assert_eq!(state.waveform.play_mark_ratio(), None);
+        assert_eq!(state.waveform.play_selection(), None);
     }
 
     #[test]
@@ -2277,8 +4761,8 @@ mod tests {
 
     #[test]
     fn sample_browser_frame_paints_column_and_file_text() {
-        let state = GuiAppState::load_default().expect("default state loads");
-        let surface = super::sample_browser(&state).into_node();
+        let mut state = GuiAppState::load_default().expect("default state loads");
+        let surface = super::sample_browser(&mut state).into_node();
         let frame = radiant::runtime::UiSurface::new(surface).frame(
             Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 360.0)),
             &radiant::theme::ThemeTokens::default(),
@@ -2300,6 +4784,125 @@ mod tests {
         assert!(
             texts.iter().any(|text| text.starts_with("portal_SS_")),
             "{texts:?}"
+        );
+    }
+
+    #[test]
+    fn sample_browser_rows_match_keyboard_scroll_stride() {
+        let mut state = GuiAppState::load_default().expect("default state loads");
+        let surface = super::sample_browser(&mut state).into_node();
+        let frame = radiant::runtime::UiSurface::new(surface).frame(
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 360.0)),
+            &radiant::theme::ThemeTokens::default(),
+        );
+        let mut row_tops = frame
+            .paint_plan
+            .primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::Text(text) if text.text.as_str().starts_with("portal_SS_") => {
+                    Some(text.rect.min.y)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        row_tops.sort_by(|a, b| a.total_cmp(b));
+        row_tops.dedup_by(|a, b| (*a - *b).abs() < 0.5);
+
+        assert!(row_tops.len() >= 2, "{row_tops:?}");
+        assert!(
+            row_tops
+                .windows(2)
+                .all(|pair| ((pair[1] - pair[0]) - super::SAMPLE_BROWSER_ROW_HEIGHT).abs() < 0.5),
+            "{row_tops:?}"
+        );
+    }
+
+    #[test]
+    fn sample_browser_keyboard_scroll_keeps_two_context_rows() {
+        assert_eq!(super::SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, 2);
+        assert_eq!(super::SAMPLE_BROWSER_ROW_HEIGHT, 22.0);
+    }
+
+    #[test]
+    fn selected_sample_browser_row_paints_strong_fill_and_left_marker() {
+        let widget = super::SampleFileHitTarget::new(true);
+        let bounds = Rect::from_min_size(Point::new(12.0, 8.0), Vector2::new(240.0, 22.0));
+        let mut primitives = Vec::new();
+        widget.append_paint(
+            &mut primitives,
+            bounds,
+            &Default::default(),
+            &radiant::theme::ThemeTokens::default(),
+        );
+        let fills = primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::FillRect(fill) => Some(fill),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert!(fills.iter().any(|fill| fill.rect == bounds
+            && fill.color
+                == super::Rgba8 {
+                    r: 255,
+                    g: 82,
+                    b: 62,
+                    a: 120,
+                }));
+        assert!(fills.iter().any(|fill| {
+            fill.color
+                == super::Rgba8 {
+                    r: 255,
+                    g: 82,
+                    b: 62,
+                    a: 245,
+                }
+                && fill.rect.width() <= 3.5
+        }));
+    }
+
+    #[test]
+    fn sample_browser_row_hover_paints_bright_background_without_marker() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(180.0, 22.0));
+        let mut hit_target = super::SampleFileHitTarget::new(false);
+
+        assert_eq!(
+            hit_target.handle_input(
+                bounds,
+                WidgetInput::PointerMove {
+                    position: Point::new(20.0, 10.0),
+                },
+            ),
+            None
+        );
+
+        let mut primitives = Vec::new();
+        hit_target.append_paint(
+            &mut primitives,
+            bounds,
+            &Default::default(),
+            &radiant::theme::ThemeTokens::default(),
+        );
+        let fills = primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::FillRect(fill) => Some(fill),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(fills.len(), 1, "{fills:?}");
+        assert_eq!(fills[0].rect, bounds);
+        assert_eq!(
+            fills[0].color,
+            super::Rgba8 {
+                r: 255,
+                g: 108,
+                b: 88,
+                a: 155,
+            }
         );
     }
 

@@ -177,7 +177,7 @@ fn project_tree_rows(folder_ui: &FolderBrowserUiState) -> RetainedVec<FolderRowM
         .iter()
         .enumerate()
         .map(|(row_index, row)| {
-            FolderRowModel::new(
+            folder_row_model(
                 row.name.clone(),
                 row.path.display().to_string(),
                 row.depth,
