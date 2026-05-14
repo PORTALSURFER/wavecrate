@@ -41,20 +41,28 @@ validation expectations for `C:\dev\wavecrate`.
 - Use `main` as the default base branch for `C:\dev\wavecrate`; feature work should happen on a feature branch and merge through a PR.
 - Keep local `main` tracking `origin/main`; the repo hook installer and `scripts/check.* main-branch` branch guard enforce the base-branch contract while allowing feature branches for PR work.
 - `C:\dev\wavecrate\vendor\radiant` also uses local `main` tracking `origin/main`; update the submodule pointer from a Wavecrate feature branch and merge it through a Wavecrate PR.
-- During the tight edit loop:
-  - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 smoke`
-  - macOS/Linux/WSL: `bash scripts/ci.sh smoke`
-- For constrained agent-side validation before commit/push and after non-trivial edits:
+- During the tight edit loop, prioritize implementation speed and direct manual
+  checks for the behavior under active development. Do not run formatter or CI
+  after every small edit unless the edit is risky, the user asks for it, or a
+  failing command is needed to understand the bug.
+- Intermediate commits and pushes are allowed without running the validation
+  lanes. Use them to preserve progress on feature branches; clearly report when
+  a pushed branch has not yet passed the final gate.
+- Before opening a PR for review, marking a PR ready, or merging, run formatting
+  if code changed and run the final validation gate. In constrained agent-side
+  work, the final gate is:
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 agent`
   - macOS/Linux/WSL: `bash scripts/ci.sh agent`
 - For broader integrated local validation built around `cargo nextest`:
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 quick`
   - macOS/Linux/WSL: `bash scripts/ci.sh quick`
-- If devcheck or the active validation lane fails: fix and rerun until green
+- If a final validation lane fails: fix and rerun until green before merging.
 - Do not run multiple Rust test commands concurrently. Keep `cargo test` / `cargo nextest` invocations to one process at a time to avoid cargo lock contention and misleading timeouts, but allow the normal in-process Rust test threading within that single test run.
 - On Windows, do not run the Bash workflow scripts. Use only the PowerShell wrappers (`scripts/*.ps1`) for preflight/CI/devcheck unless the user explicitly overrides this.
-- After code changes: commit and push
-- In constrained agent environments, do not push unless `ci_agent` is green; report whether `ci_quick` or `ci_local` still need a user-run confirmation pass
+- After code changes: commit and push as useful for collaboration. Final PR
+  merge still requires the final validation gate to be green.
+- In constrained agent environments, do not merge unless `ci_agent` is green;
+  report whether `ci_quick` or `ci_local` still need a user-run confirmation pass.
 - Run full CI in the platform wrapper before pushing broader validation/tooling/perf/dependency changes or when you need full CI parity (`scripts/ci.ps1 local` on Windows, `scripts/ci.sh local` elsewhere)
 
 ## Golden Commands
