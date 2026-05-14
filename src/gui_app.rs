@@ -680,6 +680,13 @@ impl GuiAppState {
 
     fn select_sample(&mut self, path: String, context: &mut ui::UpdateContext<GuiMessage>) {
         let started_at = Instant::now();
+        if self.waveform.is_playing() {
+            if let Some(player) = self.audio_player.as_mut() {
+                player.stop();
+            }
+            self.waveform.stop_playback();
+            self.current_playback_span = None;
+        }
         self.folder_browser.select_file(path.clone());
         let task_id = self.next_sample_task_id();
         self.pending_sample_task_id = Some(task_id);
