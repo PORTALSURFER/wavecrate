@@ -1579,7 +1579,6 @@ struct WaveformSignalWidget {
     file: Arc<WaveformFile>,
     viewport: WaveformViewport,
     edit_selection: Option<wavecrate::selection::SelectionRange>,
-    active_drag_kind: Option<WaveformActiveDragKind>,
 }
 
 impl WaveformSignalWidget {
@@ -1587,7 +1586,7 @@ impl WaveformSignalWidget {
         file: Arc<WaveformFile>,
         viewport: WaveformViewport,
         edit_selection: Option<wavecrate::selection::SelectionRange>,
-        active_drag_kind: Option<WaveformActiveDragKind>,
+        _active_drag_kind: Option<WaveformActiveDragKind>,
     ) -> Self {
         let mut common = WidgetCommon::new(
             0,
@@ -1601,22 +1600,14 @@ impl WaveformSignalWidget {
             file,
             viewport,
             edit_selection,
-            active_drag_kind,
         }
-    }
-
-    fn uses_live_fade_preview(&self) -> bool {
-        matches!(
-            self.active_drag_kind,
-            Some(WaveformActiveDragKind::EditFade(_))
-        )
     }
 
     fn signal_summary(&self) -> Arc<radiant::runtime::GpuSignalSummary> {
         let Some(selection) = self.edit_selection else {
             return Arc::clone(&self.file.gpu_signal_summary);
         };
-        if !selection.has_edit_effects() || self.uses_live_fade_preview() {
+        if !selection.has_edit_effects() {
             return Arc::clone(&self.file.gpu_signal_summary);
         }
         let mut samples = self.file.gpu_signal_samples.as_ref().to_vec();
@@ -1631,9 +1622,6 @@ impl WaveformSignalWidget {
     }
 
     fn signal_revision(&self) -> u64 {
-        if self.uses_live_fade_preview() {
-            return 0;
-        }
         edit_selection_revision(self.edit_selection)
     }
 }
@@ -3914,7 +3902,7 @@ mod tests {
     }
 
     #[test]
-    fn signal_widget_uses_cached_base_summary_during_live_edit_fade_drag() {
+    fn signal_widget_applies_edit_fade_to_gpu_summary_during_live_drag() {
         let file = Arc::new(waveform_file_from_mono_samples(
             "fade-preview.wav".into(),
             Arc::from([]),
@@ -3950,11 +3938,16 @@ mod tests {
             })
             .expect("waveform gpu surface");
 
-        assert_eq!(surface.revision, 0);
+        assert!(surface.revision > 0);
         let GpuSurfaceContent::SignalSummaryBands { summary, .. } = &surface.content else {
             panic!("expected signal summary bands");
         };
-        assert!(Arc::ptr_eq(summary, &file.gpu_signal_summary));
+        assert!(!Arc::ptr_eq(summary, &file.gpu_signal_summary));
+        let buckets = &summary.levels[0].buckets;
+        let first_raw = &buckets[3];
+        let last_raw = &buckets[(15 * BAND_COUNT) + 3];
+        assert!(first_raw.max.abs().max(first_raw.min.abs()) < 0.001);
+        assert!(last_raw.max.abs().max(last_raw.min.abs()) > 0.65);
     }
 
     fn fill_rects(primitives: &[PaintPrimitive]) -> Vec<&PaintFillRect> {
