@@ -184,15 +184,25 @@ fn sync_playback_ui(
     span_end: f32,
     start_override: Option<f64>,
 ) {
+    const RESUME_POSITION_EPSILON: f32 = 0.0005;
+
+    let previous_playhead_visible = controller.ui.waveform.playhead.visible;
+    let previous_playhead_position = controller.ui.waveform.playhead.position;
+    let is_resume_at_current_playhead = start_override.is_some()
+        && previous_playhead_visible
+        && previous_playhead_position.is_finite()
+        && (previous_playhead_position - start).abs() <= RESUME_POSITION_EPSILON;
+    let is_seek = start_override.is_some() && !is_resume_at_current_playhead;
+
     controller.ui.waveform.playhead.active_span_end = Some(span_end.clamp(0.0, 1.0));
     controller.ui.waveform.playhead.visible = true;
     controller.ui.waveform.playhead.position = start;
     super::super::playhead_trail::start_or_seek_trail(
         &mut controller.ui.waveform.playhead,
         start,
-        start_override.is_some(),
+        is_seek,
     );
-    if start_override.is_some() {
+    if is_seek {
         controller.ui.waveform.playhead.recent_seek = Some(crate::app::state::PlayheadSeek {
             position: start,
             started_at: Instant::now(),

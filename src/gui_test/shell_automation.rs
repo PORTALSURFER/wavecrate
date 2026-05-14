@@ -1,8 +1,8 @@
 use crate::{
     app_core::actions::{
         NativeAppModel, NativeAutomationNodeSnapshot, NativeAutomationRole, NativeBrowserRowModel,
-        NativeFocusContextModel, NativeFolderRowModel, NativeProgressOverlayModel,
-        NativeSourceRowModel,
+        NativeFocusContextModel, NativeProgressOverlayModel, NativeSourceRowModel,
+        native_folder_row_model,
     },
     gui_runtime::capture_gui_automation_snapshot,
 };
@@ -48,7 +48,7 @@ fn automation_snapshot_exposes_semantic_shell_nodes_from_wavecrate_fixture() {
         .sources
         .upper_folder_pane
         .tree_rows
-        .push(NativeFolderRowModel::new(
+        .push(native_folder_row_model(
             "drums",
             String::new(),
             0,

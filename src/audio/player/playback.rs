@@ -72,7 +72,7 @@ impl AudioPlayer {
         let offset_samples = offset_frames.saturating_mul(channels as u64) as usize;
         let repeated = buffer.repeat_infinite().skip_samples(offset_samples);
 
-        let (handle, format) = self.build_sink_with_fade(repeated);
+        let (handle, format) = self.build_sink_with_fade(repeated)?;
         let track_duration_seconds = frames_to_seconds(total_frames, sample_rate);
         self.started_at = Some(std::time::Instant::now());
         self.play_span = Some((0.0, track_duration_seconds));
@@ -159,7 +159,7 @@ impl AudioPlayer {
             Box::new(faded)
         };
 
-        let (handle, format) = self.build_sink_with_fade(final_source);
+        let (handle, format) = self.build_sink_with_fade(final_source)?;
         self.started_at = Some(std::time::Instant::now());
         self.play_span = Some((start_secs, end_secs));
         self.play_span_frames = Some((start_frame, end_frame));
@@ -236,7 +236,7 @@ impl AudioPlayer {
         let repeated = editable.repeat_infinite().skip_samples(offset_samples);
         let diagnostic = crate::audio::loop_diagnostic::LoopDiagnostic::new(repeated, span_samples);
 
-        let (handle, format) = self.build_sink_with_fade(diagnostic);
+        let (handle, format) = self.build_sink_with_fade(diagnostic)?;
         self.started_at = Some(std::time::Instant::now());
         self.play_span = Some((start_secs, end_secs));
         self.play_span_frames = Some((start_frame, end_frame));

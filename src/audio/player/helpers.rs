@@ -39,7 +39,7 @@ impl AudioPlayer {
     pub(super) fn build_sink_with_fade<S: Source + Send + 'static>(
         &mut self,
         source: S,
-    ) -> (FadeOutHandle, (u32, u16)) {
+    ) -> Result<(FadeOutHandle, (u32, u16)), String> {
         let _volume = self.effective_volume();
         let target_sample_rate = self.output.sample_rate.max(1);
         let target_channels = self.output.channel_count.max(1);
@@ -56,17 +56,15 @@ impl AudioPlayer {
         let format = (source.sample_rate(), source.channels());
         let handle = FadeOutHandle::new();
 
-        if self
-            .stream
+        self.stream
             .append_source(FadeOutOnRequest::new(source, handle.clone()), 1.0)
-            .is_ok()
-        {
-            self.active_sources = self.active_sources.saturating_add(1);
-        } else {
-            warn!("Failed to append audio source: output stream unavailable");
-        }
+            .map_err(|err| {
+                warn!("Failed to append audio source: {err}");
+                err
+            })?;
+        self.active_sources = self.active_sources.saturating_add(1);
 
-        (handle, format)
+        Ok((handle, format))
     }
 
     /// Create a monitor sink that taps the current output stream state.

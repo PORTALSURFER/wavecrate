@@ -28,7 +28,8 @@ Audio sample triage tool built with Rust.
 - Or build once and run the shipping binary: `cargo build -p wavecrate --release` then `target/release/wavecrate`.
 - Playback uses your default audio output device.
 - GUI backend:
-  - Main app uses `native_vello` (radiant runtime path) by default and no longer exposes a legacy backend switch.
+  - Main app uses the current Radiant application path in `src/gui_app.rs` by default.
+  - The older native-shell path is retained only behind the deprecated `legacy-gui` feature for migration fallback.
   - `app_core` defines the domain action/projection layer that feeds `radiant` without owning widget behavior.
   - Architecture and migration guidance: `docs/ARCHITECTURE.md`.
   - Native shell text rendering can use `WAVECRATE_NATIVE_FONT_PATH=/path/to/font.ttf` if automatic system font discovery fails.

@@ -54,6 +54,29 @@ pub type FolderRowKind = list::EditableRowKind;
 /// Render data for one folder row shown in the sidebar folder tree.
 pub type FolderRowModel = list::EditableTreeRow;
 
+/// Build one folder row projection from Wavecrate folder-browser state.
+pub fn folder_row_model(
+    label: impl Into<String>,
+    detail: impl Into<String>,
+    depth: usize,
+    selected: bool,
+    focused: bool,
+    is_root: bool,
+    has_children: bool,
+    expanded: bool,
+) -> FolderRowModel {
+    FolderRowModel::from_parts(list::EditableTreeRowParts {
+        label: label.into(),
+        detail: detail.into(),
+        depth,
+        selected,
+        focused,
+        is_root,
+        has_children,
+        expanded,
+    })
+}
+
 /// Native folder-action availability consumed by sidebar action surfaces.
 pub type FolderActionsModel = list::EditableTreeActions;
 
@@ -796,19 +819,19 @@ impl NativeMotionModel {
 
     /// Return this motion snapshot's generic timeline edit-preview state.
     pub fn waveform_edit_preview(&self) -> WaveformEditPreviewModel {
-        WaveformEditPreviewModel::new(
-            self.waveform_edit_selection_milli,
-            self.waveform_edit_fade_in_end_milli,
-            self.waveform_edit_fade_in_end_micros,
-            self.waveform_edit_fade_in_mute_start_milli,
-            self.waveform_edit_fade_in_mute_start_micros,
-            self.waveform_edit_fade_in_curve_milli,
-            self.waveform_edit_fade_out_start_milli,
-            self.waveform_edit_fade_out_start_micros,
-            self.waveform_edit_fade_out_mute_end_milli,
-            self.waveform_edit_fade_out_mute_end_micros,
-            self.waveform_edit_fade_out_curve_milli,
-        )
+        WaveformEditPreviewModel::from_parts(visualization::TimelineEditPreviewParts {
+            selection: self.waveform_edit_selection_milli,
+            leading_end_milli: self.waveform_edit_fade_in_end_milli,
+            leading_end_micros: self.waveform_edit_fade_in_end_micros,
+            leading_inner_start_milli: self.waveform_edit_fade_in_mute_start_milli,
+            leading_inner_start_micros: self.waveform_edit_fade_in_mute_start_micros,
+            leading_curve_milli: self.waveform_edit_fade_in_curve_milli,
+            trailing_start_milli: self.waveform_edit_fade_out_start_milli,
+            trailing_start_micros: self.waveform_edit_fade_out_start_micros,
+            trailing_inner_end_milli: self.waveform_edit_fade_out_mute_end_milli,
+            trailing_inner_end_micros: self.waveform_edit_fade_out_mute_end_micros,
+            trailing_curve_milli: self.waveform_edit_fade_out_curve_milli,
+        })
     }
 
     /// Return this motion snapshot's generic timeline feedback event tokens.
@@ -870,15 +893,15 @@ impl NativeMotionModel {
     pub fn timeline_motion(&self) -> WaveformMotionModel {
         WaveformMotionModel::new(
             self.transport_running,
-            WaveformSurfaceModel::new(
-                self.waveform_viewport(),
-                self.waveform_transport(),
-                self.waveform_edit_preview(),
-                self.waveform_feedback_events(),
-                self.waveform_presentation(),
-                self.waveform_image_preview(),
-                self.waveform_slices.clone(),
-            ),
+            WaveformSurfaceModel::from_parts(visualization::TimelineSurfaceParts {
+                viewport: self.waveform_viewport(),
+                transport: self.waveform_transport(),
+                edit_preview: self.waveform_edit_preview(),
+                feedback_events: self.waveform_feedback_events(),
+                presentation: self.waveform_presentation(),
+                raster_preview: self.waveform_image_preview(),
+                markers: self.waveform_slices.clone(),
+            }),
             self.signal_chrome(),
             self.signal_tools(),
         )
@@ -1393,19 +1416,19 @@ impl WaveformPanelModel {
 
     /// Return this panel's generic timeline edit preview.
     pub fn edit_preview(&self) -> WaveformEditPreviewModel {
-        WaveformEditPreviewModel::new(
-            self.edit_selection_milli,
-            self.edit_fade_in_end_milli,
-            self.edit_fade_in_end_micros,
-            self.edit_fade_in_mute_start_milli,
-            self.edit_fade_in_mute_start_micros,
-            self.edit_fade_in_curve_milli,
-            self.edit_fade_out_start_milli,
-            self.edit_fade_out_start_micros,
-            self.edit_fade_out_mute_end_milli,
-            self.edit_fade_out_mute_end_micros,
-            self.edit_fade_out_curve_milli,
-        )
+        WaveformEditPreviewModel::from_parts(visualization::TimelineEditPreviewParts {
+            selection: self.edit_selection_milli,
+            leading_end_milli: self.edit_fade_in_end_milli,
+            leading_end_micros: self.edit_fade_in_end_micros,
+            leading_inner_start_milli: self.edit_fade_in_mute_start_milli,
+            leading_inner_start_micros: self.edit_fade_in_mute_start_micros,
+            leading_curve_milli: self.edit_fade_in_curve_milli,
+            trailing_start_milli: self.edit_fade_out_start_milli,
+            trailing_start_micros: self.edit_fade_out_start_micros,
+            trailing_inner_end_milli: self.edit_fade_out_mute_end_milli,
+            trailing_inner_end_micros: self.edit_fade_out_mute_end_micros,
+            trailing_curve_milli: self.edit_fade_out_curve_milli,
+        })
     }
 
     /// Return this panel's generic timeline feedback events.
@@ -1441,15 +1464,15 @@ impl WaveformPanelModel {
 
     /// Return this panel's generic normalized timeline surface state.
     pub fn timeline_surface(&self) -> WaveformSurfaceModel {
-        WaveformSurfaceModel::new(
-            self.viewport(),
-            self.transport(),
-            self.edit_preview(),
-            self.feedback_events(),
-            self.presentation(),
-            self.image_preview(),
-            self.slices.clone(),
-        )
+        WaveformSurfaceModel::from_parts(visualization::TimelineSurfaceParts {
+            viewport: self.viewport(),
+            transport: self.transport(),
+            edit_preview: self.edit_preview(),
+            feedback_events: self.feedback_events(),
+            presentation: self.presentation(),
+            raster_preview: self.image_preview(),
+            markers: self.slices.clone(),
+        })
     }
 }
 

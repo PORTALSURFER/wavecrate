@@ -1,8 +1,11 @@
-//! Wavecrate native-shell adapter for Radiant's generic runtime path.
+//! Deprecated Wavecrate native-shell compatibility adapter for Radiant's generic
+//! runtime path.
 //!
 //! This module owns the focused Wavecrate runtime adapter modules that project the
-//! app model into Radiant's generic native runtime, route retained-shell input,
-//! convert local action/model shapes, and expose automation/snapshot helpers.
+//! legacy app model into Radiant's generic native runtime, route retained-shell
+//! input, convert local action/model shapes, and expose automation/snapshot
+//! helpers. Normal GUI execution should go through the default `src/gui_app.rs`
+//! Radiant application path.
 
 use super::{NativeRunOptions, NativeRunReport, NativeRuntimeArtifacts, WindowIconRgba};
 use crate::app_core::actions::{

@@ -275,7 +275,9 @@ impl<B: NativeAppBridge> WavecrateRuntimeBridge<B> {
                 self.local_overlay_surface_refresh = true;
                 true
             }
-            WidgetInput::PointerPress { position, button } => {
+            WidgetInput::PointerPress {
+                position, button, ..
+            } => {
                 let layout = self.build_current_layout();
                 if button == PointerButton::Auxiliary {
                     self.begin_waveform_pan_drag(&layout, position);
@@ -298,7 +300,9 @@ impl<B: NativeAppBridge> WavecrateRuntimeBridge<B> {
                 }
                 true
             }
-            WidgetInput::PointerDoubleClick { position, button } => {
+            WidgetInput::PointerDoubleClick {
+                position, button, ..
+            } => {
                 let layout = self.build_current_layout();
                 if button != PointerButton::Primary {
                     return true;
@@ -324,7 +328,9 @@ impl<B: NativeAppBridge> WavecrateRuntimeBridge<B> {
                 self.local_overlay_surface_refresh = true;
                 true
             }
-            WidgetInput::PointerRelease { .. } | WidgetInput::FocusChanged(_) => {
+            WidgetInput::PointerRelease { .. }
+            | WidgetInput::PointerDrop { .. }
+            | WidgetInput::FocusChanged(_) => {
                 self.local_overlay_surface_refresh = true;
                 true
             }

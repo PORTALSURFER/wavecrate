@@ -110,6 +110,7 @@ mod tests {
                     input: WidgetInput::PointerPress {
                         position: radiant::gui::types::Point::new(4.0, 5.0),
                         button: radiant::widgets::PointerButton::Primary,
+                        modifiers: Default::default(),
                     },
                 }),
             )
@@ -222,6 +223,7 @@ mod tests {
                     WidgetInput::PointerPress {
                         position: anchor,
                         button: PointerButton::Auxiliary,
+                        modifiers: Default::default(),
                     }
                 ))
                 .requests_repaint()
@@ -687,6 +689,7 @@ mod tests {
                     WidgetInput::PointerPress {
                         position: radiant::gui::types::Point::new(4.0, 5.0),
                         button: radiant::widgets::PointerButton::Primary,
+                        modifiers: Default::default(),
                     },
                 ))
                 .requests_repaint()

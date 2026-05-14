@@ -1,8 +1,11 @@
-//! Native-shell projection helpers used by the `radiant` bridge.
+//! Deprecated native-shell compatibility projection helpers used by the legacy
+//! `radiant` bridge.
 //!
 //! The bridge consumes these helpers to project controller state into the
-//! Wavecrate-owned native shell contract and to translate normalized UI ranges
-//! back into controller-domain selection math.
+//! Wavecrate-owned legacy shell contract and to translate normalized UI ranges
+//! back into controller-domain selection math. New default GUI work should
+//! compose Radiant's current public API through `src/gui_app.rs` instead of
+//! expanding this compatibility surface.
 
 use super::controller::{
     AppController, ProjectedBrowserPreloadWindow, ProjectedBrowserRowCacheEntry,
@@ -29,7 +32,7 @@ use crate::app_core::actions::{
     NativeSourceRowModel as SourceRowModel, NativeSourcesPanelModel as SourcesPanelModel,
     NativeStatusBarModel as StatusBarModel, NativeUpdatePanelModel as UpdatePanelModel,
     NativeUpdateStatusModel as UpdateStatusModel, NativeWaveformChromeModel as WaveformChromeModel,
-    NativeWaveformPanelModel as WaveformPanelModel,
+    NativeWaveformPanelModel as WaveformPanelModel, native_folder_row_model as folder_row_model,
 };
 use crate::app_core::app_api::controller::supports_wav_destructive_edits;
 use crate::app_core::app_api::state::DragPayload;
@@ -60,7 +63,7 @@ use tracing::info;
 mod app_model;
 /// Browser panel/frame/row projection helpers and retained browser caches.
 mod browser_projection;
-/// Wavecrate-owned native shell composition tree.
+/// Deprecated Wavecrate-owned native shell composition tree.
 #[path = "native_shell/composition/mod.rs"]
 pub(crate) mod composition;
 /// Confirm-prompt projection helpers and folder-name validation utilities.
@@ -82,7 +85,7 @@ mod waveform_projection;
 
 pub(crate) use app_model::project_app_model;
 
-/// Wavecrate-owned runtime contract consumed by native-shell composition and the runtime adapter.
+/// Deprecated Wavecrate-owned runtime contract consumed by native-shell composition and the runtime adapter.
 #[path = "native_shell/runtime_contract.rs"]
 pub(crate) mod runtime_contract;
 #[cfg(test)]

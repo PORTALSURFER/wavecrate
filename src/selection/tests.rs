@@ -183,14 +183,14 @@ fn fades_preserved_during_shift() {
 }
 
 #[test]
-fn fade_mute_sections_zero_gain() {
+fn fade_outer_extensions_crossfade_to_selection_edges() {
     let range = SelectionRange::new(0.2, 0.8)
         .with_fade_in(0.4, 0.0)
         .with_fade_out(0.4, 0.0)
         .with_fade_in_mute(0.2)
         .with_fade_out_mute(0.1);
-    let muted_start = fade_gain_at_position(
-        0.1,
+    let left_outer_start = fade_gain_at_position(
+        0.08,
         range.start(),
         range.end(),
         range.gain(),
@@ -198,8 +198,44 @@ fn fade_mute_sections_zero_gain() {
         range.fade_out(),
         0.0,
     );
-    let muted_end = fade_gain_at_position(
-        0.82,
+    let left_outer_mid = fade_gain_at_position(
+        0.14,
+        range.start(),
+        range.end(),
+        range.gain(),
+        range.fade_in(),
+        range.fade_out(),
+        0.0,
+    );
+    let left_selection_edge = fade_gain_at_position(
+        0.2,
+        range.start(),
+        range.end(),
+        range.gain(),
+        range.fade_in(),
+        range.fade_out(),
+        0.0,
+    );
+    let right_selection_edge = fade_gain_at_position(
+        0.8,
+        range.start(),
+        range.end(),
+        range.gain(),
+        range.fade_in(),
+        range.fade_out(),
+        0.0,
+    );
+    let right_outer_mid = fade_gain_at_position(
+        0.83,
+        range.start(),
+        range.end(),
+        range.gain(),
+        range.fade_in(),
+        range.fade_out(),
+        0.0,
+    );
+    let right_outer_end = fade_gain_at_position(
+        0.86,
         range.start(),
         range.end(),
         range.gain(),
@@ -216,18 +252,31 @@ fn fade_mute_sections_zero_gain() {
         range.fade_out(),
         0.0,
     );
-    assert!(muted_start.abs() < 1e-6);
-    assert!(muted_end.abs() < 1e-6);
+    assert!((left_outer_start - 1.0).abs() < 1e-6);
+    assert!((left_outer_mid - 0.5).abs() < 1e-5);
+    assert!(left_selection_edge.abs() < 1e-6);
+    assert!(right_selection_edge.abs() < 1e-6);
+    assert!((right_outer_mid - 0.5).abs() < 1e-5);
+    assert!((right_outer_end - 1.0).abs() < 1e-5);
     assert!(ramp_mid > 0.0 && ramp_mid < 1.0);
 }
 
 #[test]
-fn fade_mute_can_extend_past_selection_width() {
+fn fade_outer_extension_can_extend_past_selection_width() {
     let range = SelectionRange::new(0.4, 0.5)
         .with_fade_in(0.2, 0.0)
         .with_fade_out(0.2, 0.0)
         .with_fade_in_mute(4.0);
-    let muted_far_left = fade_gain_at_position(
+    let outer_start = fade_gain_at_position(
+        0.0,
+        range.start(),
+        range.end(),
+        range.gain(),
+        range.fade_in(),
+        range.fade_out(),
+        0.0,
+    );
+    let outer_ramp = fade_gain_at_position(
         0.05,
         range.start(),
         range.end(),
@@ -236,7 +285,8 @@ fn fade_mute_can_extend_past_selection_width() {
         range.fade_out(),
         0.0,
     );
-    assert!(muted_far_left.abs() < 1e-6);
+    assert!((outer_start - 1.0).abs() < 1e-6);
+    assert!(outer_ramp > 0.0 && outer_ramp < 1.0);
 }
 
 #[test]

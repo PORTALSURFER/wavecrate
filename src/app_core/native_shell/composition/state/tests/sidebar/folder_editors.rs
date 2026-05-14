@@ -130,7 +130,7 @@ fn folder_create_draft_row_ignores_disclosure_hit_testing() {
     let mut model = AppModel::default();
     push_active_folder_row(
         &mut model,
-        FolderRowModel::new("Root", String::new(), 0, false, false, true, true, true),
+        folder_row_model("Root", String::new(), 0, false, false, true, true, true),
     );
     push_active_folder_row(
         &mut model,
@@ -163,7 +163,7 @@ fn folder_rename_draft_row_ignores_disclosure_hit_testing() {
     let mut model = AppModel::default();
     push_active_folder_row(
         &mut model,
-        FolderRowModel::new("Root", String::new(), 0, false, false, true, true, true),
+        folder_row_model("Root", String::new(), 0, false, false, true, true, true),
     );
     push_active_folder_row(
         &mut model,

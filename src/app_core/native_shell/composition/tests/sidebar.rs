@@ -50,7 +50,7 @@ fn folder_row_hit_test_resolves_rendered_folder_row() {
     let mut state = NativeShellState::new();
     let mut model = crate::app_core::native_shell::runtime_contract::AppModel::default();
     model.sources.upper_folder_pane.tree_rows.push(
-        crate::app_core::native_shell::runtime_contract::FolderRowModel::new(
+        crate::app_core::native_shell::runtime_contract::folder_row_model(
             "Drums", "Drums", 0, false, true, false, true, true,
         ),
     );
@@ -85,7 +85,7 @@ fn folder_row_hit_test_survives_source_row_cache_priming() {
         .expect("source row should exist")
         .assigned_to_upper_pane = true;
     model.sources.upper_folder_pane.tree_rows.push(
-        crate::app_core::native_shell::runtime_contract::FolderRowModel::new(
+        crate::app_core::native_shell::runtime_contract::folder_row_model(
             "Drums", "Drums", 0, false, true, false, true, true,
         ),
     );
@@ -121,7 +121,7 @@ fn tree_rows_fill_sidebar_width_and_touch_without_gap() {
     let mut model = crate::app_core::native_shell::runtime_contract::AppModel::default();
     for index in 0..3 {
         model.sources.upper_folder_pane.tree_rows.push(
-            crate::app_core::native_shell::runtime_contract::FolderRowModel::new(
+            crate::app_core::native_shell::runtime_contract::folder_row_model(
                 format!("Folder {index}"),
                 String::new(),
                 0,

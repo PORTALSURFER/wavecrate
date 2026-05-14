@@ -7,11 +7,11 @@ fn folder_row_label_rect_indents_children_beyond_root() {
     let mut model = AppModel::default();
     push_active_folder_row(
         &mut model,
-        FolderRowModel::new("Root", String::new(), 0, false, false, true, true, true),
+        folder_row_model("Root", String::new(), 0, false, false, true, true, true),
     );
     push_active_folder_row(
         &mut model,
-        FolderRowModel::new("Drums", String::new(), 1, false, true, false, true, true),
+        folder_row_model("Drums", String::new(), 1, false, true, false, true, true),
     );
 
     let rows = rendered_folder_row_rects(&layout, &style, &model);
@@ -36,11 +36,11 @@ fn tree_rows_render_plain_labels_without_fallback_glyph_prefixes() {
     let mut model = AppModel::default();
     push_active_folder_row(
         &mut model,
-        FolderRowModel::new("Root", String::new(), 0, false, false, true, true, true),
+        folder_row_model("Root", String::new(), 0, false, false, true, true, true),
     );
     push_active_folder_row(
         &mut model,
-        FolderRowModel::new("Drums", String::new(), 1, false, true, false, true, true),
+        folder_row_model("Drums", String::new(), 1, false, true, false, true, true),
     );
 
     let mut state = NativeShellState::new();
@@ -59,15 +59,15 @@ fn disclosure_gutter_hit_target_is_reserved_only_for_expandable_rows() {
     let mut model = AppModel::default();
     push_active_folder_row(
         &mut model,
-        FolderRowModel::new("Root", String::new(), 0, false, false, true, true, true),
+        folder_row_model("Root", String::new(), 0, false, false, true, true, true),
     );
     push_active_folder_row(
         &mut model,
-        FolderRowModel::new("Drums", String::new(), 1, false, true, false, true, true),
+        folder_row_model("Drums", String::new(), 1, false, true, false, true, true),
     );
     push_active_folder_row(
         &mut model,
-        FolderRowModel::new(
+        folder_row_model(
             "OneShots",
             String::new(),
             2,
@@ -108,7 +108,7 @@ fn tree_rows_use_single_pixel_shared_separator() {
     let mut model = AppModel::default();
     push_active_folder_row(
         &mut model,
-        FolderRowModel::new(
+        folder_row_model(
             "folder_a",
             String::new(),
             0,
@@ -121,7 +121,7 @@ fn tree_rows_use_single_pixel_shared_separator() {
     );
     push_active_folder_row(
         &mut model,
-        FolderRowModel::new(
+        folder_row_model(
             "folder_b",
             String::new(),
             0,
@@ -190,7 +190,7 @@ fn plain_folder_row_fill_insets_from_sidebar_seams() {
     let mut model = AppModel::default();
     push_active_folder_row(
         &mut model,
-        FolderRowModel::new(
+        folder_row_model(
             "folder_plain",
             String::new(),
             0,
@@ -232,7 +232,7 @@ fn selected_folder_row_fill_insets_from_sidebar_seams() {
     let mut model = AppModel::default();
     push_active_folder_row(
         &mut model,
-        FolderRowModel::new(
+        folder_row_model(
             "folder_selected",
             String::new(),
             0,
@@ -278,7 +278,7 @@ fn focused_folder_overlay_fill_insets_from_sidebar_seams() {
     model.focus_context = crate::app_core::native_shell::runtime_contract::FocusContextModel::NavigationTree;
     push_active_folder_row(
         &mut model,
-        FolderRowModel::new(
+        folder_row_model(
             "folder_focused",
             String::new(),
             0,

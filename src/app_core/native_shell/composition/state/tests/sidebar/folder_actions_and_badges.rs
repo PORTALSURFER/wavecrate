@@ -8,7 +8,7 @@ fn folder_create_editor_overlay_renders_selection_and_caret() {
     let mut model = AppModel::default();
     push_active_folder_row(
         &mut model,
-        FolderRowModel::new("Root", String::new(), 0, false, false, true, true, true),
+        folder_row_model("Root", String::new(), 0, false, false, true, true, true),
     );
     push_active_folder_row(
         &mut model,
@@ -76,7 +76,7 @@ fn folder_rename_editor_overlay_renders_selection_and_caret() {
     let mut model = AppModel::default();
     push_active_folder_row(
         &mut model,
-        FolderRowModel::new("Root", String::new(), 0, false, false, true, true, true),
+        folder_row_model("Root", String::new(), 0, false, false, true, true, true),
     );
     push_active_folder_row(
         &mut model,

@@ -2,12 +2,15 @@
 
 use radiant::{
     gui::types::{Point, Rect, Rgba8, Vector2},
-    gui::{range::NormalizedRange, visualization::TimelineEditPreview},
+    gui::{
+        range::NormalizedRange,
+        visualization::{TimelineEditPreview, TimelineEditPreviewParts},
+    },
     layout::LayoutOutput,
     prelude as ui,
     runtime::{
-        GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceLineStyle, GpuSurfaceRuntimeOverlays,
-        PaintFillRect, PaintGpuSurface, PaintPrimitive,
+        GpuSignalGainPreview, GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceLineStyle,
+        GpuSurfaceRuntimeOverlays, PaintFillRect, PaintGpuSurface, PaintPrimitive,
     },
     theme::ThemeTokens,
     widgets::{
@@ -33,6 +36,8 @@ const BAND_COUNT: usize = 4;
 const SELECTION_DRAG_EPSILON: f32 = 0.001;
 const EDIT_FADE_HANDLE_TAB_SIZE: f32 = 10.0;
 const EDIT_FADE_HANDLE_WIDTH: f32 = 3.0;
+const SELECTION_MOVE_HANDLE_HEIGHT: f32 = 7.0;
+const SELECTION_MOVE_HANDLE_END_INSET: f32 = 9.0;
 const SELECTION_FLASH_FRAMES: u8 = 12;
 #[cfg(test)]
 const SYNTHETIC_SAMPLE_RATE: u32 = 48_000;
@@ -195,10 +200,15 @@ impl WaveformState {
         if !is_wav_path(&self.file.path) {
             return Err(String::from("Extraction currently supports WAV files"));
         }
-        extract_wav_range_to_sibling(&self.file.path, &self.file.audio_bytes, selection)
+        extract_wav_range_to_sibling(
+            &self.file.path,
+            &self.file.audio_bytes,
+            self.file.frames,
+            selection,
+        )
     }
 
-    fn active_drag_kind(&self) -> Option<WaveformActiveDragKind> {
+    pub(super) fn active_drag_kind(&self) -> Option<WaveformActiveDragKind> {
         self.active_drag.map(WaveformDrag::kind)
     }
 
@@ -250,6 +260,22 @@ impl WaveformState {
 
     pub(super) fn path(&self) -> PathBuf {
         self.file.path.clone()
+    }
+
+    pub(super) fn rewrite_path_prefix(
+        &mut self,
+        old_path: &std::path::Path,
+        new_path: &std::path::Path,
+    ) -> bool {
+        if self.file.path == old_path {
+            Arc::make_mut(&mut self.file).path = new_path.to_path_buf();
+            return true;
+        }
+        if let Ok(relative) = self.file.path.strip_prefix(old_path) {
+            Arc::make_mut(&mut self.file).path = new_path.join(relative);
+            return true;
+        }
+        false
     }
 
     pub(super) fn has_loaded_sample(&self) -> bool {
@@ -334,6 +360,19 @@ impl WaveformState {
                     WaveformSelectionResizeDrag::new(kind, edge, selection),
                 ));
                 self.update_active_selection_resize(ratio);
+            }
+            WaveformInteraction::BeginSelectionMove {
+                kind,
+                visible_ratio,
+            } => {
+                let Some(selection) = self.selection_for_kind(kind) else {
+                    return;
+                };
+                let ratio = self.absolute_ratio_from_visible(visible_ratio);
+                self.active_drag = Some(WaveformDrag::SelectionMove(
+                    WaveformSelectionMoveDrag::new(kind, ratio, selection),
+                ));
+                self.update_active_selection_move(ratio);
             }
             WaveformInteraction::BeginPan { visible_ratio } => {
                 self.active_drag = Some(WaveformDrag::Pan(WaveformPanDrag::new(
@@ -437,6 +476,9 @@ impl WaveformState {
             WaveformDrag::SelectionResize(_) => {
                 self.update_active_selection_resize(ratio);
             }
+            WaveformDrag::SelectionMove(_) => {
+                self.update_active_selection_move(ratio);
+            }
             WaveformDrag::Pan(drag) => {
                 self.update_active_pan(drag, visible_ratio);
             }
@@ -475,6 +517,11 @@ impl WaveformState {
             WaveformDrag::SelectionResize(_) => {
                 self.active_drag = Some(drag);
                 self.update_active_selection_resize(ratio);
+                self.active_drag = None;
+            }
+            WaveformDrag::SelectionMove(_) => {
+                self.active_drag = Some(drag);
+                self.update_active_selection_move(ratio);
                 self.active_drag = None;
             }
             WaveformDrag::Pan(drag) => {
@@ -546,6 +593,23 @@ impl WaveformState {
         }
     }
 
+    fn update_active_selection_move(&mut self, ratio: f32) {
+        let Some(WaveformDrag::SelectionMove(drag)) = self.active_drag else {
+            return;
+        };
+        let selection = drag.apply(ratio);
+        match drag.kind {
+            WaveformSelectionKind::Play => {
+                self.play_mark_ratio = Some(selection.start());
+                self.play_selection = Some(selection);
+            }
+            WaveformSelectionKind::Edit => {
+                self.edit_mark_ratio = Some(selection.start());
+                self.edit_selection = Some(selection);
+            }
+        }
+    }
+
     fn update_active_pan(&mut self, drag: WaveformPanDrag, visible_ratio: f32) {
         let total = self.file.frames.max(1);
         let viewport = drag.viewport.clamp(total);
@@ -598,6 +662,10 @@ pub(super) enum WaveformInteraction {
         edge: WaveformSelectionEdge,
         visible_ratio: f32,
     },
+    BeginSelectionMove {
+        kind: WaveformSelectionKind,
+        visible_ratio: f32,
+    },
     BeginPan {
         visible_ratio: f32,
     },
@@ -636,6 +704,7 @@ pub(super) enum WaveformEditFadeHandle {
 pub(super) enum WaveformActiveDragKind {
     Selection(WaveformSelectionKind),
     SelectionResize(WaveformSelectionKind, WaveformSelectionEdge),
+    SelectionMove(WaveformSelectionKind),
     EditFade(WaveformEditFadeHandle),
     Pan,
 }
@@ -644,6 +713,7 @@ pub(super) enum WaveformActiveDragKind {
 enum WaveformDrag {
     Selection(WaveformSelectionDrag),
     SelectionResize(WaveformSelectionResizeDrag),
+    SelectionMove(WaveformSelectionMoveDrag),
     EditFade(WaveformEditFadeDrag),
     Pan(WaveformPanDrag),
 }
@@ -655,6 +725,7 @@ impl WaveformDrag {
             WaveformDrag::SelectionResize(drag) => {
                 WaveformActiveDragKind::SelectionResize(drag.kind, drag.edge)
             }
+            WaveformDrag::SelectionMove(drag) => WaveformActiveDragKind::SelectionMove(drag.kind),
             WaveformDrag::EditFade(drag) => WaveformActiveDragKind::EditFade(drag.handle),
             WaveformDrag::Pan(_) => WaveformActiveDragKind::Pan,
         }
@@ -697,6 +768,31 @@ impl WaveformSelectionDrag {
     fn update(&mut self, ratio: f32) {
         self.current_ratio = ratio;
         self.moved |= (self.current_ratio - self.anchor_ratio).abs() > SELECTION_DRAG_EPSILON;
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct WaveformSelectionMoveDrag {
+    kind: WaveformSelectionKind,
+    anchor_ratio: f32,
+    baseline: wavecrate::selection::SelectionRange,
+}
+
+impl WaveformSelectionMoveDrag {
+    fn new(
+        kind: WaveformSelectionKind,
+        anchor_ratio: f32,
+        baseline: wavecrate::selection::SelectionRange,
+    ) -> Self {
+        Self {
+            kind,
+            anchor_ratio,
+            baseline,
+        }
+    }
+
+    fn apply(self, ratio: f32) -> wavecrate::selection::SelectionRange {
+        self.baseline.shift(ratio - self.anchor_ratio)
     }
 }
 
@@ -1098,22 +1194,25 @@ fn edit_preview_for_selection(
     let width = selection.width();
     let fade_in = selection.fade_in();
     let fade_out = selection.fade_out();
-    TimelineEditPreview::new(
-        Some(NormalizedRange::from_micros(
+    TimelineEditPreview::from_parts(TimelineEditPreviewParts {
+        selection: Some(NormalizedRange::from_micros(
             normalized_to_micros(start),
             normalized_to_micros(end),
         )),
-        fade_in.map(|fade| normalized_to_milli(start + width * fade.length)),
-        fade_in.map(|fade| normalized_to_micros(start + width * fade.length)),
-        fade_in.map(|fade| normalized_to_milli(start - width * fade.mute)),
-        fade_in.map(|fade| normalized_to_micros(start - width * fade.mute)),
-        fade_in.map(|fade| normalized_to_milli(fade.curve)),
-        fade_out.map(|fade| normalized_to_milli(end - width * fade.length)),
-        fade_out.map(|fade| normalized_to_micros(end - width * fade.length)),
-        fade_out.map(|fade| normalized_to_milli(end + width * fade.mute)),
-        fade_out.map(|fade| normalized_to_micros(end + width * fade.mute)),
-        fade_out.map(|fade| normalized_to_milli(fade.curve)),
-    )
+        leading_end_milli: fade_in.map(|fade| normalized_to_milli(start + width * fade.length)),
+        leading_end_micros: fade_in.map(|fade| normalized_to_micros(start + width * fade.length)),
+        leading_inner_start_milli: fade_in
+            .map(|fade| normalized_to_milli(start - width * fade.mute)),
+        leading_inner_start_micros: fade_in
+            .map(|fade| normalized_to_micros(start - width * fade.mute)),
+        leading_curve_milli: fade_in.map(|fade| normalized_to_milli(fade.curve)),
+        trailing_start_milli: fade_out.map(|fade| normalized_to_milli(end - width * fade.length)),
+        trailing_start_micros: fade_out.map(|fade| normalized_to_micros(end - width * fade.length)),
+        trailing_inner_end_milli: fade_out.map(|fade| normalized_to_milli(end + width * fade.mute)),
+        trailing_inner_end_micros: fade_out
+            .map(|fade| normalized_to_micros(end + width * fade.mute)),
+        trailing_curve_milli: fade_out.map(|fade| normalized_to_milli(fade.curve)),
+    })
 }
 
 fn normalized_to_milli(value: f32) -> u16 {
@@ -1128,10 +1227,10 @@ fn normalized_to_micros(value: f32) -> u32 {
 pub(super) struct WaveformFile {
     path: PathBuf,
     audio_bytes: Arc<[u8]>,
+    content_revision: u64,
     sample_rate: u32,
     channels: usize,
     frames: usize,
-    gpu_signal_samples: Arc<[f32]>,
     gpu_signal_summary: Arc<radiant::runtime::GpuSignalSummary>,
 }
 
@@ -1143,6 +1242,10 @@ impl WaveformFile {
         self.sample_rate.hash(&mut hasher);
         self.channels.hash(&mut hasher);
         hasher.finish()
+    }
+
+    fn content_revision(&self) -> u64 {
+        self.content_revision
     }
 }
 
@@ -1268,62 +1371,32 @@ fn waveform_file_from_mono_samples(
     );
     WaveformFile {
         path,
+        content_revision: content_revision_for_audio_bytes(&audio_bytes),
         audio_bytes,
         sample_rate,
         channels,
         frames: mono_samples.len(),
-        gpu_signal_samples: Arc::from(gpu_signal_samples),
         gpu_signal_summary,
     }
 }
 
-fn apply_edit_fade_to_signal_samples(
-    samples: &mut [f32],
-    frames: usize,
-    band_count: usize,
-    selection: wavecrate::selection::SelectionRange,
-) {
-    if frames == 0 || band_count == 0 || !selection.has_edit_effects() {
-        return;
-    }
-    let max_frame = frames.saturating_sub(1).max(1);
-    for frame in 0..frames {
-        let position = frame as f32 / max_frame as f32;
-        let gain = selection.gain_at_position(position, 0.0);
-        if (gain - 1.0).abs() <= f32::EPSILON {
-            continue;
-        }
-        let base = frame * band_count;
-        for band in 0..band_count {
-            if let Some(sample) = samples.get_mut(base + band) {
-                *sample *= gain;
-            }
-        }
-    }
-}
-
-fn edit_selection_revision(selection: Option<wavecrate::selection::SelectionRange>) -> u64 {
-    let Some(selection) = selection else {
-        return 0;
-    };
-    if !selection.has_edit_effects() {
-        return 0;
-    }
-    let mut hasher = DefaultHasher::new();
-    selection.start().to_bits().hash(&mut hasher);
-    selection.end().to_bits().hash(&mut hasher);
-    selection.gain().to_bits().hash(&mut hasher);
-    if let Some(fade) = selection.fade_in() {
-        fade.length.to_bits().hash(&mut hasher);
-        fade.curve.to_bits().hash(&mut hasher);
-        fade.mute.to_bits().hash(&mut hasher);
-    }
-    if let Some(fade) = selection.fade_out() {
-        fade.length.to_bits().hash(&mut hasher);
-        fade.curve.to_bits().hash(&mut hasher);
-        fade.mute.to_bits().hash(&mut hasher);
-    }
-    hasher.finish().max(1)
+fn gain_preview_for_selection(
+    selection: Option<wavecrate::selection::SelectionRange>,
+) -> Option<GpuSignalGainPreview> {
+    let selection = selection.filter(|selection| selection.has_edit_effects())?;
+    let fade_in = selection.fade_in();
+    let fade_out = selection.fade_out();
+    Some(GpuSignalGainPreview {
+        start: selection.start(),
+        end: selection.end(),
+        gain: selection.gain(),
+        fade_in_length: fade_in.map(|fade| fade.length).unwrap_or(0.0),
+        fade_in_curve: fade_in.map(|fade| fade.curve).unwrap_or(0.5),
+        fade_in_mute: fade_in.map(|fade| fade.mute).unwrap_or(0.0),
+        fade_out_length: fade_out.map(|fade| fade.length).unwrap_or(0.0),
+        fade_out_curve: fade_out.map(|fade| fade.curve).unwrap_or(0.5),
+        fade_out_mute: fade_out.map(|fade| fade.mute).unwrap_or(0.0),
+    })
 }
 
 fn is_wav_path(path: &std::path::Path) -> bool {
@@ -1335,6 +1408,7 @@ fn is_wav_path(path: &std::path::Path) -> bool {
 fn extract_wav_range_to_sibling(
     source_path: &std::path::Path,
     bytes: &[u8],
+    loaded_frames: usize,
     selection: wavecrate::selection::SelectionRange,
 ) -> Result<PathBuf, String> {
     let cursor = Cursor::new(bytes);
@@ -1342,17 +1416,27 @@ fn extract_wav_range_to_sibling(
         hound::WavReader::new(cursor).map_err(|err| format!("failed to open WAV: {err}"))?;
     let spec = reader.spec();
     let channels = usize::from(spec.channels).max(1);
-    let total_frames = reader.duration() as usize / channels;
+    let total_frames = (reader.duration() as usize).min(loaded_frames);
     if total_frames == 0 {
         return Err(String::from("WAV contains no complete frames"));
     }
-    let start_frame = (selection.start().clamp(0.0, 1.0) * total_frames as f32).floor() as usize;
-    let end_frame = (selection.end().clamp(0.0, 1.0) * total_frames as f32).ceil() as usize;
-    let start_frame = start_frame.min(total_frames.saturating_sub(1));
-    let end_frame = end_frame.clamp(start_frame + 1, total_frames);
+    let frame_range = selection.frame_bounds(total_frames);
     let output_path = next_extraction_path(source_path)?;
-    write_wav_frame_range(reader, spec, channels, start_frame, end_frame, &output_path)?;
+    write_wav_frame_range(
+        reader,
+        spec,
+        channels,
+        frame_range.start_frame,
+        frame_range.end_frame,
+        &output_path,
+    )?;
     Ok(output_path)
+}
+
+fn content_revision_for_audio_bytes(bytes: &[u8]) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    bytes.hash(&mut hasher);
+    hasher.finish().max(1)
 }
 
 fn next_extraction_path(source_path: &std::path::Path) -> Result<PathBuf, String> {
@@ -1501,19 +1585,92 @@ fn split_frequency_bands(samples: &[f32], sample_rate: u32) -> Arc<[f32]> {
     let alpha_mid = lowpass_alpha(sample_rate, 2_200.0);
     let mut low = 0.0_f32;
     let mut mid_low = 0.0_f32;
+    let mut low_envelope = 0.0_f32;
+    let mut mid_envelope = 0.0_f32;
+    let mut high_envelope = 0.0_f32;
+    let low_release = envelope_release_alpha(sample_rate, 12.0);
+    let mid_release = envelope_release_alpha(sample_rate, 5.5);
+    let high_release = envelope_release_alpha(sample_rate, 2.2);
     let mut bands = Vec::with_capacity(samples.len().saturating_mul(BAND_COUNT));
     for sample in samples {
         let sample = sample.clamp(-1.0, 1.0);
         low += alpha_low * (sample - low);
         mid_low += alpha_mid * (sample - mid_low);
-        let mid = ((mid_low - low) * 1.45).clamp(-1.0, 1.0);
-        let high = ((sample - mid_low) * 2.15).clamp(-1.0, 1.0);
-        bands.push((low * 1.08).clamp(-1.0, 1.0));
-        bands.push(mid);
-        bands.push(high);
-        bands.push((sample * 0.72).clamp(-1.0, 1.0));
+        let low_band = (low * 1.08).clamp(-1.0, 1.0);
+        let mid_band = ((mid_low - low) * 1.45).clamp(-1.0, 1.0);
+        let high_band = ((sample - mid_low) * 2.15).clamp(-1.0, 1.0);
+        low_envelope = follow_visual_envelope(low_envelope, low_band.abs(), low_release);
+        mid_envelope = follow_visual_envelope(mid_envelope, mid_band.abs(), mid_release);
+        high_envelope = follow_visual_envelope(high_envelope, high_band.abs(), high_release);
+        bands.push(low_envelope);
+        bands.push(mid_envelope);
+        bands.push(high_envelope);
+        bands.push(sample);
     }
+    normalize_visual_band_peaks(&mut bands);
     bands.into()
+}
+
+fn normalize_visual_band_peaks(bands: &mut [f32]) {
+    let raw_peak = bands
+        .chunks_exact(BAND_COUNT)
+        .map(|frame| frame[3].abs())
+        .fold(0.0_f32, f32::max);
+    if raw_peak <= 0.000_01 || !raw_peak.is_finite() {
+        return;
+    }
+    let peaks = [
+        visual_band_peak(bands, 0),
+        visual_band_peak(bands, 1),
+        visual_band_peak(bands, 2),
+    ];
+    let spectral_total = peaks.iter().copied().sum::<f32>().max(0.000_01);
+    let targets = [raw_peak * 0.98, raw_peak * 0.74, raw_peak * 0.34];
+    let boost_thresholds = [raw_peak * 0.08, raw_peak * 0.05, raw_peak * 0.035];
+    let max_gains = [2.6_f32, 2.8, 2.4];
+    for band in 0..3 {
+        let peak = peaks[band];
+        if peak <= 0.000_01 || !peak.is_finite() {
+            continue;
+        }
+        let energy_share = peak / spectral_total;
+        let target = targets[band] * smoothstep_scalar(0.12, 0.55, energy_share);
+        let max_gain = if peak < boost_thresholds[band] {
+            1.0
+        } else {
+            max_gains[band]
+        };
+        let gain = (target / peak).clamp(0.25, max_gain);
+        for frame in bands.chunks_exact_mut(BAND_COUNT) {
+            frame[band] = (frame[band] * gain).clamp(-1.0, 1.0);
+        }
+    }
+}
+
+fn visual_band_peak(bands: &[f32], band: usize) -> f32 {
+    bands
+        .chunks_exact(BAND_COUNT)
+        .map(|frame| frame[band].abs())
+        .fold(0.0_f32, f32::max)
+}
+
+fn smoothstep_scalar(edge0: f32, edge1: f32, value: f32) -> f32 {
+    let range = (edge1 - edge0).abs().max(0.000_01);
+    let t = ((value - edge0) / range).clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+fn follow_visual_envelope(previous: f32, value: f32, release_alpha: f32) -> f32 {
+    if value >= previous {
+        value
+    } else {
+        previous + release_alpha * (value - previous)
+    }
+}
+
+fn envelope_release_alpha(sample_rate: u32, release_ms: f32) -> f32 {
+    let samples = sample_rate.max(1) as f32 * (release_ms.max(0.1) / 1_000.0);
+    (1.0 - (-1.0 / samples).exp()).clamp(0.0, 1.0)
 }
 
 fn lowpass_alpha(sample_rate: u32, cutoff_hz: f32) -> f32 {
@@ -1525,11 +1682,13 @@ fn downmix_to_mono(samples: &[f32], channels: usize, frames: usize) -> Vec<f32> 
     (0..frames)
         .map(|frame| {
             let start = frame * channels;
-            let sum = samples[start..start + channels]
-                .iter()
-                .copied()
-                .sum::<f32>();
-            (sum / channels as f32).clamp(-1.0, 1.0)
+            let mut peak = 0.0_f32;
+            for sample in samples[start..start + channels].iter().copied() {
+                if sample.abs() > peak.abs() {
+                    peak = sample;
+                }
+            }
+            peak.clamp(-1.0, 1.0)
         })
         .collect()
 }
@@ -1604,25 +1763,11 @@ impl WaveformSignalWidget {
     }
 
     fn signal_summary(&self) -> Arc<radiant::runtime::GpuSignalSummary> {
-        let Some(selection) = self.edit_selection else {
-            return Arc::clone(&self.file.gpu_signal_summary);
-        };
-        if !selection.has_edit_effects() {
-            return Arc::clone(&self.file.gpu_signal_summary);
-        }
-        let mut samples = self.file.gpu_signal_samples.as_ref().to_vec();
-        apply_edit_fade_to_signal_samples(&mut samples, self.file.frames, BAND_COUNT, selection);
-        Arc::new(
-            radiant::runtime::GpuSignalSummary::from_interleaved_samples(
-                &samples,
-                self.file.frames,
-                BAND_COUNT,
-            ),
-        )
+        Arc::clone(&self.file.gpu_signal_summary)
     }
 
     fn signal_revision(&self) -> u64 {
-        edit_selection_revision(self.edit_selection)
+        self.file.content_revision()
     }
 }
 
@@ -1657,6 +1802,7 @@ impl Widget for WaveformSignalWidget {
                 band_count: BAND_COUNT,
                 frame_range: [self.viewport.start as f32, self.viewport.end as f32],
                 summary,
+                gain_preview: gain_preview_for_selection(self.edit_selection),
             },
             capabilities: GpuSurfaceCapabilities {
                 fast_pointer_move: true,
@@ -1765,6 +1911,7 @@ impl Widget for WaveformWidget {
             WidgetInput::PointerPress {
                 position,
                 button: PointerButton::Primary,
+                ..
             } if bounds.contains(position) => {
                 if let Some(handle) = self.edit_fade_handle_at(bounds, position) {
                     return Some(WidgetOutput::typed(WaveformInteraction::BeginEditFade {
@@ -1783,6 +1930,22 @@ impl Widget for WaveformWidget {
                         },
                     ));
                 }
+                if self.selection_move_handle_at(bounds, position, WaveformSelectionKind::Play) {
+                    return Some(WidgetOutput::typed(
+                        WaveformInteraction::BeginSelectionMove {
+                            kind: WaveformSelectionKind::Play,
+                            visible_ratio: self.ratio_from_position(bounds, position),
+                        },
+                    ));
+                }
+                if self.selection_move_handle_at(bounds, position, WaveformSelectionKind::Edit) {
+                    return Some(WidgetOutput::typed(
+                        WaveformInteraction::BeginSelectionMove {
+                            kind: WaveformSelectionKind::Edit,
+                            visible_ratio: self.ratio_from_position(bounds, position),
+                        },
+                    ));
+                }
                 Some(WidgetOutput::typed(WaveformInteraction::BeginSelection {
                     kind: WaveformSelectionKind::Play,
                     visible_ratio: self.ratio_from_position(bounds, position),
@@ -1791,6 +1954,7 @@ impl Widget for WaveformWidget {
             WidgetInput::PointerDoubleClick {
                 position,
                 button: PointerButton::Primary,
+                ..
             } if bounds.contains(position) => {
                 if let Some(
                     handle @ (WaveformEditFadeHandle::FadeInOuterStart
@@ -1806,12 +1970,21 @@ impl Widget for WaveformWidget {
             WidgetInput::PointerPress {
                 position,
                 button: PointerButton::Secondary,
+                ..
             } if bounds.contains(position) => {
                 if let Some(handle) = self.edit_fade_handle_at(bounds, position) {
                     return Some(WidgetOutput::typed(WaveformInteraction::BeginEditFade {
                         handle,
                         visible_ratio: self.ratio_from_position(bounds, position),
                     }));
+                }
+                if self.selection_move_handle_at(bounds, position, WaveformSelectionKind::Edit) {
+                    return Some(WidgetOutput::typed(
+                        WaveformInteraction::BeginSelectionMove {
+                            kind: WaveformSelectionKind::Edit,
+                            visible_ratio: self.ratio_from_position(bounds, position),
+                        },
+                    ));
                 }
                 Some(WidgetOutput::typed(WaveformInteraction::BeginSelection {
                     kind: WaveformSelectionKind::Edit,
@@ -1821,6 +1994,7 @@ impl Widget for WaveformWidget {
             WidgetInput::PointerPress {
                 position,
                 button: PointerButton::Auxiliary,
+                ..
             } if bounds.contains(position) => {
                 Some(WidgetOutput::typed(WaveformInteraction::BeginPan {
                     visible_ratio: self.ratio_from_position(bounds, position),
@@ -1829,6 +2003,7 @@ impl Widget for WaveformWidget {
             WidgetInput::PointerRelease {
                 position,
                 button: PointerButton::Primary,
+                ..
             } if self.active_drag_kind
                 == Some(WaveformActiveDragKind::Selection(
                     WaveformSelectionKind::Play,
@@ -1841,6 +2016,7 @@ impl Widget for WaveformWidget {
                                 WaveformSelectionKind::Play,
                                 _
                             )
+                            | WaveformActiveDragKind::SelectionMove(_)
                     )
                 ) =>
             {
@@ -1851,13 +2027,17 @@ impl Widget for WaveformWidget {
             WidgetInput::PointerRelease {
                 position,
                 button: PointerButton::Secondary,
+                ..
             } if self.active_drag_kind
                 == Some(WaveformActiveDragKind::Selection(
                     WaveformSelectionKind::Edit,
                 ))
                 || matches!(
                     self.active_drag_kind,
-                    Some(WaveformActiveDragKind::EditFade(_))
+                    Some(
+                        WaveformActiveDragKind::EditFade(_)
+                            | WaveformActiveDragKind::SelectionMove(WaveformSelectionKind::Edit)
+                    )
                 ) =>
             {
                 Some(WidgetOutput::typed(WaveformInteraction::FinishSelection {
@@ -1867,6 +2047,7 @@ impl Widget for WaveformWidget {
             WidgetInput::PointerRelease {
                 position,
                 button: PointerButton::Auxiliary,
+                ..
             } if self.active_drag_kind == Some(WaveformActiveDragKind::Pan) => {
                 Some(WidgetOutput::typed(WaveformInteraction::FinishSelection {
                     visible_ratio: self.ratio_from_position(bounds, position),
@@ -1970,6 +2151,18 @@ impl WaveformWidget {
                     a: if flash_active { 255 } else { 220 },
                 },
             );
+            self.append_selection_move_handle(
+                primitives,
+                bounds,
+                start,
+                end,
+                Rgba8 {
+                    r: 255,
+                    g: 142,
+                    b: 92,
+                    a: if flash_active { 245 } else { 185 },
+                },
+            );
         }
         if let Some((start, end)) = self.visible_range_for_selection(self.edit_selection) {
             let cursor_color = Rgba8 {
@@ -1996,6 +2189,18 @@ impl WaveformWidget {
                 self.edit_selection,
                 cursor_color,
                 1.25,
+            );
+            self.append_selection_move_handle(
+                primitives,
+                bounds,
+                start,
+                end,
+                Rgba8 {
+                    r: 82,
+                    g: 168,
+                    b: 255,
+                    a: 180,
+                },
             );
         }
         if self.play_selection.is_none()
@@ -2117,6 +2322,67 @@ impl WaveformWidget {
                 self.push_fill(primitives, rect, color);
             }
         }
+    }
+
+    fn append_selection_move_handle(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        start: f32,
+        end: f32,
+        color: Rgba8,
+    ) {
+        if let Some(rect) = self.selection_move_handle_rect(bounds, start, end) {
+            self.push_fill(primitives, rect, color);
+        }
+    }
+
+    fn selection_move_handle_at(
+        &self,
+        bounds: Rect,
+        position: Point,
+        kind: WaveformSelectionKind,
+    ) -> bool {
+        let range = match kind {
+            WaveformSelectionKind::Play => self.play_selection,
+            WaveformSelectionKind::Edit => self.edit_selection,
+        };
+        let Some((start, end)) = self.visible_range_for_selection(range) else {
+            return false;
+        };
+        self.selection_move_handle_rect(bounds, start, end)
+            .is_some_and(|rect| rect.contains(position))
+    }
+
+    fn selection_move_handle_rect(&self, bounds: Rect, start: f32, end: f32) -> Option<Rect> {
+        let left = bounds.min.x + bounds.width() * start.min(end).clamp(0.0, 1.0);
+        let right = bounds.min.x + bounds.width() * start.max(end).clamp(0.0, 1.0);
+        if right <= left {
+            return None;
+        }
+        let width = right - left;
+        let inset = SELECTION_MOVE_HANDLE_END_INSET.min(width * 0.28);
+        let handle_left = if width > inset * 2.0 + 1.0 {
+            left + inset
+        } else {
+            left
+        };
+        let handle_right = if width > inset * 2.0 + 1.0 {
+            right - inset
+        } else {
+            right
+        };
+        let height = SELECTION_MOVE_HANDLE_HEIGHT
+            .min(bounds.height().max(1.0))
+            .max(1.0);
+        let handle_right = handle_right.max(handle_left + 1.0).min(bounds.max.x);
+        if handle_right <= handle_left {
+            return None;
+        }
+        Some(Rect::from_min_max(
+            Point::new(handle_left, bounds.min.y),
+            Point::new(handle_right, bounds.min.y + height),
+        ))
     }
 
     fn selection_resize_handle_at(
@@ -2486,13 +2752,23 @@ impl WaveformWidget {
         color: Rgba8,
         width: f32,
     ) {
-        let x = bounds.min.x + bounds.width() * ratio.clamp(0.0, 1.0);
-        let half_width = (width * 0.5).max(0.5);
+        let cursor_width = width.ceil().max(2.0).min(bounds.width().max(1.0));
+        let x = (bounds.min.x + bounds.width() * ratio.clamp(0.0, 1.0))
+            .round()
+            .clamp(bounds.min.x, bounds.max.x);
+        let left = (x - cursor_width * 0.5).clamp(
+            bounds.min.x,
+            (bounds.max.x - cursor_width).max(bounds.min.x),
+        );
+        let right = (left + cursor_width).min(bounds.max.x);
+        if right <= left {
+            return;
+        }
         self.push_fill(
             primitives,
             Rect::from_min_max(
-                Point::new((x - half_width).max(bounds.min.x), bounds.min.y),
-                Point::new((x + half_width).min(bounds.max.x), bounds.max.y),
+                Point::new(left, bounds.min.y),
+                Point::new(right, bounds.max.y),
             ),
             color,
         );
@@ -2589,6 +2865,23 @@ mod tests {
     }
 
     #[test]
+    fn stereo_downmix_preserves_per_frame_peak_height_for_normalized_files() {
+        let samples = vec![1.0, 0.0, -0.25, 0.25, 0.0, -1.0, 0.5, -0.75];
+
+        assert_eq!(
+            super::downmix_to_mono(&samples, 2, 4),
+            vec![1.0, -0.25, -1.0, -0.75]
+        );
+    }
+
+    #[test]
+    fn stereo_downmix_avoids_phase_cancellation_in_visual_projection() {
+        let samples = vec![1.0, -1.0, 0.35, -0.2];
+
+        assert_eq!(super::downmix_to_mono(&samples, 2, 2), vec![1.0, 0.35]);
+    }
+
+    #[test]
     fn playmark_extraction_writes_sibling_wav_range() {
         let root = std::env::temp_dir().join(format!(
             "wavecrate-playmark-extract-{}",
@@ -2609,6 +2902,42 @@ mod tests {
 
         assert_eq!(output.file_name().unwrap(), "source_extraction.wav");
         assert_eq!(read_test_wav_i16(&output), vec![100, 200, 300, 400]);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn playmark_extraction_uses_channel_independent_frame_bounds() {
+        let root = std::env::temp_dir().join(format!(
+            "wavecrate-playmark-extract-stereo-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).expect("create temp root");
+        let source = root.join("source.wav");
+        write_test_wav_i16_stereo(
+            &source,
+            &[
+                (0, 1),
+                (100, 101),
+                (200, 201),
+                (300, 301),
+                (400, 401),
+                (500, 501),
+            ],
+        );
+        let mut state = WaveformState::load_path(source).expect("load source");
+        state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.25, 0.75));
+
+        let output = state
+            .extract_play_selection_to_sibling()
+            .expect("extract range");
+
+        assert_eq!(
+            read_test_wav_i16(&output),
+            vec![100, 101, 200, 201, 300, 301, 400, 401]
+        );
         let _ = fs::remove_dir_all(root);
     }
 
@@ -2688,7 +3017,117 @@ mod tests {
         assert!(low_peak > 0.0);
         assert!(mid_peak > 0.0);
         assert!(high_peak > 0.0);
-        assert!(high_peak > raw_peak);
+        assert!(raw_peak > 0.69);
+    }
+
+    #[test]
+    fn frequency_bands_raw_lane_preserves_visual_peak_for_normalized_content() {
+        let sample_rate = 48_000;
+        let low = (0..sample_rate / 100)
+            .map(|frame| {
+                let t = frame as f32 / sample_rate as f32;
+                (std::f32::consts::TAU * 70.0 * t).sin()
+            })
+            .collect::<Vec<_>>();
+        let high = (0..sample_rate / 100)
+            .map(|frame| {
+                let t = frame as f32 / sample_rate as f32;
+                (std::f32::consts::TAU * 4_000.0 * t).sin()
+            })
+            .collect::<Vec<_>>();
+
+        for samples in [low, high] {
+            let bands = split_frequency_bands(&samples, sample_rate);
+            let raw_peak = bands
+                .chunks_exact(BAND_COUNT)
+                .map(|frame| frame[3].abs())
+                .fold(0.0_f32, f32::max);
+
+            assert!(
+                (raw_peak - 1.0).abs() < 0.000_01,
+                "raw display peak should track normalized sample peak, got {raw_peak}"
+            );
+        }
+    }
+
+    #[test]
+    fn frequency_bands_normalize_short_low_content_to_raw_visual_peak() {
+        let sample_rate = 48_000;
+        let samples = (0..2_656)
+            .map(|frame| {
+                let t = frame as f32 / sample_rate as f32;
+                (std::f32::consts::TAU * 72.0 * t).sin()
+            })
+            .collect::<Vec<_>>();
+
+        let bands = split_frequency_bands(&samples, sample_rate);
+        let low_peak = bands
+            .chunks_exact(BAND_COUNT)
+            .map(|frame| frame[0].abs())
+            .fold(0.0_f32, f32::max);
+        let raw_peak = bands
+            .chunks_exact(BAND_COUNT)
+            .map(|frame| frame[3].abs())
+            .fold(0.0_f32, f32::max);
+
+        assert!(raw_peak > 0.99, "raw peak was {raw_peak}");
+        assert!(
+            low_peak > raw_peak * 0.94,
+            "short low content should not render visually undersized: low={low_peak}, raw={raw_peak}"
+        );
+    }
+
+    #[test]
+    fn frequency_bands_use_envelopes_to_avoid_low_zero_crossing_gaps() {
+        let sample_rate = 48_000;
+        let samples = (0..sample_rate / 20)
+            .map(|frame| {
+                let t = frame as f32 / sample_rate as f32;
+                (std::f32::consts::TAU * 60.0 * t).sin()
+            })
+            .collect::<Vec<_>>();
+
+        let bands = split_frequency_bands(&samples, sample_rate);
+        let low_values = bands
+            .chunks_exact(BAND_COUNT)
+            .skip(sample_rate as usize / 50)
+            .map(|frame| frame[0].abs())
+            .collect::<Vec<_>>();
+        let low_peak = low_values.iter().copied().fold(0.0_f32, f32::max);
+        let low_floor = low_values.iter().copied().fold(f32::INFINITY, f32::min);
+
+        assert!(low_peak > 0.94, "low envelope peak was {low_peak}");
+        assert!(
+            low_floor > low_peak * 0.55,
+            "sustained low envelope should not collapse at zero crossings: floor={low_floor}, peak={low_peak}"
+        );
+    }
+
+    #[test]
+    fn frequency_bands_do_not_inflate_low_color_for_high_frequency_content() {
+        let sample_rate = 48_000;
+        let samples = (0..sample_rate / 100)
+            .map(|frame| {
+                let t = frame as f32 / sample_rate as f32;
+                (std::f32::consts::TAU * 7_200.0 * t).sin()
+            })
+            .collect::<Vec<_>>();
+
+        let bands = split_frequency_bands(&samples, sample_rate);
+        let low_peak = bands
+            .chunks_exact(BAND_COUNT)
+            .map(|frame| frame[0].abs())
+            .fold(0.0_f32, f32::max);
+        let high_peak = bands
+            .chunks_exact(BAND_COUNT)
+            .map(|frame| frame[2].abs())
+            .fold(0.0_f32, f32::max);
+
+        assert!(high_peak > 0.30, "high peak was {high_peak}");
+        assert!(
+            low_peak < high_peak * 0.35,
+            "mostly high-frequency content should not be painted as low-end blue: low={low_peak}, high={high_peak}"
+        );
     }
 
     #[test]
@@ -2768,6 +3207,44 @@ mod tests {
     }
 
     #[test]
+    fn playhead_cursor_paints_pixel_stable_rect_when_progress_is_subpixel() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.start_playback(0.0);
+        state.set_playhead_ratio(0.12345);
+        let widget = WaveformWidget::new(
+            state.file(),
+            state.viewport(),
+            state.cursor_ratio(),
+            state.playhead_ratio(),
+            state.play_mark_ratio(),
+            state.edit_mark_ratio(),
+            state.play_selection(),
+            state.edit_selection(),
+            state.extraction_history(),
+            state.play_selection_flash_frames(),
+            state.active_drag_kind(),
+        );
+        let mut primitives = Vec::new();
+
+        widget.append_paint(
+            &mut primitives,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(400.0, 80.0)),
+            &Default::default(),
+            &ThemeTokens::default(),
+        );
+
+        let playhead = fill_rects(&primitives)
+            .into_iter()
+            .find(|fill| {
+                (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (71, 220, 255, 245)
+            })
+            .expect("playhead fill paints");
+        assert_eq!(playhead.rect.width(), 2.0);
+        assert_eq!(playhead.rect.min.x.fract(), 0.0);
+        assert_eq!(playhead.rect.max.x.fract(), 0.0);
+    }
+
+    #[test]
     fn visible_ratio_maps_to_absolute_audio_position_inside_viewport() {
         let mut state = WaveformState::synthetic_for_tests();
         state.viewport = super::WaveformViewport {
@@ -2807,6 +3284,7 @@ mod tests {
                 WidgetInput::PointerPress {
                     position: Point::new(100.0, 40.0),
                     button: PointerButton::Auxiliary,
+                    modifiers: Default::default(),
                 },
             )
             .expect("middle press should arm waveform pan");
@@ -2855,6 +3333,7 @@ mod tests {
                 WidgetInput::PointerPress {
                     position: Point::new(60.0, 40.0),
                     button: PointerButton::Primary,
+                    modifiers: Default::default(),
                 },
             )
             .expect("playback interaction");
@@ -2896,6 +3375,7 @@ mod tests {
                 WidgetInput::PointerPress {
                     position: Point::new(160.0, 40.0),
                     button: PointerButton::Secondary,
+                    modifiers: Default::default(),
                 },
             )
             .expect("edit selection interaction");
@@ -2954,6 +3434,56 @@ mod tests {
     }
 
     #[test]
+    fn playmark_top_handle_moves_range_without_resizing() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+        state.play_mark_ratio = Some(0.2);
+
+        state.apply_interaction(WaveformInteraction::BeginSelectionMove {
+            kind: WaveformSelectionKind::Play,
+            visible_ratio: 0.4,
+        });
+        state.apply_interaction(WaveformInteraction::UpdateSelection {
+            visible_ratio: 0.55,
+        });
+        state.apply_interaction(WaveformInteraction::FinishSelection {
+            visible_ratio: 0.55,
+        });
+
+        let selection = state.play_selection().expect("moved playmark selection");
+        assert!((selection.start() - 0.35).abs() < 0.001);
+        assert!((selection.end() - 0.75).abs() < 0.001);
+        assert!((selection.width() - 0.4).abs() < 0.001);
+        assert_eq!(state.play_mark_ratio(), Some(selection.start()));
+        assert!(!state.is_playing());
+    }
+
+    #[test]
+    fn edit_top_handle_moves_range_and_preserves_edit_effects() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.edit_selection = Some(
+            wavecrate::selection::SelectionRange::new(0.2, 0.6)
+                .with_fade_in(0.25, 0.2)
+                .with_fade_out(0.25, 0.7),
+        );
+        state.edit_mark_ratio = Some(0.2);
+
+        state.apply_interaction(WaveformInteraction::BeginSelectionMove {
+            kind: WaveformSelectionKind::Edit,
+            visible_ratio: 0.4,
+        });
+        state.apply_interaction(WaveformInteraction::UpdateSelection { visible_ratio: 0.1 });
+        state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.1 });
+
+        let selection = state.edit_selection().expect("moved edit selection");
+        assert!((selection.start() - 0.0).abs() < 0.001);
+        assert!((selection.end() - 0.4).abs() < 0.001);
+        assert_eq!(state.edit_mark_ratio(), Some(selection.start()));
+        assert_eq!(selection.fade_in().map(|fade| fade.length), Some(0.25));
+        assert_eq!(selection.fade_out().map(|fade| fade.length), Some(0.25));
+    }
+
+    #[test]
     fn primary_press_on_playmark_handle_starts_resize_instead_of_new_selection() {
         let mut state = WaveformState::synthetic_for_tests();
         state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
@@ -2979,6 +3509,7 @@ mod tests {
                 WidgetInput::PointerPress {
                     position: Point::new(120.0, 8.0),
                     button: PointerButton::Primary,
+                    modifiers: Default::default(),
                 },
             )
             .expect("playmark resize interaction");
@@ -2993,6 +3524,94 @@ mod tests {
                 kind: WaveformSelectionKind::Play,
                 edge: WaveformSelectionEdge::End,
                 visible_ratio: 0.6
+            }
+        );
+    }
+
+    #[test]
+    fn primary_press_on_playmark_top_handle_starts_move() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+        state.play_mark_ratio = Some(0.2);
+        let mut widget = WaveformWidget::new(
+            state.file(),
+            state.viewport(),
+            state.cursor_ratio(),
+            state.playhead_ratio(),
+            state.play_mark_ratio(),
+            state.edit_mark_ratio(),
+            state.play_selection(),
+            state.edit_selection(),
+            state.extraction_history(),
+            state.play_selection_flash_frames(),
+            state.active_drag_kind(),
+        );
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
+
+        let output = widget
+            .handle_input(
+                bounds,
+                WidgetInput::PointerPress {
+                    position: Point::new(80.0, 3.0),
+                    button: PointerButton::Primary,
+                    modifiers: Default::default(),
+                },
+            )
+            .expect("playmark move interaction");
+        let interaction = output
+            .typed_ref::<WaveformInteraction>()
+            .copied()
+            .expect("waveform interaction");
+
+        assert_eq!(
+            interaction,
+            WaveformInteraction::BeginSelectionMove {
+                kind: WaveformSelectionKind::Play,
+                visible_ratio: 0.4
+            }
+        );
+    }
+
+    #[test]
+    fn secondary_press_on_edit_top_handle_starts_move() {
+        let mut state = WaveformState::synthetic_for_tests();
+        state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+        state.edit_mark_ratio = Some(0.2);
+        let mut widget = WaveformWidget::new(
+            state.file(),
+            state.viewport(),
+            state.cursor_ratio(),
+            state.playhead_ratio(),
+            state.play_mark_ratio(),
+            state.edit_mark_ratio(),
+            state.play_selection(),
+            state.edit_selection(),
+            state.extraction_history(),
+            state.play_selection_flash_frames(),
+            state.active_drag_kind(),
+        );
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
+
+        let output = widget
+            .handle_input(
+                bounds,
+                WidgetInput::PointerPress {
+                    position: Point::new(80.0, 3.0),
+                    button: PointerButton::Secondary,
+                    modifiers: Default::default(),
+                },
+            )
+            .expect("edit move interaction");
+        let interaction = output
+            .typed_ref::<WaveformInteraction>()
+            .copied()
+            .expect("waveform interaction");
+
+        assert_eq!(
+            interaction,
+            WaveformInteraction::BeginSelectionMove {
+                kind: WaveformSelectionKind::Edit,
+                visible_ratio: 0.4
             }
         );
     }
@@ -3146,6 +3765,7 @@ mod tests {
                 WidgetInput::PointerPress {
                     position: Point::new(40.0, 40.0),
                     button: PointerButton::Primary,
+                    modifiers: Default::default(),
                 },
             )
             .expect("outer fade handle interaction");
@@ -3388,6 +4008,7 @@ mod tests {
                 WidgetInput::PointerDoubleClick {
                     position: Point::new(140.0, 40.0),
                     button: PointerButton::Primary,
+                    modifiers: Default::default(),
                 },
             )
             .expect("outer fade double-click interaction");
@@ -3574,6 +4195,7 @@ mod tests {
                 WidgetInput::PointerPress {
                     position: Point::new(40.0, 4.0),
                     button: PointerButton::Primary,
+                    modifiers: Default::default(),
                 },
             )
             .expect("fade handle interaction");
@@ -3861,7 +4483,7 @@ mod tests {
     }
 
     #[test]
-    fn signal_widget_applies_active_edit_fade_to_gpu_summary() {
+    fn signal_widget_attaches_active_edit_fade_gain_preview() {
         let file = Arc::new(waveform_file_from_mono_samples(
             "fade-preview.wav".into(),
             Arc::from([]),
@@ -3872,7 +4494,7 @@ mod tests {
         let viewport = super::WaveformViewport::full(file.frames);
         let edit_selection =
             Some(wavecrate::selection::SelectionRange::new(0.0, 1.0).with_fade_in(1.0, 0.0));
-        let widget = WaveformSignalWidget::new(file, viewport, edit_selection, None);
+        let widget = WaveformSignalWidget::new(Arc::clone(&file), viewport, edit_selection, None);
         let mut primitives = Vec::new();
 
         widget.append_paint(
@@ -3891,18 +4513,47 @@ mod tests {
             .expect("waveform gpu surface");
 
         assert!(surface.revision > 0);
-        let GpuSurfaceContent::SignalSummaryBands { summary, .. } = &surface.content else {
+        let GpuSurfaceContent::SignalSummaryBands {
+            summary,
+            gain_preview,
+            ..
+        } = &surface.content
+        else {
             panic!("expected signal summary bands");
         };
-        let buckets = &summary.levels[0].buckets;
-        let first_raw = &buckets[3];
-        let last_raw = &buckets[(15 * BAND_COUNT) + 3];
-        assert!(first_raw.max.abs().max(first_raw.min.abs()) < 0.001);
-        assert!(last_raw.max.abs().max(last_raw.min.abs()) > 0.65);
+        assert!(Arc::ptr_eq(summary, &file.gpu_signal_summary));
+        let preview = gain_preview.expect("edit fade gain preview");
+        assert_eq!(preview.start, 0.0);
+        assert_eq!(preview.end, 1.0);
+        assert_eq!(preview.fade_in_length, 1.0);
+        assert_eq!(preview.fade_in_curve, 0.0);
     }
 
     #[test]
-    fn signal_widget_applies_edit_fade_to_gpu_summary_during_live_drag() {
+    fn signal_widget_revision_changes_when_same_path_audio_bytes_change() {
+        let first = Arc::new(waveform_file_from_mono_samples(
+            "same-path.wav".into(),
+            Arc::from([1_u8, 2, 3, 4]),
+            48_000,
+            1,
+            vec![0.25; 16],
+        ));
+        let second = Arc::new(waveform_file_from_mono_samples(
+            "same-path.wav".into(),
+            Arc::from([4_u8, 3, 2, 1]),
+            48_000,
+            1,
+            vec![1.0; 16],
+        ));
+
+        let first_revision = gpu_surface_revision_for_file(first);
+        let second_revision = gpu_surface_revision_for_file(second);
+
+        assert_ne!(first_revision, second_revision);
+    }
+
+    #[test]
+    fn signal_widget_keeps_summary_cached_during_live_edit_fade_drag() {
         let file = Arc::new(waveform_file_from_mono_samples(
             "fade-preview.wav".into(),
             Arc::from([]),
@@ -3939,15 +4590,16 @@ mod tests {
             .expect("waveform gpu surface");
 
         assert!(surface.revision > 0);
-        let GpuSurfaceContent::SignalSummaryBands { summary, .. } = &surface.content else {
+        let GpuSurfaceContent::SignalSummaryBands {
+            summary,
+            gain_preview,
+            ..
+        } = &surface.content
+        else {
             panic!("expected signal summary bands");
         };
-        assert!(!Arc::ptr_eq(summary, &file.gpu_signal_summary));
-        let buckets = &summary.levels[0].buckets;
-        let first_raw = &buckets[3];
-        let last_raw = &buckets[(15 * BAND_COUNT) + 3];
-        assert!(first_raw.max.abs().max(first_raw.min.abs()) < 0.001);
-        assert!(last_raw.max.abs().max(last_raw.min.abs()) > 0.65);
+        assert!(Arc::ptr_eq(summary, &file.gpu_signal_summary));
+        assert!(gain_preview.is_some());
     }
 
     fn fill_rects(primitives: &[PaintPrimitive]) -> Vec<&PaintFillRect> {
@@ -3960,6 +4612,25 @@ mod tests {
             .collect()
     }
 
+    fn gpu_surface_revision_for_file(file: Arc<super::WaveformFile>) -> u64 {
+        let viewport = super::WaveformViewport::full(file.frames);
+        let widget = WaveformSignalWidget::new(file, viewport, None, None);
+        let mut primitives = Vec::new();
+        widget.append_paint(
+            &mut primitives,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0)),
+            &Default::default(),
+            &ThemeTokens::default(),
+        );
+        primitives
+            .iter()
+            .find_map(|primitive| match primitive {
+                PaintPrimitive::GpuSurface(surface) => Some(surface.revision),
+                _ => None,
+            })
+            .expect("waveform gpu surface")
+    }
+
     fn write_test_wav_i16(path: &std::path::Path, samples: &[i16]) {
         let spec = hound::WavSpec {
             channels: 1,
@@ -3970,6 +4641,21 @@ mod tests {
         let mut writer = hound::WavWriter::create(path, spec).expect("create wav");
         for sample in samples {
             writer.write_sample(*sample).expect("write sample");
+        }
+        writer.finalize().expect("finalize wav");
+    }
+
+    fn write_test_wav_i16_stereo(path: &std::path::Path, frames: &[(i16, i16)]) {
+        let spec = hound::WavSpec {
+            channels: 2,
+            sample_rate: 48_000,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut writer = hound::WavWriter::create(path, spec).expect("create wav");
+        for (left, right) in frames {
+            writer.write_sample(*left).expect("write left sample");
+            writer.write_sample(*right).expect("write right sample");
         }
         writer.finalize().expect("finalize wav");
     }
