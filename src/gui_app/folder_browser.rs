@@ -9,8 +9,8 @@ use radiant::{
     theme::ThemeTokens,
     widgets::{
         DragHandleMessage, FocusBehavior, PaintBounds, PointerButton, PointerModifiers,
-        TextInputMessage, TextInputWidget, Widget, WidgetCommon, WidgetInput, WidgetOutput,
-        WidgetSizing, WidgetStyle, WidgetTone,
+        TextInputMessage, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
+        WidgetStyle, WidgetTone,
     },
 };
 use std::{
@@ -184,11 +184,10 @@ impl FolderBrowserState {
             .min(total_items.saturating_sub(1));
     }
 
-    #[cfg(test)]
     pub(super) fn follow_selected_file_view(
         &mut self,
         viewport_rows: usize,
-        _overscan_rows: usize,
+        overscan_rows: usize,
         guard_rows: usize,
     ) -> ui::VirtualListWindow {
         let total_items = self.selected_audio_files().len();
@@ -201,6 +200,7 @@ impl FolderBrowserState {
         }
         let viewport_rows = viewport_rows.min(total_items).max(1);
         let guard_rows = guard_rows.min(viewport_rows.saturating_sub(1) / 2);
+        let overscan_rows = overscan_rows.min(total_items.saturating_sub(viewport_rows));
         let mut viewport_start = self.file_view_start.min(total_items.saturating_sub(1));
         if let Some(focused_index) = self.selected_audio_file_index() {
             let lower_guard = viewport_start.saturating_add(guard_rows);
@@ -222,12 +222,14 @@ impl FolderBrowserState {
             .file_view_start
             .saturating_add(viewport_rows)
             .min(total_items);
+        let window_start = self.file_view_start.saturating_sub(overscan_rows);
+        let window_end = viewport_end.saturating_add(overscan_rows).min(total_items);
         ui::VirtualListWindow {
             total_items,
             viewport_start: self.file_view_start,
             viewport_end,
-            window_start: self.file_view_start,
-            window_end: viewport_end,
+            window_start,
+            window_end,
         }
     }
 
@@ -2107,23 +2109,19 @@ fn source_row(state: &FolderBrowserState, source: &SourceEntry) -> ui::View<GuiM
 fn folder_row(folder: VisibleFolder) -> ui::View<GuiMessage> {
     let id = folder.id.clone();
     if let (Some(draft), Some(input_id)) = (folder.rename_draft.clone(), folder.rename_input_id) {
-        let mut input = TextInputWidget::new(
-            0,
-            draft.clone(),
-            WidgetSizing::fixed(Vector2::new(120.0, 22.0)),
-        );
-        input.state.selection_anchor = 0;
-        input.state.caret = draft.chars().count();
+        let caret = draft.chars().count();
         let indent = (folder.depth as f32) * TREE_DEPTH_INDENT;
         return ui::row([
             ui::spacer().width(indent).height(22.0),
-            ui::custom_widget_mapped(input, |message| {
-                GuiMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message))
-            })
-            .id(input_id)
-            .key(format!("folder-rename-input-{id}"))
-            .fill_width()
-            .height(22.0),
+            ui::text_input(draft)
+                .selection(0, caret)
+                .message_event(|message| {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message))
+                })
+                .id(input_id)
+                .key(format!("folder-rename-input-{id}"))
+                .fill_width()
+                .height(22.0),
         ])
         .key(format!("folder-row-{id}"))
         .style(WidgetStyle {

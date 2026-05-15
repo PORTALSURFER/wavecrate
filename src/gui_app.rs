@@ -1,17 +1,16 @@
 //! Default Wavecrate GUI application built on Radiant's current public API.
 
-use radiant::gui::types::{ImageRgba, Point, Rect, Rgba8};
+use radiant::gui::types::{Point, Rect, Rgba8};
 use radiant::layout::{LayoutOutput, Vector2};
 use radiant::prelude as ui;
 use radiant::runtime::{
-    NativeRunOptions, NativeTextOptions, PaintFillRect, PaintImage, PaintPrimitive,
-    PaintStrokeRect, PaintText, PaintTextAlign, PaintTextRun,
+    NativeRunOptions, NativeTextOptions, PaintFillRect, PaintPrimitive, PaintStrokeRect, PaintText,
+    PaintTextAlign, PaintTextRun,
 };
 use radiant::theme::ThemeTokens;
 use radiant::widgets::{
-    DragHandleMessage, FocusBehavior, PaintBounds, PointerButton, PointerModifiers,
-    ScrollbarMessage, TextInputWidget, TextWrap, Widget, WidgetCommon, WidgetInput, WidgetOutput,
-    WidgetSizing,
+    DragHandleMessage, FocusBehavior, PaintBounds, PointerButton, PointerModifiers, TextWrap,
+    Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
 };
 use rfd::{FileDialog, MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
 use std::{
@@ -19,17 +18,13 @@ use std::{
     panic::{self, AssertUnwindSafe},
     path::{Path, PathBuf},
     process,
-    sync::{
-        Arc,
-        mpsc::{self, Receiver, Sender},
-    },
+    sync::mpsc::{self, Receiver, Sender},
     time::{Duration, Instant, SystemTime},
 };
 use wavecrate::audio::{
     AudioDeviceSummary, AudioHostSummary, AudioOutputConfig, AudioPlayer, ResolvedOutput,
     available_devices, available_hosts, supported_sample_rates,
 };
-use wavecrate::gui::svg::{parse_svg_document, point_in_svg_shapes};
 use wavecrate::gui_runtime::wavecrate_ui_font_path;
 use wavecrate::logging::{self, ActionDebugEvent, emit_action_debug_event};
 
@@ -50,6 +45,7 @@ const SAMPLE_BROWSER_LIST_ID: u64 = 30_000;
 const SAMPLE_BROWSER_ROW_HEIGHT: f32 = 22.0;
 const SAMPLE_BROWSER_EDGE_CONTEXT_ROWS: usize = 2;
 const SAMPLE_BROWSER_OVERSCAN_ROWS: usize = 4;
+const SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS: usize = 128;
 const DEFAULT_VOLUME: f32 = 1.0;
 const VOLUME_SLIDER_ID: u64 = 31_000;
 const VOLUME_SLIDER_WIDTH: f32 = 92.0;
@@ -2350,15 +2346,12 @@ fn audio_engine_pill_with_id(
 }
 
 fn volume_slider(volume: f32) -> ui::View<GuiMessage> {
-    ui::custom_widget(VolumeSlider::new(volume), |output| {
-        output
-            .typed_ref::<VolumeSliderMessage>()
-            .copied()
-            .map(|message| GuiMessage::SetVolume(message.volume))
-    })
-    .id(VOLUME_SLIDER_ID)
-    .key("top-volume-slider")
-    .size(VOLUME_SLIDER_WIDTH, VOLUME_SLIDER_HEIGHT)
+    ui::slider(volume)
+        .compact()
+        .message(GuiMessage::SetVolume)
+        .id(VOLUME_SLIDER_ID)
+        .key("top-volume-slider")
+        .size(VOLUME_SLIDER_WIDTH, VOLUME_SLIDER_HEIGHT)
 }
 
 fn audio_settings_popover(state: &GuiAppState) -> ui::View<GuiMessage> {
@@ -2647,11 +2640,18 @@ fn toolbar_icon_button(
     enabled: bool,
     active: bool,
 ) -> ui::View<GuiMessage> {
-    ui::custom_widget(ToolbarIconButton::new(icon, enabled, active), |output| {
-        output.typed_ref::<GuiMessage>().cloned()
-    })
-    .id(id)
-    .size(28.0, 24.0)
+    let Some(svg_icon) = ui::SvgIcon::from_svg(icon.svg()) else {
+        return ui::button("")
+            .message(toolbar_button_message(icon))
+            .id(id)
+            .size(28.0, 24.0);
+    };
+    ui::icon_button(svg_icon)
+        .enabled(enabled)
+        .active(active)
+        .message(toolbar_button_message(icon))
+        .id(id)
+        .size(28.0, 24.0)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -2673,114 +2673,6 @@ impl ToolbarIcon {
             Self::Stop => include_str!(
                 "app_core/native_shell/composition/assets/icons/waveform_toolbar/stop.svg"
             ),
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-struct ToolbarIconButton {
-    common: WidgetCommon,
-    icon: ToolbarIcon,
-}
-
-impl ToolbarIconButton {
-    fn new(icon: ToolbarIcon, enabled: bool, active: bool) -> Self {
-        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(28.0, 24.0)));
-        common.focus = FocusBehavior::Keyboard;
-        common.paint.bounds = PaintBounds::ClipToRect;
-        common.paint.paints_focus = false;
-        common.state.disabled = !enabled;
-        common.state.active = active;
-        Self { common, icon }
-    }
-}
-
-impl Widget for ToolbarIconButton {
-    fn common(&self) -> &WidgetCommon {
-        &self.common
-    }
-
-    fn common_mut(&mut self) -> &mut WidgetCommon {
-        &mut self.common
-    }
-
-    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        if self.common.state.disabled {
-            self.common.state.pressed = false;
-            return None;
-        }
-        match input {
-            WidgetInput::PointerMove { position } => {
-                self.common.state.hovered = bounds.contains(position);
-                None
-            }
-            WidgetInput::PointerPress {
-                position,
-                button: PointerButton::Primary,
-                ..
-            } if bounds.contains(position) => {
-                self.common.state.hovered = true;
-                self.common.state.pressed = true;
-                self.common.state.focused = true;
-                None
-            }
-            WidgetInput::PointerRelease {
-                position,
-                button: PointerButton::Primary,
-                ..
-            } => {
-                let activated = self.common.state.pressed && bounds.contains(position);
-                self.common.state.pressed = false;
-                self.common.state.hovered = bounds.contains(position);
-                activated.then(|| WidgetOutput::typed(toolbar_button_message(self.icon)))
-            }
-            WidgetInput::FocusChanged(focused) => {
-                self.common.state.focused = focused;
-                if !focused {
-                    self.common.state.pressed = false;
-                }
-                None
-            }
-            WidgetInput::KeyPress(key) if self.common.state.focused => match key {
-                radiant::widgets::WidgetKey::Enter | radiant::widgets::WidgetKey::Space => {
-                    Some(WidgetOutput::typed(toolbar_button_message(self.icon)))
-                }
-                _ => None,
-            },
-            _ => None,
-        }
-    }
-
-    fn accepts_pointer_move(&self) -> bool {
-        true
-    }
-
-    fn append_paint(
-        &self,
-        primitives: &mut Vec<PaintPrimitive>,
-        bounds: Rect,
-        _layout: &LayoutOutput,
-        theme: &ThemeTokens,
-    ) {
-        let side = bounds.width().min(bounds.height()).min(16.0).max(8.0);
-        let icon_rect = Rect::from_min_size(
-            Point::new(
-                bounds.min.x + (bounds.width() - side) * 0.5,
-                bounds.min.y + (bounds.height() - side) * 0.5,
-            ),
-            Vector2::new(side, side),
-        );
-        if let Some(image) = rasterize_toolbar_icon(
-            self.icon,
-            side.round() as usize,
-            toolbar_icon_color(theme, self.common.state.disabled, self.common.state.active),
-        ) {
-            primitives.push(PaintPrimitive::Image(PaintImage {
-                widget_id: self.common.id,
-                source_rect: None,
-                rect: icon_rect,
-                image: Arc::new(image),
-            }));
         }
     }
 }
@@ -3007,205 +2899,6 @@ impl Widget for AudioSettingsModalBlocker {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct VolumeSliderMessage {
-    volume: f32,
-}
-
-#[derive(Clone, Debug)]
-struct VolumeSlider {
-    common: WidgetCommon,
-    volume: f32,
-}
-
-impl VolumeSlider {
-    fn new(volume: f32) -> Self {
-        let mut common = WidgetCommon::new(
-            0,
-            WidgetSizing::fixed(Vector2::new(VOLUME_SLIDER_WIDTH, VOLUME_SLIDER_HEIGHT)),
-        );
-        common.focus = FocusBehavior::None;
-        common.paint.bounds = PaintBounds::ClipToRect;
-        common.paint.paints_focus = false;
-        common.paint.paints_state_layers = false;
-        Self {
-            common,
-            volume: volume.clamp(0.0, 1.0),
-        }
-    }
-}
-
-impl Widget for VolumeSlider {
-    fn common(&self) -> &WidgetCommon {
-        &self.common
-    }
-
-    fn common_mut(&mut self) -> &mut WidgetCommon {
-        &mut self.common
-    }
-
-    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        match input {
-            WidgetInput::PointerMove { position } => {
-                self.common.state.hovered = bounds.contains(position);
-                if self.common.state.pressed {
-                    self.volume = volume_from_point(bounds, position);
-                    return Some(WidgetOutput::typed(VolumeSliderMessage {
-                        volume: self.volume,
-                    }));
-                }
-                None
-            }
-            WidgetInput::PointerPress {
-                position,
-                button: PointerButton::Primary,
-                ..
-            } if bounds.contains(position) => {
-                self.common.state.hovered = true;
-                self.common.state.pressed = true;
-                self.volume = volume_from_point(bounds, position);
-                Some(WidgetOutput::typed(VolumeSliderMessage {
-                    volume: self.volume,
-                }))
-            }
-            WidgetInput::PointerRelease {
-                position,
-                button: PointerButton::Primary,
-                ..
-            } => {
-                let was_pressed = self.common.state.pressed;
-                self.common.state.pressed = false;
-                self.common.state.hovered = bounds.contains(position);
-                if was_pressed {
-                    self.volume = volume_from_point(bounds, position);
-                    return Some(WidgetOutput::typed(VolumeSliderMessage {
-                        volume: self.volume,
-                    }));
-                }
-                None
-            }
-            _ => {
-                if matches!(input, WidgetInput::PointerRelease { .. }) {
-                    self.common.state.pressed = false;
-                }
-                None
-            }
-        }
-    }
-
-    fn accepts_pointer_move(&self) -> bool {
-        true
-    }
-
-    fn append_paint(
-        &self,
-        primitives: &mut Vec<PaintPrimitive>,
-        bounds: Rect,
-        _layout: &LayoutOutput,
-        _theme: &ThemeTokens,
-    ) {
-        let track_rect = Rect::from_min_max(
-            Point::new(bounds.min.x, bounds.min.y + (bounds.height() - 6.0) * 0.5),
-            Point::new(bounds.max.x, bounds.min.y + (bounds.height() + 6.0) * 0.5),
-        );
-        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-            widget_id: self.common.id,
-            rect: track_rect,
-            color: Rgba8 {
-                r: 44,
-                g: 44,
-                b: 44,
-                a: 230,
-            },
-        }));
-        let fill_width = (track_rect.width() * self.volume).clamp(
-            if self.volume > 0.0 { 1.0 } else { 0.0 },
-            track_rect.width(),
-        );
-        if fill_width > 0.0 {
-            primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-                widget_id: self.common.id,
-                rect: Rect::from_min_max(
-                    track_rect.min,
-                    Point::new(track_rect.min.x + fill_width, track_rect.max.y),
-                ),
-                color: Rgba8 {
-                    r: 255,
-                    g: 100,
-                    b: 76,
-                    a: 205,
-                },
-            }));
-        }
-        primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
-            widget_id: self.common.id,
-            rect: Rect::from_min_max(
-                Point::new(track_rect.min.x + 0.5, track_rect.min.y + 0.5),
-                Point::new(track_rect.max.x - 0.5, track_rect.max.y - 0.5),
-            ),
-            color: Rgba8 {
-                r: 98,
-                g: 98,
-                b: 98,
-                a: if self.common.state.hovered { 230 } else { 170 },
-            },
-            width: 1.0,
-        }));
-    }
-}
-
-fn volume_from_point(bounds: Rect, position: Point) -> f32 {
-    ((position.x - bounds.min.x) / bounds.width().max(1.0)).clamp(0.0, 1.0)
-}
-
-fn toolbar_icon_color(theme: &ThemeTokens, disabled: bool, active: bool) -> Rgba8 {
-    let mut color = if active {
-        theme.highlight_orange
-    } else {
-        theme.text_primary
-    };
-    if disabled {
-        color.a = (u16::from(color.a) / 2) as u8;
-    }
-    color
-}
-
-fn rasterize_toolbar_icon(icon: ToolbarIcon, side: usize, color: Rgba8) -> Option<ImageRgba> {
-    let document = parse_svg_document(icon.svg())?;
-    let mut pixels = vec![0_u8; side.saturating_mul(side).saturating_mul(4)];
-    let sample_offsets = [
-        (0.25_f32, 0.25_f32),
-        (0.75, 0.25),
-        (0.25, 0.75),
-        (0.75, 0.75),
-    ];
-    for y in 0..side {
-        for x in 0..side {
-            let mut hits = 0_u8;
-            for (offset_x, offset_y) in sample_offsets {
-                let world_x = document.view_box_min_x
-                    + ((x as f32 + offset_x) / side as f32) * document.view_box_width;
-                let world_y = document.view_box_min_y
-                    + ((y as f32 + offset_y) / side as f32) * document.view_box_height;
-                if point_in_svg_shapes(world_x, world_y, &document.shapes) {
-                    hits = hits.saturating_add(1);
-                }
-            }
-            if hits == 0 {
-                continue;
-            }
-            let coverage = hits as f32 / sample_offsets.len() as f32;
-            let alpha = ((color.a as f32) * coverage).round().clamp(0.0, 255.0) as u8;
-            let index = (y * side + x) * 4;
-            pixels[index] = color.r;
-            pixels[index + 1] = color.g;
-            pixels[index + 2] = color.b;
-            pixels[index + 3] = alpha;
-        }
-    }
-    ImageRgba::new(side, side, pixels)
-}
-
 fn waveform_panel(state: &GuiAppState) -> ui::View<GuiMessage> {
     ui::column([
         waveform_panel_header(&state.waveform),
@@ -3260,34 +2953,30 @@ fn waveform_scrollbar(waveform: &WaveformState) -> ui::View<GuiMessage> {
     if waveform.fully_zoomed_out() {
         return ui::text("").fill_width().height(0.0);
     }
-    let mut scrollbar = radiant::widgets::ScrollbarWidget::new(
-        0,
-        radiant::widgets::ScrollbarAxis::Horizontal,
-        radiant::widgets::WidgetSizing::fixed(radiant::gui::types::Vector2::new(1200.0, 6.0)),
-    );
-    scrollbar.props.viewport_fraction = waveform.visible_fraction();
-    scrollbar.state.offset_fraction = waveform.offset_fraction();
-    ui::custom_widget(scrollbar, |output| {
-        output
-            .typed_ref::<ScrollbarMessage>()
-            .copied()
-            .map(|message| match message {
-                ScrollbarMessage::OffsetChanged { offset_fraction } => {
-                    GuiMessage::Waveform(WaveformInteraction::ScrollTo { offset_fraction })
-                }
-            })
-    })
-    .fill_width()
-    .height(6.0)
+    ui::scrollbar(ui::ScrollbarAxis::Horizontal)
+        .viewport_fraction(waveform.visible_fraction())
+        .offset_fraction(waveform.offset_fraction())
+        .mapped(|message| match message {
+            ui::ScrollbarMessage::OffsetChanged { offset_fraction } => {
+                GuiMessage::Waveform(WaveformInteraction::ScrollTo { offset_fraction })
+            }
+        })
+        .fill_width()
+        .height(6.0)
 }
 
 fn sample_browser(state: &mut GuiAppState) -> ui::View<GuiMessage> {
+    let window = state.folder_browser.follow_selected_file_view(
+        SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS,
+        SAMPLE_BROWSER_OVERSCAN_ROWS,
+        SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
+    );
     let audio_files = state.folder_browser.selected_audio_files();
     let audio_count = audio_files.len();
     let columns = state.folder_browser.visible_file_columns();
     ui::column([
         sample_browser_header(&columns, state.folder_browser.file_sort()),
-        sample_browser_rows(&state.folder_browser, &audio_files, &columns),
+        sample_browser_rows(&state.folder_browser, &audio_files, &columns, window),
         sample_browser_status(audio_count),
     ])
     .spacing(0.0)
@@ -3343,6 +3032,7 @@ fn sample_browser_rows(
     folder_browser: &FolderBrowserState,
     files: &[&FileEntry],
     columns: &[&FileColumn],
+    window: ui::VirtualListWindow,
 ) -> ui::View<GuiMessage> {
     if files.is_empty() {
         return ui::text("No audio files in selected folder")
@@ -3351,9 +3041,11 @@ fn sample_browser_rows(
             .fill_height();
     }
 
-    ui::virtual_list(
-        files.iter().copied(),
-        |file| {
+    ui::virtual_list_window(
+        window,
+        SAMPLE_BROWSER_ROW_HEIGHT,
+        |index| {
+            let file = files[index];
             sample_browser_row(
                 file,
                 folder_browser.is_file_selected(&file.id),
@@ -3415,20 +3107,15 @@ fn sample_name_cell(
     let Some(rename) = rename else {
         return sample_file_cell(file, file.stem.clone(), width, "name");
     };
-    let mut input = TextInputWidget::new(
-        0,
-        rename.draft,
-        WidgetSizing::fixed(Vector2::new(width, 20.0)),
-    );
-    input.state.selection_anchor = rename.selection_start;
-    input.state.caret = rename.selection_end;
-    ui::custom_widget_mapped(input, |message| {
-        GuiMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message))
-    })
-    .id(rename.input_id)
-    .key(format!("sample-rename-input-{}", file.id))
-    .width(width)
-    .height(20.0)
+    ui::text_input(rename.draft)
+        .selection(rename.selection_start, rename.selection_end)
+        .message_event(|message| {
+            GuiMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message))
+        })
+        .id(rename.input_id)
+        .key(format!("sample-rename-input-{}", file.id))
+        .width(width)
+        .height(20.0)
 }
 
 fn sample_column_cell(
@@ -4269,113 +3956,44 @@ mod tests {
     }
 
     #[test]
-    fn toolbar_icon_assets_parse_and_rasterize() {
+    fn toolbar_icon_assets_parse_and_paint_through_radiant_icon_button() {
         for icon in [
             super::ToolbarIcon::Loop,
             super::ToolbarIcon::Play,
             super::ToolbarIcon::Stop,
         ] {
-            assert!(super::parse_svg_document(icon.svg()).is_some());
-            let image = super::rasterize_toolbar_icon(
-                icon,
-                16,
-                super::Rgba8 {
-                    r: 255,
-                    g: 255,
-                    b: 255,
-                    a: 255,
-                },
+            assert!(radiant::gui::svg::SvgIcon::from_svg(icon.svg()).is_some());
+            let frame = radiant::runtime::UiSurface::new(
+                super::toolbar_icon_button(101, icon, true, false).into_node(),
             )
-            .expect("icon should rasterize");
-            assert_eq!(image.width, 16);
-            assert_eq!(image.height, 16);
-            assert!(image.pixels.chunks_exact(4).any(|pixel| pixel[3] > 0));
+            .frame(
+                Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(28.0, 24.0)),
+                &radiant::theme::ThemeTokens::default(),
+            );
+            assert!(
+                frame
+                    .paint_plan
+                    .primitives
+                    .iter()
+                    .any(|primitive| matches!(primitive, PaintPrimitive::Svg(_))),
+                "toolbar icon should paint as a retained Radiant SVG"
+            );
         }
     }
 
     #[test]
-    fn toolbar_icon_button_emits_transport_message_on_release() {
-        let mut button = super::ToolbarIconButton::new(super::ToolbarIcon::Loop, true, false);
-        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(28.0, 24.0));
+    fn toolbar_icon_button_routes_transport_message_through_radiant_builder() {
+        let surface = radiant::runtime::UiSurface::new(
+            super::toolbar_icon_button(101, super::ToolbarIcon::Loop, true, false).into_node(),
+        );
 
         assert_eq!(
-            button.handle_input(
-                bounds,
-                WidgetInput::PointerPress {
-                    position: Point::new(12.0, 12.0),
-                    button: PointerButton::Primary,
-                    modifiers: Default::default(),
-                },
+            surface.dispatch_widget_output(
+                101,
+                radiant::widgets::WidgetOutput::typed(radiant::widgets::ButtonMessage::Activate),
             ),
-            None
+            Some(super::GuiMessage::ToggleLoopPlayback)
         );
-        let output = button
-            .handle_input(
-                bounds,
-                WidgetInput::PointerRelease {
-                    position: Point::new(12.0, 12.0),
-                    button: PointerButton::Primary,
-                    modifiers: Default::default(),
-                },
-            )
-            .expect("button output");
-
-        assert_eq!(
-            output.typed_ref::<super::GuiMessage>(),
-            Some(&super::GuiMessage::ToggleLoopPlayback)
-        );
-    }
-
-    #[test]
-    fn toolbar_icon_button_active_state_tints_icon_without_button_chrome() {
-        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(28.0, 24.0));
-        let theme = radiant::theme::ThemeTokens::default();
-        let active = super::ToolbarIconButton::new(super::ToolbarIcon::Loop, true, true);
-        let idle = super::ToolbarIconButton::new(super::ToolbarIcon::Loop, true, false);
-        let mut active_primitives = Vec::new();
-        let mut idle_primitives = Vec::new();
-
-        active.append_paint(&mut active_primitives, bounds, &Default::default(), &theme);
-        idle.append_paint(&mut idle_primitives, bounds, &Default::default(), &theme);
-
-        assert_no_button_chrome(&active_primitives);
-        assert_eq!(
-            first_visible_icon_rgb(&active_primitives),
-            toolbar_rgb(theme.highlight_orange)
-        );
-        assert_eq!(
-            first_visible_icon_rgb(&idle_primitives),
-            toolbar_rgb(theme.text_primary)
-        );
-    }
-
-    fn assert_no_button_chrome(primitives: &[PaintPrimitive]) {
-        assert!(
-            primitives.iter().all(|primitive| !matches!(
-                primitive,
-                PaintPrimitive::FillRect(_) | PaintPrimitive::StrokeRect(_)
-            )),
-            "toolbar icon buttons should not paint a fill or border"
-        );
-    }
-
-    fn first_visible_icon_rgb(primitives: &[PaintPrimitive]) -> (u8, u8, u8) {
-        primitives
-            .iter()
-            .find_map(|primitive| match primitive {
-                PaintPrimitive::Image(image) => image
-                    .image
-                    .pixels
-                    .chunks_exact(4)
-                    .find(|pixel| pixel[3] > 0)
-                    .map(|pixel| (pixel[0], pixel[1], pixel[2])),
-                _ => None,
-            })
-            .expect("toolbar icon paints visible pixels")
-    }
-
-    fn toolbar_rgb(color: super::Rgba8) -> (u8, u8, u8) {
-        (color.r, color.g, color.b)
     }
 
     fn write_test_wav_i16(path: &std::path::Path, samples: &[i16]) {
@@ -4495,35 +4113,15 @@ mod tests {
 
     #[test]
     fn volume_slider_drag_emits_normalized_volume() {
-        let mut slider = super::VolumeSlider::new(0.25);
-        let bounds = Rect::from_min_size(Point::new(10.0, 0.0), Vector2::new(100.0, 14.0));
-
-        let output = slider
-            .handle_input(
-                bounds,
-                WidgetInput::PointerPress {
-                    position: Point::new(85.0, 7.0),
-                    button: PointerButton::Primary,
-                    modifiers: Default::default(),
-                },
-            )
-            .expect("volume press should emit");
         assert_eq!(
-            output.typed_ref::<super::VolumeSliderMessage>(),
-            Some(&super::VolumeSliderMessage { volume: 0.75 })
-        );
-
-        let output = slider
-            .handle_input(
-                bounds,
-                WidgetInput::PointerMove {
-                    position: Point::new(35.0, 7.0),
-                },
-            )
-            .expect("volume drag should emit");
-        assert_eq!(
-            output.typed_ref::<super::VolumeSliderMessage>(),
-            Some(&super::VolumeSliderMessage { volume: 0.25 })
+            radiant::runtime::UiSurface::new(super::volume_slider(0.25).into_node())
+                .dispatch_widget_output(
+                    super::VOLUME_SLIDER_ID,
+                    radiant::widgets::WidgetOutput::typed(
+                        radiant::widgets::SliderMessage::ValueChanged { value: 0.75 },
+                    ),
+                ),
+            Some(super::GuiMessage::SetVolume(0.75))
         );
     }
 
