@@ -2253,49 +2253,68 @@ fn default_gui_shortcut_resolution(
     if state.folder_browser.rename_active() {
         ui::ShortcutResolution::unhandled()
     } else if state.audio_settings_open {
-        if press == ui::KeyPress::new(ui::KeyCode::Escape) {
-            ui::ShortcutResolution::action(GuiMessage::CloseAudioSettings)
-        } else {
-            ui::ShortcutResolution::handled()
-        }
-    } else if press == ui::KeyPress::new(ui::KeyCode::Escape) {
-        ui::ShortcutResolution::action(GuiMessage::StopPlayback)
-    } else if press == ui::KeyPress::new(ui::KeyCode::F2) {
-        ui::ShortcutResolution::action(GuiMessage::FolderBrowser(
-            FolderBrowserMessage::BeginRenameSelected,
-        ))
-    } else if press == ui::KeyPress::new(ui::KeyCode::Delete) {
-        ui::ShortcutResolution::action(GuiMessage::DeleteSelectedItem)
-    } else if press == ui::KeyPress::new(ui::KeyCode::E) {
-        ui::ShortcutResolution::action(GuiMessage::ExtractPlaymarkedRange)
-    } else if press == ui::KeyPress::new(ui::KeyCode::N) {
-        if state.folder_browser.selected_file_id().is_some() {
-            ui::ShortcutResolution::action(GuiMessage::NormalizeSelectedSamples)
-        } else {
-            ui::ShortcutResolution::action(GuiMessage::FolderBrowser(
-                FolderBrowserMessage::BeginCreateSubfolder,
-            ))
-        }
-    } else if press == ui::KeyPress::new(ui::KeyCode::Space) {
-        ui::ShortcutResolution::action(GuiMessage::PlaySelectedSample)
-    } else if press == ui::KeyPress::with_command(ui::KeyCode::A) {
-        ui::ShortcutResolution::action(GuiMessage::SelectAllSamples)
-    } else if press.key == ui::KeyCode::ArrowUp {
-        ui::ShortcutResolution::action(GuiMessage::NavigateBrowser {
-            delta: -1,
-            extend: press.shift,
-        })
-    } else if press.key == ui::KeyCode::ArrowDown {
-        ui::ShortcutResolution::action(GuiMessage::NavigateBrowser {
-            delta: 1,
-            extend: press.shift,
-        })
-    } else if press == ui::KeyPress::new(ui::KeyCode::ArrowLeft) {
-        ui::ShortcutResolution::action(GuiMessage::CollapseSelectedFolder)
-    } else if press == ui::KeyPress::new(ui::KeyCode::ArrowRight) {
-        ui::ShortcutResolution::action(GuiMessage::ExpandSelectedFolder)
+        ui::ShortcutLayer::modal()
+            .bind(
+                ui::KeyPress::new(ui::KeyCode::Escape),
+                GuiMessage::CloseAudioSettings,
+            )
+            .resolve(press)
     } else {
-        ui::ShortcutResolution::unhandled()
+        let n_action = if state.folder_browser.selected_file_id().is_some() {
+            GuiMessage::NormalizeSelectedSamples
+        } else {
+            GuiMessage::FolderBrowser(FolderBrowserMessage::BeginCreateSubfolder)
+        };
+
+        ui::ShortcutLayer::new()
+            .bind(
+                ui::KeyPress::new(ui::KeyCode::Escape),
+                GuiMessage::StopPlayback,
+            )
+            .bind(
+                ui::KeyPress::new(ui::KeyCode::F2),
+                GuiMessage::FolderBrowser(FolderBrowserMessage::BeginRenameSelected),
+            )
+            .bind(
+                ui::KeyPress::new(ui::KeyCode::Delete),
+                GuiMessage::DeleteSelectedItem,
+            )
+            .bind(
+                ui::KeyPress::new(ui::KeyCode::E),
+                GuiMessage::ExtractPlaymarkedRange,
+            )
+            .bind(ui::KeyPress::new(ui::KeyCode::N), n_action)
+            .bind(
+                ui::KeyPress::new(ui::KeyCode::Space),
+                GuiMessage::PlaySelectedSample,
+            )
+            .bind(
+                ui::KeyPress::with_command(ui::KeyCode::A),
+                GuiMessage::SelectAllSamples,
+            )
+            .bind(
+                ui::KeyPress::new(ui::KeyCode::ArrowLeft),
+                GuiMessage::CollapseSelectedFolder,
+            )
+            .bind(
+                ui::KeyPress::new(ui::KeyCode::ArrowRight),
+                GuiMessage::ExpandSelectedFolder,
+            )
+            .resolve_or_else(press, || match press.key {
+                ui::KeyCode::ArrowUp => {
+                    ui::ShortcutResolution::action(GuiMessage::NavigateBrowser {
+                        delta: -1,
+                        extend: press.shift,
+                    })
+                }
+                ui::KeyCode::ArrowDown => {
+                    ui::ShortcutResolution::action(GuiMessage::NavigateBrowser {
+                        delta: 1,
+                        extend: press.shift,
+                    })
+                }
+                _ => ui::ShortcutResolution::unhandled(),
+            })
     }
 }
 
