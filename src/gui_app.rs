@@ -79,7 +79,7 @@ enum GuiMessage {
         drag: DragHandleMessage,
     },
     ExternalDragCompleted(Result<ui::ExternalDragOutcome, String>),
-    SampleLoadFinished(SampleLoadResult),
+    SampleLoadFinished(ui::TaskCompletion<SampleLoadResult>),
     PlaySelectedSample,
     StopPlayback,
     ToggleLoopPlayback,
@@ -107,16 +107,13 @@ enum GuiMessage {
 
 #[derive(Clone, Debug)]
 struct SampleLoadResult {
-    task_id: u64,
     path: String,
     result: Result<WaveformState, String>,
 }
 
 impl PartialEq for SampleLoadResult {
     fn eq(&self, other: &Self) -> bool {
-        self.task_id == other.task_id
-            && self.path == other.path
-            && self.result.as_ref().err() == other.result.as_ref().err()
+        self.path == other.path && self.result.as_ref().err() == other.result.as_ref().err()
     }
 }
 
@@ -129,8 +126,7 @@ struct GuiAppState {
     worker_sender: Sender<GuiMessage>,
     worker_receiver: Option<Receiver<GuiMessage>>,
     next_task_id: u64,
-    next_sample_task_id: u64,
-    pending_sample_task_id: Option<u64>,
+    sample_load_task: ui::LatestTask,
     folder_progress: Option<FolderScanProgress>,
     progress_tick: f32,
     audio_player: Option<AudioPlayer>,
@@ -159,8 +155,7 @@ impl GuiAppState {
             worker_sender,
             worker_receiver: Some(worker_receiver),
             next_task_id: 1,
-            next_sample_task_id: 1,
-            pending_sample_task_id: None,
+            sample_load_task: ui::LatestTask::new(),
             folder_progress: None,
             progress_tick: 0.0,
             audio_player: None,
@@ -573,12 +568,6 @@ impl GuiAppState {
     fn next_folder_task_id(&mut self) -> u64 {
         let task_id = self.next_task_id;
         self.next_task_id = self.next_task_id.saturating_add(1);
-        task_id
-    }
-
-    fn next_sample_task_id(&mut self) -> u64 {
-        let task_id = self.next_sample_task_id;
-        self.next_sample_task_id = self.next_sample_task_id.saturating_add(1);
         task_id
     }
 
@@ -1154,8 +1143,6 @@ impl GuiAppState {
             self.waveform.stop_playback();
             self.current_playback_span = None;
         }
-        let task_id = self.next_sample_task_id();
-        self.pending_sample_task_id = Some(task_id);
         self.sample_status = format!("Loading {}", sample_path_label(path.as_str()));
         let label = sample_path_label(path.as_str());
         emit_gui_action(
@@ -1166,24 +1153,23 @@ impl GuiAppState {
             started_at,
             None,
         );
-        context.spawn(
+        context.spawn_latest(
+            &mut self.sample_load_task,
             "gui-sample-load",
             move || {
                 let result = WaveformState::load_path(PathBuf::from(&path));
-                SampleLoadResult {
-                    task_id,
-                    path,
-                    result,
-                }
+                SampleLoadResult { path, result }
             },
             GuiMessage::SampleLoadFinished,
         );
     }
 
-    fn finish_sample_load(&mut self, load: SampleLoadResult) {
+    fn finish_sample_load(&mut self, load: ui::TaskCompletion<SampleLoadResult>) {
         let started_at = Instant::now();
+        let ticket = load.ticket;
+        let load = load.output;
         let label = sample_path_label(load.path.as_str());
-        if self.pending_sample_task_id != Some(load.task_id) {
+        if !self.sample_load_task.finish(ticket) {
             emit_gui_action(
                 "browser.sample_load.finish",
                 Some("browser"),
@@ -1194,7 +1180,6 @@ impl GuiAppState {
             );
             return;
         }
-        self.pending_sample_task_id = None;
         match load.result {
             Ok(waveform) => {
                 let file_name = waveform.file_name();
@@ -3505,8 +3490,7 @@ mod tests {
             worker_sender: mpsc::channel().0,
             worker_receiver: None,
             next_task_id: 1,
-            next_sample_task_id: 1,
-            pending_sample_task_id: None,
+            sample_load_task: ui::LatestTask::new(),
             folder_progress: None,
             progress_tick: 0.0,
             audio_player: None,
@@ -3636,8 +3620,7 @@ mod tests {
             worker_sender: mpsc::channel().0,
             worker_receiver: None,
             next_task_id: 1,
-            next_sample_task_id: 1,
-            pending_sample_task_id: None,
+            sample_load_task: ui::LatestTask::new(),
             folder_progress: None,
             progress_tick: 0.0,
             audio_player: None,
@@ -3762,8 +3745,7 @@ mod tests {
             worker_sender: mpsc::channel().0,
             worker_receiver: None,
             next_task_id: 1,
-            next_sample_task_id: 1,
-            pending_sample_task_id: None,
+            sample_load_task: ui::LatestTask::new(),
             folder_progress: None,
             progress_tick: 0.0,
             audio_player: None,
@@ -3788,12 +3770,14 @@ mod tests {
             },
             &mut context,
         );
-        let task_id = state.pending_sample_task_id.expect("sample load queued");
+        let ticket = state.sample_load_task.active().expect("sample load queued");
         state.apply_message(
-            super::GuiMessage::SampleLoadFinished(super::SampleLoadResult {
-                task_id,
-                path: sample_path.clone(),
-                result: super::WaveformState::load_path(sample_path.clone().into()),
+            super::GuiMessage::SampleLoadFinished(ui::TaskCompletion {
+                ticket,
+                output: super::SampleLoadResult {
+                    path: sample_path.clone(),
+                    result: super::WaveformState::load_path(sample_path.clone().into()),
+                },
             }),
             &mut context,
         );
