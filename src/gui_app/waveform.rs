@@ -291,7 +291,10 @@ impl WaveformState {
     }
 
     pub(super) fn fully_zoomed_out(&self) -> bool {
-        self.viewport.clamp(self.file.frames).visible_frames() >= self.file.frames.max(1)
+        self.viewport
+            .clamp(self.file.frames, MIN_VISIBLE_FRAMES)
+            .visible_items()
+            >= self.file.frames.max(1)
     }
 
     pub(super) fn offset_fraction(&self) -> f32 {
@@ -377,7 +380,8 @@ impl WaveformState {
             WaveformInteraction::BeginPan { visible_ratio } => {
                 self.active_drag = Some(WaveformDrag::Pan(WaveformPanDrag::new(
                     visible_ratio,
-                    self.viewport.clamp(self.file.frames.max(1)),
+                    self.viewport
+                        .clamp(self.file.frames.max(1), MIN_VISIBLE_FRAMES),
                 )));
             }
             WaveformInteraction::UpdateSelection { visible_ratio } => {
@@ -394,11 +398,11 @@ impl WaveformState {
     }
 
     pub(super) fn absolute_ratio_from_visible(&self, visible_ratio: f32) -> f32 {
-        let total = self.file.frames.max(1);
-        let viewport = self.viewport.clamp(total);
-        let visible_ratio = visible_ratio.clamp(0.0, 1.0);
-        let frame = viewport.start as f64 + viewport.visible_frames() as f64 * visible_ratio as f64;
-        ((frame / total as f64) as f32).clamp(0.0, 1.0)
+        self.viewport.absolute_ratio_from_visible(
+            self.file.frames.max(1),
+            MIN_VISIBLE_FRAMES,
+            visible_ratio,
+        )
     }
 
     fn handle_wheel(&mut self, delta: Vector2, anchor_ratio: f32) {
@@ -415,46 +419,23 @@ impl WaveformState {
 
     fn zoom_around_anchor(&mut self, factor: f32, anchor_ratio: f32) {
         let total = self.file.frames.max(1);
-        let current = self.viewport.clamp(total);
-        let anchor_ratio = anchor_ratio.clamp(0.0, 1.0);
-        let anchor_frame = current.start as f32 + current.visible_frames() as f32 * anchor_ratio;
-        let next_visible = ((current.visible_frames() as f32) * factor)
-            .round()
-            .clamp(MIN_VISIBLE_FRAMES.min(total) as f32, total as f32)
-            as usize;
-        let start = (anchor_frame - next_visible as f32 * anchor_ratio)
-            .round()
-            .max(0.0) as usize;
-        self.viewport = WaveformViewport {
-            start,
-            end: start + next_visible,
-        }
-        .clamp(total);
+        self.viewport =
+            self.viewport
+                .zoom_around_anchor(total, MIN_VISIBLE_FRAMES, factor, anchor_ratio);
     }
 
     fn pan_by_visible_fraction(&mut self, fraction: f32) {
         let total = self.file.frames.max(1);
-        let current = self.viewport.clamp(total);
-        let delta = (current.visible_frames() as f32 * fraction).round() as isize;
-        let start = current.start.saturating_add_signed(delta);
-        self.viewport = WaveformViewport {
-            start,
-            end: start + current.visible_frames(),
-        }
-        .clamp(total);
+        self.viewport = self
+            .viewport
+            .pan_by_visible_fraction(total, MIN_VISIBLE_FRAMES, fraction);
     }
 
     fn set_offset_fraction(&mut self, offset_fraction: f32) {
         let total = self.file.frames.max(1);
-        let current = self.viewport.clamp(total);
-        let visible = current.visible_frames();
-        let free_frames = total.saturating_sub(visible);
-        let start = (free_frames as f32 * offset_fraction.clamp(0.0, 1.0)).round() as usize;
-        self.viewport = WaveformViewport {
-            start,
-            end: start + visible,
-        }
-        .clamp(total);
+        self.viewport =
+            self.viewport
+                .with_offset_fraction(total, MIN_VISIBLE_FRAMES, offset_fraction);
     }
 
     fn update_active_drag(&mut self, visible_ratio: f32) {
@@ -612,8 +593,8 @@ impl WaveformState {
 
     fn update_active_pan(&mut self, drag: WaveformPanDrag, visible_ratio: f32) {
         let total = self.file.frames.max(1);
-        let viewport = drag.viewport.clamp(total);
-        let visible = viewport.visible_frames();
+        let viewport = drag.viewport.clamp(total, MIN_VISIBLE_FRAMES);
+        let visible = viewport.visible_items();
         if visible >= total {
             return;
         }
@@ -623,7 +604,7 @@ impl WaveformState {
             start,
             end: start + visible,
         }
-        .clamp(total);
+        .clamp(total, MIN_VISIBLE_FRAMES);
     }
 
     fn selection_for_kind(
@@ -1249,11 +1230,7 @@ impl WaveformFile {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct WaveformViewport {
-    start: usize,
-    end: usize,
-}
+pub(super) type WaveformViewport = ui::IndexViewport;
 
 pub(super) fn waveform_viewport_view(state: &WaveformState) -> ui::View<super::GuiMessage> {
     ui::stack([
@@ -1691,45 +1668,6 @@ fn downmix_to_mono(samples: &[f32], channels: usize, frames: usize) -> Vec<f32> 
             peak.clamp(-1.0, 1.0)
         })
         .collect()
-}
-
-impl WaveformViewport {
-    fn full(frames: usize) -> Self {
-        Self {
-            start: 0,
-            end: frames.max(1),
-        }
-    }
-
-    fn visible_frames(self) -> usize {
-        self.end.saturating_sub(self.start).max(1)
-    }
-
-    fn visible_fraction(self, total_frames: usize) -> f32 {
-        self.visible_frames() as f32 / total_frames.max(1) as f32
-    }
-
-    fn offset_fraction(self, total_frames: usize) -> f32 {
-        let total_frames = total_frames.max(1);
-        let free_frames = total_frames.saturating_sub(self.visible_frames());
-        if free_frames == 0 {
-            0.0
-        } else {
-            self.start as f32 / free_frames as f32
-        }
-    }
-
-    fn clamp(self, total_frames: usize) -> Self {
-        let total_frames = total_frames.max(1);
-        let visible = self
-            .visible_frames()
-            .clamp(MIN_VISIBLE_FRAMES.min(total_frames), total_frames);
-        let start = self.start.min(total_frames.saturating_sub(visible));
-        Self {
-            start,
-            end: start + visible,
-        }
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -2782,7 +2720,7 @@ impl WaveformWidget {
         let total = self.file.frames.max(1) as f32;
         let visible_start = self.viewport.start as f32;
         let visible_end = self.viewport.end as f32;
-        let visible_width = self.viewport.visible_frames() as f32;
+        let visible_width = self.viewport.visible_items() as f32;
         let start_frame = range.start().clamp(0.0, 1.0) * total;
         let end_frame = range.end().clamp(0.0, 1.0) * total;
         let left_frame = start_frame.min(end_frame).max(visible_start);
@@ -2799,7 +2737,7 @@ impl WaveformWidget {
         let absolute_ratio = ratio?;
         let frame = absolute_ratio.clamp(0.0, 1.0) * self.file.frames.max(1) as f32;
         let visible_start = self.viewport.start as f32;
-        let visible_width = self.viewport.visible_frames() as f32;
+        let visible_width = self.viewport.visible_items() as f32;
         let visible_ratio = (frame - visible_start) / visible_width.max(1.0);
         if !(0.0..=1.0).contains(&visible_ratio) {
             return None;
@@ -3306,7 +3244,7 @@ mod tests {
             state.viewport().start > 12_000,
             "dragging left should pan the viewport later in the sample"
         );
-        assert_eq!(state.viewport().visible_frames(), 24_000);
+        assert_eq!(state.viewport().visible_items(), 24_000);
     }
 
     #[test]
