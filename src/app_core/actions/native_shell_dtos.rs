@@ -477,10 +477,32 @@ pub struct GuiAutomationSnapshot {
 
 // Wavecrate-owned retained-render segment invalidation DTOs.
 
+const RETAINED_SEGMENT_PLAN: invalidation::RetainedSegmentPlan<8> =
+    invalidation::RetainedSegmentPlan::new([
+        invalidation::RetainedSegment::static_segment("status_bar"),
+        invalidation::RetainedSegment::static_segment("browser_frame"),
+        invalidation::RetainedSegment::static_segment("browser_rows_window"),
+        invalidation::RetainedSegment::static_segment("map_panel"),
+        invalidation::RetainedSegment::static_segment("waveform_overlay"),
+        invalidation::RetainedSegment::static_segment("global_static"),
+        invalidation::RetainedSegment::overlay("state_overlay"),
+        invalidation::RetainedSegment::overlay("motion_overlay"),
+    ]);
+
+const RETAINED_STATIC_SEGMENT_PLAN: invalidation::RetainedSegmentPlan<6> =
+    invalidation::RetainedSegmentPlan::new([
+        invalidation::RetainedSegment::static_segment("status_bar"),
+        invalidation::RetainedSegment::static_segment("browser_frame"),
+        invalidation::RetainedSegment::static_segment("browser_rows_window"),
+        invalidation::RetainedSegment::static_segment("map_panel"),
+        invalidation::RetainedSegment::static_segment("waveform_overlay"),
+        invalidation::RetainedSegment::static_segment("global_static"),
+    ]);
+
 /// Bitmask describing which projection segments changed during the last model pull.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DirtySegments {
-    mask: invalidation::RetainedSegmentMask<0x00ff, 0x003f, 0x00c0>,
+    mask: invalidation::InvalidationMask,
 }
 
 impl DirtySegments {
@@ -504,21 +526,21 @@ impl DirtySegments {
     /// Return an empty segment mask.
     pub const fn empty() -> Self {
         Self {
-            mask: invalidation::RetainedSegmentMask::empty(),
+            mask: invalidation::InvalidationMask::empty(),
         }
     }
 
     /// Return a full segment mask.
     pub const fn all() -> Self {
         Self {
-            mask: invalidation::RetainedSegmentMask::all(),
+            mask: invalidation::InvalidationMask::all(RETAINED_SEGMENT_PLAN.valid_mask()),
         }
     }
 
     /// Construct a segment mask from raw bits.
     pub const fn from_bits(bits: u16) -> Self {
         Self {
-            mask: invalidation::RetainedSegmentMask::from_bits(bits),
+            mask: RETAINED_SEGMENT_PLAN.mask(bits),
         }
     }
 
@@ -534,17 +556,17 @@ impl DirtySegments {
 
     /// Return `true` when any static segment requires rebuild.
     pub const fn requires_static_rebuild(self) -> bool {
-        self.mask.requires_static_rebuild()
+        RETAINED_SEGMENT_PLAN.requires_static_rebuild(self.mask)
     }
 
     /// Return `true` when any overlay segment requires rebuild.
     pub const fn requires_overlay_rebuild(self) -> bool {
-        self.mask.requires_overlay_rebuild()
+        RETAINED_SEGMENT_PLAN.requires_overlay_rebuild(self.mask)
     }
 
     /// Insert one or more segment bits into this mask.
     pub fn insert(&mut self, bits: u16) {
-        self.mask.insert(bits);
+        self.mask.insert(bits, RETAINED_SEGMENT_PLAN.valid_mask());
     }
 }
 
@@ -589,18 +611,10 @@ impl SegmentRevisions {
 
     /// Bump revisions for the static segments flagged in `dirty_segments`.
     pub fn bump_for_dirty_segments(&mut self, dirty_segments: DirtySegments) {
-        let bits = dirty_segments.bits();
         let mut revisions = self.retained_revisions();
-        revisions.bump_for_bits(
-            bits,
-            [
-                DirtySegments::STATUS_BAR,
-                DirtySegments::BROWSER_FRAME,
-                DirtySegments::BROWSER_ROWS_WINDOW,
-                DirtySegments::MAP_PANEL,
-                DirtySegments::WAVEFORM_OVERLAY,
-                DirtySegments::GLOBAL_STATIC,
-            ],
+        RETAINED_STATIC_SEGMENT_PLAN.bump_revisions(
+            &mut revisions,
+            RETAINED_STATIC_SEGMENT_PLAN.mask(dirty_segments.bits()),
         );
         let [
             status_bar,
