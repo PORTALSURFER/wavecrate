@@ -1,6 +1,7 @@
 //! Top-right options button and options-panel helpers for the native shell.
 
 use super::*;
+use crate::gui::panel::FloatingPanelDrag;
 
 #[path = "options_panel/actions.rs"]
 mod actions;
@@ -26,12 +27,6 @@ pub(super) struct OptionsPanelLayout {
     pub(super) detail_rect: Option<Rect>,
     pub(super) title: String,
     pub(super) buttons: Vec<OptionsPanelButton>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) struct OptionsPanelDrag {
-    pub(super) grab_offset_x: f32,
-    pub(super) grab_offset_y: f32,
 }
 
 pub(super) fn status_right_text_rect(
@@ -193,10 +188,7 @@ impl NativeShellState {
             return false;
         }
         self.options_panel_origin = Some(panel.panel_rect.min);
-        self.options_panel_drag = Some(OptionsPanelDrag {
-            grab_offset_x: point.x - panel.panel_rect.min.x,
-            grab_offset_y: point.y - panel.panel_rect.min.y,
-        });
+        self.options_panel_drag = Some(FloatingPanelDrag::new(panel.panel_rect, point));
         true
     }
 
@@ -209,7 +201,7 @@ impl NativeShellState {
         let Some(drag) = self.options_panel_drag else {
             return false;
         };
-        let requested = Point::new(point.x - drag.grab_offset_x, point.y - drag.grab_offset_y);
+        let requested = drag.origin_for_pointer(point);
         self.options_panel_origin = Some(requested);
         let style = style_for_layout(layout);
         if let Some(panel) =
