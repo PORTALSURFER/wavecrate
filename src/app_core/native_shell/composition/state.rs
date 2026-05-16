@@ -57,6 +57,7 @@ use crate::gui::paint::{
     DrawImage, FillCircle, FillLinearGradient, FillRect, PaintFrame as NativeViewFrame, Primitive,
     TextAlign, TextRun,
 };
+use crate::gui::panel::FloatingPanelDrag;
 use crate::gui::range::NormalizedPixelSnap;
 use crate::gui::{
     input::KeyCode,
@@ -192,7 +193,7 @@ pub(crate) struct NativeShellState {
     browser_pill_editor_visual: Option<TextFieldVisualState>,
     folder_create_editor_visual: Option<TextFieldVisualState>,
     options_panel_origin: Option<Point>,
-    options_panel_drag: Option<OptionsPanelDrag>,
+    options_panel_drag: Option<FloatingPanelDrag>,
     hovered_folder_pane: Option<crate::app_core::native_shell::runtime_contract::FolderPaneIdModel>,
     hovered_folder_row_index: Option<usize>,
     hovered_source_add_button: bool,

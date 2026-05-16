@@ -5,6 +5,7 @@ use super::actions::{
     picker_action, picker_options,
 };
 use super::*;
+use crate::gui::{panel::floating_panel_rect, types::Vector2};
 
 pub(super) fn status_right_text_rect(
     segment: Rect,
@@ -57,13 +58,18 @@ pub(super) fn options_panel_layout(
     let default_min_y = layout.top_bar.max.y + inset;
     let max_y = (default_min_y + panel_height).min(layout.status_bar.min.y - inset);
     let default_min_y = (max_y - panel_height).max(layout.top_bar.max.y + inset);
-    let (min_x, min_y) = clamped_panel_origin(
+    let panel_bounds = Rect::from_min_max(
+        Point::new(layout.root.rect.min.x, layout.top_bar.max.y),
+        Point::new(layout.root.rect.max.x, layout.status_bar.min.y),
+    );
+    let clamped_panel = floating_panel_rect(
+        panel_bounds,
         origin.unwrap_or(Point::new(default_min_x, default_min_y)),
-        panel_width,
-        panel_height,
-        layout,
+        Vector2::new(panel_width, panel_height),
         inset,
     );
+    let min_x = clamped_panel.min.x;
+    let min_y = clamped_panel.min.y;
     let panel_rect = Rect::from_min_max(
         Point::new(min_x, min_y),
         Point::new(
@@ -143,20 +149,6 @@ pub(super) fn options_panel_action_at_point(
         .into_iter()
         .find(|button| button.rect.contains(point))
         .map(|button| button.action)
-}
-
-fn clamped_panel_origin(
-    origin: Point,
-    panel_width: f32,
-    panel_height: f32,
-    layout: &ShellLayout,
-    inset: f32,
-) -> (f32, f32) {
-    let min_x = layout.root.rect.min.x + inset;
-    let max_x = (layout.root.rect.max.x - panel_width - inset).max(min_x);
-    let min_y = layout.top_bar.max.y + inset;
-    let max_y = (layout.status_bar.min.y - panel_height - inset).max(min_y);
-    (origin.x.clamp(min_x, max_x), origin.y.clamp(min_y, max_y))
 }
 
 fn build_options_panel_buttons(model: &AppModel) -> Vec<(String, UiAction, bool)> {
