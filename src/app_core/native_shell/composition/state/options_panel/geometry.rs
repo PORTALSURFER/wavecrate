@@ -24,6 +24,7 @@ pub(super) fn options_panel_layout(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
+    origin: Option<Point>,
 ) -> Option<OptionsPanelLayout> {
     if !model.options_panel.visible {
         return None;
@@ -51,14 +52,24 @@ pub(super) fn options_panel_layout(
         + (button_gap * buttons.len().saturating_sub(1) as f32)
         + panel_padding;
     let inset = sizing.panel_inset.max(6.0);
-    let max_x = layout.top_bar.max.x - inset;
-    let min_x = (max_x - panel_width).max(layout.content.min.x + inset);
-    let min_y = layout.top_bar.max.y + inset;
-    let max_y = (min_y + panel_height).min(layout.status_bar.min.y - inset);
-    let min_y = (max_y - panel_height).max(layout.top_bar.max.y + inset);
+    let default_max_x = layout.top_bar.max.x - inset;
+    let default_min_x = (default_max_x - panel_width).max(layout.content.min.x + inset);
+    let default_min_y = layout.top_bar.max.y + inset;
+    let max_y = (default_min_y + panel_height).min(layout.status_bar.min.y - inset);
+    let default_min_y = (max_y - panel_height).max(layout.top_bar.max.y + inset);
+    let (min_x, min_y) = clamped_panel_origin(
+        origin.unwrap_or(Point::new(default_min_x, default_min_y)),
+        panel_width,
+        panel_height,
+        layout,
+        inset,
+    );
     let panel_rect = Rect::from_min_max(
         Point::new(min_x, min_y),
-        Point::new(min_x + panel_width, max_y),
+        Point::new(
+            min_x + panel_width,
+            (min_y + panel_height).min(layout.status_bar.min.y - inset),
+        ),
     );
     let title_rect = Rect::from_min_max(
         Point::new(
@@ -112,23 +123,40 @@ pub(super) fn options_panel_contains_point(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
+    origin: Option<Point>,
     point: Point,
 ) -> bool {
-    options_panel_layout(layout, style, model).is_some_and(|panel| panel.panel_rect.contains(point))
+    options_panel_layout(layout, style, model, origin)
+        .is_some_and(|panel| panel.panel_rect.contains(point))
 }
 
 pub(super) fn options_panel_action_at_point(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
+    origin: Option<Point>,
     point: Point,
 ) -> Option<UiAction> {
-    let panel = options_panel_layout(layout, style, model)?;
+    let panel = options_panel_layout(layout, style, model, origin)?;
     panel
         .buttons
         .into_iter()
         .find(|button| button.rect.contains(point))
         .map(|button| button.action)
+}
+
+fn clamped_panel_origin(
+    origin: Point,
+    panel_width: f32,
+    panel_height: f32,
+    layout: &ShellLayout,
+    inset: f32,
+) -> (f32, f32) {
+    let min_x = layout.root.rect.min.x + inset;
+    let max_x = (layout.root.rect.max.x - panel_width - inset).max(min_x);
+    let min_y = layout.top_bar.max.y + inset;
+    let max_y = (layout.status_bar.min.y - panel_height - inset).max(min_y);
+    (origin.x.clamp(min_x, max_x), origin.y.clamp(min_y, max_y))
 }
 
 fn build_options_panel_buttons(model: &AppModel) -> Vec<(String, UiAction, bool)> {

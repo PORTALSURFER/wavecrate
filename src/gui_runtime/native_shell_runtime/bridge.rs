@@ -264,6 +264,13 @@ impl<B: NativeAppBridge> WavecrateRuntimeBridge<B> {
         match input {
             WidgetInput::PointerMove { position } => {
                 let layout = self.build_current_layout();
+                if self
+                    .shell_state
+                    .update_options_panel_drag(&layout, &self.model, position)
+                {
+                    self.local_overlay_surface_refresh = true;
+                    return true;
+                }
                 if let Some(action) = self.waveform_pan_drag_action(&layout, position) {
                     self.emit_action(action);
                     self.local_overlay_surface_refresh = true;
@@ -285,6 +292,13 @@ impl<B: NativeAppBridge> WavecrateRuntimeBridge<B> {
                     return true;
                 }
                 if button != PointerButton::Primary {
+                    return true;
+                }
+                if self
+                    .shell_state
+                    .begin_options_panel_drag(&layout, &self.model, position)
+                {
+                    self.local_overlay_surface_refresh = true;
                     return true;
                 }
                 if let Some(action) = action_from_retained_pointer(
@@ -325,12 +339,22 @@ impl<B: NativeAppBridge> WavecrateRuntimeBridge<B> {
                 ..
             } => {
                 self.waveform_pan_drag = None;
+                self.shell_state.finish_options_panel_drag();
+                self.local_overlay_surface_refresh = true;
+                true
+            }
+            WidgetInput::PointerRelease {
+                button: PointerButton::Primary,
+                ..
+            } => {
+                self.shell_state.finish_options_panel_drag();
                 self.local_overlay_surface_refresh = true;
                 true
             }
             WidgetInput::PointerRelease { .. }
             | WidgetInput::PointerDrop { .. }
             | WidgetInput::FocusChanged(_) => {
+                self.shell_state.finish_options_panel_drag();
                 self.local_overlay_surface_refresh = true;
                 true
             }

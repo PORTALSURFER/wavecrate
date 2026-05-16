@@ -209,7 +209,14 @@ pub(super) fn render_modal_overlay(
     render_progress_overlay(primitives, text_runs, layout, style, model);
     render_confirm_prompt(primitives, text_runs, layout, style, model);
     render_drag_overlay(primitives, text_runs, layout, style, model);
-    render_options_panel(primitives, text_runs, layout, style, model);
+    render_options_panel(
+        primitives,
+        text_runs,
+        layout,
+        style,
+        model,
+        shell_state.options_panel_origin,
+    );
 }
 
 /// Render the open left-sidebar filter dropdown, if any.

@@ -96,6 +96,9 @@ fn snap_primitive(primitive: &Primitive) -> SnapshotPrimitive {
             height: u32::try_from(draw_image.image.height).unwrap_or(0),
             pixels: draw_image.image.pixels.as_ref().to_vec(),
         },
+        Primitive::Svg(draw_svg) => SnapshotPrimitive::Svg {
+            rect: snap_rect(draw_svg.rect),
+        },
     }
 }
 

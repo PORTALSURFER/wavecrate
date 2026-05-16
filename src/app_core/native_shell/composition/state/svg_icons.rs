@@ -291,4 +291,23 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn dice_icon_preserves_cutout_pips() {
+        let image = rasterize_svg_icon(
+            WaveformToolbarIcon::Dice,
+            32,
+            Rgba8 {
+                r: 255,
+                g: 255,
+                b: 255,
+                a: 255,
+            },
+        )
+        .expect("dice icon should rasterize");
+        let alpha_at = |x: usize, y: usize| image.pixels[(y * image.width + x) * 4 + 3];
+
+        assert!(alpha_at(16, 16) < 64, "center pip should be transparent");
+        assert!(alpha_at(16, 8) > 192, "dice body should remain visible");
+    }
 }
