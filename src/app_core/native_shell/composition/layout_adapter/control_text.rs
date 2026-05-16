@@ -41,7 +41,7 @@ fn inset_horizontal(rect: Rect, inset: f32) -> Rect {
 }
 
 fn empty_rect(bounds: Rect) -> Rect {
-    Rect::from_min_max(bounds.min, bounds.min)
+    bounds.empty_at_min()
 }
 
 #[cfg(test)]

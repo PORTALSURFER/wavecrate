@@ -14,7 +14,7 @@ pub(super) fn clamp_rect_right_edge(rect: Rect, bounds: Rect, right_edge: f32) -
     let clamped = clamp_rect_to_bounds(rect, bounds);
     let max_x = clamped.max.x.min(right_edge.max(bounds.min.x));
     if max_x < clamped.min.x {
-        return Rect::from_min_max(bounds.min, bounds.min);
+        return bounds.empty_at_min();
     }
     Rect::from_min_max(
         clamped.min,

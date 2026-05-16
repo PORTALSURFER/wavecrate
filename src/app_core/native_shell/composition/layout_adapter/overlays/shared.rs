@@ -79,7 +79,7 @@ pub(super) fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
 
 /// Return an empty rect pinned at the bounds origin.
 pub(super) fn empty_rect(bounds: Rect) -> Rect {
-    Rect::from_min_max(bounds.min, bounds.min)
+    bounds.empty_at_min()
 }
 
 /// Inset horizontally with saturation.
