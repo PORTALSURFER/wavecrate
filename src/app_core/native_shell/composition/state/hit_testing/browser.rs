@@ -1,6 +1,10 @@
 use super::*;
 #[cfg(test)]
 use crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip;
+use crate::gui::list::{
+    VirtualListScrollbar, virtual_list_scrollbar_thumb_offset_at_point,
+    virtual_list_scrollbar_view_start_at_point,
+};
 
 impl NativeShellState {
     /// Return a browser column-chip rect for one column index in tests.
@@ -144,19 +148,14 @@ impl NativeShellState {
     ) -> Option<f32> {
         let geometry = self.cached_browser_interaction_geometry(layout, model);
         let scrollbar = geometry.scrollbar?;
-        let hit_rect = Rect::from_min_max(
-            Point::new(
-                scrollbar.track.min.x - BROWSER_SCROLLBAR_THUMB_HIT_SLOP,
-                scrollbar.thumb.min.y - BROWSER_SCROLLBAR_THUMB_HIT_SLOP,
-            ),
-            Point::new(
-                scrollbar.track.max.x + BROWSER_SCROLLBAR_THUMB_HIT_SLOP,
-                scrollbar.thumb.max.y + BROWSER_SCROLLBAR_THUMB_HIT_SLOP,
-            ),
-        );
-        hit_rect
-            .contains(point)
-            .then_some((point.y - scrollbar.thumb.min.y).clamp(0.0, scrollbar.thumb.height()))
+        virtual_list_scrollbar_thumb_offset_at_point(
+            VirtualListScrollbar {
+                track: scrollbar.track,
+                thumb: scrollbar.thumb,
+            },
+            point,
+            BROWSER_SCROLLBAR_THUMB_HIT_SLOP,
+        )
     }
 
     /// Resolve the browser viewport start row for an active scrollbar-thumb drag.
@@ -191,15 +190,14 @@ impl NativeShellState {
     ) -> Option<usize> {
         let geometry = self.cached_browser_interaction_geometry(layout, model);
         let scrollbar = geometry.scrollbar?;
-        if !scrollbar.track.contains(point) || scrollbar.thumb.contains(point) {
-            return None;
-        }
-        browser_scrollbar_view_start_for_pointer(
-            scrollbar,
+        virtual_list_scrollbar_view_start_at_point(
+            VirtualListScrollbar {
+                track: scrollbar.track,
+                thumb: scrollbar.thumb,
+            },
             geometry.scrollbar_viewport_len,
             model.browser.visible_count,
-            point.y,
-            scrollbar.thumb.height() * 0.5,
+            point,
         )
     }
 

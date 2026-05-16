@@ -1,7 +1,8 @@
 use super::*;
 use crate::gui::list::{
-    VirtualListScrollbarRequest, VirtualListStackMetrics, resolve_virtual_list_scrollbar,
-    virtual_list_scrollbar_view_start_for_pointer, virtual_list_viewport_len_for_extent,
+    VirtualListScrollbar, VirtualListScrollbarRequest, VirtualListStackMetrics,
+    resolve_virtual_list_scrollbar, virtual_list_scrollbar_view_start_for_pointer,
+    virtual_list_viewport_len_for_extent,
 };
 
 pub(in crate::app_core::native_shell::composition::state) fn browser_rows_capacity(
@@ -94,7 +95,7 @@ pub(in crate::app_core::native_shell::composition::state) fn browser_scrollbar_v
     thumb_pointer_offset_y: f32,
 ) -> Option<usize> {
     virtual_list_scrollbar_view_start_for_pointer(
-        crate::gui::list::VirtualListScrollbar {
+        VirtualListScrollbar {
             track: scrollbar.track,
             thumb: scrollbar.thumb,
         },

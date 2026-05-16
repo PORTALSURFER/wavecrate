@@ -1,5 +1,9 @@
 use super::*;
 use crate::app_core::native_shell::runtime_contract::FolderPaneIdModel;
+use crate::gui::list::{
+    VirtualListScrollbar, virtual_list_scrollbar_thumb_offset_at_point,
+    virtual_list_scrollbar_view_start_at_point,
+};
 
 impl NativeShellState {
     pub(crate) fn folder_viewport_len(
@@ -86,20 +90,15 @@ fn folder_scrollbar_thumb_hit(
     point: Point,
 ) -> Option<(FolderPaneIdModel, f32)> {
     let (scrollbar, _) = shell_state.cached_folder_scrollbar(layout, model, pane)?;
-    let hit_rect = Rect::from_min_max(
-        Point::new(
-            scrollbar.track.min.x - FOLDER_SCROLLBAR_THUMB_HIT_SLOP,
-            scrollbar.thumb.min.y - FOLDER_SCROLLBAR_THUMB_HIT_SLOP,
-        ),
-        Point::new(
-            scrollbar.track.max.x + FOLDER_SCROLLBAR_THUMB_HIT_SLOP,
-            scrollbar.thumb.max.y + FOLDER_SCROLLBAR_THUMB_HIT_SLOP,
-        ),
-    );
-    hit_rect.contains(point).then_some((
-        pane,
-        (point.y - scrollbar.thumb.min.y).clamp(0.0, scrollbar.thumb.height()),
-    ))
+    virtual_list_scrollbar_thumb_offset_at_point(
+        VirtualListScrollbar {
+            track: scrollbar.track,
+            thumb: scrollbar.thumb,
+        },
+        point,
+        FOLDER_SCROLLBAR_THUMB_HIT_SLOP,
+    )
+    .map(|offset| (pane, offset))
 }
 
 fn folder_scrollbar_track_jump(
@@ -110,15 +109,14 @@ fn folder_scrollbar_track_jump(
     point: Point,
 ) -> Option<(FolderPaneIdModel, usize)> {
     let (scrollbar, viewport_len) = shell_state.cached_folder_scrollbar(layout, model, pane)?;
-    if !scrollbar.track.contains(point) || scrollbar.thumb.contains(point) {
-        return None;
-    }
-    folder_scrollbar_view_start_for_pointer(
-        scrollbar,
+    virtual_list_scrollbar_view_start_at_point(
+        VirtualListScrollbar {
+            track: scrollbar.track,
+            thumb: scrollbar.thumb,
+        },
         viewport_len,
         model.sources.folder_pane(pane).tree_rows.len(),
-        point.y,
-        scrollbar.thumb.height() * 0.5,
+        point,
     )
     .map(|view_start| (pane, view_start))
 }
