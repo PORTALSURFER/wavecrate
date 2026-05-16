@@ -179,7 +179,7 @@ pub(crate) fn rect_for(
 }
 
 pub(crate) fn empty_rect(bounds: Rect) -> Rect {
-    Rect::from_min_max(bounds.min, bounds.min)
+    bounds.empty_at_min()
 }
 
 fn compact_recovery_badge_label(

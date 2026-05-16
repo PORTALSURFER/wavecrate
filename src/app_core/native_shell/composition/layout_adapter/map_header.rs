@@ -129,7 +129,7 @@ fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Re
 }
 
 fn empty_rect(bounds: Rect) -> Rect {
-    Rect::from_min_max(bounds.min, bounds.min)
+    bounds.empty_at_min()
 }
 
 #[cfg(test)]
