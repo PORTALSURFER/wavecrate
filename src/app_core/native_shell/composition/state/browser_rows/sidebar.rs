@@ -3,8 +3,8 @@
 use super::*;
 use crate::app_core::native_shell::runtime_contract::{FolderPaneIdModel, FolderPaneModel};
 use crate::gui::list::{
-    VirtualListScrollbarRequest, VirtualListStackMetrics, VirtualListWindowRequest,
-    resolve_virtual_list_scrollbar, resolve_virtual_list_window,
+    VirtualListScrollbar, VirtualListScrollbarRequest, VirtualListStackMetrics,
+    VirtualListWindowRequest, resolve_virtual_list_scrollbar, resolve_virtual_list_window,
     virtual_list_scrollbar_view_start_for_pointer, virtual_list_viewport_len_for_extent,
 };
 
@@ -323,7 +323,7 @@ pub(in crate::app_core::native_shell::composition::state) fn folder_scrollbar_vi
     thumb_pointer_offset_y: f32,
 ) -> Option<usize> {
     virtual_list_scrollbar_view_start_for_pointer(
-        crate::gui::list::VirtualListScrollbar {
+        VirtualListScrollbar {
             track: scrollbar.track,
             thumb: scrollbar.thumb,
         },
