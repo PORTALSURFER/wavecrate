@@ -13,6 +13,7 @@ pub(in crate::app_core::native_shell::composition::state) fn static_segment_for_
         Primitive::Circle(fill) => fill.center,
         Primitive::LinearGradient(fill) => rect_center(fill.rect),
         Primitive::Image(image) => rect_center(image.rect),
+        Primitive::Svg(svg) => rect_center(svg.rect),
     };
     static_segment_for_point(layout, model, anchor)
 }

@@ -213,7 +213,7 @@ pub(crate) fn top_bar_options_button_rect(top_bar: Rect, sizing: SizingTokens) -
             title: String::new(),
             volume_value: String::new(),
             volume_label: String::new(),
-            options_label: String::new(),
+            options_label: String::from("Audio"),
             update_actions: Vec::new(),
         },
     )

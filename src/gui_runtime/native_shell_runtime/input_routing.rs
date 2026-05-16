@@ -85,7 +85,6 @@ fn route_modal_and_chrome_actions(
         if shell_state.options_panel_contains_point_live(layout, model, point) {
             return None;
         }
-        return Some(runtime_contract::UiAction::CloseOptionsPanel);
     }
     if let Some(action) = shell_state.status_options_action_at_point(layout, model, point) {
         return Some(action);

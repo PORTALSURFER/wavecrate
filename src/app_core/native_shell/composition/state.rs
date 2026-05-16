@@ -191,6 +191,8 @@ pub(crate) struct NativeShellState {
     browser_search_editor_visual: Option<TextFieldVisualState>,
     browser_pill_editor_visual: Option<TextFieldVisualState>,
     folder_create_editor_visual: Option<TextFieldVisualState>,
+    options_panel_origin: Option<Point>,
+    options_panel_drag: Option<OptionsPanelDrag>,
     hovered_folder_pane: Option<crate::app_core::native_shell::runtime_contract::FolderPaneIdModel>,
     hovered_folder_row_index: Option<usize>,
     hovered_source_add_button: bool,
@@ -265,6 +267,8 @@ impl NativeShellState {
             browser_search_editor_visual: None,
             browser_pill_editor_visual: None,
             folder_create_editor_visual: None,
+            options_panel_origin: None,
+            options_panel_drag: None,
             hovered_folder_pane: None,
             hovered_folder_row_index: None,
             hovered_source_add_button: false,
@@ -843,5 +847,101 @@ mod opt_272_tests {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
 
         assert!(waveform_scrollbar_layout(layout.waveform_scrollbar_lane, 0, 1_000_000).is_none());
+    }
+
+    #[test]
+    fn waveform_toolbar_renders_svg_backed_icon_images() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let mut model = AppModel::default();
+        model.transport_running = false;
+        let mut state = NativeShellState::new();
+        let play_rect = state
+            .waveform_toolbar_button_rect(&layout, &model, "Play")
+            .expect("play waveform toolbar button should be present");
+        let channel_rect = state
+            .waveform_toolbar_button_rect(&layout, &model, "Channel")
+            .expect("channel waveform toolbar button should be present");
+
+        let frame = state.build_frame(&layout, &model);
+
+        for button_rect in [play_rect, channel_rect] {
+            let image = frame
+                .primitives
+                .iter()
+                .find_map(|primitive| match primitive {
+                    Primitive::Image(image)
+                        if image.rect.min.x >= button_rect.min.x
+                            && image.rect.min.y >= button_rect.min.y
+                            && image.rect.max.x <= button_rect.max.x
+                            && image.rect.max.y <= button_rect.max.y =>
+                    {
+                        Some(image)
+                    }
+                    _ => None,
+                })
+                .expect("toolbar button should render an SVG-backed image primitive");
+            assert!(
+                image.image.pixels.chunks_exact(4).any(|rgba| rgba[3] > 0),
+                "toolbar SVG image should contain visible pixels"
+            );
+        }
+    }
+
+    #[test]
+    fn options_panel_can_be_repositioned_by_dragging_title_bar() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let style = style_for_layout(&layout);
+        let mut state = NativeShellState::new();
+        let model = AppModel {
+            options_panel: crate::app_core::native_shell::runtime_contract::OptionsPanelModel {
+                visible: true,
+                ..crate::app_core::native_shell::runtime_contract::OptionsPanelModel::default()
+            },
+            ..AppModel::default()
+        };
+        let initial = options_panel_layout(&layout, &style, &model)
+            .expect("visible options panel should resolve layout");
+        let grab = initial.title_rect.center();
+
+        assert!(state.begin_options_panel_drag(&layout, &model, grab));
+        assert!(state.update_options_panel_drag(
+            &layout,
+            &model,
+            Point::new(grab.x - 160.0, grab.y + 96.0),
+        ));
+        assert!(state.finish_options_panel_drag());
+
+        let moved = state
+            .options_panel_title_rect_live(&layout, &model)
+            .expect("moved options panel should still resolve");
+        assert!(moved.min.x < initial.title_rect.min.x - 80.0);
+        assert!(moved.min.y > initial.title_rect.min.y + 40.0);
+        assert!(state.options_panel_contains_point(&layout, &model, moved.center()));
+    }
+
+    #[test]
+    fn options_panel_drag_clamps_window_inside_shell_bounds() {
+        let layout = ShellLayout::build(Vector2::new(900.0, 520.0));
+        let style = style_for_layout(&layout);
+        let model = AppModel {
+            options_panel: crate::app_core::native_shell::runtime_contract::OptionsPanelModel {
+                visible: true,
+                ..crate::app_core::native_shell::runtime_contract::OptionsPanelModel::default()
+            },
+            ..AppModel::default()
+        };
+
+        let panel = options_panel_layout_for_origin(
+            &layout,
+            &style,
+            &model,
+            Some(Point::new(-10_000.0, 10_000.0)),
+        )
+        .expect("visible options panel should resolve layout");
+
+        assert!(panel.panel_rect.min.x >= layout.root.rect.min.x);
+        assert!(panel.panel_rect.min.y >= layout.top_bar.max.y);
+        assert!(panel.panel_rect.max.x <= layout.root.rect.max.x);
+        assert!(panel.panel_rect.max.y <= layout.status_bar.min.y);
     }
 }

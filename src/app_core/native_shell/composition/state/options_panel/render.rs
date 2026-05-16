@@ -1,6 +1,6 @@
 //! Primitive/text rendering for the native-shell options panel.
 
-use super::geometry::options_panel_layout;
+use super::options_panel_layout_with_origin;
 use super::style::{
     inset_rect, status_options_button_border, status_options_button_fill,
     status_options_button_label_color,
@@ -36,8 +36,9 @@ pub(super) fn render_options_panel(
     layout: &ShellLayout,
     style: &StyleTokens,
     model: &AppModel,
+    origin: Option<Point>,
 ) {
-    let Some(panel) = options_panel_layout(layout, style, model) else {
+    let Some(panel) = options_panel_layout_with_origin(layout, style, model, origin) else {
         return;
     };
     let sizing = style.sizing;

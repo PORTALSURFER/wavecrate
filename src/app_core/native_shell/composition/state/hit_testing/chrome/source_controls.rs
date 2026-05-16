@@ -241,7 +241,13 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
     ) -> bool {
-        options_panel_contains_point(layout, &style_for_layout(layout), model, point)
+        options_panel_contains_point_with_origin(
+            layout,
+            &style_for_layout(layout),
+            model,
+            self.options_panel_origin,
+            point,
+        )
     }
 
     /// Return whether a point falls inside the visible options panel.
@@ -251,7 +257,13 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
     ) -> bool {
-        options_panel_contains_point(layout, &style_for_layout(layout), model, point)
+        options_panel_contains_point_with_origin(
+            layout,
+            &style_for_layout(layout),
+            model,
+            self.options_panel_origin,
+            point,
+        )
     }
 
     /// Resolve a click inside the visible options panel.
@@ -261,7 +273,13 @@ impl NativeShellState {
         model: &AppModel,
         point: Point,
     ) -> Option<UiAction> {
-        options_panel_action_at_point(layout, &style_for_layout(layout), model, point)
+        options_panel_action_at_point_with_origin(
+            layout,
+            &style_for_layout(layout),
+            model,
+            self.options_panel_origin,
+            point,
+        )
     }
 
     /// Return a source-context-menu button rect for one action in tests.
