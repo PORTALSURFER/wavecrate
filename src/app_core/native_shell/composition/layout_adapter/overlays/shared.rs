@@ -74,12 +74,7 @@ pub(super) fn rect_for(
 
 /// Clamp a rect to a containing bounds rect.
 pub(super) fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    let min = Point::new(rect.min.x.max(bounds.min.x), rect.min.y.max(bounds.min.y));
-    let max = Point::new(rect.max.x.min(bounds.max.x), rect.max.y.min(bounds.max.y));
-    if max.x < min.x || max.y < min.y {
-        return Rect::from_min_max(bounds.min, bounds.min);
-    }
-    Rect::from_min_max(min, max)
+    rect.clamp_to(bounds)
 }
 
 /// Return an empty rect pinned at the bounds origin.
