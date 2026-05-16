@@ -1,4 +1,8 @@
 use super::*;
+use crate::gui::range::{
+    NormalizedScrollbar, NormalizedScrollbarRequest, normalized_scrollbar_center_for_pointer,
+    resolve_normalized_scrollbar,
+};
 
 /// Horizontal inset used by the waveform scrollbar track.
 const WAVEFORM_SCROLLBAR_INSET_X: f32 = 10.0;
@@ -10,13 +14,7 @@ const WAVEFORM_SCROLLBAR_TRACK_HEIGHT: f32 = 3.0;
 const WAVEFORM_SCROLLBAR_MIN_THUMB_WIDTH: f32 = 28.0;
 
 /// Visual geometry for the waveform viewport scrollbar.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct WaveformScrollbarLayout {
-    /// Full horizontal track lane.
-    pub track: Rect,
-    /// Draggable thumb that reflects the current waveform view window.
-    pub thumb: Rect,
-}
+pub(crate) type WaveformScrollbarLayout = NormalizedScrollbar;
 
 /// Emit the horizontal waveform scrollbar that mirrors current viewport bounds.
 pub(super) fn emit_waveform_scrollbar(
@@ -72,32 +70,12 @@ pub(crate) fn waveform_scrollbar_layout(
         return None;
     }
 
-    let clamped_start = view_start_micros.min(1_000_000);
-    let clamped_end = view_end_micros
-        .min(1_000_000)
-        .max(clamped_start.saturating_add(1));
-    let span = clamped_end.saturating_sub(clamped_start).max(1);
-    if span >= 999_999 {
-        return None;
-    }
-    let min_thumb_width = WAVEFORM_SCROLLBAR_MIN_THUMB_WIDTH.min(track.width());
-    let thumb_width = (track.width() * (span as f32 / 1_000_000.0))
-        .round()
-        .clamp(min_thumb_width, track.width());
-    let travel = (track.width() - thumb_width).max(0.0);
-    let max_view_start = 1_000_000u32.saturating_sub(span);
-    let start_ratio = if max_view_start == 0 {
-        0.0
-    } else {
-        clamped_start.min(max_view_start) as f32 / max_view_start as f32
-    };
-    let thumb_min_x = (track.min.x + (travel * start_ratio)).round();
-    let thumb_max_x = (thumb_min_x + thumb_width).min(track.max.x);
-    let thumb = Rect::from_min_max(
-        Point::new(thumb_min_x, track.min.y),
-        Point::new(thumb_max_x.max(thumb_min_x + 1.0), track.max.y),
-    );
-    Some(WaveformScrollbarLayout { track, thumb })
+    resolve_normalized_scrollbar(NormalizedScrollbarRequest {
+        track,
+        start_micros: view_start_micros,
+        end_micros: view_end_micros,
+        min_thumb_width: WAVEFORM_SCROLLBAR_MIN_THUMB_WIDTH,
+    })
 }
 
 /// Resolve the waveform viewport center for a dragged scrollbar thumb position.
@@ -108,20 +86,11 @@ pub(crate) fn waveform_scrollbar_center_for_pointer(
     pointer_x: f32,
     thumb_pointer_offset_x: f32,
 ) -> Option<u32> {
-    let clamped_start = view_start_micros.min(1_000_000);
-    let clamped_end = view_end_micros
-        .min(1_000_000)
-        .max(clamped_start.saturating_add(1));
-    let span = clamped_end.saturating_sub(clamped_start).max(1);
-    let max_view_start = 1_000_000u32.saturating_sub(span);
-    let thumb_width = scrollbar.thumb.width().max(1.0);
-    let travel = (scrollbar.track.width() - thumb_width).max(0.0);
-    if travel <= f32::EPSILON || max_view_start == 0 {
-        return Some(500_000);
-    }
-    let thumb_min_x = (pointer_x - thumb_pointer_offset_x)
-        .clamp(scrollbar.track.min.x, scrollbar.track.max.x - thumb_width);
-    let start_ratio = ((thumb_min_x - scrollbar.track.min.x) / travel).clamp(0.0, 1.0);
-    let view_start = ((start_ratio * max_view_start as f32).round() as u32).min(max_view_start);
-    Some((view_start + (span / 2)).min(1_000_000))
+    normalized_scrollbar_center_for_pointer(
+        scrollbar,
+        view_start_micros,
+        view_end_micros,
+        pointer_x,
+        thumb_pointer_offset_x,
+    )
 }

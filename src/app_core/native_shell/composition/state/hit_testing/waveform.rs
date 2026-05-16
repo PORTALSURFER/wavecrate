@@ -1,5 +1,9 @@
 use super::*;
 use crate::app_core::native_shell::runtime_contract::NormalizedRangeModel;
+use crate::gui::range::{
+    normalized_scrollbar_center_at_point, normalized_scrollbar_thumb_offset_at_point,
+    normalized_scrollbar_thumb_ratio_at_point,
+};
 
 #[path = "waveform/toolbar.rs"]
 mod toolbar;
@@ -67,10 +71,7 @@ impl NativeShellState {
             viewport.start_micros,
             viewport.end_micros,
         )?;
-        scrollbar
-            .thumb
-            .contains(point)
-            .then_some((point.x - scrollbar.thumb.min.x).clamp(0.0, scrollbar.thumb.width()))
+        normalized_scrollbar_thumb_offset_at_point(scrollbar, point)
     }
 
     /// Return the normalized pointer grip ratio within the waveform scrollbar thumb.
@@ -86,10 +87,7 @@ impl NativeShellState {
             viewport.start_micros,
             viewport.end_micros,
         )?;
-        scrollbar.thumb.contains(point).then_some({
-            let thumb_width = scrollbar.thumb.width().max(1.0);
-            ((point.x - scrollbar.thumb.min.x) / thumb_width).clamp(0.0, 1.0)
-        })
+        normalized_scrollbar_thumb_ratio_at_point(scrollbar, point)
     }
 
     /// Return the current waveform scrollbar thumb width for one view model.
@@ -143,15 +141,11 @@ impl NativeShellState {
             viewport.start_micros,
             viewport.end_micros,
         )?;
-        if !scrollbar.track.contains(point) || scrollbar.thumb.contains(point) {
-            return None;
-        }
-        waveform_scrollbar_center_for_pointer(
+        normalized_scrollbar_center_at_point(
             scrollbar,
             viewport.start_micros,
             viewport.end_micros,
-            point.x,
-            scrollbar.thumb.width() * 0.5,
+            point,
         )
     }
 
