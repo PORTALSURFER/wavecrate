@@ -1,6 +1,7 @@
 //! Shared overlay geometry and shell-state drawing helpers.
 
 use super::*;
+use crate::gui::layout_core::stacked_row_rects;
 
 /// Resolve the modal progress cancel-button hit target.
 pub(in crate::app_core::native_shell::composition::state) fn progress_cancel_button(
@@ -113,28 +114,5 @@ pub(in crate::app_core::native_shell::composition::state) fn build_stacked_rows(
     gap: f32,
     row_height: f32,
 ) -> Vec<Rect> {
-    if rows == 0 {
-        return Vec::new();
-    }
-    let row_height = row_height.max(8.0).round().max(1.0);
-    let gap = gap.max(0.0);
-    let stride = row_height + gap;
-    let column_min_y = column.min.y.round();
-    let column_max_y = column.max.y.round().max(column_min_y);
-    let mut output = Vec::with_capacity(rows);
-    for index in 0..rows {
-        let y = (column_min_y + (index as f32 * stride)).round();
-        let max_y = (y + row_height).min(column_max_y);
-        if max_y <= y {
-            break;
-        }
-        output.push(Rect::from_min_max(
-            Point::new(column.min.x, y),
-            Point::new(column.max.x, max_y),
-        ));
-        if max_y >= column_max_y {
-            break;
-        }
-    }
-    output
+    stacked_row_rects(column, rows, gap, row_height)
 }
