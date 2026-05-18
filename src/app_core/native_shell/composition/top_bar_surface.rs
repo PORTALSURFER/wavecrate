@@ -150,28 +150,16 @@ pub(crate) fn resolve_top_bar_surface_layout(
     let surface = build_top_bar_surface(content, sizing, top_bar.width());
     let output = surface.layout(top_bar);
     let empty = Rect::from_min_max(top_bar.min, top_bar.min);
-    let title_cluster = clamp_rect_to_bounds(
-        rect_for(&output.rects, TOP_TITLE_CLUSTER_ID, empty),
-        top_bar,
-    );
-    let action_cluster = clamp_rect_to_bounds(
-        rect_for(&output.rects, TOP_ACTION_CLUSTER_ID, empty),
-        top_bar,
-    );
-    let options_button_rect = rect_for(&output.rects, TOP_OPTIONS_BUTTON_ID, empty);
+    let title_cluster = output.rect_for_clamped(TOP_TITLE_CLUSTER_ID, empty, top_bar);
+    let action_cluster = output.rect_for_clamped(TOP_ACTION_CLUSTER_ID, empty, top_bar);
+    let options_button_rect = output.rect_for_clamped(TOP_OPTIONS_BUTTON_ID, empty, top_bar);
     let update_buttons = content
         .update_actions
         .iter()
         .enumerate()
         .filter_map(|(index, spec)| {
-            let rect = clamp_rect_to_bounds(
-                rect_for(
-                    &output.rects,
-                    TOP_UPDATE_BUTTON_BASE_ID + index as u64,
-                    empty,
-                ),
-                top_bar,
-            );
+            let rect =
+                output.rect_for_clamped(TOP_UPDATE_BUTTON_BASE_ID + index as u64, empty, top_bar);
             (rect.width() > 0.0 && rect.height() > 0.0).then(|| TopBarUpdateButtonLayout {
                 spec: spec.clone(),
                 rect,
@@ -181,25 +169,13 @@ pub(crate) fn resolve_top_bar_surface_layout(
     TopBarSurfaceLayout {
         title_cluster,
         action_cluster,
-        title_text_rect: clamp_rect_to_bounds(
-            rect_for(&output.rects, TOP_TITLE_TEXT_ID, empty),
-            top_bar,
-        ),
-        volume_meter_rect: clamp_rect_to_bounds(
-            rect_for(&output.rects, TOP_VOLUME_METER_ID, empty),
-            top_bar,
-        ),
-        volume_value_rect: clamp_rect_to_bounds(
-            rect_for(&output.rects, TOP_VOLUME_VALUE_ID, empty),
-            top_bar,
-        ),
-        volume_label_rect: clamp_rect_to_bounds(
-            rect_for(&output.rects, TOP_VOLUME_LABEL_ID, empty),
-            top_bar,
-        ),
+        title_text_rect: output.rect_for_clamped(TOP_TITLE_TEXT_ID, empty, top_bar),
+        volume_meter_rect: output.rect_for_clamped(TOP_VOLUME_METER_ID, empty, top_bar),
+        volume_value_rect: output.rect_for_clamped(TOP_VOLUME_VALUE_ID, empty, top_bar),
+        volume_label_rect: output.rect_for_clamped(TOP_VOLUME_LABEL_ID, empty, top_bar),
         options_button_rect: (options_button_rect.width() > 0.0
             && options_button_rect.height() > 0.0)
-            .then_some(clamp_rect_to_bounds(options_button_rect, top_bar)),
+            .then_some(options_button_rect),
         update_buttons,
     }
 }
@@ -400,14 +376,6 @@ fn visible_update_widths(
         })
         .collect();
     visible_suffix_widths(&widths, available_width, sizing.action_button_gap.max(1.0))
-}
-
-fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    rect.clamp_to(bounds)
-}
-
-fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
 }
 
 #[cfg(test)]

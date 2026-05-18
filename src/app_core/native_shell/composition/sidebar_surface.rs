@@ -13,7 +13,7 @@ mod tests;
 
 use super::style::SizingTokens;
 use crate::{app::AppModel, gui::types::Rect, runtime::UiSurface};
-use helpers::{clamp_rect_to_bounds, footer_action_button_width, header_button_side, rect_for};
+use helpers::{footer_action_button_width, header_button_side};
 use radiant::prelude as ui;
 use radiant::prelude::IntoView;
 
@@ -157,18 +157,12 @@ pub(crate) fn resolve_sidebar_header_surface_layout(
     let surface = build_sidebar_header_surface(content, sizing);
     let output = surface.layout(header_rect);
     let empty = Rect::from_min_max(header_rect.min, header_rect.min);
-    let add_button = rect_for(&output.rects, HEADER_ADD_BUTTON_ID, empty);
+    let add_button = output.rect_for_clamped(HEADER_ADD_BUTTON_ID, empty, header_rect);
     SidebarHeaderSurfaceLayout {
-        title_text_rect: clamp_rect_to_bounds(
-            rect_for(&output.rects, HEADER_TITLE_ID, empty),
-            header_rect,
-        ),
-        query_text_rect: clamp_rect_to_bounds(
-            rect_for(&output.rects, HEADER_QUERY_ID, empty),
-            header_rect,
-        ),
+        title_text_rect: output.rect_for_clamped(HEADER_TITLE_ID, empty, header_rect),
+        query_text_rect: output.rect_for_clamped(HEADER_QUERY_ID, empty, header_rect),
         add_button_rect: (add_button.width() > 0.0 && add_button.height() > 0.0)
-            .then_some(clamp_rect_to_bounds(add_button, header_rect)),
+            .then_some(add_button),
     }
 }
 
@@ -186,10 +180,8 @@ pub(crate) fn resolve_sidebar_footer_surface_layout(
         .iter()
         .enumerate()
         .filter_map(|(index, spec)| {
-            let rect = clamp_rect_to_bounds(
-                rect_for(&output.rects, FOOTER_ACTION_BASE_ID + index as u64, empty),
-                footer_rect,
-            );
+            let rect =
+                output.rect_for_clamped(FOOTER_ACTION_BASE_ID + index as u64, empty, footer_rect);
             (rect.width() > 0.0 && rect.height() > 0.0).then(|| SidebarFooterActionLayout {
                 spec: spec.clone(),
                 rect,
@@ -197,14 +189,8 @@ pub(crate) fn resolve_sidebar_footer_surface_layout(
         })
         .collect();
     SidebarFooterSurfaceLayout {
-        primary_text_rect: clamp_rect_to_bounds(
-            rect_for(&output.rects, FOOTER_PRIMARY_ID, empty),
-            footer_rect,
-        ),
-        secondary_text_rect: clamp_rect_to_bounds(
-            rect_for(&output.rects, FOOTER_SECONDARY_ID, empty),
-            footer_rect,
-        ),
+        primary_text_rect: output.rect_for_clamped(FOOTER_PRIMARY_ID, empty, footer_rect),
+        secondary_text_rect: output.rect_for_clamped(FOOTER_SECONDARY_ID, empty, footer_rect),
         action_buttons,
     }
 }
