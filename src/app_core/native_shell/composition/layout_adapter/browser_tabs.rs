@@ -49,14 +49,8 @@ pub(crate) fn compute_browser_tabs_rects(
     );
     let output = layout_tree(&tree, tabs_rect);
     BrowserTabsRects {
-        items: clamp_rect_to_bounds(
-            rect_for(&output.rects, BROWSER_TABS_ITEMS_ID, empty),
-            tabs_rect,
-        ),
-        map: clamp_rect_to_bounds(
-            rect_for(&output.rects, BROWSER_TABS_MAP_ID, empty),
-            tabs_rect,
-        ),
+        items: output.rect_for_clamped(BROWSER_TABS_ITEMS_ID, empty, tabs_rect),
+        map: output.rect_for_clamped(BROWSER_TABS_MAP_ID, empty, tabs_rect),
     }
 }
 
@@ -72,14 +66,6 @@ fn fill_tab_slot(node_id: u64, min_width: f32) -> SlotChild {
         },
         child: LayoutNode::widget(node_id, Vector2::new(1.0, 1.0)),
     }
-}
-
-fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    rect.clamp_to(bounds)
-}
-
-fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
 }
 
 fn empty_rect(bounds: Rect) -> Rect {

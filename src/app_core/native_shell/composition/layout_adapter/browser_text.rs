@@ -70,9 +70,8 @@ pub(crate) fn compute_browser_table_columns(
         ],
     );
     let output = layout_tree(&tree, rect);
-    let index = clamp_rect_to_bounds(rect_for(&output.rects, BROWSER_COL_INDEX_ID, empty), rect);
-    let raw_sample =
-        clamp_rect_to_bounds(rect_for(&output.rects, BROWSER_COL_SAMPLE_ID, empty), rect);
+    let index = output.rect_for_clamped(BROWSER_COL_INDEX_ID, empty, rect);
+    let raw_sample = output.rect_for_clamped(BROWSER_COL_SAMPLE_ID, empty, rect);
     let sample_min_x = raw_sample.min.x.max(index.max.x);
     let sample = Rect::from_min_max(
         Point::new(sample_min_x, raw_sample.min.y),
@@ -177,14 +176,6 @@ fn snap_browser_row_text_baseline(line: Rect) -> Rect {
         Point::new(line.min.x, min_y),
         Point::new(line.max.x, baseline),
     )
-}
-
-fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    rect.clamp_to(bounds)
-}
-
-fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
 }
 
 fn empty_rect(bounds: Rect) -> Rect {

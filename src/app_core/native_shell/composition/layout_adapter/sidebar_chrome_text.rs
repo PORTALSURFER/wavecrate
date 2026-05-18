@@ -93,8 +93,8 @@ fn compute_two_rows(bounds: Rect, inset_y: f32, row_gap: f32, spec: TwoRowSpec) 
     let tree = two_row_tree(inset_y, row_gap, spec);
     let output = layout_tree(&tree, bounds);
     [
-        clamp_rect_to_bounds(rect_for(&output.rects, spec.first_id, empty), bounds),
-        clamp_rect_to_bounds(rect_for(&output.rects, spec.second_id, empty), bounds),
+        output.rect_for_clamped(spec.first_id, empty, bounds),
+        output.rect_for_clamped(spec.second_id, empty, bounds),
     ]
 }
 
@@ -157,14 +157,6 @@ fn sidebar_text_bounds(rect: Rect, sizing: SizingTokens) -> Rect {
         Point::new(min_x, rect.min.y),
         Point::new(max_x, rect.max.y.max(rect.min.y)),
     )
-}
-
-fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    rect.clamp_to(bounds)
-}
-
-fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
 }
 
 fn empty_rect(bounds: Rect) -> Rect {
