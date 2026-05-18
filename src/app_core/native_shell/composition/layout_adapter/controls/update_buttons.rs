@@ -1,5 +1,6 @@
 use super::super::super::style::SizingTokens;
-use super::shared::{layout_right_aligned_fixed_widths, visible_suffix_widths};
+use super::shared::layout_right_aligned_fixed_widths;
+use crate::gui::layout_core::visible_suffix_widths;
 use crate::gui::types::{Point, Rect};
 
 const UPDATE_BUTTON_ROW_ID: u64 = 700;

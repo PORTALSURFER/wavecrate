@@ -127,24 +127,6 @@ pub(super) fn rect_for(
     rects.get(&id).copied().unwrap_or(fallback)
 }
 
-pub(super) fn visible_suffix_widths(widths: &[f32], available_width: f32, gap: f32) -> Vec<f32> {
-    if available_width <= 0.0 || widths.is_empty() {
-        return Vec::new();
-    }
-    let mut used = 0.0;
-    let mut reversed = Vec::new();
-    for (index, width) in widths.iter().rev().enumerate() {
-        let candidate = used + width + if index > 0 { gap } else { 0.0 };
-        if candidate >= available_width {
-            break;
-        }
-        reversed.push(*width);
-        used = candidate;
-    }
-    reversed.reverse();
-    reversed
-}
-
 fn fixed_width_child(node_id: u64, width: f32, left_margin: f32) -> SlotChild {
     SlotChild {
         slot: SlotParams {

@@ -8,6 +8,7 @@
 use super::style::SizingTokens;
 use crate::{
     app::{AppModel, UiAction, UpdateStatusModel},
+    gui::layout_core::visible_suffix_widths,
     gui::types::{Point, Rect},
     layout::layout_tree,
     runtime::UiSurface,
@@ -400,24 +401,6 @@ fn visible_update_widths(
         })
         .collect();
     visible_suffix_widths(&widths, available_width, sizing.action_button_gap.max(1.0))
-}
-
-fn visible_suffix_widths(widths: &[f32], available_width: f32, gap: f32) -> Vec<f32> {
-    if available_width <= 0.0 || widths.is_empty() {
-        return Vec::new();
-    }
-    let mut used = 0.0;
-    let mut reversed = Vec::new();
-    for (index, width) in widths.iter().rev().enumerate() {
-        let candidate = used + width + if index > 0 { gap } else { 0.0 };
-        if candidate >= available_width {
-            break;
-        }
-        reversed.push(*width);
-        used = candidate;
-    }
-    reversed.reverse();
-    reversed
 }
 
 fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
