@@ -9,7 +9,6 @@ use super::style::SizingTokens;
 use crate::{
     gui::types::{Point, Rect},
     layout::NodeId,
-    layout::layout_tree,
     runtime::UiSurface,
 };
 use radiant::prelude as ui;
@@ -76,7 +75,7 @@ pub(crate) fn resolve_waveform_toolbar_surface_layout(
         return WaveformToolbarSurfaceLayout { item_rects };
     }
     let surface = build_waveform_toolbar_surface(header_rect, content, &legacy_rects);
-    let output = layout_tree(&surface.layout_node(), header_rect);
+    let output = surface.layout(header_rect);
     for item_index in visible_start..content.items.len() {
         let id = waveform_toolbar_widget_id(item_index);
         item_rects[item_index] =

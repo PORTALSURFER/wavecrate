@@ -10,7 +10,6 @@ use crate::{
     app::{AppModel, UiAction, UpdateStatusModel},
     gui::layout_core::visible_suffix_widths,
     gui::types::{Point, Rect},
-    layout::layout_tree,
     runtime::UiSurface,
 };
 use radiant::prelude as ui;
@@ -149,7 +148,7 @@ pub(crate) fn resolve_top_bar_surface_layout(
     content: &TopBarSurfaceContent,
 ) -> TopBarSurfaceLayout {
     let surface = build_top_bar_surface(content, sizing, top_bar.width());
-    let output = layout_tree(&surface.layout_node(), top_bar);
+    let output = surface.layout(top_bar);
     let empty = Rect::from_min_max(top_bar.min, top_bar.min);
     let title_cluster = clamp_rect_to_bounds(
         rect_for(&output.rects, TOP_TITLE_CLUSTER_ID, empty),

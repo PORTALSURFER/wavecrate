@@ -9,7 +9,6 @@ use super::style::SizingTokens;
 use crate::{
     app::NativeMotionModel,
     gui::types::{Point, Rect},
-    layout::layout_tree,
     runtime::UiSurface,
 };
 use radiant::prelude as ui;
@@ -82,7 +81,7 @@ pub(crate) fn resolve_waveform_header_surface_layout(
     content: &WaveformHeaderSurfaceContent,
 ) -> WaveformHeaderSurfaceLayout {
     let surface = build_waveform_header_surface(content, sizing);
-    let output = layout_tree(&surface.layout_node(), header_rect);
+    let output = surface.layout(header_rect);
     let empty = Rect::from_min_max(header_rect.min, header_rect.min);
     WaveformHeaderSurfaceLayout {
         title_text_rect: clamp_rect_to_bounds(

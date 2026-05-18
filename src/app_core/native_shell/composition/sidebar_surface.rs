@@ -12,7 +12,7 @@ mod helpers;
 mod tests;
 
 use super::style::SizingTokens;
-use crate::{app::AppModel, gui::types::Rect, layout::layout_tree, runtime::UiSurface};
+use crate::{app::AppModel, gui::types::Rect, runtime::UiSurface};
 use helpers::{clamp_rect_to_bounds, footer_action_button_width, header_button_side, rect_for};
 use radiant::prelude as ui;
 use radiant::prelude::IntoView;
@@ -155,7 +155,7 @@ pub(crate) fn resolve_sidebar_header_surface_layout(
     content: &SidebarHeaderSurfaceContent,
 ) -> SidebarHeaderSurfaceLayout {
     let surface = build_sidebar_header_surface(content, sizing);
-    let output = layout_tree(&surface.layout_node(), header_rect);
+    let output = surface.layout(header_rect);
     let empty = Rect::from_min_max(header_rect.min, header_rect.min);
     let add_button = rect_for(&output.rects, HEADER_ADD_BUTTON_ID, empty);
     SidebarHeaderSurfaceLayout {
@@ -179,7 +179,7 @@ pub(crate) fn resolve_sidebar_footer_surface_layout(
     content: &SidebarFooterSurfaceContent,
 ) -> SidebarFooterSurfaceLayout {
     let surface = build_sidebar_footer_surface(content, sizing, footer_rect.width());
-    let output = layout_tree(&surface.layout_node(), footer_rect);
+    let output = surface.layout(footer_rect);
     let empty = Rect::from_min_max(footer_rect.min, footer_rect.min);
     let action_buttons = content
         .actions
