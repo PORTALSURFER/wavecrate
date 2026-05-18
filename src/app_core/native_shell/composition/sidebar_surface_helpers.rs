@@ -1,7 +1,6 @@
-//! Shared widget, slot, and clamp helpers for sidebar chrome surfaces.
+//! Shared sizing helpers for sidebar chrome surfaces.
 
 use crate::app_core::native_shell::composition::style::SizingTokens;
-use crate::gui::types::{Point, Rect, Vector2};
 
 /// Return the canonical square sidebar-header add-button edge length.
 pub(super) fn header_button_side(sizing: SizingTokens) -> f32 {
@@ -25,18 +24,4 @@ pub(super) fn footer_action_button_width(
         / button_count as f32)
         .min(sizing.sidebar_action_button_width)
         .max(1.0)
-}
-
-/// Clamp one resolved layout rect back inside the original surface bounds.
-pub(super) fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    rect.clamp_to(bounds)
-}
-
-/// Look up one resolved rect by node id or return the provided fallback.
-pub(super) fn rect_for(
-    rects: &std::collections::BTreeMap<u64, Rect>,
-    id: u64,
-    fallback: Rect,
-) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
 }

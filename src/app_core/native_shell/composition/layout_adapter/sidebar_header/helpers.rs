@@ -63,12 +63,9 @@ pub(crate) fn compute_recovery_badge_layout(
         }],
     );
     let output = layout_tree(&badge_tree, badge_bounds);
-    let rect = clamp_rect_to_bounds(
-        rect_for(
-            &output.rects,
-            FOLDER_HEADER_BADGE_ID,
-            empty_rect(badge_bounds),
-        ),
+    let rect = output.rect_for_clamped(
+        FOLDER_HEADER_BADGE_ID,
+        empty_rect(badge_bounds),
         header_rect,
     );
     (rect.height() > 0.0).then_some(RecoveryBadgeLayout {
@@ -164,18 +161,6 @@ pub(crate) fn build_text_rows(show_metadata: bool, sizing: SizingTokens) -> Vec<
         child: LayoutNode::widget(FOLDER_HEADER_TEXT_FILL_ID, Vector2::new(1.0, 1.0)),
     });
     rows
-}
-
-pub(crate) fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    rect.clamp_to(bounds)
-}
-
-pub(crate) fn rect_for(
-    rects: &std::collections::BTreeMap<u64, Rect>,
-    id: u64,
-    fallback: Rect,
-) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
 }
 
 pub(crate) fn empty_rect(bounds: Rect) -> Rect {
