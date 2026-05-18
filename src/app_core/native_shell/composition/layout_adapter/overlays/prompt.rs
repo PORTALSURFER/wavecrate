@@ -70,7 +70,7 @@ fn compute_prompt_dialog_rect(content: Rect, sizing: SizingTokens) -> Rect {
         ],
     );
     let output = layout_tree(&tree, content);
-    shared::rect_for(&output.rects, PROMPT_DIALOG_ID, shared::empty_rect(content))
+    output.rect_for(PROMPT_DIALOG_ID, shared::empty_rect(content))
 }
 
 fn compute_prompt_buttons(dialog: Rect, sizing: SizingTokens) -> (Rect, Rect) {
@@ -142,16 +142,8 @@ fn compute_prompt_buttons(dialog: Rect, sizing: SizingTokens) -> (Rect, Rect) {
         shared::inset_horizontal(dialog, sizing.text_inset_x.max(0.0)),
     );
     (
-        shared::rect_for(
-            &output.rects,
-            PROMPT_CONFIRM_BUTTON_ID,
-            shared::empty_rect(dialog),
-        ),
-        shared::rect_for(
-            &output.rects,
-            PROMPT_CANCEL_BUTTON_ID,
-            shared::empty_rect(dialog),
-        ),
+        output.rect_for(PROMPT_CONFIRM_BUTTON_ID, shared::empty_rect(dialog)),
+        output.rect_for(PROMPT_CANCEL_BUTTON_ID, shared::empty_rect(dialog)),
     )
 }
 
@@ -225,11 +217,7 @@ fn compute_prompt_input_rect(
         &tree,
         shared::inset_horizontal(dialog, sizing.text_inset_x.max(0.0)),
     );
-    Some(shared::rect_for(
-        &output.rects,
-        PROMPT_INPUT_ID,
-        shared::empty_rect(dialog),
-    ))
+    Some(output.rect_for(PROMPT_INPUT_ID, shared::empty_rect(dialog)))
 }
 
 #[cfg(test)]

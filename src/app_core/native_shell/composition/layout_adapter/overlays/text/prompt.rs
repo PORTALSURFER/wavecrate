@@ -71,13 +71,9 @@ fn compute_prompt_dialog_rows(
         shared::inset_horizontal(dialog, sizing.text_inset_x.max(0.0)),
     );
     PromptDialogRows {
-        title: shared::rect_for(&output.rects, PROMPT_TEXT_TITLE_ID, empty),
-        message: shared::rect_for(&output.rects, PROMPT_TEXT_MESSAGE_ID, empty),
-        target: has_target.then_some(shared::rect_for(
-            &output.rects,
-            PROMPT_TEXT_TARGET_ID,
-            empty,
-        )),
+        title: output.rect_for(PROMPT_TEXT_TITLE_ID, empty),
+        message: output.rect_for(PROMPT_TEXT_MESSAGE_ID, empty),
+        target: has_target.then_some(output.rect_for(PROMPT_TEXT_TARGET_ID, empty)),
     }
 }
 
