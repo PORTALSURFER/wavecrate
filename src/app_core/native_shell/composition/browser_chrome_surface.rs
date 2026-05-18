@@ -15,7 +15,6 @@ use super::style::SizingTokens;
 use crate::{
     app::AppModel,
     gui::types::{Point, Rect},
-    layout::layout_tree,
     runtime::UiSurface,
 };
 use helpers::{
@@ -138,7 +137,7 @@ pub(crate) fn resolve_browser_tabs_surface_layout(
     content: &BrowserTabsSurfaceContent,
 ) -> BrowserTabsSurfaceLayout {
     let surface = build_browser_tabs_surface(content, sizing, tabs_rect.width());
-    let output = layout_tree(&surface.layout_node(), tabs_rect);
+    let output = surface.layout(tabs_rect);
     let empty = Rect::from_min_max(tabs_rect.min, tabs_rect.min);
     BrowserTabsSurfaceLayout {
         items: clamp_rect_to_bounds(rect_for(&output.rects, TABS_ITEMS_ID, empty), tabs_rect),
@@ -154,7 +153,7 @@ pub(crate) fn resolve_browser_toolbar_surface_layout(
 ) -> BrowserToolbarSurfaceLayout {
     let widths = browser_toolbar_surface_widths(toolbar_rect, sizing);
     let surface = build_browser_toolbar_surface(content, toolbar_rect.height(), widths);
-    let output = layout_tree(&surface.layout_node(), toolbar_rect);
+    let output = surface.layout(toolbar_rect);
     let empty = Rect::from_min_max(toolbar_rect.min, toolbar_rect.min);
     BrowserToolbarSurfaceLayout {
         rating_filter_chips: std::array::from_fn(|index| {

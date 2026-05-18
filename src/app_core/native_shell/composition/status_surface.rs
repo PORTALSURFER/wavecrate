@@ -8,7 +8,7 @@
 use super::style::SizingTokens;
 use crate::{
     gui::types::{Point, Rect},
-    layout::{MainAlign, layout_tree},
+    layout::MainAlign,
     runtime::UiSurface,
 };
 use radiant::prelude as ui;
@@ -137,7 +137,7 @@ pub(crate) fn resolve_status_surface_layout(
     content: &StatusSurfaceContent,
 ) -> StatusSurfaceLayout {
     let surface = build_status_surface(content, sizing, status_bar.width());
-    let output = layout_tree(&surface.layout_node(), status_bar);
+    let output = surface.layout(status_bar);
     let empty = Rect::from_min_max(status_bar.min, status_bar.min);
     StatusSurfaceLayout {
         left_segment: clamp_rect_to_bounds(
