@@ -151,21 +151,15 @@ pub(crate) fn compute_sidebar_folder_header_layout(
         }],
     );
     let output = layout_tree(&text_tree, text_bounds);
-    let title_row = helpers::clamp_rect_to_bounds(
-        helpers::rect_for(
-            &output.rects,
-            FOLDER_HEADER_TITLE_ID,
-            helpers::empty_rect(text_bounds),
-        ),
+    let title_row = output.rect_for_clamped(
+        FOLDER_HEADER_TITLE_ID,
+        helpers::empty_rect(text_bounds),
         text_bounds,
     );
     let metadata_row = if show_metadata {
-        let row = helpers::clamp_rect_to_bounds(
-            helpers::rect_for(
-                &output.rects,
-                FOLDER_HEADER_META_ID,
-                helpers::empty_rect(text_bounds),
-            ),
+        let row = output.rect_for_clamped(
+            FOLDER_HEADER_META_ID,
+            helpers::empty_rect(text_bounds),
             text_bounds,
         );
         (row.height() > 0.0).then_some(row)
@@ -233,12 +227,9 @@ pub(crate) fn compute_source_section_divider_rect(
         }],
     );
     let output = layout_tree(&divider_tree, align_bounds);
-    let rect = helpers::clamp_rect_to_bounds(
-        helpers::rect_for(
-            &output.rects,
-            SOURCE_DIVIDER_ID,
-            helpers::empty_rect(align_bounds),
-        ),
+    let rect = output.rect_for_clamped(
+        SOURCE_DIVIDER_ID,
+        helpers::empty_rect(align_bounds),
         Rect::from_min_max(
             Point::new(source_rows.min.x, source_rows.min.y),
             Point::new(source_rows.max.x, folder_header.max.y),
