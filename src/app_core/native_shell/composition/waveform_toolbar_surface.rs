@@ -78,8 +78,7 @@ pub(crate) fn resolve_waveform_toolbar_surface_layout(
     let output = surface.layout(header_rect);
     for item_index in visible_start..content.items.len() {
         let id = waveform_toolbar_widget_id(item_index);
-        item_rects[item_index] =
-            clamp_rect_to_bounds(rect_for(&output.rects, id, empty), header_rect);
+        item_rects[item_index] = output.rect_for_clamped(id, empty, header_rect);
     }
     WaveformToolbarSurfaceLayout { item_rects }
 }
@@ -200,14 +199,6 @@ fn waveform_toolbar_layout_label(item: &WaveformToolbarSurfaceItem) -> String {
 
 fn waveform_toolbar_widget_id(index: usize) -> NodeId {
     WAVEFORM_TOOLBAR_BASE_ID + index as u64 + 1
-}
-
-fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
-}
-
-fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    rect.clamp_to(bounds)
 }
 
 #[cfg(test)]

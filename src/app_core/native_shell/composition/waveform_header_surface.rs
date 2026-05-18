@@ -84,12 +84,10 @@ pub(crate) fn resolve_waveform_header_surface_layout(
     let output = surface.layout(header_rect);
     let empty = Rect::from_min_max(header_rect.min, header_rect.min);
     WaveformHeaderSurfaceLayout {
-        title_text_rect: clamp_rect_to_bounds(
-            rect_for(&output.rects, WAVEFORM_HEADER_TITLE_ID, empty),
-            header_rect,
-        ),
-        metadata_text_rect: clamp_rect_to_bounds(
-            rect_for(&output.rects, WAVEFORM_HEADER_METADATA_ID, empty),
+        title_text_rect: output.rect_for_clamped(WAVEFORM_HEADER_TITLE_ID, empty, header_rect),
+        metadata_text_rect: output.rect_for_clamped(
+            WAVEFORM_HEADER_METADATA_ID,
+            empty,
             header_rect,
         ),
     }
@@ -131,14 +129,6 @@ fn build_waveform_header_surface(
 
 fn format_milli_value(value: u16) -> String {
     format!("{:.3}", f32::from(value.min(1000)) / 1000.0)
-}
-
-fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    rect.clamp_to(bounds)
-}
-
-fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
 }
 
 #[cfg(test)]

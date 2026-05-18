@@ -140,42 +140,15 @@ pub(crate) fn resolve_status_surface_layout(
     let output = surface.layout(status_bar);
     let empty = Rect::from_min_max(status_bar.min, status_bar.min);
     StatusSurfaceLayout {
-        left_segment: clamp_rect_to_bounds(
-            rect_for(&output.rects, STATUS_LEFT_SEGMENT_ID, empty),
-            status_bar,
-        ),
-        center_segment: clamp_rect_to_bounds(
-            rect_for(&output.rects, STATUS_CENTER_SEGMENT_ID, empty),
-            status_bar,
-        ),
-        right_segment: clamp_rect_to_bounds(
-            rect_for(&output.rects, STATUS_RIGHT_SEGMENT_ID, empty),
-            status_bar,
-        ),
-        progress_segment: clamp_rect_to_bounds(
-            rect_for(&output.rects, STATUS_PROGRESS_SEGMENT_ID, empty),
-            status_bar,
-        ),
-        left_text_rect: clamp_rect_to_bounds(
-            rect_for(&output.rects, STATUS_LEFT_TEXT_ID, empty),
-            status_bar,
-        ),
-        center_text_rect: clamp_rect_to_bounds(
-            rect_for(&output.rects, STATUS_CENTER_TEXT_ID, empty),
-            status_bar,
-        ),
-        right_text_rect: clamp_rect_to_bounds(
-            rect_for(&output.rects, STATUS_RIGHT_TEXT_ID, empty),
-            status_bar,
-        ),
-        progress_text_rect: clamp_rect_to_bounds(
-            rect_for(&output.rects, STATUS_PROGRESS_TEXT_ID, empty),
-            status_bar,
-        ),
-        progress_track_rect: clamp_rect_to_bounds(
-            rect_for(&output.rects, STATUS_PROGRESS_TRACK_ID, empty),
-            status_bar,
-        ),
+        left_segment: output.rect_for_clamped(STATUS_LEFT_SEGMENT_ID, empty, status_bar),
+        center_segment: output.rect_for_clamped(STATUS_CENTER_SEGMENT_ID, empty, status_bar),
+        right_segment: output.rect_for_clamped(STATUS_RIGHT_SEGMENT_ID, empty, status_bar),
+        progress_segment: output.rect_for_clamped(STATUS_PROGRESS_SEGMENT_ID, empty, status_bar),
+        left_text_rect: output.rect_for_clamped(STATUS_LEFT_TEXT_ID, empty, status_bar),
+        center_text_rect: output.rect_for_clamped(STATUS_CENTER_TEXT_ID, empty, status_bar),
+        right_text_rect: output.rect_for_clamped(STATUS_RIGHT_TEXT_ID, empty, status_bar),
+        progress_text_rect: output.rect_for_clamped(STATUS_PROGRESS_TEXT_ID, empty, status_bar),
+        progress_track_rect: output.rect_for_clamped(STATUS_PROGRESS_TRACK_ID, empty, status_bar),
     }
 }
 
@@ -231,14 +204,6 @@ fn progress_slot_width(viewport_width: f32, sizing: SizingTokens) -> f32 {
     let inner_width = (viewport_width - (sizing.panel_inset.max(0.0) * 2.0)).max(0.0);
     (inner_width * STATUS_PROGRESS_RATIO)
         .clamp(STATUS_PROGRESS_MIN_WIDTH, STATUS_PROGRESS_MAX_WIDTH)
-}
-
-fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    rect.clamp_to(bounds)
-}
-
-fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
 }
 
 #[cfg(test)]
