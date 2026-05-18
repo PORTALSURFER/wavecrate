@@ -66,8 +66,7 @@ pub(super) fn layout_left_aligned_fixed_widths(
         .enumerate()
         .map(|(index, _)| {
             let id = first_button_id + index as u64;
-            let rect = rect_for(&output.rects, id, empty_rect(bounds));
-            clamp_rect_to_bounds(rect, bounds)
+            output.rect_for_clamped(id, empty_rect(bounds), bounds)
         })
         .collect()
 }
@@ -113,18 +112,9 @@ pub(super) fn layout_right_aligned_fixed_widths(
         .enumerate()
         .map(|(index, _)| {
             let id = first_button_id + index as u64;
-            let rect = rect_for(&output.rects, id, empty_rect(bounds));
-            clamp_rect_to_bounds(rect, bounds)
+            output.rect_for_clamped(id, empty_rect(bounds), bounds)
         })
         .collect()
-}
-
-pub(super) fn rect_for(
-    rects: &std::collections::BTreeMap<u64, Rect>,
-    id: u64,
-    fallback: Rect,
-) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
 }
 
 fn fixed_width_child(node_id: u64, width: f32, left_margin: f32) -> SlotChild {
