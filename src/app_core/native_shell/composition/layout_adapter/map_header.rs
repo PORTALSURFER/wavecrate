@@ -73,14 +73,8 @@ pub(crate) fn compute_browser_map_header_text_layout(
         }],
     );
     let output = layout_tree(&tree, header_rect);
-    let left_bounds = clamp_rect_to_bounds(
-        rect_for(&output.rects, MAP_HEADER_LEFT_ID, empty),
-        header_rect,
-    );
-    let right_bounds = clamp_rect_to_bounds(
-        rect_for(&output.rects, MAP_HEADER_RIGHT_ID, empty),
-        header_rect,
-    );
+    let left_bounds = output.rect_for_clamped(MAP_HEADER_LEFT_ID, empty, header_rect);
+    let right_bounds = output.rect_for_clamped(MAP_HEADER_RIGHT_ID, empty, header_rect);
     BrowserMapHeaderTextLayout {
         left_label: compute_map_header_text_line(left_bounds, sizing, sizing.font_meta),
         right_label: compute_map_header_text_line(right_bounds, sizing, sizing.font_meta),
@@ -118,14 +112,6 @@ fn compute_map_header_text_line(rect: Rect, sizing: SizingTokens, font_size: f32
         },
         0.0,
     )
-}
-
-fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    rect.clamp_to(bounds)
-}
-
-fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
 }
 
 fn empty_rect(bounds: Rect) -> Rect {

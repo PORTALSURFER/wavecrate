@@ -37,10 +37,7 @@ pub(crate) fn compute_browser_map_canvas_rect(browser_rows: Rect, sizing: Sizing
         }],
     );
     let output = layout_tree(&tree, browser_rows);
-    clamp_rect_to_bounds(
-        rect_for(&output.rects, MAP_CANVAS_FILL_ID, empty),
-        browser_rows,
-    )
+    output.rect_for_clamped(MAP_CANVAS_FILL_ID, empty, browser_rows)
 }
 
 /// Compute a point center within the map canvas from normalized milli coords.
@@ -51,14 +48,6 @@ pub(crate) fn compute_browser_map_point_center(canvas: Rect, x_milli: u16, y_mil
         canvas.min.x + (canvas.width().max(0.0) * x_ratio),
         canvas.min.y + (canvas.height().max(0.0) * y_ratio),
     )
-}
-
-fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    rect.clamp_to(bounds)
-}
-
-fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
 }
 
 fn empty_rect(bounds: Rect) -> Rect {

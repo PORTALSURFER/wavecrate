@@ -39,17 +39,10 @@ pub(crate) fn compute_sidebar_band_sections_with_layout_engine(
     let section_tree = build_sidebar_bands_tree(sidebar, sizing);
     let output =
         engine.layout_with_state(&section_tree, sidebar, state, LayoutDebugOptions::default());
-    let sidebar_rows = rect_for(&output.rects, SIDEBAR_ROWS_ID, empty);
     SidebarBandSections {
-        sidebar_header: clamp_rect_to_bounds(
-            rect_for(&output.rects, SIDEBAR_HEADER_ID, empty),
-            sidebar,
-        ),
-        sidebar_rows: clamp_rect_to_bounds(sidebar_rows, sidebar),
-        sidebar_footer: clamp_rect_to_bounds(
-            rect_for(&output.rects, SIDEBAR_FOOTER_ID, empty),
-            sidebar,
-        ),
+        sidebar_header: output.rect_for_clamped(SIDEBAR_HEADER_ID, empty, sidebar),
+        sidebar_rows: output.rect_for_clamped(SIDEBAR_ROWS_ID, empty, sidebar),
+        sidebar_footer: output.rect_for_clamped(SIDEBAR_FOOTER_ID, empty, sidebar),
     }
 }
 
@@ -100,14 +93,6 @@ fn fixed_height_child(node_id: u64, height: f32, bottom_margin: f32) -> SlotChil
     }
 }
 
-fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
-}
-
 fn empty_rect(bounds: Rect) -> Rect {
     bounds.empty_at_min()
-}
-
-fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    rect.clamp_to(bounds)
 }

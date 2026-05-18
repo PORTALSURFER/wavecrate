@@ -34,14 +34,8 @@ pub(crate) fn compute_waveform_header_text_layout(
     }
     let tree = waveform_header_tree(sizing);
     let output = layout_tree(&tree, header_rect);
-    let title_row = clamp_rect_to_bounds(
-        rect_for(&output.rects, WAVEFORM_HEADER_TITLE_ID, empty),
-        header_rect,
-    );
-    let metadata_row = clamp_rect_to_bounds(
-        rect_for(&output.rects, WAVEFORM_HEADER_META_ID, empty),
-        header_rect,
-    );
+    let title_row = output.rect_for_clamped(WAVEFORM_HEADER_TITLE_ID, empty, header_rect);
+    let metadata_row = output.rect_for_clamped(WAVEFORM_HEADER_META_ID, empty, header_rect);
     WaveformHeaderTextLayout {
         title_row,
         metadata_row,
@@ -108,14 +102,6 @@ fn fixed_height_row(node_id: u64, height: f32) -> SlotChild {
         },
         child: LayoutNode::widget(node_id, Vector2::new(1.0, height.max(1.0))),
     }
-}
-
-fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
-    rect.clamp_to(bounds)
-}
-
-fn rect_for(rects: &std::collections::BTreeMap<u64, Rect>, id: u64, fallback: Rect) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
 }
 
 fn empty_rect(bounds: Rect) -> Rect {
