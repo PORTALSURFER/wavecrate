@@ -59,11 +59,7 @@ fn compute_progress_dialog_rect(content: Rect, sizing: SizingTokens, modal: bool
             ],
         );
         let output = layout_tree(&tree, content);
-        return shared::rect_for(
-            &output.rects,
-            PROGRESS_DIALOG_ID,
-            shared::empty_rect(content),
-        );
+        return output.rect_for(PROGRESS_DIALOG_ID, shared::empty_rect(content));
     }
 
     let width = (sizing.prompt_width * 0.7).min(content.width() - (sizing.overlay_padding * 2.0));
@@ -86,11 +82,7 @@ fn compute_progress_dialog_rect(content: Rect, sizing: SizingTokens, modal: bool
         )],
     );
     let output = layout_tree(&tree, bounds);
-    shared::rect_for(
-        &output.rects,
-        PROGRESS_DIALOG_ID,
-        shared::empty_rect(content),
-    )
+    output.rect_for(PROGRESS_DIALOG_ID, shared::empty_rect(content))
 }
 
 fn compute_progress_bar_rect(dialog: Rect, sizing: SizingTokens) -> Rect {
@@ -148,7 +140,7 @@ fn compute_progress_bar_rect(dialog: Rect, sizing: SizingTokens) -> Rect {
         &tree,
         shared::inset_horizontal(dialog, sizing.text_inset_x.max(0.0)),
     );
-    shared::rect_for(&output.rects, PROGRESS_BAR_ID, shared::empty_rect(dialog))
+    output.rect_for(PROGRESS_BAR_ID, shared::empty_rect(dialog))
 }
 
 fn compute_progress_cancel_button_rect(dialog: Rect, sizing: SizingTokens) -> Rect {
@@ -213,11 +205,7 @@ fn compute_progress_cancel_button_rect(dialog: Rect, sizing: SizingTokens) -> Re
         &tree,
         shared::inset_horizontal(dialog, sizing.text_inset_x.max(0.0)),
     );
-    shared::rect_for(
-        &output.rects,
-        PROGRESS_CANCEL_BUTTON_ID,
-        shared::empty_rect(dialog),
-    )
+    output.rect_for(PROGRESS_CANCEL_BUTTON_ID, shared::empty_rect(dialog))
 }
 
 #[cfg(test)]

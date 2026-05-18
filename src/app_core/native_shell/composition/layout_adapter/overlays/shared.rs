@@ -63,15 +63,6 @@ pub(super) fn fixed_width_button(node_id: u64, width: f32, left_margin: f32) -> 
     }
 }
 
-/// Resolve a rect from layout output or return a fallback.
-pub(super) fn rect_for(
-    rects: &std::collections::BTreeMap<u64, Rect>,
-    id: u64,
-    fallback: Rect,
-) -> Rect {
-    rects.get(&id).copied().unwrap_or(fallback)
-}
-
 /// Clamp a rect to a containing bounds rect.
 pub(super) fn clamp_rect_to_bounds(rect: Rect, bounds: Rect) -> Rect {
     rect.clamp_to(bounds)

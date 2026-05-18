@@ -53,8 +53,9 @@ pub(super) fn compute_drag_overlay_rect(
         )],
     );
     let output = layout_tree(&tree, align_bounds);
-    shared::clamp_rect_to_bounds(
-        shared::rect_for(&output.rects, DRAG_OVERLAY_ID, shared::empty_rect(content)),
+    output.rect_for_clamped(
+        DRAG_OVERLAY_ID,
+        shared::empty_rect(content),
         Rect::from_min_max(
             Point::new(content.min.x, min_y),
             Point::new(content.max.x, max_y),

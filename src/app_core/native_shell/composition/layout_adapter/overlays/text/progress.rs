@@ -72,12 +72,8 @@ fn compute_progress_dialog_rows(
         shared::inset_horizontal(dialog, sizing.text_inset_x.max(0.0)),
     );
     ProgressDialogRows {
-        title: shared::rect_for(&output.rects, PROGRESS_TEXT_TITLE_ID, empty),
-        detail: has_detail.then_some(shared::rect_for(
-            &output.rects,
-            PROGRESS_TEXT_DETAIL_ID,
-            empty,
-        )),
+        title: output.rect_for(PROGRESS_TEXT_TITLE_ID, empty),
+        detail: has_detail.then_some(output.rect_for(PROGRESS_TEXT_DETAIL_ID, empty)),
     }
 }
 
