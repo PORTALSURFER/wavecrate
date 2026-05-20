@@ -4084,6 +4084,7 @@ dependencies = [
  "arboard",
  "hound",
  "image",
+ "kurbo",
  "pollster",
  "raw-window-handle",
  "roxmltree 0.21.1",
