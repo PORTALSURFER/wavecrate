@@ -1,4 +1,5 @@
 use crate::app::state::{DestructiveEditPrompt, DestructiveSelectionEdit};
+use crate::sample_sources::config::AudioWriteFormatConfig;
 
 impl DestructiveSelectionEdit {
     fn title(&self) -> &'static str {
@@ -56,10 +57,17 @@ impl DestructiveSelectionEdit {
     }
 }
 
-pub(crate) fn prompt_for_edit(edit: DestructiveSelectionEdit) -> DestructiveEditPrompt {
+pub(crate) fn prompt_for_edit(
+    edit: DestructiveSelectionEdit,
+    write_format: &AudioWriteFormatConfig,
+) -> DestructiveEditPrompt {
     DestructiveEditPrompt {
         edit,
         title: edit.title().to_string(),
-        message: edit.warning().to_string(),
+        message: format!(
+            "{} Wavecrate will rewrite the file using the current write format: {}.",
+            edit.warning(),
+            write_format.summary_label()
+        ),
     }
 }

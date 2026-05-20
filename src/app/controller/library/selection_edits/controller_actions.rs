@@ -15,7 +15,10 @@ impl AppController {
             self.apply_selection_edit_kind(edit)?;
             return Ok(SelectionEditRequest::Applied);
         }
-        self.ui.waveform.pending_destructive = Some(prompt::prompt_for_edit(edit));
+        self.ui.waveform.pending_destructive = Some(prompt::prompt_for_edit(
+            edit,
+            &self.settings.audio_write_format,
+        ));
         Ok(SelectionEditRequest::Prompted)
     }
 
