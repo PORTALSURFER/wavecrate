@@ -9,10 +9,14 @@ use std::path::PathBuf;
 
 #[test]
 fn test_delete_loaded_sample_navigation() {
+    let temp = tempfile::tempdir().unwrap();
+    let trash_root = temp.path().join("trash");
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
         sample_entry("one.wav", Rating::NEUTRAL),
         sample_entry("two.wav", Rating::NEUTRAL),
     ]);
+    controller.settings.trash_folder = Some(trash_root.clone());
+    controller.ui.trash_folder = Some(trash_root.clone());
 
     load_waveform_selection(
         &mut controller,
@@ -38,4 +42,5 @@ fn test_delete_loaded_sample_navigation() {
         HotkeyCommand::DeleteLoadedSample,
     );
     assert!(result);
+    assert!(trash_root.join("one.wav").exists());
 }

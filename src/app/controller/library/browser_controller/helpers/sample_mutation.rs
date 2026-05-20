@@ -42,7 +42,7 @@ pub(super) fn take_rename_looped_provenance_logs_for_tests() -> Vec<RenameLooped
 }
 
 impl BrowserController<'_> {
-    /// Delete the resolved browser sample immediately in the current thread.
+    /// Move the resolved browser sample into the configured trash folder.
     pub(crate) fn try_delete_browser_sample_ctx(
         &mut self,
         ctx: &TriageSampleContext,
@@ -54,19 +54,19 @@ impl BrowserController<'_> {
         ) {
             return Ok(());
         }
-        std::fs::remove_file(&ctx.absolute_path)
-            .map_err(|err| format!("Failed to delete file: {err}"))?;
-        let db = self
-            .database_for(&ctx.source)
-            .map_err(|err| format!("Database unavailable: {err}"))?;
-        db.remove_file(&ctx.entry.relative_path)
-            .map_err(|err| format!("Failed to drop database row: {err}"))?;
-        self.prune_cached_sample(&ctx.source, &ctx.entry.relative_path);
-        self.set_status(
-            format!("Deleted {}", ctx.entry.relative_path.display()),
-            StatusTone::Info,
+        let moved = self.move_samples_to_configured_trash_detailed(
+            vec![(ctx.source.clone(), ctx.entry.clone())],
+            None,
         );
-        Ok(())
+        if moved.moved_count() > 0 {
+            return Ok(());
+        }
+        let err = moved
+            .errors
+            .last()
+            .cloned()
+            .unwrap_or_else(|| self.ui.status.text.clone());
+        Err(err)
     }
 
     /// Rename the browser row at `row` while preserving playback resume details.

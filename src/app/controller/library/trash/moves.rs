@@ -14,6 +14,18 @@ use std::sync::atomic::Ordering;
 use std::sync::mpsc::channel;
 use std::sync::{Arc, atomic::AtomicBool};
 
+#[derive(Default)]
+pub(crate) struct ConfiguredTrashMoveResult {
+    pub(crate) moved_paths: Vec<PathBuf>,
+    pub(crate) errors: Vec<String>,
+}
+
+impl ConfiguredTrashMoveResult {
+    pub(crate) fn moved_count(&self) -> usize {
+        self.moved_paths.len()
+    }
+}
+
 impl AppController {
     /// Move all samples tagged as Trash into the configured trash folder after confirmation.
     pub fn move_all_trashed_to_folder(&mut self) {
@@ -112,15 +124,28 @@ impl AppController {
         samples: Vec<(SampleSource, WavEntry)>,
         next_focus: Option<PathBuf>,
     ) -> bool {
+        self.move_samples_to_configured_trash_detailed(samples, next_focus)
+            .moved_count()
+            > 0
+    }
+
+    pub(crate) fn move_samples_to_configured_trash_detailed(
+        &mut self,
+        samples: Vec<(SampleSource, WavEntry)>,
+        next_focus: Option<PathBuf>,
+    ) -> ConfiguredTrashMoveResult {
         if samples.is_empty() {
-            return false;
+            return ConfiguredTrashMoveResult::default();
         }
+        let total = samples.len();
         let Some(trash_root) = self.prepare_trash_folder_for_auto_move() else {
-            return false;
+            return ConfiguredTrashMoveResult {
+                moved_paths: Vec::new(),
+                errors: Vec::new(),
+            };
         };
         let mut errors = Vec::new();
-        let mut moved = 0usize;
-        let total = samples.len();
+        let mut moved_paths = Vec::new();
         let mut affected_sources = std::collections::HashSet::new();
         for (source, entry) in samples {
             let db = match SourceDatabase::open(&source.root) {
@@ -139,7 +164,7 @@ impl AppController {
             }
             match trash_move::move_to_trash(&source, &entry, &trash_root) {
                 Ok(()) => {
-                    moved += 1;
+                    moved_paths.push(entry.relative_path.clone());
                     affected_sources.insert(source.id.clone());
                     if let Err(err) = db.remove_file(&entry.relative_path) {
                         errors.push(format!(
@@ -159,15 +184,19 @@ impl AppController {
                 }
             }
         }
+        let moved = moved_paths.len();
         self.apply_trash_move_finished(TrashMoveFinished {
             total,
             moved,
             cancelled: false,
-            errors,
+            errors: errors.clone(),
             affected_sources: affected_sources.into_iter().collect(),
         });
         self.refocus_path_after_trash_move(next_focus);
-        moved > 0
+        ConfiguredTrashMoveResult {
+            moved_paths,
+            errors,
+        }
     }
 
     pub(super) fn refocus_path_after_trash_move(&mut self, next_focus: Option<PathBuf>) {

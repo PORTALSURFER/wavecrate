@@ -1,35 +1,6 @@
 use super::*;
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
-use std::sync::{Arc, atomic::AtomicBool};
-
-struct DeleteAttemptSummary {
-    deleted_paths: HashSet<PathBuf>,
-    deleted_count: usize,
-    error_count: usize,
-    last_error: Option<String>,
-}
-
-impl DeleteAttemptSummary {
-    fn new(initial_error: Option<String>) -> Self {
-        Self {
-            deleted_paths: HashSet::new(),
-            deleted_count: 0,
-            error_count: usize::from(initial_error.is_some()),
-            last_error: initial_error,
-        }
-    }
-
-    fn record_deleted_path(&mut self, path: &Path) {
-        self.deleted_paths.insert(path.to_path_buf());
-        self.deleted_count += 1;
-    }
-
-    fn record_error(&mut self, err: String) {
-        self.error_count += 1;
-        self.last_error = Some(err);
-    }
-}
+use std::path::PathBuf;
 
 impl BrowserController<'_> {
     pub(super) fn delete_browser_sample_action(&mut self, row: usize) -> Result<(), String> {
@@ -74,43 +45,27 @@ impl BrowserController<'_> {
             self.set_status("File operation already in progress", StatusTone::Warning);
             return Ok(());
         }
-        if cfg!(test) {
-            let summary = self.delete_browser_contexts(contexts, initial_error);
-            if !summary.deleted_paths.is_empty() {
-                let selected_source_id = self.selected_source_id();
-                let similar_query = self.ui.browser.search.similar_query.clone();
-                crate::app::controller::library::wavs::schedule_similarity_filter_rebuild_after_delete_with_state(
-                    self,
-                    selected_source_id,
-                    similar_query,
-                    &summary.deleted_paths,
-                );
-                crate::app::controller::library::wavs::apply_pending_similarity_filter_rebuild(
-                    self,
-                );
-                self.restore_browser_focus_after_delete(next_focus);
-            }
-            self.finish_delete_browser_samples(summary)?;
-            return Ok(());
-        }
-        if let Some(source_id) = contexts.first().map(|ctx| ctx.source.id.clone()) {
-            self.begin_pending_file_mutation(
-                &source_id,
-                contexts
-                    .iter()
-                    .map(|ctx| ctx.entry.relative_path.clone())
-                    .collect::<Vec<_>>(),
+        let focus_path = next_focus
+            .as_ref()
+            .and_then(|plan| plan.preferred_path.clone());
+        let samples = contexts
+            .into_iter()
+            .map(|ctx| (ctx.source, ctx.entry))
+            .collect::<Vec<_>>();
+        let selected_source_id = self.selected_source_id();
+        let similar_query = self.ui.browser.search.similar_query.clone();
+        let moved = self.move_samples_to_configured_trash_detailed(samples, focus_path);
+        if !moved.moved_paths.is_empty() {
+            let deleted_paths = moved.moved_paths.iter().cloned().collect::<HashSet<_>>();
+            crate::app::controller::library::wavs::schedule_similarity_filter_rebuild_after_delete_with_state(
+                self,
+                selected_source_id,
+                similar_query,
+                &deleted_paths,
             );
+            crate::app::controller::library::wavs::apply_pending_similarity_filter_rebuild(self);
         }
-        self.runtime.jobs.begin_one_shot_file_op(move |cancel| {
-            crate::app::controller::jobs::FileOpResult::SampleDelete(run_sample_delete_job(
-                contexts,
-                next_focus,
-                initial_error,
-                cancel,
-            ))
-        })?;
-        self.set_status("Deleting samples...", StatusTone::Busy);
+        self.finish_delete_browser_samples(moved, initial_error)?;
         Ok(())
     }
 
@@ -131,44 +86,48 @@ impl BrowserController<'_> {
         ))
     }
 
-    fn delete_browser_contexts(
-        &mut self,
-        contexts: Vec<super::super::helpers::TriageSampleContext>,
-        initial_error: Option<String>,
-    ) -> DeleteAttemptSummary {
-        let mut summary = DeleteAttemptSummary::new(initial_error);
-        for ctx in contexts {
-            match self.try_delete_browser_sample_ctx(&ctx) {
-                Ok(()) => summary.record_deleted_path(&ctx.entry.relative_path),
-                Err(err) => summary.record_error(err),
-            }
-        }
-        summary
-    }
-
     fn finish_delete_browser_samples(
         &mut self,
-        summary: DeleteAttemptSummary,
+        moved: crate::app::controller::library::trash::ConfiguredTrashMoveResult,
+        initial_error: Option<String>,
     ) -> Result<(), String> {
-        if summary.error_count == 0 {
+        let error_count = moved.errors.len() + usize::from(initial_error.is_some());
+        let moved_count = moved.moved_count();
+        if error_count == 0 {
+            if moved_count > 0 {
+                self.set_status(
+                    format!(
+                        "Moved {} {} to trash",
+                        moved_count,
+                        sample_label(moved_count)
+                    ),
+                    StatusTone::Info,
+                );
+            }
             return Ok(());
         }
-        let Some(last_error) = summary.last_error else {
+        let last_error = moved
+            .errors
+            .last()
+            .cloned()
+            .or(initial_error)
+            .unwrap_or_default();
+        if last_error.is_empty() {
             return Ok(());
-        };
-        let message = if summary.deleted_count == 0 {
+        }
+        let message = if moved_count == 0 {
             last_error
         } else {
             format!(
-                "Deleted {} {} with {} {}: {}",
-                summary.deleted_count,
-                sample_label(summary.deleted_count),
-                summary.error_count,
-                error_label(summary.error_count),
+                "Moved {} {} to trash with {} {}: {}",
+                moved_count,
+                sample_label(moved_count),
+                error_count,
+                error_label(error_count),
                 last_error
             )
         };
-        let tone = if summary.deleted_count == 0 {
+        let tone = if moved_count == 0 {
             StatusTone::Error
         } else {
             StatusTone::Warning
@@ -201,49 +160,6 @@ impl BrowserController<'_> {
     }
 }
 
-fn run_sample_delete_job(
-    contexts: Vec<super::super::helpers::TriageSampleContext>,
-    next_focus: Option<super::super::helpers::DeleteBrowserFocusPlan>,
-    initial_error: Option<String>,
-    cancel: Arc<AtomicBool>,
-) -> crate::app::controller::jobs::SampleDeleteResult {
-    let source_id = contexts
-        .first()
-        .map(|ctx| ctx.source.id.clone())
-        .unwrap_or_default();
-    let requested_paths = contexts
-        .iter()
-        .map(|ctx| ctx.entry.relative_path.clone())
-        .collect::<Vec<_>>();
-    let mut summary = DeleteAttemptSummary::new(initial_error);
-    for ctx in contexts {
-        if cancel.load(std::sync::atomic::Ordering::Relaxed) {
-            break;
-        }
-        match std::fs::remove_file(&ctx.absolute_path) {
-            Ok(()) => {
-                match crate::sample_sources::SourceDatabase::open(&ctx.source.root)
-                    .map_err(|err| format!("Database unavailable: {err}"))
-                    .and_then(|db| {
-                        db.remove_file(&ctx.entry.relative_path)
-                            .map_err(|err| format!("Failed to drop database row: {err}"))
-                    }) {
-                    Ok(()) => summary.record_deleted_path(&ctx.entry.relative_path),
-                    Err(err) => summary.record_error(err),
-                }
-            }
-            Err(err) => summary.record_error(format!("Failed to delete file: {err}")),
-        }
-    }
-    crate::app::controller::jobs::SampleDeleteResult {
-        source_id,
-        requested_paths,
-        deleted_paths: summary.deleted_paths.into_iter().collect(),
-        next_focus,
-        last_error: summary.last_error,
-    }
-}
-
 fn sample_label(count: usize) -> &'static str {
     if count == 1 { "sample" } else { "samples" }
 }
@@ -258,6 +174,7 @@ mod tests {
     use crate::app::controller::test_support::{prepare_with_source_and_wav_entries, sample_entry};
     use crate::app::state::{SampleBrowserSort, SimilarQuery};
     use crate::sample_sources::Rating;
+    use std::path::Path;
 
     #[test]
     fn restore_browser_focus_after_delete_uses_visible_fallback_when_preferred_path_is_hidden() {
