@@ -1,4 +1,5 @@
 use crate::audio::{AudioInputConfig, AudioOutputConfig, ResolvedInput, ResolvedOutput};
+use crate::sample_sources::config::AudioWriteFormatConfig;
 
 /// UI state for audio host/device selection.
 #[derive(Clone, Debug, Default)]
@@ -31,6 +32,8 @@ pub struct AudioOptionsState {
     pub input_applied: Option<ActiveAudioInput>,
     /// Warning message for input selection, if any.
     pub input_warning: Option<String>,
+    /// Persistent write-format policy used for Wavecrate-created WAV files.
+    pub write_format: AudioWriteFormatConfig,
     /// Whether the audio options panel is open.
     pub panel_open: bool,
 }

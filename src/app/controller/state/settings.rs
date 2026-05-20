@@ -1,7 +1,7 @@
 //! Persistent settings state for the controller.
 
 use crate::audio::{AudioInputConfig, AudioOutputConfig};
-use crate::sample_sources::config::DropTargetConfig;
+use crate::sample_sources::config::{AudioWriteFormatConfig, DropTargetConfig};
 use std::path::PathBuf;
 
 pub(crate) struct AppSettingsState {
@@ -13,6 +13,7 @@ pub(crate) struct AppSettingsState {
     pub(crate) app_data_dir: Option<PathBuf>,
     pub(crate) audio_output: AudioOutputConfig,
     pub(crate) audio_input: AudioInputConfig,
+    pub(crate) audio_write_format: AudioWriteFormatConfig,
     pub(crate) controls: crate::sample_sources::config::InteractionOptions,
     pub(crate) trash_folder: Option<PathBuf>,
     pub(crate) drop_targets: Vec<DropTargetConfig>,
@@ -31,6 +32,7 @@ impl AppSettingsState {
             app_data_dir: None,
             audio_output: AudioOutputConfig::default(),
             audio_input: AudioInputConfig::default(),
+            audio_write_format: AudioWriteFormatConfig::default(),
             controls: crate::sample_sources::config::InteractionOptions::default(),
             trash_folder: None,
             drop_targets: Vec::new(),

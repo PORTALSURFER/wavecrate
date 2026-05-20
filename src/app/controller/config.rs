@@ -38,6 +38,8 @@ impl AppController {
         self.ui.audio.selected = self.settings.audio_output.clone();
         self.settings.audio_input = cfg.core.audio_input.clone();
         self.ui.audio.input_selected = self.settings.audio_input.clone();
+        self.settings.audio_write_format = cfg.core.audio_write_format.clone();
+        self.ui.audio.write_format = self.settings.audio_write_format.clone();
         self.settings.controls = cfg.core.controls.clone();
         self.settings.default_identifier = if cfg.core.default_identifier.trim().is_empty() {
             String::from("portal")
@@ -349,6 +351,7 @@ impl AppController {
                     }),
                 audio_output: self.settings.audio_output.clone(),
                 audio_input: self.settings.audio_input.clone(),
+                audio_write_format: self.settings.audio_write_format.clone(),
                 volume: self.ui.volume,
                 controls: self.settings.controls.clone(),
                 default_identifier: self.settings.default_identifier.clone(),

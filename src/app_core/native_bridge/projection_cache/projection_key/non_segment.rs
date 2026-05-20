@@ -166,6 +166,7 @@ fn hash_options_panel_model(model: &crate::app_core::actions::NativeOptionsPanel
     preferences.primary_text_value.hash(&mut hasher);
     preferences.toggles.hash(&mut hasher);
     preferences.auxiliary_label.hash(&mut hasher);
+    model.audio_write_format_label.hash(&mut hasher);
     hasher.finish()
 }
 

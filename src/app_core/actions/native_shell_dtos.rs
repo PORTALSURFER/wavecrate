@@ -1250,6 +1250,8 @@ pub struct OptionsPanelModel {
     pub invert_waveform_scroll_enabled: bool,
     /// Short display label for the configured trash folder, when available.
     pub trash_folder_label: Option<String>,
+    /// Short display label for the configured audio write format.
+    pub audio_write_format_label: Option<String>,
 }
 
 impl OptionsPanelModel {
@@ -1807,6 +1809,7 @@ mod tests {
             destructive_yolo_mode_enabled: true,
             invert_waveform_scroll_enabled: false,
             trash_folder_label: Some(String::from("Trash")),
+            audio_write_format_label: Some(String::from("Source rate, 32-bit float")),
         };
         let preferences = model.preference_state();
 

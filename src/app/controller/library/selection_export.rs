@@ -30,7 +30,7 @@ use crate::app::controller::jobs::{
     SelectionExportJob, SelectionExportSnapshot, SelectionExportTimings,
     build_selection_export_audio_payload,
 };
-use crate::app::controller::playback::audio_samples::write_wav;
+use crate::app::controller::playback::audio_samples::write_wav_with_spec;
 use crate::sample_sources::Rating;
 
 impl AppController {
@@ -101,7 +101,13 @@ impl AppController {
             spec.sample_rate,
             spec.channels,
         );
-        write_wav(&target_abs, &samples, spec.sample_rate, spec.channels)?;
+        write_wav_with_spec(
+            &target_abs,
+            &samples,
+            self.settings
+                .audio_write_format
+                .wav_spec_for_source(spec.channels, spec.sample_rate),
+        )?;
         let (looped, bpm) = self.selection_export_metadata();
         self.record_selection_entry(SelectionEntryRecordRequest {
             source: &source,
@@ -143,7 +149,13 @@ impl AppController {
             spec.sample_rate,
             spec.channels,
         );
-        write_wav(&target_abs, &samples, spec.sample_rate, spec.channels)?;
+        write_wav_with_spec(
+            &target_abs,
+            &samples,
+            self.settings
+                .audio_write_format
+                .wav_spec_for_source(spec.channels, spec.sample_rate),
+        )?;
         let (looped, bpm) = self.selection_export_metadata();
         self.record_selection_entry(SelectionEntryRecordRequest {
             source: &source,
@@ -226,7 +238,13 @@ impl AppController {
             spec.sample_rate,
             spec.channels,
         );
-        write_wav(&target_abs, &samples, spec.sample_rate, spec.channels)?;
+        write_wav_with_spec(
+            &target_abs,
+            &samples,
+            self.settings
+                .audio_write_format
+                .wav_spec_for_source(spec.channels, spec.sample_rate),
+        )?;
         let source = SampleSource {
             id: SourceId::new(),
             root: clip_root.to_path_buf(),
@@ -282,6 +300,7 @@ impl AppController {
             ),
             apply_edge_fades: self.settings.controls.auto_edge_fades_on_selection_exports,
             edge_fade_ms: self.settings.controls.anti_clip_fade_ms.max(0.0),
+            write_format: self.settings.audio_write_format.clone(),
             target_tag,
             looped,
             bpm,

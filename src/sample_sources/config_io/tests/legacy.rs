@@ -7,7 +7,7 @@ use super::super::load::load_or_default;
 use super::TestConfigEnv;
 use crate::audio::{AudioInputConfig, AudioOutputConfig};
 use crate::sample_sources::SampleSource;
-use crate::sample_sources::config::AppConfig;
+use crate::sample_sources::config::{AppConfig, AudioWriteFormatConfig};
 
 #[test]
 fn migrates_from_legacy_json() {
@@ -31,6 +31,7 @@ fn migrates_from_legacy_json() {
             active_folder_pane: None,
             audio_output: AudioOutputConfig::default(),
             audio_input: AudioInputConfig::default(),
+            audio_write_format: AudioWriteFormatConfig::default(),
             volume: 0.9,
             controls: InteractionOptions::default(),
             default_identifier: String::from("legacy"),

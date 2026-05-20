@@ -317,13 +317,14 @@ fn prepare_selection_clip(
 fn write_selection_clip(
     absolute_path: &Path,
     prepared: &mut PreparedSelectionClip,
-    _snapshot: &SelectionExportSnapshot,
+    snapshot: &SelectionExportSnapshot,
 ) -> Result<(), String> {
-    super::write_wav(
+    crate::app::controller::playback::audio_samples::write_wav_with_spec(
         absolute_path,
         &prepared.samples,
-        prepared.sample_rate,
-        prepared.channels,
+        snapshot
+            .write_format
+            .wav_spec_for_source(prepared.channels, prepared.sample_rate),
     )
 }
 
@@ -348,10 +349,11 @@ fn write_slice_batch_clip(
             fade_duration,
         );
     }
-    super::write_wav(
+    crate::app::controller::playback::audio_samples::write_wav_with_spec(
         absolute_path,
         &prepared.samples,
-        prepared.sample_rate,
-        prepared.channels,
+        snapshot
+            .write_format
+            .wav_spec_for_source(prepared.channels, prepared.sample_rate),
     )
 }

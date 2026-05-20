@@ -3,6 +3,7 @@
 use super::*;
 use crate::sample_sources::Rating;
 use crate::sample_sources::WavEntry;
+use crate::sample_sources::config::AudioWriteFormatConfig;
 use crate::selection::SelectionRange;
 use crate::waveform::DecodedWaveform;
 use std::path::PathBuf;
@@ -45,6 +46,8 @@ pub(crate) struct SelectionExportSnapshot {
     pub(crate) apply_edge_fades: bool,
     /// Edge-fade duration in milliseconds when enabled.
     pub(crate) edge_fade_ms: f32,
+    /// Configured WAV write policy captured with the export request.
+    pub(crate) write_format: AudioWriteFormatConfig,
     /// Tag to assign to the written clip.
     pub(crate) target_tag: Option<Rating>,
     /// Whether loop metadata should be persisted for the new clip.
@@ -74,6 +77,8 @@ pub(crate) struct SelectionSliceBatchExportSnapshot {
     pub(crate) apply_edge_fades: bool,
     /// Edge-fade duration in milliseconds when enabled.
     pub(crate) edge_fade_ms: f32,
+    /// Configured WAV write policy captured with the export request.
+    pub(crate) write_format: AudioWriteFormatConfig,
 }
 
 /// Destination-specific job configuration for selection clip exports.

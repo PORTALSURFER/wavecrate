@@ -10,6 +10,8 @@ pub use config_io::{
     save_to_path,
 };
 pub use config_types::{
-    AnalysisSettings, AppConfig, AppSettingsCore, ConfigError, DropTargetColor, DropTargetConfig,
-    FeatureFlags, InteractionOptions, TooltipMode, UpdateChannel, UpdateSettings,
+    AnalysisSettings, AppConfig, AppSettingsCore, AudioWriteChannelBehavior, AudioWriteDither,
+    AudioWriteFormatConfig, AudioWriteSampleFormat, AudioWriteSampleRate, ConfigError,
+    DropTargetColor, DropTargetConfig, FeatureFlags, InteractionOptions, TooltipMode,
+    UpdateChannel, UpdateSettings,
 };

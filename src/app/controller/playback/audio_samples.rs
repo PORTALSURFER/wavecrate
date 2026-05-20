@@ -61,24 +61,54 @@ pub(crate) fn write_wav(
     sample_rate: u32,
     channels: u16,
 ) -> Result<(), String> {
-    if let Some(parent) = target.parent()
-        && !parent.exists()
-    {
-        fs::create_dir_all(parent)
-            .map_err(|err| format!("Failed to create folder {}: {err}", parent.display()))?;
-    }
     let spec = hound::WavSpec {
         channels: channels.max(1),
         sample_rate: sample_rate.max(1),
         bits_per_sample: 32,
         sample_format: SampleFormat::Float,
     };
+    write_wav_with_spec(target, samples, spec)
+}
+
+/// Write interleaved f32 samples to a WAV file using a configured WAV spec.
+pub(crate) fn write_wav_with_spec(
+    target: &Path,
+    samples: &[f32],
+    spec: hound::WavSpec,
+) -> Result<(), String> {
+    if let Some(parent) = target.parent()
+        && !parent.exists()
+    {
+        fs::create_dir_all(parent)
+            .map_err(|err| format!("Failed to create folder {}: {err}", parent.display()))?;
+    }
     let mut writer = hound::WavWriter::create(target, spec)
         .map_err(|err| format!("Failed to create clip: {err}"))?;
-    for sample in samples {
-        writer
-            .write_sample(*sample)
-            .map_err(|err| format!("Failed to write clip: {err}"))?;
+    match spec.sample_format {
+        SampleFormat::Float => {
+            for sample in samples {
+                writer
+                    .write_sample(*sample)
+                    .map_err(|err| format!("Failed to write clip: {err}"))?;
+            }
+        }
+        SampleFormat::Int if spec.bits_per_sample <= 16 => {
+            for sample in samples {
+                let scaled = (sample.clamp(-1.0, 1.0) * i16::MAX as f32).round() as i16;
+                writer
+                    .write_sample(scaled)
+                    .map_err(|err| format!("Failed to write clip: {err}"))?;
+            }
+        }
+        SampleFormat::Int => {
+            let max = ((1_i64 << (spec.bits_per_sample.saturating_sub(1) as u32)) - 1) as f32;
+            for sample in samples {
+                let scaled = (sample.clamp(-1.0, 1.0) * max).round() as i32;
+                writer
+                    .write_sample(scaled)
+                    .map_err(|err| format!("Failed to write clip: {err}"))?;
+            }
+        }
     }
     writer
         .finalize()
@@ -170,4 +200,30 @@ fn slice_frames(
         cropped.extend_from_slice(&samples[offset..offset + channels]);
     }
     cropped
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn write_wav_with_spec_writes_configured_pcm24_header() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let path = temp.path().join("clip.wav");
+        let spec = hound::WavSpec {
+            channels: 2,
+            sample_rate: 48_000,
+            bits_per_sample: 24,
+            sample_format: SampleFormat::Int,
+        };
+
+        write_wav_with_spec(&path, &[-1.0, 0.0, 0.5, 1.0], spec).expect("write wav");
+
+        let reader = hound::WavReader::open(path).expect("read wav");
+        let written = reader.spec();
+        assert_eq!(written.channels, 2);
+        assert_eq!(written.sample_rate, 48_000);
+        assert_eq!(written.bits_per_sample, 24);
+        assert_eq!(written.sample_format, SampleFormat::Int);
+    }
 }
