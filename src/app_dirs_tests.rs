@@ -96,6 +96,56 @@ fn dependency_handoff_staging_dir_stays_under_app_root() {
 }
 
 #[test]
+fn dependency_waveform_cache_dir_stays_under_rebuildable_cache_root() {
+    if explicit_persistence_env_present() {
+        return;
+    }
+    let base = tempdir().expect("create base dir");
+    let _base_guard = ConfigBaseGuard::set(base.path().to_path_buf());
+    let _profile_guard = PersistenceProfileGuard::live();
+
+    let cache_dir = app_dirs::waveform_cache_dir().expect("resolve waveform cache dir");
+
+    assert_eq!(
+        cache_dir,
+        base.path()
+            .join(".wavecrate")
+            .join("cache")
+            .join("waveforms")
+    );
+    assert!(cache_dir.is_dir());
+}
+
+#[test]
+fn dependency_clear_rebuildable_cache_payloads_preserves_non_cache_app_dirs() {
+    if explicit_persistence_env_present() {
+        return;
+    }
+    let base = tempdir().expect("create base dir");
+    let _base_guard = ConfigBaseGuard::set(base.path().to_path_buf());
+    let _profile_guard = PersistenceProfileGuard::live();
+
+    let waveform_cache = app_dirs::waveform_cache_dir().expect("resolve waveform cache dir");
+    let cached_file = waveform_cache.join("stale.bin");
+    std::fs::write(&cached_file, b"cache").expect("write cache payload");
+    let logs_dir = app_dirs::logs_dir().expect("resolve logs dir");
+    let log_file = logs_dir.join("wavecrate.log");
+    std::fs::write(&log_file, b"log").expect("write log payload");
+    let handoff_dir = app_dirs::handoff_staging_dir().expect("resolve handoff dir");
+    let handoff_file = handoff_dir.join("clip.wav");
+    std::fs::write(&handoff_file, b"clip").expect("write handoff payload");
+
+    let cache_root =
+        app_dirs::clear_rebuildable_cache_payloads().expect("clear rebuildable cache payloads");
+
+    assert_eq!(cache_root, base.path().join(".wavecrate").join("cache"));
+    assert!(cache_root.is_dir());
+    assert!(!cached_file.exists());
+    assert!(log_file.exists());
+    assert!(handoff_file.exists());
+}
+
+#[test]
 fn dependency_explicit_app_root_override_wins_over_test_default() {
     if explicit_persistence_env_present() {
         return;
