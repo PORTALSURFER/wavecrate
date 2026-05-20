@@ -36,10 +36,10 @@ There is no special “source recording” file type. A long jam recording is ju
 This workflow should support:
 
 1. Open or scan long audio files such as hardware jams, synth experiments, resampling sessions, modular patches, field recordings, rehearsal takes, or other recordings.
-2. Navigate quickly through large WAV or AIFF/AIF files.
+2. Navigate quickly through large ordinary WAV files, with AIFF/AIF support planned for a later phase.
 3. Audition from any position without waiting.
 4. Inspect the waveform at useful zoom levels.
-5. Use analysis aids such as BPM detection, tempo grids, transient detection, silence detection, waveform overviews, and energy/section cues where practical.
+5. Use analysis aids such as manually entered or region-derived BPM, tempo grids, transient cues, silence detection, waveform overviews, and energy/section cues where practical.
 6. Create play selections for auditioning sections.
 7. Loop selected regions for closer listening.
 8. Slide or move loop selections through the waveform to audition different parts quickly.
@@ -65,7 +65,7 @@ This workflow should support:
 4. Apply micro-edits such as trimming, fades, silence removal, gain adjustment, normalization, and timing/BPM metadata correction where practical.
 5. Add or remove tags quickly.
 6. Rate or triage the sample file through the keep/trash rating system.
-7. Use generated database display names based on tags, labels, prefixes, BPM, source, and other metadata.
+7. Use generated database display names based on tags, labels, prefixes, BPM, tuning/scale, and other user-authored metadata.
 8. Deliberately apply generated names to disk filenames when desired.
 9. Move, copy, collect, export, or route sample files into the right folders.
 10. Continue through the library without losing flow.
@@ -80,11 +80,11 @@ The user should be able to open Wavecrate during production, quickly find sounds
 
 This workflow should support:
 
-1. Browse, search, filter, or explore the library by folder, tag, rating, metadata, age, similarity, or 2D map position.
+1. Browse, search, filter, or explore the library by folder, tag, rating, metadata, age, and list-based similarity first, with 2D map position added in the later map phase.
 2. Audition samples immediately without disrupting the creative flow.
 3. Set and lock a target audition BPM where useful.
 4. Audition BPM-tagged samples warped to the target BPM where practical.
-5. Compare groups of related sounds, including sounds near each other in the similarity map.
+5. Compare groups of related sounds through list-based similarity first, and later through the similarity map.
 6. Quickly narrow results by sound type, character tags, BPM, rating, age, source, or similarity to a reference sample.
 7. Preview enough waveform and metadata context to choose the right sound quickly.
 8. Copy, drag, export, reveal, or otherwise hand off the selected sample file to a DAW or external tool.
@@ -102,13 +102,24 @@ Use it when reviewing features, refactors, UI changes, audio-engine work, databa
 
 Prefer incremental changes that move Wavecrate closer to this target while preserving working validation lanes. A change does not need to solve the whole product direction at once, but it should not make the intended direction harder.
 
+The current codebase has more than one UI/runtime surface while migration is in progress:
+
+- `src/gui_app.rs` is the current default `radiant-gui` entrypoint and should be treated as the primary place for new Wavecrate desktop UI behavior.
+- `src/app_core/**` contains host-facing projections, action catalog state, and native-shell/controller integration that still capture important product behavior during migration.
+- `src/app/controller/**` contains older controller workflow logic that may still be the best evidence for mature behavior such as rating, filtering, trash configuration, similarity, recording experiments, and recovery flows, but it should not be used to re-expand the legacy UI path by default.
+- `src/legacy_gui_app.rs` is a deprecated fallback entrypoint and should not define new product direction unless a task is explicitly about legacy fallback maintenance.
+
+Current implementation details are evidence, not automatic product requirements. If current code uses a temporary cap, simplified file operation, developer fixture, permanent delete, or old native-shell-only affordance that conflicts with this target, treat that as an implementation gap unless this document explicitly adopts the behavior.
+
+The default GUI already demonstrates several target-aligned behaviors that should be preserved while the fuller architecture is built: adding source folders, incremental folder scanning with progress, a compact source/folder/sample layout, file-list columns for name, extension, size, and modified time, immediate audition on sample selection, stale-safe latest-sample loading, separate play and edit waveform selections, primary-button play selection, secondary-button edit selection, waveform pan/zoom, edit fade preview handles, play-selection extraction to a sibling WAV, extracted-region visual feedback, external drag of selected browser files, and output-device/volume controls.
+
 ## Core Product Goals
 
 Wavecrate should provide:
 
 1. Fast source and folder browsing for large sample libraries.
 2. Correct handling of both short sample files and long audio files.
-3. Support for WAV and AIFF/AIF as the target audio formats.
+3. Full support for ordinary WAV files as the first target audio format, with AIFF/AIF planned for a later phase.
 4. A sample extraction workflow for cutting useful regions out of long audio files into new sample files.
 5. A sample library curation workflow for editing, tagging, rating, naming, moving, and cleaning up sample files.
 6. A sample library usage workflow for finding, auditioning, and handing off sounds to a DAW or external creative tool.
@@ -116,7 +127,7 @@ Wavecrate should provide:
 8. A robust audio engine for playback, decoding, seeking, looping, range auditioning, edit auditioning, BPM-aware auditioning, and future extraction into a standalone audio-engine library.
 9. Clear waveform visualization with precise playhead, cursor, play selection, edit selection, range, marker, loop, fade, grid, transient, extracted-region, and edit-state feedback.
 10. Lightweight destructive sample editing for both macro extraction support and micro cleanup, including trimming, cutting, splitting, muting, fading, gain adjustment, normalization, silence removal, timing metadata correction, and range export.
-11. Audio-analysis tools that help users find useful material, such as BPM detection, tempo grids, transient detection, silence detection, waveform overviews, aging/listen-history indicators, and similarity analysis where practical.
+11. Audio-analysis tools that help users find useful material, such as deliberate BPM/grid workflows, transient detection, silence detection, waveform overviews, aging/listen-history indicators, and similarity analysis where practical.
 12. Reliable file, folder, export, copy, drag, trash, and DAW handoff workflows with clear recovery behavior where relevant.
 13. Fast tagging, rating, filtering, metadata, indexing, display naming, and persistence workflows for large libraries.
 14. A tag-category and database-display-name system that helps enforce consistent sample naming.
@@ -151,7 +162,7 @@ Wavecrate should optimize for:
 - gentle library-hygiene workflows that encourage users to keep reviewing, rating, and cleaning their libraries
 - traceable behavior when something goes wrong
 
-Perceived stalls are product bugs. If a source scan, decode, rename, edit render, waveform update, BPM analysis, transient analysis, similarity analysis job, database/index update, logging flush, or metadata update can take noticeable time, it belongs off the GUI thread with clear state handoff back to the UI.
+Perceived stalls are product bugs. If a source scan, decode, rename, edit render, waveform update, BPM/grid metadata calculation, transient analysis, similarity analysis job, database/index update, logging flush, or metadata update can take noticeable time, it belongs off the GUI thread with clear state handoff back to the UI.
 
 ## Non-Goals
 
@@ -167,8 +178,16 @@ Wavecrate should not become:
 - a collection of one-off UI experiments
 - a machine-learning-based audio intelligence platform in the current target
 - a general-purpose audio converter for arbitrary file formats
+- a standalone resampling/conversion utility
+- a broadcast-audio metadata editor or RF64/BWF compatibility tool
+- a cloud sync service
+- an account-based library service
+- a proprietary sample-pack manager
+- a hidden collection/export system that replaces real folders
 
-Supported audio formats for the current target are WAV and AIFF/AIF. MP3, FLAC, and other audio file formats are non-goals unless explicitly added later.
+Supported audio formats for the current target are ordinary WAV first, then AIFF/AIF in a later phase. MP3, FLAC, and other audio file formats are non-goals unless explicitly added later.
+
+The WAV target means ordinary RIFF/WAVE files used in typical music-production and sample-library workflows. RF64, MBWF, Broadcast Wave Format-specific behavior, and deep broadcast metadata support are non-goals for the current target.
 
 Wavecrate may contain DAW-like primitives such as waveforms, ranges, meters, fades, markers, loops, transport controls, tempo grids, transient markers, warp auditioning, and timeline overlays. These exist only to support sample exploration, extraction, preparation, and handoff.
 
@@ -177,6 +196,8 @@ Wavecrate may support copy, drag-and-drop, export, reveal-in-explorer, or file h
 Wavecrate may include simple built-in sample operations such as fades, cuts, mutes, gain changes, normalization, trimming, splitting, silence removal, BPM metadata correction, audition-time warping, and exports. These are editing and auditioning tools, not an open-ended effects system.
 
 Runtime model inference and ML-based similarity are not part of the current target.
+
+Wavecrate should be local-first. It should not require a user account, cloud service, internet connection, online model service, telemetry backend, cloud sync feature, or proprietary pack format for normal browsing, editing, extraction, analysis, organization, collection, and handoff workflows.
 
 ## Platform Target
 
@@ -195,16 +216,76 @@ Cross-platform support does not need to be implemented immediately, but the arch
 
 Platform-specific code should be isolated behind clear boundaries. File watching, drag-and-drop, DAW handoff, audio-device handling, paths, temporary recovery folders, trash-folder behavior, shell integration, and windowing behavior should be designed so future macOS and Linux support can be added without rewriting core systems.
 
+## Privacy, Network, and Local Data Target
+
+Wavecrate should treat sample libraries as private local creative material.
+
+The product target is fully offline operation. Wavecrate should not upload audio files, filenames, metadata, analysis descriptors, logs, crash reports, or library statistics to external services.
+
+Cloud sync, account-backed libraries, and Wavecrate-specific sample-pack storage are not part of the target. If users want a durable collection of files, Wavecrate should help them create, move, copy, rename, or export ordinary files into ordinary folders.
+
+Local files created by Wavecrate should be understandable and user-recoverable:
+
+- source databases
+- waveform caches
+- analysis caches
+- similarity indexes
+- temporary handoff files
+- recovery files
+- logs and diagnostic bundles
+
+Diagnostic bundles should avoid exposing full audio content by default. If a diagnostic bundle includes paths, filenames, metadata, or audio excerpts, Wavecrate should make that clear before the user shares it.
+
+## Storage Locations
+
+Wavecrate should split storage between source-local state and global application state.
+
+Source-specific information should live in the folder of that source. Each indexed source folder should contain a special Wavecrate source database file, such as `.wavecrate.db`, unless a later naming decision changes the exact filename. This keeps source metadata close to the real files and makes a source folder more portable between machines or Wavecrate installations.
+
+Wavecrate should not offer a read-only source mode in the current target. Adding a folder as a Wavecrate source means Wavecrate may create or update its source database, write embedded Sample ID metadata, create extracted files, rename files, move files, duplicate files, apply destructive edits, and otherwise manage ordinary files according to the user's commands and configured safety settings.
+
+If the operating system, permissions, file locks, or external tools prevent Wavecrate from writing to a source, Wavecrate should report that as a source/file write limitation rather than treating it as an intentional read-only library mode.
+
+The source database should store information that belongs to that source and its files, such as:
+
+- stable Wavecrate Sample IDs for files in that source
+- source-relative paths and file fingerprints
+- source scan state and diagnostics
+- per-file metadata, ratings, global tag assignments, labels, generated-name inputs, listen history, extracted-region history, and analysis state where those records belong to files in that source
+- reconciliation state for missing, moved, renamed, changed, unsupported, or failed files
+
+Global application state should live in a user-level `.wavecrate` folder. On Windows, the initial target should be a conventional user config/home location such as `%USERPROFILE%\.wavecrate`, similar in spirit to `.cargo`, `.codex`, and other developer/user configuration folders. Future macOS and Linux support should map this same logical root to the platform's appropriate user config/home location.
+
+The global `.wavecrate` folder should contain app-wide state such as:
+
+- application settings and preferences
+- configured source list and source database references
+- global tag category definitions and user-extensible tag dictionaries where they are shared across sources
+- temporary color collection definitions and cross-source marks
+- global cache indexes
+- waveform, analysis, similarity, and map caches
+- handoff staging temp files
+- session undo/recovery files
+- logs, diagnostics, and diagnostic bundle staging
+
+Caches, logs, handoff staging, and recovery files should not be scattered across arbitrary sample-library folders. They should live under the global `.wavecrate` root unless there is a specific source-local reason to store a compact reference or source-owned database record.
+
+If a source database is missing, corrupt, locked, or unreadable, Wavecrate should keep the user's audio files untouched, report the source database problem clearly, and offer repair/rebuild/reindex options where safe.
+
 ## Audio Format and Channel Target
 
 Wavecrate should support the following audio formats:
 
-- WAV
-- AIFF/AIF
+- ordinary WAV as the first fully supported format
+- AIFF/AIF as a later-phase supported format
 
 MP3, FLAC, and other audio formats are out of scope for the current target.
 
+WAV support should target ordinary RIFF/WAVE files. Wavecrate should not initially attempt to support RF64, MBWF, or Broadcast Wave Format-specific behavior. If such files are discovered, Wavecrate should classify them as unsupported or playback-only unless the audio engine can safely decode them without risking destructive edits.
+
 This is a deliberate simplification. Wavecrate should prioritize reliable destructive editing, extraction, metadata writing, waveform analysis, and DAW-compatible file behavior over broad format support.
+
+Recognizing a file as an audio-looking file is not the same as supporting it. Non-goal formats such as MP3 or FLAC may remain visible as unsupported audio rows so users understand why a file was skipped or cannot be edited, but they should not be treated as normal editable sample files.
 
 Wavecrate should align its practical audio-file compatibility with common DAW workflows, especially Ableton Live-style sample workflows. It should support common bit depths, sample rates, and channel layouts used in music production.
 
@@ -216,7 +297,59 @@ The target includes:
 - mono files
 - stereo files
 
+## Audio Write Format and Engine Configuration
+
+Wavecrate should provide an audio engine/output configuration menu similar in spirit to Ableton Live's audio preferences and export/write settings.
+
+The user should be able to choose the active Windows audio engine/backend where available, such as WASAPI or ASIO, then choose the output device exposed by that backend. Wavecrate should also expose the write-format settings used when it creates or rewrites audio files.
+
+Write-format settings should include at minimum:
+
+- output sample rate
+- PCM bit depth or floating-point sample format
+- output channel behavior for normal mono/stereo writes
+- dithering behavior where relevant for reducing bit depth
+
+For WAV files, "bitrate" should usually be treated as PCM bit depth/sample format rather than compressed-audio bitrate. The UI may use user-friendly wording, but the implementation should store precise settings such as 16-bit PCM, 24-bit PCM, or 32-bit float.
+
+Wavecrate should use the configured write format for ordinary audio writes, including:
+
+- destructive edits that rewrite the current audio file
+- extracted regions
+- duplicated/processed files
+- copied waveform selections that require a staged audio file
+- drag-and-drop region handoff files
+- explicit exports
+- batch edit outputs
+- downmix/conversion outputs
+
+This means a destructive edit may rewrite the file into the configured Wavecrate write format rather than preserving the source file's original bit depth, sample rate, or sample format. The destructive-edit warning should make this clear when the configured write format differs from the source audio properties.
+
+Wavecrate should preserve the intended channel layout for normal mono/stereo edits unless the user explicitly chooses a conversion such as downmix to mono or stereo. Resampling to the configured sample rate should use a practical high-quality resampler and should be logged as part of the write operation.
+
+Resampling should be an implicit write-stage behavior, not a separate general-purpose conversion workflow in the current target. When Wavecrate edits, extracts, stages, exports, duplicates, or otherwise writes audio, it should render to the configured output sample rate as part of that operation. The user should not need to run a separate resample command for ordinary Wavecrate-created files.
+
+Wavecrate should not add a standalone "resample this file" command unless the product target is explicitly expanded later. If users want another sample rate, they should change the configured write sample rate before performing the edit, extraction, export, or other write operation.
+
+The configured write format should be persistent, visible in settings, and easy to confirm before destructive work. Commands that create new files should use the same configured write-format policy unless a command-specific export dialog explicitly overrides it.
+
 Wavecrate should preserve source channel layout during normal destructive edits. Editing a stereo file in the mono-style editor must not collapse it to mono. In the mono-first workflow, edits should affect both stereo channels equally.
+
+Mono and stereo files are fully supported in the current target.
+
+Files with more than two channels should remain visible in the browser and should be playable where the audio engine can safely decode and route them. They are outside the normal editing target. Wavecrate should block ordinary destructive edits, extraction, normalization, gain, fades, reverse, silence trim, and other editing commands on multichannel files unless explicit support for that operation exists.
+
+For files with more than two channels, Wavecrate should show a clear warning that multichannel editing is not currently supported. The user should be able to convert the file to stereo or mono through an explicit downmix/conversion command if they want to make it editable.
+
+Unsupported, partially supported, playback-only, too-long, and multichannel-limited files should be visually distinct in both the sample list and similarity map. They should remain visible unless the user filters them out, but rows or map points should show warning/error styling and a tooltip or status explanation describing why normal editing or extraction is unavailable.
+
+Downmixing a multichannel file to stereo or mono is a destructive audio conversion unless the user chooses an export/duplicate workflow. It should follow the normal destructive-edit safety, YOLO mode, recovery, logging, and session undo behavior. The warning should explain that channel information may be lost or combined and that the original multichannel layout will not be preserved in the converted file.
+
+Initial downmix behavior should use simple presets, not a complex channel-mapping UI.
+
+- Convert to mono should combine all channels into one mono signal with safe gain handling to avoid clipping where practical.
+- Convert to stereo should preserve obvious left/right channel pairs when available; otherwise it should distribute channels into left and right outputs with safe gain handling to avoid clipping where practical.
+- Advanced per-channel routing, surround mapping, ambisonic decoding, and custom mix matrices are non-goals for the current target.
 
 The waveform view should default to a mono-style overview because it is compact and fast for browsing. A later stereo split-view mode should show channels separately and allow channel-specific selection, editing, and extraction.
 
@@ -224,6 +357,18 @@ Implementation should be phased:
 
 1. First, implement a complete mono-style editor that works correctly for mono and stereo files, with stereo edits applied equally to both channels.
 2. Later, add stereo split-view editing where users can independently view, select, mark, edit, and extract left/right channels where useful.
+
+## Practical File Size and Duration Limits
+
+Wavecrate should support long audio files intended for jam extraction, resampling sessions, hardware recordings, field recordings, and other extended source material.
+
+The target practical maximum duration for a single audio file is a few hours. An initial target limit should be **4 hours per audio file**.
+
+This limit is not meant to restrict normal sample-library usage. It exists to keep decoding, waveform generation, editing, extraction, undo recovery, and analysis behavior predictable.
+
+Files longer than the practical limit should not crash the application. Wavecrate should detect them, mark them as unsupported or partially supported, and show a clear user-facing message explaining that the file exceeds the current practical duration target.
+
+Wavecrate should not impose artificial limits on total library size beyond available disk space, operating-system constraints, database scalability, and practical background-processing throughput.
 
 ## Core Domain Model
 
@@ -245,13 +390,13 @@ Regions may be used for auditioning, looping, extraction, editing, markers, or v
 
 A play selection is a waveform range used for auditioning and looping.
 
-The play selection should be easy to create with the primary pointer interaction, such as left-click/drag. It should be easy to move or slide the play selection through the waveform so users can loop and audition different parts of a long file quickly.
+The play selection should be created with the primary pointer interaction: left mouse button drag in the waveform. It should be easy to move or slide the play selection through the waveform so users can loop and audition different parts of a long file quickly.
 
 ### Edit Selection
 
 An edit selection is a waveform range used specifically for destructive editing.
 
-The edit selection should be distinct from the play selection and may be created with a separate interaction, such as right-click/drag. This allows the user to audition one area while editing another area, or to create a more precise edit range without disturbing the audition loop.
+The edit selection should be distinct from the play selection from day one. It should be created with the secondary pointer interaction: right mouse button drag in the waveform. This allows the user to audition one area while editing another area, or to create a more precise edit range without disturbing the audition loop.
 
 Edit commands should follow this priority:
 
@@ -259,15 +404,19 @@ Edit commands should follow this priority:
 2. If no edit selection exists but a play selection exists, edit commands apply to the play selection.
 3. If neither selection exists, edit commands apply according to the command’s explicit behavior, such as whole-file normalization or current-cursor operations.
 
-The play selection and edit selection should not interfere with each other visually or behaviorally.
+The play selection and edit selection should not interfere with each other visually or behaviorally. They are two separate core functions, not one selection with a later mode layered on top.
 
 Previewed fade handles on an edit selection are audition and preview state until explicitly applied. Pressing Enter while an edit selection has active fades should route through the destructive-edit system and bake those fades into the current audio file. After a successful apply, the edit-marked area should flash as confirmation.
+
+Applied edit feedback should be consistent. When any destructive edit succeeds, including mute, normalize, trim/crop, gain, reverse, silence trim, paste, fade apply, envelope apply, or downmix conversion, the affected edit region or whole-file region should briefly pulse or flash as a small visual confirmation. This should be similar in spirit to the export/extraction confirmation on the play region.
 
 ### Extracted Region History
 
 When a user extracts a region from a longer audio file into a new sample file, the original audio file should show a visual history mark for the extracted range where practical.
 
 This helps users avoid repeatedly extracting the same section and makes it easier to continue scanning unexplored parts of a long file.
+
+Extracted-region history belongs to the original source file where the extraction was made. Extracted files, copied files, and duplicated files should not inherit the original file's extracted-region history. They may later accumulate their own extracted-region history if the user extracts from them directly.
 
 ### Wavecrate Sample ID
 
@@ -277,7 +426,55 @@ The filename is not the stable identity. Disk filenames may change, display name
 
 Wavecrate should store this ID in the database and should also attempt to embed it directly into supported audio files.
 
+During scan and indexing, Wavecrate should automatically assign a Sample ID to supported ordinary WAV files that do not already have one and should automatically attempt to embed that ID into the file.
+
+If a newly scanned or externally added file already contains an embedded Wavecrate Sample ID that is also used by another indexed file identity, Wavecrate should mark the file with a duplicate embedded-ID conflict rather than silently treating both files as the same file or silently overwriting the ID. The file should remain visible enough for browsing, filtering, inspection, reveal, and conflict resolution, but the browser and file details should show a clear warning.
+
+Duplicate embedded-ID conflicts should block normal actions on the affected files until the conflict is resolved. Blocked operations should include playback/audition, tag edits, rating edits, label edits, metadata edits, temporary color collection changes, destructive audio edits, metadata embedding writes, apply-to-disk rename, manual in-app disk rename, move, copy, duplicate, extraction from the conflicted file, trashing, handoff, and any operation that would use, create, or update durable file identity state. Only inspection, reveal, source reconciliation, and explicit conflict-resolution actions should remain available. Wavecrate should show a clear message that the duplicate ID must be resolved first.
+
+Duplicate embedded-ID conflict indicators should be visually distinct from ordinary exact-audio duplicate badges. They do not need to appear more severe by default, but users must be able to tell whether a row has an advisory audio duplicate warning or a blocking identity conflict.
+
+Wavecrate should provide an explicit user action to resolve duplicate embedded-ID conflicts for the duplicate-ID groups represented by the selected conflicted files. Selecting one or more conflicted files chooses which conflict group or groups to resolve; resolution itself applies to each whole duplicate-ID group, including unselected files in that group.
+
+The duplicate embedded-ID resolve action should be available from the conflicted sample row's context menu and/or the conflict warning badge context menu. Global command/menu access may also exist, but the row-level context menu is the primary surface.
+
+When resolving a duplicate embedded-ID group, Wavecrate should preserve one file's existing Sample ID and assign new unique Sample IDs to the other conflicted files in that group. The preserved file should be chosen predictably, such as the focused selected row when it belongs to the group, otherwise the first selected row in the group, otherwise the first indexed available row. The UI should show which file kept the original ID when reporting the result. Resolution should preserve user-authored metadata for each file identity, log the change, refresh affected caches/indexes, and report any files whose embedded ID could not be rewritten.
+
+Resolving duplicate embedded-ID conflicts may run immediately when the user triggers the resolve action. It does not need a confirmation prompt. The action should be visibly reported and undoable.
+
+Resolving duplicate embedded-ID conflicts should be a current-session undoable transaction. Undo should restore the previous database identity state and embedded-ID state where practical, rewrite prior embedded IDs back where safe, refresh affected caches/indexes, and clearly report any files whose embedded ID could not be rolled back.
+
+Automatic embedded-ID writing is an intentional metadata mutation, but it must not rewrite or reinterpret the audio payload. It should use the safest practical WAV metadata write path, preserve existing audio data and unknown chunks where practical, and use atomic or recovery-safe file replacement where needed.
+
+Automatic embedding should not block the scan from discovering and indexing files. If the file is read-only, locked, unsupported for safe metadata writing, permission-denied, changed during the write, or fails validation, Wavecrate should keep the database Sample ID, mark the embedded-ID state as pending, failed, or unsafe, and show/log a clear status instead of treating the whole file as unusable.
+
+When Wavecrate later rewrites, extracts, duplicates, exports, or otherwise creates a normal audio file through its audio-write pipeline, it should write the embedded Sample ID metadata where safe as part of that same operation.
+
+Copying or duplicating a file should create a unique Wavecrate file identity. The copied audio file should receive a new Wavecrate Sample ID and should not preserve the original file's embedded Sample ID as its own identity. If the raw copied bytes contain an embedded ID from the source file, Wavecrate should replace it with the new copied-file ID where safe, or mark embedded-ID state as pending/failed/unsafe while keeping the database ID authoritative.
+
+Copied and duplicated files should inherit the original file's Wavecrate metadata by default, including assigned tags, label, prefix, BPM, Tuning/Scale, rating state, temporary color collection marks, generated display-name inputs, and other user-authored metadata where relevant. The inherited metadata is a one-time copy and belongs to the copied file's new Sample ID after the copy succeeds. The copied file's label is independent after creation and can be edited without changing the original file. Extracted-region history is excluded from this inheritance because it belongs to the original file where those extractions were made.
+
+Copied and duplicated files should inherit generated display-name input fields, but their generated display-name uniqueness suffix should be recomputed in the destination folder after the copy succeeds. This allows copied files to keep the same naming intent while avoiding folder-local display-name collisions.
+
+Copied and duplicated files should not inherit aging or listen history. They should start as newly created, unlistened files for aging/listen-history purposes.
+
+Exact audio duplicates may reuse analysis, waveform, and similarity cache outputs from the original file when the copied file's audio fingerprint and relevant analysis settings match exactly. The copied file should still have its own Sample ID and cache records, but those records may reference or clone the existing cache payload instead of recomputing it.
+
+Partial copies, waveform-selection copies, extracted regions, rendered edits, warped exports, downmixes, resampled writes, or any copy operation that changes the audio content should be treated as new audio for cache purposes. They should get fresh cache/analysis/similarity state and should not inherit the original file's analysis results unless a later fingerprint check proves the rendered audio is identical.
+
+Wavecrate should expose exact duplicate warnings in the UI when multiple indexed files that currently exist on disk share the same audio-content fingerprint. Duplicate grouping should be global across all indexed sources, not limited to the current source or folder. Missing, unavailable, disconnected, or unresolved stale file records should not participate in duplicate warnings until the file is available on disk again. Duplicate warnings are advisory: they should help users find redundant files, but they should not block editing, tagging, moving, copying, trashing, or handoff workflows.
+
+Files with identical bytes should count as duplicates even if their Wavecrate database metadata, tags, rating, display name, or folder location differ. Metadata differences must not hide exact duplicate status.
+
+Files with the same decoded audio content should also count as duplicates even if their WAV metadata chunks, embedded Sample ID chunks, timestamps, or other non-audio bytes differ. Byte-identical duplicates are the simplest case, but decoded-audio identity is the stronger duplicate signal for ordinary WAV files.
+
+Near-duplicates should not be shown as exact duplicate warnings. Files that are the same musical material but differ because of normalization, gain changes, fades, trimming, resampling, downmixing, encoding differences, noise, or other audio processing should be discoverable through similarity search rather than exact duplicate grouping.
+
+Duplicate fingerprinting should run automatically during initial scan/indexing so exact duplicate warnings appear without requiring a separate first action. Wavecrate should also provide a manual duplicate analysis command to re-run duplicate fingerprinting and grouping for selected files, folders, sources, or the whole indexed library.
+
 For WAV files, Wavecrate should use a custom RIFF chunk for the primary embedded ID. The chunk should be application-specific, versioned, and small. Unknown RIFF chunks should be preserved where practical when Wavecrate rewrites the file.
+
+Wavecrate should not attempt to interpret or edit RF64, MBWF, or Broadcast Wave Format-specific metadata in the current target. If an ordinary WAV file contains unknown chunks, Wavecrate may preserve them where safe, but preservation is best-effort and must not take priority over audio-file safety.
 
 For AIFF/AIF files, Wavecrate should use an application-specific metadata chunk where practical, following the same principle: small, versioned, and safe to ignore by other applications.
 
@@ -288,47 +485,141 @@ The embedded metadata should contain at minimum:
 - optional creation/update timestamp
 - optional checksum or file fingerprint reference where useful
 
-The database remains the authoritative fallback. If embedded metadata is missing, stripped, duplicated, or conflicting, Wavecrate should reconcile using the database record, file path, file fingerprint, audio properties, and user-visible recovery behavior.
+The database remains the authoritative fallback. If embedded metadata is missing, pending, stripped, duplicated, failed, unsafe, or conflicting, Wavecrate should reconcile using the database record, file path, file fingerprint, audio properties, and user-visible recovery behavior.
 
 Wavecrate must validate embedded IDs by round-tripping files through common DAW workflows, especially Ableton Live and Bitwig. Validation should confirm that audio data, timing, channel layout, readability, and metadata recovery remain intact.
 
-If embedded ID writing proves unsafe for WAV or AIFF/AIF, Wavecrate should disable embedding for that format and treat the target as needing adjustment rather than risking file damage.
+If embedded ID writing proves unsafe for WAV or later AIFF/AIF support, Wavecrate should disable embedding for that format and treat the target as needing adjustment rather than risking file damage.
+
+### Audio Properties
+
+Wavecrate should persist and display the audio properties needed for reliable editing and handoff:
+
+- file format
+- encoding subtype where known
+- sample rate
+- channel count and channel layout
+- bit depth or floating-point format
+- duration in samples and time
+- byte size
+- whether the file is editable, playback-only, unsupported, too long, missing, or failed
+
+Audio operations should use sample/frame positions internally rather than only millisecond timestamps. UI labels may show time, bars/beats, or samples, but edits, selections, extraction, and history should retain enough precision to avoid cumulative timing drift.
 
 ### Disk Filename
 
 The disk filename is the actual file name on disk.
 
-Wavecrate should be able to show and manipulate real disk filenames, but the disk filename should not be treated as the only or primary product label.
+Wavecrate should be able to show and manipulate real disk filenames, but the disk filename is not the Wavecrate label.
+
+Manual disk filename edits should follow normal operating-system filename rules. Users may manually rename files with casing, spaces, and other OS-allowed characters.
+
+Manual disk rename and external disk rename should not automatically change the label. Disk filename and label are separate concepts: the disk filename is the real OS filename, while label is independent Wavecrate metadata used for generated display names.
 
 ### Display Name / Database Name
 
-The display name is the clean name shown by Wavecrate based on metadata such as tags, tag categories, label, prefix, BPM, source, and uniqueness suffix.
+The display name is the clean name shown by Wavecrate based on metadata such as tags, tag categories, label, prefix, BPM, tuning/scale, and uniqueness suffix.
 
 Wavecrate should support view modes that show either the real disk filename or the generated database/display name. Applying a generated display name to the disk filename should be a deliberate file operation, not an invisible background behavior.
 
+The generated display/database name should update automatically when its input metadata changes. If the user changes tags, label, prefix, BPM, tuning/scale, or another naming-template input, Wavecrate should recompute the display name and update the browser view without requiring a separate "regenerate name" command.
+
+Generated display/database names should be derived from the current naming template, metadata inputs, and folder-local uniqueness rules. They should not be treated as independent durable user-authored metadata. Wavecrate should persist a generated-name cache in the database or index for sorting, filtering, rendering, and restart performance, but the cache must be rebuildable from the underlying metadata and current naming rules.
+
+Changing the naming template should not trigger an immediate full-library generated-name rebuild. Wavecrate should mark affected generated-name cache projections stale and recompute them lazily for visible rows, active filters/sorts, explicit apply-to-disk operations, and other places where the generated name is actually needed. Opportunistic background refresh is acceptable only when it does not block browsing, playback, editing, scanning, or handoff work.
+
+Automatic display-name regeneration must not rename the file on disk. Disk filename changes still require an explicit apply-to-disk rename command.
+
+Generated display-name uniqueness suffixes may change automatically when metadata changes or when the collision set changes. They do not need to be stable per file because the stable identity is the Wavecrate Sample ID, not the generated display name. Display-name collision checks should be scoped to the file's containing folder. Disk filename numbering remains governed by the explicit rename/collision policy when the user applies a generated name to disk.
+
 ### Label
 
-A label is a user-editable text field that can act as the human-readable identity of a sample file inside Wavecrate.
+A label is a single-value, user-editable free-text metadata field that can act as a human-readable naming component inside Wavecrate. It is not the disk filename.
 
-The label may default to the original filename without extension. Users can refine it later. The label can be used in generated display names.
+Labels should also be normalized to lowercase. User input casing should not be preserved in labels because labels participate in generated display names and generated filenames.
+
+Labels should be single-token values with no spaces or multi-word entries. If the user types spaces or other whitespace, Wavecrate should normalize that whitespace to `-`. Label characters should be limited to lowercase letters, numbers, hyphen, and underscore.
+
+Newly scanned or imported files should start with an empty label unless a specific creation workflow assigns or inherits one. Manual disk renames, generated apply-to-disk renames, and external renames should not automatically update the label. Editing the label should not rename the file on disk. The label can be used in generated display names.
+
+Audio files that appear through external additions detected by file watching or rescan should use the same default initialization as newly scanned files: empty label, unrated rating state, no temporary color collection marks, no inherited metadata, and fresh aging/listen-history state unless a later explicit Wavecrate command changes them.
+
+Externally added supported audio files should enter the same indexing and embedded Sample ID workflow as normal scanned files. Wavecrate should create or reconcile a database Sample ID, embed that ID automatically where safe, and show pending/failed/unsafe/duplicate-conflict embedded-ID state using the same rules as initial scan indexing.
 
 ### Prefix
 
-A prefix is a structured metadata field that can identify an artist, creator, project, pack, session, or other user-selected namespace.
+A prefix is a single-value structured metadata field that can identify an artist, creator, project, pack, session, or other user-selected namespace.
 
 The prefix can be used in generated display names and can help users distinguish their own sounds from other material.
 
-### Tags
+### Tag Categories
 
-Tags describe sound type, structure, character, source, or other useful properties.
+Tags should be organized into predefined, hard-locked categories.
 
-Tags should be category-aware where practical so they can support filtering and naming in a predictable order.
+The categories themselves are fixed by Wavecrate because they are used for filtering, display-name generation, filename generation, naming order, and consistent sample-library structure.
+
+Some structured metadata, such as BPM, participates in filtering, naming, and display order but is not technically a tag category. BPM should be stored and edited as scalar numeric metadata.
+
+Users should be able to create, edit, rename, and remove tags inside user-extensible categories, but they should not be able to create new top-level tag categories unless the product target is explicitly expanded later.
+
+User-created tags inside user-extensible categories should be global by default. If a user creates a custom Sound Type tag such as `zap` while working in one source, that tag should become available as a suggestion, filter, structured-search token, display-name component, and generated-filename component for all sources.
+
+User-extensible value dictionaries should be global regardless of whether the category is single-value per file or multi-value per file. Prefix, Sound Type, Character, and Tuning/Scale values should all be shared across sources through the global `.wavecrate` dictionary.
+
+The global `.wavecrate` state should own tag category definitions and the user-extensible tag dictionary. Each source database should store which global tags are assigned to files in that source, plus source-local file metadata. Source databases should not silently fork tag definitions into incompatible per-source dictionaries.
+
+Creating a new value in the global dictionary should be an undoable dictionary transaction. If the user undoes creation after assigning that value to files, the file assignments should remain intact as selection-local/local-only values that are no longer normal global dictionary suggestions.
+
+When the user types or selects a brand-new value in a picker for a user-extensible category, Wavecrate should immediately add that value to the global dictionary and assign it as part of the same user action. The transaction should be undoable. Undo should remove the assignment according to normal assignment undo and, when appropriate, also undo the dictionary creation while preserving any remaining file assignments as local-only values.
+
+All user-extensible dictionary values should be normalized to lowercase, including Prefix, Sound Type, Character, and Tuning/Scale values. Labels should also be normalized to lowercase even though they are free-text metadata rather than dictionary values. Values such as `Kick`, `kick`, and `KICK` should all be stored, displayed, suggested, filtered, and used in generated names as `kick`. User input casing should not create separate dictionary entries or custom display casing.
+
+User-extensible dictionary values and labels should be single-token values. Spaces and multi-word values should not be stored. If users type spaces or other whitespace, Wavecrate should normalize that whitespace to `-`. Stored values should be limited to lowercase letters, numbers, hyphen, and underscore, for example `drum-loop`, `metal-floor`, or `19edo`.
+
+Punctuation, symbols, accented characters, non-ASCII characters, and other unsupported characters outside lowercase letters, numbers, hyphen, and underscore should not be stored in dictionary values or labels. The UI should normalize these unsupported characters to `-` where practical and show the normalized result before committing.
+
+Normalization should collapse repeated separators and trim separators at the start or end of the value. For example, `metal---floor`, `metal   floor`, and `--metal-floor--` should normalize to `metal-floor` where practical.
+
+If normalization produces an empty value, such as when the user enters only spaces, punctuation, symbols, or unsupported characters, Wavecrate should reject the value and show a clear inline message rather than creating an empty dictionary value or label.
+
+Editing the global user-extensible tag dictionary should not silently mutate existing files or source databases. Removing a tag from the optional/suggested tag dictionary should stop offering it as a normal suggestion for new tagging, but it should not remove that tag from files that already have it, rewrite generated names on disk, delete audio files, or otherwise cause collateral changes.
+
+Deleting a value from the global dictionary should be allowed even while files still use that value. Existing file assignments should remain intact and should continue to display, filter, and participate in generated display names where assigned. When one or more selected files use a value that is no longer in the global dictionary, Wavecrate should show that value in the relevant picker for the current selection so the user can keep, remove, or apply it deliberately. Showing it for the selected files should not automatically re-add it to the global dictionary.
+
+Deleting a value from the global dictionary should be an undoable transaction. Undoing that transaction should restore the value to the global dictionary and make it available again as a normal suggestion, filter value, and naming value without changing existing file assignments.
+
+Renaming a value in the global dictionary should be an undoable dictionary-only change. It should affect future suggestions and future assignments of that value, but it should not update, migrate, rename, rewrite, or otherwise mutate existing file assignments that used the old value. Undoing the dictionary rename should restore the previous dictionary value for future suggestions without changing existing file assignments. If users want to retag existing files from the old value to the new value, that should be a separate explicit retag/migration command with preview, confirmation, undo, and affected-file count.
+
+Selection-local values that are assigned to files but no longer exist in the global dictionary should have a distinct visual treatment, such as a different chip color, outline, icon, or muted/alternate style. The distinction should make it clear that the value is still assigned to the selected file or files but is not currently a normal global dictionary suggestion.
+
+Wavecrate should provide an explicit action to add a selection-local value back into the global dictionary. This command should be deliberate, undoable, and scoped to the value/category the user chooses. It should not retag files; it only makes that value available again as a normal global suggestion and filter/naming value.
+
+Existing files should remain intact unless the user explicitly deletes files, explicitly retags files, or explicitly runs a generated-name/auto-rename workflow. If a dictionary edit would affect existing assignments, Wavecrate should treat that as a separate explicit migration or retag command with preview, confirmation, undo, and a clear affected-file count.
+
+Wavecrate should not automatically assign tags by parsing filenames, folder names, source paths, or pack names during scan. Tags should be assigned through manual tag entry, explicit batch tag commands, extraction inheritance, or other deliberate user actions.
+
+Initial tag categories should include:
+
+- **Playback Type**: a fixed single-value category with exactly two allowed values: `one-shot` and `loop`. Users cannot add custom tags to this category, and no other playback-type values such as phrase or drum-loop are part of the current target.
+- **Sound Type**: a single-value, user-extensible category for sound identity, with values such as kick, snare, clap, hat, bass, stab, texture, vocal, percussion, ambience, effect, loop, drum loop, synth loop, and similar identities. A file should have at most one Sound Type value at a time.
+- **Character**: a multi-value, user-extensible descriptive category for tags such as warm, harsh, clean, noisy, distorted, punchy, soft, metallic, dark, bright, wide, dry, wet, raw, polished, and similar qualities. A file may have multiple Character tags at the same time.
+- **BPM**: scalar numeric tempo metadata, not a tag category. BPM is used for filtering, naming, tempo-grid display, BPM-aware auditioning, and loop workflows.
+- **Prefix**: a single-value structured metadata category for artist name, creator name, project name, pack name, session name, or other namespace-like identifiers. A file should have at most one Prefix value at a time.
+- **Tuning/Scale**: a single-value, user-extensible name-based category for musical tuning, scale, mode, pitch system, or temperament where useful, including microtonal scale names. This category is manually assigned by the user rather than automatically detected as conventional key/pitch metadata. A file should have at most one Tuning/Scale value at a time.
+
+The display-name and generated-filename systems should use these categories in a predictable order. The naming template may be customized through a config file, but the category structure should remain stable enough that generated names are consistent across the library.
+
+When extracting a new file, Wavecrate should set Playback Type from the active playback state rather than blindly inheriting it from the source file. If loop playback is active for the extracted selection, the extracted file should be tagged as `loop`. If loop playback is not active, the extracted file should be tagged as `one-shot`.
+
+This decision should be based on the explicit loop playback state only. BPM metadata, grid visibility, grid alignment, or region length may help the user choose and audition a region, but they should not silently change Playback Type during extraction.
 
 ### Rating State
 
 Rating state is based on the keep/trash rating system. It is separate from tags.
 
 Rating state should be fast to apply, visually obvious, persistent, and useful for sorting, filtering, cleanup, and library hygiene.
+
+Extracted files should not inherit the source file's rating state. A newly extracted sample should start with a single keep rating by default, because the act of extracting it indicates the user intentionally selected it as useful material. The source file's rating should remain unchanged.
 
 ### Aging / Listen History
 
@@ -342,6 +633,18 @@ Temporary color collections are lightweight shelves inspired by Ableton-style co
 
 They are not the primary file organization system and do not replace folders. They should help users temporarily collect files for a project, task, comparison pass, cleanup pass, or sound selection workflow.
 
+Temporary color collections are global virtual database-backed marks, not physical folders. The target is a small fixed set of color-coded slots, such as 10 slots, that users can apply and clear quickly across Wavecrate.
+
+Temporary color collections should persist across app restarts until the user explicitly clears the collection or removes individual marks. "Temporary" describes their workflow purpose, not their storage lifetime. They are intended for short-lived triage and staging, but Wavecrate should not drop them automatically at shutdown.
+
+Extracted files should not inherit temporary color collection marks from the source file. If the user wants an extracted file in a collection, they should assign it directly after extraction or through a batch collection command.
+
+Temporary color collections are allowed to be hidden managed metadata because they are intentionally temporary workflow marks. They are not durable library containers, not a replacement for making a real folder of files, and not a Wavecrate-specific pack/export model. When a user wants a collection that should exist outside the current temporary workflow, Wavecrate should support moving or copying those marked files into an ordinary folder.
+
+Because temporary color collections are global, they may reference files from different source folders. The collection UI should show missing or unavailable files with a warning rather than silently dropping the marks. A source does not need to be actively selected for a marked file to remain in a color collection, but if the file path no longer exists, Wavecrate should show that the marked file is missing and allow the user to remove the stale mark.
+
+Missing marked files should have a clear visual indicator in collection views, browser rows, and any map/list projection where they appear. The indicator should be distinct from unsupported, playback-only, and analysis-failed states.
+
 ## File Ownership and Source of Truth
 
 Wavecrate should remain grounded in the real filesystem.
@@ -350,9 +653,13 @@ The filesystem is the source of truth for file existence, folder structure, and 
 
 Wavecrate should not require a central managed library folder. Users should be able to point Wavecrate at existing folders and work with the actual files there.
 
-Wavecrate may create, move, rename, duplicate, export, collect, copy, or trash files, but those operations should physically happen on disk. If a file is moved from one folder to another in Wavecrate, the file should actually move on disk.
+Wavecrate should not create hidden managed durable collections, opaque pack files, or cloud-backed libraries for normal organization. Durable organization means real files in real folders. Temporary color collections are the deliberate exception: they are short-lived virtual marks stored as metadata for fast collection and triage.
 
-The database is the source of truth for Wavecrate-specific metadata, including tags, ratings, display names, labels, prefixes, analysis results, similarity descriptors, waveform cache references, aging/listen history, extracted-region history, and session undo/history state where appropriate.
+Wavecrate may create, move, rename, duplicate, export, collect, copy, or trash files and folders, but those operations should physically happen on disk. If a file or folder is moved from one folder to another in Wavecrate, it should actually move on disk.
+
+Folder names created or renamed inside Wavecrate should follow normal operating-system filesystem rules, not Wavecrate metadata-token normalization rules. Real folder names may preserve spaces, casing, and other characters allowed by the OS, subject to ordinary filesystem validation and collision handling.
+
+The database is the source of truth for Wavecrate-specific metadata, including tags, ratings, labels, prefixes, naming-template inputs, analysis results, similarity descriptors, waveform cache references, aging/listen history, extracted-region history, and session undo/history state where appropriate. Generated display/database names are derived from that metadata and may be cached, but they are not independent durable metadata.
 
 Wavecrate should detect and handle:
 
@@ -369,6 +676,18 @@ Wavecrate should detect and handle:
 - files with embedded IDs that conflict with database state
 
 When filesystem and database state diverge, Wavecrate should provide clear reconciliation behavior instead of silently losing user metadata or pretending missing files still exist.
+
+Wavecrate does not use a project-export model for normal audio editing.
+
+When the user saves an edited audio file, Wavecrate saves the actual audio file currently being edited.
+
+When the user extracts a region, Wavecrate creates a new audio file.
+
+When the user copies, drags, or hands off a whole file, Wavecrate hands off the real audio file.
+
+When the user copies, drags, or hands off a selected region, Wavecrate creates a normal audio file for that region and hands off that file.
+
+Wavecrate should not create opaque project files, hidden managed media, durable managed collection files, or proprietary sample packs unless needed for temporary recovery, undo, waveform cache, analysis cache, database metadata, or temporary color collection metadata.
 
 ## Destructive Editing, Duplication, and Session Undo Policy
 
@@ -404,12 +723,15 @@ Even though edits are destructive, Wavecrate should have a deeply integrated und
 
 Undo/redo is session-local. It only needs to work while the application is running. Undo history does not need to persist across application restarts.
 
-Undo/redo should cover as much of the application as practical, including:
+Every meaningful user action that changes audio, files, metadata, selection state, organization state, or workflow marks should be modeled as an undoable transaction unless the command is explicitly documented as non-undoable. The default expectation is undoable first.
+
+Undo/redo should cover:
 
 - destructive audio edits
 - selection changes
 - play selection changes
 - edit selection changes
+- navigation changes such as active source, folder selection, focused sample, browser position, waveform scroll/zoom position, cursor position, and active view where practical
 - marker changes
 - region changes
 - extraction actions
@@ -420,12 +742,43 @@ Undo/redo should cover as much of the application as practical, including:
 - rating changes
 - temporary color collection changes
 - metadata changes
+- audition and workflow flag changes where they affect the working context, such as loop mode, normalized-audition mode, target-BPM lock, warp audition mode, grid visibility, and edit-preview toggles
+- settings and preference changes
+- source add/remove and source reference changes
 - move/copy/export/trash operations
 - folder operations where practical
 
+Transport play/stop/restart, momentary playback position, and ordinary seek state should not be undoable by default. Undo should restore selection, navigation, metadata, file, rating, collection, edit, and workflow-flag context, but it should not behave like a transport history.
+
 Undo/redo should be transaction-based. A user action should either complete as a coherent operation or fail in a recoverable way. Partial failures should be logged and reported clearly.
 
-The undo history should be deep enough to be useful while remaining bounded to avoid excessive memory or disk usage. A reasonable initial target is at least 50 meaningful user actions where practical, with the architecture allowing this limit to be adjusted later.
+Undo should revert the latest undoable action taken by the user. Wavecrate should use a normal linear undo stack: `Ctrl+Z` undoes the most recent undoable transaction, then the one before it, and so on. It should not offer arbitrary out-of-order transaction undo that would overwrite newer work on the same file or metadata record.
+
+Redo should reapply the latest undone action when the undo stack has not been invalidated by a new action. If the user performs a new undoable action after undoing, Wavecrate should clear redo entries according to normal linear undo/redo behavior.
+
+Undo and redo should be global Wavecrate commands. `Ctrl+Z`, `Ctrl+Y`, and `Ctrl+Shift+Z` should route to the global undo/redo stack even when focus is inside a tag editor, rename field, label field, search field, numeric field, or other text/value editor. Text and value edits should therefore commit meaningful changes into the global transaction history rather than maintaining a separate local text-field undo stack.
+
+Text and value editors, including the search/filter field, should create undo transactions at meaningful commit points rather than on every keystroke. Typical commit points include Enter, blur/focus loss, selecting an autocomplete/tag suggestion, applying a search/filter query, clicking Apply, confirming a rename, or completing a numeric edit. Cancel/Escape should discard the uncommitted field edit where practical rather than creating an undo transaction.
+
+Settings and preference changes should be undoable global transactions when they are committed. Undoing a setting change should restore the previous persisted setting value and update any affected UI/runtime state where practical. Risky settings such as YOLO mode, trash folder location, cache cleanup policy, audio backend/device, or write format may still require confirmation before the setting transaction is committed.
+
+Undoing an audio backend or device setting should restore the previous backend/device only if it is still available. If the previous device has disappeared, is disconnected, or cannot be opened, Wavecrate should keep or choose a safe available fallback, mark the undo as partially applied or failed for that setting, and show a clear warning.
+
+Undoing a trash-folder setting change should be allowed even if files were trashed after the setting changed. Each trash action should store the trash destination it actually used in its own undo transaction, so undoing the setting changes the current configured trash folder without invalidating later trash-move undo records.
+
+Adding, removing, relinking, enabling, disabling, or otherwise changing a source reference should be undoable where practical. Source removal may happen immediately without confirmation because it only removes Wavecrate's configured reference and is undoable. Undoing source removal should restore the configured source reference, source database path, source UI state, and related global metadata references without recreating or deleting audio files, then restart scanning, file watching, and reconciliation for that source. Undoing source addition should remove the configured source reference from Wavecrate, stop or cancel in-progress scan/indexing/background jobs for that source, and ignore stale completions from those jobs. It should not delete the real folder, source database file, audio files, caches, or logs unless the user explicitly chose a separate cleanup command.
+
+Selection, navigation, and workflow-flag undo should be useful without becoming noisy. Wavecrate should coalesce rapid repeated navigation, scrubbing, scrolling, zooming, selection movement, and repeated flag toggles into meaningful undo steps where practical, so undo can return the user to a previous working context without filling the history with every tiny pointer or key movement.
+
+When undo restores a previous search, filter, or navigation state, it should also restore the active source, folder selection, browser view mode, browser selection, focused row, and visible position that belonged to that context where practical. Browser view mode includes list view versus later similarity map view where applicable. If a previously selected file is missing, moved, hidden by unavailable source state, or no longer part of the restored result set, Wavecrate should restore the closest sensible focus and report the mismatch only when useful.
+
+The undo history should be deep enough to be useful while remaining bounded to avoid excessive memory or disk usage. A reasonable initial target is 50 meaningful user transactions, with the architecture allowing a configurable range such as 50 to 100 where disk space and recovery-file size make that practical.
+
+The undo system should enforce a disk budget for recovery files. When the budget would be exceeded, Wavecrate should expire the oldest undo entries that are safe to drop, clean their recovery files in the background, and make the remaining undo depth clear in diagnostics where useful.
+
+Undo transactions should have user-readable names such as "Normalize selection", "Move 12 files", "Apply fade", "Rename folder", or "Assign red collection". Undo and redo status should make clear what action will be undone or redone.
+
+Actions that cannot reasonably be undone should be rare. They should require explicit confirmation, explain why undo is unavailable, and be logged.
 
 ### Temporary Recovery Files
 
@@ -460,19 +813,88 @@ Extraction should support:
 - recording extracted-region history on the original file
 - avoiding filename collisions through predictable numbering
 
+A selected waveform range should expose an extraction drag handle, such as a small handle in the corner of the selected range.
+
+Dragging this handle inside Wavecrate into the sample browser list should perform the same logical operation as pressing the extract shortcut: it should create a new audio file from the selected range and add/index that file in the current browser context.
+
+The keyboard shortcut for extraction should be `E` by default.
+
+Extraction through keyboard, internal drag, clipboard, or external drag should all use the same underlying extraction pipeline so naming, collision handling, metadata assignment, embedded Sample ID writing, waveform cache creation, extracted-region history, logging, and undo behavior remain consistent.
+
+Extracted audio files should be physically written to the currently active/open folder in Wavecrate unless the user explicitly chooses a different destination through a dedicated command.
+
+When a user drags an extracted region into a DAW, Wavecrate should first create the extracted file in the active Wavecrate folder, then hand that file path to the DAW.
+
+When a user drags an extracted region into Explorer, the new file should be created in the Explorer drop target directory.
+
+In all cases, the resulting file should be an ordinary WAV file in the first supported format target, and later an ordinary AIFF/AIF file where that format is explicitly supported. It should not require Wavecrate to be open for the DAW or Explorer to use it afterward.
+
+### Region Handoff and Temporary File Semantics
+
+Wavecrate should distinguish between durable extraction and transient handoff staging.
+
+A durable extraction creates a new indexed sample file. It should:
+
+- write the extracted audio into the current active/open Wavecrate folder unless a command specifies another destination
+- assign a new Wavecrate Sample ID
+- register the file in the source database
+- write embedded Sample ID metadata where safe
+- copy or derive relevant metadata according to extraction policy
+- inherit all assigned tags by default from the inherited tag categories, including Sound Type, all Character tags, Prefix, and Tuning/Scale tags where present
+- derive Playback Type at extraction time from explicit loop playback state only: if loop playback is active for the extracted selection, mark the new file as `loop`; otherwise mark it as `one-shot`
+- inherit Prefix metadata exactly by default rather than adding an extraction-specific prefix
+- inherit the source file's label by default when one exists, as a one-time metadata copy
+- inherit the source file's BPM metadata by default when the source has BPM metadata
+- not inherit temporary color collection marks from the source file
+- start with a single keep rating by default because extraction is an intentional selection action
+- start as newly created and unlistened for aging/listen-history purposes
+- create waveform, analysis, and similarity work as needed
+- record extracted-region history on the source file
+- participate in session undo/redo
+- appear in the sample browser after successful registration
+
+The only durable relationship between an extracted file and its original source file should be an ID-based relationship in Wavecrate metadata, such as extracted-region history that links the original source Sample ID to the new extracted Sample ID. Wavecrate should not encode the original source filename, source folder, source name, or source identity into the extracted file's label, Prefix, generated display name, generated disk filename, tags, or other user-facing naming metadata unless the user explicitly adds that metadata themselves.
+
+Keyboard extraction, internal extraction-drag into the browser, explicit "extract to file", and extraction from a saved region should use durable extraction by default.
+
+Transient handoff staging exists only to satisfy operating-system clipboard or drag-and-drop APIs that require a file path before the receiving application accepts the drop or paste. Transient staged files should be ordinary WAV files in the first supported format target, and later ordinary AIFF/AIF files where that format is explicitly supported. They should live in a Wavecrate-managed handoff temp folder and should be cleaned up after they are no longer needed.
+
+Transient handoff staging should be allowed only when the user intent is clearly temporary, such as copying a waveform selection to the clipboard without explicitly extracting it into the library. Wavecrate should make this distinction visible enough that users understand whether a new library file was created.
+
+Region handoff behavior should be:
+
+- Copying selected browser files places the existing real files on the clipboard.
+- Dragging selected browser files hands off the existing real files.
+- Copying a waveform selection creates a transient staged file by default and places that ordinary audio file on the clipboard.
+- Dragging a waveform selection into a DAW creates a durable extracted file in the active Wavecrate folder, then hands that file path to the DAW.
+- Dragging a waveform selection into Explorer creates the new file directly in the Explorer drop target directory.
+- Dragging a waveform selection inside Wavecrate creates a durable extracted file through the shared extraction pipeline.
+- Explicit export commands write to the user-chosen destination and do not silently register the result unless the destination is inside an indexed source and registration succeeds.
+
+If a staged handoff file cannot be created, copied, or dropped, Wavecrate should keep the source audio unchanged, report the failure, and avoid recording extracted-region history unless a durable extraction actually succeeded.
+
+If durable extraction writes the audio file but database registration fails, Wavecrate should clean up the orphan file where safe or leave a clearly reported recoverable file with diagnostics. The UI should not pretend the extraction is indexed until both file write and registration are consistent.
+
 ## Trash and Cleanup Policy
 
 Wavecrate should use a configured trash folder for cleanup.
 
 Trashing a file means moving it from its current source folder into the configured trash folder. It does not mean permanent deletion.
 
+Trashing a folder inside a source means moving that real folder and its contents to the configured trash folder. It should preserve the folder name where possible and use the shared destination-folder collision-numbering policy if a folder with that name already exists in the trash folder. It should be undoable through the same transaction/recovery model as file trashing and does not need a confirmation prompt. If no trash folder is configured, Wavecrate should demand trash-folder configuration before moving the folder.
+
 Wavecrate should not permanently delete files automatically. Permanent deletion is outside the normal cleanup workflow.
 
-The trash folder must be configured before Wavecrate can automatically move files there. If no trash folder is configured, trash actions should be blocked, downgraded to rating-only behavior, or prompt the user to configure the trash folder.
+The trash folder must be configured before Wavecrate can move files there. Wavecrate should not silently create a default trash folder.
+
+If no trash folder is configured and the user triggers a trash action, Wavecrate should demand configuration before moving files. The prompt should explain that trashing in Wavecrate means moving files into a user-chosen folder, not permanent deletion and not the operating-system recycle bin unless the user explicitly chooses such a destination where supported.
+
+Until a trash folder is configured, Wavecrate may still allow trash ratings, but it must not move files. Rejected files should remain in place and show that trash movement is pending configuration.
 
 Trash workflow should support:
 
 - explicit trash actions
+- explicit folder trash actions
 - automatic trash movement when a file reaches the rejected threshold
 - undo for recent trash moves during the current session
 - clear logging of trash moves
@@ -480,6 +902,10 @@ Trash workflow should support:
 - predictable behavior if a destination file already exists in the trash folder
 
 No special long-term untrash system is required beyond current-session undo and the fact that files remain physically present in the trash folder. Users can move files back manually if needed.
+
+Current-session undo for a trash move should restore the file or folder from the configured trash folder back to its original source folder/path where practical and restore the previous Wavecrate state for affected file identities, including rating, tags, label, prefix, BPM, Tuning/Scale, temporary color collection marks, display-name state, extracted-region history references, and other relevant database metadata. If the original restore path now collides with a file or folder that was created after the trash action, Wavecrate should use the shared collision-numbering policy to choose a safe restore path and report the changed destination clearly. This should be true even if the trash folder is also indexed as a Wavecrate source. Trashing is just another undoable action, so the undo transaction should reconcile both source views and metadata ownership so restored items are removed from the trash-source view and restored to the original source view when the undo succeeds.
+
+The trash folder is an ordinary folder on disk. Wavecrate should not show files moved there in the original source after the move succeeds. If the user explicitly adds the trash folder as a Wavecrate source, Wavecrate should index and show those files as ordinary files belonging to that trash source.
 
 ## Keep/Trash Rating System
 
@@ -504,13 +930,47 @@ The target rating behavior is:
 - Applying trash to a keep-rated file should move it to trash level 1, not back to unrated.
 - Applying keep to a trash-rated file should move it to keep level 1, not back to unrated.
 
-Accepted/favorite files should be visually distinct and locked from further rating changes. To change the rating of an accepted file, the user must manually unlock it first.
+Accepted/favorite files should be visually distinct and locked from further rating changes. The lock applies only to the rating state. To change the rating of an accepted file, the user must manually unlock it first.
 
 Rejected files should be moved to the configured trash folder automatically when cleanup policy allows it.
 
-The UI should make partial ratings clear. A file with one, two, or three keep/trash marks should visually communicate that it is moving toward accepted or rejected state.
+Rejected files do not have a rating lock. Once a rejected file is successfully moved to the configured trash folder, it should disappear from normal source browsing because it no longer physically exists in that source folder. If the user explicitly adds the trash folder as a Wavecrate source, those files may appear there like ordinary files in that source.
+
+The UI should represent ratings visually rather than primarily with text labels. Each sample-list row should include a compact rating section on the same line as the sample item.
+
+Partial ratings should be shown as small rating squares:
+
+- keep level 1 shows one green square
+- keep level 2 shows two green squares
+- keep level 3 shows three green squares
+- trash level 1 shows one red square
+- trash level 2 shows two red squares
+- trash level 3 shows three red squares
+
+The fourth keep step creates the accepted/favorite/locked state. Accepted files should show four green rating squares and should turn the whole sample-list item into a special accepted visual state so accepted files are obvious while scanning.
+
+The fourth trash step creates the rejected state and should trigger trash-folder movement when configured. There should not normally be a visible fourth red square in the browser because the file should become rejected and move to the configured trash folder. If trash movement is pending because no trash folder is configured or movement failed, the row should show a rejected/pending-trash warning state rather than a normal fourth trash mark.
+
+Text labels may still appear in tooltips, accessibility names, filter menus, logs, diagnostics, and status messages, but the dense browser-row representation should be rating squares and row state, not words like "Keep 2" or "Trash 3" printed beside every sample.
 
 Rating controls should be keyboard-friendly and should not interrupt auditioning.
+
+After a rating action is applied from the browser, Wavecrate should automatically advance selection to the next sample in the active browser traversal order so the user can rate many files quickly. The next item should immediately audition when immediate audition is enabled.
+
+Rating advance must respect the current browser state. If filters, folder selection, search, similarity sorting, temporary collection filtering, or random mode are active, the "next" item should come from that active result/order rather than from the unfiltered folder order.
+
+Random mode should still be deterministic enough for undo/redo and user trust. Applying a rating in random mode should advance to the next random candidate from the active filtered set without repeating recently visited files where practical.
+
+Rating filters and sorting should be explicit:
+
+- Unrated, keep levels, accepted/favorite/locked, trash levels, rejected, and trashed states should be separately filterable.
+- Default browser sorting should not hide rejected files that are still pending trash movement unless a filter or cleanup mode says to hide them. Successfully trashed files usually disappear from the original source because they have been physically moved to the configured trash folder.
+- Accepted/favorite/locked status only locks the rating from accidental rating changes. It should not create special restrictions for ordinary file, metadata, tag, rename, move, copy, edit, trash, cleanup, extraction, handoff, or batch operations.
+- Operations on accepted/favorite/locked files should follow the same confirmation, destructive-edit safety, YOLO mode, recovery, undo, configured write-format, trash-folder, collision, and logging rules as the same operation on any other rated file.
+- Moving, copying, renaming, editing, tagging, trashing, or otherwise operating on an accepted/favorite/locked file should preserve the accepted/favorite/locked rating state unless the user explicitly unlocks and changes that rating state.
+- Rejected files should remain visible enough for review only while trash movement is pending or failed. After successful trash movement, they should no longer appear in the original source unless the configured trash folder itself is indexed as a source.
+- Moving, renaming, editing, or tagging a rated file should preserve the rating state unless the user explicitly changes it.
+- Batch operations should report how many locked, rejected, missing, unsupported, or failed files were skipped.
 
 ## Aging and Listen-History System
 
@@ -535,9 +995,21 @@ Aging state should combine with tags, ratings, similarity, folders, and text fil
 
 Wavecrate should support temporary color collections similar in spirit to Ableton-style collections.
 
-The target is a small fixed set of color collections, such as 10 slots. Users should be able to name these color collections and quickly assign sample files to them.
+The target is a global small fixed set of color-coded virtual collections, such as 10 slots. Users should be able to name these color collections and quickly assign sample files to them across sources.
 
-Color collections should behave like temporary shelves, not as the main organization model.
+Temporary color collection names should follow the same lowercase single-token normalization rules as labels and user-extensible dictionary values. Spaces and unsupported characters should normalize to `-`, repeated separators should collapse, leading/trailing separators should be trimmed, and empty normalized names should be rejected.
+
+The 10 collection colors should be carefully chosen as a coherent Wavecrate palette. They should be visually distinct from each other, bright enough to scan quickly in dense lists and map points, and still fit the application theme rather than feeling like arbitrary system-default colors.
+
+Color indicators should work in compact UI surfaces such as browser rows, collection filters, map points, toolbar buttons, and status chips. They should remain legible in selected, focused, disabled, missing, unsupported, and warning row states.
+
+Color should not be the only way to identify a collection. Tooltips, labels, keyboard numbers, accessible names, and optional collection names should make the collection identifiable for users who cannot rely on color alone.
+
+Color collections should behave like temporary shelves or marks, not as the main organization model. They are stored as Wavecrate metadata in the database and should be fast to assign, remove, clear, filter, and inspect.
+
+Color collection marks should survive app restarts and source switching until the user clears them. They are temporary because they are meant for working sets, triage, and staging, not because they are session-only.
+
+The 10 color collections replace the older single mark / marked-filter concept. Wavecrate should not maintain a separate one-off mark flag alongside color collections. Marking files for quick review, staging, filtering, moving, copying, rating, or cleanup should happen by assigning one or more temporary color collections and using collection filters.
 
 Possible uses include:
 
@@ -547,10 +1019,161 @@ Possible uses include:
 - collecting samples to move into a folder
 - comparing similar sounds
 - staging files before export or DAW handoff
+- quickly marking files before moving, copying, deleting, tagging, or rating them
 
 Color collections should be fast to assign, clear in the UI, sortable/filterable, and easy to clear when no longer needed.
 
 Physical folders remain the main durable organization system. Color collections are a lightweight metadata layer for temporary workflow support.
+
+If a user wants to make a durable collection from a temporary color collection, Wavecrate should provide a command to copy or move those files into a normal folder. The result should be ordinary audio files on disk, not a Wavecrate-specific bundle.
+
+Clearing a temporary color collection should only remove the virtual marks. It should not delete, move, rename, or otherwise mutate the marked audio files.
+
+Temporary color collection views should keep stale marks visible enough to repair. If a marked file is missing, unavailable, or points to a source folder that is not currently loaded, Wavecrate should show a warning state and provide actions such as reveal if available, rescan/reconcile, remove stale mark, or clear missing entries from the collection.
+
+Wavecrate should provide an easy cleanup action for temporary color collections, such as "Remove missing from collection". This action should remove only stale virtual marks for missing files. It must not delete audio files, remove marks for files that still exist, or clear the whole collection unless the user explicitly chooses that broader action.
+
+## Source and Scan Lifecycle
+
+Wavecrate should let users add one or more source folders. A source folder is a real filesystem folder that Wavecrate indexes and presents in the folder tree and sample browser.
+
+Adding a source should:
+
+- validate that the path exists and is readable
+- reject exact duplicate source roots
+- warn when a new source is nested inside an existing source or contains an existing source
+- create or open source database state
+- scan supported audio files incrementally
+- report scan progress without blocking browsing or auditioning
+- preserve existing metadata when a source is reopened
+
+Removing a source from Wavecrate should remove it from the indexed source list but should not delete audio files from disk. Source removal can happen immediately without confirmation because it is an undoable source-reference change and does not delete files. The UI should still make clear that removing a source only removes Wavecrate's active index reference.
+
+If the root folder for a configured source is moved, renamed, deleted, disconnected, or otherwise unavailable outside Wavecrate, Wavecrate should mark the source as broken or missing in the source list and folder tree. The UI should not silently drop the source, delete its metadata, or pretend the source is empty.
+
+A broken or missing source should keep its source metadata and source database reference available for repair where possible. Wavecrate should provide clear actions to:
+
+- relink the source to a new folder path
+- retry or rescan the original path
+- remove the source from Wavecrate's configured source list
+
+Relinking should validate the chosen folder, reopen or reconcile the source database, and preserve metadata where file identity can be matched safely. Removing a broken source from Wavecrate should remove only the configured source reference and should not delete audio files, source database files, global metadata, caches, or logs unless the user explicitly chooses a separate cleanup action.
+
+Scanning should be recursive by default. Wavecrate should skip hidden or system folders only when configured to do so, and it should avoid traversing dangerous or redundant filesystem structures such as cycles, inaccessible junctions, or repeated symlink targets. Symlinks, junctions, and shortcuts should have explicit, logged behavior so the same physical file is not indexed unexpectedly through many paths.
+
+The final scanner should not silently impose arbitrary product limits on folder depth, number of child folders, or number of files per source. Any defensive scan limit used to protect responsiveness should be explicit, configurable where practical, logged, and visible as a partial-scan warning with a clear rescan or settings path.
+
+The scanner should classify discovered files as:
+
+- supported audio file
+- unsupported audio file
+- unsupported non-audio file
+- inaccessible file
+- too-long or otherwise practically unsupported audio file
+- changed file requiring metadata, waveform, analysis, or similarity invalidation
+- missing or deleted file that still has database state
+
+Unsupported files should not crash scanning. They should be ignored, reported, or visible as unsupported according to the current view/filter settings.
+
+Initial scan/indexing should queue the fingerprint work needed for exact duplicate grouping where practical. Duplicate fingerprinting should run in background work, stream status like other indexing work, and mark duplicate state incrementally as matching available files are found. It should not block source scanning completion, folder browsing, sample auditioning, editing, extraction, tagging, rating, or handoff. Users should also be able to trigger manual duplicate analysis for selected files, folders, sources, or the whole indexed library.
+
+File watching should update source state when files are created, removed, renamed, moved, or modified outside Wavecrate. External changes should become visible in the folder tree, sample list, filters, and later similarity map as close to immediately as practical without requiring a manual rescan.
+
+The watcher should cover ordinary source-folder changes, including:
+
+- new audio files added by another application
+- files deleted or moved out of the source folder
+- files renamed outside Wavecrate
+- folders created, deleted, moved, or renamed
+- audio files overwritten or modified by another application
+- source database files changed, locked, or unavailable
+
+File-watch events should be debounced and reconciled through the same source database rules as manual scans. The UI may show a short scanning/reconciling state while Wavecrate validates the change, but it should not wait for a full source rescan before showing obvious additions, removals, folder changes, or stale/missing states.
+
+If a burst of external changes is too large for immediate precise updates, Wavecrate should degrade into an incremental background rescan of the affected folder subtree while keeping the current browser usable and clearly indicating that reconciliation is in progress.
+
+When a file disappears, Wavecrate should retain metadata as unavailable state until reconciliation determines whether it was moved, renamed, deleted, or temporarily inaccessible. The UI should distinguish missing, unavailable, unsupported, and failed-to-scan files.
+
+When reconciliation determines that a file was renamed outside Wavecrate, Wavecrate should keep the same Sample ID where file identity matches and update the disk path/filename state without changing the label.
+
+External filesystem changes detected by file watching or rescan should be reconciled as external state changes, not added to the Wavecrate undo stack. This includes external renames, moves, deletes, additions, and overwrites. Undo should only cover actions initiated inside Wavecrate.
+
+When a file is changed outside Wavecrate, Wavecrate should invalidate stale waveform, audio-analysis, BPM, transient, silence, similarity, embedded-ID, and display-name-derived state as needed. It should not silently reuse stale analysis for changed audio.
+
+Scan progress should expose queued, active, completed, skipped, failed, and cancelled counts. Users should be able to keep browsing while scanning continues in the background.
+
+## Selection, Search, and Filter Semantics
+
+Wavecrate should have predictable browser selection behavior for single-file and batch workflows.
+
+The sample browser should support:
+
+- single selection
+- range selection with Shift
+- additive/removal multi-selection with Ctrl
+- select all in the current filtered view
+- stable selection when rows are resorted, rescanned, renamed, or updated
+- visible distinction between selected, focused, playing, edited, locked, missing, and processing rows
+
+The focused row is the primary keyboard target. The selected set is the batch-operation target. The playing file may differ from the focused row during preview or handoff workflows, but the UI should make that clear.
+
+When multiple sample files are selected, Wavecrate should visually indicate metadata differences across the selection. Shared values should be shown normally, while fields with mixed values should show a clear mixed-state indicator rather than pretending all selected files share the focused file's metadata. This should apply to common metadata such as tags, label, prefix, BPM, Tuning/Scale, rating, temporary color collections, Playback Type, Sound Type, Character tags, and generated-name inputs where relevant.
+
+If the user edits a mixed metadata field while multiple files are selected, the committed value should apply to all selected files for that field. The edit should be one undoable batch metadata transaction with a clear summary of affected, skipped, and failed files.
+
+Single-value fields such as BPM, Prefix, label, Playback Type, Sound Type, Tuning/Scale, rating, and similar scalar metadata should overwrite that field for all selected files when committed from a multi-selection. Label is single-value free text, not a tag list.
+
+For multi-selected tag fields, adding a tag should add that tag to all selected files while preserving each file's existing other tags. This should behave as an additive batch tag transaction rather than replacing whole tag sets.
+
+Batch commands should operate on the selected set. If no selected set exists but a focused row exists, commands may operate on the focused row only when the command label and status make that clear.
+
+Search should be fast, incremental, and combinable with filters. It should match useful text fields such as disk filename, display name, label, prefix, source, tags, BPM text, tuning/scale text, folder path segments, and file extension where relevant.
+
+Search should support both plain text and structured query tokens. Plain text should remain the fastest path for quick search, while tokens should let users express precise filters from the same search box.
+
+Initial structured tokens should include practical fields such as:
+
+- `tag:kick`, `sound:kick`, or category-specific tag tokens where useful
+- `char:warm` or similar character-tag filtering
+- `bpm:120`, `bpm:120-130`, `bpm:unknown`, and `bpm:known`
+- `scale:pythagorean`, `scale:slendro`, `tuning:19edo`, `scale:unknown`, and `scale:known`
+- `rating:keep`, `rating:trash`, `rating:accepted`, `rating:unrated`, and level-specific variants where useful
+- `collection:1` through `collection:10`, plus collection names where configured
+- `format:wav`, `channels:mono`, `channels:stereo`, `state:missing`, `state:unsupported`, `state:editable`, `state:duplicate`, `state:duplicate-id`, and similar availability/support tokens
+- `source:name` and `folder:path-fragment` where practical
+
+Structured tokens should support negation for common filters, such as `-tag:kick`, `!collection:3`, or another consistent syntax chosen by the implementation. The syntax should be forgiving enough for fast use, but invalid tokens should be shown as understandable query errors or treated as plain text only when that is clearly safer.
+
+The search parser should produce an inspectable filter model rather than hiding behavior in ad hoc string matching. Active structured tokens should appear as clear filter chips or status indicators so users can remove individual filters without rewriting the whole query.
+
+Structured search should be available through both direct text input and UI controls. Users should be able to type tokens freely in the search box, but common filters should also be exposed as chips, menus, segmented controls, or compact filter panels that create or update the same underlying filter model.
+
+Typical UI-generated filters should include tags, sound type, character, BPM, tuning/scale, rating squares/accepted state, temporary color collections, format/channel/support state, missing/unsupported/exact-duplicate/duplicate-ID-conflict state, source, folder, and analysis readiness. The UI and typed query should stay synchronized so changing a chip updates the active query/filter state and typing a supported token updates the visible chips.
+
+Filters should be composable. The target filter dimensions include:
+
+- source
+- folder
+- text search
+- Playback Type
+- Sound Type
+- Character
+- BPM range or known/unknown BPM
+- Tuning/Scale
+- Prefix
+- configured source folder
+- rating state
+- accepted/locked state
+- rejected/trashed state
+- age/listen-history state
+- supported/editable/unsupported/missing/duplicate state
+- analysis pending/stale/failed/ready state
+- similarity-to-reference state
+- one or more temporary color collections
+
+The UI should show active filters clearly and provide a fast way to clear one filter or all filters. Empty filtered results should identify that filters are active.
+
+Sorting should be stable and predictable. Sort keys should include at least display name, disk filename, folder, duration, BPM, rating, age/listen state, modified time, created/imported/indexed time where available, and similarity score when a reference is active.
 
 ## Sample Browsing, Auditioning, and Usage Target
 
@@ -563,7 +1186,7 @@ Wavecrate should support:
 - responsive sample lists for large folders and libraries
 - keyboard-first movement through samples
 - pointer-based selection and auditioning
-- immediate playback on selection when enabled
+- immediate playback on selection by default
 - quick restart, stop, seek, loop, and range playback
 - target-BPM auditioning where practical
 - copy, drag, export, reveal, or handoff of selected sample files into DAWs and external tools
@@ -572,16 +1195,42 @@ Wavecrate should support:
 
 Fast browsing is more important than decorative UI. The user should be able to scan thousands of files, hear sounds quickly, find sounds that fit a production context, and move chosen samples into their DAW without breaking flow.
 
+Selecting a sample should start playback by default. Users should be able to disable immediate audition in settings, but the product default should favor fast auditioning without requiring a separate play command for each selected file.
+
 ## DAW and External Tool Handoff Target
 
 Wavecrate should make it easy to use found sounds in music production.
 
 The initial target is practical Windows-first file-based handoff, not deep DAW integration.
 
-Wavecrate should support workflows such as:
+Wavecrate should support clipboard-based audio handoff.
 
-- drag a sample file into a DAW
-- copy a sample file
+When the user selects one or more sample files in the sample browser and presses copy, Wavecrate should place those files on the system clipboard in a format that DAWs and Explorer can consume as ordinary audio files.
+
+When the user selects an audio range in the waveform editor and presses copy, Wavecrate should create a transient staged audio file for that selection and place that file on the clipboard as an ordinary audio file unless the user explicitly chooses durable extraction.
+
+Pasting into a DAW should make the DAW receive normal audio files, not Wavecrate-specific data.
+
+Pasting into Explorer should create one or more audio files in the target directory.
+
+Clipboard handoff should preserve the exact audio the user intended to copy. For a waveform selection, that means the selected range. For browser selections, that means the selected whole files.
+
+Drag-and-drop should mirror clipboard handoff behavior.
+
+Wavecrate should support dragging:
+
+- one selected sample file
+- multiple selected sample files
+- a selected audio region from the waveform editor
+
+Dragging files or regions into a DAW should provide ordinary audio files that the DAW can import.
+
+Dragging files into Explorer should copy or create the corresponding audio files in the target folder.
+
+Dragging a waveform selection outside Wavecrate should create a new audio file for that selected region and hand off that file to the drop target.
+
+Wavecrate should also support workflows such as:
+
 - copy a file path
 - reveal a sample file in Explorer
 - export or copy a prepared sample file to a chosen folder
@@ -594,21 +1243,111 @@ Handoff should be fast and predictable. It should not require users to understan
 
 Future macOS/Linux handoff should be possible through platform-specific adapters without rewriting core product logic.
 
+## Import, Export, and Collision Policy
+
+Wavecrate should not require a formal import step for existing libraries. Adding a source indexes existing supported files in place.
+
+Import-like workflows may still exist for copying external files into an indexed source folder. When Wavecrate copies files into a source, it should:
+
+- preserve the original file where possible
+- avoid filename collisions with predictable suffixes
+- register the copied file after the filesystem write succeeds
+- assign or reconcile Wavecrate Sample IDs
+- preserve supported metadata where safe
+- report skipped, copied, failed, and unsupported files
+
+Export writes an ordinary audio file to a chosen destination. Export does not imply source registration unless the destination is inside an indexed source and Wavecrate successfully indexes it.
+
+Export, extraction, import-like copy, duplicate, collect, move, generated-rename, new-file creation, new-folder creation, and other derived-file or derived-folder commands should use a shared collision policy:
+
+- never overwrite an existing file or folder silently
+- use predictable numbering or suffixes by default when the desired destination path already exists
+- scope collision checks to the destination folder, because filesystem names only collide within the same folder
+- avoid overwrite prompts for ordinary new-file or new-folder creation by choosing the next available numbered name
+- reserve overwrite behavior for commands that are explicitly rewriting the same file being edited
+- keep source files unchanged unless the command is explicitly destructive
+- report final destination paths clearly
+
+The default numbering style should be stable and easy to predict. For files, use a pattern such as `name.wav`, then `name_001.wav`, `name_002.wav`, and so on when collisions exist. For folders, use an equivalent folder-safe pattern such as `kick`, then `kick 2`, `kick 3`, or a consistent zero-padded variant if the product settles on one. The exact separator and padding can be adjusted later, but all file-creation and folder-creation paths should use shared helpers so extraction, export, duplicate, copy, collect, generated rename, handoff staging, new sample creation, and new folder creation do not drift into different naming rules.
+
+Overwriting is allowed when a destructive edit is writing back to the same source file that is currently being edited. In that case, the overwrite must follow the destructive-edit safety, recovery, undo, logging, and configured write-format policy. Wavecrate should not overwrite another existing file or folder at the destination merely because the user is creating, moving, copying, extracting, exporting, duplicating, or creating a folder where that name already exists.
+
+When exporting or extracting warped, gained, faded, normalized, reversed, or otherwise processed audio, the written file should match the audio the user intended to render, including the current audition-time processing when the command says it will bake that processing.
+
 ## Sample Editing and Cleanup Target
 
 Wavecrate should support lightweight, sample-centric editing directly in the waveform view.
 
-Core editing workflows should include:
+Wavecrate editing exists in two related scopes:
 
-- trimming start and end points
-- cutting or deleting ranges
-- splitting a sample file into regions or pieces
-- muting or silencing selected sections
-- removing or reducing unwanted silence
-- adding fade-ins and fade-outs
-- adjusting fade length and curve where practical
-- normalizing a whole sample file or selected region
-- applying simple gain changes to a sample file or range
+1. **Waveform-selection editing**, where an operation applies to the current edit selection or play selection inside the waveform editor.
+2. **Item-based editing**, where an operation applies to one or more selected sample files in the sample browser list.
+
+Operations that make sense in both contexts should be available in both contexts. For example, normalize should be available for a selected waveform range and also for one or more selected sample files in the browser.
+
+Waveform-selection edit actions should include:
+
+- trim/crop to selection, removing audio outside the selected range
+- cut/delete selected range
+- split at cursor or split selected range into separate regions/pieces
+- mute/silence selected range
+- copy selected audio
+- paste copied audio at cursor or insertion point
+- duplicate selected audio, appending or inserting a repeated copy
+- reverse selected audio
+- normalize selected range
+- apply gain adjustment to selected range
+- add fade-in and fade-out to selected range
+- draw or edit a volume envelope/automation curve over the selected range
+- remove or reduce silence where practical
+- extract selected range into a new audio file
+
+Item-based edit actions should include:
+
+- normalize selected sample files
+- trim silence from the start and/or end of selected sample files
+- reverse selected sample files
+- apply gain adjustment to selected sample files where practical
+- batch metadata/tag/rating/label operations where relevant
+
+Item-based operations should behave like batch operations. They should process all selected files through the same operation, report progress, skip or fail individual files safely, and provide a clear summary of successful, skipped, and failed files.
+
+Batch operations should be cancellable where practical. If a user cancels a batch operation after some files have already been changed, Wavecrate should try to roll back as much completed work as possible using the same transaction and recovery records used for undo. Successfully rolled-back files, unchanged pending files, skipped files, failed files, and files that could not be rolled back should all be reported clearly.
+
+Rollback should be best-effort but serious. For audio edits, file moves, generated renames, tag/rating/metadata changes, temporary color collection changes, and trash moves, Wavecrate should capture enough before-state to undo completed items when cancellation happens. If rollback is unsafe or impossible for an item, Wavecrate must inform the user that not everything could be rolled back. The UI and logs should say exactly which items remain changed and why.
+
+Silence trimming should be available both as a waveform-editor action and as an item-based batch action.
+
+In the waveform editor, silence trimming should let the user visually inspect and apply removal of silence at the start and/or end of the current audio file or selected range.
+
+In item-based mode, silence trimming should apply to all selected sample files and remove detected leading and/or trailing silence according to the current silence-detection settings.
+
+Silence trimming should not remove intentional internal silence unless the user explicitly chooses an operation designed for internal silence removal.
+
+Wavecrate should support a visual silence-extension mode in the waveform editor.
+
+When silence-extension mode is active, the waveform should show a dedicated extension handle at the right edge of the audio file or selected region. The user can drag this handle to the right to make the sample longer by appending silence.
+
+The silence-extension handle should only be visible while the extension mode is active. It should not clutter the normal waveform editor.
+
+This operation does not time-stretch, loop, or synthesize new audio. It only extends the file duration by adding silence.
+
+Silence extension should also support manually entering a target length.
+
+The user should be able to specify the desired final sample length in musical or time units where practical, such as seconds, milliseconds, bars/beats when BPM is known, or samples/frames where useful.
+
+When the target length is longer than the current audio length, Wavecrate should append silence until the requested duration is reached. If the requested length is shorter than the current file, Wavecrate should not silently trim the file; it should route the user to the normal trim/crop workflow instead.
+
+Wavecrate should support a volume-envelope editing mode.
+
+In this mode, the user can draw or edit a gain curve directly over the waveform, similar in spirit to a simple DAW automation lane.
+
+The curve should affect playback preview while editing and should only be baked into the audio file when the user explicitly applies the edit. Applying the curve is a destructive edit and should follow the normal destructive-edit safety, YOLO mode, recovery, and undo behavior.
+
+The initial target is simple volume automation only. It is not a general automation system for effects, plugins, modulation, or multitrack mixing.
+
+Core editing workflows should also include:
+
 - correcting or setting BPM metadata where practical
 - aligning loop boundaries to grid or transients where practical
 - creating named markers or regions
@@ -621,14 +1360,79 @@ Editing should be designed around fast preparation of individual sample files an
 
 The first complete editing target is mono-style editing. Stereo files should retain their stereo data, but edits should affect both channels equally until stereo split-view editing is added later.
 
+### Edit Lifecycle and Save Semantics
+
+Wavecrate should make the lifecycle of an edit explicit. Users should be able to tell whether they are previewing a change, have applied a destructive change, or still need to save/apply a pending operation.
+
+Edit lifecycle states should include:
+
+- clean file with no pending edit
+- selected range or cursor state only
+- previewing a non-destructive edit parameter, such as fade length, gain amount, or volume-envelope curve
+- pending destructive edit that has not yet been written
+- rendering or writing edit
+- edit succeeded
+- edit failed and source file was preserved or restored
+- edited file unavailable or requiring recovery
+
+Preview state should affect audition playback where practical but should not rewrite the source file until the user explicitly applies the edit or confirms a command that is defined as immediate destructive editing.
+
+Wavecrate should use a mixed apply model:
+
+- Command-style edits such as mute/silence, normalize, trim/crop, cut/delete, reverse, gain with a confirmed value, silence trim, paste, and downmix conversion may apply immediately after the normal destructive warning or immediately in YOLO mode.
+- Handle-based, modal, or continuously edited preview operations such as fade handles, amplitude/volume-envelope automation curves, and other drag-adjusted edit previews should remain preview state until the user explicitly applies them, such as by pressing Enter or clicking an Apply control.
+- If an edit exposes parameters in a dialog, popover, inspector, or mode-specific interface, the edit should apply only after the user confirms those parameters.
+- Escape should cancel preview state where possible without modifying the file.
+
+Applying a destructive edit should:
+
+- check whether the file is supported for editing
+- stop or coordinate playback as needed
+- create a recovery file before overwriting the source file
+- render the edited audio to a safe temporary output path
+- preserve channel layout where practical and apply the configured Wavecrate write format for sample rate, bit depth, and sample format
+- preserve unknown safe chunks or metadata blocks where practical
+- write embedded Wavecrate Sample ID metadata where safe
+- atomically replace or otherwise safely overwrite only the same source file that is currently being edited
+- update file size, duration, fingerprint, waveform cache, and database state
+- invalidate stale BPM, transient, silence, similarity, waveform, and display-name-derived state
+- register an undo transaction with enough information to restore the prior file for the current session
+- trigger the applied-edit visual pulse for the affected region after the write and state update succeed
+- log success, failure, rollback, and timing information
+
+If any step fails before the source file is overwritten, the original file should remain unchanged. If a failure happens after the source file is touched, Wavecrate should restore from the recovery file where possible and report whether recovery succeeded.
+
+Copy and paste inside the waveform editor should not silently overwrite audio without following destructive-edit safety rules. Pasting audio at the cursor or insertion point should create a pending or confirmed destructive edit according to the active safety mode.
+
+Saving an edited audio file means saving the actual file currently being edited. It does not create a Wavecrate project export.
+
+If a handle-based, modal, or continuously edited preview state is active and the user tries to leave the file, select another file, switch sources, close the app, or otherwise discard the active edit context, behavior depends on destructive safety mode:
+
+- In YOLO mode, Wavecrate should automatically discard unapplied preview state and continue the transition without writing the preview to disk.
+- Outside YOLO mode, Wavecrate should warn that the user is about to leave a file with unapplied edit state and offer Apply, Discard, or Cancel.
+
+Apply should route through the normal destructive-edit system, including configured write format, recovery, undo transaction creation, logging, and applied-edit visual feedback. Discard should leave the audio file unchanged and clear the preview state. Cancel should keep the user in the current file with the preview state intact.
+
+Undoing a destructive edit should restore the previous audio file from the current-session recovery record and refresh database, waveform, and analysis state. Redoing the edit should reapply or restore the edited version without losing metadata such as tags, rating, lock state, playback state, source identity, or Wavecrate Sample ID.
+
 ## BPM, Grid, Warp, and Timing Target
 
-Wavecrate should support BPM-aware auditioning and extraction.
+Wavecrate should support BPM-aware auditioning and extraction in a later production-usefulness phase. This is not part of the minimum ordinary-WAV browsing/editing/extraction foundation, but it is part of the fuller Wavecrate target.
+
+BPM metadata is stored per audio file. A long source recording may have its own BPM metadata, and every extracted region that becomes a new audio file may have its own independent BPM metadata after creation. Regions that are only selections inside a source file do not own durable BPM metadata until they are extracted or otherwise written as their own file.
+
+When Wavecrate extracts a region from a source file that has BPM metadata, the extracted file should inherit that BPM by default. The extracted file's BPM is independent after creation and can be manually edited or recalculated through the play-selection BPM workflow without changing the source file.
+
+When Wavecrate extracts a region from a source file that has a label, the extracted file should inherit that label by default as a one-time copied metadata value. The extracted file's label is independent after creation and can be edited without changing the source file.
+
+When Wavecrate extracts a region from a source file with Prefix metadata or Prefix tags, the extracted file should inherit that prefix exactly by default. Wavecrate should not automatically add an extraction-specific prefix such as the source filename, session name, or region marker unless the user changes the naming template later. File and display-name uniqueness should be handled by the normal generated-name and collision-numbering policy.
+
+Extracted files should start as newly created and unlistened for aging/listen-history purposes. They should not inherit the source file's age, last-auditioned time, or audition count.
 
 The system should support:
 
-- BPM detection where practical
 - manually setting or correcting BPM metadata
+- deriving BPM from a deliberate play-selection/grid workflow
 - tempo-grid display when BPM is known
 - grid-aware selection and loop adjustment
 - transient-aware loop boundary adjustment where practical
@@ -643,6 +1447,33 @@ The initial warp target should be practical and beat-oriented, similar in spirit
 
 Wavecrate should not become a full arrangement, clip-warping, or multitrack timing editor. The goal is to audition loops in a production-relevant tempo context and to bake that auditioned result into a new sample file when the user extracts or exports it.
 
+BPM should be set by deliberate user action, not by silent automatic BPM analysis. The user should be able to type a BPM value directly into the BPM field, and Wavecrate should use that value to show beat-grid lines over the waveform when the grid is enabled.
+
+Wavecrate should also support deriving BPM from the play selection only. The user should be able to create a play region over a visible rhythmic phrase, choose or enter how many beats the region represents, and adjust the region boundary against the waveform so it spans those beats. A grid-resize gesture, such as Alt-dragging a play-selection boundary, should scale the assumed beat span against the waveform and calculate the BPM from the resulting region length.
+
+For example, if the user marks a region that represents four beats and adjusts the region to line up with four kicks in the waveform, Wavecrate should calculate the implied BPM and set the file's BPM metadata from that deliberate action.
+
+This BPM derivation workflow should not use the edit selection. Edit selection remains the target for destructive waveform edits, while play selection owns audition looping and BPM/grid derivation.
+
+The beat count used for BPM derivation is transient workflow state. Wavecrate does not need to store "this region was treated as four beats" as durable metadata. If the user wants to revise the BPM, they can create or adjust the play selection and repeat the same BPM derivation workflow. Only the resulting BPM metadata needs to be stored.
+
+The BPM grid should be visible only when enabled or when the user is in a BPM/grid workflow. Grid lines should show every beat at the current BPM and should update as the user changes the BPM field or derives a new BPM from the play selection.
+
+Audio analysis should be a deliberate workflow. Wavecrate should not run BPM analysis automatically as part of ordinary source scanning. Initial background analysis may exist for non-destructive preparation such as waveform/cache generation or explicitly enabled analysis workflows, but metadata-changing analysis should be visible and intentional.
+
+When analysis runs, it should be allowed to update the metadata fields it owns, such as transient state, silence information, similarity descriptors, and analysis-derived readiness flags. Manual edits are normal metadata edits, not permanent protection against future analysis. If the user deliberately runs or enables analysis again, Wavecrate may replace earlier manual or detected values for those analysis-owned fields.
+
+Analysis should not casually rewrite unrelated user-authored fields. Tags, labels, prefixes, ratings, temporary color collections, accepted/rejected states, generated disk filenames, and manual organization choices should only change when the specific command or analysis workflow explicitly owns that output.
+
+Analysis outputs should include confidence, provenance, and freshness state where useful:
+
+- BPM metadata should distinguish manually entered, region-derived, unavailable, stale, and failed states.
+- Transient detection should report whether transient markers are ready, pending, stale, unavailable, or failed.
+- Silence detection should expose the threshold/settings used so batch silence trimming can be reproduced.
+- Warp audition should make it clear when playback is original-speed, target-BPM warped, unavailable, or failed.
+
+Analysis-triggered metadata changes should be undoable or revertible where practical, especially for visible fields. Wavecrate should show enough status that users understand whether a value is manual, detected, stale, low-confidence, or failed.
+
 ## Audio Engine Target
 
 Wavecrate should include a robust audio engine for fast, predictable auditioning, destructive editing, extraction, and sample-library usage.
@@ -653,8 +1484,8 @@ The audio engine should support:
 - low-latency start, stop, seek, loop, and retrigger behavior
 - accurate playback of play selections, edit selections, regions, markers, slices, loops, and pending edit operations
 - target-BPM auditioning where practical
-- reliable decoding of WAV and AIFF/AIF
-- editing/write support for WAV and AIFF/AIF
+- reliable decoding of ordinary WAV first, with AIFF/AIF added in a later phase
+- editing/write support for ordinary WAV first, with AIFF/AIF added in a later phase
 - reusable decoded audio, waveform, and peak data where practical
 - background preparation of audio data without blocking the GUI thread
 - stale-result-safe handoff when selection or edit state changes while work is running
@@ -665,11 +1496,37 @@ The audio engine should be designed with future extraction in mind. Wavecrate ca
 
 The practical target is a clean internal boundary today that allows reusable audio-engine components to become their own standalone library later without rewriting the playback, editing, and extraction stack.
 
+## Playback and Audio Device Target
+
+Wavecrate playback should prioritize immediate auditioning over studio-routing complexity.
+
+The initial playback target should support:
+
+- choosing an audio engine/backend where the platform exposes multiple options, such as WASAPI or ASIO on Windows
+- choosing an output device where the platform exposes one
+- choosing the active playback sample rate where the selected backend/device exposes one
+- falling back to the system default output device
+- recovering when an output device disappears
+- reporting device-open and device-lost failures clearly
+- low-latency start and restart for sample browsing
+- clean stop behavior when switching files, sources, or closing the application
+- loop playback for play selections
+- range playback for edit selections and regions
+- waveform-position feedback that remains aligned with audible playback
+
+Wavecrate is not a recorder in the current target. Audio input recording, multichannel routing, external sync, MIDI control, plugin routing, and DAW transport sync are out of scope unless the product target is expanded later.
+
+Existing audio-input or recording code should be treated as migration/development scaffolding unless a future product decision explicitly brings recording into scope. It should not drive default UI priorities ahead of source browsing, playback, extraction, editing, tagging, rating, file operations, handoff, and analysis.
+
+Playback settings should not compromise file safety. Audition-time processing such as target-BPM warp, gain preview, fade preview, envelope preview, or range looping should remain preview state until explicitly baked by extraction/export/edit commands.
+
 ## Similarity and Discovery Target
 
 Wavecrate should include a similarity engine for finding related sounds by audio character, not only by filename, folder, or manually assigned tags.
 
 The similarity system should remain local, deterministic, cacheable, and optimized for fast sample exploration.
+
+Similarity analysis should aim for Sononym-style perceptual usefulness: sounds that feel musically or sonically related should be discoverable near each other even when filenames and folders are unrelated.
 
 The default engine should use:
 
@@ -680,6 +1537,26 @@ The default engine should use:
 - lightweight reranking that balances broad timbral similarity with practical envelope and loudness cues
 
 Runtime model inference is not part of the current target.
+
+The initial similarity system should use non-ML audio descriptors where practical. It should consider features such as:
+
+- spectral shape / timbre
+- brightness and darkness
+- transient strength and attack shape
+- temporal envelope
+- rhythmic density or onset pattern
+- duration
+- loudness / energy profile
+- pitch or tonal center where detectable
+- BPM or tempo metadata where available
+- noise vs tonal balance
+- stereo width where practical
+
+Similarity search should balance quality and speed. Expensive analysis may run in the background, but browsing and auditioning must remain responsive.
+
+Similarity data should be stored in the database/index and invalidated when the source file changes.
+
+Similarity records should include descriptor version, source file fingerprint or change token, analysis status, last analysis time, and failure reason where relevant. If descriptor settings or feature versions change, Wavecrate should treat old embeddings as stale and requeue analysis rather than mixing incompatible vectors silently.
 
 Map projection and clustering are secondary exploration aids built from the same persisted embeddings. They should preserve compatibility while using implementation names that reflect the current projection method.
 
@@ -693,10 +1570,18 @@ The similarity system should support:
 - visual similarity indicators in the sample browser
 - filtering the sample list by similarity to a selected reference sound
 - combining similarity filters with tags, ratings, folders, search text, metadata, aging/listen state, and file properties
-- browsing a 2D similarity map for visual discovery of related sounds
+- browsing a 2D similarity map as an alternate view of the current browser result set
 - clear status for analysis progress, unavailable analysis, stale analysis, and failed analysis
 
-The 2D similarity map should provide an XO-like exploration surface for samples. Similar-sounding samples should appear near each other so the user can scan clusters, audition nearby files, and discover variations quickly.
+The normal folder/sample list is the primary way to view sample files. Wavecrate should focus first on making the regular source, folder, and sample-list workflow complete, fast, and reliable.
+
+The 2D similarity map is a later-version feature, in the same post-core bucket as AIFF/AIF support. It should come after the core list-based browser, editing, tagging, rating, file-management, handoff, and analysis workflows are working well. It should be available behind a tab or view toggle as a secondary way to view the same selected folder/filter/result set.
+
+The 2D similarity map should provide an XO-like dotted exploration surface for samples. Similar-sounding samples should appear near each other so the user can scan clusters, audition nearby files, and discover variations quickly.
+
+The map should not be a separate library, source, or search mode. It should reflect the same sample items that would appear in the list browser for the active source, folder selection, search query, and filters. Switching between list view and map view should preserve selection, focus where practical, active filters, active reference sample, audition state, and visible status.
+
+Selecting a sample point in the similarity map should select the same sample file in the list browser. Selecting a sample row in the list browser should select or highlight the same sample point in the map when that point is visible in the current map result set. Multi-selection should remain synchronized where practical. The list and map are two projections of the same browser selection state, not independent selection models.
 
 The sample browser should provide Sononym-like similarity workflows. The user should be able to choose a reference sample and quickly find related kicks, hats, loops, textures, impacts, vocals, or other sound types through list-based filters and sorting.
 
@@ -711,8 +1596,8 @@ Tagging should be fast, flexible, category-aware, and low-friction.
 Wavecrate should support:
 
 - adding and removing tags quickly from one or many sample files or regions
-- custom tags created directly by the user
-- custom tags added to existing tag categories
+- custom tags created directly by the user inside user-extensible categories
+- custom tags added to existing user-extensible tag categories
 - a dynamic tag library built from tags already used in the library
 - autocomplete suggestions based on existing tags
 - clear pill visuals for assigned tags
@@ -721,19 +1606,17 @@ Wavecrate should support:
 - tag-based filtering in the sample browser
 - combination filters across tags, ratings, age, triage states, similarity, folders, search text, and metadata
 
-The tag library should not require a fixed predefined taxonomy, but Wavecrate should provide clear built-in tag categories so naming, filtering, and visual organization remain structured.
+Tag assignment should be manual and explicit. Scan/indexing should not infer tags from folder names, filenames, or common sample-pack naming conventions. Suggestions may come from the user's existing global tag dictionary while typing, but Wavecrate should not silently apply those suggestions.
 
-Recommended tag categories:
+Values assigned to the current selection should be visible and pickable in the editor even if they were deleted from the global dictionary. These selection-local values should be clearly distinguishable from normal global suggestions through visual styling such as a different color, outline, icon, or muted/alternate chip style, and using them should not silently recreate them in the global dictionary.
 
-- **Structure/type:** one-shot, loop, phrase, texture, riser, impact, fill, layer, tool, recording.
-- **Sound/source:** kick, snare, clap, hat, ride, bass, synth, stab, vocal, percussion, noise, field, modular, drum loop.
-- **Character/flavor:** distorted, clean, soft, hard, dark, bright, noisy, metallic, deep, punchy, loose, tight, raw, warm.
-- **Technical/music metadata:** BPM, key, pitch, length, mono/stereo, source session where practical.
-- **Prefix/namespace:** artist, creator, project, pack, or user-defined prefix where useful.
+The editor should expose an explicit command to add a selection-local value back to the global dictionary. This should be available from the relevant picker, chip, or context menu where practical.
 
-Users should be able to add their own tags to these categories. The categories should guide the system without preventing custom vocabulary.
+When multiple files are selected, adding a multi-value tag should add it to every selected file without removing each file's existing tags. Removing a tag from a multi-selection should remove that tag from every selected file that has it and should leave other tags untouched. Prefix, Sound Type, and Tuning/Scale are exceptions because they are single-value: setting one on a multi-selection should replace the previous value for every selected file. Whole-category or whole-tag-set replacement for multi-value categories should happen only through an explicit replace-tags command that makes the destructive metadata scope clear.
 
-For example, if the user starts typing `ki`, the tag input should suggest an existing `kick` tag. Selecting the suggestion should apply the existing tag instead of creating a duplicate spelling variant. If the intended tag does not exist, the user should be able to create it immediately.
+The tag library should use the fixed top-level categories described in the domain model. Users should be able to add their own tags to user-extensible categories, but the top-level category structure should remain stable.
+
+For example, if the user starts typing `ki`, the tag input should suggest an existing `kick` tag. Selecting the suggestion should apply the existing tag instead of creating a duplicate spelling variant. If the intended value does not exist, the user should be able to create it immediately; creating it should add it to the global dictionary and apply it in the same undoable user action.
 
 Tagging UI should favor compact, readable pill components. Tags should be visible enough to be useful during scanning, but not so visually heavy that they dominate the sample list or waveform/editor area.
 
@@ -750,21 +1633,48 @@ Wavecrate should distinguish between:
 
 The generated display name should be based on structured metadata such as:
 
-- prefix/namespace
-- structure/type tag
-- sound/source tag
-- character/flavor tags
+- Prefix
+- Playback Type
+- Sound Type
+- Character tags
 - BPM where known
-- key or pitch where known
+- Tuning/Scale where known
 - user label
-- source/session information where useful
 - uniqueness suffix
 
-A recommended initial naming order is:
+Generated display names should update automatically whenever the structured metadata used by the naming template changes. This includes tag changes, label changes, prefix changes, BPM changes, tuning/scale changes, and template-relevant metadata updates. The browser should reflect the new display name immediately after the metadata transaction succeeds.
+
+Generated display names are derived values, not manually authored names. The durable source of truth is the metadata, naming template, Sample ID, real disk filename, folder location, and any explicit apply-to-disk rename transaction. Wavecrate should persist generated-name cache/index projections so the speed gain is retained after restart, but those projections remain rebuildable derived state rather than user-authored metadata.
+
+The naming template should be configured through a user-editable config file, not a normal in-app editor in the current target. Wavecrate should load the naming template at launch from the global `.wavecrate` configuration area, falling back to the built-in default only when the config file is missing. Editing the config file while Wavecrate is running does not need to hot-reload the template.
+
+The config-file template syntax should be a string template with named tokens, such as `{prefix}_{playback-type}_{sound-type}_{character}_{bpm}_{label}_{number}`. Supported initial tokens should match the structured metadata fields used by the default naming order. Literal text should be allowed in templates, for example `{prefix}_drum_{sound-type}_{number}`. Unknown tokens should make the template invalid rather than being silently ignored. Wavecrate should own token normalization, separator cleanup, empty-token omission, uniqueness numbering, and validation errors so a user-edited template cannot create malformed generated names.
+
+Literal text in naming templates should not be normalized with tag/label metadata-token rules. It may preserve casing, spaces, and other ordinary filename characters. Template literals must still satisfy normal operating-system filename rules, and Wavecrate should reject invalid template literals at startup even if the user only uses generated display names and never applies them to disk.
+
+Naming templates should produce single filenames only. They must not create paths or subfolders. Path separators such as `/` and `\`, drive prefixes, parent-directory segments, absolute paths, and other path-like template output should make the config invalid at startup.
+
+The `{number}` token should be optional. Users may leave it out of the naming template. If `{number}` is absent and a generated display name or apply-to-disk filename collides within the relevant folder scope, Wavecrate should append or otherwise add a predictable numeric suffix through the normal uniqueness policy. If `{number}` is present, it indicates the preferred location for that suffix.
+
+Naming-template changes are not undoable through the global undo stack because they are config-file changes loaded at launch rather than in-app commands. If the config file exists but contains invalid naming-template syntax, unknown tokens, unsupported structure, or otherwise invalid configuration, Wavecrate should fail startup with a clear user-facing message that identifies the config file path, the invalid setting, and the correction needed where practical. Invalid config should not be silently ignored.
+
+Naming-template changes should update the active view and user-requested operations through lazy recomputation rather than forcing an immediate all-source rebuild. Stale generated-name cache entries are acceptable internally as long as the UI never presents a stale name as current once that row, filter, sort, or apply-to-disk command is evaluated.
+
+Automatic display-name updates are database/UI updates only. They must not change the disk filename unless the user explicitly applies the generated name to disk.
+
+The uniqueness suffix for generated display names may be recomputed automatically. If metadata changes cause a display-name collision inside the same folder, Wavecrate may add or change suffixes. If a same-folder collision disappears, Wavecrate may remove or renumber suffixes. Files in different folders may have the same generated display name without needing suffixes. This is acceptable because generated display names are not stable identifiers.
+
+The default initial naming order is:
 
 ```text
-[prefix]_[type]_[sound]_[character-tags]_[bpm]_[label]_[number]
-````
+[prefix]_[playback-type]_[sound-type]_[character-tags]_[bpm]_[label]_[number]
+```
+
+The equivalent config-file string template would be:
+
+```text
+{prefix}_{playback-type}_{sound-type}_{character}_{bpm}_{label}_{number}
+```
 
 Examples:
 
@@ -774,11 +1684,27 @@ wanja_oneshot_hat_bright_noisy_short_017.wav
 modular_texture_noise_dark_wide_006.wav
 ```
 
-Missing metadata should simply be omitted. The naming system should not invent misleading metadata.
+Missing metadata should simply be omitted. Empty labels should be treated as missing metadata for generated names, so they should not create placeholder text, doubled separators, or empty name segments. The naming system should not invent misleading metadata.
 
 The generated name should be available as a Wavecrate display mode in the browser. Users should be able to switch between viewing the real disk filename and the generated display/database name.
 
+Generated display names should not include the file extension. They are display stems. File extension should remain available as a separate browser field/column and should only be attached when Wavecrate creates or applies an actual disk filename.
+
+When Wavecrate creates or applies a real disk filename, the extension should match the actual audio file type being written or renamed. Ordinary WAV files created or renamed by Wavecrate should use lowercase `.wav`. Later AIFF/AIF support should use the configured or source-appropriate AIFF/AIF extension. Wavecrate should not preserve a stale or misleading extension when the underlying file type changes through an edit, extraction, conversion, or future format-aware workflow. Manual user renames remain governed by normal operating-system filename rules.
+
+Existing files with manually chosen extension casing, such as `.WAV`, should be left alone during ordinary scanning, browsing, metadata edits, tagging, rating, filtering, and display-name changes. Extension casing should change only when Wavecrate performs a real file write or apply-to-disk rename that owns the resulting filename.
+
 Applying the generated display name to the actual disk filename should be an explicit action. This action may be triggered from a context menu, command, batch operation, or future workflow mode, but it should be understood as a real filesystem rename.
+
+Manual disk rename inside Wavecrate and apply-to-disk rename should both be normal current-session undoable file operations. Undo should rename the file back where practical, restore the previous path/filename state in the database, refresh browser rows and caches that depend on path/name state, and use the shared collision-numbering policy if the original name is no longer available.
+
+Apply-to-disk rename collisions should be checked against real filenames in the destination file's containing folder. Wavecrate should add or change numbered suffixes only when the desired real disk filename already exists in that folder. Files in different folders may use the same disk filename.
+
+Filenames produced by applying generated display names to disk should combine normalized metadata-token values with any literal text from the naming template. Metadata-token values should follow Wavecrate metadata-token rules: lowercase, single-token components, no spaces, and normalized unsupported characters. Literal template text should follow normal operating-system filename rules and may preserve casing, spaces, and other OS-allowed characters. Manual disk rename remains an OS-rule filename edit.
+
+Manual disk rename, generated apply-to-disk rename, and direct label edits should remain separate operations. Manual disk rename changes the real filename only. Direct label edits change metadata only. Applying a generated display name to disk uses the current metadata, including label, to produce a real filename, but it should not rewrite the label just because the disk filename changed.
+
+Accepted/favorite rating lock should not block manual disk rename, generated apply-to-disk rename, label edits, tag edits, metadata edits, file moves, copies, extraction, destructive audio edits, or other non-rating operations. Locking only protects the rating state.
 
 Renaming should:
 
@@ -797,11 +1723,15 @@ Wavecrate should rely primarily on real files and folders.
 
 Users organize durable collections by creating folders and moving/copying sample files into those folders. Wavecrate should expose this clearly rather than hiding it behind a central managed library.
 
+Wavecrate should not have a separate project-export, cloud-sync, or proprietary pack model for normal durable collection storage. A collection that needs to persist outside temporary workflow state should be represented as files in a folder. Temporary color collections remain virtual marks for fast triage and short-lived collection workflows.
+
 Wavecrate should support:
 
 * creating folders
 * moving files between folders
+* moving folders inside sources
 * copying files between folders
+* copying folders inside sources
 * duplicating files
 * renaming files
 * applying generated display names to disk filenames
@@ -809,11 +1739,15 @@ Wavecrate should support:
 * moving rejected files to the configured trash folder
 * revealing files in Explorer
 
+Moving a folder inside a source should happen immediately without confirmation. It should be undoable during the current session, preserve Wavecrate metadata for affected files, update source/folder/browser state, and use the shared destination-folder collision-numbering policy when the destination already contains a folder with the same name.
+
+Copying a file or folder inside a source should happen immediately without confirmation. It should be undoable during the current session, copy the real file or folder contents on disk, create new Wavecrate Sample IDs for copied audio files, inherit Wavecrate metadata and workflow marks for the copied files, update source/folder/browser state, and use the shared destination-folder collision-numbering policy when the destination already contains a file or folder with the same name. Copied files are unique files, not second references to the original file identity.
+
 The folder tree should reflect actual folders on disk. The sample browser should reflect actual files on disk plus Wavecrate-specific metadata from the database.
 
 ## Database, Persistence, and Indexing Target
 
-Wavecrate should use a fast, robust persistence layer for sources, tags, ratings, age/listen history, metadata, display names, labels, prefixes, embedded Sample ID state, analysis state, similarity data, waveform cache state, extracted-region history, edit state where needed, and current-session recovery information.
+Wavecrate should use a fast, robust persistence layer for sources, tags, ratings, age/listen history, metadata, persistent generated-name cache projections, labels, prefixes, embedded Sample ID state, analysis state, similarity data, waveform cache state, extracted-region history, edit state where needed, and current-session recovery information.
 
 The database and indexing system should support:
 
@@ -826,6 +1760,59 @@ The database and indexing system should support:
 * diagnostic information for failed writes, stale records, migration issues, metadata embedding failures, and indexing problems
 
 Tag, rating, aging, naming, and metadata workflows should remain fast as the library grows. Filtering should feel interactive, and persistence should be treated as part of the product performance surface rather than a passive storage detail.
+
+The persistence model should include these core entities:
+
+- Source: configured root folder, scan settings, source database path, source status, last scan state, and source-level diagnostics.
+- Folder: real folder path, parent relationship, availability, scan state, and display expansion state where durable.
+- Sample File: stable Wavecrate Sample ID, source ID, current path, file fingerprint/change token, duration, sample rate, channel layout, bit depth, format, size, availability, supported/editable state, and timestamps.
+- Embedded ID State: whether the Sample ID is present, missing, pending automatic embedding, stale, conflicting, duplicate-conflict, failed to write, unsafe to write, or last written successfully.
+- Tag Category: fixed category identity, display name, ordering, whether user-extensible, and whether structured rather than free-tagged.
+- Tag: category ID, canonical name, aliases where useful, display name, usage count, and deletion/rename state.
+- Sample Tag Assignment: sample ID, tag ID, assignment source, and updated timestamp.
+- Metadata: label, prefix, BPM, tuning/scale, custom fields where supported, and manual-versus-detected provenance where relevant.
+- Rating State: unrated, keep levels, accepted/favorite/locked, trash levels, rejected, trashed, lock state, and rating timestamps.
+- Aging/Listen Event: last auditioned time, audition count, recent-use markers, and optional handoff/use events.
+- Temporary Color Collection: collection ID, name, color, slot order, and sample assignments.
+- Region: source sample ID, time/frame range, label, role, and current validity against source-file changes.
+- Extracted Region History: source sample ID, extracted sample ID where durable, original range, audition/render settings, timestamp, and current visibility.
+- Waveform Cache: sample ID, source fingerprint, resolution/level, channel summary, cache path or blob reference, status, and version.
+- Analysis Result: sample ID, analysis kind, version, status, confidence, input fingerprint, result payload, failure reason, and timestamps.
+- Similarity Embedding: sample ID, descriptor version, embedding vector reference, normalized state, ANN index membership, and stale status.
+- Duplicate Group: global audio-content fingerprint, member sample IDs across indexed sources, duplicate status, last computed time, and stale status.
+- Map Projection: projection version, embedding set/version, coordinates, cluster labels where available, and stale status.
+- Undo Transaction: action ID, command kind, user-visible description, affected sample/source paths, recovery files, before/after metadata snapshots, and redo state.
+- Recovery File: transaction ID, path, original path, edited path where relevant, checksum/fingerprint, expiry/cleanup state, and failure diagnostics.
+- Background Job: job ID, kind, source/sample ID, queued/running/completed/skipped/failed/cancelled status, progress, cancellation token, stale-result token, and failure reason.
+- Log/Event Record: timestamp, operation kind, action/job/sample/source IDs, severity, user-facing message key, and diagnostic details.
+
+Relationships should be stable enough that file paths can change without losing sample identity. Path records are important, but the Wavecrate Sample ID is the durable identity for metadata, analysis, waveform, rating, age, and extraction history.
+
+Database updates that touch both filesystem state and metadata state should be transaction-oriented. If the filesystem stage succeeds but database registration fails, Wavecrate should either roll back the filesystem stage or surface a recoverable partial-failure state with enough diagnostics to repair it.
+
+## Cache and Storage Lifecycle
+
+Wavecrate may create local caches for generated display names, waveform summaries, decoded audio aids, analysis outputs, similarity indexes, map projections, thumbnails or visual summaries, handoff staging, and undo/recovery.
+
+Caches should be treated as rebuildable unless explicitly documented otherwise. Generated display-name caches should persist across restarts for speed, but they are still rebuildable projections of metadata and naming rules. User-authored metadata, ratings, tags, labels, naming-template inputs, source configuration, Sample IDs, extracted-region history, and undo state for the current session are not disposable caches.
+
+Cache records should include enough version and input identity to decide whether they are valid:
+
+- cache kind
+- sample/source ID
+- file-byte fingerprint where exact byte-level duplicate detection is useful
+- source file fingerprint or change token
+- audio-content fingerprint where cache reuse across exact duplicates is allowed
+- algorithm/schema version
+- audio format/channel assumptions
+- creation/update timestamp
+- status and failure reason where relevant
+
+Wavecrate should be able to rebuild stale or missing caches without losing user metadata. Cache cleanup should run in the background and should respect active jobs, active playback, active edits, and current-session recovery files.
+
+Cache reuse across copied or duplicated files should be based on exact audio identity, not on shared Wavecrate Sample ID. If two files have the same audio-content fingerprint and compatible cache versions/settings, Wavecrate may reuse cache payloads while keeping separate file identity and metadata records. If the audio differs, the copied/extracted/rendered file should build its own caches.
+
+The user should be able to clear rebuildable caches from settings or diagnostics without deleting audio files or durable metadata.
 
 ## File Operations and Recovery Target
 
@@ -848,6 +1835,24 @@ Background workers should be cancellable or stale-result-safe when the user chan
 
 Similarity data, BPM data, transient data, aging data, waveform data, embedded Sample ID state, and display-name data should be invalidated or refreshed when the underlying file changes. Tag, rating, naming, age, and metadata updates should be persisted predictably and reflected consistently across browser, waveform/editor, filters, and map views.
 
+## Background Job Priority and Cancellation
+
+Wavecrate should prioritize work that keeps the user in flow.
+
+Suggested job priority from highest to lowest:
+
+1. user-visible playback, stop, seek, and device recovery
+2. current-selection decode and waveform preparation
+3. explicit user commands such as edit render, extraction, export, rename, move, copy, trash, undo, and redo
+4. current-folder scan and metadata refresh
+5. visible-row waveform or analysis preparation
+6. background analysis for transients, silence, similarity, and map projection, plus user-triggered BPM/grid metadata work
+7. cache cleanup and maintenance
+
+Long-running jobs should expose progress where useful and should be cancellable or stale-result-safe. Cancelling a job should not leave partially written audio files, partial database state, or misleading UI state. For mutating jobs, cancellation should trigger best-effort rollback of completed items before reporting the final cancelled state.
+
+If the user changes selection quickly, older decode, waveform, analysis, and UI-projection jobs should not overwrite newer state. Stale completion should be logged at debug/trace level where useful but should not be user-visible unless it explains a real failed command.
+
 ## Logging and Diagnostics Target
 
 Wavecrate should have detailed logging throughout the application so bugs, stalls, failed operations, and unexpected state changes can be traced.
@@ -860,7 +1865,8 @@ Logging should cover:
 * embedded Sample ID reads, writes, conflicts, and failures
 * audio device setup, decoding, playback, seeking, looping, warping, and render failures
 * waveform preparation and cache usage
-* BPM detection, grid generation, transient detection, silence detection, and analysis failures
+* duplicate fingerprinting and duplicate-group updates
+* BPM/grid metadata changes, grid generation, transient detection, silence detection, and analysis failures
 * play selection and edit selection state changes where useful
 * extraction actions and extracted-region history
 * destructive edit creation, rendering, overwrite, and failure recovery
@@ -868,7 +1874,7 @@ Logging should cover:
 * temp recovery file creation, usage, cleanup, and failure
 * tag creation, autocomplete, filtering, display naming, disk rename application, and metadata persistence
 * rating, aging/listen history, review-state, and trash-workflow changes
-* similarity analysis, indexing, sorting, filtering, and 2D map generation
+* similarity analysis, indexing, sorting, filtering, and later 2D map generation
 * temporary color collection changes
 * background job lifecycle, cancellation, stale completions, and handoff back to the UI
 * file operations such as rename, duplicate, move, copy, trash, restore via undo, collect, reveal, and export
@@ -901,13 +1907,248 @@ The UI should provide:
 * mono-style waveform view by default
 * future stereo split-view mode for independent channel inspection and editing
 * copy, drag, export, reveal, and DAW handoff controls that are fast and predictable
-* similarity controls that can be used from both list and map workflows
+* similarity controls that can be used from list workflows first and later from the map tab
 * concise status surfaces for long-running work
 * no marketing-style hero layout, decorative cards, or ornamental whitespace
 
 The waveform/editor should be a primary work surface, not a decorative preview. It should support precise cursor movement, play selection, edit selection, range selection, playhead display, loop display, edit handles, fades, markers, grids, transient cues, extracted-region history, and clear feedback for destructive edits.
 
+Waveform rendering should preserve the current multiband visual style rather than falling back to a plain single-envelope waveform. The waveform should distinguish useful frequency or energy bands so users can visually scan transients, bass-heavy material, noisy textures, tonal material, and quiet sections faster.
+
+Waveform visual quality should improve where practical through antialiasing, cleaner band blending, stable peak rendering, and other polish that makes the waveform easier to read. These improvements must not compromise interaction latency. Zooming, panning, playhead updates, selection dragging, fade-handle dragging, envelope previews, hover feedback, and edit overlays should remain realtime-feeling.
+
+The hard performance target is interaction first: if a visual improvement causes noticeable latency in zoom, scroll, selection, fade handles, or playback-position feedback, the implementation should use cached levels of detail, GPU primitives, simplified preview rendering, or disable that enhancement at the current zoom level rather than making waveform interaction feel slow.
+
 Status bars should stay concise. Long-running operations should report what is happening without monopolizing the interface.
+
+Wavecrate should provide basic tooltips for important controls, modes, handles, buttons, and destructive actions.
+
+Tooltips should help users understand what an action does without interrupting fast workflows.
+
+Tooltips should be user-configurable and can be disabled globally by experienced users who prefer a cleaner interface.
+
+### Application UI Layout and Screens
+
+The main window should be the working application, not a landing page.
+
+The default layout should include:
+
+- Top command bar: source controls, search/filter entry, transport/audition controls, target BPM controls, view toggles, settings access, and visible background-work status.
+- Left sidebar: source list, folder tree, and compact source/scan status.
+- Center browser: virtualized sample list with columns or compact row fields for filename/display name, tags, rating, age/listen state, BPM, tuning/scale, duration, format/channel state, analysis status, and availability.
+- Browser view tabs or toggles: list view as the primary/default browser and similarity map as a secondary alternate view of the same current browser result set.
+- Waveform/editor panel: large primary waveform surface with playhead, cursor, play selection, edit selection, fades, markers, regions, grid/transient overlays, extracted-history marks, and mode-specific handles.
+- Metadata/editor panel: selected sample details, tag editor, label/prefix fields, source/folder information, rating controls, generated-name preview, disk-rename action, analysis state, file details, and mixed-state indicators for multi-selection metadata differences.
+- Bottom status bar: concise current action, playback state, selected count, scan/job progress, warnings, and last user-action result.
+
+The layout should support dense work on a laptop screen while remaining usable on larger displays. Panels should be resizable, durable across sessions, and keyboard reachable.
+
+The sample browser row should show enough information to make scanning fast:
+
+- selected/focused/playing state
+- display name or disk filename according to active view mode
+- core file columns or compact row fields for name, extension/format, size, and modified time
+- compact waveform or duration cue where practical
+- Playback Type, Sound Type, Character tags, BPM, Tuning/Scale, Prefix, and label where space allows
+- keep/trash/accepted/rejected state
+- age/listen state
+- analysis pending/stale/failed indicators
+- exact duplicate indicator where the same audio-content fingerprint appears in more than one indexed file
+- missing, unavailable, unsupported, locked, edited, or unsaved indicators
+
+Unsupported and partially supported files should not look like ordinary editable files. The list row and map point should distinguish playback-only, unsupported format, unsupported encoding, multichannel-limited, too-long, missing, and failed-analysis states where practical. Warning indicators should be compact but visible enough that users understand why commands are disabled.
+
+Exact duplicates should have a compact advisory badge or indicator in the sample list and later map view. Duplicate grouping should be global across all indexed sources but should include only files that currently exist on disk. Missing or unavailable records should not make an otherwise unique available file look duplicated. Source, folder, search, and filter state should still control which duplicate members are visible in the current browser. The user should be able to filter to duplicate files, inspect which available files share the same audio-content fingerprint across sources, reveal their folders, and decide whether to keep, move, tag, or trash them. Duplicate grouping should not automatically delete or merge files.
+
+Duplicate badges should appear on every available member of a duplicate group, not only on copies after a canonical or first-seen file. Duplicate badges should update incrementally as background fingerprinting discovers groups. The UI should not wait for whole-library duplicate analysis to complete before showing warnings. Rows may gain or lose duplicate badges one by one as duplicate state is computed, invalidated, or reconciled. These updates should be smooth and non-blocking, with enough status to explain that duplicate analysis is still running when relevant.
+
+Duplicate groups should not assign a primary, canonical, original, or preferred file automatically. All available duplicate members should be shown as peers. Any decision about which duplicate to keep, move, tag, or trash belongs to the user.
+
+Duplicate grouping should count byte-identical files as duplicates even when Wavecrate metadata differs. Metadata differences such as tags, rating, label, generated display name, or collection marks should remain visible as differences between duplicate files, but they should not suppress the duplicate warning.
+
+Duplicate grouping should also count files with identical decoded audio content as duplicates even when non-audio metadata chunks differ. For WAV files, two files should still be treated as duplicates if they decode to the same audio samples but differ only in RIFF metadata chunks, embedded Sample ID chunks, timestamps, or other non-audio fields.
+
+Near-duplicates belong to similarity search, not exact duplicate warnings. Normalized, gained, trimmed, faded, resampled, downmixed, or otherwise processed variants should not be treated as exact duplicate groups unless their decoded audio content is still identical.
+
+Context menus should exist for sample rows, folders, waveform selections, tag pills, rating controls, generated names, and background-job/status surfaces. Context-menu actions should use the same command model as keyboard shortcuts and toolbar buttons.
+
+Empty states should be actionable. A fresh install should guide the user to add a source folder. An empty source should say that no supported ordinary WAV files were found in the first format target, and should include AIFF/AIF after that later format phase is implemented. A filtered-empty browser should make it clear that filters, not the source itself, are hiding files.
+
+Settings should be a normal application screen or dialog, not hidden behind config files. The generated-name naming template is the current deliberate exception because it is a launch-loaded advanced config-file setting.
+
+### Accessibility and Keyboard Usability
+
+Wavecrate should be efficient for keyboard-heavy users and usable with standard accessibility expectations.
+
+The UI should provide:
+
+- visible focus indicators
+- keyboard access to major panels, lists, waveform controls, menus, settings, and dialogs
+- predictable Tab and Shift+Tab traversal
+- Escape behavior that cancels transient modes before leaving the current workflow
+- sufficient text contrast and non-color-only status indicators
+- readable labels or accessible names for icon-only controls
+- tooltip text that can also serve as command help where practical
+- scalable UI density without clipping text
+- no reliance on hover-only affordances for destructive or essential commands
+
+Waveform-specific interactions may require pointer precision for advanced editing, but core workflows such as browse, audition, select, extract, tag, rate, rename, undo, and handoff should remain keyboard reachable.
+
+## Command Model and Default Shortcuts
+
+Wavecrate should have a centralized command model. Keyboard shortcuts, toolbar buttons, context-menu actions, drag handles, clipboard actions, and pointer gestures should dispatch the same product commands where they perform the same logical operation.
+
+Commands should be routed by focus context:
+
+- Text inputs, tag editors, rename fields, search fields, numeric fields, and other editable controls own ordinary typing, caret movement, selection, copy, paste, and cut while focused.
+- Undo and redo are global Wavecrate commands, not local text-editor commands. `Ctrl+Z`, `Ctrl+Y`, and `Ctrl+Shift+Z` should route to the global undo/redo stack even when a text or value editor is focused.
+- Text and value editor changes should enter the global undo stack when the edit is committed, not on every keystroke.
+- Search/filter query changes are global undoable context changes. Undo should restore the previous committed query/filter state plus the browser view mode, selection, and focus that existed with that query where practical.
+- Other global application shortcuts should not fire while a focused text or value editor expects the same key input.
+- Browser-focused commands apply to selected sample rows or folders.
+- Waveform-focused commands apply to the active waveform, play selection, edit selection, cursor, or active waveform mode.
+- Modal dialogs and confirmation prompts own Enter, Escape, arrow keys, Tab, and text input until dismissed.
+
+The command layer should expose enabled, disabled, hidden, pending, and destructive states so the UI can present actions consistently across menus, buttons, tooltips, status text, and keyboard handling.
+
+Default shortcuts should be discoverable in tooltips and command menus. They may be user-configurable later, but the initial defaults should be stable enough for fast workflows.
+
+Core default shortcuts:
+
+| Shortcut | Command | Context |
+| --- | --- | --- |
+| `Space` | Play/pause or restart audition according to the current playback state | Browser or waveform |
+| `Enter` | Confirm the current focused action, apply previewed waveform edit where relevant, or open the selected folder/sample action | Focused control, browser, or waveform |
+| `Escape` | Cancel active selection/edit/drag/prompt/mode where safe | Global contextual |
+| `Up` / `Down` | Move sample selection and audition according to audition settings | Browser |
+| `Left` / `Right` | Seek, nudge cursor, or move selection boundary according to waveform focus and modifiers | Waveform |
+| `Page Up` / `Page Down` | Move by larger browser or waveform increments | Browser or waveform |
+| `Home` / `End` | Jump to start/end of list or audio file according to focus | Browser or waveform |
+| `Ctrl+Z` | Undo the latest undoable action | Global |
+| `Ctrl+Y` or `Ctrl+Shift+Z` | Redo the latest undone action | Global |
+| `Ctrl+C` | Copy selected files or selected waveform audio | Browser or waveform |
+| `Ctrl+V` | Paste copied audio at waveform insertion point or paste files where supported | Waveform or folder target |
+| `Ctrl+X` | Cut selected waveform audio where destructive editing is allowed | Waveform |
+| `Ctrl+D` | Duplicate selected file or selected waveform audio according to focus | Browser or waveform |
+| `Ctrl+S` | Save/apply pending destructive edit state where the current edit mode requires explicit save | Waveform or app |
+| `E` | Extract the current play/edit selection into a new audio file | Waveform |
+| `Delete` or `Backspace` | Delete/cut selected waveform range, remove selected tag text, or move selected files toward trash according to focus | Contextual |
+| `F2` | Rename selected file, folder, label, or editable row | Browser or focused row |
+| `Ctrl+F` | Focus search/filter input | Global |
+| `Ctrl+L` | Focus source/folder location or active path control where present | Browser |
+| `Ctrl+A` | Select all rows or all text according to focus | Browser or text editor |
+| `Ctrl+R` | Refresh/rescan the active source or folder | Browser |
+| `Ctrl+O` | Add/open a source folder | Global |
+| `Ctrl+,` | Open settings/preferences | Global |
+
+Waveform editing shortcuts:
+
+| Shortcut | Command |
+| --- | --- |
+| `T` | Trim/crop to active edit/play selection |
+| `S` | Split at cursor or split selected range according to current selection |
+| `M` | Mute/silence active selection |
+| `R` | Reverse active selection |
+| `N` | Normalize active selection |
+| `G` | Open gain adjustment for active selection |
+| `F` | Add or edit fade handles for active selection |
+| `V` | Toggle volume-envelope editing mode |
+| `X` | Toggle silence-extension mode |
+| `L` | Toggle loop playback for the active play selection |
+| `B` | Set or edit BPM metadata for the current file |
+
+Rating, triage, and color collection shortcuts:
+
+| Shortcut | Command |
+| --- | --- |
+| `[` | Step the selected files one level down toward trash/rejected |
+| `]` | Step the selected files one level up toward keep/accepted |
+| `U` | Unlock an accepted/favorite file or clear lock where allowed |
+| `1` through `9` | Toggle or assign the selected files to temporary color collections 1 through 9 |
+| `0` | Toggle or assign the selected files to temporary color collection 10 |
+
+Number keys should not be used for keep/trash rating. They are reserved for the 10 temporary color collections.
+
+Rating should use step-based keyboard controls by default. `]` moves the selected files one step up the keep ladder, and `[` moves them one step down toward trash/rejected. Keyboard rating must not interrupt playback or force a modal flow during normal auditioning.
+
+Pointer and gesture defaults:
+
+- Single-clicking a sample row selects it and starts auditioning by default when immediate audition is enabled.
+- Double-clicking a sample row should open or focus the waveform/editor for that sample.
+- Left mouse drag in the waveform creates or adjusts the play selection.
+- Right mouse drag in the waveform creates or adjusts the edit selection.
+- Dragging selection edges adjusts boundaries with sample-accurate or frame-accurate feedback where practical.
+- Dragging inside a selection moves or slides the selection when that interaction is enabled.
+- Dragging the extraction handle creates an extracted file through the shared extraction pipeline.
+- Dragging selected browser rows or waveform regions outside Wavecrate performs file handoff according to the handoff policy.
+
+Every command should have a clear no-selection behavior. If a command cannot run, Wavecrate should disable it or report a concise status message rather than failing silently.
+
+## Settings and User Preferences
+
+Wavecrate should persist user preferences that affect workflow, safety, and performance.
+
+Settings should include:
+
+- source folder list and per-source scan options
+- immediate audition on selection, enabled by default
+- playback restart/continue behavior on selection changes
+- audio engine/backend, output device, and playback sample rate
+- audio write format for edits, extractions, staged handoff files, exports, and processed duplicates
+- default target BPM and whether target BPM lock is enabled
+- destructive-edit safety mode and YOLO mode state
+- tooltip visibility
+- display-name versus disk-filename browser mode
+- tag suggestion and autocomplete behavior
+- silence-detection threshold and leading/trailing trim defaults
+- waveform visual density and overlay visibility
+- cache locations and cache size limits where exposed
+- handoff temp-folder cleanup policy where exposed
+- trash folder location
+- logging level and diagnostic bundle options
+- keyboard shortcut overrides when custom shortcuts are supported
+
+Settings changes should take effect predictably and should be represented as undoable global transactions when committed. Risky settings such as YOLO mode, trash folder location, cache cleanup, audio backend/device, audio write format, and destructive overwrite behavior should require clear confirmation before the setting change is committed.
+
+The generated-name naming template is not a normal runtime setting in the current target. It is a launch-loaded config-file setting and is therefore not represented as an undoable in-app settings transaction.
+
+## Error States and User-Facing Messages
+
+Wavecrate should turn failures into concise user-facing states plus detailed logs.
+
+User-facing errors should explain:
+
+- what failed
+- which file, folder, source, or action was affected
+- whether the user's original audio is safe
+- whether partial output was created
+- whether retry, rescan, reveal, configure, undo, or cleanup is available
+
+Important error states should include:
+
+- unsupported file format
+- supported format but unsupported encoding or channel layout
+- file exceeds practical duration limit
+- file missing or moved outside Wavecrate
+- permission denied
+- source folder unavailable
+- scan failed or partially failed
+- decode failed
+- playback device unavailable
+- waveform generation failed
+- analysis failed or stale
+- edit render failed
+- edit overwrite failed and rollback succeeded
+- edit overwrite failed and rollback failed
+- extraction failed before file write
+- extraction wrote file but database registration failed
+- clipboard or drag handoff failed
+- trash folder not configured
+- trash move failed
+- database busy, locked, corrupt, or migration failed
+- metadata embedding failed but database fallback succeeded
+
+Errors should avoid vague wording such as "operation failed" when Wavecrate can report the failing stage. Detailed stage information belongs in logs, but the UI should still describe the practical consequence.
 
 ## Performance Target
 
@@ -919,7 +2160,7 @@ Important performance rules:
 * long audio files must remain navigable without loading unnecessary full-resolution UI data at once
 * folder and sample views should be virtualized or windowed for large datasets
 * sample decode and waveform preparation must run in background work
-* BPM detection, transient detection, silence detection, similarity analysis, and 2D map generation must run in background work
+* duplicate fingerprinting, BPM/grid metadata work, transient detection, silence detection, similarity analysis, and later 2D map generation must run in background work
 * destructive edit rendering and file overwrite work must avoid blocking the GUI thread
 * normalization scans, extraction renders, warp renders, and derived-file exports must run in background work
 * database writes, indexing, migrations, metadata embedding, and maintenance work must not block the GUI thread
@@ -972,7 +2213,7 @@ Wavecrate owns product behavior. Radiant owns reusable GUI capability. The audio
 ### Audio Engine Owns
 
 * reusable playback primitives
-* decoding and buffering for WAV and AIFF/AIF
+* decoding and buffering for ordinary WAV first, with AIFF/AIF added in a later phase
 * seeking, looping, retriggering, and range playback primitives
 * audition-time warp primitives where reusable
 * audio data preparation for waveform and edit auditioning
@@ -1072,6 +2313,36 @@ Wavecrate should be improved incrementally. Refactors should usually preserve wo
 
 Tests should support refactoring rather than prevent it. Avoid tests that only lock in names, incidental file layout, or implementation details. Prefer tests that protect real workflows, recovery behavior, stale-result safety, persistence correctness, playback behavior, destructive editing behavior, extraction behavior, undo/redo behavior, similarity behavior, and performance-sensitive paths.
 
+## MVP End-to-End Acceptance Criteria
+
+The minimum complete Wavecrate application should support one end-to-end loop without relying on hidden developer tools or manual database edits.
+
+The MVP should allow a user to:
+
+1. Add a source folder containing WAV files.
+2. See folders and supported files appear incrementally while scanning continues.
+3. Select files from the browser and hear immediate playback.
+4. View a waveform for the selected file.
+5. Create and adjust a play selection.
+6. Loop-audition the selected range.
+7. Create an edit selection or use the play selection as the edit target according to the selection-priority rules.
+8. Extract the selected range into a new WAV file in the active folder with collision-safe naming.
+9. See the extracted file appear in the browser.
+10. See extracted-region history on the source waveform.
+11. Apply at least trim/crop, mute/silence, fade, normalize, and gain adjustment to a supported file with destructive safety and session undo.
+12. Duplicate a file before editing.
+13. Add fixed-category tags and a label to a sample.
+14. Rate samples through keep/trash states.
+15. Filter by folder, text, tag, and rating.
+16. Generate a display name from structured metadata and deliberately apply it to disk filename.
+17. Copy or drag selected whole files to Explorer or a DAW as ordinary audio files.
+18. Copy or drag a selected waveform range as an ordinary audio file according to the handoff rules.
+19. Move rejected files to a configured trash folder without permanent deletion.
+20. Close and reopen Wavecrate with source, metadata, rating, tags, generated names, and listen history preserved.
+21. Recover from a failed scan, unsupported file, missing file, failed decode, failed edit, or failed extraction with clear UI status and useful logs.
+
+The MVP does not need AIFF/AIF support, final stereo split editing, final similarity map quality, advanced warp quality, cross-platform support, custom shortcut editing, or every planned analysis feature. It should, however, establish the architecture and data contracts needed for those later phases.
+
 ## Milestone Strategy
 
 Wavecrate should move toward the target through clear phases. These phases are not rigid release promises, but they help keep implementation work practical.
@@ -1083,8 +2354,7 @@ Establish the core application foundation:
 * Windows-first folder/source scanning
 * responsive sample browser
 * immediate playback
-* WAV-first reliable decoding, playback, waveform display, and metadata writing
-* AIFF/AIF decoding, playback, waveform display, and metadata writing
+* ordinary WAV reliable decoding, playback, waveform display, and metadata writing
 * mono-style waveform display
 * stable Wavecrate Sample IDs
 * database metadata foundation
@@ -1131,8 +2401,8 @@ Make the library manageable over time:
 
 Improve production usefulness:
 
-* BPM detection
-* BPM metadata editing
+* manual BPM metadata editing
+* region-derived BPM calculation from play-selection/grid workflows
 * tempo-grid display
 * target BPM lock
 * practical beats-style audition-time warping
@@ -1140,9 +2410,9 @@ Improve production usefulness:
 * drag/copy/export/reveal workflows
 * practical Windows-first DAW handoff
 
-### Phase 5: Similarity Search and 2D Exploration
+### Phase 5: Similarity Search
 
-Build Sononym/XO-style discovery:
+Build Sononym-style list discovery after the core browser and library workflows are mature:
 
 * deterministic descriptor pipeline
 * versioned DSP feature vectors
@@ -1151,14 +2421,17 @@ Build Sononym/XO-style discovery:
 * browser similarity sorting
 * visual similarity indicators
 * similarity filters
-* 2D map projection
+* list-based similar-sample workflows
+
+### Phase 6: Later-Version Format, Map, Stereo, Polish, and Cross-Platform Readiness
+
+Harden and extend the product after the main ordinary-WAV list-based application is complete. This is effectively a later-version bucket, such as a 0.2 or version-2 style target rather than the first complete product slice:
+
+* AIFF/AIF decoding, playback, waveform display, metadata writing, editing, extraction, and handoff where safe
+* 2D similarity map projection
+* map tab as an alternate view of the current browser result set
 * cluster exploration
 * map/list audition workflow
-
-### Phase 6: Stereo Split Editing, Polish, Performance, and Cross-Platform Readiness
-
-Harden and extend the product:
-
 * stereo split-view waveform display
 * independent channel selection where useful
 * independent channel editing/extraction where useful
@@ -1192,7 +2465,7 @@ Meaningful changes should usually include:
 Important validation lanes should cover:
 
 * browsing responsiveness on large libraries
-* supported format import/audition behavior for WAV and AIFF/AIF files
+* supported format import/audition behavior for ordinary WAV files first, and AIFF/AIF files after that later phase is implemented
 * mono and stereo file playback correctness
 * stereo file preservation during mono-style edits
 * long audio file navigation, auditioning, looping, marking, extraction, and export
@@ -1200,7 +2473,7 @@ Important validation lanes should cover:
 * play selection and edit selection behavior
 * waveform precision for playhead, cursor, range, loop, fade, marker, grid, transient, and extracted-history interactions
 * destructive edit warnings and YOLO mode behavior
-* session-local undo/redo for edits, file operations, metadata operations, rating operations, and selection changes
+* session-local undo/redo for edits, file operations, metadata operations, rating operations, selection changes, navigation changes, and workflow-flag changes, while excluding ordinary transport play/stop history
 * temporary recovery file creation and background cleanup
 * stale-result safety for decode, waveform, analysis, edit-render, database, naming, and similarity jobs
 * tag creation, autocomplete, duplicate prevention, persistence, generated names, disk rename application, and filtering
@@ -1208,7 +2481,7 @@ Important validation lanes should cover:
 * embedded Sample ID creation, reading, conflict handling, and fallback behavior
 * temporary color collection behavior
 * target-BPM auditioning and baked warped extraction/export
-* similarity list sorting, filtering, and 2D map interaction
+* similarity list sorting and filtering first, with 2D map interaction after the later map phase is implemented
 * file mutation, duplicate, export, overwrite, rename, trash, move, copy, reveal, and partial-failure recovery
 * DAW/external handoff workflows
 * logging usefulness for tracing failures and background operations
@@ -1219,7 +2492,7 @@ Wavecrate is moving toward the target when:
 
 * browsing remains responsive on large sample sources
 * short sample files and long audio files are both handled accurately and smoothly
-* WAV and AIFF/AIF files are supported according to the phased format target
+* ordinary WAV files are fully supported first, and AIFF/AIF files are supported after that later phase is implemented
 * MP3, FLAC, and other unsupported formats are clearly ignored, rejected, or reported as unsupported
 * mono and stereo files play correctly
 * mono-style editing preserves stereo files while applying edits equally to both channels
