@@ -96,7 +96,7 @@ fn moving_trashed_samples_can_cancel_midway() -> Result<(), String> {
 }
 
 #[test]
-fn taking_out_trash_deletes_files() {
+fn taking_out_trash_leaves_files_for_manual_cleanup() {
     let temp = tempdir().unwrap();
     let trash_root = temp.path().join("trash");
     std::fs::create_dir_all(trash_root.join("nested")).unwrap();
@@ -110,10 +110,16 @@ fn taking_out_trash_deletes_files() {
     controller.take_out_trash();
 
     assert!(trash_root.is_dir());
-    assert!(!trash_root.join("junk.wav").exists());
-    assert!(!trash_root.join("nested").join("more.wav").exists());
-    let remaining: Vec<_> = std::fs::read_dir(&trash_root).unwrap().collect();
-    assert!(remaining.is_empty());
+    assert!(trash_root.join("junk.wav").exists());
+    assert!(trash_root.join("nested").join("more.wav").exists());
+    assert_eq!(
+        controller.ui.status.text,
+        "Permanent trash deletion is outside Wavecrate cleanup; no files were deleted"
+    );
+    assert_eq!(
+        controller.ui.status.status_tone,
+        crate::app::state::StatusTone::Warning
+    );
 }
 
 #[test]
