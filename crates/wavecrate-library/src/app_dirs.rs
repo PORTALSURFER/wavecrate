@@ -315,6 +315,16 @@ pub fn logs_dir() -> Result<PathBuf, AppDirError> {
     Ok(path)
 }
 
+/// Return the global handoff staging directory inside the `.wavecrate` root.
+pub fn handoff_staging_dir() -> Result<PathBuf, AppDirError> {
+    let path = app_root_dir()?.join("handoff_staging");
+    std::fs::create_dir_all(&path).map_err(|source| AppDirError::CreateDir {
+        path: path.clone(),
+        source,
+    })?;
+    Ok(path)
+}
+
 /// Return the base directory used for `.wavecrate` when no override is set.
 pub fn config_base_dir_path() -> Option<PathBuf> {
     config_base_dir()
