@@ -2298,6 +2298,10 @@ fn default_gui_shortcut_resolution(
                 ui::KeyPress::new(ui::KeyCode::E),
                 GuiMessage::ExtractPlaymarkedRange,
             )
+            .bind(
+                ui::KeyPress::new(ui::KeyCode::L),
+                GuiMessage::ToggleLoopPlayback,
+            )
             .bind(ui::KeyPress::new(ui::KeyCode::N), n_action)
             .bind(
                 ui::KeyPress::new(ui::KeyCode::Space),
@@ -3524,6 +3528,19 @@ mod tests {
         assert_eq!(
             resolution.action,
             Some(super::GuiMessage::DeleteSelectedItem)
+        );
+        assert!(resolution.handled);
+    }
+
+    #[test]
+    fn loop_shortcut_routes_to_loop_toggle() {
+        let state = GuiAppState::load_default().expect("default state loads");
+        let resolution =
+            super::default_gui_shortcut_resolution(&state, ui::KeyPress::new(ui::KeyCode::L));
+
+        assert_eq!(
+            resolution.action,
+            Some(super::GuiMessage::ToggleLoopPlayback)
         );
         assert!(resolution.handled);
     }
