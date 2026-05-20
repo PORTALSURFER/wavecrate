@@ -387,7 +387,8 @@ mod tests {
     #[test]
     fn path_is_candidate_allows_supported_audio() {
         assert!(path_is_candidate(Path::new("kick.wav")));
-        assert!(path_is_candidate(Path::new("loop.flac")));
+        assert!(path_is_candidate(Path::new("KICK.WAV")));
+        assert!(!path_is_candidate(Path::new("loop.flac")));
     }
 
     #[test]

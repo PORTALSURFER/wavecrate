@@ -2683,7 +2683,8 @@ fn file_kind(path: &Path) -> String {
         .map(str::to_ascii_lowercase)
         .as_deref()
     {
-        Some("wav" | "aif" | "aiff" | "flac" | "mp3") => String::from("Audio"),
+        Some("wav") => String::from("Audio"),
+        Some("aif" | "aiff" | "flac" | "mp3") => String::from("Unsupported audio"),
         Some("png" | "jpg" | "jpeg" | "gif" | "webp") => String::from("Image"),
         Some("json" | "txt" | "md" | "toml" | "rs") => String::from("Text"),
         _ => String::from("File"),
@@ -2908,6 +2909,40 @@ mod tests {
                 .any(|progress| progress.phase == "Scanning" && progress.total == 0)
         );
         assert!(!discovery_events.is_empty());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn non_wav_audio_looking_files_are_visible_but_not_supported_audio() {
+        let root = temp_source_root("radiant-gui-unsupported-audio");
+        let drums = root.join("drums");
+        fs::create_dir_all(&drums).expect("create drums folder");
+        for name in ["kick.wav", "loop.aif", "loop.aiff", "loop.flac", "loop.mp3"] {
+            fs::write(drums.join(name), [0_u8; 8]).expect("write audio-looking file");
+        }
+
+        let mut browser = FolderBrowserState::from_root(root.clone());
+        browser.activate_folder(path_id(&drums));
+
+        assert_eq!(
+            browser
+                .selected_audio_files()
+                .iter()
+                .map(|file| file.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["kick.wav"]
+        );
+
+        let unsupported = browser
+            .selected_files()
+            .iter()
+            .filter(|file| file.kind == "Unsupported audio")
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            unsupported,
+            vec!["loop.aif", "loop.aiff", "loop.flac", "loop.mp3"]
+        );
         let _ = fs::remove_dir_all(root);
     }
 
