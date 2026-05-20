@@ -24,6 +24,40 @@ fn adding_source_rejects_same_resolved_root_with_different_spelling() {
 }
 
 #[test]
+fn adding_source_rejects_nested_source_roots() {
+    let config_root = tempfile::tempdir().expect("create config root");
+    let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());
+    let library_root = tempfile::tempdir().expect("create library root");
+    let parent = library_root.path().join("packs");
+    let child = parent.join("drums");
+    std::fs::create_dir_all(&child).expect("create nested source roots");
+
+    let (mut controller, _) = dummy_controller();
+    controller.library.sources.clear();
+    controller
+        .add_source_from_path(parent.clone())
+        .expect("add parent source");
+
+    let child_err = controller
+        .add_source_from_path(child.clone())
+        .expect_err("nested child source should be rejected");
+    assert_eq!(child_err, "Source folders cannot be nested");
+    assert_eq!(controller.library.sources.len(), 1);
+
+    let (mut controller, _) = dummy_controller();
+    controller.library.sources.clear();
+    controller
+        .add_source_from_path(child)
+        .expect("add child source first");
+
+    let parent_err = controller
+        .add_source_from_path(parent)
+        .expect_err("containing parent source should be rejected");
+    assert_eq!(parent_err, "Source folders cannot be nested");
+    assert_eq!(controller.library.sources.len(), 1);
+}
+
+#[test]
 /// Verifies removing source rolls back when config save fails.
 fn removing_source_rolls_back_when_config_save_fails() {
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
