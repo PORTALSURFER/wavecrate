@@ -1055,6 +1055,8 @@ Adding a source should:
 - report scan progress without blocking browsing or auditioning
 - preserve existing metadata when a source is reopened
 
+When a source-add request is rejected because it is nested with an existing source, Wavecrate should explain the conflict and offer a deliberate source swap where safe. For example, if the user tries to add a parent folder that contains an existing child source, Wavecrate may offer to remove the child source reference and add the parent source instead. If the user tries to add a child folder inside an existing parent source, Wavecrate may offer to replace the parent source with the child source. A swap should be an explicit source-reference operation, should not delete audio files or source database files, and should follow the undo, relink, and source-scan rules for source changes.
+
 Removing a source from Wavecrate should remove it from the indexed source list but should not delete audio files from disk. Source removal can happen immediately without confirmation because it is an undoable source-reference change and does not delete files. The UI should still make clear that removing a source only removes Wavecrate's active index reference.
 
 If the root folder for a configured source is moved, renamed, deleted, disconnected, or otherwise unavailable outside Wavecrate, Wavecrate should mark the source as broken or missing in the source list and folder tree. The UI should not silently drop the source, delete its metadata, or pretend the source is empty.

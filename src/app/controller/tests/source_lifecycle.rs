@@ -41,7 +41,9 @@ fn adding_source_rejects_nested_source_roots() {
     let child_err = controller
         .add_source_from_path(child.clone())
         .expect_err("nested child source should be rejected");
-    assert_eq!(child_err, "Source folders cannot be nested");
+    assert!(child_err.contains("Source folders cannot be nested"));
+    assert!(child_err.contains("is inside existing source"));
+    assert!(child_err.contains("Remove or remap the existing source"));
     assert_eq!(controller.library.sources.len(), 1);
 
     let (mut controller, _) = dummy_controller();
@@ -53,7 +55,9 @@ fn adding_source_rejects_nested_source_roots() {
     let parent_err = controller
         .add_source_from_path(parent)
         .expect_err("containing parent source should be rejected");
-    assert_eq!(parent_err, "Source folders cannot be nested");
+    assert!(parent_err.contains("Source folders cannot be nested"));
+    assert!(parent_err.contains("contains existing source"));
+    assert!(parent_err.contains("Remove or remap the existing source"));
     assert_eq!(controller.library.sources.len(), 1);
 }
 

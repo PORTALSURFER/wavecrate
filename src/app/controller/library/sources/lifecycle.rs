@@ -48,13 +48,12 @@ impl AppController {
             );
             return Ok(());
         }
-        if self
+        if let Some(error) = self
             .library
             .sources
             .iter()
-            .any(|s| source_roots_are_nested(&s.root, &normalized))
+            .find_map(|s| nested_source_conflict_error(&s.root, &normalized))
         {
-            let error = String::from("Source folders cannot be nested");
             record_source_lifecycle_event(
                 "sources.add",
                 Some(&source),
@@ -238,14 +237,14 @@ impl AppController {
             );
             return Err(error);
         }
-        if self
+        if let Some(error) = self
             .library
             .sources
             .iter()
             .enumerate()
-            .any(|(i, source)| i != index && source_roots_are_nested(&source.root, &normalized))
+            .filter(|(i, _)| *i != index)
+            .find_map(|(_, source)| nested_source_conflict_error(&source.root, &normalized))
         {
-            let error = String::from("Source folders cannot be nested");
             record_source_lifecycle_event(
                 "sources.remap",
                 Some(existing.id.as_str()),
@@ -387,14 +386,31 @@ fn source_roots_match(existing: &PathBuf, candidate: &PathBuf) -> bool {
     existing == candidate
 }
 
-fn source_roots_are_nested(existing: &PathBuf, candidate: &PathBuf) -> bool {
+fn nested_source_conflict_error(existing: &PathBuf, candidate: &PathBuf) -> Option<String> {
     let Ok(existing) = fs::canonicalize(existing) else {
-        return false;
+        return None;
     };
     let Ok(candidate) = fs::canonicalize(candidate) else {
-        return false;
+        return None;
     };
-    existing.starts_with(&candidate) || candidate.starts_with(&existing)
+    if existing == candidate {
+        return None;
+    }
+    if candidate.starts_with(&existing) {
+        Some(format!(
+            "Source folders cannot be nested: {} is inside existing source {}. Remove or remap the existing source before adding this folder.",
+            candidate.display(),
+            existing.display()
+        ))
+    } else if existing.starts_with(&candidate) {
+        Some(format!(
+            "Source folders cannot be nested: {} contains existing source {}. Remove or remap the existing source before adding this folder.",
+            candidate.display(),
+            existing.display()
+        ))
+    } else {
+        None
+    }
 }
 
 fn record_source_lifecycle_event(
