@@ -3967,7 +3967,9 @@ impl Widget for SampleFileHitTarget {
 
 fn bottom_status_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
     ui::row([
-        ui::text("1 sample").height(20.0).width(120.0),
+        ui::text(selected_sample_count_label(state))
+            .height(20.0)
+            .width(120.0),
         ui::text(bottom_status_text(state))
             .height(20.0)
             .fill_width(),
@@ -3978,6 +3980,11 @@ fn bottom_status_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
     .padding_y(4.0)
     .fill_width()
     .height(30.0)
+}
+
+fn selected_sample_count_label(state: &GuiAppState) -> String {
+    let count = state.folder_browser.selected_audio_file_count();
+    format!("{count} sample{}", if count == 1 { "" } else { "s" })
 }
 
 fn bottom_status_text(state: &GuiAppState) -> String {
@@ -4537,6 +4544,28 @@ mod tests {
             (0.24..=0.35).contains(&progress),
             "spacebar playback should start inside the playmark selection, got {progress}"
         );
+    }
+
+    #[test]
+    fn bottom_status_bar_reports_selected_sample_count() {
+        let mut state = GuiAppState::load_default().expect("default state loads");
+        let empty_frame =
+            radiant::runtime::UiSurface::new(super::bottom_status_bar(&state).into_node()).frame(
+                Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 30.0)),
+                &radiant::theme::ThemeTokens::default(),
+            );
+        assert!(frame_has_text(&empty_frame, "0 samples"));
+        assert!(!frame_has_text(&empty_frame, "1 sample"));
+
+        let sample_path = selected_asset_file_path(&state.folder_browser, "portal_SS_kick_003.wav");
+        state.folder_browser.select_file(sample_path);
+        let selected_frame =
+            radiant::runtime::UiSurface::new(super::bottom_status_bar(&state).into_node()).frame(
+                Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 30.0)),
+                &radiant::theme::ThemeTokens::default(),
+            );
+
+        assert!(frame_has_text(&selected_frame, "1 sample"));
     }
 
     #[test]
