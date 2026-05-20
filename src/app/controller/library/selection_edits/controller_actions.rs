@@ -363,10 +363,27 @@ impl AppController {
     ) -> Result<(), String> {
         match edit {
             DestructiveSelectionEdit::CleanExactDuplicateBeats => {
+                if let Some(audio) = self.sample_view.wav.loaded_audio.as_ref() {
+                    let source = self
+                        .library
+                        .sources
+                        .iter()
+                        .find(|source| source.id == audio.source_id)
+                        .ok_or_else(|| "Source not available for loaded sample".to_string())?;
+                    let absolute_path = source.root.join(&audio.relative_path);
+                    crate::app::controller::library::wav_io::ensure_mono_stereo_wav_destructive_edit_target(
+                        &absolute_path,
+                        "This edit",
+                    )?;
+                }
                 self.exact_duplicate_cleanup_ranges().map(|_| ())
             }
             DestructiveSelectionEdit::CommitEditSelectionFades => {
-                self.selection_target()?;
+                let target = self.selection_target()?;
+                crate::app::controller::library::wav_io::ensure_mono_stereo_wav_destructive_edit_target(
+                    &target.absolute_path,
+                    "This edit",
+                )?;
                 let Some(selection) = self.ui.waveform.edit_selection else {
                     return Err("Set an edit selection with a fade before applying it".to_string());
                 };
@@ -376,7 +393,11 @@ impl AppController {
                 Ok(())
             }
             _ => {
-                self.selection_target()?;
+                let target = self.selection_target()?;
+                crate::app::controller::library::wav_io::ensure_mono_stereo_wav_destructive_edit_target(
+                    &target.absolute_path,
+                    "This edit",
+                )?;
                 Ok(())
             }
         }

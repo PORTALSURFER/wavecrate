@@ -9,7 +9,7 @@ use crate::app_core::native_shell::project_browser_model;
 use crate::app_core::state::StatusTone;
 use crate::sample_sources::SampleSoundType;
 use crate::selection::SelectionRange;
-use hound::WavReader;
+use hound::{SampleFormat, WavReader, WavSpec, WavWriter};
 use std::path::Path;
 use std::time::{Duration, Instant};
 
@@ -370,6 +370,41 @@ fn destructive_edit_request_prompts_without_yolo_mode() {
 }
 
 #[test]
+fn destructive_edit_request_blocks_multichannel_wav_before_prompt() {
+    let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
+        "surround.wav",
+        crate::sample_sources::Rating::NEUTRAL,
+    )]);
+    let wav_path = source.root.join("surround.wav");
+    write_test_wav_with_spec(
+        &wav_path,
+        WavSpec {
+            channels: 3,
+            sample_rate: 44_100,
+            bits_per_sample: 32,
+            sample_format: SampleFormat::Float,
+        },
+        &[0.0, 0.1, 0.2, 0.3, 0.4, 0.5],
+    );
+    controller
+        .load_waveform_for_selection(&source, Path::new("surround.wav"))
+        .unwrap();
+    controller.ui.waveform.selection = Some(SelectionRange::new(0.0, 0.5));
+    controller.set_destructive_yolo_mode(false);
+
+    let err = match controller
+        .request_destructive_selection_edit(DestructiveSelectionEdit::CropSelection)
+    {
+        Ok(_) => panic!("multichannel destructive edit should be blocked"),
+        Err(err) => err,
+    };
+
+    assert!(err.contains("mono or stereo"));
+    assert!(err.contains("3 channels"));
+    assert!(controller.ui.waveform.pending_destructive.is_none());
+}
+
+#[test]
 fn yolo_mode_applies_destructive_edit_immediately() {
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![sample_entry(
         "yolo.wav",
@@ -396,6 +431,14 @@ fn yolo_mode_applies_destructive_edit_immediately() {
         .map(|sample| sample.unwrap())
         .collect();
     assert_eq!(samples, vec![0.2, 0.3]);
+}
+
+fn write_test_wav_with_spec(path: &Path, spec: WavSpec, samples: &[f32]) {
+    let mut writer = WavWriter::create(path, spec).expect("create wav");
+    for sample in samples {
+        writer.write_sample(*sample).expect("write sample");
+    }
+    writer.finalize().expect("finalize wav");
 }
 
 #[test]
