@@ -8,9 +8,9 @@ use radiant::{
     runtime::{PaintFillRect, PaintPrimitive, PaintStrokeRect},
     theme::ThemeTokens,
     widgets::{
-        DragHandleMessage, FocusBehavior, PaintBounds, PointerButton, PointerModifiers,
-        TextInputMessage, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
-        WidgetStyle, WidgetTone,
+        ButtonMessage, DragHandleMessage, FocusBehavior, PaintBounds, PointerButton,
+        PointerModifiers, TextInputMessage, Widget, WidgetCommon, WidgetInput, WidgetOutput,
+        WidgetSizing, WidgetStyle, WidgetTone,
     },
 };
 use std::{
@@ -151,6 +151,32 @@ impl FolderBrowserState {
             .collect()
     }
 
+    pub(super) fn source_root_path(&self, source_id: &str) -> Option<PathBuf> {
+        self.sources
+            .iter()
+            .find(|source| source.id == source_id)
+            .map(|source| source.root.clone())
+    }
+
+    pub(super) fn folder_path(&self, folder_id: &str) -> Option<PathBuf> {
+        self.find_folder(folder_id)
+            .map(|folder| PathBuf::from(&folder.id))
+    }
+
+    pub(super) fn context_sample_path(&self, file_id: &str) -> Option<PathBuf> {
+        if self.selected_file_ids.contains(file_id)
+            && let Some(focused) = self.selected_file.as_deref()
+            && self.selected_file_ids.contains(focused)
+        {
+            return Some(PathBuf::from(focused));
+        }
+
+        self.selected_audio_files()
+            .into_iter()
+            .find(|file| file.id == file_id)
+            .map(|file| PathBuf::from(&file.id))
+    }
+
     pub(super) fn is_file_selected(&self, file_id: &str) -> bool {
         if self.selected_file_ids.is_empty() {
             return self.selected_file.as_deref() == Some(file_id);
@@ -286,6 +312,7 @@ impl FolderBrowserState {
         match message {
             FolderBrowserMessage::AddSource
             | FolderBrowserMessage::SelectSource(_)
+            | FolderBrowserMessage::OpenSourceContextMenu(_, _)
             | FolderBrowserMessage::BeginRenameSelected
             | FolderBrowserMessage::BeginCreateSubfolder
             | FolderBrowserMessage::RenameInput(_)
@@ -300,6 +327,7 @@ impl FolderBrowserState {
                 self.cancel_rename();
                 self.activate_folder(id);
             }
+            FolderBrowserMessage::OpenFolderContextMenu(_, _) => {}
             FolderBrowserMessage::DragFolder(id, message) => {
                 self.apply_folder_drag(id, message);
             }
@@ -1861,7 +1889,9 @@ struct VisibleFolder {
 pub(super) enum FolderBrowserMessage {
     AddSource,
     SelectSource(String),
+    OpenSourceContextMenu(String, Point),
     ActivateFolder(String),
+    OpenFolderContextMenu(String, Point),
     DragFolder(String, DragHandleMessage),
     HoverDropTarget(String),
     ClearDropTarget,
@@ -1994,6 +2024,8 @@ fn source_selector(state: &FolderBrowserState) -> ui::View<GuiMessage> {
 
 fn source_row(state: &FolderBrowserState, source: &SourceEntry) -> ui::View<GuiMessage> {
     let id = source.id.clone();
+    let row_key = source.id.clone();
+    let menu_id = source.id.clone();
     let selected = state.selected_source == source.id;
     let label = if source.loading_task.is_some() {
         format!("{} (scanning)", source.label)
@@ -2001,10 +2033,14 @@ fn source_row(state: &FolderBrowserState, source: &SourceEntry) -> ui::View<GuiM
         source.label.clone()
     };
     let mut row = ui::button(label)
-        .message(GuiMessage::FolderBrowser(
-            FolderBrowserMessage::SelectSource(id.clone()),
-        ))
-        .key(format!("source-row-{id}"))
+        .secondary_clicks()
+        .mapped(move |message| match message {
+            ButtonMessage::SecondaryActivate { position } => GuiMessage::FolderBrowser(
+                FolderBrowserMessage::OpenSourceContextMenu(menu_id.clone(), position),
+            ),
+            _ => GuiMessage::FolderBrowser(FolderBrowserMessage::SelectSource(id.clone())),
+        })
+        .key(format!("source-row-{row_key}"))
         .fill_width()
         .height(24.0);
     if selected {
@@ -2070,6 +2106,9 @@ fn folder_row(folder: VisibleFolder) -> ui::View<GuiMessage> {
             FolderTreeHitMessage::Activate => {
                 GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateFolder(hit_id.clone()))
             }
+            FolderTreeHitMessage::ContextMenu(position) => GuiMessage::FolderBrowser(
+                FolderBrowserMessage::OpenFolderContextMenu(hit_id.clone(), position),
+            ),
             FolderTreeHitMessage::Drag(drag) => {
                 GuiMessage::FolderBrowser(FolderBrowserMessage::DragFolder(hit_id.clone(), drag))
             }
@@ -2112,6 +2151,7 @@ fn folder_row(folder: VisibleFolder) -> ui::View<GuiMessage> {
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum FolderTreeHitMessage {
     Activate,
+    ContextMenu(Point),
     Drag(DragHandleMessage),
     Drop,
     HoverDropTarget,
@@ -2181,6 +2221,18 @@ impl Widget for FolderTreeHitTarget {
                 self.common.state.pressed = true;
                 self.dragged = false;
                 None
+            }
+            WidgetInput::PointerPress {
+                position,
+                button: PointerButton::Secondary,
+                ..
+            } if bounds.contains(position) => {
+                self.common.state.hovered = true;
+                self.common.state.pressed = false;
+                self.dragged = false;
+                Some(WidgetOutput::typed(FolderTreeHitMessage::ContextMenu(
+                    position,
+                )))
             }
             WidgetInput::PointerRelease {
                 position,

@@ -73,6 +73,10 @@ enum GuiMessage {
         path: String,
         modifiers: PointerModifiers,
     },
+    OpenSampleContextMenu {
+        path: String,
+        position: Point,
+    },
     DragSampleFile {
         path: String,
         drag: DragHandleMessage,
@@ -90,6 +94,9 @@ enum GuiMessage {
     SetAudioOutputSampleRate(Option<u32>),
     NormalizeSelectedSamples,
     CopySelectedFiles,
+    CopyContextPath,
+    OpenContextTarget,
+    CloseContextMenu,
     FocusRenameInput(u64),
     DeleteSelectedItem,
     ExtractPlaymarkedRange,
@@ -109,6 +116,21 @@ enum GuiMessage {
 struct SampleLoadResult {
     path: String,
     result: Result<WaveformState, String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum BrowserContextTargetKind {
+    Source,
+    Folder,
+    Sample,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct BrowserContextMenu {
+    kind: BrowserContextTargetKind,
+    path: PathBuf,
+    anchor: Point,
+    title: String,
 }
 
 impl PartialEq for SampleLoadResult {
@@ -138,6 +160,7 @@ struct GuiAppState {
     audio_devices: Vec<AudioDeviceSummary>,
     audio_sample_rates: Vec<u32>,
     audio_settings_open: bool,
+    context_menu: Option<BrowserContextMenu>,
     audio_settings_error: Option<String>,
     current_playback_span: Option<(f32, f32)>,
 }
@@ -167,6 +190,7 @@ impl GuiAppState {
             audio_devices: Vec::new(),
             audio_sample_rates: Vec::new(),
             audio_settings_open: false,
+            context_menu: None,
             audio_settings_error: None,
             current_playback_span: None,
         };
@@ -228,8 +252,13 @@ impl GuiAppState {
                 self.add_source_from_dialog(context);
             }
             GuiMessage::FolderBrowser(FolderBrowserMessage::SelectSource(id)) => {
+                self.context_menu = None;
                 self.select_source(id, context);
             }
+            GuiMessage::FolderBrowser(FolderBrowserMessage::OpenSourceContextMenu(
+                source_id,
+                position,
+            )) => self.open_source_context_menu(source_id, position),
             GuiMessage::FolderBrowser(FolderBrowserMessage::BeginRenameSelected) => {
                 let started_at = Instant::now();
                 let target = self.folder_browser.selected_rename_target();
@@ -350,9 +379,15 @@ impl GuiAppState {
                 }
             }
             GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnFolder(folder_id)) => {
+                self.context_menu = None;
                 self.drop_browser_drag_on_folder(folder_id, context);
             }
+            GuiMessage::FolderBrowser(FolderBrowserMessage::OpenFolderContextMenu(
+                folder_id,
+                position,
+            )) => self.open_folder_context_menu(folder_id, position),
             GuiMessage::FolderBrowser(FolderBrowserMessage::DragFolder(folder_id, drag)) => {
+                self.context_menu = None;
                 self.drag_folder(folder_id, drag, context);
             }
             GuiMessage::FolderBrowser(message) => self.folder_browser.apply_message(message),
@@ -399,9 +434,14 @@ impl GuiAppState {
             }
             GuiMessage::FolderScanFinished(result) => self.finish_folder_scan(result),
             GuiMessage::SelectSampleWithModifiers { path, modifiers } => {
+                self.context_menu = None;
                 self.select_sample_with_modifiers(path, modifiers, context);
             }
+            GuiMessage::OpenSampleContextMenu { path, position } => {
+                self.open_sample_context_menu(path, position);
+            }
             GuiMessage::DragSampleFile { path, drag } => {
+                self.context_menu = None;
                 self.drag_sample_file(path, drag, context);
             }
             GuiMessage::ExternalDragCompleted(result) => self.external_drag_completed(result),
@@ -421,6 +461,11 @@ impl GuiAppState {
             }
             GuiMessage::NormalizeSelectedSamples => self.normalize_selected_samples(),
             GuiMessage::CopySelectedFiles => self.copy_selected_files(),
+            GuiMessage::CopyContextPath => self.copy_context_path(),
+            GuiMessage::OpenContextTarget => self.open_context_target(),
+            GuiMessage::CloseContextMenu => {
+                self.context_menu = None;
+            }
             GuiMessage::FocusRenameInput(input_id) => {
                 let started_at = Instant::now();
                 context.focus(input_id);
@@ -1090,6 +1135,158 @@ impl GuiAppState {
                     "browser.copy_selected_files",
                     Some("browser"),
                     None,
+                    "error",
+                    started_at,
+                    Some(&error),
+                );
+            }
+        }
+    }
+
+    fn open_source_context_menu(&mut self, source_id: String, position: Point) {
+        let started_at = Instant::now();
+        let Some(path) = self.folder_browser.source_root_path(&source_id) else {
+            self.sample_status = String::from("Source is unavailable");
+            emit_gui_action(
+                "browser.context_menu.source.open",
+                Some("sources"),
+                None,
+                "error",
+                started_at,
+                Some("source unavailable"),
+            );
+            return;
+        };
+        let title = path
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_else(|| path.display().to_string());
+        self.context_menu = Some(BrowserContextMenu {
+            kind: BrowserContextTargetKind::Source,
+            path,
+            anchor: position,
+            title,
+        });
+    }
+
+    fn open_folder_context_menu(&mut self, folder_id: String, position: Point) {
+        let started_at = Instant::now();
+        self.folder_browser
+            .apply_message(FolderBrowserMessage::ActivateFolder(folder_id.clone()));
+        let Some(path) = self.folder_browser.folder_path(&folder_id) else {
+            self.sample_status = String::from("Folder is unavailable");
+            emit_gui_action(
+                "browser.context_menu.folder.open",
+                Some("folder_browser"),
+                None,
+                "error",
+                started_at,
+                Some("folder unavailable"),
+            );
+            return;
+        };
+        let title = path
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_else(|| path.display().to_string());
+        self.context_menu = Some(BrowserContextMenu {
+            kind: BrowserContextTargetKind::Folder,
+            path,
+            anchor: position,
+            title,
+        });
+    }
+
+    fn open_sample_context_menu(&mut self, path: String, position: Point) {
+        let started_at = Instant::now();
+        self.folder_browser
+            .focus_file_preserving_selection(path.clone());
+        let Some(path) = self.folder_browser.context_sample_path(&path) else {
+            self.sample_status = String::from("Sample is unavailable");
+            emit_gui_action(
+                "browser.context_menu.sample.open",
+                Some("browser"),
+                None,
+                "error",
+                started_at,
+                Some("sample unavailable"),
+            );
+            return;
+        };
+        let title = sample_path_label(&path);
+        self.context_menu = Some(BrowserContextMenu {
+            kind: BrowserContextTargetKind::Sample,
+            path,
+            anchor: position,
+            title,
+        });
+    }
+
+    fn copy_context_path(&mut self) {
+        let started_at = Instant::now();
+        let Some(menu) = self.context_menu.take() else {
+            return;
+        };
+        let path_text = format_copy_path(&menu.path);
+        match external_clipboard::copy_text(&path_text) {
+            Ok(()) => {
+                self.sample_status = String::from("Copied path");
+                emit_gui_action(
+                    "browser.context_menu.copy_path",
+                    Some(context_menu_pane(&menu.kind)),
+                    Some(context_menu_target_label(&menu.path).as_str()),
+                    "success",
+                    started_at,
+                    None,
+                );
+            }
+            Err(error) => {
+                self.sample_status = format!("Copy path failed: {error}");
+                emit_gui_action(
+                    "browser.context_menu.copy_path",
+                    Some(context_menu_pane(&menu.kind)),
+                    Some(context_menu_target_label(&menu.path).as_str()),
+                    "error",
+                    started_at,
+                    Some(&error),
+                );
+            }
+        }
+    }
+
+    fn open_context_target(&mut self) {
+        let started_at = Instant::now();
+        let Some(menu) = self.context_menu.take() else {
+            return;
+        };
+        let result = match menu.kind {
+            BrowserContextTargetKind::Source | BrowserContextTargetKind::Folder => {
+                open_folder_in_file_explorer(&menu.path)
+            }
+            BrowserContextTargetKind::Sample => reveal_in_file_explorer(&menu.path),
+        };
+        match result {
+            Ok(()) => {
+                self.sample_status = match menu.kind {
+                    BrowserContextTargetKind::Sample => String::from("Revealed sample"),
+                    BrowserContextTargetKind::Source => String::from("Opened source folder"),
+                    BrowserContextTargetKind::Folder => String::from("Opened folder"),
+                };
+                emit_gui_action(
+                    "browser.context_menu.open_explorer",
+                    Some(context_menu_pane(&menu.kind)),
+                    Some(context_menu_target_label(&menu.path).as_str()),
+                    "success",
+                    started_at,
+                    None,
+                );
+            }
+            Err(error) => {
+                self.sample_status = error.clone();
+                emit_gui_action(
+                    "browser.context_menu.open_explorer",
+                    Some(context_menu_pane(&menu.kind)),
+                    Some(context_menu_target_label(&menu.path).as_str()),
                     "error",
                     started_at,
                     Some(&error),
@@ -2000,6 +2197,121 @@ fn sample_path_label(path: impl AsRef<Path>) -> String {
         .unwrap_or_else(|| path.display().to_string())
 }
 
+fn context_menu_target_label(path: &Path) -> String {
+    path.file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_else(|| path.display().to_string())
+}
+
+fn context_menu_pane(kind: &BrowserContextTargetKind) -> &'static str {
+    match kind {
+        BrowserContextTargetKind::Source => "sources",
+        BrowserContextTargetKind::Folder => "folder_browser",
+        BrowserContextTargetKind::Sample => "browser",
+    }
+}
+
+fn format_copy_path(path: &Path) -> String {
+    let mut rendered = path.to_string_lossy().replace('\\', "/");
+    if rendered.contains(' ') {
+        rendered = format!("\"{rendered}\"");
+    }
+    rendered
+}
+
+fn reveal_in_file_explorer(path: &Path) -> Result<(), String> {
+    if !path.exists() {
+        return Err(format!("File not found: {}", path.display()));
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let status = process::Command::new("explorer.exe")
+            .arg(format!("/select,{}", windows_explorer_target(path)))
+            .status()
+            .map_err(|err| format!("Failed to launch explorer: {err}"))?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(format!(
+                "Explorer exited unsuccessfully for {}",
+                path.display()
+            ))
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let status = process::Command::new("open")
+            .arg("-R")
+            .arg(path)
+            .status()
+            .map_err(|err| format!("Failed to launch Finder: {err}"))?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(format!(
+                "Finder exited unsuccessfully for {}",
+                path.display()
+            ))
+        }
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        let parent = path
+            .parent()
+            .ok_or_else(|| "Unable to resolve parent directory".to_string())?;
+        open::that(parent)
+            .map_err(|err| format!("Could not open folder {}: {err}", parent.display()))
+    }
+}
+
+fn open_folder_in_file_explorer(path: &Path) -> Result<(), String> {
+    if !path.exists() {
+        return Err(format!("Folder not found: {}", path.display()));
+    }
+    if !path.is_dir() {
+        return Err(format!("Not a folder: {}", path.display()));
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let status = process::Command::new("explorer.exe")
+            .arg(windows_explorer_target(path))
+            .status()
+            .map_err(|err| format!("Failed to launch explorer: {err}"))?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(format!(
+                "Explorer exited unsuccessfully for {}",
+                path.display()
+            ))
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let status = process::Command::new("open")
+            .arg(path)
+            .status()
+            .map_err(|err| format!("Failed to launch Finder: {err}"))?;
+        if status.success() {
+            Ok(())
+        } else {
+            Err(format!(
+                "Finder exited unsuccessfully for {}",
+                path.display()
+            ))
+        }
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        open::that(path).map_err(|err| format!("Could not open folder {}: {err}", path.display()))
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn windows_explorer_target(path: &Path) -> String {
+    path.to_string_lossy().replace('/', "\\")
+}
+
 fn normalize_wav_file_in_place(path: &Path) -> Result<(), String> {
     ensure_normalizable_wav(path)?;
     let reader_source = wavecrate::wav_sanitize::open_sanitized_wav(path)?;
@@ -2239,11 +2551,67 @@ fn view(state: &mut GuiAppState) -> ui::View<GuiMessage> {
     if state.audio_settings_open {
         layers.push(audio_settings_popover(state));
     }
+    if let Some(menu) = state.context_menu.as_ref() {
+        layers.push(browser_context_menu_overlay(menu));
+    }
     if layers.len() > 1 {
         ui::stack(layers).fill()
     } else {
         layers.pop().expect("view should contain base content")
     }
+}
+
+fn browser_context_menu_overlay(menu: &BrowserContextMenu) -> ui::View<GuiMessage> {
+    let action_label = match menu.kind {
+        BrowserContextTargetKind::Source | BrowserContextTargetKind::Folder => "Open in Explorer",
+        BrowserContextTargetKind::Sample => "Reveal in Explorer",
+    };
+    let top = menu.anchor.y.max(0.0);
+    let left = menu.anchor.x.max(0.0);
+    ui::column([
+        ui::spacer().fill_width().height(top),
+        ui::row([
+            ui::spacer().width(left).height(1.0),
+            ui::column([
+                ui::text(menu.title.clone())
+                    .height(22.0)
+                    .fill_width()
+                    .truncate(),
+                ui::button(action_label)
+                    .message(GuiMessage::OpenContextTarget)
+                    .key("browser-context-open-explorer")
+                    .fill_width()
+                    .height(28.0),
+                ui::button("Copy Path")
+                    .message(GuiMessage::CopyContextPath)
+                    .key("browser-context-copy-path")
+                    .fill_width()
+                    .height(28.0),
+            ])
+            .style(ui::WidgetStyle {
+                tone: ui::WidgetTone::Accent,
+                prominence: ui::WidgetProminence::Strong,
+            })
+            .padding(8.0)
+            .spacing(5.0)
+            .size(210.0, 104.0),
+            ui::button("")
+                .message(GuiMessage::CloseContextMenu)
+                .key("browser-context-dismiss-right")
+                .input_only()
+                .fill_width()
+                .height(104.0),
+        ])
+        .fill_width()
+        .height(104.0),
+        ui::button("")
+            .message(GuiMessage::CloseContextMenu)
+            .key("browser-context-dismiss-bottom")
+            .input_only()
+            .fill_width()
+            .fill_height(),
+    ])
+    .fill()
 }
 
 fn folder_drag_preview_overlay(preview: folder_browser::FolderDragPreview) -> ui::View<GuiMessage> {
@@ -2263,6 +2631,13 @@ fn default_gui_shortcut_resolution(
 ) -> ui::ShortcutResolution<GuiMessage> {
     if state.folder_browser.rename_active() {
         ui::ShortcutResolution::unhandled()
+    } else if state.context_menu.is_some() {
+        ui::ShortcutLayer::modal()
+            .bind(
+                ui::KeyPress::new(ui::KeyCode::Escape),
+                GuiMessage::CloseContextMenu,
+            )
+            .resolve(press)
     } else if state.audio_settings_open {
         ui::ShortcutLayer::modal()
             .bind(
@@ -2297,6 +2672,10 @@ fn default_gui_shortcut_resolution(
             .bind(
                 ui::KeyPress::new(ui::KeyCode::E),
                 GuiMessage::ExtractPlaymarkedRange,
+            )
+            .bind(
+                ui::KeyPress::new(ui::KeyCode::L),
+                GuiMessage::ToggleLoopPlayback,
             )
             .bind(ui::KeyPress::new(ui::KeyCode::N), n_action)
             .bind(
@@ -3024,6 +3403,10 @@ fn sample_browser_row(
                         modifiers,
                     }
                 }
+                SampleFileHitMessage::ContextMenu(position) => GuiMessage::OpenSampleContextMenu {
+                    path: hit_path.clone(),
+                    position,
+                },
                 SampleFileHitMessage::Drag(drag) => GuiMessage::DragSampleFile {
                     path: hit_path.clone(),
                     drag,
@@ -3157,6 +3540,7 @@ struct SampleFileHitTarget {
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum SampleFileHitMessage {
     Activate(PointerModifiers),
+    ContextMenu(Point),
     Drag(DragHandleMessage),
 }
 
@@ -3208,6 +3592,18 @@ impl Widget for SampleFileHitTarget {
                 self.common.state.pressed = true;
                 self.dragged = false;
                 None
+            }
+            WidgetInput::PointerPress {
+                position,
+                button: PointerButton::Secondary,
+                ..
+            } if bounds.contains(position) => {
+                self.common.state.hovered = true;
+                self.common.state.pressed = false;
+                self.dragged = false;
+                Some(WidgetOutput::typed(SampleFileHitMessage::ContextMenu(
+                    position,
+                )))
             }
             WidgetInput::PointerRelease {
                 position,
@@ -3416,6 +3812,7 @@ mod tests {
             audio_devices: Vec::new(),
             audio_sample_rates: Vec::new(),
             audio_settings_open: false,
+            context_menu: None,
             audio_settings_error: None,
             current_playback_span: None,
         }
@@ -3499,6 +3896,35 @@ mod tests {
     }
 
     #[test]
+    fn context_menu_escape_shortcut_closes_context_menu() {
+        let mut state = GuiAppState::load_default().expect("default state loads");
+        state.context_menu = Some(super::BrowserContextMenu {
+            kind: super::BrowserContextTargetKind::Sample,
+            path: std::path::PathBuf::from("C:\\samples\\kick.wav"),
+            anchor: Point::new(12.0, 24.0),
+            title: String::from("kick.wav"),
+        });
+
+        let resolution =
+            super::default_gui_shortcut_resolution(&state, ui::KeyPress::new(ui::KeyCode::Escape));
+
+        assert_eq!(resolution.action, Some(super::GuiMessage::CloseContextMenu));
+        assert!(resolution.handled);
+    }
+
+    #[test]
+    fn format_copy_path_uses_forward_slashes_and_quotes_spaces() {
+        assert_eq!(
+            super::format_copy_path(std::path::Path::new("C:\\sample folder\\kick.wav")),
+            "\"C:/sample folder/kick.wav\""
+        );
+        assert_eq!(
+            super::format_copy_path(std::path::Path::new("C:\\samples\\kick.wav")),
+            "C:/samples/kick.wav"
+        );
+    }
+
+    #[test]
     fn copy_shortcut_routes_to_browser_file_handoff() {
         let state = GuiAppState::load_default().expect("default state loads");
         let resolution = super::default_gui_shortcut_resolution(
@@ -3529,6 +3955,19 @@ mod tests {
     }
 
     #[test]
+    fn loop_shortcut_routes_to_loop_toggle() {
+        let state = GuiAppState::load_default().expect("default state loads");
+        let resolution =
+            super::default_gui_shortcut_resolution(&state, ui::KeyPress::new(ui::KeyCode::L));
+
+        assert_eq!(
+            resolution.action,
+            Some(super::GuiMessage::ToggleLoopPlayback)
+        );
+        assert!(resolution.handled);
+    }
+
+    #[test]
     fn folder_browser_splitter_resizes_and_clamps_width() {
         let mut state = GuiAppState {
             folder_width: DEFAULT_FOLDER_WIDTH,
@@ -3551,6 +3990,7 @@ mod tests {
             audio_devices: Vec::new(),
             audio_sample_rates: Vec::new(),
             audio_settings_open: false,
+            context_menu: None,
             audio_settings_error: None,
             current_playback_span: None,
         };
@@ -3676,6 +4116,7 @@ mod tests {
             audio_devices: Vec::new(),
             audio_sample_rates: Vec::new(),
             audio_settings_open: false,
+            context_menu: None,
             audio_settings_error: None,
             current_playback_span: None,
         };
