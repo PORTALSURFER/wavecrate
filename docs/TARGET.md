@@ -325,6 +325,8 @@ The target includes:
 
 Wavecrate should provide an audio engine/output configuration menu similar in spirit to Ableton Live's audio preferences and export/write settings.
 
+The audio engine/output configuration UI should open as its own movable application window, not only as an inline panel or dropdown inside the main browser. The user should be able to move it independently while keeping the main Wavecrate window visible, so device, backend, sample-rate, and write-format settings can be adjusted while inspecting the current sample context.
+
 The user should be able to choose the active Windows audio engine/backend where available, such as WASAPI or ASIO, then choose the output device exposed by that backend. Wavecrate should also expose the write-format settings used when it creates or rewrites audio files.
 
 Write-format settings should include at minimum:
@@ -779,7 +781,7 @@ Undo/redo should cover:
 - move/copy/export/trash operations
 - folder operations where practical
 
-Transport play/stop/restart, momentary playback position, ordinary seek state, browser focus, row selection, source/folder navigation, browser position, waveform scroll/zoom position, cursor movement, and ordinary view switching should not be undoable by default. Undo should restore metadata, file, rating, collection, edit, workflow-flag, and play/edit selection context, but it should not behave like a transport or browsing history.
+Transport play/stop/restart, momentary playback position, ordinary seek state, browser focus, row selection, source/folder navigation, browser position, waveform scroll/zoom position, cursor movement, ordinary view switching, Open/Reveal in Explorer actions, and Copy Path actions should not be undoable by default. Opening or revealing a file, folder, or source in the platform file manager and copying a path string to the clipboard are external non-mutating utility actions, not Wavecrate state. Undo should restore metadata, file, rating, collection, edit, workflow-flag, and play/edit selection context, but it should not behave like a transport, browsing history, external-app launch, or clipboard utility history.
 
 Undo/redo should be transaction-based. A user action should either complete as a coherent operation or fail in a recoverable way. Partial failures should be logged and reported clearly.
 
@@ -1105,6 +1107,20 @@ When a source-add request is rejected because it is nested with an existing sour
 
 Removing a source from Wavecrate should remove it from the indexed source list but should not delete audio files from disk. Source removal should be available from the source's context menu as `Remove Source` and should act as the explicit cancel/remove path for a source that was just added. It should stop file watching, stop or cancel in-progress scan/indexing/background jobs for that source, and ignore stale completions from those jobs. Source removal can happen immediately without confirmation because it only removes Wavecrate's active index reference and does not delete files. The result status should make that boundary clear, such as by saying the source was removed from Wavecrate and files were left on disk.
 
+Source items should have a context menu with an "Open in Explorer" action on Windows. This should open the source root folder in Explorer so users can inspect files, manually back up `.wavecrate.db`, or manage the folder outside Wavecrate. Future platforms should provide the equivalent reveal/open-in-file-manager action.
+
+Sample rows should have a context menu with a "Reveal in Explorer" action on Windows. This should open Explorer at the containing folder and select the specific audio file where the platform supports file selection. If the file is missing or unavailable, Wavecrate should show the missing-file state and offer source reconciliation or cleanup actions instead of opening an invalid path.
+
+Folder rows in the folder tree should also have an "Open in Explorer" context-menu action on Windows. This should open the actual folder path in Explorer. If the folder is missing or unavailable, Wavecrate should show the missing-folder/source state and offer reconciliation, relink, rescan, or cleanup actions instead of opening an invalid path.
+
+The context-menu labels should be standardized: sources and folders use "Open in Explorer"; sample files use "Reveal in Explorer". When multiple rows are selected, these Explorer actions should operate on only one item: the focused row if it is part of the relevant selection, otherwise the first selected row in visible order. They should not open multiple Explorer windows in the current target.
+
+Source items, folder rows, and sample rows should also have a shared "Copy Path" context-menu action for path copying. This should copy the real absolute filesystem path as text to the normal text clipboard only. Copied paths should use forward slashes as separators, including on Windows. If the copied path contains spaces, Wavecrate should wrap the copied path in standard double quotes, for example `"C:/sample folder/kick.wav"`. Paths without spaces should be copied unquoted. For sample rows it should copy the selected file path; for folder rows it should copy the folder path; for source rows it should copy the source root path. It should not copy source-relative paths in the current target. This is distinct from clipboard audio/file handoff, which places files on the system clipboard for DAWs or Explorer.
+
+When multiple rows are selected, "Copy Path" should copy only one path: the focused row if it is part of the relevant selection, otherwise the first selected row in visible order. It should not copy multiple newline-separated paths in the current target.
+
+"Copy Path" should be allowed for existing files even when they have a duplicate embedded-ID conflict, because reveal/inspection actions remain allowed for that blocked state. For missing or unavailable file records, Wavecrate should not offer a path-copy action.
+
 If the root folder for a configured source is moved, renamed, deleted, disconnected, or otherwise unavailable outside Wavecrate, Wavecrate should mark the source as broken or missing in the source list and folder tree. The UI should not silently drop the source, delete its metadata, or pretend the source is empty.
 
 Wavecrate should not allow a configured source root to be copied, moved, or renamed through ordinary in-app folder commands. Source-root location and duplication workflows should go through explicit source relink, remove, source-swap, backup, or export/source-management flows so `.wavecrate.db` ownership, file watching, scan state, and source identity stay clear. Ordinary in-app folder copy/move/rename remains available for folders inside a source root.
@@ -1139,6 +1155,8 @@ If a later Wavecrate version adds support for a format that was previously class
 
 Initial scan/indexing should queue the fingerprint work needed for exact duplicate grouping where practical. Duplicate fingerprinting should run in background work, stream status like other indexing work, and mark duplicate state incrementally as matching available files are found. It should not block source scanning completion, folder browsing, sample auditioning, editing, extraction, tagging, rating, or handoff. Users should also be able to trigger manual duplicate analysis for selected files, folders, sources, or the whole indexed library.
 
+Initial scan/indexing should also queue waveform and playback-readiness pre-cache work for supported audio files where practical. This pre-cache work should run as background loading work after or alongside discovery so newly scanned folders become fast to browse and audition. It should prioritize the active source, active folder, visible rows, and likely next selections first, then expand through the rest of the source in the background. It should stream progress like other indexing work, persist its cache outputs across application restarts, and avoid blocking file discovery, folder browsing, selection changes, foreground waveform loads, playback, editing, extraction, tagging, rating, or handoff.
+
 File watching should update source state when files are created, removed, renamed, moved, or modified outside Wavecrate. External changes should become visible in the folder tree, sample list, filters, and later similarity map as close to immediately as practical without requiring a manual rescan.
 
 The watcher should cover ordinary source-folder changes, including:
@@ -1163,6 +1181,22 @@ External filesystem changes detected by file watching or rescan should be reconc
 When a file is changed outside Wavecrate, Wavecrate should invalidate stale waveform, audio-analysis, BPM, transient, silence, similarity, embedded-ID, and display-name-derived state as needed. It should not silently reuse stale analysis for changed audio.
 
 Scan progress should expose queued, active, completed, skipped, failed, and cancelled counts. Users should be able to keep browsing while scanning continues in the background.
+
+Waveform and playback-readiness cache/pre-cache progress should be visible both globally and per item. The bottom status bar should include a compact background-job progress bar for scanning, indexing, and cache preparation work. The visible progress bar should represent one current job at a time rather than combining unrelated concurrent job types into a misleading aggregate. If several job types are active, the visible status-bar job should prefer foreground/current-selection work first, active-folder work second, and source-wide background work after that. The indicator should show successive job progress as queued jobs run, so a sequence of small background jobs can appear as repeated fills while broader queue counts live in the details popover.
+
+The status-bar background-job indicator should provide a direct way to pause and resume non-critical background work such as pre-caching. This may be a small pause/resume button on the indicator, a click target, or a right-click context menu. Pausing background work should not cancel the currently selected foreground file load, prevent selected-file loading from starting, or block urgent user-requested work. The pause is session-local, should not auto-resume because the user is idle, and should reset to enabled on the next application launch.
+
+Background scan, indexing, and pre-cache jobs should continue while Wavecrate is minimized unless the user manually pauses them, the operating system suspends the process, or the app is shutting down.
+
+On application shutdown, non-critical background scan, indexing, and pre-cache jobs should cancel quickly rather than making shutdown wait for long work to finish. Wavecrate should persist enough state to know what completed, what failed, and what remains stale or incomplete, then requeue needed work on the next launch for enabled and available sources. Broken, disabled, or missing sources should be skipped and marked instead of creating retry churn.
+
+Clicking the status-bar job indicator should open a compact job-details popover or equivalent surface. It should show the active job type, current file or folder where useful, queued count, completed count, skipped count, failed count, cancelled count, and pause/resume controls. It should include compact actions for failed background work, such as retry failed jobs and open diagnostics. Retrying failed jobs from the normal job popover should retry failed work in the current source/folder context by default. A broader global retry-all-failed action may live in diagnostics or maintenance UI. The popover should be concise enough for normal use but provide enough context that users can understand why the progress bar is moving or stuck.
+
+Individual sample rows should show subtle readiness indicators for pending, active, ready, stale, failed, or unsupported cache state where practical, without making the list visually noisy.
+
+If a background waveform/playback-readiness pre-cache job fails for a file, Wavecrate may retry a small bounded number of times. After the retry limit, it should mark that file's cache/pre-cache state as failed and stop retrying until the file changes, the cache version/settings change, or the user explicitly triggers rescan, rebuild, or retry. A failed background pre-cache job should not make the file disappear or block other background work.
+
+Selecting a file should be treated as an explicit foreground request even if its background pre-cache state is failed. Wavecrate should attempt one fresh foreground load for the selected file before treating it as unavailable for waveform/playback use. If that foreground load fails, the UI should show a clear selected-file load failure with any available retry, reveal, rescan, or diagnostics actions.
 
 ## Selection, Search, and Filter Semantics
 
@@ -1270,6 +1304,8 @@ Wavecrate should support clipboard-based audio handoff.
 When the user selects one or more supported sample files in the sample browser and presses copy, Wavecrate should place those files on the system clipboard in a format that DAWs and Explorer can consume as ordinary audio files.
 
 Playback-only unsupported audio files should not be eligible for Wavecrate's DAW/external audio handoff workflows, even when the original file path could technically be copied or dragged. Wavecrate cannot guarantee DAW compatibility for unsupported formats, so clipboard and drag/drop audio handoff should stay limited to supported sample formats. Users may still reveal, rename, move, copy, or remove the unsupported file through filesystem-management actions where those actions are available.
+
+Wavecrate should distinguish between path-copy commands and file-copy commands. "Copy Path" is a context-menu utility that copies one absolute path as text. It must not place the file itself on the clipboard. Copying the actual file is a separate file handoff action, such as the normal copy command on selected browser files.
 
 When the user selects an audio range in the waveform editor and presses copy, Wavecrate should create a transient staged audio file for that selection and place that file on the clipboard as an ordinary audio file unless the user explicitly chooses durable extraction.
 
@@ -1870,7 +1906,13 @@ Database updates that touch both filesystem state and metadata state should be t
 
 Wavecrate may create local caches for generated display names, waveform summaries, decoded audio aids, analysis outputs, similarity indexes, map projections, thumbnails or visual summaries, handoff staging, and undo/recovery. Cache payloads should be stored under the global `.wavecrate` root. Source-local `.wavecrate.db` files should only store cache references, cache status, fingerprints, and invalidation metadata where needed.
 
-Caches should be treated as rebuildable unless explicitly documented otherwise. Generated display-name caches should persist across restarts for speed, but they are still rebuildable projections of metadata and naming rules. User-authored metadata, ratings, tags, labels, naming-template inputs, source configuration, Sample IDs, and undo state for the current session are not disposable caches.
+Caches should be treated as rebuildable unless explicitly documented otherwise. Generated display-name caches, waveform summaries, and decoded-audio aids should persist across restarts for speed, but they are still rebuildable projections of source files, metadata, and naming rules. User-authored metadata, ratings, tags, labels, naming-template inputs, source configuration, Sample IDs, and undo state for the current session are not disposable caches.
+
+Waveform and playback-readiness caches should be aggressive enough that once a sample has been fully loaded, selecting it again can show the waveform and start playback instantly where the source file, cache version, audio settings, and relevant fingerprints still match. This speed gain should survive application restarts. If a cache entry is missing, stale, invalid, or incompatible with the current audio settings, Wavecrate should rebuild it through the normal full loading pipeline and progress overlay.
+
+Folder scanning and indexing should proactively build waveform and playback-readiness caches for supported files in the background. Foreground user actions have priority over this pre-cache work: selecting a file, changing folders, playback, editing, extraction, or handoff should not feel delayed because the scanner is preparing caches for other files. Loading the currently selected file should immediately jump ahead of background pre-cache jobs.
+
+When audio backend, playback sample-rate, write-format, resampling, or other cache-relevant audio settings change, Wavecrate should mark affected waveform/playback-readiness caches stale rather than forcing an immediate all-library rebuild. Stale caches should rebuild lazily and through the normal priority order: current selection first, active folder and visible rows next, then source-wide background pre-cache work.
 
 Cache records should include enough version and input identity to decide whether they are valid:
 
@@ -1881,14 +1923,21 @@ Cache records should include enough version and input identity to decide whether
 - audio-content fingerprint where cache reuse across exact duplicates is allowed
 - algorithm/schema version
 - audio format/channel assumptions
+- relevant audio backend, playback sample-rate, write-format, and resampling assumptions where they affect the cache payload
 - creation/update timestamp
 - status and failure reason where relevant
 
 Wavecrate should be able to rebuild stale or missing caches without losing user metadata. Cache cleanup should run in the background and should respect active jobs, active playback, active edits, and current-session recovery files.
 
+Cache cleanup should be automatic and bounded when cache size, age, or stale-entry limits are exceeded, with user-configurable limits exposed where practical. Cleanup may delete rebuildable cache payloads, stale projections, obsolete cache versions, and unused handoff staging files, but it must not delete audio files, source databases, user-authored metadata, Sample IDs, ratings, tags, labels, extracted-region history, or current-session recovery data needed for undo/safety.
+
+Cleanup order should prefer stale, obsolete, failed, incompatible-version, and orphaned cache entries first. If more space is needed, Wavecrate should evict least-recently-used rebuildable cache entries while preserving caches for the current selection, active folder, active playback, active edit, and recently used files where practical.
+
+Cache size limits should be global in the current target. Diagnostics may show per-source cache usage so users can understand where cache space is going, but per-source cache quotas are not required unless the product target expands later.
+
 Cache reuse across copied or duplicated files should be based on exact audio identity, not on shared Wavecrate Sample ID. If two files have the same audio-content fingerprint and compatible cache versions/settings, Wavecrate may reuse cache payloads while keeping separate file identity and metadata records. If the audio differs, the copied/extracted/rendered file should build its own caches.
 
-The user should be able to clear rebuildable caches from settings or diagnostics without deleting audio files or durable metadata.
+The user should be able to clear rebuildable caches from settings or diagnostics without deleting audio files or durable metadata. Manual clear-cache actions should warn that Wavecrate will need to rebuild waveform, playback-readiness, display-name, analysis, similarity, and other rebuildable cache data later, which may make browsing or auditioning temporarily slower until background work catches up.
 
 ## File Operations and Recovery Target
 
@@ -1988,6 +2037,16 @@ The UI should provide:
 
 The waveform/editor should be a primary work surface, not a decorative preview. It should support precise cursor movement, play selection, edit selection, range selection, playhead display, loop display, edit handles, fades, markers, grids, transient cues, extraction success feedback, and clear feedback for destructive edits.
 
+When a sample is selected and its audio or waveform data is still loading, the waveform view itself should act as the progress indicator. The full waveform surface should fill from left to right, or otherwise show clear proportional progress, across the full loading pipeline needed before the waveform is usable. This includes decoding, waveform preparation, cache lookup or generation, and any other required setup for inspection and interaction. The same loading UI should be used when caches are missing, stale, manually cleared, incompatible, or being rebuilt. This should make loading visible without opening a blocking dialog or moving the user's attention away from the editor.
+
+If cached, partial, or early waveform content is available before the full loading pipeline completes, Wavecrate should show that waveform content immediately and draw loading progress as a transparent overlay on top of it. The overlay should preserve waveform readability while making it clear that loading is still in progress.
+
+While the waveform loading overlay is active, waveform interactions should remain disabled. The user should be able to continue navigating the browser and selecting another file, but waveform-specific actions such as play-region selection, edit-region selection, fades, envelope editing, extraction, trimming, and zoom/pan gestures should wait until the full loading pipeline has completed.
+
+Selection-triggered playback should also wait until the full loading pipeline has completed. Wavecrate should not start immediate audition from a partially loaded state just because decode is ready if the waveform/editor is still gated by loading. Once the selected sample is fully loaded, playback should be able to start immediately according to the normal audition behavior.
+
+If exact loading progress is temporarily unavailable, the waveform surface should show an indeterminate loading state until measurable progress exists. Once loading completes, the progress display should be replaced by the actual waveform. Loading feedback must be cancellation-aware and stale-safe: if the user selects another file before the previous waveform finishes loading, Wavecrate should actively cancel the previous decode/waveform task where possible, and late results from the old selection must not overwrite the current view.
+
 Waveform rendering should preserve the current multiband visual style rather than falling back to a plain single-envelope waveform. The waveform should distinguish useful frequency or energy bands so users can visually scan transients, bass-heavy material, noisy textures, tonal material, and quiet sections faster.
 
 Waveform visual quality should improve where practical through antialiasing, cleaner band blending, stable peak rendering, and other polish that makes the waveform easier to read. These improvements must not compromise interaction latency. Zooming, panning, playhead updates, selection dragging, fade-handle dragging, envelope previews, hover feedback, and edit overlays should remain realtime-feeling.
@@ -2014,7 +2073,7 @@ The default layout should include:
 - Browser view tabs or toggles: list view as the primary/default browser and similarity map as a secondary alternate view of the same current browser result set.
 - Waveform/editor panel: large primary waveform surface with playhead, cursor, play selection, edit selection, fades, markers, regions, grid/transient overlays, extraction success feedback, and mode-specific handles.
 - Metadata/editor panel: selected sample details, tag editor, label/prefix fields, source/folder information, rating controls, generated-name preview, disk-rename action, analysis state, file details, and mixed-state indicators for multi-selection metadata differences.
-- Bottom status bar: concise current action, playback state, selected count, scan/job progress, warnings, and last user-action result.
+- Bottom status bar: concise current action, playback state, selected count, compact interactive scan/job progress bar, warnings, and last user-action result.
 
 The layout should support dense work on a laptop screen while remaining usable on larger displays. Panels should be resizable, durable across sessions, and keyboard reachable.
 
@@ -2027,6 +2086,7 @@ The sample browser row should show enough information to make scanning fast:
 - Playback Type, Sound Type, Character tags, BPM, Tuning/Scale, Prefix, and label where space allows
 - keep/trash/accepted/rejected state
 - age/listen state
+- waveform/playback readiness cache state where useful
 - analysis pending/stale/failed indicators
 - exact duplicate indicator where the same audio-content fingerprint appears in more than one indexed file
 - missing, unavailable, unsupported, locked, edited, or unsaved indicators
