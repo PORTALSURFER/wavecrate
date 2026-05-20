@@ -1,12 +1,24 @@
 use super::*;
 
+fn configure_test_trash(
+    controller: &mut crate::app::controller::AppController,
+    temp: &tempfile::TempDir,
+) -> PathBuf {
+    let trash_root = temp.path().join("trash");
+    controller.settings.trash_folder = Some(trash_root.clone());
+    controller.ui.trash_folder = Some(trash_root.clone());
+    trash_root
+}
+
 #[test]
 fn delete_actions_apply_to_all_selected_rows() {
+    let temp = tempdir().unwrap();
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
         sample_entry("one.wav", Rating::NEUTRAL),
         sample_entry("two.wav", Rating::NEUTRAL),
         sample_entry("three.wav", Rating::NEUTRAL),
     ]);
+    let trash_root = configure_test_trash(&mut controller, &temp);
     write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
     write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
     write_test_wav(&source.root.join("three.wav"), &[0.0, 0.1]);
@@ -22,15 +34,20 @@ fn delete_actions_apply_to_all_selected_rows() {
     assert!(!source.root.join("one.wav").exists());
     assert!(!source.root.join("two.wav").exists());
     assert!(!source.root.join("three.wav").exists());
+    assert!(trash_root.join("one.wav").exists());
+    assert!(trash_root.join("two.wav").exists());
+    assert!(trash_root.join("three.wav").exists());
 }
 
 #[test]
 fn delete_active_browser_selection_includes_hidden_selected_paths() {
+    let temp = tempdir().unwrap();
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
         sample_entry("one.wav", Rating::NEUTRAL),
         sample_entry("two.wav", Rating::NEUTRAL),
         sample_entry("three.wav", Rating::NEUTRAL),
     ]);
+    let trash_root = configure_test_trash(&mut controller, &temp);
     write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
     write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
     write_test_wav(&source.root.join("three.wav"), &[0.0, 0.1]);
@@ -50,15 +67,39 @@ fn delete_active_browser_selection_includes_hidden_selected_paths() {
     assert!(!source.root.join("one.wav").exists());
     assert!(!source.root.join("two.wav").exists());
     assert!(source.root.join("three.wav").exists());
+    assert!(trash_root.join("one.wav").exists());
+    assert!(trash_root.join("two.wav").exists());
+}
+
+#[test]
+fn delete_browser_samples_requires_configured_trash_folder() {
+    let (mut controller, source) =
+        prepare_with_source_and_wav_entries(vec![sample_entry("one.wav", Rating::NEUTRAL)]);
+    write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
+
+    controller.delete_browser_samples(&[0]).unwrap();
+
+    assert_eq!(controller.wav_entries_len(), 1);
+    assert!(source.root.join("one.wav").exists());
+    assert_eq!(
+        controller.ui.status.status_tone,
+        crate::app::state::StatusTone::Warning
+    );
+    assert_eq!(
+        controller.ui.status.text,
+        "Set a trash folder first to auto-trash samples"
+    );
 }
 
 #[test]
 fn deleting_similarity_result_recomputes_filter_from_same_anchor() {
+    let temp = tempdir().unwrap();
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
         sample_entry("anchor.wav", Rating::NEUTRAL),
         sample_entry("close.wav", Rating::NEUTRAL),
         sample_entry("far.wav", Rating::NEUTRAL),
     ]);
+    let trash_root = configure_test_trash(&mut controller, &temp);
     write_test_wav(&source.root.join("anchor.wav"), &[0.0, 0.1]);
     write_test_wav(&source.root.join("close.wav"), &[0.0, 0.1]);
     write_test_wav(&source.root.join("far.wav"), &[0.0, 0.1]);
@@ -85,15 +126,18 @@ fn deleting_similarity_result_recomputes_filter_from_same_anchor() {
         visible_browser_paths(&mut controller),
         vec![PathBuf::from("anchor.wav"), PathBuf::from("far.wav")]
     );
+    assert!(trash_root.join("close.wav").exists());
 }
 
 #[test]
 fn deleting_similarity_anchor_promotes_next_best_survivor() {
+    let temp = tempdir().unwrap();
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
         sample_entry("anchor.wav", Rating::NEUTRAL),
         sample_entry("close.wav", Rating::NEUTRAL),
         sample_entry("far.wav", Rating::NEUTRAL),
     ]);
+    let trash_root = configure_test_trash(&mut controller, &temp);
     write_test_wav(&source.root.join("anchor.wav"), &[0.0, 0.1]);
     write_test_wav(&source.root.join("close.wav"), &[0.0, 0.1]);
     write_test_wav(&source.root.join("far.wav"), &[0.0, 0.1]);
@@ -124,6 +168,7 @@ fn deleting_similarity_anchor_promotes_next_best_survivor() {
         controller.focused_browser_path().as_deref(),
         Some(Path::new("close.wav"))
     );
+    assert!(trash_root.join("anchor.wav").exists());
 }
 
 #[test]
@@ -213,11 +258,13 @@ fn confirming_duplicate_cleanup_moves_only_unkept_duplicates_to_trash() {
 
 #[test]
 fn delete_hotkey_prompts_then_applies_to_all_selected_rows() {
+    let temp = tempdir().unwrap();
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
         sample_entry("one.wav", Rating::NEUTRAL),
         sample_entry("two.wav", Rating::NEUTRAL),
         sample_entry("three.wav", Rating::NEUTRAL),
     ]);
+    let trash_root = configure_test_trash(&mut controller, &temp);
     write_test_wav(&source.root.join("one.wav"), &[0.0, 0.1]);
     write_test_wav(&source.root.join("two.wav"), &[0.0, 0.1]);
     write_test_wav(&source.root.join("three.wav"), &[0.0, 0.1]);
@@ -244,6 +291,9 @@ fn delete_hotkey_prompts_then_applies_to_all_selected_rows() {
     assert!(!source.root.join("one.wav").exists());
     assert!(!source.root.join("two.wav").exists());
     assert!(!source.root.join("three.wav").exists());
+    assert!(trash_root.join("one.wav").exists());
+    assert!(trash_root.join("two.wav").exists());
+    assert!(trash_root.join("three.wav").exists());
 }
 
 #[test]
@@ -271,11 +321,13 @@ fn canceling_delete_hotkey_keeps_selected_rows() {
 
 #[test]
 fn delete_hotkey_keeps_focus_when_file_delete_fails() {
+    let temp = tempdir().unwrap();
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
         sample_entry("a.wav", Rating::NEUTRAL),
         sample_entry("b.wav", Rating::NEUTRAL),
         sample_entry("c.wav", Rating::NEUTRAL),
     ]);
+    configure_test_trash(&mut controller, &temp);
     write_test_wav(&source.root.join("a.wav"), &[0.0, 0.1]);
     write_test_wav(&source.root.join("c.wav"), &[0.0, 0.1]);
     controller.focus_browser_row_only(1);
@@ -295,7 +347,13 @@ fn delete_hotkey_keeps_focus_when_file_delete_fails() {
         controller.ui.status.status_tone,
         crate::app::state::StatusTone::Error
     );
-    assert!(controller.ui.status.text.contains("Failed to delete file"));
+    assert!(
+        controller
+            .ui
+            .status
+            .text
+            .contains("File not found for trash")
+    );
 }
 
 #[test]
@@ -346,11 +404,13 @@ fn delete_hotkey_waits_for_loading_sample() {
 
 #[test]
 fn delete_browser_samples_reports_partial_failure_and_refocuses_survivor() {
+    let temp = tempdir().unwrap();
     let (mut controller, source) = prepare_with_source_and_wav_entries(vec![
         sample_entry("a.wav", Rating::NEUTRAL),
         sample_entry("b.wav", Rating::NEUTRAL),
         sample_entry("c.wav", Rating::NEUTRAL),
     ]);
+    let trash_root = configure_test_trash(&mut controller, &temp);
     write_test_wav(&source.root.join("a.wav"), &[0.0, 0.1]);
     write_test_wav(&source.root.join("c.wav"), &[0.0, 0.1]);
     controller.focus_browser_row_only(0);
@@ -362,6 +422,7 @@ fn delete_browser_samples_reports_partial_failure_and_refocuses_survivor() {
         .expect_err("partial delete should report failure");
 
     assert!(!source.root.join("a.wav").exists());
+    assert!(trash_root.join("a.wav").exists());
     assert_eq!(
         visible_browser_paths(&mut controller),
         vec![PathBuf::from("b.wav"), PathBuf::from("c.wav")]
@@ -379,7 +440,7 @@ fn delete_browser_samples_reports_partial_failure_and_refocuses_survivor() {
             .ui
             .status
             .text
-            .contains("Deleted 1 sample with 1 error")
+            .contains("Moved 1 sample to trash with 1 error")
     );
     assert_eq!(controller.ui.status.text, err);
 }

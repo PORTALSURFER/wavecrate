@@ -151,7 +151,11 @@ fn pruning_missing_browser_sample_keeps_remaining_rows_visible() -> Result<(), S
 
 #[test]
 fn deleting_browser_sample_moves_focus_forward() -> Result<(), String> {
+    let temp = tempdir().unwrap();
+    let trash_root = temp.path().join("trash");
     let (mut controller, source) = dummy_controller();
+    controller.settings.trash_folder = Some(trash_root.clone());
+    controller.ui.trash_folder = Some(trash_root.clone());
     controller.library.sources.push(source.clone());
     controller.selection_state.ctx.selected_source = Some(source.id.clone());
     for name in ["a.wav", "b.wav", "c.wav"] {
@@ -168,6 +172,7 @@ fn deleting_browser_sample_moves_focus_forward() -> Result<(), String> {
 
     controller.delete_browser_sample(1)?;
 
+    assert!(trash_root.join("b.wav").exists());
     assert_eq!(
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(Path::new("c.wav"))
@@ -176,6 +181,7 @@ fn deleting_browser_sample_moves_focus_forward() -> Result<(), String> {
 
     controller.delete_browser_sample(1)?;
 
+    assert!(trash_root.join("c.wav").exists());
     assert_eq!(
         controller.sample_view.wav.selected_wav.as_deref(),
         Some(Path::new("a.wav"))
