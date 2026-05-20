@@ -240,7 +240,15 @@ Diagnostic bundles should avoid exposing full audio content by default. If a dia
 
 Wavecrate should split storage between source-local state and global application state.
 
-Source-specific information should live in the folder of that source. Each indexed source folder should contain a special Wavecrate source database file, such as `.wavecrate.db`, unless a later naming decision changes the exact filename. This keeps source metadata close to the real files and makes a source folder more portable between machines or Wavecrate installations.
+Source-specific information should live in the folder of that source. Each indexed source folder should contain a special Wavecrate source database file named `.wavecrate.db`. This keeps source metadata close to the real files and makes a source folder more portable between machines or Wavecrate installations while avoiding confusion with the global `.wavecrate` configuration folder.
+
+The `.wavecrate.db` file is internal source metadata and should be hidden from the normal sample browser and folder tree by default. It may appear in diagnostics, source repair flows, logs, or explicit filesystem-reveal operations when relevant.
+
+The `.wavecrate.db` file should be excluded from ordinary copy, move, trash, delete, rename, batch, drag, clipboard, export, and handoff operations that target visible sample/folder items. It should only be manipulated by explicit source maintenance, repair, migration, backup, or diagnostics workflows.
+
+If a user copies, moves, backs up, syncs, or transfers an entire source folder outside Wavecrate, the `.wavecrate.db` file should travel with that folder as source-local metadata. Wavecrate should be able to relink or reopen the moved/copied source folder and use the carried `.wavecrate.db` to preserve file metadata where file identity and paths can be reconciled safely.
+
+If a copied source folder is added while the original source is still indexed, Wavecrate should treat the copied folder as an independent source rather than rejecting it as a duplicate source. Any duplicated embedded Sample IDs or duplicate audio content inside the copied source should be handled by the normal file-level duplicate-ID conflict and exact-audio duplicate systems, not by blocking source addition.
 
 Wavecrate should not offer a read-only source mode in the current target. Adding a folder as a Wavecrate source means Wavecrate may create or update its source database, write embedded Sample ID metadata, create extracted files, rename files, move files, duplicate files, apply destructive edits, and otherwise manage ordinary files according to the user's commands and configured safety settings.
 
@@ -1040,7 +1048,7 @@ Wavecrate should let users add one or more source folders. A source folder is a 
 Adding a source should:
 
 - validate that the path exists and is readable
-- reject exact duplicate source roots
+- reject exact duplicate source roots that point to the same resolved filesystem location already configured
 - warn when a new source is nested inside an existing source or contains an existing source
 - create or open source database state
 - scan supported audio files incrementally

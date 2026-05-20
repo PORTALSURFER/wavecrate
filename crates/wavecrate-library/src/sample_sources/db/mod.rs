@@ -1,4 +1,8 @@
-use std::path::{Component, Path, PathBuf};
+use std::{
+    ffi::OsString,
+    fs,
+    path::{Component, Path, PathBuf},
+};
 
 use rusqlite::{Connection, OpenFlags, Transaction};
 use serde::{Deserialize, Serialize};
@@ -30,7 +34,9 @@ pub use pending_renames::PendingRenameEntry;
 pub use util::normalize_relative_path;
 
 /// Hidden filename used for per-source databases.
-pub const DB_FILE_NAME: &str = ".wavecrate_samples.db";
+pub const DB_FILE_NAME: &str = ".wavecrate.db";
+/// Previous hidden filename used for per-source databases.
+pub const LEGACY_DB_FILE_NAME: &str = ".wavecrate_samples.db";
 /// Metadata key for the last completed scan timestamp.
 pub const META_LAST_SCAN_COMPLETED_AT: &str = "last_scan_completed_at";
 /// Metadata key for the last similarity-prep scan timestamp.
@@ -329,9 +335,19 @@ pub enum SourceDbError {
     /// Read-only mode requires an existing database file.
     #[error("Read-only source DB mode requires an existing database file: {0}")]
     ReadOnlyDatabaseMissing(PathBuf),
+    /// Failed to move a source DB from its legacy filename to the current filename.
+    #[error("Could not migrate source database from {from} to {to}: {source}")]
+    RenameLegacyDatabase {
+        /// Legacy source DB path.
+        from: PathBuf,
+        /// Current source DB path.
+        to: PathBuf,
+        /// Underlying IO error.
+        source: std::io::Error,
+    },
     /// Refusing to write a source DB in a path that looks like a user library.
     #[error(
-        "Refusing to write `.wavecrate_samples.db` in user-library-like path: {path}; set WAVECRATE_ALLOW_USER_LIBRARY_DB_WRITE=1 to allow this"
+        "Refusing to write `.wavecrate.db` in user-library-like path: {path}; set WAVECRATE_ALLOW_USER_LIBRARY_DB_WRITE=1 to allow this"
     )]
     UserLibraryWriteBlocked {
         /// Suspicious source root path.
@@ -510,7 +526,7 @@ fn open_read_only_source_database(
         return Err(SourceDbError::InvalidRoot(root.to_path_buf()));
     }
 
-    let db_path = root.join(DB_FILE_NAME);
+    let db_path = read_only_db_path(root);
     if !db_path.is_file() {
         return Err(SourceDbError::ReadOnlyDatabaseMissing(db_path));
     }
@@ -634,7 +650,7 @@ fn open_source_database_with_flags(
         });
     }
 
-    let db_path = root.join(DB_FILE_NAME);
+    let db_path = prepare_writable_db_path(root)?;
     util::create_parent_if_needed(&db_path)?;
     let connect_started = std::time::Instant::now();
     let connection = match Connection::open_with_flags(&db_path, open_flags) {
@@ -755,6 +771,59 @@ fn open_source_database_with_flags(
         Ok(()),
     );
     Ok(db)
+}
+
+fn read_only_db_path(root: &Path) -> PathBuf {
+    let db_path = root.join(DB_FILE_NAME);
+    if db_path.is_file() {
+        return db_path;
+    }
+    let legacy_path = root.join(LEGACY_DB_FILE_NAME);
+    if legacy_path.is_file() {
+        legacy_path
+    } else {
+        db_path
+    }
+}
+
+fn prepare_writable_db_path(root: &Path) -> Result<PathBuf, SourceDbError> {
+    let db_path = root.join(DB_FILE_NAME);
+    if db_path.exists() {
+        return Ok(db_path);
+    }
+    let legacy_path = root.join(LEGACY_DB_FILE_NAME);
+    if legacy_path.exists() {
+        migrate_legacy_source_db(&legacy_path, &db_path)?;
+    }
+    Ok(db_path)
+}
+
+fn migrate_legacy_source_db(from: &Path, to: &Path) -> Result<(), SourceDbError> {
+    fs::rename(from, to).map_err(|source| SourceDbError::RenameLegacyDatabase {
+        from: from.to_path_buf(),
+        to: to.to_path_buf(),
+        source,
+    })?;
+    for suffix in ["-wal", "-shm"] {
+        let legacy_sidecar = sqlite_sidecar_path(from, suffix);
+        if legacy_sidecar.exists() {
+            let current_sidecar = sqlite_sidecar_path(to, suffix);
+            fs::rename(&legacy_sidecar, &current_sidecar).map_err(|source| {
+                SourceDbError::RenameLegacyDatabase {
+                    from: legacy_sidecar,
+                    to: current_sidecar,
+                    source,
+                }
+            })?;
+        }
+    }
+    Ok(())
+}
+
+fn sqlite_sidecar_path(path: &Path, suffix: &str) -> PathBuf {
+    let mut name = OsString::from(path.as_os_str());
+    name.push(suffix);
+    PathBuf::from(name)
 }
 
 impl SourceDatabaseOpenMode {

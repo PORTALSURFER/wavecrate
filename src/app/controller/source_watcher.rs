@@ -1,7 +1,11 @@
 //! File system watcher for source roots that reports audio-relevant changes.
 
 use crate::app::controller::jobs::{JobMessage, JobMessageSender};
-use crate::sample_sources::{SourceId, db::DB_FILE_NAME, is_supported_audio};
+use crate::sample_sources::{
+    SourceId,
+    db::{DB_FILE_NAME, LEGACY_DB_FILE_NAME},
+    is_supported_audio,
+};
 use notify::{
     Event, EventKind, RecommendedWatcher, RecursiveMode, Result as NotifyResult, Watcher,
 };
@@ -359,7 +363,7 @@ fn path_is_ignored(path: &Path) -> bool {
     let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
         return false;
     };
-    name.starts_with(DB_FILE_NAME)
+    name.starts_with(DB_FILE_NAME) || name.starts_with(LEGACY_DB_FILE_NAME)
 }
 
 fn path_extensionless_is_directory(path: &Path) -> bool {
@@ -381,6 +385,10 @@ mod tests {
         assert!(!path_is_candidate(Path::new(DB_FILE_NAME)));
         assert!(!path_is_candidate(Path::new(&format!(
             "{DB_FILE_NAME}-wal"
+        ))));
+        assert!(!path_is_candidate(Path::new(LEGACY_DB_FILE_NAME)));
+        assert!(!path_is_candidate(Path::new(&format!(
+            "{LEGACY_DB_FILE_NAME}-wal"
         ))));
     }
 

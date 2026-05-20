@@ -120,7 +120,7 @@ source registry afterward.
   - Named non-live profiles write under `<config-base>/.wavecrate/profiles/<name>/`.
   - `scripts/run.* sandbox` sets both `WAVECRATE_CONFIG_HOME` and `WAVECRATE_CONFIG_PROFILE=sandbox` so the run does **not** touch your real user profile config/log directories.
 - Per-source-folder database side effect:
-  - If you point Wavecrate at a folder, it may create or update a `.wavecrate_samples.db` in that source folder.
+  - If you point Wavecrate at a folder, it may create or update a `.wavecrate.db` in that source folder.
   - `WAVECRATE_CONFIG_HOME` does **not** relocate these per-folder DB files.
   - `scripts/run.sh sandbox` and `scripts/run.ps1 sandbox` set
     `WAVECRATE_SOURCE_DB_READ_ONLY=1` by default, so source DB writes are blocked
@@ -130,7 +130,7 @@ source registry afterward.
 
 - `WAVECRATE_SOURCE_DB_READ_ONLY`
   - When `1`/`true`/`yes`/`on`, `SourceDatabase::open` uses read-only access by
-    default and requires `<source>/.wavecrate_samples.db` to already exist.
+    default and requires `<source>/.wavecrate.db` to already exist. Legacy `<source>/.wavecrate_samples.db` files are still readable for compatibility.
   - When unset/default, normal write-capable behavior applies.
 
 - `WAVECRATE_ALLOW_USER_LIBRARY_DB_WRITE`
