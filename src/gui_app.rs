@@ -97,6 +97,7 @@ enum GuiMessage {
     CopyContextPath,
     OpenContextTarget,
     CloseContextMenu,
+    Noop,
     FocusRenameInput(u64),
     DeleteSelectedItem,
     ExtractPlaymarkedRange,
@@ -161,6 +162,7 @@ struct GuiAppState {
     audio_sample_rates: Vec<u32>,
     audio_settings_open: bool,
     context_menu: Option<BrowserContextMenu>,
+    waveform_loading_label: Option<String>,
     audio_settings_error: Option<String>,
     current_playback_span: Option<(f32, f32)>,
 }
@@ -191,6 +193,7 @@ impl GuiAppState {
             audio_sample_rates: Vec::new(),
             audio_settings_open: false,
             context_menu: None,
+            waveform_loading_label: None,
             audio_settings_error: None,
             current_playback_span: None,
         };
@@ -466,6 +469,7 @@ impl GuiAppState {
             GuiMessage::CloseContextMenu => {
                 self.context_menu = None;
             }
+            GuiMessage::Noop => {}
             GuiMessage::FocusRenameInput(input_id) => {
                 let started_at = Instant::now();
                 context.focus(input_id);
@@ -1363,6 +1367,7 @@ impl GuiAppState {
         }
         self.sample_status = format!("Loading {}", sample_path_label(path.as_str()));
         let label = sample_path_label(path.as_str());
+        self.waveform_loading_label = Some(label.clone());
         emit_gui_action(
             "browser.select_sample",
             Some("browser"),
@@ -1398,6 +1403,7 @@ impl GuiAppState {
             );
             return;
         }
+        self.waveform_loading_label = None;
         match load.result {
             Ok(waveform) => {
                 let file_name = waveform.file_name();
@@ -3233,9 +3239,7 @@ fn waveform_panel(state: &GuiAppState) -> ui::View<GuiMessage> {
             .height(18.0)
             .fill_width()
             .truncate(),
-        waveform::waveform_viewport_view(&state.waveform)
-            .fill_width()
-            .height(WAVEFORM_VIEW_HEIGHT),
+        waveform_viewport_with_loading_state(state),
         waveform_scrollbar(&state.waveform),
     ])
     .spacing(2.0)
@@ -3259,6 +3263,110 @@ fn waveform_panel_header(waveform: &WaveformState) -> ui::View<GuiMessage> {
         .spacing(4.0)
     } else {
         ui::text("Waveform").height(18.0).fill_width()
+    }
+}
+
+fn waveform_viewport_with_loading_state(state: &GuiAppState) -> ui::View<GuiMessage> {
+    let viewport = waveform::waveform_viewport_view(&state.waveform)
+        .fill_width()
+        .height(WAVEFORM_VIEW_HEIGHT);
+    let Some(label) = state.waveform_loading_label.as_ref() else {
+        return viewport;
+    };
+    ui::stack([
+        viewport,
+        waveform_loading_visual(label, state.progress_tick),
+        ui::custom_widget_mapped(WaveformLoadingInputBlocker::new(), |message: GuiMessage| {
+            message
+        })
+        .key("waveform-loading-input-blocker")
+        .input_only()
+        .fill_width()
+        .height(WAVEFORM_VIEW_HEIGHT),
+    ])
+    .fill_width()
+    .height(WAVEFORM_VIEW_HEIGHT)
+}
+
+fn waveform_loading_visual(label: &str, tick: f32) -> ui::View<GuiMessage> {
+    let phase = ((tick.sin() + 1.0) * 0.5).clamp(0.0, 1.0);
+    let left_width = (WAVEFORM_VIEW_HEIGHT * 0.75 * phase).clamp(8.0, 120.0);
+    ui::column([
+        ui::spacer().fill_width().height(46.0),
+        ui::text(format!("Loading waveform | {label}"))
+            .fill_width()
+            .height(22.0)
+            .truncate(),
+        ui::row([
+            ui::spacer().width(left_width).height(5.0),
+            ui::text("").height(5.0).width(96.0).style(ui::WidgetStyle {
+                tone: ui::WidgetTone::Accent,
+                prominence: ui::WidgetProminence::Strong,
+            }),
+            ui::spacer().fill_width().height(5.0),
+        ])
+        .fill_width()
+        .height(5.0),
+        ui::spacer().fill_width().fill_height(),
+    ])
+    .style(ui::WidgetStyle {
+        tone: ui::WidgetTone::Accent,
+        prominence: ui::WidgetProminence::Subtle,
+    })
+    .padding(8.0)
+    .fill_width()
+    .height(WAVEFORM_VIEW_HEIGHT)
+}
+
+#[derive(Clone, Debug)]
+struct WaveformLoadingInputBlocker {
+    common: WidgetCommon,
+}
+
+impl WaveformLoadingInputBlocker {
+    fn new() -> Self {
+        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 1.0)));
+        common.focus = FocusBehavior::None;
+        common.paint.paints_focus = false;
+        common.paint.paints_state_layers = false;
+        Self { common }
+    }
+}
+
+impl Widget for WaveformLoadingInputBlocker {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        match input {
+            WidgetInput::PointerMove { position }
+            | WidgetInput::PointerPress { position, .. }
+            | WidgetInput::PointerRelease { position, .. }
+            | WidgetInput::PointerDrop { position, .. }
+                if bounds.contains(position) =>
+            {
+                Some(WidgetOutput::typed(GuiMessage::Noop))
+            }
+            _ => None,
+        }
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        true
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
     }
 }
 
@@ -3813,6 +3921,7 @@ mod tests {
             audio_sample_rates: Vec::new(),
             audio_settings_open: false,
             context_menu: None,
+            waveform_loading_label: None,
             audio_settings_error: None,
             current_playback_span: None,
         }
@@ -3991,6 +4100,7 @@ mod tests {
             audio_sample_rates: Vec::new(),
             audio_settings_open: false,
             context_menu: None,
+            waveform_loading_label: None,
             audio_settings_error: None,
             current_playback_span: None,
         };
@@ -4117,6 +4227,7 @@ mod tests {
             audio_sample_rates: Vec::new(),
             audio_settings_open: false,
             context_menu: None,
+            waveform_loading_label: None,
             audio_settings_error: None,
             current_playback_span: None,
         };
@@ -4129,6 +4240,10 @@ mod tests {
                 modifiers: Default::default(),
             },
             &mut context,
+        );
+        assert_eq!(
+            state.waveform_loading_label.as_deref(),
+            Some("portal_SS_kick_003.wav")
         );
         let ticket = state.sample_load_task.active().expect("sample load queued");
         state.apply_message(
@@ -4147,6 +4262,7 @@ mod tests {
             Some(sample_path.as_str())
         );
         assert_eq!(state.waveform.file_name(), "portal_SS_kick_003.wav");
+        assert_eq!(state.waveform_loading_label, None);
         assert!(state.waveform.frames() > 0);
         assert!(state.sample_status.contains("portal_SS_kick_003.wav"));
     }
