@@ -12,7 +12,7 @@ use radiant::widgets::{
     DragHandleMessage, FocusBehavior, PaintBounds, PointerButton, PointerModifiers, TextWrap,
     Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
 };
-use rfd::{FileDialog, MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
+use rfd::FileDialog;
 use std::{
     ffi::OsString,
     panic::{self, AssertUnwindSafe},
@@ -659,18 +659,6 @@ impl GuiAppState {
                 return;
             }
         };
-        if !confirm_folder_delete(&target) {
-            self.sample_status = format!("Delete cancelled for {}", target.name);
-            emit_gui_action(
-                "folder_browser.delete_selected",
-                Some("folder_browser"),
-                Some(&target.name),
-                "cancelled",
-                started_at,
-                None,
-            );
-            return;
-        }
         match self.folder_browser.delete_selected_folder() {
             Ok(status) => {
                 self.sample_status = status;
@@ -714,31 +702,18 @@ impl GuiAppState {
                 return;
             }
         };
-        if !confirm_file_delete(&target) {
-            self.sample_status = format!("Delete cancelled for {}", target.label());
-            emit_gui_action(
-                "browser.delete_selected_files",
-                Some("browser"),
-                Some(&target.label()),
-                "cancelled",
-                started_at,
-                None,
-            );
-            return;
-        }
-
         let loaded_path = self.waveform.path();
         let deleting_loaded_sample = target.paths.iter().any(|path| path == &loaded_path);
-        if deleting_loaded_sample {
-            if let Some(player) = self.audio_player.as_mut() {
-                player.stop();
-            }
-            self.waveform = WaveformState::empty();
-            self.current_playback_span = None;
-        }
 
         match self.folder_browser.delete_selected_files() {
             Ok(status) => {
+                if deleting_loaded_sample {
+                    if let Some(player) = self.audio_player.as_mut() {
+                        player.stop();
+                    }
+                    self.waveform = WaveformState::empty();
+                    self.current_playback_span = None;
+                }
                 self.sample_status = status;
                 emit_gui_action(
                     "browser.delete_selected_files",
@@ -3423,51 +3398,6 @@ fn worker_progress_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
     })
     .width(track_width)
     .height(10.0)
-}
-
-fn confirm_folder_delete(target: &folder_browser::FolderDeleteTargetView) -> bool {
-    if cfg!(test) {
-        return true;
-    }
-    let message = format!(
-        "Delete {} and all files inside it?\n\nThis cannot be undone from the default GUI.",
-        target.path.display()
-    );
-    matches!(
-        MessageDialog::new()
-            .set_title("Delete folder")
-            .set_description(message)
-            .set_level(MessageLevel::Warning)
-            .set_buttons(MessageButtons::YesNo)
-            .show(),
-        MessageDialogResult::Yes
-    )
-}
-
-fn confirm_file_delete(target: &folder_browser::FileDeleteTargetView) -> bool {
-    if cfg!(test) {
-        return true;
-    }
-    let message = if target.paths.len() == 1 {
-        format!(
-            "Delete {}?\n\nThis cannot be undone from the default GUI.",
-            target.label()
-        )
-    } else {
-        format!(
-            "Delete {} selected files?\n\nThis cannot be undone from the default GUI.",
-            target.paths.len()
-        )
-    };
-    matches!(
-        MessageDialog::new()
-            .set_title("Delete file")
-            .set_description(message)
-            .set_level(MessageLevel::Warning)
-            .set_buttons(MessageButtons::YesNo)
-            .show(),
-        MessageDialogResult::Yes
-    )
 }
 
 #[cfg(test)]

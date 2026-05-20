@@ -445,10 +445,9 @@ impl FolderBrowserState {
         if !target.path.is_dir() {
             return Err(format!("Folder delete failed: {} is missing", target.name));
         }
-        fs::remove_dir_all(&target.path)
-            .map_err(|error| format!("Folder delete failed: {error}"))?;
-        self.remove_deleted_folder(&target.path);
-        Ok(format!("Deleted folder {}", target.name))
+        Err(String::from(
+            "Trash workflow is not available in the default GUI yet; no folder was deleted",
+        ))
     }
 
     pub(super) fn delete_selected_files(&mut self) -> Result<String, String> {
@@ -463,14 +462,8 @@ impl FolderBrowserState {
                 ));
             }
         }
-        for path in &target.paths {
-            fs::remove_file(path).map_err(|error| format!("File delete failed: {error}"))?;
-        }
-        self.remove_deleted_files(&target.paths);
-        Ok(format!(
-            "Deleted {} file{}",
-            target.paths.len(),
-            plural(target.paths.len())
+        Err(String::from(
+            "Trash workflow is not available in the default GUI yet; no files were deleted",
         ))
     }
 
@@ -1393,82 +1386,6 @@ impl FolderBrowserState {
         self.file_view_start = 0;
         self.expanded_folders.insert(target_parent_id);
         Ok(())
-    }
-
-    fn remove_deleted_files(&mut self, targets: &[PathBuf]) {
-        let target_ids = targets
-            .iter()
-            .map(|path| path_id(path))
-            .collect::<HashSet<_>>();
-        let files_before = self.selected_audio_files();
-        let focused_index = self
-            .selected_file
-            .as_deref()
-            .and_then(|selected| files_before.iter().position(|file| file.id == selected));
-        drop(files_before);
-
-        let Some(source) = self
-            .sources
-            .iter_mut()
-            .find(|source| source.id == self.selected_source)
-        else {
-            return;
-        };
-        if let Some(root_folder) = &mut source.root_folder {
-            root_folder.remove_files_by_ids(&target_ids);
-            self.folders = vec![root_folder.clone()];
-        }
-
-        let files_after = self
-            .selected_audio_files()
-            .into_iter()
-            .map(|file| file.id.clone())
-            .collect::<Vec<_>>();
-        self.selected_file_ids.clear();
-        self.selected_file = focused_index.and_then(|index| {
-            files_after
-                .get(index.min(files_after.len().saturating_sub(1)))
-                .cloned()
-        });
-        if let Some(selected) = self.selected_file.clone() {
-            self.selected_file_ids.insert(selected);
-        }
-        let total_items = self.selected_audio_files().len();
-        self.file_view_start = self.file_view_start.min(total_items.saturating_sub(1));
-    }
-
-    fn remove_deleted_folder(&mut self, target: &Path) {
-        let target_id = path_id(target);
-        let parent_id = target
-            .parent()
-            .map(path_id)
-            .unwrap_or_else(|| self.selected_folder.clone());
-        let Some(source) = self
-            .sources
-            .iter_mut()
-            .find(|source| source.id == self.selected_source)
-        else {
-            return;
-        };
-        if let Some(root_folder) = &mut source.root_folder {
-            root_folder.remove_child_by_id(&target_id);
-            self.folders = vec![root_folder.clone()];
-        }
-        self.selected_file = None;
-        self.selected_file_ids.clear();
-        self.file_view_start = 0;
-        self.selected_folder = if self.find_folder(&parent_id).is_some() {
-            parent_id
-        } else {
-            self.folders
-                .first()
-                .map(|folder| folder.id.clone())
-                .unwrap_or_default()
-        };
-        self.expanded_folders.retain(|id| {
-            let path = Path::new(id);
-            id != &target_id && !path.starts_with(target)
-        });
     }
 
     fn discard_pending_created_folder(&mut self) {
@@ -3582,7 +3499,7 @@ mod tests {
     }
 
     #[test]
-    fn folder_delete_removes_selected_subtree_and_selects_parent() {
+    fn folder_delete_blocks_hard_delete_and_keeps_selected_folder() {
         let root = temp_source_root("radiant-gui-folder-delete");
         let drums = root.join("drums");
         let kicks = drums.join("kicks");
@@ -3597,20 +3514,23 @@ mod tests {
             .selected_delete_target()
             .expect("subfolder can be deleted");
         assert_eq!(target.name, "kicks");
-        let status = browser
+        let error = browser
             .delete_selected_folder()
-            .expect("delete should remove subtree");
+            .expect_err("hard delete should be blocked");
 
-        assert_eq!(status, "Deleted folder kicks");
-        assert!(!kicks.exists());
-        assert_eq!(browser.selected_folder, path_id(&drums));
-        assert!(browser.find_folder(&path_id(&kicks)).is_none());
-        assert!(!browser.expanded_folders.contains(&path_id(&kicks)));
+        assert_eq!(
+            error,
+            "Trash workflow is not available in the default GUI yet; no folder was deleted"
+        );
+        assert!(kicks.exists());
+        assert_eq!(browser.selected_folder, path_id(&kicks));
+        assert!(browser.find_folder(&path_id(&kicks)).is_some());
+        assert!(browser.expanded_folders.contains(&path_id(&drums)));
         let _ = fs::remove_dir_all(root);
     }
 
     #[test]
-    fn file_delete_removes_selected_files_and_selects_neighbor() {
+    fn file_delete_blocks_hard_delete_and_keeps_selection() {
         let root = temp_source_root("radiant-gui-file-delete");
         let drums = root.join("drums");
         fs::create_dir_all(&drums).expect("create drums folder");
@@ -3628,19 +3548,22 @@ mod tests {
             .selected_file_delete_target()
             .expect("selected file can be deleted");
         assert_eq!(target.names, vec![String::from("kick.wav")]);
-        let status = browser
+        let error = browser
             .delete_selected_files()
-            .expect("delete should remove selected file");
+            .expect_err("hard delete should be blocked");
 
-        assert_eq!(status, "Deleted 1 file");
-        assert!(!kick.exists());
+        assert_eq!(
+            error,
+            "Trash workflow is not available in the default GUI yet; no files were deleted"
+        );
+        assert!(kick.exists());
         assert!(
             browser
                 .selected_files()
                 .iter()
-                .all(|file| file.name != "kick.wav")
+                .any(|file| file.name == "kick.wav")
         );
-        assert_eq!(browser.selected_file_id(), Some(path_id(&snare).as_str()));
+        assert_eq!(browser.selected_file_id(), Some(path_id(&kick).as_str()));
         let _ = fs::remove_dir_all(root);
     }
 
