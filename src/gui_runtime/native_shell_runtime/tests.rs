@@ -598,6 +598,71 @@ mod tests {
     }
 
     #[test]
+    fn retained_shell_render_includes_clickable_options_panel_overlay() {
+        let repaint_installed = Arc::new(AtomicBool::new(false));
+        let mut model = runtime_contract::AppModel::default();
+        model.options_panel.visible = true;
+        model.paired_device.primary_group = runtime_contract::SummaryFieldModel {
+            label: String::from("Output Host"),
+            value_label: String::from("WASAPI"),
+        };
+        model.paired_device.primary_item = runtime_contract::SummaryFieldModel {
+            label: String::from("Output Device"),
+            value_label: String::from("Speakers"),
+        };
+        model.paired_device.primary_number = runtime_contract::SummaryFieldModel {
+            label: String::from("Output Sample Rate"),
+            value_label: String::from("48 kHz"),
+        };
+
+        let mut bridge = WavecrateRuntimeBridge::new(RecordingBridge {
+            model: Arc::new(model.into()),
+            reduced: Vec::new(),
+            repaint_installed,
+            exit_status: None,
+        });
+        let retained = retained_shell_descriptor(&mut bridge);
+        let viewport = radiant::gui::types::Vector2::new(1280.0, 720.0);
+        let rect = radiant::gui::types::Rect::from_min_size(
+            radiant::gui::types::Point::new(0.0, 0.0),
+            viewport,
+        );
+        let frame = bridge
+            .render_retained_surface(retained, rect, viewport)
+            .expect("retained shell frame with options panel");
+        assert!(
+            frame.text_runs.iter().any(|run| run.text == "Audio Engine"),
+            "retained frame should append the options panel overlay"
+        );
+        let output_host_label = frame
+            .text_runs
+            .iter()
+            .find(|run| run.text.starts_with("Output Host:"))
+            .expect("output host picker button should render");
+        let click = radiant::gui::types::Point::new(
+            output_host_label.position.x + 2.0,
+            output_host_label.position.y + 2.0,
+        );
+
+        bridge.update(WavecrateRuntimeMessage::RetainedInput(
+            WidgetInput::PointerPress {
+                position: click,
+                button: radiant::widgets::PointerButton::Primary,
+                modifiers: Default::default(),
+            },
+        ));
+
+        assert!(
+            bridge
+                .inner
+                .reduced
+                .iter()
+                .any(|action| matches!(action, UiAction::OpenAudioOutputHostPicker)),
+            "clicking a rendered options-panel button should route to the audio picker action"
+        );
+    }
+
+    #[test]
     fn retained_shell_animation_refresh_uses_motion_only_projection() {
         let mut app_model = runtime_contract::AppModel::default();
         app_model.transport_running = true;

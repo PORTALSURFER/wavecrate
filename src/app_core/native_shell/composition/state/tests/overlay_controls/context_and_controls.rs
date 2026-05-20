@@ -469,7 +469,7 @@ fn options_panel_overview_lists_audio_rows_before_legacy_toggles() {
 }
 
 #[test]
-fn options_panel_picker_mode_uses_back_row_and_picker_actions() {
+fn options_panel_picker_mode_expands_inline_dropdown_actions() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
     let state = NativeShellState::new();
@@ -501,20 +501,43 @@ fn options_panel_picker_mode_uses_back_row_and_picker_actions() {
 
     let panel = options_panel_layout(&layout, &style, &model)
         .expect("visible picker panel should resolve layout");
-    assert_eq!(panel.title, "Output Sample Rate");
-    assert_eq!(panel.buttons[0].action, UiAction::ShowOptionsOverview);
-    assert!(panel.buttons[2].active);
-
-    let back_point = Point::new(
-        (panel.buttons[0].rect.min.x + panel.buttons[0].rect.max.x) * 0.5,
-        (panel.buttons[0].rect.min.y + panel.buttons[0].rect.max.y) * 0.5,
+    assert_eq!(panel.title, "Audio Engine");
+    let dropdown_row = panel
+        .buttons
+        .iter()
+        .position(|button| button.action == UiAction::OpenPrimaryNumberPicker)
+        .expect("active picker row should remain in the overview");
+    assert!(panel.buttons[dropdown_row].active);
+    assert!(
+        panel.buttons[dropdown_row]
+            .text
+            .starts_with("Sample Rate")
+            || panel.buttons[dropdown_row]
+                .text
+                .starts_with("Output Sample Rate")
     );
     assert_eq!(
-        state.options_panel_action_at_point(&layout, &model, back_point),
-        Some(UiAction::ShowOptionsOverview)
+        panel.buttons[dropdown_row + 1].action,
+        UiAction::SetPrimaryNumber { value: None }
+    );
+    assert_eq!(
+        panel.buttons[dropdown_row + 2].action,
+        UiAction::SetPrimaryNumber {
+            value: Some(48_000),
+        }
+    );
+    assert!(panel.buttons[dropdown_row + 2].active);
+
+    let dropdown_point = Point::new(
+        (panel.buttons[dropdown_row].rect.min.x + panel.buttons[dropdown_row].rect.max.x) * 0.5,
+        (panel.buttons[dropdown_row].rect.min.y + panel.buttons[dropdown_row].rect.max.y) * 0.5,
+    );
+    assert_eq!(
+        state.options_panel_action_at_point(&layout, &model, dropdown_point),
+        Some(UiAction::OpenPrimaryNumberPicker)
     );
 
-    let sample_rate_button = &panel.buttons[2];
+    let sample_rate_button = &panel.buttons[dropdown_row + 2];
     let sample_rate_point = Point::new(
         (sample_rate_button.rect.min.x + sample_rate_button.rect.max.x) * 0.5,
         (sample_rate_button.rect.min.y + sample_rate_button.rect.max.y) * 0.5,

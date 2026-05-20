@@ -942,6 +942,8 @@ fn append_retained_shell_overlays(
     append_paint_frame(frame, &overlay);
     shell_state.build_focus_overlay_into(layout, style, model, &mut overlay);
     append_paint_frame(frame, &overlay);
+    shell_state.build_modal_overlay_into(layout, style, model, &mut overlay);
+    append_paint_frame(frame, &overlay);
 }
 
 /// Append one overlay frame into the retained shell paint buffer.

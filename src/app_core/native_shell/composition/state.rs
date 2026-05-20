@@ -945,4 +945,82 @@ mod opt_272_tests {
         assert!(panel.panel_rect.max.x <= layout.root.rect.max.x);
         assert!(panel.panel_rect.max.y <= layout.status_bar.min.y);
     }
+
+    #[test]
+    fn options_panel_picker_mode_expands_inline_dropdown_actions() {
+        let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+        let style = style_for_layout(&layout);
+        let state = NativeShellState::new();
+        let model = AppModel {
+            options_panel: crate::app_core::native_shell::runtime_contract::OptionsPanelModel {
+                visible: true,
+                ..crate::app_core::native_shell::runtime_contract::OptionsPanelModel::default()
+            },
+            paired_device: crate::app_core::native_shell::runtime_contract::PairedDevicePanelModel {
+                active_picker: Some(
+                    crate::app_core::native_shell::runtime_contract::PairedPickerTargetModel::PrimaryNumber,
+                ),
+                primary_number: crate::app_core::native_shell::runtime_contract::SummaryFieldModel {
+                    label: String::from("Output Sample Rate"),
+                    value_label: String::from("48 kHz"),
+                },
+                primary_number_options: vec![
+                    crate::app_core::native_shell::runtime_contract::PairedPickerOptionModel {
+                        label: String::from("Device default"),
+                        selected: false,
+                        value: crate::app_core::native_shell::runtime_contract::PairedPickerValueModel::PrimaryNumber(None),
+                    },
+                    crate::app_core::native_shell::runtime_contract::PairedPickerOptionModel {
+                        label: String::from("48 kHz"),
+                        selected: true,
+                        value: crate::app_core::native_shell::runtime_contract::PairedPickerValueModel::PrimaryNumber(Some(
+                            48_000,
+                        )),
+                    },
+                ],
+                ..crate::app_core::native_shell::runtime_contract::PairedDevicePanelModel::default()
+            },
+            ..AppModel::default()
+        };
+
+        let panel = options_panel_layout(&layout, &style, &model)
+            .expect("visible picker panel should resolve layout");
+        assert_eq!(panel.title, "Audio Engine");
+        let dropdown_row = panel
+            .buttons
+            .iter()
+            .position(|button| button.action == UiAction::OpenPrimaryNumberPicker)
+            .expect("active picker row should remain in the overview");
+        assert!(panel.buttons[dropdown_row].active);
+        assert!(
+            panel.buttons[dropdown_row]
+                .text
+                .starts_with("Output Sample Rate")
+        );
+        assert_eq!(
+            panel.buttons[dropdown_row + 1].action,
+            UiAction::SetPrimaryNumber { value: None }
+        );
+        assert_eq!(
+            panel.buttons[dropdown_row + 2].action,
+            UiAction::SetPrimaryNumber {
+                value: Some(48_000),
+            }
+        );
+        assert!(panel.buttons[dropdown_row + 2].active);
+
+        let dropdown_point = panel.buttons[dropdown_row].rect.center();
+        assert_eq!(
+            state.options_panel_action_at_point(&layout, &model, dropdown_point),
+            Some(UiAction::OpenPrimaryNumberPicker)
+        );
+
+        let sample_rate_point = panel.buttons[dropdown_row + 2].rect.center();
+        assert_eq!(
+            state.options_panel_action_at_point(&layout, &model, sample_rate_point),
+            Some(UiAction::SetPrimaryNumber {
+                value: Some(48_000),
+            })
+        );
+    }
 }
