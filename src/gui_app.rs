@@ -1161,6 +1161,18 @@ impl GuiAppState {
             );
             return;
         };
+        if !browser_context_target_available(&BrowserContextTargetKind::Source, &path) {
+            self.sample_status = String::from("Source folder is missing");
+            emit_gui_action(
+                "browser.context_menu.source.open",
+                Some("sources"),
+                Some(context_menu_target_label(&path).as_str()),
+                "error",
+                started_at,
+                Some("source folder missing"),
+            );
+            return;
+        }
         let title = path
             .file_name()
             .map(|name| name.to_string_lossy().to_string())
@@ -1189,6 +1201,18 @@ impl GuiAppState {
             );
             return;
         };
+        if !browser_context_target_available(&BrowserContextTargetKind::Folder, &path) {
+            self.sample_status = String::from("Folder is missing");
+            emit_gui_action(
+                "browser.context_menu.folder.open",
+                Some("folder_browser"),
+                Some(context_menu_target_label(&path).as_str()),
+                "error",
+                started_at,
+                Some("folder missing"),
+            );
+            return;
+        }
         let title = path
             .file_name()
             .map(|name| name.to_string_lossy().to_string())
@@ -1217,6 +1241,18 @@ impl GuiAppState {
             );
             return;
         };
+        if !browser_context_target_available(&BrowserContextTargetKind::Sample, &path) {
+            self.sample_status = String::from("Sample file is missing");
+            emit_gui_action(
+                "browser.context_menu.sample.open",
+                Some("browser"),
+                Some(context_menu_target_label(&path).as_str()),
+                "error",
+                started_at,
+                Some("sample missing"),
+            );
+            return;
+        }
         let title = sample_path_label(&path);
         self.context_menu = Some(BrowserContextMenu {
             kind: BrowserContextTargetKind::Sample,
@@ -1231,6 +1267,19 @@ impl GuiAppState {
         let Some(menu) = self.context_menu.take() else {
             return;
         };
+        if !browser_context_target_available(&menu.kind, &menu.path) {
+            let error = context_menu_missing_target_message(&menu.kind);
+            self.sample_status = error.to_string();
+            emit_gui_action(
+                "browser.context_menu.copy_path",
+                Some(context_menu_pane(&menu.kind)),
+                Some(context_menu_target_label(&menu.path).as_str()),
+                "error",
+                started_at,
+                Some(error),
+            );
+            return;
+        }
         let path_text = format_copy_path(&menu.path);
         match external_clipboard::copy_text(&path_text) {
             Ok(()) => {
@@ -1263,6 +1312,19 @@ impl GuiAppState {
         let Some(menu) = self.context_menu.take() else {
             return;
         };
+        if !browser_context_target_available(&menu.kind, &menu.path) {
+            let error = context_menu_missing_target_message(&menu.kind);
+            self.sample_status = error.to_string();
+            emit_gui_action(
+                "browser.context_menu.open_explorer",
+                Some(context_menu_pane(&menu.kind)),
+                Some(context_menu_target_label(&menu.path).as_str()),
+                "error",
+                started_at,
+                Some(error),
+            );
+            return;
+        }
         let result = match menu.kind {
             BrowserContextTargetKind::Source | BrowserContextTargetKind::Folder => {
                 open_folder_in_file_explorer(&menu.path)
@@ -2214,6 +2276,21 @@ fn context_menu_pane(kind: &BrowserContextTargetKind) -> &'static str {
         BrowserContextTargetKind::Source => "sources",
         BrowserContextTargetKind::Folder => "folder_browser",
         BrowserContextTargetKind::Sample => "browser",
+    }
+}
+
+fn browser_context_target_available(kind: &BrowserContextTargetKind, path: &Path) -> bool {
+    match kind {
+        BrowserContextTargetKind::Source | BrowserContextTargetKind::Folder => path.is_dir(),
+        BrowserContextTargetKind::Sample => path.is_file(),
+    }
+}
+
+fn context_menu_missing_target_message(kind: &BrowserContextTargetKind) -> &'static str {
+    match kind {
+        BrowserContextTargetKind::Source => "Source folder is missing",
+        BrowserContextTargetKind::Folder => "Folder is missing",
+        BrowserContextTargetKind::Sample => "Sample file is missing",
     }
 }
 
@@ -4117,6 +4194,64 @@ mod tests {
             super::format_copy_path(std::path::Path::new("C:\\samples\\kick.wav")),
             "C:/samples/kick.wav"
         );
+    }
+
+    #[test]
+    fn context_menu_availability_requires_existing_target_kind() {
+        let root = std::env::temp_dir().join(format!(
+            "wavecrate-context-menu-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).expect("create temp root");
+        let sample = root.join("kick.wav");
+        std::fs::write(&sample, [0_u8; 8]).expect("write sample");
+
+        assert!(super::browser_context_target_available(
+            &super::BrowserContextTargetKind::Source,
+            &root
+        ));
+        assert!(super::browser_context_target_available(
+            &super::BrowserContextTargetKind::Folder,
+            &root
+        ));
+        assert!(super::browser_context_target_available(
+            &super::BrowserContextTargetKind::Sample,
+            &sample
+        ));
+        assert!(!super::browser_context_target_available(
+            &super::BrowserContextTargetKind::Sample,
+            &root
+        ));
+        assert!(!super::browser_context_target_available(
+            &super::BrowserContextTargetKind::Folder,
+            &sample
+        ));
+
+        std::fs::remove_file(&sample).expect("remove sample");
+        assert!(!super::browser_context_target_available(
+            &super::BrowserContextTargetKind::Sample,
+            &sample
+        ));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn stale_context_menu_copy_path_refuses_missing_sample_file() {
+        let mut state = GuiAppState::load_default().expect("default state loads");
+        state.context_menu = Some(super::BrowserContextMenu {
+            kind: super::BrowserContextTargetKind::Sample,
+            path: std::env::temp_dir().join("wavecrate-missing-context-sample.wav"),
+            anchor: Point::new(12.0, 24.0),
+            title: String::from("missing.wav"),
+        });
+
+        state.copy_context_path();
+
+        assert_eq!(state.sample_status, "Sample file is missing");
+        assert_eq!(state.context_menu, None);
     }
 
     #[test]
