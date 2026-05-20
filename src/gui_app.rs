@@ -52,10 +52,8 @@ const VOLUME_SLIDER_ID: u64 = 31_000;
 const VOLUME_SLIDER_WIDTH: f32 = 92.0;
 const VOLUME_SLIDER_HEIGHT: f32 = 14.0;
 const AUDIO_ENGINE_PILL_ID: u64 = 31_100;
-const AUDIO_ENGINE_PILL_WIDTH: f32 = 66.0;
+const AUDIO_ENGINE_PILL_WIDTH: f32 = 54.0;
 const AUDIO_ENGINE_PILL_HEIGHT: f32 = 18.0;
-const AUDIO_SETTINGS_MODAL_BLOCKER_ID: u64 = 31_150;
-const AUDIO_SETTINGS_MODAL_PILL_ID: u64 = 31_151;
 const AUDIO_SETTINGS_POPUP_WIDTH: f32 = 360.0;
 const AUDIO_SETTINGS_POPUP_HEIGHT: f32 = 316.0;
 const DRAG_PREVIEW_MAX_WIDTH: f32 = 280.0;
@@ -1607,21 +1605,11 @@ impl GuiAppState {
     }
 
     fn audio_engine_pill_label(&self) -> String {
-        self.audio_output_resolved
-            .as_ref()
-            .map(|output| format_sample_rate_label(output.sample_rate))
-            .or_else(|| {
-                self.audio_output_config
-                    .sample_rate
-                    .map(format_sample_rate_label)
-            })
-            .unwrap_or_else(|| {
-                if self.audio_settings_error.is_some() {
-                    String::from("Audio Err")
-                } else {
-                    String::from("Audio")
-                }
-            })
+        if self.audio_settings_error.is_some() {
+            String::from("Audio !")
+        } else {
+            String::from("Audio")
+        }
     }
 
     fn audio_engine_detail_label(&self) -> String {
@@ -2396,48 +2384,15 @@ fn audio_settings_popover(state: &GuiAppState) -> ui::View<GuiMessage> {
         .padding(8.0)
         .width(AUDIO_SETTINGS_POPUP_WIDTH)
         .height(AUDIO_SETTINGS_POPUP_HEIGHT);
-    let centered_panel = ui::column(vec![
+    ui::column(vec![
+        ui::spacer().height(42.0),
+        ui::row(vec![ui::spacer().fill_width(), panel])
+            .padding_x(14.0)
+            .fill_width()
+            .height(AUDIO_SETTINGS_POPUP_HEIGHT),
         ui::spacer().fill_height(),
-        ui::row(vec![
-            ui::spacer().height(1.0).fill_width(),
-            panel,
-            ui::spacer().height(1.0).fill_width(),
-        ])
-        .fill_width()
-        .height(AUDIO_SETTINGS_POPUP_HEIGHT),
-        ui::spacer().fill_height(),
-    ])
-    .fill();
-    ui::stack(vec![
-        audio_settings_modal_blocker(),
-        centered_panel,
-        audio_settings_modal_pill(state.audio_engine_pill_label()),
     ])
     .fill()
-}
-
-fn audio_settings_modal_blocker() -> ui::View<GuiMessage> {
-    ui::custom_widget(AudioSettingsModalBlocker::new(), |_| None)
-        .id(AUDIO_SETTINGS_MODAL_BLOCKER_ID)
-        .key("audio-settings-modal-blocker")
-        .fill()
-}
-
-fn audio_settings_modal_pill(label: String) -> ui::View<GuiMessage> {
-    ui::row(vec![
-        ui::spacer().height(1.0).fill_width(),
-        audio_engine_pill_with_id(
-            label,
-            true,
-            AUDIO_SETTINGS_MODAL_PILL_ID,
-            "audio-settings-modal-pill",
-        ),
-    ])
-    .spacing(8.0)
-    .padding_x(12.0)
-    .padding_y(4.0)
-    .fill_width()
-    .height(30.0)
 }
 
 fn audio_settings_panel_rows(state: &GuiAppState) -> Vec<ui::View<GuiMessage>> {
@@ -2885,48 +2840,6 @@ impl Widget for AudioEnginePill {
             align: PaintTextAlign::Center,
             wrap: TextWrap::None,
         }));
-    }
-}
-
-#[derive(Clone, Debug)]
-struct AudioSettingsModalBlocker {
-    common: WidgetCommon,
-}
-
-impl AudioSettingsModalBlocker {
-    fn new() -> Self {
-        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 1.0)));
-        common.focus = FocusBehavior::Pointer;
-        common.paint.paints_focus = false;
-        common.paint.paints_state_layers = false;
-        Self { common }
-    }
-}
-
-impl Widget for AudioSettingsModalBlocker {
-    fn common(&self) -> &WidgetCommon {
-        &self.common
-    }
-
-    fn common_mut(&mut self) -> &mut WidgetCommon {
-        &mut self.common
-    }
-
-    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
-        None
-    }
-
-    fn accepts_pointer_move(&self) -> bool {
-        false
-    }
-
-    fn append_paint(
-        &self,
-        _primitives: &mut Vec<PaintPrimitive>,
-        _bounds: Rect,
-        _layout: &LayoutOutput,
-        _theme: &ThemeTokens,
-    ) {
     }
 }
 
@@ -3462,14 +3375,10 @@ mod tests {
     use radiant::{
         gui::types::{Point, Rect, Vector2},
         prelude::{self as ui, IntoView},
-        runtime::{PaintPrimitive, RuntimeBridge, SurfaceRuntime, UiSurface},
+        runtime::PaintPrimitive,
         widgets::{DragHandleMessage, PointerButton, PointerModifiers, Widget, WidgetInput},
     };
-    use std::{
-        ffi::OsString,
-        fs,
-        sync::{Arc, Mutex, mpsc},
-    };
+    use std::{ffi::OsString, fs, sync::mpsc};
 
     fn selected_asset_file_path(browser: &super::FolderBrowserState, name: &str) -> String {
         browser
@@ -3505,31 +3414,6 @@ mod tests {
             audio_settings_open: false,
             audio_settings_error: None,
             current_playback_span: None,
-        }
-    }
-
-    struct StaticSurfaceBridge {
-        surface: Arc<UiSurface<super::GuiMessage>>,
-    }
-
-    impl RuntimeBridge<super::GuiMessage> for StaticSurfaceBridge {
-        fn project_surface(&mut self) -> Arc<UiSurface<super::GuiMessage>> {
-            Arc::clone(&self.surface)
-        }
-    }
-
-    struct CapturingSurfaceBridge {
-        surface: Arc<UiSurface<super::GuiMessage>>,
-        messages: Arc<Mutex<Vec<super::GuiMessage>>>,
-    }
-
-    impl RuntimeBridge<super::GuiMessage> for CapturingSurfaceBridge {
-        fn project_surface(&mut self) -> Arc<UiSurface<super::GuiMessage>> {
-            Arc::clone(&self.surface)
-        }
-
-        fn reduce_message(&mut self, message: super::GuiMessage) {
-            self.messages.lock().expect("message capture").push(message);
         }
     }
 
@@ -4107,7 +3991,7 @@ mod tests {
         assert!(!texts.iter().any(|text| text == "Wavecrate"));
         assert!(!texts.iter().any(|text| text == "Wavecrate GUI"));
         assert!(!texts.iter().any(|text| text == "ready"));
-        assert!(texts.iter().any(|text| text == "48 kHz"), "{texts:?}");
+        assert!(texts.iter().any(|text| text == "Audio"), "{texts:?}");
         assert!(slider_fills >= 2, "expected track and fill rects");
     }
 
@@ -4233,7 +4117,7 @@ mod tests {
     }
 
     #[test]
-    fn audio_settings_popover_centers_panel_in_window() {
+    fn audio_settings_popover_anchors_panel_top_right() {
         let mut state = GuiAppState::load_default().expect("default state loads");
         state.audio_settings_error = None;
         let frame =
@@ -4254,69 +4138,42 @@ mod tests {
             })
             .expect("audio settings title paints");
 
-        assert!((60.0..=80.0).contains(&title_rect.min.x), "{title_rect:?}");
-        assert!((28.0..=40.0).contains(&title_rect.min.y), "{title_rect:?}");
+        assert!(
+            (112.0..=128.0).contains(&title_rect.min.x),
+            "{title_rect:?}"
+        );
+        assert!((48.0..=58.0).contains(&title_rect.min.y), "{title_rect:?}");
     }
 
     #[test]
-    fn audio_settings_popover_blocks_pointer_input_behind_panel() {
+    fn audio_settings_popover_does_not_add_full_height_panel_chrome() {
         let mut state = GuiAppState::load_default().expect("default state loads");
         state.audio_settings_open = true;
-        let surface = Arc::new(UiSurface::new(super::view(&mut state).into_node()));
-        let mut runtime =
-            SurfaceRuntime::new(StaticSurfaceBridge { surface }, Vector2::new(960.0, 540.0));
-        let waveform_point = Point::new(340.0, 145.0);
-
-        let target = runtime.dispatch_input_at(
-            waveform_point,
-            WidgetInput::PointerPress {
-                position: waveform_point,
-                button: PointerButton::Primary,
-                modifiers: Default::default(),
-            },
+        let frame = radiant::runtime::UiSurface::new(super::view(&mut state).into_node()).frame(
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 540.0)),
+            &radiant::theme::ThemeTokens::default(),
         );
+        let audio_panel_fills = frame
+            .paint_plan
+            .primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::FillRect(fill)
+                    if fill.widget_id == 0
+                        && fill.rect.min.x >= 580.0
+                        && fill.rect.width() >= 300.0 =>
+                {
+                    Some(fill.rect)
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
 
-        assert!(target.is_some());
-        assert_ne!(target, Some(12));
-    }
-
-    #[test]
-    fn audio_settings_modal_top_pill_toggles_settings_closed() {
-        let mut state = GuiAppState::load_default().expect("default state loads");
-        state.audio_settings_open = true;
-        let surface = Arc::new(UiSurface::new(super::view(&mut state).into_node()));
-        let messages = Arc::new(Mutex::new(Vec::new()));
-        let mut runtime = SurfaceRuntime::new(
-            CapturingSurfaceBridge {
-                surface,
-                messages: Arc::clone(&messages),
-            },
-            Vector2::new(960.0, 540.0),
-        );
-        let pill_point = Point::new(920.0, 14.0);
-
-        let press_target = runtime.dispatch_input_at(
-            pill_point,
-            WidgetInput::PointerPress {
-                position: pill_point,
-                button: PointerButton::Primary,
-                modifiers: Default::default(),
-            },
-        );
-        let release_target = runtime.dispatch_input_at(
-            pill_point,
-            WidgetInput::PointerRelease {
-                position: pill_point,
-                button: PointerButton::Primary,
-                modifiers: Default::default(),
-            },
-        );
-
-        assert_eq!(press_target, Some(super::AUDIO_SETTINGS_MODAL_PILL_ID));
-        assert_eq!(release_target, Some(super::AUDIO_SETTINGS_MODAL_PILL_ID));
-        assert_eq!(
-            messages.lock().expect("message capture").as_slice(),
-            &[super::GuiMessage::ToggleAudioSettings]
+        assert!(
+            audio_panel_fills
+                .iter()
+                .all(|rect| rect.height() <= super::AUDIO_SETTINGS_POPUP_HEIGHT + 1.0),
+            "{audio_panel_fills:?}"
         );
     }
 
