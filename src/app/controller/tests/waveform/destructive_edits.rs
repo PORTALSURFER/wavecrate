@@ -353,7 +353,14 @@ fn destructive_edit_request_prompts_without_yolo_mode() {
         .unwrap();
 
     assert!(matches!(outcome, SelectionEditRequest::Prompted));
-    assert!(controller.ui.waveform.pending_destructive.is_some());
+    let prompt = controller
+        .ui
+        .waveform
+        .pending_destructive
+        .as_ref()
+        .expect("pending destructive prompt");
+    assert!(prompt.message.contains("current write format"));
+    assert!(prompt.message.contains("Source rate, 32-bit float"));
     let samples: Vec<f32> = WavReader::open(&wav_path)
         .unwrap()
         .samples::<f32>()
