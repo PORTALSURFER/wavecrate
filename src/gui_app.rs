@@ -4,13 +4,13 @@ use radiant::gui::types::{Point, Rect, Rgba8};
 use radiant::layout::{LayoutOutput, Vector2};
 use radiant::prelude as ui;
 use radiant::runtime::{
-    NativeRunOptions, NativeTextOptions, PaintFillRect, PaintPrimitive, PaintStrokeRect, PaintText,
-    PaintTextAlign, PaintTextRun,
+    NativeRunOptions, NativeTextOptions, PaintFillRect, PaintPrimitive, PaintText, PaintTextAlign,
+    PaintTextRun,
 };
 use radiant::theme::ThemeTokens;
 use radiant::widgets::{
-    DragHandleMessage, FocusBehavior, PaintBounds, PointerButton, PointerModifiers, TextWrap,
-    Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
+    DragHandleMessage, FocusBehavior, PointerModifiers, TextWrap, Widget, WidgetCommon,
+    WidgetInput, WidgetOutput, WidgetSizing,
 };
 use rfd::FileDialog;
 use std::{
@@ -29,15 +29,19 @@ use wavecrate::external_clipboard;
 use wavecrate::gui_runtime::wavecrate_ui_font_path;
 use wavecrate::logging::{self, ActionDebugEvent, emit_action_debug_event};
 
+mod audio_settings;
 mod context_menu;
 mod folder_browser;
+mod sample_browser_view;
 mod status_bar;
 mod waveform;
+use audio_settings::{audio_settings_popover, format_sample_rate_label, top_status_bar};
 use context_menu::{BrowserContextMenu, BrowserContextTargetKind};
 use folder_browser::{
-    FileColumn, FileEntry, FolderBrowserMessage, FolderBrowserState, FolderScanDiscoveryBatch,
-    FolderScanProgress, FolderScanRequest, FolderScanResult,
+    FolderBrowserMessage, FolderBrowserState, FolderScanDiscoveryBatch, FolderScanProgress,
+    FolderScanRequest, FolderScanResult,
 };
+use sample_browser_view::sample_browser;
 use waveform::{WaveformActiveDragKind, WaveformInteraction, WaveformSelectionKind, WaveformState};
 
 const DEBUG_LAYOUT_ARG: &str = "--debug-layout";
@@ -2761,259 +2765,6 @@ fn default_gui_shortcut_resolution(
     }
 }
 
-fn top_status_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
-    ui::row([
-        volume_slider(state.volume),
-        ui::spacer().height(20.0).fill_width(),
-        audio_engine_pill(state.audio_engine_pill_label(), state.audio_settings_open),
-    ])
-    .spacing(8.0)
-    .padding_x(12.0)
-    .padding_y(4.0)
-    .fill_width()
-    .height(30.0)
-}
-
-fn audio_engine_pill(label: String, active: bool) -> ui::View<GuiMessage> {
-    audio_engine_pill_with_id(label, active, AUDIO_ENGINE_PILL_ID, "top-audio-engine-pill")
-}
-
-fn audio_engine_pill_with_id(
-    label: String,
-    active: bool,
-    id: u64,
-    key: &'static str,
-) -> ui::View<GuiMessage> {
-    ui::custom_widget(AudioEnginePill::new(label, active), |output| {
-        output.typed_ref::<GuiMessage>().cloned()
-    })
-    .id(id)
-    .key(key)
-    .size(AUDIO_ENGINE_PILL_WIDTH, AUDIO_ENGINE_PILL_HEIGHT)
-}
-
-fn volume_slider(volume: f32) -> ui::View<GuiMessage> {
-    ui::slider(volume)
-        .compact()
-        .message(GuiMessage::SetVolume)
-        .id(VOLUME_SLIDER_ID)
-        .key("top-volume-slider")
-        .size(VOLUME_SLIDER_WIDTH, VOLUME_SLIDER_HEIGHT)
-}
-
-fn audio_settings_popover(state: &GuiAppState) -> ui::View<GuiMessage> {
-    let panel = ui::column(audio_settings_panel_rows(state))
-        .key("audio-settings-panel")
-        .style(ui::WidgetStyle {
-            tone: ui::WidgetTone::Neutral,
-            prominence: ui::WidgetProminence::Strong,
-        })
-        .spacing(7.0)
-        .padding(8.0)
-        .width(AUDIO_SETTINGS_POPUP_WIDTH)
-        .height(AUDIO_SETTINGS_POPUP_HEIGHT);
-    ui::column(vec![
-        ui::spacer().height(42.0),
-        ui::row(vec![ui::spacer().fill_width(), panel])
-            .padding_x(14.0)
-            .fill_width()
-            .height(AUDIO_SETTINGS_POPUP_HEIGHT),
-        ui::spacer().fill_height(),
-    ])
-    .fill()
-}
-
-fn audio_settings_panel_rows(state: &GuiAppState) -> Vec<ui::View<GuiMessage>> {
-    let mut rows = vec![
-        ui::row(vec![
-            ui::text("Audio Engine").height(20.0).fill_width(),
-            ui::button("x")
-                .subtle()
-                .message(GuiMessage::CloseAudioSettings)
-                .width(24.0)
-                .height(20.0),
-        ])
-        .fill_width()
-        .height(22.0),
-        ui::text(state.audio_engine_detail_label())
-            .key("audio-settings-detail")
-            .fill_width()
-            .height(20.0)
-            .truncate(),
-    ];
-    if let Some(error) = state.audio_settings_error.as_ref() {
-        rows.push(
-            ui::text(error.clone())
-                .key("audio-settings-error")
-                .style(ui::WidgetStyle {
-                    tone: ui::WidgetTone::Danger,
-                    prominence: ui::WidgetProminence::Subtle,
-                })
-                .fill_width()
-                .height(20.0)
-                .truncate(),
-        );
-    }
-    rows.push(audio_settings_section(
-        "Backend",
-        audio_host_option_buttons(state),
-        2,
-    ));
-    rows.push(audio_settings_section(
-        "Output",
-        audio_device_option_buttons(state),
-        2,
-    ));
-    rows.push(audio_settings_section(
-        "Sample Rate",
-        audio_sample_rate_option_buttons(state),
-        4,
-    ));
-    rows.push(cache_maintenance_section());
-    rows
-}
-
-fn cache_maintenance_section() -> ui::View<GuiMessage> {
-    ui::column(vec![
-        ui::text("Maintenance")
-            .style(ui::WidgetStyle {
-                tone: ui::WidgetTone::Accent,
-                prominence: ui::WidgetProminence::Subtle,
-            })
-            .fill_width()
-            .height(18.0),
-        ui::button("Clear Rebuildable Caches")
-            .message(GuiMessage::ClearRebuildableCaches)
-            .key("settings-clear-rebuildable-caches")
-            .fill_width()
-            .height(24.0),
-    ])
-    .spacing(3.0)
-    .fill_width()
-    .height(45.0)
-}
-
-fn audio_settings_section(
-    label: &'static str,
-    options: Vec<ui::View<GuiMessage>>,
-    columns: usize,
-) -> ui::View<GuiMessage> {
-    let grid_height = audio_option_grid_height(options.len(), columns);
-    let mut rows = vec![
-        ui::text(label)
-            .style(ui::WidgetStyle {
-                tone: ui::WidgetTone::Accent,
-                prominence: ui::WidgetProminence::Subtle,
-            })
-            .fill_width()
-            .height(18.0),
-    ];
-    if options.is_empty() {
-        rows.push(ui::text("Unavailable").fill_width().height(20.0));
-    } else {
-        rows.push(
-            ui::grid(options, columns.max(1))
-                .fill_width()
-                .height(grid_height),
-        );
-    }
-    ui::column(rows)
-        .spacing(3.0)
-        .fill_width()
-        .height(21.0 + grid_height)
-}
-
-fn audio_host_option_buttons(state: &GuiAppState) -> Vec<ui::View<GuiMessage>> {
-    let mut buttons = vec![audio_option_button(
-        "System default".to_string(),
-        state.audio_output_config.host.is_none(),
-        GuiMessage::SetAudioOutputHost(None),
-    )];
-    buttons.extend(state.audio_hosts.iter().map(|host| {
-        audio_option_button(
-            default_option_label(host.label.as_str(), host.is_default),
-            state.audio_output_config.host.as_deref() == Some(host.id.as_str()),
-            GuiMessage::SetAudioOutputHost(Some(host.id.clone())),
-        )
-    }));
-    buttons
-}
-
-fn audio_device_option_buttons(state: &GuiAppState) -> Vec<ui::View<GuiMessage>> {
-    let mut buttons = vec![audio_option_button(
-        "Host default".to_string(),
-        state.audio_output_config.device.is_none(),
-        GuiMessage::SetAudioOutputDevice(None),
-    )];
-    buttons.extend(state.audio_devices.iter().map(|device| {
-        audio_option_button(
-            default_option_label(device.name.as_str(), device.is_default),
-            state.audio_output_config.device.as_deref() == Some(device.name.as_str()),
-            GuiMessage::SetAudioOutputDevice(Some(device.name.clone())),
-        )
-    }));
-    buttons
-}
-
-fn audio_sample_rate_option_buttons(state: &GuiAppState) -> Vec<ui::View<GuiMessage>> {
-    let mut buttons = vec![audio_option_button(
-        "Device default".to_string(),
-        state.audio_output_config.sample_rate.is_none(),
-        GuiMessage::SetAudioOutputSampleRate(None),
-    )];
-    buttons.extend(state.audio_sample_rates.iter().copied().map(|rate| {
-        audio_option_button(
-            format_sample_rate_label(rate),
-            state.audio_output_config.sample_rate == Some(rate),
-            GuiMessage::SetAudioOutputSampleRate(Some(rate)),
-        )
-    }));
-    buttons
-}
-
-fn audio_option_button(label: String, selected: bool, message: GuiMessage) -> ui::View<GuiMessage> {
-    ui::button(label)
-        .style(ui::WidgetStyle {
-            tone: if selected {
-                ui::WidgetTone::Accent
-            } else {
-                ui::WidgetTone::Neutral
-            },
-            prominence: if selected {
-                ui::WidgetProminence::Strong
-            } else {
-                ui::WidgetProminence::Subtle
-            },
-        })
-        .message(message)
-        .fill_width()
-        .height(20.0)
-}
-
-fn default_option_label(label: &str, is_default: bool) -> String {
-    if is_default {
-        format!("{label} (default)")
-    } else {
-        label.to_string()
-    }
-}
-
-fn audio_option_grid_height(option_count: usize, columns: usize) -> f32 {
-    let columns = columns.max(1);
-    let rows = option_count.max(1).div_ceil(columns);
-    rows as f32 * 20.0 + rows.saturating_sub(1) as f32 * 4.0
-}
-
-fn format_sample_rate_label(sample_rate: u32) -> String {
-    if sample_rate >= 1000 && sample_rate.is_multiple_of(1000) {
-        format!("{} kHz", sample_rate / 1000)
-    } else if sample_rate >= 1000 {
-        format!("{:.1} kHz", sample_rate as f32 / 1000.0)
-    } else {
-        format!("{sample_rate} Hz")
-    }
-}
-
 fn center_panel(state: &mut GuiAppState) -> ui::View<GuiMessage> {
     ui::row([folder_sidebar(state), folder_splitter(), main_area(state)])
         .padding(6.0)
@@ -3117,178 +2868,6 @@ fn toolbar_button_message(icon: ToolbarIcon) -> GuiMessage {
         ToolbarIcon::Loop => GuiMessage::ToggleLoopPlayback,
         ToolbarIcon::Play => GuiMessage::PlaySelectedSample,
         ToolbarIcon::Stop => GuiMessage::StopPlayback,
-    }
-}
-
-#[derive(Clone, Debug)]
-struct AudioEnginePill {
-    common: WidgetCommon,
-    label: String,
-}
-
-impl AudioEnginePill {
-    fn new(label: String, active: bool) -> Self {
-        let mut common = WidgetCommon::new(
-            0,
-            WidgetSizing::fixed(Vector2::new(
-                AUDIO_ENGINE_PILL_WIDTH,
-                AUDIO_ENGINE_PILL_HEIGHT,
-            )),
-        );
-        common.focus = FocusBehavior::Keyboard;
-        common.paint.bounds = PaintBounds::ClipToRect;
-        common.paint.paints_state_layers = false;
-        common.state.active = active;
-        Self { common, label }
-    }
-}
-
-impl Widget for AudioEnginePill {
-    fn common(&self) -> &WidgetCommon {
-        &self.common
-    }
-
-    fn common_mut(&mut self) -> &mut WidgetCommon {
-        &mut self.common
-    }
-
-    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        match input {
-            WidgetInput::PointerMove { position } => {
-                self.common.state.hovered = bounds.contains(position);
-                None
-            }
-            WidgetInput::PointerPress {
-                position,
-                button: PointerButton::Primary,
-                ..
-            } if bounds.contains(position) => {
-                self.common.state.hovered = true;
-                self.common.state.pressed = true;
-                self.common.state.focused = true;
-                None
-            }
-            WidgetInput::PointerRelease {
-                position,
-                button: PointerButton::Primary,
-                ..
-            } => {
-                let activated = self.common.state.pressed && bounds.contains(position);
-                self.common.state.pressed = false;
-                self.common.state.hovered = bounds.contains(position);
-                activated.then(|| WidgetOutput::typed(GuiMessage::ToggleAudioSettings))
-            }
-            WidgetInput::FocusChanged(focused) => {
-                self.common.state.focused = focused;
-                if !focused {
-                    self.common.state.pressed = false;
-                }
-                None
-            }
-            WidgetInput::KeyPress(key) if self.common.state.focused => match key {
-                radiant::widgets::WidgetKey::Enter | radiant::widgets::WidgetKey::Space => {
-                    Some(WidgetOutput::typed(GuiMessage::ToggleAudioSettings))
-                }
-                _ => None,
-            },
-            _ => {
-                if matches!(input, WidgetInput::PointerRelease { .. }) {
-                    self.common.state.pressed = false;
-                }
-                None
-            }
-        }
-    }
-
-    fn accepts_pointer_move(&self) -> bool {
-        true
-    }
-
-    fn append_paint(
-        &self,
-        primitives: &mut Vec<PaintPrimitive>,
-        bounds: Rect,
-        _layout: &LayoutOutput,
-        _theme: &ThemeTokens,
-    ) {
-        let hovered_or_pressed = self.common.state.hovered || self.common.state.pressed;
-        let fill = if self.common.state.active {
-            Rgba8 {
-                r: 50,
-                g: 54,
-                b: 56,
-                a: 245,
-            }
-        } else if hovered_or_pressed {
-            Rgba8 {
-                r: 42,
-                g: 43,
-                b: 44,
-                a: 245,
-            }
-        } else {
-            Rgba8 {
-                r: 31,
-                g: 32,
-                b: 33,
-                a: 235,
-            }
-        };
-        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-            widget_id: self.common.id,
-            rect: bounds,
-            color: fill,
-        }));
-        primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
-            widget_id: self.common.id,
-            rect: Rect::from_min_max(
-                Point::new(bounds.min.x + 0.5, bounds.min.y + 0.5),
-                Point::new(bounds.max.x - 0.5, bounds.max.y - 0.5),
-            ),
-            color: Rgba8 {
-                r: 78,
-                g: 79,
-                b: 80,
-                a: if hovered_or_pressed { 230 } else { 165 },
-            },
-            width: 1.0,
-        }));
-        if self.common.state.focused {
-            primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
-                widget_id: self.common.id,
-                rect: Rect::from_min_max(
-                    Point::new(bounds.min.x - 1.0, bounds.min.y - 1.0),
-                    Point::new(bounds.max.x + 1.0, bounds.max.y + 1.0),
-                ),
-                color: Rgba8 {
-                    r: 255,
-                    g: 112,
-                    b: 86,
-                    a: 190,
-                },
-                width: 1.0,
-            }));
-        }
-        let font_size = 9.0;
-        let text_rect = Rect::from_min_max(
-            Point::new(bounds.min.x + 5.0, bounds.min.y),
-            Point::new(bounds.max.x - 5.0, bounds.max.y),
-        );
-        primitives.push(PaintPrimitive::Text(PaintTextRun {
-            widget_id: self.common.id,
-            text: PaintText::from(self.label.as_str()),
-            rect: text_rect,
-            font_size,
-            baseline: Some(((text_rect.height() - font_size) * 0.5 + font_size * 0.78).round()),
-            color: Rgba8 {
-                r: 183,
-                g: 184,
-                b: 184,
-                a: 235,
-            },
-            align: PaintTextAlign::Center,
-            wrap: TextWrap::None,
-        }));
     }
 }
 
@@ -3544,408 +3123,6 @@ fn waveform_scrollbar(waveform: &WaveformState) -> ui::View<GuiMessage> {
         })
         .fill_width()
         .height(6.0)
-}
-
-fn sample_browser(state: &mut GuiAppState) -> ui::View<GuiMessage> {
-    let window = state.folder_browser.follow_selected_file_view(
-        SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS,
-        SAMPLE_BROWSER_OVERSCAN_ROWS,
-        SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
-    );
-    let audio_files = state.folder_browser.selected_audio_files();
-    let audio_count = audio_files.len();
-    let columns = state.folder_browser.visible_file_columns();
-    ui::column([
-        sample_browser_header(&columns, state.folder_browser.file_sort()),
-        sample_browser_rows(&state.folder_browser, &audio_files, &columns, window),
-        sample_browser_status(audio_count),
-    ])
-    .spacing(0.0)
-    .style(ui::WidgetStyle::default())
-    .fill()
-}
-
-fn sample_browser_header(columns: &[&FileColumn], sort: &ui::DetailsSort) -> ui::View<GuiMessage> {
-    details_header_row(
-        columns
-            .iter()
-            .map(|column| sample_header_cell(column, sort)),
-    )
-}
-
-fn sample_header_cell(column: &FileColumn, sort: &ui::DetailsSort) -> ui::View<GuiMessage> {
-    let marker = if sort.column_id == column.id {
-        match sort.direction {
-            ui::SortDirection::Ascending => " ^",
-            ui::SortDirection::Descending => " v",
-        }
-    } else {
-        ""
-    };
-    let column_id = column.id.clone();
-    let resize_id = column.id.clone();
-    ui::row([
-        ui::button(format!("{}{marker}", column.label))
-            .message(GuiMessage::FolderBrowser(
-                FolderBrowserMessage::SortFileColumn(column_id),
-            ))
-            .key(format!("sample-sort-{}", column.id))
-            .align_text(ui::TextAlign::Left)
-            .fill_width()
-            .height(20.0)
-            .input_only(),
-        ui::drag_handle()
-            .mapped(move |message| {
-                GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeFileColumn(
-                    resize_id.clone(),
-                    message,
-                ))
-            })
-            .key(format!("sample-column-resize-{}", column.id))
-            .size(4.0, 20.0),
-    ])
-    .width(column.width)
-    .height(20.0)
-    .spacing(1.0)
-}
-
-fn sample_browser_rows(
-    folder_browser: &FolderBrowserState,
-    files: &[&FileEntry],
-    columns: &[&FileColumn],
-    window: ui::VirtualListWindow,
-) -> ui::View<GuiMessage> {
-    if files.is_empty() {
-        return ui::text("No audio files in selected folder")
-            .height(24.0)
-            .fill_width()
-            .fill_height();
-    }
-
-    ui::virtual_list_window(
-        window,
-        SAMPLE_BROWSER_ROW_HEIGHT,
-        |index| {
-            let file = files[index];
-            sample_browser_row(
-                file,
-                folder_browser.is_file_selected(&file.id),
-                folder_browser.file_rename_view(&file.id),
-                columns,
-            )
-        },
-        SAMPLE_BROWSER_ROW_HEIGHT * SAMPLE_BROWSER_OVERSCAN_ROWS as f32,
-    )
-    .id(SAMPLE_BROWSER_LIST_ID)
-    .fill()
-}
-
-fn sample_browser_row(
-    file: &FileEntry,
-    selected: bool,
-    rename: Option<folder_browser::FileRenameView>,
-    columns: &[&FileColumn],
-) -> ui::View<GuiMessage> {
-    let hit_path = file.id.clone();
-    let hit_target =
-        ui::custom_widget_mapped(
-            SampleFileHitTarget::new(selected),
-            move |message| match message {
-                SampleFileHitMessage::Activate(modifiers) => {
-                    GuiMessage::SelectSampleWithModifiers {
-                        path: hit_path.clone(),
-                        modifiers,
-                    }
-                }
-                SampleFileHitMessage::ContextMenu(position) => GuiMessage::OpenSampleContextMenu {
-                    path: hit_path.clone(),
-                    position,
-                },
-                SampleFileHitMessage::Drag(drag) => GuiMessage::DragSampleFile {
-                    path: hit_path.clone(),
-                    drag,
-                },
-            },
-        )
-        .key(format!("sample-row-hit-{}", file.id))
-        .fill_width()
-        .height(22.0);
-    let row = ui::stack([
-        hit_target,
-        compact_details_row(
-            columns
-                .iter()
-                .map(|column| sample_column_cell(file, rename.clone(), column)),
-        ),
-    ])
-    .key(format!("sample-row-{}", file.id))
-    .fill_width()
-    .height(22.0);
-    row.style(ui::WidgetStyle::default())
-}
-
-fn sample_name_cell(
-    file: &FileEntry,
-    rename: Option<folder_browser::FileRenameView>,
-    width: f32,
-) -> ui::View<GuiMessage> {
-    let Some(rename) = rename else {
-        return sample_file_cell(file, file.stem.clone(), width, "name");
-    };
-    ui::text_input(rename.draft)
-        .selection(rename.selection_start, rename.selection_end)
-        .message_event(|message| {
-            GuiMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message))
-        })
-        .id(rename.input_id)
-        .key(format!("sample-rename-input-{}", file.id))
-        .width(width)
-        .height(20.0)
-}
-
-fn sample_column_cell(
-    file: &FileEntry,
-    rename: Option<folder_browser::FileRenameView>,
-    column: &FileColumn,
-) -> ui::View<GuiMessage> {
-    if column.id == "name" {
-        return sample_name_cell(file, rename, column.width);
-    }
-    sample_file_cell(
-        file,
-        sample_file_column_value(file, column.id.as_str()),
-        column.width,
-        column.id.as_str(),
-    )
-}
-
-fn sample_file_column_value(file: &FileEntry, column_id: &str) -> String {
-    match column_id {
-        "extension" => file.extension.clone(),
-        "size" => file.size.clone(),
-        "modified" => file.modified.clone(),
-        "kind" => file.kind.clone(),
-        "path" => file.id.clone(),
-        _ => file.stem.clone(),
-    }
-}
-
-fn sample_file_cell(
-    file: &FileEntry,
-    value: String,
-    width: f32,
-    column_id: &str,
-) -> ui::View<GuiMessage> {
-    ui::text(value)
-        .key(format!("sample-{}-{column_id}", file.id))
-        .height(20.0)
-        .width(width)
-        .truncate()
-}
-
-fn compact_details_row(
-    children: impl IntoIterator<Item = ui::View<GuiMessage>>,
-) -> ui::View<GuiMessage> {
-    ui::row(children)
-        .fill_width()
-        .height(22.0)
-        .padding_x(8.0)
-        .padding_y(1.0)
-        .spacing(10.0)
-}
-
-fn details_header_row(
-    children: impl IntoIterator<Item = ui::View<GuiMessage>>,
-) -> ui::View<GuiMessage> {
-    ui::row(children)
-        .style(ui::WidgetStyle {
-            tone: ui::WidgetTone::Accent,
-            prominence: ui::WidgetProminence::Subtle,
-        })
-        .fill_width()
-        .height(24.0)
-        .padding_x(8.0)
-        .padding_y(2.0)
-        .spacing(10.0)
-}
-
-fn sample_browser_status(audio_count: usize) -> ui::View<GuiMessage> {
-    ui::row([
-        ui::text("Listed").height(20.0).width(90.0),
-        ui::text(format!(
-            "{audio_count} audio file{} in selected folder",
-            if audio_count == 1 { "" } else { "s" }
-        ))
-        .height(20.0)
-        .fill_width(),
-    ])
-    .padding_x(3.0)
-    .fill_width()
-    .height(28.0)
-}
-
-#[derive(Clone, Debug)]
-struct SampleFileHitTarget {
-    common: WidgetCommon,
-    selected: bool,
-    dragged: bool,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-enum SampleFileHitMessage {
-    Activate(PointerModifiers),
-    ContextMenu(Point),
-    Drag(DragHandleMessage),
-}
-
-impl SampleFileHitTarget {
-    fn new(selected: bool) -> Self {
-        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 22.0)));
-        common.focus = FocusBehavior::None;
-        common.paint.bounds = PaintBounds::ClipToRect;
-        common.paint.paints_focus = false;
-        common.paint.paints_state_layers = false;
-        Self {
-            common,
-            selected,
-            dragged: false,
-        }
-    }
-}
-
-impl Widget for SampleFileHitTarget {
-    fn common(&self) -> &WidgetCommon {
-        &self.common
-    }
-
-    fn common_mut(&mut self) -> &mut WidgetCommon {
-        &mut self.common
-    }
-
-    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        match input {
-            WidgetInput::PointerMove { position } => {
-                self.common.state.hovered = bounds.contains(position);
-                if self.common.state.pressed {
-                    let message = if self.dragged {
-                        DragHandleMessage::Moved { position }
-                    } else {
-                        self.dragged = true;
-                        DragHandleMessage::Started { position }
-                    };
-                    return Some(WidgetOutput::typed(SampleFileHitMessage::Drag(message)));
-                }
-                None
-            }
-            WidgetInput::PointerPress {
-                position,
-                button: PointerButton::Primary,
-                ..
-            } if bounds.contains(position) => {
-                self.common.state.hovered = true;
-                self.common.state.pressed = true;
-                self.dragged = false;
-                None
-            }
-            WidgetInput::PointerPress {
-                position,
-                button: PointerButton::Secondary,
-                ..
-            } if bounds.contains(position) => {
-                self.common.state.hovered = true;
-                self.common.state.pressed = false;
-                self.dragged = false;
-                Some(WidgetOutput::typed(SampleFileHitMessage::ContextMenu(
-                    position,
-                )))
-            }
-            WidgetInput::PointerRelease {
-                position,
-                button: PointerButton::Primary,
-                modifiers,
-            } => {
-                let activated =
-                    self.common.state.pressed && !self.dragged && bounds.contains(position);
-                let dragged = self.common.state.pressed && self.dragged;
-                self.common.state.pressed = false;
-                self.common.state.hovered = bounds.contains(position);
-                self.dragged = false;
-                if dragged {
-                    return Some(WidgetOutput::typed(SampleFileHitMessage::Drag(
-                        DragHandleMessage::Ended { position },
-                    )));
-                }
-                activated.then(|| WidgetOutput::typed(SampleFileHitMessage::Activate(modifiers)))
-            }
-            _ => {
-                if matches!(input, WidgetInput::PointerRelease { .. }) {
-                    self.common.state.pressed = false;
-                    self.dragged = false;
-                }
-                None
-            }
-        }
-    }
-
-    fn accepts_pointer_move(&self) -> bool {
-        true
-    }
-
-    fn append_paint(
-        &self,
-        primitives: &mut Vec<PaintPrimitive>,
-        bounds: Rect,
-        _layout: &LayoutOutput,
-        _theme: &ThemeTokens,
-    ) {
-        if self.selected {
-            primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-                widget_id: self.common.id,
-                rect: bounds,
-                color: Rgba8 {
-                    r: 255,
-                    g: 82,
-                    b: 62,
-                    a: 120,
-                },
-            }));
-        }
-
-        if self.common.state.pressed || self.common.state.hovered {
-            let alpha = if self.common.state.pressed { 170 } else { 155 };
-            primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-                widget_id: self.common.id,
-                rect: bounds,
-                color: Rgba8 {
-                    r: 255,
-                    g: 108,
-                    b: 88,
-                    a: alpha,
-                },
-            }));
-        }
-
-        if !self.selected {
-            return;
-        }
-        let marker_height = (bounds.height() - 8.0).max(8.0).min(bounds.height());
-        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-            widget_id: self.common.id,
-            rect: Rect::from_min_size(
-                Point::new(
-                    bounds.min.x + 1.0,
-                    bounds.min.y + (bounds.height() - marker_height) * 0.5,
-                ),
-                Vector2::new(3.0, marker_height),
-            ),
-            color: Rgba8 {
-                r: 255,
-                g: 82,
-                b: 62,
-                a: 245,
-            },
-        }));
-    }
 }
 
 #[cfg(test)]
@@ -4773,7 +3950,7 @@ mod tests {
     #[test]
     fn sample_row_hit_target_survives_frame_refresh_between_press_and_release() {
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(160.0, 22.0));
-        let mut hit_target = super::SampleFileHitTarget::new(false);
+        let mut hit_target = super::sample_browser_view::SampleFileHitTarget::new(false);
 
         assert_eq!(
             hit_target.handle_input(
@@ -4787,7 +3964,7 @@ mod tests {
             None
         );
 
-        let mut refreshed_hit_target = super::SampleFileHitTarget::new(false);
+        let mut refreshed_hit_target = super::sample_browser_view::SampleFileHitTarget::new(false);
         refreshed_hit_target.common_mut().state = hit_target.common().state;
         let output = refreshed_hit_target
             .handle_input(
@@ -4805,12 +3982,14 @@ mod tests {
             .expect("sample row should activate after a frame refresh");
 
         assert_eq!(
-            output.typed_ref::<super::SampleFileHitMessage>(),
-            Some(&super::SampleFileHitMessage::Activate(PointerModifiers {
-                command: true,
-                shift: true,
-                ..Default::default()
-            }))
+            output.typed_ref::<super::sample_browser_view::SampleFileHitMessage>(),
+            Some(&super::sample_browser_view::SampleFileHitMessage::Activate(
+                PointerModifiers {
+                    command: true,
+                    shift: true,
+                    ..Default::default()
+                }
+            ))
         );
         assert!(!refreshed_hit_target.common().state.pressed);
     }
@@ -4866,13 +4045,15 @@ mod tests {
     #[test]
     fn volume_slider_drag_emits_normalized_volume() {
         assert_eq!(
-            radiant::runtime::UiSurface::new(super::volume_slider(0.25).into_node())
-                .dispatch_widget_output(
-                    super::VOLUME_SLIDER_ID,
-                    radiant::widgets::WidgetOutput::typed(
-                        radiant::widgets::SliderMessage::ValueChanged { value: 0.75 },
-                    ),
+            radiant::runtime::UiSurface::new(
+                super::audio_settings::volume_slider(0.25).into_node(),
+            )
+            .dispatch_widget_output(
+                super::VOLUME_SLIDER_ID,
+                radiant::widgets::WidgetOutput::typed(
+                    radiant::widgets::SliderMessage::ValueChanged { value: 0.75 },
                 ),
+            ),
             Some(super::GuiMessage::SetVolume(0.75))
         );
     }
@@ -4890,7 +4071,7 @@ mod tests {
 
     #[test]
     fn audio_engine_pill_activates_settings_toggle() {
-        let mut pill = super::AudioEnginePill::new(String::from("48 kHz"), false);
+        let mut pill = super::audio_settings::AudioEnginePill::new(String::from("48 kHz"), false);
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(66.0, 18.0));
         assert!(
             pill.handle_input(
@@ -5187,7 +4368,7 @@ mod tests {
 
     #[test]
     fn selected_sample_browser_row_paints_strong_fill_and_left_marker() {
-        let widget = super::SampleFileHitTarget::new(true);
+        let widget = super::sample_browser_view::SampleFileHitTarget::new(true);
         let bounds = Rect::from_min_size(Point::new(12.0, 8.0), Vector2::new(240.0, 22.0));
         let mut primitives = Vec::new();
         widget.append_paint(
@@ -5227,7 +4408,7 @@ mod tests {
     #[test]
     fn sample_browser_row_hover_paints_bright_background_without_marker() {
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(180.0, 22.0));
-        let mut hit_target = super::SampleFileHitTarget::new(false);
+        let mut hit_target = super::sample_browser_view::SampleFileHitTarget::new(false);
 
         assert_eq!(
             hit_target.handle_input(
