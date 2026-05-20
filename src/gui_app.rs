@@ -97,6 +97,8 @@ enum GuiMessage {
     CopyContextPath,
     OpenContextTarget,
     CloseContextMenu,
+    ToggleJobDetails,
+    CloseJobDetails,
     Noop,
     FocusRenameInput(u64),
     DeleteSelectedItem,
@@ -161,6 +163,7 @@ struct GuiAppState {
     audio_devices: Vec<AudioDeviceSummary>,
     audio_sample_rates: Vec<u32>,
     audio_settings_open: bool,
+    job_details_open: bool,
     context_menu: Option<BrowserContextMenu>,
     waveform_loading_label: Option<String>,
     audio_settings_error: Option<String>,
@@ -192,6 +195,7 @@ impl GuiAppState {
             audio_devices: Vec::new(),
             audio_sample_rates: Vec::new(),
             audio_settings_open: false,
+            job_details_open: false,
             context_menu: None,
             waveform_loading_label: None,
             audio_settings_error: None,
@@ -468,6 +472,12 @@ impl GuiAppState {
             GuiMessage::OpenContextTarget => self.open_context_target(),
             GuiMessage::CloseContextMenu => {
                 self.context_menu = None;
+            }
+            GuiMessage::ToggleJobDetails => {
+                self.job_details_open = self.folder_progress.is_some() && !self.job_details_open;
+            }
+            GuiMessage::CloseJobDetails => {
+                self.job_details_open = false;
             }
             GuiMessage::Noop => {}
             GuiMessage::FocusRenameInput(input_id) => {
@@ -1011,6 +1021,7 @@ impl GuiAppState {
         let folder_count = result.folder_count;
         if self.folder_browser.apply_scan_finished(result) {
             self.folder_progress = None;
+            self.job_details_open = false;
             self.progress_tick = 0.0;
             self.sample_status =
                 format!("Loaded source {label}: {file_count} files in {folder_count} folders");
@@ -2634,6 +2645,11 @@ fn view(state: &mut GuiAppState) -> ui::View<GuiMessage> {
     if state.audio_settings_open {
         layers.push(audio_settings_popover(state));
     }
+    if state.job_details_open {
+        if let Some(progress) = state.folder_progress.as_ref() {
+            layers.push(job_details_popover(progress));
+        }
+    }
     if let Some(menu) = state.context_menu.as_ref() {
         layers.push(browser_context_menu_overlay(menu));
     }
@@ -2708,6 +2724,69 @@ fn folder_drag_preview_overlay(preview: folder_browser::FolderDragPreview) -> ui
     .key("folder-browser-drag-preview")
 }
 
+fn job_details_popover(progress: &FolderScanProgress) -> ui::View<GuiMessage> {
+    let total_label = if progress.total == 0 {
+        format!("{} found", progress.completed)
+    } else {
+        format!(
+            "{}/{}",
+            progress.completed.min(progress.total),
+            progress.total
+        )
+    };
+    let detail = if progress.detail.is_empty() {
+        String::from("Waiting for next item")
+    } else {
+        progress.detail.clone()
+    };
+    let panel = ui::column([
+        ui::row([
+            ui::text("Job Details").height(20.0).fill_width(),
+            ui::button("x")
+                .subtle()
+                .message(GuiMessage::CloseJobDetails)
+                .width(24.0)
+                .height(20.0),
+        ])
+        .height(22.0)
+        .fill_width(),
+        ui::text(format!("Type: {}", progress.phase))
+            .height(20.0)
+            .fill_width()
+            .truncate(),
+        ui::text(format!("Source: {}", progress.label))
+            .height(20.0)
+            .fill_width()
+            .truncate(),
+        ui::text(format!("Progress: {total_label}"))
+            .height(20.0)
+            .fill_width()
+            .truncate(),
+        ui::text(format!("Current: {detail}"))
+            .height(20.0)
+            .fill_width()
+            .truncate(),
+    ])
+    .key("bottom-job-details-popover")
+    .style(ui::WidgetStyle {
+        tone: ui::WidgetTone::Neutral,
+        prominence: ui::WidgetProminence::Strong,
+    })
+    .spacing(5.0)
+    .padding(8.0)
+    .width(300.0)
+    .height(132.0);
+    ui::column([
+        ui::spacer().fill_height(),
+        ui::row([ui::spacer().fill_width(), panel])
+            .padding_x(14.0)
+            .padding_y(38.0)
+            .fill_width()
+            .height(172.0),
+    ])
+    .fill()
+}
+
 fn default_gui_shortcut_resolution(
     state: &GuiAppState,
     press: ui::KeyPress,
@@ -2719,6 +2798,13 @@ fn default_gui_shortcut_resolution(
             .bind(
                 ui::KeyPress::new(ui::KeyCode::Escape),
                 GuiMessage::CloseContextMenu,
+            )
+            .resolve(press)
+    } else if state.job_details_open {
+        ui::ShortcutLayer::modal()
+            .bind(
+                ui::KeyPress::new(ui::KeyCode::Escape),
+                GuiMessage::CloseJobDetails,
             )
             .resolve(press)
     } else if state.audio_settings_open {
@@ -4020,10 +4106,12 @@ fn worker_progress_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
     }
     let track_width = 180.0;
     let fraction = (progress.completed as f32 / progress.total.max(1) as f32).clamp(0.0, 1.0);
-    ui::custom_widget(StatusProgressBar::new(fraction), |_| None)
-        .key("bottom-status-progress-bar")
-        .width(track_width)
-        .height(10.0)
+    ui::custom_widget(StatusProgressBar::new(fraction), |output| {
+        output.typed_ref::<GuiMessage>().cloned()
+    })
+    .key("bottom-status-progress-bar")
+    .width(track_width)
+    .height(10.0)
 }
 
 #[derive(Clone, Debug)]
@@ -4035,7 +4123,7 @@ struct StatusProgressBar {
 impl StatusProgressBar {
     fn new(fraction: f32) -> Self {
         let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 1.0)));
-        common.focus = FocusBehavior::None;
+        common.focus = FocusBehavior::Pointer;
         common.paint.paints_focus = false;
         common.paint.paints_state_layers = false;
         Self {
@@ -4054,8 +4142,42 @@ impl Widget for StatusProgressBar {
         &mut self.common
     }
 
-    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
-        None
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        match input {
+            WidgetInput::PointerMove { position } => {
+                self.common.state.hovered = bounds.contains(position);
+                None
+            }
+            WidgetInput::PointerPress {
+                position,
+                button: PointerButton::Primary,
+                ..
+            } if bounds.contains(position) => {
+                self.common.state.hovered = true;
+                self.common.state.pressed = true;
+                None
+            }
+            WidgetInput::PointerRelease {
+                position,
+                button: PointerButton::Primary,
+                ..
+            } => {
+                let activated = self.common.state.pressed && bounds.contains(position);
+                self.common.state.pressed = false;
+                self.common.state.hovered = bounds.contains(position);
+                activated.then(|| WidgetOutput::typed(GuiMessage::ToggleJobDetails))
+            }
+            _ => {
+                if matches!(input, WidgetInput::PointerRelease { .. }) {
+                    self.common.state.pressed = false;
+                }
+                None
+            }
+        }
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        true
     }
 
     fn needs_state_synchronization(&self) -> bool {
@@ -4149,6 +4271,7 @@ mod tests {
             audio_devices: Vec::new(),
             audio_sample_rates: Vec::new(),
             audio_settings_open: false,
+            job_details_open: false,
             context_menu: None,
             waveform_loading_label: None,
             audio_settings_error: None,
@@ -4386,6 +4509,7 @@ mod tests {
             audio_devices: Vec::new(),
             audio_sample_rates: Vec::new(),
             audio_settings_open: false,
+            job_details_open: false,
             context_menu: None,
             waveform_loading_label: None,
             audio_settings_error: None,
@@ -4513,6 +4637,7 @@ mod tests {
             audio_devices: Vec::new(),
             audio_sample_rates: Vec::new(),
             audio_settings_open: false,
+            job_details_open: false,
             context_menu: None,
             waveform_loading_label: None,
             audio_settings_error: None,
@@ -4659,6 +4784,62 @@ mod tests {
                 .iter()
                 .all(|primitive| !matches!(primitive, PaintPrimitive::StrokeRect(_)))
         );
+    }
+
+    #[test]
+    fn bottom_status_progress_bar_click_opens_job_details() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(180.0, 10.0));
+        let mut progress = super::StatusProgressBar::new(0.4);
+        assert_eq!(
+            progress.handle_input(
+                bounds,
+                WidgetInput::PointerPress {
+                    position: Point::new(90.0, 5.0),
+                    button: PointerButton::Primary,
+                    modifiers: Default::default(),
+                },
+            ),
+            None
+        );
+
+        let output = progress
+            .handle_input(
+                bounds,
+                WidgetInput::PointerRelease {
+                    position: Point::new(90.0, 5.0),
+                    button: PointerButton::Primary,
+                    modifiers: Default::default(),
+                },
+            )
+            .expect("progress bar click should activate details");
+        assert_eq!(
+            output.typed_ref::<super::GuiMessage>(),
+            Some(&super::GuiMessage::ToggleJobDetails)
+        );
+    }
+
+    #[test]
+    fn job_details_popover_reports_active_scan_progress() {
+        let progress = super::FolderScanProgress {
+            task_id: 7,
+            source_id: String::from("assets"),
+            label: String::from("Assets"),
+            phase: String::from("Scanning"),
+            completed: 2,
+            total: 5,
+            detail: String::from("kick.wav"),
+        };
+        let frame =
+            radiant::runtime::UiSurface::new(super::job_details_popover(&progress).into_node())
+                .frame(
+                    Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(360.0, 180.0)),
+                    &radiant::theme::ThemeTokens::default(),
+                );
+
+        assert!(frame_has_text(&frame, "Job Details"));
+        assert!(frame_has_text(&frame, "Type: Scanning"));
+        assert!(frame_has_text(&frame, "Progress: 2/5"));
+        assert!(frame_has_text(&frame, "Current: kick.wav"));
     }
 
     #[test]
