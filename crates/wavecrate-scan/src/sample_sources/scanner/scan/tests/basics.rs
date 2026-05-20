@@ -66,6 +66,10 @@ fn scan_ignores_non_wav_and_counts_nested() {
     std::fs::create_dir_all(&nested).unwrap();
     std::fs::write(dir.path().join("one.wav"), b"one").unwrap();
     std::fs::write(nested.join("two.wav"), b"two").unwrap();
+    std::fs::write(dir.path().join("later.aif"), b"aif").unwrap();
+    std::fs::write(dir.path().join("later.aiff"), b"aiff").unwrap();
+    std::fs::write(dir.path().join("unsupported.flac"), b"flac").unwrap();
+    std::fs::write(dir.path().join("unsupported.mp3"), b"mp3").unwrap();
     std::fs::write(dir.path().join("ignore.txt"), b"text").unwrap();
 
     let db = SourceDatabase::open(dir.path()).unwrap();
