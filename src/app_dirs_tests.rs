@@ -78,6 +78,24 @@ fn dependency_sandbox_logs_dir_stays_under_sandbox_profile_root() {
 }
 
 #[test]
+fn dependency_handoff_staging_dir_stays_under_app_root() {
+    if explicit_persistence_env_present() {
+        return;
+    }
+    let base = tempdir().expect("create base dir");
+    let _base_guard = ConfigBaseGuard::set(base.path().to_path_buf());
+    let _profile_guard = PersistenceProfileGuard::live();
+
+    let staging_dir = app_dirs::handoff_staging_dir().expect("resolve handoff staging dir");
+
+    assert_eq!(
+        staging_dir,
+        base.path().join(".wavecrate").join("handoff_staging")
+    );
+    assert!(staging_dir.is_dir());
+}
+
+#[test]
 fn dependency_explicit_app_root_override_wins_over_test_default() {
     if explicit_persistence_env_present() {
         return;

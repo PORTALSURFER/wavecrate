@@ -62,7 +62,7 @@ impl AppController {
                 .ok_or_else(|| "Load a sample before copying a selection".to_string())?;
             (audio.source_id.clone(), audio.relative_path.clone())
         };
-        let clip_root = crate::app_dirs::app_root_dir()
+        let clip_root = crate::app_dirs::handoff_staging_dir()
             .map_err(|err| err.to_string())?
             .join("clipboard_clips");
         std::fs::create_dir_all(&clip_root)
