@@ -3289,33 +3289,119 @@ fn waveform_viewport_with_loading_state(state: &GuiAppState) -> ui::View<GuiMess
 }
 
 fn waveform_loading_visual(label: &str, tick: f32) -> ui::View<GuiMessage> {
-    let phase = ((tick.sin() + 1.0) * 0.5).clamp(0.0, 1.0);
-    let left_width = (WAVEFORM_VIEW_HEIGHT * 0.75 * phase).clamp(8.0, 120.0);
-    ui::column([
-        ui::spacer().fill_width().height(46.0),
-        ui::text(format!("Loading waveform | {label}"))
-            .fill_width()
-            .height(22.0)
-            .truncate(),
-        ui::row([
-            ui::spacer().width(left_width).height(5.0),
-            ui::text("").height(5.0).width(96.0).style(ui::WidgetStyle {
-                tone: ui::WidgetTone::Accent,
-                prominence: ui::WidgetProminence::Strong,
-            }),
-            ui::spacer().fill_width().height(5.0),
-        ])
+    ui::custom_widget(WaveformLoadingVisual::new(label, tick), |_| None)
+        .key("waveform-loading-visual")
         .fill_width()
-        .height(5.0),
-        ui::spacer().fill_width().fill_height(),
-    ])
-    .style(ui::WidgetStyle {
-        tone: ui::WidgetTone::Accent,
-        prominence: ui::WidgetProminence::Subtle,
-    })
-    .padding(8.0)
-    .fill_width()
-    .height(WAVEFORM_VIEW_HEIGHT)
+        .height(WAVEFORM_VIEW_HEIGHT)
+}
+
+#[derive(Clone, Debug)]
+struct WaveformLoadingVisual {
+    common: WidgetCommon,
+    label: String,
+    tick: f32,
+}
+
+impl WaveformLoadingVisual {
+    fn new(label: &str, tick: f32) -> Self {
+        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 1.0)));
+        common.focus = FocusBehavior::None;
+        common.paint.paints_focus = false;
+        common.paint.paints_state_layers = false;
+        Self {
+            common,
+            label: label.to_string(),
+            tick,
+        }
+    }
+}
+
+impl Widget for WaveformLoadingVisual {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+        None
+    }
+
+    fn needs_state_synchronization(&self) -> bool {
+        false
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: self.common.id,
+            rect: bounds,
+            color: Rgba8 {
+                r: 24,
+                g: 27,
+                b: 28,
+                a: 128,
+            },
+        }));
+
+        let content = Rect::from_min_max(
+            Point::new(bounds.min.x + 8.0, bounds.min.y + 48.0),
+            Point::new(bounds.max.x - 8.0, bounds.min.y + 70.0),
+        );
+        primitives.push(PaintPrimitive::Text(PaintTextRun {
+            widget_id: self.common.id,
+            text: PaintText::from(format!("Loading waveform | {}", self.label)),
+            rect: content,
+            font_size: 10.0,
+            baseline: Some(14.0),
+            color: Rgba8 {
+                r: 218,
+                g: 219,
+                b: 219,
+                a: 235,
+            },
+            align: PaintTextAlign::Left,
+            wrap: TextWrap::None,
+        }));
+
+        let phase = ((self.tick.sin() + 1.0) * 0.5).clamp(0.0, 1.0);
+        let track = Rect::from_min_max(
+            Point::new(bounds.min.x + 8.0, bounds.min.y + 74.0),
+            Point::new(bounds.max.x - 8.0, bounds.min.y + 79.0),
+        );
+        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: self.common.id,
+            rect: track,
+            color: Rgba8 {
+                r: 72,
+                g: 76,
+                b: 78,
+                a: 130,
+            },
+        }));
+        let shimmer_width = track.width().min(120.0).max(48.0);
+        let shimmer_x = track.min.x + (track.width() - shimmer_width).max(0.0) * phase;
+        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: self.common.id,
+            rect: Rect::from_min_max(
+                Point::new(shimmer_x, track.min.y),
+                Point::new((shimmer_x + shimmer_width).min(track.max.x), track.max.y),
+            ),
+            color: Rgba8 {
+                r: 255,
+                g: 112,
+                b: 86,
+                a: 172,
+            },
+        }));
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -5001,6 +5087,30 @@ mod tests {
             );
 
         assert!(frame_has_text(&history_frame, "o"));
+    }
+
+    #[test]
+    fn waveform_loading_visual_does_not_paint_layout_borders() {
+        let frame = radiant::runtime::UiSurface::new(
+            super::waveform_loading_visual("kick.wav", 0.25).into_node(),
+        )
+        .frame(
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 172.0)),
+            &radiant::theme::ThemeTokens::default(),
+        );
+
+        assert!(frame.paint_plan.primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::Text(text)
+                if text.text.as_str() == "Loading waveform | kick.wav"
+        )));
+        assert!(
+            frame
+                .paint_plan
+                .primitives
+                .iter()
+                .all(|primitive| !matches!(primitive, PaintPrimitive::StrokeRect(_)))
+        );
     }
 
     fn frame_has_text(frame: &ui::SurfaceFrame, expected: &str) -> bool {
