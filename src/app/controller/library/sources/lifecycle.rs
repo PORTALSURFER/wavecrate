@@ -32,7 +32,12 @@ impl AppController {
             );
             return Err(error);
         }
-        if self.library.sources.iter().any(|s| s.root == normalized) {
+        if self
+            .library
+            .sources
+            .iter()
+            .any(|s| source_roots_match(&s.root, &normalized))
+        {
             self.set_status("Source already added", StatusTone::Info);
             record_source_lifecycle_event(
                 "sources.add",
@@ -205,7 +210,7 @@ impl AppController {
             .sources
             .iter()
             .enumerate()
-            .any(|(i, source)| i != index && source.root == normalized)
+            .any(|(i, source)| i != index && source_roots_match(&source.root, &normalized))
         {
             let error = String::from("Source already added");
             record_source_lifecycle_event(
@@ -334,6 +339,19 @@ impl AppController {
             None,
         );
     }
+}
+
+fn source_roots_match(existing: &PathBuf, candidate: &PathBuf) -> bool {
+    if existing == candidate {
+        return true;
+    }
+    let Ok(existing) = fs::canonicalize(existing) else {
+        return false;
+    };
+    let Ok(candidate) = fs::canonicalize(candidate) else {
+        return false;
+    };
+    existing == candidate
 }
 
 fn record_source_lifecycle_event(
