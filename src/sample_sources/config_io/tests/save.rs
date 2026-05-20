@@ -1,8 +1,9 @@
 #[cfg(unix)]
 use super::super::super::config_types::AppSettings;
 use super::super::super::config_types::{
-    AnalysisSettings, AppSettingsCore, DropTargetColor, DropTargetConfig, FeatureFlags,
-    InteractionOptions, TooltipMode, UpdateChannel, UpdateSettings,
+    AnalysisSettings, AppSettingsCore, AudioWriteChannelBehavior, AudioWriteDither,
+    AudioWriteFormatConfig, AudioWriteSampleFormat, AudioWriteSampleRate, DropTargetColor,
+    DropTargetConfig, FeatureFlags, InteractionOptions, TooltipMode, UpdateChannel, UpdateSettings,
 };
 use super::super::load::load_settings_from;
 #[cfg(unix)]
@@ -104,6 +105,33 @@ fn audio_input_defaults_and_persists() {
 }
 
 #[test]
+fn audio_write_format_defaults_and_persists() {
+    let env = TestConfigEnv::new();
+    let path = env.path("cfg.toml");
+    let cfg = AppConfig {
+        core: AppSettingsCore {
+            audio_write_format: AudioWriteFormatConfig {
+                sample_rate: AudioWriteSampleRate::Hz(48_000),
+                sample_format: AudioWriteSampleFormat::Pcm24,
+                channel_behavior: AudioWriteChannelBehavior::PreserveMonoStereo,
+                dither: AudioWriteDither::None,
+            },
+            ..AppSettingsCore::default()
+        },
+        ..AppConfig::default()
+    };
+
+    save_to_path(&cfg, &path).unwrap();
+    let loaded = load_settings_from(&path).unwrap();
+
+    assert_eq!(loaded.core.audio_write_format, cfg.core.audio_write_format);
+    assert_eq!(
+        loaded.core.audio_write_format.summary_label(),
+        "48 kHz, 24-bit PCM, Preserve mono/stereo, No dither"
+    );
+}
+
+#[test]
 fn trash_folder_round_trips() {
     let env = TestConfigEnv::new();
     let path = env.path("cfg.toml");
@@ -173,6 +201,12 @@ fn settings_round_trip_preserves_fields() {
                 sample_rate: Some(44_100),
                 buffer_size: Some(256),
                 channels: vec![1],
+            },
+            audio_write_format: AudioWriteFormatConfig {
+                sample_rate: AudioWriteSampleRate::Hz(48_000),
+                sample_format: AudioWriteSampleFormat::Pcm16,
+                channel_behavior: AudioWriteChannelBehavior::PreserveMonoStereo,
+                dither: AudioWriteDither::None,
             },
             volume: 0.75,
             controls: InteractionOptions {
@@ -257,6 +291,10 @@ fn settings_round_trip_preserves_fields() {
         cfg.core.last_selected_source
     );
     assert_eq!(round_trip.core.audio_output, cfg.core.audio_output);
+    assert_eq!(
+        round_trip.core.audio_write_format,
+        cfg.core.audio_write_format
+    );
     assert!((round_trip.core.volume - cfg.core.volume).abs() < f32::EPSILON);
     assert_eq!(
         round_trip.core.controls.invert_waveform_scroll,

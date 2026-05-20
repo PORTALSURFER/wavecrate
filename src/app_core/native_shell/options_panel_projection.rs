@@ -94,6 +94,7 @@ pub(crate) fn project_options_panel_model(
         destructive_yolo_mode_enabled: ui.controls.destructive_yolo_mode,
         invert_waveform_scroll_enabled: ui.controls.invert_waveform_scroll,
         trash_folder_label: ui.trash_folder.as_deref().map(project_trash_folder_label),
+        audio_write_format_label: Some(ui.audio.write_format.summary_label()),
     }
 }
 
@@ -448,6 +449,20 @@ mod tests {
         assert_eq!(projected.output_sample_rate_options.len(), 3);
         assert!(projected.output_sample_rate_options[1].selected);
         assert_eq!(projected.output_sample_rate_options[1].label, "44.1 kHz");
+    }
+
+    #[test]
+    fn options_panel_projection_surfaces_audio_write_format() {
+        let mut ui = UiState::default();
+        ui.audio.write_format.sample_format =
+            crate::sample_sources::config::AudioWriteSampleFormat::Pcm24;
+
+        let projected = project_options_panel_model(&ui);
+
+        assert_eq!(
+            projected.audio_write_format_label.as_deref(),
+            Some("Source rate, 24-bit PCM, Preserve mono/stereo, No dither")
+        );
     }
 
     #[test]

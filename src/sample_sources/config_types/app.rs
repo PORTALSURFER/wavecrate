@@ -13,15 +13,15 @@ use super::super::config_defaults::{
     default_audio_input, default_audio_output, default_job_message_queue_capacity, default_true,
     default_volume,
 };
-use super::{AnalysisSettings, InteractionOptions, UpdateSettings};
+use super::{AnalysisSettings, AudioWriteFormatConfig, InteractionOptions, UpdateSettings};
 
 /// Aggregate application state loaded from disk.
 ///
 /// Config keys (TOML): `feature_flags`, `analysis`, `updates`, `app_data_dir`,
 /// `trash_folder`, `drop_targets`, `last_selected_source`,
 /// `upper_folder_pane_source`, `lower_folder_pane_source`, `active_folder_pane`,
-/// `volume`, `audio_output`, `audio_input`, `controls`, `job_message_queue_capacity`,
-/// `default_identifier`.
+/// `volume`, `audio_output`, `audio_input`, `audio_write_format`, `controls`,
+/// `job_message_queue_capacity`, `default_identifier`.
 ///
 /// `sources` are stored in the library database.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -108,6 +108,9 @@ pub struct AppSettingsCore {
     #[serde(default = "default_audio_input")]
     /// Input audio configuration.
     pub audio_input: AudioInputConfig,
+    #[serde(default)]
+    /// Audio write-format policy for Wavecrate-created WAV files.
+    pub audio_write_format: AudioWriteFormatConfig,
     #[serde(default = "default_volume")]
     /// Master volume (0.0-1.0).
     pub volume: f32,
@@ -202,6 +205,7 @@ impl Default for AppSettingsCore {
             active_folder_pane: None,
             audio_output: default_audio_output(),
             audio_input: default_audio_input(),
+            audio_write_format: AudioWriteFormatConfig::default(),
             volume: default_volume(),
             controls: InteractionOptions::default(),
             default_identifier: default_identifier(),

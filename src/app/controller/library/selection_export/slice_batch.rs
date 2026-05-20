@@ -95,6 +95,7 @@ impl AppController {
             ),
             apply_edge_fades: self.settings.controls.auto_edge_fades_on_selection_exports,
             edge_fade_ms: self.settings.controls.anti_clip_fade_ms.max(0.0),
+            write_format: self.settings.audio_write_format.clone(),
         })
     }
 

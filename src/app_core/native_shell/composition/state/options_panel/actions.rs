@@ -110,6 +110,17 @@ pub(super) fn legacy_options_panel_button_defs(model: &AppModel) -> Vec<(String,
             ),
             UiAction::PickTrashFolder,
         ),
+        (
+            format!(
+                "Write Format: {}",
+                model
+                    .options_panel
+                    .audio_write_format_label
+                    .as_deref()
+                    .unwrap_or("Not configured")
+            ),
+            UiAction::ShowOptionsOverview,
+        ),
         (String::from("Open Trash Folder"), UiAction::OpenTrashFolder),
         (String::from("Close"), UiAction::CloseOptionsPanel),
     ]

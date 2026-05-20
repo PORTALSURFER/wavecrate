@@ -307,6 +307,29 @@ fn options_panel_trash_folder_buttons_emit_expected_actions() {
 }
 
 #[test]
+fn options_panel_surfaces_audio_write_format_policy() {
+    let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
+    let style = style_for_layout(&layout);
+    let model = AppModel {
+        options_panel: crate::app_core::native_shell::runtime_contract::OptionsPanelModel {
+            visible: true,
+            audio_write_format_label: Some(String::from(
+                "Source rate, 32-bit float, Preserve mono/stereo, No dither",
+            )),
+            ..crate::app_core::native_shell::runtime_contract::OptionsPanelModel::default()
+        },
+        ..AppModel::default()
+    };
+
+    let panel = options_panel_layout(&layout, &style, &model)
+        .expect("visible options panel should resolve layout");
+
+    assert!(panel.buttons.iter().any(|button| {
+        button.label == "Write Format: Source rate, 32-bit float, Preserve mono/stereo, No dither"
+    }));
+}
+
+#[test]
 fn options_panel_default_identifier_button_emits_edit_action() {
     let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
     let style = style_for_layout(&layout);
