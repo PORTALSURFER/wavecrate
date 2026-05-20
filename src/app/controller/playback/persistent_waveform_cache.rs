@@ -20,7 +20,6 @@ const CACHE_VERSION: u32 = 1;
 /// Extension used for persistent waveform cache payload files.
 const CACHE_FILE_EXTENSION: &str = "bin";
 /// Relative app-data namespace that stores persistent waveform cache entries.
-const CACHE_NAMESPACE: &str = "cache/waveforms";
 
 /// Persistent waveform cache hit hydrated from disk and ready for controller use.
 #[derive(Clone)]
@@ -244,9 +243,7 @@ pub(crate) fn persist_waveform_cache_entry(
 
 /// Resolve the root directory that stores all persistent waveform cache entries.
 fn cache_root_dir() -> Result<PathBuf, String> {
-    Ok(app_dirs::app_root_dir()
-        .map_err(|err| format!("Failed to resolve app cache root: {err}"))?
-        .join(CACHE_NAMESPACE))
+    app_dirs::waveform_cache_dir().map_err(|err| format!("Failed to resolve waveform cache: {err}"))
 }
 
 /// Resolve the hashed directory for one source/path pair.

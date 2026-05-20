@@ -58,7 +58,7 @@ const AUDIO_ENGINE_PILL_ID: u64 = 31_100;
 const AUDIO_ENGINE_PILL_WIDTH: f32 = 54.0;
 const AUDIO_ENGINE_PILL_HEIGHT: f32 = 18.0;
 const AUDIO_SETTINGS_POPUP_WIDTH: f32 = 360.0;
-const AUDIO_SETTINGS_POPUP_HEIGHT: f32 = 316.0;
+const AUDIO_SETTINGS_POPUP_HEIGHT: f32 = 344.0;
 const DRAG_PREVIEW_MAX_WIDTH: f32 = 280.0;
 const DRAG_PREVIEW_HEIGHT: f32 = 24.0;
 const WAVEFORM_VIEW_HEIGHT: f32 = 172.0;
@@ -95,6 +95,7 @@ enum GuiMessage {
     SetAudioOutputHost(Option<String>),
     SetAudioOutputDevice(Option<String>),
     SetAudioOutputSampleRate(Option<u32>),
+    ClearRebuildableCaches,
     NormalizeSelectedSamples,
     CopySelectedFiles,
     CopyContextPath,
@@ -454,6 +455,7 @@ impl GuiAppState {
             GuiMessage::SetAudioOutputSampleRate(sample_rate) => {
                 self.set_audio_output_sample_rate(sample_rate);
             }
+            GuiMessage::ClearRebuildableCaches => self.clear_rebuildable_caches(),
             GuiMessage::NormalizeSelectedSamples => self.normalize_selected_samples(),
             GuiMessage::CopySelectedFiles => self.copy_selected_files(),
             GuiMessage::CopyContextPath => self.copy_context_path(),
@@ -1748,6 +1750,37 @@ impl GuiAppState {
         self.apply_audio_output_config_change(started_at, "audio.output.sample_rate.set");
     }
 
+    fn clear_rebuildable_caches(&mut self) {
+        let started_at = Instant::now();
+        match wavecrate::app_dirs::clear_rebuildable_cache_payloads() {
+            Ok(path) => {
+                self.audio_settings_error = None;
+                self.sample_status = format!("Rebuildable caches cleared: {}", path.display());
+                let target = path.display().to_string();
+                emit_gui_action(
+                    "settings.cache.clear_rebuildable",
+                    Some("settings"),
+                    Some(target.as_str()),
+                    "success",
+                    started_at,
+                    None,
+                );
+            }
+            Err(err) => {
+                self.audio_settings_error = Some(err.clone());
+                self.sample_status = err.clone();
+                emit_gui_action(
+                    "settings.cache.clear_rebuildable",
+                    Some("settings"),
+                    None,
+                    "failed",
+                    started_at,
+                    Some(err.as_str()),
+                );
+            }
+        }
+    }
+
     fn apply_audio_output_config_change(&mut self, started_at: Instant, action: &'static str) {
         let restart_span = self
             .waveform
@@ -2836,7 +2869,28 @@ fn audio_settings_panel_rows(state: &GuiAppState) -> Vec<ui::View<GuiMessage>> {
         audio_sample_rate_option_buttons(state),
         4,
     ));
+    rows.push(cache_maintenance_section());
     rows
+}
+
+fn cache_maintenance_section() -> ui::View<GuiMessage> {
+    ui::column(vec![
+        ui::text("Maintenance")
+            .style(ui::WidgetStyle {
+                tone: ui::WidgetTone::Accent,
+                prominence: ui::WidgetProminence::Subtle,
+            })
+            .fill_width()
+            .height(18.0),
+        ui::button("Clear Rebuildable Caches")
+            .message(GuiMessage::ClearRebuildableCaches)
+            .key("settings-clear-rebuildable-caches")
+            .fill_width()
+            .height(24.0),
+    ])
+    .spacing(3.0)
+    .fill_width()
+    .height(45.0)
 }
 
 fn audio_settings_section(
@@ -4925,8 +4979,46 @@ mod tests {
         assert!(texts.iter().any(|text| text == "Output"), "{texts:?}");
         assert!(texts.iter().any(|text| text == "Sample Rate"), "{texts:?}");
         assert!(
+            texts.iter().any(|text| text == "Clear Rebuildable Caches"),
+            "{texts:?}"
+        );
+        assert!(
             !texts.iter().any(|text| text.contains("Input")),
             "{texts:?}"
+        );
+    }
+
+    #[test]
+    fn clear_rebuildable_caches_action_removes_cache_payloads_only() {
+        if std::env::var_os("WAVECRATE_CONFIG_HOME").is_some()
+            || std::env::var_os("WAVECRATE_CONFIG_PROFILE").is_some()
+        {
+            return;
+        }
+        let base = tempfile::tempdir().expect("create config base");
+        let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(base.path().to_path_buf());
+        let _profile_guard = wavecrate::app_dirs::PersistenceProfileGuard::live();
+        let waveform_cache = wavecrate::app_dirs::waveform_cache_dir().expect("waveform cache dir");
+        let cache_payload = waveform_cache.join("cached.bin");
+        std::fs::write(&cache_payload, b"cache").expect("write cache payload");
+        let handoff_dir = wavecrate::app_dirs::handoff_staging_dir().expect("handoff staging dir");
+        let handoff_payload = handoff_dir.join("clip.wav");
+        std::fs::write(&handoff_payload, b"clip").expect("write handoff payload");
+        let mut state = GuiAppState::load_default().expect("default state loads");
+        state.sample_status = String::from("ready");
+
+        state.apply_message(
+            super::GuiMessage::ClearRebuildableCaches,
+            &mut ui::UpdateContext::default(),
+        );
+
+        assert!(!cache_payload.exists());
+        assert!(handoff_payload.exists());
+        assert_eq!(state.audio_settings_error, None);
+        assert!(
+            state.sample_status.contains("Rebuildable caches cleared"),
+            "{}",
+            state.sample_status
         );
     }
 
