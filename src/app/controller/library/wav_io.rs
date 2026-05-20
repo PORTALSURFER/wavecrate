@@ -28,6 +28,25 @@ pub(crate) fn ensure_wav_destructive_edit_target(
     ))
 }
 
+/// Reject multichannel WAV files for ordinary destructive edit flows.
+pub(crate) fn ensure_mono_stereo_wav_destructive_edit_target(
+    path: &Path,
+    action_label: &str,
+) -> Result<hound::WavSpec, String> {
+    ensure_wav_destructive_edit_target(path, action_label)?;
+    let reader_source = crate::wav_sanitize::open_sanitized_wav(path)?;
+    let buf_reader = std::io::BufReader::with_capacity(1024 * 1024, reader_source);
+    let reader = hound::WavReader::new(buf_reader).map_err(|err| format!("Invalid wav: {err}"))?;
+    let spec = reader.spec();
+    if spec.channels > 2 {
+        return Err(format!(
+            "{action_label} only supports mono or stereo WAV files; {} channels are not currently editable",
+            spec.channels
+        ));
+    }
+    Ok(spec)
+}
+
 /// Read WAV samples for normalization workflows.
 pub(crate) fn read_samples_for_normalization(
     path: &Path,
@@ -38,6 +57,12 @@ pub(crate) fn read_samples_for_normalization(
     let mut reader =
         hound::WavReader::new(buf_reader).map_err(|err| format!("Invalid wav: {err}"))?;
     let spec = reader.spec();
+    if spec.channels > 2 {
+        return Err(format!(
+            "This edit only supports mono or stereo WAV files; {} channels are not currently editable",
+            spec.channels
+        ));
+    }
     let samples = match spec.sample_format {
         SampleFormat::Float => reader
             .samples::<f32>()
