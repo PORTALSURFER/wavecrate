@@ -1,5 +1,27 @@
-use super::super::test_support::{prepare_with_source_and_wav_entries, sample_entry};
+use super::super::test_support::{
+    dummy_controller, prepare_with_source_and_wav_entries, sample_entry,
+};
 use crate::app::state::StatusTone;
+
+#[test]
+fn adding_source_rejects_same_resolved_root_with_different_spelling() {
+    let config_root = tempfile::tempdir().expect("create config root");
+    let _guard = crate::app_dirs::ConfigBaseGuard::set(config_root.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("create source root");
+    let (mut controller, _) = dummy_controller();
+    controller.library.sources.clear();
+
+    controller
+        .add_source_from_path(source_root.path().to_path_buf())
+        .expect("add source");
+    controller
+        .add_source_from_path(source_root.path().join("."))
+        .expect("duplicate source alias should short-circuit");
+
+    assert_eq!(controller.library.sources.len(), 1);
+    assert_eq!(controller.ui.status.text, "Source already added");
+    assert_eq!(controller.ui.status.status_tone, StatusTone::Info);
+}
 
 #[test]
 /// Verifies removing source rolls back when config save fails.
