@@ -5,7 +5,9 @@ use crate::app_core::native_shell::runtime_contract::{
     PairedPickerOptionModel, PairedPickerTargetModel, PairedPickerValueModel,
 };
 
-pub(super) fn audio_overview_button_defs(model: &AppModel) -> Vec<(String, UiAction)> {
+pub(super) fn audio_overview_button_defs(
+    model: &AppModel,
+) -> Vec<(String, UiAction, PairedPickerTargetModel)> {
     let paired_device = model.paired_device_panel();
     vec![
         (
@@ -15,6 +17,7 @@ pub(super) fn audio_overview_button_defs(model: &AppModel) -> Vec<(String, UiAct
                 paired_device.primary_group().value_label
             ),
             UiAction::OpenPrimaryGroupPicker,
+            PairedPickerTargetModel::PrimaryGroup,
         ),
         (
             format!(
@@ -23,6 +26,7 @@ pub(super) fn audio_overview_button_defs(model: &AppModel) -> Vec<(String, UiAct
                 paired_device.primary_item().value_label
             ),
             UiAction::OpenPrimaryItemPicker,
+            PairedPickerTargetModel::PrimaryItem,
         ),
         (
             format!(
@@ -31,6 +35,7 @@ pub(super) fn audio_overview_button_defs(model: &AppModel) -> Vec<(String, UiAct
                 paired_device.primary_number().value_label
             ),
             UiAction::OpenPrimaryNumberPicker,
+            PairedPickerTargetModel::PrimaryNumber,
         ),
         (
             format!(
@@ -39,6 +44,7 @@ pub(super) fn audio_overview_button_defs(model: &AppModel) -> Vec<(String, UiAct
                 paired_device.secondary_group().value_label
             ),
             UiAction::OpenSecondaryGroupPicker,
+            PairedPickerTargetModel::SecondaryGroup,
         ),
         (
             format!(
@@ -47,6 +53,7 @@ pub(super) fn audio_overview_button_defs(model: &AppModel) -> Vec<(String, UiAct
                 paired_device.secondary_item().value_label
             ),
             UiAction::OpenSecondaryItemPicker,
+            PairedPickerTargetModel::SecondaryItem,
         ),
         (
             format!(
@@ -55,6 +62,7 @@ pub(super) fn audio_overview_button_defs(model: &AppModel) -> Vec<(String, UiAct
                 paired_device.secondary_number().value_label
             ),
             UiAction::OpenSecondaryNumberPicker,
+            PairedPickerTargetModel::SecondaryNumber,
         ),
     ]
 }
@@ -108,11 +116,8 @@ pub(super) fn legacy_options_panel_button_defs(model: &AppModel) -> Vec<(String,
 }
 
 pub(super) fn options_panel_title(model: &AppModel) -> String {
-    model
-        .paired_device_panel()
-        .active_picker()
-        .map(audio_picker_title)
-        .unwrap_or_else(|| String::from("Audio Engine"))
+    let _ = model;
+    String::from("Audio Engine")
 }
 
 pub(super) fn picker_options(
@@ -146,8 +151,7 @@ pub(super) fn picker_action(value: &PairedPickerValueModel) -> UiAction {
     }
 }
 
-/// Return the title text for the active audio picker target.
-fn audio_picker_title(target: PairedPickerTargetModel) -> String {
+pub(super) fn audio_picker_label(target: PairedPickerTargetModel) -> String {
     match target {
         PairedPickerTargetModel::PrimaryGroup => String::from("Output Host"),
         PairedPickerTargetModel::PrimaryItem => String::from("Output Device"),

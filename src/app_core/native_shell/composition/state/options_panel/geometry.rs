@@ -1,8 +1,8 @@
 //! Geometry and hit-testing helpers for the native-shell options panel.
 
 use super::actions::{
-    audio_overview_button_defs, legacy_options_panel_button_defs, options_panel_title,
-    picker_action, picker_options,
+    audio_overview_button_defs, audio_picker_label, legacy_options_panel_button_defs,
+    options_panel_title, picker_action, picker_options,
 };
 use super::*;
 use crate::gui::{panel::floating_panel_rect, types::Vector2};
@@ -152,23 +152,34 @@ pub(super) fn options_panel_action_at_point(
 }
 
 fn build_options_panel_buttons(model: &AppModel) -> Vec<(String, UiAction, bool)> {
-    if let Some(target) = model.paired_device_panel().active_picker() {
-        let mut buttons = Vec::new();
-        buttons.push((String::from("Back"), UiAction::ShowOptionsOverview, false));
-        buttons.extend(picker_options(model, target).iter().map(|item| {
-            (
-                item.label.clone(),
-                picker_action(&item.value),
-                item.selected,
-            )
-        }));
-        return buttons;
+    let active_picker = model.paired_device_panel().active_picker();
+    let mut buttons = Vec::new();
+    for (text, action, target) in audio_overview_button_defs(model) {
+        let expanded = active_picker == Some(target);
+        let label = if expanded {
+            format!("{text}  ^")
+        } else {
+            format!("{text}  v")
+        };
+        buttons.push((label, action, expanded));
+        if expanded {
+            let label = audio_picker_label(target);
+            buttons.extend(picker_options(model, target).iter().map(|item| {
+                (
+                    format!("  {}{}", if item.selected { "* " } else { "" }, item.label),
+                    picker_action(&item.value),
+                    item.selected,
+                )
+            }));
+            if picker_options(model, target).is_empty() {
+                buttons.push((
+                    format!("  No {label} options"),
+                    UiAction::ShowOptionsOverview,
+                    false,
+                ));
+            }
+        }
     }
-
-    let mut buttons = audio_overview_button_defs(model)
-        .into_iter()
-        .map(|(text, action)| (text, action, false))
-        .collect::<Vec<_>>();
     buttons.extend(
         legacy_options_panel_button_defs(model)
             .into_iter()
