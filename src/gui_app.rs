@@ -29,9 +29,11 @@ use wavecrate::external_clipboard;
 use wavecrate::gui_runtime::wavecrate_ui_font_path;
 use wavecrate::logging::{self, ActionDebugEvent, emit_action_debug_event};
 
+mod context_menu;
 mod folder_browser;
 mod status_bar;
 mod waveform;
+use context_menu::{BrowserContextMenu, BrowserContextTargetKind};
 use folder_browser::{
     FileColumn, FileEntry, FolderBrowserMessage, FolderBrowserState, FolderScanDiscoveryBatch,
     FolderScanProgress, FolderScanRequest, FolderScanResult,
@@ -120,21 +122,6 @@ enum GuiMessage {
 struct SampleLoadResult {
     path: String,
     result: Result<WaveformState, String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum BrowserContextTargetKind {
-    Source,
-    Folder,
-    Sample,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-struct BrowserContextMenu {
-    kind: BrowserContextTargetKind,
-    path: PathBuf,
-    anchor: Point,
-    title: String,
 }
 
 impl PartialEq for SampleLoadResult {
@@ -1173,12 +1160,12 @@ impl GuiAppState {
             );
             return;
         };
-        if !browser_context_target_available(&BrowserContextTargetKind::Source, &path) {
+        if !context_menu::target_available(&BrowserContextTargetKind::Source, &path) {
             self.sample_status = String::from("Source folder is missing");
             emit_gui_action(
                 "browser.context_menu.source.open",
                 Some("sources"),
-                Some(context_menu_target_label(&path).as_str()),
+                Some(context_menu::target_label(&path).as_str()),
                 "error",
                 started_at,
                 Some("source folder missing"),
@@ -1213,12 +1200,12 @@ impl GuiAppState {
             );
             return;
         };
-        if !browser_context_target_available(&BrowserContextTargetKind::Folder, &path) {
+        if !context_menu::target_available(&BrowserContextTargetKind::Folder, &path) {
             self.sample_status = String::from("Folder is missing");
             emit_gui_action(
                 "browser.context_menu.folder.open",
                 Some("folder_browser"),
-                Some(context_menu_target_label(&path).as_str()),
+                Some(context_menu::target_label(&path).as_str()),
                 "error",
                 started_at,
                 Some("folder missing"),
@@ -1253,12 +1240,12 @@ impl GuiAppState {
             );
             return;
         };
-        if !browser_context_target_available(&BrowserContextTargetKind::Sample, &path) {
+        if !context_menu::target_available(&BrowserContextTargetKind::Sample, &path) {
             self.sample_status = String::from("Sample file is missing");
             emit_gui_action(
                 "browser.context_menu.sample.open",
                 Some("browser"),
-                Some(context_menu_target_label(&path).as_str()),
+                Some(context_menu::target_label(&path).as_str()),
                 "error",
                 started_at,
                 Some("sample missing"),
@@ -1279,13 +1266,13 @@ impl GuiAppState {
         let Some(menu) = self.context_menu.take() else {
             return;
         };
-        if !browser_context_target_available(&menu.kind, &menu.path) {
-            let error = context_menu_missing_target_message(&menu.kind);
+        if !context_menu::target_available(&menu.kind, &menu.path) {
+            let error = context_menu::missing_target_message(&menu.kind);
             self.sample_status = error.to_string();
             emit_gui_action(
                 "browser.context_menu.copy_path",
-                Some(context_menu_pane(&menu.kind)),
-                Some(context_menu_target_label(&menu.path).as_str()),
+                Some(context_menu::pane(&menu.kind)),
+                Some(context_menu::target_label(&menu.path).as_str()),
                 "error",
                 started_at,
                 Some(error),
@@ -1298,8 +1285,8 @@ impl GuiAppState {
                 self.sample_status = String::from("Copied path");
                 emit_gui_action(
                     "browser.context_menu.copy_path",
-                    Some(context_menu_pane(&menu.kind)),
-                    Some(context_menu_target_label(&menu.path).as_str()),
+                    Some(context_menu::pane(&menu.kind)),
+                    Some(context_menu::target_label(&menu.path).as_str()),
                     "success",
                     started_at,
                     None,
@@ -1309,8 +1296,8 @@ impl GuiAppState {
                 self.sample_status = format!("Copy path failed: {error}");
                 emit_gui_action(
                     "browser.context_menu.copy_path",
-                    Some(context_menu_pane(&menu.kind)),
-                    Some(context_menu_target_label(&menu.path).as_str()),
+                    Some(context_menu::pane(&menu.kind)),
+                    Some(context_menu::target_label(&menu.path).as_str()),
                     "error",
                     started_at,
                     Some(&error),
@@ -1324,13 +1311,13 @@ impl GuiAppState {
         let Some(menu) = self.context_menu.take() else {
             return;
         };
-        if !browser_context_target_available(&menu.kind, &menu.path) {
-            let error = context_menu_missing_target_message(&menu.kind);
+        if !context_menu::target_available(&menu.kind, &menu.path) {
+            let error = context_menu::missing_target_message(&menu.kind);
             self.sample_status = error.to_string();
             emit_gui_action(
                 "browser.context_menu.open_explorer",
-                Some(context_menu_pane(&menu.kind)),
-                Some(context_menu_target_label(&menu.path).as_str()),
+                Some(context_menu::pane(&menu.kind)),
+                Some(context_menu::target_label(&menu.path).as_str()),
                 "error",
                 started_at,
                 Some(error),
@@ -1352,8 +1339,8 @@ impl GuiAppState {
                 };
                 emit_gui_action(
                     "browser.context_menu.open_explorer",
-                    Some(context_menu_pane(&menu.kind)),
-                    Some(context_menu_target_label(&menu.path).as_str()),
+                    Some(context_menu::pane(&menu.kind)),
+                    Some(context_menu::target_label(&menu.path).as_str()),
                     "success",
                     started_at,
                     None,
@@ -1363,8 +1350,8 @@ impl GuiAppState {
                 self.sample_status = error.clone();
                 emit_gui_action(
                     "browser.context_menu.open_explorer",
-                    Some(context_menu_pane(&menu.kind)),
-                    Some(context_menu_target_label(&menu.path).as_str()),
+                    Some(context_menu::pane(&menu.kind)),
+                    Some(context_menu::target_label(&menu.path).as_str()),
                     "error",
                     started_at,
                     Some(&error),
@@ -2277,35 +2264,6 @@ fn sample_path_label(path: impl AsRef<Path>) -> String {
         .unwrap_or_else(|| path.display().to_string())
 }
 
-fn context_menu_target_label(path: &Path) -> String {
-    path.file_name()
-        .map(|name| name.to_string_lossy().to_string())
-        .unwrap_or_else(|| path.display().to_string())
-}
-
-fn context_menu_pane(kind: &BrowserContextTargetKind) -> &'static str {
-    match kind {
-        BrowserContextTargetKind::Source => "sources",
-        BrowserContextTargetKind::Folder => "folder_browser",
-        BrowserContextTargetKind::Sample => "browser",
-    }
-}
-
-fn browser_context_target_available(kind: &BrowserContextTargetKind, path: &Path) -> bool {
-    match kind {
-        BrowserContextTargetKind::Source | BrowserContextTargetKind::Folder => path.is_dir(),
-        BrowserContextTargetKind::Sample => path.is_file(),
-    }
-}
-
-fn context_menu_missing_target_message(kind: &BrowserContextTargetKind) -> &'static str {
-    match kind {
-        BrowserContextTargetKind::Source => "Source folder is missing",
-        BrowserContextTargetKind::Folder => "Folder is missing",
-        BrowserContextTargetKind::Sample => "Sample file is missing",
-    }
-}
-
 fn format_copy_path(path: &Path) -> String {
     let mut rendered = path.to_string_lossy().replace('\\', "/");
     if rendered.contains(' ') {
@@ -2652,66 +2610,13 @@ fn view(state: &mut GuiAppState) -> ui::View<GuiMessage> {
         }
     }
     if let Some(menu) = state.context_menu.as_ref() {
-        layers.push(browser_context_menu_overlay(menu));
+        layers.push(context_menu::overlay(menu));
     }
     if layers.len() > 1 {
         ui::stack(layers).fill()
     } else {
         layers.pop().expect("view should contain base content")
     }
-}
-
-fn browser_context_menu_overlay(menu: &BrowserContextMenu) -> ui::View<GuiMessage> {
-    let action_label = match menu.kind {
-        BrowserContextTargetKind::Source | BrowserContextTargetKind::Folder => "Open in Explorer",
-        BrowserContextTargetKind::Sample => "Reveal in Explorer",
-    };
-    let top = menu.anchor.y.max(0.0);
-    let left = menu.anchor.x.max(0.0);
-    ui::column([
-        ui::spacer().fill_width().height(top),
-        ui::row([
-            ui::spacer().width(left).height(1.0),
-            ui::column([
-                ui::text(menu.title.clone())
-                    .height(22.0)
-                    .fill_width()
-                    .truncate(),
-                ui::button(action_label)
-                    .message(GuiMessage::OpenContextTarget)
-                    .key("browser-context-open-explorer")
-                    .fill_width()
-                    .height(28.0),
-                ui::button("Copy Path")
-                    .message(GuiMessage::CopyContextPath)
-                    .key("browser-context-copy-path")
-                    .fill_width()
-                    .height(28.0),
-            ])
-            .style(ui::WidgetStyle {
-                tone: ui::WidgetTone::Accent,
-                prominence: ui::WidgetProminence::Strong,
-            })
-            .padding(8.0)
-            .spacing(5.0)
-            .size(210.0, 104.0),
-            ui::button("")
-                .message(GuiMessage::CloseContextMenu)
-                .key("browser-context-dismiss-right")
-                .input_only()
-                .fill_width()
-                .height(104.0),
-        ])
-        .fill_width()
-        .height(104.0),
-        ui::button("")
-            .message(GuiMessage::CloseContextMenu)
-            .key("browser-context-dismiss-bottom")
-            .input_only()
-            .fill_width()
-            .fill_height(),
-    ])
-    .fill()
 }
 
 fn folder_drag_preview_overlay(preview: folder_browser::FolderDragPreview) -> ui::View<GuiMessage> {
@@ -4163,29 +4068,29 @@ mod tests {
         let sample = root.join("kick.wav");
         std::fs::write(&sample, [0_u8; 8]).expect("write sample");
 
-        assert!(super::browser_context_target_available(
+        assert!(super::context_menu::target_available(
             &super::BrowserContextTargetKind::Source,
             &root
         ));
-        assert!(super::browser_context_target_available(
+        assert!(super::context_menu::target_available(
             &super::BrowserContextTargetKind::Folder,
             &root
         ));
-        assert!(super::browser_context_target_available(
+        assert!(super::context_menu::target_available(
             &super::BrowserContextTargetKind::Sample,
             &sample
         ));
-        assert!(!super::browser_context_target_available(
+        assert!(!super::context_menu::target_available(
             &super::BrowserContextTargetKind::Sample,
             &root
         ));
-        assert!(!super::browser_context_target_available(
+        assert!(!super::context_menu::target_available(
             &super::BrowserContextTargetKind::Folder,
             &sample
         ));
 
         std::fs::remove_file(&sample).expect("remove sample");
-        assert!(!super::browser_context_target_available(
+        assert!(!super::context_menu::target_available(
             &super::BrowserContextTargetKind::Sample,
             &sample
         ));

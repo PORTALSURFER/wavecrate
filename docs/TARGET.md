@@ -278,6 +278,8 @@ The global `.wavecrate` folder should contain app-wide state such as:
 
 Caches, logs, handoff staging, and recovery files should not be scattered across arbitrary sample-library folders. They should live under the global `.wavecrate` root unless there is a specific source-local reason to store a compact reference or source-owned database record.
 
+Cache payloads should live under the global `.wavecrate` folder in the current target. Source-local `.wavecrate.db` files may store cache references, status, fingerprints, and invalidation state for files in that source, but waveform, playback-readiness, analysis, similarity, map, handoff, and other cache payloads should not be written next to the source database.
+
 If a source database is missing, corrupt, locked, or unreadable, Wavecrate should keep the user's audio files untouched, report the source database problem clearly, and offer repair/rebuild/reindex options where safe.
 
 ## Audio Format and Channel Target
@@ -865,7 +867,17 @@ The only durable relationship between an extracted file and its original source 
 
 Keyboard extraction, internal extraction-drag into the browser, explicit "extract to file", and extraction from a saved region should use durable extraction by default.
 
-Transient handoff staging exists only to satisfy operating-system clipboard or drag-and-drop APIs that require a file path before the receiving application accepts the drop or paste. Transient staged files should be ordinary WAV files in the first supported format target, and later ordinary AIFF/AIF files where that format is explicitly supported. They should live in a Wavecrate-managed handoff temp folder and should be cleaned up after they are no longer needed.
+Transient handoff staging exists only to satisfy operating-system clipboard or drag-and-drop APIs that require a file path before the receiving application accepts the drop or paste. Transient staged files should be ordinary WAV files in the first supported format target, and later ordinary AIFF/AIF files where that format is explicitly supported. They should live in a Wavecrate-managed handoff temp folder under the global `.wavecrate` root.
+
+Transient staged files should not be deleted immediately at the moment a paste/drop appears to succeed, because the receiving DAW or operating-system shell may still need to read the file path. Wavecrate should keep them for a short internally defined grace period and then clean them up automatically when they are no longer needed. The grace period does not need to be user-configurable in the current target. If the user quits Wavecrate after copying or dragging a staged handoff file, the staged file should remain available through the normal grace period so clipboard or drop consumers can still read it after the app exits. Cleanup should remove stale staged files from previous sessions on the next launch or during normal cache/staging maintenance, and cleanup failures should be logged and visible in diagnostics.
+
+Transient staged handoff files should use predictable, user-readable filenames where practical because DAWs and file managers may display the imported filename after handoff. Names should be based on the current generated/display name or selected-region naming context, sanitized through the normal filename rules, and made unique through the shared collision-numbering policy. They should not use opaque random temp names unless a readable name cannot be produced safely.
+
+Transient staged handoff files should contain the rendered audio and only the minimal required or safely useful WAV metadata. They should not inherit durable Wavecrate metadata such as tags, rating, label, Prefix, BPM, Tuning/Scale, temporary color collections, extracted-region history, or embedded Wavecrate Sample ID by default. Durable extraction owns metadata inheritance; transient handoff staging should avoid creating metadata side effects.
+
+Transient staged handoff files should not be indexed as library samples. They should live outside indexed source folders under the global `.wavecrate` handoff staging area. If a path edge case or user configuration would otherwise place staging near an indexed source, Wavecrate should still treat the staged file as temporary handoff data, not as a new source sample. Users who want an indexed file should use durable extraction, export, or copy/import workflows.
+
+Wavecrate may reuse an existing transient staged handoff file for repeated copy or drag operations when it is still valid. Reuse is allowed only when the source file identity and fingerprint, selection range, audition/render settings, write format, cache/staging version, and resulting audio payload still match. If any relevant input changes, Wavecrate should render a fresh staged file.
 
 Transient handoff staging should be allowed only when the user intent is clearly temporary, such as copying a waveform selection to the clipboard without explicitly extracting it into the library. Wavecrate should make this distinction visible enough that users understand whether a new library file was created.
 
@@ -1224,6 +1236,8 @@ Pasting into a DAW should make the DAW receive normal audio files, not Wavecrate
 Pasting into Explorer should create one or more audio files in the target directory.
 
 Clipboard handoff should preserve the exact audio the user intended to copy. For a waveform selection, that means the selected range. For browser selections, that means the selected whole files.
+
+Temporary clipboard or DAW handoff staging files should live under the global `.wavecrate` handoff staging area. Explorer drops are different when the user explicitly drops a waveform selection into an Explorer target folder: in that case Wavecrate should create the final ordinary audio file in the Explorer drop target directory rather than leaving the user with a temporary staged file.
 
 Drag-and-drop should mirror clipboard handoff behavior.
 
@@ -1802,7 +1816,7 @@ Database updates that touch both filesystem state and metadata state should be t
 
 ## Cache and Storage Lifecycle
 
-Wavecrate may create local caches for generated display names, waveform summaries, decoded audio aids, analysis outputs, similarity indexes, map projections, thumbnails or visual summaries, handoff staging, and undo/recovery.
+Wavecrate may create local caches for generated display names, waveform summaries, decoded audio aids, analysis outputs, similarity indexes, map projections, thumbnails or visual summaries, handoff staging, and undo/recovery. Cache payloads should be stored under the global `.wavecrate` root. Source-local `.wavecrate.db` files should only store cache references, cache status, fingerprints, and invalidation metadata where needed.
 
 Caches should be treated as rebuildable unless explicitly documented otherwise. Generated display-name caches should persist across restarts for speed, but they are still rebuildable projections of metadata and naming rules. User-authored metadata, ratings, tags, labels, naming-template inputs, source configuration, Sample IDs, extracted-region history, and undo state for the current session are not disposable caches.
 
@@ -2259,6 +2273,21 @@ If Wavecrate has to add playback, decoding, looping, warping, destructive render
 
 Wavecrate should be simple, focused, and maintainable internally. The codebase should make the product direction easier to execute, not harder.
 
+Clean code in Wavecrate means code that a future AI coding agent or human maintainer can read, modify, test, and validate without reconstructing hidden intent from scattered behavior. It should be obvious where a product behavior lives, which module owns a decision, which data is durable, which work is background work, which action is undoable, and which side effects touch audio files, databases, caches, the clipboard, Explorer, or external DAWs.
+
+The codebase should optimize for clarity under change:
+
+* Prefer direct, readable implementations until real repetition or complexity justifies an abstraction.
+* Prefer small cohesive modules over large mixed-purpose files.
+* Prefer explicit domain vocabulary such as source, sample, selection, extraction, rating, cache, handoff, recovery, and undo transaction over generic names such as item, data, manager, helper, or service when the domain meaning is known.
+* Prefer predictable dependency direction: product workflows may call persistence, audio, file-operation, and UI-command layers through clear interfaces, but low-level utilities should not know about high-level Wavecrate workflows.
+* Prefer data structures that make invalid states hard to represent, especially for sample identity, rating state, duplicate-ID conflicts, file availability, edit safety, cache state, background-job state, and undo transactions.
+* Prefer typed command/result models for user actions that can fail, be undone, affect files, or update multiple state surfaces.
+* Prefer one shared implementation path for equivalent user actions. For example, keyboard extraction, internal drag extraction, clipboard handoff, external drag handoff, and context-menu extraction should reuse the same extraction or handoff pipeline where they perform the same logical operation.
+* Prefer local reasoning: reading a function or module should reveal its important inputs, outputs, state changes, failure modes, and invariants without requiring a search through unrelated UI code.
+* Prefer stable seams for risky behavior: destructive edits, trashing, renames, writes, source scanning, cache cleanup, embedded-ID repair, and external handoff should have clear transaction or job boundaries.
+* Prefer behavior-preserving refactors with focused validation over sweeping rewrites that change architecture and behavior at the same time.
+
 Code should be organized around clear responsibilities:
 
 * sample discovery and source scanning
@@ -2281,25 +2310,40 @@ Wavecrate code should follow these standards:
 * Keep functions small and single-purpose.
 * Keep structs focused on one responsibility.
 * Keep traits minimal, meaningful, and justified.
+* Name functions after the domain action they perform, not after vague implementation mechanics.
+* Avoid ambiguous suffixes such as `manager`, `processor`, `handler`, or `util` unless the type has a genuinely narrow and obvious role.
 * Split complex methods into named helpers.
 * Separate large impl blocks where it improves clarity.
 * Expose only intentional public API.
 * Keep internal types internal.
 * Make error handling explicit and understandable.
+* Preserve useful error context, including source ID, sample ID, path, command, job ID, transaction ID, cache key, or setting name where relevant.
 * Keep control flow readable.
 * Encode or document important invariants.
 * Keep state mutation clear and predictable.
 * Make side effects easy to identify.
+* Keep filesystem writes, database writes, cache writes, clipboard writes, OS-shell actions, and audio-device actions visible at API boundaries.
 * Keep hot-path code simple and efficient.
 * Prefer clear composition over broad inheritance-like trait systems.
 * Avoid premature abstraction.
 * Avoid cleverness where straightforward code is better.
 * Prefer explicit data flow.
 * Minimize global mutable state.
+* Avoid long-lived mutable state that is shared across scanning, playback, editing, and UI unless the ownership and synchronization model is explicit.
 * Remove dead code.
 * Remove unused experiments unless intentionally preserved and documented.
 * Make every abstraction earn its place.
 * Avoid large rewrites unless they clearly reduce complexity, unlock important architecture, improve performance, or remove real blockers.
+
+Comments should explain intent, constraints, invariants, and non-obvious tradeoffs. They should not narrate obvious code. A useful comment explains why an operation must be transactional, why a stale-result token is needed, why a cache key includes an audio setting, why an edit cannot run on a multichannel file, or why an external handoff file needs a grace period.
+
+Duplication should be judged pragmatically. Small local duplication is acceptable when it keeps two workflows simple and independent. Duplication is harmful when it lets product rules drift, especially around extraction, naming, collision numbering, destructive-edit safety, undo/redo, embedded Sample ID handling, cache invalidation, rating transitions, trash movement, or external handoff. Shared product rules should live in shared helpers or domain services with tests.
+
+Public APIs should be designed as contracts, not incidental access points. A public function should have a clear caller, a clear reason to exist, and stable behavior. Avoid exposing internal state just to make a UI update easier. When UI code needs behavior, prefer a product command or view model that preserves domain rules rather than letting the UI mutate persistence, cache, or audio state directly.
+
+Background work should be modeled explicitly. Scans, pre-cache work, waveform loads, renders, duplicate analysis, similarity analysis, metadata writes, and cleanup jobs should have job IDs, progress state, cancellation/stale-result handling, failure reasons, and clear priority rules. The UI should observe job state instead of owning job execution details.
+
+Error paths are first-class product behavior. Code should be written so rollback, partial failure, retry, diagnostics, and user-facing status are handled deliberately rather than as afterthoughts. A failure in an edit, extraction, trash move, rename, source scan, cache rebuild, or handoff should leave the system in a state that is visible, explainable, and recoverable where practical.
 
 Code smells to avoid:
 
@@ -2318,10 +2362,17 @@ Code smells to avoid:
 * persistence details leaking into every workflow
 * temporary hacks becoming architecture
 * stale legacy UI assumptions shaping the new architecture
+* UI code duplicating domain rules
+* background jobs without cancellation or stale-result protection
+* untyped stringly-typed state for important product concepts
+* silent fallbacks that hide data loss, failed writes, failed metadata updates, stale caches, or unsupported files
+* tests that pass by asserting implementation trivia while real workflows remain unprotected
 
 Wavecrate should be improved incrementally. Refactors should usually preserve working behavior, keep validation lanes intact, and leave the codebase in a clearer state than before. Do not turn quality work into endless renaming; renaming is useful only when it improves API clarity, architectural understanding, or developer experience.
 
 Tests should support refactoring rather than prevent it. Avoid tests that only lock in names, incidental file layout, or implementation details. Prefer tests that protect real workflows, recovery behavior, stale-result safety, persistence correctness, playback behavior, destructive editing behavior, extraction behavior, undo/redo behavior, similarity behavior, and performance-sensitive paths.
+
+When an AI coding agent changes Wavecrate, it should leave behind code that is easier for the next agent to reason about. It should avoid hiding complexity in generic helpers, adding undocumented special cases, or scattering product rules across UI callbacks. If a change introduces a new concept, failure mode, cache state, command, transaction, or background job, the code should name that concept clearly and connect it to the relevant documentation and validation path.
 
 ## MVP End-to-End Acceptance Criteria
 
