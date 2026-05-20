@@ -25,6 +25,7 @@ use wavecrate::audio::{
     AudioDeviceSummary, AudioHostSummary, AudioOutputConfig, AudioPlayer, ResolvedOutput,
     available_devices, available_hosts, supported_sample_rates,
 };
+use wavecrate::external_clipboard;
 use wavecrate::gui_runtime::wavecrate_ui_font_path;
 use wavecrate::logging::{self, ActionDebugEvent, emit_action_debug_event};
 
@@ -90,6 +91,7 @@ enum GuiMessage {
     SetAudioOutputDevice(Option<String>),
     SetAudioOutputSampleRate(Option<u32>),
     NormalizeSelectedSamples,
+    CopySelectedFiles,
     FocusRenameInput(u64),
     DeleteSelectedItem,
     ExtractPlaymarkedRange,
@@ -420,6 +422,7 @@ impl GuiAppState {
                 self.set_audio_output_sample_rate(sample_rate);
             }
             GuiMessage::NormalizeSelectedSamples => self.normalize_selected_samples(),
+            GuiMessage::CopySelectedFiles => self.copy_selected_files(),
             GuiMessage::FocusRenameInput(input_id) => {
                 let started_at = Instant::now();
                 context.focus(input_id);
@@ -1050,6 +1053,51 @@ impl GuiAppState {
             return;
         };
         context.begin_external_drag(request, GuiMessage::ExternalDragCompleted);
+    }
+
+    fn copy_selected_files(&mut self) {
+        let started_at = Instant::now();
+        let paths = self.folder_browser.selected_file_paths();
+        if paths.is_empty() {
+            self.sample_status = String::from("Select files before copying");
+            emit_gui_action(
+                "browser.copy_selected_files",
+                Some("browser"),
+                None,
+                "skipped",
+                started_at,
+                Some("no selection"),
+            );
+            return;
+        }
+
+        match external_clipboard::copy_file_paths(&paths) {
+            Ok(()) => {
+                self.sample_status = match paths.len() {
+                    1 => String::from("Copied selected file"),
+                    count => format!("Copied {count} selected files"),
+                };
+                emit_gui_action(
+                    "browser.copy_selected_files",
+                    Some("browser"),
+                    None,
+                    "success",
+                    started_at,
+                    None,
+                );
+            }
+            Err(error) => {
+                self.sample_status = format!("Copy failed: {error}");
+                emit_gui_action(
+                    "browser.copy_selected_files",
+                    Some("browser"),
+                    None,
+                    "error",
+                    started_at,
+                    Some(&error),
+                );
+            }
+        }
     }
 
     fn external_drag_completed(&mut self, result: Result<ui::ExternalDragOutcome, String>) {
@@ -2266,6 +2314,10 @@ fn default_gui_shortcut_resolution(
             .bind(
                 ui::KeyPress::with_command(ui::KeyCode::A),
                 GuiMessage::SelectAllSamples,
+            )
+            .bind(
+                ui::KeyPress::with_command(ui::KeyCode::C),
+                GuiMessage::CopySelectedFiles,
             )
             .bind(
                 ui::KeyPress::new(ui::KeyCode::ArrowLeft),
@@ -3555,6 +3607,21 @@ mod tests {
             super::default_gui_shortcut_resolution(&state, ui::KeyPress::new(ui::KeyCode::N));
 
         assert_eq!(resolution.action, None);
+        assert!(resolution.handled);
+    }
+
+    #[test]
+    fn copy_shortcut_routes_to_browser_file_handoff() {
+        let state = GuiAppState::load_default().expect("default state loads");
+        let resolution = super::default_gui_shortcut_resolution(
+            &state,
+            ui::KeyPress::with_command(ui::KeyCode::C),
+        );
+
+        assert_eq!(
+            resolution.action,
+            Some(super::GuiMessage::CopySelectedFiles)
+        );
         assert!(resolution.handled);
     }
 
