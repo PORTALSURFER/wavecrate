@@ -2291,6 +2291,10 @@ fn default_gui_shortcut_resolution(
                 GuiMessage::DeleteSelectedItem,
             )
             .bind(
+                ui::KeyPress::new(ui::KeyCode::Backspace),
+                GuiMessage::DeleteSelectedItem,
+            )
+            .bind(
                 ui::KeyPress::new(ui::KeyCode::E),
                 GuiMessage::ExtractPlaymarkedRange,
             )
@@ -3505,6 +3509,21 @@ mod tests {
         assert_eq!(
             resolution.action,
             Some(super::GuiMessage::CopySelectedFiles)
+        );
+        assert!(resolution.handled);
+    }
+
+    #[test]
+    fn backspace_shortcut_routes_to_delete_selected_item() {
+        let state = GuiAppState::load_default().expect("default state loads");
+        let resolution = super::default_gui_shortcut_resolution(
+            &state,
+            ui::KeyPress::new(ui::KeyCode::Backspace),
+        );
+
+        assert_eq!(
+            resolution.action,
+            Some(super::GuiMessage::DeleteSelectedItem)
         );
         assert!(resolution.handled);
     }
