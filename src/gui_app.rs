@@ -4101,12 +4101,13 @@ fn worker_progress_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
     let Some(progress) = state.folder_progress.as_ref() else {
         return ui::text("").width(0.0).height(10.0);
     };
-    if progress.total == 0 {
-        return ui::text("").width(0.0).height(10.0);
-    }
     let track_width = 180.0;
-    let fraction = (progress.completed as f32 / progress.total.max(1) as f32).clamp(0.0, 1.0);
-    ui::custom_widget(StatusProgressBar::new(fraction), |output| {
+    let progress_bar = if progress.total == 0 {
+        StatusProgressBar::indeterminate(state.progress_tick)
+    } else {
+        StatusProgressBar::determinate(progress.completed as f32 / progress.total.max(1) as f32)
+    };
+    ui::custom_widget(progress_bar, |output| {
         output.typed_ref::<GuiMessage>().cloned()
     })
     .key("bottom-status-progress-bar")
@@ -4117,19 +4118,30 @@ fn worker_progress_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
 #[derive(Clone, Debug)]
 struct StatusProgressBar {
     common: WidgetCommon,
-    fraction: f32,
+    mode: StatusProgressMode,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum StatusProgressMode {
+    Determinate(f32),
+    Indeterminate(f32),
 }
 
 impl StatusProgressBar {
-    fn new(fraction: f32) -> Self {
+    fn determinate(fraction: f32) -> Self {
+        Self::new(StatusProgressMode::Determinate(fraction.clamp(0.0, 1.0)))
+    }
+
+    fn indeterminate(tick: f32) -> Self {
+        Self::new(StatusProgressMode::Indeterminate(tick.rem_euclid(1.0)))
+    }
+
+    fn new(mode: StatusProgressMode) -> Self {
         let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 1.0)));
         common.focus = FocusBehavior::Pointer;
         common.paint.paints_focus = false;
         common.paint.paints_state_layers = false;
-        Self {
-            common,
-            fraction: fraction.clamp(0.0, 1.0),
-        }
+        Self { common, mode }
     }
 }
 
@@ -4207,13 +4219,12 @@ impl Widget for StatusProgressBar {
                 a: 210,
             },
         }));
-        if self.fraction <= 0.0 {
+        let Some(fill) = status_progress_fill_rect(track, self.mode) else {
             return;
-        }
-        let fill_width = (track.width() * self.fraction).clamp(1.0, track.width());
+        };
         primitives.push(PaintPrimitive::FillRect(PaintFillRect {
             widget_id: self.common.id,
-            rect: Rect::from_min_max(track.min, Point::new(track.min.x + fill_width, track.max.y)),
+            rect: fill,
             color: Rgba8 {
                 r: 255,
                 g: 112,
@@ -4221,6 +4232,30 @@ impl Widget for StatusProgressBar {
                 a: 210,
             },
         }));
+    }
+}
+
+fn status_progress_fill_rect(track: Rect, mode: StatusProgressMode) -> Option<Rect> {
+    match mode {
+        StatusProgressMode::Determinate(fraction) => {
+            if fraction <= 0.0 {
+                return None;
+            }
+            let fill_width = (track.width() * fraction).clamp(1.0, track.width());
+            Some(Rect::from_min_max(
+                track.min,
+                Point::new(track.min.x + fill_width, track.max.y),
+            ))
+        }
+        StatusProgressMode::Indeterminate(tick) => {
+            let segment_width = (track.width() * 0.32).clamp(1.0, track.width());
+            let travel = (track.width() - segment_width).max(0.0);
+            let start = track.min.x + travel * tick.rem_euclid(1.0);
+            Some(Rect::from_min_max(
+                Point::new(start, track.min.y),
+                Point::new(start + segment_width, track.max.y),
+            ))
+        }
     }
 }
 
@@ -4789,7 +4824,7 @@ mod tests {
     #[test]
     fn bottom_status_progress_bar_click_opens_job_details() {
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(180.0, 10.0));
-        let mut progress = super::StatusProgressBar::new(0.4);
+        let mut progress = super::StatusProgressBar::determinate(0.4);
         assert_eq!(
             progress.handle_input(
                 bounds,
@@ -4815,6 +4850,41 @@ mod tests {
         assert_eq!(
             output.typed_ref::<super::GuiMessage>(),
             Some(&super::GuiMessage::ToggleJobDetails)
+        );
+    }
+
+    #[test]
+    fn bottom_status_progress_bar_shows_indeterminate_fill_for_unknown_totals() {
+        let mut state = GuiAppState::load_default().expect("default state loads");
+        state.progress_tick = 0.5;
+        state.folder_progress = Some(super::FolderScanProgress {
+            task_id: 7,
+            source_id: String::from("assets"),
+            label: String::from("Assets"),
+            phase: String::from("Scanning"),
+            completed: 128,
+            total: 0,
+            detail: String::from("kick.wav"),
+        });
+        let frame =
+            radiant::runtime::UiSurface::new(super::worker_progress_bar(&state).into_node()).frame(
+                Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(180.0, 10.0)),
+                &radiant::theme::ThemeTokens::default(),
+            );
+
+        let fills = frame
+            .paint_plan
+            .primitives
+            .iter()
+            .filter(|primitive| matches!(primitive, PaintPrimitive::FillRect(_)))
+            .count();
+        assert_eq!(fills, 2);
+        assert!(
+            frame
+                .paint_plan
+                .primitives
+                .iter()
+                .all(|primitive| !matches!(primitive, PaintPrimitive::StrokeRect(_)))
         );
     }
 
