@@ -151,6 +151,21 @@ impl FolderBrowserState {
             .collect()
     }
 
+    pub(super) fn selected_audio_file_count(&self) -> usize {
+        let selected = if self.selected_file_ids.is_empty() {
+            self.selected_file
+                .as_deref()
+                .map(|id| [id.to_string()].into_iter().collect())
+                .unwrap_or_default()
+        } else {
+            self.selected_file_ids.clone()
+        };
+        self.selected_audio_files()
+            .into_iter()
+            .filter(|file| selected.contains(&file.id))
+            .count()
+    }
+
     pub(super) fn source_root_path(&self, source_id: &str) -> Option<PathBuf> {
         self.sources
             .iter()
