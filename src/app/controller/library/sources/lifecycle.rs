@@ -48,6 +48,22 @@ impl AppController {
             );
             return Ok(());
         }
+        if self
+            .library
+            .sources
+            .iter()
+            .any(|s| source_roots_are_nested(&s.root, &normalized))
+        {
+            let error = String::from("Source folders cannot be nested");
+            record_source_lifecycle_event(
+                "sources.add",
+                Some(&source),
+                "error",
+                started_at,
+                Some(&error),
+            );
+            return Err(error);
+        }
         let source = match crate::sample_sources::library::lookup_source_id_for_root(&normalized) {
             Ok(Some(id)) => SampleSource::new_with_id(id, normalized.clone()),
             Ok(None) => SampleSource::new(normalized.clone()),
@@ -222,6 +238,23 @@ impl AppController {
             );
             return Err(error);
         }
+        if self
+            .library
+            .sources
+            .iter()
+            .enumerate()
+            .any(|(i, source)| i != index && source_roots_are_nested(&source.root, &normalized))
+        {
+            let error = String::from("Source folders cannot be nested");
+            record_source_lifecycle_event(
+                "sources.remap",
+                Some(existing.id.as_str()),
+                "error",
+                started_at,
+                Some(&error),
+            );
+            return Err(error);
+        }
         let old_db_path = crate::sample_sources::database_path_for(&existing.root);
         let new_db_path = crate::sample_sources::database_path_for(&normalized);
         if old_db_path.exists() && !new_db_path.exists() {
@@ -352,6 +385,16 @@ fn source_roots_match(existing: &PathBuf, candidate: &PathBuf) -> bool {
         return false;
     };
     existing == candidate
+}
+
+fn source_roots_are_nested(existing: &PathBuf, candidate: &PathBuf) -> bool {
+    let Ok(existing) = fs::canonicalize(existing) else {
+        return false;
+    };
+    let Ok(candidate) = fs::canonicalize(candidate) else {
+        return false;
+    };
+    existing.starts_with(&candidate) || candidate.starts_with(&existing)
 }
 
 fn record_source_lifecycle_event(

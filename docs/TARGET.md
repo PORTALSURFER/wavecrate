@@ -1049,7 +1049,7 @@ Adding a source should:
 
 - validate that the path exists and is readable
 - reject exact duplicate source roots that point to the same resolved filesystem location already configured
-- warn when a new source is nested inside an existing source or contains an existing source
+- reject nested source roots when the new source is inside an existing source or contains an existing source
 - create or open source database state
 - scan supported audio files incrementally
 - report scan progress without blocking browsing or auditioning
