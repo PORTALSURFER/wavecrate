@@ -4020,27 +4020,86 @@ fn worker_progress_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
     }
     let track_width = 180.0;
     let fraction = (progress.completed as f32 / progress.total.max(1) as f32).clamp(0.0, 1.0);
-    let filled = (track_width * fraction).clamp(8.0, track_width);
-    let empty = (track_width - filled).max(0.0);
-    ui::row([
-        ui::text("")
-            .style(ui::WidgetStyle {
-                tone: ui::WidgetTone::Accent,
-                prominence: ui::WidgetProminence::Strong,
-            })
-            .width(filled)
-            .height(8.0),
-        ui::text("")
-            .style(ui::WidgetStyle::default())
-            .width(empty)
-            .height(8.0),
-    ])
-    .style(ui::WidgetStyle {
-        tone: ui::WidgetTone::Accent,
-        prominence: ui::WidgetProminence::Subtle,
-    })
-    .width(track_width)
-    .height(10.0)
+    ui::custom_widget(StatusProgressBar::new(fraction), |_| None)
+        .key("bottom-status-progress-bar")
+        .width(track_width)
+        .height(10.0)
+}
+
+#[derive(Clone, Debug)]
+struct StatusProgressBar {
+    common: WidgetCommon,
+    fraction: f32,
+}
+
+impl StatusProgressBar {
+    fn new(fraction: f32) -> Self {
+        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 1.0)));
+        common.focus = FocusBehavior::None;
+        common.paint.paints_focus = false;
+        common.paint.paints_state_layers = false;
+        Self {
+            common,
+            fraction: fraction.clamp(0.0, 1.0),
+        }
+    }
+}
+
+impl Widget for StatusProgressBar {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+        None
+    }
+
+    fn needs_state_synchronization(&self) -> bool {
+        false
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+        let track_height = bounds.height().min(8.0).max(0.0);
+        let track_top = bounds.min.y + (bounds.height() - track_height) * 0.5;
+        let track = Rect::from_min_max(
+            Point::new(bounds.min.x, track_top),
+            Point::new(bounds.max.x, track_top + track_height),
+        );
+        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: self.common.id,
+            rect: track,
+            color: Rgba8 {
+                r: 48,
+                g: 50,
+                b: 51,
+                a: 210,
+            },
+        }));
+        if self.fraction <= 0.0 {
+            return;
+        }
+        let fill_width = (track.width() * self.fraction).clamp(1.0, track.width());
+        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: self.common.id,
+            rect: Rect::from_min_max(track.min, Point::new(track.min.x + fill_width, track.max.y)),
+            color: Rgba8 {
+                r: 255,
+                g: 112,
+                b: 86,
+                a: 210,
+            },
+        }));
+    }
 }
 
 #[cfg(test)]
@@ -4566,6 +4625,40 @@ mod tests {
             );
 
         assert!(frame_has_text(&selected_frame, "1 sample"));
+    }
+
+    #[test]
+    fn bottom_status_progress_bar_paints_without_text_chrome() {
+        let mut state = GuiAppState::load_default().expect("default state loads");
+        state.folder_progress = Some(super::FolderScanProgress {
+            task_id: 7,
+            source_id: String::from("assets"),
+            label: String::from("Assets"),
+            phase: String::from("Scanning"),
+            completed: 2,
+            total: 5,
+            detail: String::from("kick.wav"),
+        });
+        let frame =
+            radiant::runtime::UiSurface::new(super::worker_progress_bar(&state).into_node()).frame(
+                Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(180.0, 10.0)),
+                &radiant::theme::ThemeTokens::default(),
+            );
+
+        let fills = frame
+            .paint_plan
+            .primitives
+            .iter()
+            .filter(|primitive| matches!(primitive, PaintPrimitive::FillRect(_)))
+            .count();
+        assert_eq!(fills, 2);
+        assert!(
+            frame
+                .paint_plan
+                .primitives
+                .iter()
+                .all(|primitive| !matches!(primitive, PaintPrimitive::StrokeRect(_)))
+        );
     }
 
     #[test]
