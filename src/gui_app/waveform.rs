@@ -5,10 +5,7 @@ use radiant::{
     gui::{range::NormalizedRange, visualization::TimelineEditPreview},
     layout::LayoutOutput,
     prelude as ui,
-    runtime::{
-        GpuSurfaceCapabilities, GpuSurfaceContent, GpuSurfaceLineStyle, GpuSurfaceRuntimeOverlays,
-        PaintFillRect, PaintGpuSurface, PaintPrimitive,
-    },
+    runtime::{PaintFillRect, PaintPrimitive},
     theme::ThemeTokens,
     widgets::{
         FocusBehavior, PaintBounds, PointerButton, Widget, WidgetCommon, WidgetInput, WidgetOutput,
@@ -640,14 +637,17 @@ use interaction::{
 
 mod audio_file;
 use audio_file::{
-    WaveformFile, empty_waveform_file, extract_wav_range_to_sibling, gain_preview_for_selection,
-    is_wav_path, load_waveform_file,
+    WaveformFile, empty_waveform_file, extract_wav_range_to_sibling, is_wav_path,
+    load_waveform_file,
 };
 #[cfg(test)]
 use audio_file::{
     downmix_to_mono, split_frequency_bands, synthetic_waveform_file,
     waveform_file_from_mono_samples,
 };
+
+mod signal_widget;
+use signal_widget::WaveformSignalWidget;
 
 pub(super) type WaveformViewport = ui::IndexViewport;
 
@@ -678,98 +678,6 @@ pub(super) fn waveform_viewport_view(state: &WaveformState) -> ui::View<super::G
     ])
     .id(10)
     .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)
-}
-
-#[derive(Clone, Debug)]
-struct WaveformSignalWidget {
-    common: WidgetCommon,
-    file: Arc<WaveformFile>,
-    viewport: WaveformViewport,
-    edit_selection: Option<wavecrate::selection::SelectionRange>,
-}
-
-impl WaveformSignalWidget {
-    fn new(
-        file: Arc<WaveformFile>,
-        viewport: WaveformViewport,
-        edit_selection: Option<wavecrate::selection::SelectionRange>,
-        _active_drag_kind: Option<WaveformActiveDragKind>,
-    ) -> Self {
-        let mut common = WidgetCommon::new(
-            0,
-            WidgetSizing::fixed(Vector2::new(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)),
-        );
-        common.paint.bounds = PaintBounds::ClipToRect;
-        common.paint.paints_focus = false;
-        common.paint.paints_state_layers = false;
-        Self {
-            common,
-            file,
-            viewport,
-            edit_selection,
-        }
-    }
-
-    fn signal_summary(&self) -> Arc<radiant::runtime::GpuSignalSummary> {
-        Arc::clone(&self.file.gpu_signal_summary)
-    }
-
-    fn signal_revision(&self) -> u64 {
-        self.file.content_revision()
-    }
-}
-
-impl Widget for WaveformSignalWidget {
-    fn common(&self) -> &WidgetCommon {
-        &self.common
-    }
-
-    fn common_mut(&mut self) -> &mut WidgetCommon {
-        &mut self.common
-    }
-
-    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
-        None
-    }
-
-    fn append_paint(
-        &self,
-        primitives: &mut Vec<PaintPrimitive>,
-        bounds: Rect,
-        _layout: &LayoutOutput,
-        _theme: &ThemeTokens,
-    ) {
-        let summary = self.signal_summary();
-        primitives.push(PaintPrimitive::GpuSurface(PaintGpuSurface {
-            widget_id: self.common.id,
-            key: self.file.path_hash(),
-            revision: self.signal_revision(),
-            rect: bounds,
-            content: GpuSurfaceContent::SignalSummaryBands {
-                frames: self.file.frames,
-                band_count: BAND_COUNT,
-                frame_range: [self.viewport.start as f32, self.viewport.end as f32],
-                summary,
-                gain_preview: gain_preview_for_selection(self.edit_selection),
-            },
-            capabilities: GpuSurfaceCapabilities {
-                fast_pointer_move: true,
-                coalesce_vertical_wheel: true,
-                runtime_overlays: GpuSurfaceRuntimeOverlays::pointer_vertical_line(
-                    GpuSurfaceLineStyle {
-                        color: Rgba8 {
-                            r: 255,
-                            g: 255,
-                            b: 255,
-                            a: 235,
-                        },
-                        width: 1.0,
-                    },
-                ),
-            },
-            overlays: Vec::new(),
-        }));
-    }
 }
 
 #[derive(Clone, Debug)]
