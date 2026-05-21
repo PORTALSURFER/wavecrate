@@ -74,9 +74,9 @@ pub struct GuiTestArtifactBundle {
     pub scenario_name: Option<String>,
     /// Fixture tag associated with this bundle.
     pub fixture_tag: String,
-    /// Run-contract id associated with the bundle, when any.
+    /// Runtime run id associated with the bundle, when any.
     pub run_id: Option<String>,
-    /// Run-contract manifest path associated with the bundle, when any.
+    /// Runtime manifest path associated with the bundle, when any.
     pub run_manifest_path: Option<String>,
     /// Latest semantic automation snapshot.
     pub automation_snapshot: NativeGuiAutomationSnapshot,

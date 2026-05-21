@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn folder_drag_drop_moves_subtree_into_target_folder() {
-    let root = temp_source_root("radiant-gui-folder-drag-drop");
+    let root = temp_source_root("wavecrate-gui-folder-drag-drop");
     let kicks = root.join("drums").join("kicks");
     let loops = root.join("loops");
     fs::create_dir_all(&kicks).expect("create kicks folder");
@@ -45,7 +45,7 @@ fn folder_drag_drop_moves_subtree_into_target_folder() {
 
 #[test]
 fn folder_drag_preview_tracks_pointer_and_hover_target() {
-    let root = temp_source_root("radiant-gui-folder-drag-preview");
+    let root = temp_source_root("wavecrate-gui-folder-drag-preview");
     let kicks = root.join("drums").join("kicks");
     let loops = root.join("loops");
     fs::create_dir_all(&kicks).expect("create kicks folder");
@@ -101,7 +101,7 @@ fn folder_drag_preview_tracks_pointer_and_hover_target() {
 
 #[test]
 fn folder_drag_external_request_uses_preview_label_and_paths() {
-    let root = temp_source_root("radiant-gui-folder-external-drag");
+    let root = temp_source_root("wavecrate-gui-folder-external-drag");
     let kicks = root.join("drums").join("kicks");
     fs::create_dir_all(&kicks).expect("create kicks folder");
     let mut browser = FolderBrowserState::from_root(root.clone());
@@ -128,7 +128,7 @@ fn folder_drag_external_request_uses_preview_label_and_paths() {
 
 #[test]
 fn file_drag_drop_moves_selected_files_into_target_folder() {
-    let root = temp_source_root("radiant-gui-file-drag-drop");
+    let root = temp_source_root("wavecrate-gui-file-drag-drop");
     let drums = root.join("drums");
     let loops = root.join("loops");
     fs::create_dir_all(&drums).expect("create drums folder");

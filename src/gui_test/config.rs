@@ -33,9 +33,9 @@ pub struct GuiTestModeConfig {
     pub disable_nonessential_animations: bool,
     /// Background-job policy label for the run.
     pub background_job_policy: String,
-    /// Run-contract id correlated with this GUI test run, when available.
+    /// Runtime run id correlated with this GUI test run, when available.
     pub run_id: Option<String>,
-    /// Run-contract manifest path correlated with this GUI test run, when available.
+    /// Runtime manifest path correlated with this GUI test run, when available.
     pub run_manifest_path: Option<PathBuf>,
 }
 

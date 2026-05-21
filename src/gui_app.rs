@@ -2080,15 +2080,9 @@ enum ToolbarIcon {
 impl ToolbarIcon {
     fn svg(self) -> &'static str {
         match self {
-            Self::Loop => include_str!(
-                "app_core/native_shell/composition/assets/icons/waveform_toolbar/loop.svg"
-            ),
-            Self::Play => include_str!(
-                "app_core/native_shell/composition/assets/icons/waveform_toolbar/play.svg"
-            ),
-            Self::Stop => include_str!(
-                "app_core/native_shell/composition/assets/icons/waveform_toolbar/stop.svg"
-            ),
+            Self::Loop => include_str!("gui_app/assets/icons/waveform_toolbar/loop.svg"),
+            Self::Play => include_str!("gui_app/assets/icons/waveform_toolbar/play.svg"),
+            Self::Stop => include_str!("gui_app/assets/icons/waveform_toolbar/stop.svg"),
         }
     }
 }

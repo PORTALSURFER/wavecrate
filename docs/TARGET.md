@@ -104,14 +104,18 @@ Use it when reviewing features, refactors, UI changes, audio-engine work, databa
 
 Prefer incremental changes that move Wavecrate closer to this target while preserving working validation lanes. A change does not need to solve the whole product direction at once, but it should not make the intended direction harder.
 
-The current codebase has more than one UI/runtime surface while migration is in progress:
+The current codebase has one Wavecrate desktop UI surface and several supporting
+runtime/test surfaces:
 
-- `src/gui_app.rs` is the current default `radiant-gui` entrypoint and should be treated as the primary place for new Wavecrate desktop UI behavior.
-- `src/app_core/**` contains host-facing projections, action catalog state, and native-shell/controller integration that still capture important product behavior during migration.
+- `src/gui_app.rs` is the Wavecrate desktop UI entrypoint and should be treated as the place for new Wavecrate desktop UI behavior.
+- `src/app_core/**` contains host-facing projections, action catalog state, and controller integration used by tests and companion runtime surfaces.
 - `src/app/controller/**` contains older controller workflow logic that may still be the best evidence for mature behavior such as rating, filtering, trash configuration, similarity, recording experiments, and recovery flows, but it should not be used to re-expand the legacy UI path by default.
-- `src/legacy_gui_app.rs` is a deprecated fallback entrypoint and should not define new product direction unless a task is explicitly about legacy fallback maintenance.
 
-Current implementation details are evidence, not automatic product requirements. If current code uses a temporary cap, simplified file operation, developer fixture, permanent delete, or old native-shell-only affordance that conflicts with this target, treat that as an implementation gap unless this document explicitly adopts the behavior.
+Current implementation details are evidence, not automatic product requirements.
+If current code uses a temporary cap, simplified file operation, developer
+fixture, permanent delete, or old runtime-only affordance that conflicts with
+this target, treat that as an implementation gap unless this document explicitly
+adopts the behavior.
 
 The default GUI already demonstrates several target-aligned behaviors that should be preserved while the fuller architecture is built: adding source folders, incremental folder scanning with progress, a compact source/folder/sample layout, file-list columns for name, extension, size, and modified time, immediate audition on sample selection, stale-safe latest-sample loading, separate play and edit waveform selections, primary-button play selection, secondary-button edit selection, waveform pan/zoom, edit fade preview handles, play-selection extraction to a sibling WAV, extraction success feedback, external drag of selected browser files, and output-device/volume controls.
 
