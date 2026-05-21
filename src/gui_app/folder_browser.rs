@@ -179,6 +179,8 @@ mod delete_workflow;
 
 mod file_selection;
 
+mod file_view_window;
+
 mod file_columns;
 #[cfg(test)]
 pub(super) use file_columns::MIN_FILE_COLUMN_WIDTH;
