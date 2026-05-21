@@ -68,9 +68,19 @@ impl GuiAppState {
         self.audio_output_resolved
             .as_ref()
             .map(|output| {
+                let running_host = self.audio_host_label(output.host_id.as_str());
+                let selected_host = self
+                    .audio_output_config
+                    .host
+                    .as_deref()
+                    .map(|host| self.audio_host_label(host));
+                let host_label = selected_host
+                    .filter(|host| *host != running_host)
+                    .map(|host| format!("{host} selected | using {running_host}"))
+                    .unwrap_or(running_host);
                 format!(
                     "{} | {} | {}",
-                    self.audio_host_label(output.host_id.as_str()),
+                    host_label,
                     output.device_name,
                     format_sample_rate_label(output.sample_rate)
                 )

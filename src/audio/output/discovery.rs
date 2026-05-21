@@ -87,7 +87,9 @@ pub(super) fn resolve_host(
         .into_iter()
         .find(|candidate| candidate.name() == requested)
         .and_then(|id| cpal::host_from_id(id).ok())
-        .unwrap_or(default_host);
+        .ok_or_else(|| AudioOutputError::HostUnavailable {
+            host_id: requested.to_string(),
+        })?;
     let resolved_id = host.id().name().to_string();
     let used_fallback = resolved_id != requested;
     Ok((host, resolved_id, used_fallback))
@@ -127,4 +129,20 @@ pub(super) fn sample_rates_in_range(min: u32, max: u32) -> Vec<u32> {
         .copied()
         .filter(|rate| *rate >= min && *rate <= max)
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn explicit_unavailable_host_does_not_fall_back_to_default_host() {
+        let result = resolve_host(Some("__wavecrate_missing_host__"));
+
+        assert!(matches!(
+            result,
+            Err(AudioOutputError::HostUnavailable { host_id })
+                if host_id == "__wavecrate_missing_host__"
+        ));
+    }
 }

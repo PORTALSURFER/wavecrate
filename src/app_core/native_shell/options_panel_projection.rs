@@ -154,28 +154,37 @@ fn output_selection_mismatch(ui: &UiState) -> bool {
 
 fn output_host_value(ui: &UiState) -> String {
     ui.audio
-        .applied
-        .as_ref()
-        .map(|output| output.host_id.clone())
-        .or_else(|| ui.audio.selected.host.clone())
+        .selected
+        .host
+        .clone()
+        .or_else(|| {
+            ui.audio
+                .applied
+                .as_ref()
+                .map(|output| output.host_id.clone())
+        })
         .unwrap_or_else(|| String::from("System default"))
 }
 
 fn output_device_value(ui: &UiState) -> String {
     ui.audio
-        .applied
-        .as_ref()
-        .map(|output| output.device_name.clone())
-        .or_else(|| ui.audio.selected.device.clone())
+        .selected
+        .device
+        .clone()
+        .or_else(|| {
+            ui.audio
+                .applied
+                .as_ref()
+                .map(|output| output.device_name.clone())
+        })
         .unwrap_or_else(|| String::from("Host default"))
 }
 
 fn output_sample_rate_value(ui: &UiState) -> String {
     ui.audio
-        .applied
-        .as_ref()
-        .map(|output| output.sample_rate)
-        .or(ui.audio.selected.sample_rate)
+        .selected
+        .sample_rate
+        .or_else(|| ui.audio.applied.as_ref().map(|output| output.sample_rate))
         .map(format_sample_rate_label)
         .unwrap_or_else(|| String::from("Device default"))
 }
@@ -519,5 +528,8 @@ mod tests {
             projected.detail_label.as_deref(),
             Some("Selected output differs from the active engine")
         );
+        assert_eq!(projected.output_host.value_label, "asio");
+        assert_eq!(projected.output_device.value_label, "Studio");
+        assert_eq!(projected.output_sample_rate.value_label, "96 kHz");
     }
 }
