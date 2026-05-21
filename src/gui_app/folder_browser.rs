@@ -1654,27 +1654,6 @@ impl FolderBrowserState {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct SourceEntry {
-    id: String,
-    label: String,
-    root: PathBuf,
-    root_folder: Option<FolderEntry>,
-    loading_task: Option<u64>,
-}
-
-impl SourceEntry {
-    fn new(id: impl Into<String>, label: impl Into<String>, root: PathBuf) -> Self {
-        Self {
-            id: id.into(),
-            label: label.into(),
-            root,
-            root_folder: None,
-            loading_task: None,
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct FolderEntry {
     id: String,
     name: String,
@@ -1764,48 +1743,12 @@ impl FolderEntry {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct FolderRenameEdit {
-    folder_id: String,
-    draft: String,
-    input_id: u64,
-    kind: FolderRenameKind,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum FolderRenameKind {
-    Rename,
-    Create { parent_id: String },
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct FileRenameEdit {
-    file_id: String,
-    draft: String,
-    input_id: u64,
-    selection_start: usize,
-    selection_end: usize,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(super) struct FileColumn {
-    pub(super) id: String,
-    pub(super) label: String,
-    pub(super) width: f32,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-struct FileColumnResize {
-    column_id: String,
-    start_x: f32,
-    start_width: f32,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum FolderBrowserDrag {
-    Folder { folder_id: String },
-    Files { file_ids: Vec<String> },
-}
+mod state_types;
+pub(super) use state_types::FileColumn;
+use state_types::{
+    FileColumnResize, FileRenameEdit, FolderBrowserDrag, FolderRenameEdit, FolderRenameKind,
+    SourceEntry, VisibleFolder, default_file_columns,
+};
 
 mod types;
 pub(super) use types::{
@@ -1813,23 +1756,6 @@ pub(super) use types::{
     FolderDragPreview, FolderDropResult, FolderScanDiscovery, FolderScanDiscoveryBatch,
     FolderScanItem, FolderScanProgress, FolderScanRequest, FolderScanResult, RenameTargetView,
 };
-
-fn default_file_columns() -> Vec<FileColumn> {
-    vec![
-        file_column("name", "Name", 240.0),
-        file_column("extension", "Ext", 54.0),
-        file_column("size", "Size", 78.0),
-        file_column("modified", "Modified", 112.0),
-    ]
-}
-
-fn file_column(id: &str, label: &str, width: f32) -> FileColumn {
-    FileColumn {
-        id: id.to_owned(),
-        label: label.to_owned(),
-        width,
-    }
-}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct FileEntry {
@@ -1848,21 +1774,6 @@ impl FileEntry {
     fn is_audio(&self) -> bool {
         self.kind == "Audio"
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct VisibleFolder {
-    id: String,
-    name: String,
-    depth: usize,
-    has_children: bool,
-    expanded: bool,
-    selected: bool,
-    drag_active: bool,
-    drop_candidate: bool,
-    drop_target: bool,
-    rename_draft: Option<String>,
-    rename_input_id: Option<u64>,
 }
 
 pub(super) fn folder_browser_view(state: &FolderBrowserState) -> ui::View<GuiMessage> {
