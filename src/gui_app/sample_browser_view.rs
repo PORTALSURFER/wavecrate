@@ -1,12 +1,4 @@
-use radiant::gui::types::{Point, Rect, Rgba8};
-use radiant::layout::{LayoutOutput, Vector2};
 use radiant::prelude as ui;
-use radiant::runtime::{PaintFillRect, PaintPrimitive};
-use radiant::theme::ThemeTokens;
-use radiant::widgets::{
-    DragHandleMessage, FocusBehavior, PaintBounds, PointerButton, PointerModifiers, Widget,
-    WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
-};
 
 use super::folder_browser::{
     self, FileColumn, FileEntry, FolderBrowserMessage, FolderBrowserState,
@@ -16,6 +8,9 @@ use super::{
     SAMPLE_BROWSER_OVERSCAN_ROWS, SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS,
     SAMPLE_BROWSER_ROW_HEIGHT,
 };
+
+mod hit_target;
+pub(super) use hit_target::{SampleFileHitMessage, SampleFileHitTarget};
 
 pub(super) fn sample_browser(state: &mut GuiAppState) -> ui::View<GuiMessage> {
     let window = state.folder_browser.follow_selected_file_view(
@@ -253,168 +248,4 @@ fn sample_browser_status(audio_count: usize) -> ui::View<GuiMessage> {
     .padding_x(3.0)
     .fill_width()
     .height(28.0)
-}
-
-#[derive(Clone, Debug)]
-pub(super) struct SampleFileHitTarget {
-    common: WidgetCommon,
-    selected: bool,
-    dragged: bool,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(super) enum SampleFileHitMessage {
-    Activate(PointerModifiers),
-    ContextMenu(Point),
-    Drag(DragHandleMessage),
-}
-
-impl SampleFileHitTarget {
-    pub(super) fn new(selected: bool) -> Self {
-        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 22.0)));
-        common.focus = FocusBehavior::None;
-        common.paint.bounds = PaintBounds::ClipToRect;
-        common.paint.paints_focus = false;
-        common.paint.paints_state_layers = false;
-        Self {
-            common,
-            selected,
-            dragged: false,
-        }
-    }
-}
-
-impl Widget for SampleFileHitTarget {
-    fn common(&self) -> &WidgetCommon {
-        &self.common
-    }
-
-    fn common_mut(&mut self) -> &mut WidgetCommon {
-        &mut self.common
-    }
-
-    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        match input {
-            WidgetInput::PointerMove { position } => {
-                self.common.state.hovered = bounds.contains(position);
-                if self.common.state.pressed {
-                    let message = if self.dragged {
-                        DragHandleMessage::Moved { position }
-                    } else {
-                        self.dragged = true;
-                        DragHandleMessage::Started { position }
-                    };
-                    return Some(WidgetOutput::typed(SampleFileHitMessage::Drag(message)));
-                }
-                None
-            }
-            WidgetInput::PointerPress {
-                position,
-                button: PointerButton::Primary,
-                ..
-            } if bounds.contains(position) => {
-                self.common.state.hovered = true;
-                self.common.state.pressed = true;
-                self.dragged = false;
-                None
-            }
-            WidgetInput::PointerPress {
-                position,
-                button: PointerButton::Secondary,
-                ..
-            } if bounds.contains(position) => {
-                self.common.state.hovered = true;
-                self.common.state.pressed = false;
-                self.dragged = false;
-                Some(WidgetOutput::typed(SampleFileHitMessage::ContextMenu(
-                    position,
-                )))
-            }
-            WidgetInput::PointerRelease {
-                position,
-                button: PointerButton::Primary,
-                modifiers,
-            } => {
-                let activated =
-                    self.common.state.pressed && !self.dragged && bounds.contains(position);
-                let dragged = self.common.state.pressed && self.dragged;
-                self.common.state.pressed = false;
-                self.common.state.hovered = bounds.contains(position);
-                self.dragged = false;
-                if dragged {
-                    return Some(WidgetOutput::typed(SampleFileHitMessage::Drag(
-                        DragHandleMessage::Ended { position },
-                    )));
-                }
-                activated.then(|| WidgetOutput::typed(SampleFileHitMessage::Activate(modifiers)))
-            }
-            _ => {
-                if matches!(input, WidgetInput::PointerRelease { .. }) {
-                    self.common.state.pressed = false;
-                    self.dragged = false;
-                }
-                None
-            }
-        }
-    }
-
-    fn accepts_pointer_move(&self) -> bool {
-        true
-    }
-
-    fn append_paint(
-        &self,
-        primitives: &mut Vec<PaintPrimitive>,
-        bounds: Rect,
-        _layout: &LayoutOutput,
-        _theme: &ThemeTokens,
-    ) {
-        if self.selected {
-            primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-                widget_id: self.common.id,
-                rect: bounds,
-                color: Rgba8 {
-                    r: 255,
-                    g: 82,
-                    b: 62,
-                    a: 120,
-                },
-            }));
-        }
-
-        if self.common.state.pressed || self.common.state.hovered {
-            let alpha = if self.common.state.pressed { 170 } else { 155 };
-            primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-                widget_id: self.common.id,
-                rect: bounds,
-                color: Rgba8 {
-                    r: 255,
-                    g: 108,
-                    b: 88,
-                    a: alpha,
-                },
-            }));
-        }
-
-        if !self.selected {
-            return;
-        }
-        let marker_height = (bounds.height() - 8.0).max(8.0).min(bounds.height());
-        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-            widget_id: self.common.id,
-            rect: Rect::from_min_size(
-                Point::new(
-                    bounds.min.x + 1.0,
-                    bounds.min.y + (bounds.height() - marker_height) * 0.5,
-                ),
-                Vector2::new(3.0, marker_height),
-            ),
-            color: Rgba8 {
-                r: 255,
-                g: 82,
-                b: 62,
-                a: 245,
-            },
-        }));
-    }
 }
