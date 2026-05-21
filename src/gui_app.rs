@@ -118,7 +118,6 @@ enum GuiMessage {
     FocusRenameInput(u64),
     DeleteSelectedItem,
     ExtractPlaymarkedRange,
-    ClearExtractionHistory,
     NavigateBrowser {
         delta: i32,
         extend: bool,
@@ -495,18 +494,6 @@ impl GuiAppState {
             }
             GuiMessage::DeleteSelectedItem => self.delete_selected_item(),
             GuiMessage::ExtractPlaymarkedRange => self.extract_playmarked_range(),
-            GuiMessage::ClearExtractionHistory => {
-                let started_at = Instant::now();
-                self.waveform.clear_extraction_history();
-                emit_gui_action(
-                    "waveform.extraction_history.clear",
-                    Some("waveform"),
-                    None,
-                    "success",
-                    started_at,
-                    None,
-                );
-            }
             GuiMessage::NavigateBrowser { delta, extend } => {
                 let started_at = Instant::now();
                 if let Some(path) = self.folder_browser.navigate_vertical(delta, extend) {
@@ -804,7 +791,6 @@ impl GuiAppState {
         match self.waveform.extract_play_selection_to_sibling() {
             Ok(path) => {
                 let label = sample_path_label(&path);
-                self.waveform.record_current_play_selection_extracted();
                 self.waveform.flash_play_selection();
                 self.folder_browser.refresh_file_path(&path);
                 self.sample_status = format!("Extracted {label}");
@@ -2058,22 +2044,8 @@ fn waveform_panel(state: &GuiAppState) -> ui::View<GuiMessage> {
     .height(WAVEFORM_PANEL_HEIGHT)
 }
 
-fn waveform_panel_header(waveform: &WaveformState) -> ui::View<GuiMessage> {
-    if waveform.has_extraction_history() {
-        ui::row([
-            ui::text("Waveform").height(18.0).fill_width(),
-            ui::button("o")
-                .message(GuiMessage::ClearExtractionHistory)
-                .key("clear-extraction-history")
-                .subtle()
-                .size(22.0, 18.0),
-        ])
-        .fill_width()
-        .height(18.0)
-        .spacing(4.0)
-    } else {
-        ui::text("Waveform").height(18.0).fill_width()
-    }
+fn waveform_panel_header(_waveform: &WaveformState) -> ui::View<GuiMessage> {
+    ui::text("Waveform").height(18.0).fill_width()
 }
 
 fn waveform_viewport_with_loading_state(state: &GuiAppState) -> ui::View<GuiMessage> {
@@ -3654,35 +3626,6 @@ mod tests {
             }),
             "{sample_texts:?}"
         );
-    }
-
-    #[test]
-    fn waveform_panel_shows_clear_extraction_history_control_only_when_needed() {
-        let mut state = GuiAppState::load_default().expect("default state loads");
-        let empty_frame =
-            radiant::runtime::UiSurface::new(super::waveform_panel(&state).into_node()).frame(
-                Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 240.0)),
-                &radiant::theme::ThemeTokens::default(),
-            );
-        assert!(!frame_has_text(&empty_frame, "o"));
-
-        state
-            .waveform
-            .apply_interaction(WaveformInteraction::BeginSelection {
-                kind: WaveformSelectionKind::Play,
-                visible_ratio: 0.2,
-            });
-        state
-            .waveform
-            .apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.4 });
-        state.waveform.record_current_play_selection_extracted();
-        let history_frame =
-            radiant::runtime::UiSurface::new(super::waveform_panel(&state).into_node()).frame(
-                Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 240.0)),
-                &radiant::theme::ThemeTokens::default(),
-            );
-
-        assert!(frame_has_text(&history_frame, "o"));
     }
 
     #[test]
