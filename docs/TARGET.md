@@ -451,9 +451,9 @@ The duplicate embedded-ID resolve action should be available from the conflicted
 
 When resolving a duplicate embedded-ID group, Wavecrate should preserve one file's existing Sample ID and assign new unique Sample IDs to the other conflicted files in that group. The preserved file should be chosen predictably, such as the focused selected row when it belongs to the group, otherwise the first selected row in the group, otherwise the first indexed available row. The UI should show which file kept the original ID when reporting the result. Resolution should preserve user-authored metadata for each file identity, log the change, refresh affected caches/indexes, and report any files whose embedded ID could not be rewritten.
 
-Resolving duplicate embedded-ID conflicts may run immediately when the user triggers the resolve action. It does not need a confirmation prompt. The action should be visibly reported and undoable.
+Resolving duplicate embedded-ID conflicts may run immediately when the user triggers the resolve action. It does not need a confirmation prompt. The action should be visibly reported, logged, and treated as forward-only identity repair rather than a normal global undo transaction.
 
-Resolving duplicate embedded-ID conflicts should be a current-session undoable transaction. Undo should restore the previous database identity state and embedded-ID state where practical, rewrite prior embedded IDs back where safe, refresh affected caches/indexes, and clearly report any files whose embedded ID could not be rolled back.
+Resolving duplicate embedded-ID conflicts should not try to roll embedded Sample IDs backward through normal undo. If the user chooses the wrong preserved identity or later wants a different identity assignment, Wavecrate should provide an explicit regenerate/reassign Sample ID action for the affected file or conflict group. That follow-up action should be deliberate, visibly reported, logged, refresh affected caches/indexes, and report any files whose embedded ID could not be rewritten.
 
 Automatic embedded-ID writing is an intentional metadata mutation, but it must not rewrite or reinterpret the audio payload. It should use the safest practical WAV metadata write path, preserve existing audio data and unknown chunks where practical, and use atomic or recovery-safe file replacement where needed.
 
