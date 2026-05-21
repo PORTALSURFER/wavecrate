@@ -234,6 +234,7 @@ mod interaction;
 use interaction::{WaveformDrag, edit_preview_for_selection};
 
 mod state_interaction;
+mod state_viewport;
 
 mod audio_file;
 use audio_file::{
