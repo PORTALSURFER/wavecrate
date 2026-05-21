@@ -17,6 +17,8 @@ Wavecrate is not a generic GUI library, a DAW, a plugin host, or a file-manager 
 
 The target is a dense, responsive, predictable, and trustworthy tool for repeated professional use on large local sample collections.
 
+Wavecrate should have a low-noise interface. The app should assume users can read documentation and will quickly become fluent, expert users through repeated use. It should keep the main interface clean, direct, and easy to operate, with minimal explanatory copy, modal interruption, and implementation-detail disclosure. Detailed behavior, storage details, and advanced constraints should live in documentation, diagnostics, or deliberate advanced surfaces unless showing them inline prevents likely data loss or an unsafe action.
+
 ## Product Identity
 
 Wavecrate is three things working together:
