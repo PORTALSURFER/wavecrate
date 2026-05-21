@@ -1,4 +1,9 @@
 use super::*;
+use span::{
+    ResolvedPlaybackSpan, loop_retarget_offset_for_selection, playback_span_matches_selection,
+};
+
+mod span;
 
 impl GuiAppState {
     pub(super) fn play_selected_sample(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
@@ -369,33 +374,4 @@ impl GuiAppState {
             );
         }
     }
-}
-
-pub(super) struct ResolvedPlaybackSpan {
-    pub(super) start_ratio: f32,
-    pub(super) end_ratio: f32,
-    pub(super) offset_ratio: f32,
-}
-
-fn loop_retarget_offset_for_selection(
-    playhead: f32,
-    selection: wavecrate::selection::SelectionRange,
-) -> f32 {
-    let start = selection.start();
-    let end = selection.end();
-    if (start..=end).contains(&playhead) {
-        playhead
-    } else {
-        start
-    }
-}
-
-fn playback_span_matches_selection(
-    span: Option<(f32, f32)>,
-    selection: wavecrate::selection::SelectionRange,
-) -> bool {
-    let Some((start, end)) = span else {
-        return false;
-    };
-    (start - selection.start()).abs() <= 0.000_1 && (end - selection.end()).abs() <= 0.000_1
 }
