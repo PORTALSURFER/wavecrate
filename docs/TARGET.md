@@ -1684,7 +1684,7 @@ Generated display names should update automatically whenever the structured meta
 
 Generated display names are derived values, not manually authored names. The durable source of truth is the metadata, naming template, Sample ID, real disk filename, folder location, and any explicit apply-to-disk rename transaction. Wavecrate should persist generated-name cache/index projections so the speed gain is retained after restart, but those projections remain rebuildable derived state rather than user-authored metadata.
 
-The naming template should be configured through a user-editable config file, not a normal in-app editor in the current target. Wavecrate should load the naming template at launch from the global `.wavecrate` configuration area, falling back to the built-in default only when the config file is missing. Editing the config file while Wavecrate is running does not need to hot-reload the template.
+The naming template should be configured only through a user-editable config file in the current target. Wavecrate should not provide an in-app naming-template editor, in-app template builder, or normal settings control for editing the template. Wavecrate should load the naming template at launch from the global `.wavecrate` configuration area, falling back to the built-in default only when the config file is missing. Editing the config file while Wavecrate is running does not need to hot-reload the template.
 
 The config-file template syntax should be a string template with named tokens, such as `{prefix}_{playback-type}_{sound-type}_{character}_{bpm}_{label}_{number}`. Supported initial tokens should match the structured metadata fields used by the default naming order. Literal text should be allowed in templates, for example `{prefix}_drum_{sound-type}_{number}`. Unknown tokens should make the template invalid rather than being silently ignored. Wavecrate should own token normalization, separator cleanup, empty-token omission, uniqueness numbering, and validation errors so a user-edited template cannot create malformed generated names.
 
@@ -2011,7 +2011,7 @@ Context menus should exist for sample rows, folders, waveform selections, tag pi
 
 Empty states should be actionable. A fresh install should guide the user to add a source folder. An empty source should say that no supported ordinary WAV files were found in the first format target, and should include AIFF/AIF after that later format phase is implemented. A filtered-empty browser should make it clear that filters, not the source itself, are hiding files.
 
-Settings should be a normal application screen or dialog, not hidden behind config files. The generated-name naming template is the current deliberate exception because it is a launch-loaded advanced config-file setting.
+Settings should be a normal application screen or dialog, not hidden behind config files. The generated-name naming template is the current deliberate exception because it is a launch-loaded advanced config-file setting and should remain config-file only in the current target.
 
 ### Accessibility and Keyboard Usability
 
@@ -2147,7 +2147,7 @@ Settings should include:
 
 Settings changes should take effect predictably and should be represented as undoable global transactions when committed. Risky settings such as YOLO mode, trash folder location, cache cleanup, audio backend/device, audio write format, and destructive overwrite behavior should require clear confirmation before the setting change is committed.
 
-The generated-name naming template is not a normal runtime setting in the current target. It is a launch-loaded config-file setting and is therefore not represented as an undoable in-app settings transaction.
+The generated-name naming template is not a normal runtime setting in the current target. It is a launch-loaded config-file-only setting and is therefore not represented as an undoable in-app settings transaction.
 
 ## Error States and User-Facing Messages
 
