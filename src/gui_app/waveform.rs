@@ -40,6 +40,14 @@ impl WaveformState {
         Ok(Self::from_file(file))
     }
 
+    pub(super) fn load_path_with_progress(
+        path: PathBuf,
+        progress: impl Fn(f32),
+    ) -> Result<Self, String> {
+        let file = Arc::new(load_waveform_file_with_progress(path, progress)?);
+        Ok(Self::from_file(file))
+    }
+
     pub(super) fn empty() -> Self {
         Self::from_file(Arc::new(empty_waveform_file()))
     }
@@ -240,7 +248,7 @@ mod state_viewport;
 mod audio_file;
 use audio_file::{
     WaveformFile, empty_waveform_file, extract_wav_range_to_sibling, is_wav_path,
-    load_waveform_file,
+    load_waveform_file, load_waveform_file_with_progress,
 };
 #[cfg(test)]
 use audio_file::{

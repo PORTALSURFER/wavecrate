@@ -1,4 +1,5 @@
 use super::*;
+use std::cell::RefCell;
 
 #[test]
 fn waveform_summary_preserves_raw_transient_detail() {
@@ -39,6 +40,42 @@ fn waveform_summary_preserves_raw_transient_detail() {
         .map(|bucket| bucket.min.abs().max(bucket.max.abs()))
         .fold(0.0_f32, f32::max);
     assert!(frame_peak > 0.89);
+}
+
+#[test]
+fn waveform_load_progress_tracks_late_summary_work() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let path = dir.path().join("long.wav");
+    let samples = (0..65_536)
+        .map(|index| {
+            let phase = index as f32 / 64.0;
+            (phase.sin() * i16::MAX as f32 * 0.75) as i16
+        })
+        .collect::<Vec<_>>();
+    write_test_wav_i16(&path, &samples);
+
+    let updates = RefCell::new(Vec::new());
+    let state = WaveformState::load_path_with_progress(path, |progress| {
+        updates.borrow_mut().push(progress);
+    })
+    .expect("waveform loads");
+    let updates = updates.into_inner();
+
+    assert!(state.has_loaded_sample());
+    assert!(
+        updates.windows(2).all(|pair| pair[1] >= pair[0] - 0.000_1),
+        "progress should be monotonic: {updates:?}"
+    );
+    assert!(
+        updates
+            .iter()
+            .any(|progress| (0.90..0.99).contains(progress)),
+        "progress should advance during final summary work: {updates:?}"
+    );
+    assert!(
+        updates.last().copied().unwrap_or_default() >= 0.99,
+        "progress should reach the ready boundary: {updates:?}"
+    );
 }
 
 #[test]
