@@ -122,13 +122,12 @@ pub(super) fn legacy_options_panel_button_defs(model: &AppModel) -> Vec<(String,
             UiAction::ShowOptionsOverview,
         ),
         (String::from("Open Trash Folder"), UiAction::OpenTrashFolder),
-        (String::from("Close"), UiAction::CloseOptionsPanel),
     ]
 }
 
 pub(super) fn options_panel_title(model: &AppModel) -> String {
     let _ = model;
-    String::from("Audio Engine")
+    String::new()
 }
 
 pub(super) fn picker_options(
@@ -165,8 +164,8 @@ pub(super) fn picker_action(value: &PairedPickerValueModel) -> UiAction {
 pub(super) fn audio_picker_label(target: PairedPickerTargetModel) -> String {
     match target {
         PairedPickerTargetModel::PrimaryGroup => String::from("Output Host"),
-        PairedPickerTargetModel::PrimaryItem => String::from("Output Device"),
-        PairedPickerTargetModel::PrimaryNumber => String::from("Output Sample Rate"),
+        PairedPickerTargetModel::PrimaryItem => String::from("Output"),
+        PairedPickerTargetModel::PrimaryNumber => String::from("Sample Rate"),
         PairedPickerTargetModel::SecondaryGroup => String::from("Input Host"),
         PairedPickerTargetModel::SecondaryItem => String::from("Input Device"),
         PairedPickerTargetModel::SecondaryNumber => String::from("Input Sample Rate"),

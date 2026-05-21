@@ -32,7 +32,7 @@ pub(super) fn options_panel_layout(
     }
     let sizing = style.sizing;
     let panel_padding = sizing.overlay_padding.max(10.0);
-    let title_height = sizing.overlay_button_height.max(22.0);
+    let title_height = 0.0;
     let detail_height = if model.paired_device_panel().detail_label().is_some() {
         sizing.overlay_button_height.max(20.0)
     } else {
@@ -44,11 +44,13 @@ pub(super) fn options_panel_layout(
     let panel_width = button_width + (panel_padding * 2.0);
     let buttons = build_options_panel_buttons(model);
     let detail_gap = if detail_height > 0.0 { button_gap } else { 0.0 };
+    let title_gap = if title_height > 0.0 { button_gap } else { 0.0 };
     let panel_height = panel_padding
         + title_height
+        + title_gap
         + detail_gap
         + detail_height
-        + button_gap
+        + if detail_height > 0.0 { button_gap } else { 0.0 }
         + (button_height * buttons.len() as f32)
         + (button_gap * buttons.len().saturating_sub(1) as f32)
         + panel_padding;
@@ -89,10 +91,10 @@ pub(super) fn options_panel_layout(
     );
     let detail_rect = if detail_height > 0.0 {
         Some(Rect::from_min_max(
-            Point::new(title_rect.min.x, title_rect.max.y + detail_gap),
+            Point::new(title_rect.min.x, title_rect.max.y + title_gap + detail_gap),
             Point::new(
                 title_rect.max.x,
-                title_rect.max.y + detail_gap + detail_height,
+                title_rect.max.y + title_gap + detail_gap + detail_height,
             ),
         ))
     } else {
@@ -101,7 +103,7 @@ pub(super) fn options_panel_layout(
     let button_x = panel_rect.min.x + panel_padding;
     let mut button_y = detail_rect
         .map(|rect| rect.max.y + button_gap)
-        .unwrap_or(title_rect.max.y + button_gap);
+        .unwrap_or(title_rect.max.y + title_gap);
     let mut layout_buttons = Vec::with_capacity(buttons.len());
     for (text, action, active) in buttons {
         let rect = Rect::from_min_max(

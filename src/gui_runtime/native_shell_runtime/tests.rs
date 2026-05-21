@@ -607,11 +607,11 @@ mod tests {
             value_label: String::from("WASAPI"),
         };
         model.paired_device.primary_item = runtime_contract::SummaryFieldModel {
-            label: String::from("Output Device"),
+            label: String::from("Output"),
             value_label: String::from("Speakers"),
         };
         model.paired_device.primary_number = runtime_contract::SummaryFieldModel {
-            label: String::from("Output Sample Rate"),
+            label: String::from("Sample Rate"),
             value_label: String::from("48 kHz"),
         };
 
@@ -631,8 +631,8 @@ mod tests {
             .render_retained_surface(retained, rect, viewport)
             .expect("retained shell frame with options panel");
         assert!(
-            frame.text_runs.iter().any(|run| run.text == "Audio Engine"),
-            "retained frame should append the options panel overlay"
+            !frame.text_runs.iter().any(|run| run.text == "Audio Engine"),
+            "options panel should not render its old inner title"
         );
         let output_host_label = frame
             .text_runs

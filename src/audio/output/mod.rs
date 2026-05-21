@@ -31,6 +31,12 @@ pub enum AudioOutputError {
         /// Underlying cpal error.
         source: cpal::DevicesError,
     },
+    /// The requested output host is not available.
+    #[error("Audio host {host_id} is unavailable")]
+    HostUnavailable {
+        /// Requested host identifier.
+        host_id: String,
+    },
     /// Failed to query supported output configs for a host.
     #[error("Failed to read supported configs for {host_id}: {source}")]
     SupportedOutputConfigs {
