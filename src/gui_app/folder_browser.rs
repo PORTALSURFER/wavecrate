@@ -1,16 +1,11 @@
 #![allow(missing_docs)]
 
 use radiant::{
-    gui::types::{Point, Rect, Rgba8},
-    layout::LayoutOutput,
-    layout::Vector2,
+    gui::types::Point,
     prelude as ui,
-    runtime::{PaintFillRect, PaintPrimitive, PaintStrokeRect},
-    theme::ThemeTokens,
     widgets::{
-        ButtonMessage, DragHandleMessage, FocusBehavior, PaintBounds, PointerButton,
-        PointerModifiers, TextInputMessage, Widget, WidgetCommon, WidgetInput, WidgetOutput,
-        WidgetSizing, WidgetStyle, WidgetTone,
+        ButtonMessage, DragHandleMessage, PointerModifiers, TextInputMessage, WidgetStyle,
+        WidgetTone,
     },
 };
 use std::{
@@ -1750,6 +1745,9 @@ use state_types::{
     SourceEntry, VisibleFolder, default_file_columns,
 };
 
+mod tree_widgets;
+use tree_widgets::{FolderDropClearTarget, FolderTreeHitMessage, FolderTreeHitTarget};
+
 mod types;
 pub(super) use types::{
     FileDeleteTargetView, FileRenameView, FolderBrowserMessage, FolderDeleteTargetView,
@@ -1962,246 +1960,6 @@ fn folder_row(folder: VisibleFolder) -> ui::View<GuiMessage> {
     .height(TREE_ROW_HEIGHT)
     .spacing(1.0)
     .hoverable()
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-enum FolderTreeHitMessage {
-    Activate,
-    ContextMenu(Point),
-    Drag(DragHandleMessage),
-    Drop,
-    HoverDropTarget,
-}
-
-#[derive(Clone, Debug)]
-struct FolderTreeHitTarget {
-    common: WidgetCommon,
-    selected: bool,
-    drop_target: bool,
-    drag_active: bool,
-    drop_candidate: bool,
-    dragged: bool,
-}
-
-impl FolderTreeHitTarget {
-    fn new(selected: bool, drop_target: bool, drag_active: bool, drop_candidate: bool) -> Self {
-        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 22.0)));
-        common.focus = FocusBehavior::None;
-        common.paint.bounds = PaintBounds::ClipToRect;
-        common.paint.paints_focus = false;
-        common.paint.paints_state_layers = false;
-        Self {
-            common,
-            selected,
-            drop_target,
-            drag_active,
-            drop_candidate,
-            dragged: false,
-        }
-    }
-}
-
-impl Widget for FolderTreeHitTarget {
-    fn common(&self) -> &WidgetCommon {
-        &self.common
-    }
-
-    fn common_mut(&mut self) -> &mut WidgetCommon {
-        &mut self.common
-    }
-
-    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        match input {
-            WidgetInput::PointerMove { position } => {
-                self.common.state.hovered = bounds.contains(position);
-                if self.common.state.pressed {
-                    let message = if self.dragged {
-                        DragHandleMessage::Moved { position }
-                    } else {
-                        self.dragged = true;
-                        DragHandleMessage::Started { position }
-                    };
-                    return Some(WidgetOutput::typed(FolderTreeHitMessage::Drag(message)));
-                }
-                if self.common.state.hovered && self.drag_active {
-                    return Some(WidgetOutput::typed(FolderTreeHitMessage::HoverDropTarget));
-                }
-                None
-            }
-            WidgetInput::PointerPress {
-                position,
-                button: PointerButton::Primary,
-                ..
-            } if bounds.contains(position) => {
-                self.common.state.hovered = true;
-                self.common.state.pressed = true;
-                self.dragged = false;
-                None
-            }
-            WidgetInput::PointerPress {
-                position,
-                button: PointerButton::Secondary,
-                ..
-            } if bounds.contains(position) => {
-                self.common.state.hovered = true;
-                self.common.state.pressed = false;
-                self.dragged = false;
-                Some(WidgetOutput::typed(FolderTreeHitMessage::ContextMenu(
-                    position,
-                )))
-            }
-            WidgetInput::PointerRelease {
-                position,
-                button: PointerButton::Primary,
-                ..
-            } => {
-                let activated =
-                    self.common.state.pressed && !self.dragged && bounds.contains(position);
-                let dragged = self.common.state.pressed && self.dragged;
-                self.common.state.pressed = false;
-                self.common.state.hovered = bounds.contains(position);
-                self.dragged = false;
-                if dragged {
-                    return Some(WidgetOutput::typed(FolderTreeHitMessage::Drag(
-                        DragHandleMessage::Ended { position },
-                    )));
-                }
-                activated.then(|| WidgetOutput::typed(FolderTreeHitMessage::Activate))
-            }
-            WidgetInput::PointerDrop {
-                position,
-                button: PointerButton::Primary,
-                ..
-            } if bounds.contains(position) => Some(WidgetOutput::typed(FolderTreeHitMessage::Drop)),
-            _ => {
-                if matches!(input, WidgetInput::PointerRelease { .. }) {
-                    self.common.state.pressed = false;
-                    self.dragged = false;
-                }
-                None
-            }
-        }
-    }
-
-    fn accepts_pointer_move(&self) -> bool {
-        true
-    }
-
-    fn append_paint(
-        &self,
-        primitives: &mut Vec<PaintPrimitive>,
-        bounds: Rect,
-        _layout: &LayoutOutput,
-        _theme: &ThemeTokens,
-    ) {
-        let mut fill = None;
-        if self.drop_target {
-            fill = Some(Rgba8 {
-                r: 255,
-                g: 130,
-                b: 78,
-                a: 150,
-            });
-        } else if self.common.state.hovered && self.drop_candidate {
-            fill = Some(Rgba8 {
-                r: 255,
-                g: 122,
-                b: 74,
-                a: 110,
-            });
-        } else if self.common.state.pressed || self.common.state.hovered {
-            fill = Some(Rgba8 {
-                r: 255,
-                g: 110,
-                b: 85,
-                a: if self.common.state.pressed { 120 } else { 80 },
-            });
-        } else if self.selected {
-            fill = Some(Rgba8 {
-                r: 255,
-                g: 82,
-                b: 62,
-                a: 105,
-            });
-        }
-        if let Some(color) = fill {
-            primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-                widget_id: self.common.id,
-                rect: bounds,
-                color,
-            }));
-        }
-        if self.drop_target {
-            primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
-                widget_id: self.common.id,
-                rect: Rect::from_min_max(
-                    Point::new(bounds.min.x + 0.5, bounds.min.y + 0.5),
-                    Point::new(bounds.max.x - 0.5, bounds.max.y - 0.5),
-                ),
-                color: Rgba8 {
-                    r: 255,
-                    g: 180,
-                    b: 130,
-                    a: 210,
-                },
-                width: 1.0,
-            }));
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-struct FolderDropClearTarget {
-    common: WidgetCommon,
-    drag_active: bool,
-}
-
-impl FolderDropClearTarget {
-    fn new(drag_active: bool) -> Self {
-        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 1.0)));
-        common.focus = FocusBehavior::None;
-        common.paint.bounds = PaintBounds::ClipToRect;
-        common.paint.paints_focus = false;
-        common.paint.paints_state_layers = false;
-        Self {
-            common,
-            drag_active,
-        }
-    }
-}
-
-impl Widget for FolderDropClearTarget {
-    fn common(&self) -> &WidgetCommon {
-        &self.common
-    }
-
-    fn common_mut(&mut self) -> &mut WidgetCommon {
-        &mut self.common
-    }
-
-    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        match input {
-            WidgetInput::PointerMove { position }
-                if self.drag_active && bounds.contains(position) =>
-            {
-                Some(WidgetOutput::typed(FolderBrowserMessage::ClearDropTarget))
-            }
-            _ => None,
-        }
-    }
-
-    fn accepts_pointer_move(&self) -> bool {
-        true
-    }
-
-    fn append_paint(
-        &self,
-        _primitives: &mut Vec<PaintPrimitive>,
-        _bounds: Rect,
-        _layout: &LayoutOutput,
-        _theme: &ThemeTokens,
-    ) {
-    }
 }
 
 fn selected_folder_status(state: &FolderBrowserState) -> ui::View<GuiMessage> {
