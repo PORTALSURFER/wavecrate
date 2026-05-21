@@ -734,15 +734,14 @@ Even though edits are destructive, Wavecrate should have a deeply integrated und
 
 Undo/redo is session-local. It only needs to work while the application is running. Undo history does not need to persist across application restarts.
 
-Every meaningful user action that changes audio, files, metadata, selection state, organization state, or workflow marks should be modeled as an undoable transaction unless the command is explicitly documented as non-undoable. The default expectation is undoable first.
+Every meaningful user action that changes audio, files, metadata, organization state, play/edit selection state, edit-preview state, or workflow marks should be modeled as an undoable transaction unless the command is explicitly documented as non-undoable. Ordinary browsing, row focus, source/folder navigation, scroll, zoom, cursor movement, and search/filter changes should not enter the global undo stack by default.
 
 Undo/redo should cover:
 
 - destructive audio edits
-- selection changes
 - play selection changes
 - edit selection changes
-- navigation changes such as active source, folder selection, focused sample, browser position, waveform scroll/zoom position, cursor position, and active view where practical
+- explicit workflow-context changes where undo is clearly useful, such as committed edit-preview state, active edit mode, or view state tied to an undoable edit workflow
 - marker changes
 - region changes
 - extraction actions
@@ -759,7 +758,7 @@ Undo/redo should cover:
 - move/copy/export/trash operations
 - folder operations where practical
 
-Transport play/stop/restart, momentary playback position, and ordinary seek state should not be undoable by default. Undo should restore selection, navigation, metadata, file, rating, collection, edit, and workflow-flag context, but it should not behave like a transport history.
+Transport play/stop/restart, momentary playback position, ordinary seek state, browser focus, row selection, source/folder navigation, browser position, waveform scroll/zoom position, cursor movement, and ordinary view switching should not be undoable by default. Undo should restore metadata, file, rating, collection, edit, workflow-flag, and play/edit selection context, but it should not behave like a transport or browsing history.
 
 Undo/redo should be transaction-based. A user action should either complete as a coherent operation or fail in a recoverable way. Partial failures should be logged and reported clearly.
 
@@ -779,9 +778,9 @@ Undoing a trash-folder setting change should be allowed even if files were trash
 
 Adding, removing, relinking, enabling, disabling, or otherwise changing a source reference should be undoable where practical. Source removal may happen immediately without confirmation because it only removes Wavecrate's configured reference and is undoable. Undoing source removal should restore the configured source reference, source database path, source UI state, and related global metadata references without recreating or deleting audio files, then restart scanning, file watching, and reconciliation for that source. Undoing source addition should remove the configured source reference from Wavecrate, stop or cancel in-progress scan/indexing/background jobs for that source, and ignore stale completions from those jobs. It should not delete the real folder, source database file, audio files, caches, or logs unless the user explicitly chose a separate cleanup command.
 
-Selection, navigation, and workflow-flag undo should be useful without becoming noisy. Wavecrate should coalesce rapid repeated navigation, scrubbing, scrolling, zooming, selection movement, and repeated flag toggles into meaningful undo steps where practical, so undo can return the user to a previous working context without filling the history with every tiny pointer or key movement.
+Play/edit selection and workflow-flag undo should be useful without becoming noisy. Wavecrate should coalesce rapid repeated selection adjustments and repeated flag toggles into meaningful undo steps where practical, so undo can return the user to a previous editing context without filling the history with every tiny pointer or key movement.
 
-When undo restores a previous navigation or selection state, it should also restore the active source, folder selection, browser view mode, browser selection, focused row, and visible position that belonged to that context where practical. Browser view mode includes list view versus later similarity map view where applicable. Search/filter query changes should be restored through browser/query history controls rather than global undo. If a previously selected file is missing, moved, hidden by unavailable source state, or no longer part of the restored result set, Wavecrate should restore the closest sensible focus and report the mismatch only when useful.
+When undo restores an edit, metadata, file, rating, collection, or workflow transaction, it may also restore the supporting browser context that belonged to that transaction where practical, such as active source, folder selection, browser view mode, browser selection, focused row, visible position, or waveform view. That context restoration is attached to the real undoable transaction; ordinary navigation should use local browser history instead of the global undo stack. Search/filter query changes should be restored through browser/query history controls rather than global undo. If a previously selected file is missing, moved, hidden by unavailable source state, or no longer part of the restored result set, Wavecrate should restore the closest sensible focus and report the mismatch only when useful.
 
 The undo history should be deep enough to be useful while remaining bounded to avoid excessive memory or disk usage. A reasonable initial target is 50 meaningful user transactions, with the architecture allowing a configurable range such as 50 to 100 where disk space and recovery-file size make that practical.
 
@@ -2546,7 +2545,7 @@ Important validation lanes should cover:
 * play selection and edit selection behavior
 * waveform precision for playhead, cursor, range, loop, fade, marker, grid, transient, and extraction interactions
 * destructive edit warnings and YOLO mode behavior
-* session-local undo/redo for edits, file operations, metadata operations, rating operations, selection changes, navigation changes, and workflow-flag changes, while excluding ordinary transport play/stop history
+* session-local undo/redo for edits, file operations, metadata operations, rating operations, play/edit selection changes, and workflow-flag changes, while excluding ordinary transport, browsing, search/filter, and navigation history
 * temporary recovery file creation and background cleanup
 * stale-result safety for decode, waveform, analysis, edit-render, database, naming, and similarity jobs
 * tag creation, autocomplete, duplicate prevention, persistence, generated names, disk rename application, and filtering
