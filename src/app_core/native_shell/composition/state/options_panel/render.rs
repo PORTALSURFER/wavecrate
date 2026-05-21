@@ -55,17 +55,19 @@ pub(super) fn render_options_panel(
         blend_color(style.border_emphasis, style.highlight_orange, 0.42),
         sizing.border_width,
     );
-    emit_text(
-        text_runs,
-        TextRun {
-            text: panel.title.clone(),
-            position: panel.title_rect.min,
-            font_size: sizing.font_title,
-            color: style.text_primary,
-            max_width: Some(panel.title_rect.width().max(36.0)),
-            align: TextAlign::Left,
-        },
-    );
+    if !panel.title.is_empty() {
+        emit_text(
+            text_runs,
+            TextRun {
+                text: panel.title.clone(),
+                position: panel.title_rect.min,
+                font_size: sizing.font_title,
+                color: style.text_primary,
+                max_width: Some(panel.title_rect.width().max(36.0)),
+                align: TextAlign::Left,
+            },
+        );
+    }
     if let (Some(detail_rect), Some(detail)) = (
         panel.detail_rect,
         model.paired_device_panel().detail_label(),

@@ -50,11 +50,11 @@ pub(crate) fn project_audio_engine_model(
             value_label: output_host_value(ui),
         },
         output_device: crate::app_core::actions::NativeAudioFieldModel {
-            label: String::from("Output Device"),
+            label: String::from("Output"),
             value_label: output_device_value(ui),
         },
         output_sample_rate: crate::app_core::actions::NativeAudioFieldModel {
-            label: String::from("Output Sample Rate"),
+            label: String::from("Sample Rate"),
             value_label: output_sample_rate_value(ui),
         },
         input_host: crate::app_core::actions::NativeAudioFieldModel {

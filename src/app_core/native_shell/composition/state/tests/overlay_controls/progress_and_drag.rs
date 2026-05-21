@@ -278,7 +278,7 @@ fn state_overlay_renders_options_panel_when_visible() {
         overlay
             .text_runs
             .iter()
-            .any(|run| run.text == "Audio Engine")
+            .any(|run| run.text.starts_with("Output Host"))
     );
 }
 
