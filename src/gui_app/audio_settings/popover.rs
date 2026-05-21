@@ -42,11 +42,14 @@ pub(in crate::gui_app) fn audio_settings_window_view(
         ui::spacer().fill_height(),
     ])
     .fill();
-    if snapshot.audio_backend_dropdown_open {
+    if snapshot.audio_backend_dropdown_open
+        || snapshot.audio_output_dropdown_open
+        || snapshot.audio_sample_rate_dropdown_open
+    {
         ui::stack([
             base,
             audio_dropdown_dismiss_overlay(),
-            audio_host_dropdown_overlay(snapshot),
+            audio_settings_dropdown_overlay(snapshot),
         ])
         .fill()
     } else {
@@ -55,39 +58,21 @@ pub(in crate::gui_app) fn audio_settings_window_view(
 }
 
 fn audio_settings_panel_rows(snapshot: &AudioSettingsSnapshot) -> Vec<ui::View<GuiMessage>> {
-    let mut rows = vec![
-        audio_settings_title_row(),
-        audio_engine_detail_row(snapshot),
-    ];
+    let mut rows = vec![audio_engine_detail_row(snapshot)];
     if let Some(error) = snapshot.error.as_ref() {
         rows.push(audio_settings_error_row(error));
     }
     rows.push(audio_settings_backend_section(snapshot));
     rows.push(audio_settings_section(
         "Output",
-        audio_device_option_buttons(snapshot),
-        2,
+        audio_output_dropdown(snapshot),
     ));
     rows.push(audio_settings_section(
         "Sample Rate",
-        audio_sample_rate_option_buttons(snapshot),
-        4,
+        audio_sample_rate_dropdown(snapshot),
     ));
     rows.push(cache_maintenance_section());
     rows
-}
-
-fn audio_settings_title_row() -> ui::View<GuiMessage> {
-    ui::row(vec![
-        ui::text("Audio Engine").height(20.0).fill_width(),
-        ui::button("x")
-            .subtle()
-            .message(GuiMessage::CloseAudioSettings)
-            .width(24.0)
-            .height(20.0),
-    ])
-    .fill_width()
-    .height(22.0)
 }
 
 fn audio_engine_detail_row(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
@@ -140,24 +125,12 @@ fn audio_settings_backend_section(snapshot: &AudioSettingsSnapshot) -> ui::View<
 
 fn audio_settings_section(
     label: &'static str,
-    options: Vec<ui::View<GuiMessage>>,
-    columns: usize,
+    control: ui::View<GuiMessage>,
 ) -> ui::View<GuiMessage> {
-    let grid_height = audio_option_grid_height(options.len(), columns);
-    let mut rows = vec![section_label(label)];
-    if options.is_empty() {
-        rows.push(ui::text("Unavailable").fill_width().height(20.0));
-    } else {
-        rows.push(
-            ui::grid(options, columns.max(1))
-                .fill_width()
-                .height(grid_height),
-        );
-    }
-    ui::column(rows)
+    ui::column(vec![section_label(label), control])
         .spacing(3.0)
         .fill_width()
-        .height(21.0 + grid_height)
+        .height(45.0)
 }
 
 fn section_label(label: &'static str) -> ui::View<GuiMessage> {
@@ -187,9 +160,57 @@ fn audio_host_dropdown_overlay(snapshot: &AudioSettingsSnapshot) -> ui::View<Gui
     )
 }
 
+fn audio_output_dropdown(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
+    ui::dropdown(
+        selected_audio_output_label(snapshot),
+        snapshot.audio_output_dropdown_open,
+    )
+    .toggle_message(GuiMessage::ToggleAudioOutputDropdown)
+    .options(audio_output_dropdown_options(snapshot))
+    .build()
+}
+
+fn audio_output_dropdown_overlay(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
+    ui::dropdown_menu_overlay(
+        AUDIO_SETTINGS_PANEL_PADDING,
+        AUDIO_SETTINGS_PANEL_PADDING + audio_output_dropdown_overlay_y(snapshot),
+        Some(AUDIO_SETTINGS_POPUP_WIDTH - AUDIO_SETTINGS_PANEL_PADDING * 2.0),
+        audio_output_dropdown_options(snapshot),
+    )
+}
+
+fn audio_sample_rate_dropdown(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
+    ui::dropdown(
+        selected_audio_sample_rate_label(snapshot),
+        snapshot.audio_sample_rate_dropdown_open,
+    )
+    .toggle_message(GuiMessage::ToggleAudioSampleRateDropdown)
+    .options(audio_sample_rate_dropdown_options(snapshot))
+    .build()
+}
+
+fn audio_sample_rate_dropdown_overlay(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
+    ui::dropdown_menu_overlay(
+        AUDIO_SETTINGS_PANEL_PADDING,
+        AUDIO_SETTINGS_PANEL_PADDING + audio_sample_rate_dropdown_overlay_y(snapshot),
+        Some(AUDIO_SETTINGS_POPUP_WIDTH - AUDIO_SETTINGS_PANEL_PADDING * 2.0),
+        audio_sample_rate_dropdown_options(snapshot),
+    )
+}
+
+fn audio_settings_dropdown_overlay(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
+    if snapshot.audio_output_dropdown_open {
+        audio_output_dropdown_overlay(snapshot)
+    } else if snapshot.audio_sample_rate_dropdown_open {
+        audio_sample_rate_dropdown_overlay(snapshot)
+    } else {
+        audio_host_dropdown_overlay(snapshot)
+    }
+}
+
 fn audio_dropdown_dismiss_overlay() -> ui::View<GuiMessage> {
     ui::button("")
-        .message(GuiMessage::CloseAudioBackendDropdown)
+        .message(GuiMessage::CloseAudioSettingsDropdowns)
         .key("audio-backend-dropdown-dismiss")
         .input_only()
         .fill()
@@ -197,13 +218,24 @@ fn audio_dropdown_dismiss_overlay() -> ui::View<GuiMessage> {
 
 fn audio_host_dropdown_overlay_y(snapshot: &AudioSettingsSnapshot) -> f32 {
     let mut y = 0.0;
-    y += 22.0 + AUDIO_SETTINGS_ROW_SPACING;
     y += 20.0 + AUDIO_SETTINGS_ROW_SPACING;
     if snapshot.error.is_some() {
         y += 20.0 + AUDIO_SETTINGS_ROW_SPACING;
     }
     y += 18.0 + AUDIO_SETTINGS_SECTION_SPACING;
     y += 24.0 + AUDIO_SETTINGS_DROPDOWN_GAP;
+    y
+}
+
+fn audio_output_dropdown_overlay_y(snapshot: &AudioSettingsSnapshot) -> f32 {
+    let mut y = audio_host_dropdown_overlay_y(snapshot);
+    y += 45.0 + AUDIO_SETTINGS_ROW_SPACING;
+    y
+}
+
+fn audio_sample_rate_dropdown_overlay_y(snapshot: &AudioSettingsSnapshot) -> f32 {
+    let mut y = audio_output_dropdown_overlay_y(snapshot);
+    y += 45.0 + AUDIO_SETTINGS_ROW_SPACING;
     y
 }
 
@@ -241,55 +273,64 @@ fn selected_audio_host_label(snapshot: &AudioSettingsSnapshot) -> String {
         .unwrap_or_else(|| String::from("System default"))
 }
 
-fn audio_device_option_buttons(snapshot: &AudioSettingsSnapshot) -> Vec<ui::View<GuiMessage>> {
-    let mut buttons = vec![audio_option_button(
-        "Host default".to_string(),
+fn audio_output_dropdown_options(
+    snapshot: &AudioSettingsSnapshot,
+) -> Vec<ui::DropdownOption<GuiMessage>> {
+    let mut options = vec![ui::DropdownOption::new(
+        "Host default",
         snapshot.audio_output_config.device.is_none(),
         GuiMessage::SetAudioOutputDevice(None),
     )];
-    buttons.extend(snapshot.audio_devices.iter().map(|device| {
-        audio_option_button(
+    options.extend(snapshot.audio_devices.iter().map(|device| {
+        ui::DropdownOption::new(
             default_option_label(device.name.as_str(), device.is_default),
             snapshot.audio_output_config.device.as_deref() == Some(device.name.as_str()),
             GuiMessage::SetAudioOutputDevice(Some(device.name.clone())),
         )
     }));
-    buttons
+    options
 }
 
-fn audio_sample_rate_option_buttons(snapshot: &AudioSettingsSnapshot) -> Vec<ui::View<GuiMessage>> {
-    let mut buttons = vec![audio_option_button(
-        "Device default".to_string(),
+fn selected_audio_output_label(snapshot: &AudioSettingsSnapshot) -> String {
+    snapshot
+        .audio_output_config
+        .device
+        .as_deref()
+        .and_then(|selected| {
+            snapshot
+                .audio_devices
+                .iter()
+                .find(|device| device.name == selected)
+                .map(|device| default_option_label(device.name.as_str(), device.is_default))
+        })
+        .or_else(|| snapshot.audio_output_config.device.clone())
+        .unwrap_or_else(|| String::from("Host default"))
+}
+
+fn audio_sample_rate_dropdown_options(
+    snapshot: &AudioSettingsSnapshot,
+) -> Vec<ui::DropdownOption<GuiMessage>> {
+    let mut options = vec![ui::DropdownOption::new(
+        "Device default",
         snapshot.audio_output_config.sample_rate.is_none(),
         GuiMessage::SetAudioOutputSampleRate(None),
     )];
-    buttons.extend(snapshot.audio_sample_rates.iter().copied().map(|rate| {
-        audio_option_button(
+    options.extend(snapshot.audio_sample_rates.iter().copied().map(|rate| {
+        ui::DropdownOption::new(
             format_sample_rate_label(rate),
             snapshot.audio_output_config.sample_rate == Some(rate),
             GuiMessage::SetAudioOutputSampleRate(Some(rate)),
         )
     }));
-    buttons
+    options
 }
 
-fn audio_option_button(label: String, selected: bool, message: GuiMessage) -> ui::View<GuiMessage> {
-    ui::button(label)
-        .style(ui::WidgetStyle {
-            tone: if selected {
-                ui::WidgetTone::Accent
-            } else {
-                ui::WidgetTone::Neutral
-            },
-            prominence: if selected {
-                ui::WidgetProminence::Strong
-            } else {
-                ui::WidgetProminence::Subtle
-            },
-        })
-        .message(message)
-        .fill_width()
-        .height(20.0)
+fn selected_audio_sample_rate_label(snapshot: &AudioSettingsSnapshot) -> String {
+    snapshot
+        .audio_output_config
+        .sample_rate
+        .map(format_sample_rate_label)
+        .unwrap_or_else(|| String::from("Device default"))
 }
 
 fn default_option_label(label: &str, is_default: bool) -> String {
@@ -298,12 +339,6 @@ fn default_option_label(label: &str, is_default: bool) -> String {
     } else {
         label.to_string()
     }
-}
-
-fn audio_option_grid_height(option_count: usize, columns: usize) -> f32 {
-    let columns = columns.max(1);
-    let rows = option_count.max(1).div_ceil(columns);
-    rows as f32 * 20.0 + rows.saturating_sub(1) as f32 * 4.0
 }
 
 pub(in crate::gui_app) fn format_sample_rate_label(sample_rate: u32) -> String {
