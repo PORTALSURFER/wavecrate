@@ -43,18 +43,30 @@ impl GuiAppState {
 
     pub(super) fn open_audio_settings_window(&mut self) {
         self.audio_settings_open = true;
-        self.audio_backend_dropdown_open = false;
+        self.close_audio_settings_dropdowns();
         self.audio_settings_error = None;
     }
 
     pub(super) fn close_audio_settings_window(&mut self) {
         self.audio_settings_open = false;
+        self.close_audio_settings_dropdowns();
+    }
+
+    pub(super) fn audio_settings_dropdown_open(&self) -> bool {
+        self.audio_backend_dropdown_open
+            || self.audio_output_dropdown_open
+            || self.audio_sample_rate_dropdown_open
+    }
+
+    pub(super) fn close_audio_settings_dropdowns(&mut self) {
         self.audio_backend_dropdown_open = false;
+        self.audio_output_dropdown_open = false;
+        self.audio_sample_rate_dropdown_open = false;
     }
 
     pub(super) fn set_audio_output_host(&mut self, host: Option<String>) {
         let started_at = Instant::now();
-        self.audio_backend_dropdown_open = false;
+        self.close_audio_settings_dropdowns();
         self.audio_output_config.host = host;
         self.audio_output_config.device = None;
         self.audio_output_config.sample_rate = None;
@@ -63,6 +75,7 @@ impl GuiAppState {
 
     pub(super) fn set_audio_output_device(&mut self, device: Option<String>) {
         let started_at = Instant::now();
+        self.close_audio_settings_dropdowns();
         self.audio_output_config.device = device;
         self.audio_output_config.sample_rate = None;
         self.apply_audio_output_config_change(started_at, "audio.output.device.set");
@@ -70,6 +83,7 @@ impl GuiAppState {
 
     pub(super) fn set_audio_output_sample_rate(&mut self, sample_rate: Option<u32>) {
         let started_at = Instant::now();
+        self.close_audio_settings_dropdowns();
         self.audio_output_config.sample_rate = sample_rate;
         self.apply_audio_output_config_change(started_at, "audio.output.sample_rate.set");
     }

@@ -106,7 +106,9 @@ enum GuiMessage {
     ToggleAudioSettings,
     CloseAudioSettings,
     ToggleAudioBackendDropdown,
-    CloseAudioBackendDropdown,
+    ToggleAudioOutputDropdown,
+    ToggleAudioSampleRateDropdown,
+    CloseAudioSettingsDropdowns,
     SetAudioOutputHost(Option<String>),
     SetAudioOutputDevice(Option<String>),
     SetAudioOutputSampleRate(Option<u32>),
@@ -170,6 +172,8 @@ struct GuiAppState {
     persisted_settings: AppSettingsCore,
     audio_settings_open: bool,
     audio_backend_dropdown_open: bool,
+    audio_output_dropdown_open: bool,
+    audio_sample_rate_dropdown_open: bool,
     job_details_open: bool,
     context_menu: Option<BrowserContextMenu>,
     waveform_loading_label: Option<String>,
@@ -208,6 +212,8 @@ impl GuiAppState {
             persisted_settings: config.core,
             audio_settings_open: false,
             audio_backend_dropdown_open: false,
+            audio_output_dropdown_open: false,
+            audio_sample_rate_dropdown_open: false,
             job_details_open: false,
             context_menu: None,
             waveform_loading_label: None,
@@ -506,9 +512,21 @@ impl GuiAppState {
             }
             GuiMessage::ToggleAudioBackendDropdown => {
                 self.audio_backend_dropdown_open = !self.audio_backend_dropdown_open;
+                self.audio_output_dropdown_open = false;
+                self.audio_sample_rate_dropdown_open = false;
             }
-            GuiMessage::CloseAudioBackendDropdown => {
+            GuiMessage::ToggleAudioOutputDropdown => {
+                self.audio_output_dropdown_open = !self.audio_output_dropdown_open;
                 self.audio_backend_dropdown_open = false;
+                self.audio_sample_rate_dropdown_open = false;
+            }
+            GuiMessage::ToggleAudioSampleRateDropdown => {
+                self.audio_sample_rate_dropdown_open = !self.audio_sample_rate_dropdown_open;
+                self.audio_backend_dropdown_open = false;
+                self.audio_output_dropdown_open = false;
+            }
+            GuiMessage::CloseAudioSettingsDropdowns => {
+                self.close_audio_settings_dropdowns();
             }
             GuiMessage::SetAudioOutputHost(host) => self.set_audio_output_host(host),
             GuiMessage::SetAudioOutputDevice(device) => self.set_audio_output_device(device),
@@ -1892,11 +1910,11 @@ fn default_gui_shortcut_resolution(
                 GuiMessage::CloseContextMenu,
             )
             .resolve(press)
-    } else if state.audio_backend_dropdown_open {
+    } else if state.audio_settings_dropdown_open() {
         ui::ShortcutLayer::modal()
             .bind(
                 ui::KeyPress::new(ui::KeyCode::Escape),
-                GuiMessage::CloseAudioBackendDropdown,
+                GuiMessage::CloseAudioSettingsDropdowns,
             )
             .resolve(press)
     } else if state.job_details_open {
@@ -2338,6 +2356,8 @@ mod tests {
             persisted_settings: super::AppSettingsCore::default(),
             audio_settings_open: false,
             audio_backend_dropdown_open: false,
+            audio_output_dropdown_open: false,
+            audio_sample_rate_dropdown_open: false,
             job_details_open: false,
             context_menu: None,
             waveform_loading_label: None,
@@ -2452,7 +2472,7 @@ mod tests {
 
         assert_eq!(
             resolution.action,
-            Some(super::GuiMessage::CloseAudioBackendDropdown)
+            Some(super::GuiMessage::CloseAudioSettingsDropdowns)
         );
         assert!(resolution.handled);
     }
@@ -2597,6 +2617,8 @@ mod tests {
             persisted_settings: super::AppSettingsCore::default(),
             audio_settings_open: false,
             audio_backend_dropdown_open: false,
+            audio_output_dropdown_open: false,
+            audio_sample_rate_dropdown_open: false,
             job_details_open: false,
             context_menu: None,
             waveform_loading_label: None,
@@ -2729,6 +2751,8 @@ mod tests {
             persisted_settings: super::AppSettingsCore::default(),
             audio_settings_open: false,
             audio_backend_dropdown_open: false,
+            audio_output_dropdown_open: false,
+            audio_sample_rate_dropdown_open: false,
             job_details_open: false,
             context_menu: None,
             waveform_loading_label: None,
@@ -3376,7 +3400,10 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        assert!(texts.iter().any(|text| text == "Audio Engine"), "{texts:?}");
+        assert!(
+            !texts.iter().any(|text| text == "Audio Engine"),
+            "{texts:?}"
+        );
         assert!(texts.iter().any(|text| text == "Backend"), "{texts:?}");
         assert!(texts.iter().any(|text| text == "Output"), "{texts:?}");
         assert!(texts.iter().any(|text| text == "Sample Rate"), "{texts:?}");
@@ -3432,6 +3459,69 @@ mod tests {
             "{texts:?}"
         );
         assert!(texts.iter().any(|text| text == "ASIO"), "{texts:?}");
+    }
+
+    #[test]
+    fn audio_output_dropdown_renders_expanded_device_options() {
+        let mut state = gui_state_for_span_tests();
+        state.audio_settings_error = None;
+        state.audio_output_dropdown_open = true;
+        state.audio_devices = vec![super::AudioDeviceSummary {
+            host_id: String::from("asio"),
+            name: String::from("Studio Out"),
+            is_default: true,
+        }];
+        let frame =
+            radiant::runtime::UiSurface::new(super::audio_settings_popover(&state).into_node())
+                .frame(
+                    Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(480.0, 360.0)),
+                    &radiant::theme::ThemeTokens::default(),
+                );
+        let texts = frame
+            .paint_plan
+            .primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::Text(text) => Some(text.text.as_str().to_string()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert!(texts.iter().any(|text| text == "Host default"), "{texts:?}");
+        assert!(
+            texts.iter().any(|text| text == "Studio Out (default)"),
+            "{texts:?}"
+        );
+    }
+
+    #[test]
+    fn audio_sample_rate_dropdown_renders_expanded_rate_options() {
+        let mut state = gui_state_for_span_tests();
+        state.audio_settings_error = None;
+        state.audio_sample_rate_dropdown_open = true;
+        state.audio_sample_rates = vec![44_100, 48_000];
+        let frame =
+            radiant::runtime::UiSurface::new(super::audio_settings_popover(&state).into_node())
+                .frame(
+                    Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(480.0, 360.0)),
+                    &radiant::theme::ThemeTokens::default(),
+                );
+        let texts = frame
+            .paint_plan
+            .primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::Text(text) => Some(text.text.as_str().to_string()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert!(
+            texts.iter().any(|text| text == "Device default"),
+            "{texts:?}"
+        );
+        assert!(texts.iter().any(|text| text == "44.1 kHz"), "{texts:?}");
+        assert!(texts.iter().any(|text| text == "48 kHz"), "{texts:?}");
     }
 
     #[test]
@@ -3511,7 +3601,7 @@ mod tests {
         assert!(state.audio_backend_dropdown_open);
 
         state.apply_message(
-            super::GuiMessage::CloseAudioBackendDropdown,
+            super::GuiMessage::CloseAudioSettingsDropdowns,
             &mut ui::UpdateContext::default(),
         );
         assert!(!state.audio_backend_dropdown_open);
@@ -3523,10 +3613,32 @@ mod tests {
         assert!(state.audio_backend_dropdown_open);
 
         state.apply_message(
+            super::GuiMessage::ToggleAudioOutputDropdown,
+            &mut ui::UpdateContext::default(),
+        );
+        assert!(!state.audio_backend_dropdown_open);
+        assert!(state.audio_output_dropdown_open);
+
+        state.apply_message(
+            super::GuiMessage::ToggleAudioSampleRateDropdown,
+            &mut ui::UpdateContext::default(),
+        );
+        assert!(!state.audio_output_dropdown_open);
+        assert!(state.audio_sample_rate_dropdown_open);
+
+        state.apply_message(
+            super::GuiMessage::CloseAudioSettingsDropdowns,
+            &mut ui::UpdateContext::default(),
+        );
+        assert!(!state.audio_sample_rate_dropdown_open);
+
+        state.apply_message(
             super::GuiMessage::CloseAudioSettings,
             &mut ui::UpdateContext::default(),
         );
         assert!(!state.audio_backend_dropdown_open);
+        assert!(!state.audio_output_dropdown_open);
+        assert!(!state.audio_sample_rate_dropdown_open);
     }
 
     #[test]
@@ -3573,20 +3685,33 @@ mod tests {
                     Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(480.0, 360.0)),
                     &radiant::theme::ThemeTokens::default(),
                 );
-        let title_rect = frame
+        assert!(
+            !frame.paint_plan.primitives.iter().any(|primitive| {
+                matches!(
+                    primitive,
+                    PaintPrimitive::Text(text) if text.text.as_str() == "Audio Engine"
+                )
+            }),
+            "audio settings should rely on the native window title"
+        );
+        let backend_rect = frame
             .paint_plan
             .primitives
             .iter()
             .find_map(|primitive| match primitive {
-                PaintPrimitive::Text(text) if text.text.as_str() == "Audio Engine" => {
-                    Some(text.rect)
-                }
+                PaintPrimitive::Text(text) if text.text.as_str() == "Backend" => Some(text.rect),
                 _ => None,
             })
-            .expect("audio settings title paints");
+            .expect("audio settings backend label paints");
 
-        assert!((66.0..=74.0).contains(&title_rect.min.x), "{title_rect:?}");
-        assert!((14.0..=20.0).contains(&title_rect.min.y), "{title_rect:?}");
+        assert!(
+            (66.0..=74.0).contains(&backend_rect.min.x),
+            "{backend_rect:?}"
+        );
+        assert!(
+            (41.0..=49.0).contains(&backend_rect.min.y),
+            "{backend_rect:?}"
+        );
     }
 
     #[test]
