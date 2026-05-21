@@ -1781,6 +1781,8 @@ Copying a file or folder inside a source should happen immediately without confi
 
 The folder tree should reflect actual folders on disk according to the active visibility mode. By default, the folder tree should show folders that contain supported audio files and should hide folders that contain no supported audio files, with one exception: purely empty folders should remain visible so users can create a folder and drop files into it without enabling another mode. When the user enables the explicit `all files` visibility flag, the folder tree and browser should show all indexed files and folders, including unsupported audio files, unsupported non-audio files, and folders that do not contain supported audio.
 
+The `all files` visibility flag should be a temporary browser override, not a persistent user preference. Wavecrate should reset to the default supported-audio view on app restart so ordinary browsing starts from the safer, sample-focused surface.
+
 When unsupported audio files or non-audio files are visible through `all files`, Wavecrate may offer basic filesystem-management actions such as reveal, rename, move, copy, and remove where those actions are otherwise safe and allowed. Audio-specific actions should remain disabled for unsupported or non-audio files, including playback when decoding is unsupported, waveform analysis, destructive audio editing, extraction, tagging/rating as sample metadata, embedded Sample ID writes, generated display-name application, and handoff workflows that require a supported sample.
 
 ## Database, Persistence, and Indexing Target
