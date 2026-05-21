@@ -236,6 +236,8 @@ Local files created by Wavecrate should be understandable and user-recoverable:
 
 Diagnostic bundles should avoid exposing full audio content by default. If a diagnostic bundle includes paths, filenames, metadata, or audio excerpts, Wavecrate should make that clear before the user shares it.
 
+Diagnostic bundles should exclude source-local `.wavecrate.db` files by default because they may contain user library metadata. A future diagnostic option may allow explicitly including source metadata when needed for support, but it should require clear user opt-in and disclosure before the bundle is created.
+
 ## Storage Locations
 
 Wavecrate should split storage between source-local state and global application state.
