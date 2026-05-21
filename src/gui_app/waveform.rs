@@ -260,6 +260,7 @@ mod widget_input;
 
 mod edit_fade_curve_paint;
 mod edit_fade_paint;
+mod paint_primitives;
 mod selection_paint;
 
 pub(super) type WaveformViewport = ui::IndexViewport;
