@@ -753,7 +753,6 @@ Undo/redo should cover:
 - temporary color collection changes
 - metadata changes
 - audition and workflow flag changes where they affect the working context, such as loop mode, normalized-audition mode, target-BPM lock, warp audition mode, grid visibility, and edit-preview toggles
-- settings and preference changes
 - source add/remove and source reference changes
 - move/copy/export/trash operations
 - folder operations where practical
@@ -770,7 +769,7 @@ Undo and redo should be global Wavecrate commands. `Ctrl+Z`, `Ctrl+Y`, and `Ctrl
 
 Text and value editors that change durable user state should create undo transactions at meaningful commit points rather than on every keystroke. Typical commit points include Enter, blur/focus loss, selecting an autocomplete/tag suggestion, clicking Apply, confirming a rename, or completing a numeric edit. Search/filter fields are the deliberate exception: committed query changes should update browser query history rather than the global undo stack. Cancel/Escape should discard the uncommitted field edit where practical rather than creating an undo transaction.
 
-Settings and preference changes should not enter the global undo stack by default. Settings surfaces should use Apply/Cancel, explicit confirmations for risky changes, and local restore-previous or restore-default controls where useful. Risky settings such as YOLO mode, trash folder location, cache cleanup policy, audio backend/device, or write format should require confirmation before the setting change is committed.
+Settings and preference changes should not enter the global undo stack by default. Normal settings changes should commit immediately because changing a setting is treated as intentional user action. Risky settings such as YOLO mode, trash folder location, cache cleanup policy, audio backend/device, or write format should require confirmation before the setting change is committed.
 
 Restoring a previous audio backend or device setting through a settings-local restore action should restore the previous backend/device only if it is still available. If the previous device has disappeared, is disconnected, or cannot be opened, Wavecrate should keep or choose a safe available fallback and show a clear warning.
 
@@ -2144,7 +2143,7 @@ Settings should include:
 - logging level and diagnostic bundle options
 - keyboard shortcut overrides when custom shortcuts are supported
 
-Settings changes should take effect predictably when committed, but they should not be represented as undoable global transactions by default. Settings screens should provide Apply/Cancel behavior before commit and local restore-previous or restore-default controls where useful. Risky settings such as YOLO mode, trash folder location, cache cleanup, audio backend/device, audio write format, and destructive overwrite behavior should require clear confirmation before the setting change is committed.
+Settings changes should take effect predictably when committed, but they should not be represented as undoable global transactions by default. Normal settings changes should commit immediately because the user explicitly changed the setting. Risky settings such as YOLO mode, trash folder location, cache cleanup, audio backend/device, audio write format, and destructive overwrite behavior should require clear confirmation before the setting change is committed.
 
 The generated-name naming template is not a normal runtime setting in the current target. It is a launch-loaded config-file-only setting and is therefore not represented as an undoable in-app settings transaction.
 
