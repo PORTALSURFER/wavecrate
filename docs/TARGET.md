@@ -1787,6 +1787,8 @@ The `all files` visibility flag should not automatically expose operating-system
 
 When unsupported audio files or non-audio files are visible through `all files`, Wavecrate may offer basic filesystem-management actions such as reveal, rename, move, copy, and remove where those actions are otherwise safe and allowed. Audio-specific actions should remain disabled for unsupported or non-audio files, including playback when decoding is unsupported, waveform analysis, destructive audio editing, extraction, tagging/rating as sample metadata, embedded Sample ID writes, generated display-name application, and handoff workflows that require a supported sample.
 
+Folder badges, source totals, and normal browser counts should match the active visibility mode. In the default supported-audio view, counts should represent visible supported sample files rather than including hidden unsupported or non-audio files. However, if the user tries to trash, remove, or otherwise delete a folder that contains files hidden by the current visibility mode, Wavecrate must warn that hidden files are included in the folder contents and require explicit confirmation before proceeding.
+
 ## Database, Persistence, and Indexing Target
 
 Wavecrate should use a fast, robust persistence layer for sources, tags, ratings, age/listen history, metadata, persistent generated-name cache projections, labels, prefixes, embedded Sample ID state, analysis state, similarity data, waveform cache state, edit state where needed, and current-session recovery information.
