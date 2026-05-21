@@ -1109,6 +1109,8 @@ The scanner should classify discovered files as:
 
 Unsupported files should not crash scanning. They should be classified and reported, but hidden from the normal sample browser by default. They should become visible when the user enables the explicit `all files` visibility flag or opens a diagnostic/unsupported-files view.
 
+Unsupported audio files and unsupported non-audio files should remain scanner/index entries only. Wavecrate may store enough path, type/classification, availability, and diagnostic status to show them in `all files`, diagnostics, and filesystem-management workflows, but it should not create Wavecrate Sample IDs, embedded-ID state, sample metadata records, analysis records, similarity records, rating records, tag assignments, listen-history records, or generated-name state for them.
+
 Initial scan/indexing should queue the fingerprint work needed for exact duplicate grouping where practical. Duplicate fingerprinting should run in background work, stream status like other indexing work, and mark duplicate state incrementally as matching available files are found. It should not block source scanning completion, folder browsing, sample auditioning, editing, extraction, tagging, rating, or handoff. Users should also be able to trigger manual duplicate analysis for selected files, folders, sources, or the whole indexed library.
 
 File watching should update source state when files are created, removed, renamed, moved, or modified outside Wavecrate. External changes should become visible in the folder tree, sample list, filters, and later similarity map as close to immediately as practical without requiring a manual rescan.
@@ -1813,6 +1815,7 @@ The persistence model should include these core entities:
 
 - Source: configured root folder, scan settings, source database path, source status, last scan state, and source-level diagnostics.
 - Folder: real folder path, parent relationship, availability, scan state, and display expansion state where durable.
+- Indexed File: path, source ID, file type/classification, availability, filesystem metadata, and diagnostic status for scanned files that are visible to Wavecrate but are not supported Wavecrate samples.
 - Sample File: stable Wavecrate Sample ID, source ID, current path, file fingerprint/change token, duration, sample rate, channel layout, bit depth, format, size, availability, supported/editable state, and timestamps.
 - Embedded ID State: whether the Sample ID is present, missing, pending automatic embedding, stale, conflicting, duplicate-conflict, failed to write, unsafe to write, or last written successfully.
 - Tag Category: fixed category identity, display name, ordering, whether user-extensible, and whether structured rather than free-tagged.
