@@ -322,9 +322,8 @@ Write-format settings should include at minimum:
 
 For WAV files, "bitrate" should usually be treated as PCM bit depth/sample format rather than compressed-audio bitrate. The UI may use user-friendly wording, but the implementation should store precise settings such as 16-bit PCM, 24-bit PCM, or 32-bit float.
 
-Wavecrate should use the configured write format for ordinary audio writes, including:
+Wavecrate should use the configured write format for ordinary new-file audio writes, including:
 
-- destructive edits that rewrite the current audio file
 - extracted regions
 - duplicated/processed files
 - copied waveform selections that require a staged audio file
@@ -333,15 +332,15 @@ Wavecrate should use the configured write format for ordinary audio writes, incl
 - batch edit outputs
 - downmix/conversion outputs
 
-This means a destructive edit may rewrite the file into the configured Wavecrate write format rather than preserving the source file's original bit depth, sample rate, or sample format. The destructive-edit warning should make this clear when the configured write format differs from the source audio properties.
+Destructive in-place edits should preserve the source file's existing sample rate, bit depth or sample format, channel layout, and container wherever practical. A simple same-file edit such as fade, trim, mute, gain, or normalize should not quietly convert the file to the configured Wavecrate write format just because the global write settings differ from the source audio properties.
 
-Wavecrate should preserve the intended channel layout for normal mono/stereo edits unless the user explicitly chooses a conversion such as downmix to mono or stereo. Resampling to the configured sample rate should use a practical high-quality resampler and should be logged as part of the write operation.
+If the user explicitly chooses an edit or rewrite workflow that also converts the current file to the configured Wavecrate write format, the command should make that conversion clear before it is committed. Resampling or sample-format conversion should use practical high-quality conversion and should be logged as part of the write operation.
 
-Resampling should be an implicit write-stage behavior, not a separate general-purpose conversion workflow in the current target. When Wavecrate edits, extracts, stages, exports, duplicates, or otherwise writes audio, it should render to the configured output sample rate as part of that operation. The user should not need to run a separate resample command for ordinary Wavecrate-created files.
+Resampling should be an implicit write-stage behavior, not a separate general-purpose conversion workflow in the current target. When Wavecrate extracts, stages, exports, duplicates, converts, or otherwise creates a rendered audio file, it should render to the configured output sample rate as part of that operation. Same-file destructive edits should preserve the source sample rate by default. The user should not need to run a separate resample command for ordinary Wavecrate-created files.
 
 Wavecrate should not add a standalone "resample this file" command unless the product target is explicitly expanded later. If users want another sample rate, they should change the configured write sample rate before performing the edit, extraction, export, or other write operation.
 
-The configured write format should be persistent, visible in settings, and easy to confirm before destructive work. Commands that create new files should use the same configured write-format policy unless a command-specific export dialog explicitly overrides it.
+The configured write format should be persistent, visible in settings, and easy to confirm before creating new rendered files. Commands that create new files should use the same configured write-format policy unless a command-specific export dialog explicitly overrides it. Same-file destructive edits should use source-format preservation by default unless the user deliberately chooses a conversion/rewrite path.
 
 Wavecrate should preserve source channel layout during normal destructive edits. Editing a stereo file in the mono-style editor must not collapse it to mono. In the mono-first workflow, edits should affect both stereo channels equally.
 
