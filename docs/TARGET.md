@@ -244,7 +244,7 @@ Source-specific information should live in the folder of that source. Each index
 
 Source onboarding should make this write behavior explicit before the source is accepted. The add-source UI should tell the user that Wavecrate will create or update `.wavecrate.db` in the selected folder and may embed Wavecrate Sample ID metadata into supported audio files. Accepting that disclosure is part of adding a normal Wavecrate source; it is not a separate read-only mode.
 
-The `.wavecrate.db` file is internal source metadata and should be hidden from the normal sample browser and folder tree by default. It may appear in diagnostics, source repair flows, logs, or explicit filesystem-reveal operations when relevant.
+The `.wavecrate.db` file is internal source metadata and should be hidden from the normal sample browser, folder tree, and `all files` visibility mode. Wavecrate should mark the file as operating-system hidden where the platform supports that behavior. It may appear in diagnostics, source repair flows, logs, or explicit filesystem-reveal operations when relevant.
 
 The `.wavecrate.db` file should be excluded from ordinary copy, move, trash, delete, rename, batch, drag, clipboard, export, and handoff operations that target visible sample/folder items. It should only be manipulated by explicit source maintenance, repair, migration, backup, or diagnostics workflows.
 
