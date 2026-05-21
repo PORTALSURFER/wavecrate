@@ -1,13 +1,8 @@
 #![allow(missing_docs)]
 
-use radiant::{
-    gui::types::Point,
-    prelude as ui,
-    widgets::{DragHandleMessage, TextInputMessage},
-};
+use radiant::{gui::types::Point, prelude as ui, widgets::DragHandleMessage};
 use std::{
     collections::HashSet,
-    fs,
     path::{Path, PathBuf},
 };
 
@@ -145,49 +140,6 @@ impl FolderBrowserState {
         self.selected_file_ids.contains(file_id)
     }
 
-    pub(super) fn rename_active(&self) -> bool {
-        self.rename_edit.is_some() || self.file_rename_edit.is_some()
-    }
-
-    pub(super) fn selected_rename_target(&self) -> RenameTargetView {
-        if let Some(file_id) = self.selected_file.as_deref()
-            && let Some(file) = self
-                .selected_audio_files()
-                .into_iter()
-                .find(|file| file.id == file_id)
-        {
-            return RenameTargetView {
-                kind: "file",
-                label: file.name.clone(),
-                is_source_root: false,
-            };
-        }
-        let Some(folder) = self.selected_folder() else {
-            return RenameTargetView {
-                kind: "none",
-                label: String::new(),
-                is_source_root: false,
-            };
-        };
-        RenameTargetView {
-            kind: "folder",
-            label: folder.name.clone(),
-            is_source_root: self.selected_folder_is_source_root(),
-        }
-    }
-
-    pub(super) fn file_rename_view(&self, file_id: &str) -> Option<FileRenameView> {
-        self.file_rename_edit
-            .as_ref()
-            .filter(|edit| edit.file_id == file_id)
-            .map(|edit| FileRenameView {
-                draft: edit.draft.clone(),
-                input_id: edit.input_id,
-                selection_start: edit.selection_start,
-                selection_end: edit.selection_end,
-            })
-    }
-
     pub(super) fn scan_is_active(&self, source_id: &str, task_id: u64) -> bool {
         self.sources
             .iter()
@@ -222,181 +174,6 @@ impl FolderBrowserState {
             }
             FolderBrowserMessage::ResizeFileColumn(column_id, message) => {
                 self.resize_file_column(column_id, message);
-            }
-        }
-    }
-
-    pub(super) fn begin_rename_selected(&mut self) -> Result<Option<u64>, String> {
-        self.discard_pending_created_folder();
-        if let Some(file_id) = self.selected_file.clone() {
-            if let Some((file_id, file_name)) = self
-                .selected_audio_files()
-                .into_iter()
-                .find(|file| file.id == file_id)
-                .map(|file| (file.id.clone(), file.name.clone()))
-            {
-                let input_id = file_rename_input_id(&file_id);
-                let draft = file_rename_draft(&file_name);
-                let selection_end = draft.chars().count();
-                self.file_rename_edit = Some(FileRenameEdit {
-                    file_id,
-                    draft,
-                    input_id,
-                    selection_start: 0,
-                    selection_end,
-                });
-                return Ok(Some(input_id));
-            }
-        }
-
-        let Some(folder) = self.find_folder(&self.selected_folder) else {
-            return Ok(None);
-        };
-        if self.selected_folder_is_source_root() {
-            return Err(String::from("Select a subfolder to rename"));
-        }
-        let folder_id = folder.id.clone();
-        let draft = folder.name.clone();
-        let input_id = rename_input_id(&folder_id);
-        self.file_rename_edit = None;
-        self.rename_edit = Some(FolderRenameEdit {
-            folder_id,
-            draft,
-            input_id,
-            kind: FolderRenameKind::Rename,
-        });
-        Ok(Some(input_id))
-    }
-
-    pub(super) fn begin_create_subfolder(&mut self) -> Result<Option<u64>, String> {
-        if self.selected_file.is_some() {
-            return Err(String::from("Select a folder to add a subfolder"));
-        }
-        let Some(parent) = self.selected_folder().cloned() else {
-            return Ok(None);
-        };
-        let parent_id = parent.id.clone();
-        let parent_path = PathBuf::from(&parent.id);
-        if !parent_path.is_dir() {
-            return Err(String::from(
-                "New folder failed: selected folder is missing",
-            ));
-        }
-
-        let draft = next_available_folder_name(&parent_path);
-        let folder_path = parent_path.join(&draft);
-        let folder_id = path_id(&folder_path);
-        let input_id = rename_input_id(&folder_id);
-        let placeholder = FolderEntry {
-            id: folder_id.clone(),
-            name: draft.clone(),
-            children: Vec::new(),
-            files: Vec::new(),
-        };
-        self.file_rename_edit = None;
-        self.discard_pending_created_folder();
-        if !self.upsert_child_folder(&parent_id, placeholder) {
-            return Err(String::from(
-                "New folder failed: selected folder is unavailable",
-            ));
-        }
-        self.expanded_folders.insert(parent_id.clone());
-        self.selected_folder = folder_id.clone();
-        self.selected_file = None;
-        self.selected_file_ids.clear();
-        self.rename_edit = Some(FolderRenameEdit {
-            folder_id,
-            draft,
-            input_id,
-            kind: FolderRenameKind::Create { parent_id },
-        });
-        Ok(Some(input_id))
-    }
-
-    pub(super) fn selected_delete_target(&self) -> Result<FolderDeleteTargetView, String> {
-        if self.rename_active() {
-            return Err(String::from("Finish rename before deleting a folder"));
-        }
-        if self.selected_file.is_some() {
-            return Err(String::from("Select a folder to delete"));
-        }
-        let Some(folder) = self.selected_folder() else {
-            return Err(String::from("Select a folder to delete"));
-        };
-        if self.selected_folder_is_source_root() {
-            return Err(String::from("Root folder cannot be deleted"));
-        }
-        Ok(FolderDeleteTargetView {
-            path: PathBuf::from(&folder.id),
-            name: folder.name.clone(),
-        })
-    }
-
-    pub(super) fn selected_file_delete_target(&self) -> Result<FileDeleteTargetView, String> {
-        if self.rename_active() {
-            return Err(String::from("Finish rename before deleting a file"));
-        }
-        if self.selected_file.is_none() {
-            return Err(String::from("Select a file to delete"));
-        }
-        let paths = self.selected_file_paths();
-        if paths.is_empty() {
-            return Err(String::from("Select a file to delete"));
-        }
-        let names = paths
-            .iter()
-            .map(|path| {
-                path.file_name()
-                    .map(|name| name.to_string_lossy().to_string())
-                    .unwrap_or_else(|| path.display().to_string())
-            })
-            .collect();
-        Ok(FileDeleteTargetView { paths, names })
-    }
-
-    pub(super) fn delete_selected_folder(&mut self) -> Result<String, String> {
-        let target = self.selected_delete_target()?;
-        if !target.path.is_dir() {
-            return Err(format!("Folder delete failed: {} is missing", target.name));
-        }
-        Err(String::from(
-            "Trash workflow is not available in the default GUI yet; no folder was deleted",
-        ))
-    }
-
-    pub(super) fn delete_selected_files(&mut self) -> Result<String, String> {
-        let target = self.selected_file_delete_target()?;
-        for path in &target.paths {
-            if !path.is_file() {
-                return Err(format!(
-                    "File delete failed: {} is missing",
-                    path.file_name()
-                        .map(|name| name.to_string_lossy().to_string())
-                        .unwrap_or_else(|| path.display().to_string())
-                ));
-            }
-        }
-        Err(String::from(
-            "Trash workflow is not available in the default GUI yet; no files were deleted",
-        ))
-    }
-
-    pub(super) fn apply_rename_input(&mut self, message: TextInputMessage) -> Option<String> {
-        match message {
-            TextInputMessage::Changed { value } => {
-                if let Some(edit) = &mut self.file_rename_edit {
-                    edit.draft = value;
-                } else if let Some(edit) = &mut self.rename_edit {
-                    edit.draft = value;
-                }
-                None
-            }
-            TextInputMessage::Submitted { value } => {
-                if self.file_rename_edit.is_some() {
-                    Some(self.commit_file_rename(value))
-                } else {
-                    Some(self.commit_rename(value))
-                }
             }
         }
     }
@@ -533,231 +310,6 @@ impl FolderBrowserState {
         self.sources
             .iter()
             .any(|source| source.id == self.selected_source && path_id(&source.root) == folder_id)
-    }
-
-    fn cancel_rename(&mut self) {
-        self.clear_drag();
-        self.discard_pending_created_folder();
-        self.file_rename_edit = None;
-    }
-
-    fn commit_rename(&mut self, value: String) -> String {
-        let Some(edit) = self.rename_edit.take() else {
-            return String::from("No folder rename in progress");
-        };
-        match edit.kind.clone() {
-            FolderRenameKind::Rename => self.commit_existing_folder_rename(edit, value),
-            FolderRenameKind::Create { parent_id } => {
-                self.commit_created_subfolder(edit, parent_id, value)
-            }
-        }
-    }
-
-    fn commit_existing_folder_rename(&mut self, edit: FolderRenameEdit, value: String) -> String {
-        let new_name = value.trim();
-        if !valid_folder_name(new_name) {
-            return String::from("Folder rename failed: use a plain folder name");
-        }
-        let old_path = PathBuf::from(&edit.folder_id);
-        let Some(parent) = old_path.parent() else {
-            return String::from("Folder rename failed: selected folder has no parent");
-        };
-        let new_path = parent.join(new_name);
-        if old_path == new_path {
-            return String::from("Folder rename unchanged");
-        }
-        if new_path.exists() {
-            return format!("Folder rename failed: {new_name} already exists");
-        }
-        if let Err(error) = fs::rename(&old_path, &new_path) {
-            return format!("Folder rename failed: {error}");
-        }
-        self.rewrite_renamed_folder_paths(&old_path, &new_path);
-        format!("Renamed folder to {new_name}")
-    }
-
-    fn commit_created_subfolder(
-        &mut self,
-        edit: FolderRenameEdit,
-        parent_id: String,
-        value: String,
-    ) -> String {
-        let new_name = value.trim();
-        if !valid_folder_name(new_name) {
-            self.remove_pending_created_folder(&edit.folder_id, &parent_id);
-            return String::from("New folder failed: use a plain folder name");
-        }
-        let parent_path = PathBuf::from(&parent_id);
-        let new_path = parent_path.join(new_name);
-        if new_path.exists() {
-            self.remove_pending_created_folder(&edit.folder_id, &parent_id);
-            return format!("New folder failed: {new_name} already exists");
-        }
-        if let Err(error) = fs::create_dir(&new_path) {
-            self.remove_pending_created_folder(&edit.folder_id, &parent_id);
-            return format!("New folder failed: {error}");
-        }
-
-        self.remove_pending_created_folder(&edit.folder_id, &parent_id);
-        let new_id = path_id(&new_path);
-        self.upsert_child_folder(
-            &parent_id,
-            FolderEntry {
-                id: new_id.clone(),
-                name: folder_label(&new_path),
-                children: Vec::new(),
-                files: Vec::new(),
-            },
-        );
-        self.expanded_folders.insert(parent_id);
-        self.selected_folder = new_id;
-        self.selected_file = None;
-        self.selected_file_ids.clear();
-        self.file_view_start = 0;
-        format!("Created folder {new_name}")
-    }
-
-    fn commit_file_rename(&mut self, value: String) -> String {
-        let Some(edit) = self.file_rename_edit.take() else {
-            return String::from("No file rename in progress");
-        };
-        let old_path = PathBuf::from(&edit.file_id);
-        let Some(parent) = old_path.parent() else {
-            return String::from("File rename failed: selected file has no parent");
-        };
-        let Some(new_name) = resolved_file_rename(&old_path, value.trim()) else {
-            return String::from("File rename failed: use a plain file name");
-        };
-        if !valid_file_name(&new_name) {
-            return String::from("File rename failed: use a plain file name");
-        }
-        let new_path = parent.join(&new_name);
-        if old_path == new_path {
-            return String::from("File rename unchanged");
-        }
-        if new_path.exists() {
-            return format!("File rename failed: {new_name} already exists");
-        }
-        if let Err(error) = fs::rename(&old_path, &new_path) {
-            return format!("File rename failed: {error}");
-        }
-        self.rewrite_renamed_file_path(&old_path, &new_path);
-        format!("Renamed file to {new_name}")
-    }
-
-    fn rewrite_renamed_folder_paths(&mut self, old_path: &Path, new_path: &Path) {
-        let old_id = path_id(old_path);
-        let new_id = path_id(new_path);
-        let Some(source) = self
-            .sources
-            .iter_mut()
-            .find(|source| source.id == self.selected_source)
-        else {
-            return;
-        };
-        if let Some(root_folder) = &mut source.root_folder {
-            root_folder.rewrite_path_prefix(old_path, new_path);
-            self.folders = vec![root_folder.clone()];
-        }
-        self.selected_folder = rewrite_path_id(&self.selected_folder, old_path, new_path);
-        if self.selected_folder == old_id {
-            self.selected_folder = new_id;
-        }
-        self.selected_file = self
-            .selected_file
-            .take()
-            .map(|id| rewrite_path_id(&id, old_path, new_path));
-        self.selected_file_ids = self
-            .selected_file_ids
-            .iter()
-            .map(|id| rewrite_path_id(id, old_path, new_path))
-            .collect();
-        self.expanded_folders = self
-            .expanded_folders
-            .iter()
-            .map(|id| rewrite_path_id(id, old_path, new_path))
-            .collect();
-    }
-
-    fn rewrite_renamed_file_path(&mut self, old_path: &Path, new_path: &Path) {
-        let Some(source) = self
-            .sources
-            .iter_mut()
-            .find(|source| source.id == self.selected_source)
-        else {
-            return;
-        };
-        if let Some(root_folder) = &mut source.root_folder {
-            root_folder.rewrite_file_path(old_path, new_path);
-            self.folders = vec![root_folder.clone()];
-        }
-        let new_id = path_id(new_path);
-        self.selected_file = Some(new_id);
-        self.selected_file_ids.clear();
-        self.selected_file_ids.insert(path_id(new_path));
-    }
-
-    fn discard_pending_created_folder(&mut self) {
-        let Some(edit) = self.rename_edit.take() else {
-            return;
-        };
-        if let FolderRenameKind::Create { parent_id } = edit.kind {
-            self.remove_pending_created_folder(&edit.folder_id, &parent_id);
-        }
-    }
-
-    fn remove_pending_created_folder(&mut self, folder_id: &str, parent_id: &str) {
-        self.remove_folder_by_id(folder_id);
-        if self.selected_folder == folder_id {
-            self.selected_folder = if self.find_folder(parent_id).is_some() {
-                parent_id.to_string()
-            } else {
-                self.folders
-                    .first()
-                    .map(|folder| folder.id.clone())
-                    .unwrap_or_default()
-            };
-        }
-        self.expanded_folders.remove(folder_id);
-    }
-
-    fn remove_folder_by_id(&mut self, folder_id: &str) -> bool {
-        let Some(source) = self
-            .sources
-            .iter_mut()
-            .find(|source| source.id == self.selected_source)
-        else {
-            return false;
-        };
-        let Some(root_folder) = &mut source.root_folder else {
-            return false;
-        };
-        let changed = root_folder.remove_child_by_id(folder_id);
-        if changed {
-            self.folders = vec![root_folder.clone()];
-        }
-        changed
-    }
-
-    fn upsert_child_folder(&mut self, parent_id: &str, folder: FolderEntry) -> bool {
-        let Some(source) = self
-            .sources
-            .iter_mut()
-            .find(|source| source.id == self.selected_source)
-        else {
-            return false;
-        };
-        let Some(root_folder) = &mut source.root_folder else {
-            return false;
-        };
-        let Some(parent) = root_folder.find_mut(parent_id) else {
-            return false;
-        };
-        let changed = upsert_folder(&mut parent.children, folder);
-        if changed {
-            self.folders = vec![root_folder.clone()];
-        }
-        changed
     }
 
     fn visible_folders(&self) -> Vec<VisibleFolder> {
@@ -897,20 +449,21 @@ impl FolderEntry {
 }
 
 mod path_helpers;
-use path_helpers::{
-    file_rename_draft, file_rename_input_id, folder_label, next_available_folder_name, path_id,
-    rename_input_id, resolved_file_rename, rewrite_path_id, valid_file_name, valid_folder_name,
-};
+use path_helpers::{folder_label, path_id, rewrite_path_id};
 
 mod drag_drop;
+
+mod delete_workflow;
 
 mod file_selection;
 
 mod scanning;
 pub(super) use scanning::scan_source_with_progress;
-use scanning::{default_root_path, file_entry, load_root_folder, upsert_folder};
+use scanning::{default_root_path, file_entry, load_root_folder};
 
 mod source_management;
+
+mod rename_workflow;
 
 mod state_types;
 pub(super) use state_types::FileColumn;
