@@ -290,6 +290,7 @@ use scanning::{default_root_path, file_entry, load_root_folder};
 
 mod source_management;
 
+mod rename_tree;
 mod rename_workflow;
 
 mod state_types;
