@@ -122,9 +122,7 @@ impl FolderBrowserState {
     pub(in crate::gui_app) fn select_file(&mut self, id: String) {
         if self.selected_files().iter().any(|file| file.id == id) {
             self.cancel_rename();
-            self.selected_file = Some(id.clone());
-            self.selected_file_ids.clear();
-            self.selected_file_ids.insert(id);
+            self.set_single_file_selection(id);
         }
     }
 
@@ -148,9 +146,7 @@ impl FolderBrowserState {
             return;
         }
 
-        self.selected_file = Some(id.clone());
-        self.selected_file_ids.clear();
-        self.selected_file_ids.insert(id);
+        self.set_single_file_selection(id);
     }
 
     pub(in crate::gui_app) fn focus_file_preserving_selection(&mut self, id: String) {
@@ -211,6 +207,12 @@ impl FolderBrowserState {
             self.selected_file_ids.insert(id.clone());
         }
         self.selected_file = Some(id);
+    }
+
+    fn set_single_file_selection(&mut self, id: String) {
+        self.selected_file = Some(id.clone());
+        self.selected_file_ids.clear();
+        self.selected_file_ids.insert(id);
     }
 
     pub(in crate::gui_app) fn refresh_file_path(&mut self, path: &Path) -> bool {
