@@ -1807,17 +1807,12 @@ enum FolderBrowserDrag {
     Files { file_ids: Vec<String> },
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(super) struct FolderDropResult {
-    pub(super) moved_paths: Vec<(PathBuf, PathBuf)>,
-    pub(super) status: Option<String>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(super) struct FolderDragPreview {
-    pub(super) label: String,
-    pub(super) pointer: Point,
-}
+mod types;
+pub(super) use types::{
+    FileDeleteTargetView, FileRenameView, FolderBrowserMessage, FolderDeleteTargetView,
+    FolderDragPreview, FolderDropResult, FolderScanDiscovery, FolderScanDiscoveryBatch,
+    FolderScanItem, FolderScanProgress, FolderScanRequest, FolderScanResult, RenameTargetView,
+};
 
 fn default_file_columns() -> Vec<FileColumn> {
     vec![
@@ -1833,36 +1828,6 @@ fn file_column(id: &str, label: &str, width: f32) -> FileColumn {
         id: id.to_owned(),
         label: label.to_owned(),
         width,
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct FileRenameView {
-    pub(super) draft: String,
-    pub(super) input_id: u64,
-    pub(super) selection_start: usize,
-    pub(super) selection_end: usize,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct FolderDeleteTargetView {
-    pub(super) path: PathBuf,
-    pub(super) name: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct FileDeleteTargetView {
-    pub(super) paths: Vec<PathBuf>,
-    pub(super) names: Vec<String>,
-}
-
-impl FileDeleteTargetView {
-    pub(super) fn label(&self) -> String {
-        match self.names.as_slice() {
-            [] => String::from("selected files"),
-            [name] => name.clone(),
-            names => format!("{} files", names.len()),
-        }
     }
 }
 
@@ -1898,81 +1863,6 @@ struct VisibleFolder {
     drop_target: bool,
     rename_draft: Option<String>,
     rename_input_id: Option<u64>,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(super) enum FolderBrowserMessage {
-    AddSource,
-    SelectSource(String),
-    OpenSourceContextMenu(String, Point),
-    ActivateFolder(String),
-    OpenFolderContextMenu(String, Point),
-    DragFolder(String, DragHandleMessage),
-    HoverDropTarget(String),
-    ClearDropTarget,
-    DropOnFolder(String),
-    BeginRenameSelected,
-    BeginCreateSubfolder,
-    RenameInput(TextInputMessage),
-    SortFileColumn(String),
-    ResizeFileColumn(String, DragHandleMessage),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct FolderScanRequest {
-    pub(super) task_id: u64,
-    pub(super) source_id: String,
-    pub(super) label: String,
-    pub(super) root: PathBuf,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct RenameTargetView {
-    pub(super) kind: &'static str,
-    pub(super) label: String,
-    pub(super) is_source_root: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct FolderScanProgress {
-    pub(super) task_id: u64,
-    pub(super) source_id: String,
-    pub(super) label: String,
-    pub(super) phase: String,
-    pub(super) completed: usize,
-    pub(super) total: usize,
-    pub(super) detail: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum FolderScanItem {
-    Folder(FolderEntry),
-    File(FileEntry),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct FolderScanDiscovery {
-    pub(super) task_id: u64,
-    pub(super) source_id: String,
-    pub(super) parent_id: String,
-    pub(super) item: FolderScanItem,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct FolderScanDiscoveryBatch {
-    pub(super) task_id: u64,
-    pub(super) source_id: String,
-    pub(super) events: Vec<FolderScanDiscovery>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct FolderScanResult {
-    pub(super) task_id: u64,
-    pub(super) source_id: String,
-    pub(super) label: String,
-    pub(super) folder: FolderEntry,
-    pub(super) file_count: usize,
-    pub(super) folder_count: usize,
 }
 
 pub(super) fn folder_browser_view(state: &FolderBrowserState) -> ui::View<GuiMessage> {
