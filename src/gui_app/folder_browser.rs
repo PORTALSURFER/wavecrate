@@ -173,6 +173,7 @@ mod folder_entry;
 use folder_entry::FolderEntry;
 
 mod drag_drop;
+mod drag_drop_move;
 mod drag_drop_relocation;
 
 mod delete_workflow;
