@@ -6,7 +6,8 @@ use radiant::{
 use super::{
     FolderBrowserMessage, FolderBrowserState, GuiMessage, SourceEntry, TREE_DEPTH_INDENT,
     TREE_ROW_HEIGHT, VisibleFolder, plural,
-    tree_widgets::{FolderDropClearTarget, FolderTreeHitMessage, FolderTreeHitTarget},
+    tree_hit_target::{FolderTreeHitMessage, FolderTreeHitTarget},
+    tree_widgets::FolderDropClearTarget,
 };
 
 pub(in crate::gui_app) fn folder_browser_view(state: &FolderBrowserState) -> ui::View<GuiMessage> {
