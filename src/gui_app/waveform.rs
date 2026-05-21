@@ -99,10 +99,6 @@ impl WaveformState {
         self.viewport
     }
 
-    pub(super) fn cursor_ratio(&self) -> Option<f32> {
-        Some(self.zoom_anchor_ratio)
-    }
-
     pub(super) fn playhead_ratio(&self) -> Option<f32> {
         self.playhead_ratio
     }
@@ -669,18 +665,7 @@ pub(super) fn waveform_viewport_view(state: &WaveformState) -> ui::View<super::G
         .id(11)
         .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32),
         ui::custom_widget(
-            WaveformWidget::new(
-                state.file(),
-                state.viewport(),
-                state.cursor_ratio(),
-                state.playhead_ratio(),
-                state.play_mark_ratio(),
-                state.edit_mark_ratio(),
-                state.play_selection(),
-                state.edit_selection(),
-                state.play_selection_flash_frames(),
-                state.active_drag_kind(),
-            ),
+            WaveformWidget::new(WaveformWidgetProps::from_state(state)),
             |output| {
                 output
                     .typed_ref::<WaveformInteraction>()
@@ -788,6 +773,35 @@ impl Widget for WaveformSignalWidget {
 }
 
 #[derive(Clone, Debug)]
+struct WaveformWidgetProps {
+    file: Arc<WaveformFile>,
+    viewport: WaveformViewport,
+    playhead_ratio: Option<f32>,
+    play_mark_ratio: Option<f32>,
+    edit_mark_ratio: Option<f32>,
+    play_selection: Option<wavecrate::selection::SelectionRange>,
+    edit_selection: Option<wavecrate::selection::SelectionRange>,
+    play_selection_flash_frames: u8,
+    active_drag_kind: Option<WaveformActiveDragKind>,
+}
+
+impl WaveformWidgetProps {
+    fn from_state(state: &WaveformState) -> Self {
+        Self {
+            file: state.file(),
+            viewport: state.viewport(),
+            playhead_ratio: state.playhead_ratio(),
+            play_mark_ratio: state.play_mark_ratio(),
+            edit_mark_ratio: state.edit_mark_ratio(),
+            play_selection: state.play_selection(),
+            edit_selection: state.edit_selection(),
+            play_selection_flash_frames: state.play_selection_flash_frames(),
+            active_drag_kind: state.active_drag_kind(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 struct WaveformWidget {
     common: WidgetCommon,
     file: Arc<WaveformFile>,
@@ -803,18 +817,18 @@ struct WaveformWidget {
 }
 
 impl WaveformWidget {
-    fn new(
-        file: Arc<WaveformFile>,
-        viewport: WaveformViewport,
-        _cursor_ratio: Option<f32>,
-        playhead_ratio: Option<f32>,
-        play_mark_ratio: Option<f32>,
-        edit_mark_ratio: Option<f32>,
-        play_selection: Option<wavecrate::selection::SelectionRange>,
-        edit_selection: Option<wavecrate::selection::SelectionRange>,
-        play_selection_flash_frames: u8,
-        active_drag_kind: Option<WaveformActiveDragKind>,
-    ) -> Self {
+    fn new(props: WaveformWidgetProps) -> Self {
+        let WaveformWidgetProps {
+            file,
+            viewport,
+            playhead_ratio,
+            play_mark_ratio,
+            edit_mark_ratio,
+            play_selection,
+            edit_selection,
+            play_selection_flash_frames,
+            active_drag_kind,
+        } = props;
         let mut common = WidgetCommon::new(
             0,
             WidgetSizing::fixed(Vector2::new(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)),
@@ -1740,7 +1754,8 @@ mod tests {
     use super::{
         BAND_COUNT, WaveformActiveDragKind, WaveformEditFadeHandle, WaveformInteraction,
         WaveformSelectionEdge, WaveformSelectionKind, WaveformSignalWidget, WaveformState,
-        WaveformWidget, split_frequency_bands, waveform_file_from_mono_samples,
+        WaveformWidget, WaveformWidgetProps, split_frequency_bands,
+        waveform_file_from_mono_samples,
     };
     use radiant::{
         gui::types::{Point, Rect, Vector2},
@@ -2054,18 +2069,7 @@ mod tests {
             visible_ratio: 0.375,
         });
 
-        let widget = WaveformWidget::new(
-            state.file(),
-            state.viewport(),
-            state.cursor_ratio(),
-            state.playhead_ratio(),
-            state.play_mark_ratio(),
-            state.edit_mark_ratio(),
-            state.play_selection(),
-            state.edit_selection(),
-            state.play_selection_flash_frames(),
-            state.active_drag_kind(),
-        );
+        let widget = waveform_widget_for_state(&state);
         let mut primitives = Vec::new();
 
         widget.append_paint(
@@ -2098,18 +2102,7 @@ mod tests {
         let mut state = WaveformState::synthetic_for_tests();
         state.start_playback(0.0);
         state.set_playhead_ratio(0.12345);
-        let widget = WaveformWidget::new(
-            state.file(),
-            state.viewport(),
-            state.cursor_ratio(),
-            state.playhead_ratio(),
-            state.play_mark_ratio(),
-            state.edit_mark_ratio(),
-            state.play_selection(),
-            state.edit_selection(),
-            state.play_selection_flash_frames(),
-            state.active_drag_kind(),
-        );
+        let widget = waveform_widget_for_state(&state);
         let mut primitives = Vec::new();
 
         widget.append_paint(
@@ -2150,18 +2143,7 @@ mod tests {
             start: 12_000,
             end: 36_000,
         };
-        let mut widget = WaveformWidget::new(
-            state.file(),
-            state.viewport(),
-            state.cursor_ratio(),
-            state.playhead_ratio(),
-            state.play_mark_ratio(),
-            state.edit_mark_ratio(),
-            state.play_selection(),
-            state.edit_selection(),
-            state.play_selection_flash_frames(),
-            state.active_drag_kind(),
-        );
+        let mut widget = waveform_widget_for_state(&state);
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
         let output = widget
             .handle_input(
@@ -2197,18 +2179,7 @@ mod tests {
     #[test]
     fn primary_press_emits_playback_ratio_matching_hover_cursor_ratio() {
         let state = WaveformState::synthetic_for_tests();
-        let mut widget = WaveformWidget::new(
-            state.file(),
-            state.viewport(),
-            state.cursor_ratio(),
-            state.playhead_ratio(),
-            state.play_mark_ratio(),
-            state.edit_mark_ratio(),
-            state.play_selection(),
-            state.edit_selection(),
-            state.play_selection_flash_frames(),
-            state.active_drag_kind(),
-        );
+        let mut widget = waveform_widget_for_state(&state);
         let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(200.0, 80.0));
 
         let output = widget
@@ -2238,18 +2209,7 @@ mod tests {
     #[test]
     fn secondary_press_emits_edit_selection_begin_ratio() {
         let state = WaveformState::synthetic_for_tests();
-        let mut widget = WaveformWidget::new(
-            state.file(),
-            state.viewport(),
-            state.cursor_ratio(),
-            state.playhead_ratio(),
-            state.play_mark_ratio(),
-            state.edit_mark_ratio(),
-            state.play_selection(),
-            state.edit_selection(),
-            state.play_selection_flash_frames(),
-            state.active_drag_kind(),
-        );
+        let mut widget = waveform_widget_for_state(&state);
         let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(200.0, 80.0));
 
         let output = widget
@@ -2371,18 +2331,7 @@ mod tests {
         let mut state = WaveformState::synthetic_for_tests();
         state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
         state.play_mark_ratio = Some(0.2);
-        let mut widget = WaveformWidget::new(
-            state.file(),
-            state.viewport(),
-            state.cursor_ratio(),
-            state.playhead_ratio(),
-            state.play_mark_ratio(),
-            state.edit_mark_ratio(),
-            state.play_selection(),
-            state.edit_selection(),
-            state.play_selection_flash_frames(),
-            state.active_drag_kind(),
-        );
+        let mut widget = waveform_widget_for_state(&state);
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
 
         let output = widget
@@ -2415,18 +2364,7 @@ mod tests {
         let mut state = WaveformState::synthetic_for_tests();
         state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
         state.play_mark_ratio = Some(0.2);
-        let mut widget = WaveformWidget::new(
-            state.file(),
-            state.viewport(),
-            state.cursor_ratio(),
-            state.playhead_ratio(),
-            state.play_mark_ratio(),
-            state.edit_mark_ratio(),
-            state.play_selection(),
-            state.edit_selection(),
-            state.play_selection_flash_frames(),
-            state.active_drag_kind(),
-        );
+        let mut widget = waveform_widget_for_state(&state);
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
 
         let output = widget
@@ -2458,18 +2396,7 @@ mod tests {
         let mut state = WaveformState::synthetic_for_tests();
         state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
         state.edit_mark_ratio = Some(0.2);
-        let mut widget = WaveformWidget::new(
-            state.file(),
-            state.viewport(),
-            state.cursor_ratio(),
-            state.playhead_ratio(),
-            state.play_mark_ratio(),
-            state.edit_mark_ratio(),
-            state.play_selection(),
-            state.edit_selection(),
-            state.play_selection_flash_frames(),
-            state.active_drag_kind(),
-        );
+        let mut widget = waveform_widget_for_state(&state);
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
 
         let output = widget
@@ -2624,18 +2551,7 @@ mod tests {
         let mut state = WaveformState::synthetic_for_tests();
         state.edit_selection =
             Some(wavecrate::selection::SelectionRange::new(0.2, 0.6).with_fade_in(0.25, 0.2));
-        let mut widget = WaveformWidget::new(
-            state.file(),
-            state.viewport(),
-            state.cursor_ratio(),
-            state.playhead_ratio(),
-            state.play_mark_ratio(),
-            state.edit_mark_ratio(),
-            state.play_selection(),
-            state.edit_selection(),
-            state.play_selection_flash_frames(),
-            state.active_drag_kind(),
-        );
+        let mut widget = waveform_widget_for_state(&state);
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
 
         let output = widget
@@ -2866,18 +2782,7 @@ mod tests {
                 .with_fade_out(0.25, 0.7)
                 .with_fade_out_mute(0.25),
         );
-        let mut widget = WaveformWidget::new(
-            state.file(),
-            state.viewport(),
-            state.cursor_ratio(),
-            state.playhead_ratio(),
-            state.play_mark_ratio(),
-            state.edit_mark_ratio(),
-            state.play_selection(),
-            state.edit_selection(),
-            state.play_selection_flash_frames(),
-            state.active_drag_kind(),
-        );
+        let mut widget = waveform_widget_for_state(&state);
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
 
         let output = widget
@@ -3052,18 +2957,7 @@ mod tests {
     fn primary_press_on_edit_fade_handle_starts_fade_drag_instead_of_playmark() {
         let mut state = WaveformState::synthetic_for_tests();
         state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
-        let mut widget = WaveformWidget::new(
-            state.file(),
-            state.viewport(),
-            state.cursor_ratio(),
-            state.playhead_ratio(),
-            state.play_mark_ratio(),
-            state.edit_mark_ratio(),
-            state.play_selection(),
-            state.edit_selection(),
-            state.play_selection_flash_frames(),
-            state.active_drag_kind(),
-        );
+        let mut widget = waveform_widget_for_state(&state);
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
 
         let output = widget
@@ -3121,18 +3015,7 @@ mod tests {
         state.apply_interaction(WaveformInteraction::FinishSelection {
             visible_ratio: 0.75,
         });
-        let widget = WaveformWidget::new(
-            state.file(),
-            state.viewport(),
-            state.cursor_ratio(),
-            state.playhead_ratio(),
-            state.play_mark_ratio(),
-            state.edit_mark_ratio(),
-            state.play_selection(),
-            state.edit_selection(),
-            state.play_selection_flash_frames(),
-            state.active_drag_kind(),
-        );
+        let widget = waveform_widget_for_state(&state);
         let (start, end) = widget
             .visible_range_for_selection(state.edit_selection())
             .expect("selection range");
@@ -3149,18 +3032,7 @@ mod tests {
             visible_ratio: 0.2,
         });
         state.apply_interaction(WaveformInteraction::UpdateSelection { visible_ratio: 0.6 });
-        let widget = WaveformWidget::new(
-            state.file(),
-            state.viewport(),
-            state.cursor_ratio(),
-            state.playhead_ratio(),
-            state.play_mark_ratio(),
-            state.edit_mark_ratio(),
-            state.play_selection(),
-            state.edit_selection(),
-            state.play_selection_flash_frames(),
-            state.active_drag_kind(),
-        );
+        let widget = waveform_widget_for_state(&state);
         let mut primitives = Vec::new();
 
         widget.append_paint(
@@ -3196,18 +3068,7 @@ mod tests {
     fn edit_selection_paints_start_and_end_boundary_lines() {
         let mut state = WaveformState::synthetic_for_tests();
         state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
-        let widget = WaveformWidget::new(
-            state.file(),
-            state.viewport(),
-            state.cursor_ratio(),
-            state.playhead_ratio(),
-            state.play_mark_ratio(),
-            state.edit_mark_ratio(),
-            state.play_selection(),
-            state.edit_selection(),
-            state.play_selection_flash_frames(),
-            state.active_drag_kind(),
-        );
+        let widget = waveform_widget_for_state(&state);
         let mut primitives = Vec::new();
 
         widget.append_paint(
@@ -3236,18 +3097,7 @@ mod tests {
                 .with_fade_in(0.5, 0.8)
                 .with_fade_out(0.25, 0.0),
         );
-        let widget = WaveformWidget::new(
-            state.file(),
-            state.viewport(),
-            state.cursor_ratio(),
-            state.playhead_ratio(),
-            state.play_mark_ratio(),
-            state.edit_mark_ratio(),
-            state.play_selection(),
-            state.edit_selection(),
-            state.play_selection_flash_frames(),
-            state.active_drag_kind(),
-        );
+        let widget = waveform_widget_for_state(&state);
         let mut primitives = Vec::new();
 
         widget.append_paint(
@@ -3423,6 +3273,10 @@ mod tests {
         };
         assert!(Arc::ptr_eq(summary, &file.gpu_signal_summary));
         assert!(gain_preview.is_some());
+    }
+
+    fn waveform_widget_for_state(state: &WaveformState) -> WaveformWidget {
+        WaveformWidget::new(WaveformWidgetProps::from_state(state))
     }
 
     fn fill_rects(primitives: &[PaintPrimitive]) -> Vec<&PaintFillRect> {
