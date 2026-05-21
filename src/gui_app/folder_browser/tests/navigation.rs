@@ -1,0 +1,319 @@
+use super::*;
+
+#[test]
+fn visible_folder_depths_are_stable_for_siblings() {
+    let root = temp_source_root("radiant-gui-folder-depths");
+    for child in ["alpha", "beta", "gamma"] {
+        fs::create_dir_all(root.join("parent").join(child)).expect("create nested folder");
+    }
+    let browser = FolderBrowserState::from_root(root.clone());
+    let mut browser = browser;
+    browser.activate_folder(path_id(&root.join("parent")));
+
+    let sibling_depths = browser
+        .visible_folders()
+        .into_iter()
+        .filter(|folder| ["alpha", "beta", "gamma"].contains(&folder.name.as_str()))
+        .map(|folder| folder.depth)
+        .collect::<Vec<_>>();
+
+    assert_eq!(sibling_depths, vec![2, 2, 2]);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn folder_keyboard_navigation_moves_visible_selection_and_expands_collapses() {
+    let root = temp_source_root("radiant-gui-folder-keyboard");
+    let drums = root.join("drums");
+    let kicks = drums.join("kicks");
+    let snares = drums.join("snares");
+    fs::create_dir_all(&kicks).expect("create kicks folder");
+    fs::create_dir_all(&snares).expect("create snares folder");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+
+    assert_eq!(browser.selected_folder, path_id(&root));
+    assert!(browser.navigate_selected_folder(1));
+    assert_eq!(browser.selected_folder, path_id(&drums));
+    assert!(!browser.is_expanded(&path_id(&drums)));
+    assert!(browser.expand_selected_folder());
+    assert!(browser.is_expanded(&path_id(&drums)));
+    assert!(browser.collapse_selected_folder());
+    assert!(!browser.is_expanded(&path_id(&drums)));
+    assert!(browser.expand_selected_folder());
+    assert!(browser.is_expanded(&path_id(&drums)));
+    assert!(browser.navigate_selected_folder(1));
+    assert_eq!(browser.selected_folder, path_id(&kicks));
+    assert!(browser.navigate_selected_folder(1));
+    assert_eq!(browser.selected_folder, path_id(&snares));
+    assert!(!browser.navigate_selected_folder(1));
+    assert_eq!(browser.selected_folder, path_id(&snares));
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn file_keyboard_navigation_moves_audio_selection_without_leaving_folder() {
+    let root = temp_source_root("radiant-gui-file-keyboard");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let hat = drums.join("hat.wav");
+    let kick = drums.join("kick.wav");
+    let snare = drums.join("snare.wav");
+    fs::write(&hat, [0_u8; 8]).expect("write hat");
+    fs::write(&kick, [0_u8; 8]).expect("write kick");
+    fs::write(&snare, [0_u8; 8]).expect("write snare");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.select_file(path_id(&hat));
+
+    assert_eq!(browser.navigate_vertical(1, false), Some(path_id(&kick)));
+    browser.select_file(path_id(&kick));
+    assert_eq!(browser.navigate_vertical(1, false), Some(path_id(&snare)));
+    browser.select_file(path_id(&snare));
+    assert_eq!(browser.navigate_vertical(1, false), None);
+    assert_eq!(browser.selected_file_id(), Some(path_id(&snare).as_str()));
+    assert_eq!(browser.navigate_vertical(-1, false), Some(path_id(&kick)));
+    assert_eq!(browser.selected_folder, path_id(&drums));
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn file_keyboard_navigation_can_extend_audio_selection() {
+    let root = temp_source_root("radiant-gui-file-keyboard-extend");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let hat = drums.join("hat.wav");
+    let kick = drums.join("kick.wav");
+    let snare = drums.join("snare.wav");
+    fs::write(&hat, [0_u8; 8]).expect("write hat");
+    fs::write(&kick, [0_u8; 8]).expect("write kick");
+    fs::write(&snare, [0_u8; 8]).expect("write snare");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.select_file(path_id(&hat));
+
+    assert_eq!(browser.navigate_vertical(1, true), Some(path_id(&kick)));
+    assert_eq!(browser.navigate_vertical(1, true), Some(path_id(&snare)));
+
+    assert_eq!(
+        browser.selected_file_paths(),
+        vec![hat.clone(), kick.clone(), snare.clone()]
+    );
+    assert_eq!(browser.selected_file_id(), Some(path_id(&snare).as_str()));
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn file_mouse_selection_toggles_and_extends_audio_selection() {
+    let root = temp_source_root("radiant-gui-file-mouse-multi-select");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let hat = drums.join("hat.wav");
+    let kick = drums.join("kick.wav");
+    let snare = drums.join("snare.wav");
+    let tom = drums.join("tom.wav");
+    for file in [&hat, &kick, &snare, &tom] {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.select_file(path_id(&hat));
+
+    browser.select_file_with_modifiers(
+        path_id(&snare),
+        PointerModifiers {
+            command: true,
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        browser.selected_file_paths(),
+        vec![hat.clone(), snare.clone()]
+    );
+
+    browser.select_file_with_modifiers(
+        path_id(&tom),
+        PointerModifiers {
+            shift: true,
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        browser.selected_file_paths(),
+        vec![snare.clone(), tom.clone()]
+    );
+
+    browser.select_file_with_modifiers(
+        path_id(&kick),
+        PointerModifiers {
+            command: true,
+            shift: true,
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        browser.selected_file_paths(),
+        vec![kick.clone(), snare.clone(), tom.clone()]
+    );
+
+    browser.select_file_with_modifiers(
+        path_id(&snare),
+        PointerModifiers {
+            command: true,
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        browser.selected_file_paths(),
+        vec![kick.clone(), tom.clone()]
+    );
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn file_keyboard_navigation_follow_window_moves_only_near_edges() {
+    let root = temp_source_root("radiant-gui-file-follow-window");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let files = (0..20)
+        .map(|index| drums.join(format!("sample_{index:02}.wav")))
+        .collect::<Vec<_>>();
+    for file in &files {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.select_file(path_id(&files[4]));
+
+    let window = browser.follow_selected_file_view(6, 1, 1);
+    assert_eq!(window.viewport_start, 1);
+    assert_eq!(browser.file_view_start(), 1);
+
+    assert_eq!(
+        browser.navigate_vertical(1, false),
+        Some(path_id(&files[5]))
+    );
+    let window = browser.follow_selected_file_view(6, 1, 1);
+    assert_eq!(window.viewport_start, 2);
+    assert_eq!(browser.file_view_start(), 2);
+
+    assert_eq!(
+        browser.navigate_vertical(1, false),
+        Some(path_id(&files[6]))
+    );
+    let window = browser.follow_selected_file_view(6, 1, 1);
+    assert_eq!(window.viewport_start, 3);
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn file_scroll_tracking_allows_runtime_clamped_bottom_offsets() {
+    let root = temp_source_root("radiant-gui-file-scroll-bottom");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let files = (0..24)
+        .map(|index| drums.join(format!("sample_{index:02}.wav")))
+        .collect::<Vec<_>>();
+    for file in &files {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+
+    browser.set_file_view_start_from_scroll_offset(23.0 * 22.0, 22.0);
+
+    assert_eq!(browser.file_view_start(), 23);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn select_all_audio_files_selects_current_folder_samples() {
+    let root = temp_source_root("radiant-gui-file-select-all");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let hat = drums.join("hat.wav");
+    let kick = drums.join("kick.wav");
+    let note = drums.join("note.txt");
+    fs::write(&hat, [0_u8; 8]).expect("write hat");
+    fs::write(&kick, [0_u8; 8]).expect("write kick");
+    fs::write(&note, [0_u8; 8]).expect("write note");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+
+    assert_eq!(browser.select_all_audio_files(), 2);
+
+    assert_eq!(
+        browser.selected_file_paths(),
+        vec![hat.clone(), kick.clone()]
+    );
+    assert!(!browser.is_file_selected(&path_id(&note)));
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn sample_file_sort_toggles_by_column_and_navigation_uses_sorted_order() {
+    let root = temp_source_root("radiant-gui-file-sort");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let small = drums.join("small.wav");
+    let large = drums.join("large.wav");
+    fs::write(&small, [0_u8; 8]).expect("write small");
+    fs::write(&large, [0_u8; 128]).expect("write large");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+
+    browser.apply_message(FolderBrowserMessage::SortFileColumn(String::from("size")));
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["small.wav", "large.wav"]
+    );
+
+    browser.apply_message(FolderBrowserMessage::SortFileColumn(String::from("size")));
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["large.wav", "small.wav"]
+    );
+    browser.select_file(path_id(&large));
+    assert_eq!(browser.navigate_vertical(1, false), Some(path_id(&small)));
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn sample_file_column_resize_clamps_width() {
+    let mut browser = FolderBrowserState::load_default();
+
+    browser.apply_message(FolderBrowserMessage::ResizeFileColumn(
+        String::from("extension"),
+        radiant::widgets::DragHandleMessage::Started {
+            position: Point::new(100.0, 0.0),
+        },
+    ));
+    browser.apply_message(FolderBrowserMessage::ResizeFileColumn(
+        String::from("extension"),
+        radiant::widgets::DragHandleMessage::Moved {
+            position: Point::new(-200.0, 0.0),
+        },
+    ));
+
+    let extension_width = browser
+        .visible_file_columns()
+        .into_iter()
+        .find(|column| column.id == "extension")
+        .map(|column| column.width)
+        .unwrap();
+    assert_eq!(extension_width, MIN_FILE_COLUMN_WIDTH);
+}
