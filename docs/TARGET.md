@@ -1239,7 +1239,9 @@ The initial target is practical Windows-first file-based handoff, not deep DAW i
 
 Wavecrate should support clipboard-based audio handoff.
 
-When the user selects one or more sample files in the sample browser and presses copy, Wavecrate should place those files on the system clipboard in a format that DAWs and Explorer can consume as ordinary audio files.
+When the user selects one or more supported sample files in the sample browser and presses copy, Wavecrate should place those files on the system clipboard in a format that DAWs and Explorer can consume as ordinary audio files.
+
+Playback-only unsupported audio files should not be eligible for Wavecrate's DAW/external audio handoff workflows, even when the original file path could technically be copied or dragged. Wavecrate cannot guarantee DAW compatibility for unsupported formats, so clipboard and drag/drop audio handoff should stay limited to supported sample formats. Users may still reveal, rename, move, copy, or remove the unsupported file through filesystem-management actions where those actions are available.
 
 When the user selects an audio range in the waveform editor and presses copy, Wavecrate should create a transient staged audio file for that selection and place that file on the clipboard as an ordinary audio file unless the user explicitly chooses durable extraction.
 
@@ -2001,7 +2003,7 @@ The sample browser row should show enough information to make scanning fast:
 - exact duplicate indicator where the same audio-content fingerprint appears in more than one indexed file
 - missing, unavailable, unsupported, locked, edited, or unsaved indicators
 
-Unsupported and partially supported files should not look like ordinary editable files when they are visible. Unsupported files are hidden from the normal browser by default and should appear only when the user enables `all files` or opens a diagnostic/unsupported-files view. In those views, list rows and map points should distinguish playback-only, unsupported format, unsupported encoding, unsupported non-audio, multichannel-limited, too-long, missing, and failed-analysis states where practical. Warning indicators should be compact but visible enough that users understand why audio-specific commands are disabled while basic filesystem-management commands may remain available.
+Unsupported and partially supported files should not look like ordinary editable files when they are visible. Unsupported files are hidden from the normal browser by default and should appear only when the user enables `all files` or opens a diagnostic/unsupported-files view. In those views, list rows and map points should distinguish playback-only, unsupported format, unsupported encoding, unsupported non-audio, multichannel-limited, too-long, missing, and failed-analysis states where practical. Warning indicators should be compact but visible enough that users understand why audio-specific commands, including DAW handoff, are disabled while basic filesystem-management commands may remain available.
 
 Exact duplicates should have a compact advisory badge or indicator in the sample list and later map view. Duplicate grouping should be global across all indexed sources but should include only files that currently exist on disk. Missing or unavailable records should not make an otherwise unique available file look duplicated. Source, folder, search, and filter state should still control which duplicate members are visible in the current browser. The user should be able to filter to duplicate files, inspect which available files share the same audio-content fingerprint across sources, reveal their folders, and decide whether to keep, move, tag, or trash them. Duplicate grouping should not automatically delete or merge files.
 
