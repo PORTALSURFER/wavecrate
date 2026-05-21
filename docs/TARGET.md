@@ -352,7 +352,7 @@ Files with more than two channels should remain visible in the browser and shoul
 
 For files with more than two channels, Wavecrate should show a clear warning that multichannel editing is not currently supported. The user should be able to convert the file to stereo or mono through an explicit downmix/conversion command if they want to make it editable.
 
-Unsupported, partially supported, playback-only, too-long, and multichannel-limited files should be visually distinct when they are visible in the sample list or similarity map. Unsupported files should remain hidden from the normal supported-audio browser by default, but when they are shown through `all files` or diagnostics, rows or map points should show warning/error styling and a tooltip or status explanation describing why normal editing or extraction is unavailable.
+Unsupported, partially supported, playback-only, too-long, and multichannel-limited files should be visually distinct when they are visible in the sample list or eligible similarity surfaces. Unsupported files should remain hidden from the normal supported-audio browser by default, and playback-only unsupported audio files should not appear in similarity or map views because Wavecrate does not create analysis or map projection data for them. When unsupported files are shown through `all files` or diagnostics, rows should show warning/error styling and a tooltip or status explanation describing why normal editing or extraction is unavailable.
 
 Downmixing a multichannel file to stereo or mono is a destructive audio conversion unless the user chooses an export/duplicate workflow. It should follow the normal destructive-edit safety, YOLO mode, recovery, logging, and session undo behavior. The warning should explain that channel information may be lost or combined and that the original multichannel layout will not be preserved in the converted file.
 
@@ -1608,6 +1608,8 @@ The similarity system should support:
 - combining similarity filters with tags, ratings, folders, search text, metadata, aging/listen state, and file properties
 - browsing a 2D similarity map as an alternate view of the current browser result set
 - clear status for analysis progress, unavailable analysis, stale analysis, and failed analysis
+
+Playback-only unsupported audio files should be excluded from similarity sorting, similarity filters, and 2D similarity map projection. They may be visible in `all files` list browsing, but they should not become reference files, similarity results, or map points because those workflows depend on analysis data Wavecrate deliberately does not generate for unsupported formats.
 
 The normal folder/sample list is the primary way to view sample files. Wavecrate should focus first on making the regular source, folder, and sample-list workflow complete, fast, and reliable.
 
