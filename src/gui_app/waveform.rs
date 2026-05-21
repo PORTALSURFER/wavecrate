@@ -256,6 +256,7 @@ pub(super) use widget::{WaveformWidget, waveform_viewport_view};
 
 mod widget_geometry;
 
+mod edit_fade_curve_paint;
 mod edit_fade_paint;
 mod selection_paint;
 
