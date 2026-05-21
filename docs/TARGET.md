@@ -1087,6 +1087,8 @@ Removing a source from Wavecrate should remove it from the indexed source list b
 
 If the root folder for a configured source is moved, renamed, deleted, disconnected, or otherwise unavailable outside Wavecrate, Wavecrate should mark the source as broken or missing in the source list and folder tree. The UI should not silently drop the source, delete its metadata, or pretend the source is empty.
 
+Wavecrate should not allow a configured source root to be moved or renamed through ordinary in-app folder move/rename commands. Source-root location changes should go through explicit source relink, remove, or source-swap workflows so `.wavecrate.db` ownership, file watching, scan state, and source identity stay clear. Ordinary in-app folder move/rename remains available for folders inside a source root.
+
 A broken or missing source should keep its source metadata and source database reference available for repair where possible. Wavecrate should provide clear actions to:
 
 - relink the source to a new folder path
@@ -1785,7 +1787,7 @@ Wavecrate should support:
 * moving rejected files to the configured trash folder
 * revealing files in Explorer
 
-Moving or renaming a folder inside a source should happen immediately without confirmation, even when the folder contains files hidden by the current visibility mode. It should be undoable during the current session, preserve Wavecrate metadata for affected files, update source/folder/browser state, and use the shared destination-folder collision-numbering policy when the destination already contains a folder with the same name.
+Moving or renaming a folder inside a source should happen immediately without confirmation, even when the folder contains files hidden by the current visibility mode, as long as the folder is not the configured source root itself. It should be undoable during the current session, preserve Wavecrate metadata for affected files, update source/folder/browser state, and use the shared destination-folder collision-numbering policy when the destination already contains a folder with the same name.
 
 Copying a file or folder inside a source should usually happen immediately without confirmation. If the user copies a folder that contains files hidden by the current visibility mode, Wavecrate should ask whether to include those hidden files in the copy. The prompt should use a simple yes/no choice, should not enumerate hidden-file categories or counts, and should default to no so the copy includes only the files visible in the current view unless the user deliberately includes hidden contents. Copying should be undoable during the current session, copy the real file or folder contents on disk according to the user's hidden-file choice, create new Wavecrate Sample IDs for copied audio files, inherit Wavecrate metadata and workflow marks for the copied files, update source/folder/browser state, and use the shared destination-folder collision-numbering policy when the destination already contains a file or folder with the same name. Copied files are unique files, not second references to the original file identity.
 
