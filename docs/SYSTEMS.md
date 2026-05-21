@@ -31,7 +31,7 @@ Behavioral coverage anchor:
 The GUI test platform has four layers:
 
 1. host action catalog in `src/app_core/actions/**`
-2. semantic automation snapshot emitted by the native shell
+2. semantic automation snapshots emitted by runtime/test projection helpers
 3. deterministic GUI test mode and artifact emission
 4. in-process scenario runner and `tools/gui-test-cli`
 
@@ -39,8 +39,8 @@ The important contract is semantic stability:
 
 - target controls by stable node ids and action ids
 - prefer semantic automation over screenshot matching when possible
-- correlate GUI artifacts with run-contract metadata instead of inventing a
-  separate reporting format
+- correlate GUI artifacts through the existing runtime/test projection helpers
+  instead of inventing a separate reporting format
 
 Current development loops:
 

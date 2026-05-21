@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn browser_keyboard_navigation_is_disabled_while_renaming() {
-    let root = temp_source_root("radiant-gui-keyboard-rename");
+    let root = temp_source_root("wavecrate-gui-keyboard-rename");
     let drums = root.join("drums");
     let kicks = drums.join("kicks");
     fs::create_dir_all(&kicks).expect("create kicks folder");
@@ -24,7 +24,7 @@ fn browser_keyboard_navigation_is_disabled_while_renaming() {
 
 #[test]
 fn folder_rename_updates_filesystem_tree_and_selected_audio_files() {
-    let root = temp_source_root("radiant-gui-folder-rename");
+    let root = temp_source_root("wavecrate-gui-folder-rename");
     let drums = root.join("drums");
     fs::create_dir_all(&drums).expect("create nested folder");
     fs::write(drums.join("kick.wav"), [0_u8; 8]).expect("write wav");
@@ -58,7 +58,7 @@ fn folder_rename_updates_filesystem_tree_and_selected_audio_files() {
 
 #[test]
 fn create_subfolder_starts_pending_rename_row_and_creates_on_submit() {
-    let root = temp_source_root("radiant-gui-folder-create");
+    let root = temp_source_root("wavecrate-gui-folder-create");
     let drums = root.join("drums");
     fs::create_dir_all(&drums).expect("create nested folder");
     let mut browser = FolderBrowserState::from_root(root.clone());
@@ -106,7 +106,7 @@ fn create_subfolder_starts_pending_rename_row_and_creates_on_submit() {
 
 #[test]
 fn create_subfolder_cancel_removes_pending_row_without_touching_disk() {
-    let root = temp_source_root("radiant-gui-folder-create-cancel");
+    let root = temp_source_root("wavecrate-gui-folder-create-cancel");
     let drums = root.join("drums");
     fs::create_dir_all(&drums).expect("create nested folder");
     let mut browser = FolderBrowserState::from_root(root.clone());
@@ -133,7 +133,7 @@ fn create_subfolder_cancel_removes_pending_row_without_touching_disk() {
 
 #[test]
 fn create_subfolder_default_name_skips_existing_folder() {
-    let root = temp_source_root("radiant-gui-folder-create-unique");
+    let root = temp_source_root("wavecrate-gui-folder-create-unique");
     let drums = root.join("drums");
     fs::create_dir_all(drums.join("New folder")).expect("create existing folder");
     let mut browser = FolderBrowserState::from_root(root.clone());
@@ -157,7 +157,7 @@ fn create_subfolder_default_name_skips_existing_folder() {
 
 #[test]
 fn file_rename_hides_and_preserves_extension() {
-    let root = temp_source_root("radiant-gui-file-rename");
+    let root = temp_source_root("wavecrate-gui-file-rename");
     let drums = root.join("drums");
     fs::create_dir_all(&drums).expect("create nested folder");
     let kick = drums.join("kick loop.wav");
@@ -208,7 +208,7 @@ fn file_rename_hides_and_preserves_extension() {
 
 #[test]
 fn file_rename_submission_cannot_change_extension() {
-    let root = temp_source_root("radiant-gui-file-rename-extension");
+    let root = temp_source_root("wavecrate-gui-file-rename-extension");
     let drums = root.join("drums");
     fs::create_dir_all(&drums).expect("create nested folder");
     let kick = drums.join("kick.wav");
@@ -240,7 +240,7 @@ fn file_rename_submission_cannot_change_extension() {
 
 #[test]
 fn root_folder_rename_is_rejected_from_tree() {
-    let root = temp_source_root("radiant-gui-root-rename");
+    let root = temp_source_root("wavecrate-gui-root-rename");
     let mut browser = FolderBrowserState::from_root(root.clone());
 
     assert_eq!(

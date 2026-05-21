@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn visible_folder_depths_are_stable_for_siblings() {
-    let root = temp_source_root("radiant-gui-folder-depths");
+    let root = temp_source_root("wavecrate-gui-folder-depths");
     for child in ["alpha", "beta", "gamma"] {
         fs::create_dir_all(root.join("parent").join(child)).expect("create nested folder");
     }
@@ -23,7 +23,7 @@ fn visible_folder_depths_are_stable_for_siblings() {
 
 #[test]
 fn folder_keyboard_navigation_moves_visible_selection_and_expands_collapses() {
-    let root = temp_source_root("radiant-gui-folder-keyboard");
+    let root = temp_source_root("wavecrate-gui-folder-keyboard");
     let drums = root.join("drums");
     let kicks = drums.join("kicks");
     let snares = drums.join("snares");
@@ -53,7 +53,7 @@ fn folder_keyboard_navigation_moves_visible_selection_and_expands_collapses() {
 
 #[test]
 fn file_keyboard_navigation_moves_audio_selection_without_leaving_folder() {
-    let root = temp_source_root("radiant-gui-file-keyboard");
+    let root = temp_source_root("wavecrate-gui-file-keyboard");
     let drums = root.join("drums");
     fs::create_dir_all(&drums).expect("create drums folder");
     let hat = drums.join("hat.wav");
@@ -80,7 +80,7 @@ fn file_keyboard_navigation_moves_audio_selection_without_leaving_folder() {
 
 #[test]
 fn file_keyboard_navigation_can_extend_audio_selection() {
-    let root = temp_source_root("radiant-gui-file-keyboard-extend");
+    let root = temp_source_root("wavecrate-gui-file-keyboard-extend");
     let drums = root.join("drums");
     fs::create_dir_all(&drums).expect("create drums folder");
     let hat = drums.join("hat.wav");
@@ -107,7 +107,7 @@ fn file_keyboard_navigation_can_extend_audio_selection() {
 
 #[test]
 fn file_mouse_selection_toggles_and_extends_audio_selection() {
-    let root = temp_source_root("radiant-gui-file-mouse-multi-select");
+    let root = temp_source_root("wavecrate-gui-file-mouse-multi-select");
     let drums = root.join("drums");
     fs::create_dir_all(&drums).expect("create drums folder");
     let hat = drums.join("hat.wav");
@@ -175,7 +175,7 @@ fn file_mouse_selection_toggles_and_extends_audio_selection() {
 
 #[test]
 fn file_keyboard_navigation_follow_window_moves_only_near_edges() {
-    let root = temp_source_root("radiant-gui-file-follow-window");
+    let root = temp_source_root("wavecrate-gui-file-follow-window");
     let drums = root.join("drums");
     fs::create_dir_all(&drums).expect("create drums folder");
     let files = (0..20)
@@ -212,7 +212,7 @@ fn file_keyboard_navigation_follow_window_moves_only_near_edges() {
 
 #[test]
 fn file_scroll_tracking_allows_runtime_clamped_bottom_offsets() {
-    let root = temp_source_root("radiant-gui-file-scroll-bottom");
+    let root = temp_source_root("wavecrate-gui-file-scroll-bottom");
     let drums = root.join("drums");
     fs::create_dir_all(&drums).expect("create drums folder");
     let files = (0..24)
@@ -232,7 +232,7 @@ fn file_scroll_tracking_allows_runtime_clamped_bottom_offsets() {
 
 #[test]
 fn select_all_audio_files_selects_current_folder_samples() {
-    let root = temp_source_root("radiant-gui-file-select-all");
+    let root = temp_source_root("wavecrate-gui-file-select-all");
     let drums = root.join("drums");
     fs::create_dir_all(&drums).expect("create drums folder");
     let hat = drums.join("hat.wav");
@@ -257,7 +257,7 @@ fn select_all_audio_files_selects_current_folder_samples() {
 
 #[test]
 fn sample_file_sort_toggles_by_column_and_navigation_uses_sorted_order() {
-    let root = temp_source_root("radiant-gui-file-sort");
+    let root = temp_source_root("wavecrate-gui-file-sort");
     let drums = root.join("drums");
     fs::create_dir_all(&drums).expect("create drums folder");
     let small = drums.join("small.wav");

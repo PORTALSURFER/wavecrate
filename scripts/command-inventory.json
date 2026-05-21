@@ -248,12 +248,6 @@
           "reason": "Full markdown-link reporting remains a Bash-only advisory report."
         },
         {
-          "name": "run-contract-smoke",
-          "target": "check_run_contract_smoke.sh",
-          "windows_supported": false,
-          "reason": "Run-contract smoke currently depends on the Bash test harness."
-        },
-        {
           "name": "rust-no-todos",
           "target": "check_rust_no_todos.ps1"
         },

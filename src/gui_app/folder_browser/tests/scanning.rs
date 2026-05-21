@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn source_scan_installs_finished_tree_after_placeholder_selection() {
-    let root = temp_source_root("radiant-gui-source-scan");
+    let root = temp_source_root("wavecrate-gui-source-scan");
     fs::create_dir_all(root.join("drums")).expect("create nested folder");
     fs::write(root.join("drums").join("kick.wav"), [0_u8; 8]).expect("write wav");
     let mut browser = FolderBrowserState::load_default();
@@ -43,7 +43,7 @@ fn source_scan_installs_finished_tree_after_placeholder_selection() {
 
 #[test]
 fn non_wav_audio_looking_files_are_visible_but_not_supported_audio() {
-    let root = temp_source_root("radiant-gui-unsupported-audio");
+    let root = temp_source_root("wavecrate-gui-unsupported-audio");
     let drums = root.join("drums");
     fs::create_dir_all(&drums).expect("create drums folder");
     for name in ["kick.wav", "loop.aif", "loop.aiff", "loop.flac", "loop.mp3"] {
@@ -77,7 +77,7 @@ fn non_wav_audio_looking_files_are_visible_but_not_supported_audio() {
 
 #[test]
 fn source_scan_discoveries_populate_selected_tree_before_finish() {
-    let root = temp_source_root("radiant-gui-source-streaming");
+    let root = temp_source_root("wavecrate-gui-source-streaming");
     let drums = root.join("drums");
     fs::create_dir_all(&drums).expect("create nested folder");
     fs::write(drums.join("kick.wav"), [0_u8; 8]).expect("write wav");
@@ -114,7 +114,7 @@ fn source_scan_discoveries_populate_selected_tree_before_finish() {
 
 #[test]
 fn batched_scan_discoveries_clone_selected_tree_once_per_batch() {
-    let root = temp_source_root("radiant-gui-source-batch");
+    let root = temp_source_root("wavecrate-gui-source-batch");
     let drums = root.join("drums");
     fs::create_dir_all(&drums).expect("create nested folder");
     fs::write(drums.join("kick.wav"), [0_u8; 8]).expect("write wav");

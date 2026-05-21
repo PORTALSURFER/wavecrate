@@ -26,15 +26,9 @@ warnings = "deny"
 missing_docs = "deny"
 
 [features]
-default = ["radiant-gui"]
+default = []
 gui-performance = []
-legacy-gui = []
-# Deprecated compatibility alias; prefer `legacy-gui`.
-legacy-sample = ["legacy-gui"]
 native-bridge-metrics = []
-radiant-gui = []
-# Deprecated compatibility alias; prefer `radiant-gui`.
-radiant-rebuild = ["radiant-gui"]
 sqlite-ext-unsafe = ["wavecrate-library/sqlite-ext-unsafe"]
 
 [dependencies]

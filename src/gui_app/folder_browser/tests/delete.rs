@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn folder_delete_blocks_hard_delete_and_keeps_selected_folder() {
-    let root = temp_source_root("radiant-gui-folder-delete");
+    let root = temp_source_root("wavecrate-gui-folder-delete");
     let drums = root.join("drums");
     let kicks = drums.join("kicks");
     fs::create_dir_all(&kicks).expect("create nested folder");
@@ -33,7 +33,7 @@ fn folder_delete_blocks_hard_delete_and_keeps_selected_folder() {
 
 #[test]
 fn file_delete_blocks_hard_delete_and_keeps_selection() {
-    let root = temp_source_root("radiant-gui-file-delete");
+    let root = temp_source_root("wavecrate-gui-file-delete");
     let drums = root.join("drums");
     fs::create_dir_all(&drums).expect("create drums folder");
     let hat = drums.join("hat.wav");
@@ -71,7 +71,7 @@ fn file_delete_blocks_hard_delete_and_keeps_selection() {
 
 #[test]
 fn root_folder_delete_is_rejected_from_tree() {
-    let root = temp_source_root("radiant-gui-root-delete");
+    let root = temp_source_root("wavecrate-gui-root-delete");
     let browser = FolderBrowserState::from_root(root.clone());
 
     assert_eq!(

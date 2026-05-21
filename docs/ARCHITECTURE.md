@@ -81,18 +81,6 @@ Should avoid:
 - owning reusable Radiant behavior that should live in `vendor/radiant`
 - reintroducing dependencies on the deprecated legacy GUI path
 
-### `src/legacy_gui_app.rs`
-
-Owns:
-
-- deprecated legacy native-shell startup retained for migration fallback only
-
-Should avoid:
-
-- becoming the default operator path again
-- receiving new product UI work unless the task is explicitly legacy fallback
-  maintenance
-
 ### `src/sample_sources/**`
 
 Owns:
@@ -134,14 +122,14 @@ areas:
 - `radiant::widgets`
 - `radiant::runtime`
 
-The current native shell remains a compatibility surface for Wavecrate. Treat it
-as `radiant::compat::legacy_shell` in spirit even where module names still
-reflect the older structure.
+Wavecrate's product UI is `src/gui_app.rs`. Support modules used by
+compatibility and tests are not fallback product UIs and should not define new
+behavior.
 
 Practical rule:
 
 - new generic GUI abstractions belong in the public Radiant layers
-- compatibility fixes may still touch the native shell
+- compatibility fixes may still touch runtime/test infrastructure
 - new Wavecrate product behavior should compose generic Radiant surfaces where
   possible instead of expanding shell-only APIs
 
