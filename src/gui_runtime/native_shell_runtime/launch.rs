@@ -9,6 +9,7 @@ impl From<NativeRunOptions> for radiant::gui_runtime::NativeRunOptions {
         Self {
             title: value.title,
             inner_size: value.inner_size,
+            position: None,
             min_inner_size: value.min_inner_size,
             maximized: value.maximized,
             decorations: value.decorations,
@@ -16,6 +17,8 @@ impl From<NativeRunOptions> for radiant::gui_runtime::NativeRunOptions {
             target_fps: value.target_fps,
             debug_layout: value.debug_layout,
             drag_and_drop: true,
+            owner_window_handle: None,
+            skip_taskbar: false,
             gpu: radiant::gui_runtime::NativeGpuOptions::default(),
             retained_surface_cache: radiant::runtime::RetainedSurfaceCachePolicy::default(),
             text: radiant::gui_runtime::NativeTextOptions {

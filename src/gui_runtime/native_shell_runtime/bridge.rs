@@ -137,6 +137,39 @@ impl RetainedTextEditState {
         true
     }
 
+    fn move_word_left(&mut self, selecting: bool) {
+        self.move_caret(previous_word_boundary(&self.value, self.caret), selecting);
+    }
+
+    fn move_word_right(&mut self, selecting: bool) {
+        self.move_caret(next_word_boundary(&self.value, self.caret), selecting);
+    }
+
+    fn delete_word_left(&mut self) -> bool {
+        if self.replace_selection("") {
+            return true;
+        }
+        let start = previous_word_boundary(&self.value, self.caret);
+        if start == self.caret {
+            return false;
+        }
+        replace_char_range(&mut self.value, start, self.caret, "");
+        self.caret = start;
+        true
+    }
+
+    fn delete_word_right(&mut self) -> bool {
+        if self.replace_selection("") {
+            return true;
+        }
+        let end = next_word_boundary(&self.value, self.caret);
+        if end == self.caret {
+            return false;
+        }
+        replace_char_range(&mut self.value, self.caret, end, "");
+        true
+    }
+
     fn move_caret(&mut self, caret: usize, selecting: bool) {
         let caret = caret.min(self.value.chars().count());
         if selecting {
@@ -463,6 +496,16 @@ impl<B: NativeAppBridge> WavecrateRuntimeBridge<B> {
                 edit.move_caret(edit.caret + 1, extend_selection);
                 false
             }),
+            TextEditCommand::MoveWordLeft { extend_selection } => self.edit_retained_text(|edit| {
+                edit.move_word_left(extend_selection);
+                false
+            }),
+            TextEditCommand::MoveWordRight { extend_selection } => {
+                self.edit_retained_text(|edit| {
+                    edit.move_word_right(extend_selection);
+                    false
+                })
+            }
             TextEditCommand::MoveHome { extend_selection } => self.edit_retained_text(|edit| {
                 edit.move_caret(0, extend_selection);
                 false
@@ -487,6 +530,12 @@ impl<B: NativeAppBridge> WavecrateRuntimeBridge<B> {
             }
             TextEditCommand::Backspace => self.handle_retained_key_press(WidgetKey::Backspace),
             TextEditCommand::Delete => self.handle_retained_key_press(WidgetKey::Delete),
+            TextEditCommand::DeleteWordLeft => {
+                self.edit_retained_text(RetainedTextEditState::delete_word_left)
+            }
+            TextEditCommand::DeleteWordRight => {
+                self.edit_retained_text(RetainedTextEditState::delete_word_right)
+            }
             TextEditCommand::CutSelection => self.edit_retained_text(|edit| {
                 edit.replace_selection("");
                 true
@@ -747,6 +796,34 @@ fn byte_index_for_char(text: &str, char_index: usize) -> usize {
         .nth(char_index)
         .map(|(index, _)| index)
         .unwrap_or(text.len())
+}
+
+fn previous_word_boundary(text: &str, caret: usize) -> usize {
+    let chars = text.chars().collect::<Vec<_>>();
+    let mut index = caret.min(chars.len());
+    while index > 0 && !is_word_char(chars[index - 1]) {
+        index -= 1;
+    }
+    while index > 0 && is_word_char(chars[index - 1]) {
+        index -= 1;
+    }
+    index
+}
+
+fn next_word_boundary(text: &str, caret: usize) -> usize {
+    let chars = text.chars().collect::<Vec<_>>();
+    let mut index = caret.min(chars.len());
+    while index < chars.len() && !is_word_char(chars[index]) {
+        index += 1;
+    }
+    while index < chars.len() && is_word_char(chars[index]) {
+        index += 1;
+    }
+    index
+}
+
+fn is_word_char(character: char) -> bool {
+    character.is_alphanumeric() || character == '_'
 }
 
 fn replace_char_range(text: &mut String, start: usize, end: usize, replacement: &str) {

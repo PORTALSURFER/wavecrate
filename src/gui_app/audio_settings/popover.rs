@@ -1,10 +1,22 @@
 use radiant::prelude as ui;
 
-use super::{AUDIO_SETTINGS_POPUP_HEIGHT, AUDIO_SETTINGS_POPUP_WIDTH, GuiAppState, GuiMessage};
+#[cfg(test)]
+use super::GuiAppState;
+use super::{
+    AUDIO_SETTINGS_POPUP_HEIGHT, AUDIO_SETTINGS_POPUP_WIDTH, AudioSettingsSnapshot, GuiMessage,
+};
 
+#[cfg(test)]
 pub(in crate::gui_app) fn audio_settings_popover(state: &GuiAppState) -> ui::View<GuiMessage> {
-    let panel = ui::column(audio_settings_panel_rows(state))
-        .key("audio-settings-panel")
+    let snapshot = AudioSettingsSnapshot::from_app_state(state);
+    audio_settings_window_view(&snapshot)
+}
+
+pub(in crate::gui_app) fn audio_settings_window_view(
+    snapshot: &AudioSettingsSnapshot,
+) -> ui::View<GuiMessage> {
+    let panel = ui::column(audio_settings_panel_rows(snapshot))
+        .key("audio-settings-window")
         .style(ui::WidgetStyle {
             tone: ui::WidgetTone::Neutral,
             prominence: ui::WidgetProminence::Strong,
@@ -14,34 +26,40 @@ pub(in crate::gui_app) fn audio_settings_popover(state: &GuiAppState) -> ui::Vie
         .width(AUDIO_SETTINGS_POPUP_WIDTH)
         .height(AUDIO_SETTINGS_POPUP_HEIGHT);
     ui::column(vec![
-        ui::spacer().height(42.0),
-        ui::row(vec![ui::spacer().fill_width(), panel])
-            .padding_x(14.0)
-            .fill_width()
-            .height(AUDIO_SETTINGS_POPUP_HEIGHT),
+        ui::spacer().fill_height(),
+        ui::row(vec![
+            ui::spacer().fill_width(),
+            panel,
+            ui::spacer().fill_width(),
+        ])
+        .fill_width()
+        .height(AUDIO_SETTINGS_POPUP_HEIGHT),
         ui::spacer().fill_height(),
     ])
     .fill()
 }
 
-fn audio_settings_panel_rows(state: &GuiAppState) -> Vec<ui::View<GuiMessage>> {
-    let mut rows = vec![audio_settings_title_row(), audio_engine_detail_row(state)];
-    if let Some(error) = state.audio_settings_error.as_ref() {
+fn audio_settings_panel_rows(snapshot: &AudioSettingsSnapshot) -> Vec<ui::View<GuiMessage>> {
+    let mut rows = vec![
+        audio_settings_title_row(),
+        audio_engine_detail_row(snapshot),
+    ];
+    if let Some(error) = snapshot.error.as_ref() {
         rows.push(audio_settings_error_row(error));
     }
     rows.push(audio_settings_section(
         "Backend",
-        audio_host_option_buttons(state),
+        audio_host_option_buttons(snapshot),
         2,
     ));
     rows.push(audio_settings_section(
         "Output",
-        audio_device_option_buttons(state),
+        audio_device_option_buttons(snapshot),
         2,
     ));
     rows.push(audio_settings_section(
         "Sample Rate",
-        audio_sample_rate_option_buttons(state),
+        audio_sample_rate_option_buttons(snapshot),
         4,
     ));
     rows.push(cache_maintenance_section());
@@ -61,8 +79,8 @@ fn audio_settings_title_row() -> ui::View<GuiMessage> {
     .height(22.0)
 }
 
-fn audio_engine_detail_row(state: &GuiAppState) -> ui::View<GuiMessage> {
-    ui::text(state.audio_engine_detail_label())
+fn audio_engine_detail_row(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
+    ui::text(snapshot.detail_label.clone())
         .key("audio-settings-detail")
         .fill_width()
         .height(20.0)
@@ -127,48 +145,48 @@ fn section_label(label: &'static str) -> ui::View<GuiMessage> {
         .height(18.0)
 }
 
-fn audio_host_option_buttons(state: &GuiAppState) -> Vec<ui::View<GuiMessage>> {
+fn audio_host_option_buttons(snapshot: &AudioSettingsSnapshot) -> Vec<ui::View<GuiMessage>> {
     let mut buttons = vec![audio_option_button(
         "System default".to_string(),
-        state.audio_output_config.host.is_none(),
+        snapshot.audio_output_config.host.is_none(),
         GuiMessage::SetAudioOutputHost(None),
     )];
-    buttons.extend(state.audio_hosts.iter().map(|host| {
+    buttons.extend(snapshot.audio_hosts.iter().map(|host| {
         audio_option_button(
             default_option_label(host.label.as_str(), host.is_default),
-            state.audio_output_config.host.as_deref() == Some(host.id.as_str()),
+            snapshot.audio_output_config.host.as_deref() == Some(host.id.as_str()),
             GuiMessage::SetAudioOutputHost(Some(host.id.clone())),
         )
     }));
     buttons
 }
 
-fn audio_device_option_buttons(state: &GuiAppState) -> Vec<ui::View<GuiMessage>> {
+fn audio_device_option_buttons(snapshot: &AudioSettingsSnapshot) -> Vec<ui::View<GuiMessage>> {
     let mut buttons = vec![audio_option_button(
         "Host default".to_string(),
-        state.audio_output_config.device.is_none(),
+        snapshot.audio_output_config.device.is_none(),
         GuiMessage::SetAudioOutputDevice(None),
     )];
-    buttons.extend(state.audio_devices.iter().map(|device| {
+    buttons.extend(snapshot.audio_devices.iter().map(|device| {
         audio_option_button(
             default_option_label(device.name.as_str(), device.is_default),
-            state.audio_output_config.device.as_deref() == Some(device.name.as_str()),
+            snapshot.audio_output_config.device.as_deref() == Some(device.name.as_str()),
             GuiMessage::SetAudioOutputDevice(Some(device.name.clone())),
         )
     }));
     buttons
 }
 
-fn audio_sample_rate_option_buttons(state: &GuiAppState) -> Vec<ui::View<GuiMessage>> {
+fn audio_sample_rate_option_buttons(snapshot: &AudioSettingsSnapshot) -> Vec<ui::View<GuiMessage>> {
     let mut buttons = vec![audio_option_button(
         "Device default".to_string(),
-        state.audio_output_config.sample_rate.is_none(),
+        snapshot.audio_output_config.sample_rate.is_none(),
         GuiMessage::SetAudioOutputSampleRate(None),
     )];
-    buttons.extend(state.audio_sample_rates.iter().copied().map(|rate| {
+    buttons.extend(snapshot.audio_sample_rates.iter().copied().map(|rate| {
         audio_option_button(
             format_sample_rate_label(rate),
-            state.audio_output_config.sample_rate == Some(rate),
+            snapshot.audio_output_config.sample_rate == Some(rate),
             GuiMessage::SetAudioOutputSampleRate(Some(rate)),
         )
     }));

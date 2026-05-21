@@ -21,6 +21,10 @@ impl SourceEntry {
             loading_task: None,
         }
     }
+
+    pub(super) fn is_default_assets_source(&self) -> bool {
+        self.id == "assets" && self.root.ends_with("assets")
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
