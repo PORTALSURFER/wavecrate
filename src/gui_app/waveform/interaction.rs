@@ -10,6 +10,7 @@ use super::{
 
 mod edit_fade_drag;
 pub(super) use edit_fade_drag::WaveformEditFadeDrag;
+mod edit_fade_resize;
 
 #[derive(Clone, Copy, Debug)]
 pub(super) enum WaveformDrag {
