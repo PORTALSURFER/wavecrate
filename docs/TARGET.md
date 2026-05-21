@@ -736,6 +736,8 @@ When this mode is enabled, Wavecrate should stop showing repetitive destructive-
 
 YOLO mode should be explicit and persistent. It should not be enabled accidentally, but it does not need a persistent main-interface indicator because it is a set-and-forget advanced setting. The current state should remain visible in settings and in destructive-warning flows where it matters.
 
+Changing YOLO mode from Settings should be asymmetric. Enabling YOLO mode removes destructive warnings and should require confirmation before the setting is committed. Disabling YOLO mode restores the default safety warnings and may apply immediately without confirmation.
+
 ### Session-Local Undo and Redo
 
 Even though edits are destructive, Wavecrate should have a deeply integrated undo/redo system.
@@ -777,7 +779,7 @@ Undo and redo should be global Wavecrate commands. `Ctrl+Z`, `Ctrl+Y`, and `Ctrl
 
 Text and value editors that change durable user state should create undo transactions at meaningful commit points rather than on every keystroke. Typical commit points include Enter, blur/focus loss, selecting an autocomplete/tag suggestion, clicking Apply, confirming a rename, or completing a numeric edit. Search/filter fields are the deliberate exception: committed query changes should update browser query history rather than the global undo stack. Cancel/Escape should discard the uncommitted field edit where practical rather than creating an undo transaction.
 
-Settings and preference changes should not enter the global undo stack by default. Normal settings changes should commit immediately because changing a setting is treated as intentional user action. Risky settings such as YOLO mode, trash folder location, cache cleanup policy, audio backend/device, or write format should require confirmation before the setting change is committed.
+Settings and preference changes should not enter the global undo stack by default. Normal settings changes should commit immediately because changing a setting is treated as intentional user action. Risky settings such as enabling YOLO mode, changing trash folder location, cache cleanup policy, audio backend/device, or write format should require confirmation before the setting change is committed.
 
 Restoring a previous audio backend or device setting through a settings-local restore action should restore the previous backend/device only if it is still available. If the previous device has disappeared, is disconnected, or cannot be opened, Wavecrate should keep or choose a safe available fallback and show a clear warning.
 
@@ -2169,7 +2171,7 @@ Settings should include:
 - logging level and diagnostic bundle options
 - keyboard shortcut overrides when custom shortcuts are supported
 
-Settings changes should take effect predictably when committed, but they should not be represented as undoable global transactions by default. Normal settings changes should commit immediately because the user explicitly changed the setting. Risky settings such as YOLO mode, trash folder location, cache cleanup, audio backend/device, audio write format, and destructive overwrite behavior should require clear confirmation before the setting change is committed.
+Settings changes should take effect predictably when committed, but they should not be represented as undoable global transactions by default. Normal settings changes should commit immediately because the user explicitly changed the setting. Risky settings such as enabling YOLO mode, changing trash folder location, cache cleanup, audio backend/device, audio write format, and destructive overwrite behavior should require clear confirmation before the setting change is committed.
 
 The generated-name naming template is not a normal runtime setting in the current target. It is a launch-loaded config-file-only setting and is therefore not represented as an undoable in-app settings transaction.
 
