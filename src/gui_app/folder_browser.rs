@@ -21,8 +21,6 @@ const MAX_SCAN_DEPTH: usize = 3;
 const MAX_CHILD_FOLDERS: usize = 80;
 const TREE_ROW_HEIGHT: f32 = 23.0;
 const TREE_DEPTH_INDENT: f32 = 4.0;
-const FOLDER_RENAME_INPUT_BASE_ID: u64 = 70_000_000;
-const FILE_RENAME_INPUT_BASE_ID: u64 = 80_000_000;
 const MIN_FILE_COLUMN_WIDTH: f32 = 48.0;
 const MAX_FILE_COLUMN_WIDTH: f32 = 420.0;
 
@@ -1738,6 +1736,13 @@ impl FolderEntry {
     }
 }
 
+mod path_helpers;
+use path_helpers::{
+    file_extension_label, file_label, file_rename_draft, file_rename_input_id, file_stem_label,
+    folder_label, next_available_folder_name, offset_index, path_id, rename_input_id,
+    resolved_file_rename, rewrite_path_id, valid_file_name, valid_folder_name,
+};
+
 mod state_types;
 pub(super) use state_types::FileColumn;
 use state_types::{
@@ -2287,118 +2292,6 @@ fn read_sorted_entries(path: &Path) -> Vec<PathBuf> {
             .cmp(&file_label(b).to_ascii_lowercase())
     });
     entries
-}
-
-fn path_id(path: &Path) -> String {
-    path.to_string_lossy().to_string()
-}
-
-fn rewrite_path_id(id: &str, old_path: &Path, new_path: &Path) -> String {
-    let path = Path::new(id);
-    if path == old_path {
-        return path_id(new_path);
-    }
-    path.strip_prefix(old_path)
-        .map(|relative| path_id(&new_path.join(relative)))
-        .unwrap_or_else(|_| id.to_string())
-}
-
-fn valid_folder_name(name: &str) -> bool {
-    !name.is_empty()
-        && name != "."
-        && name != ".."
-        && !name
-            .chars()
-            .any(|ch| matches!(ch, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*'))
-}
-
-fn valid_file_name(name: &str) -> bool {
-    valid_folder_name(name)
-}
-
-fn next_available_folder_name(parent: &Path) -> String {
-    const BASE_NAME: &str = "New folder";
-    if !parent.join(BASE_NAME).exists() {
-        return String::from(BASE_NAME);
-    }
-    (2..)
-        .map(|index| format!("{BASE_NAME} {index}"))
-        .find(|name| !parent.join(name).exists())
-        .unwrap_or_else(|| String::from(BASE_NAME))
-}
-
-fn resolved_file_rename(old_path: &Path, submitted: &str) -> Option<String> {
-    if submitted.is_empty() {
-        return None;
-    }
-    let submitted_path = Path::new(submitted);
-    if submitted_path.components().count() != 1 {
-        return None;
-    }
-    let extension = old_path.extension()?.to_string_lossy();
-    Some(format!("{submitted}.{extension}"))
-}
-
-fn file_rename_draft(name: &str) -> String {
-    Path::new(name)
-        .file_stem()
-        .map(|stem| stem.to_string_lossy().to_string())
-        .unwrap_or_else(|| name.to_string())
-}
-
-fn rename_input_id(folder_id: &str) -> u64 {
-    folder_id
-        .bytes()
-        .fold(FOLDER_RENAME_INPUT_BASE_ID, |hash, byte| {
-            hash.wrapping_mul(16_777_619) ^ u64::from(byte)
-        })
-}
-
-fn file_rename_input_id(file_id: &str) -> u64 {
-    file_id
-        .bytes()
-        .fold(FILE_RENAME_INPUT_BASE_ID, |hash, byte| {
-            hash.wrapping_mul(16_777_619) ^ u64::from(byte)
-        })
-}
-
-fn folder_label(path: &Path) -> String {
-    path.file_name()
-        .map(|name| name.to_string_lossy().to_string())
-        .filter(|name| !name.is_empty())
-        .unwrap_or_else(|| path.display().to_string())
-}
-
-fn file_label(path: &Path) -> String {
-    path.file_name()
-        .map(|name| name.to_string_lossy().to_string())
-        .unwrap_or_else(|| path.display().to_string())
-}
-
-fn file_stem_label(path: &Path) -> String {
-    path.file_stem()
-        .map(|name| name.to_string_lossy().to_string())
-        .filter(|name| !name.is_empty())
-        .unwrap_or_else(|| file_label(path))
-}
-
-fn file_extension_label(path: &Path) -> String {
-    path.extension()
-        .map(|extension| extension.to_string_lossy().to_string())
-        .unwrap_or_default()
-}
-
-fn offset_index(current: usize, delta: i32, len: usize) -> usize {
-    if len == 0 {
-        return 0;
-    }
-    if delta.is_negative() {
-        current.saturating_sub(delta.unsigned_abs() as usize)
-    } else {
-        current
-            .saturating_add(delta as usize)
-            .min(len.saturating_sub(1))
-    }
 }
 
 #[cfg(test)]
