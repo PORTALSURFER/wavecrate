@@ -2,13 +2,26 @@ use std::sync::Arc;
 
 use super::super::BAND_COUNT;
 
+#[cfg(test)]
 pub(in crate::gui_app::waveform) fn split_frequency_bands(
     samples: &[f32],
     sample_rate: u32,
 ) -> Arc<[f32]> {
+    split_frequency_bands_with_progress(samples, sample_rate, 0.0, 1.0, &|_| {})
+}
+
+pub(in crate::gui_app::waveform) fn split_frequency_bands_with_progress(
+    samples: &[f32],
+    sample_rate: u32,
+    start: f32,
+    end: f32,
+    progress: &impl Fn(f32),
+) -> Arc<[f32]> {
     if samples.is_empty() {
         return Arc::from([]);
     }
+    let filter_end = start + (end - start) * 0.76;
+    let normalize_end = start + (end - start) * 0.98;
     let alpha_low = lowpass_alpha(sample_rate, 150.0);
     let alpha_mid = lowpass_alpha(sample_rate, 2_200.0);
     let mut low = 0.0_f32;
@@ -20,7 +33,7 @@ pub(in crate::gui_app::waveform) fn split_frequency_bands(
     let mid_release = envelope_release_alpha(sample_rate, 5.5);
     let high_release = envelope_release_alpha(sample_rate, 2.2);
     let mut bands = Vec::with_capacity(samples.len().saturating_mul(BAND_COUNT));
-    for sample in samples {
+    for (index, sample) in samples.iter().enumerate() {
         let sample = sample.clamp(-1.0, 1.0);
         low += alpha_low * (sample - low);
         mid_low += alpha_mid * (sample - mid_low);
@@ -34,12 +47,26 @@ pub(in crate::gui_app::waveform) fn split_frequency_bands(
         bands.push(mid_envelope);
         bands.push(high_envelope);
         bands.push(sample);
+        super::report_phase_progress_throttled(
+            start,
+            filter_end,
+            index + 1,
+            samples.len(),
+            progress,
+        );
     }
-    normalize_visual_band_peaks(&mut bands);
+    progress(filter_end);
+    normalize_visual_band_peaks_with_progress(&mut bands, filter_end, normalize_end, progress);
+    progress(end);
     bands.into()
 }
 
-fn normalize_visual_band_peaks(bands: &mut [f32]) {
+fn normalize_visual_band_peaks_with_progress(
+    bands: &mut [f32],
+    start: f32,
+    end: f32,
+    progress: &impl Fn(f32),
+) {
     let raw_peak = bands
         .chunks_exact(BAND_COUNT)
         .map(|frame| frame[3].abs())
@@ -69,10 +96,21 @@ fn normalize_visual_band_peaks(bands: &mut [f32]) {
             max_gains[band]
         };
         let gain = (target / peak).clamp(0.25, max_gain);
-        for frame in bands.chunks_exact_mut(BAND_COUNT) {
+        let frame_count = bands.len() / BAND_COUNT;
+        for (index, frame) in bands.chunks_exact_mut(BAND_COUNT).enumerate() {
             frame[band] = (frame[band] * gain).clamp(-1.0, 1.0);
+            let band_start = start + (end - start) * (band as f32 / 3.0);
+            let band_end = start + (end - start) * ((band + 1) as f32 / 3.0);
+            super::report_phase_progress_throttled(
+                band_start,
+                band_end,
+                index + 1,
+                frame_count,
+                progress,
+            );
         }
     }
+    progress(end);
 }
 
 fn visual_band_peak(bands: &[f32], band: usize) -> f32 {

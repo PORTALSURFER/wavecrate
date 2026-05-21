@@ -3,14 +3,11 @@
 use radiant::gui::types::{Point, Rect, Rgba8};
 use radiant::layout::{LayoutOutput, Vector2};
 use radiant::prelude as ui;
-use radiant::runtime::{
-    NativeRunOptions, NativeTextOptions, PaintFillRect, PaintPrimitive, PaintText, PaintTextAlign,
-    PaintTextRun,
-};
+use radiant::runtime::{NativeRunOptions, NativeTextOptions, PaintFillRect, PaintPrimitive};
 use radiant::theme::ThemeTokens;
 use radiant::widgets::{
-    DragHandleMessage, FocusBehavior, PointerModifiers, TextWrap, Widget, WidgetCommon,
-    WidgetInput, WidgetOutput, WidgetSizing,
+    DragHandleMessage, FocusBehavior, PointerModifiers, Widget, WidgetCommon, WidgetInput,
+    WidgetOutput, WidgetSizing,
 };
 use rfd::FileDialog;
 use std::{
@@ -96,6 +93,7 @@ enum GuiMessage {
         drag: DragHandleMessage,
     },
     ExternalDragCompleted(Result<ui::ExternalDragOutcome, String>),
+    SampleLoadProgress(ui::TaskTicket, f32),
     SampleLoadFinished(ui::TaskCompletion<SampleLoadResult>),
     PlaySelectedSample,
     StopPlayback,
@@ -153,6 +151,8 @@ struct GuiAppState {
     sample_load_task: ui::LatestTask,
     folder_progress: Option<FolderScanProgress>,
     progress_tick: f32,
+    waveform_loading_progress: f32,
+    waveform_loading_target_progress: f32,
     audio_player: Option<AudioPlayer>,
     loop_playback: bool,
     volume: f32,
@@ -185,6 +185,8 @@ impl GuiAppState {
             sample_load_task: ui::LatestTask::new(),
             folder_progress: None,
             progress_tick: 0.0,
+            waveform_loading_progress: 0.0,
+            waveform_loading_target_progress: 0.0,
             audio_player: None,
             loop_playback: false,
             volume: DEFAULT_VOLUME,
@@ -451,6 +453,11 @@ impl GuiAppState {
                 self.drag_sample_file(path, drag, context);
             }
             GuiMessage::ExternalDragCompleted(result) => self.external_drag_completed(result),
+            GuiMessage::SampleLoadProgress(ticket, progress) => {
+                if self.sample_load_task.is_active(ticket) {
+                    self.waveform_loading_target_progress = progress.clamp(0.0, 0.995);
+                }
+            }
             GuiMessage::SampleLoadFinished(result) => self.finish_sample_load(result),
             GuiMessage::PlaySelectedSample => self.play_selected_sample(context),
             GuiMessage::StopPlayback => self.stop_playback(),
@@ -601,6 +608,13 @@ impl GuiAppState {
                 self.refresh_playback_progress();
                 if self.folder_progress.is_some() {
                     self.progress_tick = (self.progress_tick + 0.035) % 1.0;
+                }
+                if self.waveform_loading_label.is_some() {
+                    let remaining =
+                        self.waveform_loading_target_progress - self.waveform_loading_progress;
+                    if remaining > 0.0 {
+                        self.waveform_loading_progress += remaining.min(0.03);
+                    }
                 }
             }
         }
@@ -1428,6 +1442,8 @@ impl GuiAppState {
         self.sample_status = format!("Loading {}", sample_path_label(path.as_str()));
         let label = sample_path_label(path.as_str());
         self.waveform_loading_label = Some(label.clone());
+        self.waveform_loading_progress = 0.0;
+        self.waveform_loading_target_progress = 0.0;
         emit_gui_action(
             "browser.select_sample",
             Some("browser"),
@@ -1436,12 +1452,19 @@ impl GuiAppState {
             started_at,
             None,
         );
-        context.spawn_latest(
-            &mut self.sample_load_task,
+        let ticket = self.sample_load_task.begin();
+        let sender = self.worker_sender.clone();
+        context.spawn(
             "gui-sample-load",
             move || {
-                let result = WaveformState::load_path(PathBuf::from(&path));
-                SampleLoadResult { path, result }
+                let result =
+                    WaveformState::load_path_with_progress(PathBuf::from(&path), |progress| {
+                        let _ = sender.send(GuiMessage::SampleLoadProgress(ticket, progress));
+                    });
+                ui::TaskCompletion {
+                    ticket,
+                    output: SampleLoadResult { path, result },
+                }
             },
             GuiMessage::SampleLoadFinished,
         );
@@ -1464,6 +1487,8 @@ impl GuiAppState {
             return;
         }
         self.waveform_loading_label = None;
+        self.waveform_loading_progress = 0.0;
+        self.waveform_loading_target_progress = 0.0;
         match load.result {
             Ok(waveform) => {
                 let file_name = waveform.file_name();
@@ -1584,6 +1609,7 @@ pub(crate) fn run() -> Result<(), String> {
                 state.waveform.is_playing()
                     || state.waveform.play_selection_flash_active()
                     || state.folder_progress.is_some()
+                    || state.waveform_loading_label.is_some()
             })
             .on_frame(|| GuiMessage::Frame)
             .subscriptions(GuiAppState::worker_subscription)
@@ -2057,7 +2083,7 @@ fn waveform_viewport_with_loading_state(state: &GuiAppState) -> ui::View<GuiMess
     };
     ui::stack([
         viewport,
-        waveform_loading_visual(label, state.progress_tick),
+        waveform_loading_visual(label, state.waveform_loading_progress),
         ui::custom_widget_mapped(WaveformLoadingInputBlocker::new(), |message: GuiMessage| {
             message
         })
@@ -2070,8 +2096,8 @@ fn waveform_viewport_with_loading_state(state: &GuiAppState) -> ui::View<GuiMess
     .height(WAVEFORM_VIEW_HEIGHT)
 }
 
-fn waveform_loading_visual(label: &str, tick: f32) -> ui::View<GuiMessage> {
-    ui::custom_widget(WaveformLoadingVisual::new(label, tick), |_| None)
+fn waveform_loading_visual(_label: &str, progress: f32) -> ui::View<GuiMessage> {
+    ui::custom_widget(WaveformLoadingVisual::new(progress), |_| None)
         .key("waveform-loading-visual")
         .fill_width()
         .height(WAVEFORM_VIEW_HEIGHT)
@@ -2080,20 +2106,18 @@ fn waveform_loading_visual(label: &str, tick: f32) -> ui::View<GuiMessage> {
 #[derive(Clone, Debug)]
 struct WaveformLoadingVisual {
     common: WidgetCommon,
-    label: String,
-    tick: f32,
+    progress: f32,
 }
 
 impl WaveformLoadingVisual {
-    fn new(label: &str, tick: f32) -> Self {
+    fn new(progress: f32) -> Self {
         let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 1.0)));
         common.focus = FocusBehavior::None;
         common.paint.paints_focus = false;
         common.paint.paints_state_layers = false;
         Self {
             common,
-            label: label.to_string(),
-            tick,
+            progress: progress.clamp(0.0, 1.0),
         }
     }
 }
@@ -2126,63 +2150,29 @@ impl Widget for WaveformLoadingVisual {
             widget_id: self.common.id,
             rect: bounds,
             color: Rgba8 {
-                r: 24,
-                g: 27,
-                b: 28,
-                a: 128,
+                r: 22,
+                g: 24,
+                b: 25,
+                a: 72,
             },
         }));
 
-        let content = Rect::from_min_max(
-            Point::new(bounds.min.x + 8.0, bounds.min.y + 48.0),
-            Point::new(bounds.max.x - 8.0, bounds.min.y + 70.0),
-        );
-        primitives.push(PaintPrimitive::Text(PaintTextRun {
-            widget_id: self.common.id,
-            text: PaintText::from(format!("Loading waveform | {}", self.label)),
-            rect: content,
-            font_size: 10.0,
-            baseline: Some(14.0),
-            color: Rgba8 {
-                r: 218,
-                g: 219,
-                b: 219,
-                a: 235,
-            },
-            align: PaintTextAlign::Left,
-            wrap: TextWrap::None,
-        }));
-
-        let phase = ((self.tick.sin() + 1.0) * 0.5).clamp(0.0, 1.0);
-        let track = Rect::from_min_max(
-            Point::new(bounds.min.x + 8.0, bounds.min.y + 74.0),
-            Point::new(bounds.max.x - 8.0, bounds.min.y + 79.0),
-        );
-        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-            widget_id: self.common.id,
-            rect: track,
-            color: Rgba8 {
-                r: 72,
-                g: 76,
-                b: 78,
-                a: 130,
-            },
-        }));
-        let shimmer_width = track.width().min(120.0).max(48.0);
-        let shimmer_x = track.min.x + (track.width() - shimmer_width).max(0.0) * phase;
-        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-            widget_id: self.common.id,
-            rect: Rect::from_min_max(
-                Point::new(shimmer_x, track.min.y),
-                Point::new((shimmer_x + shimmer_width).min(track.max.x), track.max.y),
-            ),
-            color: Rgba8 {
-                r: 255,
-                g: 112,
-                b: 86,
-                a: 172,
-            },
-        }));
+        let fill_width = bounds.width() * self.progress;
+        if fill_width > 0.5 {
+            primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+                widget_id: self.common.id,
+                rect: Rect::from_min_max(
+                    bounds.min,
+                    Point::new((bounds.min.x + fill_width).min(bounds.max.x), bounds.max.y),
+                ),
+                color: Rgba8 {
+                    r: 174,
+                    g: 178,
+                    b: 181,
+                    a: 118,
+                },
+            }));
+        }
     }
 }
 
@@ -2306,6 +2296,8 @@ mod tests {
             sample_load_task: ui::LatestTask::new(),
             folder_progress: None,
             progress_tick: 0.0,
+            waveform_loading_progress: 0.0,
+            waveform_loading_target_progress: 0.0,
             audio_player: None,
             loop_playback: false,
             volume: super::DEFAULT_VOLUME,
@@ -2544,6 +2536,8 @@ mod tests {
             sample_load_task: ui::LatestTask::new(),
             folder_progress: None,
             progress_tick: 0.0,
+            waveform_loading_progress: 0.0,
+            waveform_loading_target_progress: 0.0,
             audio_player: None,
             loop_playback: false,
             volume: super::DEFAULT_VOLUME,
@@ -2672,6 +2666,8 @@ mod tests {
             sample_load_task: ui::LatestTask::new(),
             folder_progress: None,
             progress_tick: 0.0,
+            waveform_loading_progress: 0.0,
+            waveform_loading_target_progress: 0.0,
             audio_player: None,
             loop_playback: false,
             volume: super::DEFAULT_VOLUME,
@@ -3629,7 +3625,7 @@ mod tests {
     }
 
     #[test]
-    fn waveform_loading_visual_does_not_paint_layout_borders() {
+    fn waveform_loading_visual_paints_full_height_gray_fill_without_chrome() {
         let frame = radiant::runtime::UiSurface::new(
             super::waveform_loading_visual("kick.wav", 0.25).into_node(),
         )
@@ -3638,17 +3634,34 @@ mod tests {
             &radiant::theme::ThemeTokens::default(),
         );
 
-        assert!(frame.paint_plan.primitives.iter().any(|primitive| matches!(
-            primitive,
-            PaintPrimitive::Text(text)
-                if text.text.as_str() == "Loading waveform | kick.wav"
-        )));
+        let fill_rects = frame
+            .paint_plan
+            .primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::FillRect(rect) => Some(rect),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert!(fill_rects.iter().any(|fill| {
+            (fill.rect.width() - 180.0).abs() < 0.01
+                && (fill.rect.height() - 172.0).abs() < 0.01
+                && fill.rect.min.x == 0.0
+                && fill.rect.min.y == 0.0
+                && fill.color.r == 174
+                && fill.color.g == 178
+                && fill.color.b == 181
+        }));
         assert!(
             frame
                 .paint_plan
                 .primitives
                 .iter()
-                .all(|primitive| !matches!(primitive, PaintPrimitive::StrokeRect(_)))
+                .all(|primitive| !matches!(
+                    primitive,
+                    PaintPrimitive::StrokeRect(_) | PaintPrimitive::Text(_)
+                ))
         );
     }
 
