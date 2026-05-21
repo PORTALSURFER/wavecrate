@@ -726,7 +726,7 @@ YOLO mode should be off by default for all users. In default non-YOLO mode, dest
 
 The warning should explain that the edit will modify the audio file on disk and that the change can be undone during the current session. The primary choices should be confirm or cancel. Every destructive audio edit warning may show a deliberate secondary action such as "Enable YOLO and Apply" for users who understand the behavior; this should not require another advanced preference. Choosing that secondary action should enable YOLO mode and immediately proceed with the current destructive command without a second confirmation. It should not be the default button or easiest accidental path.
 
-For batch destructive audio edits while YOLO mode is off, Wavecrate should show one warning for the whole batch rather than one warning per file. The warning should include a concise affected-file count so the user understands the scope before confirming.
+For batch destructive audio edits while YOLO mode is off, Wavecrate should show one warning for the whole batch rather than one warning per file. The warning should include a concise affected-file count so the user understands the scope before confirming. If the batch warning offers "Enable YOLO and Apply", it should follow the same rule as single-file destructive warnings: enable YOLO mode and immediately proceed with the current batch without a second confirmation.
 
 Development-only shortcuts may exist outside the product target, but product builds should remain warning-protected by default unless YOLO mode is explicitly enabled.
 
