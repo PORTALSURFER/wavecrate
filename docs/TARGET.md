@@ -250,6 +250,8 @@ The `.wavecrate.db` file should be excluded from ordinary copy, move, trash, del
 
 If a user copies, moves, backs up, syncs, or transfers an entire source folder outside Wavecrate, the `.wavecrate.db` file should travel with that folder as source-local metadata. Wavecrate should be able to relink or reopen the moved/copied source folder and use the carried `.wavecrate.db` to preserve file metadata where file identity and paths can be reconciled safely.
 
+Wavecrate should not provide a separate user-facing backup command for `.wavecrate.db` or source metadata in the current target. Normal external whole-folder backup, sync, or transfer is the intended backup path, and diagnostics may explain that source metadata travels with the source folder through `.wavecrate.db`.
+
 When Wavecrate itself copies a folder inside a source, it should exclude `.wavecrate.db` from the copy. In-app folder copy should create ordinary copied files and folders, then let Wavecrate register/reconcile copied audio as new independent file identities instead of carrying source-local database state into the copied folder. This applies only to folders below a configured source root; copying the configured source root itself should not be available as an ordinary in-app folder action.
 
 If a copied source folder is added while the original source is still indexed, Wavecrate should treat the copied folder as an independent source rather than rejecting it as a duplicate source. Any duplicated embedded Sample IDs or duplicate audio content inside the copied source should be handled by the normal file-level duplicate-ID conflict and exact-audio duplicate systems, not by blocking source addition.
