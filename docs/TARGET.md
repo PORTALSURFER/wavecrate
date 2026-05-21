@@ -244,7 +244,7 @@ Wavecrate should split storage between source-local state and global application
 
 Source-specific information should live in the folder of that source. Each indexed source folder should contain a special Wavecrate source database file named `.wavecrate.db`. This keeps source metadata close to the real files and makes a source folder more portable between machines or Wavecrate installations while avoiding confusion with the global `.wavecrate` configuration folder.
 
-Source onboarding should make this write behavior explicit before the source is accepted. The add-source UI should tell the user that Wavecrate will create or update `.wavecrate.db` in the selected folder and may embed Wavecrate Sample ID metadata into supported audio files. Accepting that disclosure is part of adding a normal Wavecrate source; it is not a separate read-only mode.
+Source onboarding should avoid noisy implementation details in the main add-source flow. The fact that Wavecrate creates or updates `.wavecrate.db` in the selected folder should be documented, but the add-source UI does not need to mention the database file by default. The source-add flow should still make clear that adding a source lets Wavecrate manage supported files according to normal Wavecrate commands and safety settings; it is not a separate read-only mode.
 
 The `.wavecrate.db` file is internal source metadata and should be hidden from the normal sample browser, folder tree, and `all files` visibility mode. Wavecrate should mark the file as operating-system hidden where the platform supports that behavior. Diagnostics, source repair flows, logs, and support UI may mention the file when relevant, but reveal actions should reveal the source folder rather than selecting or opening `.wavecrate.db` directly.
 
@@ -1076,7 +1076,7 @@ Wavecrate should let users add one or more source folders. A source folder is a 
 
 Adding a source should:
 
-- disclose that Wavecrate will create or update source-local metadata in `.wavecrate.db` and may write embedded Sample IDs to supported files
+- avoid noisy implementation details while making clear that adding a source lets Wavecrate manage supported files according to normal commands and safety settings
 - validate that the path exists and is readable
 - reject exact duplicate source roots that point to the same resolved filesystem location already configured
 - reject nested source roots when the new source is inside an existing source or contains an existing source
