@@ -1,14 +1,12 @@
 #![allow(missing_docs)]
 
-use radiant::{gui::types::Point, prelude as ui, widgets::DragHandleMessage};
+use radiant::{gui::types::Point, prelude as ui};
 use std::{collections::HashSet, path::PathBuf};
 
 use super::GuiMessage;
 
 const TREE_ROW_HEIGHT: f32 = 23.0;
 const TREE_DEPTH_INDENT: f32 = 4.0;
-const MIN_FILE_COLUMN_WIDTH: f32 = 48.0;
-const MAX_FILE_COLUMN_WIDTH: f32 = 420.0;
 
 #[derive(Clone, Debug)]
 pub(super) struct FolderBrowserState {
@@ -97,14 +95,6 @@ impl FolderBrowserState {
             .collect::<Vec<_>>();
         self.sort_files(&mut files);
         files
-    }
-
-    pub(super) fn visible_file_columns(&self) -> Vec<&FileColumn> {
-        self.file_columns.iter().collect()
-    }
-
-    pub(super) fn file_sort(&self) -> &ui::DetailsSort {
-        &self.file_sort
     }
 
     pub(super) fn selected_file_id(&self) -> Option<&str> {
@@ -215,88 +205,6 @@ impl FolderBrowserState {
         self.file_view_start = 0;
     }
 
-    fn sort_file_column(&mut self, column_id: String) {
-        if self.file_sort.column_id == column_id {
-            self.file_sort.direction = self.file_sort.direction.toggled();
-        } else {
-            self.file_sort = ui::DetailsSort::new(column_id, ui::SortDirection::Ascending);
-        }
-    }
-
-    fn resize_file_column(&mut self, column_id: String, message: DragHandleMessage) {
-        match message {
-            DragHandleMessage::Started { position } => {
-                if let Some(column) = self
-                    .file_columns
-                    .iter()
-                    .find(|column| column.id == column_id)
-                {
-                    self.file_column_resize = Some(FileColumnResize {
-                        column_id,
-                        start_x: position.x,
-                        start_width: column.width,
-                    });
-                }
-            }
-            DragHandleMessage::Moved { position } | DragHandleMessage::Ended { position } => {
-                let Some(resize) = self.file_column_resize.clone() else {
-                    return;
-                };
-                if let Some(column) = self
-                    .file_columns
-                    .iter_mut()
-                    .find(|column| column.id == resize.column_id)
-                {
-                    column.width = (resize.start_width + position.x - resize.start_x)
-                        .clamp(MIN_FILE_COLUMN_WIDTH, MAX_FILE_COLUMN_WIDTH);
-                }
-                if matches!(message, DragHandleMessage::Ended { .. }) {
-                    self.file_column_resize = None;
-                }
-            }
-        }
-    }
-
-    fn sort_files<'a>(&self, files: &mut Vec<&'a FileEntry>) {
-        files.sort_by(|a, b| {
-            let ordering = match self.file_sort.column_id.as_str() {
-                "extension" => a
-                    .extension
-                    .to_ascii_lowercase()
-                    .cmp(&b.extension.to_ascii_lowercase())
-                    .then_with(|| {
-                        a.name
-                            .to_ascii_lowercase()
-                            .cmp(&b.name.to_ascii_lowercase())
-                    }),
-                "size" => a.size_bytes.cmp(&b.size_bytes).then_with(|| {
-                    a.name
-                        .to_ascii_lowercase()
-                        .cmp(&b.name.to_ascii_lowercase())
-                }),
-                "modified" => a.modified_rank.cmp(&b.modified_rank).then_with(|| {
-                    a.name
-                        .to_ascii_lowercase()
-                        .cmp(&b.name.to_ascii_lowercase())
-                }),
-                "kind" => a.kind.cmp(&b.kind).then_with(|| {
-                    a.name
-                        .to_ascii_lowercase()
-                        .cmp(&b.name.to_ascii_lowercase())
-                }),
-                "path" => a.id.cmp(&b.id),
-                _ => a
-                    .name
-                    .to_ascii_lowercase()
-                    .cmp(&b.name.to_ascii_lowercase()),
-            };
-            match self.file_sort.direction {
-                ui::SortDirection::Ascending => ordering,
-                ui::SortDirection::Descending => ordering.reverse(),
-            }
-        });
-    }
-
     fn selected_folder_is_source_root(&self) -> bool {
         self.sources.iter().any(|source| {
             source.id == self.selected_source && path_id(&source.root) == self.selected_folder
@@ -367,6 +275,10 @@ mod drag_drop_relocation;
 mod delete_workflow;
 
 mod file_selection;
+
+mod file_columns;
+#[cfg(test)]
+pub(super) use file_columns::MIN_FILE_COLUMN_WIDTH;
 
 mod file_model;
 pub(in crate::gui_app) use file_model::FileEntry;
