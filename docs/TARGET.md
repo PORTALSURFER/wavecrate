@@ -734,6 +734,8 @@ Advanced users should be able to enable a persistent destructive workflow mode, 
 
 When this mode is enabled, Wavecrate should stop showing repetitive destructive-edit warnings and should allow fast in-place editing. Users in this mode are expected to duplicate files themselves when they want backups.
 
+YOLO mode applies only to destructive audio editing warnings. It should not suppress file-operation safety rules or prompts for trashing, moving, copying, deleting/removing folders with hidden contents, changing trash configuration, source management, or other non-audio-edit workflows.
+
 YOLO mode should be explicit and persistent. It should not be enabled accidentally, but it does not need a persistent main-interface indicator because it is a set-and-forget advanced setting. The current state should remain visible in settings and in destructive-warning flows where it matters.
 
 Changing YOLO mode from Settings should be asymmetric. Enabling YOLO mode removes destructive warnings and should require confirmation before the setting is committed. Disabling YOLO mode restores the default safety warnings and may apply immediately without confirmation.
@@ -1009,7 +1011,7 @@ Rating filters and sorting should be explicit:
 - Unrated, keep levels, accepted/favorite/locked, trash levels, rejected, and trashed states should be separately filterable.
 - Default browser sorting should not hide rejected files that are still pending trash movement unless a filter or cleanup mode says to hide them. Successfully trashed files usually disappear from the original source because they have been physically moved to the configured trash folder.
 - Accepted/favorite/locked status only locks the rating from accidental rating changes. It should not create special restrictions for ordinary file, metadata, tag, rename, move, copy, edit, trash, cleanup, extraction, handoff, or batch operations.
-- Operations on accepted/favorite/locked files should follow the same confirmation, destructive-edit safety, YOLO mode, recovery, undo, configured write-format, trash-folder, collision, and logging rules as the same operation on any other rated file.
+- Operations on accepted/favorite/locked files should follow the same confirmation, destructive-edit safety, recovery, undo, configured write-format, trash-folder, collision, and logging rules as the same operation on any other rated file. YOLO mode affects only destructive audio-edit warnings and does not create special file-operation behavior for accepted/favorite/locked files.
 - Moving, copying, renaming, editing, tagging, trashing, or otherwise operating on an accepted/favorite/locked file should preserve the accepted/favorite/locked rating state unless the user explicitly unlocks and changes that rating state.
 - Rejected files should remain visible enough for review only while trash movement is pending or failed. After successful trash movement, they should no longer appear in the original source unless the configured trash folder itself is indexed as a source.
 - Moving, renaming, editing, or tagging a rated file should preserve the rating state unless the user explicitly changes it.
