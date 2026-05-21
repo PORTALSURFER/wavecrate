@@ -444,11 +444,11 @@ fn options_panel_overview_lists_audio_rows_before_legacy_toggles() {
                 value_label: String::from("ASIO"),
             },
             primary_item: crate::app_core::native_shell::runtime_contract::SummaryFieldModel {
-                label: String::from("Output Device"),
+                label: String::from("Output"),
                 value_label: String::from("USB"),
             },
             primary_number: crate::app_core::native_shell::runtime_contract::SummaryFieldModel {
-                label: String::from("Output Sample Rate"),
+                label: String::from("Sample Rate"),
                 value_label: String::from("48 kHz"),
             },
             secondary_group: crate::app_core::native_shell::runtime_contract::SummaryFieldModel {
@@ -476,7 +476,7 @@ fn options_panel_overview_lists_audio_rows_before_legacy_toggles() {
         .map(|button| button.action.clone())
         .collect::<Vec<_>>();
 
-    assert_eq!(panel.title, "Audio Engine");
+    assert!(panel.title.is_empty());
     assert_eq!(
         actions[..6],
         [
@@ -488,7 +488,11 @@ fn options_panel_overview_lists_audio_rows_before_legacy_toggles() {
             UiAction::OpenSecondaryNumberPicker,
         ]
     );
-    assert_eq!(actions.last(), Some(&UiAction::CloseOptionsPanel));
+    assert!(
+        !actions
+            .iter()
+            .any(|action| action == &UiAction::CloseOptionsPanel)
+    );
 }
 
 #[test]
@@ -524,7 +528,7 @@ fn options_panel_picker_mode_expands_inline_dropdown_actions() {
 
     let panel = options_panel_layout(&layout, &style, &model)
         .expect("visible picker panel should resolve layout");
-    assert_eq!(panel.title, "Audio Engine");
+    assert!(panel.title.is_empty());
     let dropdown_row = panel
         .buttons
         .iter()
@@ -537,7 +541,7 @@ fn options_panel_picker_mode_expands_inline_dropdown_actions() {
             .starts_with("Sample Rate")
             || panel.buttons[dropdown_row]
                 .text
-                .starts_with("Output Sample Rate")
+                .starts_with("Sample Rate")
     );
     assert_eq!(
         panel.buttons[dropdown_row + 1].action,
@@ -612,12 +616,12 @@ fn options_panel_renders_after_other_modal_overlays() {
         .iter()
         .position(|run| run.text == "Background task")
         .expect("progress overlay title should render");
-    let panel_title_index = overlay
+    let panel_row_index = overlay
         .text_runs
         .iter()
-        .position(|run| run.text == "Audio Engine")
-        .expect("options panel title should render");
-    assert!(panel_title_index > progress_title_index);
+        .position(|run| run.text.starts_with("Output Host"))
+        .expect("options panel row should render");
+    assert!(panel_row_index > progress_title_index);
 
     let panel = options_panel_layout(&layout, &style, &model)
         .expect("visible options panel should resolve layout");

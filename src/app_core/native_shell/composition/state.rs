@@ -889,7 +889,7 @@ mod opt_272_tests {
     }
 
     #[test]
-    fn options_panel_can_be_repositioned_by_dragging_title_bar() {
+    fn options_panel_omits_inner_title_drag_surface() {
         let layout = ShellLayout::build(Vector2::new(1280.0, 720.0));
         let style = style_for_layout(&layout);
         let mut state = NativeShellState::new();
@@ -904,20 +904,9 @@ mod opt_272_tests {
             .expect("visible options panel should resolve layout");
         let grab = initial.title_rect.center();
 
-        assert!(state.begin_options_panel_drag(&layout, &model, grab));
-        assert!(state.update_options_panel_drag(
-            &layout,
-            &model,
-            Point::new(grab.x - 160.0, grab.y + 96.0),
-        ));
-        assert!(state.finish_options_panel_drag());
-
-        let moved = state
-            .options_panel_title_rect_live(&layout, &model)
-            .expect("moved options panel should still resolve");
-        assert!(moved.min.x < initial.title_rect.min.x - 80.0);
-        assert!(moved.min.y > initial.title_rect.min.y + 40.0);
-        assert!(state.options_panel_contains_point(&layout, &model, moved.center()));
+        assert!(initial.title.is_empty());
+        assert_eq!(initial.title_rect.height(), 0.0);
+        assert!(!state.begin_options_panel_drag(&layout, &model, grab));
     }
 
     #[test]
@@ -961,7 +950,7 @@ mod opt_272_tests {
                     crate::app_core::native_shell::runtime_contract::PairedPickerTargetModel::PrimaryNumber,
                 ),
                 primary_number: crate::app_core::native_shell::runtime_contract::SummaryFieldModel {
-                    label: String::from("Output Sample Rate"),
+                    label: String::from("Sample Rate"),
                     value_label: String::from("48 kHz"),
                 },
                 primary_number_options: vec![
@@ -985,18 +974,14 @@ mod opt_272_tests {
 
         let panel = options_panel_layout(&layout, &style, &model)
             .expect("visible picker panel should resolve layout");
-        assert_eq!(panel.title, "Audio Engine");
+        assert!(panel.title.is_empty());
         let dropdown_row = panel
             .buttons
             .iter()
             .position(|button| button.action == UiAction::OpenPrimaryNumberPicker)
             .expect("active picker row should remain in the overview");
         assert!(panel.buttons[dropdown_row].active);
-        assert!(
-            panel.buttons[dropdown_row]
-                .text
-                .starts_with("Output Sample Rate")
-        );
+        assert!(panel.buttons[dropdown_row].text.starts_with("Sample Rate"));
         assert_eq!(
             panel.buttons[dropdown_row + 1].action,
             UiAction::SetPrimaryNumber { value: None }
