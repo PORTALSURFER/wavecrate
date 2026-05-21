@@ -36,12 +36,9 @@ impl WaveformWidget {
             return None;
         }
         let x = self.x_for_micros(bounds, end)?;
-        Some(Rect::from_min_max(
-            Point::new(selection_rect.min.x, selection_rect.min.y),
-            Point::new(
-                x.clamp(selection_rect.min.x, selection_rect.max.x),
-                selection_rect.max.y,
-            ),
+        Some(left_band_rect(
+            selection_rect,
+            x.clamp(selection_rect.min.x, selection_rect.max.x),
         ))
     }
 
@@ -59,12 +56,9 @@ impl WaveformWidget {
             return None;
         }
         let x = self.x_for_micros(bounds, start)?;
-        Some(Rect::from_min_max(
-            Point::new(
-                x.clamp(selection_rect.min.x, selection_rect.max.x),
-                selection_rect.min.y,
-            ),
-            Point::new(selection_rect.max.x, selection_rect.max.y),
+        Some(right_band_rect(
+            selection_rect,
+            x.clamp(selection_rect.min.x, selection_rect.max.x),
         ))
     }
 
@@ -79,12 +73,9 @@ impl WaveformWidget {
             return None;
         }
         let x = self.x_for_micros(bounds, start)?;
-        Some(Rect::from_min_max(
-            Point::new(
-                x.clamp(bounds.min.x, selection_rect.min.x),
-                selection_rect.min.y,
-            ),
-            Point::new(selection_rect.min.x, selection_rect.max.y),
+        Some(outer_left_band_rect(
+            selection_rect,
+            x.clamp(bounds.min.x, selection_rect.min.x),
         ))
     }
 
@@ -99,12 +90,9 @@ impl WaveformWidget {
             return None;
         }
         let x = self.x_for_micros(bounds, end)?;
-        Some(Rect::from_min_max(
-            Point::new(selection_rect.max.x, selection_rect.min.y),
-            Point::new(
-                x.clamp(selection_rect.max.x, bounds.max.x),
-                selection_rect.max.y,
-            ),
+        Some(outer_right_band_rect(
+            selection_rect,
+            x.clamp(selection_rect.max.x, bounds.max.x),
         ))
     }
 
@@ -182,6 +170,34 @@ impl WaveformWidget {
         let visible_ratio = self.visible_ratio_for_absolute(Some(ratio))?;
         Some(bounds.min.x + bounds.width() * visible_ratio)
     }
+}
+
+fn left_band_rect(selection_rect: Rect, right_x: f32) -> Rect {
+    Rect::from_min_max(
+        Point::new(selection_rect.min.x, selection_rect.min.y),
+        Point::new(right_x, selection_rect.max.y),
+    )
+}
+
+fn right_band_rect(selection_rect: Rect, left_x: f32) -> Rect {
+    Rect::from_min_max(
+        Point::new(left_x, selection_rect.min.y),
+        Point::new(selection_rect.max.x, selection_rect.max.y),
+    )
+}
+
+fn outer_left_band_rect(selection_rect: Rect, left_x: f32) -> Rect {
+    Rect::from_min_max(
+        Point::new(left_x, selection_rect.min.y),
+        Point::new(selection_rect.min.x, selection_rect.max.y),
+    )
+}
+
+fn outer_right_band_rect(selection_rect: Rect, right_x: f32) -> Rect {
+    Rect::from_min_max(
+        Point::new(selection_rect.max.x, selection_rect.min.y),
+        Point::new(right_x, selection_rect.max.y),
+    )
 }
 
 fn edit_fade_handles() -> [WaveformEditFadeHandle; 6] {
