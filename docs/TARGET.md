@@ -297,7 +297,7 @@ WAV support should target ordinary RIFF/WAVE files. Wavecrate should not initial
 
 This is a deliberate simplification. Wavecrate should prioritize reliable destructive editing, extraction, metadata writing, waveform analysis, and DAW-compatible file behavior over broad format support.
 
-Recognizing a file as an audio-looking file is not the same as supporting it. Non-goal formats such as MP3 or FLAC may remain visible as unsupported audio rows so users understand why a file was skipped or cannot be edited, but they should not be treated as normal editable sample files.
+Recognizing a file as an audio-looking file is not the same as supporting it. Non-goal formats such as MP3 or FLAC should be classified and reported as unsupported, but they should not appear in the normal sample browser by default. The browser should provide an explicit `all files` visibility flag that reveals unsupported audio files, unsupported non-audio files, and folders that are otherwise hidden by the supported-audio view.
 
 Wavecrate should align its practical audio-file compatibility with common DAW workflows, especially Ableton Live-style sample workflows. It should support common bit depths, sample rates, and channel layouts used in music production.
 
@@ -1066,7 +1066,7 @@ Wavecrate should provide an easy cleanup action for temporary color collections,
 
 ## Source and Scan Lifecycle
 
-Wavecrate should let users add one or more source folders. A source folder is a real filesystem folder that Wavecrate indexes and presents in the folder tree and sample browser.
+Wavecrate should let users add one or more source folders. A source folder is a real filesystem folder that Wavecrate indexes and presents through the folder tree and sample browser according to the active visibility mode.
 
 Adding a source should:
 
@@ -1107,7 +1107,7 @@ The scanner should classify discovered files as:
 - changed file requiring metadata, waveform, analysis, or similarity invalidation
 - missing or deleted file that still has database state
 
-Unsupported files should not crash scanning. They should be ignored, reported, or visible as unsupported according to the current view/filter settings.
+Unsupported files should not crash scanning. They should be classified and reported, but hidden from the normal sample browser by default. They should become visible when the user enables the explicit `all files` visibility flag or opens a diagnostic/unsupported-files view.
 
 Initial scan/indexing should queue the fingerprint work needed for exact duplicate grouping where practical. Duplicate fingerprinting should run in background work, stream status like other indexing work, and mark duplicate state incrementally as matching available files are found. It should not block source scanning completion, folder browsing, sample auditioning, editing, extraction, tagging, rating, or handoff. Users should also be able to trigger manual duplicate analysis for selected files, folders, sources, or the whole indexed library.
 
@@ -1779,7 +1779,7 @@ Moving a folder inside a source should happen immediately without confirmation. 
 
 Copying a file or folder inside a source should happen immediately without confirmation. It should be undoable during the current session, copy the real file or folder contents on disk, create new Wavecrate Sample IDs for copied audio files, inherit Wavecrate metadata and workflow marks for the copied files, update source/folder/browser state, and use the shared destination-folder collision-numbering policy when the destination already contains a file or folder with the same name. Copied files are unique files, not second references to the original file identity.
 
-The folder tree should reflect actual folders on disk. The sample browser should reflect actual files on disk plus Wavecrate-specific metadata from the database.
+The folder tree should reflect actual folders on disk according to the active visibility mode. By default, the folder tree should show folders that contain supported audio files and should hide folders that contain no supported audio files, with one exception: purely empty folders should remain visible so users can create a folder and drop files into it without enabling another mode. When the user enables the explicit `all files` visibility flag, the folder tree and browser should show all indexed files and folders, including unsupported audio files, unsupported non-audio files, and folders that do not contain supported audio.
 
 ## Database, Persistence, and Indexing Target
 
@@ -1991,7 +1991,7 @@ The sample browser row should show enough information to make scanning fast:
 - exact duplicate indicator where the same audio-content fingerprint appears in more than one indexed file
 - missing, unavailable, unsupported, locked, edited, or unsaved indicators
 
-Unsupported and partially supported files should not look like ordinary editable files. The list row and map point should distinguish playback-only, unsupported format, unsupported encoding, multichannel-limited, too-long, missing, and failed-analysis states where practical. Warning indicators should be compact but visible enough that users understand why commands are disabled.
+Unsupported and partially supported files should not look like ordinary editable files when they are visible. Unsupported files are hidden from the normal browser by default and should appear only when the user enables `all files` or opens a diagnostic/unsupported-files view. In those views, list rows and map points should distinguish playback-only, unsupported format, unsupported encoding, multichannel-limited, too-long, missing, and failed-analysis states where practical. Warning indicators should be compact but visible enough that users understand why commands are disabled.
 
 Exact duplicates should have a compact advisory badge or indicator in the sample list and later map view. Duplicate grouping should be global across all indexed sources but should include only files that currently exist on disk. Missing or unavailable records should not make an otherwise unique available file look duplicated. Source, folder, search, and filter state should still control which duplicate members are visible in the current browser. The user should be able to filter to duplicate files, inspect which available files share the same audio-content fingerprint across sources, reveal their folders, and decide whether to keep, move, tag, or trash them. Duplicate grouping should not automatically delete or merge files.
 
@@ -2007,7 +2007,7 @@ Near-duplicates belong to similarity search, not exact duplicate warnings. Norma
 
 Context menus should exist for sample rows, folders, waveform selections, tag pills, rating controls, generated names, and background-job/status surfaces. Context-menu actions should use the same command model as keyboard shortcuts and toolbar buttons.
 
-Empty states should be actionable. A fresh install should guide the user to add a source folder. An empty source should say that no supported ordinary WAV files were found in the first format target, and should include AIFF/AIF after that later format phase is implemented. A filtered-empty browser should make it clear that filters, not the source itself, are hiding files.
+Empty states should be actionable. A fresh install should guide the user to add a source folder. An empty source should say that no supported ordinary WAV files were found in the first format target, and should include AIFF/AIF after that later format phase is implemented. If unsupported audio-looking files or other hidden files exist, the empty state should offer the `all files` visibility flag rather than implying the folder is truly empty. A filtered-empty browser should make it clear that filters, not the source itself, are hiding supported files.
 
 Settings should be a normal application screen or dialog, not hidden behind config files. The generated-name naming template is the current deliberate exception because it is a launch-loaded advanced config-file setting and should remain config-file only in the current target.
 
