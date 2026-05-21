@@ -4,11 +4,16 @@ use crate::app::controller::jobs::{FileOpMessage, UndoFileJob, UndoFileOpResult,
 use crate::app::controller::library::wav_io::file_metadata;
 use crate::sample_sources::SourceDatabase;
 use std::io::ErrorKind;
+use std::path::Path;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, Ordering},
     mpsc::Sender,
 };
+use std::time::Duration;
+
+const REMOVE_SAMPLE_RETRY_ATTEMPTS: usize = 8;
+const REMOVE_SAMPLE_RETRY_DELAY: Duration = Duration::from_millis(25);
 
 /// Run an undo/redo filesystem job with optional progress updates.
 pub(crate) fn run_undo_file_job(
@@ -88,7 +93,7 @@ pub(crate) fn run_undo_file_job(
                     };
                 }
             };
-            match std::fs::remove_file(&absolute_path) {
+            match remove_sample_file_with_retry(&absolute_path) {
                 Ok(()) => {}
                 Err(err) if err.kind() == ErrorKind::NotFound => {}
                 Err(err) => {
@@ -189,4 +194,19 @@ pub(crate) fn run_undo_file_job(
         result,
         cancelled: false,
     }
+}
+
+fn remove_sample_file_with_retry(path: &Path) -> std::io::Result<()> {
+    for attempt in 0..REMOVE_SAMPLE_RETRY_ATTEMPTS {
+        match std::fs::remove_file(path) {
+            Err(err)
+                if err.kind() == ErrorKind::PermissionDenied
+                    && attempt + 1 < REMOVE_SAMPLE_RETRY_ATTEMPTS =>
+            {
+                std::thread::sleep(REMOVE_SAMPLE_RETRY_DELAY);
+            }
+            result => return result,
+        }
+    }
+    unreachable!("retry loop always returns on its final attempt")
 }
