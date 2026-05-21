@@ -246,7 +246,7 @@ Wavecrate should split storage between source-local state and global application
 
 Source-specific information should live in the folder of that source. Each indexed source folder should contain a special Wavecrate source database file named `.wavecrate.db`. This keeps source metadata close to the real files and makes a source folder more portable between machines or Wavecrate installations while avoiding confusion with the global `.wavecrate` configuration folder.
 
-Source onboarding should avoid noisy implementation details in the main add-source flow. The facts that Wavecrate creates or updates `.wavecrate.db` in the selected folder and may write embedded Sample ID metadata to supported files should be documented, but the add-source UI does not need to mention those implementation details by default. The source-add flow should still make clear that adding a source lets Wavecrate manage supported files according to normal Wavecrate commands and safety settings; it is not a separate read-only mode.
+Source onboarding should avoid noisy implementation details in the main add-source flow. The facts that Wavecrate creates or updates `.wavecrate.db` in the selected folder and may write embedded Sample ID metadata to supported files should be documented, but the add-source UI does not need to mention those implementation details by default. The source-add flow does not need a separate destructive-nature warning because non-YOLO destructive safety prompts cover destructive operations when the user actually triggers them; adding a source is not a separate read-only mode.
 
 The `.wavecrate.db` file is internal source metadata and should be hidden from the normal sample browser, folder tree, and `all files` visibility mode. Wavecrate should mark the file as operating-system hidden where the platform supports that behavior. Diagnostics, source repair flows, logs, and support UI may mention the file when relevant, but reveal actions should reveal the source folder rather than selecting or opening `.wavecrate.db` directly.
 
@@ -722,11 +722,11 @@ Destructive editing should have two user-facing safety modes.
 
 ### Default Safety Mode
 
-In default mode, destructive edits should warn the user clearly before modifying the file in place.
+YOLO mode should be off by default for all users. In default non-YOLO mode, destructive edits should warn the user clearly before modifying the file in place.
 
 The warning should explain that the edit will modify the audio file on disk. The user should be able to confirm, cancel, and optionally enable advanced destructive workflow mode if they understand the behavior.
 
-During active development, fresh development defaults may start in YOLO mode so fade-apply and other destructive edit flows can be tested quickly. The product target remains warning-protected default safety mode unless YOLO mode is explicitly enabled.
+Development-only shortcuts may exist outside the product target, but product builds should remain warning-protected by default unless YOLO mode is explicitly enabled.
 
 ### Advanced Destructive Workflow / YOLO Mode
 
