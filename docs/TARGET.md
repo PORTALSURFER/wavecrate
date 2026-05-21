@@ -724,7 +724,7 @@ Destructive editing should have two user-facing safety modes.
 
 YOLO mode should be off by default for all users. In default non-YOLO mode, destructive edits should always warn the user clearly before modifying the file in place. These warnings should not be dismissed permanently per command type or hidden after repeated use while YOLO mode remains off.
 
-The warning should explain that the edit will modify the audio file on disk. The primary choices should be confirm or cancel. The dialog may also offer a deliberate secondary action such as "Enable YOLO and Apply" for users who understand the behavior. Choosing that secondary action should enable YOLO mode and immediately proceed with the current destructive command. It should not be the default button or easiest accidental path.
+The warning should explain that the edit will modify the audio file on disk. The primary choices should be confirm or cancel. The dialog may also offer a deliberate secondary action such as "Enable YOLO and Apply" for users who understand the behavior. Choosing that secondary action should enable YOLO mode and immediately proceed with the current destructive command without a second confirmation. It should not be the default button or easiest accidental path.
 
 Development-only shortcuts may exist outside the product target, but product builds should remain warning-protected by default unless YOLO mode is explicitly enabled.
 
