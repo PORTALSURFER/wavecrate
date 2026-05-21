@@ -164,103 +164,6 @@ impl FolderBrowserState {
             }
         }
     }
-
-    fn selected_folder(&self) -> Option<&FolderEntry> {
-        self.find_folder(&self.selected_folder)
-            .or_else(|| self.folders.first())
-    }
-
-    fn find_folder(&self, id: &str) -> Option<&FolderEntry> {
-        self.folders.iter().find_map(|folder| folder.find(id))
-    }
-
-    fn folder_has_children(&self, id: &str) -> bool {
-        self.find_folder(id).is_some_and(FolderEntry::has_children)
-    }
-
-    fn is_expanded(&self, id: &str) -> bool {
-        self.expanded_folders.contains(id)
-    }
-
-    fn activate_folder(&mut self, id: String) {
-        if !self.folder_has_children(&id) {
-            self.select_folder(id);
-            return;
-        }
-        if !self.is_expanded(&id) {
-            self.expanded_folders.insert(id.clone());
-            self.select_folder(id);
-        } else if self.selected_folder == id {
-            self.expanded_folders.remove(&id);
-        } else {
-            self.select_folder(id);
-        }
-    }
-
-    fn select_folder(&mut self, id: String) {
-        self.cancel_rename();
-        self.selected_folder = id;
-        self.selected_file = None;
-        self.selected_file_ids.clear();
-        self.file_view_start = 0;
-    }
-
-    fn selected_folder_is_source_root(&self) -> bool {
-        self.sources.iter().any(|source| {
-            source.id == self.selected_source && path_id(&source.root) == self.selected_folder
-        })
-    }
-
-    fn selected_folder_is_source_root_id(&self, folder_id: &str) -> bool {
-        self.sources
-            .iter()
-            .any(|source| source.id == self.selected_source && path_id(&source.root) == folder_id)
-    }
-
-    fn visible_folders(&self) -> Vec<VisibleFolder> {
-        let mut folders = Vec::new();
-        for folder in &self.folders {
-            self.push_visible_folder(folder, 0, &mut folders);
-        }
-        folders
-    }
-
-    fn push_visible_folder(
-        &self,
-        folder: &FolderEntry,
-        depth: usize,
-        folders: &mut Vec<VisibleFolder>,
-    ) {
-        let drag_active = self.drag.is_some();
-        let drop_candidate = drag_active && self.can_drop_drag_on_folder(&folder.id);
-        folders.push(VisibleFolder {
-            id: folder.id.clone(),
-            name: folder.name.clone(),
-            depth,
-            has_children: folder.has_children(),
-            expanded: self.is_expanded(&folder.id),
-            selected: self.selected_folder == folder.id,
-            drag_active,
-            drop_candidate,
-            drop_target: drop_candidate
-                && self.drop_target_folder.as_deref() == Some(folder.id.as_str()),
-            rename_draft: self
-                .rename_edit
-                .as_ref()
-                .filter(|edit| edit.folder_id == folder.id)
-                .map(|edit| edit.draft.clone()),
-            rename_input_id: self
-                .rename_edit
-                .as_ref()
-                .filter(|edit| edit.folder_id == folder.id)
-                .map(|edit| edit.input_id),
-        });
-        if self.is_expanded(&folder.id) {
-            for child in &folder.children {
-                self.push_visible_folder(child, depth + 1, folders);
-            }
-        }
-    }
 }
 
 mod path_helpers;
@@ -299,6 +202,8 @@ use state_types::{
     FileColumnResize, FileRenameEdit, FolderBrowserDrag, FolderRenameEdit, FolderRenameKind,
     SourceEntry, VisibleFolder, default_file_columns,
 };
+
+mod tree_state;
 
 mod tree_widgets;
 
