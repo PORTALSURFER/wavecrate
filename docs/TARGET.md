@@ -738,6 +738,8 @@ When this mode is enabled, Wavecrate should stop showing repetitive destructive-
 
 YOLO mode applies only to destructive audio editing warnings. It should not suppress file-operation safety rules or prompts for trashing, moving, copying, deleting/removing folders with hidden contents, changing trash configuration, source management, or other non-audio-edit workflows.
 
+YOLO mode should not suppress progress or result visibility for batch destructive audio edits. Even when preflight warnings are skipped, batch operations should still show concise progress where useful and report succeeded, skipped, failed, and rolled-back counts when the operation completes.
+
 YOLO mode should be explicit and persistent. It should not be enabled accidentally, but it does not need a persistent main-interface indicator because it is a set-and-forget advanced setting. The current state should remain visible in settings and in destructive-warning flows where it matters.
 
 Changing YOLO mode from Settings should be asymmetric. Enabling YOLO mode removes destructive warnings and should require confirmation before the setting is committed. Disabling YOLO mode restores the default safety warnings and may apply immediately without confirmation.
