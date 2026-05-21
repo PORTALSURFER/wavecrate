@@ -6,6 +6,11 @@ use super::{
     AUDIO_SETTINGS_POPUP_HEIGHT, AUDIO_SETTINGS_POPUP_WIDTH, AudioSettingsSnapshot, GuiMessage,
 };
 
+const AUDIO_SETTINGS_PANEL_PADDING: f32 = 8.0;
+const AUDIO_SETTINGS_ROW_SPACING: f32 = 7.0;
+const AUDIO_SETTINGS_SECTION_SPACING: f32 = 3.0;
+const AUDIO_SETTINGS_DROPDOWN_GAP: f32 = 3.0;
+
 #[cfg(test)]
 pub(in crate::gui_app) fn audio_settings_popover(state: &GuiAppState) -> ui::View<GuiMessage> {
     let snapshot = AudioSettingsSnapshot::from_app_state(state);
@@ -21,11 +26,11 @@ pub(in crate::gui_app) fn audio_settings_window_view(
             tone: ui::WidgetTone::Neutral,
             prominence: ui::WidgetProminence::Strong,
         })
-        .spacing(7.0)
-        .padding(8.0)
+        .spacing(AUDIO_SETTINGS_ROW_SPACING)
+        .padding(AUDIO_SETTINGS_PANEL_PADDING)
         .width(AUDIO_SETTINGS_POPUP_WIDTH)
         .height(AUDIO_SETTINGS_POPUP_HEIGHT);
-    ui::column(vec![
+    let base = ui::column(vec![
         ui::spacer().fill_height(),
         ui::row(vec![
             ui::spacer().fill_width(),
@@ -36,7 +41,17 @@ pub(in crate::gui_app) fn audio_settings_window_view(
         .height(AUDIO_SETTINGS_POPUP_HEIGHT),
         ui::spacer().fill_height(),
     ])
-    .fill()
+    .fill();
+    if snapshot.audio_backend_dropdown_open {
+        ui::stack([
+            base,
+            audio_dropdown_dismiss_overlay(),
+            audio_host_dropdown_overlay(snapshot),
+        ])
+        .fill()
+    } else {
+        base
+    }
 }
 
 fn audio_settings_panel_rows(snapshot: &AudioSettingsSnapshot) -> Vec<ui::View<GuiMessage>> {
@@ -47,11 +62,7 @@ fn audio_settings_panel_rows(snapshot: &AudioSettingsSnapshot) -> Vec<ui::View<G
     if let Some(error) = snapshot.error.as_ref() {
         rows.push(audio_settings_error_row(error));
     }
-    rows.push(audio_settings_section(
-        "Backend",
-        audio_host_option_buttons(snapshot),
-        2,
-    ));
+    rows.push(audio_settings_backend_section(snapshot));
     rows.push(audio_settings_section(
         "Output",
         audio_device_option_buttons(snapshot),
@@ -113,6 +124,20 @@ fn cache_maintenance_section() -> ui::View<GuiMessage> {
     .height(45.0)
 }
 
+fn audio_settings_backend_section(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
+    let dropdown_height = ui::dropdown_height(
+        snapshot.audio_backend_dropdown_open,
+        snapshot.audio_hosts.len() + 1,
+    );
+    ui::column(vec![
+        section_label("Backend"),
+        audio_host_dropdown(snapshot),
+    ])
+    .spacing(AUDIO_SETTINGS_SECTION_SPACING)
+    .fill_width()
+    .height(21.0 + dropdown_height)
+}
+
 fn audio_settings_section(
     label: &'static str,
     options: Vec<ui::View<GuiMessage>>,
@@ -145,20 +170,75 @@ fn section_label(label: &'static str) -> ui::View<GuiMessage> {
         .height(18.0)
 }
 
-fn audio_host_option_buttons(snapshot: &AudioSettingsSnapshot) -> Vec<ui::View<GuiMessage>> {
-    let mut buttons = vec![audio_option_button(
-        "System default".to_string(),
+fn audio_host_dropdown(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
+    let selected_label = selected_audio_host_label(snapshot);
+    ui::dropdown(selected_label, false)
+        .toggle_message(GuiMessage::ToggleAudioBackendDropdown)
+        .options(audio_host_dropdown_options(snapshot))
+        .build()
+}
+
+fn audio_host_dropdown_overlay(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
+    ui::dropdown_menu_overlay(
+        AUDIO_SETTINGS_PANEL_PADDING,
+        AUDIO_SETTINGS_PANEL_PADDING + audio_host_dropdown_overlay_y(snapshot),
+        Some(AUDIO_SETTINGS_POPUP_WIDTH - AUDIO_SETTINGS_PANEL_PADDING * 2.0),
+        audio_host_dropdown_options(snapshot),
+    )
+}
+
+fn audio_dropdown_dismiss_overlay() -> ui::View<GuiMessage> {
+    ui::button("")
+        .message(GuiMessage::CloseAudioBackendDropdown)
+        .key("audio-backend-dropdown-dismiss")
+        .input_only()
+        .fill()
+}
+
+fn audio_host_dropdown_overlay_y(snapshot: &AudioSettingsSnapshot) -> f32 {
+    let mut y = 0.0;
+    y += 22.0 + AUDIO_SETTINGS_ROW_SPACING;
+    y += 20.0 + AUDIO_SETTINGS_ROW_SPACING;
+    if snapshot.error.is_some() {
+        y += 20.0 + AUDIO_SETTINGS_ROW_SPACING;
+    }
+    y += 18.0 + AUDIO_SETTINGS_SECTION_SPACING;
+    y += 24.0 + AUDIO_SETTINGS_DROPDOWN_GAP;
+    y
+}
+
+fn audio_host_dropdown_options(
+    snapshot: &AudioSettingsSnapshot,
+) -> Vec<ui::DropdownOption<GuiMessage>> {
+    let mut options = vec![ui::DropdownOption::new(
+        "System default",
         snapshot.audio_output_config.host.is_none(),
         GuiMessage::SetAudioOutputHost(None),
     )];
-    buttons.extend(snapshot.audio_hosts.iter().map(|host| {
-        audio_option_button(
+    for host in &snapshot.audio_hosts {
+        options.push(ui::DropdownOption::new(
             default_option_label(host.label.as_str(), host.is_default),
             snapshot.audio_output_config.host.as_deref() == Some(host.id.as_str()),
             GuiMessage::SetAudioOutputHost(Some(host.id.clone())),
-        )
-    }));
-    buttons
+        ));
+    }
+    options
+}
+
+fn selected_audio_host_label(snapshot: &AudioSettingsSnapshot) -> String {
+    snapshot
+        .audio_output_config
+        .host
+        .as_deref()
+        .and_then(|selected| {
+            snapshot
+                .audio_hosts
+                .iter()
+                .find(|host| host.id == selected)
+                .map(|host| default_option_label(host.label.as_str(), host.is_default))
+        })
+        .or_else(|| snapshot.audio_output_config.host.clone())
+        .unwrap_or_else(|| String::from("System default"))
 }
 
 fn audio_device_option_buttons(snapshot: &AudioSettingsSnapshot) -> Vec<ui::View<GuiMessage>> {

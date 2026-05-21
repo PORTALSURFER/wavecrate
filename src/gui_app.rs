@@ -105,6 +105,8 @@ enum GuiMessage {
     SetVolume(f32),
     ToggleAudioSettings,
     CloseAudioSettings,
+    ToggleAudioBackendDropdown,
+    CloseAudioBackendDropdown,
     SetAudioOutputHost(Option<String>),
     SetAudioOutputDevice(Option<String>),
     SetAudioOutputSampleRate(Option<u32>),
@@ -167,6 +169,7 @@ struct GuiAppState {
     audio_sample_rates: Vec<u32>,
     persisted_settings: AppSettingsCore,
     audio_settings_open: bool,
+    audio_backend_dropdown_open: bool,
     job_details_open: bool,
     context_menu: Option<BrowserContextMenu>,
     waveform_loading_label: Option<String>,
@@ -204,6 +207,7 @@ impl GuiAppState {
             audio_sample_rates: Vec::new(),
             persisted_settings: config.core,
             audio_settings_open: false,
+            audio_backend_dropdown_open: false,
             job_details_open: false,
             context_menu: None,
             waveform_loading_label: None,
@@ -499,6 +503,12 @@ impl GuiAppState {
             GuiMessage::ToggleAudioSettings => self.toggle_audio_settings(),
             GuiMessage::CloseAudioSettings => {
                 self.close_audio_settings_window();
+            }
+            GuiMessage::ToggleAudioBackendDropdown => {
+                self.audio_backend_dropdown_open = !self.audio_backend_dropdown_open;
+            }
+            GuiMessage::CloseAudioBackendDropdown => {
+                self.audio_backend_dropdown_open = false;
             }
             GuiMessage::SetAudioOutputHost(host) => self.set_audio_output_host(host),
             GuiMessage::SetAudioOutputDevice(device) => self.set_audio_output_device(device),
@@ -1882,6 +1892,13 @@ fn default_gui_shortcut_resolution(
                 GuiMessage::CloseContextMenu,
             )
             .resolve(press)
+    } else if state.audio_backend_dropdown_open {
+        ui::ShortcutLayer::modal()
+            .bind(
+                ui::KeyPress::new(ui::KeyCode::Escape),
+                GuiMessage::CloseAudioBackendDropdown,
+            )
+            .resolve(press)
     } else if state.job_details_open {
         ui::ShortcutLayer::modal()
             .bind(
@@ -2320,6 +2337,7 @@ mod tests {
             audio_sample_rates: Vec::new(),
             persisted_settings: super::AppSettingsCore::default(),
             audio_settings_open: false,
+            audio_backend_dropdown_open: false,
             job_details_open: false,
             context_menu: None,
             waveform_loading_label: None,
@@ -2421,6 +2439,21 @@ mod tests {
             super::default_gui_shortcut_resolution(&state, ui::KeyPress::new(ui::KeyCode::Escape));
 
         assert_eq!(resolution.action, Some(super::GuiMessage::CloseContextMenu));
+        assert!(resolution.handled);
+    }
+
+    #[test]
+    fn audio_backend_dropdown_escape_shortcut_closes_dropdown() {
+        let mut state = gui_state_for_span_tests();
+        state.audio_backend_dropdown_open = true;
+
+        let resolution =
+            super::default_gui_shortcut_resolution(&state, ui::KeyPress::new(ui::KeyCode::Escape));
+
+        assert_eq!(
+            resolution.action,
+            Some(super::GuiMessage::CloseAudioBackendDropdown)
+        );
         assert!(resolution.handled);
     }
 
@@ -2563,6 +2596,7 @@ mod tests {
             audio_sample_rates: Vec::new(),
             persisted_settings: super::AppSettingsCore::default(),
             audio_settings_open: false,
+            audio_backend_dropdown_open: false,
             job_details_open: false,
             context_menu: None,
             waveform_loading_label: None,
@@ -2694,6 +2728,7 @@ mod tests {
             audio_sample_rates: Vec::new(),
             persisted_settings: super::AppSettingsCore::default(),
             audio_settings_open: false,
+            audio_backend_dropdown_open: false,
             job_details_open: false,
             context_menu: None,
             waveform_loading_label: None,
@@ -3322,6 +3357,145 @@ mod tests {
             !texts.iter().any(|text| text.contains("Input")),
             "{texts:?}"
         );
+    }
+
+    #[test]
+    fn audio_backend_dropdown_renders_expanded_host_options() {
+        let mut state = gui_state_for_span_tests();
+        state.audio_settings_error = None;
+        state.audio_backend_dropdown_open = true;
+        state.audio_hosts = vec![
+            super::AudioHostSummary {
+                id: String::from("wasapi"),
+                label: String::from("WASAPI"),
+                is_default: true,
+            },
+            super::AudioHostSummary {
+                id: String::from("asio"),
+                label: String::from("ASIO"),
+                is_default: false,
+            },
+        ];
+        let frame =
+            radiant::runtime::UiSurface::new(super::audio_settings_popover(&state).into_node())
+                .frame(
+                    Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(480.0, 360.0)),
+                    &radiant::theme::ThemeTokens::default(),
+                );
+        let texts = frame
+            .paint_plan
+            .primitives
+            .iter()
+            .filter_map(|primitive| match primitive {
+                PaintPrimitive::Text(text) => Some(text.text.as_str().to_string()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert!(
+            texts.iter().any(|text| text == "System default"),
+            "{texts:?}"
+        );
+        assert!(
+            texts.iter().any(|text| text == "WASAPI (default)"),
+            "{texts:?}"
+        );
+        assert!(texts.iter().any(|text| text == "ASIO"), "{texts:?}");
+    }
+
+    #[test]
+    fn audio_backend_dropdown_overlay_does_not_reflow_later_sections() {
+        let mut state = gui_state_for_span_tests();
+        state.audio_settings_error = None;
+        state.audio_hosts = vec![
+            super::AudioHostSummary {
+                id: String::from("wasapi"),
+                label: String::from("WASAPI"),
+                is_default: true,
+            },
+            super::AudioHostSummary {
+                id: String::from("asio"),
+                label: String::from("ASIO"),
+                is_default: false,
+            },
+        ];
+
+        state.audio_backend_dropdown_open = false;
+        let closed =
+            radiant::runtime::UiSurface::new(super::audio_settings_popover(&state).into_node())
+                .frame(
+                    Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(480.0, 360.0)),
+                    &radiant::theme::ThemeTokens::default(),
+                );
+        state.audio_backend_dropdown_open = true;
+        let open =
+            radiant::runtime::UiSurface::new(super::audio_settings_popover(&state).into_node())
+                .frame(
+                    Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(480.0, 360.0)),
+                    &radiant::theme::ThemeTokens::default(),
+                );
+
+        let text_top = |frame: &radiant::runtime::SurfaceFrame, label: &str| {
+            frame
+                .paint_plan
+                .primitives
+                .iter()
+                .find_map(|primitive| match primitive {
+                    PaintPrimitive::Text(text) if text.text.as_str() == label => {
+                        Some(text.rect.min.y)
+                    }
+                    _ => None,
+                })
+                .unwrap_or_else(|| panic!("expected text {label}"))
+        };
+        let text_index = |frame: &radiant::runtime::SurfaceFrame, label: &str| {
+            frame
+                .paint_plan
+                .primitives
+                .iter()
+                .position(|primitive| match primitive {
+                    PaintPrimitive::Text(text) => text.text.as_str() == label,
+                    _ => false,
+                })
+                .unwrap_or_else(|| panic!("expected text {label}"))
+        };
+
+        assert_eq!(text_top(&closed, "Output"), text_top(&open, "Output"));
+        assert_eq!(
+            text_top(&closed, "Sample Rate"),
+            text_top(&open, "Sample Rate")
+        );
+        assert!(text_top(&open, "WASAPI (default)") > text_top(&open, "Output"));
+        assert!(text_index(&open, "WASAPI (default)") > text_index(&open, "Output"));
+    }
+
+    #[test]
+    fn audio_backend_dropdown_toggle_and_close_are_ui_only() {
+        let mut state = gui_state_for_span_tests();
+
+        state.apply_message(
+            super::GuiMessage::ToggleAudioBackendDropdown,
+            &mut ui::UpdateContext::default(),
+        );
+        assert!(state.audio_backend_dropdown_open);
+
+        state.apply_message(
+            super::GuiMessage::CloseAudioBackendDropdown,
+            &mut ui::UpdateContext::default(),
+        );
+        assert!(!state.audio_backend_dropdown_open);
+
+        state.apply_message(
+            super::GuiMessage::ToggleAudioBackendDropdown,
+            &mut ui::UpdateContext::default(),
+        );
+        assert!(state.audio_backend_dropdown_open);
+
+        state.apply_message(
+            super::GuiMessage::CloseAudioSettings,
+            &mut ui::UpdateContext::default(),
+        );
+        assert!(!state.audio_backend_dropdown_open);
     }
 
     #[test]

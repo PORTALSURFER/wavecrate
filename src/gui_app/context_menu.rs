@@ -55,9 +55,13 @@ pub(super) fn overlay(menu: &BrowserContextMenu) -> ui::View<GuiMessage> {
     let top = menu.anchor.y.max(0.0);
     let left = menu.anchor.x.max(0.0);
     ui::column([
-        ui::spacer().fill_width().height(top),
+        dismiss_area("browser-context-dismiss-top")
+            .fill_width()
+            .height(top),
         ui::row([
-            ui::spacer().width(left).height(1.0),
+            dismiss_area("browser-context-dismiss-left")
+                .width(left)
+                .height(104.0),
             ui::column([
                 ui::text(menu.title.clone())
                     .height(22.0)
@@ -81,21 +85,22 @@ pub(super) fn overlay(menu: &BrowserContextMenu) -> ui::View<GuiMessage> {
             .padding(8.0)
             .spacing(5.0)
             .size(210.0, 104.0),
-            ui::button("")
-                .message(GuiMessage::CloseContextMenu)
-                .key("browser-context-dismiss-right")
-                .input_only()
+            dismiss_area("browser-context-dismiss-right")
                 .fill_width()
                 .height(104.0),
         ])
         .fill_width()
         .height(104.0),
-        ui::button("")
-            .message(GuiMessage::CloseContextMenu)
-            .key("browser-context-dismiss-bottom")
-            .input_only()
+        dismiss_area("browser-context-dismiss-bottom")
             .fill_width()
             .fill_height(),
     ])
     .fill()
+}
+
+fn dismiss_area(key: &'static str) -> ui::View<GuiMessage> {
+    ui::button("")
+        .message(GuiMessage::CloseContextMenu)
+        .key(key)
+        .input_only()
 }

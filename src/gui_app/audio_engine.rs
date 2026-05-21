@@ -43,15 +43,18 @@ impl GuiAppState {
 
     pub(super) fn open_audio_settings_window(&mut self) {
         self.audio_settings_open = true;
+        self.audio_backend_dropdown_open = false;
         self.audio_settings_error = None;
     }
 
     pub(super) fn close_audio_settings_window(&mut self) {
         self.audio_settings_open = false;
+        self.audio_backend_dropdown_open = false;
     }
 
     pub(super) fn set_audio_output_host(&mut self, host: Option<String>) {
         let started_at = Instant::now();
+        self.audio_backend_dropdown_open = false;
         self.audio_output_config.host = host;
         self.audio_output_config.device = None;
         self.audio_output_config.sample_rate = None;
