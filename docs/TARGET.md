@@ -738,6 +738,8 @@ YOLO mode should be explicit and persistent. It should not be enabled accidental
 
 Changing YOLO mode from Settings should be asymmetric. Enabling YOLO mode removes destructive warnings and should require confirmation before the setting is committed. Disabling YOLO mode restores the default safety warnings and may apply immediately without confirmation.
 
+Changing YOLO mode from Settings should affect future destructive actions only. If a destructive warning dialog is already open, that dialog should keep its current confirm, cancel, or secondary action choices, and the settings change should not automatically apply or dismiss that pending destructive command.
+
 ### Session-Local Undo and Redo
 
 Even though edits are destructive, Wavecrate should have a deeply integrated undo/redo system.
