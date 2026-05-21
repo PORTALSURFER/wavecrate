@@ -177,21 +177,6 @@ impl WaveformState {
         }
     }
 
-    fn set_selection_for_drag(&mut self, drag: WaveformSelectionDrag) {
-        let range =
-            wavecrate::selection::SelectionRange::new(drag.anchor_ratio, drag.current_ratio);
-        match drag.kind {
-            WaveformSelectionKind::Play => {
-                self.play_mark_ratio = Some(drag.anchor_ratio);
-                self.play_selection = Some(range);
-            }
-            WaveformSelectionKind::Edit => {
-                self.edit_mark_ratio = Some(drag.anchor_ratio);
-                self.edit_selection = Some(range);
-            }
-        }
-    }
-
     fn update_active_edit_fade(&mut self, ratio: f32) {
         let Some(WaveformDrag::EditFade(drag)) = self.active_drag else {
             return;
@@ -217,53 +202,6 @@ impl WaveformState {
         };
         if let Some(next) = next {
             self.edit_selection = Some(next);
-        }
-    }
-
-    fn update_active_selection_resize(&mut self, ratio: f32) {
-        let Some(WaveformDrag::SelectionResize(drag)) = self.active_drag else {
-            return;
-        };
-        let Some(selection) = self.selection_for_kind(drag.kind) else {
-            return;
-        };
-        let selection = drag.apply(selection, ratio);
-        match drag.kind {
-            WaveformSelectionKind::Play => {
-                self.play_mark_ratio = Some(selection.start());
-                self.play_selection = Some(selection);
-            }
-            WaveformSelectionKind::Edit => {
-                self.edit_mark_ratio = Some(selection.start());
-                self.edit_selection = Some(selection);
-            }
-        }
-    }
-
-    fn update_active_selection_move(&mut self, ratio: f32) {
-        let Some(WaveformDrag::SelectionMove(drag)) = self.active_drag else {
-            return;
-        };
-        let selection = drag.apply(ratio);
-        match drag.kind {
-            WaveformSelectionKind::Play => {
-                self.play_mark_ratio = Some(selection.start());
-                self.play_selection = Some(selection);
-            }
-            WaveformSelectionKind::Edit => {
-                self.edit_mark_ratio = Some(selection.start());
-                self.edit_selection = Some(selection);
-            }
-        }
-    }
-
-    fn selection_for_kind(
-        &self,
-        kind: WaveformSelectionKind,
-    ) -> Option<wavecrate::selection::SelectionRange> {
-        match kind {
-            WaveformSelectionKind::Play => self.play_selection,
-            WaveformSelectionKind::Edit => self.edit_selection,
         }
     }
 }
