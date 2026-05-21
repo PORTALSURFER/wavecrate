@@ -3308,6 +3308,37 @@ mod tests {
     }
 
     #[test]
+    fn audio_engine_detail_distinguishes_selected_host_from_runtime_fallback() {
+        let mut state = gui_state_for_span_tests();
+        state.audio_output_config.host = Some(String::from("asio"));
+        state.audio_hosts = vec![
+            super::AudioHostSummary {
+                id: String::from("wasapi"),
+                label: String::from("WASAPI"),
+                is_default: true,
+            },
+            super::AudioHostSummary {
+                id: String::from("asio"),
+                label: String::from("ASIO"),
+                is_default: false,
+            },
+        ];
+        state.audio_output_resolved = Some(super::ResolvedOutput {
+            host_id: String::from("wasapi"),
+            device_name: String::from("Studio"),
+            sample_rate: 48_000,
+            buffer_size_frames: None,
+            channel_count: 2,
+            used_fallback: true,
+        });
+
+        assert_eq!(
+            state.audio_engine_detail_label(),
+            "ASIO selected | using WASAPI | Studio | 48 kHz"
+        );
+    }
+
+    #[test]
     fn audio_sample_rate_label_matches_status_chip_format() {
         assert_eq!(super::format_sample_rate_label(48_000), "48 kHz");
         assert_eq!(super::format_sample_rate_label(44_100), "44.1 kHz");

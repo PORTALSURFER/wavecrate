@@ -239,6 +239,9 @@ pub fn open_output_stream(
     ) {
         Ok(stream) => stream,
         Err(err) => {
+            if config.host.is_some() {
+                return Err(AudioOutputError::BuildStream { source: err });
+            }
             used_fallback = true;
             let default_host = cpal::default_host();
             let fallback_device = default_host.default_output_device().ok_or_else(|| {
