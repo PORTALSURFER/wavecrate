@@ -724,7 +724,7 @@ Destructive editing should have two user-facing safety modes.
 
 YOLO mode should be off by default for all users. In default non-YOLO mode, destructive edits should always warn the user clearly before modifying the file in place. These warnings should not be dismissed permanently per command type or hidden after repeated use while YOLO mode remains off.
 
-The warning should explain that the edit will modify the audio file on disk. The user should be able to confirm, cancel, and optionally enable advanced destructive workflow mode if they understand the behavior.
+The warning should explain that the edit will modify the audio file on disk. The primary choices should be confirm or cancel. The dialog may also offer a deliberate secondary action to enable advanced destructive workflow mode if the user understands the behavior, but enabling YOLO mode should not be the default button or easiest accidental path.
 
 Development-only shortcuts may exist outside the product target, but product builds should remain warning-protected by default unless YOLO mode is explicitly enabled.
 
