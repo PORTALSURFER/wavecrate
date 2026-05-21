@@ -734,7 +734,7 @@ Advanced users should be able to enable a persistent destructive workflow mode, 
 
 When this mode is enabled, Wavecrate should stop showing repetitive destructive-edit warnings and should allow fast in-place editing. Users in this mode are expected to duplicate files themselves when they want backups.
 
-YOLO mode should be explicit, persistent, and easy to identify in the UI. It should not be enabled accidentally.
+YOLO mode should be explicit and persistent. It should not be enabled accidentally, but it does not need a persistent main-interface indicator because it is a set-and-forget advanced setting. The current state should remain visible in settings and in destructive-warning flows where it matters.
 
 ### Session-Local Undo and Redo
 
@@ -1965,7 +1965,6 @@ The UI should provide:
 * aging/listen-history visuals that make neglected or recently used files clear
 * generated-name display mode and disk-filename display mode
 * deliberate apply-display-name-to-disk controls
-* current destructive-edit safety mode indicator, especially when YOLO mode is enabled
 * mono-style waveform view by default
 * future stereo split-view mode for independent channel inspection and editing
 * copy, drag, export, reveal, and DAW handoff controls that are fast and predictable
