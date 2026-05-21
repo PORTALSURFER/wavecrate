@@ -210,6 +210,8 @@ use state_types::{
 
 mod tree_state;
 
+mod tree_hit_target;
+
 mod tree_widgets;
 
 mod types;
