@@ -25,6 +25,7 @@ use wavecrate::audio::{
 use wavecrate::external_clipboard;
 use wavecrate::gui_runtime::wavecrate_ui_font_path;
 use wavecrate::logging::{self, ActionDebugEvent, emit_action_debug_event};
+use wavecrate::sample_sources::config::{AppConfig, AppSettingsCore};
 
 mod audio_engine;
 mod audio_settings;
@@ -35,7 +36,9 @@ mod playback;
 mod sample_browser_view;
 mod status_bar;
 mod waveform;
-use audio_settings::{audio_settings_popover, format_sample_rate_label, top_status_bar};
+#[cfg(test)]
+use audio_settings::audio_settings_popover;
+use audio_settings::{format_sample_rate_label, top_status_bar};
 use context_menu::{BrowserContextMenu, BrowserContextTargetKind};
 use file_actions::{
     format_copy_path, normalize_wav_file_in_place, open_folder_in_file_explorer,
@@ -58,6 +61,7 @@ const SAMPLE_BROWSER_ROW_HEIGHT: f32 = 22.0;
 const SAMPLE_BROWSER_EDGE_CONTEXT_ROWS: usize = 2;
 const SAMPLE_BROWSER_OVERSCAN_ROWS: usize = 4;
 const SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS: usize = 128;
+#[cfg(test)]
 const DEFAULT_VOLUME: f32 = 1.0;
 const VOLUME_SLIDER_ID: u64 = 31_000;
 const VOLUME_SLIDER_WIDTH: f32 = 92.0;
@@ -161,6 +165,7 @@ struct GuiAppState {
     audio_hosts: Vec<AudioHostSummary>,
     audio_devices: Vec<AudioDeviceSummary>,
     audio_sample_rates: Vec<u32>,
+    persisted_settings: AppSettingsCore,
     audio_settings_open: bool,
     job_details_open: bool,
     context_menu: Option<BrowserContextMenu>,
@@ -172,11 +177,13 @@ struct GuiAppState {
 impl GuiAppState {
     fn load_default() -> Result<Self, String> {
         let started_at = Instant::now();
+        let config = wavecrate::sample_sources::config::load_or_default()
+            .map_err(|err| format!("load app configuration: {err}"))?;
         let (worker_sender, worker_receiver) = mpsc::channel();
         let mut state = Self {
             folder_width: DEFAULT_FOLDER_WIDTH,
             folder_resize: None,
-            folder_browser: FolderBrowserState::load_default(),
+            folder_browser: FolderBrowserState::from_sample_sources(&config.sources),
             waveform: WaveformState::load_default()?,
             sample_status: String::from("Select a sample to load"),
             worker_sender,
@@ -189,12 +196,13 @@ impl GuiAppState {
             waveform_loading_target_progress: 0.0,
             audio_player: None,
             loop_playback: false,
-            volume: DEFAULT_VOLUME,
-            audio_output_config: AudioOutputConfig::default(),
+            volume: config.core.volume.clamp(0.0, 1.0),
+            audio_output_config: config.core.audio_output.clone(),
             audio_output_resolved: None,
             audio_hosts: Vec::new(),
             audio_devices: Vec::new(),
             audio_sample_rates: Vec::new(),
+            persisted_settings: config.core,
             audio_settings_open: false,
             job_details_open: false,
             context_menu: None,
@@ -215,6 +223,31 @@ impl GuiAppState {
             None,
         );
         Ok(state)
+    }
+
+    fn persist_user_configuration(&mut self, action: &'static str, started_at: Instant) {
+        if let Err(error) = self.save_user_configuration() {
+            self.sample_status = format!("Settings not saved: {error}");
+            emit_gui_action(
+                action,
+                Some("settings"),
+                None,
+                "persist_error",
+                started_at,
+                Some(&error),
+            );
+        }
+    }
+
+    fn save_user_configuration(&self) -> Result<(), String> {
+        let mut core = self.persisted_settings.clone();
+        core.audio_output = self.audio_output_config.clone();
+        core.volume = self.volume;
+        wavecrate::sample_sources::config::save(&AppConfig {
+            sources: self.folder_browser.configured_sample_sources(),
+            core,
+        })
+        .map_err(|err| err.to_string())
     }
 
     fn resize_folder_browser(&mut self, message: DragHandleMessage) {
@@ -465,7 +498,7 @@ impl GuiAppState {
             GuiMessage::SetVolume(volume) => self.set_volume(volume),
             GuiMessage::ToggleAudioSettings => self.toggle_audio_settings(),
             GuiMessage::CloseAudioSettings => {
-                self.audio_settings_open = false;
+                self.close_audio_settings_window();
             }
             GuiMessage::SetAudioOutputHost(host) => self.set_audio_output_host(host),
             GuiMessage::SetAudioOutputDevice(device) => self.set_audio_output_device(device),
@@ -578,19 +611,6 @@ impl GuiAppState {
                 let started_at = Instant::now();
                 let action = waveform_interaction_action(&message);
                 let active_drag = self.waveform.active_drag_kind();
-                if self.audio_settings_open {
-                    if let Some(action) = action {
-                        emit_gui_action(
-                            action,
-                            Some("waveform"),
-                            None,
-                            "ignored",
-                            started_at,
-                            Some("audio_settings_open"),
-                        );
-                    }
-                    return;
-                }
                 self.waveform.apply_interaction(message);
                 self.sync_edit_fade_audio_state();
                 if waveform_interaction_finishes_play_selection_edit(&message, active_drag) {
@@ -1040,6 +1060,7 @@ impl GuiAppState {
                 started_at,
                 None,
             );
+            self.persist_user_configuration("folder_browser.sources.persist", started_at);
         } else {
             emit_gui_action(
                 "folder_browser.scan.finish",
@@ -1613,6 +1634,7 @@ pub(crate) fn run() -> Result<(), String> {
             })
             .on_frame(|| GuiMessage::Frame)
             .subscriptions(GuiAppState::worker_subscription)
+            .auxiliary_windows(audio_settings::auxiliary_windows)
             .on_scroll(|state, update, _context| {
                 if update.node_id == SAMPLE_BROWSER_LIST_ID {
                     state.folder_browser.set_file_view_start_from_scroll_offset(
@@ -1821,9 +1843,6 @@ fn view(state: &mut GuiAppState) -> ui::View<GuiMessage> {
     if let Some(preview) = state.folder_browser.drag_preview() {
         layers.push(folder_drag_preview_overlay(preview));
     }
-    if state.audio_settings_open {
-        layers.push(audio_settings_popover(state));
-    }
     if state.job_details_open {
         if let Some(progress) = state.folder_progress.as_ref() {
             layers.push(status_bar::job_details_popover(progress));
@@ -1868,13 +1887,6 @@ fn default_gui_shortcut_resolution(
             .bind(
                 ui::KeyPress::new(ui::KeyCode::Escape),
                 GuiMessage::CloseJobDetails,
-            )
-            .resolve(press)
-    } else if state.audio_settings_open {
-        ui::ShortcutLayer::modal()
-            .bind(
-                ui::KeyPress::new(ui::KeyCode::Escape),
-                GuiMessage::CloseAudioSettings,
             )
             .resolve(press)
     } else {
@@ -2306,6 +2318,7 @@ mod tests {
             audio_hosts: Vec::new(),
             audio_devices: Vec::new(),
             audio_sample_rates: Vec::new(),
+            persisted_settings: super::AppSettingsCore::default(),
             audio_settings_open: false,
             job_details_open: false,
             context_menu: None,
@@ -2366,29 +2379,31 @@ mod tests {
     }
 
     #[test]
-    fn audio_settings_escape_shortcut_closes_modal() {
+    fn audio_settings_window_does_not_capture_main_escape_shortcut() {
         let mut state = GuiAppState::load_default().expect("default state loads");
         state.audio_settings_open = true;
 
         let resolution =
             super::default_gui_shortcut_resolution(&state, ui::KeyPress::new(ui::KeyCode::Escape));
 
-        assert_eq!(
-            resolution.action,
-            Some(super::GuiMessage::CloseAudioSettings)
-        );
+        assert_eq!(resolution.action, Some(super::GuiMessage::StopPlayback));
         assert!(resolution.handled);
     }
 
     #[test]
-    fn audio_settings_modal_blocks_background_shortcuts() {
+    fn audio_settings_window_does_not_block_main_shortcuts() {
         let mut state = GuiAppState::load_default().expect("default state loads");
         state.audio_settings_open = true;
 
         let resolution =
             super::default_gui_shortcut_resolution(&state, ui::KeyPress::new(ui::KeyCode::N));
 
-        assert_eq!(resolution.action, None);
+        assert!(matches!(
+            resolution.action,
+            Some(super::GuiMessage::FolderBrowser(
+                super::FolderBrowserMessage::BeginCreateSubfolder
+            ))
+        ));
         assert!(resolution.handled);
     }
 
@@ -2546,6 +2561,7 @@ mod tests {
             audio_hosts: Vec::new(),
             audio_devices: Vec::new(),
             audio_sample_rates: Vec::new(),
+            persisted_settings: super::AppSettingsCore::default(),
             audio_settings_open: false,
             job_details_open: false,
             context_menu: None,
@@ -2676,6 +2692,7 @@ mod tests {
             audio_hosts: Vec::new(),
             audio_devices: Vec::new(),
             audio_sample_rates: Vec::new(),
+            persisted_settings: super::AppSettingsCore::default(),
             audio_settings_open: false,
             job_details_open: false,
             context_menu: None,
@@ -3241,7 +3258,7 @@ mod tests {
     }
 
     #[test]
-    fn audio_settings_toggle_uses_cached_device_options() {
+    fn audio_settings_snapshot_uses_cached_device_options() {
         let mut state = gui_state_for_span_tests();
         state.audio_hosts = vec![super::AudioHostSummary {
             id: String::from("cached-host"),
@@ -3249,11 +3266,10 @@ mod tests {
             is_default: true,
         }];
 
-        state.toggle_audio_settings();
+        let snapshot = super::audio_settings::AudioSettingsSnapshot::from_app_state(&state);
 
-        assert!(state.audio_settings_open);
-        assert_eq!(state.audio_hosts.len(), 1);
-        assert_eq!(state.audio_hosts[0].id, "cached-host");
+        assert_eq!(snapshot.audio_hosts.len(), 1);
+        assert_eq!(snapshot.audio_hosts[0].id, "cached-host");
     }
 
     #[test]
@@ -3343,7 +3359,7 @@ mod tests {
     }
 
     #[test]
-    fn audio_settings_popover_anchors_panel_top_right() {
+    fn audio_settings_popover_opens_as_centered_floating_window() {
         let mut state = GuiAppState::load_default().expect("default state loads");
         state.audio_settings_error = None;
         let frame =
@@ -3364,15 +3380,12 @@ mod tests {
             })
             .expect("audio settings title paints");
 
-        assert!(
-            (112.0..=128.0).contains(&title_rect.min.x),
-            "{title_rect:?}"
-        );
-        assert!((48.0..=58.0).contains(&title_rect.min.y), "{title_rect:?}");
+        assert!((66.0..=74.0).contains(&title_rect.min.x), "{title_rect:?}");
+        assert!((14.0..=20.0).contains(&title_rect.min.y), "{title_rect:?}");
     }
 
     #[test]
-    fn audio_settings_popover_does_not_add_full_height_panel_chrome() {
+    fn audio_settings_window_does_not_add_full_height_panel_chrome() {
         let mut state = GuiAppState::load_default().expect("default state loads");
         state.audio_settings_open = true;
         let frame = radiant::runtime::UiSurface::new(super::view(&mut state).into_node()).frame(
@@ -3386,7 +3399,8 @@ mod tests {
             .filter_map(|primitive| match primitive {
                 PaintPrimitive::FillRect(fill)
                     if fill.widget_id == 0
-                        && fill.rect.min.x >= 580.0
+                        && fill.rect.min.x >= 250.0
+                        && fill.rect.max.x <= 710.0
                         && fill.rect.width() >= 300.0 =>
                 {
                     Some(fill.rect)
@@ -3404,7 +3418,7 @@ mod tests {
     }
 
     #[test]
-    fn audio_settings_modal_ignores_waveform_selection_messages() {
+    fn audio_settings_window_does_not_block_waveform_selection_messages() {
         let mut state = gui_state_for_span_tests();
         state.audio_settings_open = true;
         let mut context = ui::UpdateContext::default();
@@ -3416,9 +3430,24 @@ mod tests {
             }),
             &mut context,
         );
+        state.apply_message(
+            super::GuiMessage::Waveform(WaveformInteraction::UpdateSelection {
+                visible_ratio: 0.65,
+            }),
+            &mut context,
+        );
+        state.apply_message(
+            super::GuiMessage::Waveform(WaveformInteraction::FinishSelection {
+                visible_ratio: 0.65,
+            }),
+            &mut context,
+        );
 
-        assert_eq!(state.waveform.play_mark_ratio(), None);
-        assert_eq!(state.waveform.play_selection(), None);
+        assert_eq!(state.waveform.play_mark_ratio(), Some(0.45));
+        assert_eq!(
+            state.waveform.play_selection(),
+            Some(wavecrate::selection::SelectionRange::new(0.45, 0.65))
+        );
     }
 
     #[test]
@@ -3438,6 +3467,77 @@ mod tests {
                 .iter()
                 .any(|file| file.name == "portal_SS_kick_003.wav")
         );
+    }
+
+    #[test]
+    fn default_gui_loads_persisted_sources_and_audio_output() {
+        let config_base = tempfile::tempdir().expect("config base");
+        let _base_guard =
+            wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+        let source_root = tempfile::tempdir().expect("source root");
+        let source_id = wavecrate::sample_sources::SourceId::from_string("source_id::gui-test");
+        wavecrate::sample_sources::config::save(&super::AppConfig {
+            sources: vec![wavecrate::sample_sources::SampleSource::new_with_id(
+                source_id,
+                source_root.path().to_path_buf(),
+            )],
+            core: super::AppSettingsCore {
+                audio_output: super::AudioOutputConfig {
+                    host: Some(String::from("test-host")),
+                    device: Some(String::from("Test Device")),
+                    sample_rate: Some(48_000),
+                    buffer_size: Some(256),
+                },
+                volume: 0.42,
+                ..super::AppSettingsCore::default()
+            },
+        })
+        .expect("seed config");
+
+        let state = GuiAppState::load_default().expect("default state loads persisted config");
+
+        assert_eq!(state.folder_browser.root_path(), source_root.path());
+        assert_eq!(state.audio_output_config.host.as_deref(), Some("test-host"));
+        assert_eq!(
+            state.audio_output_config.device.as_deref(),
+            Some("Test Device")
+        );
+        assert_eq!(state.audio_output_config.sample_rate, Some(48_000));
+        assert!((state.volume - 0.42).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn default_gui_saves_sources_and_audio_output_to_app_config() {
+        let config_base = tempfile::tempdir().expect("config base");
+        let _base_guard =
+            wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+        let source_root = tempfile::tempdir().expect("source root");
+        let mut state = gui_state_for_span_tests();
+        state.audio_output_config = super::AudioOutputConfig {
+            host: Some(String::from("wasapi")),
+            device: Some(String::from("Interface")),
+            sample_rate: Some(96_000),
+            buffer_size: None,
+        };
+        state.volume = 0.5;
+
+        let request = state
+            .folder_browser
+            .begin_add_source_path(source_root.path().to_path_buf(), 100)
+            .expect("new source requests scan");
+        let result = super::folder_browser::scan_source_with_progress(request, |_| {}, |_| {});
+        state.finish_folder_scan(result);
+
+        let loaded = wavecrate::sample_sources::config::load_or_default().expect("reload config");
+        assert_eq!(loaded.sources.len(), 1);
+        assert_eq!(loaded.sources[0].root, source_root.path());
+        assert_eq!(loaded.core.audio_output.host.as_deref(), Some("wasapi"));
+        assert_eq!(
+            loaded.core.audio_output.device.as_deref(),
+            Some("Interface")
+        );
+        assert_eq!(loaded.core.audio_output.sample_rate, Some(96_000));
+        assert!((loaded.core.volume - 0.5).abs() < f32::EPSILON);
     }
 
     #[test]

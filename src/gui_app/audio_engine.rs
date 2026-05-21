@@ -9,6 +9,7 @@ impl GuiAppState {
         if let Some(player) = self.audio_player.as_mut() {
             player.set_volume(self.volume);
         }
+        self.persist_user_configuration("playback.volume.persist", started_at);
         emit_gui_action(
             "playback.volume.set",
             Some("transport"),
@@ -21,7 +22,11 @@ impl GuiAppState {
 
     pub(super) fn toggle_audio_settings(&mut self) {
         let started_at = Instant::now();
-        self.audio_settings_open = !self.audio_settings_open;
+        if self.audio_settings_open {
+            self.close_audio_settings_window();
+        } else {
+            self.open_audio_settings_window();
+        }
         emit_gui_action(
             "audio.settings.toggle",
             Some("top_bar"),
@@ -34,6 +39,15 @@ impl GuiAppState {
             started_at,
             None,
         );
+    }
+
+    pub(super) fn open_audio_settings_window(&mut self) {
+        self.audio_settings_open = true;
+        self.audio_settings_error = None;
+    }
+
+    pub(super) fn close_audio_settings_window(&mut self) {
+        self.audio_settings_open = false;
     }
 
     pub(super) fn set_audio_output_host(&mut self, host: Option<String>) {
@@ -141,6 +155,7 @@ impl GuiAppState {
                 error = Some(err);
             }
         }
+        self.persist_user_configuration("audio.output.persist", started_at);
         emit_gui_action(
             action,
             Some("audio_settings"),

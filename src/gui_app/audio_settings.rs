@@ -1,4 +1,7 @@
 use radiant::prelude as ui;
+use radiant::prelude::IntoView;
+use std::sync::Arc;
+use wavecrate::audio::{AudioDeviceSummary, AudioHostSummary, AudioOutputConfig};
 
 use super::{
     AUDIO_ENGINE_PILL_HEIGHT, AUDIO_ENGINE_PILL_ID, AUDIO_ENGINE_PILL_WIDTH,
@@ -10,7 +13,52 @@ mod audio_engine_pill;
 pub(super) use audio_engine_pill::AudioEnginePill;
 
 mod popover;
-pub(super) use popover::{audio_settings_popover, format_sample_rate_label};
+#[cfg(test)]
+pub(super) use popover::audio_settings_popover;
+pub(super) use popover::{audio_settings_window_view, format_sample_rate_label};
+
+#[derive(Clone, Debug)]
+pub(super) struct AudioSettingsSnapshot {
+    pub(super) detail_label: String,
+    pub(super) error: Option<String>,
+    pub(super) audio_output_config: AudioOutputConfig,
+    pub(super) audio_hosts: Vec<AudioHostSummary>,
+    pub(super) audio_devices: Vec<AudioDeviceSummary>,
+    pub(super) audio_sample_rates: Vec<u32>,
+}
+
+impl AudioSettingsSnapshot {
+    pub(super) fn from_app_state(state: &GuiAppState) -> Self {
+        Self {
+            detail_label: state.audio_engine_detail_label(),
+            error: state.audio_settings_error.clone(),
+            audio_output_config: state.audio_output_config.clone(),
+            audio_hosts: state.audio_hosts.clone(),
+            audio_devices: state.audio_devices.clone(),
+            audio_sample_rates: state.audio_sample_rates.clone(),
+        }
+    }
+}
+
+pub(super) fn auxiliary_windows(state: &mut GuiAppState) -> Vec<ui::AuxiliaryWindow<GuiMessage>> {
+    if !state.audio_settings_open {
+        return Vec::new();
+    }
+    let snapshot = AudioSettingsSnapshot::from_app_state(state);
+    let options = ui::NativeRunOptions {
+        title: String::from("Audio Engine"),
+        inner_size: Some([AUDIO_SETTINGS_POPUP_WIDTH, AUDIO_SETTINGS_POPUP_HEIGHT]),
+        min_inner_size: Some([AUDIO_SETTINGS_POPUP_WIDTH, AUDIO_SETTINGS_POPUP_HEIGHT]),
+        skip_taskbar: true,
+        decorations: true,
+        ..ui::NativeRunOptions::default()
+    };
+    let surface = ui::UiSurface::new(audio_settings_window_view(&snapshot).into_node());
+    vec![
+        ui::AuxiliaryWindow::new("audio-settings", options, Arc::new(surface))
+            .on_close(GuiMessage::CloseAudioSettings),
+    ]
+}
 
 pub(super) fn top_status_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
     ui::row([

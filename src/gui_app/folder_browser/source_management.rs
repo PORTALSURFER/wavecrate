@@ -6,8 +6,39 @@ use super::{
     scanning::{merge_scan_discovery, placeholder_folder},
     types::{FolderScanDiscoveryBatch, FolderScanRequest, FolderScanResult},
 };
+use wavecrate::sample_sources::{SampleSource, SourceId};
 
 impl FolderBrowserState {
+    pub(in crate::gui_app) fn from_sample_sources(sources: &[SampleSource]) -> Self {
+        if sources.is_empty() {
+            return Self::load_default();
+        }
+        let entries = sources
+            .iter()
+            .map(|source| {
+                SourceEntry::new(
+                    source.id.as_str().to_string(),
+                    folder_label(&source.root),
+                    source.root.clone(),
+                )
+            })
+            .collect::<Vec<_>>();
+        Self::from_sources(entries, sources[0].id.as_str().to_string())
+    }
+
+    pub(in crate::gui_app) fn configured_sample_sources(&self) -> Vec<SampleSource> {
+        self.sources
+            .iter()
+            .filter(|source| !source.is_default_assets_source())
+            .map(|source| {
+                SampleSource::new_with_id(
+                    SourceId::from_string(source.id.clone()),
+                    source.root.clone(),
+                )
+            })
+            .collect()
+    }
+
     #[cfg(test)]
     pub(super) fn source_labels_for_tests(&self) -> Vec<String> {
         self.sources
