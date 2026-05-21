@@ -437,7 +437,7 @@ The filename is not the stable identity. Disk filenames may change, display name
 
 Wavecrate should store this ID in the database and should also attempt to embed it directly into supported audio files.
 
-During scan and indexing, Wavecrate should automatically assign a Sample ID to supported ordinary WAV files that do not already have one and should automatically attempt to embed that ID into the file.
+During scan and indexing, Wavecrate should automatically assign a database Sample ID to supported ordinary WAV files that do not already have one. The scan should then queue embedded-ID writing as low-priority background metadata work instead of making source discovery, indexing, folder browsing, auditioning, editing, extraction, tagging, rating, or handoff wait for file metadata rewrites.
 
 If a newly scanned or externally added file already contains an embedded Wavecrate Sample ID that is also used by another indexed file identity, Wavecrate should mark the file with a duplicate embedded-ID conflict rather than silently treating both files as the same file or silently overwriting the ID. The file should remain visible enough for browsing, filtering, inspection, reveal, and conflict resolution, but the browser and file details should show a clear warning.
 
@@ -457,7 +457,7 @@ Resolving duplicate embedded-ID conflicts should be a current-session undoable t
 
 Automatic embedded-ID writing is an intentional metadata mutation, but it must not rewrite or reinterpret the audio payload. It should use the safest practical WAV metadata write path, preserve existing audio data and unknown chunks where practical, and use atomic or recovery-safe file replacement where needed.
 
-Automatic embedding should not block the scan from discovering and indexing files. If the file is read-only, locked, unsupported for safe metadata writing, permission-denied, changed during the write, or fails validation, Wavecrate should keep the database Sample ID, mark the embedded-ID state as pending, failed, or unsafe, and show/log a clear status instead of treating the whole file as unusable.
+Automatic embedding should expose visible embedded-ID state such as pending, writing, written, failed, unsafe, or duplicate-conflict where useful. If the file is read-only, locked, unsupported for safe metadata writing, permission-denied, changed during the write, or fails validation, Wavecrate should keep the database Sample ID, mark the embedded-ID state as pending, failed, or unsafe, and show/log a clear status instead of treating the whole file as unusable.
 
 When Wavecrate later rewrites, extracts, duplicates, exports, or otherwise creates a normal audio file through its audio-write pipeline, it should write the embedded Sample ID metadata where safe as part of that same operation.
 
