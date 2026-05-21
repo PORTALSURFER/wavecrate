@@ -45,36 +45,29 @@ pub(in crate::gui_app) fn scan_source_with_progress(
     mut progress: impl FnMut(FolderScanProgress),
     mut discovered: impl FnMut(FolderScanDiscovery),
 ) -> FolderScanResult {
-    let mut scan = ScanProgressCounter {
-        completed: 0,
-        files: 0,
-        folders: 0,
+    let mut scan = ScanProgressContext {
+        request: &request,
+        counter: ScanProgressCounter {
+            completed: 0,
+            files: 0,
+            folders: 0,
+        },
+        progress: &mut progress,
+        discovered: &mut discovered,
     };
-    progress(FolderScanProgress {
-        task_id: request.task_id,
-        source_id: request.source_id.clone(),
-        label: request.label.clone(),
-        phase: String::from("Scanning"),
-        completed: 0,
-        total: 0,
-        detail: request.root.display().to_string(),
-    });
-    let folder = load_folder_with_progress(
-        &request.root,
-        0,
-        &request,
-        &mut scan,
-        &mut progress,
-        &mut discovered,
-    )
-    .unwrap_or_else(|| placeholder_folder(&request.root));
+    scan.report_initial();
+    let folder = load_folder_with_progress(&request.root, 0, &mut scan)
+        .unwrap_or_else(|| placeholder_folder(&request.root));
+    let file_count = scan.counter.files;
+    let folder_count = scan.counter.folders;
+    drop(scan);
     FolderScanResult {
         task_id: request.task_id,
         source_id: request.source_id,
         label: request.label,
         folder,
-        file_count: scan.files,
-        folder_count: scan.folders,
+        file_count,
+        folder_count,
     }
 }
 
@@ -108,14 +101,91 @@ struct ScanProgressCounter {
     folders: usize,
 }
 
-fn load_folder_with_progress(
+struct ScanProgressContext<'a, P, D>
+where
+    P: FnMut(FolderScanProgress),
+    D: FnMut(FolderScanDiscovery),
+{
+    request: &'a FolderScanRequest,
+    counter: ScanProgressCounter,
+    progress: &'a mut P,
+    discovered: &'a mut D,
+}
+
+impl<P, D> ScanProgressContext<'_, P, D>
+where
+    P: FnMut(FolderScanProgress),
+    D: FnMut(FolderScanDiscovery),
+{
+    fn report_initial(&mut self) {
+        (self.progress)(FolderScanProgress {
+            task_id: self.request.task_id,
+            source_id: self.request.source_id.clone(),
+            label: self.request.label.clone(),
+            phase: String::from("Scanning"),
+            completed: 0,
+            total: 0,
+            detail: self.request.root.display().to_string(),
+        });
+    }
+
+    fn record_folder(&mut self, path: &Path, parent_id: &str) {
+        self.counter.completed += 1;
+        self.counter.folders += 1;
+        self.maybe_report_progress(path);
+        (self.discovered)(FolderScanDiscovery {
+            task_id: self.request.task_id,
+            source_id: self.request.source_id.clone(),
+            parent_id: parent_id.to_string(),
+            item: FolderScanItem::Folder(placeholder_folder(path)),
+        });
+    }
+
+    fn record_file(&mut self, path: &Path, parent_id: &str, file: FileEntry) {
+        self.counter.completed += 1;
+        self.counter.files += 1;
+        self.maybe_report_progress(path);
+        (self.discovered)(FolderScanDiscovery {
+            task_id: self.request.task_id,
+            source_id: self.request.source_id.clone(),
+            parent_id: parent_id.to_string(),
+            item: FolderScanItem::File(file),
+        });
+    }
+
+    fn record_completed_folder(&mut self, parent_id: &str, folder: FolderEntry) {
+        (self.discovered)(FolderScanDiscovery {
+            task_id: self.request.task_id,
+            source_id: self.request.source_id.clone(),
+            parent_id: parent_id.to_string(),
+            item: FolderScanItem::Folder(folder),
+        });
+    }
+
+    fn maybe_report_progress(&mut self, path: &Path) {
+        if self.counter.completed == 1 || self.counter.completed.is_multiple_of(64) {
+            (self.progress)(FolderScanProgress {
+                task_id: self.request.task_id,
+                source_id: self.request.source_id.clone(),
+                label: self.request.label.clone(),
+                phase: String::from("Scanning"),
+                completed: self.counter.completed,
+                total: 0,
+                detail: path.display().to_string(),
+            });
+        }
+    }
+}
+
+fn load_folder_with_progress<P, D>(
     path: &Path,
     depth: usize,
-    request: &FolderScanRequest,
-    scan: &mut ScanProgressCounter,
-    progress: &mut impl FnMut(FolderScanProgress),
-    discovered: &mut impl FnMut(FolderScanDiscovery),
-) -> Option<FolderEntry> {
+    scan: &mut ScanProgressContext<'_, P, D>,
+) -> Option<FolderEntry>
+where
+    P: FnMut(FolderScanProgress),
+    D: FnMut(FolderScanDiscovery),
+{
     if depth > MAX_SCAN_DEPTH {
         return None;
     }
@@ -126,23 +196,9 @@ fn load_folder_with_progress(
         .filter(|entry| entry.is_dir())
         .take(MAX_CHILD_FOLDERS)
         .filter_map(|entry| {
-            scan.completed += 1;
-            scan.folders += 1;
-            maybe_report_scan_progress(entry, request, scan, progress);
-            discovered(FolderScanDiscovery {
-                task_id: request.task_id,
-                source_id: request.source_id.clone(),
-                parent_id: parent_id.clone(),
-                item: FolderScanItem::Folder(placeholder_folder(entry)),
-            });
-            let child =
-                load_folder_with_progress(entry, depth + 1, request, scan, progress, discovered)?;
-            discovered(FolderScanDiscovery {
-                task_id: request.task_id,
-                source_id: request.source_id.clone(),
-                parent_id: parent_id.clone(),
-                item: FolderScanItem::Folder(child.clone()),
-            });
+            scan.record_folder(entry, &parent_id);
+            let child = load_folder_with_progress(entry, depth + 1, scan)?;
+            scan.record_completed_folder(&parent_id, child.clone());
             Some(child)
         })
         .collect::<Vec<_>>();
@@ -150,16 +206,8 @@ fn load_folder_with_progress(
         .iter()
         .filter(|entry| entry.is_file())
         .map(|entry| {
-            scan.completed += 1;
-            scan.files += 1;
-            maybe_report_scan_progress(entry, request, scan, progress);
             let file = file_entry(entry);
-            discovered(FolderScanDiscovery {
-                task_id: request.task_id,
-                source_id: request.source_id.clone(),
-                parent_id: parent_id.clone(),
-                item: FolderScanItem::File(file.clone()),
-            });
+            scan.record_file(entry, &parent_id, file.clone());
             file
         })
         .collect::<Vec<_>>();
@@ -169,25 +217,6 @@ fn load_folder_with_progress(
         children,
         files,
     })
-}
-
-fn maybe_report_scan_progress(
-    path: &Path,
-    request: &FolderScanRequest,
-    scan: &ScanProgressCounter,
-    progress: &mut impl FnMut(FolderScanProgress),
-) {
-    if scan.completed == 1 || scan.completed.is_multiple_of(64) {
-        progress(FolderScanProgress {
-            task_id: request.task_id,
-            source_id: request.source_id.clone(),
-            label: request.label.clone(),
-            phase: String::from("Scanning"),
-            completed: scan.completed,
-            total: 0,
-            detail: path.display().to_string(),
-        });
-    }
 }
 
 pub(super) fn merge_scan_discovery(root: &mut FolderEntry, event: &FolderScanDiscovery) -> bool {
