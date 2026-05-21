@@ -1,4 +1,5 @@
 use radiant::widgets::PointerModifiers;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use super::{
@@ -9,14 +10,7 @@ use super::{
 
 impl FolderBrowserState {
     pub(in crate::gui_app) fn selected_file_paths(&self) -> Vec<PathBuf> {
-        let selected = if self.selected_file_ids.is_empty() {
-            self.selected_file
-                .as_deref()
-                .map(|id| [id.to_string()].into_iter().collect())
-                .unwrap_or_default()
-        } else {
-            self.selected_file_ids.clone()
-        };
+        let selected = self.active_selected_file_ids();
         self.selected_audio_files()
             .into_iter()
             .filter(|file| selected.contains(&file.id))
@@ -25,18 +19,21 @@ impl FolderBrowserState {
     }
 
     pub(in crate::gui_app) fn selected_audio_file_count(&self) -> usize {
-        let selected = if self.selected_file_ids.is_empty() {
-            self.selected_file
-                .as_deref()
-                .map(|id| [id.to_string()].into_iter().collect())
-                .unwrap_or_default()
-        } else {
-            self.selected_file_ids.clone()
-        };
+        let selected = self.active_selected_file_ids();
         self.selected_audio_files()
             .into_iter()
             .filter(|file| selected.contains(&file.id))
             .count()
+    }
+
+    fn active_selected_file_ids(&self) -> HashSet<String> {
+        if !self.selected_file_ids.is_empty() {
+            return self.selected_file_ids.clone();
+        }
+        self.selected_file
+            .as_deref()
+            .map(|id| [id.to_string()].into_iter().collect())
+            .unwrap_or_default()
     }
 
     pub(in crate::gui_app) fn navigate_vertical(
