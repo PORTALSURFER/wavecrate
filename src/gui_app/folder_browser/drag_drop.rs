@@ -41,10 +41,10 @@ impl FolderBrowserState {
     pub(in crate::gui_app) fn external_drag_request(&self) -> Option<ui::ExternalDragRequest> {
         let drag = self.drag.as_ref()?;
         let label = self.drag_preview_label(drag)?;
-        let paths = match drag {
-            FolderBrowserDrag::Folder { folder_id } => vec![PathBuf::from(folder_id)],
-            FolderBrowserDrag::Files { file_ids } => file_ids.iter().map(PathBuf::from).collect(),
+        let FolderBrowserDrag::Files { file_ids } = drag else {
+            return None;
         };
+        let paths = file_ids.iter().map(PathBuf::from).collect::<Vec<_>>();
         Some(ui::ExternalDragRequest::files(paths, label))
     }
 
