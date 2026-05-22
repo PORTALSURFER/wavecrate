@@ -36,6 +36,10 @@ predictable, and lower-latency design.
 - default product-specific GUI behavior should prefer `src/gui_app.rs` and
   `src/app_core/**` over the deprecated legacy `src/app/**` layer unless the
   task is explicitly legacy-runtime work
+- current default-GUI folder/file drag/drop behavior lives under
+  `src/gui_app/folder_browser/**`; do not route product drag/drop fixes to
+  `src/app/controller/ui/drag_drop_controller/**` unless the task explicitly
+  names the deprecated compatibility controller
 - reusable UI/runtime/layout work belongs in `vendor/radiant`
 - shell-compatibility behavior should stay inside the compatibility surfaces
   rather than leaking back into generic Radiant modules
@@ -75,11 +79,25 @@ Owns:
 - the default Wavecrate desktop GUI entrypoint
 - composition of Radiant's current application, runtime, widget, and GPU-surface
   APIs for Wavecrate's sample-workstation UI
+- current folder-browser folder/file drag/drop interactions, with support
+  modules in `src/gui_app/folder_browser/**`
 
 Should avoid:
 
 - owning reusable Radiant behavior that should live in `vendor/radiant`
 - reintroducing dependencies on the deprecated legacy GUI path
+
+### `src/app/controller/ui/drag_drop_controller/**`
+
+Owns:
+
+- deprecated compatibility-controller drag/drop behavior for the legacy
+  `src/app/**` model and its tests
+
+Should avoid:
+
+- being used as the default target for current `src/gui_app.rs` product
+  drag/drop bugs
 
 ### `src/sample_sources/**`
 

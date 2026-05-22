@@ -68,6 +68,10 @@ impl FolderBrowserState {
         folders: &mut Vec<VisibleFolder>,
     ) {
         let drag_active = self.drag.is_some();
+        let drag_source = matches!(
+            self.drag.as_ref(),
+            Some(super::FolderBrowserDrag::Folder { folder_id }) if folder_id == &folder.id
+        );
         let drop_candidate = drag_active && self.can_drop_drag_on_folder(&folder.id);
         folders.push(VisibleFolder {
             id: folder.id.clone(),
@@ -77,6 +81,7 @@ impl FolderBrowserState {
             expanded: self.is_expanded(&folder.id),
             selected: self.selected_folder == folder.id,
             drag_active,
+            drag_source,
             drop_candidate,
             drop_target: drop_candidate
                 && self.drop_target_folder.as_deref() == Some(folder.id.as_str()),

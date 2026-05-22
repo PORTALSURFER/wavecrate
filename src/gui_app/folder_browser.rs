@@ -142,10 +142,12 @@ impl FolderBrowserState {
             | FolderBrowserMessage::BeginCreateSubfolder
             | FolderBrowserMessage::RenameInput(_)
             | FolderBrowserMessage::DropOnFolder(_) => {}
-            FolderBrowserMessage::ClearDropTarget => {
+            FolderBrowserMessage::ClearDropTarget(position) => {
+                self.update_drag_pointer(position);
                 self.drop_target_folder = None;
             }
-            FolderBrowserMessage::HoverDropTarget(id) => {
+            FolderBrowserMessage::HoverDropTarget(id, position) => {
+                self.update_drag_pointer(position);
                 self.hover_drop_target_folder(&id);
             }
             FolderBrowserMessage::ActivateFolder(id) => {
