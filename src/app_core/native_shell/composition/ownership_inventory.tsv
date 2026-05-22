@@ -101,6 +101,7 @@ state/options_panel.rs	wavecrate_composition	OPT-187	Options panel facade moves 
 state/options_panel/**	wavecrate_composition	OPT-187	Options panel actions, geometry, render, and style move with options composition.
 state/overlays.rs	wavecrate_composition	OPT-187	Overlay facade moves with top, status, options, and overlay composition.
 state/overlays/**	wavecrate_composition	OPT-187	Drag, progress, prompt, and overlay geometry move with overlay composition.
+state/runtime_state.rs	compat_adapter	OPT-191	Small retained runtime-state support types stay with NativeShellState until final shell facade ownership is split.
 state/svg_icons.rs	wavecrate_composition	OPT-190	Toolbar icon identifiers and rasterization move with waveform/browser/sidebar toolbar composition; parser stays generic.
 state/tests/**	wavecrate_fixture	OPT-191	Wavecrate native-shell compatibility fixture pack; keep relocation separate from production surface moves.
 state/text_fields.rs	wavecrate_composition	OPT-188	Browser/search text-field state moves with browser chrome composition.
