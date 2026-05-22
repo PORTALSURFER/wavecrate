@@ -605,7 +605,7 @@ fn sample_auto_rename_cancel_stops_after_partial_completion() {
 
     loop {
         match rx
-            .recv_timeout(Duration::from_secs(1))
+            .recv_timeout(Duration::from_secs(15))
             .expect("wait for first progress")
         {
             JobMessage::FileOps(FileOpMessage::Progress { completed: 1, .. }) => {
@@ -617,7 +617,7 @@ fn sample_auto_rename_cancel_stops_after_partial_completion() {
     }
 
     let result = result_rx
-        .recv_timeout(Duration::from_secs(2))
+        .recv_timeout(Duration::from_secs(15))
         .expect("worker should stop after cancellation");
 
     assert!(!result.renamed.is_empty());

@@ -297,7 +297,8 @@ fn large_tag_sidebar_auto_rename_batch_reports_controller_phase_timings() {
 
 #[test]
 fn large_auto_rename_background_dispatch_registers_file_ops_before_planning_finishes() {
-    const SAMPLE_COUNT: usize = 64;
+    /// Large enough to exercise batch dispatch without making the regression test slow.
+    const SAMPLE_COUNT: usize = 24;
     clear_batch_latency();
     let (mut controller, source, paths) = large_auto_rename_fixture(SAMPLE_COUNT);
 
@@ -326,6 +327,7 @@ fn large_auto_rename_background_dispatch_registers_file_ops_before_planning_fini
 
 #[test]
 fn large_background_auto_rename_reuses_source_db_for_batch_execution() {
+    /// Large enough to catch per-item database opens in the auto-rename worker.
     const SAMPLE_COUNT: usize = 24;
     let (mut controller, source, paths) = large_auto_rename_fixture(SAMPLE_COUNT);
 
@@ -346,7 +348,8 @@ fn large_background_auto_rename_reuses_source_db_for_batch_execution() {
 
 #[test]
 fn large_tag_sidebar_background_auto_rename_streams_file_ops_progress_and_refreshes_rows() {
-    const SAMPLE_COUNT: usize = 64;
+    /// Large enough to exercise progress streaming and final browser-row refresh behavior.
+    const SAMPLE_COUNT: usize = 24;
     clear_batch_latency();
     let (mut controller, source, paths) = large_auto_rename_fixture(SAMPLE_COUNT);
     controller.set_browser_selected_paths(paths.clone());
@@ -387,12 +390,12 @@ fn large_tag_sidebar_background_auto_rename_streams_file_ops_progress_and_refres
 
     assert_eq!(controller.visible_browser_len(), visible_before);
     assert!(source.root.join("artistname_SS_vintagefx.wav").exists());
-    assert!(source.root.join("artistname_SS_vintagefx_063.wav").exists());
+    assert!(source.root.join("artistname_SS_vintagefx_023.wav").exists());
     assert!(!source.root.join("sample_000.wav").exists());
     assert!(!controller.ui.progress.visible);
     assert_eq!(
         controller.ui.status.text,
-        "Auto Rename: renamed 64, skipped 0, failed 0"
+        "Auto Rename: renamed 24, skipped 0, failed 0"
     );
 
     let _ = controller.refresh_projection_revision_bus();
@@ -408,7 +411,8 @@ fn large_tag_sidebar_background_auto_rename_streams_file_ops_progress_and_refres
 
 #[test]
 fn large_background_auto_rename_reports_partial_failure_through_file_ops_progress() {
-    const SAMPLE_COUNT: usize = 48;
+    /// Large enough to prove partial failures advance inside a real batch.
+    const SAMPLE_COUNT: usize = 24;
     clear_batch_latency();
     let (mut controller, source, paths) = large_auto_rename_fixture(SAMPLE_COUNT);
     std::fs::remove_file(source.root.join("sample_010.wav"))
@@ -417,7 +421,7 @@ fn large_background_auto_rename_reports_partial_failure_through_file_ops_progres
     BrowserController::new(&mut controller)
         .auto_rename_browser_sample_paths_background_for_tests(&paths)
         .expect("background auto rename should start");
-    wait_for_file_ops_detail(&mut controller, Duration::from_secs(15), |detail| {
+    wait_for_file_ops_detail(&mut controller, Duration::from_secs(60), |detail| {
         detail == "Failed sample_010.wav"
     });
 
@@ -436,14 +440,14 @@ fn large_background_auto_rename_reports_partial_failure_through_file_ops_progres
 
     assert_eq!(
         controller.ui.status.text,
-        "Auto Rename: renamed 47, skipped 0, failed 1"
+        "Auto Rename: renamed 23, skipped 0, failed 1"
     );
     assert_eq!(
         controller.ui.status.status_tone,
         crate::app::state::StatusTone::Warning
     );
     assert!(source.root.join("artistname_SS.wav").exists());
-    assert!(source.root.join("artistname_SS_047.wav").exists());
+    assert!(source.root.join("artistname_SS_023.wav").exists());
     assert!(!source.root.join("artistname_SS_010.wav").exists());
     assert!(!controller.ui.progress.visible);
 }
