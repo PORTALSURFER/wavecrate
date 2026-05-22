@@ -310,152 +310,228 @@ impl GuiAppState {
         );
     }
 
-    fn apply_message(&mut self, message: GuiMessage, context: &mut ui::UpdateContext<GuiMessage>) {
+    fn apply_folder_browser_message(
+        &mut self,
+        message: FolderBrowserMessage,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
         match message {
-            GuiMessage::ResizeFolder(message) => self.resize_folder_browser(message),
-            GuiMessage::FolderBrowser(FolderBrowserMessage::AddSource) => {
-                self.add_source_from_dialog(context);
-            }
-            GuiMessage::FolderBrowser(FolderBrowserMessage::SelectSource(id)) => {
+            FolderBrowserMessage::AddSource => self.add_source_from_dialog(context),
+            FolderBrowserMessage::SelectSource(id) => {
                 self.context_menu = None;
                 self.select_source(id, context);
             }
-            GuiMessage::FolderBrowser(FolderBrowserMessage::OpenSourceContextMenu(
-                source_id,
-                position,
-            )) => self.open_source_context_menu(source_id, position),
-            GuiMessage::FolderBrowser(FolderBrowserMessage::BeginRenameSelected) => {
-                let started_at = Instant::now();
-                let target = self.folder_browser.selected_rename_target();
-                if logging::debug_logging_enabled() {
-                    tracing::debug!(
-                        target: logging::ACTION_EVENT_TARGET,
-                        event = "action_detail",
-                        action = "folder_browser.rename.begin",
-                        pane = "folder_browser",
-                        target_kind = target.kind,
-                        target_label = target.label,
-                        is_source_root = target.is_source_root,
-                        "Folder browser rename requested"
-                    );
-                }
-                let renaming_file = self.folder_browser.selected_file_id().is_some();
-                match self.folder_browser.begin_rename_selected() {
-                    Ok(Some(input_id)) => {
-                        self.sample_status = if renaming_file {
-                            String::from("Renaming selected file")
-                        } else {
-                            String::from("Renaming selected folder")
-                        };
-                        context.after(
-                            Duration::from_millis(1),
-                            GuiMessage::FocusRenameInput(input_id),
-                        );
-                        emit_gui_action(
-                            "folder_browser.rename.begin",
-                            Some("folder_browser"),
-                            Some(target.kind),
-                            "success",
-                            started_at,
-                            None,
-                        );
-                    }
-                    Ok(None) => {
-                        self.sample_status = String::from("Select a folder to rename");
-                        emit_gui_action(
-                            "folder_browser.rename.begin",
-                            Some("folder_browser"),
-                            None,
-                            "short_circuit",
-                            started_at,
-                            Some("nothing_selected"),
-                        );
-                    }
-                    Err(error) => {
-                        self.sample_status = error;
-                        emit_gui_action(
-                            "folder_browser.rename.begin",
-                            Some("folder_browser"),
-                            None,
-                            "error",
-                            started_at,
-                            Some("rename_begin_failed"),
-                        );
-                    }
-                }
+            FolderBrowserMessage::OpenSourceContextMenu(source_id, position) => {
+                self.open_source_context_menu(source_id, position);
             }
-            GuiMessage::FolderBrowser(FolderBrowserMessage::BeginCreateSubfolder) => {
-                let started_at = Instant::now();
-                match self.folder_browser.begin_create_subfolder() {
-                    Ok(Some(input_id)) => {
-                        self.sample_status = String::from("Creating new folder");
-                        context.after(
-                            Duration::from_millis(1),
-                            GuiMessage::FocusRenameInput(input_id),
-                        );
-                        emit_gui_action(
-                            "folder_browser.folder.create_begin",
-                            Some("folder_browser"),
-                            Some("folder"),
-                            "success",
-                            started_at,
-                            None,
-                        );
-                    }
-                    Ok(None) => {
-                        self.sample_status = String::from("Select a folder to add a subfolder");
-                        emit_gui_action(
-                            "folder_browser.folder.create_begin",
-                            Some("folder_browser"),
-                            None,
-                            "short_circuit",
-                            started_at,
-                            Some("nothing_selected"),
-                        );
-                    }
-                    Err(error) => {
-                        self.sample_status = error;
-                        emit_gui_action(
-                            "folder_browser.folder.create_begin",
-                            Some("folder_browser"),
-                            None,
-                            "error",
-                            started_at,
-                            Some("create_begin_failed"),
-                        );
-                    }
-                }
+            FolderBrowserMessage::BeginRenameSelected => self.begin_folder_browser_rename(context),
+            FolderBrowserMessage::BeginCreateSubfolder => {
+                self.begin_folder_browser_subfolder_creation(context);
             }
-            GuiMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message)) => {
-                let started_at = Instant::now();
-                let input_action = rename_input_action(&message);
-                if let Some(status) = self.folder_browser.apply_rename_input(message) {
-                    self.sample_status = status;
-                }
-                if let Some(action) = input_action {
-                    emit_gui_action(
-                        action,
-                        Some("folder_browser"),
-                        None,
-                        "applied",
-                        started_at,
-                        None,
-                    );
-                }
+            FolderBrowserMessage::RenameInput(message) => {
+                self.apply_folder_browser_rename_input(message);
             }
-            GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnFolder(folder_id)) => {
+            FolderBrowserMessage::DropOnFolder(folder_id) => {
                 self.context_menu = None;
                 self.drop_browser_drag_on_folder(folder_id, context);
             }
-            GuiMessage::FolderBrowser(FolderBrowserMessage::OpenFolderContextMenu(
-                folder_id,
-                position,
-            )) => self.open_folder_context_menu(folder_id, position),
-            GuiMessage::FolderBrowser(FolderBrowserMessage::DragFolder(folder_id, drag)) => {
+            FolderBrowserMessage::OpenFolderContextMenu(folder_id, position) => {
+                self.open_folder_context_menu(folder_id, position);
+            }
+            FolderBrowserMessage::DragFolder(folder_id, drag) => {
                 self.context_menu = None;
                 self.drag_folder(folder_id, drag, context);
             }
-            GuiMessage::FolderBrowser(message) => self.folder_browser.apply_message(message),
+            message => self.folder_browser.apply_message(message),
+        }
+    }
+
+    fn begin_folder_browser_rename(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
+        let started_at = Instant::now();
+        let target = self.folder_browser.selected_rename_target();
+        if logging::debug_logging_enabled() {
+            tracing::debug!(
+                target: logging::ACTION_EVENT_TARGET,
+                event = "action_detail",
+                action = "folder_browser.rename.begin",
+                pane = "folder_browser",
+                target_kind = target.kind,
+                target_label = target.label,
+                is_source_root = target.is_source_root,
+                "Folder browser rename requested"
+            );
+        }
+        let renaming_file = self.folder_browser.selected_file_id().is_some();
+        match self.folder_browser.begin_rename_selected() {
+            Ok(Some(input_id)) => {
+                self.sample_status = if renaming_file {
+                    String::from("Renaming selected file")
+                } else {
+                    String::from("Renaming selected folder")
+                };
+                context.after(
+                    Duration::from_millis(1),
+                    GuiMessage::FocusRenameInput(input_id),
+                );
+                emit_gui_action(
+                    "folder_browser.rename.begin",
+                    Some("folder_browser"),
+                    Some(target.kind),
+                    "success",
+                    started_at,
+                    None,
+                );
+            }
+            Ok(None) => {
+                self.sample_status = String::from("Select a folder to rename");
+                emit_gui_action(
+                    "folder_browser.rename.begin",
+                    Some("folder_browser"),
+                    None,
+                    "short_circuit",
+                    started_at,
+                    Some("nothing_selected"),
+                );
+            }
+            Err(error) => {
+                self.sample_status = error;
+                emit_gui_action(
+                    "folder_browser.rename.begin",
+                    Some("folder_browser"),
+                    None,
+                    "error",
+                    started_at,
+                    Some("rename_begin_failed"),
+                );
+            }
+        }
+    }
+
+    fn begin_folder_browser_subfolder_creation(
+        &mut self,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        let started_at = Instant::now();
+        match self.folder_browser.begin_create_subfolder() {
+            Ok(Some(input_id)) => {
+                self.sample_status = String::from("Creating new folder");
+                context.after(
+                    Duration::from_millis(1),
+                    GuiMessage::FocusRenameInput(input_id),
+                );
+                emit_gui_action(
+                    "folder_browser.folder.create_begin",
+                    Some("folder_browser"),
+                    Some("folder"),
+                    "success",
+                    started_at,
+                    None,
+                );
+            }
+            Ok(None) => {
+                self.sample_status = String::from("Select a folder to add a subfolder");
+                emit_gui_action(
+                    "folder_browser.folder.create_begin",
+                    Some("folder_browser"),
+                    None,
+                    "short_circuit",
+                    started_at,
+                    Some("nothing_selected"),
+                );
+            }
+            Err(error) => {
+                self.sample_status = error;
+                emit_gui_action(
+                    "folder_browser.folder.create_begin",
+                    Some("folder_browser"),
+                    None,
+                    "error",
+                    started_at,
+                    Some("create_begin_failed"),
+                );
+            }
+        }
+    }
+
+    fn apply_folder_browser_rename_input(&mut self, message: radiant::widgets::TextInputMessage) {
+        let started_at = Instant::now();
+        let input_action = rename_input_action(&message);
+        if let Some(status) = self.folder_browser.apply_rename_input(message) {
+            self.sample_status = status;
+        }
+        if let Some(action) = input_action {
+            emit_gui_action(
+                action,
+                Some("folder_browser"),
+                None,
+                "applied",
+                started_at,
+                None,
+            );
+        }
+    }
+
+    fn navigate_browser(
+        &mut self,
+        delta: i32,
+        extend: bool,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        let started_at = Instant::now();
+        let direction = if delta < 0 { "previous" } else { "next" };
+        let Some(path) = self.folder_browser.navigate_vertical(delta, extend) else {
+            emit_gui_action(
+                "folder_browser.navigate",
+                Some("browser"),
+                Some(direction),
+                "edge",
+                started_at,
+                None,
+            );
+            return;
+        };
+
+        if let Some(index) = self.folder_browser.selected_audio_file_index() {
+            context.scroll_fixed_row_into_view(
+                SAMPLE_BROWSER_LIST_ID,
+                index,
+                SAMPLE_BROWSER_ROW_HEIGHT,
+                SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
+                SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
+                delta,
+            );
+        }
+        emit_gui_action(
+            "folder_browser.navigate",
+            Some("browser"),
+            Some(direction),
+            "selected",
+            started_at,
+            None,
+        );
+        self.select_sample(path, context);
+    }
+
+    fn advance_frame(&mut self) {
+        self.waveform.apply_interaction(WaveformInteraction::Frame);
+        self.refresh_playback_progress();
+        if self.folder_progress.is_some() {
+            self.progress_tick = (self.progress_tick + 0.035) % 1.0;
+        }
+        if self.waveform_loading_label.is_some() {
+            let remaining = self.waveform_loading_target_progress - self.waveform_loading_progress;
+            if remaining > 0.0 {
+                self.waveform_loading_progress += remaining.min(0.03);
+            }
+        }
+    }
+
+    fn apply_message(&mut self, message: GuiMessage, context: &mut ui::UpdateContext<GuiMessage>) {
+        match message {
+            GuiMessage::ResizeFolder(message) => self.resize_folder_browser(message),
+            GuiMessage::FolderBrowser(message) => {
+                self.apply_folder_browser_message(message, context);
+            }
             GuiMessage::FolderScanProgress(progress) => {
                 let started_at = Instant::now();
                 if self
@@ -579,37 +655,7 @@ impl GuiAppState {
             GuiMessage::DeleteSelectedItem => self.delete_selected_item(),
             GuiMessage::ExtractPlaymarkedRange => self.extract_playmarked_range(),
             GuiMessage::NavigateBrowser { delta, extend } => {
-                let started_at = Instant::now();
-                if let Some(path) = self.folder_browser.navigate_vertical(delta, extend) {
-                    if let Some(index) = self.folder_browser.selected_audio_file_index() {
-                        context.scroll_fixed_row_into_view(
-                            SAMPLE_BROWSER_LIST_ID,
-                            index,
-                            SAMPLE_BROWSER_ROW_HEIGHT,
-                            SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
-                            SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
-                            delta,
-                        );
-                    }
-                    emit_gui_action(
-                        "folder_browser.navigate",
-                        Some("browser"),
-                        Some(if delta < 0 { "previous" } else { "next" }),
-                        "selected",
-                        started_at,
-                        None,
-                    );
-                    self.select_sample(path, context);
-                } else {
-                    emit_gui_action(
-                        "folder_browser.navigate",
-                        Some("browser"),
-                        Some(if delta < 0 { "previous" } else { "next" }),
-                        "edge",
-                        started_at,
-                        None,
-                    );
-                }
+                self.navigate_browser(delta, extend, context);
             }
             GuiMessage::SelectAllSamples => {
                 let started_at = Instant::now();
@@ -669,18 +715,7 @@ impl GuiAppState {
             }
             GuiMessage::NativeFileDrop(drop) => self.apply_native_file_drop(drop, context),
             GuiMessage::Frame => {
-                self.waveform.apply_interaction(WaveformInteraction::Frame);
-                self.refresh_playback_progress();
-                if self.folder_progress.is_some() {
-                    self.progress_tick = (self.progress_tick + 0.035) % 1.0;
-                }
-                if self.waveform_loading_label.is_some() {
-                    let remaining =
-                        self.waveform_loading_target_progress - self.waveform_loading_progress;
-                    if remaining > 0.0 {
-                        self.waveform_loading_progress += remaining.min(0.03);
-                    }
-                }
+                self.advance_frame();
             }
         }
     }

@@ -15,6 +15,10 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 use std::time::{Duration, Instant};
 
+mod state;
+
+use state::SourceWatcherState;
+
 const COMMAND_POLL_INTERVAL: Duration = Duration::from_millis(200);
 const SOURCE_WATCH_DEBOUNCE: Duration = Duration::from_millis(400);
 
@@ -117,47 +121,15 @@ fn run_source_watcher(command_rx: Receiver<SourceWatchCommand>, message_tx: JobM
             return;
         }
     };
-    let mut watched_roots: HashSet<PathBuf> = HashSet::new();
-    let mut sources: Vec<SourceWatchEntry> = Vec::new();
-    let mut pending: HashMap<SourceId, PendingSourceWatch> = HashMap::new();
-    let mut controller_file_ops: HashMap<SourceId, HashSet<PathBuf>> = HashMap::new();
-    let mut scan_in_progress = false;
+    let mut state = SourceWatcherState::default();
 
     loop {
         match command_rx.recv_timeout(COMMAND_POLL_INTERVAL) {
-            Ok(command) => match command {
-                SourceWatchCommand::ReplaceSources(next_sources) => {
-                    update_watched_sources(&mut watcher, &mut watched_roots, &next_sources);
-                    sources = next_sources;
-                    prune_pending_sources(&mut pending, &sources);
+            Ok(command) => {
+                if !state.handle_command(command, &mut watcher) {
+                    break;
                 }
-                SourceWatchCommand::SetScanInProgress { in_progress } => {
-                    scan_in_progress = in_progress;
-                }
-                SourceWatchCommand::BeginControllerFileOp {
-                    source_id,
-                    relative_paths,
-                } => {
-                    controller_file_ops
-                        .entry(source_id)
-                        .or_default()
-                        .extend(relative_paths);
-                }
-                SourceWatchCommand::FinishControllerFileOp {
-                    source_id,
-                    relative_paths,
-                } => {
-                    if let Some(paths) = controller_file_ops.get_mut(&source_id) {
-                        for path in relative_paths {
-                            paths.remove(&path);
-                        }
-                        if paths.is_empty() {
-                            controller_file_ops.remove(&source_id);
-                        }
-                    }
-                }
-                SourceWatchCommand::Shutdown => break,
-            },
+            }
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
         }
@@ -173,91 +145,13 @@ fn run_source_watcher(command_rx: Receiver<SourceWatchCommand>, message_tx: JobM
             if !event_triggers_sync(&event) {
                 continue;
             }
-            let mut impacted = HashMap::new();
-            for path in &event.paths {
-                if !path_is_candidate(path) {
-                    continue;
-                }
-                if let Some(source) = select_source_entry_for_path(&sources, path) {
-                    let cause = source_watch_cause_for_path(&controller_file_ops, source, path);
-                    impacted
-                        .entry(source.source_id.clone())
-                        .and_modify(|pending_cause| {
-                            *pending_cause = combine_source_watch_causes(*pending_cause, cause);
-                        })
-                        .or_insert(cause);
-                }
-            }
-            for (source_id, cause) in impacted {
-                update_pending_watch(&mut pending, source_id, cause, Instant::now());
-            }
+            state.collect_event(event, Instant::now());
         }
 
-        let ready = drain_ready_sources(
-            &mut pending,
-            Instant::now(),
-            SOURCE_WATCH_DEBOUNCE,
-            scan_in_progress,
-        );
-        for event in ready {
+        for event in state.drain_ready_sources(Instant::now(), SOURCE_WATCH_DEBOUNCE) {
             let _ = message_tx.send(JobMessage::SourceWatch(event));
         }
     }
-}
-
-#[derive(Debug, Copy, Clone)]
-struct PendingSourceWatch {
-    last_event: Instant,
-    cause: SourceWatchCause,
-}
-
-fn update_pending_watch(
-    pending: &mut HashMap<SourceId, PendingSourceWatch>,
-    source_id: SourceId,
-    cause: SourceWatchCause,
-    now: Instant,
-) {
-    pending
-        .entry(source_id)
-        .and_modify(|entry| {
-            entry.last_event = now;
-            entry.cause = combine_source_watch_causes(entry.cause, cause);
-        })
-        .or_insert(PendingSourceWatch {
-            last_event: now,
-            cause,
-        });
-}
-
-fn drain_ready_sources(
-    pending: &mut HashMap<SourceId, PendingSourceWatch>,
-    now: Instant,
-    debounce: Duration,
-    scan_in_progress: bool,
-) -> Vec<SourceWatchEvent> {
-    if scan_in_progress {
-        return Vec::new();
-    }
-    let ready: Vec<SourceWatchEvent> = pending
-        .iter()
-        .filter(|&(_source_id, entry)| now.saturating_duration_since(entry.last_event) >= debounce)
-        .map(|(source_id, entry)| SourceWatchEvent {
-            source_id: source_id.clone(),
-            cause: entry.cause,
-        })
-        .collect();
-    for event in &ready {
-        pending.remove(&event.source_id);
-    }
-    ready
-}
-
-fn prune_pending_sources(
-    pending: &mut HashMap<SourceId, PendingSourceWatch>,
-    sources: &[SourceWatchEntry],
-) {
-    let allowed: HashSet<&SourceId> = sources.iter().map(|entry| &entry.source_id).collect();
-    pending.retain(|source_id, _| allowed.contains(source_id));
 }
 
 fn update_watched_sources(
@@ -419,29 +313,25 @@ mod tests {
 
     #[test]
     fn drain_ready_sources_waits_for_debounce() {
-        let mut pending = HashMap::new();
+        let mut state = SourceWatcherState::default();
         let source_id = SourceId::from_string("a");
         let start = Instant::now();
-        update_pending_watch(
-            &mut pending,
+        state.update_pending_watch(
             source_id.clone(),
             SourceWatchCause::ExternalFileChange,
             start,
         );
         assert!(
-            drain_ready_sources(
-                &mut pending,
-                start + Duration::from_millis(200),
-                Duration::from_millis(400),
-                false
-            )
-            .is_empty()
+            state
+                .drain_ready_sources(
+                    start + Duration::from_millis(200),
+                    Duration::from_millis(400)
+                )
+                .is_empty()
         );
-        let ready = drain_ready_sources(
-            &mut pending,
+        let ready = state.drain_ready_sources(
             start + Duration::from_millis(500),
             Duration::from_millis(400),
-            false,
         );
         assert_eq!(ready.len(), 1);
         assert_eq!(ready[0].source_id, source_id);
@@ -450,23 +340,17 @@ mod tests {
 
     #[test]
     fn drain_ready_sources_honors_scan_in_progress() {
-        let mut pending = HashMap::new();
+        let mut state = SourceWatcherState::default();
+        state.scan_in_progress = true;
         let source_id = SourceId::from_string("a");
         let start = Instant::now();
-        update_pending_watch(
-            &mut pending,
-            source_id,
-            SourceWatchCause::ExternalFileChange,
-            start,
-        );
-        let ready = drain_ready_sources(
-            &mut pending,
+        state.update_pending_watch(source_id, SourceWatchCause::ExternalFileChange, start);
+        let ready = state.drain_ready_sources(
             start + Duration::from_millis(500),
             Duration::from_millis(400),
-            true,
         );
         assert!(ready.is_empty());
-        assert_eq!(pending.len(), 1);
+        assert_eq!(state.pending.len(), 1);
     }
 
     #[test]
@@ -507,27 +391,19 @@ mod tests {
 
     #[test]
     fn pending_source_watch_prefers_external_fallback() {
-        let mut pending = HashMap::new();
+        let mut state = SourceWatcherState::default();
         let source_id = SourceId::from_string("a");
         let start = Instant::now();
-        update_pending_watch(
-            &mut pending,
-            source_id.clone(),
-            SourceWatchCause::ControllerFileOp,
-            start,
-        );
-        update_pending_watch(
-            &mut pending,
+        state.update_pending_watch(source_id.clone(), SourceWatchCause::ControllerFileOp, start);
+        state.update_pending_watch(
             source_id.clone(),
             SourceWatchCause::ExternalFileChange,
             start + Duration::from_millis(1),
         );
 
-        let ready = drain_ready_sources(
-            &mut pending,
+        let ready = state.drain_ready_sources(
             start + Duration::from_millis(500),
             Duration::from_millis(400),
-            false,
         );
 
         assert_eq!(ready.len(), 1);
