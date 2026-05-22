@@ -14,12 +14,3 @@
 # tests. Split only if concrete ownership or correctness pressure appears.
 src/app_core/actions/catalog/kinds.rs
 
-# Vendored Radiant still contains a small set of oversized legacy modules and
-# contract-heavy test files. Keep them explicit so the repaired budget script
-# can enforce everything else in `vendor/radiant/src`.
-vendor/radiant/src/app/hotkeys.rs
-vendor/radiant/src/app/actions/mod.rs
-vendor/radiant/src/gui_runtime/native_vello/tests/queue_runtime.rs
-vendor/radiant/src/gui_runtime/native_vello/tests/waveform_drag_finish.rs
-vendor/radiant/src/gui_runtime/native_vello/tests/waveform_pointer/selection_creation.rs
-
