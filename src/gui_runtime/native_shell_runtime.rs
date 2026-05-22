@@ -10,8 +10,8 @@
 use super::{NativeRunOptions, NativeRunReport, NativeRuntimeArtifacts, WindowIconRgba};
 use crate::app_core::actions::{
     NativeAppBridge, NativeAppModel, NativeBrowserTagTarget as BrowserTagTarget,
-    NativeGuiAutomationSnapshot, NativeMotionModel, NativeUiAction as UiAction,
-    native_shell_dtos::*,
+    NativeFileDropEvent, NativeFileDropPhase, NativeGuiAutomationSnapshot, NativeMotionModel,
+    NativeUiAction as UiAction, native_shell_dtos::*,
 };
 use crate::app_core::app_api::controller_ui_hotkeys::KeyPress;
 use crate::app_core::app_api::{controller_ui_hotkeys as hotkeys, state::FocusContext};

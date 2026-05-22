@@ -1442,7 +1442,7 @@ impl GuiAppState {
         drop: NativeFileDrop,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        let over_waveform = drop.target_widget == Some(WAVEFORM_WIDGET_ID);
+        let over_waveform = native_file_drop_targets_waveform(drop.target_widget);
         match drop.phase {
             NativeFileDropPhase::Hover => {
                 let Some(path) = drop.path else {
@@ -1823,6 +1823,7 @@ pub(crate) fn run() -> Result<(), String> {
         title: String::from("Wavecrate"),
         inner_size: Some([960.0, 540.0]),
         min_inner_size: Some([640.0, 360.0]),
+        drag_and_drop: true,
         debug_layout: debug_layout_requested(args.iter().cloned()),
         text: NativeTextOptions {
             embedded_fonts: Vec::new(),
@@ -2089,6 +2090,10 @@ fn supported_waveform_drop_file(path: &Path) -> bool {
             .extension()
             .and_then(|extension| extension.to_str())
             .is_some_and(|extension| extension.eq_ignore_ascii_case("wav"))
+}
+
+fn native_file_drop_targets_waveform(target_widget: Option<u64>) -> bool {
+    target_widget.is_none() || target_widget == Some(WAVEFORM_WIDGET_ID)
 }
 
 fn unique_copy_destination(first_candidate: &Path) -> PathBuf {
@@ -3495,6 +3500,29 @@ mod tests {
     }
 
     #[test]
+    fn native_file_hover_without_widget_target_still_shows_waveform_drop_feedback() {
+        let root = temp_gui_root("wavecrate-native-file-hover-targetless");
+        let wav = root.join("kick.wav");
+        write_test_wav_i16(&wav, &[0, 100]);
+        let mut state = gui_state_for_span_tests();
+        let mut context = ui::UpdateContext::default();
+
+        state.apply_native_file_drop(
+            NativeFileDrop::hover(wav.clone(), Some(Point::new(8.0, 8.0)), None),
+            &mut context,
+        );
+
+        assert_eq!(
+            state.native_file_drop_hover,
+            Some(super::NativeFileDropHover {
+                path: wav,
+                supported: true,
+            })
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn native_file_drop_on_waveform_copies_into_selected_folder_and_queues_load() {
         let root = temp_gui_root("wavecrate-native-file-drop-root");
         let external_root = temp_gui_root("wavecrate-native-file-drop-external");
@@ -3531,6 +3559,41 @@ mod tests {
         );
         assert_eq!(state.waveform_loading_label.as_deref(), Some("kick.wav"));
         assert!(state.sample_load_task.active().is_some());
+        let _ = fs::remove_dir_all(root);
+        let _ = fs::remove_dir_all(external_root);
+    }
+
+    #[test]
+    fn native_file_drop_without_widget_target_imports_into_selected_folder() {
+        let root = temp_gui_root("wavecrate-native-file-drop-targetless-root");
+        let external_root = temp_gui_root("wavecrate-native-file-drop-targetless-external");
+        let loops = root.join("loops");
+        fs::create_dir_all(&loops).expect("create loops");
+        let source = external_root.join("kick.wav");
+        write_test_wav_i16(&source, &[0, 100, -100]);
+        let mut state = gui_state_for_span_tests();
+        state.folder_browser = super::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(root.clone()),
+        ]);
+        state
+            .folder_browser
+            .apply_message(super::FolderBrowserMessage::ActivateFolder(
+                loops.display().to_string(),
+            ));
+        let mut context = ui::UpdateContext::default();
+
+        state.apply_native_file_drop(
+            NativeFileDrop::dropped(source, Some(Point::new(8.0, 8.0)), None),
+            &mut context,
+        );
+
+        let copied = loops.join("kick.wav");
+        let copied_id = copied.display().to_string();
+        assert!(copied.is_file());
+        assert_eq!(
+            state.folder_browser.selected_file_id(),
+            Some(copied_id.as_str())
+        );
         let _ = fs::remove_dir_all(root);
         let _ = fs::remove_dir_all(external_root);
     }
