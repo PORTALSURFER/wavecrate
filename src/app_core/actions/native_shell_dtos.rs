@@ -5,7 +5,6 @@
 //! DTOs into the Wavecrate-owned native runtime contract consumed by Radiant.
 
 use radiant::gui::automation;
-use radiant::gui::badge;
 use radiant::gui::chrome;
 use radiant::gui::feedback;
 use radiant::gui::form;
@@ -15,11 +14,18 @@ use radiant::gui::list;
 use radiant::gui::panel;
 use radiant::gui::range;
 use radiant::gui::retained;
-use radiant::gui::selection;
 use radiant::gui::types::ImageRgba;
 use radiant::gui::visualization;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, sync::Arc};
+
+mod browser;
+
+pub use self::browser::{
+    BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, BrowserRowModel,
+    BrowserRowProcessingState, BrowserTagPillModel, BrowserTagSidebarModel, BrowserTagState,
+    PlaybackAgeBucket, PlaybackAgeFilterChip,
+};
 
 /// Shared storage used by retained app-model snapshots.
 pub type RetainedVec<T> = retained::RetainedVec<T>;
@@ -88,160 +94,6 @@ pub type FolderPaneModel = panel::SplitPaneTreePanel<FolderRowModel>;
 
 /// Render data for one source row shown in the sidebar.
 pub type SourceRowModel = panel::SplitPaneAssignedRow;
-
-/// Transient browser row processing states for batch file operations.
-#[derive(
-    Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
-pub enum BrowserRowProcessingState {
-    /// The row is not part of an active row-scoped operation.
-    #[default]
-    None,
-    /// The row is waiting in the current batch.
-    Queued,
-    /// The row is currently being processed.
-    Active,
-    /// The row completed successfully.
-    Completed,
-    /// The row was skipped by the batch.
-    Skipped,
-    /// The row failed during processing.
-    Failed,
-}
-
-/// Summary of one Wavecrate browser/list row consumed by the native shell.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BrowserRowModel {
-    /// Visible row index in the filtered browser list.
-    pub visible_row: usize,
-    /// Display label for the row.
-    ///
-    /// This text is reference-counted so retained app-model clones can reuse
-    /// row payloads without copying every row label.
-    pub label: Arc<str>,
-    /// Triage or grouping column index that currently owns the row.
-    pub column: usize,
-    /// Signed row rating level shown alongside the row label (`-3..=3`).
-    pub rating_level: i8,
-    /// Visual playback-age bucket used to render the row age marker.
-    pub playback_age_bucket: PlaybackAgeBucket,
-    /// Optional inline metadata label rendered at the row edge.
-    pub bucket_label: Option<Arc<str>>,
-    /// Optional normalized relatedness fill amount encoded in the inclusive `0..=255` range.
-    pub similarity_display_strength: Option<u8>,
-    /// Whether this row is currently selected in multi-selection state.
-    pub selected: bool,
-    /// Whether this row currently has focus/caret.
-    pub focused: bool,
-    /// Whether the backing sample is unavailable.
-    pub missing: bool,
-    /// Whether the backing sample is locked/protected.
-    pub locked: bool,
-    /// Whether the backing sample is marked for later review.
-    pub marked: bool,
-    /// Transient row-scoped processing state for active batch file operations.
-    pub processing_state: BrowserRowProcessingState,
-}
-
-impl BrowserRowModel {
-    /// Build a row model, clamping the column into `0..=2`.
-    pub fn new(
-        visible_row: usize,
-        label: impl Into<String>,
-        column: usize,
-        selected: bool,
-        focused: bool,
-    ) -> Self {
-        Self {
-            visible_row,
-            label: Arc::<str>::from(label.into()),
-            column: column.min(2),
-            rating_level: 0,
-            playback_age_bucket: PlaybackAgeBucket::Fresh,
-            bucket_label: None,
-            similarity_display_strength: None,
-            selected,
-            focused,
-            missing: false,
-            locked: false,
-            marked: false,
-            processing_state: BrowserRowProcessingState::None,
-        }
-    }
-
-    /// Attach a signed rating level for inline row indicators.
-    pub fn with_rating_level(mut self, rating_level: i8) -> Self {
-        self.rating_level = rating_level.clamp(-3, 3);
-        self
-    }
-
-    /// Attach the playback-age bucket used for row aging treatment.
-    pub fn with_playback_age_bucket(mut self, playback_age_bucket: PlaybackAgeBucket) -> Self {
-        self.playback_age_bucket = playback_age_bucket;
-        self
-    }
-
-    /// Attach an explicit inline metadata label for this row.
-    pub fn with_bucket_label(mut self, label: impl Into<String>) -> Self {
-        self.bucket_label = Some(Arc::<str>::from(label.into()));
-        self
-    }
-
-    /// Attach a normalized relatedness display strength for a compact row bar.
-    ///
-    /// Values are clamped into `[0.0, 1.0]` and encoded into the integer-backed
-    /// `similarity_display_strength` field so retained app-model snapshots can
-    /// keep `Eq` semantics.
-    pub fn with_similarity_display_strength(mut self, display_strength: f32) -> Self {
-        self.similarity_display_strength =
-            Some(Self::encode_similarity_display_strength(display_strength));
-        self
-    }
-
-    /// Encode one normalized relatedness display strength into the stored byte range.
-    pub fn encode_similarity_display_strength(display_strength: f32) -> u8 {
-        (display_strength.clamp(0.0, 1.0) * 255.0).round() as u8
-    }
-
-    /// Decode the stored relatedness display strength into a normalized fill amount.
-    pub fn similarity_display_strength_ratio(&self) -> Option<f32> {
-        self.similarity_display_strength
-            .map(|strength| f32::from(strength) / 255.0)
-    }
-
-    /// Mark whether the backing sample is unavailable.
-    pub fn with_missing(mut self, missing: bool) -> Self {
-        self.missing = missing;
-        self
-    }
-
-    /// Mark whether the backing sample should render with protected treatment.
-    pub fn with_locked(mut self, locked: bool) -> Self {
-        self.locked = locked;
-        self
-    }
-
-    /// Mark whether the backing sample should render with review treatment.
-    pub fn with_marked(mut self, marked: bool) -> Self {
-        self.marked = marked;
-        self
-    }
-
-    /// Attach a transient row-scoped processing state.
-    pub fn with_processing_state(mut self, processing_state: BrowserRowProcessingState) -> Self {
-        self.processing_state = processing_state;
-        self
-    }
-}
-
-/// Tri-state pill state used by the browser metadata editor.
-pub type BrowserTagState = selection::TriState;
-
-/// One clickable tag pill projected into the browser metadata sidebar.
-pub type BrowserTagPillModel = badge::SelectablePill<BrowserTagState>;
-
-/// Browser-local metadata sidebar shown beside the sample list.
-pub type BrowserTagSidebarModel = badge::PillEditorPanel<BrowserTagState>;
 
 /// Render mode label for the map panel.
 pub type MapRenderModeModel = visualization::PointRenderMode;
@@ -382,17 +234,6 @@ pub type AudioOptionItemModel = form::OptionItem<AudioOptionValueModel>;
 
 /// Overview row shown for one audio field inside the options panel.
 pub type AudioFieldModel = form::SummaryField;
-
-/// Browser playback-age filter chips shown in the native toolbar.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub enum PlaybackAgeFilterChip {
-    /// Samples with no recorded playback timestamp.
-    NeverPlayed,
-    /// Samples last played at least 30 days ago.
-    OlderThanMonth,
-    /// Samples last played at least 7 days ago but less than 30 days ago.
-    OlderThanWeek,
-}
 
 /// Generic preference/settings panel state used by native overlay projections.
 pub type PreferencePanelStateModel<const TOGGLES: usize> = form::PreferencePanelState<TOGGLES>;
@@ -919,175 +760,6 @@ impl NativeMotionModel {
             self.signal_chrome(),
             self.signal_tools(),
         )
-    }
-}
-
-/// Visual playback-age buckets derived from sample playback history.
-#[derive(
-    Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
-)]
-pub enum PlaybackAgeBucket {
-    /// Samples played within the recent window, including future-skewed timestamps.
-    #[default]
-    Fresh,
-    /// Samples last played at least 7 days ago but less than 30 days ago.
-    OlderThanWeek,
-    /// Samples last played at least 30 days ago.
-    OlderThanMonth,
-    /// Samples with no recorded playback timestamp.
-    NeverPlayed,
-}
-
-/// Summary of browser/list state consumed by the native shell.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct BrowserPanelModel {
-    /// Number of rows currently visible in the browser.
-    pub visible_count: usize,
-    /// Focused visible row index, if any.
-    pub selected_visible_row: Option<usize>,
-    /// Whether selection-driven browser autoscroll is currently enabled.
-    pub autoscroll: bool,
-    /// Requested top visible-row index for manual browser viewport scrolling.
-    pub view_start_row: usize,
-    /// Number of rows currently in multi-selection.
-    pub selected_path_count: usize,
-    /// Active browser search query.
-    pub search_query: String,
-    /// Active rating-filter chip states for levels `-3..=3`, plus `4` for locked keeps.
-    pub active_rating_filters: [bool; 8],
-    /// Active playback-age filter chip states ordered as `Never`, `Month`, `Week`.
-    pub active_playback_age_filters: [bool; 3],
-    /// Whether the browser is currently filtering down to only marked rows.
-    pub marked_filter_active: bool,
-    /// Whether the browser is currently filtering to tag-named rows.
-    pub tag_named_filter_active: bool,
-    /// Whether the tag-named filter is currently inverted.
-    pub tag_named_filter_negated: bool,
-    /// Sidebar metadata facets selected for browser filtering.
-    pub sidebar_filters: crate::app_core::state::BrowserSidebarFilterState,
-    /// Placeholder shown when the browser search query is empty.
-    pub search_placeholder: Option<String>,
-    /// Whether browser search/filter work is still running in the background.
-    pub busy: bool,
-    /// Whether the selected source is still hydrating before browser rows can project.
-    pub source_loading: bool,
-    /// Whether optimistic metadata writes are still pending background persistence.
-    pub metadata_pending: bool,
-    /// Whether file or folder mutations are still running in the background.
-    pub file_op_pending: bool,
-    /// Whether the browser is currently showing a similarity-filtered result set.
-    pub similarity_filtered: bool,
-    /// Whether browser duplicate cleanup mode is currently active.
-    pub duplicate_cleanup_active: bool,
-    /// Display label for the active browser sort mode.
-    pub sort_label: Option<String>,
-    /// Display label for the currently active browser tab.
-    pub active_tab_label: Option<String>,
-    /// Display label for the currently focused sample, when known.
-    pub focused_sample_label: Option<String>,
-    /// Metadata-tag editor sidebar projection scoped to the list tab.
-    pub tag_sidebar: BrowserTagSidebarModel,
-    /// Selection anchor in visible-row space.
-    pub anchor_visible_row: Option<usize>,
-    /// Visible rows rendered by the native browser panel.
-    pub rows: RetainedVec<BrowserRowModel>,
-}
-
-/// Browser chrome copy used by the native shell toolbar and tab strip.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BrowserChromeModel {
-    /// Label for the list tab.
-    pub samples_tab_label: String,
-    /// Label for the browser item column.
-    pub sample_column_label: String,
-    /// Label for the map tab.
-    pub map_tab_label: String,
-    /// Label for the tag/pill editor action.
-    pub tag_editor_label: String,
-    /// Prefix label shown before active search queries.
-    pub search_prefix_label: String,
-    /// Placeholder label shown when no search query is active.
-    pub search_placeholder: String,
-    /// Status label shown when browser background work is idle.
-    pub activity_ready_label: String,
-    /// Status label shown when browser background work is running.
-    pub activity_busy_label: String,
-    /// Prefix label shown before active sort order labels.
-    pub sort_prefix_label: String,
-    /// Label describing the active sort order.
-    pub sort_order_label: String,
-    /// Label describing similarity mode in the map/header chrome.
-    pub similarity_toggle_label: String,
-    /// Footer/status label for total browser item counts.
-    pub item_count_label: String,
-}
-
-impl Default for BrowserChromeModel {
-    fn default() -> Self {
-        Self {
-            samples_tab_label: String::from("Samples"),
-            sample_column_label: String::from("Sample"),
-            map_tab_label: String::from("Similarity map"),
-            tag_editor_label: String::from("Tags"),
-            search_prefix_label: String::from("Search"),
-            search_placeholder: String::from("Search samples (Ctrl+F)"),
-            activity_ready_label: String::from("Ready"),
-            activity_busy_label: String::from("Filtering"),
-            sort_prefix_label: String::from("Sort"),
-            sort_order_label: String::from("List order"),
-            similarity_toggle_label: String::from("points"),
-            item_count_label: String::from("0 items"),
-        }
-    }
-}
-
-/// Browser action availability consumed by the native shell action strip.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct BrowserActionsModel {
-    /// Whether rename can be started for the focused row.
-    pub can_rename: bool,
-    /// Whether delete can be applied to focused/selected rows.
-    pub can_delete: bool,
-    /// Whether tag actions can be applied to focused/selected rows.
-    pub can_tag: bool,
-    /// Whether the focused browser row can be normalized in place.
-    pub can_normalize_focused_sample: bool,
-    /// Whether the focused browser row can open the seamless loop-crossfade flow.
-    pub can_loop_crossfade_focused_sample: bool,
-    /// Whether sticky random navigation mode is currently enabled.
-    pub random_navigation_enabled: bool,
-    /// Whether browser duplicate cleanup mode is currently enabled.
-    pub duplicate_cleanup_active: bool,
-    /// Whether the browser-local tag sidebar is currently open.
-    pub tag_sidebar_open: bool,
-}
-
-impl BrowserPanelModel {
-    /// Whether the generic derived-label filter is currently active.
-    pub fn derived_label_filter_active(&self) -> bool {
-        self.tag_named_filter_active
-    }
-
-    /// Whether the generic derived-label filter is currently inverted.
-    pub fn derived_label_filter_negated(&self) -> bool {
-        self.tag_named_filter_negated
-    }
-
-    /// Generic metadata-pill editor projected beside the content list.
-    pub fn pill_editor(&self) -> &BrowserTagSidebarModel {
-        &self.tag_sidebar
-    }
-}
-
-impl BrowserActionsModel {
-    /// Whether generic browser pill edits can be applied.
-    pub fn can_edit_pills(&self) -> bool {
-        self.can_tag
-    }
-
-    /// Whether the generic browser pill editor is currently open.
-    pub fn pill_editor_open(&self) -> bool {
-        self.tag_sidebar_open
     }
 }
 
