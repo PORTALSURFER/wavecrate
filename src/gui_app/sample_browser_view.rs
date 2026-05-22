@@ -50,16 +50,26 @@ fn sample_header_cell(column: &FileColumn, sort: &ui::DetailsSort) -> ui::View<G
     };
     let column_id = column.id.clone();
     let resize_id = column.id.clone();
+    let label = format!("{}{marker}", column.label);
     ui::row([
-        ui::button(format!("{}{marker}", column.label))
-            .message(GuiMessage::FolderBrowser(
-                FolderBrowserMessage::SortFileColumn(column_id),
-            ))
-            .key(format!("sample-sort-{}", column.id))
-            .align_text(ui::TextAlign::Left)
-            .fill_width()
-            .height(20.0)
-            .input_only(),
+        ui::stack([
+            ui::text(label.clone())
+                .key(format!("sample-header-label-{}", column.id))
+                .align_text(ui::TextAlign::Left)
+                .fill_width()
+                .height(20.0)
+                .truncate(),
+            ui::button(label)
+                .message(GuiMessage::FolderBrowser(
+                    FolderBrowserMessage::SortFileColumn(column_id),
+                ))
+                .key(format!("sample-sort-{}", column.id))
+                .fill_width()
+                .height(20.0)
+                .input_only(),
+        ])
+        .fill_width()
+        .height(20.0),
         ui::drag_handle()
             .mapped(move |message| {
                 GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeFileColumn(

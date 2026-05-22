@@ -2710,6 +2710,16 @@ mod tests {
         }
     }
 
+    fn gui_state_with_sample_browser_file(name: &str) -> (GuiAppState, PathBuf) {
+        let root = temp_gui_root("wavecrate-sample-browser-frame");
+        write_test_wav_i16(&root.join(name), &[0, 100, -100]);
+        let mut state = GuiAppState::load_default().expect("default state loads");
+        state.folder_browser = super::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(root.clone()),
+        ]);
+        (state, root)
+    }
+
     #[test]
     fn canonical_debug_layout_arg_enables_default_gui_overlay() {
         assert!(debug_layout_requested([
@@ -4382,7 +4392,7 @@ mod tests {
 
     #[test]
     fn sample_browser_frame_paints_column_and_file_text() {
-        let mut state = GuiAppState::load_default().expect("default state loads");
+        let (mut state, root) = gui_state_with_sample_browser_file("visible_kick.wav");
         let surface = super::sample_browser(&mut state).into_node();
         let frame = radiant::runtime::UiSurface::new(surface).frame(
             Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 360.0)),
@@ -4403,9 +4413,10 @@ mod tests {
             "{texts:?}"
         );
         assert!(
-            texts.iter().any(|text| text.starts_with("portal_SS_")),
+            texts.iter().any(|text| text.starts_with("visible_kick")),
             "{texts:?}"
         );
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
@@ -4529,7 +4540,7 @@ mod tests {
 
     #[test]
     fn full_gui_frame_places_sample_browser_text_inside_visible_area() {
-        let mut state = GuiAppState::load_default().expect("default state loads");
+        let (mut state, root) = gui_state_with_sample_browser_file("visible_kick.wav");
         let surface = super::view(&mut state).into_node();
         let frame = radiant::runtime::UiSurface::new(surface).frame(
             Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(1517.0, 758.0)),
@@ -4541,8 +4552,8 @@ mod tests {
             .iter()
             .filter_map(|primitive| match primitive {
                 PaintPrimitive::Text(text)
-                    if text.text.as_str() == "Name"
-                        || text.text.as_str().starts_with("portal_SS_") =>
+                    if text.text.as_str().starts_with("Name")
+                        || text.text.as_str().starts_with("visible_kick") =>
                 {
                     Some((text.text.as_str().to_string(), text.rect, text.baseline))
                 }
@@ -4562,6 +4573,7 @@ mod tests {
             }),
             "{sample_texts:?}"
         );
+        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
