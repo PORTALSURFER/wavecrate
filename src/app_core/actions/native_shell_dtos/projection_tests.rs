@@ -1,6 +1,6 @@
 use super::{
-    parse_waveform_tempo_number_text, NativeMotionModel, NormalizedRangeModel, OptionsPanelModel,
-    WaveformChannelViewModel, WaveformPanelModel, WaveformSlicePreviewModel,
+    NativeMotionModel, NormalizedRangeModel, OptionsPanelModel, WaveformChannelViewModel,
+    WaveformPanelModel, WaveformSlicePreviewModel, parse_waveform_tempo_number_text,
 };
 
 #[test]

@@ -76,7 +76,7 @@ fn save_waveform_selection_to_browser_success_finishes_pending_history_and_suppo
         controller.ui.status.text
     );
 
-    std::fs::remove_file(source_root.join(&exported_relative)).unwrap();
+    remove_file_with_retry(&source_root.join(&exported_relative));
     controller
         .database_for(&source)
         .unwrap()
@@ -97,6 +97,22 @@ fn save_waveform_selection_to_browser_success_finishes_pending_history_and_suppo
         PendingHistoryTransactionKey::SelectionExport { request_id },
         history_key
     );
+}
+
+fn remove_file_with_retry(path: &Path) {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        match std::fs::remove_file(path) {
+            Ok(()) => return,
+            Err(err)
+                if err.kind() == std::io::ErrorKind::PermissionDenied
+                    && Instant::now() < deadline =>
+            {
+                std::thread::sleep(Duration::from_millis(25));
+            }
+            Err(err) => panic!("remove exported selection clip {}: {err}", path.display()),
+        }
+    }
 }
 
 #[test]

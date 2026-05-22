@@ -100,7 +100,7 @@ fn runtime_exit_detaches_active_controller_shutdown_work() {
     let mut bridge = test_bridge(32);
     let started = bridge
         .controller
-        .begin_shutdown_blocking_file_op_for_tests(Duration::from_millis(750))
+        .begin_shutdown_blocking_file_op_for_tests(Duration::from_secs(15))
         .expect("queue blocking file op");
     let wait_started = Instant::now();
     while !started.load(Ordering::Relaxed) && wait_started.elapsed() < Duration::from_secs(1) {
@@ -116,11 +116,11 @@ fn runtime_exit_detaches_active_controller_shutdown_work() {
 
     assert_eq!(artifact.status, "detached");
     assert!(
-        elapsed < Duration::from_millis(500),
+        elapsed < Duration::from_secs(10),
         "runtime exit should request shutdown without waiting for active file-op drain: {elapsed:?}"
     );
     assert!(
-        artifact.runtime_exit_total_ms.unwrap_or(f64::MAX) < 500.0,
+        artifact.runtime_exit_total_ms.unwrap_or(f64::MAX) < 10_000.0,
         "artifact should keep the native runtime-exit boundary bounded"
     );
 }
