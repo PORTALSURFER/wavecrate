@@ -744,6 +744,25 @@ impl<B: NativeAppBridge> RuntimeBridge<WavecrateRuntimeMessage> for WavecrateRun
         self.inner.install_repaint_signal(signal);
     }
 
+    fn native_file_drop(
+        &mut self,
+        drop: radiant::runtime::NativeFileDrop,
+    ) -> Command<WavecrateRuntimeMessage> {
+        let phase = match drop.phase {
+            radiant::runtime::NativeFileDropPhase::Hover => NativeFileDropPhase::Hover,
+            radiant::runtime::NativeFileDropPhase::Cancel => NativeFileDropPhase::Cancel,
+            radiant::runtime::NativeFileDropPhase::Drop => NativeFileDropPhase::Drop,
+        };
+        self.inner.handle_native_file_drop(NativeFileDropEvent {
+            phase,
+            path: drop.path,
+            position: drop.position.map(|position| (position.x, position.y)),
+        });
+        self.model = Arc::new(self.inner.pull_model_arc().as_ref().into());
+        self.stage_surface_descriptor_from_latest_pull();
+        Command::request_repaint()
+    }
+
     fn needs_animation(&mut self) -> bool {
         if let Some(motion_model) = self.inner.pull_motion_model() {
             let motion_model: runtime_contract::NativeMotionModel = motion_model.into();

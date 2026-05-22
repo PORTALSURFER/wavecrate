@@ -49,7 +49,8 @@ use crate::{
     app_core::actions::NativeAppBridge,
     app_core::actions::NativeMotionModel,
     app_core::actions::{
-        NativeDirtySegments, NativeFrameBuildResult, NativeSegmentRevisions, NativeUiAction,
+        NativeDirtySegments, NativeFileDropEvent, NativeFileDropPhase, NativeFrameBuildResult,
+        NativeSegmentRevisions, NativeUiAction,
     },
     app_core::controller::{
         AppController, AppControllerNativeRuntimeExt, build_native_app_controller,
@@ -299,6 +300,26 @@ impl NativeAppBridge for WavecrateNativeBridge {
     /// Reduce one runtime UI action into controller state.
     fn reduce_action(&mut self, action: NativeUiAction) {
         WavecrateNativeBridge::reduce_action(self, action);
+    }
+
+    /// Import files dropped by the OS through Radiant's native file-drop hook.
+    fn handle_native_file_drop(&mut self, event: NativeFileDropEvent) {
+        if event.phase != NativeFileDropPhase::Drop {
+            return;
+        }
+        let Some(path) = event.path else {
+            return;
+        };
+        let target_folder = self
+            .controller
+            .selected_folder_paths()
+            .into_iter()
+            .next()
+            .unwrap_or_default();
+        self.controller
+            .import_external_files_to_source_folder(target_folder, vec![path]);
+        self.invalidate_projection_key_snapshot();
+        self.schedule_full_model_pull_preparation();
     }
 
     fn take_last_action_handled(&mut self) -> Option<bool> {

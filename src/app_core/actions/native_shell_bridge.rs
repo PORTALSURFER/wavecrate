@@ -9,7 +9,7 @@ use super::{
     NativeSegmentRevisions, NativeUiAction,
 };
 use crate::{gui::repaint::RepaintSignal, gui_runtime::NativeShutdownTimingArtifact};
-use std::sync::Arc;
+use std::{path::PathBuf, sync::Arc};
 
 /// Host bridge used by Wavecrate's native runtime adapter.
 pub trait NativeAppBridge {
@@ -48,6 +48,9 @@ pub trait NativeAppBridge {
 
     /// Reduce one UI action into host state.
     fn reduce_action(&mut self, _action: NativeUiAction) {}
+
+    /// Handle one native file drag/drop event delivered by the Radiant runtime.
+    fn handle_native_file_drop(&mut self, _event: NativeFileDropEvent) {}
 
     /// Return whether the most recently reduced action was handled.
     fn take_last_action_handled(&mut self) -> Option<bool> {
@@ -89,4 +92,26 @@ pub trait NativeAppBridge {
     fn on_exit(&mut self) -> Option<NativeShutdownTimingArtifact> {
         self.on_runtime_exit()
     }
+}
+
+/// Native file drag/drop phase delivered through Wavecrate's retained shell bridge.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NativeFileDropPhase {
+    /// A native file drag is hovering over the application window.
+    Hover,
+    /// A native file drag left the application window or was cancelled.
+    Cancel,
+    /// A native file was dropped onto the application window.
+    Drop,
+}
+
+/// Native file drag/drop event delivered through Wavecrate's retained shell bridge.
+#[derive(Clone, Debug, PartialEq)]
+pub struct NativeFileDropEvent {
+    /// Event phase.
+    pub phase: NativeFileDropPhase,
+    /// File path supplied by the operating system, when present.
+    pub path: Option<PathBuf>,
+    /// Last known logical pointer position in the surface.
+    pub position: Option<(f32, f32)>,
 }

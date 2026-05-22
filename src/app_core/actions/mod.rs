@@ -191,8 +191,8 @@ pub type NativeWaveformMotionModel = self::native_shell_dtos::WaveformMotionMode
 /// Extract the numeric BPM token from a native waveform tempo label.
 pub use self::native_shell_dtos::parse_waveform_tempo_number_text;
 
-/// Native runtime bridge trait used by host launchers.
-pub use self::native_shell_bridge::NativeAppBridge;
+/// Native runtime bridge trait and native file-drop payloads used by host launchers.
+pub use self::native_shell_bridge::{NativeAppBridge, NativeFileDropEvent, NativeFileDropPhase};
 
 #[cfg(test)]
 mod tests;
