@@ -125,7 +125,7 @@ impl FolderTreeHitTarget {
     fn handle_pointer_move(&mut self, bounds: Rect, position: Point) -> Option<WidgetOutput> {
         self.common.state.hovered = bounds.contains(position);
         if self.common.state.pressed {
-            let message = if self.dragged {
+            let message = if self.dragged || self.drag_active {
                 DragHandleMessage::Moved { position }
             } else {
                 self.dragged = true;
@@ -141,7 +141,7 @@ impl FolderTreeHitTarget {
 
     fn handle_primary_release(&mut self, bounds: Rect, position: Point) -> Option<WidgetOutput> {
         let activated = self.common.state.pressed && !self.dragged && bounds.contains(position);
-        let dragged = self.common.state.pressed && self.dragged;
+        let dragged = self.common.state.pressed && (self.dragged || self.drag_active);
         self.common.state.pressed = false;
         self.common.state.hovered = bounds.contains(position);
         self.dragged = false;
@@ -212,5 +212,78 @@ impl FolderTreeHitTarget {
             },
             width: 1.0,
         }));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use radiant::widgets::PointerModifiers;
+
+    fn message_from(output: Option<WidgetOutput>) -> FolderTreeHitMessage {
+        *output
+            .expect("expected widget output")
+            .typed_ref::<FolderTreeHitMessage>()
+            .expect("expected folder tree message")
+    }
+
+    #[test]
+    fn active_drag_survives_widget_refresh_as_moved() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+        let mut first = FolderTreeHitTarget::new(false, false, false, false);
+        first.handle_input(
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(6.0, 6.0),
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+            },
+        );
+        assert_eq!(
+            message_from(first.handle_input(
+                bounds,
+                WidgetInput::PointerMove {
+                    position: Point::new(16.0, 7.0),
+                },
+            )),
+            FolderTreeHitMessage::Drag(DragHandleMessage::Started {
+                position: Point::new(16.0, 7.0),
+            })
+        );
+
+        let mut refreshed = FolderTreeHitTarget::new(false, false, true, false);
+        refreshed.common.state = first.common.state;
+        assert_eq!(
+            message_from(refreshed.handle_input(
+                bounds,
+                WidgetInput::PointerMove {
+                    position: Point::new(34.0, 8.0),
+                },
+            )),
+            FolderTreeHitMessage::Drag(DragHandleMessage::Moved {
+                position: Point::new(34.0, 8.0),
+            })
+        );
+    }
+
+    #[test]
+    fn active_drag_survives_widget_refresh_until_release() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+        let mut refreshed = FolderTreeHitTarget::new(false, false, true, false);
+        refreshed.common.state.pressed = true;
+
+        assert_eq!(
+            message_from(refreshed.handle_input(
+                bounds,
+                WidgetInput::PointerRelease {
+                    position: Point::new(90.0, 9.0),
+                    button: PointerButton::Primary,
+                    modifiers: PointerModifiers::default(),
+                },
+            )),
+            FolderTreeHitMessage::Drag(DragHandleMessage::Ended {
+                position: Point::new(90.0, 9.0),
+            })
+        );
     }
 }
