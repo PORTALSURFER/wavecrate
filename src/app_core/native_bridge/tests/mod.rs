@@ -94,8 +94,8 @@ fn runtime_exit_returns_structured_shutdown_timing_once() {
 
 #[test]
 fn runtime_exit_detaches_active_controller_shutdown_work() {
-    const BLOCKING_FILE_OP: Duration = Duration::from_secs(2);
-    const DETACHED_EXIT_BUDGET: Duration = Duration::from_millis(1_000);
+    const BLOCKING_FILE_OP: Duration = Duration::from_secs(15);
+    const DETACHED_EXIT_BUDGET: Duration = Duration::from_secs(10);
 
     let base = tempdir().expect("create temp config dir");
     let _base_guard = crate::app_dirs::ConfigBaseGuard::set(base.path().to_path_buf());

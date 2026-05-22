@@ -38,15 +38,15 @@ pub use self::browser::{
 pub use self::motion::NativeMotionModel;
 pub use self::retained_segments::{DirtySegments, SegmentRevisions};
 pub use self::sidebar::{
-    folder_row_model, FolderActionsModel, FolderPaneIdModel, FolderPaneModel, FolderRecoveryModel,
-    FolderRowKind, FolderRowModel, SourceRowModel, SourcesPanelModel,
+    FolderActionsModel, FolderPaneIdModel, FolderPaneModel, FolderRecoveryModel, FolderRowKind,
+    FolderRowModel, SourceRowModel, SourcesPanelModel, folder_row_model,
 };
 pub use self::waveform::{
-    parse_waveform_tempo_number_text, WaveformChannelViewModel, WaveformChromeModel,
-    WaveformChromeStateModel, WaveformEditPreviewModel, WaveformFeedbackEventsModel,
-    WaveformImagePreviewModel, WaveformMotionModel, WaveformPanelModel, WaveformPresentationModel,
-    WaveformSlicePreviewModel, WaveformSurfaceModel, WaveformToolStateModel,
-    WaveformTransportModel, WaveformViewportModel,
+    WaveformChannelViewModel, WaveformChromeModel, WaveformChromeStateModel,
+    WaveformEditPreviewModel, WaveformFeedbackEventsModel, WaveformImagePreviewModel,
+    WaveformMotionModel, WaveformPanelModel, WaveformPresentationModel, WaveformSlicePreviewModel,
+    WaveformSurfaceModel, WaveformToolStateModel, WaveformTransportModel, WaveformViewportModel,
+    parse_waveform_tempo_number_text,
 };
 
 /// Shared storage used by retained app-model snapshots.

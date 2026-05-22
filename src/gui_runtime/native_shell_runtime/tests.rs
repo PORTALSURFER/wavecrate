@@ -9,7 +9,10 @@ mod tests {
     use radiant::theme::ThemeTokens;
     use radiant::widgets::{CanvasMessage, WidgetInput, WidgetOutput};
     use std::sync::atomic::{AtomicBool, Ordering};
-    use std::{fs, path::Path};
+    use std::{
+        fs,
+        path::{Path, PathBuf},
+    };
 
     #[test]
     fn native_run_options_map_field_for_field_to_radiant_runtime_options() {
@@ -831,6 +834,28 @@ mod tests {
         );
     }
 
+    #[test]
+    fn retained_runtime_bridge_forwards_native_file_drops_to_host() {
+        let mut bridge = WavecrateRuntimeBridge::new(NativeDropRecordingBridge::default());
+        let dropped_path = PathBuf::from("C:/samples/kick.wav");
+
+        let command = bridge.native_file_drop(radiant::runtime::NativeFileDrop::dropped(
+            dropped_path.clone(),
+            Some(Point::new(12.0, 34.0)),
+            None,
+        ));
+
+        assert!(command.requests_repaint());
+        assert_eq!(
+            bridge.inner.events,
+            vec![NativeFileDropEvent {
+                phase: NativeFileDropPhase::Drop,
+                path: Some(dropped_path),
+                position: Some((12.0, 34.0)),
+            }]
+        );
+    }
+
     struct RecordingBridge {
         model: Arc<NativeAppModel>,
         reduced: Vec<UiAction>,
@@ -911,6 +936,21 @@ mod tests {
 
     impl RepaintSignal for TestRepaintSignal {
         fn request_repaint(&self) {}
+    }
+
+    #[derive(Default)]
+    struct NativeDropRecordingBridge {
+        events: Vec<NativeFileDropEvent>,
+    }
+
+    impl NativeAppBridge for NativeDropRecordingBridge {
+        fn project_model(&mut self) -> Arc<NativeAppModel> {
+            Arc::new(NativeAppModel::default())
+        }
+
+        fn handle_native_file_drop(&mut self, event: NativeFileDropEvent) {
+            self.events.push(event);
+        }
     }
 
     /// Return the retained shell descriptor projected by the bridge surface.
