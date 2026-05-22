@@ -3,7 +3,10 @@
 use radiant::gui::types::{Point, Rect, Rgba8};
 use radiant::layout::{LayoutOutput, Vector2};
 use radiant::prelude as ui;
-use radiant::runtime::{NativeRunOptions, NativeTextOptions, PaintFillRect, PaintPrimitive};
+use radiant::runtime::{
+    NativeFileDrop, NativeFileDropPhase, NativeRunOptions, NativeTextOptions, PaintFillRect,
+    PaintPrimitive,
+};
 use radiant::theme::ThemeTokens;
 use radiant::widgets::{
     DragHandleMessage, FocusBehavior, PointerModifiers, Widget, WidgetCommon, WidgetInput,
@@ -12,6 +15,7 @@ use radiant::widgets::{
 use rfd::FileDialog;
 use std::{
     ffi::OsString,
+    fs,
     panic::{self, AssertUnwindSafe},
     path::{Path, PathBuf},
     process,
@@ -75,6 +79,7 @@ const DRAG_PREVIEW_MAX_WIDTH: f32 = 280.0;
 const DRAG_PREVIEW_HEIGHT: f32 = 24.0;
 const WAVEFORM_VIEW_HEIGHT: f32 = 172.0;
 const WAVEFORM_PANEL_HEIGHT: f32 = 226.0;
+const WAVEFORM_WIDGET_ID: u64 = 12;
 const PLAYBACK_START_ACTIVE_SOURCE_GRACE: Duration = Duration::from_millis(120);
 
 #[derive(Clone, Debug, PartialEq)]
@@ -132,6 +137,7 @@ enum GuiMessage {
     CollapseSelectedFolder,
     ExpandSelectedFolder,
     Waveform(WaveformInteraction),
+    NativeFileDrop(NativeFileDrop),
     Frame,
 }
 
@@ -179,6 +185,13 @@ struct GuiAppState {
     waveform_loading_label: Option<String>,
     audio_settings_error: Option<String>,
     current_playback_span: Option<(f32, f32)>,
+    native_file_drop_hover: Option<NativeFileDropHover>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct NativeFileDropHover {
+    path: PathBuf,
+    supported: bool,
 }
 
 impl GuiAppState {
@@ -219,6 +232,7 @@ impl GuiAppState {
             waveform_loading_label: None,
             audio_settings_error: None,
             current_playback_span: None,
+            native_file_drop_hover: None,
         };
         state.refresh_audio_options();
         if let Err(error) = state.open_configured_audio_player() {
@@ -653,6 +667,7 @@ impl GuiAppState {
                     self.play_waveform_from_ratio(start_ratio);
                 }
             }
+            GuiMessage::NativeFileDrop(drop) => self.apply_native_file_drop(drop, context),
             GuiMessage::Frame => {
                 self.waveform.apply_interaction(WaveformInteraction::Frame);
                 self.refresh_playback_progress();
@@ -1387,6 +1402,124 @@ impl GuiAppState {
         }
     }
 
+    fn apply_native_file_drop(
+        &mut self,
+        drop: NativeFileDrop,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        let over_waveform = drop.target_widget == Some(WAVEFORM_WIDGET_ID);
+        match drop.phase {
+            NativeFileDropPhase::Hover => {
+                let Some(path) = drop.path else {
+                    self.native_file_drop_hover = None;
+                    return;
+                };
+                if over_waveform {
+                    self.native_file_drop_hover = Some(NativeFileDropHover {
+                        supported: supported_waveform_drop_file(&path),
+                        path,
+                    });
+                } else {
+                    self.native_file_drop_hover = None;
+                }
+            }
+            NativeFileDropPhase::Cancel => {
+                self.native_file_drop_hover = None;
+            }
+            NativeFileDropPhase::Drop => {
+                self.native_file_drop_hover = None;
+                let Some(path) = drop.path else {
+                    return;
+                };
+                if !over_waveform {
+                    return;
+                }
+                self.drop_external_file_on_waveform(path, context);
+            }
+        }
+    }
+
+    fn drop_external_file_on_waveform(
+        &mut self,
+        path: PathBuf,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        let started_at = Instant::now();
+        if !supported_waveform_drop_file(&path) {
+            self.sample_status = format!(
+                "Unsupported waveform drop: {}",
+                path.file_name()
+                    .map(|name| name.to_string_lossy())
+                    .unwrap_or_else(|| path.display().to_string().into())
+            );
+            emit_gui_action(
+                "waveform.external_file_drop",
+                Some("waveform"),
+                None,
+                "unsupported",
+                started_at,
+                Some("unsupported file type"),
+            );
+            return;
+        }
+        match self.copy_external_file_to_selected_folder(&path) {
+            Ok(copied) => {
+                let copied_id = copied.display().to_string();
+                self.folder_browser.refresh_file_path(&copied);
+                self.folder_browser.select_file(copied_id.clone());
+                self.load_sample(copied_id, context);
+                emit_gui_action(
+                    "waveform.external_file_drop",
+                    Some("waveform"),
+                    None,
+                    "copied",
+                    started_at,
+                    None,
+                );
+            }
+            Err(error) => {
+                self.sample_status = format!("External drop failed: {error}");
+                emit_gui_action(
+                    "waveform.external_file_drop",
+                    Some("waveform"),
+                    None,
+                    "error",
+                    started_at,
+                    Some(&error),
+                );
+            }
+        }
+    }
+
+    fn copy_external_file_to_selected_folder(&mut self, source: &Path) -> Result<PathBuf, String> {
+        if !source.is_file() {
+            return Err(format!("not a file: {}", source.display()));
+        }
+        let target_folder = self
+            .folder_browser
+            .selected_folder_path()
+            .ok_or_else(|| String::from("no selected folder"))?;
+        fs::create_dir_all(&target_folder).map_err(|err| {
+            format!(
+                "failed to create target folder {}: {err}",
+                target_folder.display()
+            )
+        })?;
+        let file_name = source
+            .file_name()
+            .ok_or_else(|| String::from("dropped file has no file name"))?;
+        let first_candidate = target_folder.join(file_name);
+        let target = unique_copy_destination(&first_candidate);
+        fs::copy(source, &target).map_err(|err| {
+            format!(
+                "failed to copy {} to {}: {err}",
+                source.display(),
+                target.display()
+            )
+        })?;
+        Ok(target)
+    }
+
     fn open_context_target(&mut self) {
         let started_at = Instant::now();
         let Some(menu) = self.context_menu.take() else {
@@ -1696,6 +1829,9 @@ pub(crate) fn run() -> Result<(), String> {
                     );
                 }
             })
+            .on_native_file_drop(|_state, drop, context| {
+                context.emit(GuiMessage::NativeFileDrop(drop));
+            })
             .shortcuts(|state, _, press, _| default_gui_shortcut_resolution(state, press))
             .update_with(|state, message, context| {
                 state.apply_message(message, context);
@@ -1910,6 +2046,39 @@ fn view(state: &mut GuiAppState) -> ui::View<GuiMessage> {
 
 fn folder_drag_preview_width(label: &str) -> f32 {
     (label.chars().count() as f32 * 7.0 + 118.0).clamp(150.0, DRAG_PREVIEW_MAX_WIDTH)
+}
+
+fn supported_waveform_drop_file(path: &Path) -> bool {
+    path.is_file()
+        && path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("wav"))
+}
+
+fn unique_copy_destination(first_candidate: &Path) -> PathBuf {
+    if !first_candidate.exists() {
+        return first_candidate.to_path_buf();
+    }
+    let parent = first_candidate.parent().unwrap_or_else(|| Path::new(""));
+    let stem = first_candidate
+        .file_stem()
+        .map(|stem| stem.to_string_lossy().to_string())
+        .unwrap_or_else(|| String::from("sample"));
+    let extension = first_candidate
+        .extension()
+        .map(|extension| extension.to_string_lossy().to_string());
+    for count in 1.. {
+        let file_name = match &extension {
+            Some(extension) => format!("{stem}_copy{count:03}.{extension}"),
+            None => format!("{stem}_copy{count:03}"),
+        };
+        let candidate = parent.join(file_name);
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+    unreachable!("unbounded copy suffix search should find a destination")
 }
 
 fn default_gui_shortcut_resolution(
@@ -2134,22 +2303,30 @@ fn waveform_viewport_with_loading_state(state: &GuiAppState) -> ui::View<GuiMess
     let viewport = waveform::waveform_viewport_view(&state.waveform)
         .fill_width()
         .height(WAVEFORM_VIEW_HEIGHT);
-    let Some(label) = state.waveform_loading_label.as_ref() else {
-        return viewport;
-    };
-    ui::stack([
-        viewport,
-        waveform_loading_visual(label, state.waveform_loading_progress),
-        ui::custom_widget_mapped(WaveformLoadingInputBlocker::new(), |message: GuiMessage| {
-            message
-        })
-        .key("waveform-loading-input-blocker")
-        .input_only()
-        .fill_width()
-        .height(WAVEFORM_VIEW_HEIGHT),
-    ])
-    .fill_width()
-    .height(WAVEFORM_VIEW_HEIGHT)
+    let mut layers = vec![viewport];
+    if let Some(hover) = state.native_file_drop_hover.as_ref() {
+        layers.push(waveform_drop_hover_visual(hover.supported));
+    }
+    if state.waveform_loading_label.is_some() {
+        layers.push(waveform_loading_visual(
+            state.waveform_loading_label.as_deref().unwrap_or_default(),
+            state.waveform_loading_progress,
+        ));
+        layers.push(
+            ui::custom_widget_mapped(WaveformLoadingInputBlocker::new(), |message: GuiMessage| {
+                message
+            })
+            .key("waveform-loading-input-blocker")
+            .input_only()
+            .fill_width()
+            .height(WAVEFORM_VIEW_HEIGHT),
+        );
+    }
+    if layers.len() == 1 {
+        layers.pop().expect("viewport layer")
+    } else {
+        ui::stack(layers).fill_width().height(WAVEFORM_VIEW_HEIGHT)
+    }
 }
 
 fn waveform_loading_visual(_label: &str, progress: f32) -> ui::View<GuiMessage> {
@@ -2157,6 +2334,83 @@ fn waveform_loading_visual(_label: &str, progress: f32) -> ui::View<GuiMessage> 
         .key("waveform-loading-visual")
         .fill_width()
         .height(WAVEFORM_VIEW_HEIGHT)
+}
+
+fn waveform_drop_hover_visual(supported: bool) -> ui::View<GuiMessage> {
+    ui::custom_widget(WaveformDropHoverVisual::new(supported), |_| None)
+        .key("waveform-drop-hover-visual")
+        .fill_width()
+        .height(WAVEFORM_VIEW_HEIGHT)
+}
+
+#[derive(Clone, Debug)]
+struct WaveformDropHoverVisual {
+    common: WidgetCommon,
+    supported: bool,
+}
+
+impl WaveformDropHoverVisual {
+    fn new(supported: bool) -> Self {
+        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 1.0)));
+        common.focus = FocusBehavior::None;
+        common.paint.paints_focus = false;
+        common.paint.paints_state_layers = false;
+        Self { common, supported }
+    }
+}
+
+impl Widget for WaveformDropHoverVisual {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+        None
+    }
+
+    fn needs_state_synchronization(&self) -> bool {
+        false
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+        let (r, g, b) = if self.supported {
+            (74, 178, 116)
+        } else {
+            (214, 62, 62)
+        };
+        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: self.common.id,
+            rect: bounds,
+            color: Rgba8 { r, g, b, a: 56 },
+        }));
+        let edge = 3.0_f32.min(bounds.height().max(1.0));
+        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: self.common.id,
+            rect: Rect::from_min_max(
+                bounds.min,
+                Point::new(bounds.max.x, (bounds.min.y + edge).min(bounds.max.y)),
+            ),
+            color: Rgba8 { r, g, b, a: 210 },
+        }));
+        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: self.common.id,
+            rect: Rect::from_min_max(
+                Point::new(bounds.min.x, (bounds.max.y - edge).max(bounds.min.y)),
+                bounds.max,
+            ),
+            color: Rgba8 { r, g, b, a: 210 },
+        }));
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -2324,10 +2578,10 @@ mod tests {
     use radiant::{
         gui::types::{Point, Rect, Vector2},
         prelude::{self as ui, IntoView},
-        runtime::PaintPrimitive,
+        runtime::{NativeFileDrop, PaintPrimitive},
         widgets::{DragHandleMessage, PointerButton, PointerModifiers, Widget, WidgetInput},
     };
-    use std::{ffi::OsString, fs, sync::mpsc};
+    use std::{ffi::OsString, fs, path::PathBuf, sync::mpsc};
 
     fn selected_asset_file_path(browser: &super::FolderBrowserState, name: &str) -> String {
         browser
@@ -2372,6 +2626,7 @@ mod tests {
             waveform_loading_label: None,
             audio_settings_error: None,
             current_playback_span: None,
+            native_file_drop_hover: None,
         }
     }
 
@@ -2633,6 +2888,7 @@ mod tests {
             waveform_loading_label: None,
             audio_settings_error: None,
             current_playback_span: None,
+            native_file_drop_hover: None,
         };
         state.resize_folder_browser(DragHandleMessage::Started {
             position: Point::new(100.0, 0.0),
@@ -2767,6 +3023,7 @@ mod tests {
             waveform_loading_label: None,
             audio_settings_error: None,
             current_playback_span: None,
+            native_file_drop_hover: None,
         };
         let sample_path = selected_asset_file_path(&state.folder_browser, "portal_SS_kick_003.wav");
 
@@ -3147,6 +3404,112 @@ mod tests {
             ),
             Some(super::GuiMessage::ToggleLoopPlayback)
         );
+    }
+
+    #[test]
+    fn native_file_hover_over_waveform_tracks_supported_state() {
+        let root = temp_gui_root("wavecrate-native-file-hover");
+        let wav = root.join("kick.wav");
+        let txt = root.join("note.txt");
+        write_test_wav_i16(&wav, &[0, 100]);
+        fs::write(&txt, "not audio").expect("write text");
+        let mut state = gui_state_for_span_tests();
+        state.folder_browser = super::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(root.clone()),
+        ]);
+        let mut context = ui::UpdateContext::default();
+
+        state.apply_native_file_drop(
+            NativeFileDrop::hover(
+                wav.clone(),
+                Some(Point::new(8.0, 8.0)),
+                Some(super::WAVEFORM_WIDGET_ID),
+            ),
+            &mut context,
+        );
+        assert_eq!(
+            state.native_file_drop_hover,
+            Some(super::NativeFileDropHover {
+                path: wav.clone(),
+                supported: true,
+            })
+        );
+
+        state.apply_native_file_drop(
+            NativeFileDrop::hover(
+                txt.clone(),
+                Some(Point::new(8.0, 8.0)),
+                Some(super::WAVEFORM_WIDGET_ID),
+            ),
+            &mut context,
+        );
+        assert_eq!(
+            state.native_file_drop_hover,
+            Some(super::NativeFileDropHover {
+                path: txt,
+                supported: false,
+            })
+        );
+
+        state.apply_native_file_drop(
+            NativeFileDrop::cancel(Some(Point::new(8.0, 8.0)), Some(super::WAVEFORM_WIDGET_ID)),
+            &mut context,
+        );
+        assert_eq!(state.native_file_drop_hover, None);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn native_file_drop_on_waveform_copies_into_selected_folder_and_queues_load() {
+        let root = temp_gui_root("wavecrate-native-file-drop-root");
+        let external_root = temp_gui_root("wavecrate-native-file-drop-external");
+        let loops = root.join("loops");
+        fs::create_dir_all(&loops).expect("create loops");
+        let source = external_root.join("kick.wav");
+        write_test_wav_i16(&source, &[0, 100, -100]);
+        let mut state = gui_state_for_span_tests();
+        state.folder_browser = super::FolderBrowserState::from_sample_sources(&[
+            wavecrate::sample_sources::SampleSource::new(root.clone()),
+        ]);
+        state
+            .folder_browser
+            .apply_message(super::FolderBrowserMessage::ActivateFolder(
+                loops.display().to_string(),
+            ));
+        let mut context = ui::UpdateContext::default();
+
+        state.apply_native_file_drop(
+            NativeFileDrop::dropped(
+                source,
+                Some(Point::new(8.0, 8.0)),
+                Some(super::WAVEFORM_WIDGET_ID),
+            ),
+            &mut context,
+        );
+
+        let copied = loops.join("kick.wav");
+        let copied_id = copied.display().to_string();
+        assert!(copied.is_file());
+        assert_eq!(
+            state.folder_browser.selected_file_id(),
+            Some(copied_id.as_str())
+        );
+        assert_eq!(state.waveform_loading_label.as_deref(), Some("kick.wav"));
+        assert!(state.sample_load_task.active().is_some());
+        let _ = fs::remove_dir_all(root);
+        let _ = fs::remove_dir_all(external_root);
+    }
+
+    fn temp_gui_root(name: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "{name}-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("clock")
+                .as_nanos()
+        ));
+        fs::create_dir_all(&root).expect("create temp root");
+        root
     }
 
     fn write_test_wav_i16(path: &std::path::Path, samples: &[i16]) {

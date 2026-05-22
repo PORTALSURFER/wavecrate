@@ -6,6 +6,11 @@ impl FolderBrowserState {
             .or_else(|| self.folders.first())
     }
 
+    pub(in crate::gui_app) fn selected_folder_path(&self) -> Option<std::path::PathBuf> {
+        self.selected_folder()
+            .map(|folder| std::path::PathBuf::from(&folder.id))
+    }
+
     pub(super) fn find_folder(&self, id: &str) -> Option<&FolderEntry> {
         self.folders.iter().find_map(|folder| folder.find(id))
     }
