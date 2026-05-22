@@ -94,13 +94,16 @@ fn runtime_exit_returns_structured_shutdown_timing_once() {
 
 #[test]
 fn runtime_exit_detaches_active_controller_shutdown_work() {
+    const BLOCKING_FILE_OP: Duration = Duration::from_secs(15);
+    const DETACHED_EXIT_BUDGET: Duration = Duration::from_secs(10);
+
     let base = tempdir().expect("create temp config dir");
     let _base_guard = crate::app_dirs::ConfigBaseGuard::set(base.path().to_path_buf());
     let _profile_guard = crate::app_dirs::PersistenceProfileGuard::live();
     let mut bridge = test_bridge(32);
     let started = bridge
         .controller
-        .begin_shutdown_blocking_file_op_for_tests(Duration::from_secs(15))
+        .begin_shutdown_blocking_file_op_for_tests(BLOCKING_FILE_OP)
         .expect("queue blocking file op");
     let wait_started = Instant::now();
     while !started.load(Ordering::Relaxed) && wait_started.elapsed() < Duration::from_secs(1) {
@@ -116,11 +119,12 @@ fn runtime_exit_detaches_active_controller_shutdown_work() {
 
     assert_eq!(artifact.status, "detached");
     assert!(
-        elapsed < Duration::from_secs(10),
+        elapsed < DETACHED_EXIT_BUDGET,
         "runtime exit should request shutdown without waiting for active file-op drain: {elapsed:?}"
     );
     assert!(
-        artifact.runtime_exit_total_ms.unwrap_or(f64::MAX) < 10_000.0,
+        artifact.runtime_exit_total_ms.unwrap_or(f64::MAX)
+            < DETACHED_EXIT_BUDGET.as_secs_f64() * 1_000.0,
         "artifact should keep the native runtime-exit boundary bounded"
     );
 }

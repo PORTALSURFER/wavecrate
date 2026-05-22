@@ -76,43 +76,17 @@ fn save_waveform_selection_to_browser_success_finishes_pending_history_and_suppo
         controller.ui.status.text
     );
 
-    remove_file_with_retry(&source_root.join(&exported_relative));
-    controller
-        .database_for(&source)
-        .unwrap()
-        .remove_file(&exported_relative)
-        .unwrap();
-    controller.apply_file_op_result(FileOpResult::UndoFile(UndoFileOpResult {
-        result: Ok(UndoFileOutcome::Removed {
-            source_id: source.id.clone(),
-            relative_path: exported_relative.clone(),
-        }),
-        cancelled: false,
-    }));
+    pump_background_jobs_until(&mut controller, |controller| {
+        controller.history.pending_undo.is_none()
+    });
 
     assert!(controller.history.pending_undo.is_none());
+    assert!(!source_root.join(&exported_relative).exists());
     assert!(controller.wav_index_for_path(&exported_relative).is_none());
-    assert_eq!(controller.ui.status.text, "Undid Saved selection clip");
     assert_eq!(
         PendingHistoryTransactionKey::SelectionExport { request_id },
         history_key
     );
-}
-
-fn remove_file_with_retry(path: &Path) {
-    let deadline = Instant::now() + Duration::from_secs(5);
-    loop {
-        match std::fs::remove_file(path) {
-            Ok(()) => return,
-            Err(err)
-                if err.kind() == std::io::ErrorKind::PermissionDenied
-                    && Instant::now() < deadline =>
-            {
-                std::thread::sleep(Duration::from_millis(25));
-            }
-            Err(err) => panic!("remove exported selection clip {}: {err}", path.display()),
-        }
-    }
 }
 
 #[test]

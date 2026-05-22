@@ -1,0 +1,137 @@
+use super::*;
+
+#[test]
+fn path_is_candidate_filters_db_files() {
+    assert!(!path_is_candidate(Path::new(DB_FILE_NAME)));
+    assert!(!path_is_candidate(Path::new(&format!(
+        "{DB_FILE_NAME}-wal"
+    ))));
+    assert!(!path_is_candidate(Path::new(LEGACY_DB_FILE_NAME)));
+    assert!(!path_is_candidate(Path::new(&format!(
+        "{LEGACY_DB_FILE_NAME}-wal"
+    ))));
+}
+
+#[test]
+fn path_is_candidate_allows_supported_audio() {
+    assert!(path_is_candidate(Path::new("kick.wav")));
+    assert!(path_is_candidate(Path::new("KICK.WAV")));
+    assert!(!path_is_candidate(Path::new("loop.flac")));
+}
+
+#[test]
+fn path_is_candidate_allows_extensionless_directories() {
+    let root = std::env::temp_dir().join("wavecrate_source_watch_dir");
+    std::fs::create_dir_all(&root).unwrap();
+    assert!(path_is_candidate(&root));
+    std::fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
+fn select_source_for_path_picks_longest_root() {
+    let first = SourceWatchEntry::new(SourceId::from_string("a"), PathBuf::from("/music"));
+    let second = SourceWatchEntry::new(SourceId::from_string("b"), PathBuf::from("/music/drums"));
+    let path = Path::new("/music/drums/kicks/kick.wav");
+    let selected = select_source_for_path(&[first, second], path).unwrap();
+    assert_eq!(selected.as_str(), "b");
+}
+
+#[test]
+fn drain_ready_sources_waits_for_debounce() {
+    let mut state = SourceWatcherState::default();
+    let source_id = SourceId::from_string("a");
+    let start = Instant::now();
+    state.update_pending_watch(
+        source_id.clone(),
+        SourceWatchCause::ExternalFileChange,
+        start,
+    );
+    assert!(
+        state
+            .drain_ready_sources(
+                start + Duration::from_millis(200),
+                Duration::from_millis(400)
+            )
+            .is_empty()
+    );
+    let ready = state.drain_ready_sources(
+        start + Duration::from_millis(500),
+        Duration::from_millis(400),
+    );
+    assert_eq!(ready.len(), 1);
+    assert_eq!(ready[0].source_id, source_id);
+    assert_eq!(ready[0].cause, SourceWatchCause::ExternalFileChange);
+}
+
+#[test]
+fn drain_ready_sources_honors_scan_in_progress() {
+    let mut state = SourceWatcherState::default();
+    state.scan_in_progress = true;
+    let source_id = SourceId::from_string("a");
+    let start = Instant::now();
+    state.update_pending_watch(source_id, SourceWatchCause::ExternalFileChange, start);
+    let ready = state.drain_ready_sources(
+        start + Duration::from_millis(500),
+        Duration::from_millis(400),
+    );
+    assert!(ready.is_empty());
+    assert_eq!(state.pending.len(), 1);
+}
+
+#[test]
+fn controller_owned_path_is_classified_as_controller_file_op() {
+    let source = SourceWatchEntry::new(SourceId::from_string("a"), PathBuf::from("/music"));
+    let mut controller_file_ops = HashMap::new();
+    controller_file_ops.insert(
+        source.source_id.clone(),
+        HashSet::from([PathBuf::from("drums/kick.wav")]),
+    );
+
+    let cause = source_watch_cause_for_path(
+        &controller_file_ops,
+        &source,
+        Path::new("/music/drums/kick.wav"),
+    );
+
+    assert_eq!(cause, SourceWatchCause::ControllerFileOp);
+}
+
+#[test]
+fn unowned_path_during_controller_file_op_falls_back_to_external() {
+    let source = SourceWatchEntry::new(SourceId::from_string("a"), PathBuf::from("/music"));
+    let mut controller_file_ops = HashMap::new();
+    controller_file_ops.insert(
+        source.source_id.clone(),
+        HashSet::from([PathBuf::from("drums/kick.wav")]),
+    );
+
+    let cause = source_watch_cause_for_path(
+        &controller_file_ops,
+        &source,
+        Path::new("/music/drums/snare.wav"),
+    );
+
+    assert_eq!(cause, SourceWatchCause::ExternalFileChange);
+}
+
+#[test]
+fn pending_source_watch_prefers_external_fallback() {
+    let mut state = SourceWatcherState::default();
+    let source_id = SourceId::from_string("a");
+    let start = Instant::now();
+    state.update_pending_watch(source_id.clone(), SourceWatchCause::ControllerFileOp, start);
+    state.update_pending_watch(
+        source_id.clone(),
+        SourceWatchCause::ExternalFileChange,
+        start + Duration::from_millis(1),
+    );
+
+    let ready = state.drain_ready_sources(
+        start + Duration::from_millis(500),
+        Duration::from_millis(400),
+    );
+
+    assert_eq!(ready.len(), 1);
+    assert_eq!(ready[0].source_id, source_id);
+    assert_eq!(ready[0].cause, SourceWatchCause::ExternalFileChange);
+}

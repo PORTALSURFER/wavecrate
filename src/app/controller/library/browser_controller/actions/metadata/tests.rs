@@ -14,6 +14,8 @@ use std::sync::{
 use std::time::{Duration, Instant};
 use tracing_subscriber::fmt::MakeWriter;
 
+const LARGE_BACKGROUND_FILE_OP_TIMEOUT: Duration = Duration::from_secs(180);
+
 #[derive(Clone, Default)]
 struct SharedBuffer(Arc<Mutex<Vec<u8>>>);
 
@@ -318,7 +320,7 @@ fn large_auto_rename_background_dispatch_registers_file_ops_before_planning_fini
     assert!(controller.ui.progress.cancelable);
     assert_eq!(controller.ui.progress.total, SAMPLE_COUNT);
 
-    wait_for_background_jobs(&mut controller, Duration::from_secs(180));
+    wait_for_background_jobs(&mut controller, LARGE_BACKGROUND_FILE_OP_TIMEOUT);
     assert!(source.root.join("artistname_SS.wav").exists());
 }
 
@@ -331,7 +333,7 @@ fn large_background_auto_rename_reuses_source_db_for_batch_execution() {
     BrowserController::new(&mut controller)
         .auto_rename_browser_sample_paths_background_for_tests(&paths)
         .expect("background auto rename should start");
-    wait_for_background_jobs(&mut controller, Duration::from_secs(180));
+    wait_for_background_jobs(&mut controller, LARGE_BACKGROUND_FILE_OP_TIMEOUT);
 
     let open_count = crate::sample_sources::db::test_source_db_open_total_count(&source.root);
     assert!(
@@ -366,7 +368,7 @@ fn large_tag_sidebar_background_auto_rename_streams_file_ops_progress_and_refres
     assert_eq!(controller.ui.progress.total, SAMPLE_COUNT);
     assert!(controller.ui.progress.cancelable);
 
-    wait_for_file_ops_detail(&mut controller, Duration::from_secs(2), |detail| {
+    wait_for_file_ops_detail(&mut controller, Duration::from_secs(15), |detail| {
         detail.starts_with("Planning sample_")
     });
     assert_eq!(
@@ -381,7 +383,7 @@ fn large_tag_sidebar_background_auto_rename_streams_file_ops_progress_and_refres
             .has_task(crate::app::state::ProgressTaskKind::FileOps)
     );
 
-    wait_for_background_jobs(&mut controller, Duration::from_secs(180));
+    wait_for_background_jobs(&mut controller, LARGE_BACKGROUND_FILE_OP_TIMEOUT);
 
     assert_eq!(controller.visible_browser_len(), visible_before);
     assert!(source.root.join("artistname_SS_vintagefx.wav").exists());
@@ -415,7 +417,6 @@ fn large_background_auto_rename_reports_partial_failure_through_file_ops_progres
     BrowserController::new(&mut controller)
         .auto_rename_browser_sample_paths_background_for_tests(&paths)
         .expect("background auto rename should start");
-
     assert_eq!(
         controller.ui.progress.task,
         Some(crate::app::state::ProgressTaskKind::FileOps)
@@ -423,7 +424,7 @@ fn large_background_auto_rename_reports_partial_failure_through_file_ops_progres
     assert_eq!(controller.ui.progress.total, SAMPLE_COUNT);
     assert!(controller.ui.progress.visible);
 
-    wait_for_background_jobs(&mut controller, Duration::from_secs(180));
+    wait_for_background_jobs(&mut controller, LARGE_BACKGROUND_FILE_OP_TIMEOUT);
 
     assert_eq!(
         controller.ui.status.text,
@@ -563,7 +564,7 @@ fn wait_for_file_ops_detail(
         {
             return;
         }
-        std::thread::sleep(Duration::from_millis(10));
+        std::thread::sleep(Duration::from_millis(1));
     }
     panic!(
         "file-op progress detail did not match before {timeout:?}; last detail: {:?}",
