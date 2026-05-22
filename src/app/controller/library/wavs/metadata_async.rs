@@ -6,11 +6,11 @@ use crate::app::controller::jobs::{
     SourceMetadataMutationOp,
 };
 use crate::app::controller::state::runtime::{MetadataRollback, PendingMetadataMutation};
-use crate::sample_sources::SourceDatabase;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+mod analysis_ops;
 mod source_ops;
 
 const SELECTED_SOURCE_MUTATION_CLAIM_GRACE: Duration = Duration::from_millis(750);
@@ -308,7 +308,7 @@ pub(crate) fn run_metadata_mutation_job(job: MetadataMutationJob) -> MetadataMut
         result = source_ops::run_source_metadata_ops(&job);
     }
     if result.is_ok() && !job.analysis_ops.is_empty() {
-        result = run_analysis_metadata_ops(&job);
+        result = analysis_ops::run_analysis_metadata_ops(&job);
     }
     MetadataMutationResult {
         request_id: job.request_id,
@@ -338,137 +338,21 @@ fn wait_for_file_op_priority_to_clear(job: &MetadataMutationJob) {
     }
 }
 
-fn run_analysis_metadata_ops(job: &MetadataMutationJob) -> Result<(), String> {
-    let mut conn = analysis_jobs::open_source_db(&job.source_root)?;
-    let source_db = SourceDatabase::open_read_only(&job.source_root)
-        .map_err(|err| format!("Database unavailable: {err}"))?;
-    let duration_updates = collect_loaded_duration_updates(job, &source_db)?;
-    let bpm_ops: Vec<_> = job
-        .analysis_ops
-        .iter()
-        .filter_map(|op| match op {
-            AnalysisMetadataMutationOp::SetBpm { relative_path, bpm } => Some((relative_path, bpm)),
-            AnalysisMetadataMutationOp::SetLoadedDuration { .. } => None,
-        })
-        .collect();
-    let bpm_sample_ids: Vec<String> = bpm_ops
-        .iter()
-        .map(|(relative_path, _)| {
-            let resolved_path = resolve_stale_browser_rename_path(job, &source_db, relative_path)?;
-            Ok(analysis_jobs::build_sample_id(
-                job.source_id.as_str(),
-                &resolved_path,
-            ))
-        })
-        .collect::<Result<_, String>>()?;
-    let tx = analysis_jobs::db::telemetry::begin_immediate_transaction(
-        &mut conn,
-        "analysis_metadata_mutation",
-    )
-    .map_err(|err| format!("Failed to start analysis metadata transaction: {err}"))?;
-    if !bpm_ops.is_empty() {
-        let bpm = bpm_ops.first().and_then(|(_, bpm)| **bpm);
-        analysis_jobs::db::update_sample_bpms_in_tx(&tx, &bpm_sample_ids, bpm.map(f64::from))?;
-    }
-    for update in &duration_updates {
-        analysis_jobs::db::upsert_samples_in_tx(
-            &tx,
-            std::slice::from_ref(&update.sample_metadata),
-        )?;
-        analysis_jobs::update_sample_duration(
-            &tx,
-            &update.sample_metadata.sample_id,
-            update.duration_seconds,
-            update.sample_rate,
-        )?;
-        if let Some(long_sample_mark) = update.long_sample_mark {
-            analysis_jobs::update_sample_long_mark(
-                &tx,
-                &update.sample_metadata.sample_id,
-                long_sample_mark,
-            )?;
-        }
-    }
-    analysis_jobs::db::telemetry::commit_transaction(tx, "analysis_metadata_mutation")
-        .map_err(|err| format!("Failed to commit analysis metadata transaction: {err}"))?;
-    Ok(())
-}
-
-struct LoadedDurationUpdate {
-    sample_metadata: analysis_jobs::SampleMetadata,
-    duration_seconds: f32,
-    sample_rate: u32,
-    long_sample_mark: Option<bool>,
-}
-
-fn collect_loaded_duration_updates(
-    job: &MetadataMutationJob,
-    source_db: &SourceDatabase,
-) -> Result<Vec<LoadedDurationUpdate>, String> {
-    let mut updates = Vec::new();
-    for op in &job.analysis_ops {
-        if let AnalysisMetadataMutationOp::SetLoadedDuration {
-            relative_path,
-            duration_seconds,
-            sample_rate,
-            long_sample_mark,
-        } = op
-        {
-            let resolved_path = resolve_stale_browser_rename_path(job, source_db, relative_path)?;
-            let absolute = job.source_root.join(&resolved_path);
-            let (file_size, modified_ns) =
-                crate::app::controller::library::wav_io::file_metadata(&absolute)?;
-            let sample_id = analysis_jobs::build_sample_id(job.source_id.as_str(), &resolved_path);
-            let content_hash = analysis_jobs::fast_content_hash(file_size, modified_ns);
-            updates.push(LoadedDurationUpdate {
-                sample_metadata: analysis_jobs::SampleMetadata {
-                    sample_id,
-                    content_hash,
-                    size: file_size,
-                    mtime_ns: modified_ns,
-                },
-                duration_seconds: *duration_seconds,
-                sample_rate: *sample_rate,
-                long_sample_mark: *long_sample_mark,
-            });
-        }
-    }
-    Ok(updates)
-}
-
-fn resolve_stale_browser_rename_path(
-    job: &MetadataMutationJob,
-    db: &SourceDatabase,
-    relative_path: &Path,
-) -> Result<PathBuf, String> {
-    if job.source_root.join(relative_path).exists() {
-        return Ok(relative_path.to_path_buf());
-    }
-    let Some(new_relative) =
-        crate::app::controller::library::source_write_priority::completed_browser_rename_target(
-            &job.source_id,
-            relative_path,
-        )
-    else {
-        return Ok(relative_path.to_path_buf());
-    };
-    if db
-        .entry_for_path(&new_relative)
-        .map_err(|err| format!("Failed to resolve renamed metadata target: {err}"))?
-        .is_some()
-    {
-        return Ok(new_relative);
-    }
-    Ok(relative_path.to_path_buf())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::app::controller::library::source_write_priority;
     use std::io;
-    use std::sync::{Arc, Mutex};
+    use std::sync::{Arc, LazyLock, Mutex, MutexGuard};
     use tracing_subscriber::fmt::MakeWriter;
+
+    static METADATA_ASYNC_TEST_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+    fn metadata_async_test_lock() -> MutexGuard<'static, ()> {
+        METADATA_ASYNC_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
 
     #[derive(Clone, Default)]
     struct SharedBuffer(Arc<Mutex<Vec<u8>>>);
@@ -517,6 +401,7 @@ mod tests {
 
     #[test]
     fn metadata_mutation_paths_dedup_across_source_and_analysis_ops() {
+        let _lock = metadata_async_test_lock();
         let paths = metadata_mutation_paths(
             &[
                 SourceMetadataMutationOp::SetLooped {
@@ -550,6 +435,7 @@ mod tests {
 
     #[test]
     fn metadata_mutation_waits_behind_same_source_file_op_priority() {
+        let _lock = metadata_async_test_lock();
         let temp = tempfile::tempdir().expect("create temp dir");
         let source = SampleSource::new(temp.path().join("source"));
         std::fs::create_dir_all(&source.root).expect("create source root");
@@ -598,6 +484,7 @@ mod tests {
 
     #[test]
     fn loaded_duration_metadata_job_follows_completed_browser_rename() {
+        let _lock = metadata_async_test_lock();
         let temp = tempfile::tempdir().expect("create temp dir");
         let source = SampleSource::new(temp.path().join("source"));
         std::fs::create_dir_all(&source.root).expect("create source root");
@@ -657,6 +544,7 @@ mod tests {
     #[test]
     #[cfg(debug_assertions)]
     fn analysis_metadata_rename_resolution_reuses_one_source_db_open() {
+        let _lock = metadata_async_test_lock();
         let temp = tempfile::tempdir().expect("create temp dir");
         let source = SampleSource::new(temp.path().join("source"));
         std::fs::create_dir_all(&source.root).expect("create source root");
@@ -762,6 +650,7 @@ mod tests {
 
     #[test]
     fn source_metadata_job_follows_completed_browser_rename() {
+        let _lock = metadata_async_test_lock();
         let temp = tempfile::tempdir().expect("create temp dir");
         let source = SampleSource::new(temp.path().join("source"));
         std::fs::create_dir_all(&source.root).expect("create source root");
@@ -829,6 +718,7 @@ mod tests {
 
     #[test]
     fn source_metadata_job_logs_operation_path_remap_and_result() {
+        let _lock = metadata_async_test_lock();
         let temp = tempfile::tempdir().expect("create temp dir");
         let source = SampleSource::new(temp.path().join("source"));
         std::fs::create_dir_all(&source.root).expect("create source root");
@@ -890,6 +780,7 @@ mod tests {
 
     #[test]
     fn source_metadata_job_reports_operation_and_path_when_row_is_missing() {
+        let _lock = metadata_async_test_lock();
         let temp = tempfile::tempdir().expect("create temp dir");
         let source = SampleSource::new(temp.path().join("source"));
         std::fs::create_dir_all(&source.root).expect("create source root");
@@ -918,6 +809,7 @@ mod tests {
 
     #[test]
     fn loaded_duration_metadata_job_reports_missing_file_without_rename_mapping() {
+        let _lock = metadata_async_test_lock();
         let temp = tempfile::tempdir().expect("create temp dir");
         let source = SampleSource::new(temp.path().join("source"));
         std::fs::create_dir_all(&source.root).expect("create source root");
