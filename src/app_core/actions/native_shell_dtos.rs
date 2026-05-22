@@ -4,37 +4,35 @@
 //! native shell. The runtime adapter in `gui_runtime` converts these app-core
 //! DTOs into the Wavecrate-owned native runtime contract consumed by Radiant.
 
-use radiant::gui::automation;
 use radiant::gui::chrome;
 use radiant::gui::feedback;
 use radiant::gui::form;
 use radiant::gui::frame;
-use radiant::gui::invalidation;
 use radiant::gui::list;
 use radiant::gui::panel;
 use radiant::gui::range;
 use radiant::gui::retained;
 use radiant::gui::types::ImageRgba;
 use radiant::gui::visualization;
-use serde::{Deserialize, Serialize};
-use std::{collections::BTreeMap, sync::Arc};
+use std::sync::Arc;
 
+mod automation;
 mod browser;
+mod retained_segments;
 
+pub use self::automation::{
+    AutomationBounds, AutomationNodeId, AutomationNodeSnapshot, AutomationRole,
+    GuiAutomationSnapshot,
+};
 pub use self::browser::{
     BrowserActionsModel, BrowserChromeModel, BrowserPanelModel, BrowserRowModel,
     BrowserRowProcessingState, BrowserTagPillModel, BrowserTagSidebarModel, BrowserTagState,
     PlaybackAgeBucket, PlaybackAgeFilterChip,
 };
+pub use self::retained_segments::{DirtySegments, SegmentRevisions};
 
 /// Shared storage used by retained app-model snapshots.
 pub type RetainedVec<T> = retained::RetainedVec<T>;
-
-/// Stable semantic identifier for one automation node in the native shell tree.
-pub type AutomationNodeId = automation::AutomationNodeId;
-
-/// Quantized window-space bounds for one automation node.
-pub type AutomationBounds = automation::AutomationBounds;
 
 /// Frame-level feedback from renderer to host bridge.
 pub type FrameBuildResult = frame::FrameBuildResult;
@@ -237,242 +235,6 @@ pub type AudioFieldModel = form::SummaryField;
 
 /// Generic preference/settings panel state used by native overlay projections.
 pub type PreferencePanelStateModel<const TOGGLES: usize> = form::PreferencePanelState<TOGGLES>;
-
-// Wavecrate-owned GUI automation snapshot DTOs.
-
-/// Semantic role describing how an automation node behaves in the GUI.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum AutomationRole {
-    /// Synthetic root of the automation snapshot tree.
-    Root,
-    /// Grouping container such as a panel or composite section.
-    Group,
-    /// Major panel surface.
-    Panel,
-    /// Toolbar or action strip.
-    Toolbar,
-    /// Tab-strip container.
-    TabList,
-    /// Toggleable tab node.
-    Tab,
-    /// Clickable button.
-    Button,
-    /// Search or text-entry field.
-    SearchField,
-    /// Slider or continuous meter interaction surface.
-    Slider,
-    /// Row in a list or table.
-    Row,
-    /// Table or row-hosting list surface.
-    Table,
-    /// Waveform interaction canvas.
-    WaveformRegion,
-    /// Map interaction canvas.
-    MapCanvas,
-    /// Focusable point inside the map canvas.
-    MapPoint,
-    /// Status/readout region.
-    Readout,
-    /// Dialog or modal container.
-    Dialog,
-}
-
-/// One node in the GUI automation tree.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct AutomationNodeSnapshot {
-    /// Stable semantic identifier for this node.
-    pub id: AutomationNodeId,
-    /// Behavioral role for this node.
-    pub role: AutomationRole,
-    /// Optional human-readable label shown by the GUI.
-    pub label: Option<String>,
-    /// Quantized window-space bounds.
-    pub bounds: AutomationBounds,
-    /// Optional current value or summary text.
-    pub value: Option<String>,
-    /// Whether the node is currently enabled.
-    pub enabled: bool,
-    /// Whether the node is currently selected or active.
-    pub selected: bool,
-    /// Stable action identifiers that this node can trigger.
-    pub available_actions: Vec<String>,
-    /// Additional deterministic metadata for AI/test consumers.
-    pub metadata: BTreeMap<String, String>,
-    /// Child nodes in semantic tree order.
-    pub children: Vec<AutomationNodeSnapshot>,
-}
-
-/// Full deterministic automation snapshot emitted for one GUI frame/state.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct GuiAutomationSnapshot {
-    /// Schema version for forward-compatible artifact readers.
-    pub schema_version: u32,
-    /// Quantized viewport width for the captured shell layout.
-    pub viewport_width: u32,
-    /// Quantized viewport height for the captured shell layout.
-    pub viewport_height: u32,
-    /// Root semantic automation node.
-    pub root: AutomationNodeSnapshot,
-}
-
-// Wavecrate-owned retained-render segment invalidation DTOs.
-
-const RETAINED_SEGMENT_PLAN: invalidation::RetainedSegmentPlan<8> =
-    invalidation::RetainedSegmentPlan::new([
-        invalidation::RetainedSegment::static_segment("status_bar"),
-        invalidation::RetainedSegment::static_segment("browser_frame"),
-        invalidation::RetainedSegment::static_segment("browser_rows_window"),
-        invalidation::RetainedSegment::static_segment("map_panel"),
-        invalidation::RetainedSegment::static_segment("waveform_overlay"),
-        invalidation::RetainedSegment::static_segment("global_static"),
-        invalidation::RetainedSegment::overlay("state_overlay"),
-        invalidation::RetainedSegment::overlay("motion_overlay"),
-    ]);
-
-const RETAINED_STATIC_SEGMENT_PLAN: invalidation::RetainedSegmentPlan<6> =
-    invalidation::RetainedSegmentPlan::new([
-        invalidation::RetainedSegment::static_segment("status_bar"),
-        invalidation::RetainedSegment::static_segment("browser_frame"),
-        invalidation::RetainedSegment::static_segment("browser_rows_window"),
-        invalidation::RetainedSegment::static_segment("map_panel"),
-        invalidation::RetainedSegment::static_segment("waveform_overlay"),
-        invalidation::RetainedSegment::static_segment("global_static"),
-    ]);
-
-/// Bitmask describing which projection segments changed during the last model pull.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct DirtySegments {
-    mask: invalidation::InvalidationMask,
-}
-
-impl DirtySegments {
-    /// Status-bar content segment.
-    pub const STATUS_BAR: u16 = 1 << 0;
-    /// Browser metadata/chrome segment.
-    pub const BROWSER_FRAME: u16 = 1 << 1;
-    /// Browser row-window segment.
-    pub const BROWSER_ROWS_WINDOW: u16 = 1 << 2;
-    /// Map-panel segment.
-    pub const MAP_PANEL: u16 = 1 << 3;
-    /// Waveform panel/chrome segment.
-    pub const WAVEFORM_OVERLAY: u16 = 1 << 4;
-    /// Static content that is outside explicit segment buckets.
-    pub const GLOBAL_STATIC: u16 = 1 << 5;
-    /// State-overlay model fields.
-    pub const STATE_OVERLAY: u16 = 1 << 6;
-    /// Motion-overlay model fields.
-    pub const MOTION_OVERLAY: u16 = 1 << 7;
-
-    /// Return an empty segment mask.
-    pub const fn empty() -> Self {
-        Self {
-            mask: invalidation::InvalidationMask::empty(),
-        }
-    }
-
-    /// Return a full segment mask.
-    pub const fn all() -> Self {
-        Self {
-            mask: invalidation::InvalidationMask::all(RETAINED_SEGMENT_PLAN.valid_mask()),
-        }
-    }
-
-    /// Construct a segment mask from raw bits.
-    pub const fn from_bits(bits: u16) -> Self {
-        Self {
-            mask: RETAINED_SEGMENT_PLAN.mask(bits),
-        }
-    }
-
-    /// Return raw bit contents for diagnostics and tests.
-    pub const fn bits(self) -> u16 {
-        self.mask.bits()
-    }
-
-    /// Return `true` when the mask contains no segments.
-    pub const fn is_empty(self) -> bool {
-        self.mask.is_empty()
-    }
-
-    /// Return `true` when any static segment requires rebuild.
-    pub const fn requires_static_rebuild(self) -> bool {
-        RETAINED_SEGMENT_PLAN.requires_static_rebuild(self.mask)
-    }
-
-    /// Return `true` when any overlay segment requires rebuild.
-    pub const fn requires_overlay_rebuild(self) -> bool {
-        RETAINED_SEGMENT_PLAN.requires_overlay_rebuild(self.mask)
-    }
-
-    /// Insert one or more segment bits into this mask.
-    pub fn insert(&mut self, bits: u16) {
-        self.mask.insert(bits, RETAINED_SEGMENT_PLAN.valid_mask());
-    }
-}
-
-/// Monotonic revision counters for static projection segments.
-///
-/// Bridges bump the counters for segments whose projected model slices changed on
-/// the most recent `pull_model`. Runtimes use these revisions in retained-scene
-/// cache keys to avoid expensive segment hashing on every frame.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct SegmentRevisions {
-    /// Status-bar projection revision.
-    pub status_bar: u64,
-    /// Browser metadata/chrome projection revision.
-    pub browser_frame: u64,
-    /// Browser visible-row window projection revision.
-    pub browser_rows_window: u64,
-    /// Map-panel projection revision.
-    pub map_panel: u64,
-    /// Waveform panel/chrome projection revision.
-    pub waveform_overlay: u64,
-    /// Global static fields projection revision.
-    pub global_static: u64,
-}
-
-impl SegmentRevisions {
-    /// Return these named compatibility revisions as a generic retained segment array.
-    pub const fn retained_revisions(self) -> invalidation::RetainedSegmentRevisions<6> {
-        invalidation::RetainedSegmentRevisions::new([
-            self.status_bar,
-            self.browser_frame,
-            self.browser_rows_window,
-            self.map_panel,
-            self.waveform_overlay,
-            self.global_static,
-        ])
-    }
-
-    /// Return whether any static-segment revision is non-zero.
-    pub fn has_static_revisions(self) -> bool {
-        self.retained_revisions().has_revisions()
-    }
-
-    /// Bump revisions for the static segments flagged in `dirty_segments`.
-    pub fn bump_for_dirty_segments(&mut self, dirty_segments: DirtySegments) {
-        let mut revisions = self.retained_revisions();
-        RETAINED_STATIC_SEGMENT_PLAN.bump_revisions(
-            &mut revisions,
-            RETAINED_STATIC_SEGMENT_PLAN.mask(dirty_segments.bits()),
-        );
-        let [
-            status_bar,
-            browser_frame,
-            browser_rows_window,
-            map_panel,
-            waveform_overlay,
-            global_static,
-        ] = revisions.revisions;
-        self.status_bar = status_bar;
-        self.browser_frame = browser_frame;
-        self.browser_rows_window = browser_rows_window;
-        self.map_panel = map_panel;
-        self.waveform_overlay = waveform_overlay;
-        self.global_static = global_static;
-    }
-}
 
 // Wavecrate-owned motion-only projection DTOs.
 
