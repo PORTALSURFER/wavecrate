@@ -17,6 +17,12 @@ use std::cell::RefCell;
 use directories::BaseDirs;
 use thiserror::Error;
 
+#[cfg(test)]
+mod overrides;
+
+#[cfg(test)]
+pub use overrides::ConfigBaseGuard;
+
 /// Name of the application directory that lives under the OS config root.
 pub const APP_DIR_NAME: &str = ".wavecrate";
 /// Name of the directory that stores explicit non-live persistence profiles.
@@ -300,61 +306,6 @@ fn current_profile_override() -> Option<ProfileSelection> {
 #[cfg(not(test))]
 fn current_profile_override() -> Option<ProfileSelection> {
     None
-}
-
-/// Guard that sets a temporary config base path for tests and restores the prior value.
-#[cfg(test)]
-pub struct ConfigBaseGuard {
-    previous: Option<PathBuf>,
-    previous_scoped_root: Option<PathBuf>,
-    previous_root: Option<PathBuf>,
-}
-
-#[cfg(test)]
-impl ConfigBaseGuard {
-    /// Override the config base directory for the lifetime of the guard.
-    pub fn set(path: PathBuf) -> Self {
-        let previous = TEST_CONFIG_OVERRIDE.with(|override_path| {
-            let mut slot = override_path.borrow_mut();
-            let prev = slot.clone();
-            *slot = Some(path);
-            prev
-        });
-        let previous_scoped_root = SCOPED_APP_ROOT_OVERRIDE.with(|override_path| {
-            let mut slot = override_path.borrow_mut();
-            let prev = slot.clone();
-            *slot = None;
-            prev
-        });
-        let mut root_guard = APP_ROOT_OVERRIDE
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let previous_root = root_guard.clone();
-        *root_guard = None;
-        Self {
-            previous,
-            previous_root,
-            previous_scoped_root,
-        }
-    }
-}
-
-#[cfg(test)]
-impl Drop for ConfigBaseGuard {
-    fn drop(&mut self) {
-        let previous = self.previous.take();
-        TEST_CONFIG_OVERRIDE.with(|override_path| {
-            *override_path.borrow_mut() = previous;
-        });
-        let previous_scoped_root = self.previous_scoped_root.take();
-        SCOPED_APP_ROOT_OVERRIDE.with(|override_path| {
-            *override_path.borrow_mut() = previous_scoped_root;
-        });
-        let mut root_guard = APP_ROOT_OVERRIDE
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        *root_guard = self.previous_root.take();
-    }
 }
 
 #[cfg(test)]
