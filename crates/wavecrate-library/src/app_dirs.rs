@@ -13,7 +13,17 @@ use std::{
 };
 
 use directories::BaseDirs;
-use thiserror::Error;
+
+mod error;
+mod overrides;
+mod paths;
+
+pub use error::AppDirError;
+pub use overrides::ConfigBaseGuard;
+pub use paths::{
+    clear_rebuildable_cache_payloads, handoff_staging_dir, logs_dir, rebuildable_cache_root_dir,
+    waveform_cache_dir,
+};
 
 /// Name of the application directory that lives under the OS config root.
 pub const APP_DIR_NAME: &str = ".wavecrate";
@@ -59,28 +69,6 @@ pub fn ensure_test_config_base() {
     if guard.is_none() {
         *guard = Some(test_base);
     }
-}
-
-/// Errors that can occur while resolving or preparing application directories.
-#[derive(Debug, Error)]
-pub enum AppDirError {
-    /// No suitable base config directory could be resolved.
-    #[error("No suitable base config directory available for application files")]
-    NoBaseDir,
-    /// Failed to create the application directory.
-    #[error("Failed to create application directory at {path}: {source}")]
-    CreateDir {
-        /// Path that told the directory to be created.
-        path: PathBuf,
-        /// Underlying IO error.
-        source: std::io::Error,
-    },
-    /// The configured profile name cannot be represented safely on disk.
-    #[error("Invalid Wavecrate profile name '{profile}'")]
-    InvalidProfileName {
-        /// Rejected profile name.
-        profile: String,
-    },
 }
 
 /// High-level persistence mode for the current process.
@@ -305,73 +293,6 @@ pub fn set_app_root_override(path: PathBuf) -> Result<(), AppDirError> {
     Ok(())
 }
 
-/// Return the logs directory inside the `.wavecrate` root, creating it if needed.
-pub fn logs_dir() -> Result<PathBuf, AppDirError> {
-    let path = app_root_dir()?.join("logs");
-    std::fs::create_dir_all(&path).map_err(|source| AppDirError::CreateDir {
-        path: path.clone(),
-        source,
-    })?;
-    Ok(path)
-}
-
-/// Return the global handoff staging directory inside the `.wavecrate` root.
-pub fn handoff_staging_dir() -> Result<PathBuf, AppDirError> {
-    let path = app_root_dir()?.join("handoff_staging");
-    std::fs::create_dir_all(&path).map_err(|source| AppDirError::CreateDir {
-        path: path.clone(),
-        source,
-    })?;
-    Ok(path)
-}
-
-/// Return the root directory for rebuildable cache payloads.
-pub fn rebuildable_cache_root_dir() -> Result<PathBuf, AppDirError> {
-    let path = app_root_dir()?.join("cache");
-    std::fs::create_dir_all(&path).map_err(|source| AppDirError::CreateDir {
-        path: path.clone(),
-        source,
-    })?;
-    Ok(path)
-}
-
-/// Return the persistent waveform cache payload directory.
-pub fn waveform_cache_dir() -> Result<PathBuf, AppDirError> {
-    let path = rebuildable_cache_root_dir()?.join("waveforms");
-    std::fs::create_dir_all(&path).map_err(|source| AppDirError::CreateDir {
-        path: path.clone(),
-        source,
-    })?;
-    Ok(path)
-}
-
-/// Clear all rebuildable cache payloads without touching logs, handoff staging,
-/// source databases, or durable user metadata.
-pub fn clear_rebuildable_cache_payloads() -> Result<PathBuf, String> {
-    let path = app_root_dir().map_err(|err| err.to_string())?.join("cache");
-    if path.exists() {
-        if !path.is_dir() {
-            return Err(format!(
-                "Rebuildable cache path is not a directory: {}",
-                path.display()
-            ));
-        }
-        std::fs::remove_dir_all(&path).map_err(|err| {
-            format!(
-                "Failed to clear rebuildable caches at {}: {err}",
-                path.display()
-            )
-        })?;
-    }
-    std::fs::create_dir_all(&path).map_err(|err| {
-        format!(
-            "Failed to recreate rebuildable cache directory at {}: {err}",
-            path.display()
-        )
-    })?;
-    Ok(path)
-}
-
 /// Return the base directory used for `.wavecrate` when no override is set.
 pub fn config_base_dir_path() -> Option<PathBuf> {
     config_base_dir()
@@ -498,181 +419,5 @@ fn sanitize_profile_name(profile: &str) -> Result<String, AppDirError> {
     Ok(sanitized)
 }
 
-/// Guard that sets a temporary config base path for tests and restores the prior value.
-pub struct ConfigBaseGuard {
-    previous: Option<PathBuf>,
-    previous_scoped_root: Option<PathBuf>,
-    previous_root: Option<PathBuf>,
-}
-
-impl ConfigBaseGuard {
-    /// Override the config base directory for the lifetime of the guard.
-    pub fn set(path: PathBuf) -> Self {
-        let previous = TEST_CONFIG_OVERRIDE.with(|override_path| {
-            let mut slot = override_path.borrow_mut();
-            let prev = slot.clone();
-            *slot = Some(path);
-            prev
-        });
-        let previous_scoped_root = SCOPED_APP_ROOT_OVERRIDE.with(|override_path| {
-            let mut slot = override_path.borrow_mut();
-            let prev = slot.clone();
-            *slot = None;
-            prev
-        });
-        let mut root_guard = APP_ROOT_OVERRIDE
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let previous_root = root_guard.clone();
-        *root_guard = None;
-        Self {
-            previous,
-            previous_root,
-            previous_scoped_root,
-        }
-    }
-}
-
-impl Drop for ConfigBaseGuard {
-    fn drop(&mut self) {
-        let previous = self.previous.take();
-        TEST_CONFIG_OVERRIDE.with(|override_path| {
-            *override_path.borrow_mut() = previous;
-        });
-        let previous_scoped_root = self.previous_scoped_root.take();
-        SCOPED_APP_ROOT_OVERRIDE.with(|override_path| {
-            *override_path.borrow_mut() = previous_scoped_root;
-        });
-        let mut root_guard = APP_ROOT_OVERRIDE
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        *root_guard = self.previous_root.take();
-    }
-}
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::tempdir;
-
-    #[test]
-    fn uses_override_for_root_dir() {
-        let base = tempdir().unwrap();
-        let _guard = ConfigBaseGuard::set(base.path().to_path_buf());
-        let root = app_root_dir().unwrap();
-        assert_eq!(
-            root,
-            base.path()
-                .join(APP_DIR_NAME)
-                .join(PROFILE_DIR_NAME)
-                .join(AUTOMATED_PROFILE_NAME)
-        );
-        assert!(root.is_dir());
-        assert_eq!(persistence_mode(), PersistenceMode::Automated);
-    }
-
-    #[test]
-    fn reapplies_test_override_when_cleared() {
-        {
-            let mut guard = CONFIG_BASE_OVERRIDE
-                .lock()
-                .expect("config base override mutex poisoned");
-            *guard = None;
-        }
-        let root = app_root_dir().unwrap();
-        assert!(root.ends_with(AUTOMATED_PROFILE_NAME));
-
-        {
-            let mut guard = CONFIG_BASE_OVERRIDE
-                .lock()
-                .expect("config base override mutex poisoned");
-            *guard = None;
-        }
-        let root2 = app_root_dir().unwrap();
-        assert!(root2.ends_with(AUTOMATED_PROFILE_NAME));
-    }
-
-    #[test]
-    fn named_profile_uses_isolated_profile_root() {
-        let base = tempdir().unwrap();
-        let _base_guard = ConfigBaseGuard::set(base.path().to_path_buf());
-        let _profile_guard = PersistenceProfileGuard::named("gui-test");
-
-        let root = app_root_dir().unwrap();
-
-        assert_eq!(
-            root,
-            base.path()
-                .join(APP_DIR_NAME)
-                .join(PROFILE_DIR_NAME)
-                .join("gui-test")
-        );
-        assert!(root.is_dir());
-    }
-
-    #[test]
-    fn live_profile_override_bypasses_test_isolation() {
-        let live_base = tempdir().unwrap();
-        let expected = live_base.path().join(APP_DIR_NAME);
-        {
-            let mut guard = CONFIG_BASE_OVERRIDE
-                .lock()
-                .expect("config base override mutex poisoned");
-            *guard = Some(live_base.path().to_path_buf());
-        }
-        let _profile_guard = PersistenceProfileGuard::live();
-
-        let root = app_root_dir().unwrap();
-
-        assert_eq!(root, expected);
-        assert!(root.is_dir());
-        assert_eq!(persistence_mode(), PersistenceMode::Live);
-    }
-
-    #[test]
-    fn sandbox_profile_uses_dedicated_mode_and_root() {
-        let base = tempdir().unwrap();
-        let _base_guard = ConfigBaseGuard::set(base.path().to_path_buf());
-        let _profile_guard = PersistenceProfileGuard::sandbox();
-
-        let resolved = resolve_persistence().expect("resolve sandbox persistence");
-
-        assert_eq!(resolved.mode, PersistenceMode::Sandbox);
-        assert_eq!(
-            resolved.app_root,
-            base.path()
-                .join(APP_DIR_NAME)
-                .join(PROFILE_DIR_NAME)
-                .join(SANDBOX_PROFILE_NAME)
-        );
-    }
-
-    #[test]
-    fn automated_profile_guard_uses_canonical_mode() {
-        let base = tempdir().unwrap();
-        let _base_guard = ConfigBaseGuard::set(base.path().to_path_buf());
-        let _profile_guard = PersistenceProfileGuard::automated();
-
-        let resolved = resolve_persistence().expect("resolve automated persistence");
-
-        assert_eq!(resolved.mode, PersistenceMode::Automated);
-        assert_eq!(
-            resolved.app_root,
-            base.path()
-                .join(APP_DIR_NAME)
-                .join(PROFILE_DIR_NAME)
-                .join(AUTOMATED_PROFILE_NAME)
-        );
-    }
-
-    #[test]
-    fn rejects_invalid_profile_names() {
-        let base = tempdir().unwrap();
-        let _base_guard = ConfigBaseGuard::set(base.path().to_path_buf());
-        let _profile_guard = PersistenceProfileGuard::named("bad/profile");
-
-        let error = app_root_dir().expect_err("invalid profile should fail");
-
-        assert!(matches!(error, AppDirError::InvalidProfileName { .. }));
-    }
-}
+mod tests;

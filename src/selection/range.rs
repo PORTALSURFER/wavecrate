@@ -1,64 +1,12 @@
 //! Selection range geometry and fade/gain math utilities.
 //!
 //! This module intentionally keeps the normalized selection bounds, fade
-//! parameters, and fade/gain evaluation rules together because they define one
-//! shared waveform-editing domain model. The file is dense, but the preferred
-//! maintenance approach is to preserve that cohesion and only extract helpers
-//! when a clearly separate subdomain emerges.
+//! parameters, and fade/gain handles together because callers treat them as one
+//! shared waveform-editing domain model.
 
-/// Parameters for one fade curve attached to a [`SelectionRange`].
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct FadeParams {
-    /// Fade length as a fraction of selection width (0.0-1.0).
-    pub length: f32,
-    /// Curve tension: 0.0 = linear, 0.5 = medium S-curve, 1.0 = maximum S-curve.
-    pub curve: f32,
-    /// Outer crossfade extension length as a fraction of selection width.
-    /// This region extends outward from the selection edge.
-    pub mute: f32,
-}
-
-impl FadeParams {
-    /// Create new fade parameters with default curve.
-    pub fn new(length: f32) -> Self {
-        Self {
-            length: length.clamp(0.0, 1.0),
-            curve: 0.5,
-            mute: 0.0,
-        }
-    }
-
-    /// Create fade parameters with custom curve.
-    pub fn with_curve(length: f32, curve: f32) -> Self {
-        Self {
-            length: length.clamp(0.0, 1.0),
-            curve: curve.clamp(0.0, 1.0),
-            mute: 0.0,
-        }
-    }
-
-    /// Create fade parameters with custom curve and outer extension length.
-    pub fn with_curve_and_mute(length: f32, curve: f32, mute: f32) -> Self {
-        let clamped_length = length.clamp(0.0, 1.0);
-        let clamped_mute = mute.max(0.0);
-        Self {
-            length: clamped_length,
-            curve: curve.clamp(0.0, 1.0),
-            mute: clamped_mute,
-        }
-    }
-}
-
-/// Inclusive/exclusive decoded sample-frame bounds for one waveform range.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct SampleFrameRange {
-    /// First decoded frame included in the range.
-    pub start_frame: usize,
-    /// First decoded frame after the range.
-    pub end_frame: usize,
-    /// Total decoded frames in the loaded sample used for the conversion.
-    pub total_frames: usize,
-}
+use super::fade::{
+    FadeParams, clamp_fade_length, clamp_gain, clamp_mute_length, fade_gain_at_position,
+};
 
 /// Normalized selection bounds and edit parameters over a waveform (`0.0..=1.0`).
 ///
@@ -114,55 +62,6 @@ impl SelectionRange {
                 fade_out: None,
             }
         }
-    }
-
-    /// Create a normalized range whose endpoints exactly represent decoded frame bounds.
-    pub fn from_frame_bounds(total_frames: usize, start_frame: usize, end_frame: usize) -> Self {
-        if total_frames == 0 {
-            return Self::new_precise(0.0, 0.0);
-        }
-        let start_frame = start_frame.min(total_frames.saturating_sub(1));
-        let mut end_frame = end_frame.min(total_frames);
-        if end_frame <= start_frame {
-            end_frame = (start_frame + 1).min(total_frames);
-        }
-        Self::new_precise(
-            start_frame as f64 / total_frames as f64,
-            end_frame as f64 / total_frames as f64,
-        )
-    }
-
-    /// Convert normalized bounds to decoded sample-frame bounds.
-    ///
-    /// The start is floored and the end is ceiled so a non-empty authored range
-    /// always covers the frames touched by that range.
-    pub fn frame_bounds(&self, total_frames: usize) -> SampleFrameRange {
-        if total_frames == 0 {
-            return SampleFrameRange {
-                start_frame: 0,
-                end_frame: 0,
-                total_frames,
-            };
-        }
-        let start_frame = (self.start * total_frames as f64).floor() as usize;
-        let start_frame = start_frame.min(total_frames.saturating_sub(1));
-        let mut end_frame = (self.end * total_frames as f64).ceil() as usize;
-        end_frame = end_frame.min(total_frames);
-        if end_frame <= start_frame {
-            end_frame = (start_frame + 1).min(total_frames);
-        }
-        SampleFrameRange {
-            start_frame,
-            end_frame,
-            total_frames,
-        }
-    }
-
-    /// Create a range by resolving high-precision normalized bounds to decoded frames first.
-    pub fn from_precise_normalized_frame_bounds(total_frames: usize, start: f64, end: f64) -> Self {
-        let range = Self::new_precise(start, end);
-        let frames = range.frame_bounds(total_frames);
-        Self::from_frame_bounds(total_frames, frames.start_frame, frames.end_frame)
     }
 
     /// Start position within the waveform.
@@ -429,117 +328,6 @@ impl SelectionRange {
     }
 }
 
-/// Compute fade gain for one position inside/outside a selection span.
-/// Position and selection bounds share the same unit.
-/// `selection_gain` scales the result after inner fades; `min_fade_len` avoids clicky zero-length fades.
-pub(crate) fn fade_gain_at_position(
-    position: f32,
-    selection_start: f32,
-    selection_end: f32,
-    selection_gain: f32,
-    fade_in: Option<FadeParams>,
-    fade_out: Option<FadeParams>,
-    min_fade_len: f32,
-) -> f32 {
-    let start = selection_start.min(selection_end);
-    let end = selection_start.max(selection_end);
-    let width = end - start;
-    if width <= 0.0 {
-        return 1.0;
-    }
-    if let Some(fade_in) = fade_in {
-        let extension_len = (width * fade_in.mute).max(0.0);
-        if extension_len > 0.0 {
-            let extension_start = start - extension_len;
-            if position >= extension_start && position <= start {
-                let t = ((position - extension_start) / extension_len).clamp(0.0, 1.0);
-                return (1.0 - fade_curve_value(t, fade_in.curve)).clamp(0.0, 1.0);
-            }
-        }
-    }
-    if let Some(fade_out) = fade_out {
-        let extension_len = (width * fade_out.mute).max(0.0);
-        if extension_len > 0.0 {
-            let extension_end = end + extension_len;
-            if position >= end && position <= extension_end {
-                let t = ((position - end) / extension_len).clamp(0.0, 1.0);
-                return fade_curve_value(t, fade_out.curve).clamp(0.0, 1.0);
-            }
-        }
-    }
-    if position < start || position > end {
-        return 1.0;
-    }
-    let mut gain = 1.0;
-    if let Some(fade_in) = fade_in {
-        let fade_len = width * fade_in.length;
-        let fade_len = if fade_len > 0.0 {
-            fade_len
-        } else if fade_in.mute > 0.0 && min_fade_len > 0.0 {
-            min_fade_len.min(width)
-        } else {
-            0.0
-        };
-        if fade_len > 0.0 {
-            let time_in = position - start;
-            if time_in < fade_len {
-                let t = (time_in / fade_len).clamp(0.0, 1.0);
-                gain *= fade_curve_value(t, fade_in.curve);
-            }
-        }
-    }
-    if let Some(fade_out) = fade_out {
-        let fade_len = width * fade_out.length;
-        let fade_len = if fade_len > 0.0 {
-            fade_len
-        } else if fade_out.mute > 0.0 && min_fade_len > 0.0 {
-            min_fade_len.min(width)
-        } else {
-            0.0
-        };
-        if fade_len > 0.0 {
-            let time_until_end = end - position;
-            if time_until_end < fade_len {
-                let t = (time_until_end / fade_len).clamp(0.0, 1.0);
-                gain *= fade_curve_value(t, fade_out.curve);
-            }
-        }
-    }
-    gain * clamp_gain(selection_gain)
-}
-
-/// Apply an S-curve easing for fade ramps.
-pub(crate) fn fade_curve_value(t: f32, curve: f32) -> f32 {
-    if curve <= 0.0 {
-        return t;
-    }
-    let t = t.clamp(0.0, 1.0);
-    let t2 = t * t;
-    let t3 = t2 * t;
-    let smootherstep = t3 * (t * (t * 6.0 - 15.0) + 10.0);
-    t * (1.0 - curve) + smootherstep * curve
-}
-
 fn clamp01_f64(value: f64) -> f64 {
     value.clamp(0.0, 1.0)
-}
-
-fn clamp_fade_length(fade: f32, other_fade: f32) -> f32 {
-    let clamped = fade.clamp(0.0, 1.0);
-    let other = (other_fade as f64).clamp(0.0, 1.0);
-    let max_allowed = (1.0_f64 - other).max(0.0) as f32;
-    round_fade_length(clamped.min(max_allowed))
-}
-
-fn clamp_mute_length(mute: f32, max_mute: f32) -> f32 {
-    mute.clamp(0.0, max_mute.max(0.0))
-}
-
-fn round_fade_length(value: f32) -> f32 {
-    let scale = 1_000_000.0;
-    (value * scale).round() / scale
-}
-
-fn clamp_gain(gain: f32) -> f32 {
-    gain.clamp(0.0, 4.0)
 }

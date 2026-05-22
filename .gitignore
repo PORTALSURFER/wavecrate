@@ -18,6 +18,7 @@ assets/ml/panns_cnn14_16k/*.pth
 /artifacts/
 /desktop-smoke
 /tmp
+/test_assets
 
 # Generated training dataset/model artifacts.
 /dataset/
