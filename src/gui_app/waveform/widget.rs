@@ -11,7 +11,7 @@ use radiant::{
 };
 use std::sync::Arc;
 
-use crate::gui_app::GuiMessage;
+use crate::gui_app::{GuiMessage, WAVEFORM_WIDGET_ID};
 
 use super::{
     WAVEFORM_HEIGHT, WAVEFORM_WIDTH, WaveformActiveDragKind, WaveformFile, WaveformInteraction,
@@ -40,7 +40,7 @@ pub(in crate::gui_app) fn waveform_viewport_view(state: &WaveformState) -> ui::V
                     .map(GuiMessage::Waveform)
             },
         )
-        .id(12)
+        .id(WAVEFORM_WIDGET_ID)
         .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32),
     ])
     .id(10)
