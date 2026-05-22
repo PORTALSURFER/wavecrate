@@ -79,7 +79,14 @@ fn folder_drag_preview_tracks_pointer_and_hover_target() {
         Some(Point::new(30.0, 42.0))
     );
 
-    browser.apply_message(FolderBrowserMessage::HoverDropTarget(path_id(&loops)));
+    browser.apply_message(FolderBrowserMessage::HoverDropTarget(
+        path_id(&loops),
+        Point::new(50.0, 60.0),
+    ));
+    assert_eq!(
+        browser.drag_preview().map(|preview| preview.pointer),
+        Some(Point::new(50.0, 60.0))
+    );
     let hovered = browser
         .visible_folders()
         .into_iter()
@@ -88,7 +95,10 @@ fn folder_drag_preview_tracks_pointer_and_hover_target() {
     assert!(hovered.drop_candidate);
     assert!(hovered.drop_target);
 
-    browser.apply_message(FolderBrowserMessage::HoverDropTarget(path_id(&kicks)));
+    browser.apply_message(FolderBrowserMessage::HoverDropTarget(
+        path_id(&kicks),
+        Point::new(70.0, 80.0),
+    ));
     assert!(
         browser
             .visible_folders()

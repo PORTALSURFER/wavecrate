@@ -150,6 +150,7 @@ fn folder_row(folder: VisibleFolder) -> ui::View<GuiMessage> {
             folder.selected,
             folder.drop_target,
             folder.drag_active,
+            folder.drag_source,
             folder.drop_candidate,
         ),
         move |message| match message {
@@ -165,9 +166,9 @@ fn folder_row(folder: VisibleFolder) -> ui::View<GuiMessage> {
             FolderTreeHitMessage::Drop => {
                 GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnFolder(hit_id.clone()))
             }
-            FolderTreeHitMessage::HoverDropTarget => {
-                GuiMessage::FolderBrowser(FolderBrowserMessage::HoverDropTarget(hit_id.clone()))
-            }
+            FolderTreeHitMessage::HoverDropTarget(position) => GuiMessage::FolderBrowser(
+                FolderBrowserMessage::HoverDropTarget(hit_id.clone(), position),
+            ),
         },
     )
     .key(format!("folder-row-hit-{id}"))

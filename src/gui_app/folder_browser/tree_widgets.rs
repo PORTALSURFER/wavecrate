@@ -44,7 +44,9 @@ impl Widget for FolderDropClearTarget {
             WidgetInput::PointerMove { position }
                 if self.drag_active && bounds.contains(position) =>
             {
-                Some(WidgetOutput::typed(FolderBrowserMessage::ClearDropTarget))
+                Some(WidgetOutput::typed(FolderBrowserMessage::ClearDropTarget(
+                    position,
+                )))
             }
             _ => None,
         }

@@ -29,6 +29,10 @@ Audio sample triage tool built with Rust.
 - Playback uses your default audio output device.
 - GUI backend:
   - Main app uses the Radiant application path in `src/gui_app.rs`.
+  - Current product folder/file drag/drop behavior lives in
+    `src/gui_app/folder_browser/**`.
+  - `src/app/controller/ui/drag_drop_controller/**` is compatibility-controller
+    drag/drop code, not the default place for current GUI drag/drop fixes.
   - `app_core` defines the domain action/projection layer used by tests and companion runtime surfaces without owning widget behavior.
   - Architecture guidance: `docs/ARCHITECTURE.md`.
 - Windows (ASIO): If you want to build with ASIO support (or your build fails looking for the ASIO SDK), download the Steinberg ASIO SDK and set `CPAL_ASIO_DIR` to the SDK path (e.g. a folder named `ASIOSDK`) before running `cargo build`/`cargo run`.

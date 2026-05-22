@@ -79,6 +79,7 @@ pub(super) struct VisibleFolder {
     pub(super) expanded: bool,
     pub(super) selected: bool,
     pub(super) drag_active: bool,
+    pub(super) drag_source: bool,
     pub(super) drop_candidate: bool,
     pub(super) drop_target: bool,
     pub(super) rename_draft: Option<String>,

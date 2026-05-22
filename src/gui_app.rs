@@ -495,7 +495,9 @@ impl GuiAppState {
                 self.context_menu = None;
                 self.drag_sample_file(path, drag, context);
             }
-            GuiMessage::ExternalDragCompleted(result) => self.external_drag_completed(result),
+            GuiMessage::ExternalDragCompleted(result) => {
+                self.external_drag_completed(result, context)
+            }
             GuiMessage::SampleLoadProgress(ticket, progress) => {
                 if self.sample_load_task.is_active(ticket) {
                     self.waveform_loading_target_progress = progress.clamp(0.0, 0.995);
@@ -1127,13 +1129,14 @@ impl GuiAppState {
         match drag {
             DragHandleMessage::Started { position } => {
                 self.folder_browser.begin_file_drag(path, position);
-                self.arm_browser_external_drag(context);
+                self.arm_browser_drag(context);
             }
             DragHandleMessage::Moved { position } => {
                 self.folder_browser.update_drag_pointer(position);
             }
             DragHandleMessage::Ended { .. } => {
                 self.folder_browser.clear_drag();
+                context.end_drag();
                 context.end_external_drag();
             }
         }
@@ -1147,16 +1150,32 @@ impl GuiAppState {
     ) {
         let started = matches!(drag, DragHandleMessage::Started { .. });
         let ended = matches!(drag, DragHandleMessage::Ended { .. });
+        if ended {
+            if let Some(target_folder_id) = self.folder_browser.hovered_drop_target_folder_id() {
+                self.drop_browser_drag_on_folder(target_folder_id, context);
+            } else {
+                self.folder_browser
+                    .apply_message(FolderBrowserMessage::DragFolder(folder_id, drag));
+                context.end_drag();
+                context.end_external_drag();
+            }
+            return;
+        }
         self.folder_browser
             .apply_message(FolderBrowserMessage::DragFolder(folder_id, drag));
         if started {
-            self.arm_browser_external_drag(context);
-        } else if ended {
-            context.end_external_drag();
+            self.arm_browser_drag(context);
         }
     }
 
-    fn arm_browser_external_drag(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
+    fn arm_browser_drag(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
+        if let Some(preview) = self.folder_browser.drag_preview() {
+            let width = folder_drag_preview_width(&preview.label);
+            context.begin_drag(ui::DragRequest::new(
+                ui::DragPreview::sized(preview.label, Vector2::new(width, DRAG_PREVIEW_HEIGHT)),
+                preview.pointer,
+            ));
+        }
         let Some(request) = self.folder_browser.external_drag_request() else {
             return;
         };
@@ -1422,7 +1441,12 @@ impl GuiAppState {
         }
     }
 
-    fn external_drag_completed(&mut self, result: Result<ui::ExternalDragOutcome, String>) {
+    fn external_drag_completed(
+        &mut self,
+        result: Result<ui::ExternalDragOutcome, String>,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        context.end_drag();
         self.folder_browser.clear_drag();
         self.sample_status = match result {
             Ok(outcome) if outcome.accepted() => match outcome.effect {
@@ -1442,6 +1466,7 @@ impl GuiAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
+        context.end_drag();
         context.end_external_drag();
         match self.folder_browser.drop_drag_on_folder(&folder_id) {
             Ok(result) => {
@@ -1868,9 +1893,6 @@ fn view(state: &mut GuiAppState) -> ui::View<GuiMessage> {
     .spacing(0.0)
     .fill();
     let mut layers = vec![content];
-    if let Some(preview) = state.folder_browser.drag_preview() {
-        layers.push(folder_drag_preview_overlay(preview));
-    }
     if state.job_details_open {
         if let Some(progress) = state.folder_progress.as_ref() {
             layers.push(status_bar::job_details_popover(progress));
@@ -1886,15 +1908,8 @@ fn view(state: &mut GuiAppState) -> ui::View<GuiMessage> {
     }
 }
 
-fn folder_drag_preview_overlay(preview: folder_browser::FolderDragPreview) -> ui::View<GuiMessage> {
-    let width =
-        (preview.label.chars().count() as f32 * 7.0 + 118.0).clamp(150.0, DRAG_PREVIEW_MAX_WIDTH);
-    ui::drag_preview_sized(
-        preview.label,
-        preview.pointer,
-        Vector2::new(width, DRAG_PREVIEW_HEIGHT),
-    )
-    .key("folder-browser-drag-preview")
+fn folder_drag_preview_width(label: &str) -> f32 {
+    (label.chars().count() as f32 * 7.0 + 118.0).clamp(150.0, DRAG_PREVIEW_MAX_WIDTH)
 }
 
 fn default_gui_shortcut_resolution(
