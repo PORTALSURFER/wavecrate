@@ -526,6 +526,140 @@ impl GuiAppState {
         }
     }
 
+    fn apply_folder_scan_progress(&mut self, progress: FolderScanProgress) {
+        let started_at = Instant::now();
+        if self
+            .folder_browser
+            .scan_is_active(&progress.source_id, progress.task_id)
+        {
+            let phase = progress.phase.clone();
+            self.folder_progress = Some(progress);
+            emit_gui_action(
+                "folder_browser.scan.progress",
+                Some("folder_browser"),
+                Some(&phase),
+                "active",
+                started_at,
+                None,
+            );
+        }
+    }
+
+    fn apply_folder_scan_discovery_batch(&mut self, batch: FolderScanDiscoveryBatch) {
+        let started_at = Instant::now();
+        let count = batch.events.len();
+        self.folder_browser.apply_scan_discovered_batch(batch);
+        if logging::debug_logging_enabled() {
+            tracing::debug!(
+                target: logging::ACTION_EVENT_TARGET,
+                event = "action_detail",
+                action = "folder_browser.scan.discovery_batch",
+                pane = "folder_browser",
+                item_count = count,
+                "Folder browser scan discovery batch applied"
+            );
+        }
+        emit_gui_action(
+            "folder_browser.scan.discovery_batch",
+            Some("folder_browser"),
+            None,
+            "applied",
+            started_at,
+            None,
+        );
+    }
+
+    fn toggle_audio_backend_dropdown(&mut self) {
+        self.audio_backend_dropdown_open = !self.audio_backend_dropdown_open;
+        self.audio_output_dropdown_open = false;
+        self.audio_sample_rate_dropdown_open = false;
+    }
+
+    fn toggle_audio_output_dropdown(&mut self) {
+        self.audio_output_dropdown_open = !self.audio_output_dropdown_open;
+        self.audio_backend_dropdown_open = false;
+        self.audio_sample_rate_dropdown_open = false;
+    }
+
+    fn toggle_audio_sample_rate_dropdown(&mut self) {
+        self.audio_sample_rate_dropdown_open = !self.audio_sample_rate_dropdown_open;
+        self.audio_backend_dropdown_open = false;
+        self.audio_output_dropdown_open = false;
+    }
+
+    fn focus_rename_input(&mut self, input_id: u64, context: &mut ui::UpdateContext<GuiMessage>) {
+        let started_at = Instant::now();
+        context.focus(input_id);
+        emit_gui_action(
+            "folder_browser.rename.focus_input",
+            Some("folder_browser"),
+            None,
+            "success",
+            started_at,
+            None,
+        );
+    }
+
+    fn select_all_samples(&mut self) {
+        let started_at = Instant::now();
+        let count = self.folder_browser.select_all_audio_files();
+        self.sample_status = format!(
+            "Selected {count} sample{}",
+            if count == 1 { "" } else { "s" }
+        );
+        emit_gui_action(
+            "browser.select_all_samples",
+            Some("browser"),
+            None,
+            "success",
+            started_at,
+            None,
+        );
+    }
+
+    fn collapse_selected_folder(&mut self) {
+        let started_at = Instant::now();
+        self.folder_browser.collapse_selected_folder();
+        emit_gui_action(
+            "folder_browser.collapse_selected",
+            Some("folder_browser"),
+            None,
+            "success",
+            started_at,
+            None,
+        );
+    }
+
+    fn expand_selected_folder(&mut self) {
+        let started_at = Instant::now();
+        self.folder_browser.expand_selected_folder();
+        emit_gui_action(
+            "folder_browser.expand_selected",
+            Some("folder_browser"),
+            None,
+            "success",
+            started_at,
+            None,
+        );
+    }
+
+    fn apply_waveform_message(&mut self, message: WaveformInteraction) {
+        let started_at = Instant::now();
+        let action = waveform_interaction_action(&message);
+        let active_drag = self.waveform.active_drag_kind();
+        self.waveform.apply_interaction(message);
+        self.sync_edit_fade_audio_state();
+        if waveform_interaction_finishes_play_selection_edit(&message, active_drag) {
+            self.retarget_loop_playback_to_play_selection();
+        }
+        if let Some(action) = action {
+            emit_gui_action(action, Some("waveform"), None, "applied", started_at, None);
+        }
+        if let Some(start_ratio) = self.waveform.take_pending_playback_start() {
+            self.play_waveform_from_ratio(start_ratio);
+        }
+    }
+
     fn apply_message(&mut self, message: GuiMessage, context: &mut ui::UpdateContext<GuiMessage>) {
         match message {
             GuiMessage::ResizeFolder(message) => self.resize_folder_browser(message),
@@ -533,45 +667,10 @@ impl GuiAppState {
                 self.apply_folder_browser_message(message, context);
             }
             GuiMessage::FolderScanProgress(progress) => {
-                let started_at = Instant::now();
-                if self
-                    .folder_browser
-                    .scan_is_active(&progress.source_id, progress.task_id)
-                {
-                    let phase = progress.phase.clone();
-                    self.folder_progress = Some(progress);
-                    emit_gui_action(
-                        "folder_browser.scan.progress",
-                        Some("folder_browser"),
-                        Some(&phase),
-                        "active",
-                        started_at,
-                        None,
-                    );
-                }
+                self.apply_folder_scan_progress(progress);
             }
             GuiMessage::FolderScanDiscoveryBatch(batch) => {
-                let started_at = Instant::now();
-                let count = batch.events.len();
-                self.folder_browser.apply_scan_discovered_batch(batch);
-                if logging::debug_logging_enabled() {
-                    tracing::debug!(
-                        target: logging::ACTION_EVENT_TARGET,
-                        event = "action_detail",
-                        action = "folder_browser.scan.discovery_batch",
-                        pane = "folder_browser",
-                        item_count = count,
-                        "Folder browser scan discovery batch applied"
-                    );
-                }
-                emit_gui_action(
-                    "folder_browser.scan.discovery_batch",
-                    Some("folder_browser"),
-                    None,
-                    "applied",
-                    started_at,
-                    None,
-                );
+                self.apply_folder_scan_discovery_batch(batch);
             }
             GuiMessage::FolderScanFinished(result) => self.finish_folder_scan(result),
             GuiMessage::SelectSampleWithModifiers { path, modifiers } => {
@@ -603,19 +702,13 @@ impl GuiAppState {
                 self.close_audio_settings_window();
             }
             GuiMessage::ToggleAudioBackendDropdown => {
-                self.audio_backend_dropdown_open = !self.audio_backend_dropdown_open;
-                self.audio_output_dropdown_open = false;
-                self.audio_sample_rate_dropdown_open = false;
+                self.toggle_audio_backend_dropdown();
             }
             GuiMessage::ToggleAudioOutputDropdown => {
-                self.audio_output_dropdown_open = !self.audio_output_dropdown_open;
-                self.audio_backend_dropdown_open = false;
-                self.audio_sample_rate_dropdown_open = false;
+                self.toggle_audio_output_dropdown();
             }
             GuiMessage::ToggleAudioSampleRateDropdown => {
-                self.audio_sample_rate_dropdown_open = !self.audio_sample_rate_dropdown_open;
-                self.audio_backend_dropdown_open = false;
-                self.audio_output_dropdown_open = false;
+                self.toggle_audio_sample_rate_dropdown();
             }
             GuiMessage::CloseAudioSettingsDropdowns => {
                 self.close_audio_settings_dropdowns();
@@ -641,16 +734,7 @@ impl GuiAppState {
             }
             GuiMessage::Noop => {}
             GuiMessage::FocusRenameInput(input_id) => {
-                let started_at = Instant::now();
-                context.focus(input_id);
-                emit_gui_action(
-                    "folder_browser.rename.focus_input",
-                    Some("folder_browser"),
-                    None,
-                    "success",
-                    started_at,
-                    None,
-                );
+                self.focus_rename_input(input_id, context);
             }
             GuiMessage::DeleteSelectedItem => self.delete_selected_item(),
             GuiMessage::ExtractPlaymarkedRange => self.extract_playmarked_range(),
@@ -658,60 +742,16 @@ impl GuiAppState {
                 self.navigate_browser(delta, extend, context);
             }
             GuiMessage::SelectAllSamples => {
-                let started_at = Instant::now();
-                let count = self.folder_browser.select_all_audio_files();
-                self.sample_status = format!(
-                    "Selected {count} sample{}",
-                    if count == 1 { "" } else { "s" }
-                );
-                emit_gui_action(
-                    "browser.select_all_samples",
-                    Some("browser"),
-                    None,
-                    "success",
-                    started_at,
-                    None,
-                );
+                self.select_all_samples();
             }
             GuiMessage::CollapseSelectedFolder => {
-                let started_at = Instant::now();
-                self.folder_browser.collapse_selected_folder();
-                emit_gui_action(
-                    "folder_browser.collapse_selected",
-                    Some("folder_browser"),
-                    None,
-                    "success",
-                    started_at,
-                    None,
-                );
+                self.collapse_selected_folder();
             }
             GuiMessage::ExpandSelectedFolder => {
-                let started_at = Instant::now();
-                self.folder_browser.expand_selected_folder();
-                emit_gui_action(
-                    "folder_browser.expand_selected",
-                    Some("folder_browser"),
-                    None,
-                    "success",
-                    started_at,
-                    None,
-                );
+                self.expand_selected_folder();
             }
             GuiMessage::Waveform(message) => {
-                let started_at = Instant::now();
-                let action = waveform_interaction_action(&message);
-                let active_drag = self.waveform.active_drag_kind();
-                self.waveform.apply_interaction(message);
-                self.sync_edit_fade_audio_state();
-                if waveform_interaction_finishes_play_selection_edit(&message, active_drag) {
-                    self.retarget_loop_playback_to_play_selection();
-                }
-                if let Some(action) = action {
-                    emit_gui_action(action, Some("waveform"), None, "applied", started_at, None);
-                }
-                if let Some(start_ratio) = self.waveform.take_pending_playback_start() {
-                    self.play_waveform_from_ratio(start_ratio);
-                }
+                self.apply_waveform_message(message);
             }
             GuiMessage::NativeFileDrop(drop) => self.apply_native_file_drop(drop, context),
             GuiMessage::Frame => {

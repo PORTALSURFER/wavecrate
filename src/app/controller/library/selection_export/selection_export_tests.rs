@@ -1,9 +1,8 @@
 use super::*;
 use crate::app::controller::history::PendingHistoryTransactionKey;
 use crate::app::controller::jobs::{
-    FileOpResult, JobMessage, SelectionCropExportSuccess, SelectionExportAudioPayload,
-    SelectionExportMessage, SelectionExportPlaybackState, SelectionExportResult,
-    SelectionExportTimings, UndoFileJob, UndoFileOpResult, UndoFileOutcome,
+    JobMessage, SelectionCropExportSuccess, SelectionExportAudioPayload, SelectionExportMessage,
+    SelectionExportPlaybackState, SelectionExportResult, SelectionExportTimings, UndoFileJob,
 };
 use crate::app::controller::library::analysis_jobs;
 use crate::app::controller::test_support::write_test_wav;

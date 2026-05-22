@@ -76,23 +76,13 @@ fn save_waveform_selection_to_browser_success_finishes_pending_history_and_suppo
         controller.ui.status.text
     );
 
-    std::fs::remove_file(source_root.join(&exported_relative)).unwrap();
-    controller
-        .database_for(&source)
-        .unwrap()
-        .remove_file(&exported_relative)
-        .unwrap();
-    controller.apply_file_op_result(FileOpResult::UndoFile(UndoFileOpResult {
-        result: Ok(UndoFileOutcome::Removed {
-            source_id: source.id.clone(),
-            relative_path: exported_relative.clone(),
-        }),
-        cancelled: false,
-    }));
+    pump_background_jobs_until(&mut controller, |controller| {
+        controller.history.pending_undo.is_none()
+    });
 
     assert!(controller.history.pending_undo.is_none());
+    assert!(!source_root.join(&exported_relative).exists());
     assert!(controller.wav_index_for_path(&exported_relative).is_none());
-    assert_eq!(controller.ui.status.text, "Undid Saved selection clip");
     assert_eq!(
         PendingHistoryTransactionKey::SelectionExport { request_id },
         history_key
