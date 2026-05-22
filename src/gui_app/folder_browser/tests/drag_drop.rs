@@ -110,8 +110,8 @@ fn folder_drag_preview_tracks_pointer_and_hover_target() {
 }
 
 #[test]
-fn folder_drag_external_request_uses_preview_label_and_paths() {
-    let root = temp_source_root("wavecrate-gui-folder-external-drag");
+fn folder_drag_does_not_arm_external_file_drag() {
+    let root = temp_source_root("wavecrate-gui-folder-no-external-drag");
     let kicks = root.join("drums").join("kicks");
     fs::create_dir_all(&kicks).expect("create kicks folder");
     let mut browser = FolderBrowserState::from_root(root.clone());
@@ -124,14 +124,41 @@ fn folder_drag_external_request_uses_preview_label_and_paths() {
             position: Point::new(10.0, 20.0),
         },
     );
+    assert_eq!(browser.external_drag_request(), None);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn file_drag_external_request_uses_selected_file_paths() {
+    let root = temp_source_root("wavecrate-gui-file-external-drag");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let kick = drums.join("kick.wav");
+    let snare = drums.join("snare.wav");
+    let hat = drums.join("hat.wav");
+    for file in [&kick, &snare, &hat] {
+        fs::write(file, [0_u8; 8]).expect("write wav");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.select_file(path_id(&kick));
+    browser.select_file_with_modifiers(
+        path_id(&snare),
+        PointerModifiers {
+            command: true,
+            ..Default::default()
+        },
+    );
+
+    browser.begin_file_drag(path_id(&kick), Point::new(4.0, 8.0));
     let request = browser
         .external_drag_request()
-        .expect("folder drag should expose external request");
+        .expect("file drag should expose external request");
 
-    assert_eq!(request.preview.label, "kicks");
+    assert_eq!(request.preview.label, "2 files");
     assert_eq!(
         request.payload,
-        ExternalDragPayload::Files(vec![kicks.clone()])
+        ExternalDragPayload::Files(vec![kick.clone(), snare.clone()])
     );
     let _ = fs::remove_dir_all(root);
 }
