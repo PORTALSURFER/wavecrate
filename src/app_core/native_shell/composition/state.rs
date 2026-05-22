@@ -81,11 +81,13 @@ mod model_sync;
 mod motion_overlay;
 mod options_panel;
 mod overlays;
+mod runtime_state;
 mod svg_icons;
 mod text_fields;
 mod toolbar_helpers;
 mod waveform_segments;
 
+use self::runtime_state::{FolderPaneRuntimeState, WaveformSelectionFlashTone};
 use self::{
     browser_rows::*, cache_types::*, hit_testing::*, options_panel::*, overlays::*, svg_icons::*,
     text_fields::*, toolbar_helpers::*, waveform_segments::*,
@@ -141,42 +143,6 @@ const BROWSER_PLAYBACK_AGE_FILTER_CHIPS:
 const BROWSER_SCROLLBAR_THUMB_HIT_SLOP: f32 = 3.0;
 /// Additional hit slop for the narrow folder scrollbar thumb.
 const FOLDER_SCROLLBAR_THUMB_HIT_SLOP: f32 = 3.0;
-
-/// Color mode used for the transient waveform selection export flash.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum WaveformSelectionFlashTone {
-    /// Optimistic submit feedback shown as soon as the export is queued.
-    Optimistic,
-    /// Error feedback shown when an async export later fails.
-    Error,
-}
-
-/// Mutable interaction + animation state for the native shell façade.
-///
-/// The struct intentionally owns only the persisted shell interaction/cache
-/// state. Rendering, hit testing, text-field behavior, toolbar helpers, and
-/// overlay composition live in sibling modules and extend this type through
-/// additional `impl` blocks.
-#[derive(Clone, Debug, PartialEq)]
-struct FolderPaneRuntimeState {
-    rows: Vec<CachedFolderRow>,
-    window_start: usize,
-    autoscroll: bool,
-    last_focused_row: Option<usize>,
-    cache_key: Option<FolderRowsCacheKey>,
-}
-
-impl Default for FolderPaneRuntimeState {
-    fn default() -> Self {
-        Self {
-            rows: Vec::new(),
-            window_start: 0,
-            autoscroll: true,
-            last_focused_row: None,
-            cache_key: None,
-        }
-    }
-}
 
 /// Mutable interaction + animation state for the native shell façade.
 #[derive(Clone, Debug, PartialEq)]
