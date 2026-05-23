@@ -101,8 +101,6 @@ pub(crate) use self::{
     text_fields::TextFieldVisualState,
 };
 
-/// Maximum retained entries for browser-row text truncation outputs.
-const BROWSER_ROW_TRUNCATION_CACHE_CAPACITY: usize = 1024;
 /// Text glyph shown before browser item labels whose backing content is missing.
 const BROWSER_MISSING_CONTENT_MARKER: &str = "!";
 /// Additional hit slop for the narrow content-list scrollbar thumb.
