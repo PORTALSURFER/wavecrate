@@ -147,6 +147,12 @@ function Get-WavecrateExe([string] $BuildProfile) {
   return Join-Path $repoRoot "target\$targetProfile\wavecrate.exe"
 }
 
+if ($null -eq $AppArgs) {
+  $AppArgs = @()
+} else {
+  $AppArgs = @($AppArgs)
+}
+
 if ($AppArgs.Count -gt 0 -and $AppArgs[0] -eq "--") {
   $AppArgs = @($AppArgs | Select-Object -Skip 1)
 }
