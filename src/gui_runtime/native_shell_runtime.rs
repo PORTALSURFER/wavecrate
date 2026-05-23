@@ -15,9 +15,11 @@ use crate::app_core::actions::{
 };
 use crate::app_core::app_api::controller_ui_hotkeys::KeyPress;
 use crate::app_core::app_api::{controller_ui_hotkeys as hotkeys, state::FocusContext};
+#[cfg(test)]
+use crate::app_core::native_shell::composition::StaticFrameSegment;
 use crate::app_core::native_shell::composition::{
-    NativeShellState, ShellLayout, ShellLayoutRuntime, ShellNodeKind, StaticFrameSegment,
-    StaticFrameSegments, StyleTokens,
+    NativeShellState, ShellLayout, ShellLayoutRuntime, ShellNodeKind, StaticFrameSegments,
+    StyleTokens,
 };
 use crate::app_core::native_shell::runtime_contract;
 use crate::gui::automation as gui_automation;
@@ -30,11 +32,10 @@ use radiant::gui::{
     input::{KeyCode as RadiantKeyCode, KeyPress as RadiantKeyPress},
     shortcuts::ShortcutResolution as RadiantShortcutResolution,
 };
-use radiant::runtime::{Command, RuntimeBridge, SurfaceNode, UiSurface};
-use radiant::widgets::{
-    CanvasMessage, PointerButton, RetainedSurfaceDescriptor, TextEditCommand, WidgetInput,
-    WidgetKey, WidgetSizing,
-};
+use radiant::runtime::{Command, RuntimeBridge, UiSurface};
+#[cfg(test)]
+use radiant::widgets::PointerButton;
+use radiant::widgets::{RetainedSurfaceDescriptor, TextEditCommand, WidgetInput, WidgetKey};
 use std::{collections::BTreeMap, sync::Arc};
 
 mod action_mapping;
@@ -50,10 +51,7 @@ pub(super) use automation::capture_native_shell_shot_snapshot;
 use bridge::WavecrateRuntimeBridge;
 #[cfg(test)]
 use bridge::WavecrateRuntimeMessage;
-use input_routing::{
-    action_from_retained_pointer, keypress_from_radiant, keypress_to_radiant,
-    wavecrate_focus_context,
-};
+use input_routing::{keypress_from_radiant, keypress_to_radiant, wavecrate_focus_context};
 pub(super) use launch::{run_native_vello_app, run_native_vello_app_with_artifacts};
 use model_mapping::local_app_model_from_native_model;
 

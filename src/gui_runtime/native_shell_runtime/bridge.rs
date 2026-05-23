@@ -1,8 +1,12 @@
 use self::pan_drag::WaveformPanDrag;
+use self::surface::{generic_shell_surface, retained_surface_revision};
 use self::text_edit::{RetainedTextEditState, RetainedTextInputTarget};
 use super::*;
 
+mod input;
 mod pan_drag;
+mod render;
+mod surface;
 mod text_edit;
 mod text_input;
 
@@ -59,20 +63,6 @@ impl<B> WavecrateRuntimeBridge<B> {
             text_edit: RetainedTextEditState::default(),
             waveform_pan_drag: None,
         }
-    }
-
-    /// Build the generic retained canvas surface that Radiant owns around Wavecrate rendering.
-    fn generic_shell_surface(
-        retained: RetainedSurfaceDescriptor,
-    ) -> Arc<UiSurface<WavecrateRuntimeMessage>> {
-        Arc::new(UiSurface::new(SurfaceNode::retained_canvas_mapped(
-            1,
-            WidgetSizing::fixed(Vector2::new(1280.0, 720.0)),
-            retained,
-            |message: CanvasMessage| match message {
-                CanvasMessage::Input { input } => WavecrateRuntimeMessage::RetainedInput(input),
-            },
-        )))
     }
 
     #[cfg(test)]
@@ -148,121 +138,6 @@ impl<B: NativeAppBridge> WavecrateRuntimeBridge<B> {
                 .unwrap_or(descriptor),
         );
     }
-
-    /// Translate retained-canvas input into Wavecrate actions or local repaint-only state.
-    fn handle_retained_canvas_input(&mut self, input: WidgetInput) -> bool {
-        match input {
-            WidgetInput::PointerMove { position } => {
-                let layout = self.build_current_layout();
-                if self
-                    .shell_state
-                    .update_options_panel_drag(&layout, &self.model, position)
-                {
-                    self.local_overlay_surface_refresh = true;
-                    return true;
-                }
-                if let Some(action) = self.waveform_pan_drag_action(&layout, position) {
-                    self.emit_action(action);
-                    self.local_overlay_surface_refresh = true;
-                    return true;
-                }
-                let _effect =
-                    self.shell_state
-                        .handle_cursor_move_effect(&layout, &self.model, position);
-                self.local_overlay_surface_refresh = true;
-                true
-            }
-            WidgetInput::PointerPress {
-                position, button, ..
-            } => {
-                let layout = self.build_current_layout();
-                if button == PointerButton::Auxiliary {
-                    self.begin_waveform_pan_drag(&layout, position);
-                    self.local_overlay_surface_refresh = true;
-                    return true;
-                }
-                if button != PointerButton::Primary {
-                    return true;
-                }
-                if self
-                    .shell_state
-                    .begin_options_panel_drag(&layout, &self.model, position)
-                {
-                    self.local_overlay_surface_refresh = true;
-                    return true;
-                }
-                if let Some(action) = action_from_retained_pointer(
-                    &layout,
-                    &self.model,
-                    &mut self.shell_state,
-                    position,
-                ) {
-                    self.emit_action(action.into());
-                    if self.text_input_target != RetainedTextInputTarget::None {
-                        self.sync_text_edit_from_model();
-                    }
-                }
-                true
-            }
-            WidgetInput::PointerDoubleClick {
-                position, button, ..
-            } => {
-                let layout = self.build_current_layout();
-                if button != PointerButton::Primary {
-                    return true;
-                }
-                if let Some(action) = action_from_retained_pointer(
-                    &layout,
-                    &self.model,
-                    &mut self.shell_state,
-                    position,
-                ) {
-                    self.emit_action(action.into());
-                    if self.text_input_target != RetainedTextInputTarget::None {
-                        self.sync_text_edit_from_model();
-                    }
-                }
-                true
-            }
-            WidgetInput::PointerRelease {
-                button: PointerButton::Auxiliary,
-                ..
-            } => {
-                self.waveform_pan_drag = None;
-                self.shell_state.finish_options_panel_drag();
-                self.local_overlay_surface_refresh = true;
-                true
-            }
-            WidgetInput::PointerRelease {
-                button: PointerButton::Primary,
-                ..
-            } => {
-                self.shell_state.finish_options_panel_drag();
-                self.local_overlay_surface_refresh = true;
-                true
-            }
-            WidgetInput::PointerRelease { .. }
-            | WidgetInput::PointerDrop { .. }
-            | WidgetInput::FocusChanged(_) => {
-                self.shell_state.finish_options_panel_drag();
-                self.local_overlay_surface_refresh = true;
-                true
-            }
-            WidgetInput::Wheel { .. } => true,
-            WidgetInput::KeyPress(key) => self.handle_retained_key_press(key),
-            WidgetInput::Character(character) => self.handle_retained_character(character),
-            WidgetInput::TextEdit(command) => self.handle_retained_text_edit(command),
-        }
-    }
-
-    /// Build the current shell layout used by retained input hit-testing.
-    fn build_current_layout(&mut self) -> ShellLayout {
-        let viewport = self
-            .layout_viewport
-            .unwrap_or_else(|| Vector2::new(1280.0, 720.0));
-        let style = StyleTokens::for_viewport_with_scale(viewport.x, 1.0);
-        ShellLayout::build_with_style_and_runtime(viewport, &style, &mut self.layout_runtime)
-    }
 }
 
 impl<B: NativeAppBridge> RuntimeBridge<WavecrateRuntimeMessage> for WavecrateRuntimeBridge<B> {
@@ -271,12 +146,12 @@ impl<B: NativeAppBridge> RuntimeBridge<WavecrateRuntimeMessage> for WavecrateRun
         if let Some(descriptor) = self.pending_surface_descriptor.take() {
             self.local_overlay_surface_refresh = false;
             self.motion_only_surface_refresh = false;
-            return Self::generic_shell_surface(descriptor);
+            return generic_shell_surface(descriptor);
         }
         if self.local_overlay_surface_refresh {
             self.local_overlay_surface_refresh = false;
             let revisions = self.inner.take_segment_revisions();
-            return Self::generic_shell_surface(RetainedSurfaceDescriptor {
+            return generic_shell_surface(RetainedSurfaceDescriptor {
                 key: 1,
                 revision: retained_surface_revision(revisions),
                 dirty_mask: 0,
@@ -286,7 +161,7 @@ impl<B: NativeAppBridge> RuntimeBridge<WavecrateRuntimeMessage> for WavecrateRun
         if self.motion_only_surface_refresh {
             self.motion_only_surface_refresh = false;
             let revisions = self.inner.take_segment_revisions();
-            return Self::generic_shell_surface(RetainedSurfaceDescriptor {
+            return generic_shell_surface(RetainedSurfaceDescriptor {
                 key: 1,
                 revision: retained_surface_revision(revisions),
                 dirty_mask: 0,
@@ -297,7 +172,7 @@ impl<B: NativeAppBridge> RuntimeBridge<WavecrateRuntimeMessage> for WavecrateRun
         self.model = Arc::new(model.as_ref().into());
         let dirty = self.inner.take_dirty_segments();
         let revisions = self.inner.take_segment_revisions();
-        Self::generic_shell_surface(RetainedSurfaceDescriptor {
+        generic_shell_surface(RetainedSurfaceDescriptor {
             key: 1,
             revision: retained_surface_revision(revisions),
             dirty_mask: u64::from(dirty.bits()),
@@ -401,49 +276,7 @@ impl<B: NativeAppBridge> RuntimeBridge<WavecrateRuntimeMessage> for WavecrateRun
         _rect: Rect,
         viewport: Vector2,
     ) -> Option<PaintFrame> {
-        if descriptor.key != 1 {
-            return None;
-        }
-        let style = StyleTokens::for_viewport_with_scale(viewport.x, 1.0);
-        if self.layout_viewport != Some(viewport) {
-            self.layout_runtime.reset();
-            self.layout_viewport = Some(viewport);
-            self.static_segments_initialized = false;
-        }
-        let layout =
-            ShellLayout::build_with_style_and_runtime(viewport, &style, &mut self.layout_runtime);
-        self.shell_state.sync_from_model(&self.model);
-        let mut model = self.model.as_ref().clone();
-        self.apply_local_text_projection(&mut model);
-        let motion_model = self
-            .pending_motion_model
-            .take()
-            .unwrap_or_else(|| runtime_contract::NativeMotionModel::from_app_model(&model));
-        self.shell_state.sync_from_motion_model(&motion_model);
-        let dirty_bits = descriptor.dirty_mask.min(u64::from(u16::MAX)) as u16;
-        for segment in StaticFrameSegment::ALL {
-            if !self.static_segments_initialized || dirty_bits & segment.dirty_mask() != 0 {
-                self.shell_state.build_static_segment_with_style_into(
-                    &layout,
-                    &style,
-                    &model,
-                    Some(&motion_model),
-                    segment,
-                    &mut self.static_segments,
-                );
-            }
-        }
-        self.static_segments_initialized = true;
-        self.static_segments.compose_into(&mut self.frame);
-        append_retained_shell_overlays(
-            &mut self.shell_state,
-            &layout,
-            &style,
-            &model,
-            &motion_model,
-            &mut self.frame,
-        );
-        Some(self.frame.clone())
+        self.render_retained_surface_frame(descriptor, viewport)
     }
 
     fn on_runtime_exit(&mut self) -> Option<serde_json::Value> {
@@ -451,43 +284,4 @@ impl<B: NativeAppBridge> RuntimeBridge<WavecrateRuntimeMessage> for WavecrateRun
             .on_runtime_exit()
             .and_then(|artifact| serde_json::to_value(artifact).ok())
     }
-}
-
-/// Append state and motion overlays that are local to the retained shell bridge.
-fn append_retained_shell_overlays(
-    shell_state: &mut NativeShellState,
-    layout: &ShellLayout,
-    style: &StyleTokens,
-    model: &runtime_contract::AppModel,
-    motion_model: &runtime_contract::NativeMotionModel,
-    frame: &mut PaintFrame,
-) {
-    let mut overlay = PaintFrame::default();
-    shell_state.build_waveform_motion_overlay_into(layout, style, motion_model, &mut overlay);
-    append_paint_frame(frame, &overlay);
-    shell_state.build_chrome_motion_overlay_into(layout, style, motion_model, &mut overlay);
-    append_paint_frame(frame, &overlay);
-    shell_state.build_hover_overlay_into(layout, style, model, &mut overlay);
-    append_paint_frame(frame, &overlay);
-    shell_state.build_focus_overlay_into(layout, style, model, &mut overlay);
-    append_paint_frame(frame, &overlay);
-    shell_state.build_modal_overlay_into(layout, style, model, &mut overlay);
-    append_paint_frame(frame, &overlay);
-}
-
-/// Append one overlay frame into the retained shell paint buffer.
-fn append_paint_frame(frame: &mut PaintFrame, overlay: &PaintFrame) {
-    frame.primitives.extend(overlay.primitives.iter().cloned());
-    frame.text_runs.extend(overlay.text_runs.iter().cloned());
-    frame.clear_color = overlay.clear_color;
-}
-
-/// Collapse per-segment revisions into the retained canvas revision Radiant observes.
-fn retained_surface_revision(revisions: crate::app_core::actions::NativeSegmentRevisions) -> u64 {
-    revisions.status_bar
-        ^ revisions.browser_frame.rotate_left(7)
-        ^ revisions.browser_rows_window.rotate_left(13)
-        ^ revisions.map_panel.rotate_left(19)
-        ^ revisions.waveform_overlay.rotate_left(29)
-        ^ revisions.global_static.rotate_left(37)
 }
