@@ -5,6 +5,9 @@ use crate::gui::list::{
     virtual_list_scrollbar_view_start_at_point,
 };
 
+/// Additional hit slop for the narrow folder scrollbar thumb.
+const FOLDER_SCROLLBAR_THUMB_HIT_SLOP: f32 = 3.0;
+
 impl NativeShellState {
     pub(crate) fn folder_viewport_len(
         &mut self,
