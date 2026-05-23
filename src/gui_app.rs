@@ -7,7 +7,7 @@ use radiant::widgets::{DragHandleMessage, PointerModifiers};
 use std::{
     ffi::OsString,
     panic::{self, AssertUnwindSafe},
-    path::{Path, PathBuf},
+    path::PathBuf,
     process,
     sync::mpsc::{self, Receiver, Sender},
     time::{Duration, Instant, SystemTime},
@@ -32,6 +32,7 @@ mod folder_browser_rename_actions;
 mod folder_scan_actions;
 mod playback;
 mod sample_browser_view;
+mod sample_load_actions;
 mod shortcuts;
 mod status_bar;
 mod toolbar;
@@ -51,6 +52,7 @@ use folder_browser::{
     FolderScanResult,
 };
 use sample_browser_view::sample_browser;
+use sample_load_actions::{NormalizedWaveformReload, WaveformPlaybackResume};
 use shortcuts::default_gui_shortcut_resolution;
 use toolbar::main_toolbar;
 #[cfg(test)]
@@ -617,12 +619,14 @@ impl GuiAppState {
         }
 
         if normalizing_loaded && normalized.iter().any(|path| path == &loaded_path) {
-            if let Err(error) = self.reload_normalized_waveform(
-                &loaded_path,
-                was_playing,
-                restart_ratio,
-                restart_span,
-            ) {
+            let playback = was_playing.then_some(WaveformPlaybackResume {
+                start_ratio: restart_ratio,
+                span: restart_span,
+            });
+            if let Err(error) = self.reload_normalized_waveform(NormalizedWaveformReload {
+                path: &loaded_path,
+                playback,
+            }) {
                 last_error = Some(error);
             }
         }
@@ -657,144 +661,6 @@ impl GuiAppState {
             started_at,
             None,
         );
-    }
-
-    fn reload_normalized_waveform(
-        &mut self,
-        path: &Path,
-        resume_playback: bool,
-        restart_ratio: f32,
-        restart_span: Option<(f32, f32)>,
-    ) -> Result<(), String> {
-        self.waveform = WaveformState::load_path(path.to_path_buf())?;
-        self.folder_browser.select_file(path.display().to_string());
-        if resume_playback {
-            let (_, previous_end) = restart_span.unwrap_or((0.0, 1.0));
-            let start = restart_ratio.clamp(0.0, 1.0);
-            let end = previous_end.max(start).clamp(start, 1.0);
-            self.start_playback_current_span(start, end)?;
-        }
-        Ok(())
-    }
-
-    fn select_sample(&mut self, path: String, context: &mut ui::UpdateContext<GuiMessage>) {
-        self.folder_browser
-            .focus_file_preserving_selection(path.clone());
-        self.load_sample(path, context);
-    }
-
-    fn select_sample_with_modifiers(
-        &mut self,
-        path: String,
-        modifiers: PointerModifiers,
-        context: &mut ui::UpdateContext<GuiMessage>,
-    ) {
-        self.folder_browser
-            .select_file_with_modifiers(path.clone(), modifiers);
-        self.load_sample(path, context);
-    }
-
-    fn load_sample(&mut self, path: String, context: &mut ui::UpdateContext<GuiMessage>) {
-        let started_at = Instant::now();
-        if self.waveform.is_playing() {
-            if let Some(player) = self.audio_player.as_mut() {
-                player.stop();
-            }
-            self.waveform.stop_playback();
-            self.current_playback_span = None;
-        }
-        self.sample_status = format!("Loading {}", sample_path_label(path.as_str()));
-        let label = sample_path_label(path.as_str());
-        self.waveform_loading_label = Some(label.clone());
-        self.waveform_loading_progress = 0.0;
-        self.waveform_loading_target_progress = 0.0;
-        emit_gui_action(
-            "browser.select_sample",
-            Some("browser"),
-            Some(&label),
-            "load_queued",
-            started_at,
-            None,
-        );
-        let ticket = self.sample_load_task.begin();
-        let sender = self.worker_sender.clone();
-        context.spawn(
-            "gui-sample-load",
-            move || {
-                let result =
-                    WaveformState::load_path_with_progress(PathBuf::from(&path), |progress| {
-                        let _ = sender.send(GuiMessage::SampleLoadProgress(ticket, progress));
-                    });
-                ui::TaskCompletion {
-                    ticket,
-                    output: SampleLoadResult { path, result },
-                }
-            },
-            GuiMessage::SampleLoadFinished,
-        );
-    }
-
-    fn finish_sample_load(&mut self, load: ui::TaskCompletion<SampleLoadResult>) {
-        let started_at = Instant::now();
-        let ticket = load.ticket;
-        let load = load.output;
-        let label = sample_path_label(load.path.as_str());
-        if !self.sample_load_task.finish(ticket) {
-            emit_gui_action(
-                "browser.sample_load.finish",
-                Some("browser"),
-                Some(&label),
-                "stale",
-                started_at,
-                None,
-            );
-            return;
-        }
-        self.waveform_loading_label = None;
-        self.waveform_loading_progress = 0.0;
-        self.waveform_loading_target_progress = 0.0;
-        match load.result {
-            Ok(waveform) => {
-                let file_name = waveform.file_name();
-                self.waveform = waveform;
-                match self.start_playback_current_span(0.0, 1.0) {
-                    Ok(()) => {
-                        self.sample_status = format!("Playing {file_name}");
-                        emit_gui_action(
-                            "browser.sample_load.finish",
-                            Some("browser"),
-                            Some(&file_name),
-                            "playing",
-                            started_at,
-                            None,
-                        );
-                    }
-                    Err(err) => {
-                        self.sample_status =
-                            format!("Loaded {file_name} | playback unavailable: {err}");
-                        emit_gui_action(
-                            "browser.sample_load.finish",
-                            Some("browser"),
-                            Some(&file_name),
-                            "loaded_playback_error",
-                            started_at,
-                            Some(&err),
-                        );
-                    }
-                }
-            }
-            Err(err) => {
-                self.sample_status = format!("Could not load sample: {err}");
-                emit_gui_action(
-                    "browser.sample_load.finish",
-                    Some("browser"),
-                    Some(&label),
-                    "error",
-                    started_at,
-                    Some(&err),
-                );
-            }
-        }
     }
 }
 
