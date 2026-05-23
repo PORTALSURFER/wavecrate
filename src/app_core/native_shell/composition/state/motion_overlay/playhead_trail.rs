@@ -2,6 +2,24 @@
 
 use super::*;
 
+/// Maximum retained ghost lines for the dynamic waveform playhead trail.
+const PLAYHEAD_TRAIL_MAX_POINTS: usize = 768;
+/// Number of seconds used to fade one retained playhead ghost line.
+///
+/// Time-based aging avoids visible fade quantization when redraw cadence varies.
+pub(crate) const PLAYHEAD_TRAIL_FADE_SECONDS: f32 = 1.2;
+/// Maximum opacity used for the newest retained trail point behind the live playhead.
+///
+/// The active playhead line itself remains fully opaque; only the ghost trail fades from
+/// this half-strength head value down to zero.
+const PLAYHEAD_TRAIL_HEAD_ALPHA: f32 = 0.2;
+/// Maximum inserted in-between points per motion frame for smooth trails.
+const PLAYHEAD_TRAIL_MAX_INTERPOLATED_STEPS: usize = 192;
+/// Largest contiguous frame delta treated as normal transport motion.
+const PLAYHEAD_TRAIL_MAX_CONTIGUOUS_DELTA_MICROS: u64 = 120_000;
+/// Minimum synthetic time delta used when motion redraws arrive in the same tick.
+const PLAYHEAD_TRAIL_MIN_INTERPOLATED_DELTA_SECONDS: f32 = 1.0 / 240.0;
+
 impl NativeShellState {
     /// Update retained playhead-trail points and return drawable ghost lines.
     pub(in crate::app_core::native_shell::composition::state) fn update_playhead_trail(
