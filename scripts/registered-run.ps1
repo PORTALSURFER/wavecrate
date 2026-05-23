@@ -1,0 +1,125 @@
+param(
+  [string] $PortalSurferRoot = "X:\portalsurfer.org",
+  [string] $Server = "188.245.106.212",
+  [string] $KeyPath = "$env:USERPROFILE\.ssh\portalsurfer_org_codex",
+  [string] $Version = "",
+  [string] $BuildId = "",
+  [switch] $SkipDeploy,
+  [switch] $NoRun,
+  [Parameter(ValueFromRemainingArguments = $true)]
+  [string[]] $AppArgs
+)
+
+$ErrorActionPreference = "Stop"
+Set-StrictMode -Version Latest
+
+$repoRoot = Split-Path -Parent $PSScriptRoot
+$portalRootPath = Resolve-Path -LiteralPath $PortalSurferRoot
+$portalRoot = $portalRootPath.Path
+$signingEnv = Join-Path $portalRoot ".deploy\wavecrate-signing.env"
+$stageScript = Join-Path $portalRoot "scripts\stage-wavecrate-release.ps1"
+$deployScript = Join-Path $portalRoot "scripts\deploy.ps1"
+
+if (-not (Test-Path -LiteralPath $signingEnv)) {
+  throw "Missing Wavecrate signing env file: $signingEnv. Deploy the website once, or copy WAVECRATE_SIGNING_PUBLIC_KEY_B64 into that file."
+}
+if (-not (Test-Path -LiteralPath $stageScript)) {
+  throw "Missing stage script: $stageScript"
+}
+if (-not (Test-Path -LiteralPath $deployScript)) {
+  throw "Missing deploy script: $deployScript"
+}
+
+function Get-EnvValue([string] $Path, [string] $Name) {
+  $line = Get-Content -LiteralPath $Path | Where-Object { $_ -like "$Name=*" } | Select-Object -First 1
+  if (-not $line) {
+    throw "Missing $Name in $Path"
+  }
+  return $line.Substring($Name.Length + 1)
+}
+
+function New-Base64UrlToken([int] $ByteCount) {
+  $bytes = [byte[]]::new($ByteCount)
+  $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+  try {
+    $rng.GetBytes($bytes)
+  }
+  finally {
+    $rng.Dispose()
+  }
+  return [Convert]::ToBase64String($bytes).TrimEnd("=").Replace("+", "-").Replace("/", "_")
+}
+
+function ConvertTo-SafeBuildId([string] $Value) {
+  $safe = $Value.ToLowerInvariant() -replace "[^a-z0-9._-]+", "-"
+  $safe = $safe.Trim("-._")
+  if (-not $safe) {
+    throw "Build id cannot be empty after sanitization."
+  }
+  return $safe
+}
+
+if (-not $Version) {
+  Push-Location $repoRoot
+  try {
+    $Version = (cargo metadata --no-deps --format-version 1 | ConvertFrom-Json).packages |
+      Where-Object { $_.name -eq "wavecrate" } |
+      Select-Object -ExpandProperty version -First 1
+  }
+  finally {
+    Pop-Location
+  }
+}
+
+if (-not $BuildId) {
+  $stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddHHmmss")
+  $shortSha = (git -C $repoRoot rev-parse --short HEAD).Trim()
+  $BuildId = "wavecrate-$Version-$stamp-$shortSha"
+}
+$BuildId = ConvertTo-SafeBuildId $BuildId
+$BuildSignature = New-Base64UrlToken 32
+$PublicKey = Get-EnvValue $signingEnv "WAVECRATE_SIGNING_PUBLIC_KEY_B64"
+if ($AppArgs.Count -gt 0 -and $AppArgs[0] -eq "--") {
+  $AppArgs = @($AppArgs | Select-Object -Skip 1)
+}
+
+Write-Host "Wavecrate registered run"
+Write-Host "  Build id:        $BuildId"
+Write-Host "  Build signature: $BuildSignature"
+Write-Host "  Version:         $Version"
+
+Push-Location $repoRoot
+try {
+  $env:WAVECRATE_BUILD_ID = $BuildId
+  $env:WAVECRATE_BUILD_SIGNATURE = $BuildSignature
+  $env:WAVECRATE_SIGNING_PUBLIC_KEY_B64 = $PublicKey
+  cargo build -r
+}
+finally {
+  Remove-Item Env:\WAVECRATE_BUILD_ID -ErrorAction SilentlyContinue
+  Remove-Item Env:\WAVECRATE_BUILD_SIGNATURE -ErrorAction SilentlyContinue
+  Remove-Item Env:\WAVECRATE_SIGNING_PUBLIC_KEY_B64 -ErrorAction SilentlyContinue
+  Pop-Location
+}
+
+$exe = Join-Path $repoRoot "target\release\wavecrate.exe"
+if (-not (Test-Path -LiteralPath $exe)) {
+  throw "Release binary was not produced: $exe"
+}
+
+& powershell -NoProfile -ExecutionPolicy Bypass -File $stageScript `
+  -File $exe `
+  -BuildId $BuildId `
+  -BuildSignature $BuildSignature `
+  -Version $Version
+
+if (-not $SkipDeploy) {
+  & powershell -NoProfile -ExecutionPolicy Bypass -File $deployScript `
+    -Server $Server `
+    -KeyPath $KeyPath
+}
+
+if (-not $NoRun) {
+  Write-Host "Launching $exe $($AppArgs -join ' ')"
+  & $exe @AppArgs
+}

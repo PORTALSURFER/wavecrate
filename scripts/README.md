@@ -5,6 +5,9 @@ is the checked inventory for public entrypoints, compatibility wrappers, and
 dispatcher maps. These are the public entrypoints people should run directly:
 
 - `bootstrap.{sh,ps1}`: set up the repo and install hooks.
+- `registered-run.ps1`: build a registered Wavecrate binary, stage/deploy it
+  through `X:\portalsurfer.org`, then launch the built app with forwarded args.
+  Example: `powershell -ExecutionPolicy Bypass -File scripts/registered-run.ps1 -AppArgs --log`.
 - `doctor.{sh,ps1}`: diagnose environment issues.
 - `agent.{sh,ps1}`: agent request, preflight, checks, and hook install helpers.
 - `ci.{sh,ps1}`: validation lanes (`smoke`, `agent`, `quick`, `local`).

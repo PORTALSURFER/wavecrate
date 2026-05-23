@@ -66,6 +66,11 @@
       "windows_supported": false
     },
     {
+      "path": "scripts/registered-run.ps1",
+      "role": "Build, register, deploy, and launch one Wavecrate release binary for local validation.",
+      "windows_supported": true
+    },
+    {
       "path": "scripts/run.ps1",
       "role": "Sandbox, cleanup, log, and bug-bundle helpers.",
       "windows_supported": true
