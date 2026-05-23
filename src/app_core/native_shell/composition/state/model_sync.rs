@@ -3,6 +3,15 @@
 use super::*;
 use crate::app_core::native_shell::runtime_contract::{FolderPaneIdModel, StatusChipStateModel};
 
+/// Number of animation ticks used for one waveform-toolbar click flash.
+const WAVEFORM_TOOLBAR_FLASH_TICKS: u8 = 6;
+/// Number of animation ticks used for one waveform-selection export success flash.
+const WAVEFORM_SELECTION_FLASH_TICKS: u8 = 6;
+/// Number of animation ticks used for one waveform edit-selection apply flash.
+const WAVEFORM_EDIT_SELECTION_FLASH_TICKS: u8 = 6;
+/// Number of animation ticks used for source-add and status-options click flashes.
+const BUTTON_FLASH_TICKS: u8 = 6;
+
 impl NativeShellState {
     /// Synchronize local interaction state from the latest app model.
     pub(crate) fn sync_from_model(&mut self, model: &AppModel) {
@@ -150,11 +159,11 @@ impl NativeShellState {
     }
 
     pub(super) fn trigger_source_add_button_flash(&mut self) {
-        self.source_add_button_flash_ticks = SOURCE_ADD_BUTTON_FLASH_TICKS;
+        self.source_add_button_flash_ticks = BUTTON_FLASH_TICKS;
     }
 
     pub(super) fn trigger_status_options_button_flash(&mut self) {
-        self.status_options_button_flash_ticks = SOURCE_ADD_BUTTON_FLASH_TICKS;
+        self.status_options_button_flash_ticks = BUTTON_FLASH_TICKS;
     }
 
     /// Return the current state-overlay fingerprint.
