@@ -38,6 +38,17 @@ impl FolderBrowserState {
         })
     }
 
+    pub(in crate::gui_app) fn file_drag_active(&self) -> bool {
+        matches!(self.drag, Some(FolderBrowserDrag::Files { .. }))
+    }
+
+    pub(in crate::gui_app) fn file_drag_source(&self, file_id: &str) -> bool {
+        match &self.drag {
+            Some(FolderBrowserDrag::Files { file_ids }) => file_ids.iter().any(|id| id == file_id),
+            _ => false,
+        }
+    }
+
     pub(in crate::gui_app) fn external_drag_request(&self) -> Option<ui::ExternalDragRequest> {
         let drag = self.drag.as_ref()?;
         let label = self.drag_preview_label(drag)?;

@@ -11,6 +11,8 @@ use radiant::widgets::{
 pub(in crate::gui_app) struct SampleFileHitTarget {
     common: WidgetCommon,
     selected: bool,
+    drag_active: bool,
+    drag_source: bool,
     dragged: bool,
 }
 
@@ -22,7 +24,7 @@ pub(in crate::gui_app) enum SampleFileHitMessage {
 }
 
 impl SampleFileHitTarget {
-    pub(in crate::gui_app) fn new(selected: bool) -> Self {
+    pub(in crate::gui_app) fn new(selected: bool, drag_active: bool, drag_source: bool) -> Self {
         let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 22.0)));
         common.focus = FocusBehavior::None;
         common.paint.bounds = PaintBounds::ClipToRect;
@@ -31,8 +33,92 @@ impl SampleFileHitTarget {
         Self {
             common,
             selected,
+            drag_active,
+            drag_source,
             dragged: false,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn message_from(output: Option<WidgetOutput>) -> SampleFileHitMessage {
+        *output
+            .expect("expected widget output")
+            .typed_ref::<SampleFileHitMessage>()
+            .expect("expected sample file message")
+    }
+
+    #[test]
+    fn active_drag_survives_widget_refresh_as_moved() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+        let mut first = SampleFileHitTarget::new(false, false, false);
+        first.handle_input(
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(6.0, 6.0),
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+            },
+        );
+        assert_eq!(
+            message_from(first.handle_input(
+                bounds,
+                WidgetInput::PointerMove {
+                    position: Point::new(16.0, 7.0),
+                },
+            )),
+            SampleFileHitMessage::Drag(DragHandleMessage::Started {
+                position: Point::new(16.0, 7.0),
+            })
+        );
+
+        let mut refreshed = SampleFileHitTarget::new(false, true, true);
+        refreshed.common.state = first.common.state;
+        assert_eq!(
+            message_from(refreshed.handle_input(
+                bounds,
+                WidgetInput::PointerMove {
+                    position: Point::new(34.0, 8.0),
+                },
+            )),
+            SampleFileHitMessage::Drag(DragHandleMessage::Moved {
+                position: Point::new(34.0, 8.0),
+            })
+        );
+    }
+
+    #[test]
+    fn active_drag_source_does_not_depend_on_retained_pressed_state() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+        let mut refreshed = SampleFileHitTarget::new(false, true, true);
+
+        assert_eq!(
+            message_from(refreshed.handle_input(
+                bounds,
+                WidgetInput::PointerMove {
+                    position: Point::new(34.0, 8.0),
+                },
+            )),
+            SampleFileHitMessage::Drag(DragHandleMessage::Moved {
+                position: Point::new(34.0, 8.0),
+            })
+        );
+        assert_eq!(
+            message_from(refreshed.handle_input(
+                bounds,
+                WidgetInput::PointerRelease {
+                    position: Point::new(220.0, 90.0),
+                    button: PointerButton::Primary,
+                    modifiers: PointerModifiers::default(),
+                },
+            )),
+            SampleFileHitMessage::Drag(DragHandleMessage::Ended {
+                position: Point::new(220.0, 90.0),
+            })
+        );
     }
 }
 
@@ -105,10 +191,10 @@ impl Widget for SampleFileHitTarget {
 impl SampleFileHitTarget {
     fn handle_pointer_move(&mut self, bounds: Rect, position: Point) -> Option<WidgetOutput> {
         self.common.state.hovered = bounds.contains(position);
-        if !self.common.state.pressed {
+        if !self.common.state.pressed && !self.drag_source {
             return None;
         }
-        let message = if self.dragged {
+        let message = if self.dragged || self.drag_active {
             DragHandleMessage::Moved { position }
         } else {
             self.dragged = true;
@@ -124,7 +210,8 @@ impl SampleFileHitTarget {
         modifiers: PointerModifiers,
     ) -> Option<WidgetOutput> {
         let activated = self.common.state.pressed && !self.dragged && bounds.contains(position);
-        let dragged = self.common.state.pressed && self.dragged;
+        let dragged =
+            self.drag_source || (self.common.state.pressed && (self.dragged || self.drag_active));
         self.common.state.pressed = false;
         self.common.state.hovered = bounds.contains(position);
         self.dragged = false;
