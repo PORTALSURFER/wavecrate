@@ -29,6 +29,8 @@ pub(super) fn sample_browser_rows(
                 folder_browser.is_file_selected(&file.id),
                 folder_browser.file_rename_view(&file.id),
                 folder_browser.drag_revision(),
+                folder_browser.file_drag_active(),
+                folder_browser.file_drag_source(&file.id),
                 columns,
             )
         },
@@ -43,10 +45,19 @@ fn sample_browser_row(
     selected: bool,
     rename: Option<folder_browser::FileRenameView>,
     drag_revision: u64,
+    drag_active: bool,
+    drag_source: bool,
     columns: &[&FileColumn],
 ) -> ui::View<GuiMessage> {
     let hit_path = file.id.clone();
-    let hit_target = sample_file_hit_target(file, selected, drag_revision, hit_path);
+    let hit_target = sample_file_hit_target(
+        file,
+        selected,
+        drag_revision,
+        drag_active,
+        drag_source,
+        hit_path,
+    );
     let row = ui::stack([
         hit_target,
         compact_details_row(
@@ -65,10 +76,12 @@ fn sample_file_hit_target(
     file: &FileEntry,
     selected: bool,
     drag_revision: u64,
+    drag_active: bool,
+    drag_source: bool,
     hit_path: String,
 ) -> ui::View<GuiMessage> {
     ui::custom_widget_mapped(
-        SampleFileHitTarget::new(selected),
+        SampleFileHitTarget::new(selected, drag_active, drag_source),
         move |message| match message {
             SampleFileHitMessage::Activate(modifiers) => GuiMessage::SelectSampleWithModifiers {
                 path: hit_path.clone(),
