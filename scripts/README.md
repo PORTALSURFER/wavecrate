@@ -15,6 +15,10 @@ dispatcher maps. These are the public entrypoints people should run directly:
   `powershell -ExecutionPolicy Bypass -File scripts/registered-run.ps1 -Internal -AppArgs --log`
   and
   `powershell -ExecutionPolicy Bypass -File scripts/registered-run.ps1 -Internal -Profile debug -AppArgs --log`.
+- `internal-run.ps1`: run a release-profile internal Wavecrate build with
+  registration disabled and logging enabled. It runs from the repo root and does
+  not need the website checkout. Example:
+  `powershell -ExecutionPolicy Bypass -File scripts/internal-run.ps1`.
 - `doctor.{sh,ps1}`: diagnose environment issues.
 - `agent.{sh,ps1}`: agent request, preflight, checks, and hook install helpers.
 - `ci.{sh,ps1}`: validation lanes (`smoke`, `agent`, `quick`, `local`).
