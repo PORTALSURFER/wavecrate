@@ -27,9 +27,11 @@ mod folder_browser_actions;
 mod folder_browser_rename_actions;
 mod folder_scan_actions;
 mod launch;
+mod layout;
 mod playback;
 mod sample_browser_view;
 mod sample_load_actions;
+mod selected_file_actions;
 mod shortcuts;
 mod status_bar;
 mod toolbar;
@@ -37,13 +39,17 @@ mod waveform;
 mod waveform_panel;
 #[cfg(test)]
 use audio_settings::audio_settings_popover;
-use audio_settings::{format_sample_rate_label, top_status_bar};
+use audio_settings::format_sample_rate_label;
+#[cfg(test)]
+use audio_settings::top_status_bar;
 use context_menu::BrowserContextMenu;
 #[cfg(test)]
 use context_menu::BrowserContextTargetKind;
 #[cfg(test)]
 use file_actions::format_copy_path;
-use file_actions::{normalize_wav_file_in_place, sample_path_label};
+#[cfg(test)]
+use file_actions::normalize_wav_file_in_place;
+use file_actions::sample_path_label;
 use folder_browser::{
     FolderBrowserMessage, FolderBrowserState, FolderScanDiscoveryBatch, FolderScanProgress,
     FolderScanResult,
@@ -52,14 +58,14 @@ use launch::emit_gui_action;
 pub(crate) use launch::run;
 #[cfg(test)]
 use launch::{DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG, debug_layout_requested};
+use layout::view;
+#[cfg(test)]
 use sample_browser_view::sample_browser;
 use sample_load_actions::{NormalizedWaveformReload, WaveformPlaybackResume};
 use shortcuts::default_gui_shortcut_resolution;
-use toolbar::main_toolbar;
 #[cfg(test)]
 use toolbar::{ToolbarIcon, toolbar_icon_button};
 use waveform::{WaveformActiveDragKind, WaveformInteraction, WaveformSelectionKind, WaveformState};
-use waveform_panel::waveform_panel;
 
 const DEFAULT_FOLDER_WIDTH: f32 = 260.0;
 const MIN_FOLDER_WIDTH: f32 = 180.0;
@@ -433,234 +439,6 @@ impl GuiAppState {
             .map(|receiver| ui::Subscription::worker("gui-workers", receiver))
             .unwrap_or_else(ui::Subscription::none)
     }
-
-    fn delete_selected_item(&mut self) {
-        if self.folder_browser.selected_file_id().is_some() {
-            self.delete_selected_files();
-        } else {
-            self.delete_selected_folder();
-        }
-    }
-
-    fn delete_selected_folder(&mut self) {
-        let started_at = Instant::now();
-        let target = match self.folder_browser.selected_delete_target() {
-            Ok(target) => target,
-            Err(error) => {
-                self.sample_status = error.clone();
-                emit_gui_action(
-                    "folder_browser.delete_selected",
-                    Some("folder_browser"),
-                    None,
-                    "short_circuit",
-                    started_at,
-                    Some(&error),
-                );
-                return;
-            }
-        };
-        match self.folder_browser.delete_selected_folder() {
-            Ok(status) => {
-                self.sample_status = status;
-                emit_gui_action(
-                    "folder_browser.delete_selected",
-                    Some("folder_browser"),
-                    Some(&target.name),
-                    "success",
-                    started_at,
-                    None,
-                );
-            }
-            Err(error) => {
-                self.sample_status = error.clone();
-                emit_gui_action(
-                    "folder_browser.delete_selected",
-                    Some("folder_browser"),
-                    Some(&target.name),
-                    "error",
-                    started_at,
-                    Some(&error),
-                );
-            }
-        }
-    }
-
-    fn delete_selected_files(&mut self) {
-        let started_at = Instant::now();
-        let target = match self.folder_browser.selected_file_delete_target() {
-            Ok(target) => target,
-            Err(error) => {
-                self.sample_status = error.clone();
-                emit_gui_action(
-                    "browser.delete_selected_files",
-                    Some("browser"),
-                    None,
-                    "short_circuit",
-                    started_at,
-                    Some(&error),
-                );
-                return;
-            }
-        };
-        let loaded_path = self.waveform.path();
-        let deleting_loaded_sample = target.paths.iter().any(|path| path == &loaded_path);
-
-        match self.folder_browser.delete_selected_files() {
-            Ok(status) => {
-                if deleting_loaded_sample {
-                    if let Some(player) = self.audio_player.as_mut() {
-                        player.stop();
-                    }
-                    self.waveform = WaveformState::empty();
-                    self.current_playback_span = None;
-                }
-                self.sample_status = status;
-                emit_gui_action(
-                    "browser.delete_selected_files",
-                    Some("browser"),
-                    Some(&target.label()),
-                    "success",
-                    started_at,
-                    None,
-                );
-            }
-            Err(error) => {
-                self.sample_status = error.clone();
-                emit_gui_action(
-                    "browser.delete_selected_files",
-                    Some("browser"),
-                    Some(&target.label()),
-                    "error",
-                    started_at,
-                    Some(&error),
-                );
-            }
-        }
-    }
-
-    fn extract_playmarked_range(&mut self) {
-        let started_at = Instant::now();
-        match self.waveform.extract_play_selection_to_sibling() {
-            Ok(path) => {
-                let label = sample_path_label(&path);
-                self.waveform.flash_play_selection();
-                self.folder_browser.refresh_file_path(&path);
-                self.sample_status = format!("Extracted {label}");
-                emit_gui_action(
-                    "waveform.extract_playmarked_range",
-                    Some("waveform"),
-                    Some(&label),
-                    "success",
-                    started_at,
-                    None,
-                );
-            }
-            Err(error) => {
-                self.sample_status = error.clone();
-                emit_gui_action(
-                    "waveform.extract_playmarked_range",
-                    Some("waveform"),
-                    None,
-                    "error",
-                    started_at,
-                    Some(&error),
-                );
-            }
-        }
-    }
-
-    fn normalize_selected_samples(&mut self) {
-        let started_at = Instant::now();
-        let paths = self.folder_browser.selected_file_paths();
-        if paths.is_empty() {
-            self.sample_status = String::from("Select a sample to normalize");
-            emit_gui_action(
-                "browser.normalize_selected_samples",
-                Some("browser"),
-                None,
-                "empty",
-                started_at,
-                None,
-            );
-            return;
-        }
-
-        let loaded_path = self.waveform.path();
-        let normalizing_loaded = paths.iter().any(|path| path == &loaded_path);
-        let was_playing = self.waveform.is_playing() && normalizing_loaded;
-        let restart_ratio = self
-            .audio_player
-            .as_ref()
-            .and_then(AudioPlayer::progress)
-            .or(self.waveform.playhead_ratio())
-            .unwrap_or(0.0);
-        let restart_span = self.current_playback_span;
-        if was_playing {
-            if let Some(player) = self.audio_player.as_mut() {
-                player.stop();
-            }
-            self.waveform.stop_playback();
-            self.current_playback_span = None;
-        }
-
-        let mut normalized = Vec::new();
-        let mut last_error = None;
-        for path in &paths {
-            match normalize_wav_file_in_place(path) {
-                Ok(()) => {
-                    self.folder_browser.refresh_file_path(path);
-                    normalized.push(path.clone());
-                }
-                Err(error) => {
-                    last_error = Some(format!("{}: {error}", sample_path_label(path)));
-                }
-            }
-        }
-
-        if normalizing_loaded && normalized.iter().any(|path| path == &loaded_path) {
-            let playback = was_playing.then_some(WaveformPlaybackResume {
-                start_ratio: restart_ratio,
-                span: restart_span,
-            });
-            if let Err(error) = self.reload_normalized_waveform(NormalizedWaveformReload {
-                path: &loaded_path,
-                playback,
-            }) {
-                last_error = Some(error);
-            }
-        }
-
-        if let Some(error) = last_error {
-            self.sample_status = format!(
-                "Normalized {} sample{} | {error}",
-                normalized.len(),
-                if normalized.len() == 1 { "" } else { "s" }
-            );
-            emit_gui_action(
-                "browser.normalize_selected_samples",
-                Some("browser"),
-                None,
-                "partial_or_error",
-                started_at,
-                Some(&error),
-            );
-            return;
-        }
-
-        self.sample_status = match normalized.as_slice() {
-            [] => String::from("No selected samples were normalized"),
-            [path] => format!("Normalized {}", sample_path_label(path)),
-            _ => format!("Normalized {} samples", normalized.len()),
-        };
-        emit_gui_action(
-            "browser.normalize_selected_samples",
-            Some("browser"),
-            None,
-            "success",
-            started_at,
-            None,
-        );
-    }
 }
 
 fn waveform_interaction_finishes_play_selection_edit(
@@ -704,71 +482,6 @@ fn waveform_interaction_action(interaction: &WaveformInteraction) -> Option<&'st
         WaveformInteraction::FinishSelection { .. } => Some("waveform.selection.finish"),
         WaveformInteraction::UpdateSelection { .. } | WaveformInteraction::Frame => None,
     }
-}
-
-fn view(state: &mut GuiAppState) -> ui::View<GuiMessage> {
-    let content = ui::column([
-        top_status_bar(state),
-        center_panel(state),
-        status_bar::bottom_status_bar(state),
-    ])
-    .spacing(0.0)
-    .fill();
-    let mut layers = vec![content];
-    if state.job_details_open {
-        if let Some(progress) = state.folder_progress.as_ref() {
-            layers.push(status_bar::job_details_popover(progress));
-        }
-    }
-    if let Some(menu) = state.context_menu.as_ref() {
-        layers.push(context_menu::overlay(menu));
-    }
-    if layers.len() > 1 {
-        ui::stack(layers).fill()
-    } else {
-        layers.pop().expect("view should contain base content")
-    }
-}
-
-fn center_panel(state: &mut GuiAppState) -> ui::View<GuiMessage> {
-    ui::row([folder_sidebar(state), folder_splitter(), main_area(state)])
-        .padding(6.0)
-        .fill()
-}
-
-fn folder_sidebar(state: &GuiAppState) -> ui::View<GuiMessage> {
-    folder_browser::folder_browser_view(&state.folder_browser)
-        .width(state.folder_width)
-        .fill_height()
-}
-
-fn folder_splitter() -> ui::View<GuiMessage> {
-    ui::column([
-        ui::spacer().fill(),
-        ui::drag_handle()
-            .mapped(GuiMessage::ResizeFolder)
-            .key("folder-browser-splitter-handle")
-            .size(5.0, 32.0),
-        ui::spacer().fill(),
-    ])
-    .style(ui::WidgetStyle {
-        tone: ui::WidgetTone::Accent,
-        prominence: ui::WidgetProminence::Subtle,
-    })
-    .width(11.0)
-    .fill_height()
-    .padding(2.0)
-    .spacing(4.0)
-}
-
-fn main_area(state: &mut GuiAppState) -> ui::View<GuiMessage> {
-    ui::column([
-        main_toolbar(state),
-        waveform_panel(state),
-        sample_browser(state),
-    ])
-    .padding(4.0)
-    .fill()
 }
 
 #[cfg(test)]
