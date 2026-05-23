@@ -105,15 +105,6 @@ pub(crate) use self::{
 const BROWSER_ROW_TRUNCATION_CACHE_CAPACITY: usize = 1024;
 /// Text glyph shown before browser item labels whose backing content is missing.
 const BROWSER_MISSING_CONTENT_MARKER: &str = "!";
-/// Rating-filter chip levels shown left-to-right in the browser toolbar.
-const BROWSER_RATING_FILTER_LEVELS: [i8; 8] = [-3, -2, -1, 0, 1, 2, 3, 4];
-/// Playback-age filter chips shown left-to-right in the browser toolbar.
-const BROWSER_PLAYBACK_AGE_FILTER_CHIPS:
-    [crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip; 3] = [
-    crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip::NeverPlayed,
-    crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip::OlderThanMonth,
-    crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip::OlderThanWeek,
-];
 /// Additional hit slop for the narrow content-list scrollbar thumb.
 const BROWSER_SCROLLBAR_THUMB_HIT_SLOP: f32 = 3.0;
 /// Additional hit slop for the narrow folder scrollbar thumb.

@@ -3,6 +3,18 @@
 use super::super::super::*;
 use crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip;
 
+/// Rating-filter chip levels shown left-to-right in the browser toolbar.
+pub(in crate::app_core::native_shell::composition::state) const BROWSER_RATING_FILTER_LEVELS: [i8;
+    8] = [-3, -2, -1, 0, 1, 2, 3, 4];
+
+/// Playback-age filter chips shown left-to-right in the browser toolbar.
+pub(in crate::app_core::native_shell::composition::state) const BROWSER_PLAYBACK_AGE_FILTER_CHIPS:
+    [PlaybackAgeFilterChip; 3] = [
+    PlaybackAgeFilterChip::NeverPlayed,
+    PlaybackAgeFilterChip::OlderThanMonth,
+    PlaybackAgeFilterChip::OlderThanWeek,
+];
+
 pub(in crate::app_core::native_shell::composition::state) fn browser_toolbar_layout(
     layout: &ShellLayout,
     style: &StyleTokens,
