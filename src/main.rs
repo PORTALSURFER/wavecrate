@@ -8,10 +8,12 @@
     windows_subsystem = "windows"
 )]
 
+#[cfg(not(wavecrate_internal_build))]
 mod app_registration;
 mod gui_app;
 
 fn main() -> Result<(), String> {
+    #[cfg(not(wavecrate_internal_build))]
     app_registration::ensure_registration()?;
     gui_app::run()
 }

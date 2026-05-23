@@ -5,6 +5,9 @@ param(
   [string] $RemotePath = "/opt/portalsurfer",
   [string] $Version = "",
   [string] $BuildId = "",
+  [ValidateSet("release", "debug")]
+  [string] $Profile = "release",
+  [switch] $Internal,
   [switch] $SkipDeploy,
   [switch] $NoRun,
   [Parameter(ValueFromRemainingArguments = $true)]
@@ -15,22 +18,6 @@ $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$portalRootPath = Resolve-Path -LiteralPath $PortalSurferRoot
-$portalRoot = $portalRootPath.Path
-$signingEnv = Join-Path $portalRoot ".deploy\wavecrate-signing.env"
-$stageScript = Join-Path $portalRoot "scripts\stage-wavecrate-release.ps1"
-$deployScript = Join-Path $portalRoot "scripts\deploy.ps1"
-$counterFile = Join-Path $portalRoot "hosting\wavecrate-build-counter.json"
-
-if (-not (Test-Path -LiteralPath $signingEnv)) {
-  throw "Missing Wavecrate signing env file: $signingEnv. Deploy the website once, or copy WAVECRATE_SIGNING_PUBLIC_KEY_B64 into that file."
-}
-if (-not (Test-Path -LiteralPath $stageScript)) {
-  throw "Missing stage script: $stageScript"
-}
-if (-not (Test-Path -LiteralPath $deployScript)) {
-  throw "Missing deploy script: $deployScript"
-}
 
 function Get-EnvValue([string] $Path, [string] $Name) {
   $line = Get-Content -LiteralPath $Path | Where-Object { $_ -like "$Name=*" } | Select-Object -First 1
@@ -106,6 +93,23 @@ function Write-BuildCounter([string] $Path, [int] $NextBuildNumber) {
   [System.IO.File]::WriteAllText($Path, $json, $encoding)
 }
 
+function Invoke-WavecrateCargoBuild([string] $BuildProfile) {
+  if ($BuildProfile -eq "release") {
+    cargo build -r
+  } else {
+    cargo build
+  }
+}
+
+function Get-WavecrateExe([string] $BuildProfile) {
+  $targetProfile = if ($BuildProfile -eq "release") { "release" } else { "debug" }
+  return Join-Path $repoRoot "target\$targetProfile\wavecrate.exe"
+}
+
+if ($AppArgs.Count -gt 0 -and $AppArgs[0] -eq "--") {
+  $AppArgs = @($AppArgs | Select-Object -Skip 1)
+}
+
 if (-not $Version) {
   Push-Location $repoRoot
   try {
@@ -116,6 +120,55 @@ if (-not $Version) {
   finally {
     Pop-Location
   }
+}
+
+if ($Internal) {
+  Write-Host "Wavecrate internal run"
+  Write-Host "  Profile: $Profile"
+  Write-Host "  Version: $Version"
+
+  Push-Location $repoRoot
+  try {
+    $env:WAVECRATE_INTERNAL_BUILD = "1"
+    Invoke-WavecrateCargoBuild $Profile
+  }
+  finally {
+    Remove-Item Env:\WAVECRATE_INTERNAL_BUILD -ErrorAction SilentlyContinue
+    Pop-Location
+  }
+
+  $internalExe = Get-WavecrateExe $Profile
+  if (-not (Test-Path -LiteralPath $internalExe)) {
+    throw "Internal binary was not produced: $internalExe"
+  }
+
+  if (-not $NoRun) {
+    Write-Host "Launching $internalExe $($AppArgs -join ' ')"
+    & $internalExe @AppArgs
+  }
+
+  exit 0
+}
+
+if ($Profile -ne "release") {
+  throw "Registered release builds must use -Profile release. Use -Internal -Profile debug for debug test builds."
+}
+
+$portalRootPath = Resolve-Path -LiteralPath $PortalSurferRoot
+$portalRoot = $portalRootPath.Path
+$signingEnv = Join-Path $portalRoot ".deploy\wavecrate-signing.env"
+$stageScript = Join-Path $portalRoot "scripts\stage-wavecrate-release.ps1"
+$deployScript = Join-Path $portalRoot "scripts\deploy.ps1"
+$counterFile = Join-Path $portalRoot "hosting\wavecrate-build-counter.json"
+
+if (-not (Test-Path -LiteralPath $signingEnv)) {
+  throw "Missing Wavecrate signing env file: $signingEnv. Deploy the website once, or copy WAVECRATE_SIGNING_PUBLIC_KEY_B64 into that file."
+}
+if (-not (Test-Path -LiteralPath $stageScript)) {
+  throw "Missing stage script: $stageScript"
+}
+if (-not (Test-Path -LiteralPath $deployScript)) {
+  throw "Missing deploy script: $deployScript"
 }
 
 if (-not $BuildId) {
@@ -131,9 +184,6 @@ if (-not $BuildId) {
 $BuildId = ConvertTo-SafeBuildId $BuildId
 $BuildSignature = New-Base64UrlToken 32
 $PublicKey = Get-EnvValue $signingEnv "WAVECRATE_SIGNING_PUBLIC_KEY_B64"
-if ($AppArgs.Count -gt 0 -and $AppArgs[0] -eq "--") {
-  $AppArgs = @($AppArgs | Select-Object -Skip 1)
-}
 
 Write-Host "Wavecrate registered run"
 Write-Host "  Build id:        $BuildId"
@@ -148,7 +198,7 @@ try {
   $env:WAVECRATE_BUILD_ID = $BuildId
   $env:WAVECRATE_BUILD_SIGNATURE = $BuildSignature
   $env:WAVECRATE_SIGNING_PUBLIC_KEY_B64 = $PublicKey
-  cargo build -r
+  Invoke-WavecrateCargoBuild $Profile
 }
 finally {
   Remove-Item Env:\WAVECRATE_BUILD_ID -ErrorAction SilentlyContinue
@@ -157,7 +207,7 @@ finally {
   Pop-Location
 }
 
-$exe = Join-Path $repoRoot "target\release\wavecrate.exe"
+$exe = Get-WavecrateExe $Profile
 if (-not (Test-Path -LiteralPath $exe)) {
   throw "Release binary was not produced: $exe"
 }

@@ -67,7 +67,7 @@
     },
     {
       "path": "scripts/registered-run.ps1",
-      "role": "Build, register, deploy, and launch one Wavecrate release binary for local validation.",
+      "role": "Build, register, deploy, and launch one Wavecrate release binary, or build and launch an explicit internal binary with registration disabled.",
       "windows_supported": true
     },
     {

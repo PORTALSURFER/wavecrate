@@ -14,6 +14,7 @@ fn main() {
     println!("cargo:rerun-if-env-changed=WAVECRATE_BUILD_ID");
     println!("cargo:rerun-if-env-changed=WAVECRATE_BUILD_SIGNATURE");
     println!("cargo:rerun-if-env-changed=WAVECRATE_SIGNING_PUBLIC_KEY_B64");
+    println!("cargo:rerun-if-env-changed=WAVECRATE_INTERNAL_BUILD");
 
     emit_git_rerun_hints();
     emit_git_sha();
@@ -29,12 +30,33 @@ fn main() {
 
 fn emit_registration_cfg() {
     println!("cargo:rustc-check-cfg=cfg(wavecrate_registered_build)");
-    if env::var("WAVECRATE_BUILD_ID").is_ok()
+    println!("cargo:rustc-check-cfg=cfg(wavecrate_internal_build)");
+
+    let registered_metadata_present = env::var("WAVECRATE_BUILD_ID").is_ok()
         || env::var("WAVECRATE_BUILD_SIGNATURE").is_ok()
-        || env::var("WAVECRATE_SIGNING_PUBLIC_KEY_B64").is_ok()
-    {
+        || env::var("WAVECRATE_SIGNING_PUBLIC_KEY_B64").is_ok();
+    let internal_build = env::var("WAVECRATE_INTERNAL_BUILD")
+        .map(|value| is_truthy_env_value(&value))
+        .unwrap_or(false);
+
+    if internal_build && registered_metadata_present {
+        eprintln!("WAVECRATE_INTERNAL_BUILD cannot be combined with registered release metadata.");
+        std::process::exit(1);
+    }
+
+    if registered_metadata_present {
         println!("cargo:rustc-cfg=wavecrate_registered_build");
     }
+    if internal_build {
+        println!("cargo:rustc-cfg=wavecrate_internal_build");
+    }
+}
+
+fn is_truthy_env_value(value: &str) -> bool {
+    matches!(
+        value.trim().to_ascii_lowercase().as_str(),
+        "1" | "true" | "yes" | "on"
+    )
 }
 
 fn compiling_for_windows_target() -> bool {
