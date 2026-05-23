@@ -1,8 +1,7 @@
 use super::waveform::{WaveformSelectionEdge, WaveformSelectionKind};
 use super::waveform_panel::waveform_loading_visual;
 use super::{
-    DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG, DEFAULT_FOLDER_WIDTH, GuiAppState, MAX_FOLDER_WIDTH,
-    MIN_FOLDER_WIDTH, WaveformInteraction, debug_layout_requested,
+    DEFAULT_FOLDER_WIDTH, GuiAppState, MAX_FOLDER_WIDTH, MIN_FOLDER_WIDTH, WaveformInteraction,
 };
 use radiant::{
     gui::types::{Point, Rect, Rgba8, Vector2},
@@ -10,7 +9,9 @@ use radiant::{
     runtime::{NativeFileDrop, PaintPrimitive},
     widgets::{DragHandleMessage, PointerButton, PointerModifiers, Widget, WidgetInput},
 };
-use std::{ffi::OsString, fs, path::PathBuf, sync::mpsc};
+use std::{fs, path::PathBuf, sync::mpsc};
+
+mod shortcuts_context;
 
 fn selected_asset_file_path(browser: &super::FolderBrowserState, name: &str) -> String {
     browser
@@ -57,226 +58,6 @@ fn gui_state_for_span_tests() -> GuiAppState {
         current_playback_span: None,
         native_file_drop_hover: None,
     }
-}
-
-#[test]
-fn canonical_debug_layout_arg_enables_default_gui_overlay() {
-    assert!(debug_layout_requested([
-        OsString::from("wavecrate"),
-        OsString::from(DEBUG_LAYOUT_ARG),
-    ]));
-}
-
-#[test]
-fn short_debug_layout_arg_enables_default_gui_overlay() {
-    assert!(debug_layout_requested([
-        OsString::from("wavecrate"),
-        OsString::from(DEBUG_LAYOUT_SHORT_ARG),
-    ]));
-}
-
-#[test]
-fn unrelated_args_leave_default_gui_overlay_disabled() {
-    assert!(!debug_layout_requested([
-        OsString::from("wavecrate"),
-        OsString::from("--debug-log"),
-    ]));
-}
-
-#[test]
-fn escape_shortcut_routes_to_stop_playback() {
-    let state = GuiAppState::load_default().expect("default state loads");
-    let resolution =
-        super::default_gui_shortcut_resolution(&state, ui::KeyPress::new(ui::KeyCode::Escape));
-
-    assert_eq!(resolution.action, Some(super::GuiMessage::StopPlayback));
-    assert!(resolution.handled);
-}
-
-#[test]
-fn escape_shortcut_is_shielded_while_renaming() {
-    let mut state = GuiAppState::load_default().expect("default state loads");
-    let sample_path = selected_asset_file_path(&state.folder_browser, "portal_SS_kick_003.wav");
-    state.folder_browser.select_file(sample_path);
-    state
-        .folder_browser
-        .begin_rename_selected()
-        .expect("begin rename should not fail");
-
-    let resolution =
-        super::default_gui_shortcut_resolution(&state, ui::KeyPress::new(ui::KeyCode::Escape));
-
-    assert_eq!(resolution, ui::ShortcutResolution::unhandled());
-}
-
-#[test]
-fn audio_settings_window_does_not_capture_main_escape_shortcut() {
-    let mut state = GuiAppState::load_default().expect("default state loads");
-    state.audio_settings_open = true;
-
-    let resolution =
-        super::default_gui_shortcut_resolution(&state, ui::KeyPress::new(ui::KeyCode::Escape));
-
-    assert_eq!(resolution.action, Some(super::GuiMessage::StopPlayback));
-    assert!(resolution.handled);
-}
-
-#[test]
-fn audio_settings_window_does_not_block_main_shortcuts() {
-    let mut state = GuiAppState::load_default().expect("default state loads");
-    state.audio_settings_open = true;
-
-    let resolution =
-        super::default_gui_shortcut_resolution(&state, ui::KeyPress::new(ui::KeyCode::N));
-
-    assert!(matches!(
-        resolution.action,
-        Some(super::GuiMessage::FolderBrowser(
-            super::FolderBrowserMessage::BeginCreateSubfolder
-        ))
-    ));
-    assert!(resolution.handled);
-}
-
-#[test]
-fn context_menu_escape_shortcut_closes_context_menu() {
-    let mut state = GuiAppState::load_default().expect("default state loads");
-    state.context_menu = Some(super::BrowserContextMenu {
-        kind: super::BrowserContextTargetKind::Sample,
-        path: std::path::PathBuf::from("C:\\samples\\kick.wav"),
-        anchor: Point::new(12.0, 24.0),
-        title: String::from("kick.wav"),
-    });
-
-    let resolution =
-        super::default_gui_shortcut_resolution(&state, ui::KeyPress::new(ui::KeyCode::Escape));
-
-    assert_eq!(resolution.action, Some(super::GuiMessage::CloseContextMenu));
-    assert!(resolution.handled);
-}
-
-#[test]
-fn audio_backend_dropdown_escape_shortcut_closes_dropdown() {
-    let mut state = gui_state_for_span_tests();
-    state.audio_backend_dropdown_open = true;
-
-    let resolution =
-        super::default_gui_shortcut_resolution(&state, ui::KeyPress::new(ui::KeyCode::Escape));
-
-    assert_eq!(
-        resolution.action,
-        Some(super::GuiMessage::CloseAudioSettingsDropdowns)
-    );
-    assert!(resolution.handled);
-}
-
-#[test]
-fn format_copy_path_uses_forward_slashes_and_quotes_spaces() {
-    assert_eq!(
-        super::format_copy_path(std::path::Path::new("C:\\sample folder\\kick.wav")),
-        "\"C:/sample folder/kick.wav\""
-    );
-    assert_eq!(
-        super::format_copy_path(std::path::Path::new("C:\\samples\\kick.wav")),
-        "C:/samples/kick.wav"
-    );
-}
-
-#[test]
-fn context_menu_availability_requires_existing_target_kind() {
-    let root = std::env::temp_dir().join(format!(
-        "wavecrate-context-menu-{}",
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("clock")
-            .as_nanos()
-    ));
-    std::fs::create_dir_all(&root).expect("create temp root");
-    let sample = root.join("kick.wav");
-    std::fs::write(&sample, [0_u8; 8]).expect("write sample");
-
-    assert!(super::context_menu::target_available(
-        &super::BrowserContextTargetKind::Source,
-        &root
-    ));
-    assert!(super::context_menu::target_available(
-        &super::BrowserContextTargetKind::Folder,
-        &root
-    ));
-    assert!(super::context_menu::target_available(
-        &super::BrowserContextTargetKind::Sample,
-        &sample
-    ));
-    assert!(!super::context_menu::target_available(
-        &super::BrowserContextTargetKind::Sample,
-        &root
-    ));
-    assert!(!super::context_menu::target_available(
-        &super::BrowserContextTargetKind::Folder,
-        &sample
-    ));
-
-    std::fs::remove_file(&sample).expect("remove sample");
-    assert!(!super::context_menu::target_available(
-        &super::BrowserContextTargetKind::Sample,
-        &sample
-    ));
-    let _ = std::fs::remove_dir_all(root);
-}
-
-#[test]
-fn stale_context_menu_copy_path_refuses_missing_sample_file() {
-    let mut state = GuiAppState::load_default().expect("default state loads");
-    state.context_menu = Some(super::BrowserContextMenu {
-        kind: super::BrowserContextTargetKind::Sample,
-        path: std::env::temp_dir().join("wavecrate-missing-context-sample.wav"),
-        anchor: Point::new(12.0, 24.0),
-        title: String::from("missing.wav"),
-    });
-
-    state.copy_context_path();
-
-    assert_eq!(state.sample_status, "Sample file is missing");
-    assert_eq!(state.context_menu, None);
-}
-
-#[test]
-fn copy_shortcut_routes_to_browser_file_handoff() {
-    let state = GuiAppState::load_default().expect("default state loads");
-    let resolution =
-        super::default_gui_shortcut_resolution(&state, ui::KeyPress::with_command(ui::KeyCode::C));
-
-    assert_eq!(
-        resolution.action,
-        Some(super::GuiMessage::CopySelectedFiles)
-    );
-    assert!(resolution.handled);
-}
-
-#[test]
-fn backspace_shortcut_routes_to_delete_selected_item() {
-    let state = GuiAppState::load_default().expect("default state loads");
-    let resolution =
-        super::default_gui_shortcut_resolution(&state, ui::KeyPress::new(ui::KeyCode::Backspace));
-
-    assert_eq!(
-        resolution.action,
-        Some(super::GuiMessage::DeleteSelectedItem)
-    );
-    assert!(resolution.handled);
-}
-
-#[test]
-fn loop_shortcut_routes_to_loop_toggle() {
-    let state = GuiAppState::load_default().expect("default state loads");
-    let resolution =
-        super::default_gui_shortcut_resolution(&state, ui::KeyPress::new(ui::KeyCode::L));
-
-    assert_eq!(
-        resolution.action,
-        Some(super::GuiMessage::ToggleLoopPlayback)
-    );
-    assert!(resolution.handled);
 }
 
 #[test]
