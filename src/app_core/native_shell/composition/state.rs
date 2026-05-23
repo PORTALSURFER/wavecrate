@@ -101,8 +101,6 @@ pub(crate) use self::{
     text_fields::TextFieldVisualState,
 };
 
-/// Text glyph shown before browser item labels whose backing content is missing.
-const BROWSER_MISSING_CONTENT_MARKER: &str = "!";
 /// Additional hit slop for the narrow content-list scrollbar thumb.
 const BROWSER_SCROLLBAR_THUMB_HIT_SLOP: f32 = 3.0;
 /// Additional hit slop for the narrow folder scrollbar thumb.
