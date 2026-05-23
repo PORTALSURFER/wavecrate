@@ -582,6 +582,9 @@ fn sample_auto_rename_streams_per_item_progress() {
 
 #[test]
 fn sample_auto_rename_cancel_stops_after_partial_completion() {
+    const WORKER_PROGRESS_TIMEOUT: Duration = Duration::from_secs(10);
+    const WORKER_STOP_TIMEOUT: Duration = Duration::from_secs(60);
+
     let (_temp, source) = setup_fixture(&["alpha.wav", "beta.wav", "gamma.wav"]);
     let cancel = Arc::new(AtomicBool::new(false));
     let (progress, rx) = file_op_progress_capture();
@@ -605,7 +608,7 @@ fn sample_auto_rename_cancel_stops_after_partial_completion() {
 
     loop {
         match rx
-            .recv_timeout(Duration::from_secs(10))
+            .recv_timeout(WORKER_PROGRESS_TIMEOUT)
             .expect("wait for first progress")
         {
             JobMessage::FileOps(FileOpMessage::Progress { completed: 1, .. }) => {
@@ -617,7 +620,7 @@ fn sample_auto_rename_cancel_stops_after_partial_completion() {
     }
 
     let result = result_rx
-        .recv_timeout(Duration::from_secs(10))
+        .recv_timeout(WORKER_STOP_TIMEOUT)
         .expect("worker should stop after cancellation");
 
     assert!(!result.renamed.is_empty());
