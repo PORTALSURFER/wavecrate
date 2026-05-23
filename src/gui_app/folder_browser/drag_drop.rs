@@ -49,6 +49,9 @@ impl FolderBrowserState {
     }
 
     pub(in crate::gui_app) fn clear_drag(&mut self) {
+        if self.drag.is_some() || self.drag_pointer.is_some() || self.drop_target_folder.is_some() {
+            self.drag_revision = self.drag_revision.wrapping_add(1);
+        }
         self.drag = None;
         self.drag_pointer = None;
         self.drop_target_folder = None;

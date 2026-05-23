@@ -22,6 +22,7 @@ pub(super) struct FolderBrowserState {
     drag: Option<FolderBrowserDrag>,
     drag_pointer: Option<Point>,
     drop_target_folder: Option<String>,
+    drag_revision: u64,
     file_columns: Vec<FileColumn>,
     file_sort: ui::DetailsSort,
     file_column_resize: Option<FileColumnResize>,
@@ -61,6 +62,7 @@ impl FolderBrowserState {
             drag: None,
             drag_pointer: None,
             drop_target_folder: None,
+            drag_revision: 0,
             file_columns: default_file_columns(),
             file_sort: ui::DetailsSort::new("name", ui::SortDirection::Ascending),
             file_column_resize: None,
@@ -125,6 +127,10 @@ impl FolderBrowserState {
             return self.selected_file.as_deref() == Some(file_id);
         }
         self.selected_file_ids.contains(file_id)
+    }
+
+    pub(super) fn drag_revision(&self) -> u64 {
+        self.drag_revision
     }
 
     pub(super) fn scan_is_active(&self, source_id: &str, task_id: u64) -> bool {
