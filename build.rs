@@ -11,15 +11,29 @@ fn main() {
     println!("cargo:rerun-if-changed=build/windows/wavecrate.rc");
     println!("cargo:rerun-if-changed=assets/logo3.ico");
     println!("cargo:rerun-if-env-changed=WAVECRATE_GIT_SHA");
+    println!("cargo:rerun-if-env-changed=WAVECRATE_BUILD_ID");
+    println!("cargo:rerun-if-env-changed=WAVECRATE_BUILD_SIGNATURE");
+    println!("cargo:rerun-if-env-changed=WAVECRATE_SIGNING_PUBLIC_KEY_B64");
 
     emit_git_rerun_hints();
     emit_git_sha();
+    emit_registration_cfg();
 
     if compiling_for_windows_target()
         && let Err(error) = compile_windows_resources()
     {
         eprintln!("Failed to embed Windows resources: {error}");
         std::process::exit(1);
+    }
+}
+
+fn emit_registration_cfg() {
+    println!("cargo:rustc-check-cfg=cfg(wavecrate_registered_build)");
+    if env::var("WAVECRATE_BUILD_ID").is_ok()
+        || env::var("WAVECRATE_BUILD_SIGNATURE").is_ok()
+        || env::var("WAVECRATE_SIGNING_PUBLIC_KEY_B64").is_ok()
+    {
+        println!("cargo:rustc-cfg=wavecrate_registered_build");
     }
 }
 

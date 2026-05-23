@@ -8,8 +8,10 @@
     windows_subsystem = "windows"
 )]
 
+mod app_registration;
 mod gui_app;
 
 fn main() -> Result<(), String> {
+    app_registration::ensure_registration()?;
     gui_app::run()
 }
