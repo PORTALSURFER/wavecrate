@@ -1,5 +1,9 @@
 use super::*;
 
+/// Maximum retained entries for browser-row text truncation outputs.
+pub(in crate::app_core::native_shell::composition::state) const BROWSER_ROW_TRUNCATION_CACHE_CAPACITY:
+    usize = 1024;
+
 /// Per-build browser-row truncation cache lookup counts.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct BrowserRowTruncationFrameCounts {
