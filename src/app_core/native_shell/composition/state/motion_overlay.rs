@@ -4,6 +4,8 @@ use super::*;
 
 #[path = "motion_overlay/playhead_trail.rs"]
 mod playhead_trail;
+#[cfg(test)]
+pub(crate) use playhead_trail::PLAYHEAD_TRAIL_FADE_SECONDS;
 
 impl NativeShellState {
     /// Build only waveform cursor/playhead motion overlays into reusable buffers.
