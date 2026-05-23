@@ -89,6 +89,7 @@ state/hit_testing/chrome.rs	wavecrate_composition	OPT-187	Shell chrome hit testi
 state/hit_testing/chrome/prompts.rs	wavecrate_composition	OPT-187	Prompt hit testing moves with overlay composition.
 state/hit_testing/chrome/top_bar.rs	wavecrate_composition	OPT-187	Top bar hit testing moves with top bar composition.
 state/hit_testing/chrome/source_controls.rs	wavecrate_composition	OPT-189	Source control hit testing moves with source and folder composition.
+state/hit_testing/chrome/source_controls/**	wavecrate_composition	OPT-189	Source control dropdown hit testing and option geometry moves with source and folder composition.
 state/hit_testing/chrome/folders.rs	wavecrate_composition	OPT-189	Folder hit-testing facade moves with source and folder composition.
 state/hit_testing/chrome/folders/**	wavecrate_composition	OPT-189	Folder hit testing moves with source and folder composition.
 state/hit_testing/hover.rs	compat_adapter	OPT-191	Shared hover routing remains until surface-specific hit tests move.
