@@ -84,6 +84,7 @@ state/frame_build/status_bar.rs	wavecrate_composition	OPT-187	Status bar frame b
 state/frame_build/waveform.rs	wavecrate_composition	OPT-190	Waveform frame build moves with waveform composition.
 state/frame_entrypoints.rs	compat_adapter	OPT-191	Top-level frame entrypoints remain until all surface composition has moved.
 state/frame_text_cache.rs	compat_adapter	OPT-191	Frame text cache is retained-shell glue; split generic cache utility only after composition moves.
+state/frame_text_cache/**	compat_adapter	OPT-191	Frame text cache builders and keys remain retained-shell glue until surface moves expose generic cache utility pieces.
 state/hit_testing/browser.rs	wavecrate_composition	OPT-188	Browser hit testing moves with browser rows and map composition.
 state/hit_testing/browser/**	wavecrate_composition	OPT-188	Browser hit-test cache keys and pill-editor action routing move with browser composition.
 state/hit_testing/map.rs	wavecrate_composition	OPT-188	Browser map hit testing moves with browser map composition.
