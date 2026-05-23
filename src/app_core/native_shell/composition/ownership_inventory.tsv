@@ -54,6 +54,7 @@ sidebar_surface_helpers.rs	wavecrate_composition	OPT-189	Sidebar surface helpers
 sidebar_surface_tests.rs	wavecrate_fixture	OPT-191	Wavecrate sidebar fixture now lives beside Wavecrate composition and must not return to Radiant native_shell.
 status_surface.rs	wavecrate_composition	OPT-187	Status surface projection moves with top, status, options, and overlay composition.
 top_bar_surface.rs	wavecrate_composition	OPT-187	Top bar surface projection moves with top, status, options, and overlay composition.
+top_bar_surface/**	wavecrate_composition	OPT-187	Top bar content projection helpers move with top, status, options, and overlay composition.
 waveform_header_surface.rs	wavecrate_composition	OPT-190	Waveform header surface projection moves with waveform composition.
 waveform_toolbar_surface.rs	wavecrate_composition	OPT-190	Waveform toolbar surface projection moves with waveform composition.
 state.rs	compat_adapter	OPT-191	NativeShellState facade coordinates Wavecrate model sync, frame build, automation, and retained caches.
