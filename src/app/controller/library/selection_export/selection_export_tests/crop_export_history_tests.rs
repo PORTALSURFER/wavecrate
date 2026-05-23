@@ -1,6 +1,7 @@
 use super::*;
 
 #[test]
+#[ignore = "runs serially through scripts/ci.ps1 agent; background job polling is load-sensitive in the full parallel lib lane"]
 fn crop_waveform_selection_to_new_sample_registers_pending_history_and_supports_undo() {
     let temp = tempdir().unwrap();
     let source_root = temp.path().join("source");

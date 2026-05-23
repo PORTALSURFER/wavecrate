@@ -260,6 +260,7 @@ fn save_waveform_selection_to_browser_records_failure_flash_when_worker_fails() 
 }
 
 #[test]
+#[ignore = "runs serially through scripts/ci.ps1 agent; background job polling is load-sensitive in the full parallel lib lane"]
 fn save_waveform_selection_to_browser_removes_clip_when_source_db_registration_fails() {
     let temp = tempdir().unwrap();
     let source_root = temp.path().join("source");

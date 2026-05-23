@@ -58,6 +58,7 @@ fn capture_case_fixtures<'a>(
 }
 
 #[test]
+#[ignore = "runs through scripts/gui.ps1 contract; too expensive for the default lib test lane"]
 fn browser_nodes_advertise_expected_action_ids() {
     let cases: &[(&str, &str, &[&str])] = &[
         ("browser", "browser.panel", &["focus_browser_panel"]),
@@ -196,6 +197,7 @@ fn browser_nodes_advertise_expected_action_ids() {
 }
 
 #[test]
+#[ignore = "runs through scripts/gui.ps1 contract; too expensive for the default lib test lane"]
 fn sidebar_nodes_advertise_expected_action_ids() {
     let cases: &[(&str, &str, &[&str])] = &[
         ("browser", "sources.add_button", &["open_add_source_dialog"]),
@@ -237,6 +239,7 @@ fn sidebar_nodes_advertise_expected_action_ids() {
 }
 
 #[test]
+#[ignore = "runs through scripts/gui.ps1 contract; too expensive for the default lib test lane"]
 fn waveform_nodes_advertise_expected_action_ids() {
     let cases: &[(&str, &str, &[&str])] = &[
         ("waveform", "waveform.panel", &["focus_waveform_panel"]),
@@ -279,6 +282,7 @@ fn waveform_nodes_advertise_expected_action_ids() {
 }
 
 #[test]
+#[ignore = "runs through scripts/gui.ps1 contract; too expensive for the default lib test lane"]
 fn dialog_nodes_advertise_expected_action_ids() {
     let cases: &[(&str, &str, &[&str])] = &[
         ("options", "overlay.options_panel", &["close_options_panel"]),

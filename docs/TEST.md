@@ -17,6 +17,8 @@ Use the lightest lane that still gives trustworthy coverage for the change.
      `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 agent`
    - macOS/Linux/WSL:
      `bash scripts/ci.sh agent`
+   - load-sensitive selection-export background-job tests run serially here
+     after the default library test pass.
 3. Broader integrated local checks
    - Windows PowerShell:
      `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 quick`
@@ -138,9 +140,10 @@ Use for semantic GUI contracts, CLI scenarios, and desktop AIV loops.
   - contract scenario anchor: `browser_focus_transition_stability`
 - contract loop:
   - `powershell -ExecutionPolicy Bypass -File scripts/gui.ps1 contract`
-  - this lane explicitly runs the ignored `contract_smoke_pack_runs_cleanly`
-    scenario-pack execution; the default library test lane keeps only the
-    cheaper GUI runner and fixture checks.
+  - this lane explicitly runs ignored fixture-backed GUI and bridge-runtime
+    checks, including action parity and `contract_smoke_pack_runs_cleanly`; the
+    default library test lane keeps only the cheaper runner and assertion
+    checks.
 - broader GUI suite:
   - `powershell -ExecutionPolicy Bypass -File scripts/gui.ps1 suite`
 - live AIV smoke:

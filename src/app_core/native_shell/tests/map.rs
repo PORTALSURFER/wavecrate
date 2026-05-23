@@ -1,18 +1,17 @@
 use super::*;
 use crate::app::state::MapSimilarityPrepStatus;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::path::PathBuf;
 
 fn add_selected_source(controller: &mut AppController) {
-    let unique = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("clock")
-        .as_nanos();
-    let root = std::env::temp_dir().join(format!("wavecrate-map-projection-{unique}"));
-    std::fs::create_dir_all(&root).expect("create source root");
-    controller
-        .add_source_from_path(root)
-        .expect("add selected source");
-    controller.select_first_source();
+    let source = crate::sample_sources::SampleSource::new(PathBuf::from("map-projection-source"));
+    let source_id = source.id.clone();
+    controller.register_source_for_tests(source);
+    controller.select_browser_source_for_tests(source_id);
+    controller.ui.map.cached_bounds_source_id = controller
+        .selected_source_id()
+        .map(|id| id.as_str().to_string());
+    controller.ui.map.cached_bounds_umap_version = Some(controller.ui.map.umap_version.clone());
+    controller.ui.map.bounds = None;
 }
 
 /// Map projection should expose legend, selection, hover, cluster, and viewport summary text.

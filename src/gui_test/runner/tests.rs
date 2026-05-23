@@ -83,6 +83,7 @@ fn collect_advertised_actions<'a>(
 }
 
 #[test]
+#[ignore = "runs through scripts/gui.ps1 contract; fixture-backed smoke is too expensive for the default lib test lane"]
 fn capture_default_bundle_exposes_root_snapshot_and_catalog() {
     let bundle = capture_default_bundle(&deterministic_test_config("browser"))
         .expect("capture should succeed");
@@ -91,6 +92,7 @@ fn capture_default_bundle_exposes_root_snapshot_and_catalog() {
 }
 
 #[test]
+#[ignore = "runs through scripts/gui.ps1 contract; fixture-backed smoke is too expensive for the default lib test lane"]
 fn scenario_runner_accepts_root_presence_assertion() {
     let scenario = GuiScenario {
         name: String::from("root-smoke"),
@@ -107,6 +109,7 @@ fn scenario_runner_accepts_root_presence_assertion() {
 }
 
 #[test]
+#[ignore = "runs through scripts/gui.ps1 contract; fixture-backed smoke is too expensive for the default lib test lane"]
 fn dispatch_action_bundle_rejects_runtime_internal_actions() {
     let err = dispatch_action_bundle(
         &deterministic_test_config("waveform"),
@@ -122,6 +125,7 @@ fn dispatch_action_bundle_rejects_runtime_internal_actions() {
 }
 
 #[test]
+#[ignore = "runs through scripts/gui.ps1 contract; fixture-backed smoke is too expensive for the default lib test lane"]
 fn scenario_runner_rejects_runtime_internal_actions() {
     let scenario = GuiScenario {
         name: String::from("reject-runtime-internal"),
