@@ -219,8 +219,8 @@ mod tree_widgets;
 mod types;
 pub(super) use types::{
     FileDeleteTargetView, FileRenameView, FolderBrowserMessage, FolderDeleteTargetView,
-    FolderDragPreview, FolderDropResult, FolderScanDiscoveryBatch, FolderScanProgress,
-    FolderScanRequest, FolderScanResult, RenameTargetView,
+    FolderDragPreview, FolderDropResult, FolderScanDiscovery, FolderScanDiscoveryBatch,
+    FolderScanProgress, FolderScanRequest, FolderScanResult, RenameTargetView,
 };
 
 mod view;
