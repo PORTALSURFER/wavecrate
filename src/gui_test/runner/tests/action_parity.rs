@@ -1,9 +1,16 @@
 use super::*;
-use crate::gui_test::find_automation_node;
+use crate::gui_test::{GuiTestArtifactBundle, find_automation_node};
+use std::collections::BTreeMap;
 
-fn assert_fixture_node_actions(fixture_tag: &str, node_id: &str, expected_actions: &[&str]) {
-    let bundle = capture_default_bundle(&deterministic_test_config(fixture_tag))
-        .unwrap_or_else(|err| panic!("fixture {fixture_tag} capture failed: {err}"));
+fn assert_fixture_node_actions(
+    bundles: &BTreeMap<&str, GuiTestArtifactBundle>,
+    fixture_tag: &str,
+    node_id: &str,
+    expected_actions: &[&str],
+) {
+    let bundle = bundles
+        .get(fixture_tag)
+        .unwrap_or_else(|| panic!("fixture {fixture_tag} was not captured"));
     let node = find_automation_node(&bundle.automation_snapshot, node_id)
         .unwrap_or_else(|| panic!("fixture {fixture_tag} missing automation node {node_id}"));
     let actual_actions: Vec<_> = node.available_actions.iter().map(String::as_str).collect();
@@ -17,6 +24,21 @@ fn assert_fixture_node_actions(fixture_tag: &str, node_id: &str, expected_action
             "fixture {fixture_tag} node {node_id} advertised uncataloged expected action {action_id}"
         );
     }
+}
+
+fn capture_case_fixtures<'a>(
+    cases: &[(&'a str, &'a str, &'a [&'a str])],
+) -> BTreeMap<&'a str, GuiTestArtifactBundle> {
+    let mut bundles = BTreeMap::new();
+    for (fixture_tag, _, _) in cases {
+        if bundles.contains_key(fixture_tag) {
+            continue;
+        }
+        let bundle = capture_default_bundle(&deterministic_test_config(fixture_tag))
+            .unwrap_or_else(|err| panic!("fixture {fixture_tag} capture failed: {err}"));
+        bundles.insert(*fixture_tag, bundle);
+    }
+    bundles
 }
 
 #[test]
@@ -151,8 +173,9 @@ fn browser_nodes_advertise_expected_action_ids() {
         ),
     ];
 
+    let bundles = capture_case_fixtures(cases);
     for (fixture_tag, node_id, expected_actions) in cases {
-        assert_fixture_node_actions(fixture_tag, node_id, expected_actions);
+        assert_fixture_node_actions(&bundles, fixture_tag, node_id, expected_actions);
     }
 }
 
@@ -191,8 +214,9 @@ fn sidebar_nodes_advertise_expected_action_ids() {
         ),
     ];
 
+    let bundles = capture_case_fixtures(cases);
     for (fixture_tag, node_id, expected_actions) in cases {
-        assert_fixture_node_actions(fixture_tag, node_id, expected_actions);
+        assert_fixture_node_actions(&bundles, fixture_tag, node_id, expected_actions);
     }
 }
 
@@ -232,8 +256,9 @@ fn waveform_nodes_advertise_expected_action_ids() {
         ),
     ];
 
+    let bundles = capture_case_fixtures(cases);
     for (fixture_tag, node_id, expected_actions) in cases {
-        assert_fixture_node_actions(fixture_tag, node_id, expected_actions);
+        assert_fixture_node_actions(&bundles, fixture_tag, node_id, expected_actions);
     }
 }
 
@@ -262,7 +287,8 @@ fn dialog_nodes_advertise_expected_action_ids() {
         ),
     ];
 
+    let bundles = capture_case_fixtures(cases);
     for (fixture_tag, node_id, expected_actions) in cases {
-        assert_fixture_node_actions(fixture_tag, node_id, expected_actions);
+        assert_fixture_node_actions(&bundles, fixture_tag, node_id, expected_actions);
     }
 }
