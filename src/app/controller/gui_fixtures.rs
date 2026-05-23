@@ -1,17 +1,15 @@
 //! Deterministic controller fixtures used by GUI test scenarios and tools.
 
-use super::*;
-use crate::app::controller::library::analysis_jobs;
-use crate::app::state::{
-    MapBounds, MapPoint, MapQueryBounds, SampleBrowserActionPrompt, UpdateStatus, WaveformView,
-};
-use hound::{SampleFormat, WavSpec, WavWriter};
-use std::{fs, path::Path, sync::Arc};
-use tempfile::TempDir;
+mod entries;
+mod map;
+mod seeding;
 
-const BROWSER_FIXTURE_ENTRY_COUNT: usize = 40;
-const GUI_TEST_MAP_SOURCE_ID: &str = "gui-map-source";
-const GUI_TEST_MAP_SAMPLE_ID: &str = "gui-map-source::kick_one.wav";
+use super::*;
+use crate::app::state::{SampleBrowserActionPrompt, UpdateStatus, WaveformView};
+use entries::{browser_fixture_entries, dense_waveform_fixture_samples, write_fixture_entry};
+use seeding::{seed_browser_fixture_tags, seed_source_fixture};
+use std::{fs, path::Path};
+use tempfile::TempDir;
 
 /// One controller fixture and the temporary resources it must keep alive.
 pub(crate) struct GuiFixtureControllerBundle {
@@ -33,7 +31,7 @@ pub(crate) fn build_named_gui_fixture_controller(
         "browser" => build_browser_fixture(renderer),
         "sources" => build_sources_fixture(renderer),
         "transport" => build_transport_fixture(renderer),
-        "map" => build_map_fixture(renderer),
+        "map" => map::build_map_fixture(renderer),
         "waveform" => build_waveform_fixture(renderer),
         "waveform_dense" => build_waveform_dense_fixture(renderer),
         "waveform_mixed" => build_waveform_mixed_fixture(renderer),
@@ -140,99 +138,6 @@ fn build_transport_fixture(
     Ok(bundle)
 }
 
-fn seed_browser_fixture_tags(
-    controller: &mut AppController,
-    source: &SampleSource,
-) -> Result<(), String> {
-    let db = controller
-        .database_for(source)
-        .map_err(|err| format!("open browser fixture source DB for tags: {err}"))?;
-    for path in [
-        "kick_one.wav",
-        "snare_two.wav",
-        "hat_three.wav",
-        "loop_four.wav",
-    ] {
-        db.assign_tag_to_path(Path::new(path), "Texture")
-            .map_err(|err| format!("seed browser fixture Texture tag for {path}: {err}"))?;
-    }
-    for path in ["kick_one.wav", "kick_08.wav"] {
-        db.assign_tag_to_path(Path::new(path), "Deep Kick")
-            .map_err(|err| format!("seed browser fixture Deep Kick tag for {path}: {err}"))?;
-    }
-    db.assign_tag_to_path(Path::new("fx_five.wav"), "Rare FX")
-        .map_err(|err| format!("seed browser fixture Rare FX tag: {err}"))?;
-    Ok(())
-}
-
-fn browser_fixture_entries(root: &Path) -> Result<Vec<WavEntry>, String> {
-    let mut entries = Vec::with_capacity(BROWSER_FIXTURE_ENTRY_COUNT);
-    for index in 0..BROWSER_FIXTURE_ENTRY_COUNT {
-        let (name, tag) = browser_fixture_entry_spec(index);
-        let samples = browser_fixture_samples(index);
-        entries.push(write_fixture_entry(root, &name, &samples, tag)?);
-    }
-    Ok(entries)
-}
-
-fn browser_fixture_entry_spec(index: usize) -> (String, crate::sample_sources::Rating) {
-    let fixed = match index {
-        0 => Some(("kick_one.wav", crate::sample_sources::Rating::NEUTRAL)),
-        1 => Some(("snare_two.wav", crate::sample_sources::Rating::KEEP_3)),
-        2 => Some(("hat_three.wav", crate::sample_sources::Rating::TRASH_1)),
-        3 => Some(("loop_four.wav", crate::sample_sources::Rating::KEEP_1)),
-        4 => Some(("fx_five.wav", crate::sample_sources::Rating::TRASH_3)),
-        _ => None,
-    };
-    if let Some((name, tag)) = fixed {
-        return (String::from(name), tag);
-    }
-    let prefix = match index % 8 {
-        0 => "kick",
-        1 => "snare",
-        2 => "hat",
-        3 => "loop",
-        4 => "fx",
-        5 => "bass",
-        6 => "perc",
-        _ => "stab",
-    };
-    let name = format!("{prefix}_{index:02}.wav");
-    let tag = match index % 5 {
-        0 => crate::sample_sources::Rating::new(-2),
-        1 => crate::sample_sources::Rating::NEUTRAL,
-        2 => crate::sample_sources::Rating::KEEP_1,
-        3 => crate::sample_sources::Rating::new(2),
-        _ => crate::sample_sources::Rating::TRASH_1,
-    };
-    (name, tag)
-}
-
-fn browser_fixture_samples(index: usize) -> Vec<f32> {
-    let seed = index as f32 + 1.0;
-    vec![
-        0.0125 * seed,
-        0.18 + ((index % 5) as f32 * 0.05),
-        -0.10 - ((index % 4) as f32 * 0.04),
-        0.06 * ((index % 3) as f32 + 1.0),
-        -0.03 * ((index % 6) as f32 + 1.0),
-        0.015 * ((index % 7) as f32 + 1.0),
-    ]
-}
-
-fn dense_waveform_fixture_samples() -> Vec<f32> {
-    let sample_count = 4096;
-    (0..sample_count)
-        .map(|index| {
-            let phase = index as f32 / 18.0;
-            let contour = ((index as f32 / sample_count as f32) * std::f32::consts::PI)
-                .sin()
-                .max(0.18);
-            (phase.sin() * 0.62 * contour).clamp(-0.95, 0.95)
-        })
-        .collect()
-}
-
 fn build_waveform_fixture(
     renderer: WaveformRenderer,
 ) -> Result<GuiFixtureControllerBundle, String> {
@@ -304,49 +209,6 @@ fn build_waveform_mixed_fixture(
     Ok(bundle)
 }
 
-fn build_map_fixture(renderer: WaveformRenderer) -> Result<GuiFixtureControllerBundle, String> {
-    let mut bundle = build_browser_fixture_with_source_id(
-        renderer,
-        Some(SourceId::from_string(GUI_TEST_MAP_SOURCE_ID)),
-    )?;
-    let source_id = bundle
-        .controller
-        .current_source()
-        .map(|source| source.id.as_str().to_string())
-        .ok_or_else(|| String::from("map fixture missing current source"))?;
-    let sample_id = analysis_jobs::build_sample_id(source_id.as_str(), Path::new("kick_one.wav"));
-    debug_assert_eq!(sample_id, GUI_TEST_MAP_SAMPLE_ID);
-    bundle.controller.set_browser_tab(true);
-    bundle.controller.ui.map.bounds = Some(MapBounds {
-        min_x: -1.0,
-        max_x: 1.0,
-        min_y: -1.0,
-        max_y: 1.0,
-    });
-    bundle.controller.ui.map.cached_bounds_source_id = Some(source_id.clone());
-    bundle.controller.ui.map.cached_bounds_umap_version = Some(String::from("v1"));
-    bundle.controller.ui.map.last_query = Some(MapQueryBounds {
-        min_x: -1.0,
-        max_x: 1.0,
-        min_y: -1.0,
-        max_y: 1.0,
-    });
-    bundle.controller.ui.map.cached_points = vec![MapPoint {
-        sample_id: Arc::<str>::from(sample_id),
-        x: 0.0,
-        y: 0.0,
-        cluster_id: Some(1),
-    }];
-    bundle.controller.ui.map.cached_points_source_id = Some(source_id);
-    bundle.controller.ui.map.cached_points_umap_version = Some(String::from("v1"));
-    bundle.controller.ui.map.cached_points_revision = 1;
-    bundle.controller.ui.map.selected_sample_id = None;
-    bundle.controller.ui.map.hovered_sample_id = None;
-    bundle.controller.ui.map.paint_hover_active_id = None;
-    bundle.controller.focus_browser_list();
-    Ok(bundle)
-}
-
 fn build_options_fixture(renderer: WaveformRenderer) -> Result<GuiFixtureControllerBundle, String> {
     let mut bundle = build_browser_fixture(renderer)?;
     bundle.controller.open_options_panel();
@@ -373,114 +235,4 @@ fn build_update_fixture(renderer: WaveformRenderer) -> Result<GuiFixtureControll
     bundle.controller.ui.update.available_published_at = Some(String::from("2026-03-11T12:00:00Z"));
     bundle.controller.ui.update.last_error = None;
     Ok(bundle)
-}
-
-fn seed_source_fixture(
-    controller: &mut AppController,
-    source: &SampleSource,
-    entries: Vec<WavEntry>,
-) -> Result<(), String> {
-    controller.library.sources.push(source.clone());
-    controller.selection_state.ctx.selected_source = Some(source.id.clone());
-    controller
-        .cache_db(source)
-        .map_err(|err| format!("cache GUI fixture source DB: {err}"))?;
-    write_entries_to_source_db(controller, source, &entries)?;
-    controller.wav_entries.clear();
-    controller.wav_entries.source_id = Some(source.id.clone());
-    controller.wav_entries.total = entries.len();
-    controller.wav_entries.insert_page(0, entries);
-    controller.rebuild_wav_lookup();
-    controller.refresh_sources_ui();
-    controller.rebuild_browser_lists();
-    Ok(())
-}
-
-fn write_entries_to_source_db(
-    controller: &mut AppController,
-    source: &SampleSource,
-    entries: &[WavEntry],
-) -> Result<(), String> {
-    let db = controller
-        .database_for(source)
-        .map_err(|err| format!("open GUI fixture source DB: {err}"))?;
-    let mut batch = db
-        .write_batch()
-        .map_err(|err| format!("create GUI fixture source write batch: {err}"))?;
-    for entry in entries {
-        let hash = entry.content_hash.as_deref().unwrap_or("gui-fixture");
-        batch
-            .upsert_file_with_hash_and_tag(
-                &entry.relative_path,
-                entry.file_size,
-                entry.modified_ns,
-                hash,
-                entry.tag,
-                entry.missing,
-            )
-            .map_err(|err| {
-                format!(
-                    "seed GUI fixture DB row {}: {err}",
-                    entry.relative_path.display()
-                )
-            })?;
-    }
-    batch
-        .commit()
-        .map_err(|err| format!("commit GUI fixture source DB batch: {err}"))
-}
-
-fn write_fixture_entry(
-    root: &Path,
-    name: &str,
-    samples: &[f32],
-    tag: crate::sample_sources::Rating,
-) -> Result<WavEntry, String> {
-    let path = root.join(name);
-    let spec = WavSpec {
-        channels: 1,
-        sample_rate: 16_000,
-        bits_per_sample: 32,
-        sample_format: SampleFormat::Float,
-    };
-    let mut writer = WavWriter::create(&path, spec)
-        .map_err(|err| format!("create fixture wav {}: {err}", path.display()))?;
-    for sample in samples {
-        writer
-            .write_sample(*sample)
-            .map_err(|err| format!("write fixture wav {}: {err}", path.display()))?;
-    }
-    writer
-        .finalize()
-        .map_err(|err| format!("finalize fixture wav {}: {err}", path.display()))?;
-    let metadata = fs::metadata(&path)
-        .map_err(|err| format!("read fixture wav metadata {}: {err}", path.display()))?;
-    let modified = metadata
-        .modified()
-        .map_err(|err| format!("read fixture wav modified time {}: {err}", path.display()))?;
-    let modified_ns = modified
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_err(|err| {
-            format!(
-                "fixture wav modified time before epoch {}: {err}",
-                path.display()
-            )
-        })?
-        .as_nanos()
-        .min(i64::MAX as u128) as i64;
-    Ok(WavEntry {
-        relative_path: PathBuf::from(name),
-        file_size: metadata.len(),
-        modified_ns,
-        content_hash: Some(format!("fixture-{name}")),
-        tag,
-        looped: false,
-        sound_type: None,
-        locked: false,
-        missing: false,
-        last_played_at: None,
-        user_tag: None,
-        tag_named: false,
-        normal_tags: Vec::new(),
-    })
 }
