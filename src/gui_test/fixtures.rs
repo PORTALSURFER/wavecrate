@@ -200,6 +200,7 @@ mod tests {
     use crate::gui_test::GUI_TEST_ISOLATED_STARTUP_FIXTURE_TAG;
 
     #[test]
+    #[ignore = "runs through scripts/gui.ps1 contract; fixture-backed smoke is too expensive for the default lib test lane"]
     fn default_fixture_alias_matches_isolated_startup_behavior() {
         let default_bridge = GuiFixtureBridge::new("default").expect("default fixture bridge");
         let isolated_bridge = GuiFixtureBridge::new(GUI_TEST_ISOLATED_STARTUP_FIXTURE_TAG)
@@ -213,6 +214,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "runs through scripts/gui.ps1 contract; fixture-backed smoke is too expensive for the default lib test lane"]
     fn named_fixtures_stay_controller_backed() {
         let bridge = GuiFixtureBridge::new("browser").expect("browser fixture bridge");
         assert!(bridge._profile_guard.is_none());

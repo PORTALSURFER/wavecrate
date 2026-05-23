@@ -149,6 +149,7 @@ fn startup_work_uses_startup_retained_pull_plan() {
 
 /// Deferred metadata persistence should use the metadata-retained preparation lane.
 #[test]
+#[ignore = "runs through scripts/gui.ps1 contract; fixture-backed bridge runtime coverage is too expensive for the default lib test lane"]
 fn metadata_work_uses_metadata_retained_pull_plan() {
     let bundle = crate::app_core::controller::build_named_gui_fixture_controller(
         WaveformRenderer::new(16, 16),

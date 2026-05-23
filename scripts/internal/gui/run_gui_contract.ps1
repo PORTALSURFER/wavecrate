@@ -49,6 +49,48 @@ try {
     Invoke-WavecrateCargo test gui_test::
   }
 
+  Write-Host "[gui-contract] cargo test gui_test::fixtures::tests -- --ignored"
+  Invoke-NativeStep -Label "cargo test gui_test::fixtures::tests -- --ignored" -Command {
+    $guiFixtureArgs = @(
+      "test",
+      "-p",
+      "wavecrate",
+      "--lib",
+      "gui_test::fixtures::tests",
+      "--",
+      "--ignored"
+    )
+    & cargo @(Get-WavecrateCargoConfigOverrideArgs) @guiFixtureArgs
+  }
+
+  Write-Host "[gui-contract] cargo test gui_test::runner::tests -- --ignored"
+  Invoke-NativeStep -Label "cargo test gui_test::runner::tests -- --ignored" -Command {
+    $guiRunnerArgs = @(
+      "test",
+      "-p",
+      "wavecrate",
+      "--lib",
+      "gui_test::runner::tests",
+      "--",
+      "--ignored"
+    )
+    & cargo @(Get-WavecrateCargoConfigOverrideArgs) @guiRunnerArgs
+  }
+
+  Write-Host "[gui-contract] cargo test bridge_runtime fixture checks -- --ignored"
+  Invoke-NativeStep -Label "cargo test bridge_runtime fixture checks -- --ignored" -Command {
+    $bridgeRuntimeArgs = @(
+      "test",
+      "-p",
+      "wavecrate",
+      "--lib",
+      "app_core::native_bridge::tests::bridge_runtime",
+      "--",
+      "--ignored"
+    )
+    & cargo @(Get-WavecrateCargoConfigOverrideArgs) @bridgeRuntimeArgs
+  }
+
   Write-Host "[gui-contract] cargo test contract_smoke_pack_runs_cleanly -- --ignored --exact"
   Invoke-NativeStep -Label "cargo test contract_smoke_pack_runs_cleanly -- --ignored --exact" -Command {
     $contractSmokeArgs = @(

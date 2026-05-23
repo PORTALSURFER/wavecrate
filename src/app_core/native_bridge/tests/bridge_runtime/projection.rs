@@ -62,6 +62,7 @@ fn bridge_reprojects_after_async_waveform_image_arrival() {
 
 /// Projecting an arrived async image should not immediately schedule another image render.
 #[test]
+#[ignore = "runs through scripts/gui.ps1 contract; fixture-backed bridge runtime coverage is too expensive for the default lib test lane"]
 fn async_waveform_image_arrival_is_projection_only_dirty_work() {
     let bundle = crate::app_core::controller::build_named_gui_fixture_controller(
         WaveformRenderer::new(32, 16),
@@ -168,6 +169,7 @@ fn random_navigation_toggle_updates_projected_browser_actions_immediately() {
 
 /// Duplicate cleanup should project active toolbar state plus transient row badges.
 #[test]
+#[ignore = "runs through scripts/gui.ps1 contract; fixture-backed bridge runtime coverage is too expensive for the default lib test lane"]
 fn duplicate_cleanup_projects_active_browser_state_and_row_badges() {
     let bundle = crate::app_core::controller::build_named_gui_fixture_controller(
         WaveformRenderer::new(16, 16),
@@ -226,6 +228,7 @@ fn duplicate_cleanup_projects_active_browser_state_and_row_badges() {
 /// Loop-toggle metadata writes should refresh the visible browser badge in the
 /// same projection cycle for the loaded waveform sample.
 #[test]
+#[ignore = "runs through scripts/gui.ps1 contract; fixture-backed bridge runtime coverage is too expensive for the default lib test lane"]
 fn toggle_loop_playback_refreshes_loaded_sample_loop_badge_immediately() {
     let bundle = crate::app_core::controller::build_named_gui_fixture_controller(
         WaveformRenderer::new(16, 16),
@@ -263,6 +266,7 @@ fn toggle_loop_playback_refreshes_loaded_sample_loop_badge_immediately() {
 
 /// Enabling loop should project persisted BPM metadata alongside the new loop badge.
 #[test]
+#[ignore = "runs through scripts/gui.ps1 contract; fixture-backed bridge runtime coverage is too expensive for the default lib test lane"]
 fn toggle_loop_playback_refreshes_loaded_sample_bpm_and_loop_badges_immediately() {
     let bundle = crate::app_core::controller::build_named_gui_fixture_controller(
         WaveformRenderer::new(16, 16),

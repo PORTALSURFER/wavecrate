@@ -64,6 +64,21 @@ try {
     Invoke-WavecrateCargo test -p wavecrate --lib
   }
 
+  Write-Host "[ci_agent] cargo test selection export background jobs -- --ignored --test-threads=1"
+  Invoke-NativeStep -Label "cargo test selection export background jobs -- --ignored --test-threads=1" -Command {
+    $selectionExportArgs = @(
+      "test",
+      "-p",
+      "wavecrate",
+      "--lib",
+      "selection_export_tests",
+      "--",
+      "--ignored",
+      "--test-threads=1"
+    )
+    & cargo @(Get-WavecrateCargoConfigOverrideArgs) @selectionExportArgs
+  }
+
   Write-Host "[ci_agent] OK"
 } finally {
   Pop-Location
