@@ -4,7 +4,6 @@ use radiant::gui::types::Point;
 use radiant::prelude as ui;
 use radiant::runtime::{NativeFileDrop, NativeRunOptions, NativeTextOptions};
 use radiant::widgets::{DragHandleMessage, PointerModifiers};
-use rfd::FileDialog;
 use std::{
     ffi::OsString,
     panic::{self, AssertUnwindSafe},
@@ -28,6 +27,7 @@ mod context_menu_actions;
 mod drag_drop_actions;
 mod file_actions;
 mod folder_browser;
+mod folder_scan_actions;
 mod playback;
 mod sample_browser_view;
 mod shortcuts;
@@ -46,7 +46,7 @@ use file_actions::format_copy_path;
 use file_actions::{normalize_wav_file_in_place, sample_path_label};
 use folder_browser::{
     FolderBrowserMessage, FolderBrowserState, FolderScanDiscoveryBatch, FolderScanProgress,
-    FolderScanRequest, FolderScanResult,
+    FolderScanResult,
 };
 use sample_browser_view::sample_browser;
 use shortcuts::default_gui_shortcut_resolution;
@@ -527,49 +527,6 @@ impl GuiAppState {
         }
     }
 
-    fn apply_folder_scan_progress(&mut self, progress: FolderScanProgress) {
-        let started_at = Instant::now();
-        if self
-            .folder_browser
-            .scan_is_active(&progress.source_id, progress.task_id)
-        {
-            let phase = progress.phase.clone();
-            self.folder_progress = Some(progress);
-            emit_gui_action(
-                "folder_browser.scan.progress",
-                Some("folder_browser"),
-                Some(&phase),
-                "active",
-                started_at,
-                None,
-            );
-        }
-    }
-
-    fn apply_folder_scan_discovery_batch(&mut self, batch: FolderScanDiscoveryBatch) {
-        let started_at = Instant::now();
-        let count = batch.events.len();
-        self.folder_browser.apply_scan_discovered_batch(batch);
-        if logging::debug_logging_enabled() {
-            tracing::debug!(
-                target: logging::ACTION_EVENT_TARGET,
-                event = "action_detail",
-                action = "folder_browser.scan.discovery_batch",
-                pane = "folder_browser",
-                item_count = count,
-                "Folder browser scan discovery batch applied"
-            );
-        }
-        emit_gui_action(
-            "folder_browser.scan.discovery_batch",
-            Some("folder_browser"),
-            None,
-            "applied",
-            started_at,
-            None,
-        );
-    }
-
     fn toggle_audio_backend_dropdown(&mut self) {
         self.audio_backend_dropdown_open = !self.audio_backend_dropdown_open;
         self.audio_output_dropdown_open = false;
@@ -766,75 +723,6 @@ impl GuiAppState {
             .take()
             .map(|receiver| ui::Subscription::worker("gui-workers", receiver))
             .unwrap_or_else(ui::Subscription::none)
-    }
-
-    fn next_folder_task_id(&mut self) -> u64 {
-        let task_id = self.next_task_id;
-        self.next_task_id = self.next_task_id.saturating_add(1);
-        task_id
-    }
-
-    fn add_source_from_dialog(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
-        let started_at = Instant::now();
-        let Some(path) = FileDialog::new().set_title("Add source").pick_folder() else {
-            emit_gui_action(
-                "folder_browser.add_source_dialog",
-                Some("folder_browser"),
-                None,
-                "cancelled",
-                started_at,
-                None,
-            );
-            return;
-        };
-        let task_id = self.next_folder_task_id();
-        if let Some(request) = self.folder_browser.begin_add_source_path(path, task_id) {
-            let label = request.label.clone();
-            emit_gui_action(
-                "folder_browser.add_source_dialog",
-                Some("folder_browser"),
-                Some(&label),
-                "scan_queued",
-                started_at,
-                None,
-            );
-            self.launch_folder_scan(request, context);
-        } else {
-            emit_gui_action(
-                "folder_browser.add_source_dialog",
-                Some("folder_browser"),
-                None,
-                "short_circuit",
-                started_at,
-                Some("source_not_queued"),
-            );
-        }
-    }
-
-    fn select_source(&mut self, id: String, context: &mut ui::UpdateContext<GuiMessage>) {
-        let started_at = Instant::now();
-        let task_id = self.next_folder_task_id();
-        if let Some(request) = self.folder_browser.begin_select_source(id, task_id) {
-            let label = request.label.clone();
-            emit_gui_action(
-                "folder_browser.select_source",
-                Some("folder_browser"),
-                Some(&label),
-                "scan_queued",
-                started_at,
-                None,
-            );
-            self.launch_folder_scan(request, context);
-        } else {
-            emit_gui_action(
-                "folder_browser.select_source",
-                Some("folder_browser"),
-                None,
-                "short_circuit",
-                started_at,
-                Some("source_not_found"),
-            );
-        }
     }
 
     fn delete_selected_item(&mut self) {
@@ -1079,119 +967,6 @@ impl GuiAppState {
             self.start_playback_current_span(start, end)?;
         }
         Ok(())
-    }
-
-    fn launch_folder_scan(
-        &mut self,
-        request: FolderScanRequest,
-        context: &mut ui::UpdateContext<GuiMessage>,
-    ) {
-        let started_at = Instant::now();
-        let label = request.label.clone();
-        let root = request.root.display().to_string();
-        self.folder_progress = Some(FolderScanProgress {
-            task_id: request.task_id,
-            source_id: request.source_id.clone(),
-            label: request.label.clone(),
-            phase: String::from("Queued"),
-            completed: 0,
-            total: 0,
-            detail: request.root.display().to_string(),
-        });
-        self.sample_status = format!("Scanning source {}", request.label);
-        tracing::info!(
-            source = label,
-            root = root,
-            task_id = request.task_id,
-            "default gui: folder scan queued"
-        );
-        emit_gui_action(
-            "folder_browser.scan.queue",
-            Some("folder_browser"),
-            Some(&label),
-            "queued",
-            started_at,
-            None,
-        );
-        let sender = self.worker_sender.clone();
-        context.spawn(
-            "gui-folder-scan",
-            move || {
-                let discovery_sender = sender.clone();
-                let mut pending_discoveries = Vec::with_capacity(64);
-                let task_id = request.task_id;
-                let source_id = request.source_id.clone();
-                let result = folder_browser::scan_source_with_progress(
-                    request,
-                    |progress| {
-                        let _ = sender.send(GuiMessage::FolderScanProgress(progress));
-                    },
-                    |event| {
-                        pending_discoveries.push(event);
-                        if pending_discoveries.len() >= 64 {
-                            let events = std::mem::take(&mut pending_discoveries);
-                            let _ = discovery_sender.send(GuiMessage::FolderScanDiscoveryBatch(
-                                FolderScanDiscoveryBatch {
-                                    task_id,
-                                    source_id: source_id.clone(),
-                                    events,
-                                },
-                            ));
-                        }
-                    },
-                );
-                if !pending_discoveries.is_empty() {
-                    let events = std::mem::take(&mut pending_discoveries);
-                    let _ = discovery_sender.send(GuiMessage::FolderScanDiscoveryBatch(
-                        FolderScanDiscoveryBatch {
-                            task_id,
-                            source_id,
-                            events,
-                        },
-                    ));
-                }
-                result
-            },
-            GuiMessage::FolderScanFinished,
-        );
-    }
-
-    fn finish_folder_scan(&mut self, result: FolderScanResult) {
-        let started_at = Instant::now();
-        let label = result.label.clone();
-        let file_count = result.file_count;
-        let folder_count = result.folder_count;
-        if self.folder_browser.apply_scan_finished(result) {
-            self.folder_progress = None;
-            self.job_details_open = false;
-            self.progress_tick = 0.0;
-            self.sample_status =
-                format!("Loaded source {label}: {file_count} files in {folder_count} folders");
-            tracing::info!(
-                source = label,
-                file_count,
-                folder_count,
-                "default gui: folder scan finished"
-            );
-            emit_gui_action(
-                "folder_browser.scan.finish",
-                Some("folder_browser"),
-                Some(&label),
-                "success",
-                started_at,
-                None,
-            );
-            self.persist_user_configuration("folder_browser.sources.persist", started_at);
-        } else {
-            emit_gui_action(
-                "folder_browser.scan.finish",
-                Some("folder_browser"),
-                Some(&label),
-                "stale",
-                started_at,
-                None,
-            );
-        }
     }
 
     fn select_sample(&mut self, path: String, context: &mut ui::UpdateContext<GuiMessage>) {
