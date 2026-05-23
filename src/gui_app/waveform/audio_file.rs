@@ -1,25 +1,39 @@
-use radiant::runtime::{
-    GpuSignalGainPreview, GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel,
-};
+use radiant::runtime::{GpuSignalGainPreview, GpuSignalSummary};
 use std::{
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
-    io::{Cursor, Read},
     path::PathBuf,
     sync::Arc,
 };
 
-use super::{BAND_COUNT, WAVEFORM_HEIGHT, WAVEFORM_WIDTH};
 #[cfg(test)]
 use super::{SYNTHETIC_SAMPLE_RATE, SYNTHETIC_SECONDS};
+use super::{WAVEFORM_HEIGHT, WAVEFORM_WIDTH};
+
+mod downmix;
+#[cfg(test)]
+pub(super) use downmix::downmix_to_mono;
+use downmix::downmix_to_mono_with_progress;
 
 mod extraction;
 pub(super) use extraction::extract_wav_range_to_sibling;
+
+mod file_io;
+use file_io::read_audio_file_with_progress;
+
+mod progress;
+pub(super) use progress::report_phase_progress_throttled;
+
+mod signal_summary;
+use signal_summary::gpu_signal_summary_with_progress;
 
 mod visual_bands;
 #[cfg(test)]
 pub(super) use visual_bands::split_frequency_bands;
 pub(super) use visual_bands::split_frequency_bands_with_progress;
+
+mod wav_decode;
+use wav_decode::load_wav_waveform_file_with_progress;
 
 #[derive(Clone, Debug)]
 pub(in crate::gui_app) struct WaveformFile {
@@ -89,35 +103,6 @@ pub(super) fn load_waveform_file_with_progress(
     ))
 }
 
-fn read_audio_file_with_progress(
-    path: &std::path::Path,
-    start: f32,
-    end: f32,
-    progress: &impl Fn(f32),
-) -> Result<Arc<[u8]>, String> {
-    let mut file =
-        std::fs::File::open(path).map_err(|err| format!("failed to read audio file: {err}"))?;
-    let total = file.metadata().ok().map(|metadata| metadata.len() as usize);
-    let mut bytes = Vec::with_capacity(total.unwrap_or_default().min(64 * 1024 * 1024));
-    let mut buffer = [0_u8; 256 * 1024];
-    let mut read = 0usize;
-    loop {
-        let count = file
-            .read(&mut buffer)
-            .map_err(|err| format!("failed to read audio file: {err}"))?;
-        if count == 0 {
-            break;
-        }
-        bytes.extend_from_slice(&buffer[..count]);
-        read = read.saturating_add(count);
-        if let Some(total) = total.filter(|total| *total > 0) {
-            report_phase_progress(start, end, read, total, progress);
-        }
-    }
-    progress(end);
-    Ok(bytes.into())
-}
-
 #[cfg(test)]
 pub(super) fn synthetic_waveform_file() -> WaveformFile {
     let frames = SYNTHETIC_SAMPLE_RATE as usize * SYNTHETIC_SECONDS;
@@ -174,7 +159,6 @@ fn waveform_file_from_mono_samples_with_progress(
     let gpu_signal_summary = Arc::new(gpu_signal_summary_with_progress(
         &gpu_signal_samples,
         mono_samples.len(),
-        BAND_COUNT,
         0.9,
         0.99,
         progress,
@@ -188,129 +172,6 @@ fn waveform_file_from_mono_samples_with_progress(
         frames: mono_samples.len(),
         gpu_signal_summary,
     }
-}
-
-fn gpu_signal_summary_with_progress(
-    samples: &[f32],
-    frames: usize,
-    band_count: usize,
-    start: f32,
-    end: f32,
-    progress: &impl Fn(f32),
-) -> GpuSignalSummary {
-    let frames = frames.min(samples.len() / band_count.max(1));
-    let band_count = band_count.max(1);
-    let mut levels = Vec::with_capacity(signal_summary_level_count(frames));
-    let mut bucket_frames = 1usize;
-    let mut previous_buckets: Option<Arc<[GpuSignalSummaryBucket]>> = None;
-    let total_levels = signal_summary_level_count(frames).max(1);
-    while bucket_frames <= frames.max(1) {
-        let level_index = levels.len();
-        let level_start = start + (end - start) * (level_index as f32 / total_levels as f32);
-        let level_end = start + (end - start) * ((level_index + 1) as f32 / total_levels as f32);
-        let buckets = match previous_buckets.as_deref() {
-            Some(previous) => merge_signal_summary_level_with_progress(
-                previous,
-                frames,
-                band_count,
-                bucket_frames,
-                level_start,
-                level_end,
-                progress,
-            ),
-            None => build_signal_summary_base_level_with_progress(
-                samples,
-                frames,
-                band_count,
-                level_start,
-                level_end,
-                progress,
-            ),
-        };
-        levels.push(GpuSignalSummaryLevel {
-            bucket_frames,
-            buckets: Arc::clone(&buckets),
-        });
-        previous_buckets = Some(buckets);
-        if bucket_frames >= frames.max(1) {
-            break;
-        }
-        bucket_frames = bucket_frames.saturating_mul(2).max(bucket_frames + 1);
-    }
-    progress(end);
-    GpuSignalSummary {
-        frames,
-        band_count,
-        levels,
-    }
-}
-
-fn signal_summary_level_count(frames: usize) -> usize {
-    let frames = frames.max(1);
-    usize::BITS as usize - frames.leading_zeros() as usize
-}
-
-fn build_signal_summary_base_level_with_progress(
-    samples: &[f32],
-    frames: usize,
-    band_count: usize,
-    start: f32,
-    end: f32,
-    progress: &impl Fn(f32),
-) -> Arc<[GpuSignalSummaryBucket]> {
-    if frames == 0 {
-        return vec![GpuSignalSummaryBucket::default(); band_count].into();
-    }
-    let sample_count = frames.saturating_mul(band_count);
-    let mut buckets = Vec::with_capacity(sample_count);
-    for (index, value) in samples.iter().copied().take(sample_count).enumerate() {
-        if value.is_finite() {
-            buckets.push(GpuSignalSummaryBucket {
-                min: value,
-                max: value,
-            });
-        } else {
-            buckets.push(GpuSignalSummaryBucket::default());
-        }
-        report_phase_progress_throttled(start, end, index + 1, sample_count, progress);
-    }
-    progress(end);
-    buckets.into()
-}
-
-fn merge_signal_summary_level_with_progress(
-    previous: &[GpuSignalSummaryBucket],
-    frames: usize,
-    band_count: usize,
-    bucket_frames: usize,
-    start: f32,
-    end: f32,
-    progress: &impl Fn(f32),
-) -> Arc<[GpuSignalSummaryBucket]> {
-    let bucket_count = frames.div_ceil(bucket_frames.max(1)).max(1);
-    let previous_bucket_count = previous.len() / band_count.max(1);
-    let mut buckets = Vec::with_capacity(bucket_count.saturating_mul(band_count));
-    for bucket in 0..bucket_count {
-        let first = bucket.saturating_mul(2);
-        let second = first + 1;
-        for band in 0..band_count {
-            let mut summary = previous
-                .get(first.saturating_mul(band_count).saturating_add(band))
-                .copied()
-                .unwrap_or_default();
-            if second < previous_bucket_count
-                && let Some(next) =
-                    previous.get(second.saturating_mul(band_count).saturating_add(band))
-            {
-                summary.min = summary.min.min(next.min);
-                summary.max = summary.max.max(next.max);
-            }
-            buckets.push(summary);
-        }
-        report_phase_progress_throttled(start, end, bucket + 1, bucket_count, progress);
-    }
-    progress(end);
-    buckets.into()
 }
 
 pub(super) fn gain_preview_for_selection(
@@ -342,136 +203,4 @@ pub(super) fn content_revision_for_audio_bytes(bytes: &[u8]) -> u64 {
     let mut hasher = DefaultHasher::new();
     bytes.hash(&mut hasher);
     hasher.finish().max(1)
-}
-
-pub(super) fn load_wav_waveform_file_with_progress(
-    path: PathBuf,
-    bytes: Arc<[u8]>,
-    progress: &impl Fn(f32),
-) -> Result<WaveformFile, String> {
-    let cursor = Cursor::new(bytes.as_ref());
-    let mut reader =
-        hound::WavReader::new(cursor).map_err(|err| format!("failed to open WAV: {err}"))?;
-    let spec = reader.spec();
-    let channels = usize::from(spec.channels).max(1);
-    let total_samples = reader.duration() as usize * channels;
-    let samples = match spec.sample_format {
-        hound::SampleFormat::Float => {
-            let mut samples = Vec::with_capacity(total_samples);
-            for (index, sample) in reader.samples::<f32>().enumerate() {
-                let sample = sample
-                    .map(|value| value.clamp(-1.0, 1.0))
-                    .map_err(|err| format!("failed to read float sample: {err}"))?;
-                samples.push(sample);
-                report_phase_progress_throttled(0.08, 0.46, index + 1, total_samples, progress);
-            }
-            progress(0.46);
-            samples
-        }
-        hound::SampleFormat::Int if spec.bits_per_sample <= 16 => {
-            let max =
-                ((1_i32 << (u32::from(spec.bits_per_sample).saturating_sub(1))) - 1).max(1) as f32;
-            let mut samples = Vec::with_capacity(total_samples);
-            for (index, sample) in reader.samples::<i16>().enumerate() {
-                let sample = sample
-                    .map(|value| (f32::from(value) / max).clamp(-1.0, 1.0))
-                    .map_err(|err| format!("failed to read integer sample: {err}"))?;
-                samples.push(sample);
-                report_phase_progress_throttled(0.08, 0.46, index + 1, total_samples, progress);
-            }
-            progress(0.46);
-            samples
-        }
-        hound::SampleFormat::Int => {
-            let max =
-                ((1_i64 << (u32::from(spec.bits_per_sample).saturating_sub(1))) - 1).max(1) as f32;
-            let mut samples = Vec::with_capacity(total_samples);
-            for (index, sample) in reader.samples::<i32>().enumerate() {
-                let sample = sample
-                    .map(|value| ((value as f32) / max).clamp(-1.0, 1.0))
-                    .map_err(|err| format!("failed to read integer sample: {err}"))?;
-                samples.push(sample);
-                report_phase_progress_throttled(0.08, 0.46, index + 1, total_samples, progress);
-            }
-            progress(0.46);
-            samples
-        }
-    };
-    if samples.is_empty() {
-        return Err(String::from("WAV contains no samples"));
-    }
-
-    let frames = samples.len() / channels;
-    let mono_samples =
-        downmix_to_mono_with_progress(&samples, channels, frames, 0.46, 0.62, progress);
-    if mono_samples.is_empty() {
-        return Err(String::from("WAV contains no complete frames"));
-    }
-    Ok(waveform_file_from_mono_samples_with_progress(
-        path,
-        bytes,
-        spec.sample_rate,
-        channels,
-        mono_samples,
-        progress,
-    ))
-}
-
-#[cfg(test)]
-pub(super) fn downmix_to_mono(samples: &[f32], channels: usize, frames: usize) -> Vec<f32> {
-    downmix_to_mono_with_progress(samples, channels, frames, 0.0, 1.0, &|_| {})
-}
-
-fn downmix_to_mono_with_progress(
-    samples: &[f32],
-    channels: usize,
-    frames: usize,
-    start: f32,
-    end: f32,
-    progress: &impl Fn(f32),
-) -> Vec<f32> {
-    let channels = channels.max(1);
-    let mut mono = Vec::with_capacity(frames);
-    for frame in 0..frames {
-        let sample_start = frame * channels;
-        let mut peak = 0.0_f32;
-        for sample in samples[sample_start..sample_start + channels]
-            .iter()
-            .copied()
-        {
-            if sample.abs() > peak.abs() {
-                peak = sample;
-            }
-        }
-        mono.push(peak.clamp(-1.0, 1.0));
-        report_phase_progress_throttled(start, end, frame + 1, frames, progress);
-    }
-    progress(end);
-    mono
-}
-
-pub(super) fn report_phase_progress_throttled(
-    start: f32,
-    end: f32,
-    completed: usize,
-    total: usize,
-    progress: &impl Fn(f32),
-) {
-    if completed == total || completed % 16_384 == 0 {
-        report_phase_progress(start, end, completed, total, progress);
-    }
-}
-
-fn report_phase_progress(
-    start: f32,
-    end: f32,
-    completed: usize,
-    total: usize,
-    progress: &impl Fn(f32),
-) {
-    if total == 0 {
-        return;
-    }
-    let ratio = completed as f32 / total as f32;
-    progress(start + (end - start) * ratio.clamp(0.0, 1.0));
 }
