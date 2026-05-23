@@ -1,3 +1,4 @@
+use super::super::browser_pill_editor::browser_pill_editor_layout;
 use super::*;
 #[cfg(test)]
 use crate::app_core::native_shell::runtime_contract::PlaybackAgeFilterChip;
@@ -5,6 +6,16 @@ use crate::gui::list::{
     VirtualListScrollbar, virtual_list_scrollbar_thumb_offset_at_point,
     virtual_list_scrollbar_view_start_at_point,
 };
+
+#[path = "browser/cache_key.rs"]
+mod cache_key;
+#[path = "browser/pill_editor.rs"]
+mod pill_editor;
+
+pub(in crate::app_core::native_shell::composition::state) use cache_key::{
+    browser_action_hit_test_cache_key, browser_action_model_signature,
+};
+use pill_editor::browser_pill_editor_action_at_point;
 
 /// Additional hit slop for the narrow content-list scrollbar thumb.
 const BROWSER_SCROLLBAR_THUMB_HIT_SLOP: f32 = 3.0;
@@ -469,205 +480,4 @@ fn focused_similarity_action() -> UiAction {
     // The current local composition contract is generic. The outer Wavecrate
     // adapter still maps this to UiAction::ToggleFindSimilarFocusedSample.
     UiAction::ToggleFindSimilarFocusedContent
-}
-
-#[derive(Clone, Debug)]
-struct BrowserPillEditorLayout {
-    auto_rename_rect: Rect,
-    input_rect: Rect,
-    input_text_rect: Rect,
-    playback_rects: [Rect; 2],
-    normal_tag_rects: Vec<Rect>,
-    create_tag_rect: Option<Rect>,
-}
-
-fn browser_pill_editor_rect(
-    rows_rect: Rect,
-    _sizing: SizingTokens,
-    model: &AppModel,
-) -> Option<Rect> {
-    browser_pill_editor_panel_rect(rows_rect, _sizing, model)
-}
-
-fn browser_pill_editor_layout(
-    rows_rect: Rect,
-    sizing: SizingTokens,
-    model: &AppModel,
-) -> Option<BrowserPillEditorLayout> {
-    let rect = browser_pill_editor_rect(rows_rect, sizing, model)?;
-    let pad = sizing.panel_inset.max(8.0);
-    let content_min_x = rect.min.x + pad;
-    let content_max_x = rect.max.x - pad;
-    let field_height = sizing.browser_row_height.max(22.0);
-    let auto_rename_top = rect.min.y + pad + sizing.font_body + 10.0;
-    let auto_rename_rect = Rect::from_min_max(
-        Point::new(content_min_x, auto_rename_top),
-        Point::new(content_max_x, auto_rename_top + field_height),
-    );
-    let input_top = auto_rename_rect.max.y + 8.0;
-    let input_rect = Rect::from_min_max(
-        Point::new(content_min_x, input_top),
-        Point::new(content_max_x, input_top + field_height),
-    );
-    let input_text_rect = Rect::from_min_max(
-        Point::new(
-            input_rect.min.x + sizing.text_inset_x,
-            input_rect.min.y + sizing.text_inset_y,
-        ),
-        Point::new(
-            input_rect.max.x - sizing.text_inset_x,
-            input_rect.max.y - sizing.text_inset_y,
-        ),
-    );
-    let pill_gap = sizing.border_width.max(1.0) + 4.0;
-    let two_col_width = ((content_max_x - content_min_x - pill_gap) * 0.5).max(40.0);
-    let playback_top = input_rect.max.y + 10.0;
-    let playback_rects = [
-        Rect::from_min_max(
-            Point::new(content_min_x, playback_top),
-            Point::new(content_min_x + two_col_width, playback_top + field_height),
-        ),
-        Rect::from_min_max(
-            Point::new(content_min_x + two_col_width + pill_gap, playback_top),
-            Point::new(content_max_x, playback_top + field_height),
-        ),
-    ];
-    let tags_top = playback_rects[0].max.y + 12.0;
-    let tag_cols = 3usize;
-    let tag_width = ((content_max_x - content_min_x - pill_gap * (tag_cols - 1) as f32)
-        / tag_cols as f32)
-        .max(40.0);
-    let mut normal_tag_rects = Vec::with_capacity(model.browser.pill_editor().option_pills.len());
-    for index in 0..model.browser.pill_editor().option_pills.len() {
-        let col = index % tag_cols;
-        let row = index / tag_cols;
-        let min_x = content_min_x + (tag_width + pill_gap) * col as f32;
-        let min_y = tags_top + (field_height + pill_gap) * row as f32;
-        normal_tag_rects.push(Rect::from_min_max(
-            Point::new(min_x, min_y),
-            Point::new((min_x + tag_width).min(content_max_x), min_y + field_height),
-        ));
-    }
-    let create_tag_rect = model.browser.pill_editor().create_pill.as_ref().map(|_| {
-        let y = normal_tag_rects
-            .last()
-            .map(|rect| rect.max.y + 12.0)
-            .unwrap_or(tags_top);
-        Rect::from_min_max(
-            Point::new(content_min_x, y),
-            Point::new(content_max_x, y + field_height),
-        )
-    });
-    Some(BrowserPillEditorLayout {
-        auto_rename_rect,
-        input_rect,
-        input_text_rect,
-        playback_rects,
-        normal_tag_rects,
-        create_tag_rect,
-    })
-}
-
-fn browser_pill_editor_action_at_point(
-    rows_rect: Rect,
-    sizing: SizingTokens,
-    model: &AppModel,
-    point: Point,
-) -> Option<UiAction> {
-    let layout = browser_pill_editor_layout(rows_rect, sizing, model)?;
-    if layout.auto_rename_rect.contains(point) {
-        return Some(UiAction::ToggleBrowserPillEditorPrimaryAction);
-    }
-    if layout.input_rect.contains(point) {
-        return Some(UiAction::FocusBrowserPillEditorInput);
-    }
-    for (index, rect) in layout.playback_rects.iter().enumerate() {
-        if rect.contains(point) {
-            return Some(UiAction::SetBrowserSidebarLooped { looped: index == 0 });
-        }
-    }
-    for (pill, rect) in model
-        .browser
-        .pill_editor()
-        .option_pills
-        .iter()
-        .zip(layout.normal_tag_rects.iter())
-    {
-        if rect.contains(point) {
-            return Some(UiAction::ToggleBrowserPillOption {
-                label: pill.label.clone(),
-            });
-        }
-    }
-    if let (Some(pill), Some(rect)) = (
-        model.browser.pill_editor().create_pill.as_ref(),
-        layout.create_tag_rect,
-    ) && rect.contains(point)
-    {
-        return Some(UiAction::ToggleBrowserPillOption {
-            label: pill.id.clone(),
-        });
-    }
-    None
-}
-
-pub(in crate::app_core::native_shell::composition::state) fn browser_action_hit_test_cache_key(
-    layout: &ShellLayout,
-    model: &AppModel,
-) -> BrowserActionHitTestCacheKey {
-    BrowserActionHitTestCacheKey {
-        browser_toolbar_min_x: f32_to_bits(layout.browser_toolbar.min.x),
-        browser_toolbar_min_y: f32_to_bits(layout.browser_toolbar.min.y),
-        browser_toolbar_max_x: f32_to_bits(layout.browser_toolbar.max.x),
-        browser_toolbar_max_y: f32_to_bits(layout.browser_toolbar.max.y),
-        ui_scale: f32_to_bits(layout.ui_scale),
-        model_signature: browser_action_model_signature(model),
-    }
-}
-
-pub(in crate::app_core::native_shell::composition::state) fn browser_action_model_signature(
-    model: &AppModel,
-) -> u64 {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    model.browser_actions.can_rename.hash(&mut hasher);
-    model.browser_actions.can_edit_pills().hash(&mut hasher);
-    model.browser_actions.can_delete.hash(&mut hasher);
-    model
-        .browser_actions
-        .random_navigation_enabled
-        .hash(&mut hasher);
-    model
-        .browser_actions
-        .duplicate_cleanup_active
-        .hash(&mut hasher);
-    model.browser_actions.pill_editor_open().hash(&mut hasher);
-    model.browser.active_rating_filters.hash(&mut hasher);
-    model.browser.active_recency_filters.hash(&mut hasher);
-    model.browser.marked_filter_active.hash(&mut hasher);
-    model
-        .browser
-        .derived_label_filter_active()
-        .hash(&mut hasher);
-    model
-        .browser
-        .derived_label_filter_negated()
-        .hash(&mut hasher);
-    model.browser.search_query.hash(&mut hasher);
-    model.browser.busy.hash(&mut hasher);
-    model.browser.sort_label.hash(&mut hasher);
-    model.browser_chrome.search_placeholder.hash(&mut hasher);
-    model.browser_chrome.activity_ready_label.hash(&mut hasher);
-    model.browser_chrome.activity_busy_label.hash(&mut hasher);
-    model.browser_chrome.sort_prefix_label.hash(&mut hasher);
-    model.browser_chrome.sort_order_label.hash(&mut hasher);
-    model.selected_column.min(2).hash(&mut hasher);
-    for index in 0..3 {
-        if let Some(column) = model.columns.get(index) {
-            column.title.hash(&mut hasher);
-            column.item_count.hash(&mut hasher);
-        } else {
-            index.hash(&mut hasher);
-        }
-    }
-    hasher.finish()
 }
