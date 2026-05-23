@@ -52,7 +52,7 @@ mod tests {
     }
 
     #[test]
-    fn active_drag_survives_widget_refresh_as_moved() {
+    fn active_drag_uses_runtime_preview_after_widget_refresh() {
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
         let mut first = SampleFileHitTarget::new(false, false, false);
         first.handle_input(
@@ -77,16 +77,16 @@ mod tests {
 
         let mut refreshed = SampleFileHitTarget::new(false, true, true);
         refreshed.common.state = first.common.state;
-        assert_eq!(
-            message_from(refreshed.handle_input(
-                bounds,
-                WidgetInput::PointerMove {
-                    position: Point::new(34.0, 8.0),
-                },
-            )),
-            SampleFileHitMessage::Drag(DragHandleMessage::Moved {
-                position: Point::new(34.0, 8.0),
-            })
+        assert!(
+            refreshed
+                .handle_input(
+                    bounds,
+                    WidgetInput::PointerMove {
+                        position: Point::new(34.0, 8.0),
+                    },
+                )
+                .is_none(),
+            "runtime drag preview already tracks pointer movement without app refresh"
         );
     }
 
@@ -95,16 +95,16 @@ mod tests {
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
         let mut refreshed = SampleFileHitTarget::new(false, true, true);
 
-        assert_eq!(
-            message_from(refreshed.handle_input(
-                bounds,
-                WidgetInput::PointerMove {
-                    position: Point::new(34.0, 8.0),
-                },
-            )),
-            SampleFileHitMessage::Drag(DragHandleMessage::Moved {
-                position: Point::new(34.0, 8.0),
-            })
+        assert!(
+            refreshed
+                .handle_input(
+                    bounds,
+                    WidgetInput::PointerMove {
+                        position: Point::new(34.0, 8.0),
+                    },
+                )
+                .is_none(),
+            "active drag moves are runtime-local and should not require retained pressed state"
         );
         assert_eq!(
             message_from(refreshed.handle_input(
@@ -118,6 +118,42 @@ mod tests {
             SampleFileHitMessage::Drag(DragHandleMessage::Ended {
                 position: Point::new(220.0, 90.0),
             })
+        );
+    }
+
+    #[test]
+    fn active_drag_non_source_rows_do_not_keep_hover_highlight() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+        let mut target = SampleFileHitTarget::new(false, true, false);
+        target.common.state.hovered = true;
+
+        assert!(
+            target
+                .handle_input(
+                    bounds,
+                    WidgetInput::PointerMove {
+                        position: Point::new(34.0, 8.0),
+                    },
+                )
+                .is_none()
+        );
+        assert!(
+            !target.common.state.hovered,
+            "sample rows should not retain hover while another file is being dragged"
+        );
+
+        let mut primitives = Vec::new();
+        target.append_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+        assert!(
+            !primitives
+                .iter()
+                .any(|primitive| matches!(primitive, PaintPrimitive::FillRect(fill) if fill.color.a == 155)),
+            "non-source rows should not paint hover highlights during active file drags"
         );
     }
 }
@@ -190,7 +226,14 @@ impl Widget for SampleFileHitTarget {
 
 impl SampleFileHitTarget {
     fn handle_pointer_move(&mut self, bounds: Rect, position: Point) -> Option<WidgetOutput> {
+        if self.drag_active && !self.drag_source {
+            self.common.state.hovered = false;
+            return None;
+        }
         self.common.state.hovered = bounds.contains(position);
+        if self.drag_active && self.drag_source {
+            return None;
+        }
         if !self.common.state.pressed && !self.drag_source {
             return None;
         }
@@ -240,6 +283,9 @@ impl SampleFileHitTarget {
     }
 
     fn paint_interaction_fill(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
+        if self.drag_active && !self.drag_source {
+            return;
+        }
         if !self.common.state.pressed && !self.common.state.hovered {
             return;
         }
