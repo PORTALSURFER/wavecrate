@@ -7,7 +7,7 @@ This lane avoids `cargo-nextest` and the broader GUI contract/integration
 wrappers so it can run in constrained Windows environments where Application
 Control blocks the `cargo-nextest.exe` binary. It keeps the edit loop grounded
 by running the normal compile smoke gate, Radiant's standalone no-default test
-suite, and the full wavecrate library test suite.
+suite, and Wavecrate's default non-ignored library test suite.
 #>
 
 param(

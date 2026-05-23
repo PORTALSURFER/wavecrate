@@ -3,7 +3,7 @@ use super::*;
 use crate::app_core::actions::NativeAutomationBounds as AutomationBounds;
 use crate::app_core::actions::{
     GUI_ACTION_CATALOG, NativeAutomationNodeId, NativeAutomationNodeSnapshot, NativeAutomationRole,
-    NativeGuiAutomationSnapshot, action_catalog_entry_by_id,
+    NativeGuiAutomationSnapshot,
 };
 use crate::gui_test::{GuiActionTraceEvent, GuiAssertion, GuiScenario, GuiScenarioStep};
 use std::collections::BTreeMap;
@@ -91,32 +91,6 @@ fn capture_default_bundle_exposes_root_snapshot_and_catalog() {
 }
 
 #[test]
-fn capture_default_bundle_advertises_only_cataloged_actions_across_named_fixtures() {
-    for fixture_tag in [
-        "browser",
-        "sources",
-        "transport",
-        "map",
-        "waveform",
-        "waveform_mixed",
-        "options",
-        "prompt",
-        "update",
-    ] {
-        let bundle = capture_default_bundle(&deterministic_test_config(fixture_tag))
-            .unwrap_or_else(|err| panic!("fixture {fixture_tag} capture failed: {err}"));
-        let mut advertised_actions = Vec::new();
-        collect_advertised_actions(&bundle.automation_snapshot.root, &mut advertised_actions);
-        for (node_id, action_id) in advertised_actions {
-            assert!(
-                action_catalog_entry_by_id(action_id).is_some(),
-                "fixture {fixture_tag} node {node_id} advertises uncataloged action {action_id}"
-            );
-        }
-    }
-}
-
-#[test]
 fn scenario_runner_accepts_root_presence_assertion() {
     let scenario = GuiScenario {
         name: String::from("root-smoke"),
@@ -198,6 +172,11 @@ fn assert_scenario_state_accepts_each_assertion_variant() {
             node_id: String::from("browser.search"),
             key: String::from("placeholder"),
             needle: String::from("samples"),
+        },
+        GuiAssertion::NodeMetadataEquals {
+            node_id: String::from("browser.search"),
+            key: String::from("placeholder"),
+            value: String::from("Search samples"),
         },
         GuiAssertion::ActionCataloged {
             action_id: String::from(catalog_action),

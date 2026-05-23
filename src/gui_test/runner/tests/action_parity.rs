@@ -1,4 +1,5 @@
 use super::*;
+use crate::app_core::actions::action_catalog_entry_by_id;
 use crate::gui_test::{GuiTestArtifactBundle, find_automation_node};
 use std::collections::BTreeMap;
 
@@ -26,6 +27,20 @@ fn assert_fixture_node_actions(
     }
 }
 
+fn assert_fixture_advertises_only_cataloged_actions(
+    fixture_tag: &str,
+    bundle: &GuiTestArtifactBundle,
+) {
+    let mut advertised_actions = Vec::new();
+    collect_advertised_actions(&bundle.automation_snapshot.root, &mut advertised_actions);
+    for (node_id, action_id) in advertised_actions {
+        assert!(
+            action_catalog_entry_by_id(action_id).is_some(),
+            "fixture {fixture_tag} node {node_id} advertises uncataloged action {action_id}"
+        );
+    }
+}
+
 fn capture_case_fixtures<'a>(
     cases: &[(&'a str, &'a str, &'a [&'a str])],
 ) -> BTreeMap<&'a str, GuiTestArtifactBundle> {
@@ -36,6 +51,7 @@ fn capture_case_fixtures<'a>(
         }
         let bundle = capture_default_bundle(&deterministic_test_config(fixture_tag))
             .unwrap_or_else(|err| panic!("fixture {fixture_tag} capture failed: {err}"));
+        assert_fixture_advertises_only_cataloged_actions(fixture_tag, &bundle);
         bundles.insert(*fixture_tag, bundle);
     }
     bundles
