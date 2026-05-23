@@ -6,13 +6,14 @@ use super::{
 use radiant::{
     gui::types::{Point, Rect, Rgba8, Vector2},
     prelude::{self as ui, IntoView},
-    runtime::{NativeFileDrop, PaintPrimitive},
+    runtime::PaintPrimitive,
     widgets::{DragHandleMessage, PointerButton, PointerModifiers, Widget, WidgetInput},
 };
 use std::{fs, path::PathBuf, sync::mpsc};
 
 mod audio_settings_controls;
 mod audio_settings_dropdowns;
+mod native_file_drop;
 mod shortcuts_context;
 mod status_bar;
 
@@ -457,158 +458,6 @@ fn toolbar_icon_button_routes_transport_message_through_radiant_builder() {
         ),
         Some(super::GuiMessage::ToggleLoopPlayback)
     );
-}
-
-#[test]
-fn native_file_hover_over_waveform_tracks_supported_state() {
-    let root = temp_gui_root("wavecrate-native-file-hover");
-    let wav = root.join("kick.wav");
-    let txt = root.join("note.txt");
-    write_test_wav_i16(&wav, &[0, 100]);
-    fs::write(&txt, "not audio").expect("write text");
-    let mut state = gui_state_for_span_tests();
-    state.folder_browser = super::FolderBrowserState::from_sample_sources(&[
-        wavecrate::sample_sources::SampleSource::new(root.clone()),
-    ]);
-    let mut context = ui::UpdateContext::default();
-
-    state.apply_native_file_drop(
-        NativeFileDrop::hover(
-            wav.clone(),
-            Some(Point::new(8.0, 8.0)),
-            Some(super::WAVEFORM_WIDGET_ID),
-        ),
-        &mut context,
-    );
-    assert_eq!(
-        state.native_file_drop_hover,
-        Some(super::NativeFileDropHover {
-            path: wav.clone(),
-            supported: true,
-        })
-    );
-
-    state.apply_native_file_drop(
-        NativeFileDrop::hover(
-            txt.clone(),
-            Some(Point::new(8.0, 8.0)),
-            Some(super::WAVEFORM_WIDGET_ID),
-        ),
-        &mut context,
-    );
-    assert_eq!(
-        state.native_file_drop_hover,
-        Some(super::NativeFileDropHover {
-            path: txt,
-            supported: false,
-        })
-    );
-
-    state.apply_native_file_drop(
-        NativeFileDrop::cancel(Some(Point::new(8.0, 8.0)), Some(super::WAVEFORM_WIDGET_ID)),
-        &mut context,
-    );
-    assert_eq!(state.native_file_drop_hover, None);
-    let _ = fs::remove_dir_all(root);
-}
-
-#[test]
-fn native_file_hover_without_widget_target_still_shows_waveform_drop_feedback() {
-    let root = temp_gui_root("wavecrate-native-file-hover-targetless");
-    let wav = root.join("kick.wav");
-    write_test_wav_i16(&wav, &[0, 100]);
-    let mut state = gui_state_for_span_tests();
-    let mut context = ui::UpdateContext::default();
-
-    state.apply_native_file_drop(
-        NativeFileDrop::hover(wav.clone(), Some(Point::new(8.0, 8.0)), None),
-        &mut context,
-    );
-
-    assert_eq!(
-        state.native_file_drop_hover,
-        Some(super::NativeFileDropHover {
-            path: wav,
-            supported: true,
-        })
-    );
-    let _ = fs::remove_dir_all(root);
-}
-
-#[test]
-fn native_file_drop_on_waveform_copies_into_selected_folder_and_queues_load() {
-    let root = temp_gui_root("wavecrate-native-file-drop-root");
-    let external_root = temp_gui_root("wavecrate-native-file-drop-external");
-    let loops = root.join("loops");
-    fs::create_dir_all(&loops).expect("create loops");
-    let source = external_root.join("kick.wav");
-    write_test_wav_i16(&source, &[0, 100, -100]);
-    let mut state = gui_state_for_span_tests();
-    state.folder_browser = super::FolderBrowserState::from_sample_sources(&[
-        wavecrate::sample_sources::SampleSource::new(root.clone()),
-    ]);
-    state
-        .folder_browser
-        .apply_message(super::FolderBrowserMessage::ActivateFolder(
-            loops.display().to_string(),
-        ));
-    let mut context = ui::UpdateContext::default();
-
-    state.apply_native_file_drop(
-        NativeFileDrop::dropped(
-            source,
-            Some(Point::new(8.0, 8.0)),
-            Some(super::WAVEFORM_WIDGET_ID),
-        ),
-        &mut context,
-    );
-
-    let copied = loops.join("kick.wav");
-    let copied_id = copied.display().to_string();
-    assert!(copied.is_file());
-    assert_eq!(
-        state.folder_browser.selected_file_id(),
-        Some(copied_id.as_str())
-    );
-    assert_eq!(state.waveform_loading_label.as_deref(), Some("kick.wav"));
-    assert!(state.sample_load_task.active().is_some());
-    let _ = fs::remove_dir_all(root);
-    let _ = fs::remove_dir_all(external_root);
-}
-
-#[test]
-fn native_file_drop_without_widget_target_imports_into_selected_folder() {
-    let root = temp_gui_root("wavecrate-native-file-drop-targetless-root");
-    let external_root = temp_gui_root("wavecrate-native-file-drop-targetless-external");
-    let loops = root.join("loops");
-    fs::create_dir_all(&loops).expect("create loops");
-    let source = external_root.join("kick.wav");
-    write_test_wav_i16(&source, &[0, 100, -100]);
-    let mut state = gui_state_for_span_tests();
-    state.folder_browser = super::FolderBrowserState::from_sample_sources(&[
-        wavecrate::sample_sources::SampleSource::new(root.clone()),
-    ]);
-    state
-        .folder_browser
-        .apply_message(super::FolderBrowserMessage::ActivateFolder(
-            loops.display().to_string(),
-        ));
-    let mut context = ui::UpdateContext::default();
-
-    state.apply_native_file_drop(
-        NativeFileDrop::dropped(source, Some(Point::new(8.0, 8.0)), None),
-        &mut context,
-    );
-
-    let copied = loops.join("kick.wav");
-    let copied_id = copied.display().to_string();
-    assert!(copied.is_file());
-    assert_eq!(
-        state.folder_browser.selected_file_id(),
-        Some(copied_id.as_str())
-    );
-    let _ = fs::remove_dir_all(root);
-    let _ = fs::remove_dir_all(external_root);
 }
 
 fn temp_gui_root(name: &str) -> PathBuf {
