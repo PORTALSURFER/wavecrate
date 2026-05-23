@@ -1,5 +1,5 @@
 param(
-  [string] $PortalSurferRoot = "X:\portalsurfer.org",
+  [string] $PortalSurferRoot = "",
   [string] $Server = "188.245.106.212",
   [string] $KeyPath = "$env:USERPROFILE\.ssh\portalsurfer_org_codex",
   [string] $RemotePath = "/opt/portalsurfer",
@@ -25,6 +25,47 @@ function Get-EnvValue([string] $Path, [string] $Name) {
     throw "Missing $Name in $Path"
   }
   return $line.Substring($Name.Length + 1)
+}
+
+function Test-PortalSurferRoot([string] $Path) {
+  if (-not (Test-Path -LiteralPath $Path -PathType Container)) {
+    return $false
+  }
+  return (Test-Path -LiteralPath (Join-Path $Path "scripts\stage-wavecrate-release.ps1")) -and
+    (Test-Path -LiteralPath (Join-Path $Path "scripts\deploy.ps1"))
+}
+
+function Resolve-PortalSurferRoot([string] $ExplicitRoot, [string] $WavecrateRoot) {
+  if (-not [string]::IsNullOrWhiteSpace($ExplicitRoot)) {
+    return (Resolve-Path -LiteralPath $ExplicitRoot).Path
+  }
+
+  foreach ($envName in @("WAVECRATE_PORTALSURFER_ROOT", "PORTALSURFER_ROOT")) {
+    $envValue = [Environment]::GetEnvironmentVariable($envName)
+    if (-not [string]::IsNullOrWhiteSpace($envValue)) {
+      return (Resolve-Path -LiteralPath $envValue).Path
+    }
+  }
+
+  $candidates = [System.Collections.Generic.List[string]]::new()
+  $current = (Resolve-Path -LiteralPath $WavecrateRoot).Path
+  while (-not [string]::IsNullOrWhiteSpace($current)) {
+    $parent = Split-Path -Parent $current
+    if ([string]::IsNullOrWhiteSpace($parent) -or $parent -eq $current) {
+      break
+    }
+    $candidates.Add((Join-Path $parent "portalsurfer.org"))
+    $current = $parent
+  }
+
+  foreach ($candidate in ($candidates | Select-Object -Unique)) {
+    if (Test-PortalSurferRoot $candidate) {
+      return (Resolve-Path -LiteralPath $candidate).Path
+    }
+  }
+
+  $candidateList = ($candidates | Select-Object -Unique) -join ", "
+  throw "Could not locate the portalsurfer.org repo. Put it beside this Wavecrate checkout, set WAVECRATE_PORTALSURFER_ROOT, or pass -PortalSurferRoot. Checked: $candidateList"
 }
 
 function New-Base64UrlToken([int] $ByteCount) {
@@ -154,8 +195,7 @@ if ($Profile -ne "release") {
   throw "Registered release builds must use -Profile release. Use -Internal -Profile debug for debug test builds."
 }
 
-$portalRootPath = Resolve-Path -LiteralPath $PortalSurferRoot
-$portalRoot = $portalRootPath.Path
+$portalRoot = Resolve-PortalSurferRoot $PortalSurferRoot $repoRoot
 $signingEnv = Join-Path $portalRoot ".deploy\wavecrate-signing.env"
 $stageScript = Join-Path $portalRoot "scripts\stage-wavecrate-release.ps1"
 $deployScript = Join-Path $portalRoot "scripts\deploy.ps1"

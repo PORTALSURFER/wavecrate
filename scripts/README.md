@@ -6,8 +6,10 @@ dispatcher maps. These are the public entrypoints people should run directly:
 
 - `bootstrap.{sh,ps1}`: set up the repo and install hooks.
 - `registered-run.ps1`: build a registered Wavecrate release binary,
-  stage/deploy it through `X:\portalsurfer.org`, then launch the built app with
-  forwarded args. Build ids use the server-side build counter format
+  stage/deploy it through a local `portalsurfer.org` checkout, then launch the
+  built app with forwarded args. The script finds `portalsurfer.org` beside the
+  Wavecrate checkout, or you can set `WAVECRATE_PORTALSURFER_ROOT` / pass
+  `-PortalSurferRoot`. Build ids use the server-side build counter format
   `wavecrate-b<N>-<timestamp>-<gitsha>`. Example:
   `powershell -ExecutionPolicy Bypass -File scripts/registered-run.ps1 -AppArgs --log`.
   For local-only testing, add `-Internal` to build without registration,
