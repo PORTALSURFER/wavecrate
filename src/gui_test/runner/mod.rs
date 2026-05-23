@@ -3,7 +3,7 @@
 mod assertions;
 mod bundle;
 
-use self::assertions::assert_scenario_state;
+use self::assertions::{assert_scenario_state, assert_trace_or_catalog_state};
 use self::bundle::snapshot_bundle;
 use super::{
     GuiScenario, GuiScenarioStep, GuiStepTimingSample, GuiTestArtifactBundle, GuiTestModeConfig,
@@ -58,6 +58,42 @@ pub fn run_scenario(
     scenario: &GuiScenario,
 ) -> Result<GuiTestArtifactBundle, String> {
     let mut bridge = make_bridge_for_fixture(&scenario.fixture_tag, config.viewport)?;
+    run_scenario_with_bridge(config, scenario, &mut bridge)
+}
+
+/// Run a sequence of scenarios against one shared fixture bridge.
+///
+/// Batch runs are intended for contract suites where setup dominates runtime and
+/// the scenarios form one deterministic journey from the same fixture state.
+#[cfg(test)]
+pub(crate) fn run_scenario_batch(
+    config: &GuiTestModeConfig,
+    scenarios: &[GuiScenario],
+) -> Result<Vec<GuiTestArtifactBundle>, String> {
+    let Some(first) = scenarios.first() else {
+        return Ok(Vec::new());
+    };
+    if let Some(mismatched) = scenarios
+        .iter()
+        .find(|scenario| scenario.fixture_tag != first.fixture_tag)
+    {
+        return Err(format!(
+            "scenario batch mixes fixture {} with {}",
+            first.fixture_tag, mismatched.fixture_tag
+        ));
+    }
+    let mut bridge = make_bridge_for_fixture(&first.fixture_tag, config.viewport)?;
+    scenarios
+        .iter()
+        .map(|scenario| run_scenario_with_bridge(config, scenario, &mut bridge))
+        .collect()
+}
+
+fn run_scenario_with_bridge(
+    config: &GuiTestModeConfig,
+    scenario: &GuiScenario,
+    bridge: &mut GuiFixtureBridge,
+) -> Result<GuiTestArtifactBundle, String> {
     let mut trace = Vec::new();
     let mut timings = Vec::new();
     let mut failure = None;
@@ -71,15 +107,20 @@ pub fn run_scenario(
                 trace.push(trace_event_for_action(action, handled));
             }
             GuiScenarioStep::Assert { assertion } => {
-                let deadline = Instant::now() + SCENARIO_ASSERT_TIMEOUT;
-                let failure_message = loop {
-                    let snapshot = bundle::current_snapshot(config, &mut bridge);
-                    match assert_scenario_state(&snapshot, &trace, assertion) {
-                        Ok(()) => break None,
-                        Err(err) if Instant::now() >= deadline => break Some(err),
-                        Err(_) => thread::sleep(SCENARIO_ASSERT_POLL_INTERVAL),
-                    }
-                };
+                let failure_message =
+                    if let Some(result) = assert_trace_or_catalog_state(&trace, assertion) {
+                        result.err()
+                    } else {
+                        let deadline = Instant::now() + SCENARIO_ASSERT_TIMEOUT;
+                        loop {
+                            let snapshot = bundle::current_snapshot(config, bridge);
+                            match assert_scenario_state(&snapshot, &trace, assertion) {
+                                Ok(()) => break None,
+                                Err(err) if Instant::now() >= deadline => break Some(err),
+                                Err(_) => thread::sleep(SCENARIO_ASSERT_POLL_INTERVAL),
+                            }
+                        }
+                    };
                 if let Some(err) = failure_message {
                     failure = Some(err);
                     timings.push(GuiStepTimingSample {
@@ -95,7 +136,7 @@ pub fn run_scenario(
             duration_ms: elapsed_ms(started),
         });
     }
-    let mut bundle = snapshot_bundle(config, &mut bridge, trace, failure, timings);
+    let mut bundle = snapshot_bundle(config, bridge, trace, failure, timings);
     bundle.scenario_name = Some(scenario.name.clone());
     bundle.fixture_tag = scenario.fixture_tag.clone();
     Ok(bundle)

@@ -49,6 +49,21 @@ try {
     Invoke-WavecrateCargo test gui_test::
   }
 
+  Write-Host "[gui-contract] cargo test contract_smoke_pack_runs_cleanly -- --ignored --exact"
+  Invoke-NativeStep -Label "cargo test contract_smoke_pack_runs_cleanly -- --ignored --exact" -Command {
+    $contractSmokeArgs = @(
+      "test",
+      "-p",
+      "wavecrate",
+      "--lib",
+      "gui_test::packs::tests::contract_smoke_pack_runs_cleanly",
+      "--",
+      "--ignored",
+      "--exact"
+    )
+    & cargo @(Get-WavecrateCargoConfigOverrideArgs) @contractSmokeArgs
+  }
+
   Write-Host "[gui-contract] cargo test app_core::controller::tests::persistence_boundary::"
   Invoke-NativeStep -Label "cargo test app_core::controller::tests::persistence_boundary::" -Command {
     Invoke-WavecrateCargo test app_core::controller::tests::persistence_boundary::

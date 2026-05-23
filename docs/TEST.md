@@ -138,6 +138,9 @@ Use for semantic GUI contracts, CLI scenarios, and desktop AIV loops.
   - contract scenario anchor: `browser_focus_transition_stability`
 - contract loop:
   - `powershell -ExecutionPolicy Bypass -File scripts/gui.ps1 contract`
+  - this lane explicitly runs the ignored `contract_smoke_pack_runs_cleanly`
+    scenario-pack execution; the default library test lane keeps only the
+    cheaper GUI runner and fixture checks.
 - broader GUI suite:
   - `powershell -ExecutionPolicy Bypass -File scripts/gui.ps1 suite`
 - live AIV smoke:

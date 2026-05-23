@@ -36,3 +36,5 @@ pub use self::scenario::{GuiAssertion, GuiScenario, GuiScenarioStep};
 
 pub(crate) use self::artifacts::{catalog_report, trace_event_for_action};
 pub(crate) use self::automation::find_automation_node;
+#[cfg(test)]
+pub(crate) use self::runner::run_scenario_batch;

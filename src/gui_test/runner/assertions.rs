@@ -103,13 +103,31 @@ pub(super) fn assert_scenario_state(
                 ))
             }
         }
-        GuiAssertion::ActionCataloged { action_id } => action_catalog_entry_by_id(action_id)
-            .map(|_| ())
-            .ok_or_else(|| format!("missing catalog action {action_id}")),
-        GuiAssertion::ActionRecorded { action_id } => trace
-            .iter()
-            .any(|event| event.action_id == *action_id && event.handled)
-            .then_some(())
-            .ok_or_else(|| format!("action trace does not contain handled action {action_id}")),
+        GuiAssertion::ActionCataloged { .. } | GuiAssertion::ActionRecorded { .. } => {
+            assert_trace_or_catalog_state(trace, assertion)
+                .expect("trace/catalog assertion should be handled without a snapshot")
+        }
+    }
+}
+
+/// Evaluate assertions that do not require an automation snapshot.
+pub(super) fn assert_trace_or_catalog_state(
+    trace: &[GuiActionTraceEvent],
+    assertion: &GuiAssertion,
+) -> Option<Result<(), String>> {
+    match assertion {
+        GuiAssertion::ActionCataloged { action_id } => Some(
+            action_catalog_entry_by_id(action_id)
+                .map(|_| ())
+                .ok_or_else(|| format!("missing catalog action {action_id}")),
+        ),
+        GuiAssertion::ActionRecorded { action_id } => Some(
+            trace
+                .iter()
+                .any(|event| event.action_id == *action_id && event.handled)
+                .then_some(())
+                .ok_or_else(|| format!("action trace does not contain handled action {action_id}")),
+        ),
+        _ => None,
     }
 }
