@@ -1,3 +1,4 @@
+use super::filters::sidebar_filter_row_rects;
 use super::*;
 
 #[path = "dropdown/options.rs"]
