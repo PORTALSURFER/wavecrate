@@ -20,6 +20,10 @@ pub(in crate::app_core::native_shell::composition::state) use self::{
     sidebar::*, truncation::*, visuals::*, windowing::*,
 };
 
+/// Text glyph shown before browser item labels whose backing content is missing.
+pub(in crate::app_core::native_shell::composition::state) const BROWSER_MISSING_CONTENT_MARKER:
+    &str = "!";
+
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct CachedBrowserRow {
     pub(super) visible_row: usize,
