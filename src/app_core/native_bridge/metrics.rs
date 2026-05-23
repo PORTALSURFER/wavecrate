@@ -4,6 +4,7 @@
 //! stay high-signal, while sampled per-call bridge lifecycle traces remain
 //! available as debug-only diagnostics for focused local investigation.
 
+mod frame_result;
 mod registry;
 mod reporting;
 mod snapshot;
@@ -12,13 +13,13 @@ mod snapshot;
 use self::registry::{BRIDGE_METRICS, saturating_add_duration};
 use super::action_classification::InteractionActionClass;
 use super::projection_cache::ProjectionSegment;
-use crate::app_core::actions::NativeFrameBuildResult;
 #[cfg(feature = "native-bridge-metrics")]
 use std::sync::atomic::Ordering;
 #[cfg(not(feature = "native-bridge-metrics"))]
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
+pub(super) use self::frame_result::trace_frame_result;
 #[cfg(feature = "native-bridge-metrics")]
 pub(super) use self::registry::{
     BRIDGE_PROFILE_INTERVAL, PROJECTION_CACHE_HIT_COUNT, PROJECTION_CACHE_MISS_COUNT,
@@ -78,80 +79,6 @@ pub(super) fn trace_action_call() -> u64 {
 #[inline(always)]
 pub(super) fn trace_action_call() -> u64 {
     trace_fallback_call(&FALLBACK_ACTION_CALL_COUNT)
-}
-
-#[cfg(feature = "native-bridge-metrics")]
-pub(super) fn trace_frame_result(result: &NativeFrameBuildResult) -> u64 {
-    let frame_count = BRIDGE_METRICS
-        .frame_result_count
-        .fetch_add(1, Ordering::Relaxed)
-        + 1;
-    if result.needs_animation {
-        BRIDGE_METRICS
-            .frame_result_animation_count
-            .fetch_add(1, Ordering::Relaxed);
-    }
-    if result.presented {
-        BRIDGE_METRICS
-            .frame_result_presented_count
-            .fetch_add(1, Ordering::Relaxed);
-    }
-    if result.missed_present {
-        BRIDGE_METRICS
-            .frame_result_missed_present_count
-            .fetch_add(1, Ordering::Relaxed);
-    }
-    if result.jank {
-        BRIDGE_METRICS
-            .frame_result_jank_count
-            .fetch_add(1, Ordering::Relaxed);
-    }
-    BRIDGE_METRICS
-        .frame_result_total_us
-        .fetch_add(result.frame_total_us as u64, Ordering::Relaxed);
-    BRIDGE_METRICS
-        .frame_result_present_us_total
-        .fetch_add(result.present_us as u64, Ordering::Relaxed);
-    BRIDGE_METRICS
-        .frame_result_frame_budget_us
-        .store(result.frame_budget_us as u64, Ordering::Relaxed);
-    BRIDGE_METRICS
-        .frame_result_primitives_total
-        .fetch_add(result.primitive_count as u64, Ordering::Relaxed);
-    BRIDGE_METRICS
-        .frame_result_text_runs_total
-        .fetch_add(result.text_run_count as u64, Ordering::Relaxed);
-    if result.layout_rebuild {
-        BRIDGE_METRICS
-            .frame_result_layout_rebuild_count
-            .fetch_add(1, Ordering::Relaxed);
-    }
-    if result.static_rebuild {
-        BRIDGE_METRICS
-            .frame_result_static_rebuild_count
-            .fetch_add(1, Ordering::Relaxed);
-    }
-    if result.state_overlay_rebuild {
-        BRIDGE_METRICS
-            .frame_result_state_overlay_rebuild_count
-            .fetch_add(1, Ordering::Relaxed);
-    }
-    if result.motion_overlay_rebuild {
-        BRIDGE_METRICS
-            .frame_result_motion_overlay_rebuild_count
-            .fetch_add(1, Ordering::Relaxed);
-    }
-    if !result.static_rebuild && (result.state_overlay_rebuild || result.motion_overlay_rebuild) {
-        BRIDGE_METRICS
-            .frame_result_overlay_only_count
-            .fetch_add(1, Ordering::Relaxed);
-    }
-    frame_count
-}
-#[cfg(not(feature = "native-bridge-metrics"))]
-#[inline(always)]
-pub(super) fn trace_frame_result(_result: &NativeFrameBuildResult) -> u64 {
-    1
 }
 
 #[cfg(feature = "native-bridge-metrics")]
@@ -341,11 +268,7 @@ pub(super) fn trace_waveform_flush(_duration: Duration, _emitted_actions: u64) {
 
 #[cfg(test)]
 mod tests {
-    #[cfg(feature = "native-bridge-metrics")]
-    use super::trace_frame_result;
     use super::{trace_action_call, trace_pull_model_call, trace_pull_motion_call};
-    #[cfg(feature = "native-bridge-metrics")]
-    use crate::app_core::actions::NativeFrameBuildResult;
 
     fn assert_monotonic_increase(mut trace_call: impl FnMut() -> u64) {
         let first = trace_call();
@@ -369,75 +292,6 @@ mod tests {
     #[test]
     fn action_call_trace_is_monotonic() {
         assert_monotonic_increase(trace_action_call);
-    }
-
-    #[cfg(feature = "native-bridge-metrics")]
-    #[test]
-    fn frame_result_trace_counts_rebuild_attribution() {
-        use super::registry::BRIDGE_METRICS;
-        use std::sync::atomic::Ordering;
-
-        let before_layout = BRIDGE_METRICS
-            .frame_result_layout_rebuild_count
-            .load(Ordering::Relaxed);
-        let before_static = BRIDGE_METRICS
-            .frame_result_static_rebuild_count
-            .load(Ordering::Relaxed);
-        let before_state_overlay = BRIDGE_METRICS
-            .frame_result_state_overlay_rebuild_count
-            .load(Ordering::Relaxed);
-        let before_motion_overlay = BRIDGE_METRICS
-            .frame_result_motion_overlay_rebuild_count
-            .load(Ordering::Relaxed);
-        let before_overlay_only = BRIDGE_METRICS
-            .frame_result_overlay_only_count
-            .load(Ordering::Relaxed);
-
-        trace_frame_result(&NativeFrameBuildResult {
-            layout_rebuild: true,
-            static_rebuild: true,
-            state_overlay_rebuild: true,
-            motion_overlay_rebuild: false,
-            ..NativeFrameBuildResult::default()
-        });
-        trace_frame_result(&NativeFrameBuildResult {
-            layout_rebuild: false,
-            static_rebuild: false,
-            state_overlay_rebuild: false,
-            motion_overlay_rebuild: true,
-            ..NativeFrameBuildResult::default()
-        });
-
-        assert!(
-            BRIDGE_METRICS
-                .frame_result_layout_rebuild_count
-                .load(Ordering::Relaxed)
-                >= before_layout + 1
-        );
-        assert!(
-            BRIDGE_METRICS
-                .frame_result_static_rebuild_count
-                .load(Ordering::Relaxed)
-                >= before_static + 1
-        );
-        assert!(
-            BRIDGE_METRICS
-                .frame_result_state_overlay_rebuild_count
-                .load(Ordering::Relaxed)
-                >= before_state_overlay + 1
-        );
-        assert!(
-            BRIDGE_METRICS
-                .frame_result_motion_overlay_rebuild_count
-                .load(Ordering::Relaxed)
-                >= before_motion_overlay + 1
-        );
-        assert!(
-            BRIDGE_METRICS
-                .frame_result_overlay_only_count
-                .load(Ordering::Relaxed)
-                >= before_overlay_only + 1
-        );
     }
 }
 
