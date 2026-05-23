@@ -6,8 +6,6 @@ mod panel;
 mod row_labels;
 /// Browser row overlay editor rendering.
 mod row_overlay;
-/// Browser row overlay editor layout.
-mod row_overlay_layout;
 /// Browser row similarity controls.
 mod row_similarity;
 mod rows;

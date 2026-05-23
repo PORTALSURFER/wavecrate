@@ -70,6 +70,7 @@ use std::{
 };
 
 mod automation;
+mod browser_pill_editor;
 mod browser_rows;
 mod cache;
 mod cache_types;

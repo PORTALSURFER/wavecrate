@@ -1,15 +1,16 @@
 use super::*;
 
-pub(super) struct BrowserPillEditorLayout {
-    pub(super) auto_rename_rect: Rect,
-    pub(super) input_rect: Rect,
-    pub(super) input_text_rect: Rect,
-    pub(super) playback_rects: [Rect; 2],
-    pub(super) normal_tag_rects: Vec<Rect>,
-    pub(super) create_tag_rect: Option<Rect>,
+#[derive(Clone, Debug)]
+pub(in crate::app_core::native_shell::composition::state) struct BrowserPillEditorLayout {
+    pub(in crate::app_core::native_shell::composition::state) auto_rename_rect: Rect,
+    pub(in crate::app_core::native_shell::composition::state) input_rect: Rect,
+    pub(in crate::app_core::native_shell::composition::state) input_text_rect: Rect,
+    pub(in crate::app_core::native_shell::composition::state) playback_rects: [Rect; 2],
+    pub(in crate::app_core::native_shell::composition::state) normal_tag_rects: Vec<Rect>,
+    pub(in crate::app_core::native_shell::composition::state) create_tag_rect: Option<Rect>,
 }
 
-pub(super) fn browser_pill_editor_rect(
+pub(in crate::app_core::native_shell::composition::state) fn browser_pill_editor_rect(
     rows_rect: Rect,
     sizing: SizingTokens,
     model: &AppModel,
@@ -17,7 +18,7 @@ pub(super) fn browser_pill_editor_rect(
     browser_pill_editor_panel_rect(rows_rect, sizing, model)
 }
 
-pub(super) fn browser_pill_editor_layout(
+pub(in crate::app_core::native_shell::composition::state) fn browser_pill_editor_layout(
     rows_rect: Rect,
     sizing: SizingTokens,
     model: &AppModel,

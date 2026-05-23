@@ -1,4 +1,4 @@
-use super::row_overlay_layout::{
+use super::super::super::browser_pill_editor::{
     BrowserPillEditorLayout, browser_pill_editor_layout, browser_pill_editor_rect,
 };
 use super::*;

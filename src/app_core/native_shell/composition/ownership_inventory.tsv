@@ -61,6 +61,7 @@ state/automation.rs	wavecrate_composition	OPT-191	Automation facade moves after 
 state/automation/**	wavecrate_composition	OPT-191	Wavecrate automation nodes move after surface DTO and composition moves settle.
 state/browser_rows.rs	wavecrate_composition	OPT-188	Browser row projection facade moves with browser rows and tags.
 state/browser_rows/**	wavecrate_composition	OPT-188	Browser row projection, windowing, scrollbars, truncation, and visuals move with browser rows and tags.
+state/browser_pill_editor.rs	wavecrate_composition	OPT-188	Shared browser pill-editor geometry moves with browser rows, rendering, and hit testing.
 state/cache.rs	compat_adapter	OPT-191	Retained cache accessors are Wavecrate-shaped and should be split only after surface moves expose generic pieces.
 state/cache_types.rs	compat_adapter	OPT-191	Retained cache type facade is Wavecrate-shaped and should be split only after surface moves expose generic pieces.
 state/cache_types/**	compat_adapter	OPT-191	Retained cache keys and segment sinks are Wavecrate-shaped; split generic helpers after surface moves.
@@ -83,6 +84,7 @@ state/frame_build/waveform.rs	wavecrate_composition	OPT-190	Waveform frame build
 state/frame_entrypoints.rs	compat_adapter	OPT-191	Top-level frame entrypoints remain until all surface composition has moved.
 state/frame_text_cache.rs	compat_adapter	OPT-191	Frame text cache is retained-shell glue; split generic cache utility only after composition moves.
 state/hit_testing/browser.rs	wavecrate_composition	OPT-188	Browser hit testing moves with browser rows and map composition.
+state/hit_testing/browser/**	wavecrate_composition	OPT-188	Browser hit-test cache keys and pill-editor action routing move with browser composition.
 state/hit_testing/map.rs	wavecrate_composition	OPT-188	Browser map hit testing moves with browser map composition.
 state/hit_testing/mod.rs	compat_adapter	OPT-191	Hit-testing facade remains until surface-specific hit tests move.
 state/hit_testing/chrome.rs	wavecrate_composition	OPT-187	Shell chrome hit testing moves with top, status, options, and overlay composition.
