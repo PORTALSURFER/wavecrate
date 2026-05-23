@@ -101,11 +101,6 @@ pub(crate) use self::{
     text_fields::TextFieldVisualState,
 };
 
-/// Additional hit slop for the narrow content-list scrollbar thumb.
-const BROWSER_SCROLLBAR_THUMB_HIT_SLOP: f32 = 3.0;
-/// Additional hit slop for the narrow folder scrollbar thumb.
-const FOLDER_SCROLLBAR_THUMB_HIT_SLOP: f32 = 3.0;
-
 /// Mutable interaction + animation state for the native shell façade.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct NativeShellState {

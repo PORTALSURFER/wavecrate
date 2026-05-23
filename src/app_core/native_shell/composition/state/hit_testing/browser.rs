@@ -6,6 +6,9 @@ use crate::gui::list::{
     virtual_list_scrollbar_view_start_at_point,
 };
 
+/// Additional hit slop for the narrow content-list scrollbar thumb.
+const BROWSER_SCROLLBAR_THUMB_HIT_SLOP: f32 = 3.0;
+
 impl NativeShellState {
     /// Return a browser column-chip rect for one column index in tests.
     #[cfg(test)]
