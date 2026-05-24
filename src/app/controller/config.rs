@@ -1,7 +1,8 @@
 use super::ui::interaction_options::{clamp_scroll_speed, clamp_zoom_factor};
 use super::*;
 use crate::app::state::FolderPaneId;
-use tracing::info;
+
+mod apply;
 
 impl AppController {
     /// Load persisted configuration and populate initial UI state.
@@ -19,180 +20,15 @@ impl AppController {
     ) -> Result<(), crate::sample_sources::config::ConfigError> {
         let startup_source_repair =
             super::startup_source_repair::repair_persisted_startup_sources(cfg.sources.clone());
-        self.settings.feature_flags = cfg.core.feature_flags;
-        self.settings.analysis = cfg.core.analysis;
-        self.settings.analysis.max_analysis_duration_seconds =
-            super::library::analysis_options::clamp_max_analysis_duration_seconds(
-                self.settings.analysis.max_analysis_duration_seconds,
-            );
-        self.settings.analysis.long_sample_threshold_seconds =
-            super::library::analysis_options::clamp_long_sample_threshold_seconds(
-                self.settings.analysis.long_sample_threshold_seconds,
-            );
-        self.settings.updates = cfg.core.updates.clone();
-        self.settings.job_message_queue_capacity = cfg.core.job_message_queue_capacity;
-        self.settings.app_data_dir = cfg.core.app_data_dir.clone();
-        self.settings.trash_folder = cfg.core.trash_folder.clone();
-        self.settings.drop_targets = cfg.core.drop_targets.clone();
-        self.settings.audio_output = cfg.core.audio_output.clone();
-        self.ui.audio.selected = self.settings.audio_output.clone();
-        self.settings.audio_input = cfg.core.audio_input.clone();
-        self.ui.audio.input_selected = self.settings.audio_input.clone();
-        self.settings.audio_write_format = cfg.core.audio_write_format.clone();
-        self.ui.audio.write_format = self.settings.audio_write_format.clone();
-        self.settings.controls = cfg.core.controls.clone();
-        self.settings.default_identifier = if cfg.core.default_identifier.trim().is_empty() {
-            String::from("portal")
-        } else {
-            cfg.core.default_identifier.trim().to_string()
-        };
-        self.ui.options_panel.default_identifier = self.settings.default_identifier.clone();
-        self.settings.controls.waveform_scroll_speed =
-            clamp_scroll_speed(self.settings.controls.waveform_scroll_speed);
-        self.settings.controls.wheel_zoom_factor =
-            clamp_zoom_factor(self.settings.controls.wheel_zoom_factor);
-        self.settings.controls.keyboard_zoom_factor =
-            clamp_zoom_factor(self.settings.controls.keyboard_zoom_factor);
-        self.settings.controls.anti_clip_fade_ms =
-            super::ui::interaction_options::clamp_anti_clip_fade_ms(
-                self.settings.controls.anti_clip_fade_ms,
-            );
-        self.ui.controls = crate::app::state::InteractionOptionsState {
-            invert_waveform_scroll: self.settings.controls.invert_waveform_scroll,
-            waveform_scroll_speed: self.settings.controls.waveform_scroll_speed,
-            wheel_zoom_factor: self.settings.controls.wheel_zoom_factor,
-            keyboard_zoom_factor: self.settings.controls.keyboard_zoom_factor,
-            anti_clip_fade_enabled: self.settings.controls.anti_clip_fade_enabled,
-            anti_clip_fade_ms: self.settings.controls.anti_clip_fade_ms,
-            auto_edge_fades_on_selection_exports: self
-                .settings
-                .controls
-                .auto_edge_fades_on_selection_exports,
-            destructive_yolo_mode: self.settings.controls.destructive_yolo_mode,
-            waveform_channel_view: self.settings.controls.waveform_channel_view,
-            input_monitoring_enabled: self.settings.controls.input_monitoring_enabled,
-            advance_after_rating: self.settings.controls.advance_after_rating,
-            tooltip_mode: self.settings.controls.tooltip_mode,
-        };
-        self.ui.waveform.channel_view = self.settings.controls.waveform_channel_view;
-        self.ui.waveform.bpm_snap_enabled = self.settings.controls.bpm_snap_enabled;
-        self.ui.waveform.relative_bpm_grid_enabled =
-            self.settings.controls.relative_bpm_grid_enabled;
-        self.ui.waveform.bpm_lock_enabled = self.settings.controls.bpm_lock_enabled;
-        self.ui.waveform.bpm_stretch_enabled = self.settings.controls.bpm_stretch_enabled;
-        self.ui.waveform.bpm_value = normalize_bpm_value(self.settings.controls.bpm_value);
-        self.ui.waveform.loop_lock_enabled = self.settings.controls.loop_lock_enabled;
-        self.ui.waveform.transient_markers_enabled =
-            self.settings.controls.transient_markers_enabled;
-        self.ui.waveform.transient_snap_enabled = self.settings.controls.transient_snap_enabled
-            && self.settings.controls.transient_markers_enabled;
-        self.ui.waveform.normalized_audition_enabled =
-            self.settings.controls.normalized_audition_enabled;
-        if let Some(value) = self.ui.waveform.bpm_value {
-            let rounded = value.round();
-            if (value - rounded).abs() < 0.01 {
-                self.ui.waveform.bpm_input = format!("{rounded:.0}");
-            } else {
-                self.ui.waveform.bpm_input = format!("{value:.2}");
-            }
-        } else {
-            self.ui.waveform.bpm_input.clear();
-        }
-        self.stage_deferred_startup_audio_refresh();
-        self.apply_volume(cfg.core.volume);
-        self.ui.trash_folder = cfg.core.trash_folder.clone();
-        self.ui.update.last_seen_nightly_published_at =
-            cfg.core.updates.last_seen_nightly_published_at.clone();
-        self.library.sources = startup_source_repair.retained_sources;
-        self.rebuild_missing_sources();
-        if !self.library.missing.sources.is_empty() {
-            let count = self.library.missing.sources.len();
-            let suffix = if count == 1 { "" } else { "s" };
-            self.set_status(
-                format!("{count} source{suffix} unavailable"),
-                StatusTone::Warning,
-            );
-        }
-        self.stage_deferred_startup_source_db_maintenance();
-        let persisted_selected = cfg
-            .core
-            .last_selected_source
-            .filter(|id| self.library.sources.iter().any(|s| &s.id == id));
-        let upper_source = cfg
-            .core
-            .upper_folder_pane_source
-            .clone()
-            .filter(|id| self.library.sources.iter().any(|s| &s.id == id));
-        let lower_source = cfg
-            .core
-            .lower_folder_pane_source
-            .clone()
-            .filter(|id| self.library.sources.iter().any(|s| &s.id == id));
-        let persisted_active_pane =
-            parse_active_folder_pane(cfg.core.active_folder_pane.as_deref());
-        let active_pane_source = match persisted_active_pane {
-            FolderPaneId::Upper => upper_source.clone(),
-            FolderPaneId::Lower => lower_source.clone(),
-        };
-        let single_active_source = active_pane_source
-            .or_else(|| upper_source.clone())
-            .or_else(|| lower_source.clone())
-            .or_else(|| persisted_selected.clone())
-            .or_else(|| self.library.sources.first().map(|source| source.id.clone()));
-        self.ui.sources.folder_panes.upper.source_id = single_active_source.clone();
-        self.ui.sources.folder_panes.lower.source_id = single_active_source;
-        self.ui.sources.active_folder_pane = FolderPaneId::Upper;
-        self.load_active_folder_ui_from_pane();
-        self.selection_state.ctx.selected_source =
-            self.folder_pane_source(self.ui.sources.active_folder_pane);
-        self.selection_state.ctx.last_selected_browsable_source = self
-            .selection_state
-            .ctx
-            .selected_source
-            .clone()
-            .or_else(|| persisted_selected.clone());
-        self.refresh_sources_ui();
-        if self.selection_state.ctx.selected_source.is_some() {
-            let _ = self.refresh_wavs();
-        }
+        let retained_sources = startup_source_repair.retained_sources;
+        let removed_transient_roots = startup_source_repair.removed_roots;
+        self.apply_core_settings(&cfg.core);
+        self.apply_control_settings(&cfg.core);
+        self.apply_startup_audio_settings(&cfg.core);
+        self.apply_startup_sources(&cfg.core, retained_sources);
         self.maybe_check_for_updates_on_startup();
-        self.runtime.analysis.set_max_analysis_duration_seconds(
-            self.settings.analysis.max_analysis_duration_seconds,
-        );
-        self.runtime
-            .analysis
-            .set_worker_count(self.settings.analysis.analysis_worker_count);
-        self.runtime
-            .analysis
-            .start(self.runtime.jobs.message_sender());
-        let removed_transient_test_sources = startup_source_repair.removed_roots.len();
-        if removed_transient_test_sources > 0 {
-            let suffix = if removed_transient_test_sources == 1 {
-                ""
-            } else {
-                "s"
-            };
-            info!(
-                removed_transient_test_sources,
-                roots = ?startup_source_repair.removed_roots,
-                "Removed persisted transient test startup sources."
-            );
-            if let Err(err) = self.save_full_config() {
-                self.set_status(
-                    format!(
-                        "Removed {removed_transient_test_sources} transient test source{suffix}, but failed to persist cleanup: {err}"
-                    ),
-                    StatusTone::Warning,
-                );
-            } else {
-                self.set_status(
-                    format!(
-                        "Removed {removed_transient_test_sources} transient test source{suffix} from startup config"
-                    ),
-                    StatusTone::Info,
-                );
-            }
-        }
+        self.start_analysis_runtime();
+        self.persist_transient_source_cleanup(&removed_transient_roots);
         Ok(())
     }
 
