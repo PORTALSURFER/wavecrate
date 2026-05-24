@@ -17,9 +17,9 @@ mod status_bar;
 mod waveform_annotations;
 use super::style::StyleTokens;
 use crate::gui::layout_core::{
-    Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutDebugOptions,
-    LayoutEngine, LayoutNode, LayoutState, MainAlign, OverflowPolicy, SizeModeCross, SizeModeMain,
-    SlotChild, SlotParams,
+    Constraints, ConstraintsParts, ContainerKind, ContainerPolicy, CrossAlign, Insets,
+    LayoutDebugOptions, LayoutEngine, LayoutNode, LayoutState, MainAlign, OverflowPolicy,
+    SizeModeCross, SizeModeMain, SlotChild, SlotParams,
 };
 use crate::gui::types::{Point, Rect, Vector2};
 pub(super) use bands::compute_top_bar_band_sections;
@@ -76,6 +76,15 @@ pub(crate) use waveform_annotations::{
     waveform_plot_x_for_absolute_ratio, waveform_plot_x_for_micros,
     waveform_view_window_from_bounds,
 };
+
+pub(super) fn constraints(min_w: f32, max_w: f32, min_h: f32, max_h: f32) -> Constraints {
+    Constraints::from_parts(ConstraintsParts {
+        min_w,
+        max_w,
+        min_h,
+        max_h,
+    })
+}
 
 pub(crate) const SHELL_ROOT_ID: u64 = 1;
 pub(crate) const TOP_BAR_ID: u64 = 2;
@@ -146,7 +155,7 @@ pub(crate) fn build_shell_sections_tree(style: &StyleTokens, viewport_width: f32
                 slot: SlotParams {
                     size_main: SizeModeMain::Percent(sizing.sidebar_ratio),
                     size_cross: SizeModeCross::Fill,
-                    constraints: Constraints::new(
+                    constraints: constraints(
                         sizing.sidebar_min_width,
                         sizing.sidebar_max_width,
                         0.0,
@@ -162,7 +171,7 @@ pub(crate) fn build_shell_sections_tree(style: &StyleTokens, viewport_width: f32
                 slot: SlotParams {
                     size_main: SizeModeMain::Fill(1.0),
                     size_cross: SizeModeCross::Fill,
-                    constraints: Constraints::new(
+                    constraints: constraints(
                         sizing.content_min_width,
                         f32::INFINITY,
                         0.0,
@@ -193,7 +202,7 @@ pub(crate) fn build_shell_sections_tree(style: &StyleTokens, viewport_width: f32
                 slot: SlotParams {
                     size_main: SizeModeMain::Fixed(sizing.top_bar_height),
                     size_cross: SizeModeCross::Fill,
-                    constraints: Constraints::new(
+                    constraints: constraints(
                         0.0,
                         f32::INFINITY,
                         sizing.top_bar_height,
@@ -212,7 +221,7 @@ pub(crate) fn build_shell_sections_tree(style: &StyleTokens, viewport_width: f32
                 slot: SlotParams {
                     size_main: SizeModeMain::Fill(1.0),
                     size_cross: SizeModeCross::Fill,
-                    constraints: Constraints::new(0.0, f32::INFINITY, 0.0, f32::INFINITY),
+                    constraints: constraints(0.0, f32::INFINITY, 0.0, f32::INFINITY),
                     margin: Insets::default(),
                     align_cross_override: None,
                     allow_fixed_compress: false,
@@ -223,7 +232,7 @@ pub(crate) fn build_shell_sections_tree(style: &StyleTokens, viewport_width: f32
                 slot: SlotParams {
                     size_main: SizeModeMain::Fixed(sizing.status_bar_height),
                     size_cross: SizeModeCross::Fill,
-                    constraints: Constraints::new(
+                    constraints: constraints(
                         0.0,
                         f32::INFINITY,
                         sizing.status_bar_height,
@@ -260,7 +269,7 @@ fn build_content_tree(style: &StyleTokens) -> LayoutNode {
                 slot: SlotParams {
                     size_main: SizeModeMain::Percent(sizing.waveform_ratio),
                     size_cross: SizeModeCross::Fill,
-                    constraints: Constraints::new(
+                    constraints: constraints(
                         0.0,
                         f32::INFINITY,
                         sizing.waveform_min_height,
@@ -279,7 +288,7 @@ fn build_content_tree(style: &StyleTokens) -> LayoutNode {
                 slot: SlotParams {
                     size_main: SizeModeMain::Fill(1.0),
                     size_cross: SizeModeCross::Fill,
-                    constraints: Constraints::new(
+                    constraints: constraints(
                         0.0,
                         f32::INFINITY,
                         sizing.content_browser_min_height,

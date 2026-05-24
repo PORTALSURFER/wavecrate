@@ -52,11 +52,20 @@ pub(super) fn auxiliary_windows(state: &mut GuiAppState) -> Vec<ui::AuxiliaryWin
     }
     let snapshot = AudioSettingsSnapshot::from_app_state(state);
     let options = ui::NativeRunOptions {
-        title: String::from("Audio Engine"),
-        inner_size: Some([AUDIO_SETTINGS_POPUP_WIDTH, AUDIO_SETTINGS_POPUP_HEIGHT]),
-        min_inner_size: Some([AUDIO_SETTINGS_POPUP_WIDTH, AUDIO_SETTINGS_POPUP_HEIGHT]),
-        skip_taskbar: true,
-        decorations: true,
+        window: ui::NativeWindowOptions {
+            title: String::from("Audio Engine"),
+            geometry: ui::NativeWindowGeometry {
+                inner_size: Some([AUDIO_SETTINGS_POPUP_WIDTH, AUDIO_SETTINGS_POPUP_HEIGHT]),
+                min_inner_size: Some([AUDIO_SETTINGS_POPUP_WIDTH, AUDIO_SETTINGS_POPUP_HEIGHT]),
+                ..ui::NativeWindowGeometry::default()
+            },
+            behavior: ui::NativeWindowBehavior {
+                skip_taskbar: true,
+                decorations: true,
+                ..ui::NativeWindowBehavior::default()
+            },
+            ..ui::NativeWindowOptions::default()
+        },
         ..ui::NativeRunOptions::default()
     };
     let surface = ui::UiSurface::new(audio_settings_window_view(&snapshot).into_node());

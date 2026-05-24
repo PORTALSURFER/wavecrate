@@ -55,7 +55,7 @@ impl From<runtime_contract::BrowserPanelModel> for BrowserPanelModel {
             sort_label: value.sort_label,
             active_tab_label: value.active_tab_label,
             focused_sample_label: value.focused_item_label,
-            tag_sidebar: value.pill_editor,
+            tag_sidebar: value.pill_editor.into(),
             anchor_visible_row: value.anchor_visible_row,
             rows: retained_vec_from_compat(value.rows),
         }
@@ -86,7 +86,7 @@ impl From<BrowserPanelModel> for runtime_contract::BrowserPanelModel {
             sort_label: value.sort_label,
             active_tab_label: value.active_tab_label,
             focused_item_label: value.focused_sample_label,
-            pill_editor: value.tag_sidebar,
+            pill_editor: value.tag_sidebar.into(),
             anchor_visible_row: value.anchor_visible_row,
             rows: retained_vec_to_compat(value.rows),
         }

@@ -39,9 +39,9 @@ pub(super) fn render_tree_rows(
             folder_row_border_width(ctx, row),
             BorderSides {
                 top: true,
-                bottom: row.focused || Some(visual_rect.max.y) == last_row_max_y,
-                left: row.focused,
-                right: row.focused,
+                bottom: row.flags.focused || Some(visual_rect.max.y) == last_row_max_y,
+                left: row.flags.focused,
+                right: row.flags.focused,
             },
         );
         emit_folder_row_disclosure(ctx, primitives, row_rect, row);
@@ -60,7 +60,8 @@ fn render_folder_inline_draft_row(
     let field_rect = create_draft_field_rect(row_rect, ctx.sizing, row.depth);
     let text_rect = create_draft_text_rect(field_rect, ctx.sizing);
     let has_error = row
-        .input_error
+        .input
+        .error
         .as_deref()
         .is_some_and(|error| !error.trim().is_empty());
     emit_primitive(
@@ -87,10 +88,11 @@ fn render_folder_inline_draft_row(
         },
         ctx.sizing.border_width,
     );
-    let text = row.input_value.as_deref().unwrap_or_default();
+    let text = row.input.value.as_deref().unwrap_or_default();
     let (display_text, color) = if text.is_empty() {
         (
-            row.input_placeholder
+            row.input
+                .placeholder
                 .as_deref()
                 .unwrap_or("New folder name")
                 .to_string(),
@@ -128,14 +130,14 @@ fn render_folder_inline_draft_row(
 }
 
 fn folder_row_fill(ctx: &StaticFrameCtx<'_>, row: &FolderRowModel) -> Rgba8 {
-    if row.focused {
+    if row.flags.focused {
         translucent_overlay_color(
             ctx.style.bg_tertiary,
             ctx.style.grid_strong,
             (ctx.style.state_hover_soft + (ctx.motion_wave * ctx.style.motion_focus_wave_amp))
                 .clamp(0.0, 1.0),
         )
-    } else if row.selected {
+    } else if row.flags.selected {
         translucent_overlay_color(
             ctx.style.bg_tertiary,
             ctx.style.grid_soft,
@@ -147,13 +149,13 @@ fn folder_row_fill(ctx: &StaticFrameCtx<'_>, row: &FolderRowModel) -> Rgba8 {
 }
 
 fn folder_row_border(ctx: &StaticFrameCtx<'_>, row: &FolderRowModel) -> Rgba8 {
-    if row.focused {
+    if row.flags.focused {
         blend_color(
             ctx.style.accent_warning,
             ctx.style.text_primary,
             ctx.motion_wave * ctx.style.state_focus_pulse_blend,
         )
-    } else if row.selected {
+    } else if row.flags.selected {
         blend_color(
             ctx.style.accent_mint,
             ctx.style.text_primary,
@@ -165,7 +167,7 @@ fn folder_row_border(ctx: &StaticFrameCtx<'_>, row: &FolderRowModel) -> Rgba8 {
 }
 
 fn folder_row_border_width(ctx: &StaticFrameCtx<'_>, row: &FolderRowModel) -> f32 {
-    if row.focused {
+    if row.flags.focused {
         ctx.sizing.focus_stroke_width
     } else {
         ctx.sizing.border_width
@@ -173,9 +175,9 @@ fn folder_row_border_width(ctx: &StaticFrameCtx<'_>, row: &FolderRowModel) -> f3
 }
 
 fn folder_row_text_color(ctx: &StaticFrameCtx<'_>, row: &FolderRowModel) -> Rgba8 {
-    if row.focused {
+    if row.flags.focused {
         ctx.style.accent_warning
-    } else if row.selected {
+    } else if row.flags.selected {
         ctx.style.accent_mint
     } else {
         ctx.style.text_primary
@@ -188,14 +190,14 @@ fn emit_folder_row_disclosure(
     row_rect: Rect,
     row: &FolderRowModel,
 ) {
-    if row.is_root || !row.has_children {
+    if row.flags.is_root || !row.flags.has_children {
         return;
     }
     let layout = folder_row_layout(ctx, row_rect, row);
     let Some(icon_rect) = centered_tree_icon_rect(layout.disclosure_rect) else {
         return;
     };
-    if row.expanded {
+    if row.flags.expanded {
         emit_down_triangle(primitives, icon_rect, folder_row_text_color(ctx, row));
     } else {
         emit_right_triangle(primitives, icon_rect, folder_row_text_color(ctx, row));

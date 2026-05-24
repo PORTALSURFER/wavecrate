@@ -35,14 +35,14 @@ mod tests {
 
         let compat: radiant::gui_runtime::NativeRunOptions = options.into();
 
-        assert_eq!(compat.title, "Wavecrate test host");
-        assert_eq!(compat.inner_size, Some([1280.0, 720.0]));
-        assert_eq!(compat.min_inner_size, Some([640.0, 360.0]));
-        assert!(compat.maximized);
-        assert!(!compat.decorations);
-        assert_eq!(compat.target_fps, 90);
-        assert!(compat.debug_layout);
-        assert!(compat.drag_and_drop);
+        assert_eq!(compat.window.title, "Wavecrate test host");
+        assert_eq!(compat.window.geometry.inner_size, Some([1280.0, 720.0]));
+        assert_eq!(compat.window.geometry.min_inner_size, Some([640.0, 360.0]));
+        assert!(compat.window.behavior.maximized);
+        assert!(!compat.window.behavior.decorations);
+        assert_eq!(compat.frame.target_fps, 90);
+        assert!(compat.frame.debug_layout);
+        assert!(compat.window.behavior.drag_and_drop);
         assert_eq!(
             compat.gpu,
             radiant::gui_runtime::NativeGpuOptions::default()
@@ -52,7 +52,7 @@ mod tests {
             vec![crate::gui_runtime::wavecrate_ui_font_path()]
         );
         assert!(compat.text.font_paths[0].exists());
-        let icon = compat.icon.expect("icon should be forwarded");
+        let icon = compat.window.icon.expect("icon should be forwarded");
         assert_eq!(icon.rgba, vec![255, 0, 0, 255]);
         assert_eq!(icon.width, 1);
         assert_eq!(icon.height, 1);
@@ -607,15 +607,15 @@ mod tests {
         let repaint_installed = Arc::new(AtomicBool::new(false));
         let mut model = runtime_contract::AppModel::default();
         model.options_panel.visible = true;
-        model.paired_device.primary_group = runtime_contract::SummaryFieldModel {
+        model.paired_device.summaries.primary_group = runtime_contract::SummaryFieldModel {
             label: String::from("Output Host"),
             value_label: String::from("WASAPI"),
         };
-        model.paired_device.primary_item = runtime_contract::SummaryFieldModel {
+        model.paired_device.summaries.primary_item = runtime_contract::SummaryFieldModel {
             label: String::from("Output"),
             value_label: String::from("Speakers"),
         };
-        model.paired_device.primary_number = runtime_contract::SummaryFieldModel {
+        model.paired_device.summaries.primary_number = runtime_contract::SummaryFieldModel {
             label: String::from("Sample Rate"),
             value_label: String::from("48 kHz"),
         };

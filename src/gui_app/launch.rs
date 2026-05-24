@@ -1,6 +1,9 @@
 use super::{GuiAppState, GuiMessage, SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_ROW_HEIGHT, view};
 use crate::gui_app::{audio_settings, default_gui_shortcut_resolution};
-use radiant::runtime::{NativeRunOptions, NativeTextOptions};
+use radiant::runtime::{
+    NativeFrameOptions, NativeRunOptions, NativeTextOptions, NativeWindowBehavior,
+    NativeWindowGeometry, NativeWindowOptions,
+};
 use std::{
     ffi::OsString,
     panic::{self, AssertUnwindSafe},
@@ -30,12 +33,25 @@ pub(crate) fn run() -> Result<(), String> {
 
     log_default_gui_startup(&args);
     let state = GuiAppState::load_default()?;
+    let debug_layout = debug_layout_requested(args.iter().cloned());
     let options = NativeRunOptions {
-        title: String::from("Wavecrate"),
-        inner_size: Some([960.0, 540.0]),
-        min_inner_size: Some([640.0, 360.0]),
-        drag_and_drop: true,
-        debug_layout: debug_layout_requested(args.iter().cloned()),
+        window: NativeWindowOptions {
+            title: String::from("Wavecrate"),
+            geometry: NativeWindowGeometry {
+                inner_size: Some([960.0, 540.0]),
+                min_inner_size: Some([640.0, 360.0]),
+                ..NativeWindowGeometry::default()
+            },
+            behavior: NativeWindowBehavior {
+                drag_and_drop: true,
+                ..NativeWindowBehavior::default()
+            },
+            ..NativeWindowOptions::default()
+        },
+        frame: NativeFrameOptions {
+            debug_layout,
+            ..NativeFrameOptions::default()
+        },
         text: NativeTextOptions {
             embedded_fonts: Vec::new(),
             font_paths: vec![wavecrate_ui_font_path()],
@@ -43,7 +59,7 @@ pub(crate) fn run() -> Result<(), String> {
         ..NativeRunOptions::default()
     };
     tracing::info!(
-        debug_layout = options.debug_layout,
+        debug_layout = options.frame.debug_layout,
         "default gui: preparing Radiant application"
     );
     emit_gui_action(

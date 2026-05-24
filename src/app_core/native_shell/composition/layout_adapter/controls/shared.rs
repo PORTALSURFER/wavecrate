@@ -122,7 +122,12 @@ fn fixed_width_child(node_id: u64, width: f32, left_margin: f32) -> SlotChild {
         slot: SlotParams {
             size_main: SizeModeMain::Fixed(width.max(0.0)),
             size_cross: SizeModeCross::Fill,
-            constraints: Constraints::new(width.max(0.0), width.max(0.0), 0.0, f32::INFINITY),
+            constraints: super::super::constraints(
+                width.max(0.0),
+                width.max(0.0),
+                0.0,
+                f32::INFINITY,
+            ),
             margin: Insets {
                 left: left_margin.max(0.0),
                 ..Insets::default()

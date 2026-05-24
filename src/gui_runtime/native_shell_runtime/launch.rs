@@ -7,25 +7,33 @@ use super::*;
 impl From<NativeRunOptions> for radiant::gui_runtime::NativeRunOptions {
     fn from(value: NativeRunOptions) -> Self {
         Self {
-            title: value.title,
-            inner_size: value.inner_size,
-            position: None,
-            min_inner_size: value.min_inner_size,
-            maximized: value.maximized,
-            decorations: value.decorations,
-            icon: value.icon.map(Into::into),
-            target_fps: value.target_fps,
-            debug_layout: value.debug_layout,
-            drag_and_drop: true,
-            owner_window_handle: None,
-            skip_taskbar: false,
+            window: radiant::gui_runtime::NativeWindowOptions {
+                title: value.title,
+                geometry: radiant::gui_runtime::NativeWindowGeometry {
+                    inner_size: value.inner_size,
+                    position: None,
+                    min_inner_size: value.min_inner_size,
+                },
+                behavior: radiant::gui_runtime::NativeWindowBehavior {
+                    maximized: value.maximized,
+                    decorations: value.decorations,
+                    drag_and_drop: true,
+                    owner_window_handle: None,
+                    skip_taskbar: false,
+                    mode: radiant::gui_runtime::NativeWindowMode::default(),
+                },
+                icon: value.icon.map(Into::into),
+            },
+            frame: radiant::gui_runtime::NativeFrameOptions {
+                target_fps: value.target_fps,
+                debug_layout: value.debug_layout,
+                retained_surface_cache: radiant::runtime::RetainedSurfaceCachePolicy::default(),
+            },
             gpu: radiant::gui_runtime::NativeGpuOptions::default(),
-            retained_surface_cache: radiant::runtime::RetainedSurfaceCachePolicy::default(),
             text: radiant::gui_runtime::NativeTextOptions {
                 embedded_fonts: Vec::new(),
                 font_paths: vec![crate::gui_runtime::wavecrate_ui_font_path()],
             },
-            window_mode: radiant::gui_runtime::NativeWindowMode::default(),
         }
     }
 }

@@ -269,23 +269,26 @@ fn inline_folder_draft_row(
     select_all_on_focus: bool,
     backing_index: Option<usize>,
 ) -> FolderRowModel {
-    FolderRowModel {
-        label: String::new(),
-        detail: String::new(),
-        depth,
-        selected: false,
-        focused: false,
-        is_root: false,
-        has_children: false,
-        expanded: false,
-        kind,
-        backing_index,
-        input_value: Some(input_value),
-        input_placeholder: Some(input_placeholder),
-        input_error,
-        input_focused,
-        select_all_on_focus,
-    }
+    let mut row = match kind {
+        FolderRowKind::CreateDraft => FolderRowModel::create_draft(
+            depth,
+            input_value,
+            input_placeholder,
+            input_error,
+            input_focused,
+        ),
+        FolderRowKind::RenameDraft => FolderRowModel::rename_draft(
+            depth,
+            input_value,
+            input_placeholder,
+            input_error,
+            input_focused,
+        ),
+        FolderRowKind::Existing => FolderRowModel::from_parts(Default::default()),
+    };
+    row.backing_index = backing_index;
+    row.input.select_all_on_focus = select_all_on_focus;
+    row
 }
 
 fn normalize_folder_name_input(name: &str) -> Result<String, String> {
