@@ -1,0 +1,189 @@
+use std::path::PathBuf;
+
+use rusqlite::{Params, params_from_iter};
+
+use super::super::super::util::map_sql_error;
+use super::super::super::{Rating, SourceDatabase, SourceDbError};
+use super::super::decode::decode_path_row;
+use super::sql::supported_audio_filter;
+
+/// Search-worker metadata for one ordered wav row.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SearchEntryMetadata {
+    /// Current keep/trash tag used by triage filters and badges.
+    pub tag: Rating,
+    /// Whether the row is locked in the browser UI.
+    pub locked: bool,
+    /// Most recent playback timestamp used by playback-age sorting.
+    pub last_played_at: Option<i64>,
+    /// Normal library tag labels assigned to the row.
+    pub normal_tags: Vec<String>,
+    /// Whether the filename is known to be tag-derived.
+    pub tag_named: bool,
+}
+
+/// Lightweight browser-search row snapshot with only path and worker metadata.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SearchEntryRow {
+    /// File path relative to the source root.
+    pub relative_path: PathBuf,
+    /// Worker-visible metadata for the same ordered row.
+    pub metadata: SearchEntryMetadata,
+}
+
+fn normal_tags_select_sql(path_expr: &str) -> String {
+    format!(
+        "(
+            SELECT json_group_array(display_label)
+            FROM (
+                SELECT st.display_label
+                FROM source_tags st
+                JOIN wav_file_tags wft ON wft.tag_id = st.id
+                WHERE wft.path = {path_expr}
+                ORDER BY st.display_label COLLATE NOCASE ASC, st.normalized_text ASC
+            )
+        )"
+    )
+}
+
+fn decode_search_entry_row(
+    row: &rusqlite::Row<'_>,
+    context: &str,
+) -> Result<Option<SearchEntryRow>, rusqlite::Error> {
+    let Some(relative_path) = decode_path_row(row, context)? else {
+        return Ok(None);
+    };
+    let tag = Rating::from_i64(row.get::<_, i64>(1)?);
+    let locked = row.get::<_, i64>(2)? != 0;
+    let last_played_at = row.get::<_, Option<i64>>(3)?;
+    let tag_named = row.get::<_, i64>(4)? != 0;
+    let normal_tags = decode_normal_tag_json(row.get(5)?);
+    Ok(Some(SearchEntryRow {
+        relative_path,
+        metadata: SearchEntryMetadata {
+            tag,
+            locked,
+            last_played_at,
+            normal_tags,
+            tag_named,
+        },
+    }))
+}
+
+fn decode_search_entry_metadata(
+    row: &rusqlite::Row<'_>,
+) -> Result<SearchEntryMetadata, rusqlite::Error> {
+    Ok(SearchEntryMetadata {
+        tag: Rating::from_i64(row.get::<_, i64>(0)?),
+        locked: row.get::<_, i64>(1)? != 0,
+        last_played_at: row.get::<_, Option<i64>>(2)?,
+        tag_named: row.get::<_, i64>(3)? != 0,
+        normal_tags: decode_normal_tag_json(row.get(4)?),
+    })
+}
+
+fn collect_search_entry_rows(
+    db: &SourceDatabase,
+    sql: &str,
+    params: impl Params,
+    context: &str,
+) -> Result<Vec<SearchEntryRow>, SourceDbError> {
+    let mut stmt = db.connection.prepare(sql).map_err(map_sql_error)?;
+    let rows = stmt
+        .query_map(params, |row| decode_search_entry_row(row, context))
+        .map_err(map_sql_error)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(map_sql_error)?;
+    Ok(rows.into_iter().flatten().collect())
+}
+
+fn collect_search_entry_metadata(
+    db: &SourceDatabase,
+    sql: &str,
+    params: impl Params,
+) -> Result<Vec<SearchEntryMetadata>, SourceDbError> {
+    let mut stmt = db.connection.prepare(sql).map_err(map_sql_error)?;
+    stmt.query_map(params, decode_search_entry_metadata)
+        .map_err(map_sql_error)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(map_sql_error)
+}
+
+fn placeholder_list(start_index: usize, count: usize) -> String {
+    (0..count)
+        .map(|offset| format!("?{}", start_index + offset))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+impl SourceDatabase {
+    /// Fetch lightweight browser-search rows ordered by path.
+    pub fn list_search_entry_rows(&self) -> Result<Vec<SearchEntryRow>, SourceDbError> {
+        let filter = supported_audio_filter();
+        let normal_tags = normal_tags_select_sql("wav_files.path");
+        let sql = format!(
+            "SELECT path, tag, locked, last_played_at, tag_named, {normal_tags}
+             FROM wav_files
+             WHERE {filter}
+             ORDER BY path ASC"
+        );
+        collect_search_entry_rows(
+            self,
+            &sql,
+            [],
+            "Skipping browser-search row with invalid relative path",
+        )
+    }
+
+    /// Fetch lightweight browser-search rows for a targeted path subset.
+    pub fn list_search_entry_rows_for_paths(
+        &self,
+        paths: &[PathBuf],
+    ) -> Result<Vec<SearchEntryRow>, SourceDbError> {
+        if paths.is_empty() {
+            return Ok(Vec::new());
+        }
+        let filter = supported_audio_filter();
+        let mut rows = Vec::new();
+        for batch in paths.chunks(900) {
+            let normal_tags = normal_tags_select_sql("wav_files.path");
+            let sql = format!(
+                "SELECT path, tag, locked, last_played_at, tag_named, {normal_tags}
+                 FROM wav_files
+                 WHERE {filter}
+                   AND path IN ({})
+                 ORDER BY path ASC",
+                placeholder_list(1, batch.len())
+            );
+            let params = batch
+                .iter()
+                .map(|path| super::super::super::normalize_relative_path(path))
+                .collect::<Result<Vec<_>, _>>()?;
+            rows.extend(collect_search_entry_rows(
+                self,
+                &sql,
+                params_from_iter(params),
+                "Skipping targeted browser-search row with invalid relative path",
+            )?);
+        }
+        Ok(rows)
+    }
+
+    /// Fetch only browser-search metadata ordered to match `list_search_entry_rows`.
+    pub fn list_search_entry_metadata(&self) -> Result<Vec<SearchEntryMetadata>, SourceDbError> {
+        let filter = supported_audio_filter();
+        let normal_tags = normal_tags_select_sql("wav_files.path");
+        let sql = format!(
+            "SELECT tag, locked, last_played_at, tag_named, {normal_tags}
+             FROM wav_files
+             WHERE {filter}
+             ORDER BY path ASC"
+        );
+        collect_search_entry_metadata(self, &sql, [])
+    }
+}
+
+fn decode_normal_tag_json(raw: Option<String>) -> Vec<String> {
+    raw.and_then(|value| serde_json::from_str::<Vec<String>>(&value).ok())
+        .unwrap_or_default()
+}
