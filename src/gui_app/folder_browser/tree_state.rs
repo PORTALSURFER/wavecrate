@@ -66,6 +66,24 @@ impl FolderBrowserState {
         folders
     }
 
+    #[cfg(test)]
+    pub(in crate::gui_app) fn first_visible_child_folder_expansion_for_tests(
+        &self,
+    ) -> Option<(String, bool)> {
+        self.visible_folders()
+            .into_iter()
+            .find(|folder| folder.has_children && !folder.selected)
+            .map(|folder| (folder.id, folder.expanded))
+    }
+
+    #[cfg(test)]
+    pub(in crate::gui_app) fn folder_expansion_for_tests(&self, folder_id: &str) -> Option<bool> {
+        self.visible_folders()
+            .into_iter()
+            .find(|folder| folder.id == folder_id)
+            .map(|folder| folder.expanded)
+    }
+
     fn push_visible_folder(
         &self,
         folder: &FolderEntry,
