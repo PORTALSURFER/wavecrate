@@ -2,7 +2,15 @@ use super::*;
 use crate::app::controller::formatting::format_waveform_bpm_input;
 use crate::selection::SelectionEdge;
 
-const TRANSIENT_SNAP_RADIUS: f32 = 0.01;
+mod bpm;
+mod snapping;
+
+pub(crate) use bpm::scaled_selection_bpm;
+use bpm::{
+    apply_scaled_bpm, bpm_snap_step, clear_too_small_bpm_selection,
+    drag_update_uses_direct_position, smart_scale_target_beats,
+};
+use snapping::snap_to_transient;
 
 /// Begin one new playback-selection drag from the exact pointer anchor.
 ///
@@ -51,7 +59,7 @@ pub(crate) fn update_selection_drag(
     position: f32,
     snap_override: bool,
 ) {
-    let range = if controller.selection_state.bpm_scale_beats.is_some() || snap_override {
+    let range = if drag_update_uses_direct_position(controller, snap_override) {
         controller.selection_state.range.update_drag(position)
     } else if let Some(step) = bpm_snap_step(controller) {
         controller
@@ -282,93 +290,6 @@ fn current_playhead(controller: &AppController) -> f32 {
 
 fn playhead_inside_selection(playhead: f32, selection: SelectionRange) -> bool {
     playhead >= selection.start() && playhead <= selection.end()
-}
-
-fn bpm_snap_step(controller: &AppController) -> Option<f32> {
-    super::super::waveform_bpm_snap_step(controller)
-}
-
-fn clear_too_small_bpm_selection(controller: &mut AppController) {
-    let Some(range) = controller.selection_state.range.range() else {
-        return;
-    };
-    if super::super::selection_meets_bpm_min_for_playback(controller, range) {
-        return;
-    }
-    controller.selection_state.range.set_range(None);
-    controller.apply_selection(None);
-}
-
-fn snap_to_transient(controller: &AppController, position: f32) -> Option<f32> {
-    if !controller.ui.waveform.transient_markers_enabled
-        || !controller.ui.waveform.transient_snap_enabled
-    {
-        return None;
-    }
-    let mut closest = None;
-    let mut best_distance = TRANSIENT_SNAP_RADIUS;
-    for marker in controller.ui.waveform.transients.iter().copied() {
-        let distance = (marker - position).abs();
-        if distance <= best_distance {
-            best_distance = distance;
-            closest = Some(marker);
-        }
-    }
-    closest
-}
-
-fn smart_scale_target_beats(controller: &AppController) -> Option<f32> {
-    let duration = controller.loaded_audio_duration_seconds()?;
-    if !duration.is_finite() || duration <= 0.0 {
-        return None;
-    }
-    let range = controller
-        .selection_state
-        .range
-        .range()
-        .or(controller.ui.waveform.selection)?;
-    let seconds = range.width() * duration;
-    if !seconds.is_finite() || seconds <= 0.0 {
-        return None;
-    }
-    Some(SMART_SCALE_SELECTION_BEATS)
-}
-
-fn apply_scaled_bpm(controller: &mut AppController, beats: f32, range: SelectionRange) {
-    let Some(bpm) = scaled_selection_bpm(controller, beats, range) else {
-        return;
-    };
-    if controller.selection_state.bpm_scale_beats.is_some() {
-        controller.preview_bpm_value(bpm);
-    } else {
-        controller.set_bpm_value(bpm);
-    }
-    if let Some(input) = format_waveform_bpm_input(bpm) {
-        controller.ui.waveform.bpm_input = input;
-    }
-}
-
-pub(crate) fn scaled_selection_bpm(
-    controller: &AppController,
-    beats: f32,
-    range: SelectionRange,
-) -> Option<f32> {
-    if !beats.is_finite() || beats <= 0.0 {
-        return None;
-    }
-    let duration = match controller.loaded_audio_duration_seconds() {
-        Some(duration) if duration.is_finite() && duration > 0.0 => duration,
-        _ => return None,
-    };
-    let seconds = range.width() * duration;
-    if !seconds.is_finite() || seconds <= 0.0 {
-        return None;
-    }
-    let bpm = beats * 60.0 / seconds;
-    if !bpm.is_finite() || bpm <= 0.0 {
-        return None;
-    }
-    Some(bpm)
 }
 
 #[cfg(test)]
