@@ -6,8 +6,8 @@ use super::{
 use radiant::{
     gui::types::{Point, Rect, Vector2},
     prelude::{self as ui, IntoView},
-    runtime::PaintPrimitive,
-    widgets::DragHandleMessage,
+    runtime::{DeclarativeOwnedRuntimeBridge, Event, PaintPrimitive, SurfaceRuntime},
+    widgets::{DragHandleMessage, PointerButton, PointerModifiers},
 };
 use std::{fs, path::PathBuf, sync::mpsc};
 
@@ -719,6 +719,119 @@ fn default_gui_saves_sources_and_audio_output_to_app_config() {
     );
     assert_eq!(loaded.core.audio_output.sample_rate, Some(96_000));
     assert!((loaded.core.volume - 0.5).abs() < f32::EPSILON);
+}
+
+#[test]
+fn folder_context_menu_paints_as_full_width_overlay_panel() {
+    let menu = super::BrowserContextMenu {
+        kind: super::BrowserContextTargetKind::Folder,
+        path: PathBuf::from("Documents"),
+        anchor: Point::new(72.0, 142.0),
+        title: String::from("Documents"),
+    };
+    let frame = radiant::runtime::UiSurface::new(super::context_menu::overlay(&menu).into_node())
+        .frame(
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 540.0)),
+            &radiant::theme::ThemeTokens::default(),
+        );
+
+    let action_text_rect = frame
+        .paint_plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::Text(text) if text.text.as_str() == "Open in Explorer" => {
+                Some(text.rect)
+            }
+            _ => None,
+        })
+        .expect("folder context menu action text should render");
+
+    assert!(action_text_rect.width() > 150.0, "{action_text_rect:?}");
+    assert!(
+        action_text_rect.min.x >= 80.0 && action_text_rect.min.x < 100.0,
+        "{action_text_rect:?}"
+    );
+}
+
+#[test]
+fn folder_context_menu_outside_click_closes_menu() {
+    let menu = super::BrowserContextMenu {
+        kind: super::BrowserContextTargetKind::Folder,
+        path: PathBuf::from("Documents"),
+        anchor: Point::new(72.0, 142.0),
+        title: String::from("Documents"),
+    };
+    let bridge = DeclarativeOwnedRuntimeBridge::new(
+        true,
+        move |open| {
+            if *open {
+                radiant::runtime::UiSurface::new(super::context_menu::overlay(&menu).into_node())
+            } else {
+                radiant::runtime::UiSurface::new(ui::text("").into_node())
+            }
+        },
+        |open, message| {
+            if matches!(message, super::GuiMessage::CloseContextMenu) {
+                *open = false;
+            }
+        },
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(960.0, 540.0));
+    let outside_menu = Point::new(18.0, 18.0);
+
+    runtime.dispatch_event(Event::PointerPress {
+        position: outside_menu,
+        button: PointerButton::Primary,
+        modifiers: PointerModifiers::default(),
+    });
+    runtime.dispatch_event(Event::PointerRelease {
+        position: outside_menu,
+        button: PointerButton::Primary,
+        modifiers: PointerModifiers::default(),
+    });
+
+    assert!(
+        !*runtime.bridge().state(),
+        "clicking outside the context menu should route to the dismiss layer"
+    );
+}
+
+#[test]
+fn folder_context_menu_open_does_not_toggle_folder_expansion() {
+    let root = std::env::temp_dir().join(format!(
+        "wavecrate-context-menu-right-click-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    let parent = root.join("drums");
+    fs::create_dir_all(parent.join("kicks")).expect("create nested folder");
+
+    let mut state = gui_state_for_span_tests();
+    let request = state
+        .folder_browser
+        .begin_add_source_path(root.clone(), 100)
+        .expect("new source should request scan");
+    let result = super::folder_browser::scan_source_with_progress(request, |_| {}, |_| {});
+    state.finish_folder_scan(result);
+    let (folder_id, expanded_before) = state
+        .folder_browser
+        .first_visible_child_folder_expansion_for_tests()
+        .expect("test source should contain a child folder");
+
+    state.open_folder_context_menu(folder_id.clone(), Point::new(40.0, 120.0));
+
+    let expanded_after = state
+        .folder_browser
+        .folder_expansion_for_tests(&folder_id)
+        .expect("context-menu target should remain visible");
+    assert_eq!(
+        expanded_after, expanded_before,
+        "right-click context menu should not expand or collapse folders"
+    );
+    let _ = fs::remove_dir_all(root);
 }
 
 #[test]

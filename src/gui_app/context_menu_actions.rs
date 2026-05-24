@@ -5,7 +5,7 @@ use super::context_menu::{self, BrowserContextMenu, BrowserContextTargetKind};
 use super::file_actions::{
     format_copy_path, open_folder_in_file_explorer, reveal_in_file_explorer, sample_path_label,
 };
-use super::{FolderBrowserMessage, GuiAppState, emit_gui_action};
+use super::{GuiAppState, emit_gui_action};
 use wavecrate::external_clipboard;
 
 impl GuiAppState {
@@ -49,8 +49,6 @@ impl GuiAppState {
 
     pub(super) fn open_folder_context_menu(&mut self, folder_id: String, position: Point) {
         let started_at = Instant::now();
-        self.folder_browser
-            .apply_message(FolderBrowserMessage::ActivateFolder(folder_id.clone()));
         let Some(path) = self.folder_browser.folder_path(&folder_id) else {
             self.sample_status = String::from("Folder is unavailable");
             emit_gui_action(
