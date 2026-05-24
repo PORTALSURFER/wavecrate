@@ -1,8 +1,7 @@
 //! Dialog and overlay automation snapshot builders.
 
-use super::helpers::{
-    action_slug, bounds, metadata, node_id, simple_node, slug, update_status_text,
-};
+use super::action_slugs::action_slug;
+use super::helpers::{bounds, metadata, node_id, simple_node, slug, update_status_text};
 use super::*;
 use crate::app_core::native_shell::runtime_contract::AutomationRole;
 

@@ -1,6 +1,7 @@
 //! Sidebar automation snapshot builders.
 
-use super::helpers::{action_slug, bool_text, bounds, metadata, node_id, simple_node, slug};
+use super::action_slugs::action_slug;
+use super::helpers::{bool_text, bounds, metadata, node_id, simple_node, slug};
 use super::*;
 use crate::app_core::native_shell::runtime_contract::{
     AutomationRole, FolderPaneIdModel, FolderPaneModel,

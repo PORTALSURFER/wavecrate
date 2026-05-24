@@ -6,6 +6,8 @@ use crate::app_core::native_shell::runtime_contract::{
 };
 use std::collections::BTreeMap;
 
+#[path = "automation/action_slugs.rs"]
+mod action_slugs;
 #[path = "automation/browser.rs"]
 mod browser;
 #[path = "automation/dialogs.rs"]
