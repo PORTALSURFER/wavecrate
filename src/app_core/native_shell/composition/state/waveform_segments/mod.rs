@@ -13,7 +13,10 @@ mod surface;
 mod trail;
 
 use self::{
-    fades::emit_edit_fade_overlays,
+    fades::{
+        EditFadeOverlayGeometry, EditFadeSelection, EditFadeSide, EditFadeTime,
+        emit_edit_fade_overlays,
+    },
     selection::{
         emit_hovered_edit_resize_edge, emit_hovered_selection_resize_edge,
         emit_selection_drag_handle, emit_selection_shift_handle, emit_waveform_loop_bar,

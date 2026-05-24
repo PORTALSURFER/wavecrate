@@ -126,21 +126,37 @@ pub(in crate::app_core::native_shell::composition::state) fn push_waveform_playh
             emit_edit_fade_overlays(
                 primitives,
                 style,
-                layout.waveform_plot,
-                rect,
-                edit_selection,
-                edit_preview.leading_end_milli,
-                edit_preview.leading_end_micros,
-                edit_preview.leading_inner_start_milli,
-                edit_preview.leading_inner_start_micros,
-                edit_preview.leading_curve_milli,
-                edit_preview.trailing_start_milli,
-                edit_preview.trailing_start_micros,
-                edit_preview.trailing_inner_end_milli,
-                edit_preview.trailing_inner_end_micros,
-                edit_preview.trailing_curve_milli,
-                viewport.start_micros,
-                viewport.end_micros,
+                EditFadeOverlayGeometry {
+                    waveform_plot: layout.waveform_plot,
+                    edit_selection_rect: rect,
+                    view_start_micros: viewport.start_micros,
+                    view_end_micros: viewport.end_micros,
+                },
+                EditFadeSelection {
+                    range: edit_selection,
+                    fade_in: EditFadeSide {
+                        inner: EditFadeTime::new(
+                            edit_preview.leading_end_milli,
+                            edit_preview.leading_end_micros,
+                        ),
+                        outer: EditFadeTime::new(
+                            edit_preview.leading_inner_start_milli,
+                            edit_preview.leading_inner_start_micros,
+                        ),
+                        curve_milli: edit_preview.leading_curve_milli,
+                    },
+                    fade_out: EditFadeSide {
+                        inner: EditFadeTime::new(
+                            edit_preview.trailing_start_milli,
+                            edit_preview.trailing_start_micros,
+                        ),
+                        outer: EditFadeTime::new(
+                            edit_preview.trailing_inner_end_milli,
+                            edit_preview.trailing_inner_end_micros,
+                        ),
+                        curve_milli: edit_preview.trailing_curve_milli,
+                    },
+                },
                 style.highlight_blue,
             );
             emit_hovered_edit_resize_edge(
