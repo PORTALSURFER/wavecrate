@@ -1,10 +1,16 @@
 use super::*;
-use crate::app::controller::jobs::{FileOpMessage, FileOpResult, WaveformSlideCommitResult};
+use crate::app::controller::jobs::{FileOpMessage, FileOpResult};
 use crate::app::controller::library::wav_io::{file_metadata, read_samples_for_normalization};
-use crate::waveform::DecodedWaveform;
-use hound::SampleFormat;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+
+mod commit;
+mod preview;
+mod rotation;
+mod target;
+
+use commit::{run_waveform_slide_job, slide_wav_spec, write_waveform_wav};
+use rotation::rotate_interleaved_samples;
 
 impl AppController {
     pub(crate) fn align_waveform_start_to_last_marker(&mut self) -> Result<(), String> {
@@ -180,65 +186,13 @@ impl AppController {
         self.sample_view.waveform_slide.is_some()
     }
 
-    fn waveform_slide_target(&self) -> Result<WaveformSlideTarget, String> {
-        let audio = self
-            .sample_view
-            .wav
-            .loaded_audio
-            .as_ref()
-            .ok_or_else(|| "Load a sample to edit it".to_string())?;
-        let source = self
-            .library
-            .sources
-            .iter()
-            .find(|s| s.id == audio.source_id)
-            .cloned()
-            .ok_or_else(|| "Source not available for loaded sample".to_string())?;
-        let relative_path = audio.relative_path.clone();
-        let absolute_path = source.root.join(&relative_path);
-        Ok(WaveformSlideTarget {
-            source,
-            relative_path,
-            absolute_path,
-        })
-    }
-
-    fn apply_waveform_slide_preview(&mut self, samples: Vec<f32>, channels: u16, sample_rate: u32) {
-        let channels = channels.max(1);
-        let total_frames = samples.len() / channels as usize;
-        if total_frames == 0 {
-            return;
-        }
-        let duration_seconds = total_frames as f32 / sample_rate.max(1) as f32;
-        let cache_token = crate::waveform::next_cache_token();
-        self.sample_view.waveform.decoded = Some(Arc::new(DecodedWaveform {
-            cache_token,
-            samples: Arc::from(samples),
-            analysis_samples: Arc::from(Vec::new()),
-            analysis_sample_rate: 0,
-            analysis_stride: 1,
-            peaks: None,
-            duration_seconds,
-            sample_rate: sample_rate.max(1),
-            channels,
-        }));
-        self.sample_view.waveform.render_meta = None;
-        self.ui.waveform.transient_cache_token = None;
-        self.refresh_waveform_image();
-    }
-
     fn apply_waveform_slide_to_disk(
         &mut self,
         state: &WaveformSlideState,
         rotated: &[f32],
     ) -> Result<(), String> {
         let backup = undo::OverwriteBackup::capture_before(&state.absolute_path)?;
-        let spec = hound::WavSpec {
-            channels: state.spec_channels,
-            sample_rate: state.sample_rate.max(1),
-            bits_per_sample: 32,
-            sample_format: SampleFormat::Float,
-        };
+        let spec = slide_wav_spec(state.spec_channels, state.sample_rate);
         write_waveform_wav(&state.absolute_path, rotated, spec)?;
         backup.capture_after(&state.absolute_path)?;
         let (file_size, modified_ns) = file_metadata(&state.absolute_path)?;
@@ -288,148 +242,5 @@ impl AppController {
     }
 }
 
-fn run_waveform_slide_job(
-    state: WaveformSlideState,
-    rotated: Vec<f32>,
-    cancel: Arc<AtomicBool>,
-) -> WaveformSlideCommitResult {
-    if cancel.load(std::sync::atomic::Ordering::Relaxed) {
-        return WaveformSlideCommitResult {
-            source_id: state.source.id,
-            relative_path: state.relative_path,
-            absolute_path: state.absolute_path,
-            entry: None,
-            backup: None,
-            result: Err(String::from("Circular slide cancelled")),
-        };
-    }
-    let result = (|| {
-        let backup =
-            crate::app::controller::undo::OverwriteBackup::capture_before(&state.absolute_path)?;
-        let spec = hound::WavSpec {
-            channels: state.spec_channels,
-            sample_rate: state.sample_rate.max(1),
-            bits_per_sample: 32,
-            sample_format: SampleFormat::Float,
-        };
-        write_waveform_wav(&state.absolute_path, &rotated, spec)?;
-        let (file_size, modified_ns) = file_metadata(&state.absolute_path)?;
-        let db = crate::sample_sources::SourceDatabase::open(&state.source.root)
-            .map_err(|err| format!("Database unavailable: {err}"))?;
-        let tag = db
-            .tag_for_path(&state.relative_path)
-            .map_err(|err| format!("Failed to read tag: {err}"))?
-            .ok_or_else(|| "Sample not found in database".to_string())?;
-        db.upsert_file(&state.relative_path, file_size, modified_ns)
-            .map_err(|err| format!("Failed to sync database entry: {err}"))?;
-        db.set_tag(&state.relative_path, tag)
-            .map_err(|err| format!("Failed to sync tag: {err}"))?;
-        let last_played_at = db
-            .last_played_at_for_path(&state.relative_path)
-            .map_err(|err| format!("Failed to read playback age: {err}"))?;
-        let looped = db
-            .looped_for_path(&state.relative_path)
-            .map_err(|err| format!("Failed to read loop marker: {err}"))?
-            .unwrap_or(false);
-        let locked = db
-            .locked_for_path(&state.relative_path)
-            .map_err(|err| format!("Failed to read lock state: {err}"))?
-            .unwrap_or(false);
-        backup.capture_after(&state.absolute_path)?;
-        Ok((
-            WavEntry {
-                relative_path: state.relative_path.clone(),
-                file_size,
-                modified_ns,
-                content_hash: None,
-                tag,
-                looped,
-                sound_type: None,
-                locked,
-                missing: false,
-                last_played_at,
-                user_tag: None,
-                tag_named: false,
-                normal_tags: Vec::new(),
-            },
-            backup,
-        ))
-    })();
-    match result {
-        Ok((entry, backup)) => WaveformSlideCommitResult {
-            source_id: state.source.id,
-            relative_path: state.relative_path,
-            absolute_path: state.absolute_path,
-            entry: Some(entry),
-            backup: Some(backup),
-            result: Ok(()),
-        },
-        Err(err) => WaveformSlideCommitResult {
-            source_id: state.source.id,
-            relative_path: state.relative_path,
-            absolute_path: state.absolute_path,
-            entry: None,
-            backup: None,
-            result: Err(err),
-        },
-    }
-}
-
-struct WaveformSlideTarget {
-    source: SampleSource,
-    relative_path: PathBuf,
-    absolute_path: PathBuf,
-}
-
-fn rotate_interleaved_samples(samples: &[f32], channels: usize, offset_frames: isize) -> Vec<f32> {
-    if samples.is_empty() || channels == 0 {
-        return Vec::new();
-    }
-    let total_frames = samples.len() / channels;
-    if total_frames == 0 {
-        return Vec::new();
-    }
-    let offset = offset_frames.rem_euclid(total_frames as isize) as usize;
-    if offset == 0 {
-        return samples.to_vec();
-    }
-    let mut rotated = vec![0.0; samples.len()];
-    for frame in 0..total_frames {
-        let dest_frame = (frame + offset) % total_frames;
-        let src = frame * channels;
-        let dest = dest_frame * channels;
-        rotated[dest..dest + channels].copy_from_slice(&samples[src..src + channels]);
-    }
-    rotated
-}
-
-fn write_waveform_wav(
-    target: &PathBuf,
-    samples: &[f32],
-    spec: hound::WavSpec,
-) -> Result<(), String> {
-    let mut writer = hound::WavWriter::create(target, spec)
-        .map_err(|err| format!("Failed to write wav: {err}"))?;
-    for sample in samples {
-        writer
-            .write_sample(*sample)
-            .map_err(|err| format!("Failed to write sample: {err}"))?;
-    }
-    writer
-        .finalize()
-        .map_err(|err| format!("Failed to finalize wav: {err}"))
-}
-
 #[cfg(test)]
-mod tests {
-    use super::rotate_interleaved_samples;
-
-    #[test]
-    fn rotate_interleaved_samples_wraps_frames() {
-        let samples = vec![1.0, -1.0, 2.0, -2.0, 3.0, -3.0];
-        let rotated = rotate_interleaved_samples(&samples, 2, 1);
-        assert_eq!(rotated, vec![3.0, -3.0, 1.0, -1.0, 2.0, -2.0]);
-        let rotated_back = rotate_interleaved_samples(&samples, 2, -1);
-        assert_eq!(rotated_back, vec![2.0, -2.0, 3.0, -3.0, 1.0, -1.0]);
-    }
-}
+mod tests;
