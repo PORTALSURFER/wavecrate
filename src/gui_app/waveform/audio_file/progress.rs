@@ -5,6 +5,9 @@ pub(in crate::gui_app::waveform) fn report_phase_progress_throttled(
     total: usize,
     progress: &impl Fn(f32),
 ) {
+    if completed % 4_096 == 0 {
+        std::thread::yield_now();
+    }
     if completed == total || completed % 16_384 == 0 {
         report_phase_progress(start, end, completed, total, progress);
     }

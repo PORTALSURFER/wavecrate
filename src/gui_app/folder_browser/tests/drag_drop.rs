@@ -250,3 +250,56 @@ fn file_drag_drop_moves_selected_files_into_target_folder() {
     );
     let _ = fs::remove_dir_all(root);
 }
+
+#[test]
+fn file_drag_hover_uses_cached_file_entry_without_filesystem_probe() {
+    let root = temp_source_root("wavecrate-gui-file-drag-hover-cached");
+    let drums = root.join("drums");
+    let loops = root.join("loops");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let kick = drums.join("kick.wav");
+    fs::write(&kick, [0_u8; 8]).expect("write wav");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+
+    browser.begin_file_drag(path_id(&kick), Point::new(4.0, 8.0));
+    fs::remove_file(&kick).expect("remove dragged file after browser cached it");
+    browser.apply_message(FolderBrowserMessage::HoverDropTarget(
+        path_id(&loops),
+        Point::new(50.0, 60.0),
+    ));
+
+    let hovered = browser
+        .visible_folders()
+        .into_iter()
+        .find(|folder| folder.id == path_id(&loops))
+        .expect("loops folder visible");
+    assert!(
+        hovered.drop_target,
+        "drag hover should not depend on probing the dragged file while it may be busy loading"
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn folder_hover_without_active_drag_does_not_mark_drop_target() {
+    let root = temp_source_root("wavecrate-gui-folder-hover-no-drag");
+    let loops = root.join("loops");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+
+    browser.apply_message(FolderBrowserMessage::HoverDropTarget(
+        path_id(&loops),
+        Point::new(50.0, 60.0),
+    ));
+
+    assert!(
+        browser
+            .visible_folders()
+            .into_iter()
+            .all(|folder| !folder.drop_target),
+        "optimistic hover messages should remain harmless when no drag is active"
+    );
+    let _ = fs::remove_dir_all(root);
+}

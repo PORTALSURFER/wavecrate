@@ -302,7 +302,7 @@ impl GuiAppState {
 }
 
 fn folder_drag_preview_width(label: &str) -> f32 {
-    (label.chars().count() as f32 * 7.0 + 118.0).clamp(150.0, DRAG_PREVIEW_MAX_WIDTH)
+    (label.chars().count() as f32 * 7.0 + 28.0).clamp(96.0, DRAG_PREVIEW_MAX_WIDTH)
 }
 
 fn supported_waveform_drop_file(path: &Path) -> bool {

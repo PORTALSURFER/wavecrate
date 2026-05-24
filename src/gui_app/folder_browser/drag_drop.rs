@@ -42,6 +42,10 @@ impl FolderBrowserState {
         matches!(self.drag, Some(FolderBrowserDrag::Files { .. }))
     }
 
+    pub(in crate::gui_app) fn drag_active(&self) -> bool {
+        self.drag.is_some()
+    }
+
     pub(in crate::gui_app) fn file_drag_source(&self, file_id: &str) -> bool {
         match &self.drag {
             Some(FolderBrowserDrag::Files { file_ids }) => file_ids.iter().any(|id| id == file_id),
@@ -161,7 +165,8 @@ impl FolderBrowserState {
             }
             Some(FolderBrowserDrag::Files { file_ids }) => file_ids.iter().any(|id| {
                 let path = Path::new(id);
-                path.is_file() && path.parent() != Some(target_path)
+                self.selected_files().iter().any(|file| file.id == *id)
+                    && path.parent() != Some(target_path)
             }),
             None => false,
         }
