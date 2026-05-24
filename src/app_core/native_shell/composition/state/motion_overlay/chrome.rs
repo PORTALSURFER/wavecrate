@@ -62,13 +62,15 @@ impl NativeShellState {
         render_waveform_toolbar_buttons(
             primitives,
             text_runs,
-            style,
-            sizing,
             &buttons,
-            self.hovered_waveform_toolbar_hint,
-            self.waveform_toolbar_flash.map(|flash| flash.hint),
-            motion_wave,
-            self.waveform_bpm_editor_visual.is_some(),
+            WaveformToolbarRenderContext {
+                style,
+                sizing,
+                hovered_hint: self.hovered_waveform_toolbar_hint,
+                flashed_hint: self.waveform_toolbar_flash.map(|flash| flash.hint),
+                motion_wave,
+                hide_active_bpm_value_text: self.waveform_bpm_editor_visual.is_some(),
+            },
         );
     }
 

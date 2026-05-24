@@ -115,6 +115,7 @@ state/toolbar_helpers/browser_row_decor/**	wavecrate_composition	OPT-188	Browser
 state/toolbar_helpers/browser_toolbar/**	wavecrate_composition	OPT-188	Browser toolbar buttons, colors, layout, and actions move with browser chrome composition.
 state/toolbar_helpers/sidebar_toolbar.rs	wavecrate_composition	OPT-189	Sidebar toolbar helper moves with source and folder composition.
 state/toolbar_helpers/waveform_toolbar.rs	wavecrate_composition	OPT-190	Waveform toolbar helper moves with waveform composition.
+state/toolbar_helpers/waveform_toolbar/**	wavecrate_composition	OPT-190	Waveform toolbar button specs and rendering helpers move with waveform composition.
 state/toolbar_helpers/waveform_visuals.rs	wavecrate_composition	OPT-190	Waveform visuals helper moves with waveform composition.
 state/waveform_segments/**	wavecrate_composition	OPT-190	Waveform fades, header, overlay, routing, scrollbar, selection, slices, surface, and trail composition move with waveform composition.
 tests/**	wavecrate_fixture	OPT-191	Wavecrate native-shell compatibility tests stay grouped as fixture relocation unless a surface child explicitly owns one.
