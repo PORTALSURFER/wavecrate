@@ -1,3 +1,4 @@
+use super::state::CONFIG_BASE_OVERRIDE;
 use super::*;
 use std::sync::{LazyLock, Mutex, MutexGuard};
 use tempfile::tempdir;
