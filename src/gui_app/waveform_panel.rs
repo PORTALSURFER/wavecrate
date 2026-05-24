@@ -43,15 +43,18 @@ fn waveform_viewport_with_loading_state(state: &GuiAppState) -> ui::View<GuiMess
             state.waveform_loading_label.as_deref().unwrap_or_default(),
             state.waveform_loading_progress,
         ));
-        layers.push(
-            ui::custom_widget_mapped(WaveformLoadingInputBlocker::new(), |message: GuiMessage| {
-                message
-            })
-            .key("waveform-loading-input-blocker")
-            .input_only()
-            .fill_width()
-            .height(WAVEFORM_VIEW_HEIGHT),
-        );
+        if !state.folder_browser.drag_active() {
+            layers.push(
+                ui::custom_widget_mapped(
+                    WaveformLoadingInputBlocker::new(),
+                    |message: GuiMessage| message,
+                )
+                .key("waveform-loading-input-blocker")
+                .input_only()
+                .fill_width()
+                .height(WAVEFORM_VIEW_HEIGHT),
+            );
+        }
     }
     if layers.len() == 1 {
         layers.pop().expect("viewport layer")

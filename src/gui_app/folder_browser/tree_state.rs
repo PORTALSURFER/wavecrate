@@ -73,6 +73,7 @@ impl FolderBrowserState {
         folders: &mut Vec<VisibleFolder>,
     ) {
         let drag_active = self.drag.is_some();
+        let drop_target_active = self.drop_target_folder.is_some();
         let drag_source = matches!(
             self.drag.as_ref(),
             Some(super::FolderBrowserDrag::Folder { folder_id }) if folder_id == &folder.id
@@ -90,6 +91,7 @@ impl FolderBrowserState {
             drop_candidate,
             drop_target: drop_candidate
                 && self.drop_target_folder.as_deref() == Some(folder.id.as_str()),
+            drop_target_active,
             rename_draft: self
                 .rename_edit
                 .as_ref()

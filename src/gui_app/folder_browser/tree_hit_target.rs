@@ -1,7 +1,9 @@
 use radiant::{
     gui::types::{Point, Rect, Rgba8},
     layout::{LayoutOutput, Vector2},
-    runtime::{PaintFillRect, PaintPrimitive, PaintStrokeRect},
+    runtime::{
+        PaintFillRect, PaintPrimitive, PaintStrokeRect, PaintText, PaintTextAlign, PaintTextRun,
+    },
     theme::ThemeTokens,
     widgets::{
         DragHandleMessage, FocusBehavior, PaintBounds, PointerButton, Widget, WidgetCommon,
@@ -21,21 +23,25 @@ pub(super) enum FolderTreeHitMessage {
 #[derive(Clone, Debug)]
 pub(super) struct FolderTreeHitTarget {
     common: WidgetCommon,
+    label: PaintText,
     selected: bool,
     drop_target: bool,
     drag_active: bool,
     drag_source: bool,
     drop_candidate: bool,
+    drop_target_active: bool,
     dragged: bool,
 }
 
 impl FolderTreeHitTarget {
     pub(super) fn new(
+        label: impl Into<PaintText>,
         selected: bool,
         drop_target: bool,
         drag_active: bool,
         drag_source: bool,
         drop_candidate: bool,
+        drop_target_active: bool,
     ) -> Self {
         let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 22.0)));
         common.focus = FocusBehavior::None;
@@ -44,11 +50,13 @@ impl FolderTreeHitTarget {
         common.paint.paints_state_layers = false;
         Self {
             common,
+            label: label.into(),
             selected,
             drop_target,
             drag_active,
             drag_source,
             drop_candidate,
+            drop_target_active,
             dragged: false,
         }
     }
@@ -121,6 +129,7 @@ impl Widget for FolderTreeHitTarget {
     ) {
         self.paint_background(primitives, bounds);
         self.paint_drop_target_outline(primitives, bounds);
+        self.paint_label(primitives, bounds, _theme);
     }
 }
 
@@ -136,7 +145,11 @@ impl FolderTreeHitTarget {
             };
             return Some(WidgetOutput::typed(FolderTreeHitMessage::Drag(message)));
         }
-        if self.common.state.hovered && self.drag_active {
+        if self.common.state.hovered
+            && self.drag_active
+            && !self.drop_target
+            && (self.drop_candidate || self.drop_target_active)
+        {
             return Some(WidgetOutput::typed(FolderTreeHitMessage::HoverDropTarget(
                 position,
             )));
@@ -225,6 +238,42 @@ impl FolderTreeHitTarget {
             width: 1.0,
         }));
     }
+
+    fn paint_label(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect, theme: &ThemeTokens) {
+        let font_size = if bounds.height() >= 38.0 {
+            18.0
+        } else if bounds.height() >= 28.0 {
+            14.0
+        } else {
+            13.0
+        };
+        let label_rect = Rect::from_min_max(
+            Point::new(bounds.min.x + 4.0, bounds.min.y),
+            Point::new(bounds.max.x - 4.0, bounds.max.y),
+        );
+        let highlighted =
+            self.drop_target || (self.common.state.hovered && self.drop_candidate) || self.selected;
+        let color = if highlighted {
+            Rgba8 {
+                r: 255,
+                g: 238,
+                b: 224,
+                a: 255,
+            }
+        } else {
+            theme.text_primary
+        };
+        primitives.push(PaintPrimitive::Text(PaintTextRun {
+            widget_id: self.common.id,
+            text: self.label.clone(),
+            rect: label_rect,
+            font_size,
+            baseline: Some((label_rect.height() * 0.5 + font_size * 0.35).max(0.0)),
+            color,
+            align: PaintTextAlign::Left,
+            wrap: radiant::widgets::TextWrap::None,
+        }));
+    }
 }
 
 #[cfg(test)]
@@ -242,7 +291,7 @@ mod tests {
     #[test]
     fn active_drag_survives_widget_refresh_as_moved() {
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
-        let mut first = FolderTreeHitTarget::new(false, false, false, false, false);
+        let mut first = FolderTreeHitTarget::new("kicks", false, false, false, false, false, false);
         first.handle_input(
             bounds,
             WidgetInput::PointerPress {
@@ -263,7 +312,8 @@ mod tests {
             })
         );
 
-        let mut refreshed = FolderTreeHitTarget::new(false, false, true, true, false);
+        let mut refreshed =
+            FolderTreeHitTarget::new("kicks", false, false, true, true, false, false);
         refreshed.common.state = first.common.state;
         assert_eq!(
             message_from(refreshed.handle_input(
@@ -281,7 +331,8 @@ mod tests {
     #[test]
     fn active_drag_survives_widget_refresh_until_release() {
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
-        let mut refreshed = FolderTreeHitTarget::new(false, false, true, true, false);
+        let mut refreshed =
+            FolderTreeHitTarget::new("kicks", false, false, true, true, false, false);
         refreshed.common.state.pressed = true;
 
         assert_eq!(
@@ -302,7 +353,8 @@ mod tests {
     #[test]
     fn active_drag_source_does_not_depend_on_retained_pressed_state() {
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
-        let mut refreshed = FolderTreeHitTarget::new(false, false, true, true, false);
+        let mut refreshed =
+            FolderTreeHitTarget::new("kicks", false, false, true, true, false, false);
 
         assert_eq!(
             message_from(refreshed.handle_input(
@@ -333,7 +385,7 @@ mod tests {
     #[test]
     fn active_drag_release_on_target_row_emits_drop_without_press_capture() {
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
-        let mut target = FolderTreeHitTarget::new(false, true, true, false, true);
+        let mut target = FolderTreeHitTarget::new("loops", false, true, true, false, true, true);
 
         assert_eq!(
             message_from(target.handle_input(
@@ -345,6 +397,92 @@ mod tests {
                 },
             )),
             FolderTreeHitMessage::Drop
+        );
+    }
+
+    #[test]
+    fn drop_target_paints_highlighted_label_text() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+        let target = FolderTreeHitTarget::new("loops", false, true, true, false, true, true);
+        let theme = ThemeTokens::default();
+        let mut primitives = Vec::new();
+
+        target.append_paint(&mut primitives, bounds, &LayoutOutput::default(), &theme);
+
+        assert!(
+            primitives.iter().any(|primitive| {
+                matches!(
+                    primitive,
+                    PaintPrimitive::Text(run)
+                        if run.text == "loops" && run.color != theme.text_primary
+                )
+            }),
+            "folder drop targets should light up the label itself, not only the row marker"
+        );
+    }
+
+    #[test]
+    fn drag_hover_reports_new_drop_target_once() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+        let mut target = FolderTreeHitTarget::new("loops", false, false, true, false, true, false);
+
+        assert_eq!(
+            message_from(target.handle_input(
+                bounds,
+                WidgetInput::PointerMove {
+                    position: Point::new(40.0, 9.0),
+                },
+            )),
+            FolderTreeHitMessage::HoverDropTarget(Point::new(40.0, 9.0)),
+            "a new valid target must notify the app so the committed drop target can change"
+        );
+    }
+
+    #[test]
+    fn current_drop_target_hover_stays_local() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+        let mut target = FolderTreeHitTarget::new("loops", false, true, true, false, true, true);
+
+        assert!(
+            target
+                .handle_input(
+                    bounds,
+                    WidgetInput::PointerMove {
+                        position: Point::new(40.0, 9.0),
+                    },
+                )
+                .is_none(),
+            "pointer motion inside the already-highlighted target should not force another scene rebuild"
+        );
+    }
+
+    #[test]
+    fn invalid_drag_hover_only_reports_when_it_can_clear_existing_target() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+        let mut quiet_invalid =
+            FolderTreeHitTarget::new("kicks", false, false, true, false, false, false);
+        assert!(
+            quiet_invalid
+                .handle_input(
+                    bounds,
+                    WidgetInput::PointerMove {
+                        position: Point::new(40.0, 9.0),
+                    },
+                )
+                .is_none()
+        );
+
+        let mut clearing_invalid =
+            FolderTreeHitTarget::new("kicks", false, false, true, false, false, true);
+        assert_eq!(
+            message_from(clearing_invalid.handle_input(
+                bounds,
+                WidgetInput::PointerMove {
+                    position: Point::new(40.0, 9.0),
+                },
+            )),
+            FolderTreeHitMessage::HoverDropTarget(Point::new(40.0, 9.0)),
+            "invalid rows only need to notify the app when they can clear a previous drop target"
         );
     }
 }

@@ -26,7 +26,7 @@ pub(in crate::gui_app) fn folder_browser_view(state: &FolderBrowserState) -> ui:
 fn folder_tree_view(state: &FolderBrowserState) -> ui::View<GuiMessage> {
     ui::stack([
         ui::custom_widget_mapped(
-            FolderDropClearTarget::new(state.drag.is_some()),
+            FolderDropClearTarget::new(state.drop_target_folder.is_some()),
             GuiMessage::FolderBrowser,
         )
         .key("folder-drop-clear-target")
@@ -147,11 +147,13 @@ fn folder_row(folder: VisibleFolder) -> ui::View<GuiMessage> {
     let hit_id = id.clone();
     let hit_target = ui::custom_widget_mapped(
         FolderTreeHitTarget::new(
+            label_text,
             folder.selected,
             folder.drop_target,
             folder.drag_active,
             folder.drag_source,
             folder.drop_candidate,
+            folder.drop_target_active,
         ),
         move |message| match message {
             FolderTreeHitMessage::Activate => {
@@ -174,15 +176,10 @@ fn folder_row(folder: VisibleFolder) -> ui::View<GuiMessage> {
     .key(format!("folder-row-hit-{id}"))
     .fill_width()
     .height(22.0);
-    let label = ui::text(label_text)
-        .key(format!("folder-row-label-{id}"))
-        .fill_width()
-        .height(22.0)
-        .truncate();
 
     ui::row([
         ui::spacer().width(indent).height(22.0),
-        ui::stack([hit_target, label]).fill_width().height(22.0),
+        hit_target.fill_width().height(22.0),
     ])
     .key(format!("folder-row-{id}"))
     .style(if folder.selected || folder.drop_target {
@@ -196,7 +193,6 @@ fn folder_row(folder: VisibleFolder) -> ui::View<GuiMessage> {
     .fill_width()
     .height(TREE_ROW_HEIGHT)
     .spacing(1.0)
-    .hoverable()
 }
 
 fn selected_folder_status(state: &FolderBrowserState) -> ui::View<GuiMessage> {
