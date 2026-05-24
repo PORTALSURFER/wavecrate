@@ -28,6 +28,7 @@ layout_adapter/controls.rs	wavecrate_composition	OPT-187	Shared control layout f
 layout_adapter/controls/shared.rs	wavecrate_composition	OPT-187	Shared shell-control helper moves with the first chrome-control slice.
 layout_adapter/controls/update_buttons.rs	wavecrate_composition	OPT-187	Update/control button layout moves with top bar and options composition.
 layout_adapter/controls/browser_toolbar.rs	wavecrate_composition	OPT-188	Browser toolbar controls move with browser chrome composition.
+layout_adapter/controls/browser_toolbar/**	wavecrate_composition	OPT-188	Browser toolbar layout helpers move with browser chrome composition.
 layout_adapter/controls/sidebar_buttons.rs	wavecrate_composition	OPT-189	Sidebar and folder controls move with source/sidebar composition.
 layout_adapter/controls_tests.rs	wavecrate_fixture	OPT-191	Wavecrate shell control layout fixture now lives beside Wavecrate composition and must not return to Radiant native_shell.
 layout_adapter/map_canvas.rs	wavecrate_composition	OPT-188	Browser map canvas projection moves with browser map composition.
