@@ -42,13 +42,15 @@ pub(super) fn render_waveform_static(
     render_waveform_toolbar_buttons(
         primitives,
         text_runs,
-        ctx.style,
-        ctx.sizing,
         &waveform_toolbar_buttons,
-        state.hovered_waveform_toolbar_hint,
-        state.waveform_toolbar_flash.map(|flash| flash.hint),
-        ctx.motion_wave,
-        state.waveform_bpm_editor_visual.is_some(),
+        WaveformToolbarRenderContext {
+            style: ctx.style,
+            sizing: ctx.sizing,
+            hovered_hint: state.hovered_waveform_toolbar_hint,
+            flashed_hint: state.waveform_toolbar_flash.map(|flash| flash.hint),
+            motion_wave: ctx.motion_wave,
+            hide_active_bpm_value_text: state.waveform_bpm_editor_visual.is_some(),
+        },
     );
 }
 
