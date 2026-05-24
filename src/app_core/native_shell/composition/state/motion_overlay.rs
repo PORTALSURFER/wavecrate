@@ -25,15 +25,19 @@ impl NativeShellState {
         let playhead_trail_lines = self.update_playhead_trail(layout.waveform_plot, model);
         push_waveform_playhead_overlay(
             primitives,
-            layout,
-            style,
-            model,
-            self.waveform_selection_flash_ticks > 0,
-            self.waveform_edit_selection_flash_ticks > 0,
-            self.waveform_selection_flash_tone,
-            motion_wave,
-            &playhead_trail_lines,
-            self.hovered_waveform_resize_edge,
+            WaveformOverlayInput {
+                layout,
+                style,
+                model,
+                flashes: WaveformOverlayFlashes {
+                    selection_active: self.waveform_selection_flash_ticks > 0,
+                    edit_selection_active: self.waveform_edit_selection_flash_ticks > 0,
+                    selection_tone: self.waveform_selection_flash_tone,
+                },
+                motion_wave,
+                playhead_trail_lines: &playhead_trail_lines,
+                hovered_resize_edge: self.hovered_waveform_resize_edge,
+            },
         );
         if let Some(hover_x) = self.waveform_hover_x {
             // Keep hover preview cursor visually obvious against dense waveform content.

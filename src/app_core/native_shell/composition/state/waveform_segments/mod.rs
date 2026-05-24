@@ -25,7 +25,7 @@ use self::{
 };
 pub(in crate::app_core::native_shell::composition::state) use self::{
     header::push_waveform_header_overlay,
-    overlay::push_waveform_playhead_overlay,
+    overlay::{WaveformOverlayFlashes, WaveformOverlayInput, push_waveform_playhead_overlay},
     routing::{static_segment_for_primitive, static_segment_for_text, static_segment_matches},
     scrollbar::{waveform_scrollbar_center_for_pointer, waveform_scrollbar_layout},
     surface::push_waveform_image,
