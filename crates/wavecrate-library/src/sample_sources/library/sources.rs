@@ -1,0 +1,174 @@
+use std::path::{Path, PathBuf};
+use std::time::Instant;
+
+use rusqlite::{Connection, OptionalExtension, Transaction, params};
+use serde::{Deserialize, Serialize};
+
+use super::connection::LibraryDatabase;
+use super::error::map_sql_error;
+use super::telemetry::record_library_db_event;
+use super::{KNOWN_SOURCES_KEY, LibraryError, LibraryState};
+use crate::sample_sources::normalize_path;
+use crate::sample_sources::{SampleSource, SourceId};
+
+impl LibraryDatabase {
+    pub(super) fn load_state(&self) -> Result<LibraryState, LibraryError> {
+        let started_at = Instant::now();
+        let sources = self.load_sources()?;
+        let state = LibraryState { sources };
+        record_library_db_event("library.load_state", started_at, Ok(()));
+        Ok(state)
+    }
+
+    pub(super) fn replace_state(&mut self, state: &LibraryState) -> Result<(), LibraryError> {
+        let started_at = Instant::now();
+        let tx = self.connection.transaction().map_err(map_sql_error)?;
+        let mut mappings = Self::load_known_sources_from(&tx)?;
+        Self::replace_sources(&tx, &state.sources)?;
+        Self::remember_known_sources_in_tx(&tx, &mut mappings, &state.sources)?;
+        tx.commit().map_err(map_sql_error)?;
+        record_library_db_event("library.replace_state", started_at, Ok(()));
+        Ok(())
+    }
+
+    pub(super) fn load_sources(&self) -> Result<Vec<SampleSource>, LibraryError> {
+        let started_at = Instant::now();
+        let mut stmt = self
+            .connection
+            .prepare(
+                "SELECT id, root
+                 FROM sources
+                 ORDER BY sort_order ASC, id ASC",
+            )
+            .map_err(map_sql_error)?;
+        let rows = stmt
+            .query_map([], |row| {
+                let id: String = row.get(0)?;
+                let root: String = row.get(1)?;
+                Ok(SampleSource {
+                    id: SourceId::from_string(id),
+                    root: PathBuf::from(root),
+                })
+            })
+            .map_err(map_sql_error)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(map_sql_error)?;
+        record_library_db_event("library.load_sources", started_at, Ok(()));
+        Ok(rows)
+    }
+
+    pub(super) fn lookup_known_source_id(
+        &self,
+        root: &Path,
+    ) -> Result<Option<SourceId>, LibraryError> {
+        let started_at = Instant::now();
+        let normalized = normalize_path(root);
+        let needle = normalized.to_string_lossy().to_string();
+        let mappings = self.load_known_sources()?;
+        let result = mappings
+            .into_iter()
+            .find(|entry| entry.root == needle)
+            .map(|entry| SourceId::from_string(entry.source_id));
+        record_library_db_event("library.lookup_known_source_id", started_at, Ok(()));
+        Ok(result)
+    }
+
+    fn replace_sources(tx: &Transaction<'_>, sources: &[SampleSource]) -> Result<(), LibraryError> {
+        tx.execute("DELETE FROM sources", [])
+            .map_err(map_sql_error)?;
+        if sources.is_empty() {
+            return Ok(());
+        }
+
+        let mut stmt = tx
+            .prepare("INSERT INTO sources (id, root, sort_order) VALUES (?1, ?2, ?3)")
+            .map_err(map_sql_error)?;
+        for (idx, source) in sources.iter().enumerate() {
+            stmt.execute(params![
+                source.id.as_str(),
+                source.root.to_string_lossy(),
+                idx as i64
+            ])
+            .map_err(map_sql_error)?;
+        }
+        Ok(())
+    }
+
+    fn remember_known_sources_in_tx(
+        tx: &Transaction<'_>,
+        mappings: &mut Vec<KnownSourceMapping>,
+        sources: &[SampleSource],
+    ) -> Result<(), LibraryError> {
+        for source in sources {
+            upsert_known_source_mapping(mappings, source);
+        }
+        mappings.sort_by(|a, b| a.root.cmp(&b.root));
+        Self::set_metadata_in_tx(tx, KNOWN_SOURCES_KEY, &serde_json::to_string(&mappings)?)?;
+        Ok(())
+    }
+
+    fn load_known_sources(&self) -> Result<Vec<KnownSourceMapping>, LibraryError> {
+        let started_at = Instant::now();
+        let result = Self::load_known_sources_from(&self.connection);
+        record_library_db_event(
+            "library.load_known_sources",
+            started_at,
+            result.as_ref().map(|_| ()),
+        );
+        result
+    }
+
+    fn load_known_sources_from(conn: &Connection) -> Result<Vec<KnownSourceMapping>, LibraryError> {
+        let Some(value) = Self::get_metadata_from(conn, KNOWN_SOURCES_KEY)? else {
+            return Ok(Vec::new());
+        };
+        serde_json::from_str::<Vec<KnownSourceMapping>>(&value).map_err(|source| {
+            LibraryError::MetadataJson {
+                key: KNOWN_SOURCES_KEY,
+                source,
+            }
+        })
+    }
+
+    fn get_metadata_from(conn: &Connection, key: &str) -> Result<Option<String>, LibraryError> {
+        conn.query_row("SELECT value FROM metadata WHERE key = ?1", [key], |row| {
+            row.get(0)
+        })
+        .optional()
+        .map_err(map_sql_error)
+    }
+
+    fn set_metadata_in_tx(
+        tx: &Transaction<'_>,
+        key: &str,
+        value: &str,
+    ) -> Result<(), LibraryError> {
+        tx.execute(
+            "INSERT INTO metadata (key, value)
+             VALUES (?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            [key, value],
+        )
+        .map_err(map_sql_error)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct KnownSourceMapping {
+    root: String,
+    source_id: String,
+}
+
+fn upsert_known_source_mapping(mappings: &mut Vec<KnownSourceMapping>, source: &SampleSource) {
+    let normalized = normalize_path(&source.root);
+    let root = normalized.to_string_lossy().to_string();
+    if let Some(existing) = mappings.iter_mut().find(|entry| entry.root == root) {
+        existing.source_id = source.id.as_str().to_string();
+        return;
+    }
+    mappings.push(KnownSourceMapping {
+        root,
+        source_id: source.id.as_str().to_string(),
+    });
+}
