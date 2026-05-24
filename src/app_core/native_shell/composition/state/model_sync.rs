@@ -66,7 +66,7 @@ impl NativeShellState {
                 .active_folder_pane_model()
                 .tree_rows
                 .iter()
-                .any(|row| row.focused || row.selected);
+                .any(|row| row.flags.focused || row.flags.selected);
     }
 
     /// Synchronize motion-sensitive state from a dedicated motion model projection.

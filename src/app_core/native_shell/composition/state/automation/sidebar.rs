@@ -253,7 +253,7 @@ fn folder_browser_group(
                                 String::from("New folder")
                             },
                         ),
-                        row.input_value.clone(),
+                        row.input.value.clone(),
                         vec![
                             String::from("focus_folder_create_input"),
                             String::from("set_folder_create_input"),
@@ -267,7 +267,7 @@ fn folder_browser_group(
                         String::from("activate_folder_row"),
                         String::from("start_new_folder_at_folder_row"),
                     ];
-                    if row.has_children && !row.is_root {
+                    if row.flags.has_children && !row.flags.is_root {
                         available_actions.push(String::from("toggle_folder_row_expanded"));
                     }
                     (
@@ -284,13 +284,13 @@ fn folder_browser_group(
                     bounds: bounds(rect),
                     value,
                     enabled: true,
-                    selected: row.selected || row.focused || row.input_focused,
+                    selected: row.flags.selected || row.flags.focused || row.input.focused,
                     available_actions,
                     metadata: metadata(&[
                         ("depth", &row.depth.to_string()),
-                        ("focused", bool_text(row.focused)),
-                        ("root", bool_text(row.is_root)),
-                        ("expanded", bool_text(row.expanded)),
+                        ("focused", bool_text(row.flags.focused)),
+                        ("root", bool_text(row.flags.is_root)),
+                        ("expanded", bool_text(row.flags.expanded)),
                         (
                             "kind",
                             match row.kind {
@@ -303,8 +303,11 @@ fn folder_browser_group(
                                 crate::app_core::native_shell::runtime_contract::FolderRowKind::Existing => "existing",
                             },
                         ),
-                        ("input_error", row.input_error.as_deref().unwrap_or("")),
-                        ("select_all_on_focus", bool_text(row.select_all_on_focus)),
+                        ("input_error", row.input.error.as_deref().unwrap_or("")),
+                        (
+                            "select_all_on_focus",
+                            bool_text(row.input.select_all_on_focus),
+                        ),
                     ]),
                     children: Vec::new(),
                 }

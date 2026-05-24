@@ -103,7 +103,7 @@ mod projection_folder_edits {
             .iter()
             .find(|row| row.kind == crate::app_core::actions::NativeFolderRowKind::CreateDraft)
             .expect("folder create draft should be projected");
-        assert_eq!(initial_draft.input_value.as_deref(), Some(""));
+        assert_eq!(initial_draft.input.value.as_deref(), Some(""));
 
         bridge.on_action(NativeUiAction::SetFolderCreateInput {
             value: String::from("drums"),
@@ -116,7 +116,7 @@ mod projection_folder_edits {
             .iter()
             .find(|row| row.kind == crate::app_core::actions::NativeFolderRowKind::CreateDraft)
             .expect("folder create draft should still be projected");
-        assert_eq!(updated_draft.input_value.as_deref(), Some("drums"));
+        assert_eq!(updated_draft.input.value.as_deref(), Some("drums"));
     }
 
     /// Canceling folder-create should remove the draft from the next projected model immediately.
@@ -222,7 +222,7 @@ mod projection_folder_edits {
             .iter()
             .find(|row| row.kind == crate::app_core::actions::NativeFolderRowKind::RenameDraft)
             .expect("folder rename draft should be projected");
-        assert_eq!(draft.input_value.as_deref(), Some("drums"));
-        assert!(draft.select_all_on_focus);
+        assert_eq!(draft.input.value.as_deref(), Some("drums"));
+        assert!(draft.input.select_all_on_focus);
     }
 }

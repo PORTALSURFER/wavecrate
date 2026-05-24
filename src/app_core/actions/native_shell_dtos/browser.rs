@@ -17,7 +17,104 @@ pub type BrowserTagState = selection::TriState;
 pub type BrowserTagPillModel = badge::SelectablePill<BrowserTagState>;
 
 /// Browser-local metadata sidebar shown beside the sample list.
-pub type BrowserTagSidebarModel = badge::PillEditorPanel<BrowserTagState>;
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BrowserTagSidebarModel {
+    /// Whether the panel should render in the current view.
+    pub open: bool,
+    /// Count of selected rows represented by the panel target set.
+    pub selected_count: usize,
+    /// Header line describing the current selection/focus context.
+    pub header_label: String,
+    /// Whether auto-rename is enabled for tag edits.
+    pub primary_action_enabled: bool,
+    /// Current tag search/create input value.
+    pub input_value: String,
+    /// Placeholder shown for the input when empty.
+    pub input_placeholder: String,
+    /// Whether the tag input currently owns text-editing focus.
+    pub input_focused: bool,
+    /// Caret position measured in Unicode scalar values from the start.
+    pub input_caret: usize,
+    /// Selected text range measured in Unicode scalar values, when any.
+    pub input_selection: Option<(usize, usize)>,
+    /// Mutually exclusive playback-mode pills.
+    pub exclusive_pills: [BrowserTagPillModel; 2],
+    /// Tags already applied to the represented target set.
+    pub accepted_pills: Vec<BrowserTagPillModel>,
+    /// Normal tag candidates from common usage or search.
+    pub option_pills: Vec<BrowserTagPillModel>,
+    /// Create-new tag candidate when the input does not match an existing option.
+    pub create_pill: Option<BrowserTagPillModel>,
+}
+
+impl Default for BrowserTagSidebarModel {
+    fn default() -> Self {
+        Self {
+            open: false,
+            selected_count: 0,
+            header_label: String::new(),
+            primary_action_enabled: false,
+            input_value: String::new(),
+            input_placeholder: String::new(),
+            input_focused: false,
+            input_caret: 0,
+            input_selection: None,
+            exclusive_pills: [
+                BrowserTagPillModel::default(),
+                BrowserTagPillModel::default(),
+            ],
+            accepted_pills: Vec::new(),
+            option_pills: Vec::new(),
+            create_pill: None,
+        }
+    }
+}
+
+impl From<BrowserTagSidebarModel> for badge::PillEditorPanel<BrowserTagState> {
+    fn from(value: BrowserTagSidebarModel) -> Self {
+        Self {
+            status: badge::PillEditorStatus {
+                open: value.open,
+                selected_count: value.selected_count,
+                header_label: value.header_label,
+                primary_action_enabled: value.primary_action_enabled,
+            },
+            input: badge::PillEditorInput {
+                input_value: value.input_value,
+                input_placeholder: value.input_placeholder,
+                input_focused: value.input_focused,
+                input_caret: value.input_caret,
+                input_selection: value.input_selection,
+            },
+            choices: badge::PillEditorChoices {
+                exclusive_pills: value.exclusive_pills,
+                accepted_pills: value.accepted_pills,
+                option_pills: value.option_pills,
+                create_pill: value.create_pill,
+            },
+        }
+    }
+}
+
+impl From<badge::PillEditorPanel<BrowserTagState>> for BrowserTagSidebarModel {
+    fn from(value: badge::PillEditorPanel<BrowserTagState>) -> Self {
+        Self {
+            open: value.status.open,
+            selected_count: value.status.selected_count,
+            header_label: value.status.header_label,
+            primary_action_enabled: value.status.primary_action_enabled,
+            input_value: value.input.input_value,
+            input_placeholder: value.input.input_placeholder,
+            input_focused: value.input.input_focused,
+            input_caret: value.input.input_caret,
+            input_selection: value.input.input_selection,
+            exclusive_pills: value.choices.exclusive_pills,
+            accepted_pills: value.choices.accepted_pills,
+            option_pills: value.choices.option_pills,
+            create_pill: value.choices.create_pill,
+        }
+    }
+}
 
 /// Summary of browser/list state consumed by the native shell.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]

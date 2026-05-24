@@ -28,18 +28,26 @@ pub(crate) fn render_active_text_field(
     caret_color: Rgba8,
 ) {
     let output = crate::gui::paint::text_field_paint(crate::gui::paint::TextFieldPaint {
-        field_rect,
-        text_rect,
-        text: visual.text.clone(),
-        caret_offset: visual.caret_offset,
-        selection_offsets: visual.selection_offsets,
-        font_size: sizing.font_meta,
-        fill_color,
-        border_color,
-        selection_color,
-        caret_color,
-        text_color: style.text_primary,
-        stroke_width: sizing.border_width,
+        geometry: crate::gui::paint::TextFieldPaintGeometry {
+            field_rect,
+            text_rect,
+        },
+        content: crate::gui::paint::TextFieldPaintContent {
+            text: visual.text.clone(),
+            caret_offset: visual.caret_offset,
+            selection_offsets: visual.selection_offsets,
+            font_size: sizing.font_meta,
+        },
+        colors: crate::gui::paint::TextFieldPaintColors {
+            fill_color,
+            border_color,
+            selection_color,
+            caret_color,
+            text_color: style.text_primary,
+        },
+        stroke: crate::gui::paint::TextFieldPaintStroke {
+            stroke_width: sizing.border_width,
+        },
     });
 
     for primitive in output.primitives {

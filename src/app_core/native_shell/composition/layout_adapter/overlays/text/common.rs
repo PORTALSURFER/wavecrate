@@ -25,7 +25,12 @@ pub(super) fn fixed_height_child(node_id: u64, height: f32) -> SlotChild {
         slot: SlotParams {
             size_main: SizeModeMain::Fixed(height.max(0.0)),
             size_cross: SizeModeCross::Fill,
-            constraints: Constraints::new(0.0, f32::INFINITY, height.max(0.0), height.max(0.0)),
+            constraints: super::super::super::constraints(
+                0.0,
+                f32::INFINITY,
+                height.max(0.0),
+                height.max(0.0),
+            ),
             margin: Insets::default(),
             align_cross_override: Some(CrossAlign::Stretch),
             allow_fixed_compress: true,

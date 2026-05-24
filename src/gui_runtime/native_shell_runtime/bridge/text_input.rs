@@ -46,7 +46,7 @@ impl<B: NativeAppBridge> WavecrateRuntimeBridge<B> {
                 Some(self.model.sources.tree_search_query.clone())
             }
             RetainedTextInputTarget::BrowserPillEditor => {
-                Some(self.model.browser.pill_editor.input_value.clone())
+                Some(self.model.browser.pill_editor().input_value.clone())
             }
             RetainedTextInputTarget::FolderCreate => self.folder_inline_editor_value(),
             RetainedTextInputTarget::Prompt => self.model.confirm_prompt.input_value.clone(),
@@ -65,7 +65,7 @@ impl<B: NativeAppBridge> WavecrateRuntimeBridge<B> {
                         | runtime_contract::FolderRowKind::RenameDraft
                 )
             })
-            .and_then(|row| row.input_value.clone())
+            .and_then(|row| row.input.value.clone())
     }
 
     /// Keep the local retained text target synchronized with host focus actions.

@@ -266,8 +266,8 @@ fn folder_row_disclosure_toggles_expansion(
     let Some(row) = pane_model.tree_rows.get(index) else {
         return false;
     };
-    row.has_children
-        && !row.is_root
+    row.flags.has_children
+        && !row.flags.is_root
         && !matches!(
             row.kind,
             runtime_contract::FolderRowKind::CreateDraft

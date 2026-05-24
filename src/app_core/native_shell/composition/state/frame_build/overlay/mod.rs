@@ -108,7 +108,8 @@ pub(super) fn render_hover_overlay(
             text_rect,
             visual,
             draft_row
-                .input_error
+                .input
+                .error
                 .as_ref()
                 .is_some_and(|error| !error.trim().is_empty()),
         );

@@ -120,6 +120,6 @@ fn row_has_disclosure_target(row: &FolderRowModel) -> bool {
     matches!(
         row.kind,
         FolderRowKind::CreateDraft | FolderRowKind::RenameDraft
-    ) || row.is_root
-        || !row.has_children
+    ) || row.flags.is_root
+        || !row.flags.has_children
 }

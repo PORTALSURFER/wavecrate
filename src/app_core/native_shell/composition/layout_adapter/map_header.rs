@@ -87,7 +87,7 @@ fn fixed_width_child(node_id: u64, width: f32) -> SlotChild {
         slot: SlotParams {
             size_main: SizeModeMain::Fixed(width),
             size_cross: SizeModeCross::Fill,
-            constraints: Constraints::new(width, width, 0.0, f32::INFINITY),
+            constraints: super::constraints(width, width, 0.0, f32::INFINITY),
             margin: Insets::default(),
             align_cross_override: Some(CrossAlign::Stretch),
             allow_fixed_compress: false,

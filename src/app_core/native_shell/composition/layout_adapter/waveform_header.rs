@@ -95,7 +95,7 @@ fn fixed_height_row(node_id: u64, height: f32) -> SlotChild {
         slot: SlotParams {
             size_main: SizeModeMain::Fixed(height),
             size_cross: SizeModeCross::Fill,
-            constraints: Constraints::new(0.0, f32::INFINITY, height, height),
+            constraints: super::constraints(0.0, f32::INFINITY, height, height),
             margin: Insets::default(),
             align_cross_override: Some(CrossAlign::Stretch),
             allow_fixed_compress: false,

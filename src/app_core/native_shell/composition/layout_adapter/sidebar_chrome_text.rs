@@ -138,7 +138,7 @@ fn line_slot_child(node_id: u64, line_height: f32) -> SlotChild {
         slot: SlotParams {
             size_main: SizeModeMain::Fixed(line_height),
             size_cross: SizeModeCross::Fill,
-            constraints: Constraints::new(0.0, f32::INFINITY, line_height, line_height),
+            constraints: super::constraints(0.0, f32::INFINITY, line_height, line_height),
             margin: Insets::default(),
             align_cross_override: Some(CrossAlign::Stretch),
             allow_fixed_compress: false,

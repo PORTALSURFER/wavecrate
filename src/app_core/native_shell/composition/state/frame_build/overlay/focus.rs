@@ -125,10 +125,10 @@ pub(super) fn render_folder_focus_overlay(
             };
             let row_rect = rendered_row.rect;
             let visual_rect = folder_row_visual_rect(row_rect, sizing);
-            if !(row.selected || row.focused) {
+            if !(row.flags.selected || row.flags.focused) {
                 continue;
             }
-            if row.focused {
+            if row.flags.focused {
                 emit_primitive(
                     primitives,
                     Primitive::Rect(FillRect {
@@ -141,11 +141,11 @@ pub(super) fn render_folder_focus_overlay(
                     }),
                 );
             }
-            if row.focused || row.selected {
+            if row.flags.focused || row.flags.selected {
                 push_browser_row_border(
                     primitives,
                     visual_rect,
-                    if row.focused {
+                    if row.flags.focused {
                         blend_color(
                             style.accent_warning,
                             style.text_primary,
@@ -158,20 +158,21 @@ pub(super) fn render_folder_focus_overlay(
                             style.state_selected_blend,
                         )
                     },
-                    if row.focused {
+                    if row.flags.focused {
                         sizing.focus_stroke_width
                     } else {
                         sizing.border_width
                     },
                     BorderSides {
                         top: true,
-                        bottom: row.focused || Some(visual_rect.max.y) == last_folder_row_max_y,
-                        left: row.focused,
-                        right: row.focused,
+                        bottom: row.flags.focused
+                            || Some(visual_rect.max.y) == last_folder_row_max_y,
+                        left: row.flags.focused,
+                        right: row.flags.focused,
                     },
                 );
             }
-            if row.focused {
+            if row.flags.focused {
                 let depth_indent =
                     compute_sidebar_folder_row_depth_indent(row_rect, sizing, row.depth);
                 let row_text_rect =

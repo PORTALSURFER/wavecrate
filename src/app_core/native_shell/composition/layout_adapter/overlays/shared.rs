@@ -11,7 +11,7 @@ pub(super) fn fill_child(node_id: u64, weight: f32) -> SlotChild {
         slot: SlotParams {
             size_main: SizeModeMain::Fill(weight.max(0.0001)),
             size_cross: SizeModeCross::Fill,
-            constraints: Constraints::new(0.0, f32::INFINITY, 0.0, f32::INFINITY),
+            constraints: super::super::constraints(0.0, f32::INFINITY, 0.0, f32::INFINITY),
             margin: Insets::default(),
             align_cross_override: None,
             allow_fixed_compress: false,
@@ -31,7 +31,7 @@ pub(super) fn fixed_child(
         slot: SlotParams {
             size_main: SizeModeMain::Fixed(height.max(0.0)),
             size_cross: SizeModeCross::Fixed(width.max(0.0)),
-            constraints: Constraints::new(
+            constraints: super::super::constraints(
                 width.max(0.0),
                 width.max(0.0),
                 height.max(0.0),
@@ -51,7 +51,12 @@ pub(super) fn fixed_width_button(node_id: u64, width: f32, left_margin: f32) -> 
         slot: SlotParams {
             size_main: SizeModeMain::Fixed(width.max(0.0)),
             size_cross: SizeModeCross::Fill,
-            constraints: Constraints::new(width.max(0.0), width.max(0.0), 0.0, f32::INFINITY),
+            constraints: super::super::constraints(
+                width.max(0.0),
+                width.max(0.0),
+                0.0,
+                f32::INFINITY,
+            ),
             margin: Insets {
                 left: left_margin.max(0.0),
                 ..Insets::default()

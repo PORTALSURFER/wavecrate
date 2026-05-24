@@ -243,7 +243,7 @@ fn fixed_height_slot(height: f32, bottom_margin: f32) -> SlotParams {
     SlotParams {
         size_main: SizeModeMain::Fixed(height.max(0.0)),
         size_cross: SizeModeCross::Fill,
-        constraints: Constraints::new(0.0, f32::INFINITY, 0.0, height.max(0.0)),
+        constraints: super::constraints(0.0, f32::INFINITY, 0.0, height.max(0.0)),
         margin: Insets {
             bottom: bottom_margin.max(0.0),
             ..Insets::default()
@@ -257,7 +257,7 @@ fn fixed_width_slot(width: f32) -> SlotParams {
     SlotParams {
         size_main: SizeModeMain::Fixed(width.max(0.0)),
         size_cross: SizeModeCross::Fill,
-        constraints: Constraints::new(0.0, width.max(0.0), 0.0, f32::INFINITY),
+        constraints: super::constraints(0.0, width.max(0.0), 0.0, f32::INFINITY),
         margin: Insets::default(),
         align_cross_override: None,
         allow_fixed_compress: true,

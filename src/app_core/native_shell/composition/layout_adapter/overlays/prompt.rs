@@ -97,7 +97,12 @@ fn compute_prompt_buttons(dialog: Rect, sizing: SizingTokens) -> (Rect, Rect) {
                 slot: SlotParams {
                     size_main: SizeModeMain::Fixed(button_height),
                     size_cross: SizeModeCross::Fill,
-                    constraints: Constraints::new(0.0, f32::INFINITY, button_height, button_height),
+                    constraints: super::super::constraints(
+                        0.0,
+                        f32::INFINITY,
+                        button_height,
+                        button_height,
+                    ),
                     margin: Insets {
                         bottom: sizing.text_inset_y.max(0.0),
                         ..Insets::default()
@@ -182,7 +187,12 @@ fn compute_prompt_input_rect(
                 slot: SlotParams {
                     size_main: SizeModeMain::Fixed(top.max(0.0)),
                     size_cross: SizeModeCross::Fill,
-                    constraints: Constraints::new(0.0, f32::INFINITY, top.max(0.0), top.max(0.0)),
+                    constraints: super::super::constraints(
+                        0.0,
+                        f32::INFINITY,
+                        top.max(0.0),
+                        top.max(0.0),
+                    ),
                     margin: Insets::default(),
                     align_cross_override: None,
                     allow_fixed_compress: true,
@@ -196,7 +206,7 @@ fn compute_prompt_input_rect(
                 slot: SlotParams {
                     size_main: SizeModeMain::Fixed(input_height),
                     size_cross: SizeModeCross::Fill,
-                    constraints: Constraints::new(
+                    constraints: super::super::constraints(
                         0.0,
                         f32::INFINITY,
                         input_height.max(0.0),

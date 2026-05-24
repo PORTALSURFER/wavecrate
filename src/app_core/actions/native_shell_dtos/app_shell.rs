@@ -27,7 +27,98 @@ pub type ColumnModel = list::ColumnSummary;
 pub type MapRenderModeModel = visualization::PointRenderMode;
 
 /// Summary of map state consumed by the native shell map tab.
-pub type MapPanelModel = visualization::SpatialPanel;
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MapPanelModel {
+    /// Whether the map panel is currently active.
+    pub active: bool,
+    /// Human-readable map summary line.
+    pub summary: String,
+    /// Legend/status label for render mode and point density.
+    pub legend_label: String,
+    /// Selection/focus label for the currently highlighted sample.
+    pub selection_label: String,
+    /// Hover label for the currently hovered sample, when any.
+    pub hover_label: String,
+    /// Cluster summary label for projected points.
+    pub cluster_label: String,
+    /// Viewport label describing zoom/pan state.
+    pub viewport_label: String,
+    /// Optional map error text.
+    pub error: Option<String>,
+    /// Current point render mode.
+    pub render_mode: MapRenderModeModel,
+    /// Host item id currently selected in map state, when any.
+    pub selected_item_id: Option<String>,
+    /// Host item id currently focused from a related list, when any.
+    pub focused_item_id: Option<String>,
+    /// Points available for rendering in normalized map coordinates.
+    pub points: std::sync::Arc<[MapPointModel]>,
+}
+
+impl Default for MapPanelModel {
+    fn default() -> Self {
+        Self {
+            active: false,
+            summary: String::new(),
+            legend_label: String::new(),
+            selection_label: String::new(),
+            hover_label: String::new(),
+            cluster_label: String::new(),
+            viewport_label: String::new(),
+            error: None,
+            render_mode: MapRenderModeModel::default(),
+            selected_item_id: None,
+            focused_item_id: None,
+            points: std::sync::Arc::default(),
+        }
+    }
+}
+
+impl From<MapPanelModel> for visualization::SpatialPanel {
+    fn from(value: MapPanelModel) -> Self {
+        Self {
+            status: visualization::SpatialPanelStatus {
+                active: value.active,
+                summary: value.summary,
+                error: value.error,
+            },
+            labels: visualization::SpatialPanelLabels {
+                legend_label: value.legend_label,
+                selection_label: value.selection_label,
+                hover_label: value.hover_label,
+                cluster_label: value.cluster_label,
+                viewport_label: value.viewport_label,
+            },
+            selection: visualization::SpatialPanelSelection {
+                selected_item_id: value.selected_item_id,
+                focused_item_id: value.focused_item_id,
+            },
+            points: visualization::SpatialPanelPoints {
+                render_mode: value.render_mode,
+                points: value.points,
+            },
+        }
+    }
+}
+
+impl From<visualization::SpatialPanel> for MapPanelModel {
+    fn from(value: visualization::SpatialPanel) -> Self {
+        Self {
+            active: value.status.active,
+            summary: value.status.summary,
+            legend_label: value.labels.legend_label,
+            selection_label: value.labels.selection_label,
+            hover_label: value.labels.hover_label,
+            cluster_label: value.labels.cluster_label,
+            viewport_label: value.labels.viewport_label,
+            error: value.status.error,
+            render_mode: value.points.render_mode,
+            selected_item_id: value.selection.selected_item_id,
+            focused_item_id: value.selection.focused_item_id,
+            points: value.points.points,
+        }
+    }
+}
 
 /// Render data for one point shown in the native map canvas.
 pub type MapPointModel = visualization::SpatialPoint;

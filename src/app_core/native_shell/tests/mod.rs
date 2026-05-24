@@ -76,10 +76,10 @@ mod overlay_tree_rows {
             .expect("inline draft row should be projected");
         assert_eq!(projected.focused_tree_row, Some(1));
         assert_eq!(draft.depth, 2);
-        assert_eq!(draft.input_value.as_deref(), Some("existing"));
-        assert_eq!(draft.input_placeholder.as_deref(), Some("New folder name"));
+        assert_eq!(draft.input.value.as_deref(), Some("existing"));
+        assert_eq!(draft.input.placeholder.as_deref(), Some("New folder name"));
         assert_eq!(
-            draft.input_error.as_deref(),
+            draft.input.error.as_deref(),
             Some("Folder already exists: drums/existing")
         );
         assert_eq!(projected.tree_rows[2].kind, FolderRowKind::CreateDraft);
@@ -94,7 +94,7 @@ mod overlay_tree_rows {
             .find(|row| row.kind == FolderRowKind::CreateDraft)
             .expect("inline draft row should still be projected");
         assert_eq!(
-            draft.input_error.as_deref(),
+            draft.input.error.as_deref(),
             Some("Folder name cannot contain path separators")
         );
     }
@@ -185,13 +185,13 @@ mod overlay_tree_rows {
         let draft = &projected.tree_rows[0];
         assert_eq!(draft.kind, FolderRowKind::RenameDraft);
         assert_eq!(
-            draft.input_error.as_deref(),
+            draft.input.error.as_deref(),
             Some("Folder already exists: kicks")
         );
-        assert_eq!(draft.input_value.as_deref(), Some("kicks"));
-        assert_eq!(draft.input_placeholder.as_deref(), Some("Folder name"));
-        assert!(draft.input_focused);
-        assert!(draft.select_all_on_focus);
+        assert_eq!(draft.input.value.as_deref(), Some("kicks"));
+        assert_eq!(draft.input.placeholder.as_deref(), Some("Folder name"));
+        assert!(draft.input.focused);
+        assert!(draft.input.select_all_on_focus);
         assert_eq!(draft.backing_index, Some(0));
 
         if let Some(edit) = ui.sources.folders.inline_edit.as_mut() {
@@ -201,7 +201,7 @@ mod overlay_tree_rows {
         let projected = project_sources_for_ui(&ui);
         let draft = &projected.tree_rows[0];
         assert_eq!(
-            draft.input_error.as_deref(),
+            draft.input.error.as_deref(),
             Some("Folder name cannot contain path separators")
         );
     }

@@ -215,7 +215,7 @@ pub(crate) fn compute_source_section_divider_rect(
             slot: SlotParams {
                 size_main: SizeModeMain::Fixed(divider_height),
                 size_cross: SizeModeCross::Fill,
-                constraints: Constraints::new(0.0, f32::INFINITY, divider_height, divider_height),
+                constraints: super::constraints(0.0, f32::INFINITY, divider_height, divider_height),
                 margin: Insets::default(),
                 align_cross_override: Some(CrossAlign::Stretch),
                 allow_fixed_compress: false,
