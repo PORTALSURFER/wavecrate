@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use super::{APP_ROOT_OVERRIDE, SCOPED_APP_ROOT_OVERRIDE, TEST_CONFIG_OVERRIDE};
+use super::state::{APP_ROOT_OVERRIDE, SCOPED_APP_ROOT_OVERRIDE, TEST_CONFIG_OVERRIDE};
 
 /// Guard that sets a temporary config base path for tests and restores the prior value.
 pub struct ConfigBaseGuard {
