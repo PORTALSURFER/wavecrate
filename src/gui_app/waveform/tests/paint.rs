@@ -149,7 +149,21 @@ fn extracted_ranges_paint_as_gray_waveform_overlays() {
     assert!(fills.iter().any(|fill| {
         (fill.rect.min.x - 40.0).abs() < 0.001
             && (fill.rect.max.x - 120.0).abs() < 0.001
-            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (120, 124, 130, 72)
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (156, 160, 168, 108)
+    }));
+    assert!(fills.iter().any(|fill| {
+        (fill.rect.min.x - 40.0).abs() < 0.001
+            && (fill.rect.max.x - 120.0).abs() < 0.001
+            && (fill.rect.min.y - 0.0).abs() < 0.001
+            && (fill.rect.max.y - 2.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (206, 211, 219, 225)
+    }));
+    assert!(fills.iter().any(|fill| {
+        (fill.rect.min.x - 40.0).abs() < 0.001
+            && (fill.rect.max.x - 120.0).abs() < 0.001
+            && (fill.rect.min.y - 78.0).abs() < 0.001
+            && (fill.rect.max.y - 80.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (206, 211, 219, 225)
     }));
 }
 

@@ -1,9 +1,23 @@
 use radiant::{
-    gui::types::{Rect, Rgba8},
+    gui::types::{Point, Rect, Rgba8},
     runtime::PaintPrimitive,
 };
 
 use super::{WaveformSelectionEdge, WaveformWidget};
+
+const EXTRACTED_RANGE_FILL: Rgba8 = Rgba8 {
+    r: 156,
+    g: 160,
+    b: 168,
+    a: 108,
+};
+const EXTRACTED_RANGE_RAIL: Rgba8 = Rgba8 {
+    r: 206,
+    g: 211,
+    b: 219,
+    a: 225,
+};
+const EXTRACTED_RANGE_RAIL_HEIGHT: f32 = 2.0;
 
 impl WaveformWidget {
     pub(super) fn append_selection_and_marker_paint(
@@ -24,20 +38,43 @@ impl WaveformWidget {
     fn append_extracted_range_paint(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
         for range in &self.extracted_ranges {
             if let Some((start, end)) = self.visible_range_for_selection(Some(*range)) {
-                self.push_visible_range_fill(
-                    primitives,
-                    bounds,
-                    start,
-                    end,
-                    Rgba8 {
-                        r: 120,
-                        g: 124,
-                        b: 130,
-                        a: 72,
-                    },
-                );
+                self.push_visible_range_fill(primitives, bounds, start, end, EXTRACTED_RANGE_FILL);
+                self.append_extracted_range_rails(primitives, bounds, start, end);
             }
         }
+    }
+
+    fn append_extracted_range_rails(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        start: f32,
+        end: f32,
+    ) {
+        let left = bounds.min.x + bounds.width() * start.min(end).clamp(0.0, 1.0);
+        let right = bounds.min.x + bounds.width() * start.max(end).clamp(0.0, 1.0);
+        if right <= left {
+            return;
+        }
+        let height = EXTRACTED_RANGE_RAIL_HEIGHT
+            .min(bounds.height().max(1.0))
+            .max(1.0);
+        self.push_fill(
+            primitives,
+            Rect::from_min_max(
+                Point::new(left, bounds.min.y),
+                Point::new(right, (bounds.min.y + height).min(bounds.max.y)),
+            ),
+            EXTRACTED_RANGE_RAIL,
+        );
+        self.push_fill(
+            primitives,
+            Rect::from_min_max(
+                Point::new(left, (bounds.max.y - height).max(bounds.min.y)),
+                Point::new(right, bounds.max.y),
+            ),
+            EXTRACTED_RANGE_RAIL,
+        );
     }
 
     fn append_play_selection_paint(
