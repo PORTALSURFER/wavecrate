@@ -22,7 +22,10 @@ pub(super) use hit_target::{SampleFileHitMessage, SampleFileHitTarget};
 mod rows;
 use rows::sample_browser_rows;
 
-pub(super) fn sample_browser(state: &mut GuiAppState) -> ui::View<GuiMessage> {
+pub(super) fn sample_browser(
+    state: &mut GuiAppState,
+    suppress_row_hover: bool,
+) -> ui::View<GuiMessage> {
     let window = state.folder_browser.follow_selected_file_view(
         SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS,
         SAMPLE_BROWSER_OVERSCAN_ROWS,
@@ -44,6 +47,7 @@ pub(super) fn sample_browser(state: &mut GuiAppState) -> ui::View<GuiMessage> {
             window,
             state.sample_name_view_mode,
             &state.metadata_tags_by_file,
+            suppress_row_hover,
         ),
         sample_browser_status(audio_count),
     ])

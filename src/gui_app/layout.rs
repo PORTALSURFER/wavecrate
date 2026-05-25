@@ -39,11 +39,11 @@ fn center_panel(state: &mut GuiAppState) -> ui::View<GuiMessage> {
 fn folder_sidebar(state: &GuiAppState) -> ui::View<GuiMessage> {
     folder_browser::folder_browser_view(
         &state.folder_browser,
+        state.folder_width,
         state.metadata_tag_draft.as_str(),
         state.metadata_tag_tokens.as_slice(),
         state.metadata_tag_suggestion().as_deref(),
         state.selected_metadata_tags(),
-        state.metadata_tags_expanded,
     )
     .width(state.folder_width)
     .fill_height()
@@ -72,7 +72,7 @@ fn main_area(state: &mut GuiAppState) -> ui::View<GuiMessage> {
     ui::column([
         main_toolbar(state),
         waveform_panel(state),
-        sample_browser(state),
+        sample_browser(state, state.folder_resize.is_some()),
     ])
     .padding(4.0)
     .fill()

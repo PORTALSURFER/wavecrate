@@ -134,7 +134,6 @@ enum GuiMessage {
     SetAudioOutputDevice(Option<String>),
     SetAudioOutputSampleRate(Option<u32>),
     MetadataTagInput(radiant::widgets::TextInputMessage),
-    ToggleMetadataTagsExpanded,
     ToggleSampleNameViewMode,
     ClearRebuildableCaches,
     NormalizeSelectedSamples,
@@ -211,7 +210,6 @@ struct GuiAppState {
     metadata_tag_draft: String,
     metadata_tag_tokens: Vec<String>,
     metadata_tags_by_file: HashMap<String, Vec<String>>,
-    metadata_tags_expanded: bool,
     sample_name_view_mode: SampleNameViewMode,
 }
 
@@ -340,9 +338,6 @@ impl GuiAppState {
                 self.set_audio_output_sample_rate(sample_rate);
             }
             GuiMessage::MetadataTagInput(message) => self.apply_metadata_tag_input(message),
-            GuiMessage::ToggleMetadataTagsExpanded => {
-                self.metadata_tags_expanded = !self.metadata_tags_expanded;
-            }
             GuiMessage::ToggleSampleNameViewMode => {
                 self.sample_name_view_mode = self.sample_name_view_mode.toggled();
             }

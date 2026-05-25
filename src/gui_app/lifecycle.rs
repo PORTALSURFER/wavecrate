@@ -50,7 +50,6 @@ impl GuiAppState {
             metadata_tag_draft: String::new(),
             metadata_tag_tokens: Vec::new(),
             metadata_tags_by_file: HashMap::new(),
-            metadata_tags_expanded: false,
             sample_name_view_mode: SampleNameViewMode::DiskFilename,
         };
         state.refresh_audio_options();

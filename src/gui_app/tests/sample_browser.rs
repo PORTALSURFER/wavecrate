@@ -9,7 +9,7 @@ use radiant::{
 fn sample_row_hit_target_survives_frame_refresh_between_press_and_release() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(160.0, 22.0));
     let mut hit_target =
-        crate::gui_app::sample_browser_view::SampleFileHitTarget::new(false, false, false);
+        crate::gui_app::sample_browser_view::SampleFileHitTarget::new(false, false, false, false);
 
     assert_eq!(
         hit_target.handle_input(
@@ -24,7 +24,7 @@ fn sample_row_hit_target_survives_frame_refresh_between_press_and_release() {
     );
 
     let mut refreshed_hit_target =
-        crate::gui_app::sample_browser_view::SampleFileHitTarget::new(false, false, false);
+        crate::gui_app::sample_browser_view::SampleFileHitTarget::new(false, false, false, false);
     refreshed_hit_target.common_mut().state = hit_target.common().state;
     let output = refreshed_hit_target
         .handle_input(
@@ -59,7 +59,7 @@ fn sample_row_hit_target_survives_frame_refresh_between_press_and_release() {
 #[test]
 fn sample_browser_frame_paints_column_and_file_text() {
     let mut state = crate::gui_app::GuiAppState::load_default().expect("default state loads");
-    let surface = crate::gui_app::sample_browser(&mut state).into_node();
+    let surface = crate::gui_app::sample_browser(&mut state, false).into_node();
     let frame = radiant::runtime::UiSurface::new(surface).frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 360.0)),
         &radiant::theme::ThemeTokens::default(),
@@ -87,7 +87,7 @@ fn sample_browser_frame_paints_column_and_file_text() {
 #[test]
 fn sample_browser_rows_match_keyboard_scroll_stride() {
     let mut state = crate::gui_app::GuiAppState::load_default().expect("default state loads");
-    let surface = crate::gui_app::sample_browser(&mut state).into_node();
+    let surface = crate::gui_app::sample_browser(&mut state, false).into_node();
     let frame = radiant::runtime::UiSurface::new(surface).frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 360.0)),
         &radiant::theme::ThemeTokens::default(),
@@ -123,7 +123,8 @@ fn sample_browser_keyboard_scroll_keeps_two_context_rows() {
 
 #[test]
 fn selected_sample_browser_row_paints_strong_fill_and_left_marker() {
-    let widget = crate::gui_app::sample_browser_view::SampleFileHitTarget::new(true, false, false);
+    let widget =
+        crate::gui_app::sample_browser_view::SampleFileHitTarget::new(true, false, false, false);
     let bounds = Rect::from_min_size(Point::new(12.0, 8.0), Vector2::new(240.0, 22.0));
     let mut primitives = Vec::new();
     widget.append_paint(
@@ -164,7 +165,7 @@ fn selected_sample_browser_row_paints_strong_fill_and_left_marker() {
 fn sample_browser_row_hover_paints_bright_background_without_marker() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(180.0, 22.0));
     let mut hit_target =
-        crate::gui_app::sample_browser_view::SampleFileHitTarget::new(false, false, false);
+        crate::gui_app::sample_browser_view::SampleFileHitTarget::new(false, false, false, false);
 
     assert_eq!(
         hit_target.handle_input(

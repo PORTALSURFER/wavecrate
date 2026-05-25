@@ -15,6 +15,7 @@ pub(super) fn sample_browser_rows(
     window: ui::VirtualListWindow,
     name_view_mode: SampleNameViewMode,
     metadata_tags_by_file: &HashMap<String, Vec<String>>,
+    suppress_row_hover: bool,
 ) -> ui::View<GuiMessage> {
     if files.is_empty() {
         return ui::text("No audio files in selected folder")
@@ -38,6 +39,7 @@ pub(super) fn sample_browser_rows(
                 columns,
                 name_view_mode,
                 metadata_tags_by_file,
+                suppress_row_hover,
             )
         },
         SAMPLE_BROWSER_ROW_HEIGHT * SAMPLE_BROWSER_OVERSCAN_ROWS as f32,
@@ -56,6 +58,7 @@ fn sample_browser_row(
     columns: &[&FileColumn],
     name_view_mode: SampleNameViewMode,
     metadata_tags_by_file: &HashMap<String, Vec<String>>,
+    suppress_row_hover: bool,
 ) -> ui::View<GuiMessage> {
     let hit_path = file.id.clone();
     let hit_target = sample_file_hit_target(
@@ -65,6 +68,7 @@ fn sample_browser_row(
         drag_active,
         drag_source,
         hit_path,
+        suppress_row_hover,
     );
     let row = ui::stack([
         hit_target,
@@ -91,9 +95,10 @@ fn sample_file_hit_target(
     drag_active: bool,
     drag_source: bool,
     hit_path: String,
+    suppress_hover: bool,
 ) -> ui::View<GuiMessage> {
     ui::custom_widget_mapped(
-        SampleFileHitTarget::new(selected, drag_active, drag_source),
+        SampleFileHitTarget::new(selected, drag_active, drag_source, suppress_hover),
         move |message| match message {
             SampleFileHitMessage::Activate(modifiers) => GuiMessage::SelectSampleWithModifiers {
                 path: hit_path.clone(),

@@ -66,7 +66,6 @@ fn gui_state_for_span_tests() -> GuiAppState {
         metadata_tag_draft: String::new(),
         metadata_tag_tokens: Vec::new(),
         metadata_tags_by_file: HashMap::new(),
-        metadata_tags_expanded: false,
         sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
     }
 }
@@ -123,7 +122,6 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
         metadata_tag_draft: String::new(),
         metadata_tag_tokens: Vec::new(),
         metadata_tags_by_file: HashMap::new(),
-        metadata_tags_expanded: false,
         sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
     };
     state.resize_folder_browser(DragHandleMessage::Started {
@@ -264,7 +262,6 @@ fn sample_selection_loads_selected_file_into_waveform() {
         metadata_tag_draft: String::new(),
         metadata_tag_tokens: Vec::new(),
         metadata_tags_by_file: HashMap::new(),
-        metadata_tags_expanded: false,
         sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
     };
     let sample_path = selected_asset_file_path(&state.folder_browser, "portal_SS_kick_003.wav");
@@ -695,7 +692,7 @@ fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
     let browser = super::FolderBrowserState::load_default();
     let tags = vec![String::from("kick")];
     let frame = radiant::runtime::UiSurface::new(
-        super::folder_browser::folder_browser_view(&browser, "", &[], None, &tags, false)
+        super::folder_browser::folder_browser_view(&browser, 260.0, "", &[], None, &tags)
             .into_node(),
     )
     .frame(
@@ -705,29 +702,30 @@ fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
 
     assert!(frame_has_text(&frame, "Filter"));
     assert!(frame_has_text(&frame, "Metadata"));
-    assert!(frame_has_text(&frame, "Tagging"));
+    assert!(!frame_has_text(&frame, "Tagging"));
     assert!(frame_has_text(&frame, "kick"));
 }
 
 #[test]
-fn folder_browser_metadata_tags_expand_combined_entry_field() {
+fn folder_browser_metadata_tags_grow_combined_entry_field() {
     let browser = super::FolderBrowserState::load_default();
-    let tags = vec![
+    let small_tags = vec![String::from("kick")];
+    let larger_tags = vec![
         String::from("kick"),
         String::from("warm"),
         String::from("one-shot"),
         String::from("distorted"),
     ];
-    let collapsed = radiant::runtime::UiSurface::new(
-        super::folder_browser::folder_browser_view(&browser, "", &[], None, &tags, false)
+    let small = radiant::runtime::UiSurface::new(
+        super::folder_browser::folder_browser_view(&browser, 260.0, "", &[], None, &small_tags)
             .into_node(),
     )
     .frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
         &radiant::theme::ThemeTokens::default(),
     );
-    let expanded = radiant::runtime::UiSurface::new(
-        super::folder_browser::folder_browser_view(&browser, "", &[], None, &tags, true)
+    let larger = radiant::runtime::UiSurface::new(
+        super::folder_browser::folder_browser_view(&browser, 260.0, "", &[], None, &larger_tags)
             .into_node(),
     )
     .frame(
@@ -735,20 +733,20 @@ fn folder_browser_metadata_tags_expand_combined_entry_field() {
         &radiant::theme::ThemeTokens::default(),
     );
 
-    assert!(frame_has_text(&collapsed, "distorted"));
-    assert!(frame_has_text(&expanded, "distorted"));
-    assert!(frame_has_clip_height(&collapsed, 82.0));
-    assert!(frame_has_clip_height(&expanded, 130.0));
+    assert!(frame_has_text(&larger, "distorted"));
+    assert!(!frame_has_text(&larger, "More"));
+    assert!(frame_has_clip_height(&small, 24.0));
+    assert!(frame_has_clip_height(&larger, 45.0));
 }
 
 #[test]
-fn folder_browser_metadata_tag_field_clips_when_tags_overflow() {
+fn folder_browser_metadata_tag_field_caps_at_six_rows_then_scrolls() {
     let browser = super::FolderBrowserState::load_default();
-    let tags = (0..12)
+    let tags = (0..24)
         .map(|index| format!("tag-{index:02}"))
         .collect::<Vec<_>>();
     let frame = radiant::runtime::UiSurface::new(
-        super::folder_browser::folder_browser_view(&browser, "", &[], None, &tags, false)
+        super::folder_browser::folder_browser_view(&browser, 260.0, "", &[], None, &tags)
             .into_node(),
     )
     .frame(
@@ -758,7 +756,7 @@ fn folder_browser_metadata_tag_field_clips_when_tags_overflow() {
 
     let tag_clip = frame.paint_plan.primitives.iter().find_map(|primitive| {
         if let PaintPrimitive::ClipStart(clip) = primitive
-            && (clip.rect.height() - 82.0).abs() < 0.01
+            && (clip.rect.height() - 129.0).abs() < 0.01
         {
             return Some(clip.rect);
         }
@@ -853,11 +851,11 @@ fn folder_browser_metadata_tag_field_renders_pending_pill_and_completion_hint() 
     let frame = radiant::runtime::UiSurface::new(
         super::folder_browser::folder_browser_view(
             &browser,
+            260.0,
             "ki",
             &[String::from("kick")],
             Some("kick"),
             &[String::from("warm")],
-            false,
         )
         .into_node(),
     )
@@ -869,6 +867,67 @@ fn folder_browser_metadata_tag_field_renders_pending_pill_and_completion_hint() 
     assert!(frame_has_text(&frame, "kick"));
     assert!(frame_has_text(&frame, "Tab kick"));
     assert!(frame_has_text(&frame, "warm"));
+    assert!(frame.paint_plan.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            PaintPrimitive::TextInput(input) if input.rect.height() <= 14.0
+        )
+    }));
+    assert!(frame.paint_plan.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            PaintPrimitive::FillRect(fill) if (fill.rect.height() - 18.0).abs() < 0.01
+        )
+    }));
+}
+
+#[test]
+fn folder_browser_metadata_tag_input_moves_to_next_row_when_crowded() {
+    let browser = super::FolderBrowserState::load_default();
+    let tags = vec![
+        String::from("test"),
+        String::from("another"),
+        String::from("cool-tag"),
+    ];
+    let frame = radiant::runtime::UiSurface::new(
+        super::folder_browser::folder_browser_view(&browser, 260.0, "wow", &[], None, &tags)
+            .into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
+        &radiant::theme::ThemeTokens::default(),
+    );
+
+    let tag_clip = frame.paint_plan.primitives.iter().find_map(|primitive| {
+        if let PaintPrimitive::ClipStart(clip) = primitive
+            && (clip.rect.height() - 45.0).abs() < 0.01
+        {
+            return Some(clip.rect);
+        }
+        None
+    });
+    let tag_clip = tag_clip.expect("combined tag field should have a clipped viewport");
+    let first_tag_y = frame.paint_plan.primitives.iter().find_map(|primitive| {
+        if let PaintPrimitive::FillRect(fill) = primitive
+            && (fill.rect.height() - 18.0).abs() < 0.01
+            && fill.rect.min.y >= tag_clip.min.y
+            && fill.rect.max.y <= tag_clip.max.y
+        {
+            return Some(fill.rect.min.y);
+        }
+        None
+    });
+    let first_tag_y = first_tag_y.expect("tag pill should paint in the tag field");
+    let input_rect = frame.paint_plan.primitives.iter().find_map(|primitive| {
+        if let PaintPrimitive::TextInput(input) = primitive {
+            return Some(input.rect);
+        }
+        None
+    });
+    let input_rect = input_rect.expect("tag input should paint");
+
+    assert!(input_rect.min.y > first_tag_y);
+    assert!(input_rect.max.x <= tag_clip.max.x);
 }
 
 #[test]
@@ -879,10 +938,11 @@ fn sample_browser_toggles_between_disk_and_metadata_label_names() {
         vec![String::from("kick"), String::from("warm")],
     );
     let disk_frame =
-        radiant::runtime::UiSurface::new(super::sample_browser(&mut state).into_node()).frame(
-            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 240.0)),
-            &radiant::theme::ThemeTokens::default(),
-        );
+        radiant::runtime::UiSurface::new(super::sample_browser(&mut state, false).into_node())
+            .frame(
+                Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 240.0)),
+                &radiant::theme::ThemeTokens::default(),
+            );
     assert!(frame_has_text(&disk_frame, "Disk"));
 
     state.apply_message(
@@ -890,10 +950,11 @@ fn sample_browser_toggles_between_disk_and_metadata_label_names() {
         &mut ui::UpdateContext::default(),
     );
     let label_frame =
-        radiant::runtime::UiSurface::new(super::sample_browser(&mut state).into_node()).frame(
-            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 240.0)),
-            &radiant::theme::ThemeTokens::default(),
-        );
+        radiant::runtime::UiSurface::new(super::sample_browser(&mut state, false).into_node())
+            .frame(
+                Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 240.0)),
+                &radiant::theme::ThemeTokens::default(),
+            );
 
     assert!(frame_has_text(&label_frame, "Label"));
 }

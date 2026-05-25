@@ -13,6 +13,7 @@ pub(in crate::gui_app) struct SampleFileHitTarget {
     selected: bool,
     drag_active: bool,
     drag_source: bool,
+    suppress_hover: bool,
     dragged: bool,
 }
 
@@ -24,7 +25,12 @@ pub(in crate::gui_app) enum SampleFileHitMessage {
 }
 
 impl SampleFileHitTarget {
-    pub(in crate::gui_app) fn new(selected: bool, drag_active: bool, drag_source: bool) -> Self {
+    pub(in crate::gui_app) fn new(
+        selected: bool,
+        drag_active: bool,
+        drag_source: bool,
+        suppress_hover: bool,
+    ) -> Self {
         let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 22.0)));
         common.focus = FocusBehavior::None;
         common.paint.bounds = PaintBounds::ClipToRect;
@@ -35,6 +41,7 @@ impl SampleFileHitTarget {
             selected,
             drag_active,
             drag_source,
+            suppress_hover,
             dragged: false,
         }
     }
@@ -54,7 +61,7 @@ mod tests {
     #[test]
     fn active_drag_uses_runtime_preview_after_widget_refresh() {
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
-        let mut first = SampleFileHitTarget::new(false, false, false);
+        let mut first = SampleFileHitTarget::new(false, false, false, false);
         first.handle_input(
             bounds,
             WidgetInput::PointerPress {
@@ -75,7 +82,7 @@ mod tests {
             })
         );
 
-        let mut refreshed = SampleFileHitTarget::new(false, true, true);
+        let mut refreshed = SampleFileHitTarget::new(false, true, true, false);
         refreshed.common.state = first.common.state;
         assert!(
             refreshed
@@ -93,7 +100,7 @@ mod tests {
     #[test]
     fn active_drag_source_does_not_depend_on_retained_pressed_state() {
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
-        let mut refreshed = SampleFileHitTarget::new(false, true, true);
+        let mut refreshed = SampleFileHitTarget::new(false, true, true, false);
 
         assert!(
             refreshed
@@ -124,7 +131,7 @@ mod tests {
     #[test]
     fn active_drag_non_source_rows_do_not_keep_hover_highlight() {
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
-        let mut target = SampleFileHitTarget::new(false, true, false);
+        let mut target = SampleFileHitTarget::new(false, true, false, false);
         target.common.state.hovered = true;
 
         assert!(
@@ -160,7 +167,7 @@ mod tests {
     #[test]
     fn hover_state_survives_retained_widget_refresh() {
         let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
-        let mut previous = SampleFileHitTarget::new(false, false, false);
+        let mut previous = SampleFileHitTarget::new(false, false, false, false);
         previous.handle_input(
             bounds,
             WidgetInput::PointerMove {
@@ -169,7 +176,7 @@ mod tests {
         );
         assert!(previous.common.state.hovered);
 
-        let mut refreshed = SampleFileHitTarget::new(false, false, false);
+        let mut refreshed = SampleFileHitTarget::new(false, false, false, false);
         refreshed.synchronize_from_previous(&previous);
 
         assert!(
@@ -188,6 +195,44 @@ mod tests {
                 .iter()
                 .any(|primitive| matches!(primitive, PaintPrimitive::FillRect(fill) if fill.color.a == 155)),
             "refreshed hovered row should keep painting the hover highlight"
+        );
+    }
+
+    #[test]
+    fn suppressed_hover_clears_and_omits_stale_hover_paint() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+        let mut previous = SampleFileHitTarget::new(false, false, false, false);
+        previous.handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(34.0, 8.0),
+            },
+        );
+        assert!(previous.common.state.hovered);
+
+        let mut suppressed = SampleFileHitTarget::new(false, false, false, true);
+        suppressed.synchronize_from_previous(&previous);
+        assert!(!suppressed.common.state.hovered);
+        suppressed.handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(34.0, 8.0),
+            },
+        );
+        assert!(!suppressed.common.state.hovered);
+
+        let mut primitives = Vec::new();
+        suppressed.append_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+        assert!(
+            !primitives
+                .iter()
+                .any(|primitive| matches!(primitive, PaintPrimitive::FillRect(fill) if fill.color.a == 155)),
+            "suppressed rows should not paint hover highlights during sidebar resize"
         );
     }
 }
@@ -250,6 +295,9 @@ impl Widget for SampleFileHitTarget {
             return;
         };
         self.common.state = previous.common.state;
+        if self.suppress_hover || previous.suppress_hover {
+            self.common.state.hovered = false;
+        }
         self.dragged = previous.dragged;
     }
 
@@ -268,6 +316,10 @@ impl Widget for SampleFileHitTarget {
 
 impl SampleFileHitTarget {
     fn handle_pointer_move(&mut self, bounds: Rect, position: Point) -> Option<WidgetOutput> {
+        if self.suppress_hover {
+            self.common.state.hovered = false;
+            return None;
+        }
         if self.drag_active && !self.drag_source {
             self.common.state.hovered = false;
             return None;
@@ -325,6 +377,9 @@ impl SampleFileHitTarget {
     }
 
     fn paint_interaction_fill(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
+        if self.suppress_hover {
+            return;
+        }
         if self.drag_active && !self.drag_source {
             return;
         }
