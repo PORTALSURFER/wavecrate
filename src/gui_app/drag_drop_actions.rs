@@ -130,7 +130,6 @@ impl GuiAppState {
             .waveform
             .extract_play_selection_to_folder(&target_folder)?;
         self.folder_browser.refresh_file_path(&path);
-        self.folder_browser.select_file(path.display().to_string());
         Ok(path)
     }
 
@@ -145,7 +144,6 @@ impl GuiAppState {
         context.end_external_drag();
         self.folder_browser.clear_drag();
         self.folder_browser.refresh_file_path(&path);
-        self.folder_browser.select_file(path.display().to_string());
         self.sample_status = format!("Extracted {}", sample_path_label(&path));
     }
 

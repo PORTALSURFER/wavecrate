@@ -194,11 +194,14 @@ fn extracted_file_drag_drop_moves_file_into_target_folder() {
     let loops = root.join("loops");
     fs::create_dir_all(&drums).expect("create drums folder");
     fs::create_dir_all(&loops).expect("create loops folder");
+    let original = drums.join("loop.wav");
     let extracted = drums.join("loop_extraction.wav");
+    fs::write(&original, [0_u8; 8]).expect("write wav");
     fs::write(&extracted, [0_u8; 8]).expect("write wav");
     let mut browser = FolderBrowserState::from_root(root.clone());
     browser.activate_folder(path_id(&drums));
     browser.refresh_file_path(&extracted);
+    browser.select_file(path_id(&original));
 
     browser.begin_extracted_file_drag(extracted.clone(), Point::new(4.0, 8.0));
     let result = browser
@@ -208,9 +211,10 @@ fn extracted_file_drag_drop_moves_file_into_target_folder() {
     let moved = loops.join("loop_extraction.wav");
     assert_eq!(result.moved_paths, vec![(extracted.clone(), moved.clone())]);
     assert!(!extracted.exists());
+    assert!(original.is_file());
     assert!(moved.is_file());
-    assert_eq!(browser.selected_folder, path_id(&loops));
-    assert_eq!(browser.selected_file_paths(), vec![moved.clone()]);
+    assert_eq!(browser.selected_folder, path_id(&drums));
+    assert_eq!(browser.selected_file_paths(), vec![original.clone()]);
     let _ = fs::remove_dir_all(root);
 }
 

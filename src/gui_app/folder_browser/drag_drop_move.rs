@@ -144,10 +144,18 @@ impl FolderBrowserState {
         let new_path = unique_destination(&target_path.join(file_name));
         fs::rename(path, &new_path).map_err(|error| format!("Extraction move failed: {error}"))?;
         let completed = vec![(path.to_path_buf(), new_path.clone())];
+        let previous_selected_folder = self.selected_folder.clone();
+        let previous_selected_file = self.selected_file.clone();
+        let previous_selected_file_ids = self.selected_file_ids.clone();
+        let previous_file_view_start = self.file_view_start;
         if let Err(error) = self.relocate_moved_files(&completed, &target_path) {
             rollback_completed_file_moves(&completed);
             return Err(error);
         }
+        self.selected_folder = previous_selected_folder;
+        self.selected_file = previous_selected_file;
+        self.selected_file_ids = previous_selected_file_ids;
+        self.file_view_start = previous_file_view_start;
         Ok(FolderDropResult {
             moved_paths: completed,
             status: Some(format!(
