@@ -16,6 +16,8 @@ pub(in crate::gui_app) fn folder_browser_view(state: &FolderBrowserState) -> ui:
         ui::text("Folders").height(22.0).fill_width(),
         ui::scroll(folder_tree_view(state)).fill(),
         selected_folder_status(state),
+        filter_section(),
+        metadata_section(),
     ])
     .spacing(3.0)
     .padding(4.0)
@@ -209,4 +211,74 @@ fn selected_folder_status(state: &FolderBrowserState) -> ui::View<GuiMessage> {
         })
         .unwrap_or_else(|| String::from("No folder selected"));
     ui::text(label).height(20.0).fill_width().truncate()
+}
+
+fn filter_section() -> ui::View<GuiMessage> {
+    sidebar_section(
+        "Filter",
+        ui::column([
+            ui::row([
+                ui::text("Name").height(20.0).width(48.0),
+                ui::text("Any").height(20.0).fill_width(),
+            ])
+            .fill_width()
+            .height(20.0)
+            .spacing(6.0),
+            ui::row([
+                ui::text("Type").height(20.0).width(48.0),
+                ui::text("Audio").height(20.0).fill_width(),
+            ])
+            .fill_width()
+            .height(20.0)
+            .spacing(6.0),
+        ])
+        .fill_width()
+        .spacing(2.0),
+        76.0,
+    )
+}
+
+fn metadata_section() -> ui::View<GuiMessage> {
+    sidebar_section(
+        "Metadata",
+        ui::column([
+            ui::row([ui::text("Tagging")
+                .key("metadata-tagging-tab")
+                .style(WidgetStyle {
+                    tone: WidgetTone::Accent,
+                    prominence: ui::WidgetProminence::Subtle,
+                })
+                .padding(4.0)
+                .height(22.0)
+                .fill_width()])
+            .fill_width()
+            .height(24.0),
+            ui::row([
+                ui::text("Tags").height(20.0).width(48.0),
+                ui::text("None").height(20.0).fill_width(),
+            ])
+            .fill_width()
+            .height(20.0)
+            .spacing(6.0),
+        ])
+        .fill_width()
+        .spacing(3.0),
+        82.0,
+    )
+}
+
+fn sidebar_section(
+    title: &'static str,
+    content: ui::View<GuiMessage>,
+    height: f32,
+) -> ui::View<GuiMessage> {
+    ui::column([ui::text(title).height(20.0).fill_width(), content])
+        .style(WidgetStyle {
+            tone: WidgetTone::Neutral,
+            prominence: ui::WidgetProminence::Subtle,
+        })
+        .padding(6.0)
+        .spacing(4.0)
+        .fill_width()
+        .height(height)
 }

@@ -656,6 +656,22 @@ fn default_folder_browser_loads_assets_root() {
 }
 
 #[test]
+fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
+    let browser = super::FolderBrowserState::load_default();
+    let frame = radiant::runtime::UiSurface::new(
+        super::folder_browser::folder_browser_view(&browser).into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
+        &radiant::theme::ThemeTokens::default(),
+    );
+
+    assert!(frame_has_text(&frame, "Filter"));
+    assert!(frame_has_text(&frame, "Metadata"));
+    assert!(frame_has_text(&frame, "Tagging"));
+}
+
+#[test]
 fn default_gui_loads_persisted_sources_and_audio_output() {
     let config_base = tempfile::tempdir().expect("config base");
     let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
