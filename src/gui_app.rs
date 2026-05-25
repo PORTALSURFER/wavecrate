@@ -133,6 +133,7 @@ enum GuiMessage {
     SetAudioOutputDevice(Option<String>),
     SetAudioOutputSampleRate(Option<u32>),
     MetadataTagInput(radiant::widgets::TextInputMessage),
+    ToggleSampleNameViewMode,
     ClearRebuildableCaches,
     NormalizeSelectedSamples,
     CopySelectedFiles,
@@ -207,6 +208,22 @@ struct GuiAppState {
     native_file_drop_hover: Option<NativeFileDropHover>,
     metadata_tag_draft: String,
     metadata_tags: Vec<String>,
+    sample_name_view_mode: SampleNameViewMode,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum SampleNameViewMode {
+    DiskFilename,
+    MetadataLabel,
+}
+
+impl SampleNameViewMode {
+    fn toggled(self) -> Self {
+        match self {
+            Self::DiskFilename => Self::MetadataLabel,
+            Self::MetadataLabel => Self::DiskFilename,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -319,6 +336,9 @@ impl GuiAppState {
                 self.set_audio_output_sample_rate(sample_rate);
             }
             GuiMessage::MetadataTagInput(message) => self.apply_metadata_tag_input(message),
+            GuiMessage::ToggleSampleNameViewMode => {
+                self.sample_name_view_mode = self.sample_name_view_mode.toggled();
+            }
             GuiMessage::ClearRebuildableCaches => self.clear_rebuildable_caches(),
             GuiMessage::NormalizeSelectedSamples => self.normalize_selected_samples(),
             GuiMessage::CopySelectedFiles => self.copy_selected_files(),

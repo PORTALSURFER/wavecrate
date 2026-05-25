@@ -65,6 +65,7 @@ fn gui_state_for_span_tests() -> GuiAppState {
         native_file_drop_hover: None,
         metadata_tag_draft: String::new(),
         metadata_tags: Vec::new(),
+        sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
     }
 }
 
@@ -106,6 +107,7 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
         native_file_drop_hover: None,
         metadata_tag_draft: String::new(),
         metadata_tags: Vec::new(),
+        sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
     };
     state.resize_folder_browser(DragHandleMessage::Started {
         position: Point::new(100.0, 0.0),
@@ -244,6 +246,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         native_file_drop_hover: None,
         metadata_tag_draft: String::new(),
         metadata_tags: Vec::new(),
+        sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
     };
     let sample_path = selected_asset_file_path(&state.folder_browser, "portal_SS_kick_003.wav");
 
@@ -715,6 +718,30 @@ fn metadata_tag_input_commits_delimited_tags_and_keeps_draft_tail() {
 
     assert_eq!(state.metadata_tags, vec![String::from("kick")]);
     assert_eq!(state.metadata_tag_draft, "warm tone");
+}
+
+#[test]
+fn sample_browser_toggles_between_disk_and_metadata_label_names() {
+    let mut state = gui_state_for_span_tests();
+    state.metadata_tags = vec![String::from("kick"), String::from("warm")];
+    let disk_frame =
+        radiant::runtime::UiSurface::new(super::sample_browser(&mut state).into_node()).frame(
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 240.0)),
+            &radiant::theme::ThemeTokens::default(),
+        );
+    assert!(frame_has_text(&disk_frame, "Disk"));
+
+    state.apply_message(
+        super::GuiMessage::ToggleSampleNameViewMode,
+        &mut ui::UpdateContext::default(),
+    );
+    let label_frame =
+        radiant::runtime::UiSurface::new(super::sample_browser(&mut state).into_node()).frame(
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 240.0)),
+            &radiant::theme::ThemeTokens::default(),
+        );
+
+    assert!(frame_has_text(&label_frame, "Label"));
 }
 
 #[test]

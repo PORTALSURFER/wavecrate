@@ -13,7 +13,7 @@ use radiant::{
 use super::folder_browser::{FileColumn, FolderBrowserMessage};
 use super::{
     GuiAppState, GuiMessage, SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_OVERSCAN_ROWS,
-    SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS,
+    SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS, SampleNameViewMode,
 };
 
 mod hit_target;
@@ -32,8 +32,19 @@ pub(super) fn sample_browser(state: &mut GuiAppState) -> ui::View<GuiMessage> {
     let audio_count = audio_files.len();
     let columns = state.folder_browser.visible_file_columns();
     let browser = ui::column([
-        sample_browser_header(&columns, state.folder_browser.file_sort()),
-        sample_browser_rows(&state.folder_browser, &audio_files, &columns, window),
+        sample_browser_header_bar(
+            &columns,
+            state.folder_browser.file_sort(),
+            state.sample_name_view_mode,
+        ),
+        sample_browser_rows(
+            &state.folder_browser,
+            &audio_files,
+            &columns,
+            window,
+            state.sample_name_view_mode,
+            &state.metadata_tags,
+        ),
         sample_browser_status(audio_count),
     ])
     .spacing(0.0)
@@ -52,6 +63,31 @@ pub(super) fn sample_browser(state: &mut GuiAppState) -> ui::View<GuiMessage> {
         .fill(),
     ])
     .fill()
+}
+
+fn sample_browser_header_bar(
+    columns: &[&FileColumn],
+    sort: &ui::DetailsSort,
+    mode: SampleNameViewMode,
+) -> ui::View<GuiMessage> {
+    ui::row([
+        sample_browser_header(columns, sort).fill_width(),
+        sample_name_view_mode_button(mode),
+    ])
+    .fill_width()
+    .height(24.0)
+    .spacing(6.0)
+}
+
+fn sample_name_view_mode_button(mode: SampleNameViewMode) -> ui::View<GuiMessage> {
+    let label = match mode {
+        SampleNameViewMode::DiskFilename => "Disk",
+        SampleNameViewMode::MetadataLabel => "Label",
+    };
+    ui::button(label)
+        .message(GuiMessage::ToggleSampleNameViewMode)
+        .key("sample-name-view-mode-toggle")
+        .size(58.0, 22.0)
 }
 
 fn sample_browser_header(columns: &[&FileColumn], sort: &ui::DetailsSort) -> ui::View<GuiMessage> {

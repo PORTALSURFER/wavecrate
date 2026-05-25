@@ -3,6 +3,7 @@ use radiant::prelude as ui;
 use super::{SampleFileHitMessage, SampleFileHitTarget};
 use crate::gui_app::{
     GuiMessage, SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_OVERSCAN_ROWS, SAMPLE_BROWSER_ROW_HEIGHT,
+    SampleNameViewMode,
     folder_browser::{self, FileColumn, FileEntry, FolderBrowserMessage, FolderBrowserState},
 };
 
@@ -11,6 +12,8 @@ pub(super) fn sample_browser_rows(
     files: &[&FileEntry],
     columns: &[&FileColumn],
     window: ui::VirtualListWindow,
+    name_view_mode: SampleNameViewMode,
+    metadata_tags: &[String],
 ) -> ui::View<GuiMessage> {
     if files.is_empty() {
         return ui::text("No audio files in selected folder")
@@ -32,6 +35,8 @@ pub(super) fn sample_browser_rows(
                 folder_browser.file_drag_active(),
                 folder_browser.file_drag_source(&file.id),
                 columns,
+                name_view_mode,
+                metadata_tags,
             )
         },
         SAMPLE_BROWSER_ROW_HEIGHT * SAMPLE_BROWSER_OVERSCAN_ROWS as f32,
@@ -48,6 +53,8 @@ fn sample_browser_row(
     drag_active: bool,
     drag_source: bool,
     columns: &[&FileColumn],
+    name_view_mode: SampleNameViewMode,
+    metadata_tags: &[String],
 ) -> ui::View<GuiMessage> {
     let hit_path = file.id.clone();
     let hit_target = sample_file_hit_target(
@@ -60,11 +67,9 @@ fn sample_browser_row(
     );
     let row = ui::stack([
         hit_target,
-        compact_details_row(
-            columns
-                .iter()
-                .map(|column| sample_column_cell(file, rename.clone(), column)),
-        ),
+        compact_details_row(columns.iter().map(|column| {
+            sample_column_cell(file, rename.clone(), column, name_view_mode, metadata_tags)
+        })),
     ])
     .key(format!("sample-row-{}", file.id))
     .fill_width()
@@ -106,9 +111,11 @@ fn sample_column_cell(
     file: &FileEntry,
     rename: Option<folder_browser::FileRenameView>,
     column: &FileColumn,
+    name_view_mode: SampleNameViewMode,
+    metadata_tags: &[String],
 ) -> ui::View<GuiMessage> {
     if column.id == "name" {
-        return sample_name_cell(file, rename, column.width);
+        return sample_name_cell(file, rename, column.width, name_view_mode, metadata_tags);
     }
     sample_file_cell(
         file,
@@ -122,9 +129,16 @@ fn sample_name_cell(
     file: &FileEntry,
     rename: Option<folder_browser::FileRenameView>,
     width: f32,
+    name_view_mode: SampleNameViewMode,
+    metadata_tags: &[String],
 ) -> ui::View<GuiMessage> {
     let Some(rename) = rename else {
-        return sample_file_cell(file, file.stem.clone(), width, "name");
+        return sample_file_cell(
+            file,
+            sample_name_cell_value(file, name_view_mode, metadata_tags),
+            width,
+            "name",
+        );
     };
     ui::text_input(rename.draft)
         .selection(rename.selection_start, rename.selection_end)
@@ -135,6 +149,31 @@ fn sample_name_cell(
         .key(format!("sample-rename-input-{}", file.id))
         .width(width)
         .height(20.0)
+}
+
+pub(super) fn sample_name_cell_value(
+    file: &FileEntry,
+    mode: SampleNameViewMode,
+    metadata_tags: &[String],
+) -> String {
+    match mode {
+        SampleNameViewMode::DiskFilename => file.stem.clone(),
+        SampleNameViewMode::MetadataLabel => metadata_display_stem(file, metadata_tags),
+    }
+}
+
+fn metadata_display_stem(file: &FileEntry, metadata_tags: &[String]) -> String {
+    let display = metadata_tags
+        .iter()
+        .filter(|tag| !tag.is_empty())
+        .map(String::as_str)
+        .collect::<Vec<_>>()
+        .join("_");
+    if display.is_empty() {
+        file.stem.clone()
+    } else {
+        display
+    }
 }
 
 fn sample_file_column_value(file: &FileEntry, column_id: &str) -> String {
@@ -170,4 +209,43 @@ fn compact_details_row(
         .padding_x(8.0)
         .padding_y(1.0)
         .spacing(10.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn file_entry() -> FileEntry {
+        FileEntry {
+            id: String::from("C:\\Samples\\portal_SS_kick_003.wav"),
+            name: String::from("portal_SS_kick_003.wav"),
+            stem: String::from("portal_SS_kick_003"),
+            extension: String::from("wav"),
+            kind: String::from("Audio"),
+            size: String::from("1 KB"),
+            size_bytes: 1024,
+            modified: String::from("today"),
+            modified_rank: 1,
+        }
+    }
+
+    #[test]
+    fn disk_filename_view_uses_file_stem() {
+        assert_eq!(
+            sample_name_cell_value(&file_entry(), SampleNameViewMode::DiskFilename, &[]),
+            "portal_SS_kick_003"
+        );
+    }
+
+    #[test]
+    fn metadata_label_view_uses_metadata_tag_stem_without_extension() {
+        assert_eq!(
+            sample_name_cell_value(
+                &file_entry(),
+                SampleNameViewMode::MetadataLabel,
+                &[String::from("kick"), String::from("warm")]
+            ),
+            "kick_warm"
+        );
+    }
 }

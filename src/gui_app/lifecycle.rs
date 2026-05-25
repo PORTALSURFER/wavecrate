@@ -1,4 +1,7 @@
-use super::{DEFAULT_FOLDER_WIDTH, FolderBrowserState, GuiAppState, GuiMessage, WaveformState};
+use super::{
+    DEFAULT_FOLDER_WIDTH, FolderBrowserState, GuiAppState, GuiMessage, SampleNameViewMode,
+    WaveformState,
+};
 use crate::gui_app::{launch::emit_gui_action, waveform::WaveformInteraction};
 use radiant::prelude as ui;
 use std::{sync::mpsc, time::Instant};
@@ -46,6 +49,7 @@ impl GuiAppState {
             native_file_drop_hover: None,
             metadata_tag_draft: String::new(),
             metadata_tags: Vec::new(),
+            sample_name_view_mode: SampleNameViewMode::DiskFilename,
         };
         state.refresh_audio_options();
         if let Err(error) = state.open_configured_audio_player() {
