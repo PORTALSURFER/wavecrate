@@ -430,7 +430,14 @@ fn toolbar_icon_assets_parse_and_paint_through_radiant_icon_button() {
         super::ToolbarIcon::Play,
         super::ToolbarIcon::Stop,
     ] {
-        assert!(radiant::gui::svg::SvgIcon::from_svg(icon.svg()).is_some());
+        let enabled_svg = super::toolbar_icon_svg(icon, true, false);
+        let active_svg = super::toolbar_icon_svg(icon, true, true);
+        let disabled_svg = super::toolbar_icon_svg(icon, false, false);
+        assert!(enabled_svg.contains(r##"fill="currentColor""##));
+        assert!(enabled_svg.contains(r##"color="#eeeeee""##));
+        assert!(active_svg.contains(r##"color="#ffa052""##));
+        assert!(disabled_svg.contains(r##"color="#919191""##));
+        assert!(radiant::gui::svg::SvgIcon::from_svg(&enabled_svg).is_some());
         let frame = radiant::runtime::UiSurface::new(
             super::toolbar_icon_button(101, icon, true, false).into_node(),
         )

@@ -2,6 +2,10 @@ use radiant::prelude as ui;
 
 use super::{GuiAppState, GuiMessage};
 
+const TOOLBAR_ICON_ACTIVE_COLOR: &str = "#ffa052";
+const TOOLBAR_ICON_ENABLED_COLOR: &str = "#eeeeee";
+const TOOLBAR_ICON_DISABLED_COLOR: &str = "#919191";
+
 pub(super) fn main_toolbar(state: &GuiAppState) -> ui::View<GuiMessage> {
     ui::row([
         ui::spacer().height(24.0).fill_width(),
@@ -22,7 +26,8 @@ pub(super) fn toolbar_icon_button(
     enabled: bool,
     active: bool,
 ) -> ui::View<GuiMessage> {
-    let Some(svg_icon) = ui::SvgIcon::from_svg(icon.svg()) else {
+    let svg = toolbar_icon_svg(icon, enabled, active);
+    let Some(svg_icon) = ui::SvgIcon::from_svg(&svg) else {
         return ui::button("")
             .message(toolbar_button_message(icon))
             .id(id)
@@ -51,6 +56,30 @@ impl ToolbarIcon {
             Self::Stop => include_str!("assets/icons/waveform_toolbar/stop.svg"),
         }
     }
+}
+
+pub(super) fn toolbar_icon_svg(icon: ToolbarIcon, enabled: bool, active: bool) -> String {
+    let color = if !enabled {
+        TOOLBAR_ICON_DISABLED_COLOR
+    } else if active {
+        TOOLBAR_ICON_ACTIVE_COLOR
+    } else {
+        TOOLBAR_ICON_ENABLED_COLOR
+    };
+    with_svg_current_color(icon.svg(), color)
+}
+
+fn with_svg_current_color(svg: &str, color: &str) -> String {
+    let Some(index) = svg.find("<svg") else {
+        return svg.to_string();
+    };
+    let insert_at = index + "<svg".len();
+    format!(
+        "{} color=\"{}\" fill=\"currentColor\"{}",
+        &svg[..insert_at],
+        color,
+        &svg[insert_at..]
+    )
 }
 
 fn toolbar_button_message(icon: ToolbarIcon) -> GuiMessage {

@@ -67,7 +67,7 @@ use sample_browser_view::sample_browser;
 use sample_load_actions::{NormalizedWaveformReload, WaveformPlaybackResume};
 use shortcuts::default_gui_shortcut_resolution;
 #[cfg(test)]
-use toolbar::{ToolbarIcon, toolbar_icon_button};
+use toolbar::{ToolbarIcon, toolbar_icon_button, toolbar_icon_svg};
 use waveform::{WaveformActiveDragKind, WaveformInteraction, WaveformSelectionKind, WaveformState};
 
 const DEFAULT_FOLDER_WIDTH: f32 = 260.0;
