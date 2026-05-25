@@ -725,10 +725,39 @@ fn default_gui_saves_sources_and_audio_output_to_app_config() {
 }
 
 #[test]
+fn default_gui_removes_context_source_from_app_config() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let source_root = tempfile::tempdir().expect("source root");
+    let mut state = gui_state_for_span_tests();
+    let request = state
+        .folder_browser
+        .begin_add_source_path(source_root.path().to_path_buf(), 100)
+        .expect("new source requests scan");
+    let result = super::folder_browser::scan_source_with_progress(request, |_| {}, |_| {});
+    state.finish_folder_scan(result);
+    state.context_menu = Some(super::BrowserContextMenu {
+        kind: super::BrowserContextTargetKind::Source,
+        path: source_root.path().to_path_buf(),
+        source_id: Some(source_root.path().to_string_lossy().to_string()),
+        anchor: Point::new(12.0, 24.0),
+        title: String::from("source root"),
+    });
+
+    state.remove_context_source();
+
+    let loaded = wavecrate::sample_sources::config::load_or_default().expect("reload config");
+    assert!(loaded.sources.is_empty());
+    assert!(state.sample_status.contains("Removed source"));
+    assert!(state.folder_browser.root_path().ends_with("assets"));
+}
+
+#[test]
 fn folder_context_menu_paints_as_full_width_overlay_panel() {
     let menu = super::BrowserContextMenu {
         kind: super::BrowserContextTargetKind::Folder,
         path: PathBuf::from("Documents"),
+        source_id: None,
         anchor: Point::new(72.0, 142.0),
         title: String::from("Documents"),
     };
@@ -762,6 +791,7 @@ fn folder_context_menu_outside_click_closes_menu() {
     let menu = super::BrowserContextMenu {
         kind: super::BrowserContextTargetKind::Folder,
         path: PathBuf::from("Documents"),
+        source_id: None,
         anchor: Point::new(72.0, 142.0),
         title: String::from("Documents"),
     };
@@ -798,6 +828,24 @@ fn folder_context_menu_outside_click_closes_menu() {
         !*runtime.bridge().state(),
         "clicking outside the context menu should route to the dismiss layer"
     );
+}
+
+#[test]
+fn source_context_menu_paints_remove_source_action_for_user_sources() {
+    let menu = super::BrowserContextMenu {
+        kind: super::BrowserContextTargetKind::Source,
+        path: PathBuf::from("C:\\Samples"),
+        source_id: Some(String::from("source_id::samples")),
+        anchor: Point::new(72.0, 142.0),
+        title: String::from("Samples"),
+    };
+    let frame = radiant::runtime::UiSurface::new(super::context_menu::overlay(&menu).into_node())
+        .frame(
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 540.0)),
+            &radiant::theme::ThemeTokens::default(),
+        );
+
+    assert!(frame_has_text(&frame, "Remove Source"));
 }
 
 #[test]

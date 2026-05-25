@@ -226,7 +226,7 @@ mod types;
 pub(super) use types::{
     FileDeleteTargetView, FileRenameView, FolderBrowserMessage, FolderDeleteTargetView,
     FolderDragPreview, FolderDropResult, FolderScanDiscovery, FolderScanDiscoveryBatch,
-    FolderScanProgress, FolderScanRequest, FolderScanResult, RenameTargetView,
+    FolderScanProgress, FolderScanRequest, FolderScanResult, RemovedSource, RenameTargetView,
 };
 
 mod view;

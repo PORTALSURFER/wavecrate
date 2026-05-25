@@ -76,6 +76,12 @@ pub(in crate::gui_app) struct FolderScanRequest {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::gui_app) struct RemovedSource {
+    pub(in crate::gui_app) label: String,
+    pub(in crate::gui_app) root: PathBuf,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(in crate::gui_app) struct RenameTargetView {
     pub(in crate::gui_app) kind: &'static str,
     pub(in crate::gui_app) label: String,

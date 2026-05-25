@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 
 use super::{
-    FolderBrowserState, FolderEntry, SourceEntry,
+    FolderBrowserState, FolderEntry, RemovedSource, SourceEntry,
     path_helpers::{folder_label, path_id},
-    scanning::{merge_scan_discovery, placeholder_folder},
+    scanning::{default_root_path, load_root_folder, merge_scan_discovery, placeholder_folder},
     types::{FolderScanDiscoveryBatch, FolderScanRequest, FolderScanResult},
 };
 use wavecrate::sample_sources::{SampleSource, SourceId};
@@ -52,6 +52,41 @@ impl FolderBrowserState {
             .iter()
             .find(|source| source.id == source_id)
             .map(|source| source.root.clone())
+    }
+
+    pub(in crate::gui_app) fn source_is_removable(&self, source_id: &str) -> bool {
+        self.sources
+            .iter()
+            .find(|source| source.id == source_id)
+            .is_some_and(|source| !source.is_default_assets_source())
+    }
+
+    pub(in crate::gui_app) fn remove_source(
+        &mut self,
+        source_id: &str,
+    ) -> Result<RemovedSource, String> {
+        let index = self
+            .sources
+            .iter()
+            .position(|source| source.id == source_id)
+            .ok_or_else(|| String::from("Source is unavailable"))?;
+        if self.sources[index].is_default_assets_source() {
+            return Err(String::from("Default source cannot be removed"));
+        }
+        let source = self.sources.remove(index);
+        let removed = RemovedSource {
+            label: source.label.clone(),
+            root: source.root.clone(),
+        };
+        self.cancel_rename();
+        self.clear_drag();
+        if self.sources.is_empty() {
+            self.install_default_assets_source();
+        }
+        if self.selected_source == source.id {
+            self.select_first_available_source();
+        }
+        Ok(removed)
     }
 
     pub(in crate::gui_app) fn begin_add_source_path(
@@ -191,5 +226,23 @@ impl FolderBrowserState {
         self.expanded_folders.clear();
         self.expanded_folders.insert(root_id);
         self.folders = vec![root_folder];
+    }
+
+    fn install_default_assets_source(&mut self) {
+        let root = default_root_path();
+        let mut source = SourceEntry::new("assets", "Assets", root.clone());
+        source.root_folder = Some(load_root_folder(root));
+        self.sources.push(source);
+    }
+
+    fn select_first_available_source(&mut self) {
+        let Some(source) = self.sources.first().cloned() else {
+            return;
+        };
+        if let Some(root_folder) = source.root_folder {
+            self.select_loaded_source(source.id, root_folder);
+        } else {
+            self.select_pending_source(source.id, placeholder_folder(&source.root));
+        }
     }
 }

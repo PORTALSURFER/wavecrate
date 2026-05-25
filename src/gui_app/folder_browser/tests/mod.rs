@@ -14,6 +14,7 @@ mod drag_drop;
 mod navigation;
 mod rename;
 mod scanning;
+mod source_management;
 
 fn temp_source_root(name: &str) -> PathBuf {
     let root = std::env::temp_dir().join(format!(

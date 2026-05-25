@@ -15,7 +15,8 @@ use radiant::{
 use std::path::{Path, PathBuf};
 
 const CONTEXT_MENU_WIDTH: f32 = 210.0;
-const CONTEXT_MENU_HEIGHT: f32 = 104.0;
+const CONTEXT_MENU_BASE_HEIGHT: f32 = 104.0;
+const CONTEXT_MENU_EXTRA_ACTION_HEIGHT: f32 = 33.0;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum BrowserContextTargetKind {
@@ -28,6 +29,7 @@ pub(super) enum BrowserContextTargetKind {
 pub(super) struct BrowserContextMenu {
     pub(super) kind: BrowserContextTargetKind,
     pub(super) path: PathBuf,
+    pub(super) source_id: Option<String>,
     pub(super) anchor: Point,
     pub(super) title: String,
 }
@@ -68,6 +70,7 @@ pub(super) fn overlay(menu: &BrowserContextMenu) -> ui::View<GuiMessage> {
     };
     let top = menu.anchor.y.max(0.0);
     let left = menu.anchor.x.max(0.0);
+    let height = context_menu_height(menu);
     ui::stack([
         dismiss_area("browser-context-dismiss").fill(),
         ui::column([
@@ -78,7 +81,7 @@ pub(super) fn overlay(menu: &BrowserContextMenu) -> ui::View<GuiMessage> {
                 overlay_gap().fill_width().height(1.0),
             ])
             .fill_width()
-            .height(CONTEXT_MENU_HEIGHT),
+            .height(height),
             overlay_gap().fill_width().fill_height(),
         ])
         .fill(),
@@ -90,7 +93,7 @@ fn context_menu_panel(
     menu: &BrowserContextMenu,
     action_label: &'static str,
 ) -> ui::View<GuiMessage> {
-    ui::column([
+    let mut actions = vec![
         ui::text(menu.title.clone())
             .height(22.0)
             .fill_width()
@@ -103,15 +106,32 @@ fn context_menu_panel(
             .key("browser-context-copy-path")
             .fill_width()
             .height(28.0),
-    ])
-    .style(ui::WidgetStyle {
-        tone: ui::WidgetTone::Neutral,
-        prominence: ui::WidgetProminence::Strong,
-    })
-    .padding(8.0)
-    .spacing(5.0)
-    .width(CONTEXT_MENU_WIDTH)
-    .height(CONTEXT_MENU_HEIGHT)
+    ];
+    if menu.kind == BrowserContextTargetKind::Source && menu.source_id.is_some() {
+        actions.push(
+            context_menu_action("Remove Source", GuiMessage::RemoveContextSource)
+                .key("browser-context-remove-source")
+                .fill_width()
+                .height(28.0),
+        );
+    }
+    ui::column(actions)
+        .style(ui::WidgetStyle {
+            tone: ui::WidgetTone::Neutral,
+            prominence: ui::WidgetProminence::Strong,
+        })
+        .padding(8.0)
+        .spacing(5.0)
+        .width(CONTEXT_MENU_WIDTH)
+        .height(context_menu_height(menu))
+}
+
+fn context_menu_height(menu: &BrowserContextMenu) -> f32 {
+    if menu.kind == BrowserContextTargetKind::Source && menu.source_id.is_some() {
+        CONTEXT_MENU_BASE_HEIGHT + CONTEXT_MENU_EXTRA_ACTION_HEIGHT
+    } else {
+        CONTEXT_MENU_BASE_HEIGHT
+    }
 }
 
 fn context_menu_action(label: impl Into<String>, message: GuiMessage) -> ui::View<GuiMessage> {

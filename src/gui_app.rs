@@ -136,6 +136,7 @@ enum GuiMessage {
     CopySelectedFiles,
     CopyContextPath,
     OpenContextTarget,
+    RemoveContextSource,
     CloseContextMenu,
     ToggleJobDetails,
     CloseJobDetails,
@@ -318,6 +319,7 @@ impl GuiAppState {
             GuiMessage::CopySelectedFiles => self.copy_selected_files(),
             GuiMessage::CopyContextPath => self.copy_context_path(),
             GuiMessage::OpenContextTarget => self.open_context_target(),
+            GuiMessage::RemoveContextSource => self.remove_context_source(),
             GuiMessage::CloseContextMenu => {
                 self.context_menu = None;
             }

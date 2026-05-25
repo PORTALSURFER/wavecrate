@@ -1,4 +1,5 @@
 use radiant::gui::types::Point;
+use std::path::Path;
 use std::time::Instant;
 
 use super::context_menu::{self, BrowserContextMenu, BrowserContextTargetKind};
@@ -23,25 +24,18 @@ impl GuiAppState {
             );
             return;
         };
-        if !context_menu::target_available(&BrowserContextTargetKind::Source, &path) {
-            self.sample_status = String::from("Source folder is missing");
-            emit_gui_action(
-                "browser.context_menu.source.open",
-                Some("sources"),
-                Some(context_menu::target_label(&path).as_str()),
-                "error",
-                started_at,
-                Some("source folder missing"),
-            );
-            return;
-        }
         let title = path
             .file_name()
             .map(|name| name.to_string_lossy().to_string())
             .unwrap_or_else(|| path.display().to_string());
+        let source_id = self
+            .folder_browser
+            .source_is_removable(&source_id)
+            .then_some(source_id);
         self.context_menu = Some(BrowserContextMenu {
             kind: BrowserContextTargetKind::Source,
             path,
+            source_id,
             anchor: position,
             title,
         });
@@ -80,6 +74,7 @@ impl GuiAppState {
         self.context_menu = Some(BrowserContextMenu {
             kind: BrowserContextTargetKind::Folder,
             path,
+            source_id: None,
             anchor: position,
             title,
         });
@@ -117,6 +112,7 @@ impl GuiAppState {
         self.context_menu = Some(BrowserContextMenu {
             kind: BrowserContextTargetKind::Sample,
             path,
+            source_id: None,
             anchor: position,
             title,
         });
@@ -220,4 +216,72 @@ impl GuiAppState {
             }
         }
     }
+
+    pub(super) fn remove_context_source(&mut self) {
+        let started_at = Instant::now();
+        let Some(menu) = self.context_menu.take() else {
+            return;
+        };
+        if menu.kind != BrowserContextTargetKind::Source {
+            self.sample_status = String::from("Context target is not a source");
+            emit_gui_action(
+                "browser.context_menu.source.remove",
+                Some("sources"),
+                Some(context_menu::target_label(&menu.path).as_str()),
+                "error",
+                started_at,
+                Some("target is not a source"),
+            );
+            return;
+        }
+        let Some(source_id) = menu.source_id else {
+            self.sample_status = String::from("Default source cannot be removed");
+            emit_gui_action(
+                "browser.context_menu.source.remove",
+                Some("sources"),
+                Some(context_menu::target_label(&menu.path).as_str()),
+                "blocked",
+                started_at,
+                Some("source not removable"),
+            );
+            return;
+        };
+        let loaded_path = self.waveform.path();
+        match self.folder_browser.remove_source(&source_id) {
+            Ok(removed) => {
+                if path_is_within(&loaded_path, &removed.root) {
+                    if let Some(player) = self.audio_player.as_mut() {
+                        player.stop();
+                    }
+                    self.waveform = super::WaveformState::empty();
+                    self.current_playback_span = None;
+                }
+                self.sample_status = format!("Removed source {}", removed.label);
+                self.persist_user_configuration("folder_browser.source.remove.persist", started_at);
+                emit_gui_action(
+                    "browser.context_menu.source.remove",
+                    Some("sources"),
+                    Some(&removed.label),
+                    "success",
+                    started_at,
+                    None,
+                );
+            }
+            Err(error) => {
+                self.sample_status = error.clone();
+                emit_gui_action(
+                    "browser.context_menu.source.remove",
+                    Some("sources"),
+                    Some(context_menu::target_label(&menu.path).as_str()),
+                    "error",
+                    started_at,
+                    Some(&error),
+                );
+            }
+        }
+    }
+}
+
+fn path_is_within(path: &Path, root: &Path) -> bool {
+    !path.as_os_str().is_empty() && path.starts_with(root)
 }
