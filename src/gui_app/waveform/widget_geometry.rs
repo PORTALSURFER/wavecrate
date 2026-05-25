@@ -4,8 +4,40 @@ use super::{WaveformSelectionEdge, WaveformSelectionKind, widget::WaveformWidget
 
 const SELECTION_MOVE_HANDLE_HEIGHT: f32 = 7.0;
 const SELECTION_MOVE_HANDLE_END_INSET: f32 = 9.0;
+const SELECTION_EXPORT_HANDLE_SIZE: f32 = 16.0;
 
 impl WaveformWidget {
+    pub(super) fn play_selection_export_handle_at(&self, bounds: Rect, position: Point) -> bool {
+        let Some((start, end)) = self.visible_range_for_selection(self.play_selection) else {
+            return false;
+        };
+        self.selection_export_handle_rect(bounds, start, end)
+            .is_some_and(|rect| rect.contains(position))
+    }
+
+    pub(super) fn selection_export_handle_rect(
+        &self,
+        bounds: Rect,
+        start: f32,
+        end: f32,
+    ) -> Option<Rect> {
+        let left = bounds.min.x + bounds.width() * start.min(end).clamp(0.0, 1.0);
+        let right = bounds.min.x + bounds.width() * start.max(end).clamp(0.0, 1.0);
+        if right <= left {
+            return None;
+        }
+        let size = SELECTION_EXPORT_HANDLE_SIZE
+            .min((right - left).max(1.0))
+            .min(bounds.height().max(1.0));
+        Some(Rect::from_min_max(
+            Point::new(
+                (right - size).max(left),
+                (bounds.max.y - size).max(bounds.min.y),
+            ),
+            Point::new(right.min(bounds.max.x), bounds.max.y),
+        ))
+    }
+
     pub(super) fn selection_move_handle_at(
         &self,
         bounds: Rect,

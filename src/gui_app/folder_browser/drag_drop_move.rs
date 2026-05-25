@@ -105,6 +105,60 @@ impl FolderBrowserState {
             )),
         })
     }
+
+    pub(super) fn move_extracted_file_to_folder(
+        &mut self,
+        path: &Path,
+        target_folder_id: &str,
+    ) -> Result<FolderDropResult, String> {
+        if self.rename_active() {
+            return Err(String::from("Finish rename before moving files"));
+        }
+        if !path.is_file() {
+            return Err(format!(
+                "Extraction move failed: {} is missing",
+                path.file_name()
+                    .map(|name| name.to_string_lossy().to_string())
+                    .unwrap_or_else(|| path.display().to_string())
+            ));
+        }
+        let target_folder = self
+            .find_folder(target_folder_id)
+            .cloned()
+            .ok_or_else(|| String::from("Extraction move failed: target folder is missing"))?;
+        let target_path = PathBuf::from(&target_folder.id);
+        if !target_path.is_dir() {
+            return Err(String::from(
+                "Extraction move failed: target folder is missing",
+            ));
+        }
+        if path.parent() == Some(target_path.as_path()) {
+            return Ok(FolderDropResult {
+                moved_paths: Vec::new(),
+                status: Some(String::from("Extraction kept in current folder")),
+            });
+        }
+        let Some(file_name) = path.file_name() else {
+            return Err(String::from("Extraction move failed: file has no name"));
+        };
+        let new_path = unique_destination(&target_path.join(file_name));
+        fs::rename(path, &new_path).map_err(|error| format!("Extraction move failed: {error}"))?;
+        let completed = vec![(path.to_path_buf(), new_path.clone())];
+        if let Err(error) = self.relocate_moved_files(&completed, &target_path) {
+            rollback_completed_file_moves(&completed);
+            return Err(error);
+        }
+        Ok(FolderDropResult {
+            moved_paths: completed,
+            status: Some(format!(
+                "Extracted {}",
+                new_path
+                    .file_name()
+                    .map(|name| name.to_string_lossy().to_string())
+                    .unwrap_or_else(|| new_path.display().to_string())
+            )),
+        })
+    }
 }
 
 fn file_moves_to_folder(
@@ -163,4 +217,29 @@ fn rollback_completed_file_moves(completed: &[(PathBuf, PathBuf)]) {
     for (moved_old, moved_new) in completed.iter().rev() {
         let _ = fs::rename(moved_new, moved_old);
     }
+}
+
+fn unique_destination(first_candidate: &Path) -> PathBuf {
+    if !first_candidate.exists() {
+        return first_candidate.to_path_buf();
+    }
+    let parent = first_candidate.parent().unwrap_or_else(|| Path::new(""));
+    let stem = first_candidate
+        .file_stem()
+        .map(|stem| stem.to_string_lossy().to_string())
+        .unwrap_or_else(|| String::from("sample"));
+    let extension = first_candidate
+        .extension()
+        .map(|extension| extension.to_string_lossy().to_string());
+    for count in 1.. {
+        let file_name = match &extension {
+            Some(extension) => format!("{stem}_copy{count:03}.{extension}"),
+            None => format!("{stem}_copy{count:03}"),
+        };
+        let candidate = parent.join(file_name);
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+    unreachable!("unbounded copy suffix search should find a destination")
 }

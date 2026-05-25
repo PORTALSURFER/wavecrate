@@ -166,6 +166,39 @@ fn primary_press_on_playmark_top_handle_starts_move() {
 }
 
 #[test]
+fn primary_press_on_play_selection_export_handle_starts_export_drag() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    state.play_mark_ratio = Some(0.2);
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
+
+    let output = widget
+        .handle_input(
+            bounds,
+            WidgetInput::PointerPress {
+                position: Point::new(118.0, 76.0),
+                button: PointerButton::Primary,
+                modifiers: Default::default(),
+            },
+        )
+        .expect("selection export drag interaction");
+    let interaction = output
+        .typed_ref::<WaveformInteraction>()
+        .copied()
+        .expect("waveform interaction");
+
+    assert_eq!(
+        interaction,
+        WaveformInteraction::DragPlaySelectionExport(
+            radiant::widgets::DragHandleMessage::Started {
+                position: Point::new(118.0, 76.0)
+            }
+        )
+    );
+}
+
+#[test]
 fn secondary_press_on_edit_top_handle_starts_move() {
     let mut state = WaveformState::synthetic_for_tests();
     state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));

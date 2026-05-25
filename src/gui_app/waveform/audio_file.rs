@@ -16,7 +16,7 @@ pub(super) use downmix::downmix_to_mono;
 use downmix::downmix_to_mono_with_progress;
 
 mod extraction;
-pub(super) use extraction::extract_wav_range_to_sibling;
+pub(super) use extraction::{extract_wav_range_to_folder, extract_wav_range_to_sibling};
 
 mod file_io;
 use file_io::read_audio_file_with_progress;

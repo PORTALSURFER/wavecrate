@@ -164,6 +164,57 @@ fn file_drag_external_request_uses_selected_file_paths() {
 }
 
 #[test]
+fn extracted_file_drag_external_request_uses_extracted_path() {
+    let root = temp_source_root("wavecrate-gui-extracted-file-external-drag");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let extracted = drums.join("loop_extraction.wav");
+    fs::write(&extracted, [0_u8; 8]).expect("write wav");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.refresh_file_path(&extracted);
+
+    browser.begin_extracted_file_drag(extracted.clone(), Point::new(4.0, 8.0));
+    let request = browser
+        .external_drag_request()
+        .expect("extracted file drag should expose external request");
+
+    assert_eq!(request.preview.label, "loop_extraction.wav");
+    assert_eq!(
+        request.payload,
+        ExternalDragPayload::Files(vec![extracted.clone()])
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn extracted_file_drag_drop_moves_file_into_target_folder() {
+    let root = temp_source_root("wavecrate-gui-extracted-file-drag-drop");
+    let drums = root.join("drums");
+    let loops = root.join("loops");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let extracted = drums.join("loop_extraction.wav");
+    fs::write(&extracted, [0_u8; 8]).expect("write wav");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.refresh_file_path(&extracted);
+
+    browser.begin_extracted_file_drag(extracted.clone(), Point::new(4.0, 8.0));
+    let result = browser
+        .drop_drag_on_folder(&path_id(&loops))
+        .expect("extracted file drag/drop should move");
+
+    let moved = loops.join("loop_extraction.wav");
+    assert_eq!(result.moved_paths, vec![(extracted.clone(), moved.clone())]);
+    assert!(!extracted.exists());
+    assert!(moved.is_file());
+    assert_eq!(browser.selected_folder, path_id(&loops));
+    assert_eq!(browser.selected_file_paths(), vec![moved.clone()]);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn clearing_file_drag_advances_drag_revision_for_retained_row_reset() {
     let root = temp_source_root("wavecrate-gui-file-drag-revision");
     let drums = root.join("drums");

@@ -1,4 +1,14 @@
 use radiant::prelude as ui;
+use radiant::{
+    gui::types::Rect,
+    layout::{LayoutOutput, Vector2},
+    runtime::PaintPrimitive,
+    theme::ThemeTokens,
+    widgets::{
+        FocusBehavior, PaintBounds, PointerButton, Widget, WidgetCommon, WidgetInput, WidgetOutput,
+        WidgetSizing,
+    },
+};
 
 use super::folder_browser::{FileColumn, FolderBrowserMessage};
 use super::{
@@ -21,13 +31,26 @@ pub(super) fn sample_browser(state: &mut GuiAppState) -> ui::View<GuiMessage> {
     let audio_files = state.folder_browser.selected_audio_files();
     let audio_count = audio_files.len();
     let columns = state.folder_browser.visible_file_columns();
-    ui::column([
+    let browser = ui::column([
         sample_browser_header(&columns, state.folder_browser.file_sort()),
         sample_browser_rows(&state.folder_browser, &audio_files, &columns, window),
         sample_browser_status(audio_count),
     ])
     .spacing(0.0)
     .style(ui::WidgetStyle::default())
+    .fill();
+    if !state.folder_browser.extracted_file_drag_active() {
+        return browser;
+    }
+    ui::stack([
+        browser,
+        ui::custom_widget_mapped(SampleListDropTarget::new(), |()| {
+            GuiMessage::DropWaveformSelectionOnSampleList
+        })
+        .key("sample-list-waveform-drop-target")
+        .input_only()
+        .fill(),
+    ])
     .fill()
 }
 
@@ -113,4 +136,50 @@ fn sample_browser_status(audio_count: usize) -> ui::View<GuiMessage> {
     .padding_x(3.0)
     .fill_width()
     .height(28.0)
+}
+
+#[derive(Clone, Debug)]
+struct SampleListDropTarget {
+    common: WidgetCommon,
+}
+
+impl SampleListDropTarget {
+    fn new() -> Self {
+        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 1.0)));
+        common.focus = FocusBehavior::None;
+        common.paint.bounds = PaintBounds::ClipToRect;
+        common.paint.paints_focus = false;
+        common.paint.paints_state_layers = false;
+        Self { common }
+    }
+}
+
+impl Widget for SampleListDropTarget {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
+        match input {
+            WidgetInput::PointerDrop {
+                position,
+                button: PointerButton::Primary,
+                ..
+            } if bounds.contains(position) => Some(WidgetOutput::typed(())),
+            _ => None,
+        }
+    }
+
+    fn append_paint(
+        &self,
+        _primitives: &mut Vec<PaintPrimitive>,
+        _bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+    }
 }

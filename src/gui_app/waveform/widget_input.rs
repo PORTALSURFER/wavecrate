@@ -1,6 +1,6 @@
 use radiant::{
     gui::types::{Point, Rect},
-    widgets::{PointerButton, WidgetInput, WidgetOutput},
+    widgets::{DragHandleMessage, PointerButton, WidgetInput, WidgetOutput},
 };
 
 use super::{
@@ -17,6 +17,13 @@ impl WaveformWidget {
         match input {
             WidgetInput::PointerMove { position } => {
                 self.common.state.hovered = bounds.contains(position);
+                if self.active_drag_kind == Some(WaveformActiveDragKind::PlaySelectionExport) {
+                    return Some(WidgetOutput::typed(
+                        WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::Moved {
+                            position,
+                        }),
+                    ));
+                }
                 self.active_drag_kind.map(|_| {
                     WidgetOutput::typed(WaveformInteraction::UpdateSelection {
                         visible_ratio: self.ratio_from_position(bounds, position),
@@ -59,6 +66,17 @@ impl WaveformWidget {
                 position,
                 button: PointerButton::Primary,
                 ..
+            } if self.active_drag_kind == Some(WaveformActiveDragKind::PlaySelectionExport) => {
+                Some(WidgetOutput::typed(
+                    WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::Ended {
+                        position,
+                    }),
+                ))
+            }
+            WidgetInput::PointerRelease {
+                position,
+                button: PointerButton::Primary,
+                ..
             } if self.primary_release_finishes_drag() => {
                 Some(WidgetOutput::typed(WaveformInteraction::FinishSelection {
                     visible_ratio: self.ratio_from_position(bounds, position),
@@ -91,6 +109,13 @@ impl WaveformWidget {
     }
 
     fn handle_primary_press(&self, bounds: Rect, position: Point) -> Option<WidgetOutput> {
+        if self.play_selection_export_handle_at(bounds, position) {
+            return Some(WidgetOutput::typed(
+                WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::Started {
+                    position,
+                }),
+            ));
+        }
         if let Some(handle) = self.edit_fade_handle_at(bounds, position) {
             return Some(WidgetOutput::typed(WaveformInteraction::BeginEditFade {
                 handle,

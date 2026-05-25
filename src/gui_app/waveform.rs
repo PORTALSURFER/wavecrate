@@ -120,6 +120,30 @@ impl WaveformState {
     }
 
     pub(super) fn extract_play_selection_to_sibling(&self) -> Result<PathBuf, String> {
+        let selection = self.extractable_play_selection()?;
+        extract_wav_range_to_sibling(
+            &self.file.path,
+            &self.file.audio_bytes,
+            self.file.frames,
+            selection,
+        )
+    }
+
+    pub(super) fn extract_play_selection_to_folder(
+        &self,
+        target_folder: &std::path::Path,
+    ) -> Result<PathBuf, String> {
+        let selection = self.extractable_play_selection()?;
+        extract_wav_range_to_folder(
+            &self.file.path,
+            target_folder,
+            &self.file.audio_bytes,
+            self.file.frames,
+            selection,
+        )
+    }
+
+    fn extractable_play_selection(&self) -> Result<wavecrate::selection::SelectionRange, String> {
         let selection = self
             .play_selection
             .filter(|selection| selection.width() > 0.0)
@@ -130,12 +154,7 @@ impl WaveformState {
         if !is_wav_path(&self.file.path) {
             return Err(String::from("Extraction currently supports WAV files"));
         }
-        extract_wav_range_to_sibling(
-            &self.file.path,
-            &self.file.audio_bytes,
-            self.file.frames,
-            selection,
-        )
+        Ok(selection)
     }
 
     pub(super) fn active_drag_kind(&self) -> Option<WaveformActiveDragKind> {
@@ -247,8 +266,8 @@ mod state_viewport;
 
 mod audio_file;
 use audio_file::{
-    WaveformFile, empty_waveform_file, extract_wav_range_to_sibling, is_wav_path,
-    load_waveform_file, load_waveform_file_with_progress,
+    WaveformFile, empty_waveform_file, extract_wav_range_to_folder, extract_wav_range_to_sibling,
+    is_wav_path, load_waveform_file, load_waveform_file_with_progress,
 };
 #[cfg(test)]
 use audio_file::{

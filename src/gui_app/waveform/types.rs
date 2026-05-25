@@ -1,4 +1,5 @@
 use radiant::gui::types::Vector2;
+use radiant::widgets::DragHandleMessage;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(in crate::gui_app) enum WaveformInteraction {
@@ -38,6 +39,7 @@ pub(in crate::gui_app) enum WaveformInteraction {
     FinishSelection {
         visible_ratio: f32,
     },
+    DragPlaySelectionExport(DragHandleMessage),
     Frame,
 }
 
@@ -68,6 +70,7 @@ pub(in crate::gui_app) enum WaveformActiveDragKind {
     Selection(WaveformSelectionKind),
     SelectionResize(WaveformSelectionKind, WaveformSelectionEdge),
     SelectionMove(WaveformSelectionKind),
+    PlaySelectionExport,
     EditFade(WaveformEditFadeHandle),
     Pan,
 }

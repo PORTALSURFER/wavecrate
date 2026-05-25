@@ -68,6 +68,7 @@ pub(super) struct FileColumnResize {
 pub(super) enum FolderBrowserDrag {
     Folder { folder_id: String },
     Files { file_ids: Vec<String> },
+    ExtractedFile { path: PathBuf },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

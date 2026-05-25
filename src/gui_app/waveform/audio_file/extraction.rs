@@ -6,6 +6,19 @@ pub(in crate::gui_app) fn extract_wav_range_to_sibling(
     loaded_frames: usize,
     selection: wavecrate::selection::SelectionRange,
 ) -> Result<PathBuf, String> {
+    let parent = source_path
+        .parent()
+        .ok_or_else(|| String::from("Source sample has no parent folder"))?;
+    extract_wav_range_to_folder(source_path, parent, bytes, loaded_frames, selection)
+}
+
+pub(in crate::gui_app) fn extract_wav_range_to_folder(
+    source_path: &Path,
+    target_folder: &Path,
+    bytes: &[u8],
+    loaded_frames: usize,
+    selection: wavecrate::selection::SelectionRange,
+) -> Result<PathBuf, String> {
     let cursor = Cursor::new(bytes);
     let reader =
         hound::WavReader::new(cursor).map_err(|err| format!("failed to open WAV: {err}"))?;
@@ -16,7 +29,7 @@ pub(in crate::gui_app) fn extract_wav_range_to_sibling(
         return Err(String::from("WAV contains no complete frames"));
     }
     let frame_range = selection.frame_bounds(total_frames);
-    let output_path = next_extraction_path(source_path)?;
+    let output_path = next_extraction_path(source_path, target_folder)?;
     write_wav_frame_range(
         reader,
         spec,
@@ -28,10 +41,7 @@ pub(in crate::gui_app) fn extract_wav_range_to_sibling(
     Ok(output_path)
 }
 
-fn next_extraction_path(source_path: &Path) -> Result<PathBuf, String> {
-    let parent = source_path
-        .parent()
-        .ok_or_else(|| String::from("Source sample has no parent folder"))?;
+fn next_extraction_path(source_path: &Path, target_folder: &Path) -> Result<PathBuf, String> {
     let stem = source_path
         .file_stem()
         .and_then(|stem| stem.to_str())
@@ -43,7 +53,7 @@ fn next_extraction_path(source_path: &Path) -> Result<PathBuf, String> {
         } else {
             format!("_extraction_{index}")
         };
-        let candidate = parent.join(format!("{stem}{suffix}.wav"));
+        let candidate = target_folder.join(format!("{stem}{suffix}.wav"));
         if !candidate.exists() {
             return Ok(candidate);
         }

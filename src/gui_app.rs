@@ -150,6 +150,7 @@ enum GuiMessage {
     SelectAllSamples,
     CollapseSelectedFolder,
     ExpandSelectedFolder,
+    DropWaveformSelectionOnSampleList,
     Waveform(WaveformInteraction),
     NativeFileDrop(NativeFileDrop),
     Frame,
@@ -228,10 +229,19 @@ impl GuiAppState {
         self.audio_output_dropdown_open = false;
     }
 
-    fn apply_waveform_message(&mut self, message: WaveformInteraction) {
+    fn apply_waveform_message(
+        &mut self,
+        message: WaveformInteraction,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
         let started_at = Instant::now();
         let action = waveform_interaction_action(&message);
         let active_drag = self.waveform.active_drag_kind();
+        if let WaveformInteraction::DragPlaySelectionExport(drag) = message
+            && !self.drag_waveform_play_selection(drag, context)
+        {
+            return;
+        }
         self.waveform.apply_interaction(message);
         self.sync_edit_fade_audio_state();
         if waveform_interaction_finishes_play_selection_edit(&message, active_drag) {
@@ -335,8 +345,11 @@ impl GuiAppState {
             GuiMessage::ExpandSelectedFolder => {
                 self.expand_selected_folder();
             }
+            GuiMessage::DropWaveformSelectionOnSampleList => {
+                self.drop_waveform_play_selection_on_sample_list(context);
+            }
             GuiMessage::Waveform(message) => {
-                self.apply_waveform_message(message);
+                self.apply_waveform_message(message, context);
             }
             GuiMessage::NativeFileDrop(drop) => self.apply_native_file_drop(drop, context),
             GuiMessage::Frame => {
@@ -384,8 +397,16 @@ fn waveform_interaction_action(interaction: &WaveformInteraction) -> Option<&'st
         WaveformInteraction::BeginSelectionResize { .. } => Some("waveform.selection.resize_begin"),
         WaveformInteraction::BeginSelectionMove { .. } => Some("waveform.selection.move_begin"),
         WaveformInteraction::BeginPan { .. } => Some("waveform.pan_begin"),
+        WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::Started { .. }) => {
+            Some("waveform.selection_export_drag.begin")
+        }
+        WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::Ended { .. }) => {
+            Some("waveform.selection_export_drag.end")
+        }
         WaveformInteraction::FinishSelection { .. } => Some("waveform.selection.finish"),
-        WaveformInteraction::UpdateSelection { .. } | WaveformInteraction::Frame => None,
+        WaveformInteraction::UpdateSelection { .. }
+        | WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::Moved { .. })
+        | WaveformInteraction::Frame => None,
     }
 }
 

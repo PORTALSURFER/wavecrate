@@ -23,6 +23,15 @@ impl FolderBrowserState {
         self.drop_target_folder = None;
     }
 
+    pub(in crate::gui_app) fn begin_extracted_file_drag(&mut self, path: PathBuf, position: Point) {
+        if self.rename_active() {
+            return;
+        }
+        self.drag = Some(FolderBrowserDrag::ExtractedFile { path });
+        self.drag_pointer = Some(position);
+        self.drop_target_folder = None;
+    }
+
     pub(in crate::gui_app) fn update_drag_pointer(&mut self, position: Point) {
         if self.drag.is_some() {
             self.drag_pointer = Some(position);
@@ -42,6 +51,17 @@ impl FolderBrowserState {
         matches!(self.drag, Some(FolderBrowserDrag::Files { .. }))
     }
 
+    pub(in crate::gui_app) fn extracted_file_drag_active(&self) -> bool {
+        matches!(self.drag, Some(FolderBrowserDrag::ExtractedFile { .. }))
+    }
+
+    pub(in crate::gui_app) fn extracted_file_drag_path(&self) -> Option<PathBuf> {
+        match &self.drag {
+            Some(FolderBrowserDrag::ExtractedFile { path }) => Some(path.clone()),
+            _ => None,
+        }
+    }
+
     pub(in crate::gui_app) fn drag_active(&self) -> bool {
         self.drag.is_some()
     }
@@ -57,7 +77,12 @@ impl FolderBrowserState {
         let drag = self.drag.as_ref()?;
         let label = self.drag_preview_label(drag)?;
         let FolderBrowserDrag::Files { file_ids } = drag else {
-            return None;
+            return match drag {
+                FolderBrowserDrag::ExtractedFile { path } => {
+                    Some(ui::ExternalDragRequest::files([path.clone()], label))
+                }
+                _ => None,
+            };
         };
         let paths = file_ids.iter().map(PathBuf::from).collect::<Vec<_>>();
         Some(ui::ExternalDragRequest::files(paths, label))
@@ -97,6 +122,9 @@ impl FolderBrowserState {
             }
             FolderBrowserDrag::Files { file_ids } => {
                 self.move_files_to_folder(&file_ids, target_folder_id)?
+            }
+            FolderBrowserDrag::ExtractedFile { path } => {
+                self.move_extracted_file_to_folder(&path, target_folder_id)?
             }
         };
         self.clear_drag();
@@ -145,6 +173,7 @@ impl FolderBrowserState {
                 [file_id] => Some(file_label(Path::new(file_id))),
                 files => Some(format!("{} files", files.len())),
             },
+            FolderBrowserDrag::ExtractedFile { path } => Some(file_label(path)),
         }
     }
 
@@ -168,6 +197,9 @@ impl FolderBrowserState {
                 self.selected_files().iter().any(|file| file.id == *id)
                     && path.parent() != Some(target_path)
             }),
+            Some(FolderBrowserDrag::ExtractedFile { path }) => {
+                path.is_file() && path.parent() != Some(target_path)
+            }
             None => false,
         }
     }

@@ -97,6 +97,9 @@ impl WaveformState {
             WaveformInteraction::FinishSelection { visible_ratio } => {
                 self.finish_active_drag(visible_ratio);
             }
+            WaveformInteraction::DragPlaySelectionExport(drag) => {
+                self.apply_play_selection_export_drag(drag);
+            }
             WaveformInteraction::Frame => {
                 self.play_selection_flash_frames =
                     self.play_selection_flash_frames.saturating_sub(1);
@@ -126,6 +129,7 @@ impl WaveformState {
             WaveformDrag::SelectionMove(_) => {
                 self.update_active_selection_move(ratio);
             }
+            WaveformDrag::PlaySelectionExport => {}
             WaveformDrag::Pan(drag) => {
                 self.update_active_pan(drag, visible_ratio);
             }
@@ -171,8 +175,23 @@ impl WaveformState {
                 self.update_active_selection_move(ratio);
                 self.active_drag = None;
             }
+            WaveformDrag::PlaySelectionExport => {}
             WaveformDrag::Pan(drag) => {
                 self.update_active_pan(drag, visible_ratio);
+            }
+        }
+    }
+
+    fn apply_play_selection_export_drag(&mut self, drag: radiant::widgets::DragHandleMessage) {
+        match drag {
+            radiant::widgets::DragHandleMessage::Started { .. } => {
+                self.active_drag = Some(WaveformDrag::PlaySelectionExport);
+            }
+            radiant::widgets::DragHandleMessage::Moved { .. } => {}
+            radiant::widgets::DragHandleMessage::Ended { .. } => {
+                if matches!(self.active_drag, Some(WaveformDrag::PlaySelectionExport)) {
+                    self.active_drag = None;
+                }
             }
         }
     }

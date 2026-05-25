@@ -11,7 +11,7 @@ use wavecrate::external_clipboard;
 
 use super::{
     DRAG_PREVIEW_HEIGHT, DRAG_PREVIEW_MAX_WIDTH, FolderBrowserMessage, GuiAppState, GuiMessage,
-    NativeFileDropHover, WAVEFORM_WIDGET_ID, emit_gui_action,
+    NativeFileDropHover, WAVEFORM_WIDGET_ID, emit_gui_action, sample_path_label,
 };
 
 impl GuiAppState {
@@ -61,6 +61,92 @@ impl GuiAppState {
         if started {
             self.arm_browser_drag(context);
         }
+    }
+
+    pub(super) fn drag_waveform_play_selection(
+        &mut self,
+        drag: DragHandleMessage,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) -> bool {
+        match drag {
+            DragHandleMessage::Started { position } => {
+                let started_at = Instant::now();
+                match self.extract_waveform_drag_file() {
+                    Ok(path) => {
+                        self.waveform.flash_play_selection();
+                        self.folder_browser
+                            .begin_extracted_file_drag(path.clone(), position);
+                        self.arm_browser_drag(context);
+                        self.sample_status = format!("Dragging {}", sample_path_label(&path));
+                        emit_gui_action(
+                            "waveform.selection_drag.start",
+                            Some("waveform"),
+                            None,
+                            "success",
+                            started_at,
+                            None,
+                        );
+                        true
+                    }
+                    Err(error) => {
+                        self.sample_status = error.clone();
+                        emit_gui_action(
+                            "waveform.selection_drag.start",
+                            Some("waveform"),
+                            None,
+                            "error",
+                            started_at,
+                            Some(&error),
+                        );
+                        false
+                    }
+                }
+            }
+            DragHandleMessage::Moved { position } => {
+                self.folder_browser.update_drag_pointer(position);
+                true
+            }
+            DragHandleMessage::Ended { .. } => {
+                self.folder_browser.clear_drag();
+                context.end_drag();
+                context.end_external_drag();
+                true
+            }
+        }
+    }
+
+    fn extract_waveform_drag_file(&mut self) -> Result<PathBuf, String> {
+        let target_folder = self
+            .folder_browser
+            .selected_folder_path()
+            .ok_or_else(|| String::from("Select a folder before dragging a range"))?;
+        fs::create_dir_all(&target_folder).map_err(|err| {
+            format!(
+                "failed to create target folder {}: {err}",
+                target_folder.display()
+            )
+        })?;
+        let path = self
+            .waveform
+            .extract_play_selection_to_folder(&target_folder)?;
+        self.folder_browser.refresh_file_path(&path);
+        self.folder_browser.select_file(path.display().to_string());
+        Ok(path)
+    }
+
+    pub(super) fn drop_waveform_play_selection_on_sample_list(
+        &mut self,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        let Some(path) = self.folder_browser.extracted_file_drag_path() else {
+            return;
+        };
+        context.end_drag();
+        context.end_external_drag();
+        self.folder_browser.clear_drag();
+        self.folder_browser.refresh_file_path(&path);
+        self.folder_browser.select_file(path.display().to_string());
+        self.sample_status = format!("Extracted {}", sample_path_label(&path));
     }
 
     fn arm_browser_drag(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {

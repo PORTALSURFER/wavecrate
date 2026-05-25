@@ -17,6 +17,7 @@ pub(super) enum WaveformDrag {
     Selection(WaveformSelectionDrag),
     SelectionResize(WaveformSelectionResizeDrag),
     SelectionMove(WaveformSelectionMoveDrag),
+    PlaySelectionExport,
     EditFade(WaveformEditFadeDrag),
     Pan(WaveformPanDrag),
 }
@@ -29,6 +30,7 @@ impl WaveformDrag {
                 WaveformActiveDragKind::SelectionResize(drag.kind, drag.edge)
             }
             WaveformDrag::SelectionMove(drag) => WaveformActiveDragKind::SelectionMove(drag.kind),
+            WaveformDrag::PlaySelectionExport => WaveformActiveDragKind::PlaySelectionExport,
             WaveformDrag::EditFade(drag) => WaveformActiveDragKind::EditFade(drag.handle),
             WaveformDrag::Pan(_) => WaveformActiveDragKind::Pan,
         }

@@ -77,6 +77,18 @@ impl WaveformWidget {
                 a: if flash_active { 245 } else { 185 },
             },
         );
+        self.append_selection_export_handle(
+            primitives,
+            bounds,
+            start,
+            end,
+            Rgba8 {
+                r: 255,
+                g: 142,
+                b: 92,
+                a: if flash_active { 255 } else { 235 },
+            },
+        );
     }
 
     fn append_edit_selection_paint(
@@ -216,6 +228,19 @@ impl WaveformWidget {
         color: Rgba8,
     ) {
         if let Some(rect) = self.selection_move_handle_rect(bounds, start, end) {
+            self.push_fill(primitives, rect, color);
+        }
+    }
+
+    fn append_selection_export_handle(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        start: f32,
+        end: f32,
+        color: Rgba8,
+    ) {
+        if let Some(rect) = self.selection_export_handle_rect(bounds, start, end) {
             self.push_fill(primitives, rect, color);
         }
     }
