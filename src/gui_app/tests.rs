@@ -65,6 +65,7 @@ fn gui_state_for_span_tests() -> GuiAppState {
         native_file_drop_hover: None,
         metadata_tag_draft: String::new(),
         metadata_tags_by_file: HashMap::new(),
+        metadata_tags_expanded: false,
         sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
     }
 }
@@ -120,6 +121,7 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
         native_file_drop_hover: None,
         metadata_tag_draft: String::new(),
         metadata_tags_by_file: HashMap::new(),
+        metadata_tags_expanded: false,
         sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
     };
     state.resize_folder_browser(DragHandleMessage::Started {
@@ -259,6 +261,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         native_file_drop_hover: None,
         metadata_tag_draft: String::new(),
         metadata_tags_by_file: HashMap::new(),
+        metadata_tags_expanded: false,
         sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
     };
     let sample_path = selected_asset_file_path(&state.folder_browser, "portal_SS_kick_003.wav");
@@ -689,7 +692,7 @@ fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
     let browser = super::FolderBrowserState::load_default();
     let tags = vec![String::from("kick")];
     let frame = radiant::runtime::UiSurface::new(
-        super::folder_browser::folder_browser_view(&browser, "", &tags).into_node(),
+        super::folder_browser::folder_browser_view(&browser, "", &tags, false).into_node(),
     )
     .frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
@@ -700,6 +703,34 @@ fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
     assert!(frame_has_text(&frame, "Metadata"));
     assert!(frame_has_text(&frame, "Tagging"));
     assert!(frame_has_text(&frame, "kick"));
+}
+
+#[test]
+fn folder_browser_metadata_tags_expand_to_show_later_tags() {
+    let browser = super::FolderBrowserState::load_default();
+    let tags = vec![
+        String::from("kick"),
+        String::from("warm"),
+        String::from("one-shot"),
+        String::from("distorted"),
+    ];
+    let collapsed = radiant::runtime::UiSurface::new(
+        super::folder_browser::folder_browser_view(&browser, "", &tags, false).into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
+        &radiant::theme::ThemeTokens::default(),
+    );
+    let expanded = radiant::runtime::UiSurface::new(
+        super::folder_browser::folder_browser_view(&browser, "", &tags, true).into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
+        &radiant::theme::ThemeTokens::default(),
+    );
+
+    assert!(!frame_has_text(&collapsed, "distorted"));
+    assert!(frame_has_text(&expanded, "distorted"));
 }
 
 #[test]

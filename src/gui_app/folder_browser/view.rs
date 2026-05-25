@@ -14,6 +14,7 @@ pub(in crate::gui_app) fn folder_browser_view(
     state: &FolderBrowserState,
     metadata_tag_draft: &str,
     metadata_tags: &[String],
+    metadata_tags_expanded: bool,
 ) -> ui::View<GuiMessage> {
     ui::column([
         source_selector(state),
@@ -21,7 +22,7 @@ pub(in crate::gui_app) fn folder_browser_view(
         ui::scroll(folder_tree_view(state)).fill(),
         selected_folder_status(state),
         filter_section(),
-        metadata_section(metadata_tag_draft, metadata_tags),
+        metadata_section(metadata_tag_draft, metadata_tags, metadata_tags_expanded),
     ])
     .spacing(3.0)
     .padding(4.0)
@@ -242,7 +243,10 @@ fn filter_section() -> ui::View<GuiMessage> {
     )
 }
 
-fn metadata_section(tag_draft: &str, tags: &[String]) -> ui::View<GuiMessage> {
+fn metadata_section(tag_draft: &str, tags: &[String], expanded: bool) -> ui::View<GuiMessage> {
+    let tag_area_height = if expanded { 98.0 } else { 24.0 };
+    let section_height = if expanded { 188.0 } else { 118.0 };
+    let toggle_label = if expanded { "Less" } else { "More" };
     sidebar_section(
         "Metadata",
         ui::column([
@@ -263,39 +267,79 @@ fn metadata_section(tag_draft: &str, tags: &[String]) -> ui::View<GuiMessage> {
                 .key("metadata-tag-input")
                 .height(24.0)
                 .fill_width(),
-            tag_chip_row(tags)
-                .key("metadata-tag-chip-row")
+            ui::row([
+                ui::text(format!("Tags ({})", tags.len()))
+                    .height(20.0)
+                    .fill_width(),
+                ui::button(toggle_label)
+                    .message(GuiMessage::ToggleMetadataTagsExpanded)
+                    .key("metadata-tags-expand-toggle")
+                    .height(20.0)
+                    .width(54.0),
+            ])
+            .fill_width()
+            .height(22.0)
+            .spacing(4.0),
+            tag_chip_area(tags, expanded)
+                .key("metadata-tag-chip-area")
                 .fill_width()
-                .height(24.0),
+                .height(tag_area_height),
         ])
         .fill_width()
         .spacing(4.0),
-        112.0,
+        section_height,
     )
 }
 
-fn tag_chip_row(tags: &[String]) -> ui::View<GuiMessage> {
+fn tag_chip_area(tags: &[String], expanded: bool) -> ui::View<GuiMessage> {
     if tags.is_empty() {
         return ui::text("No tags").height(20.0).fill_width();
     }
-    ui::row(
-        tags.iter()
-            .take(3)
-            .map(|tag| tag_chip(tag))
+    if expanded {
+        ui::scroll(tag_chip_rows(tags)).fill_width().height(98.0)
+    } else {
+        ui::grid(
+            tags.iter()
+                .take(3)
+                .map(|tag| tag_chip(tag.as_str()))
+                .collect::<Vec<_>>(),
+            3,
+        )
+        .fill_width()
+        .height(24.0)
+        .spacing(4.0)
+    }
+}
+
+fn tag_chip_rows(tags: &[String]) -> ui::View<GuiMessage> {
+    ui::column(
+        tags.chunks(3)
+            .map(|row_tags| {
+                ui::row(
+                    row_tags
+                        .iter()
+                        .map(|tag| tag_chip(tag.as_str()))
+                        .collect::<Vec<_>>(),
+                )
+                .fill_width()
+                .height(22.0)
+                .spacing(4.0)
+            })
             .collect::<Vec<_>>(),
     )
     .fill_width()
-    .height(24.0)
     .spacing(4.0)
 }
 
 fn tag_chip(tag: &str) -> ui::View<GuiMessage> {
-    ui::text(tag.to_string())
+    ui::badge(tag.to_string())
+        .subtle()
+        .message(GuiMessage::Noop)
+        .key(format!("metadata-tag-pill-{tag}"))
         .style(WidgetStyle {
             tone: WidgetTone::Accent,
             prominence: ui::WidgetProminence::Subtle,
         })
-        .padding(4.0)
         .height(22.0)
         .fill_width()
 }

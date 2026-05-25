@@ -41,6 +41,7 @@ fn folder_sidebar(state: &GuiAppState) -> ui::View<GuiMessage> {
         &state.folder_browser,
         state.metadata_tag_draft.as_str(),
         state.selected_metadata_tags(),
+        state.metadata_tags_expanded,
     )
     .width(state.folder_width)
     .fill_height()
