@@ -9,6 +9,7 @@ use std::{
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=build/windows/wavecrate.rc");
+    println!("cargo:rerun-if-changed=build/windows/wavecrate.exe.manifest");
     println!("cargo:rerun-if-changed=assets/logo3.ico");
     println!("cargo:rerun-if-env-changed=WAVECRATE_GIT_SHA");
     println!("cargo:rerun-if-env-changed=WAVECRATE_BUILD_ID");

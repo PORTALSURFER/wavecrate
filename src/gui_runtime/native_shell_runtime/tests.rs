@@ -5,7 +5,7 @@ use super::*;
 mod tests {
     use super::*;
     use radiant::runtime::PaintPrimitive;
-    use radiant::theme::ThemeTokens;
+    use radiant::theme::{DpiScale, ThemeTokens};
     use radiant::widgets::{CanvasMessage, WidgetInput, WidgetOutput};
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::{
@@ -607,15 +607,15 @@ mod tests {
         let repaint_installed = Arc::new(AtomicBool::new(false));
         let mut model = runtime_contract::AppModel::default();
         model.options_panel.visible = true;
-        model.paired_device.summaries.primary_group = runtime_contract::SummaryFieldModel {
+        model.paired_device.primary_group = runtime_contract::SummaryFieldModel {
             label: String::from("Output Host"),
             value_label: String::from("WASAPI"),
         };
-        model.paired_device.summaries.primary_item = runtime_contract::SummaryFieldModel {
+        model.paired_device.primary_item = runtime_contract::SummaryFieldModel {
             label: String::from("Output"),
             value_label: String::from("Speakers"),
         };
-        model.paired_device.summaries.primary_number = runtime_contract::SummaryFieldModel {
+        model.paired_device.primary_number = runtime_contract::SummaryFieldModel {
             label: String::from("Sample Rate"),
             value_label: String::from("48 kHz"),
         };
@@ -826,6 +826,43 @@ mod tests {
     }
 
     #[test]
+    fn retained_shell_renders_against_radiant_logical_dpi_viewport() {
+        let dpi_scale = DpiScale::new(2.0);
+        let physical_framebuffer = radiant::gui::types::Vector2::new(1920.0, 1080.0);
+        let viewport = radiant::gui::types::Vector2::new(
+            dpi_scale.physical_to_logical(physical_framebuffer.x),
+            dpi_scale.physical_to_logical(physical_framebuffer.y),
+        );
+        let rect = radiant::gui::types::Rect::from_min_size(
+            radiant::gui::types::Point::new(0.0, 0.0),
+            viewport,
+        );
+        let mut bridge = WavecrateRuntimeBridge::new(RecordingBridge {
+            model: Arc::new(NativeAppModel::default()),
+            reduced: Vec::new(),
+            repaint_installed: Arc::new(AtomicBool::new(false)),
+            exit_status: None,
+        });
+
+        let retained = retained_shell_descriptor(&mut bridge);
+        let frame = bridge
+            .render_retained_surface(retained, rect, viewport)
+            .expect("retained shell frame");
+        let style = StyleTokens::for_viewport_width(viewport.x);
+        let layout = ShellLayout::build_with_style(viewport, &style);
+
+        assert_eq!(layout.root.rect.max, Point::new(viewport.x, viewport.y));
+        assert!((layout.ui_scale - 1.0).abs() < 0.0001);
+        assert!(
+            frame
+                .text_runs
+                .iter()
+                .all(|run| run.position.x <= viewport.x && run.position.y <= viewport.y),
+            "Wavecrate retained shell should paint in Radiant logical points, not physical pixels"
+        );
+    }
+
+    #[test]
     fn wavecrate_root_dependency_uses_default_radiant_package() {
         let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
         let cargo = fs::read_to_string(manifest_dir.join("Cargo.toml")).expect("root manifest");
@@ -833,6 +870,29 @@ mod tests {
         assert!(
             cargo.contains("radiant = { path = \"vendor/radiant\" }"),
             "Wavecrate should consume the local Radiant package directly"
+        );
+    }
+
+    #[test]
+    fn windows_resource_manifest_declares_per_monitor_dpi_awareness() {
+        let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let rc = fs::read_to_string(manifest_dir.join("build/windows/wavecrate.rc"))
+            .expect("windows resource script");
+        let manifest =
+            fs::read_to_string(manifest_dir.join("build/windows/wavecrate.exe.manifest"))
+                .expect("windows application manifest");
+
+        assert!(
+            rc.contains("1 24 \"build\\\\windows\\\\wavecrate.exe.manifest\""),
+            "Windows resources should embed the app manifest"
+        );
+        assert!(
+            manifest.contains("PerMonitorV2, PerMonitor"),
+            "Windows app manifest should opt Wavecrate into per-monitor DPI awareness"
+        );
+        assert!(
+            manifest.contains(">true/pm</dpiAware>"),
+            "Windows app manifest should retain the legacy per-monitor DPI declaration"
         );
     }
 

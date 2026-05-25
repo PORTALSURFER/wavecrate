@@ -87,49 +87,43 @@ fn audio_option_item_to_compat(
 impl From<runtime_contract::PairedDevicePanelModel> for AudioEngineModel {
     fn from(value: runtime_contract::PairedDevicePanelModel) -> Self {
         Self {
-            chip_state: value.header.status_state,
-            chip_label: value.header.status_label,
-            detail_label: value.header.detail_label,
-            output_host: value.summaries.primary_group,
-            output_device: value.summaries.primary_item,
-            output_sample_rate: value.summaries.primary_number,
-            input_host: value.summaries.secondary_group,
-            input_device: value.summaries.secondary_item,
-            input_sample_rate: value.summaries.secondary_number,
-            active_picker: value.options.active_picker.map(Into::into),
+            chip_state: value.status_state,
+            chip_label: value.status_label,
+            detail_label: value.detail_label,
+            output_host: value.primary_group,
+            output_device: value.primary_item,
+            output_sample_rate: value.primary_number,
+            input_host: value.secondary_group,
+            input_device: value.secondary_item,
+            input_sample_rate: value.secondary_number,
+            active_picker: value.active_picker.map(Into::into),
             output_host_options: value
-                .options
-                .primary_group
+                .primary_group_options
                 .into_iter()
                 .map(audio_option_item_from_compat)
                 .collect(),
             output_device_options: value
-                .options
-                .primary_item
+                .primary_item_options
                 .into_iter()
                 .map(audio_option_item_from_compat)
                 .collect(),
             output_sample_rate_options: value
-                .options
-                .primary_number
+                .primary_number_options
                 .into_iter()
                 .map(audio_option_item_from_compat)
                 .collect(),
             input_host_options: value
-                .options
-                .secondary_group
+                .secondary_group_options
                 .into_iter()
                 .map(audio_option_item_from_compat)
                 .collect(),
             input_device_options: value
-                .options
-                .secondary_item
+                .secondary_item_options
                 .into_iter()
                 .map(audio_option_item_from_compat)
                 .collect(),
             input_sample_rate_options: value
-                .options
-                .secondary_number
+                .secondary_number_options
                 .into_iter()
                 .map(audio_option_item_from_compat)
                 .collect(),
@@ -140,52 +134,46 @@ impl From<runtime_contract::PairedDevicePanelModel> for AudioEngineModel {
 impl From<AudioEngineModel> for runtime_contract::PairedDevicePanelModel {
     fn from(value: AudioEngineModel) -> Self {
         Self {
-            header: radiant::gui::form::PairedStatusHeader {
-                status_state: value.chip_state,
-                status_label: value.chip_label,
-                detail_label: value.detail_label,
-            },
-            summaries: radiant::gui::form::PairedStatusSummaries {
-                primary_group: value.output_host,
-                primary_item: value.output_device,
-                primary_number: value.output_sample_rate,
-                secondary_group: value.input_host,
-                secondary_item: value.input_device,
-                secondary_number: value.input_sample_rate,
-            },
-            options: radiant::gui::form::PairedPickerOptions {
-                active_picker: value.active_picker.map(Into::into),
-                primary_group: value
-                    .output_host_options
-                    .into_iter()
-                    .map(audio_option_item_to_compat)
-                    .collect(),
-                primary_item: value
-                    .output_device_options
-                    .into_iter()
-                    .map(audio_option_item_to_compat)
-                    .collect(),
-                primary_number: value
-                    .output_sample_rate_options
-                    .into_iter()
-                    .map(audio_option_item_to_compat)
-                    .collect(),
-                secondary_group: value
-                    .input_host_options
-                    .into_iter()
-                    .map(audio_option_item_to_compat)
-                    .collect(),
-                secondary_item: value
-                    .input_device_options
-                    .into_iter()
-                    .map(audio_option_item_to_compat)
-                    .collect(),
-                secondary_number: value
-                    .input_sample_rate_options
-                    .into_iter()
-                    .map(audio_option_item_to_compat)
-                    .collect(),
-            },
+            status_state: value.chip_state,
+            status_label: value.chip_label,
+            detail_label: value.detail_label,
+            primary_group: value.output_host,
+            primary_item: value.output_device,
+            primary_number: value.output_sample_rate,
+            secondary_group: value.input_host,
+            secondary_item: value.input_device,
+            secondary_number: value.input_sample_rate,
+            active_picker: value.active_picker.map(Into::into),
+            primary_group_options: value
+                .output_host_options
+                .into_iter()
+                .map(audio_option_item_to_compat)
+                .collect(),
+            primary_item_options: value
+                .output_device_options
+                .into_iter()
+                .map(audio_option_item_to_compat)
+                .collect(),
+            primary_number_options: value
+                .output_sample_rate_options
+                .into_iter()
+                .map(audio_option_item_to_compat)
+                .collect(),
+            secondary_group_options: value
+                .input_host_options
+                .into_iter()
+                .map(audio_option_item_to_compat)
+                .collect(),
+            secondary_item_options: value
+                .input_device_options
+                .into_iter()
+                .map(audio_option_item_to_compat)
+                .collect(),
+            secondary_number_options: value
+                .input_sample_rate_options
+                .into_iter()
+                .map(audio_option_item_to_compat)
+                .collect(),
         }
     }
 }

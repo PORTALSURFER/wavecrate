@@ -1,8 +1,8 @@
 use super::super::shared;
 use crate::app_core::native_shell::composition::style::SizingTokens;
 use crate::gui::layout_core::{
-    Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
-    OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams,
+    Constraints, ConstraintsCompat, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode,
+    MainAlign, OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams,
 };
 use crate::gui::text_layout::{TextLineInsets, centered_text_line, top_text_line};
 use crate::gui::types::{Rect, Vector2};

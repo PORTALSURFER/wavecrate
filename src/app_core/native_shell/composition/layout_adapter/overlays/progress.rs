@@ -3,8 +3,8 @@
 use super::{ProgressOverlaySections, shared};
 use crate::app_core::native_shell::composition::style::SizingTokens;
 use crate::gui::layout_core::{
-    Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode, MainAlign,
-    OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams, layout_tree,
+    Constraints, ConstraintsCompat, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutNode,
+    MainAlign, OverflowPolicy, SizeModeCross, SizeModeMain, SlotChild, SlotParams, layout_tree,
 };
 use crate::gui::types::{Rect, Vector2};
 

@@ -23,7 +23,9 @@ impl WaveformWidget {
                     })
                 })
             }
-            WidgetInput::Wheel { position, delta } if bounds.contains(position) => {
+            WidgetInput::Wheel {
+                position, delta, ..
+            } if bounds.contains(position) => {
                 Some(WidgetOutput::typed(WaveformInteraction::Wheel {
                     delta,
                     anchor_ratio: self.ratio_from_position(bounds, position),
