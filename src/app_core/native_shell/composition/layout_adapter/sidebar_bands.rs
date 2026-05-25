@@ -2,9 +2,9 @@
 
 use super::super::style::SizingTokens;
 use crate::gui::layout_core::{
-    Constraints, ContainerKind, ContainerPolicy, CrossAlign, Insets, LayoutDebugOptions,
-    LayoutEngine, LayoutNode, LayoutState, MainAlign, OverflowPolicy, SizeModeCross, SizeModeMain,
-    SlotChild, SlotParams,
+    Constraints, ConstraintsCompat, ContainerKind, ContainerPolicy, CrossAlign, Insets,
+    LayoutDebugOptions, LayoutEngine, LayoutNode, LayoutState, MainAlign, OverflowPolicy,
+    SizeModeCross, SizeModeMain, SlotChild, SlotParams,
 };
 use crate::gui::types::{Rect, Vector2};
 

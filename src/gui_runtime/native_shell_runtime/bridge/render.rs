@@ -19,7 +19,7 @@ impl<B: NativeAppBridge> WavecrateRuntimeBridge<B> {
         if descriptor.key != 1 {
             return None;
         }
-        let style = StyleTokens::for_viewport_with_scale(viewport.x, 1.0);
+        let style = retained_shell_style_for_viewport(viewport);
         self.sync_layout_viewport(viewport);
         let layout =
             ShellLayout::build_with_style_and_runtime(viewport, &style, &mut self.layout_runtime);
@@ -112,4 +112,9 @@ fn append_paint_frame(frame: &mut PaintFrame, overlay: &PaintFrame) {
     frame.primitives.extend(overlay.primitives.iter().cloned());
     frame.text_runs.extend(overlay.text_runs.iter().cloned());
     frame.clear_color = overlay.clear_color;
+}
+
+/// Build retained-shell style from Radiant's DPI-normalized logical viewport.
+pub(super) fn retained_shell_style_for_viewport(viewport: Vector2) -> StyleTokens {
+    StyleTokens::for_viewport_width(viewport.x)
 }

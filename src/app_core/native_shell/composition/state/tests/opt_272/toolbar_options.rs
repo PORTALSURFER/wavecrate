@@ -96,33 +96,27 @@ fn options_panel_picker_mode_expands_inline_dropdown_actions() {
             ..crate::app_core::native_shell::runtime_contract::OptionsPanelModel::default()
         },
         paired_device: crate::app_core::native_shell::runtime_contract::PairedDevicePanelModel {
-            summaries: radiant::gui::form::PairedStatusSummaries {
-                primary_number: crate::app_core::native_shell::runtime_contract::SummaryFieldModel {
-                    label: String::from("Sample Rate"),
-                    value_label: String::from("48 kHz"),
+            primary_number: crate::app_core::native_shell::runtime_contract::SummaryFieldModel {
+                label: String::from("Sample Rate"),
+                value_label: String::from("48 kHz"),
+            },
+            active_picker: Some(
+                crate::app_core::native_shell::runtime_contract::PairedPickerTargetModel::PrimaryNumber,
+            ),
+            primary_number_options: vec![
+                crate::app_core::native_shell::runtime_contract::PairedPickerOptionModel {
+                    label: String::from("Device default"),
+                    selected: false,
+                    value: crate::app_core::native_shell::runtime_contract::PairedPickerValueModel::PrimaryNumber(None),
                 },
-                ..radiant::gui::form::PairedStatusSummaries::default()
-            },
-            options: radiant::gui::form::PairedPickerOptions {
-                active_picker: Some(
-                    crate::app_core::native_shell::runtime_contract::PairedPickerTargetModel::PrimaryNumber,
-                ),
-                primary_number: vec![
-                    crate::app_core::native_shell::runtime_contract::PairedPickerOptionModel {
-                        label: String::from("Device default"),
-                        selected: false,
-                        value: crate::app_core::native_shell::runtime_contract::PairedPickerValueModel::PrimaryNumber(None),
-                    },
-                    crate::app_core::native_shell::runtime_contract::PairedPickerOptionModel {
-                        label: String::from("48 kHz"),
-                        selected: true,
-                        value: crate::app_core::native_shell::runtime_contract::PairedPickerValueModel::PrimaryNumber(Some(
-                            48_000,
-                        )),
-                    },
-                ],
-                ..radiant::gui::form::PairedPickerOptions::default()
-            },
+                crate::app_core::native_shell::runtime_contract::PairedPickerOptionModel {
+                    label: String::from("48 kHz"),
+                    selected: true,
+                    value: crate::app_core::native_shell::runtime_contract::PairedPickerValueModel::PrimaryNumber(Some(
+                        48_000,
+                    )),
+                },
+            ],
             ..crate::app_core::native_shell::runtime_contract::PairedDevicePanelModel::default()
         },
         ..AppModel::default()

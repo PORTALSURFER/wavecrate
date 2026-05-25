@@ -1,7 +1,8 @@
 //! Shared slot-tree helpers for overlay geometry modules.
 
 use crate::gui::layout_core::{
-    Constraints, Insets, LayoutNode, SizeModeCross, SizeModeMain, SlotChild, SlotParams,
+    Constraints, ConstraintsCompat, Insets, LayoutNode, SizeModeCross, SizeModeMain, SlotChild,
+    SlotParams,
 };
 use crate::gui::types::{Point, Rect, Vector2};
 

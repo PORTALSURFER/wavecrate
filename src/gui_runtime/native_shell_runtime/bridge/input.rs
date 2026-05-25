@@ -1,9 +1,8 @@
-use super::{RetainedTextInputTarget, WavecrateRuntimeBridge};
+use super::{
+    RetainedTextInputTarget, WavecrateRuntimeBridge, render::retained_shell_style_for_viewport,
+};
 use crate::{
-    app_core::{
-        actions::NativeAppBridge,
-        native_shell::composition::{ShellLayout, StyleTokens},
-    },
+    app_core::{actions::NativeAppBridge, native_shell::composition::ShellLayout},
     gui::types::{Point, Vector2},
     gui_runtime::native_shell_runtime::input_routing::action_from_retained_pointer,
 };
@@ -114,7 +113,7 @@ impl<B: NativeAppBridge> WavecrateRuntimeBridge<B> {
         let viewport = self
             .layout_viewport
             .unwrap_or_else(|| Vector2::new(1280.0, 720.0));
-        let style = StyleTokens::for_viewport_with_scale(viewport.x, 1.0);
+        let style = retained_shell_style_for_viewport(viewport);
         ShellLayout::build_with_style_and_runtime(viewport, &style, &mut self.layout_runtime)
     }
 }
