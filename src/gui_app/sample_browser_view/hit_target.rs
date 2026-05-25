@@ -156,6 +156,40 @@ mod tests {
             "non-source rows should not paint hover highlights during active file drags"
         );
     }
+
+    #[test]
+    fn hover_state_survives_retained_widget_refresh() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+        let mut previous = SampleFileHitTarget::new(false, false, false);
+        previous.handle_input(
+            bounds,
+            WidgetInput::PointerMove {
+                position: Point::new(34.0, 8.0),
+            },
+        );
+        assert!(previous.common.state.hovered);
+
+        let mut refreshed = SampleFileHitTarget::new(false, false, false);
+        refreshed.synchronize_from_previous(&previous);
+
+        assert!(
+            refreshed.common.state.hovered,
+            "sample row hover paint should not blink off between retained projections"
+        );
+        let mut primitives = Vec::new();
+        refreshed.append_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+        assert!(
+            primitives
+                .iter()
+                .any(|primitive| matches!(primitive, PaintPrimitive::FillRect(fill) if fill.color.a == 155)),
+            "refreshed hovered row should keep painting the hover highlight"
+        );
+    }
 }
 
 impl Widget for SampleFileHitTarget {
@@ -209,6 +243,14 @@ impl Widget for SampleFileHitTarget {
 
     fn accepts_pointer_move(&self) -> bool {
         true
+    }
+
+    fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
+        let Some(previous) = previous.as_any().downcast_ref::<Self>() else {
+            return;
+        };
+        self.common.state = previous.common.state;
+        self.dragged = previous.dragged;
     }
 
     fn append_paint(
