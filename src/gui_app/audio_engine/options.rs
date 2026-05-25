@@ -57,10 +57,21 @@ impl GuiAppState {
     }
 
     pub(in crate::gui_app) fn audio_engine_pill_label(&self) -> String {
+        let label = self
+            .audio_output_resolved
+            .as_ref()
+            .map(|output| format_sample_rate_label(output.sample_rate))
+            .or_else(|| {
+                self.audio_output_config
+                    .sample_rate
+                    .map(format_sample_rate_label)
+            })
+            .unwrap_or_else(|| String::from("Audio"));
+
         if self.audio_settings_error.is_some() {
-            String::from("Audio !")
+            format!("{label} !")
         } else {
-            String::from("Audio")
+            label
         }
     }
 

@@ -52,7 +52,8 @@ fn top_status_bar_replaces_text_labels_with_volume_slider_and_audio_pill() {
     assert!(!texts.iter().any(|text| text == "Wavecrate"));
     assert!(!texts.iter().any(|text| text == "Wavecrate GUI"));
     assert!(!texts.iter().any(|text| text == "ready"));
-    assert!(texts.iter().any(|text| text == "Audio"), "{texts:?}");
+    assert!(texts.iter().any(|text| text == "48 kHz"), "{texts:?}");
+    assert!(!texts.iter().any(|text| text == "Audio"), "{texts:?}");
     assert!(slider_fills >= 2, "expected track and fill rects");
 }
 
@@ -181,6 +182,30 @@ fn audio_engine_detail_distinguishes_selected_host_from_runtime_fallback() {
         state.audio_engine_detail_label(),
         "ASIO selected | using WASAPI | Studio | 48 kHz"
     );
+}
+
+#[test]
+fn audio_engine_pill_prefers_runtime_sample_rate() {
+    let mut state = gui_state_for_span_tests();
+    state.audio_output_config.sample_rate = Some(44_100);
+    state.audio_output_resolved = Some(crate::gui_app::ResolvedOutput {
+        host_id: String::from("wasapi"),
+        device_name: String::from("Studio"),
+        sample_rate: 48_000,
+        buffer_size_frames: None,
+        channel_count: 2,
+        used_fallback: false,
+    });
+
+    assert_eq!(state.audio_engine_pill_label(), "48 kHz");
+}
+
+#[test]
+fn audio_engine_pill_uses_configured_sample_rate_before_runtime_resolves() {
+    let mut state = gui_state_for_span_tests();
+    state.audio_output_config.sample_rate = Some(44_100);
+
+    assert_eq!(state.audio_engine_pill_label(), "44.1 kHz");
 }
 
 #[test]
