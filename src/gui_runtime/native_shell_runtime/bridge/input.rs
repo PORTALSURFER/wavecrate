@@ -28,6 +28,7 @@ impl<B: NativeAppBridge> WavecrateRuntimeBridge<B> {
                 ..
             } => self.finish_pointer_drag(false),
             WidgetInput::PointerRelease { .. }
+            | WidgetInput::PointerModifiersChanged { .. }
             | WidgetInput::PointerDrop { .. }
             | WidgetInput::FocusChanged(_) => self.finish_pointer_drag(false),
             WidgetInput::Wheel { .. } => true,
