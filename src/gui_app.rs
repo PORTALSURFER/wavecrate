@@ -83,6 +83,7 @@ const DEFAULT_VOLUME: f32 = 1.0;
 const VOLUME_SLIDER_ID: u64 = 31_000;
 const VOLUME_SLIDER_WIDTH: f32 = 92.0;
 const VOLUME_SLIDER_HEIGHT: f32 = 14.0;
+const VOLUME_PERSIST_DEBOUNCE: Duration = Duration::from_millis(250);
 const AUDIO_ENGINE_PILL_ID: u64 = 31_100;
 const AUDIO_ENGINE_PILL_WIDTH: f32 = 54.0;
 const AUDIO_ENGINE_PILL_HEIGHT: f32 = 18.0;
@@ -183,6 +184,7 @@ struct GuiAppState {
     audio_player: Option<AudioPlayer>,
     loop_playback: bool,
     volume: f32,
+    volume_persist_deadline: Option<Instant>,
     audio_output_config: AudioOutputConfig,
     audio_output_resolved: Option<ResolvedOutput>,
     audio_hosts: Vec<AudioHostSummary>,

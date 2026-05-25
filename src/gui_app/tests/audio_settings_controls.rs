@@ -6,6 +6,7 @@ use radiant::{
     runtime::PaintPrimitive,
     widgets::{PointerButton, Widget, WidgetInput},
 };
+use std::time::{Duration, Instant};
 
 #[test]
 fn top_status_bar_replaces_text_labels_with_volume_slider_and_audio_pill() {
@@ -80,6 +81,27 @@ fn default_gui_volume_state_clamps() {
 
     state.set_volume(-0.5);
     assert_eq!(state.volume, 0.0);
+}
+
+#[test]
+fn default_gui_volume_drag_defers_config_persistence_until_debounce() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
+    let mut state = super::gui_state_for_span_tests();
+    state.persist_user_configuration("test.seed", Instant::now());
+
+    state.set_volume(0.25);
+
+    let loaded = wavecrate::sample_sources::config::load_or_default().expect("reload config");
+    assert!((loaded.core.volume - crate::gui_app::DEFAULT_VOLUME).abs() < f32::EPSILON);
+    assert!(state.volume_persist_deadline.is_some());
+
+    state.volume_persist_deadline = Some(Instant::now() - Duration::from_millis(1));
+    state.advance_frame();
+
+    let loaded = wavecrate::sample_sources::config::load_or_default().expect("reload config");
+    assert!((loaded.core.volume - 0.25).abs() < f32::EPSILON);
+    assert!(state.volume_persist_deadline.is_none());
 }
 
 #[test]
