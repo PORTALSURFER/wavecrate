@@ -27,6 +27,7 @@ impl GuiAppState {
             audio_player: None,
             loop_playback: false,
             volume: config.core.volume.clamp(0.0, 1.0),
+            volume_persist_deadline: None,
             audio_output_config: config.core.audio_output.clone(),
             audio_output_resolved: None,
             audio_hosts: Vec::new(),
@@ -60,16 +61,22 @@ impl GuiAppState {
     }
 
     pub(super) fn persist_user_configuration(&mut self, action: &'static str, started_at: Instant) {
-        if let Err(error) = self.save_user_configuration() {
-            self.sample_status = format!("Settings not saved: {error}");
-            emit_gui_action(
-                action,
-                Some("settings"),
-                None,
-                "persist_error",
-                started_at,
-                Some(&error),
-            );
+        match self.save_user_configuration() {
+            Ok(()) => {
+                self.persisted_settings = self.current_settings_core();
+                self.volume_persist_deadline = None;
+            }
+            Err(error) => {
+                self.sample_status = format!("Settings not saved: {error}");
+                emit_gui_action(
+                    action,
+                    Some("settings"),
+                    None,
+                    "persist_error",
+                    started_at,
+                    Some(&error),
+                );
+            }
         }
     }
 
@@ -85,6 +92,7 @@ impl GuiAppState {
                 self.waveform_loading_progress += remaining.min(0.03);
             }
         }
+        self.flush_pending_volume_persist();
     }
 
     pub(super) fn worker_subscription(&mut self) -> ui::Subscription<GuiMessage> {
@@ -94,12 +102,16 @@ impl GuiAppState {
             .unwrap_or_else(ui::Subscription::none)
     }
 
-    fn save_user_configuration(&self) -> Result<(), String> {
-        let core = AppSettingsCore {
+    pub(super) fn current_settings_core(&self) -> AppSettingsCore {
+        AppSettingsCore {
             audio_output: self.audio_output_config.clone(),
             volume: self.volume,
             ..self.persisted_settings.clone()
-        };
+        }
+    }
+
+    fn save_user_configuration(&self) -> Result<(), String> {
+        let core = self.current_settings_core();
         wavecrate::sample_sources::config::save(&AppConfig {
             sources: self.folder_browser.configured_sample_sources(),
             core,

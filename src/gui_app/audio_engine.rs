@@ -5,19 +5,36 @@ mod options;
 impl GuiAppState {
     pub(super) fn set_volume(&mut self, volume: f32) {
         let started_at = Instant::now();
+        let previous = volume_milli(self.volume);
         self.volume = volume.clamp(0.0, 1.0);
         if let Some(player) = self.audio_player.as_mut() {
             player.set_volume(self.volume);
         }
+        if volume_milli(self.volume) == previous {
+            return;
+        }
+        self.volume_persist_deadline = Some(started_at + VOLUME_PERSIST_DEBOUNCE);
+    }
+
+    pub(super) fn flush_pending_volume_persist(&mut self) {
+        let Some(deadline) = self.volume_persist_deadline else {
+            return;
+        };
+        if Instant::now() < deadline {
+            return;
+        }
+        let started_at = Instant::now();
         self.persist_user_configuration("playback.volume.persist", started_at);
-        emit_gui_action(
-            "playback.volume.set",
-            Some("transport"),
-            None,
-            "success",
-            started_at,
-            None,
-        );
+        if self.volume_persist_deadline.is_none() {
+            emit_gui_action(
+                "playback.volume.set",
+                Some("transport"),
+                None,
+                "success",
+                started_at,
+                None,
+            );
+        }
     }
 
     pub(super) fn toggle_audio_settings(&mut self) {
@@ -191,4 +208,8 @@ impl GuiAppState {
         self.audio_player = Some(player);
         Ok(())
     }
+}
+
+fn volume_milli(volume: f32) -> u16 {
+    (volume.clamp(0.0, 1.0) * 1000.0).round() as u16
 }
