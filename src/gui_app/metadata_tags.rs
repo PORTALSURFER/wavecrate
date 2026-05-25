@@ -1,5 +1,6 @@
 use super::GuiAppState;
 use radiant::widgets::TextInputMessage;
+use std::collections::BTreeSet;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct MetadataTagCommit {
@@ -22,11 +23,46 @@ impl GuiAppState {
                 self.metadata_tag_draft = value;
             }
             TextInputMessage::Submitted { value } => {
-                let commit = commit_metadata_tag_text(&value);
+                let mut commit = commit_metadata_tag_text(&value);
+                let mut tags = std::mem::take(&mut self.metadata_tag_tokens);
+                tags.append(&mut commit.tags);
                 self.metadata_tag_draft.clear();
-                self.add_metadata_tags(commit.tags);
+                self.add_metadata_tags(tags);
+            }
+            TextInputMessage::CompletionRequested { value } => {
+                self.metadata_tag_draft = value;
+                if let Some(tag) = self.metadata_tag_suggestion() {
+                    self.stage_metadata_tag_token(tag);
+                }
             }
         }
+    }
+
+    pub(super) fn metadata_tag_suggestion(&self) -> Option<String> {
+        metadata_tag_completion(
+            &self.metadata_tag_draft,
+            self.known_metadata_tags().iter().map(String::as_str),
+        )
+    }
+
+    fn known_metadata_tags(&self) -> Vec<String> {
+        self.metadata_tags_by_file
+            .values()
+            .flat_map(|tags| tags.iter().cloned())
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect()
+    }
+
+    fn stage_metadata_tag_token(&mut self, tag: String) {
+        if !self
+            .metadata_tag_tokens
+            .iter()
+            .any(|existing| existing == &tag)
+        {
+            self.metadata_tag_tokens.push(tag);
+        }
+        self.metadata_tag_draft.clear();
     }
 
     fn add_metadata_tags(&mut self, tags: Vec<String>) {
@@ -91,6 +127,18 @@ pub(super) fn normalize_metadata_tag(value: &str) -> Option<String> {
     (!normalized.is_empty()).then_some(normalized)
 }
 
+pub(super) fn metadata_tag_completion<'a>(
+    value: &str,
+    known_tags: impl IntoIterator<Item = &'a str>,
+) -> Option<String> {
+    let prefix = normalize_metadata_tag(value)?;
+    known_tags
+        .into_iter()
+        .filter(|tag| tag.starts_with(prefix.as_str()))
+        .min_by_key(|tag| (tag.len(), *tag))
+        .map(str::to_string)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -117,5 +165,14 @@ mod tests {
                 remainder: String::new(),
             }
         );
+    }
+
+    #[test]
+    fn metadata_tag_completion_matches_known_tag_prefix() {
+        assert_eq!(
+            metadata_tag_completion("ki", ["warm", "kick", "kicker"].into_iter()),
+            Some(String::from("kick"))
+        );
+        assert_eq!(metadata_tag_completion("zz", ["kick"].into_iter()), None);
     }
 }

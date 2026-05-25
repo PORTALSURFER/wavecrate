@@ -130,6 +130,7 @@ impl FolderBrowserState {
                     Some(self.commit_rename(value))
                 }
             }
+            TextInputMessage::CompletionRequested { .. } => None,
         }
     }
 

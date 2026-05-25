@@ -48,6 +48,7 @@ impl GuiAppState {
             current_playback_span: None,
             native_file_drop_hover: None,
             metadata_tag_draft: String::new(),
+            metadata_tag_tokens: Vec::new(),
             metadata_tags_by_file: HashMap::new(),
             metadata_tags_expanded: false,
             sample_name_view_mode: SampleNameViewMode::DiskFilename,

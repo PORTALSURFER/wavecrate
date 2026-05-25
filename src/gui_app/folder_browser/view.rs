@@ -13,6 +13,8 @@ use super::{
 pub(in crate::gui_app) fn folder_browser_view(
     state: &FolderBrowserState,
     metadata_tag_draft: &str,
+    metadata_tag_tokens: &[String],
+    metadata_tag_suggestion: Option<&str>,
     metadata_tags: &[String],
     metadata_tags_expanded: bool,
 ) -> ui::View<GuiMessage> {
@@ -22,7 +24,13 @@ pub(in crate::gui_app) fn folder_browser_view(
         ui::scroll(folder_tree_view(state)).fill(),
         selected_folder_status(state),
         filter_section(),
-        metadata_section(metadata_tag_draft, metadata_tags, metadata_tags_expanded),
+        metadata_section(
+            metadata_tag_draft,
+            metadata_tag_tokens,
+            metadata_tag_suggestion,
+            metadata_tags,
+            metadata_tags_expanded,
+        ),
     ])
     .spacing(3.0)
     .padding(4.0)
@@ -243,9 +251,15 @@ fn filter_section() -> ui::View<GuiMessage> {
     )
 }
 
-fn metadata_section(tag_draft: &str, tags: &[String], expanded: bool) -> ui::View<GuiMessage> {
-    let tag_area_height = if expanded { 98.0 } else { 24.0 };
-    let section_height = if expanded { 188.0 } else { 118.0 };
+fn metadata_section(
+    tag_draft: &str,
+    tag_tokens: &[String],
+    tag_suggestion: Option<&str>,
+    tags: &[String],
+    expanded: bool,
+) -> ui::View<GuiMessage> {
+    let tag_field_height = if expanded { 130.0 } else { 82.0 };
+    let section_height = if expanded { 220.0 } else { 172.0 };
     let toggle_label = if expanded { "Less" } else { "More" };
     sidebar_section(
         "Metadata",
@@ -261,12 +275,6 @@ fn metadata_section(tag_draft: &str, tags: &[String], expanded: bool) -> ui::Vie
                 .fill_width()])
             .fill_width()
             .height(24.0),
-            ui::text_input(tag_draft.to_string())
-                .placeholder("add tag")
-                .message_event(GuiMessage::MetadataTagInput)
-                .key("metadata-tag-input")
-                .height(24.0)
-                .fill_width(),
             ui::row([
                 ui::text(format!("Tags ({})", tags.len()))
                     .height(20.0)
@@ -280,10 +288,16 @@ fn metadata_section(tag_draft: &str, tags: &[String], expanded: bool) -> ui::Vie
             .fill_width()
             .height(22.0)
             .spacing(4.0),
-            tag_chip_area(tags, expanded)
-                .key("metadata-tag-chip-area")
-                .fill_width()
-                .height(tag_area_height),
+            tag_entry_field(
+                tag_draft,
+                tag_tokens,
+                tag_suggestion,
+                tags,
+                tag_field_height,
+            )
+            .key("metadata-tag-entry-field")
+            .fill_width()
+            .height(tag_field_height),
         ])
         .fill_width()
         .spacing(4.0),
@@ -291,57 +305,79 @@ fn metadata_section(tag_draft: &str, tags: &[String], expanded: bool) -> ui::Vie
     )
 }
 
-fn tag_chip_area(tags: &[String], expanded: bool) -> ui::View<GuiMessage> {
-    if tags.is_empty() {
-        return ui::text("No tags").height(20.0).fill_width();
+fn tag_entry_field(
+    tag_draft: &str,
+    tag_tokens: &[String],
+    tag_suggestion: Option<&str>,
+    tags: &[String],
+    height: f32,
+) -> ui::View<GuiMessage> {
+    let mut visible_tags = tags.to_vec();
+    for token in tag_tokens {
+        if !visible_tags.iter().any(|tag| tag == token) {
+            visible_tags.push(token.clone());
+        }
     }
-    if expanded {
-        ui::scroll(tag_chip_rows(tags)).fill_width().height(98.0)
-    } else {
-        ui::grid(
-            tags.iter()
-                .take(3)
-                .map(|tag| tag_chip(tag.as_str()))
-                .collect::<Vec<_>>(),
-            3,
-        )
+
+    let mut children = visible_tags
+        .iter()
+        .map(|tag| accepted_tag_token(tag.as_str()))
+        .collect::<Vec<_>>();
+    children.push(
+        ui::text_input(tag_draft.to_string())
+            .placeholder("add tag")
+            .message_event(GuiMessage::MetadataTagInput)
+            .key("metadata-tag-input")
+            .height(24.0)
+            .width(tag_input_width(tag_draft)),
+    );
+    if let Some(suggestion) = tag_suggestion {
+        children.push(tag_completion_token(suggestion));
+    }
+
+    ui::scroll(ui::wrap(children, 4.0, 4.0).fill_width())
+        .style(WidgetStyle {
+            tone: WidgetTone::Neutral,
+            prominence: ui::WidgetProminence::Subtle,
+        })
+        .padding(3.0)
         .fill_width()
-        .height(24.0)
-        .spacing(4.0)
-    }
+        .height(height)
 }
 
-fn tag_chip_rows(tags: &[String]) -> ui::View<GuiMessage> {
-    ui::column(
-        tags.chunks(3)
-            .map(|row_tags| {
-                ui::row(
-                    row_tags
-                        .iter()
-                        .map(|tag| tag_chip(tag.as_str()))
-                        .collect::<Vec<_>>(),
-                )
-                .fill_width()
-                .height(22.0)
-                .spacing(4.0)
-            })
-            .collect::<Vec<_>>(),
-    )
-    .fill_width()
-    .spacing(4.0)
+fn tag_input_width(value: &str) -> f32 {
+    let char_width = value.chars().count().max(7) as f32;
+    (char_width * 7.0 + 42.0).clamp(92.0, 180.0)
 }
 
-fn tag_chip(tag: &str) -> ui::View<GuiMessage> {
+fn tag_pill_width(tag: &str) -> f32 {
+    (tag.chars().count() as f32 * 7.0 + 22.0).clamp(38.0, 180.0)
+}
+
+fn accepted_tag_token(tag: &str) -> ui::View<GuiMessage> {
     ui::badge(tag.to_string())
         .subtle()
         .message(GuiMessage::Noop)
-        .key(format!("metadata-tag-pill-{tag}"))
+        .key(format!("metadata-tag-accepted-{tag}"))
         .style(WidgetStyle {
             tone: WidgetTone::Accent,
             prominence: ui::WidgetProminence::Subtle,
         })
         .height(22.0)
-        .fill_width()
+        .width(tag_pill_width(tag))
+}
+
+fn tag_completion_token(tag: &str) -> ui::View<GuiMessage> {
+    ui::badge(format!("Tab {tag}"))
+        .subtle()
+        .message(GuiMessage::Noop)
+        .key(format!("metadata-tag-completion-{tag}"))
+        .style(WidgetStyle {
+            tone: WidgetTone::Accent,
+            prominence: ui::WidgetProminence::Subtle,
+        })
+        .height(22.0)
+        .width((tag.chars().count() as f32 * 7.0 + 44.0).clamp(58.0, 180.0))
 }
 
 fn sidebar_section(

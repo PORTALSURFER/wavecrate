@@ -64,6 +64,7 @@ fn gui_state_for_span_tests() -> GuiAppState {
         current_playback_span: None,
         native_file_drop_hover: None,
         metadata_tag_draft: String::new(),
+        metadata_tag_tokens: Vec::new(),
         metadata_tags_by_file: HashMap::new(),
         metadata_tags_expanded: false,
         sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
@@ -120,6 +121,7 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
         current_playback_span: None,
         native_file_drop_hover: None,
         metadata_tag_draft: String::new(),
+        metadata_tag_tokens: Vec::new(),
         metadata_tags_by_file: HashMap::new(),
         metadata_tags_expanded: false,
         sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
@@ -260,6 +262,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         current_playback_span: None,
         native_file_drop_hover: None,
         metadata_tag_draft: String::new(),
+        metadata_tag_tokens: Vec::new(),
         metadata_tags_by_file: HashMap::new(),
         metadata_tags_expanded: false,
         sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
@@ -458,10 +461,10 @@ fn toolbar_icon_assets_parse_and_paint_through_radiant_icon_button() {
         let enabled_svg = super::toolbar_icon_svg(icon, true, false);
         let active_svg = super::toolbar_icon_svg(icon, true, true);
         let disabled_svg = super::toolbar_icon_svg(icon, false, false);
-        assert!(enabled_svg.contains(r##"fill="currentColor""##));
-        assert!(enabled_svg.contains(r##"color="#eeeeee""##));
-        assert!(active_svg.contains(r##"color="#ffa052""##));
-        assert!(disabled_svg.contains(r##"color="#919191""##));
+        assert!(enabled_svg.contains(r##"fill="#eeeeee""##));
+        assert!(active_svg.contains(r##"fill="#ffa052""##));
+        assert!(disabled_svg.contains(r##"fill="#919191""##));
+        assert!(!enabled_svg.contains("currentColor"));
         assert!(radiant::gui::svg::SvgIcon::from_svg(&enabled_svg).is_some());
         let frame = radiant::runtime::UiSurface::new(
             super::toolbar_icon_button(101, icon, true, false).into_node(),
@@ -692,7 +695,8 @@ fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
     let browser = super::FolderBrowserState::load_default();
     let tags = vec![String::from("kick")];
     let frame = radiant::runtime::UiSurface::new(
-        super::folder_browser::folder_browser_view(&browser, "", &tags, false).into_node(),
+        super::folder_browser::folder_browser_view(&browser, "", &[], None, &tags, false)
+            .into_node(),
     )
     .frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
@@ -706,7 +710,7 @@ fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
 }
 
 #[test]
-fn folder_browser_metadata_tags_expand_to_show_later_tags() {
+fn folder_browser_metadata_tags_expand_combined_entry_field() {
     let browser = super::FolderBrowserState::load_default();
     let tags = vec![
         String::from("kick"),
@@ -715,22 +719,55 @@ fn folder_browser_metadata_tags_expand_to_show_later_tags() {
         String::from("distorted"),
     ];
     let collapsed = radiant::runtime::UiSurface::new(
-        super::folder_browser::folder_browser_view(&browser, "", &tags, false).into_node(),
+        super::folder_browser::folder_browser_view(&browser, "", &[], None, &tags, false)
+            .into_node(),
     )
     .frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
         &radiant::theme::ThemeTokens::default(),
     );
     let expanded = radiant::runtime::UiSurface::new(
-        super::folder_browser::folder_browser_view(&browser, "", &tags, true).into_node(),
+        super::folder_browser::folder_browser_view(&browser, "", &[], None, &tags, true)
+            .into_node(),
     )
     .frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
         &radiant::theme::ThemeTokens::default(),
     );
 
-    assert!(!frame_has_text(&collapsed, "distorted"));
+    assert!(frame_has_text(&collapsed, "distorted"));
     assert!(frame_has_text(&expanded, "distorted"));
+    assert!(frame_has_clip_height(&collapsed, 82.0));
+    assert!(frame_has_clip_height(&expanded, 130.0));
+}
+
+#[test]
+fn folder_browser_metadata_tag_field_clips_when_tags_overflow() {
+    let browser = super::FolderBrowserState::load_default();
+    let tags = (0..12)
+        .map(|index| format!("tag-{index:02}"))
+        .collect::<Vec<_>>();
+    let frame = radiant::runtime::UiSurface::new(
+        super::folder_browser::folder_browser_view(&browser, "", &[], None, &tags, false)
+            .into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
+        &radiant::theme::ThemeTokens::default(),
+    );
+
+    let tag_clip = frame.paint_plan.primitives.iter().find_map(|primitive| {
+        if let PaintPrimitive::ClipStart(clip) = primitive
+            && (clip.rect.height() - 82.0).abs() < 0.01
+        {
+            return Some(clip.rect);
+        }
+        None
+    });
+    assert!(
+        tag_clip.is_some(),
+        "combined tag field should clip overflowing tag rows"
+    );
 }
 
 #[test]
@@ -765,6 +802,73 @@ fn metadata_tag_input_keeps_delimiters_while_editing() {
 
     assert!(state.metadata_tags_by_file.is_empty());
     assert_eq!(state.metadata_tag_draft, "kick, warm tone");
+}
+
+#[test]
+fn metadata_tag_input_tabs_known_prefix_into_pending_pill() {
+    let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("tag-target.wav");
+    state.metadata_tags_by_file.insert(
+        String::from("known-file"),
+        vec![String::from("kick"), String::from("warm")],
+    );
+
+    state.apply_message(
+        super::GuiMessage::MetadataTagInput(radiant::widgets::TextInputMessage::Changed {
+            value: String::from("ki"),
+        }),
+        &mut ui::UpdateContext::default(),
+    );
+    assert_eq!(state.metadata_tag_suggestion().as_deref(), Some("kick"));
+
+    state.apply_message(
+        super::GuiMessage::MetadataTagInput(
+            radiant::widgets::TextInputMessage::CompletionRequested {
+                value: String::from("ki"),
+            },
+        ),
+        &mut ui::UpdateContext::default(),
+    );
+
+    assert_eq!(state.metadata_tag_tokens, vec![String::from("kick")]);
+    assert!(state.metadata_tag_draft.is_empty());
+    assert_eq!(state.metadata_tags_by_file.get(&selected_file), None);
+
+    state.apply_message(
+        super::GuiMessage::MetadataTagInput(radiant::widgets::TextInputMessage::Submitted {
+            value: String::new(),
+        }),
+        &mut ui::UpdateContext::default(),
+    );
+
+    assert!(state.metadata_tag_tokens.is_empty());
+    assert_eq!(
+        state.metadata_tags_by_file.get(&selected_file),
+        Some(&vec![String::from("kick")])
+    );
+}
+
+#[test]
+fn folder_browser_metadata_tag_field_renders_pending_pill_and_completion_hint() {
+    let browser = super::FolderBrowserState::load_default();
+    let frame = radiant::runtime::UiSurface::new(
+        super::folder_browser::folder_browser_view(
+            &browser,
+            "ki",
+            &[String::from("kick")],
+            Some("kick"),
+            &[String::from("warm")],
+            false,
+        )
+        .into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
+        &radiant::theme::ThemeTokens::default(),
+    );
+
+    assert!(frame_has_text(&frame, "kick"));
+    assert!(frame_has_text(&frame, "Tab kick"));
+    assert!(frame_has_text(&frame, "warm"));
 }
 
 #[test]
@@ -1071,6 +1175,17 @@ fn frame_has_text(frame: &ui::SurfaceFrame, expected: &str) -> bool {
         .iter()
         .any(|primitive| match primitive {
             PaintPrimitive::Text(text) => text.text.as_str() == expected,
+            _ => false,
+        })
+}
+
+fn frame_has_clip_height(frame: &ui::SurfaceFrame, expected: f32) -> bool {
+    frame
+        .paint_plan
+        .primitives
+        .iter()
+        .any(|primitive| match primitive {
+            PaintPrimitive::ClipStart(clip) => (clip.rect.height() - expected).abs() < 0.01,
             _ => false,
         })
 }

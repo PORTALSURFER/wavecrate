@@ -75,7 +75,7 @@ fn with_svg_current_color(svg: &str, color: &str) -> String {
     };
     let insert_at = index + "<svg".len();
     format!(
-        "{} color=\"{}\" fill=\"currentColor\"{}",
+        "{} fill=\"{}\"{}",
         &svg[..insert_at],
         color,
         &svg[insert_at..]

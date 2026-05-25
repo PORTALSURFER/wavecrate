@@ -40,6 +40,8 @@ fn folder_sidebar(state: &GuiAppState) -> ui::View<GuiMessage> {
     folder_browser::folder_browser_view(
         &state.folder_browser,
         state.metadata_tag_draft.as_str(),
+        state.metadata_tag_tokens.as_slice(),
+        state.metadata_tag_suggestion().as_deref(),
         state.selected_metadata_tags(),
         state.metadata_tags_expanded,
     )
