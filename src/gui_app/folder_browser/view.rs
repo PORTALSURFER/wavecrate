@@ -10,14 +10,18 @@ use super::{
     tree_widgets::FolderDropClearTarget,
 };
 
-pub(in crate::gui_app) fn folder_browser_view(state: &FolderBrowserState) -> ui::View<GuiMessage> {
+pub(in crate::gui_app) fn folder_browser_view(
+    state: &FolderBrowserState,
+    metadata_tag_draft: &str,
+    metadata_tags: &[String],
+) -> ui::View<GuiMessage> {
     ui::column([
         source_selector(state),
         ui::text("Folders").height(22.0).fill_width(),
         ui::scroll(folder_tree_view(state)).fill(),
         selected_folder_status(state),
         filter_section(),
-        metadata_section(),
+        metadata_section(metadata_tag_draft, metadata_tags),
     ])
     .spacing(3.0)
     .padding(4.0)
@@ -238,7 +242,7 @@ fn filter_section() -> ui::View<GuiMessage> {
     )
 }
 
-fn metadata_section() -> ui::View<GuiMessage> {
+fn metadata_section(tag_draft: &str, tags: &[String]) -> ui::View<GuiMessage> {
     sidebar_section(
         "Metadata",
         ui::column([
@@ -253,18 +257,47 @@ fn metadata_section() -> ui::View<GuiMessage> {
                 .fill_width()])
             .fill_width()
             .height(24.0),
-            ui::row([
-                ui::text("Tags").height(20.0).width(48.0),
-                ui::text("None").height(20.0).fill_width(),
-            ])
-            .fill_width()
-            .height(20.0)
-            .spacing(6.0),
+            ui::text_input(tag_draft.to_string())
+                .placeholder("add tag")
+                .message_event(GuiMessage::MetadataTagInput)
+                .key("metadata-tag-input")
+                .height(24.0)
+                .fill_width(),
+            tag_chip_row(tags)
+                .key("metadata-tag-chip-row")
+                .fill_width()
+                .height(24.0),
         ])
         .fill_width()
-        .spacing(3.0),
-        82.0,
+        .spacing(4.0),
+        112.0,
     )
+}
+
+fn tag_chip_row(tags: &[String]) -> ui::View<GuiMessage> {
+    if tags.is_empty() {
+        return ui::text("No tags").height(20.0).fill_width();
+    }
+    ui::row(
+        tags.iter()
+            .take(3)
+            .map(|tag| tag_chip(tag))
+            .collect::<Vec<_>>(),
+    )
+    .fill_width()
+    .height(24.0)
+    .spacing(4.0)
+}
+
+fn tag_chip(tag: &str) -> ui::View<GuiMessage> {
+    ui::text(tag.to_string())
+        .style(WidgetStyle {
+            tone: WidgetTone::Accent,
+            prominence: ui::WidgetProminence::Subtle,
+        })
+        .padding(4.0)
+        .height(22.0)
+        .fill_width()
 }
 
 fn sidebar_section(

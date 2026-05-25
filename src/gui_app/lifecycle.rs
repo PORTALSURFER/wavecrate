@@ -44,6 +44,8 @@ impl GuiAppState {
             audio_settings_error: None,
             current_playback_span: None,
             native_file_drop_hover: None,
+            metadata_tag_draft: String::new(),
+            metadata_tags: Vec::new(),
         };
         state.refresh_audio_options();
         if let Err(error) = state.open_configured_audio_player() {

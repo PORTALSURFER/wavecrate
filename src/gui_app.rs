@@ -31,6 +31,7 @@ mod folder_scan_actions;
 mod launch;
 mod layout;
 mod lifecycle;
+mod metadata_tags;
 mod playback;
 mod sample_browser_view;
 mod sample_load_actions;
@@ -131,6 +132,7 @@ enum GuiMessage {
     SetAudioOutputHost(Option<String>),
     SetAudioOutputDevice(Option<String>),
     SetAudioOutputSampleRate(Option<u32>),
+    MetadataTagInput(radiant::widgets::TextInputMessage),
     ClearRebuildableCaches,
     NormalizeSelectedSamples,
     CopySelectedFiles,
@@ -203,6 +205,8 @@ struct GuiAppState {
     audio_settings_error: Option<String>,
     current_playback_span: Option<(f32, f32)>,
     native_file_drop_hover: Option<NativeFileDropHover>,
+    metadata_tag_draft: String,
+    metadata_tags: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -314,6 +318,7 @@ impl GuiAppState {
             GuiMessage::SetAudioOutputSampleRate(sample_rate) => {
                 self.set_audio_output_sample_rate(sample_rate);
             }
+            GuiMessage::MetadataTagInput(message) => self.apply_metadata_tag_input(message),
             GuiMessage::ClearRebuildableCaches => self.clear_rebuildable_caches(),
             GuiMessage::NormalizeSelectedSamples => self.normalize_selected_samples(),
             GuiMessage::CopySelectedFiles => self.copy_selected_files(),

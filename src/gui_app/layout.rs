@@ -37,9 +37,13 @@ fn center_panel(state: &mut GuiAppState) -> ui::View<GuiMessage> {
 }
 
 fn folder_sidebar(state: &GuiAppState) -> ui::View<GuiMessage> {
-    folder_browser::folder_browser_view(&state.folder_browser)
-        .width(state.folder_width)
-        .fill_height()
+    folder_browser::folder_browser_view(
+        &state.folder_browser,
+        state.metadata_tag_draft.as_str(),
+        &state.metadata_tags,
+    )
+    .width(state.folder_width)
+    .fill_height()
 }
 
 fn folder_splitter() -> ui::View<GuiMessage> {

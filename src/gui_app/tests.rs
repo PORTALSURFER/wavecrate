@@ -63,6 +63,8 @@ fn gui_state_for_span_tests() -> GuiAppState {
         audio_settings_error: None,
         current_playback_span: None,
         native_file_drop_hover: None,
+        metadata_tag_draft: String::new(),
+        metadata_tags: Vec::new(),
     }
 }
 
@@ -102,6 +104,8 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
         audio_settings_error: None,
         current_playback_span: None,
         native_file_drop_hover: None,
+        metadata_tag_draft: String::new(),
+        metadata_tags: Vec::new(),
     };
     state.resize_folder_browser(DragHandleMessage::Started {
         position: Point::new(100.0, 0.0),
@@ -238,6 +242,8 @@ fn sample_selection_loads_selected_file_into_waveform() {
         audio_settings_error: None,
         current_playback_span: None,
         native_file_drop_hover: None,
+        metadata_tag_draft: String::new(),
+        metadata_tags: Vec::new(),
     };
     let sample_path = selected_asset_file_path(&state.folder_browser, "portal_SS_kick_003.wav");
 
@@ -665,8 +671,9 @@ fn default_folder_browser_loads_assets_root() {
 #[test]
 fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
     let browser = super::FolderBrowserState::load_default();
+    let tags = vec![String::from("kick")];
     let frame = radiant::runtime::UiSurface::new(
-        super::folder_browser::folder_browser_view(&browser).into_node(),
+        super::folder_browser::folder_browser_view(&browser, "", &tags).into_node(),
     )
     .frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
@@ -676,6 +683,38 @@ fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
     assert!(frame_has_text(&frame, "Filter"));
     assert!(frame_has_text(&frame, "Metadata"));
     assert!(frame_has_text(&frame, "Tagging"));
+    assert!(frame_has_text(&frame, "kick"));
+}
+
+#[test]
+fn metadata_tag_input_submits_normalized_tags() {
+    let mut state = gui_state_for_span_tests();
+
+    state.apply_message(
+        super::GuiMessage::MetadataTagInput(radiant::widgets::TextInputMessage::Submitted {
+            value: String::from("Deep Kick"),
+        }),
+        &mut ui::UpdateContext::default(),
+    );
+
+    assert_eq!(state.metadata_tags, vec![String::from("deep-kick")]);
+    assert!(state.metadata_tag_draft.is_empty());
+    assert_eq!(state.sample_status, "Added tag deep-kick");
+}
+
+#[test]
+fn metadata_tag_input_commits_delimited_tags_and_keeps_draft_tail() {
+    let mut state = gui_state_for_span_tests();
+
+    state.apply_message(
+        super::GuiMessage::MetadataTagInput(radiant::widgets::TextInputMessage::Changed {
+            value: String::from("kick, warm tone"),
+        }),
+        &mut ui::UpdateContext::default(),
+    );
+
+    assert_eq!(state.metadata_tags, vec![String::from("kick")]);
+    assert_eq!(state.metadata_tag_draft, "warm tone");
 }
 
 #[test]
