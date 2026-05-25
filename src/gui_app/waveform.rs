@@ -25,6 +25,7 @@ pub(super) struct WaveformState {
     edit_mark_ratio: Option<f32>,
     play_selection: Option<wavecrate::selection::SelectionRange>,
     edit_selection: Option<wavecrate::selection::SelectionRange>,
+    extracted_ranges: Vec<wavecrate::selection::SelectionRange>,
     play_selection_flash_frames: u8,
     active_drag: Option<WaveformDrag>,
     pending_playback_start: Option<f32>,
@@ -69,6 +70,7 @@ impl WaveformState {
             edit_mark_ratio: None,
             play_selection: None,
             edit_selection: None,
+            extracted_ranges: Vec::new(),
             play_selection_flash_frames: 0,
             active_drag: None,
             pending_playback_start: None,
@@ -107,6 +109,10 @@ impl WaveformState {
         self.edit_selection
     }
 
+    pub(super) fn extracted_ranges(&self) -> &[wavecrate::selection::SelectionRange] {
+        &self.extracted_ranges
+    }
+
     pub(super) fn play_selection_flash_frames(&self) -> u8 {
         self.play_selection_flash_frames
     }
@@ -119,28 +125,62 @@ impl WaveformState {
         self.play_selection_flash_frames = SELECTION_FLASH_FRAMES;
     }
 
-    pub(super) fn extract_play_selection_to_sibling(&self) -> Result<PathBuf, String> {
+    pub(super) fn extract_play_selection_to_sibling(&mut self) -> Result<PathBuf, String> {
         let selection = self.extractable_play_selection()?;
-        extract_wav_range_to_sibling(
+        let path = extract_wav_range_to_sibling(
             &self.file.path,
             &self.file.audio_bytes,
             self.file.frames,
             selection,
-        )
+        )?;
+        self.mark_extracted_range(selection);
+        Ok(path)
     }
 
     pub(super) fn extract_play_selection_to_folder(
-        &self,
+        &mut self,
         target_folder: &std::path::Path,
     ) -> Result<PathBuf, String> {
         let selection = self.extractable_play_selection()?;
-        extract_wav_range_to_folder(
+        let path = extract_wav_range_to_folder(
             &self.file.path,
             target_folder,
             &self.file.audio_bytes,
             self.file.frames,
             selection,
-        )
+        )?;
+        self.mark_extracted_range(selection);
+        Ok(path)
+    }
+
+    fn mark_extracted_range(&mut self, selection: wavecrate::selection::SelectionRange) {
+        if selection.width() <= 0.0 {
+            return;
+        }
+        self.extracted_ranges
+            .push(wavecrate::selection::SelectionRange::new(
+                selection.start(),
+                selection.end(),
+            ));
+        self.extracted_ranges
+            .sort_by(|a, b| a.start_f64().total_cmp(&b.start_f64()));
+
+        let mut merged = Vec::with_capacity(self.extracted_ranges.len());
+        for range in self.extracted_ranges.drain(..) {
+            let Some(previous) = merged.last_mut() else {
+                merged.push(range);
+                continue;
+            };
+            if range.start_f64() <= previous.end_f64() + 1.0e-6 {
+                *previous = wavecrate::selection::SelectionRange::new_precise(
+                    previous.start_f64(),
+                    previous.end_f64().max(range.end_f64()),
+                );
+            } else {
+                merged.push(range);
+            }
+        }
+        self.extracted_ranges = merged;
     }
 
     fn extractable_play_selection(&self) -> Result<wavecrate::selection::SelectionRange, String> {

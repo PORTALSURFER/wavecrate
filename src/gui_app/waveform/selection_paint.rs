@@ -11,6 +11,7 @@ impl WaveformWidget {
         primitives: &mut Vec<PaintPrimitive>,
         bounds: Rect,
     ) {
+        self.append_extracted_range_paint(primitives, bounds);
         if let Some((start, end)) = self.visible_range_for_selection(self.play_selection) {
             self.append_play_selection_paint(primitives, bounds, start, end);
         }
@@ -18,6 +19,25 @@ impl WaveformWidget {
             self.append_edit_selection_paint(primitives, bounds, start, end);
         }
         self.append_marker_paint(primitives, bounds);
+    }
+
+    fn append_extracted_range_paint(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
+        for range in &self.extracted_ranges {
+            if let Some((start, end)) = self.visible_range_for_selection(Some(*range)) {
+                self.push_visible_range_fill(
+                    primitives,
+                    bounds,
+                    start,
+                    end,
+                    Rgba8 {
+                        r: 120,
+                        g: 124,
+                        b: 130,
+                        a: 72,
+                    },
+                );
+            }
+        }
     }
 
     fn append_play_selection_paint(

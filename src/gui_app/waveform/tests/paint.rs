@@ -130,6 +130,30 @@ fn selection_fill_paints_as_overlay_widget_rects() {
 }
 
 #[test]
+fn extracted_ranges_paint_as_gray_waveform_overlays() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state
+        .extracted_ranges
+        .push(wavecrate::selection::SelectionRange::new(0.2, 0.6));
+    let widget = waveform_widget_for_state(&state);
+    let mut primitives = Vec::new();
+
+    widget.append_paint(
+        &mut primitives,
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0)),
+        &Default::default(),
+        &ThemeTokens::default(),
+    );
+
+    let fills = fill_rects(&primitives);
+    assert!(fills.iter().any(|fill| {
+        (fill.rect.min.x - 40.0).abs() < 0.001
+            && (fill.rect.max.x - 120.0).abs() < 0.001
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (120, 124, 130, 72)
+    }));
+}
+
+#[test]
 fn edit_selection_paints_start_and_end_boundary_lines() {
     let mut state = WaveformState::synthetic_for_tests();
     state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));

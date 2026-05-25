@@ -56,6 +56,7 @@ pub(in crate::gui_app) struct WaveformWidgetProps {
     edit_mark_ratio: Option<f32>,
     play_selection: Option<wavecrate::selection::SelectionRange>,
     edit_selection: Option<wavecrate::selection::SelectionRange>,
+    extracted_ranges: Vec<wavecrate::selection::SelectionRange>,
     play_selection_flash_frames: u8,
     pub(in crate::gui_app::waveform) active_drag_kind: Option<WaveformActiveDragKind>,
 }
@@ -70,6 +71,7 @@ impl WaveformWidgetProps {
             edit_mark_ratio: state.edit_mark_ratio(),
             play_selection: state.play_selection(),
             edit_selection: state.edit_selection(),
+            extracted_ranges: state.extracted_ranges().to_vec(),
             play_selection_flash_frames: state.play_selection_flash_frames(),
             active_drag_kind: state.active_drag_kind(),
         }
@@ -86,6 +88,7 @@ pub(in crate::gui_app) struct WaveformWidget {
     pub(super) edit_mark_ratio: Option<f32>,
     pub(super) play_selection: Option<wavecrate::selection::SelectionRange>,
     pub(super) edit_selection: Option<wavecrate::selection::SelectionRange>,
+    pub(super) extracted_ranges: Vec<wavecrate::selection::SelectionRange>,
     pub(super) play_selection_flash_frames: u8,
     pub(super) edit_preview: TimelineEditPreview,
     pub(in crate::gui_app::waveform) active_drag_kind: Option<WaveformActiveDragKind>,
@@ -101,6 +104,7 @@ impl WaveformWidget {
             edit_mark_ratio,
             play_selection,
             edit_selection,
+            extracted_ranges,
             play_selection_flash_frames,
             active_drag_kind,
         } = props;
@@ -121,6 +125,7 @@ impl WaveformWidget {
             edit_mark_ratio,
             play_selection,
             edit_selection,
+            extracted_ranges,
             play_selection_flash_frames,
             edit_preview: edit_preview_for_selection(edit_selection),
             active_drag_kind,

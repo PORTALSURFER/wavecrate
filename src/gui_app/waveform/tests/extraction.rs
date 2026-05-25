@@ -21,6 +21,10 @@ fn playmark_extraction_writes_sibling_wav_range() {
 
     assert_eq!(output.file_name().unwrap(), "source_extraction.wav");
     assert_eq!(read_test_wav_i16(&output), vec![100, 200, 300, 400]);
+    assert_eq!(
+        state.extracted_ranges(),
+        &[wavecrate::selection::SelectionRange::new(0.25, 0.75)]
+    );
     let _ = fs::remove_dir_all(root);
 }
 
@@ -83,6 +87,40 @@ fn playmark_drag_extraction_writes_to_target_folder() {
     assert_eq!(output.parent(), Some(target.as_path()));
     assert_eq!(output.file_name().unwrap(), "source_extraction.wav");
     assert_eq!(read_test_wav_i16(&output), vec![100, 200, 300, 400]);
+    assert_eq!(
+        state.extracted_ranges(),
+        &[wavecrate::selection::SelectionRange::new(0.25, 0.75)]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn playmark_extraction_merges_extracted_range_marks() {
+    let root = std::env::temp_dir().join(format!(
+        "wavecrate-playmark-extract-merge-{}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos()
+    ));
+    fs::create_dir_all(&root).expect("create temp root");
+    let source = root.join("source.wav");
+    write_test_wav_i16(&source, &[0, 100, 200, 300, 400, 500]);
+    let mut state = WaveformState::load_path(source).expect("load source");
+
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.1, 0.3));
+    state
+        .extract_play_selection_to_sibling()
+        .expect("extract first range");
+    state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.25, 0.5));
+    state
+        .extract_play_selection_to_sibling()
+        .expect("extract overlapping range");
+
+    assert_eq!(
+        state.extracted_ranges(),
+        &[wavecrate::selection::SelectionRange::new(0.1, 0.5)]
+    );
     let _ = fs::remove_dir_all(root);
 }
 
