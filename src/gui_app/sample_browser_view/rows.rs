@@ -1,4 +1,5 @@
 use radiant::prelude as ui;
+use std::collections::HashMap;
 
 use super::{SampleFileHitMessage, SampleFileHitTarget};
 use crate::gui_app::{
@@ -13,7 +14,7 @@ pub(super) fn sample_browser_rows(
     columns: &[&FileColumn],
     window: ui::VirtualListWindow,
     name_view_mode: SampleNameViewMode,
-    metadata_tags: &[String],
+    metadata_tags_by_file: &HashMap<String, Vec<String>>,
 ) -> ui::View<GuiMessage> {
     if files.is_empty() {
         return ui::text("No audio files in selected folder")
@@ -36,7 +37,7 @@ pub(super) fn sample_browser_rows(
                 folder_browser.file_drag_source(&file.id),
                 columns,
                 name_view_mode,
-                metadata_tags,
+                metadata_tags_by_file,
             )
         },
         SAMPLE_BROWSER_ROW_HEIGHT * SAMPLE_BROWSER_OVERSCAN_ROWS as f32,
@@ -54,7 +55,7 @@ fn sample_browser_row(
     drag_source: bool,
     columns: &[&FileColumn],
     name_view_mode: SampleNameViewMode,
-    metadata_tags: &[String],
+    metadata_tags_by_file: &HashMap<String, Vec<String>>,
 ) -> ui::View<GuiMessage> {
     let hit_path = file.id.clone();
     let hit_target = sample_file_hit_target(
@@ -68,7 +69,13 @@ fn sample_browser_row(
     let row = ui::stack([
         hit_target,
         compact_details_row(columns.iter().map(|column| {
-            sample_column_cell(file, rename.clone(), column, name_view_mode, metadata_tags)
+            sample_column_cell(
+                file,
+                rename.clone(),
+                column,
+                name_view_mode,
+                metadata_tags_by_file,
+            )
         })),
     ])
     .key(format!("sample-row-{}", file.id))
@@ -112,10 +119,16 @@ fn sample_column_cell(
     rename: Option<folder_browser::FileRenameView>,
     column: &FileColumn,
     name_view_mode: SampleNameViewMode,
-    metadata_tags: &[String],
+    metadata_tags_by_file: &HashMap<String, Vec<String>>,
 ) -> ui::View<GuiMessage> {
     if column.id == "name" {
-        return sample_name_cell(file, rename, column.width, name_view_mode, metadata_tags);
+        return sample_name_cell(
+            file,
+            rename,
+            column.width,
+            name_view_mode,
+            metadata_tags_by_file,
+        );
     }
     sample_file_cell(
         file,
@@ -130,12 +143,12 @@ fn sample_name_cell(
     rename: Option<folder_browser::FileRenameView>,
     width: f32,
     name_view_mode: SampleNameViewMode,
-    metadata_tags: &[String],
+    metadata_tags_by_file: &HashMap<String, Vec<String>>,
 ) -> ui::View<GuiMessage> {
     let Some(rename) = rename else {
         return sample_file_cell(
             file,
-            sample_name_cell_value(file, name_view_mode, metadata_tags),
+            sample_name_cell_value(file, name_view_mode, metadata_tags_by_file),
             width,
             "name",
         );
@@ -154,16 +167,19 @@ fn sample_name_cell(
 pub(super) fn sample_name_cell_value(
     file: &FileEntry,
     mode: SampleNameViewMode,
-    metadata_tags: &[String],
+    metadata_tags_by_file: &HashMap<String, Vec<String>>,
 ) -> String {
     match mode {
         SampleNameViewMode::DiskFilename => file.stem.clone(),
-        SampleNameViewMode::MetadataLabel => metadata_display_stem(file, metadata_tags),
+        SampleNameViewMode::MetadataLabel => {
+            metadata_display_stem(file, metadata_tags_by_file.get(&file.id).map(Vec::as_slice))
+        }
     }
 }
 
-fn metadata_display_stem(file: &FileEntry, metadata_tags: &[String]) -> String {
+fn metadata_display_stem(file: &FileEntry, metadata_tags: Option<&[String]>) -> String {
     let display = metadata_tags
+        .unwrap_or(&[])
         .iter()
         .filter(|tag| !tag.is_empty())
         .map(String::as_str)
@@ -232,20 +248,47 @@ mod tests {
     #[test]
     fn disk_filename_view_uses_file_stem() {
         assert_eq!(
-            sample_name_cell_value(&file_entry(), SampleNameViewMode::DiskFilename, &[]),
+            sample_name_cell_value(
+                &file_entry(),
+                SampleNameViewMode::DiskFilename,
+                &HashMap::new()
+            ),
             "portal_SS_kick_003"
         );
     }
 
     #[test]
-    fn metadata_label_view_uses_metadata_tag_stem_without_extension() {
+    fn metadata_label_view_uses_file_metadata_tag_stem_without_extension() {
+        let file = file_entry();
+        let metadata_tags_by_file = HashMap::from([(
+            file.id.clone(),
+            vec![String::from("kick"), String::from("warm")],
+        )]);
+
+        assert_eq!(
+            sample_name_cell_value(
+                &file,
+                SampleNameViewMode::MetadataLabel,
+                &metadata_tags_by_file
+            ),
+            "kick_warm"
+        );
+    }
+
+    #[test]
+    fn metadata_label_view_falls_back_to_file_stem_without_file_tags() {
+        let metadata_tags_by_file = HashMap::from([(
+            String::from("C:\\Samples\\other.wav"),
+            vec![String::from("kick")],
+        )]);
+
         assert_eq!(
             sample_name_cell_value(
                 &file_entry(),
                 SampleNameViewMode::MetadataLabel,
-                &[String::from("kick"), String::from("warm")]
+                &metadata_tags_by_file
             ),
-            "kick_warm"
+            "portal_SS_kick_003"
         );
     }
 }

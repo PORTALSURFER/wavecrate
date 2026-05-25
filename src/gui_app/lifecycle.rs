@@ -4,7 +4,7 @@ use super::{
 };
 use crate::gui_app::{launch::emit_gui_action, waveform::WaveformInteraction};
 use radiant::prelude as ui;
-use std::{sync::mpsc, time::Instant};
+use std::{collections::HashMap, sync::mpsc, time::Instant};
 use wavecrate::sample_sources::config::{AppConfig, AppSettingsCore};
 
 impl GuiAppState {
@@ -48,7 +48,7 @@ impl GuiAppState {
             current_playback_span: None,
             native_file_drop_hover: None,
             metadata_tag_draft: String::new(),
-            metadata_tags: Vec::new(),
+            metadata_tags_by_file: HashMap::new(),
             sample_name_view_mode: SampleNameViewMode::DiskFilename,
         };
         state.refresh_audio_options();

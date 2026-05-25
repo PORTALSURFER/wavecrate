@@ -9,7 +9,7 @@ use radiant::{
     runtime::{DeclarativeOwnedRuntimeBridge, Event, PaintPrimitive, SurfaceRuntime},
     widgets::{DragHandleMessage, PointerButton, PointerModifiers},
 };
-use std::{fs, path::PathBuf, sync::mpsc};
+use std::{collections::HashMap, fs, path::PathBuf, sync::mpsc};
 
 mod audio_settings_controls;
 mod audio_settings_dropdowns;
@@ -64,9 +64,22 @@ fn gui_state_for_span_tests() -> GuiAppState {
         current_playback_span: None,
         native_file_drop_hover: None,
         metadata_tag_draft: String::new(),
-        metadata_tags: Vec::new(),
+        metadata_tags_by_file: HashMap::new(),
         sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
     }
+}
+
+fn gui_state_with_temp_sample(name: &str) -> (GuiAppState, tempfile::TempDir, String) {
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join(name);
+    fs::write(&sample_path, []).expect("sample file");
+    state.folder_browser = super::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+    ]);
+    let selected_file = sample_path.display().to_string();
+    state.folder_browser.select_file(selected_file.clone());
+    (state, source_root, selected_file)
 }
 
 #[test]
@@ -106,7 +119,7 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
         current_playback_span: None,
         native_file_drop_hover: None,
         metadata_tag_draft: String::new(),
-        metadata_tags: Vec::new(),
+        metadata_tags_by_file: HashMap::new(),
         sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
     };
     state.resize_folder_browser(DragHandleMessage::Started {
@@ -245,7 +258,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         current_playback_span: None,
         native_file_drop_hover: None,
         metadata_tag_draft: String::new(),
-        metadata_tags: Vec::new(),
+        metadata_tags_by_file: HashMap::new(),
         sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
     };
     let sample_path = selected_asset_file_path(&state.folder_browser, "portal_SS_kick_003.wav");
@@ -691,7 +704,7 @@ fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
 
 #[test]
 fn metadata_tag_input_submits_normalized_tags() {
-    let mut state = gui_state_for_span_tests();
+    let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("tag-target.wav");
 
     state.apply_message(
         super::GuiMessage::MetadataTagInput(radiant::widgets::TextInputMessage::Submitted {
@@ -700,13 +713,16 @@ fn metadata_tag_input_submits_normalized_tags() {
         &mut ui::UpdateContext::default(),
     );
 
-    assert_eq!(state.metadata_tags, vec![String::from("deep-kick")]);
+    assert_eq!(
+        state.metadata_tags_by_file.get(&selected_file),
+        Some(&vec![String::from("deep-kick")])
+    );
     assert!(state.metadata_tag_draft.is_empty());
     assert_eq!(state.sample_status, "Added tag deep-kick");
 }
 
 #[test]
-fn metadata_tag_input_commits_delimited_tags_and_keeps_draft_tail() {
+fn metadata_tag_input_keeps_delimiters_while_editing() {
     let mut state = gui_state_for_span_tests();
 
     state.apply_message(
@@ -716,14 +732,17 @@ fn metadata_tag_input_commits_delimited_tags_and_keeps_draft_tail() {
         &mut ui::UpdateContext::default(),
     );
 
-    assert_eq!(state.metadata_tags, vec![String::from("kick")]);
-    assert_eq!(state.metadata_tag_draft, "warm tone");
+    assert!(state.metadata_tags_by_file.is_empty());
+    assert_eq!(state.metadata_tag_draft, "kick, warm tone");
 }
 
 #[test]
 fn sample_browser_toggles_between_disk_and_metadata_label_names() {
-    let mut state = gui_state_for_span_tests();
-    state.metadata_tags = vec![String::from("kick"), String::from("warm")];
+    let (mut state, _source_root, tagged_file) = gui_state_with_temp_sample("tag-toggle.wav");
+    state.metadata_tags_by_file.insert(
+        tagged_file,
+        vec![String::from("kick"), String::from("warm")],
+    );
     let disk_frame =
         radiant::runtime::UiSurface::new(super::sample_browser(&mut state).into_node()).frame(
             Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 240.0)),

@@ -8,15 +8,21 @@ pub(super) struct MetadataTagCommit {
 }
 
 impl GuiAppState {
+    pub(super) fn selected_metadata_tags(&self) -> &[String] {
+        self.folder_browser
+            .selected_file_id()
+            .and_then(|file_id| self.metadata_tags_by_file.get(file_id))
+            .map(Vec::as_slice)
+            .unwrap_or(&[])
+    }
+
     pub(super) fn apply_metadata_tag_input(&mut self, message: TextInputMessage) {
         match message {
             TextInputMessage::Changed { value } => {
-                let commit = commit_metadata_tag_text(&value, false);
-                self.metadata_tag_draft = commit.remainder;
-                self.add_metadata_tags(commit.tags);
+                self.metadata_tag_draft = value;
             }
             TextInputMessage::Submitted { value } => {
-                let commit = commit_metadata_tag_text(&value, true);
+                let commit = commit_metadata_tag_text(&value);
                 self.metadata_tag_draft.clear();
                 self.add_metadata_tags(commit.tags);
             }
@@ -24,12 +30,17 @@ impl GuiAppState {
     }
 
     fn add_metadata_tags(&mut self, tags: Vec<String>) {
+        let Some(file_id) = self.folder_browser.selected_file_id().map(str::to_owned) else {
+            self.sample_status = String::from("Select a sample before adding tags");
+            return;
+        };
+        let file_tags = self.metadata_tags_by_file.entry(file_id).or_default();
         let mut added = Vec::new();
         for tag in tags {
-            if self.metadata_tags.iter().any(|existing| existing == &tag) {
+            if file_tags.iter().any(|existing| existing == &tag) {
                 continue;
             }
-            self.metadata_tags.push(tag.clone());
+            file_tags.push(tag.clone());
             added.push(tag);
         }
         match added.as_slice() {
@@ -40,22 +51,17 @@ impl GuiAppState {
     }
 }
 
-pub(super) fn commit_metadata_tag_text(value: &str, submit: bool) -> MetadataTagCommit {
-    let mut parts = value
+pub(super) fn commit_metadata_tag_text(value: &str) -> MetadataTagCommit {
+    let parts = value
         .split(['\n', ',', ';'])
         .map(str::trim)
         .collect::<Vec<_>>();
-    let remainder = if submit {
-        ""
-    } else {
-        parts.pop().unwrap_or_default()
-    };
     MetadataTagCommit {
         tags: parts
             .into_iter()
             .filter_map(normalize_metadata_tag)
             .collect(),
-        remainder: remainder.to_string(),
+        remainder: String::new(),
     }
 }
 
@@ -103,22 +109,11 @@ mod tests {
     }
 
     #[test]
-    fn changed_tag_input_commits_completed_delimited_tags_only() {
+    fn submitted_tag_input_commits_delimited_tags() {
         assert_eq!(
-            commit_metadata_tag_text("kick, warm tone", false),
+            commit_metadata_tag_text("kick, warm tone"),
             MetadataTagCommit {
-                tags: vec![String::from("kick")],
-                remainder: String::from("warm tone"),
-            }
-        );
-    }
-
-    #[test]
-    fn submitted_tag_input_commits_the_full_field() {
-        assert_eq!(
-            commit_metadata_tag_text("warm tone", true),
-            MetadataTagCommit {
-                tags: vec![String::from("warm-tone")],
+                tags: vec![String::from("kick"), String::from("warm-tone")],
                 remainder: String::new(),
             }
         );

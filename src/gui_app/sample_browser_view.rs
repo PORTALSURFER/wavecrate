@@ -43,7 +43,7 @@ pub(super) fn sample_browser(state: &mut GuiAppState) -> ui::View<GuiMessage> {
             &columns,
             window,
             state.sample_name_view_mode,
-            &state.metadata_tags,
+            &state.metadata_tags_by_file,
         ),
         sample_browser_status(audio_count),
     ])

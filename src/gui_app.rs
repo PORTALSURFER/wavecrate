@@ -5,6 +5,7 @@ use radiant::prelude as ui;
 use radiant::runtime::NativeFileDrop;
 use radiant::widgets::{DragHandleMessage, PointerModifiers};
 use std::{
+    collections::HashMap,
     path::PathBuf,
     sync::mpsc::{Receiver, Sender},
     time::{Duration, Instant},
@@ -207,7 +208,7 @@ struct GuiAppState {
     current_playback_span: Option<(f32, f32)>,
     native_file_drop_hover: Option<NativeFileDropHover>,
     metadata_tag_draft: String,
-    metadata_tags: Vec<String>,
+    metadata_tags_by_file: HashMap<String, Vec<String>>,
     sample_name_view_mode: SampleNameViewMode,
 }
 
