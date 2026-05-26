@@ -12,6 +12,11 @@ impl GuiAppState {
         let started_at = Instant::now();
         let config = wavecrate::sample_sources::config::load_or_default()
             .map_err(|err| format!("load app configuration: {err}"))?;
+        let (metadata_tags_by_file, metadata_tag_load_error) =
+            match Self::load_persisted_metadata_tags(&config.sources) {
+                Ok(tags) => (tags, None),
+                Err(error) => (HashMap::new(), Some(error)),
+            };
         let (worker_sender, worker_receiver) = mpsc::channel();
         let mut state = Self {
             folder_width: DEFAULT_FOLDER_WIDTH,
@@ -51,9 +56,12 @@ impl GuiAppState {
             metadata_tag_tokens: Vec::new(),
             metadata_tag_completion_prefix: None,
             metadata_tag_completion_index: 0,
-            metadata_tags_by_file: HashMap::new(),
+            metadata_tags_by_file,
             sample_name_view_mode: SampleNameViewMode::DiskFilename,
         };
+        if let Some(error) = metadata_tag_load_error {
+            state.sample_status = format!("Tags not loaded: {error}");
+        }
         state.refresh_audio_options();
         if let Err(error) = state.open_configured_audio_player() {
             state.audio_settings_error = Some(error);

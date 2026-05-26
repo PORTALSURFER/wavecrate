@@ -166,6 +166,7 @@ impl GuiAppState {
 
     pub(super) fn finish_folder_scan(&mut self, result: FolderScanResult) {
         let started_at = Instant::now();
+        let source_id = result.source_id.clone();
         let label = result.label.clone();
         let file_count = result.file_count;
         let folder_count = result.folder_count;
@@ -189,6 +190,7 @@ impl GuiAppState {
                 started_at,
                 None,
             );
+            self.refresh_persisted_metadata_tags_for_source(&source_id);
             self.persist_user_configuration("folder_browser.sources.persist", started_at);
         } else {
             emit_gui_action(

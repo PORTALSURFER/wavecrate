@@ -54,6 +54,21 @@ impl FolderBrowserState {
             .map(|source| source.root.clone())
     }
 
+    pub(in crate::gui_app) fn source_relative_file_path(
+        &self,
+        file_path: &std::path::Path,
+    ) -> Option<(PathBuf, PathBuf)> {
+        self.sources
+            .iter()
+            .filter_map(|source| {
+                file_path
+                    .strip_prefix(&source.root)
+                    .ok()
+                    .map(|relative| (source.root.clone(), relative.to_path_buf()))
+            })
+            .max_by_key(|(root, _)| root.components().count())
+    }
+
     pub(in crate::gui_app) fn source_is_removable(&self, source_id: &str) -> bool {
         self.sources
             .iter()

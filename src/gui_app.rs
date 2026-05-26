@@ -64,6 +64,7 @@ pub(crate) use launch::run;
 #[cfg(test)]
 use launch::{DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG, debug_layout_requested};
 use layout::view;
+use metadata_tags::MetadataTagPersistResult;
 #[cfg(test)]
 use sample_browser_view::sample_browser;
 use sample_load_actions::{NormalizedWaveformReload, WaveformPlaybackResume};
@@ -134,6 +135,7 @@ enum GuiMessage {
     SetAudioOutputDevice(Option<String>),
     SetAudioOutputSampleRate(Option<u32>),
     MetadataTagInput(radiant::widgets::TextInputMessage),
+    MetadataTagsPersisted(MetadataTagPersistResult),
     ToggleSampleNameViewMode,
     ClearRebuildableCaches,
     NormalizeSelectedSamples,
@@ -339,7 +341,10 @@ impl GuiAppState {
             GuiMessage::SetAudioOutputSampleRate(sample_rate) => {
                 self.set_audio_output_sample_rate(sample_rate);
             }
-            GuiMessage::MetadataTagInput(message) => self.apply_metadata_tag_input(message),
+            GuiMessage::MetadataTagInput(message) => {
+                self.apply_metadata_tag_input(message, context)
+            }
+            GuiMessage::MetadataTagsPersisted(result) => self.finish_metadata_tag_persist(result),
             GuiMessage::ToggleSampleNameViewMode => {
                 self.sample_name_view_mode = self.sample_name_view_mode.toggled();
             }

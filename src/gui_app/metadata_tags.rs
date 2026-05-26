@@ -1,6 +1,13 @@
 use super::GuiAppState;
+use super::GuiMessage;
+use radiant::prelude as ui;
 use radiant::widgets::TextInputMessage;
-use std::collections::BTreeSet;
+use std::{
+    collections::{BTreeSet, HashMap},
+    path::{Path, PathBuf},
+    time::SystemTime,
+};
+use wavecrate::sample_sources::{SampleSource, SourceDatabase, SourceDbError};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct MetadataTagCommit {
@@ -8,7 +15,51 @@ pub(super) struct MetadataTagCommit {
     pub(super) remainder: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct MetadataTagPersistResult {
+    tags: Vec<String>,
+    result: Result<(), String>,
+}
+
+#[derive(Clone, Debug)]
+struct MetadataTagPersistRequest {
+    absolute_path: PathBuf,
+    source_root: PathBuf,
+    relative_path: PathBuf,
+    tags: Vec<String>,
+}
+
 impl GuiAppState {
+    pub(super) fn load_persisted_metadata_tags(
+        sources: &[SampleSource],
+    ) -> Result<HashMap<String, Vec<String>>, String> {
+        let mut tags_by_file = HashMap::new();
+        let mut errors = Vec::new();
+        for source in sources {
+            if let Err(error) =
+                load_persisted_metadata_tags_for_source(&source.root, &mut tags_by_file)
+            {
+                errors.push(format!("{}: {error}", source.root.display()));
+            }
+        }
+        if errors.is_empty() {
+            Ok(tags_by_file)
+        } else {
+            Err(errors.join("; "))
+        }
+    }
+
+    pub(super) fn refresh_persisted_metadata_tags_for_source(&mut self, source_id: &str) {
+        let Some(root) = self.folder_browser.source_root_path(source_id) else {
+            return;
+        };
+        if let Err(error) =
+            load_persisted_metadata_tags_for_source(&root, &mut self.metadata_tags_by_file)
+        {
+            self.sample_status = format!("Tags not loaded: {error}");
+        }
+    }
+
     pub(super) fn selected_metadata_tags(&self) -> &[String] {
         self.folder_browser
             .selected_file_id()
@@ -17,7 +68,11 @@ impl GuiAppState {
             .unwrap_or(&[])
     }
 
-    pub(super) fn apply_metadata_tag_input(&mut self, message: TextInputMessage) {
+    pub(super) fn apply_metadata_tag_input(
+        &mut self,
+        message: TextInputMessage,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
         match message {
             TextInputMessage::Changed { value } => {
                 self.metadata_tag_draft = value;
@@ -36,7 +91,7 @@ impl GuiAppState {
                 tags.append(&mut commit.tags);
                 self.metadata_tag_draft.clear();
                 self.reset_metadata_tag_completion_cycle();
-                self.add_metadata_tags(tags);
+                self.add_metadata_tags(tags, context);
             }
             TextInputMessage::CompletionRequested { value } => {
                 self.metadata_tag_draft = value;
@@ -127,12 +182,28 @@ impl GuiAppState {
         self.metadata_tag_completion_index = 0;
     }
 
-    fn add_metadata_tags(&mut self, tags: Vec<String>) {
+    fn add_metadata_tags(
+        &mut self,
+        tags: Vec<String>,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
         let Some(file_id) = self.folder_browser.selected_file_id().map(str::to_owned) else {
             self.sample_status = String::from("Select a sample before adding tags");
             return;
         };
-        let file_tags = self.metadata_tags_by_file.entry(file_id).or_default();
+        let absolute_path = PathBuf::from(&file_id);
+        let Some((source_root, relative_path)) = self
+            .folder_browser
+            .source_relative_file_path(&absolute_path)
+        else {
+            self.sample_status = String::from("Selected sample is not inside a configured source");
+            return;
+        };
+        let mut file_tags = self
+            .metadata_tags_by_file
+            .get(&file_id)
+            .cloned()
+            .unwrap_or_default();
         let mut added = Vec::new();
         for tag in tags {
             if file_tags.iter().any(|existing| existing == &tag) {
@@ -141,12 +212,109 @@ impl GuiAppState {
             file_tags.push(tag.clone());
             added.push(tag);
         }
+        self.metadata_tags_by_file
+            .insert(file_id.clone(), file_tags);
         match added.as_slice() {
             [] => {}
             [tag] => self.sample_status = format!("Added tag {tag}"),
             tags => self.sample_status = format!("Added {} tags", tags.len()),
         }
+        if !added.is_empty() {
+            let request = MetadataTagPersistRequest {
+                absolute_path,
+                source_root,
+                relative_path,
+                tags: added,
+            };
+            context.spawn(
+                "gui-metadata-tag-persist",
+                move || persist_metadata_tag_additions(request),
+                GuiMessage::MetadataTagsPersisted,
+            );
+        }
     }
+
+    pub(super) fn finish_metadata_tag_persist(&mut self, result: MetadataTagPersistResult) {
+        if let Err(error) = result.result {
+            self.sample_status = match result.tags.as_slice() {
+                [tag] => format!("Tag {tag} not saved: {error}"),
+                tags => format!("{} tags not saved: {error}", tags.len()),
+            };
+        }
+    }
+}
+
+fn persist_metadata_tag_additions(request: MetadataTagPersistRequest) -> MetadataTagPersistResult {
+    let result = persist_metadata_tag_additions_inner(&request);
+    MetadataTagPersistResult {
+        tags: request.tags,
+        result,
+    }
+}
+
+fn persist_metadata_tag_additions_inner(request: &MetadataTagPersistRequest) -> Result<(), String> {
+    let (file_size, modified_ns) = file_metadata(&request.absolute_path)?;
+    let db = SourceDatabase::open_for_user_metadata_write(&request.source_root)
+        .map_err(|err| err.to_string())?;
+    let mut batch = db.write_batch().map_err(|err| err.to_string())?;
+    batch
+        .upsert_file(&request.relative_path, file_size, modified_ns)
+        .map_err(|err| err.to_string())?;
+    for tag in &request.tags {
+        batch
+            .assign_tag_to_path(&request.relative_path, tag)
+            .map_err(|err| err.to_string())?;
+    }
+    batch.commit().map_err(|err| err.to_string())
+}
+
+#[cfg(test)]
+pub(super) fn persist_metadata_tag_additions_for_tests(
+    absolute_path: PathBuf,
+    source_root: PathBuf,
+    relative_path: PathBuf,
+    tags: Vec<String>,
+) -> Result<(), String> {
+    persist_metadata_tag_additions_inner(&MetadataTagPersistRequest {
+        absolute_path,
+        source_root,
+        relative_path,
+        tags,
+    })
+}
+
+fn load_persisted_metadata_tags_for_source(
+    source_root: &Path,
+    tags_by_file: &mut HashMap<String, Vec<String>>,
+) -> Result<(), String> {
+    let db = match SourceDatabase::open_read_only(source_root) {
+        Ok(db) => db,
+        Err(SourceDbError::ReadOnlyDatabaseMissing(_)) => return Ok(()),
+        Err(err) => return Err(err.to_string()),
+    };
+    for entry in db.list_files().map_err(|err| err.to_string())? {
+        if entry.normal_tags.is_empty() {
+            continue;
+        }
+        let absolute_path = source_root.join(entry.relative_path);
+        tags_by_file.insert(
+            absolute_path.to_string_lossy().to_string(),
+            entry.normal_tags,
+        );
+    }
+    Ok(())
+}
+
+fn file_metadata(path: &Path) -> Result<(u64, i64), String> {
+    let metadata = std::fs::metadata(path)
+        .map_err(|err| format!("Sample metadata unavailable for {}: {err}", path.display()))?;
+    let modified_ns = metadata
+        .modified()
+        .ok()
+        .and_then(|modified| modified.duration_since(SystemTime::UNIX_EPOCH).ok())
+        .and_then(|duration| i64::try_from(duration.as_nanos()).ok())
+        .unwrap_or_default();
+    Ok((metadata.len(), modified_ns))
 }
 
 pub(super) fn commit_metadata_tag_text(value: &str) -> MetadataTagCommit {

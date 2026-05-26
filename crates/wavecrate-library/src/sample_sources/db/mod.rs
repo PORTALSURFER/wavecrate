@@ -114,6 +114,19 @@ impl SourceDatabase {
         )
     }
 
+    /// Open a writable source database for an explicit user metadata edit.
+    ///
+    /// Unlike generic writable opens, this permits configured sources inside
+    /// common user library folders such as Documents or Music because the user
+    /// is directly editing Wavecrate metadata for that source.
+    pub fn open_for_user_metadata_write(root: impl AsRef<Path>) -> Result<Self, SourceDbError> {
+        open::open_source_database_for_role(
+            root.as_ref(),
+            true,
+            SourceDatabaseConnectionRole::UserMetadataWrite,
+        )
+    }
+
     /// Open a database connection for the given root without wrapping in SourceDatabase.
     pub fn open_connection(root: impl AsRef<Path>) -> Result<Connection, SourceDbError> {
         let db = Self::open(root)?;

@@ -13,6 +13,8 @@ pub enum SourceDatabaseConnectionRole {
     UiRead,
     /// Read-write profile for analysis enqueue/claim/finalization workers.
     JobWorker,
+    /// Read-write profile for deliberate user-authored source metadata updates.
+    UserMetadataWrite,
     /// Read-write profile for deferred cleanup and schema-sensitive maintenance.
     Maintenance,
 }
@@ -22,6 +24,7 @@ impl SourceDatabaseConnectionRole {
         match self {
             Self::UiRead => "ui_read",
             Self::JobWorker => "job_worker",
+            Self::UserMetadataWrite => "user_metadata_write",
             Self::Maintenance => "maintenance",
         }
     }
@@ -29,7 +32,7 @@ impl SourceDatabaseConnectionRole {
     pub(super) fn open_flags(self) -> OpenFlags {
         match self {
             Self::UiRead => OpenFlags::SQLITE_OPEN_READ_ONLY,
-            Self::JobWorker | Self::Maintenance => {
+            Self::JobWorker | Self::UserMetadataWrite | Self::Maintenance => {
                 OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE
             }
         }
@@ -37,7 +40,9 @@ impl SourceDatabaseConnectionRole {
 
     pub(super) fn open_mode(self) -> SourceDatabaseOpenMode {
         match self {
-            Self::UiRead | Self::JobWorker => SourceDatabaseOpenMode::Fast,
+            Self::UiRead | Self::JobWorker | Self::UserMetadataWrite => {
+                SourceDatabaseOpenMode::Fast
+            }
             Self::Maintenance => SourceDatabaseOpenMode::Full,
         }
     }
