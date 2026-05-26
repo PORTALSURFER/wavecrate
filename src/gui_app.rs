@@ -209,6 +209,8 @@ struct GuiAppState {
     native_file_drop_hover: Option<NativeFileDropHover>,
     metadata_tag_draft: String,
     metadata_tag_tokens: Vec<String>,
+    metadata_tag_completion_prefix: Option<String>,
+    metadata_tag_completion_index: usize,
     metadata_tags_by_file: HashMap<String, Vec<String>>,
     sample_name_view_mode: SampleNameViewMode,
 }

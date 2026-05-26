@@ -16,10 +16,13 @@ const TAG_FIELD_LINE_GAP: f32 = 3.0;
 const TAG_FIELD_HORIZONTAL_CHROME: f32 = 26.0;
 const TAG_FIELD_VERTICAL_CHROME: f32 = 6.0;
 const MAX_TAG_FIELD_ROWS: usize = 6;
+const MIN_TAG_INPUT_REMAINING_WIDTH: f32 = 180.0;
+const METADATA_TAG_INPUT_ID: u64 = 0x5743_0000_0000_5447;
 
 pub(in crate::gui_app) fn folder_browser_view(
     state: &FolderBrowserState,
     sidebar_width: f32,
+    has_selected_file: bool,
     metadata_tag_draft: &str,
     metadata_tag_tokens: &[String],
     metadata_tag_suggestion: Option<&str>,
@@ -37,6 +40,7 @@ pub(in crate::gui_app) fn folder_browser_view(
             metadata_tag_suggestion,
             metadata_tags,
             tag_field_content_width(sidebar_width),
+            has_selected_file,
         ),
     ])
     .spacing(3.0)
@@ -264,7 +268,12 @@ fn metadata_section(
     tag_suggestion: Option<&str>,
     tags: &[String],
     tag_field_content_width: f32,
+    has_selected_file: bool,
 ) -> ui::View<GuiMessage> {
+    if !has_selected_file {
+        return sidebar_section("Metadata", ui::spacer().height(0.0).fill_width(), 36.0);
+    }
+
     let tag_field_height = tag_field_height(
         tag_draft,
         tag_tokens,
@@ -312,42 +321,18 @@ fn tag_entry_field(
         }
     }
 
-    let tag_children = visible_tags
-        .iter()
-        .map(|tag| accepted_tag_token(tag.as_str()))
-        .collect::<Vec<_>>();
     let input_width = tag_input_width(tag_draft);
-    let input = tag_text_input(tag_draft, input_width);
-    let should_break = should_break_before_tag_input(&visible_tags, input_width, content_width);
-
-    let content = if should_break {
-        let mut input_children = vec![input];
-        if let Some(suggestion) = tag_suggestion {
-            input_children.push(tag_completion_token(suggestion));
-        }
-        let input_rows = row_count_for_widths(
-            tag_input_row_widths(input_width, tag_suggestion),
-            content_width,
-        )
-        .max(1);
-        ui::column([
-            ui::wrap(tag_children, TAG_FIELD_ITEM_GAP, TAG_FIELD_LINE_GAP)
-                .fill_width()
-                .height(tag_rows_height(&visible_tags, content_width)),
-            ui::wrap(input_children, TAG_FIELD_ITEM_GAP, TAG_FIELD_LINE_GAP)
-                .fill_width()
-                .height(rows_height(input_rows)),
-        ])
-        .fill_width()
-        .spacing(TAG_FIELD_LINE_GAP)
-    } else {
-        let mut children = tag_children;
-        children.push(input);
-        if let Some(suggestion) = tag_suggestion {
-            children.push(tag_completion_token(suggestion));
-        }
-        ui::wrap(children, TAG_FIELD_ITEM_GAP, TAG_FIELD_LINE_GAP).fill_width()
-    };
+    let rows = tag_field_rows(&visible_tags, input_width, tag_suggestion, content_width);
+    let row_count = rows.len();
+    let content = ui::column(
+        rows.into_iter()
+            .enumerate()
+            .map(|(row_index, row)| tag_entry_row(row, tag_draft, row_index))
+            .collect::<Vec<_>>(),
+    )
+    .fill_width()
+    .height(rows_height(row_count))
+    .spacing(TAG_FIELD_LINE_GAP);
 
     ui::scroll(content)
         .style(WidgetStyle {
@@ -377,27 +362,94 @@ fn tag_field_height(
         }
     }
     let input_width = tag_input_width(tag_draft);
-    let rows = if should_break_before_tag_input(&visible_tags, input_width, content_width) {
-        row_count_for_widths(
-            visible_tags.iter().map(|tag| tag_pill_width(tag)),
-            content_width,
-        ) + row_count_for_widths(
-            tag_input_row_widths(input_width, tag_suggestion),
-            content_width,
-        )
-        .max(1)
-    } else {
-        row_count_for_widths(
-            visible_tags
-                .iter()
-                .map(|tag| tag_pill_width(tag))
-                .chain(std::iter::once(input_width))
-                .chain(tag_suggestion.map(tag_completion_width)),
-            content_width,
-        )
-        .max(1)
-    };
+    let rows = tag_field_rows(&visible_tags, input_width, tag_suggestion, content_width).len();
     rows_height(rows.min(MAX_TAG_FIELD_ROWS).max(1)) + TAG_FIELD_VERTICAL_CHROME
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum TagEntryRowItem {
+    Accepted(String),
+    Input(f32),
+    Completion(String),
+}
+
+fn tag_field_rows(
+    tags: &[String],
+    input_width: f32,
+    tag_suggestion: Option<&str>,
+    content_width: f32,
+) -> Vec<Vec<TagEntryRowItem>> {
+    let mut rows = pack_tag_rows(tags, content_width);
+    if should_break_before_tag_input(tags, input_width, content_width) || rows.is_empty() {
+        rows.push(Vec::new());
+    }
+
+    push_row_item(
+        &mut rows,
+        TagEntryRowItem::Input(input_width),
+        input_width,
+        content_width,
+    );
+    if let Some(suggestion) = tag_suggestion {
+        push_row_item(
+            &mut rows,
+            TagEntryRowItem::Completion(suggestion.to_string()),
+            tag_completion_width(suggestion),
+            content_width,
+        );
+    }
+
+    rows
+}
+
+fn pack_tag_rows(tags: &[String], content_width: f32) -> Vec<Vec<TagEntryRowItem>> {
+    let mut rows = Vec::new();
+    for tag in tags {
+        push_row_item(
+            &mut rows,
+            TagEntryRowItem::Accepted(tag.clone()),
+            tag_pill_width(tag),
+            content_width,
+        );
+    }
+    rows
+}
+
+fn push_row_item(
+    rows: &mut Vec<Vec<TagEntryRowItem>>,
+    item: TagEntryRowItem,
+    width: f32,
+    content_width: f32,
+) {
+    if rows.is_empty() {
+        rows.push(Vec::new());
+    }
+
+    let current_width = row_width(rows.last().expect("row exists"));
+    let proposed = if current_width <= 0.0 {
+        width
+    } else {
+        current_width + TAG_FIELD_ITEM_GAP + width
+    };
+    if proposed > content_width && current_width > 0.0 {
+        rows.push(Vec::new());
+    }
+    rows.last_mut().expect("row exists").push(item);
+}
+
+fn row_width(row: &[TagEntryRowItem]) -> f32 {
+    row.iter()
+        .map(tag_entry_row_item_width)
+        .reduce(|total, width| total + TAG_FIELD_ITEM_GAP + width)
+        .unwrap_or(0.0)
+}
+
+fn tag_entry_row_item_width(item: &TagEntryRowItem) -> f32 {
+    match item {
+        TagEntryRowItem::Accepted(tag) => tag_pill_width(tag),
+        TagEntryRowItem::Input(width) => *width,
+        TagEntryRowItem::Completion(tag) => tag_completion_width(tag),
+    }
 }
 
 fn should_break_before_tag_input(tags: &[String], input_width: f32, content_width: f32) -> bool {
@@ -416,14 +468,9 @@ fn should_break_before_tag_input(tags: &[String], input_width: f32, content_widt
         }
     }
 
-    row_width > 0.0 && (row_width + TAG_FIELD_ITEM_GAP + input_width) > content_width
-}
-
-fn tag_rows_height(tags: &[String], content_width: f32) -> f32 {
-    rows_height(row_count_for_widths(
-        tags.iter().map(|tag| tag_pill_width(tag)),
-        content_width,
-    ))
+    row_width > 0.0
+        && content_width - row_width - TAG_FIELD_ITEM_GAP
+            < input_width.max(MIN_TAG_INPUT_REMAINING_WIDTH)
 }
 
 fn rows_height(row_count: usize) -> f32 {
@@ -434,39 +481,12 @@ fn rows_height(row_count: usize) -> f32 {
         + row_count.saturating_sub(1) as f32 * TAG_FIELD_LINE_GAP
 }
 
-fn row_count_for_widths(widths: impl IntoIterator<Item = f32>, content_width: f32) -> usize {
-    let mut row_count = 1usize;
-    let mut row_width = 0.0;
-    let mut has_items = false;
-    for width in widths {
-        has_items = true;
-        let proposed = if row_width <= 0.0 {
-            width
-        } else {
-            row_width + TAG_FIELD_ITEM_GAP + width
-        };
-        if proposed > content_width && row_width > 0.0 {
-            row_count += 1;
-            row_width = width;
-        } else {
-            row_width = proposed;
-        }
-    }
-    if has_items { row_count } else { 0 }
-}
-
-fn tag_input_row_widths(
-    input_width: f32,
-    tag_suggestion: Option<&str>,
-) -> impl Iterator<Item = f32> {
-    std::iter::once(input_width).chain(tag_suggestion.map(tag_completion_width))
-}
-
 fn tag_text_input(tag_draft: &str, width: f32) -> ui::View<GuiMessage> {
     ui::text_input(tag_draft.to_string())
         .placeholder("add tag")
         .underline()
         .message_event(GuiMessage::MetadataTagInput)
+        .id(METADATA_TAG_INPUT_ID)
         .key("metadata-tag-input")
         .sizing(ui::WidgetSizing::fixed(ui::Vector2::new(
             width,
@@ -476,9 +496,29 @@ fn tag_text_input(tag_draft: &str, width: f32) -> ui::View<GuiMessage> {
         .width(width)
 }
 
+fn tag_entry_row(
+    row: Vec<TagEntryRowItem>,
+    tag_draft: &str,
+    row_index: usize,
+) -> ui::View<GuiMessage> {
+    ui::row(
+        row.into_iter()
+            .map(|item| match item {
+                TagEntryRowItem::Accepted(tag) => accepted_tag_token(tag.as_str()),
+                TagEntryRowItem::Input(width) => tag_text_input(tag_draft, width),
+                TagEntryRowItem::Completion(tag) => tag_completion_token(tag.as_str()),
+            })
+            .collect::<Vec<_>>(),
+    )
+    .key(format!("metadata-tag-row-{row_index}"))
+    .height(TAG_FIELD_CONTROL_HEIGHT)
+    .fill_width()
+    .spacing(TAG_FIELD_ITEM_GAP)
+}
+
 fn tag_input_width(value: &str) -> f32 {
     let char_width = value.chars().count().max(7) as f32;
-    (char_width * 7.0 + 42.0).clamp(92.0, 180.0)
+    (char_width * 7.0 + 12.0).clamp(61.0, 180.0)
 }
 
 fn tag_pill_width(tag: &str) -> f32 {
@@ -486,7 +526,7 @@ fn tag_pill_width(tag: &str) -> f32 {
 }
 
 fn tag_completion_width(tag: &str) -> f32 {
-    (tag.chars().count() as f32 * 7.0 + 44.0).clamp(58.0, 180.0)
+    tag_pill_width(tag)
 }
 
 fn accepted_tag_token(tag: &str) -> ui::View<GuiMessage> {
@@ -508,12 +548,12 @@ fn accepted_tag_token(tag: &str) -> ui::View<GuiMessage> {
 
 fn tag_completion_token(tag: &str) -> ui::View<GuiMessage> {
     let width = tag_completion_width(tag);
-    ui::badge(format!("Tab {tag}"))
+    ui::badge(tag.to_string())
         .subtle()
         .message(GuiMessage::Noop)
         .key(format!("metadata-tag-completion-{tag}"))
         .style(WidgetStyle {
-            tone: WidgetTone::Accent,
+            tone: WidgetTone::Neutral,
             prominence: ui::WidgetProminence::Subtle,
         })
         .sizing(ui::WidgetSizing::fixed(ui::Vector2::new(

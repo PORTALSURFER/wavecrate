@@ -49,6 +49,8 @@ impl GuiAppState {
             native_file_drop_hover: None,
             metadata_tag_draft: String::new(),
             metadata_tag_tokens: Vec::new(),
+            metadata_tag_completion_prefix: None,
+            metadata_tag_completion_index: 0,
             metadata_tags_by_file: HashMap::new(),
             sample_name_view_mode: SampleNameViewMode::DiskFilename,
         };
