@@ -206,3 +206,48 @@ fn invalid_drag_hover_only_reports_when_it_can_clear_existing_target() {
         "invalid rows only need to notify the app when they can clear a previous drop target"
     );
 }
+
+#[test]
+fn normal_folder_hover_does_not_request_stable_pointer_moves() {
+    let target = FolderTreeHitTarget::new("kicks", false, false, false, false, false, false);
+
+    assert!(
+        !target.accepts_pointer_move(),
+        "ordinary folder hover should update on enter and leave without rerouting every stable move"
+    );
+}
+
+#[test]
+fn drag_folder_hover_keeps_stable_pointer_moves_for_drop_feedback() {
+    let target = FolderTreeHitTarget::new("loops", false, false, true, false, true, true);
+
+    assert!(
+        target.accepts_pointer_move(),
+        "folder drop feedback still needs stable pointer moves while an item is being dragged"
+    );
+}
+
+#[test]
+fn pressed_folder_row_keeps_stable_pointer_moves_for_drag_start() {
+    let mut target = FolderTreeHitTarget::new("kicks", false, false, false, false, false, false);
+    target.common.state.pressed = true;
+
+    assert!(
+        target.accepts_pointer_move(),
+        "pressed rows must keep motion so a drag can start without depending on hover churn"
+    );
+}
+
+#[test]
+fn folder_hover_state_survives_surface_refresh() {
+    let mut previous = FolderTreeHitTarget::new("kicks", false, false, false, false, false, false);
+    previous.common.state.hovered = true;
+
+    let mut refreshed = FolderTreeHitTarget::new("kicks", false, false, false, false, false, false);
+    refreshed.synchronize_from_previous(&previous);
+
+    assert!(
+        refreshed.common.state.hovered,
+        "surface refreshes must not clear custom folder-row hover while the runtime still owns that hover"
+    );
+}

@@ -23,6 +23,7 @@ impl FolderDropClearTarget {
         common.paint.bounds = PaintBounds::ClipToRect;
         common.paint.paints_focus = false;
         common.paint.paints_state_layers = false;
+        common.state.disabled = !drop_target_active;
         Self {
             common,
             drop_target_active,
@@ -53,7 +54,7 @@ impl Widget for FolderDropClearTarget {
     }
 
     fn accepts_pointer_move(&self) -> bool {
-        true
+        self.drop_target_active
     }
 
     fn append_paint(
@@ -108,5 +109,17 @@ mod tests {
                 .is_none(),
             "background pointer motion should not force scene rebuilds when there is no drop target to clear"
         );
+    }
+
+    #[test]
+    fn clear_target_only_accepts_pointer_move_while_drop_target_is_active() {
+        assert!(!FolderDropClearTarget::new(false).accepts_pointer_move());
+        assert!(FolderDropClearTarget::new(true).accepts_pointer_move());
+    }
+
+    #[test]
+    fn clear_target_is_disabled_when_no_drop_target_is_active() {
+        assert!(FolderDropClearTarget::new(false).common.state.disabled);
+        assert!(!FolderDropClearTarget::new(true).common.state.disabled);
     }
 }

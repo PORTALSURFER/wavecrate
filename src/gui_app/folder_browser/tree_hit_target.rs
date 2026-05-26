@@ -117,8 +117,16 @@ impl Widget for FolderTreeHitTarget {
         }
     }
 
+    fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
+        let Some(previous) = previous.as_any().downcast_ref::<Self>() else {
+            return;
+        };
+        self.common.state = previous.common.state;
+        self.dragged = previous.dragged;
+    }
+
     fn accepts_pointer_move(&self) -> bool {
-        true
+        self.common.state.pressed || self.drag_active || self.drag_source || self.drop_target_active
     }
 
     fn append_paint(

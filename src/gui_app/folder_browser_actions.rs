@@ -12,6 +12,7 @@ use super::{
 impl GuiAppState {
     pub(super) fn resize_folder_browser(&mut self, message: DragHandleMessage) {
         let started_at = Instant::now();
+        let should_log = !matches!(message, DragHandleMessage::Moved { .. });
         let outcome = match message {
             DragHandleMessage::Started { .. } => "started",
             DragHandleMessage::Moved { .. } => "moved",
@@ -36,14 +37,16 @@ impl GuiAppState {
                 }
             }
         }
-        emit_gui_action(
-            "layout.resize_folder_browser",
-            Some("folder_browser"),
-            None,
-            outcome,
-            started_at,
-            None,
-        );
+        if should_log {
+            emit_gui_action(
+                "layout.resize_folder_browser",
+                Some("folder_browser"),
+                None,
+                outcome,
+                started_at,
+                None,
+            );
+        }
     }
 
     pub(super) fn apply_folder_browser_message(

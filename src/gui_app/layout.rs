@@ -51,22 +51,16 @@ fn folder_sidebar(state: &GuiAppState) -> ui::View<GuiMessage> {
 }
 
 fn folder_splitter() -> ui::View<GuiMessage> {
-    ui::column([
-        ui::spacer().fill(),
-        ui::drag_handle()
-            .mapped(GuiMessage::ResizeFolder)
-            .key("folder-browser-splitter-handle")
-            .size(5.0, 32.0),
-        ui::spacer().fill(),
-    ])
-    .style(ui::WidgetStyle {
-        tone: ui::WidgetTone::Accent,
-        prominence: ui::WidgetProminence::Subtle,
-    })
-    .width(11.0)
-    .fill_height()
-    .padding(2.0)
-    .spacing(4.0)
+    ui::drag_handle()
+        .mapped(GuiMessage::ResizeFolder)
+        .key("folder-browser-splitter-handle")
+        .style(ui::WidgetStyle {
+            tone: ui::WidgetTone::Accent,
+            prominence: ui::WidgetProminence::Subtle,
+        })
+        .width(11.0)
+        .fill_height()
+        .padding(2.0)
 }
 
 fn main_area(state: &mut GuiAppState) -> ui::View<GuiMessage> {
