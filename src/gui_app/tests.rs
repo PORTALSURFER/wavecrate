@@ -800,14 +800,36 @@ fn default_gui_tag_library_opens_beside_folder_sidebar() {
     );
 
     assert!(frame_has_text(&frame, "Tag Editor"));
-    assert!(frame_has_text(&frame, "v Playback Type"));
+    assert!(frame_has_text(&frame, "v Playback Type (2)"));
     assert!(frame_has_text(&frame, "v Sound Type (2)"));
     assert!(frame_has_text(&frame, "v Character (1)"));
     assert!(frame_has_text(&frame, "v Prefix"));
     assert!(frame_has_text(&frame, "v Tuning/Scale"));
+    assert!(frame_has_text(&frame, "[ ] loop"));
+    assert!(frame_has_text(&frame, "[ ] one-shot"));
     assert!(frame_has_text(&frame, "[x] hat"));
     assert!(frame_has_text(&frame, "[ ] bass"));
     assert!(frame_has_text(&frame, "[x] seq"));
+}
+
+#[test]
+fn default_gui_tag_library_can_apply_default_playback_tags() {
+    let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("tag-target.wav");
+
+    state.apply_message(
+        super::GuiMessage::ToggleMetadataTagLibrary,
+        &mut ui::UpdateContext::default(),
+    );
+    state.apply_message(
+        super::GuiMessage::ToggleMetadataTag(String::from("one-shot")),
+        &mut ui::UpdateContext::default(),
+    );
+
+    assert!(state.metadata_tag_library_open);
+    assert_eq!(
+        state.metadata_tags_by_file.get(&selected_file),
+        Some(&vec![String::from("one-shot")])
+    );
 }
 
 #[test]

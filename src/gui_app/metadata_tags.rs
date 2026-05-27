@@ -70,6 +70,8 @@ const USER_EXTENSIBLE_METADATA_TAG_CATEGORIES: [(&str, &str); 4] = [
     ("tuning-scale", "Tuning/Scale"),
 ];
 
+const DEFAULT_METADATA_TAGS: &[&str] = &["one-shot", "loop"];
+
 const PLAYBACK_TYPE_TAGS: &[&str] = &["loop", "one shot", "oneshot"];
 const SOUND_TYPE_TAGS: &[&str] = &[
     "kick",
@@ -372,9 +374,14 @@ impl GuiAppState {
     }
 
     pub(super) fn known_metadata_tags(&self) -> Vec<String> {
-        self.metadata_tags_by_file
-            .values()
-            .flat_map(|tags| tags.iter().cloned())
+        DEFAULT_METADATA_TAGS
+            .iter()
+            .map(|tag| (*tag).to_string())
+            .chain(
+                self.metadata_tags_by_file
+                    .values()
+                    .flat_map(|tags| tags.iter().cloned()),
+            )
             .chain(self.metadata_tag_dictionary.keys().cloned())
             .collect::<BTreeSet<_>>()
             .into_iter()
