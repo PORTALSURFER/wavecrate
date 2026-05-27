@@ -824,6 +824,46 @@ fn folder_browser_metadata_selected_tag_chip_uses_strong_accent_style() {
 }
 
 #[test]
+fn clicking_metadata_tag_chip_selects_it_in_sidebar() {
+    let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("tag-target.wav");
+    state
+        .metadata_tags_by_file
+        .insert(selected_file, vec![String::from("hat")]);
+    let bridge = DeclarativeOwnedRuntimeBridge::new(
+        state,
+        |state| radiant::runtime::UiSurface::new(super::view(state).into_node()),
+        |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    let tag_rect = text_rect(
+        &runtime.frame(&radiant::theme::ThemeTokens::default()),
+        "hat",
+    )
+    .expect("metadata tag chip should paint");
+    let point = Point::new(
+        (tag_rect.min.x + tag_rect.max.x) * 0.5,
+        (tag_rect.min.y + tag_rect.max.y) * 0.5,
+    );
+
+    runtime.dispatch_event(Event::PointerPress {
+        position: point,
+        button: PointerButton::Primary,
+        modifiers: PointerModifiers::default(),
+    });
+    runtime.dispatch_message(super::GuiMessage::Frame);
+    runtime.dispatch_event(Event::PointerRelease {
+        position: point,
+        button: PointerButton::Primary,
+        modifiers: PointerModifiers::default(),
+    });
+
+    assert_eq!(
+        runtime.bridge().state().selected_metadata_tag.as_deref(),
+        Some("hat")
+    );
+}
+
+#[test]
 fn default_gui_tag_library_opens_beside_folder_sidebar() {
     let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("tag-target.wav");
     state.metadata_tags_by_file.insert(
