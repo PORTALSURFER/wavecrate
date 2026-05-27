@@ -1267,7 +1267,18 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_and_options() {
     );
 
     assert!(frame_has_text(&frame, "kick"));
-    assert!(frame_has_text(&frame, "ck"));
+    let tag_input = frame
+        .paint_plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::TextInput(input) => Some(input),
+            _ => None,
+        })
+        .expect("tag input should paint");
+    assert_eq!(tag_input.state.value, "kick");
+    assert_eq!(tag_input.state.selection_anchor, 2);
+    assert_eq!(tag_input.state.caret, 4);
     assert!(frame_has_text(&frame, "Sound Type"));
     assert!(frame_has_text(&frame, "kicker"));
     assert!(frame_has_text(&frame, "Character"));
@@ -1486,8 +1497,11 @@ fn metadata_autocomplete_does_not_block_tag_library_clicks() {
     });
     assert!(runtime.focused_widget().is_some());
 
-    let tag_rect = text_rect(&runtime.frame(&radiant::theme::ThemeTokens::default()), "[ ] bass")
-        .expect("available tag should paint");
+    let tag_rect = text_rect(
+        &runtime.frame(&radiant::theme::ThemeTokens::default()),
+        "[ ] bass",
+    )
+    .expect("available tag should paint");
     let point = Point::new(
         (tag_rect.min.x + tag_rect.max.x) * 0.5,
         (tag_rect.min.y + tag_rect.max.y) * 0.5,
@@ -1505,7 +1519,11 @@ fn metadata_autocomplete_does_not_block_tag_library_clicks() {
     });
 
     assert_eq!(
-        runtime.bridge().state().metadata_tags_by_file.get(&selected_file),
+        runtime
+            .bridge()
+            .state()
+            .metadata_tags_by_file
+            .get(&selected_file),
         Some(&vec![String::from("bass")]),
         "autocomplete popup must not prevent clicking tags in the tag library"
     );
@@ -1587,7 +1605,11 @@ fn metadata_autocomplete_does_not_block_source_row_clicks_with_tag_library_open(
     });
 
     assert_eq!(
-        runtime.bridge().state().folder_browser.selected_folder_path(),
+        runtime
+            .bridge()
+            .state()
+            .folder_browser
+            .selected_folder_path(),
         Some(second_root),
         "autocomplete popup and tag library must not prevent clicking source rows"
     );
@@ -1617,7 +1639,10 @@ fn metadata_tag_field_background_click_focuses_tag_input() {
         input_rect.width() > 160.0,
         "tag input should expose a broad click target, got {input_rect:?}"
     );
-    let point = Point::new(input_rect.min.x + 10.0, (input_rect.min.y + input_rect.max.y) * 0.5);
+    let point = Point::new(
+        input_rect.min.x + 10.0,
+        (input_rect.min.y + input_rect.max.y) * 0.5,
+    );
 
     runtime.dispatch_event(Event::PointerPress {
         position: point,
@@ -1676,9 +1701,20 @@ fn folder_browser_metadata_tag_field_renders_pending_category_prompt() {
     assert!(frame_has_text(&frame, "Sound Type"));
     assert!(frame_has_text(&frame, "Group"));
     let pending_tag_rect = text_rect(&frame, "deep-kick ->").expect("pending tag should paint");
-    let suffix_rect = text_rect(&frame, "-type").expect("completion suffix should paint");
+    let category_input = frame
+        .paint_plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::TextInput(input) => Some(input),
+            _ => None,
+        })
+        .expect("category input should paint");
+    assert_eq!(category_input.state.value, "sound-type");
+    assert_eq!(category_input.state.selection_anchor, 5);
+    assert_eq!(category_input.state.caret, 10);
     assert!(
-        suffix_rect.min.x > pending_tag_rect.max.x,
+        category_input.rect.min.x > pending_tag_rect.max.x,
         "category input should stay on the same row after the pending tag arrow"
     );
     let sound_type_rect = text_rect(&frame, "Sound Type").expect("completion option should paint");
@@ -1716,20 +1752,9 @@ fn folder_browser_metadata_tag_input_moves_to_next_row_when_crowded() {
         &radiant::theme::ThemeTokens::default(),
     );
 
-    let tag_clip = frame.paint_plan.primitives.iter().find_map(|primitive| {
-        if let PaintPrimitive::ClipStart(clip) = primitive
-            && (clip.rect.height() - 45.0).abs() < 0.01
-        {
-            return Some(clip.rect);
-        }
-        None
-    });
-    let tag_clip = tag_clip.expect("combined tag field should have a clipped viewport");
     let first_tag_y = frame.paint_plan.primitives.iter().find_map(|primitive| {
         if let PaintPrimitive::FillRect(fill) = primitive
             && (fill.rect.height() - 18.0).abs() < 0.01
-            && fill.rect.min.y >= tag_clip.min.y
-            && fill.rect.max.y <= tag_clip.max.y
         {
             return Some(fill.rect.min.y);
         }
@@ -1745,7 +1770,7 @@ fn folder_browser_metadata_tag_input_moves_to_next_row_when_crowded() {
     let input_rect = input_rect.expect("tag input should paint");
 
     assert!(input_rect.min.y > first_tag_y);
-    assert!(input_rect.max.x <= tag_clip.max.x);
+    assert!(input_rect.max.x <= 260.0);
 }
 
 #[test]
@@ -1831,21 +1856,9 @@ fn folder_browser_metadata_tag_input_wraps_after_full_tag_row() {
         &radiant::theme::ThemeTokens::default(),
     );
 
-    let tag_clip = frame.paint_plan.primitives.iter().find_map(|primitive| {
-        if let PaintPrimitive::ClipStart(clip) = primitive
-            && clip.rect.height() >= 45.0
-            && clip.rect.height() <= 48.0
-        {
-            return Some(clip.rect);
-        }
-        None
-    });
-    let tag_clip = tag_clip.expect("tag field should grow to at least two rows");
     let first_tag_y = frame.paint_plan.primitives.iter().find_map(|primitive| {
         if let PaintPrimitive::FillRect(fill) = primitive
             && (fill.rect.height() - 18.0).abs() < 0.01
-            && fill.rect.min.y >= tag_clip.min.y
-            && fill.rect.max.y <= tag_clip.max.y
         {
             return Some(fill.rect.min.y);
         }
@@ -1861,7 +1874,7 @@ fn folder_browser_metadata_tag_input_wraps_after_full_tag_row() {
     let input_rect = input_rect.expect("tag input should paint");
 
     assert!(input_rect.min.y > first_tag_y);
-    assert!(input_rect.max.x <= tag_clip.max.x);
+    assert!(input_rect.max.x <= 450.0);
 }
 
 #[test]

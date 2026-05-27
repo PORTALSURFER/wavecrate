@@ -366,23 +366,31 @@ fn tag_entry_field(
     }
 
     let pending_category_tag = tag_pending_category_tag.map(str::to_string);
+    let display_value = tag_input_display_value(tag_draft, tag_completion_suffix);
     let input_width = if pending_category_tag.is_some() {
-        tag_input_width(tag_draft)
+        tag_input_width(display_value.as_str())
     } else {
-        tag_input_width_for_placeholder(tag_draft, tag_input_placeholder)
+        tag_input_width_for_placeholder(display_value.as_str(), tag_input_placeholder)
     };
     let rows = tag_field_rows(
         &visible_tags,
         pending_category_tag.as_deref(),
         input_width,
-        tag_completion_suffix,
         content_width,
     );
     let row_count = rows.len();
     let content = ui::column(
         rows.into_iter()
             .enumerate()
-            .map(|(row_index, row)| tag_entry_row(row, tag_draft, tag_input_placeholder, row_index))
+            .map(|(row_index, row)| {
+                tag_entry_row(
+                    row,
+                    tag_draft,
+                    tag_input_placeholder,
+                    tag_completion_suffix,
+                    row_index,
+                )
+            })
             .collect::<Vec<_>>(),
     )
     .fill_width()
@@ -399,9 +407,7 @@ fn tag_entry_field(
             .fill_width()
             .height(height)
     } else {
-        content
-            .fill_width()
-            .height(height)
+        content.fill_width().height(height)
     }
 }
 
@@ -423,12 +429,12 @@ fn tag_field_height(
             visible_tags.push(token.clone());
         }
     }
-    let input_width = tag_input_width(tag_draft);
+    let input_width =
+        tag_input_width(tag_input_display_value(tag_draft, tag_completion_suffix).as_str());
     let rows = tag_field_rows(
         &visible_tags,
         tag_pending_category_tag,
         input_width,
-        tag_completion_suffix,
         content_width,
     )
     .len();
@@ -440,14 +446,12 @@ enum TagEntryRowItem {
     Accepted(String),
     PendingCategory(String),
     Input(f32),
-    CompletionSuffix(String),
 }
 
 fn tag_field_rows(
     tags: &[String],
     pending_category_tag: Option<&str>,
     input_width: f32,
-    tag_completion_suffix: Option<&str>,
     content_width: f32,
 ) -> Vec<Vec<TagEntryRowItem>> {
     let mut rows = pack_tag_rows(tags, content_width);
@@ -475,15 +479,6 @@ fn tag_field_rows(
         input_width,
         content_width,
     );
-    if let Some(suffix) = tag_completion_suffix {
-        push_row_item(
-            &mut rows,
-            TagEntryRowItem::CompletionSuffix(suffix.to_string()),
-            tag_completion_suffix_width(suffix),
-            content_width,
-        );
-    }
-
     rows
 }
 
@@ -534,7 +529,6 @@ fn tag_entry_row_item_width(item: &TagEntryRowItem) -> f32 {
         TagEntryRowItem::Accepted(tag) => tag_pill_width(tag),
         TagEntryRowItem::PendingCategory(tag) => tag_pill_width(tag),
         TagEntryRowItem::Input(width) => *width,
-        TagEntryRowItem::CompletionSuffix(suffix) => tag_completion_suffix_width(suffix),
     }
 }
 
@@ -567,10 +561,20 @@ fn rows_height(row_count: usize) -> f32 {
         + row_count.saturating_sub(1) as f32 * TAG_FIELD_LINE_GAP
 }
 
-fn tag_text_input(tag_draft: &str, placeholder: &str, width: f32) -> ui::View<GuiMessage> {
-    ui::text_input(tag_draft.to_string())
-        .placeholder(placeholder)
-        .underline()
+fn tag_text_input(
+    tag_draft: &str,
+    placeholder: &str,
+    completion_suffix: Option<&str>,
+    width: f32,
+) -> ui::View<GuiMessage> {
+    let value = tag_input_display_value(tag_draft, completion_suffix);
+    let draft_len = tag_draft.chars().count();
+    let value_len = value.chars().count();
+    let mut input = ui::text_input(value).placeholder(placeholder).underline();
+    if value_len > draft_len {
+        input = input.selection(draft_len, value_len);
+    }
+    input
         .message_event(GuiMessage::MetadataTagInput)
         .id(METADATA_TAG_INPUT_ID)
         .key("metadata-tag-input")
@@ -582,10 +586,18 @@ fn tag_text_input(tag_draft: &str, placeholder: &str, width: f32) -> ui::View<Gu
         .width(width)
 }
 
+fn tag_input_display_value(tag_draft: &str, completion_suffix: Option<&str>) -> String {
+    completion_suffix
+        .filter(|suffix| !suffix.is_empty())
+        .map(|suffix| format!("{tag_draft}{suffix}"))
+        .unwrap_or_else(|| tag_draft.to_string())
+}
+
 fn tag_entry_row(
     row: Vec<TagEntryRowItem>,
     tag_draft: &str,
     tag_input_placeholder: &str,
+    tag_completion_suffix: Option<&str>,
     row_index: usize,
 ) -> ui::View<GuiMessage> {
     ui::row(
@@ -593,12 +605,12 @@ fn tag_entry_row(
             .map(|item| match item {
                 TagEntryRowItem::Accepted(tag) => accepted_tag_token(tag.as_str()),
                 TagEntryRowItem::PendingCategory(tag) => pending_category_tag_token(tag.as_str()),
-                TagEntryRowItem::Input(width) => {
-                    tag_text_input(tag_draft, tag_input_placeholder, width)
-                }
-                TagEntryRowItem::CompletionSuffix(suffix) => {
-                    tag_completion_suffix_token(suffix.as_str())
-                }
+                TagEntryRowItem::Input(width) => tag_text_input(
+                    tag_draft,
+                    tag_input_placeholder,
+                    tag_completion_suffix,
+                    width,
+                ),
             })
             .collect::<Vec<_>>(),
     )
@@ -620,10 +632,6 @@ fn tag_input_width_for_placeholder(value: &str, placeholder: &str) -> f32 {
 
 fn tag_pill_width(tag: &str) -> f32 {
     (tag.chars().count() as f32 * 7.0 + 22.0).clamp(38.0, 180.0)
-}
-
-fn tag_completion_suffix_width(suffix: &str) -> f32 {
-    (suffix.chars().count() as f32 * 7.0 + 14.0).clamp(24.0, 120.0)
 }
 
 fn accepted_tag_token(tag: &str) -> ui::View<GuiMessage> {
@@ -658,23 +666,6 @@ fn pending_category_tag_token(tag: &str) -> ui::View<GuiMessage> {
         )))
         .height(TAG_FIELD_CONTROL_HEIGHT)
         .width(tag_pill_width(tag))
-}
-
-fn tag_completion_suffix_token(suffix: &str) -> ui::View<GuiMessage> {
-    let width = tag_completion_suffix_width(suffix);
-    ui::badge(suffix.to_string())
-        .message(GuiMessage::Noop)
-        .key(format!("metadata-tag-completion-suffix-{suffix}"))
-        .style(WidgetStyle {
-            tone: WidgetTone::Accent,
-            prominence: ui::WidgetProminence::Strong,
-        })
-        .sizing(ui::WidgetSizing::fixed(ui::Vector2::new(
-            width,
-            TAG_FIELD_CONTROL_HEIGHT,
-        )))
-        .height(TAG_FIELD_CONTROL_HEIGHT)
-        .width(width)
 }
 
 fn tag_completion_popup_height(options: &[MetadataTagCompletionOption]) -> f32 {
