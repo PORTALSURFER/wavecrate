@@ -18,6 +18,7 @@ pub(super) struct MetadataTagCommit {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct MetadataTagPersistResult {
     tags: Vec<String>,
+    assigned: bool,
     result: Result<(), String>,
 }
 
@@ -27,6 +28,7 @@ struct MetadataTagPersistRequest {
     source_root: PathBuf,
     relative_path: PathBuf,
     tags: Vec<String>,
+    assigned: bool,
 }
 
 impl GuiAppState {
@@ -225,34 +227,95 @@ impl GuiAppState {
                 source_root,
                 relative_path,
                 tags: added,
+                assigned: true,
             };
             context.spawn(
                 "gui-metadata-tag-persist",
-                move || persist_metadata_tag_additions(request),
+                move || persist_metadata_tag_assignment(request),
                 GuiMessage::MetadataTagsPersisted,
             );
         }
     }
 
+    pub(super) fn toggle_metadata_tag(
+        &mut self,
+        tag: String,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        if self
+            .selected_metadata_tags()
+            .iter()
+            .any(|existing| existing == &tag)
+        {
+            self.remove_metadata_tag(tag, context);
+        } else {
+            self.add_metadata_tags(vec![tag], context);
+        }
+    }
+
+    fn remove_metadata_tag(&mut self, tag: String, context: &mut ui::UpdateContext<GuiMessage>) {
+        let Some(file_id) = self.folder_browser.selected_file_id().map(str::to_owned) else {
+            self.sample_status = String::from("Select a sample before removing tags");
+            return;
+        };
+        let absolute_path = PathBuf::from(&file_id);
+        let Some((source_root, relative_path)) = self
+            .folder_browser
+            .source_relative_file_path(&absolute_path)
+        else {
+            self.sample_status = String::from("Selected sample is not inside a configured source");
+            return;
+        };
+        let Some(file_tags) = self.metadata_tags_by_file.get_mut(&file_id) else {
+            return;
+        };
+        let before_len = file_tags.len();
+        file_tags.retain(|existing| existing != &tag);
+        if file_tags.len() == before_len {
+            return;
+        }
+        if file_tags.is_empty() {
+            self.metadata_tags_by_file.remove(&file_id);
+        }
+        self.sample_status = format!("Removed tag {tag}");
+        let request = MetadataTagPersistRequest {
+            absolute_path,
+            source_root,
+            relative_path,
+            tags: vec![tag],
+            assigned: false,
+        };
+        context.spawn(
+            "gui-metadata-tag-persist",
+            move || persist_metadata_tag_assignment(request),
+            GuiMessage::MetadataTagsPersisted,
+        );
+    }
+
     pub(super) fn finish_metadata_tag_persist(&mut self, result: MetadataTagPersistResult) {
         if let Err(error) = result.result {
             self.sample_status = match result.tags.as_slice() {
-                [tag] => format!("Tag {tag} not saved: {error}"),
-                tags => format!("{} tags not saved: {error}", tags.len()),
+                [tag] if result.assigned => format!("Tag {tag} not saved: {error}"),
+                [tag] => format!("Tag {tag} not removed: {error}"),
+                tags if result.assigned => format!("{} tags not saved: {error}", tags.len()),
+                tags => format!("{} tags not removed: {error}", tags.len()),
             };
         }
     }
 }
 
-fn persist_metadata_tag_additions(request: MetadataTagPersistRequest) -> MetadataTagPersistResult {
-    let result = persist_metadata_tag_additions_inner(&request);
+fn persist_metadata_tag_assignment(request: MetadataTagPersistRequest) -> MetadataTagPersistResult {
+    let result = persist_metadata_tag_assignment_inner(&request);
     MetadataTagPersistResult {
         tags: request.tags,
+        assigned: request.assigned,
         result,
     }
 }
 
-fn persist_metadata_tag_additions_inner(request: &MetadataTagPersistRequest) -> Result<(), String> {
+fn persist_metadata_tag_assignment_inner(
+    request: &MetadataTagPersistRequest,
+) -> Result<(), String> {
     let (file_size, modified_ns) = file_metadata(&request.absolute_path)?;
     let db = SourceDatabase::open_for_user_metadata_write(&request.source_root)
         .map_err(|err| err.to_string())?;
@@ -261,9 +324,16 @@ fn persist_metadata_tag_additions_inner(request: &MetadataTagPersistRequest) -> 
         .upsert_file(&request.relative_path, file_size, modified_ns)
         .map_err(|err| err.to_string())?;
     for tag in &request.tags {
-        batch
-            .assign_tag_to_path(&request.relative_path, tag)
-            .map_err(|err| err.to_string())?;
+        if request.assigned {
+            batch
+                .assign_tag_to_path(&request.relative_path, tag)
+                .map(|_| ())
+        } else {
+            batch
+                .remove_tag_from_path(&request.relative_path, tag)
+                .map(|_| ())
+        }
+        .map_err(|err| err.to_string())?;
     }
     batch.commit().map_err(|err| err.to_string())
 }
@@ -275,11 +345,28 @@ pub(super) fn persist_metadata_tag_additions_for_tests(
     relative_path: PathBuf,
     tags: Vec<String>,
 ) -> Result<(), String> {
-    persist_metadata_tag_additions_inner(&MetadataTagPersistRequest {
+    persist_metadata_tag_assignment_inner(&MetadataTagPersistRequest {
         absolute_path,
         source_root,
         relative_path,
         tags,
+        assigned: true,
+    })
+}
+
+#[cfg(test)]
+pub(super) fn persist_metadata_tag_removals_for_tests(
+    absolute_path: PathBuf,
+    source_root: PathBuf,
+    relative_path: PathBuf,
+    tags: Vec<String>,
+) -> Result<(), String> {
+    persist_metadata_tag_assignment_inner(&MetadataTagPersistRequest {
+        absolute_path,
+        source_root,
+        relative_path,
+        tags,
+        assigned: false,
     })
 }
 

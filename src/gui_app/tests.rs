@@ -753,7 +753,7 @@ fn default_gui_tag_library_button_adds_existing_tag() {
         &mut ui::UpdateContext::default(),
     );
     state.apply_message(
-        super::GuiMessage::AddMetadataTag(String::from("bass")),
+        super::GuiMessage::ToggleMetadataTag(String::from("bass")),
         &mut ui::UpdateContext::default(),
     );
 
@@ -762,6 +762,34 @@ fn default_gui_tag_library_button_adds_existing_tag() {
         state.metadata_tags_by_file.get(&selected_file),
         Some(&vec![String::from("bass")])
     );
+}
+
+#[test]
+fn default_gui_tag_library_button_removes_selected_tag() {
+    let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("tag-target.wav");
+    state.metadata_tags_by_file.insert(
+        selected_file.clone(),
+        vec![String::from("bass"), String::from("hat")],
+    );
+    state
+        .metadata_tags_by_file
+        .insert(String::from("other.wav"), vec![String::from("bass")]);
+
+    state.apply_message(
+        super::GuiMessage::ToggleMetadataTagLibrary,
+        &mut ui::UpdateContext::default(),
+    );
+    state.apply_message(
+        super::GuiMessage::ToggleMetadataTag(String::from("bass")),
+        &mut ui::UpdateContext::default(),
+    );
+
+    assert!(state.metadata_tag_library_open);
+    assert_eq!(
+        state.metadata_tags_by_file.get(&selected_file),
+        Some(&vec![String::from("hat")])
+    );
+    assert_eq!(state.sample_status, "Removed tag bass");
 }
 
 #[test]
@@ -887,7 +915,7 @@ fn metadata_tag_input_submits_normalized_tags() {
 }
 
 #[test]
-fn metadata_tag_input_persists_tags_to_source_database_and_reloads() {
+fn metadata_tag_input_persists_tag_assignments_and_removals_to_source_database() {
     let config_base = tempfile::tempdir().expect("config base");
     let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
     let source_root = tempfile::tempdir().expect("source root");
@@ -931,10 +959,24 @@ fn metadata_tag_input_persists_tags_to_source_database_and_reloads() {
         vec![String::from("deep-kick"), String::from("warm-tone")]
     );
 
+    super::metadata_tags::persist_metadata_tag_removals_for_tests(
+        sample_path.clone(),
+        source_root.path().to_path_buf(),
+        PathBuf::from("persistent-tag.wav"),
+        vec![String::from("deep-kick")],
+    )
+    .expect("persist tag removal");
+
+    assert_eq!(
+        db.tag_labels_for_path(std::path::Path::new("persistent-tag.wav"))
+            .expect("tag labels after removal"),
+        vec![String::from("warm-tone")]
+    );
+
     let reloaded = GuiAppState::load_default().expect("default state reloads");
     assert_eq!(
         reloaded.metadata_tags_by_file.get(&selected_file),
-        Some(&vec![String::from("deep-kick"), String::from("warm-tone")])
+        Some(&vec![String::from("warm-tone")])
     );
 }
 

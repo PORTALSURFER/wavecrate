@@ -100,7 +100,7 @@ fn metadata_tag_library_row(tag: String, selected_tags: &[String]) -> ui::View<G
         format!("[ ] {tag}")
     };
     let mut button = ui::button(label)
-        .message(GuiMessage::AddMetadataTag(tag.clone()))
+        .message(GuiMessage::ToggleMetadataTag(tag.clone()))
         .key(format!("metadata-tag-library-row-{tag}"))
         .fill_width()
         .height(22.0);
