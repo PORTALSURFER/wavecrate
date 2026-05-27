@@ -10,8 +10,6 @@ mod runner;
 mod scenario;
 #[cfg(test)]
 mod shell_automation;
-#[cfg(test)]
-mod shell_shots;
 
 pub use self::aiv::{
     GuiAivAssertion, GuiAivCase, GuiAivStep, GuiAivSuiteManifest, export_aiv_suite,

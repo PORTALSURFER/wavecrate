@@ -63,9 +63,6 @@ use tracing::info;
 mod app_model;
 /// Browser panel/frame/row projection helpers and retained browser caches.
 mod browser_projection;
-/// Deprecated Wavecrate-owned native shell composition tree.
-#[path = "native_shell/composition/mod.rs"]
-pub(crate) mod composition;
 /// Confirm-prompt projection helpers and folder-name validation utilities.
 mod confirm_prompt_projection;
 /// Map panel projection helpers and retained projected map-point caches.
@@ -85,9 +82,6 @@ mod waveform_projection;
 
 pub(crate) use app_model::project_app_model;
 
-/// Deprecated Wavecrate-owned runtime contract consumed by native-shell composition and the runtime adapter.
-#[path = "native_shell/runtime_contract.rs"]
-pub(crate) mod runtime_contract;
 #[cfg(test)]
 use app_model::{
     assemble_project_app_model, derive_project_app_model_inputs,

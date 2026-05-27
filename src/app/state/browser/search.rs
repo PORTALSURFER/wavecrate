@@ -9,6 +9,7 @@ pub use playback_age::{
     PlaybackAgeBucket, PlaybackAgeFilterChip, browser_playback_age_filter_chips,
     playback_age_bucket_matches_filters,
 };
+#[allow(unused_imports)]
 pub use sidebar::{
     BrowserBitDepthFacet, BrowserBpmFacet, BrowserChannelFacet, BrowserFormatFacet,
     BrowserKeyFacet, BrowserSidebarFilterFacet, BrowserSidebarFilterOption,

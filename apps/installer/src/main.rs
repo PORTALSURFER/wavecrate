@@ -24,6 +24,7 @@ fn main() -> Result<(), String> {
         env::args(),
         cleanup::run_uninstall,
         install::run_dry_run,
+        run_headless_install,
         ui::run_installer_app,
     )
 }
@@ -32,19 +33,22 @@ fn main() -> Result<(), String> {
 enum InstallerEntryCommand {
     Uninstall,
     DryRun,
+    Install,
     LaunchUi,
 }
 
-fn run_with_args<I, U, D, L>(
+fn run_with_args<I, U, D, H, L>(
     args: I,
     run_uninstall: U,
     run_dry_run: D,
+    run_install: H,
     run_ui: L,
 ) -> Result<(), String>
 where
     I: IntoIterator<Item = String>,
     U: FnOnce() -> Result<(), String>,
     D: FnOnce() -> Result<(), String>,
+    H: FnOnce() -> Result<(), String>,
     L: FnOnce() -> Result<(), String>,
 {
     match select_entry_command(args) {
@@ -60,6 +64,7 @@ where
             }
             Ok(())
         }
+        InstallerEntryCommand::Install => run_install(),
         InstallerEntryCommand::LaunchUi => run_ui(),
     }
 }
@@ -76,8 +81,31 @@ where
         if arg == "--dry-run" {
             command = InstallerEntryCommand::DryRun;
         }
+        if arg == "--install" {
+            command = InstallerEntryCommand::Install;
+        }
     }
     command
+}
+
+fn run_headless_install() -> Result<(), String> {
+    let bundle_dir = paths::default_bundle_dir();
+    let install_dir = paths::default_install_dir();
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let result = install::run_install(&bundle_dir, &install_dir, sender);
+    for event in receiver.try_iter() {
+        match event {
+            ui::InstallerEvent::Started { total_files } => {
+                println!("Installing {total_files} files");
+            }
+            ui::InstallerEvent::FileCopied { copied_files, name } => {
+                println!("Copied {copied_files}: {name}");
+            }
+            ui::InstallerEvent::Log(message) => println!("{message}"),
+            ui::InstallerEvent::Finished => println!("Install complete"),
+        }
+    }
+    result
 }
 
 #[cfg(test)]
@@ -120,6 +148,15 @@ mod tests {
     }
 
     #[test]
+    fn select_entry_command_uses_install_when_requested() {
+        let command = select_entry_command(vec![
+            String::from("wavecrate-installer"),
+            String::from("--install"),
+        ]);
+        assert_eq!(command, InstallerEntryCommand::Install);
+    }
+
+    #[test]
     fn select_entry_command_prefers_uninstall_over_dry_run() {
         let command = select_entry_command(vec![
             String::from("wavecrate-installer"),
@@ -133,6 +170,7 @@ mod tests {
     fn run_with_args_dispatches_uninstall_without_launching_ui() {
         let uninstall_called = Cell::new(false);
         let dry_run_called = Cell::new(false);
+        let install_called = Cell::new(false);
         let ui_called = Cell::new(false);
 
         let result = run_with_args(
@@ -149,6 +187,10 @@ mod tests {
                 Ok(())
             },
             || {
+                install_called.set(true);
+                Ok(())
+            },
+            || {
                 ui_called.set(true);
                 Ok(())
             },
@@ -157,6 +199,7 @@ mod tests {
         assert!(result.is_ok());
         assert!(uninstall_called.get());
         assert!(!dry_run_called.get());
+        assert!(!install_called.get());
         assert!(!ui_called.get());
     }
 
@@ -164,6 +207,7 @@ mod tests {
     fn run_with_args_dispatches_dry_run_without_launching_ui() {
         let uninstall_called = Cell::new(false);
         let dry_run_called = Cell::new(false);
+        let install_called = Cell::new(false);
         let ui_called = Cell::new(false);
 
         let result = run_with_args(
@@ -180,6 +224,10 @@ mod tests {
                 Ok(())
             },
             || {
+                install_called.set(true);
+                Ok(())
+            },
+            || {
                 ui_called.set(true);
                 Ok(())
             },
@@ -188,6 +236,44 @@ mod tests {
         assert!(result.is_ok());
         assert!(!uninstall_called.get());
         assert!(dry_run_called.get());
+        assert!(!install_called.get());
+        assert!(!ui_called.get());
+    }
+
+    #[test]
+    fn run_with_args_dispatches_headless_install_without_launching_ui() {
+        let uninstall_called = Cell::new(false);
+        let dry_run_called = Cell::new(false);
+        let install_called = Cell::new(false);
+        let ui_called = Cell::new(false);
+
+        let result = run_with_args(
+            vec![
+                String::from("wavecrate-installer"),
+                String::from("--install"),
+            ],
+            || {
+                uninstall_called.set(true);
+                Ok(())
+            },
+            || {
+                dry_run_called.set(true);
+                Ok(())
+            },
+            || {
+                install_called.set(true);
+                Ok(())
+            },
+            || {
+                ui_called.set(true);
+                Ok(())
+            },
+        );
+
+        assert!(result.is_ok());
+        assert!(!uninstall_called.get());
+        assert!(!dry_run_called.get());
+        assert!(install_called.get());
         assert!(!ui_called.get());
     }
 
@@ -195,6 +281,7 @@ mod tests {
     fn run_with_args_launches_ui_by_default() {
         let uninstall_called = Cell::new(false);
         let dry_run_called = Cell::new(false);
+        let install_called = Cell::new(false);
         let ui_called = Cell::new(false);
 
         let result = run_with_args(
@@ -208,6 +295,10 @@ mod tests {
                 Ok(())
             },
             || {
+                install_called.set(true);
+                Ok(())
+            },
+            || {
                 ui_called.set(true);
                 Ok(())
             },
@@ -216,6 +307,7 @@ mod tests {
         assert!(result.is_ok());
         assert!(!uninstall_called.get());
         assert!(!dry_run_called.get());
+        assert!(!install_called.get());
         assert!(ui_called.get());
     }
 
@@ -223,6 +315,7 @@ mod tests {
     fn run_with_args_propagates_ui_launch_errors() {
         let result = run_with_args(
             vec![String::from("wavecrate-installer")],
+            || Ok(()),
             || Ok(()),
             || Ok(()),
             || Err(String::from("ui failed")),

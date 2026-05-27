@@ -33,14 +33,6 @@ pub(crate) mod controller_state {
     pub(crate) use crate::app::controller::state::runtime::DirtyReason;
 }
 
-/// Legacy controller hotkey types used by migration-facing runtime adapters.
-pub(crate) mod controller_ui_hotkeys {
-    /// Legacy application key-press payload used by native-shell hotkey routing.
-    pub(crate) use crate::app::controller::ui::hotkeys::KeyPress;
-    /// Legacy application hotkey resolver used by native-shell runtime adapters.
-    pub(crate) use crate::app::controller::ui::hotkeys::resolve_hotkey_press;
-}
-
 pub(crate) mod state {
     /// Legacy application state types.
     pub(crate) use crate::app::state::*;

@@ -159,6 +159,19 @@ impl AudioEngineModel {
     }
 }
 
+impl From<AudioPickerTargetModel> for form::PairedPickerTarget {
+    fn from(value: AudioPickerTargetModel) -> Self {
+        match value {
+            AudioPickerTargetModel::OutputHost => Self::PrimaryGroup,
+            AudioPickerTargetModel::OutputDevice => Self::PrimaryItem,
+            AudioPickerTargetModel::OutputSampleRate => Self::PrimaryNumber,
+            AudioPickerTargetModel::InputHost => Self::SecondaryGroup,
+            AudioPickerTargetModel::InputDevice => Self::SecondaryItem,
+            AudioPickerTargetModel::InputSampleRate => Self::SecondaryNumber,
+        }
+    }
+}
+
 /// Options-panel state projected into the native shell.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct OptionsPanelModel {
