@@ -6,7 +6,7 @@ use std::{
 
 use ::wavecrate::app_dirs;
 
-use crate::{download, paths, registry, shortcuts, ui};
+use crate::{download, events, paths, registry, shortcuts};
 
 pub(crate) struct InstallPlan {
     pub(crate) actions: Vec<PlanAction>,
@@ -20,13 +20,13 @@ pub(crate) enum PlanAction {
 pub(crate) fn run_install(
     bundle_dir: &Path,
     install_dir: &Path,
-    sender: ui::InstallerSender,
+    sender: events::InstallerSender,
 ) -> Result<(), String> {
     send_log(&sender, "Starting installer")?;
     download::ensure_downloads(&sender)?;
     send_log(&sender, "Collecting bundle entries")?;
     let entries = collect_bundle_entries(bundle_dir)?;
-    ui::send_started(&sender, entries.len())?;
+    events::send_started(&sender, entries.len())?;
 
     send_log(&sender, "Creating install directory")?;
     fs::create_dir_all(install_dir)
@@ -41,7 +41,7 @@ pub(crate) fn run_install(
         )?;
         fs::copy(source, &target)
             .map_err(|err| format!("Failed to copy {}: {err}", source.display()))?;
-        ui::send_file_copied(&sender, idx + 1, relative.display().to_string())?;
+        events::send_file_copied(&sender, idx + 1, relative.display().to_string())?;
     }
 
     send_log(&sender, "Syncing model cache")?;
@@ -51,7 +51,7 @@ pub(crate) fn run_install(
     send_log(&sender, "Creating Start Menu shortcut")?;
     shortcuts::create_start_menu_shortcut(install_dir)?;
     send_log(&sender, "Finishing install")?;
-    ui::send_finished(&sender)?;
+    events::send_finished(&sender)?;
     Ok(())
 }
 
@@ -114,9 +114,9 @@ fn ensure_parent_dir(target: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn send_log(sender: &ui::InstallerSender, message: &str) -> Result<(), String> {
+fn send_log(sender: &events::InstallerSender, message: &str) -> Result<(), String> {
     sender
-        .send(ui::InstallerEvent::Log(message.to_string()))
+        .send(events::InstallerEvent::Log(message.to_string()))
         .map_err(|err| format!("Failed to send log update: {err}"))
 }
 

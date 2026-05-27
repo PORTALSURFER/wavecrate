@@ -1,4 +1,4 @@
-//! Removed interactive installer UI entrypoint.
+//! Installer progress events and removed interactive entrypoint.
 
 use std::sync::mpsc;
 
@@ -13,8 +13,8 @@ pub(crate) enum InstallerEvent {
 /// Shared sender type used by installer tasks and helper modules.
 pub(crate) type InstallerSender = mpsc::Sender<InstallerEvent>;
 
-/// Interactive installer UI entrypoint.
-pub(crate) fn run_installer_app() -> Result<(), String> {
+/// Compatibility entrypoint for the removed interactive installer.
+pub(crate) fn removed_interactive_installer_entrypoint() -> Result<(), String> {
     Err(String::from(
         "The deprecated native installer UI has been removed; use --dry-run or --uninstall.",
     ))
@@ -54,7 +54,8 @@ mod tests {
 
     #[test]
     fn removed_interactive_installer_ui_returns_actionable_error() {
-        let err = run_installer_app().expect_err("interactive UI should be removed");
+        let err = removed_interactive_installer_entrypoint()
+            .expect_err("interactive UI should be removed");
         assert!(err.contains("deprecated native installer UI has been removed"));
     }
 }

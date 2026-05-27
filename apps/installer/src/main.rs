@@ -7,11 +7,11 @@ use std::env;
 
 mod cleanup;
 mod download;
+mod events;
 mod install;
 mod paths;
 mod registry;
 mod shortcuts;
-mod ui;
 
 const APP_NAME: &str = "SemPal";
 #[cfg(target_os = "windows")]
@@ -25,7 +25,7 @@ fn main() -> Result<(), String> {
         cleanup::run_uninstall,
         install::run_dry_run,
         run_headless_install,
-        ui::run_installer_app,
+        events::removed_interactive_installer_entrypoint,
     )
 }
 
@@ -34,7 +34,7 @@ enum InstallerEntryCommand {
     Uninstall,
     DryRun,
     Install,
-    LaunchUi,
+    RemovedInteractive,
 }
 
 fn run_with_args<I, U, D, H, L>(
@@ -42,7 +42,7 @@ fn run_with_args<I, U, D, H, L>(
     run_uninstall: U,
     run_dry_run: D,
     run_install: H,
-    run_ui: L,
+    run_removed_interactive: L,
 ) -> Result<(), String>
 where
     I: IntoIterator<Item = String>,
@@ -65,7 +65,7 @@ where
             Ok(())
         }
         InstallerEntryCommand::Install => run_install(),
-        InstallerEntryCommand::LaunchUi => run_ui(),
+        InstallerEntryCommand::RemovedInteractive => run_removed_interactive(),
     }
 }
 
@@ -73,7 +73,7 @@ fn select_entry_command<I>(args: I) -> InstallerEntryCommand
 where
     I: IntoIterator<Item = String>,
 {
-    let mut command = InstallerEntryCommand::LaunchUi;
+    let mut command = InstallerEntryCommand::RemovedInteractive;
     for arg in args.into_iter().skip(1) {
         if arg == "--uninstall" {
             return InstallerEntryCommand::Uninstall;
@@ -95,14 +95,14 @@ fn run_headless_install() -> Result<(), String> {
     let result = install::run_install(&bundle_dir, &install_dir, sender);
     for event in receiver.try_iter() {
         match event {
-            ui::InstallerEvent::Started { total_files } => {
+            events::InstallerEvent::Started { total_files } => {
                 println!("Installing {total_files} files");
             }
-            ui::InstallerEvent::FileCopied { copied_files, name } => {
+            events::InstallerEvent::FileCopied { copied_files, name } => {
                 println!("Copied {copied_files}: {name}");
             }
-            ui::InstallerEvent::Log(message) => println!("{message}"),
-            ui::InstallerEvent::Finished => println!("Install complete"),
+            events::InstallerEvent::Log(message) => println!("{message}"),
+            events::InstallerEvent::Finished => println!("Install complete"),
         }
     }
     result
@@ -133,9 +133,9 @@ mod tests {
     }
 
     #[test]
-    fn select_entry_command_defaults_to_launch_ui() {
+    fn select_entry_command_defaults_to_removed_interactive_entrypoint() {
         let command = select_entry_command(vec![String::from("wavecrate-installer")]);
-        assert_eq!(command, InstallerEntryCommand::LaunchUi);
+        assert_eq!(command, InstallerEntryCommand::RemovedInteractive);
     }
 
     #[test]
@@ -167,11 +167,11 @@ mod tests {
     }
 
     #[test]
-    fn run_with_args_dispatches_uninstall_without_launching_ui() {
+    fn run_with_args_dispatches_uninstall_without_removed_interactive_entrypoint() {
         let uninstall_called = Cell::new(false);
         let dry_run_called = Cell::new(false);
         let install_called = Cell::new(false);
-        let ui_called = Cell::new(false);
+        let removed_interactive_called = Cell::new(false);
 
         let result = run_with_args(
             vec![
@@ -191,7 +191,7 @@ mod tests {
                 Ok(())
             },
             || {
-                ui_called.set(true);
+                removed_interactive_called.set(true);
                 Ok(())
             },
         );
@@ -200,15 +200,15 @@ mod tests {
         assert!(uninstall_called.get());
         assert!(!dry_run_called.get());
         assert!(!install_called.get());
-        assert!(!ui_called.get());
+        assert!(!removed_interactive_called.get());
     }
 
     #[test]
-    fn run_with_args_dispatches_dry_run_without_launching_ui() {
+    fn run_with_args_dispatches_dry_run_without_removed_interactive_entrypoint() {
         let uninstall_called = Cell::new(false);
         let dry_run_called = Cell::new(false);
         let install_called = Cell::new(false);
-        let ui_called = Cell::new(false);
+        let removed_interactive_called = Cell::new(false);
 
         let result = run_with_args(
             vec![
@@ -228,7 +228,7 @@ mod tests {
                 Ok(())
             },
             || {
-                ui_called.set(true);
+                removed_interactive_called.set(true);
                 Ok(())
             },
         );
@@ -237,15 +237,15 @@ mod tests {
         assert!(!uninstall_called.get());
         assert!(dry_run_called.get());
         assert!(!install_called.get());
-        assert!(!ui_called.get());
+        assert!(!removed_interactive_called.get());
     }
 
     #[test]
-    fn run_with_args_dispatches_headless_install_without_launching_ui() {
+    fn run_with_args_dispatches_headless_install_without_removed_interactive_entrypoint() {
         let uninstall_called = Cell::new(false);
         let dry_run_called = Cell::new(false);
         let install_called = Cell::new(false);
-        let ui_called = Cell::new(false);
+        let removed_interactive_called = Cell::new(false);
 
         let result = run_with_args(
             vec![
@@ -265,7 +265,7 @@ mod tests {
                 Ok(())
             },
             || {
-                ui_called.set(true);
+                removed_interactive_called.set(true);
                 Ok(())
             },
         );
@@ -274,15 +274,15 @@ mod tests {
         assert!(!uninstall_called.get());
         assert!(!dry_run_called.get());
         assert!(install_called.get());
-        assert!(!ui_called.get());
+        assert!(!removed_interactive_called.get());
     }
 
     #[test]
-    fn run_with_args_launches_ui_by_default() {
+    fn run_with_args_uses_removed_interactive_entrypoint_by_default() {
         let uninstall_called = Cell::new(false);
         let dry_run_called = Cell::new(false);
         let install_called = Cell::new(false);
-        let ui_called = Cell::new(false);
+        let removed_interactive_called = Cell::new(false);
 
         let result = run_with_args(
             vec![String::from("wavecrate-installer")],
@@ -299,7 +299,7 @@ mod tests {
                 Ok(())
             },
             || {
-                ui_called.set(true);
+                removed_interactive_called.set(true);
                 Ok(())
             },
         );
@@ -308,19 +308,19 @@ mod tests {
         assert!(!uninstall_called.get());
         assert!(!dry_run_called.get());
         assert!(!install_called.get());
-        assert!(ui_called.get());
+        assert!(removed_interactive_called.get());
     }
 
     #[test]
-    fn run_with_args_propagates_ui_launch_errors() {
+    fn run_with_args_propagates_removed_interactive_entrypoint_errors() {
         let result = run_with_args(
             vec![String::from("wavecrate-installer")],
             || Ok(()),
             || Ok(()),
             || Ok(()),
-            || Err(String::from("ui failed")),
+            || Err(String::from("interactive installer removed")),
         );
 
-        assert_eq!(result, Err(String::from("ui failed")));
+        assert_eq!(result, Err(String::from("interactive installer removed")));
     }
 }

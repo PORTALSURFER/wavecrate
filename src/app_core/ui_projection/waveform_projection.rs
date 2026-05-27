@@ -3,7 +3,7 @@
 use super::*;
 use crate::app_core::app_api::state::WaveformSliceBatchProfile;
 
-/// Projected edit-fade overlay endpoints and curve values for the native waveform shell.
+/// Projected edit-fade overlay endpoints and curve values for the waveform panel.
 pub(super) struct WaveformEditFadeOverlayModel {
     /// End position of the fade-in ramp within the edit selection.
     pub(super) fade_in_end_milli: Option<u16>,
@@ -94,7 +94,7 @@ pub(super) fn project_waveform_target_label(ui: &UiState) -> Option<String> {
         .map(view_model::sample_display_label)
 }
 
-/// Resolve the waveform playhead ratio used by native projection.
+/// Resolve the waveform playhead ratio used by UI projection.
 ///
 /// When transport is actively playing, prefer the live audio-player progress so
 /// motion-only redraws are not limited by the UI state's playhead update cadence.
@@ -109,7 +109,7 @@ pub(super) fn projected_playhead_ratio(controller: &AppController) -> Option<f32
 
 /// Resolve the preferred playhead ratio from UI and live transport inputs.
 ///
-/// The native runtime uses this to keep playhead motion smooth while preserving
+/// The UI runtime uses this to keep playhead motion smooth while preserving
 /// the last known UI snapshot whenever transport is idle or live progress is
 /// temporarily unavailable.
 pub(super) fn resolve_projected_playhead_ratio(

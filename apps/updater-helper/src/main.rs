@@ -3,8 +3,6 @@
 //! The main `wavecrate` app can spawn this executable and exit so that the helper can
 //! safely replace the installed binaries.
 
-mod ui;
-
 use std::path::PathBuf;
 
 use wavecrate::updater::{
@@ -23,11 +21,8 @@ fn main() {
 }
 
 fn try_main() -> Result<(), String> {
-    let (args, headless) = parse_args(std::env::args().skip(1).collect())?;
-    if headless {
-        return run_headless(args);
-    }
-    ui::run_gui(args)
+    let (args, _headless) = parse_args(std::env::args().skip(1).collect())?;
+    run_headless(args)
 }
 
 fn run_headless(args: UpdaterRunArgs) -> Result<(), String> {
@@ -170,7 +165,7 @@ Options:\n\
   --arch <LABEL>               Arch label (default: detected)\n\
   --tag <TAG>                  Install a specific release tag\n\
   --no-relaunch                Do not relaunch the app after update\n\
-  --headless                   Run without GUI output\n\
+  --headless                   Accepted for compatibility; updates are always headless\n\
   -h, --help                   Show help\n"
     )
 }

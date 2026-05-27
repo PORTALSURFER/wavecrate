@@ -115,10 +115,10 @@ Wavecrate-owned. Default GUI work should prefer focused tests around
   - update fixtures with
     `cargo test -p wavecrate --lib update_shot_fixtures -- --ignored`
 
-### Radiant legacy ui-projection tests
+### Radiant compatibility tests
 
-Use for generic Radiant behavior and explicit legacy compatibility coverage
-while `compat::legacy_shell` exists.
+Use for generic Radiant behavior and compatibility coverage in the vendored
+runtime dependency.
 
 - `cargo nextest run --manifest-path vendor/radiant/Cargo.toml`
 
