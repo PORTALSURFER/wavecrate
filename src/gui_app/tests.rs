@@ -1319,6 +1319,11 @@ fn folder_browser_metadata_tag_field_renders_pending_category_prompt() {
     assert!(frame_has_text(&frame, "Sound Type"));
     assert!(frame_has_text(&frame, "Group"));
     let pending_tag_rect = text_rect(&frame, "deep-kick ->").expect("pending tag should paint");
+    let suffix_rect = text_rect(&frame, "-type").expect("completion suffix should paint");
+    assert!(
+        suffix_rect.min.x > pending_tag_rect.max.x,
+        "category input should stay on the same row after the pending tag arrow"
+    );
     let sound_type_rect = text_rect(&frame, "Sound Type").expect("completion option should paint");
     assert!(
         sound_type_rect.max.y < pending_tag_rect.min.y,

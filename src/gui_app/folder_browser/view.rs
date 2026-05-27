@@ -359,7 +359,11 @@ fn tag_entry_field(
     }
 
     let pending_category_tag = tag_pending_category_tag.map(str::to_string);
-    let input_width = tag_input_width_for_placeholder(tag_draft, tag_input_placeholder);
+    let input_width = if pending_category_tag.is_some() {
+        tag_input_width(tag_draft)
+    } else {
+        tag_input_width_for_placeholder(tag_draft, tag_input_placeholder)
+    };
     let rows = tag_field_rows(
         &visible_tags,
         pending_category_tag.as_deref(),
