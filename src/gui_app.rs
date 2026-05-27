@@ -150,6 +150,11 @@ enum GuiMessage {
     DropMetadataTagOnCategory {
         category_id: String,
     },
+    OpenMetadataTagContextMenu {
+        tag: String,
+        position: ui::Point,
+    },
+    DeleteContextMetadataTag,
     DeleteSelectedMetadataTag,
     MetadataTagsPersisted(MetadataTagPersistResult),
     ToggleSampleNameViewMode,
@@ -416,6 +421,12 @@ impl GuiAppState {
             }
             GuiMessage::DropMetadataTagOnCategory { category_id } => {
                 self.drop_metadata_tag_on_category(category_id, context);
+            }
+            GuiMessage::OpenMetadataTagContextMenu { tag, position } => {
+                self.open_metadata_tag_context_menu(tag, position);
+            }
+            GuiMessage::DeleteContextMetadataTag => {
+                self.delete_context_metadata_tag(context);
             }
             GuiMessage::DeleteSelectedMetadataTag => {
                 self.remove_selected_metadata_tag(context);

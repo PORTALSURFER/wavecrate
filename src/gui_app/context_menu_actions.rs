@@ -36,6 +36,7 @@ impl GuiAppState {
             kind: BrowserContextTargetKind::Source,
             path,
             source_id,
+            metadata_tag: None,
             anchor: position,
             title,
         });
@@ -75,6 +76,7 @@ impl GuiAppState {
             kind: BrowserContextTargetKind::Folder,
             path,
             source_id: None,
+            metadata_tag: None,
             anchor: position,
             title,
         });
@@ -113,8 +115,20 @@ impl GuiAppState {
             kind: BrowserContextTargetKind::Sample,
             path,
             source_id: None,
+            metadata_tag: None,
             anchor: position,
             title,
+        });
+    }
+
+    pub(super) fn open_metadata_tag_context_menu(&mut self, tag: String, position: Point) {
+        self.context_menu = Some(BrowserContextMenu {
+            kind: BrowserContextTargetKind::MetadataTag,
+            path: Path::new("").to_path_buf(),
+            source_id: None,
+            metadata_tag: Some(tag.clone()),
+            anchor: position,
+            title: tag,
         });
     }
 
@@ -186,6 +200,7 @@ impl GuiAppState {
                 open_folder_in_file_explorer(&menu.path)
             }
             BrowserContextTargetKind::Sample => reveal_in_file_explorer(&menu.path),
+            BrowserContextTargetKind::MetadataTag => return,
         };
         match result {
             Ok(()) => {
@@ -193,6 +208,7 @@ impl GuiAppState {
                     BrowserContextTargetKind::Sample => String::from("Revealed sample"),
                     BrowserContextTargetKind::Source => String::from("Opened source folder"),
                     BrowserContextTargetKind::Folder => String::from("Opened folder"),
+                    BrowserContextTargetKind::MetadataTag => String::from("Tag action complete"),
                 };
                 emit_gui_action(
                     "browser.context_menu.open_explorer",
@@ -279,6 +295,24 @@ impl GuiAppState {
                 );
             }
         }
+    }
+
+    pub(super) fn delete_context_metadata_tag(
+        &mut self,
+        context: &mut radiant::prelude::UpdateContext<super::GuiMessage>,
+    ) {
+        let Some(menu) = self.context_menu.take() else {
+            return;
+        };
+        if menu.kind != BrowserContextTargetKind::MetadataTag {
+            self.sample_status = String::from("Context target is not a tag");
+            return;
+        }
+        let Some(tag) = menu.metadata_tag else {
+            self.sample_status = String::from("Tag is unavailable");
+            return;
+        };
+        self.delete_metadata_tag_from_library(tag, context);
     }
 }
 

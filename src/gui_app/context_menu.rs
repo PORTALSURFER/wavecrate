@@ -23,6 +23,7 @@ pub(super) enum BrowserContextTargetKind {
     Source,
     Folder,
     Sample,
+    MetadataTag,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -30,6 +31,7 @@ pub(super) struct BrowserContextMenu {
     pub(super) kind: BrowserContextTargetKind,
     pub(super) path: PathBuf,
     pub(super) source_id: Option<String>,
+    pub(super) metadata_tag: Option<String>,
     pub(super) anchor: Point,
     pub(super) title: String,
 }
@@ -45,6 +47,7 @@ pub(super) fn pane(kind: &BrowserContextTargetKind) -> &'static str {
         BrowserContextTargetKind::Source => "sources",
         BrowserContextTargetKind::Folder => "folder_browser",
         BrowserContextTargetKind::Sample => "browser",
+        BrowserContextTargetKind::MetadataTag => "tag_editor",
     }
 }
 
@@ -52,6 +55,7 @@ pub(super) fn target_available(kind: &BrowserContextTargetKind, path: &Path) -> 
     match kind {
         BrowserContextTargetKind::Source | BrowserContextTargetKind::Folder => path.is_dir(),
         BrowserContextTargetKind::Sample => path.is_file(),
+        BrowserContextTargetKind::MetadataTag => true,
     }
 }
 
@@ -60,6 +64,7 @@ pub(super) fn missing_target_message(kind: &BrowserContextTargetKind) -> &'stati
         BrowserContextTargetKind::Source => "Source folder is missing",
         BrowserContextTargetKind::Folder => "Folder is missing",
         BrowserContextTargetKind::Sample => "Sample file is missing",
+        BrowserContextTargetKind::MetadataTag => "Tag is unavailable",
     }
 }
 
@@ -67,6 +72,7 @@ pub(super) fn overlay(menu: &BrowserContextMenu) -> ui::View<GuiMessage> {
     let action_label = match menu.kind {
         BrowserContextTargetKind::Source | BrowserContextTargetKind::Folder => "Open in Explorer",
         BrowserContextTargetKind::Sample => "Reveal in Explorer",
+        BrowserContextTargetKind::MetadataTag => "Delete Tag",
     };
     let top = menu.anchor.y.max(0.0);
     let left = menu.anchor.x.max(0.0);
@@ -98,15 +104,26 @@ fn context_menu_panel(
             .height(22.0)
             .fill_width()
             .truncate(),
-        context_menu_action(action_label, GuiMessage::OpenContextTarget)
-            .key("browser-context-open-explorer")
-            .fill_width()
-            .height(28.0),
-        context_menu_action("Copy Path", GuiMessage::CopyContextPath)
-            .key("browser-context-copy-path")
-            .fill_width()
-            .height(28.0),
     ];
+    if menu.kind == BrowserContextTargetKind::MetadataTag {
+        actions.push(
+            context_menu_action(action_label, GuiMessage::DeleteContextMetadataTag)
+                .key("metadata-tag-context-delete")
+                .fill_width()
+                .height(28.0),
+        );
+    } else {
+        actions.extend([
+            context_menu_action(action_label, GuiMessage::OpenContextTarget)
+                .key("browser-context-open-explorer")
+                .fill_width()
+                .height(28.0),
+            context_menu_action("Copy Path", GuiMessage::CopyContextPath)
+                .key("browser-context-copy-path")
+                .fill_width()
+                .height(28.0),
+        ]);
+    }
     if menu.kind == BrowserContextTargetKind::Source && menu.source_id.is_some() {
         actions.push(
             context_menu_action("Remove Source", GuiMessage::RemoveContextSource)
@@ -127,7 +144,9 @@ fn context_menu_panel(
 }
 
 fn context_menu_height(menu: &BrowserContextMenu) -> f32 {
-    if menu.kind == BrowserContextTargetKind::Source && menu.source_id.is_some() {
+    if menu.kind == BrowserContextTargetKind::MetadataTag {
+        CONTEXT_MENU_BASE_HEIGHT - CONTEXT_MENU_EXTRA_ACTION_HEIGHT
+    } else if menu.kind == BrowserContextTargetKind::Source && menu.source_id.is_some() {
         CONTEXT_MENU_BASE_HEIGHT + CONTEXT_MENU_EXTRA_ACTION_HEIGHT
     } else {
         CONTEXT_MENU_BASE_HEIGHT

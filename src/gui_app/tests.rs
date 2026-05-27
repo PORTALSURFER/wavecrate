@@ -1222,6 +1222,103 @@ fn default_gui_tag_library_pointer_drag_drops_tag_on_category_header() {
 }
 
 #[test]
+fn default_gui_tag_library_right_click_opens_tag_context_menu() {
+    let (mut state, _source_root, _selected_file) = gui_state_with_temp_sample("tag-target.wav");
+    state
+        .metadata_tags_by_file
+        .insert(String::from("other.wav"), vec![String::from("oneshot")]);
+    state
+        .metadata_tag_dictionary
+        .insert(String::from("oneshot"), String::from("sound-type"));
+    state.metadata_tag_library_open = true;
+    let bridge = DeclarativeOwnedRuntimeBridge::new(
+        state,
+        |state| radiant::runtime::UiSurface::new(super::view(state).into_node()),
+        |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&radiant::theme::ThemeTokens::default());
+    let tag_rect = text_rect(&frame, "oneshot").expect("oneshot tag should paint");
+    let point = Point::new(
+        (tag_rect.min.x + tag_rect.max.x) * 0.5,
+        (tag_rect.min.y + tag_rect.max.y) * 0.5,
+    );
+
+    runtime.dispatch_event(Event::PointerPress {
+        position: point,
+        button: PointerButton::Secondary,
+        modifiers: PointerModifiers::default(),
+    });
+
+    let menu = runtime
+        .bridge()
+        .state()
+        .context_menu
+        .as_ref()
+        .expect("right-click should open metadata tag context menu");
+    assert_eq!(menu.kind, super::BrowserContextTargetKind::MetadataTag);
+    assert_eq!(menu.metadata_tag.as_deref(), Some("oneshot"));
+}
+
+#[test]
+fn metadata_tag_context_delete_removes_unlocked_global_tag() {
+    let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("tag-target.wav");
+    state.metadata_tags_by_file.insert(
+        selected_file.clone(),
+        vec![String::from("oneshot"), String::from("hat")],
+    );
+    state.metadata_tags_by_file.insert(
+        String::from("other.wav"),
+        vec![String::from("oneshot"), String::from("seq")],
+    );
+    state
+        .metadata_tag_dictionary
+        .insert(String::from("oneshot"), String::from("sound-type"));
+    state.context_menu = Some(super::BrowserContextMenu {
+        kind: super::BrowserContextTargetKind::MetadataTag,
+        path: PathBuf::new(),
+        source_id: None,
+        metadata_tag: Some(String::from("oneshot")),
+        anchor: Point::new(12.0, 24.0),
+        title: String::from("oneshot"),
+    });
+
+    state.delete_context_metadata_tag(&mut ui::UpdateContext::default());
+
+    assert!(!state.metadata_tag_dictionary.contains_key("oneshot"));
+    assert_eq!(
+        state.metadata_tags_by_file.get(&selected_file),
+        Some(&vec![String::from("hat")])
+    );
+    assert_eq!(
+        state.metadata_tags_by_file.get("other.wav"),
+        Some(&vec![String::from("seq")])
+    );
+    assert_eq!(state.context_menu, None);
+    assert_eq!(
+        state.sample_status,
+        "Deleted tag oneshot from 2 assignment(s)"
+    );
+}
+
+#[test]
+fn metadata_tag_context_delete_rejects_locked_playback_tags() {
+    let (mut state, _source_root, _selected_file) = gui_state_with_temp_sample("tag-target.wav");
+    state.context_menu = Some(super::BrowserContextMenu {
+        kind: super::BrowserContextTargetKind::MetadataTag,
+        path: PathBuf::new(),
+        source_id: None,
+        metadata_tag: Some(String::from("loop")),
+        anchor: Point::new(12.0, 24.0),
+        title: String::from("loop"),
+    });
+
+    state.delete_context_metadata_tag(&mut ui::UpdateContext::default());
+
+    assert_eq!(state.sample_status, "Playback Type tags are locked");
+}
+
+#[test]
 fn default_gui_tag_library_uses_custom_dictionary_categories() {
     let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("tag-target.wav");
     state
@@ -2457,6 +2554,7 @@ fn default_gui_removes_context_source_from_app_config() {
         kind: super::BrowserContextTargetKind::Source,
         path: source_root.path().to_path_buf(),
         source_id: Some(source_root.path().to_string_lossy().to_string()),
+        metadata_tag: None,
         anchor: Point::new(12.0, 24.0),
         title: String::from("source root"),
     });
@@ -2475,6 +2573,7 @@ fn folder_context_menu_paints_as_full_width_overlay_panel() {
         kind: super::BrowserContextTargetKind::Folder,
         path: PathBuf::from("Documents"),
         source_id: None,
+        metadata_tag: None,
         anchor: Point::new(72.0, 142.0),
         title: String::from("Documents"),
     };
@@ -2509,6 +2608,7 @@ fn folder_context_menu_outside_click_closes_menu() {
         kind: super::BrowserContextTargetKind::Folder,
         path: PathBuf::from("Documents"),
         source_id: None,
+        metadata_tag: None,
         anchor: Point::new(72.0, 142.0),
         title: String::from("Documents"),
     };
@@ -2553,6 +2653,7 @@ fn source_context_menu_paints_remove_source_action_for_user_sources() {
         kind: super::BrowserContextTargetKind::Source,
         path: PathBuf::from("C:\\Samples"),
         source_id: Some(String::from("source_id::samples")),
+        metadata_tag: None,
         anchor: Point::new(72.0, 142.0),
         title: String::from("Samples"),
     };

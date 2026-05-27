@@ -182,6 +182,7 @@ fn metadata_tag_category_header(
             ui::InteractiveRowMessage::Activate => {
                 GuiMessage::ToggleMetadataTagCategory(category_for_input.clone())
             }
+            ui::InteractiveRowMessage::SecondaryActivate { .. } => GuiMessage::Noop,
             ui::InteractiveRowMessage::Drop => GuiMessage::DropMetadataTagOnCategory {
                 category_id: category_for_input.clone(),
             },
@@ -270,6 +271,12 @@ fn metadata_tag_library_row(
             ui::InteractiveRowMessage::Activate => {
                 GuiMessage::ToggleMetadataTag(tag_for_input.clone())
             }
+            ui::InteractiveRowMessage::SecondaryActivate { position } => {
+                GuiMessage::OpenMetadataTagContextMenu {
+                    tag: tag_for_input.clone(),
+                    position,
+                }
+            }
             ui::InteractiveRowMessage::Drag(drag) => GuiMessage::DragMetadataTag {
                 tag: tag_for_input.clone(),
                 drag,
@@ -308,6 +315,7 @@ fn metadata_tag_empty_category_target(
             ui::InteractiveRowMessage::Drop => GuiMessage::DropMetadataTagOnCategory {
                 category_id: category_for_input.clone(),
             },
+            ui::InteractiveRowMessage::SecondaryActivate { .. } => GuiMessage::Noop,
             ui::InteractiveRowMessage::HoverDropTarget => {
                 GuiMessage::HoverMetadataTagDropCategory {
                     category_id: category_for_input.clone(),

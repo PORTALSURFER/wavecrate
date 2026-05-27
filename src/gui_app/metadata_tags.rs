@@ -548,6 +548,79 @@ impl GuiAppState {
         );
     }
 
+    pub(super) fn delete_metadata_tag_from_library(
+        &mut self,
+        tag: String,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        if metadata_tag_category_is_locked(self.metadata_tag_category_id(&tag)) {
+            self.sample_status = String::from("Playback Type tags are locked");
+            return;
+        }
+
+        self.context_menu = None;
+        self.metadata_tag_dictionary.remove(&tag);
+        self.metadata_tag_drag = None;
+        self.metadata_tag_drop_hover = None;
+        if self.selected_metadata_tag.as_deref() == Some(tag.as_str()) {
+            self.selected_metadata_tag = None;
+        }
+
+        let mut removed_count = 0usize;
+        let mut requests = Vec::new();
+        let affected_files = self
+            .metadata_tags_by_file
+            .iter()
+            .filter_map(|(file_id, tags)| {
+                tags.iter()
+                    .any(|existing| existing == &tag)
+                    .then_some(file_id.clone())
+            })
+            .collect::<Vec<_>>();
+        for file_id in affected_files {
+            let Some(file_tags) = self.metadata_tags_by_file.get_mut(&file_id) else {
+                continue;
+            };
+            let before_len = file_tags.len();
+            file_tags.retain(|existing| existing != &tag);
+            let removed_here = before_len.saturating_sub(file_tags.len());
+            if removed_here == 0 {
+                continue;
+            }
+            removed_count += removed_here;
+            if file_tags.is_empty() {
+                self.metadata_tags_by_file.remove(&file_id);
+            }
+            let absolute_path = PathBuf::from(&file_id);
+            if let Some((source_root, relative_path)) = self
+                .folder_browser
+                .source_relative_file_path(&absolute_path)
+            {
+                requests.push(MetadataTagPersistRequest {
+                    absolute_path,
+                    source_root,
+                    relative_path,
+                    tags: vec![tag.clone()],
+                    assigned: false,
+                });
+            }
+        }
+
+        self.persist_user_configuration("metadata.tags.dictionary.delete", Instant::now());
+        self.sample_status = if removed_count == 0 {
+            format!("Deleted tag {tag}")
+        } else {
+            format!("Deleted tag {tag} from {removed_count} assignment(s)")
+        };
+        if !requests.is_empty() {
+            context.spawn(
+                "gui-metadata-tag-delete-persist",
+                move || persist_metadata_tag_deletions(requests),
+                GuiMessage::MetadataTagsPersisted,
+            );
+        }
+    }
+
     fn metadata_tag_category_suggestions(&self) -> Vec<(&'static str, &'static str)> {
         let Some(prefix) = normalize_metadata_category_query(&self.metadata_tag_draft) else {
             return Vec::new();
@@ -772,6 +845,23 @@ fn persist_metadata_tag_assignment(request: MetadataTagPersistRequest) -> Metada
     MetadataTagPersistResult {
         tags: request.tags,
         assigned: request.assigned,
+        result,
+    }
+}
+
+fn persist_metadata_tag_deletions(
+    requests: Vec<MetadataTagPersistRequest>,
+) -> MetadataTagPersistResult {
+    let tags = requests
+        .first()
+        .map(|request| request.tags.clone())
+        .unwrap_or_default();
+    let result = requests
+        .iter()
+        .try_for_each(persist_metadata_tag_assignment_inner);
+    MetadataTagPersistResult {
+        tags,
+        assigned: false,
         result,
     }
 }

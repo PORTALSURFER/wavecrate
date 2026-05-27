@@ -103,6 +103,7 @@ fn context_menu_escape_shortcut_closes_context_menu() {
         kind: crate::gui_app::BrowserContextTargetKind::Sample,
         path: std::path::PathBuf::from("C:\\samples\\kick.wav"),
         source_id: None,
+        metadata_tag: None,
         anchor: Point::new(12.0, 24.0),
         title: String::from("kick.wav"),
     });
@@ -197,6 +198,7 @@ fn stale_context_menu_copy_path_refuses_missing_sample_file() {
         kind: crate::gui_app::BrowserContextTargetKind::Sample,
         path: std::env::temp_dir().join("wavecrate-missing-context-sample.wav"),
         source_id: None,
+        metadata_tag: None,
         anchor: Point::new(12.0, 24.0),
         title: String::from("missing.wav"),
     });
