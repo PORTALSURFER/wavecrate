@@ -57,8 +57,18 @@ impl GuiAppState {
         match message {
             FolderBrowserMessage::AddSource => self.add_source_from_dialog(context),
             FolderBrowserMessage::SelectSource(id) => {
+                let started_at = Instant::now();
+                let source = id.clone();
                 self.context_menu = None;
                 self.select_source(id, context);
+                emit_gui_action(
+                    "folder_browser.select_source",
+                    Some("folder_browser"),
+                    Some(source.as_str()),
+                    "applied",
+                    started_at,
+                    None,
+                );
             }
             FolderBrowserMessage::OpenSourceContextMenu(source_id, position) => {
                 self.open_source_context_menu(source_id, position);
@@ -76,6 +86,20 @@ impl GuiAppState {
             }
             FolderBrowserMessage::OpenFolderContextMenu(folder_id, position) => {
                 self.open_folder_context_menu(folder_id, position);
+            }
+            FolderBrowserMessage::ActivateFolder(folder_id) => {
+                let started_at = Instant::now();
+                let source = folder_id.clone();
+                self.folder_browser
+                    .apply_message(FolderBrowserMessage::ActivateFolder(folder_id));
+                emit_gui_action(
+                    "folder_browser.activate_folder",
+                    Some("folder_browser"),
+                    Some(source.as_str()),
+                    "applied",
+                    started_at,
+                    None,
+                );
             }
             FolderBrowserMessage::DragFolder(folder_id, drag) => {
                 self.context_menu = None;

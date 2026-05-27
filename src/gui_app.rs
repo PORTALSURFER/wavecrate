@@ -356,12 +356,36 @@ impl GuiAppState {
                 self.move_metadata_tag_completion_selection(delta);
             }
             GuiMessage::ToggleMetadataTagLibrary => {
+                let started_at = Instant::now();
                 self.metadata_tag_library_open = !self.metadata_tag_library_open;
+                let outcome = if self.metadata_tag_library_open {
+                    "opened"
+                } else {
+                    "closed"
+                };
+                emit_gui_action(
+                    "metadata_tags.toggle_library",
+                    Some("folder_browser"),
+                    None,
+                    outcome,
+                    started_at,
+                    None,
+                );
             }
             GuiMessage::ToggleMetadataTagCategory(category_id) => {
+                let started_at = Instant::now();
+                let source = category_id.clone();
                 if !self.collapsed_metadata_tag_categories.remove(&category_id) {
                     self.collapsed_metadata_tag_categories.insert(category_id);
                 }
+                emit_gui_action(
+                    "metadata_tags.toggle_category",
+                    Some("tag_editor"),
+                    Some(source.as_str()),
+                    "applied",
+                    started_at,
+                    None,
+                );
             }
             GuiMessage::ToggleMetadataTag(tag) => {
                 self.toggle_metadata_tag(tag, context);
