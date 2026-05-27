@@ -2,9 +2,7 @@ use radiant::{
     gui::types::Rect,
     layout::LayoutOutput,
     prelude as ui,
-    runtime::{
-        PaintFillRect, PaintPrimitive, PaintStrokeRect, PaintText, PaintTextAlign, PaintTextRun,
-    },
+    runtime::{PaintFillRect, PaintPrimitive, PaintText, PaintTextAlign, PaintTextRun},
     theme::ThemeTokens,
     widgets::{
         ButtonMessage, TextWrap, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
@@ -748,115 +746,27 @@ fn tag_pill_width(tag: &str) -> f32 {
 }
 
 fn accepted_tag_token(tag: &str, selected: bool) -> ui::View<GuiMessage> {
-    ui::custom_widget_mapped(
-        MetadataTagChip::new(tag.to_string(), selected),
-        |message: GuiMessage| message,
-    )
-    .key(format!("metadata-tag-accepted-{tag}"))
-    .sizing(ui::WidgetSizing::fixed(ui::Vector2::new(
-        tag_pill_width(tag),
-        TAG_FIELD_CONTROL_HEIGHT,
-    )))
-    .height(TAG_FIELD_CONTROL_HEIGHT)
-    .width(tag_pill_width(tag))
-}
-
-#[derive(Clone, Debug)]
-struct MetadataTagChip {
-    common: WidgetCommon,
-    tag: String,
-    selected: bool,
-}
-
-impl MetadataTagChip {
-    fn new(tag: String, selected: bool) -> Self {
-        Self {
-            common: WidgetCommon::new(
-                0,
-                WidgetSizing::fixed(ui::Vector2::new(
-                    tag_pill_width(&tag),
-                    TAG_FIELD_CONTROL_HEIGHT,
-                )),
-            ),
-            tag,
-            selected,
-        }
-    }
-}
-
-impl Widget for MetadataTagChip {
-    fn common(&self) -> &WidgetCommon {
-        &self.common
-    }
-
-    fn common_mut(&mut self) -> &mut WidgetCommon {
-        &mut self.common
-    }
-
-    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        match input {
-            WidgetInput::PointerPress { position, .. } if bounds.contains(position) => Some(
-                WidgetOutput::typed(GuiMessage::SelectMetadataTag(self.tag.clone())),
-            ),
-            _ => None,
-        }
-    }
-
-    fn needs_state_synchronization(&self) -> bool {
-        false
-    }
-
-    fn accepts_pointer_move(&self) -> bool {
-        false
-    }
-
-    fn append_paint(
-        &self,
-        primitives: &mut Vec<PaintPrimitive>,
-        bounds: Rect,
-        _layout: &LayoutOutput,
-        theme: &ThemeTokens,
-    ) {
-        let fill = if self.selected {
-            theme.accent_mint
-        } else {
-            theme.surface_raised
-        };
-        let text_color = if self.selected {
-            theme.text_primary
-        } else {
-            theme.accent_mint
-        };
-        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-            widget_id: self.common.id,
-            rect: bounds,
-            color: fill,
-        }));
-        primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
-            widget_id: self.common.id,
-            rect: bounds,
-            color: if self.selected {
-                theme.accent_mint
+    let mut badge = ui::badge(tag.to_string())
+        .message(GuiMessage::SelectMetadataTag(tag.to_string()))
+        .key(format!("metadata-tag-accepted-{tag}"))
+        .style(WidgetStyle {
+            tone: WidgetTone::Accent,
+            prominence: if selected {
+                ui::WidgetProminence::Strong
             } else {
-                theme.grid_soft
+                ui::WidgetProminence::Subtle
             },
-            width: 1.0,
-        }));
-        let text_rect = Rect::from_min_max(
-            ui::Point::new(bounds.min.x + 8.0, bounds.min.y + 2.0),
-            ui::Point::new(bounds.max.x - 8.0, bounds.max.y - 2.0),
-        );
-        primitives.push(PaintPrimitive::Text(PaintTextRun {
-            widget_id: self.common.id,
-            text: PaintText::from(self.tag.clone()),
-            rect: text_rect,
-            font_size: 13.0,
-            baseline: Some((text_rect.height() * 0.5 + 13.0 * 0.35).max(0.0)),
-            color: text_color,
-            align: PaintTextAlign::Center,
-            wrap: TextWrap::None,
-        }));
+        })
+        .sizing(ui::WidgetSizing::fixed(ui::Vector2::new(
+            tag_pill_width(tag),
+            TAG_FIELD_CONTROL_HEIGHT,
+        )))
+        .height(TAG_FIELD_CONTROL_HEIGHT)
+        .width(tag_pill_width(tag));
+    if !selected {
+        badge = badge.subtle();
     }
+    badge
 }
 
 fn pending_category_tag_token(tag: &str) -> ui::View<GuiMessage> {
