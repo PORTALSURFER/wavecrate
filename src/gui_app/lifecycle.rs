@@ -59,6 +59,7 @@ impl GuiAppState {
             metadata_tag_completion_index: 0,
             metadata_tag_dictionary: config.core.tag_dictionary.clone(),
             metadata_tag_library_open: false,
+            metadata_tag_drag: None,
             selected_metadata_tag: None,
             collapsed_metadata_tag_categories: Default::default(),
             metadata_tags_by_file,

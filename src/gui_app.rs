@@ -140,6 +140,13 @@ enum GuiMessage {
     ToggleMetadataTagCategory(String),
     SelectMetadataTag(String),
     ToggleMetadataTag(String),
+    DragMetadataTag {
+        tag: String,
+        drag: DragHandleMessage,
+    },
+    DropMetadataTagOnCategory {
+        category_id: String,
+    },
     DeleteSelectedMetadataTag,
     MetadataTagsPersisted(MetadataTagPersistResult),
     ToggleSampleNameViewMode,
@@ -222,6 +229,7 @@ struct GuiAppState {
     metadata_tag_completion_index: usize,
     metadata_tag_dictionary: BTreeMap<String, String>,
     metadata_tag_library_open: bool,
+    metadata_tag_drag: Option<String>,
     selected_metadata_tag: Option<String>,
     collapsed_metadata_tag_categories: HashSet<String>,
     metadata_tags_by_file: HashMap<String, Vec<String>>,
@@ -395,6 +403,12 @@ impl GuiAppState {
             }
             GuiMessage::ToggleMetadataTag(tag) => {
                 self.toggle_metadata_tag(tag, context);
+            }
+            GuiMessage::DragMetadataTag { tag, drag } => {
+                self.drag_metadata_tag(tag, drag, context);
+            }
+            GuiMessage::DropMetadataTagOnCategory { category_id } => {
+                self.drop_metadata_tag_on_category(category_id, context);
             }
             GuiMessage::DeleteSelectedMetadataTag => {
                 self.remove_selected_metadata_tag(context);

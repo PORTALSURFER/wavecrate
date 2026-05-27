@@ -1,7 +1,7 @@
 use super::GuiAppState;
 use super::GuiMessage;
 use radiant::prelude as ui;
-use radiant::widgets::TextInputMessage;
+use radiant::widgets::{DragHandleMessage, TextInputMessage};
 use std::{
     collections::{BTreeSet, HashMap},
     path::{Path, PathBuf},
@@ -37,6 +37,7 @@ pub(super) struct MetadataTagCategoryGroup {
     pub(super) label: &'static str,
     pub(super) tags: Vec<String>,
     pub(super) collapsed: bool,
+    pub(super) locked: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -406,6 +407,7 @@ impl GuiAppState {
                 label,
                 tags: Vec::new(),
                 collapsed: self.collapsed_metadata_tag_categories.contains(*id),
+                locked: metadata_tag_category_is_locked(id),
             })
             .collect::<Vec<_>>();
         for tag in self.known_metadata_tags() {
@@ -434,6 +436,81 @@ impl GuiAppState {
     fn metadata_tag_category_label(&self, tag: &str) -> &'static str {
         metadata_tag_category_label_for_id(self.metadata_tag_category_id(tag))
             .unwrap_or("Character")
+    }
+
+    pub(super) fn metadata_tag_drag_active(&self) -> bool {
+        self.metadata_tag_drag.is_some()
+    }
+
+    pub(super) fn drag_metadata_tag(
+        &mut self,
+        tag: String,
+        drag: DragHandleMessage,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        if metadata_tag_category_is_locked(self.metadata_tag_category_id(&tag)) {
+            self.metadata_tag_drag = None;
+            context.end_drag();
+            self.sample_status = String::from("Playback Type tags are locked");
+            return;
+        }
+        match drag {
+            DragHandleMessage::Started { position } => {
+                self.metadata_tag_drag = Some(tag.clone());
+                let width = (tag.chars().count() as f32 * 7.0 + 48.0).clamp(92.0, 180.0);
+                context.begin_drag(ui::DragRequest::new(
+                    ui::DragPreview::sized(
+                        format!("Move {tag}"),
+                        ui::Vector2::new(width, super::DRAG_PREVIEW_HEIGHT),
+                    ),
+                    position,
+                ));
+                self.sample_status = format!("Moving tag {tag}");
+            }
+            DragHandleMessage::Moved { .. } => {}
+            DragHandleMessage::Ended { .. } => {
+                self.metadata_tag_drag = None;
+                context.end_drag();
+            }
+        }
+    }
+
+    pub(super) fn drop_metadata_tag_on_category(
+        &mut self,
+        category_id: String,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        let Some(tag) = self.metadata_tag_drag.clone() else {
+            return;
+        };
+        self.metadata_tag_drag = None;
+        context.end_drag();
+        if metadata_tag_category_is_locked(category_id.as_str()) {
+            self.sample_status = String::from("Playback Type is locked");
+            return;
+        }
+        if metadata_tag_category_is_locked(self.metadata_tag_category_id(&tag)) {
+            self.sample_status = String::from("Playback Type tags are locked");
+            return;
+        }
+        let Some(category_id) = static_metadata_tag_category_id(category_id.as_str()) else {
+            return;
+        };
+        let previous_category = self.metadata_tag_category_id(&tag);
+        if previous_category == category_id {
+            self.sample_status = format!(
+                "Tag {tag} is already in {}",
+                metadata_tag_category_label_for_id(category_id).unwrap_or("this category")
+            );
+            return;
+        }
+        self.metadata_tag_dictionary
+            .insert(tag.clone(), category_id.to_string());
+        self.persist_user_configuration("metadata.tags.dictionary.move", Instant::now());
+        self.sample_status = format!(
+            "Moved tag {tag} to {}",
+            metadata_tag_category_label_for_id(category_id).unwrap_or("category")
+        );
     }
 
     fn metadata_tag_category_suggestions(&self) -> Vec<(&'static str, &'static str)> {
@@ -855,6 +932,10 @@ fn static_metadata_tag_category_id(category_id: &str) -> Option<&'static str> {
     METADATA_TAG_CATEGORIES
         .iter()
         .find_map(|(id, _label)| (*id == category_id).then_some(*id))
+}
+
+fn metadata_tag_category_is_locked(category_id: &str) -> bool {
+    category_id == "playback-type"
 }
 
 fn has_metadata_category_prefix(value: &str, prefix: &str) -> bool {

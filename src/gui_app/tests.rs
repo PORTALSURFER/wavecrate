@@ -70,6 +70,7 @@ fn gui_state_for_span_tests() -> GuiAppState {
         metadata_tag_completion_index: 0,
         metadata_tag_dictionary: Default::default(),
         metadata_tag_library_open: false,
+        metadata_tag_drag: None,
         selected_metadata_tag: None,
         collapsed_metadata_tag_categories: Default::default(),
         metadata_tags_by_file: HashMap::new(),
@@ -133,6 +134,7 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
         metadata_tag_completion_index: 0,
         metadata_tag_dictionary: Default::default(),
         metadata_tag_library_open: false,
+        metadata_tag_drag: None,
         selected_metadata_tag: None,
         collapsed_metadata_tag_categories: Default::default(),
         metadata_tags_by_file: HashMap::new(),
@@ -280,6 +282,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         metadata_tag_completion_index: 0,
         metadata_tag_dictionary: Default::default(),
         metadata_tag_library_open: false,
+        metadata_tag_drag: None,
         selected_metadata_tag: None,
         collapsed_metadata_tag_categories: Default::default(),
         metadata_tags_by_file: HashMap::new(),
@@ -882,16 +885,16 @@ fn default_gui_tag_library_opens_beside_folder_sidebar() {
     );
 
     assert!(frame_has_text(&frame, "Tag Editor"));
-    assert!(frame_has_text(&frame, "v Playback Type (2)"));
+    assert!(frame_has_text(&frame, "v Playback Type (2) [locked]"));
     assert!(frame_has_text(&frame, "v Sound Type (2)"));
     assert!(frame_has_text(&frame, "v Character (1)"));
     assert!(frame_has_text(&frame, "v Prefix"));
     assert!(frame_has_text(&frame, "v Tuning/Scale"));
-    assert!(frame_has_text(&frame, "[ ] loop"));
-    assert!(frame_has_text(&frame, "[ ] one-shot"));
-    assert!(frame_has_text(&frame, "[x] hat"));
-    assert!(frame_has_text(&frame, "[ ] bass"));
-    assert!(frame_has_text(&frame, "[x] seq"));
+    assert!(frame_has_text(&frame, "loop"));
+    assert!(frame_has_text(&frame, "one-shot"));
+    assert!(frame_has_text(&frame, "hat"));
+    assert!(frame_has_text(&frame, "bass"));
+    assert!(frame_has_text(&frame, "seq"));
 }
 
 #[test]
@@ -1012,7 +1015,104 @@ fn default_gui_tag_library_category_headers_collapse_groups() {
     );
 
     assert!(frame_has_text(&frame, "> Sound Type (1)"));
-    assert!(!frame_has_text(&frame, "[x] hat"));
+    assert!(!frame_has_text_after_x(&frame, "hat", DEFAULT_FOLDER_WIDTH));
+}
+
+#[test]
+fn default_gui_tag_library_drag_moves_tag_between_categories() {
+    let (mut state, _source_root, _selected_file) = gui_state_with_temp_sample("tag-target.wav");
+    state
+        .metadata_tags_by_file
+        .insert(String::from("other.wav"), vec![String::from("bass")]);
+
+    state.drag_metadata_tag(
+        String::from("bass"),
+        DragHandleMessage::Started {
+            position: Point::new(10.0, 10.0),
+        },
+        &mut ui::UpdateContext::default(),
+    );
+    state.drop_metadata_tag_on_category(
+        String::from("character"),
+        &mut ui::UpdateContext::default(),
+    );
+
+    assert_eq!(
+        state
+            .metadata_tag_dictionary
+            .get("bass")
+            .map(String::as_str),
+        Some("character")
+    );
+    assert_eq!(state.sample_status, "Moved tag bass to Character");
+}
+
+#[test]
+fn default_gui_tag_library_rejects_dragging_locked_playback_tags() {
+    let (mut state, _source_root, _selected_file) = gui_state_with_temp_sample("tag-target.wav");
+
+    state.drag_metadata_tag(
+        String::from("one-shot"),
+        DragHandleMessage::Started {
+            position: Point::new(10.0, 10.0),
+        },
+        &mut ui::UpdateContext::default(),
+    );
+
+    assert_eq!(state.metadata_tag_drag, None);
+    assert_eq!(state.metadata_tag_dictionary.get("one-shot"), None);
+    assert_eq!(state.sample_status, "Playback Type tags are locked");
+}
+
+#[test]
+fn default_gui_tag_library_pointer_drag_drops_tag_on_category_header() {
+    let (mut state, _source_root, _selected_file) = gui_state_with_temp_sample("tag-target.wav");
+    state
+        .metadata_tags_by_file
+        .insert(String::from("other.wav"), vec![String::from("bass")]);
+    state.metadata_tag_library_open = true;
+    let bridge = DeclarativeOwnedRuntimeBridge::new(
+        state,
+        |state| radiant::runtime::UiSurface::new(super::view(state).into_node()),
+        |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    let theme = radiant::theme::ThemeTokens::default();
+    let frame = runtime.frame(&theme);
+    let bass_rect = text_rect(&frame, "bass").expect("bass tag should paint");
+    let character_rect = text_rect(&frame, "v Character").expect("character header should paint");
+    let bass_point = Point::new(
+        (bass_rect.min.x + bass_rect.max.x) * 0.5,
+        (bass_rect.min.y + bass_rect.max.y) * 0.5,
+    );
+    let character_point = Point::new(
+        (character_rect.min.x + character_rect.max.x) * 0.5,
+        (character_rect.min.y + character_rect.max.y) * 0.5,
+    );
+
+    runtime.dispatch_event(Event::PointerPress {
+        position: bass_point,
+        button: PointerButton::Primary,
+        modifiers: PointerModifiers::default(),
+    });
+    runtime.dispatch_event(Event::PointerMove {
+        position: Point::new(bass_point.x + 8.0, bass_point.y + 2.0),
+    });
+    runtime.dispatch_event(Event::PointerRelease {
+        position: character_point,
+        button: PointerButton::Primary,
+        modifiers: PointerModifiers::default(),
+    });
+
+    assert_eq!(
+        runtime
+            .bridge()
+            .state()
+            .metadata_tag_dictionary
+            .get("bass")
+            .map(String::as_str),
+        Some("character")
+    );
 }
 
 #[test]
@@ -1032,7 +1132,7 @@ fn default_gui_tag_library_uses_custom_dictionary_categories() {
     );
 
     assert!(frame_has_text(&frame, "v Sound Type (1)"));
-    assert!(frame_has_text(&frame, "[x] deep-kick"));
+    assert!(frame_has_text(&frame, "deep-kick"));
     assert!(frame_has_text(&frame, "v Character"));
     assert!(!frame_has_text(&frame, "v Character (1)"));
 }
@@ -2433,6 +2533,19 @@ fn frame_has_text(frame: &ui::SurfaceFrame, expected: &str) -> bool {
         .iter()
         .any(|primitive| match primitive {
             PaintPrimitive::Text(text) => text.text.as_str() == expected,
+            _ => false,
+        })
+}
+
+fn frame_has_text_after_x(frame: &ui::SurfaceFrame, expected: &str, min_x: f32) -> bool {
+    frame
+        .paint_plan
+        .primitives
+        .iter()
+        .any(|primitive| match primitive {
+            PaintPrimitive::Text(text) => {
+                text.text.as_str() == expected && text.rect.min.x >= min_x
+            }
             _ => false,
         })
 }
