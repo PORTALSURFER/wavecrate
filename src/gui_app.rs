@@ -5,7 +5,7 @@ use radiant::prelude as ui;
 use radiant::runtime::NativeFileDrop;
 use radiant::widgets::{DragHandleMessage, PointerModifiers};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     path::PathBuf,
     sync::mpsc::{Receiver, Sender},
     time::{Duration, Instant},
@@ -136,6 +136,7 @@ enum GuiMessage {
     SetAudioOutputSampleRate(Option<u32>),
     MetadataTagInput(radiant::widgets::TextInputMessage),
     ToggleMetadataTagLibrary,
+    ToggleMetadataTagCategory(String),
     ToggleMetadataTag(String),
     MetadataTagsPersisted(MetadataTagPersistResult),
     ToggleSampleNameViewMode,
@@ -216,6 +217,7 @@ struct GuiAppState {
     metadata_tag_completion_prefix: Option<String>,
     metadata_tag_completion_index: usize,
     metadata_tag_library_open: bool,
+    collapsed_metadata_tag_categories: HashSet<String>,
     metadata_tags_by_file: HashMap<String, Vec<String>>,
     sample_name_view_mode: SampleNameViewMode,
 }
@@ -349,6 +351,11 @@ impl GuiAppState {
             }
             GuiMessage::ToggleMetadataTagLibrary => {
                 self.metadata_tag_library_open = !self.metadata_tag_library_open;
+            }
+            GuiMessage::ToggleMetadataTagCategory(category_id) => {
+                if !self.collapsed_metadata_tag_categories.remove(&category_id) {
+                    self.collapsed_metadata_tag_categories.insert(category_id);
+                }
             }
             GuiMessage::ToggleMetadataTag(tag) => {
                 self.toggle_metadata_tag(tag, context);

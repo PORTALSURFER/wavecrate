@@ -1,8 +1,8 @@
 use super::{GuiAppState, GuiMessage};
 use crate::gui_app::{
     audio_settings::top_status_bar, context_menu, folder_browser,
-    sample_browser_view::sample_browser, status_bar, toolbar::main_toolbar,
-    waveform_panel::waveform_panel,
+    metadata_tags::MetadataTagCategoryGroup, sample_browser_view::sample_browser, status_bar,
+    toolbar::main_toolbar, waveform_panel::waveform_panel,
 };
 use radiant::prelude as ui;
 
@@ -56,15 +56,11 @@ fn folder_sidebar(state: &GuiAppState) -> ui::View<GuiMessage> {
 
 fn metadata_tag_library_panel(state: &GuiAppState) -> ui::View<GuiMessage> {
     let selected_tags = state.selected_metadata_tags();
-    let known_tags = state.known_metadata_tags();
-    let tag_rows = if known_tags.is_empty() {
-        vec![ui::text("No tags yet").height(22.0).fill_width().truncate()]
-    } else {
-        known_tags
-            .into_iter()
-            .map(|tag| metadata_tag_library_row(tag, selected_tags))
-            .collect::<Vec<_>>()
-    };
+    let groups = state
+        .categorized_metadata_tags()
+        .into_iter()
+        .map(|group| metadata_tag_category_group(group, selected_tags))
+        .collect::<Vec<_>>();
     ui::column([
         ui::row([
             ui::text("Tag Editor").height(22.0).fill_width(),
@@ -76,8 +72,7 @@ fn metadata_tag_library_panel(state: &GuiAppState) -> ui::View<GuiMessage> {
         .spacing(4.0)
         .fill_width()
         .height(24.0),
-        ui::text("Used Tags").height(20.0).fill_width(),
-        ui::scroll(ui::column(tag_rows).spacing(2.0).fill_width())
+        ui::scroll(ui::column(groups).spacing(3.0).fill_width())
             .fill_width()
             .fill_height(),
     ])
@@ -90,6 +85,48 @@ fn metadata_tag_library_panel(state: &GuiAppState) -> ui::View<GuiMessage> {
     .spacing(4.0)
     .width(220.0)
     .fill_height()
+}
+
+fn metadata_tag_category_group(
+    group: MetadataTagCategoryGroup,
+    selected_tags: &[String],
+) -> ui::View<GuiMessage> {
+    let disclosure = if group.collapsed { ">" } else { "v" };
+    let count_label = if group.tags.is_empty() {
+        String::new()
+    } else {
+        format!(" ({})", group.tags.len())
+    };
+    let mut children = vec![
+        ui::button(format!("{disclosure} {}{count_label}", group.label))
+            .message(GuiMessage::ToggleMetadataTagCategory(group.id.to_string()))
+            .key(format!("metadata-tag-category-{}", group.id))
+            .subtle()
+            .fill_width()
+            .height(22.0),
+    ];
+    if !group.collapsed {
+        if group.tags.is_empty() {
+            children.push(
+                ui::text("No tags yet")
+                    .height(20.0)
+                    .fill_width()
+                    .truncate()
+                    .padding(4.0),
+            );
+        } else {
+            children.extend(
+                group
+                    .tags
+                    .into_iter()
+                    .map(|tag| metadata_tag_library_row(tag, selected_tags)),
+            );
+        }
+    }
+    ui::column(children)
+        .key(format!("metadata-tag-category-group-{}", group.id))
+        .spacing(2.0)
+        .fill_width()
 }
 
 fn metadata_tag_library_row(tag: String, selected_tags: &[String]) -> ui::View<GuiMessage> {

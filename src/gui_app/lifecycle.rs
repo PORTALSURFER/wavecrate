@@ -57,6 +57,7 @@ impl GuiAppState {
             metadata_tag_completion_prefix: None,
             metadata_tag_completion_index: 0,
             metadata_tag_library_open: false,
+            collapsed_metadata_tag_categories: Default::default(),
             metadata_tags_by_file,
             sample_name_view_mode: SampleNameViewMode::DiskFilename,
         };

@@ -68,6 +68,7 @@ fn gui_state_for_span_tests() -> GuiAppState {
         metadata_tag_completion_prefix: None,
         metadata_tag_completion_index: 0,
         metadata_tag_library_open: false,
+        collapsed_metadata_tag_categories: Default::default(),
         metadata_tags_by_file: HashMap::new(),
         sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
     }
@@ -127,6 +128,7 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
         metadata_tag_completion_prefix: None,
         metadata_tag_completion_index: 0,
         metadata_tag_library_open: false,
+        collapsed_metadata_tag_categories: Default::default(),
         metadata_tags_by_file: HashMap::new(),
         sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
     };
@@ -270,6 +272,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         metadata_tag_completion_prefix: None,
         metadata_tag_completion_index: 0,
         metadata_tag_library_open: false,
+        collapsed_metadata_tag_categories: Default::default(),
         metadata_tags_by_file: HashMap::new(),
         sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
     };
@@ -735,9 +738,14 @@ fn default_gui_tag_library_opens_beside_folder_sidebar() {
     );
 
     assert!(frame_has_text(&frame, "Tag Editor"));
-    assert!(frame_has_text(&frame, "Used Tags"));
+    assert!(frame_has_text(&frame, "v Playback Type"));
+    assert!(frame_has_text(&frame, "v Sound Type (2)"));
+    assert!(frame_has_text(&frame, "v Character (1)"));
+    assert!(frame_has_text(&frame, "v Prefix"));
+    assert!(frame_has_text(&frame, "v Tuning/Scale"));
     assert!(frame_has_text(&frame, "[x] hat"));
     assert!(frame_has_text(&frame, "[ ] bass"));
+    assert!(frame_has_text(&frame, "[x] seq"));
 }
 
 #[test]
@@ -790,6 +798,28 @@ fn default_gui_tag_library_button_removes_selected_tag() {
         Some(&vec![String::from("hat")])
     );
     assert_eq!(state.sample_status, "Removed tag bass");
+}
+
+#[test]
+fn default_gui_tag_library_category_headers_collapse_groups() {
+    let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("tag-target.wav");
+    state
+        .metadata_tags_by_file
+        .insert(selected_file, vec![String::from("hat")]);
+    state.metadata_tag_library_open = true;
+
+    state.apply_message(
+        super::GuiMessage::ToggleMetadataTagCategory(String::from("sound-type")),
+        &mut ui::UpdateContext::default(),
+    );
+
+    let frame = radiant::runtime::UiSurface::new(super::view(&mut state).into_node()).frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(900.0, 620.0)),
+        &radiant::theme::ThemeTokens::default(),
+    );
+
+    assert!(frame_has_text(&frame, "> Sound Type (1)"));
+    assert!(!frame_has_text(&frame, "[x] hat"));
 }
 
 #[test]

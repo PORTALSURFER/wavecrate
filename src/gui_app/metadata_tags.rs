@@ -31,6 +31,69 @@ struct MetadataTagPersistRequest {
     assigned: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct MetadataTagCategoryGroup {
+    pub(super) id: &'static str,
+    pub(super) label: &'static str,
+    pub(super) tags: Vec<String>,
+    pub(super) collapsed: bool,
+}
+
+const METADATA_TAG_CATEGORIES: [(&str, &str); 5] = [
+    ("playback-type", "Playback Type"),
+    ("sound-type", "Sound Type"),
+    ("character", "Character"),
+    ("prefix", "Prefix"),
+    ("tuning-scale", "Tuning/Scale"),
+];
+
+const PLAYBACK_TYPE_TAGS: &[&str] = &["loop", "one shot", "oneshot"];
+const SOUND_TYPE_TAGS: &[&str] = &[
+    "kick",
+    "snare",
+    "clap",
+    "hat",
+    "bass",
+    "stab",
+    "texture",
+    "vocal",
+    "percussion",
+    "ambience",
+    "effect",
+    "fx",
+    "drum loop",
+    "synth loop",
+];
+const CHARACTER_TAGS: &[&str] = &[
+    "warm",
+    "harsh",
+    "clean",
+    "noisy",
+    "distorted",
+    "punchy",
+    "soft",
+    "metallic",
+    "dark",
+    "bright",
+    "wide",
+    "dry",
+    "wet",
+    "raw",
+    "polished",
+];
+const TUNING_SCALE_TAGS: &[&str] = &[
+    "major",
+    "minor",
+    "dorian",
+    "phrygian",
+    "lydian",
+    "mixolydian",
+    "locrian",
+    "pentatonic",
+    "chromatic",
+    "microtonal",
+];
+
 impl GuiAppState {
     pub(super) fn load_persisted_metadata_tags(
         sources: &[SampleSource],
@@ -143,6 +206,25 @@ impl GuiAppState {
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect()
+    }
+
+    pub(super) fn categorized_metadata_tags(&self) -> Vec<MetadataTagCategoryGroup> {
+        let mut groups = METADATA_TAG_CATEGORIES
+            .iter()
+            .map(|(id, label)| MetadataTagCategoryGroup {
+                id,
+                label,
+                tags: Vec::new(),
+                collapsed: self.collapsed_metadata_tag_categories.contains(*id),
+            })
+            .collect::<Vec<_>>();
+        for tag in self.known_metadata_tags() {
+            let category_id = metadata_tag_category_id(&tag);
+            if let Some(group) = groups.iter_mut().find(|group| group.id == category_id) {
+                group.tags.push(tag);
+            }
+        }
+        groups
     }
 
     fn stage_metadata_tag_token(&mut self, tag: String) {
@@ -468,6 +550,43 @@ fn metadata_tag_completions_for_prefix<'a>(
         .collect()
 }
 
+fn metadata_tag_category_id(tag: &str) -> &'static str {
+    let normalized = normalize_metadata_category_match(tag);
+    if PLAYBACK_TYPE_TAGS.contains(&normalized.as_str()) {
+        "playback-type"
+    } else if SOUND_TYPE_TAGS.contains(&normalized.as_str()) {
+        "sound-type"
+    } else if CHARACTER_TAGS.contains(&normalized.as_str()) {
+        "character"
+    } else if TUNING_SCALE_TAGS.contains(&normalized.as_str()) {
+        "tuning-scale"
+    } else if has_metadata_category_prefix(&normalized, "prefix")
+        || has_metadata_category_prefix(&normalized, "artist")
+        || has_metadata_category_prefix(&normalized, "pack")
+        || has_metadata_category_prefix(&normalized, "project")
+    {
+        "prefix"
+    } else {
+        "character"
+    }
+}
+
+fn has_metadata_category_prefix(value: &str, prefix: &str) -> bool {
+    value == prefix
+        || value
+            .strip_prefix(prefix)
+            .is_some_and(|rest| rest.starts_with(':') || rest.starts_with(' '))
+}
+
+fn normalize_metadata_category_match(value: &str) -> String {
+    value
+        .split(|ch: char| ch == '-' || ch == '_' || ch.is_whitespace())
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+        .to_ascii_lowercase()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -503,5 +622,15 @@ mod tests {
             Some(String::from("kick"))
         );
         assert_eq!(metadata_tag_completion("zz", ["kick"].into_iter()), None);
+    }
+
+    #[test]
+    fn metadata_tag_category_matches_target_category_vocabulary() {
+        assert_eq!(metadata_tag_category_id("one-shot"), "playback-type");
+        assert_eq!(metadata_tag_category_id("hat"), "sound-type");
+        assert_eq!(metadata_tag_category_id("bright"), "character");
+        assert_eq!(metadata_tag_category_id("prefix-artist"), "prefix");
+        assert_eq!(metadata_tag_category_id("dorian"), "tuning-scale");
+        assert_eq!(metadata_tag_category_id("custom-texture"), "character");
     }
 }
