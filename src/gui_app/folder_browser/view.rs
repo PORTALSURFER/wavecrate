@@ -285,9 +285,19 @@ fn metadata_section(
     sidebar_section(
         "Metadata",
         ui::column([
-            ui::text(format!("Tags ({})", tags.len()))
-                .height(22.0)
-                .fill_width(),
+            ui::row([
+                ui::text(format!("Tags ({})", tags.len()))
+                    .height(22.0)
+                    .fill_width(),
+                ui::button(">")
+                    .message(GuiMessage::ToggleMetadataTagLibrary)
+                    .key("metadata-tag-library-toggle")
+                    .size(24.0, 20.0),
+            ])
+            .spacing(4.0)
+            .fill_width()
+            .height(22.0)
+            .key("metadata-tag-library-toggle-row"),
             tag_entry_field(
                 tag_draft,
                 tag_tokens,

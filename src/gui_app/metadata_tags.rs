@@ -134,7 +134,7 @@ impl GuiAppState {
         )
     }
 
-    fn known_metadata_tags(&self) -> Vec<String> {
+    pub(super) fn known_metadata_tags(&self) -> Vec<String> {
         self.metadata_tags_by_file
             .values()
             .flat_map(|tags| tags.iter().cloned())
@@ -182,7 +182,7 @@ impl GuiAppState {
         self.metadata_tag_completion_index = 0;
     }
 
-    fn add_metadata_tags(
+    pub(super) fn add_metadata_tags(
         &mut self,
         tags: Vec<String>,
         context: &mut ui::UpdateContext<GuiMessage>,

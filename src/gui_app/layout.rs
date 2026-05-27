@@ -31,9 +31,13 @@ pub(super) fn view(state: &mut GuiAppState) -> ui::View<GuiMessage> {
 }
 
 fn center_panel(state: &mut GuiAppState) -> ui::View<GuiMessage> {
-    ui::row([folder_sidebar(state), folder_splitter(), main_area(state)])
-        .padding(6.0)
-        .fill()
+    let mut children = vec![folder_sidebar(state)];
+    if state.metadata_tag_library_open && state.folder_browser.selected_file_id().is_some() {
+        children.push(metadata_tag_library_panel(state));
+    }
+    children.push(folder_splitter());
+    children.push(main_area(state));
+    ui::row(children).padding(6.0).fill()
 }
 
 fn folder_sidebar(state: &GuiAppState) -> ui::View<GuiMessage> {
@@ -48,6 +52,64 @@ fn folder_sidebar(state: &GuiAppState) -> ui::View<GuiMessage> {
     )
     .width(state.folder_width)
     .fill_height()
+}
+
+fn metadata_tag_library_panel(state: &GuiAppState) -> ui::View<GuiMessage> {
+    let selected_tags = state.selected_metadata_tags();
+    let known_tags = state.known_metadata_tags();
+    let tag_rows = if known_tags.is_empty() {
+        vec![ui::text("No tags yet").height(22.0).fill_width().truncate()]
+    } else {
+        known_tags
+            .into_iter()
+            .map(|tag| metadata_tag_library_row(tag, selected_tags))
+            .collect::<Vec<_>>()
+    };
+    ui::column([
+        ui::row([
+            ui::text("Tag Editor").height(22.0).fill_width(),
+            ui::button("x")
+                .message(GuiMessage::ToggleMetadataTagLibrary)
+                .key("metadata-tag-library-close")
+                .size(22.0, 20.0),
+        ])
+        .spacing(4.0)
+        .fill_width()
+        .height(24.0),
+        ui::text("Used Tags").height(20.0).fill_width(),
+        ui::scroll(ui::column(tag_rows).spacing(2.0).fill_width())
+            .fill_width()
+            .fill_height(),
+    ])
+    .key("metadata-tag-library-panel")
+    .style(ui::WidgetStyle {
+        tone: ui::WidgetTone::Neutral,
+        prominence: ui::WidgetProminence::Subtle,
+    })
+    .padding(6.0)
+    .spacing(4.0)
+    .width(220.0)
+    .fill_height()
+}
+
+fn metadata_tag_library_row(tag: String, selected_tags: &[String]) -> ui::View<GuiMessage> {
+    let selected = selected_tags.iter().any(|selected| selected == &tag);
+    let label = if selected {
+        format!("[x] {tag}")
+    } else {
+        format!("[ ] {tag}")
+    };
+    let mut button = ui::button(label)
+        .message(GuiMessage::AddMetadataTag(tag.clone()))
+        .key(format!("metadata-tag-library-row-{tag}"))
+        .fill_width()
+        .height(22.0);
+    if selected {
+        button = button.primary();
+    } else {
+        button = button.subtle();
+    }
+    button
 }
 
 fn folder_splitter() -> ui::View<GuiMessage> {

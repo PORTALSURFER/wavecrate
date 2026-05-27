@@ -67,6 +67,7 @@ fn gui_state_for_span_tests() -> GuiAppState {
         metadata_tag_tokens: Vec::new(),
         metadata_tag_completion_prefix: None,
         metadata_tag_completion_index: 0,
+        metadata_tag_library_open: false,
         metadata_tags_by_file: HashMap::new(),
         sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
     }
@@ -125,6 +126,7 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
         metadata_tag_tokens: Vec::new(),
         metadata_tag_completion_prefix: None,
         metadata_tag_completion_index: 0,
+        metadata_tag_library_open: false,
         metadata_tags_by_file: HashMap::new(),
         sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
     };
@@ -267,6 +269,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         metadata_tag_tokens: Vec::new(),
         metadata_tag_completion_prefix: None,
         metadata_tag_completion_index: 0,
+        metadata_tag_library_open: false,
         metadata_tags_by_file: HashMap::new(),
         sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
     };
@@ -710,6 +713,55 @@ fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
     assert!(frame_has_text(&frame, "Metadata"));
     assert!(!frame_has_text(&frame, "Tagging"));
     assert!(frame_has_text(&frame, "kick"));
+    assert!(frame_has_text(&frame, ">"));
+}
+
+#[test]
+fn default_gui_tag_library_opens_beside_folder_sidebar() {
+    let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("tag-target.wav");
+    state.metadata_tags_by_file.insert(
+        selected_file.clone(),
+        vec![String::from("hat"), String::from("seq")],
+    );
+    state.metadata_tags_by_file.insert(
+        String::from("other.wav"),
+        vec![String::from("bass"), String::from("hat")],
+    );
+    state.metadata_tag_library_open = true;
+
+    let frame = radiant::runtime::UiSurface::new(super::view(&mut state).into_node()).frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(900.0, 620.0)),
+        &radiant::theme::ThemeTokens::default(),
+    );
+
+    assert!(frame_has_text(&frame, "Tag Editor"));
+    assert!(frame_has_text(&frame, "Used Tags"));
+    assert!(frame_has_text(&frame, "[x] hat"));
+    assert!(frame_has_text(&frame, "[ ] bass"));
+}
+
+#[test]
+fn default_gui_tag_library_button_adds_existing_tag() {
+    let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("tag-target.wav");
+    state.metadata_tags_by_file.insert(
+        String::from("other.wav"),
+        vec![String::from("bass"), String::from("hat")],
+    );
+
+    state.apply_message(
+        super::GuiMessage::ToggleMetadataTagLibrary,
+        &mut ui::UpdateContext::default(),
+    );
+    state.apply_message(
+        super::GuiMessage::AddMetadataTag(String::from("bass")),
+        &mut ui::UpdateContext::default(),
+    );
+
+    assert!(state.metadata_tag_library_open);
+    assert_eq!(
+        state.metadata_tags_by_file.get(&selected_file),
+        Some(&vec![String::from("bass")])
+    );
 }
 
 #[test]

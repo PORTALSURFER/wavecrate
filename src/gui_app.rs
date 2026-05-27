@@ -135,6 +135,8 @@ enum GuiMessage {
     SetAudioOutputDevice(Option<String>),
     SetAudioOutputSampleRate(Option<u32>),
     MetadataTagInput(radiant::widgets::TextInputMessage),
+    ToggleMetadataTagLibrary,
+    AddMetadataTag(String),
     MetadataTagsPersisted(MetadataTagPersistResult),
     ToggleSampleNameViewMode,
     ClearRebuildableCaches,
@@ -213,6 +215,7 @@ struct GuiAppState {
     metadata_tag_tokens: Vec<String>,
     metadata_tag_completion_prefix: Option<String>,
     metadata_tag_completion_index: usize,
+    metadata_tag_library_open: bool,
     metadata_tags_by_file: HashMap<String, Vec<String>>,
     sample_name_view_mode: SampleNameViewMode,
 }
@@ -343,6 +346,12 @@ impl GuiAppState {
             }
             GuiMessage::MetadataTagInput(message) => {
                 self.apply_metadata_tag_input(message, context)
+            }
+            GuiMessage::ToggleMetadataTagLibrary => {
+                self.metadata_tag_library_open = !self.metadata_tag_library_open;
+            }
+            GuiMessage::AddMetadataTag(tag) => {
+                self.add_metadata_tags(vec![tag], context);
             }
             GuiMessage::MetadataTagsPersisted(result) => self.finish_metadata_tag_persist(result),
             GuiMessage::ToggleSampleNameViewMode => {
