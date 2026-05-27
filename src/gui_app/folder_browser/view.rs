@@ -42,6 +42,7 @@ pub(in crate::gui_app) fn folder_browser_view(
     metadata_tag_completion_suffix: Option<&str>,
     metadata_tag_completion_options: &[MetadataTagCompletionOption],
     metadata_tags: &[String],
+    selected_metadata_tag: Option<&str>,
 ) -> ui::View<GuiMessage> {
     let tag_field_content_width = tag_field_content_width(sidebar_width);
     let tag_field_height = tag_field_height(
@@ -66,6 +67,7 @@ pub(in crate::gui_app) fn folder_browser_view(
             metadata_tag_completion_suffix,
             metadata_tag_completion_options,
             metadata_tags,
+            selected_metadata_tag,
             tag_field_content_width,
             tag_field_height,
             has_selected_file,
@@ -298,6 +300,7 @@ fn metadata_section(
     tag_completion_suffix: Option<&str>,
     tag_completion_options: &[MetadataTagCompletionOption],
     tags: &[String],
+    selected_metadata_tag: Option<&str>,
     tag_field_content_width: f32,
     tag_field_height: f32,
     has_selected_file: bool,
@@ -330,6 +333,7 @@ fn metadata_section(
                 tag_input_placeholder,
                 tag_completion_suffix,
                 tags,
+                selected_metadata_tag,
                 tag_field_height,
                 tag_field_content_width,
             )
@@ -362,6 +366,7 @@ fn tag_entry_field(
     tag_input_placeholder: &str,
     tag_completion_suffix: Option<&str>,
     tags: &[String],
+    selected_metadata_tag: Option<&str>,
     height: f32,
     content_width: f32,
 ) -> ui::View<GuiMessage> {
@@ -395,6 +400,7 @@ fn tag_entry_field(
                     tag_draft,
                     tag_input_placeholder,
                     tag_completion_suffix,
+                    selected_metadata_tag,
                     row_index,
                 )
             })
@@ -700,12 +706,15 @@ fn tag_entry_row(
     tag_draft: &str,
     tag_input_placeholder: &str,
     tag_completion_suffix: Option<&str>,
+    selected_metadata_tag: Option<&str>,
     row_index: usize,
 ) -> ui::View<GuiMessage> {
     ui::row(
         row.into_iter()
             .map(|item| match item {
-                TagEntryRowItem::Accepted(tag) => accepted_tag_token(tag.as_str()),
+                TagEntryRowItem::Accepted(tag) => {
+                    accepted_tag_token(tag.as_str(), selected_metadata_tag == Some(tag.as_str()))
+                }
                 TagEntryRowItem::PendingCategory(tag) => pending_category_tag_token(tag.as_str()),
                 TagEntryRowItem::Input(width) => tag_text_input(
                     tag_draft,
@@ -736,21 +745,28 @@ fn tag_pill_width(tag: &str) -> f32 {
     (tag.chars().count() as f32 * 7.0 + 22.0).clamp(38.0, 180.0)
 }
 
-fn accepted_tag_token(tag: &str) -> ui::View<GuiMessage> {
-    ui::badge(tag.to_string())
-        .subtle()
-        .message(GuiMessage::Noop)
+fn accepted_tag_token(tag: &str, selected: bool) -> ui::View<GuiMessage> {
+    let mut badge = ui::badge(tag.to_string())
+        .message(GuiMessage::SelectMetadataTag(tag.to_string()))
         .key(format!("metadata-tag-accepted-{tag}"))
         .style(WidgetStyle {
             tone: WidgetTone::Accent,
-            prominence: ui::WidgetProminence::Subtle,
+            prominence: if selected {
+                ui::WidgetProminence::Strong
+            } else {
+                ui::WidgetProminence::Subtle
+            },
         })
         .sizing(ui::WidgetSizing::fixed(ui::Vector2::new(
             tag_pill_width(tag),
             TAG_FIELD_CONTROL_HEIGHT,
         )))
         .height(TAG_FIELD_CONTROL_HEIGHT)
-        .width(tag_pill_width(tag))
+        .width(tag_pill_width(tag));
+    if !selected {
+        badge = badge.subtle();
+    }
+    badge
 }
 
 fn pending_category_tag_token(tag: &str) -> ui::View<GuiMessage> {

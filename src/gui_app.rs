@@ -138,7 +138,9 @@ enum GuiMessage {
     MoveMetadataTagCompletion(i32),
     ToggleMetadataTagLibrary,
     ToggleMetadataTagCategory(String),
+    SelectMetadataTag(String),
     ToggleMetadataTag(String),
+    DeleteSelectedMetadataTag,
     MetadataTagsPersisted(MetadataTagPersistResult),
     ToggleSampleNameViewMode,
     ClearRebuildableCaches,
@@ -220,6 +222,7 @@ struct GuiAppState {
     metadata_tag_completion_index: usize,
     metadata_tag_dictionary: BTreeMap<String, String>,
     metadata_tag_library_open: bool,
+    selected_metadata_tag: Option<String>,
     collapsed_metadata_tag_categories: HashSet<String>,
     metadata_tags_by_file: HashMap<String, Vec<String>>,
     sample_name_view_mode: SampleNameViewMode,
@@ -387,8 +390,14 @@ impl GuiAppState {
                     None,
                 );
             }
+            GuiMessage::SelectMetadataTag(tag) => {
+                self.select_metadata_tag(tag);
+            }
             GuiMessage::ToggleMetadataTag(tag) => {
                 self.toggle_metadata_tag(tag, context);
+            }
+            GuiMessage::DeleteSelectedMetadataTag => {
+                self.remove_selected_metadata_tag(context);
             }
             GuiMessage::MetadataTagsPersisted(result) => self.finish_metadata_tag_persist(result),
             GuiMessage::ToggleSampleNameViewMode => {

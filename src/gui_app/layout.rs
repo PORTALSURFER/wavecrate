@@ -52,6 +52,7 @@ fn folder_sidebar(state: &GuiAppState) -> ui::View<GuiMessage> {
         state.metadata_tag_completion_suffix().as_deref(),
         state.metadata_tag_completion_options().as_slice(),
         state.selected_metadata_tags(),
+        state.selected_metadata_tag.as_deref(),
     )
     .width(state.folder_width)
     .fill_height()

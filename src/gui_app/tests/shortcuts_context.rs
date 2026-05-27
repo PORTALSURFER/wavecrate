@@ -238,6 +238,23 @@ fn backspace_shortcut_routes_to_delete_selected_item() {
 }
 
 #[test]
+fn delete_shortcut_removes_selected_metadata_tag_before_deleting_files() {
+    let mut state = GuiAppState::load_default().expect("default state loads");
+    state.selected_metadata_tag = Some(String::from("bass"));
+
+    let resolution = crate::gui_app::default_gui_shortcut_resolution(
+        &state,
+        ui::KeyPress::new(ui::KeyCode::Delete),
+    );
+
+    assert_eq!(
+        resolution.action,
+        Some(crate::gui_app::GuiMessage::DeleteSelectedMetadataTag)
+    );
+    assert!(resolution.handled);
+}
+
+#[test]
 fn loop_shortcut_routes_to_loop_toggle() {
     let state = GuiAppState::load_default().expect("default state loads");
     let resolution =

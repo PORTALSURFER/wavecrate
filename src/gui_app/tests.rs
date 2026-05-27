@@ -70,6 +70,7 @@ fn gui_state_for_span_tests() -> GuiAppState {
         metadata_tag_completion_index: 0,
         metadata_tag_dictionary: Default::default(),
         metadata_tag_library_open: false,
+        selected_metadata_tag: None,
         collapsed_metadata_tag_categories: Default::default(),
         metadata_tags_by_file: HashMap::new(),
         sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
@@ -132,6 +133,7 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
         metadata_tag_completion_index: 0,
         metadata_tag_dictionary: Default::default(),
         metadata_tag_library_open: false,
+        selected_metadata_tag: None,
         collapsed_metadata_tag_categories: Default::default(),
         metadata_tags_by_file: HashMap::new(),
         sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
@@ -278,6 +280,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         metadata_tag_completion_index: 0,
         metadata_tag_dictionary: Default::default(),
         metadata_tag_library_open: false,
+        selected_metadata_tag: None,
         collapsed_metadata_tag_categories: Default::default(),
         metadata_tags_by_file: HashMap::new(),
         sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
@@ -766,6 +769,7 @@ fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
             None,
             &[],
             &tags,
+            None,
         )
         .into_node(),
     )
@@ -779,6 +783,44 @@ fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
     assert!(!frame_has_text(&frame, "Tagging"));
     assert!(frame_has_text(&frame, "kick"));
     assert!(frame_has_text(&frame, ">"));
+}
+
+#[test]
+fn folder_browser_metadata_selected_tag_chip_uses_strong_accent_style() {
+    let browser = super::FolderBrowserState::load_default();
+    let tags = vec![String::from("hat")];
+    let theme = radiant::theme::ThemeTokens::default();
+    let frame = radiant::runtime::UiSurface::new(
+        super::folder_browser::folder_browser_view(
+            &browser,
+            260.0,
+            true,
+            "",
+            &[],
+            None,
+            "add tag",
+            None,
+            &[],
+            &tags,
+            Some("hat"),
+        )
+        .into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
+        &theme,
+    );
+
+    let tag_text = frame
+        .paint_plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::Text(text) if text.text.as_str() == "hat" => Some(text),
+            _ => None,
+        })
+        .expect("selected tag chip should paint");
+    assert_eq!(tag_text.color, theme.text_primary);
 }
 
 #[test]
@@ -885,6 +927,33 @@ fn default_gui_tag_library_button_removes_selected_tag() {
 }
 
 #[test]
+fn metadata_tag_chip_selection_can_be_deleted_from_selected_sample() {
+    let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("tag-target.wav");
+    state.metadata_tags_by_file.insert(
+        selected_file.clone(),
+        vec![String::from("bass"), String::from("hat")],
+    );
+
+    state.apply_message(
+        super::GuiMessage::SelectMetadataTag(String::from("bass")),
+        &mut ui::UpdateContext::default(),
+    );
+    assert_eq!(state.selected_metadata_tag.as_deref(), Some("bass"));
+
+    state.apply_message(
+        super::GuiMessage::DeleteSelectedMetadataTag,
+        &mut ui::UpdateContext::default(),
+    );
+
+    assert_eq!(
+        state.metadata_tags_by_file.get(&selected_file),
+        Some(&vec![String::from("hat")])
+    );
+    assert_eq!(state.selected_metadata_tag, None);
+    assert_eq!(state.sample_status, "Removed tag bass");
+}
+
+#[test]
 fn default_gui_tag_library_category_headers_collapse_groups() {
     let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("tag-target.wav");
     state
@@ -944,6 +1013,7 @@ fn folder_browser_metadata_hides_tag_entry_when_no_file_is_selected() {
             None,
             &[],
             &tags,
+            None,
         )
         .into_node(),
     )
@@ -986,6 +1056,7 @@ fn folder_browser_metadata_tags_grow_combined_entry_field() {
             None,
             &[],
             &small_tags,
+            None,
         )
         .into_node(),
     )
@@ -1005,6 +1076,7 @@ fn folder_browser_metadata_tags_grow_combined_entry_field() {
             None,
             &[],
             &larger_tags,
+            None,
         )
         .into_node(),
     )
@@ -1016,7 +1088,9 @@ fn folder_browser_metadata_tags_grow_combined_entry_field() {
     assert!(frame_has_text(&larger, "distorted"));
     assert!(!frame_has_text(&larger, "More"));
     assert!(frame_has_clip_height(&small, 24.0));
-    assert!(frame_has_clip_height(&larger, 66.0));
+    let first_tag = text_rect(&larger, "kick").expect("first tag should paint");
+    let wrapped_tag = text_rect(&larger, "distorted").expect("wrapped tag should paint");
+    assert!(wrapped_tag.min.y > first_tag.min.y);
 }
 
 #[test]
@@ -1037,6 +1111,7 @@ fn folder_browser_metadata_tag_field_caps_at_six_rows_then_scrolls() {
             None,
             &[],
             &tags,
+            None,
         )
         .into_node(),
     )
@@ -1325,6 +1400,7 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_and_options() {
             Some("ck"),
             completion_options.as_slice(),
             &[String::from("warm")],
+            None,
         )
         .into_node(),
     )
@@ -1815,6 +1891,7 @@ fn folder_browser_metadata_tag_field_renders_pending_category_prompt() {
             Some("-type"),
             completion_options.as_slice(),
             &[],
+            None,
         )
         .into_node(),
     )
@@ -1836,9 +1913,12 @@ fn folder_browser_metadata_tag_field_renders_pending_category_prompt() {
             _ => None,
         })
         .expect("category input should paint");
-    assert_eq!(category_input.state.value, "sound-type");
+    assert_eq!(category_input.state.value, "sound");
     assert_eq!(category_input.state.selection_anchor, 5);
-    assert_eq!(category_input.state.caret, 10);
+    assert_eq!(category_input.state.caret, 5);
+    assert!(frame.paint_plan.primitives.iter().any(|primitive| {
+        matches!(primitive, PaintPrimitive::Text(text) if text.text.as_str() == "-type")
+    }));
     assert!(
         category_input.rect.min.x > pending_tag_rect.max.x,
         "category input should stay on the same row after the pending tag arrow"
@@ -1870,6 +1950,7 @@ fn folder_browser_metadata_tag_input_moves_to_next_row_when_crowded() {
             None,
             &[],
             &tags,
+            None,
         )
         .into_node(),
     )
@@ -1920,6 +2001,7 @@ fn folder_browser_metadata_tag_input_keeps_identity_when_wrapping_rows() {
             None,
             &[],
             &short_tags,
+            None,
         )
         .into_node(),
     )
@@ -1939,6 +2021,7 @@ fn folder_browser_metadata_tag_input_keeps_identity_when_wrapping_rows() {
             None,
             &[],
             &crowded_tags,
+            None,
         )
         .into_node(),
     )
@@ -1974,6 +2057,7 @@ fn folder_browser_metadata_tag_input_wraps_after_full_tag_row() {
             None,
             &[],
             &tags,
+            None,
         )
         .into_node(),
     )

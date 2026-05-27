@@ -158,6 +158,16 @@ impl GuiAppState {
             .unwrap_or(&[])
     }
 
+    pub(super) fn select_metadata_tag(&mut self, tag: String) {
+        if self
+            .selected_metadata_tags()
+            .iter()
+            .any(|existing| existing == &tag)
+        {
+            self.selected_metadata_tag = Some(tag);
+        }
+    }
+
     pub(super) fn apply_metadata_tag_input(
         &mut self,
         message: TextInputMessage,
@@ -581,6 +591,16 @@ impl GuiAppState {
         }
     }
 
+    pub(super) fn remove_selected_metadata_tag(
+        &mut self,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        let Some(tag) = self.selected_metadata_tag.clone() else {
+            return;
+        };
+        self.remove_metadata_tag(tag, context);
+    }
+
     fn remove_metadata_tag(&mut self, tag: String, context: &mut ui::UpdateContext<GuiMessage>) {
         let Some(file_id) = self.folder_browser.selected_file_id().map(str::to_owned) else {
             self.sample_status = String::from("Select a sample before removing tags");
@@ -604,6 +624,9 @@ impl GuiAppState {
         }
         if file_tags.is_empty() {
             self.metadata_tags_by_file.remove(&file_id);
+        }
+        if self.selected_metadata_tag.as_deref() == Some(tag.as_str()) {
+            self.selected_metadata_tag = None;
         }
         self.sample_status = format!("Removed tag {tag}");
         let request = MetadataTagPersistRequest {

@@ -39,6 +39,12 @@ pub(super) fn default_gui_shortcut_resolution(
             return resolution;
         }
     }
+    if state.selected_metadata_tag.is_some() {
+        let resolution = selected_metadata_tag_shortcuts().resolve(press);
+        if resolution.handled {
+            return resolution;
+        }
+    }
     default_shortcuts(state).resolve_or_else(press, || navigation_shortcut(press))
 }
 
@@ -51,6 +57,18 @@ fn metadata_tag_completion_shortcuts() -> ui::ShortcutLayer<GuiMessage> {
         .bind(
             ui::KeyPress::new(ui::KeyCode::ArrowDown),
             GuiMessage::MoveMetadataTagCompletion(1),
+        )
+}
+
+fn selected_metadata_tag_shortcuts() -> ui::ShortcutLayer<GuiMessage> {
+    ui::ShortcutLayer::new()
+        .bind(
+            ui::KeyPress::new(ui::KeyCode::Delete),
+            GuiMessage::DeleteSelectedMetadataTag,
+        )
+        .bind(
+            ui::KeyPress::new(ui::KeyCode::Backspace),
+            GuiMessage::DeleteSelectedMetadataTag,
         )
 }
 
