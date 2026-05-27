@@ -30,6 +30,7 @@ impl AppController {
         self.ui.audio.write_format = self.settings.audio_write_format.clone();
         self.settings.default_identifier = default_identifier(&core.default_identifier);
         self.ui.options_panel.default_identifier = self.settings.default_identifier.clone();
+        self.settings.tag_dictionary = core.tag_dictionary.clone();
     }
 
     pub(super) fn apply_control_settings(&mut self, core: &AppSettingsCore) {

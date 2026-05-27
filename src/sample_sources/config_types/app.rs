@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{collections::BTreeMap, path::PathBuf};
 
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -21,7 +21,7 @@ use super::{AnalysisSettings, AudioWriteFormatConfig, InteractionOptions, Update
 /// `trash_folder`, `drop_targets`, `last_selected_source`,
 /// `upper_folder_pane_source`, `lower_folder_pane_source`, `active_folder_pane`,
 /// `volume`, `audio_output`, `audio_input`, `audio_write_format`, `controls`,
-/// `job_message_queue_capacity`, `default_identifier`.
+/// `job_message_queue_capacity`, `default_identifier`, `tag_dictionary`.
 ///
 /// `sources` are stored in the library database.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -120,6 +120,9 @@ pub struct AppSettingsCore {
     #[serde(default = "default_identifier")]
     /// Global creator or artist identifier used by sample auto-rename.
     pub default_identifier: String,
+    #[serde(default)]
+    /// Global user-authored tag dictionary, keyed by normalized tag value with fixed category ids.
+    pub tag_dictionary: BTreeMap<String, String>,
 }
 
 impl AppSettingsCore {
@@ -209,6 +212,7 @@ impl Default for AppSettingsCore {
             volume: default_volume(),
             controls: InteractionOptions::default(),
             default_identifier: default_identifier(),
+            tag_dictionary: BTreeMap::new(),
         }
     }
 }

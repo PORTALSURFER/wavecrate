@@ -30,6 +30,8 @@ pub(in crate::gui_app) fn folder_browser_view(
     has_selected_file: bool,
     metadata_tag_draft: &str,
     metadata_tag_tokens: &[String],
+    metadata_tag_pending_category_tag: Option<&str>,
+    metadata_tag_input_placeholder: &str,
     metadata_tag_completion_suffix: Option<&str>,
     metadata_tag_completion_options: &[MetadataTagCompletionOption],
     metadata_tags: &[String],
@@ -43,6 +45,8 @@ pub(in crate::gui_app) fn folder_browser_view(
         metadata_section(
             metadata_tag_draft,
             metadata_tag_tokens,
+            metadata_tag_pending_category_tag,
+            metadata_tag_input_placeholder,
             metadata_tag_completion_suffix,
             metadata_tag_completion_options,
             metadata_tags,
@@ -272,6 +276,8 @@ fn filter_section() -> ui::View<GuiMessage> {
 fn metadata_section(
     tag_draft: &str,
     tag_tokens: &[String],
+    tag_pending_category_tag: Option<&str>,
+    tag_input_placeholder: &str,
     tag_completion_suffix: Option<&str>,
     tag_completion_options: &[MetadataTagCompletionOption],
     tags: &[String],
@@ -285,6 +291,7 @@ fn metadata_section(
     let tag_field_height = tag_field_height(
         tag_draft,
         tag_tokens,
+        tag_pending_category_tag,
         tag_completion_suffix,
         tags,
         tag_field_content_width,
@@ -310,6 +317,8 @@ fn metadata_section(
             tag_entry_field(
                 tag_draft,
                 tag_tokens,
+                tag_pending_category_tag,
+                tag_input_placeholder,
                 tag_completion_suffix,
                 tags,
                 tag_field_height,
@@ -332,6 +341,8 @@ fn metadata_section(
 fn tag_entry_field(
     tag_draft: &str,
     tag_tokens: &[String],
+    tag_pending_category_tag: Option<&str>,
+    tag_input_placeholder: &str,
     tag_completion_suffix: Option<&str>,
     tags: &[String],
     height: f32,
@@ -344,9 +355,11 @@ fn tag_entry_field(
         }
     }
 
-    let input_width = tag_input_width(tag_draft);
+    let pending_category_tag = tag_pending_category_tag.map(str::to_string);
+    let input_width = tag_input_width_for_placeholder(tag_draft, tag_input_placeholder);
     let rows = tag_field_rows(
         &visible_tags,
+        pending_category_tag.as_deref(),
         input_width,
         tag_completion_suffix,
         content_width,
@@ -355,7 +368,7 @@ fn tag_entry_field(
     let content = ui::column(
         rows.into_iter()
             .enumerate()
-            .map(|(row_index, row)| tag_entry_row(row, tag_draft, row_index))
+            .map(|(row_index, row)| tag_entry_row(row, tag_draft, tag_input_placeholder, row_index))
             .collect::<Vec<_>>(),
     )
     .fill_width()
@@ -379,6 +392,7 @@ fn tag_field_content_width(sidebar_width: f32) -> f32 {
 fn tag_field_height(
     tag_draft: &str,
     tag_tokens: &[String],
+    tag_pending_category_tag: Option<&str>,
     tag_completion_suffix: Option<&str>,
     tags: &[String],
     content_width: f32,
@@ -392,6 +406,7 @@ fn tag_field_height(
     let input_width = tag_input_width(tag_draft);
     let rows = tag_field_rows(
         &visible_tags,
+        tag_pending_category_tag,
         input_width,
         tag_completion_suffix,
         content_width,
@@ -403,12 +418,14 @@ fn tag_field_height(
 #[derive(Clone, Debug, PartialEq)]
 enum TagEntryRowItem {
     Accepted(String),
+    PendingCategory(String),
     Input(f32),
     CompletionSuffix(String),
 }
 
 fn tag_field_rows(
     tags: &[String],
+    pending_category_tag: Option<&str>,
     input_width: f32,
     tag_completion_suffix: Option<&str>,
     content_width: f32,
@@ -418,6 +435,15 @@ fn tag_field_rows(
         rows.push(Vec::new());
     }
 
+    if let Some(tag) = pending_category_tag {
+        let label = format!("{tag} ->");
+        push_row_item(
+            &mut rows,
+            TagEntryRowItem::PendingCategory(label.clone()),
+            tag_pill_width(&label),
+            content_width,
+        );
+    }
     push_row_item(
         &mut rows,
         TagEntryRowItem::Input(input_width),
@@ -481,6 +507,7 @@ fn row_width(row: &[TagEntryRowItem]) -> f32 {
 fn tag_entry_row_item_width(item: &TagEntryRowItem) -> f32 {
     match item {
         TagEntryRowItem::Accepted(tag) => tag_pill_width(tag),
+        TagEntryRowItem::PendingCategory(tag) => tag_pill_width(tag),
         TagEntryRowItem::Input(width) => *width,
         TagEntryRowItem::CompletionSuffix(suffix) => tag_completion_suffix_width(suffix),
     }
@@ -515,9 +542,9 @@ fn rows_height(row_count: usize) -> f32 {
         + row_count.saturating_sub(1) as f32 * TAG_FIELD_LINE_GAP
 }
 
-fn tag_text_input(tag_draft: &str, width: f32) -> ui::View<GuiMessage> {
+fn tag_text_input(tag_draft: &str, placeholder: &str, width: f32) -> ui::View<GuiMessage> {
     ui::text_input(tag_draft.to_string())
-        .placeholder("add tag")
+        .placeholder(placeholder)
         .underline()
         .message_event(GuiMessage::MetadataTagInput)
         .id(METADATA_TAG_INPUT_ID)
@@ -533,13 +560,17 @@ fn tag_text_input(tag_draft: &str, width: f32) -> ui::View<GuiMessage> {
 fn tag_entry_row(
     row: Vec<TagEntryRowItem>,
     tag_draft: &str,
+    tag_input_placeholder: &str,
     row_index: usize,
 ) -> ui::View<GuiMessage> {
     ui::row(
         row.into_iter()
             .map(|item| match item {
                 TagEntryRowItem::Accepted(tag) => accepted_tag_token(tag.as_str()),
-                TagEntryRowItem::Input(width) => tag_text_input(tag_draft, width),
+                TagEntryRowItem::PendingCategory(tag) => pending_category_tag_token(tag.as_str()),
+                TagEntryRowItem::Input(width) => {
+                    tag_text_input(tag_draft, tag_input_placeholder, width)
+                }
                 TagEntryRowItem::CompletionSuffix(suffix) => {
                     tag_completion_suffix_token(suffix.as_str())
                 }
@@ -557,6 +588,11 @@ fn tag_input_width(value: &str) -> f32 {
     (char_width * 7.0 + 12.0).clamp(61.0, 180.0)
 }
 
+fn tag_input_width_for_placeholder(value: &str, placeholder: &str) -> f32 {
+    let content_width = value.chars().count().max(placeholder.chars().count()) as f32;
+    (content_width * 7.0 + 12.0).clamp(61.0, 180.0)
+}
+
 fn tag_pill_width(tag: &str) -> f32 {
     (tag.chars().count() as f32 * 7.0 + 22.0).clamp(38.0, 180.0)
 }
@@ -570,6 +606,23 @@ fn accepted_tag_token(tag: &str) -> ui::View<GuiMessage> {
         .subtle()
         .message(GuiMessage::Noop)
         .key(format!("metadata-tag-accepted-{tag}"))
+        .style(WidgetStyle {
+            tone: WidgetTone::Accent,
+            prominence: ui::WidgetProminence::Subtle,
+        })
+        .sizing(ui::WidgetSizing::fixed(ui::Vector2::new(
+            tag_pill_width(tag),
+            TAG_FIELD_CONTROL_HEIGHT,
+        )))
+        .height(TAG_FIELD_CONTROL_HEIGHT)
+        .width(tag_pill_width(tag))
+}
+
+fn pending_category_tag_token(tag: &str) -> ui::View<GuiMessage> {
+    ui::badge(tag.to_string())
+        .subtle()
+        .message(GuiMessage::Noop)
+        .key(format!("metadata-tag-pending-category-{tag}"))
         .style(WidgetStyle {
             tone: WidgetTone::Accent,
             prominence: ui::WidgetProminence::Subtle,

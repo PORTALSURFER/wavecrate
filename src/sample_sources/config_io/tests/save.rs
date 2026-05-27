@@ -233,6 +233,10 @@ fn settings_round_trip_preserves_fields() {
                 loop_lock_enabled: true,
             },
             default_identifier: String::from("artist"),
+            tag_dictionary: std::collections::BTreeMap::from([(
+                String::from("deep-kick"),
+                String::from("sound-type"),
+            )]),
         },
     };
 
@@ -383,6 +387,7 @@ fn settings_round_trip_preserves_fields() {
         round_trip.core.controls.loop_lock_enabled,
         cfg.core.controls.loop_lock_enabled
     );
+    assert_eq!(round_trip.core.tag_dictionary, cfg.core.tag_dictionary);
 }
 
 #[test]

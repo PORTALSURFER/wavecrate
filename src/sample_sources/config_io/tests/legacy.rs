@@ -35,6 +35,7 @@ fn migrates_from_legacy_json() {
             volume: 0.9,
             controls: InteractionOptions::default(),
             default_identifier: String::from("legacy"),
+            tag_dictionary: Default::default(),
         },
     };
     let mut data = serde_json::to_value(&legacy).unwrap();

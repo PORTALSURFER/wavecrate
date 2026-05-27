@@ -5,7 +5,7 @@ use radiant::prelude as ui;
 use radiant::runtime::NativeFileDrop;
 use radiant::widgets::{DragHandleMessage, PointerModifiers};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     path::PathBuf,
     sync::mpsc::{Receiver, Sender},
     time::{Duration, Instant},
@@ -64,7 +64,7 @@ pub(crate) use launch::run;
 #[cfg(test)]
 use launch::{DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG, debug_layout_requested};
 use layout::view;
-use metadata_tags::MetadataTagPersistResult;
+use metadata_tags::{MetadataTagInputMode, MetadataTagPersistResult};
 #[cfg(test)]
 use sample_browser_view::sample_browser;
 use sample_load_actions::{NormalizedWaveformReload, WaveformPlaybackResume};
@@ -215,8 +215,10 @@ struct GuiAppState {
     native_file_drop_hover: Option<NativeFileDropHover>,
     metadata_tag_draft: String,
     metadata_tag_tokens: Vec<String>,
+    metadata_tag_input_mode: MetadataTagInputMode,
     metadata_tag_completion_prefix: Option<String>,
     metadata_tag_completion_index: usize,
+    metadata_tag_dictionary: BTreeMap<String, String>,
     metadata_tag_library_open: bool,
     collapsed_metadata_tag_categories: HashSet<String>,
     metadata_tags_by_file: HashMap<String, Vec<String>>,

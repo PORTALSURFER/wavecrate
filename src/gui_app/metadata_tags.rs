@@ -5,7 +5,7 @@ use radiant::widgets::TextInputMessage;
 use std::{
     collections::{BTreeSet, HashMap},
     path::{Path, PathBuf},
-    time::SystemTime,
+    time::{Instant, SystemTime},
 };
 use wavecrate::sample_sources::{SampleSource, SourceDatabase, SourceDbError};
 
@@ -46,8 +46,24 @@ pub(super) struct MetadataTagCompletionOption {
     pub(super) selected: bool,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(super) enum MetadataTagInputMode {
+    #[default]
+    Tag,
+    Category {
+        pending_tag: String,
+    },
+}
+
 const METADATA_TAG_CATEGORIES: [(&str, &str); 5] = [
     ("playback-type", "Playback Type"),
+    ("sound-type", "Sound Type"),
+    ("character", "Character"),
+    ("prefix", "Prefix"),
+    ("tuning-scale", "Tuning/Scale"),
+];
+
+const USER_EXTENSIBLE_METADATA_TAG_CATEGORIES: [(&str, &str); 4] = [
     ("sound-type", "Sound Type"),
     ("character", "Character"),
     ("prefix", "Prefix"),
@@ -151,19 +167,7 @@ impl GuiAppState {
                 self.reset_metadata_tag_completion_cycle();
             }
             TextInputMessage::Submitted { value } => {
-                let mut commit = commit_metadata_tag_text(&value);
-                let mut tags = std::mem::take(&mut self.metadata_tag_tokens);
-                if tags.is_empty()
-                    && commit.tags.len() <= 1
-                    && let Some(tag) = self.selected_metadata_tag_completion()
-                {
-                    tags.push(tag);
-                    commit.tags.clear();
-                }
-                tags.append(&mut commit.tags);
-                self.metadata_tag_draft.clear();
-                self.reset_metadata_tag_completion_cycle();
-                self.add_metadata_tags(tags, context);
+                self.submit_metadata_tag_input(value, context);
             }
             TextInputMessage::CompletionRequested { value } => {
                 self.metadata_tag_draft = value;
@@ -172,26 +176,104 @@ impl GuiAppState {
         }
     }
 
-    pub(super) fn metadata_tag_completion_suffix(&self) -> Option<String> {
-        let prefix = normalize_metadata_tag(&self.metadata_tag_draft)?;
-        let suggestion = self.selected_metadata_tag_completion()?;
-        if suggestion == prefix {
-            return None;
+    fn submit_metadata_tag_input(
+        &mut self,
+        value: String,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        if matches!(
+            self.metadata_tag_input_mode,
+            MetadataTagInputMode::Category { .. }
+        ) {
+            self.submit_metadata_tag_category(value, context);
+        } else {
+            self.submit_metadata_tag_value(value, context);
         }
-        suggestion
-            .strip_prefix(prefix.as_str())
-            .map(str::to_string)
-            .filter(|suffix| !suffix.is_empty())
+    }
+
+    fn submit_metadata_tag_value(
+        &mut self,
+        value: String,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        let mut commit = commit_metadata_tag_text(&value);
+        let mut tags = std::mem::take(&mut self.metadata_tag_tokens);
+        if tags.is_empty()
+            && commit.tags.len() <= 1
+            && let Some(tag) = self.selected_metadata_tag_completion()
+        {
+            tags.push(tag);
+            commit.tags.clear();
+        }
+        tags.append(&mut commit.tags);
+        if tags.len() == 1 && self.is_new_metadata_tag(tags[0].as_str()) {
+            let tag = tags.remove(0);
+            self.metadata_tag_input_mode = MetadataTagInputMode::Category {
+                pending_tag: tag.clone(),
+            };
+            self.metadata_tag_draft.clear();
+            self.reset_metadata_tag_completion_cycle();
+            self.sample_status = format!("Choose a category for {tag}");
+            return;
+        }
+        self.metadata_tag_draft.clear();
+        self.reset_metadata_tag_completion_cycle();
+        self.add_metadata_tags(tags, context);
+    }
+
+    fn submit_metadata_tag_category(
+        &mut self,
+        value: String,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        let MetadataTagInputMode::Category { pending_tag } = self.metadata_tag_input_mode.clone()
+        else {
+            return;
+        };
+        let Some(category_id) = self.selected_metadata_tag_category(value.as_str()) else {
+            self.sample_status = format!("Choose a category for {pending_tag}");
+            return;
+        };
+        self.metadata_tag_dictionary
+            .insert(pending_tag.clone(), category_id.to_string());
+        self.metadata_tag_input_mode = MetadataTagInputMode::Tag;
+        self.metadata_tag_draft.clear();
+        self.reset_metadata_tag_completion_cycle();
+        self.persist_user_configuration("metadata.tags.dictionary.persist", Instant::now());
+        self.add_metadata_tags(vec![pending_tag], context);
+    }
+
+    pub(super) fn metadata_tag_completion_suffix(&self) -> Option<String> {
+        match &self.metadata_tag_input_mode {
+            MetadataTagInputMode::Tag => {
+                let prefix = normalize_metadata_tag(&self.metadata_tag_draft)?;
+                let suggestion = self.selected_metadata_tag_completion()?;
+                if suggestion == prefix {
+                    return None;
+                }
+                suggestion
+                    .strip_prefix(prefix.as_str())
+                    .map(str::to_string)
+                    .filter(|suffix| !suffix.is_empty())
+            }
+            MetadataTagInputMode::Category { .. } => self.metadata_tag_category_completion_suffix(),
+        }
     }
 
     pub(super) fn metadata_tag_completion_options(&self) -> Vec<MetadataTagCompletionOption> {
+        if matches!(
+            self.metadata_tag_input_mode,
+            MetadataTagInputMode::Category { .. }
+        ) {
+            return self.metadata_tag_category_completion_options();
+        }
         let suggestions = self.metadata_tag_suggestions();
         let selected_index = self.selected_metadata_tag_completion_index(suggestions.len());
         suggestions
             .into_iter()
             .enumerate()
             .map(|(index, tag)| MetadataTagCompletionOption {
-                category: metadata_tag_category_label(&tag),
+                category: self.metadata_tag_category_label(&tag),
                 selected: index == selected_index,
                 tag,
             })
@@ -199,6 +281,13 @@ impl GuiAppState {
     }
 
     pub(super) fn move_metadata_tag_completion_selection(&mut self, delta: i32) {
+        if matches!(
+            self.metadata_tag_input_mode,
+            MetadataTagInputMode::Category { .. }
+        ) {
+            self.move_metadata_tag_category_completion_selection(delta);
+            return;
+        }
         let Some(prefix) = normalize_metadata_tag(&self.metadata_tag_draft) else {
             self.reset_metadata_tag_completion_cycle();
             return;
@@ -238,7 +327,27 @@ impl GuiAppState {
     }
 
     pub(super) fn metadata_tag_completion_active(&self) -> bool {
+        if matches!(
+            self.metadata_tag_input_mode,
+            MetadataTagInputMode::Category { .. }
+        ) {
+            return !self.metadata_tag_category_suggestions().is_empty();
+        }
         !self.metadata_tag_suggestions().is_empty()
+    }
+
+    pub(super) fn metadata_tag_input_placeholder(&self) -> &'static str {
+        match self.metadata_tag_input_mode {
+            MetadataTagInputMode::Tag => "add tag",
+            MetadataTagInputMode::Category { .. } => "select group/parent tag",
+        }
+    }
+
+    pub(super) fn pending_metadata_tag_category_tag(&self) -> Option<&str> {
+        match &self.metadata_tag_input_mode {
+            MetadataTagInputMode::Tag => None,
+            MetadataTagInputMode::Category { pending_tag } => Some(pending_tag.as_str()),
+        }
     }
 
     fn selected_metadata_tag_completion_index(&self, suggestion_count: usize) -> usize {
@@ -259,6 +368,7 @@ impl GuiAppState {
         self.metadata_tags_by_file
             .values()
             .flat_map(|tags| tags.iter().cloned())
+            .chain(self.metadata_tag_dictionary.keys().cloned())
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect()
@@ -275,12 +385,112 @@ impl GuiAppState {
             })
             .collect::<Vec<_>>();
         for tag in self.known_metadata_tags() {
-            let category_id = metadata_tag_category_id(&tag);
+            let category_id = self.metadata_tag_category_id(&tag);
             if let Some(group) = groups.iter_mut().find(|group| group.id == category_id) {
                 group.tags.push(tag);
             }
         }
         groups
+    }
+
+    fn is_new_metadata_tag(&self, tag: &str) -> bool {
+        !self.known_metadata_tags().iter().any(|known| known == tag)
+    }
+
+    fn metadata_tag_category_id(&self, tag: &str) -> &'static str {
+        self.metadata_tag_dictionary
+            .get(tag)
+            .and_then(|category_id| {
+                metadata_tag_category_label_for_id(category_id).map(|_| category_id.as_str())
+            })
+            .and_then(static_metadata_tag_category_id)
+            .unwrap_or_else(|| inferred_metadata_tag_category_id(tag))
+    }
+
+    fn metadata_tag_category_label(&self, tag: &str) -> &'static str {
+        metadata_tag_category_label_for_id(self.metadata_tag_category_id(tag))
+            .unwrap_or("Character")
+    }
+
+    fn metadata_tag_category_suggestions(&self) -> Vec<(&'static str, &'static str)> {
+        let Some(prefix) = normalize_metadata_category_query(&self.metadata_tag_draft) else {
+            return Vec::new();
+        };
+        USER_EXTENSIBLE_METADATA_TAG_CATEGORIES
+            .into_iter()
+            .filter(|(id, label)| {
+                normalize_metadata_category_query(id)
+                    .is_some_and(|normalized| normalized.starts_with(prefix.as_str()))
+                    || normalize_metadata_category_query(label)
+                        .is_some_and(|normalized| normalized.starts_with(prefix.as_str()))
+            })
+            .collect()
+    }
+
+    fn selected_metadata_tag_category(&self, value: &str) -> Option<&'static str> {
+        let suggestions = self.metadata_tag_category_suggestions();
+        if !suggestions.is_empty() {
+            let index = self.selected_metadata_tag_completion_index(suggestions.len());
+            return suggestions.get(index).map(|(id, _)| *id);
+        }
+        let normalized = normalize_metadata_category_query(value)?;
+        USER_EXTENSIBLE_METADATA_TAG_CATEGORIES
+            .into_iter()
+            .find(|(id, label)| {
+                normalize_metadata_category_query(id).as_deref() == Some(normalized.as_str())
+                    || normalize_metadata_category_query(label).as_deref()
+                        == Some(normalized.as_str())
+            })
+            .map(|(id, _)| id)
+    }
+
+    fn metadata_tag_category_completion_options(&self) -> Vec<MetadataTagCompletionOption> {
+        let suggestions = self.metadata_tag_category_suggestions();
+        let selected_index = self.selected_metadata_tag_completion_index(suggestions.len());
+        suggestions
+            .into_iter()
+            .enumerate()
+            .map(|(index, (_id, label))| MetadataTagCompletionOption {
+                tag: label.to_string(),
+                category: "Group",
+                selected: index == selected_index,
+            })
+            .collect()
+    }
+
+    fn metadata_tag_category_completion_suffix(&self) -> Option<String> {
+        let prefix = normalize_metadata_category_query(&self.metadata_tag_draft)?;
+        let suggestions = self.metadata_tag_category_suggestions();
+        let index = self.selected_metadata_tag_completion_index(suggestions.len());
+        let (_id, label) = suggestions.get(index)?;
+        let normalized_label = normalize_metadata_category_query(label)?;
+        if normalized_label == prefix {
+            return None;
+        }
+        normalized_label
+            .strip_prefix(prefix.as_str())
+            .map(str::to_string)
+            .filter(|suffix| !suffix.is_empty())
+    }
+
+    fn move_metadata_tag_category_completion_selection(&mut self, delta: i32) {
+        let Some(prefix) = normalize_metadata_category_query(&self.metadata_tag_draft) else {
+            self.reset_metadata_tag_completion_cycle();
+            return;
+        };
+        let suggestions = self.metadata_tag_category_suggestions();
+        if suggestions.is_empty() {
+            self.reset_metadata_tag_completion_cycle();
+            return;
+        }
+        let current = if self.metadata_tag_completion_prefix.as_deref() == Some(prefix.as_str()) {
+            self.metadata_tag_completion_index % suggestions.len()
+        } else {
+            0
+        };
+        let len = suggestions.len() as i32;
+        self.metadata_tag_completion_prefix = Some(prefix);
+        self.metadata_tag_completion_index = (current as i32 + delta).rem_euclid(len) as usize;
     }
 
     fn reset_metadata_tag_completion_cycle(&mut self) {
@@ -572,7 +782,12 @@ fn metadata_tag_completions_for_prefix<'a>(
         .collect()
 }
 
+#[cfg(test)]
 fn metadata_tag_category_id(tag: &str) -> &'static str {
+    inferred_metadata_tag_category_id(tag)
+}
+
+fn inferred_metadata_tag_category_id(tag: &str) -> &'static str {
     let normalized = normalize_metadata_category_match(tag);
     if PLAYBACK_TYPE_TAGS.contains(&normalized.as_str()) {
         "playback-type"
@@ -593,12 +808,16 @@ fn metadata_tag_category_id(tag: &str) -> &'static str {
     }
 }
 
-fn metadata_tag_category_label(tag: &str) -> &'static str {
-    let category_id = metadata_tag_category_id(tag);
+fn metadata_tag_category_label_for_id(category_id: &str) -> Option<&'static str> {
     METADATA_TAG_CATEGORIES
         .iter()
         .find_map(|(id, label)| (*id == category_id).then_some(*label))
-        .unwrap_or("Character")
+}
+
+fn static_metadata_tag_category_id(category_id: &str) -> Option<&'static str> {
+    METADATA_TAG_CATEGORIES
+        .iter()
+        .find_map(|(id, _label)| (*id == category_id).then_some(*id))
 }
 
 fn has_metadata_category_prefix(value: &str, prefix: &str) -> bool {
@@ -615,6 +834,10 @@ fn normalize_metadata_category_match(value: &str) -> String {
         .collect::<Vec<_>>()
         .join(" ")
         .to_ascii_lowercase()
+}
+
+fn normalize_metadata_category_query(value: &str) -> Option<String> {
+    normalize_metadata_tag(value).map(|normalized| normalized.replace('_', "-"))
 }
 
 #[cfg(test)]

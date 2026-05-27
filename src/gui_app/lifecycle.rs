@@ -41,7 +41,7 @@ impl GuiAppState {
             audio_hosts: Vec::new(),
             audio_devices: Vec::new(),
             audio_sample_rates: Vec::new(),
-            persisted_settings: config.core,
+            persisted_settings: config.core.clone(),
             audio_settings_open: false,
             audio_backend_dropdown_open: false,
             audio_output_dropdown_open: false,
@@ -54,8 +54,10 @@ impl GuiAppState {
             native_file_drop_hover: None,
             metadata_tag_draft: String::new(),
             metadata_tag_tokens: Vec::new(),
+            metadata_tag_input_mode: Default::default(),
             metadata_tag_completion_prefix: None,
             metadata_tag_completion_index: 0,
+            metadata_tag_dictionary: config.core.tag_dictionary.clone(),
             metadata_tag_library_open: false,
             collapsed_metadata_tag_categories: Default::default(),
             metadata_tags_by_file,
@@ -125,6 +127,7 @@ impl GuiAppState {
         AppSettingsCore {
             audio_output: self.audio_output_config.clone(),
             volume: self.volume,
+            tag_dictionary: self.metadata_tag_dictionary.clone(),
             ..self.persisted_settings.clone()
         }
     }

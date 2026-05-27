@@ -65,8 +65,10 @@ fn gui_state_for_span_tests() -> GuiAppState {
         native_file_drop_hover: None,
         metadata_tag_draft: String::new(),
         metadata_tag_tokens: Vec::new(),
+        metadata_tag_input_mode: Default::default(),
         metadata_tag_completion_prefix: None,
         metadata_tag_completion_index: 0,
+        metadata_tag_dictionary: Default::default(),
         metadata_tag_library_open: false,
         collapsed_metadata_tag_categories: Default::default(),
         metadata_tags_by_file: HashMap::new(),
@@ -125,8 +127,10 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
         native_file_drop_hover: None,
         metadata_tag_draft: String::new(),
         metadata_tag_tokens: Vec::new(),
+        metadata_tag_input_mode: Default::default(),
         metadata_tag_completion_prefix: None,
         metadata_tag_completion_index: 0,
+        metadata_tag_dictionary: Default::default(),
         metadata_tag_library_open: false,
         collapsed_metadata_tag_categories: Default::default(),
         metadata_tags_by_file: HashMap::new(),
@@ -269,8 +273,10 @@ fn sample_selection_loads_selected_file_into_waveform() {
         native_file_drop_hover: None,
         metadata_tag_draft: String::new(),
         metadata_tag_tokens: Vec::new(),
+        metadata_tag_input_mode: Default::default(),
         metadata_tag_completion_prefix: None,
         metadata_tag_completion_index: 0,
+        metadata_tag_dictionary: Default::default(),
         metadata_tag_library_open: false,
         collapsed_metadata_tag_categories: Default::default(),
         metadata_tags_by_file: HashMap::new(),
@@ -711,6 +717,8 @@ fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
             "",
             &[],
             None,
+            "add tag",
+            None,
             &[],
             &tags,
         )
@@ -832,6 +840,28 @@ fn default_gui_tag_library_category_headers_collapse_groups() {
 }
 
 #[test]
+fn default_gui_tag_library_uses_custom_dictionary_categories() {
+    let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("tag-target.wav");
+    state
+        .metadata_tags_by_file
+        .insert(selected_file, vec![String::from("deep-kick")]);
+    state
+        .metadata_tag_dictionary
+        .insert(String::from("deep-kick"), String::from("sound-type"));
+    state.metadata_tag_library_open = true;
+
+    let frame = radiant::runtime::UiSurface::new(super::view(&mut state).into_node()).frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(900.0, 620.0)),
+        &radiant::theme::ThemeTokens::default(),
+    );
+
+    assert!(frame_has_text(&frame, "v Sound Type (1)"));
+    assert!(frame_has_text(&frame, "[x] deep-kick"));
+    assert!(frame_has_text(&frame, "v Character"));
+    assert!(!frame_has_text(&frame, "v Character (1)"));
+}
+
+#[test]
 fn folder_browser_metadata_hides_tag_entry_when_no_file_is_selected() {
     let browser = super::FolderBrowserState::load_default();
     let tags = vec![String::from("kick")];
@@ -842,6 +872,8 @@ fn folder_browser_metadata_hides_tag_entry_when_no_file_is_selected() {
             false,
             "",
             &[],
+            None,
+            "add tag",
             None,
             &[],
             &tags,
@@ -883,6 +915,8 @@ fn folder_browser_metadata_tags_grow_combined_entry_field() {
             "",
             &[],
             None,
+            "add tag",
+            None,
             &[],
             &small_tags,
         )
@@ -899,6 +933,8 @@ fn folder_browser_metadata_tags_grow_combined_entry_field() {
             true,
             "",
             &[],
+            None,
+            "add tag",
             None,
             &[],
             &larger_tags,
@@ -930,6 +966,8 @@ fn folder_browser_metadata_tag_field_caps_at_six_rows_then_scrolls() {
             "",
             &[],
             None,
+            "add tag",
+            None,
             &[],
             &tags,
         )
@@ -955,7 +993,9 @@ fn folder_browser_metadata_tag_field_caps_at_six_rows_then_scrolls() {
 }
 
 #[test]
-fn metadata_tag_input_submits_normalized_tags() {
+fn metadata_tag_input_prompts_for_category_before_adding_new_tag() {
+    let config_base = tempfile::tempdir().expect("config base");
+    let _base_guard = wavecrate::app_dirs::ConfigBaseGuard::set(config_base.path().to_path_buf());
     let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("tag-target.wav");
 
     state.apply_message(
@@ -965,10 +1005,48 @@ fn metadata_tag_input_submits_normalized_tags() {
         &mut ui::UpdateContext::default(),
     );
 
+    assert_eq!(state.metadata_tags_by_file.get(&selected_file), None);
+    assert_eq!(state.pending_metadata_tag_category_tag(), Some("deep-kick"));
+    assert_eq!(
+        state.metadata_tag_input_placeholder(),
+        "select group/parent tag"
+    );
+    assert_eq!(state.sample_status, "Choose a category for deep-kick");
+
+    state.apply_message(
+        super::GuiMessage::MetadataTagInput(radiant::widgets::TextInputMessage::Changed {
+            value: String::from("sound"),
+        }),
+        &mut ui::UpdateContext::default(),
+    );
+    assert_eq!(
+        state
+            .metadata_tag_completion_options()
+            .iter()
+            .find(|option| option.selected)
+            .map(|option| option.tag.as_str()),
+        Some("Sound Type")
+    );
+
+    state.apply_message(
+        super::GuiMessage::MetadataTagInput(radiant::widgets::TextInputMessage::Submitted {
+            value: String::from("sound"),
+        }),
+        &mut ui::UpdateContext::default(),
+    );
+
     assert_eq!(
         state.metadata_tags_by_file.get(&selected_file),
         Some(&vec![String::from("deep-kick")])
     );
+    assert_eq!(
+        state
+            .metadata_tag_dictionary
+            .get("deep-kick")
+            .map(String::as_str),
+        Some("sound-type")
+    );
+    assert_eq!(state.pending_metadata_tag_category_tag(), None);
     assert!(state.metadata_tag_draft.is_empty());
     assert_eq!(state.sample_status, "Added tag deep-kick");
 }
@@ -1175,6 +1253,8 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_and_options() {
             true,
             "ki",
             &[String::from("kick")],
+            None,
+            "add tag",
             Some("ck"),
             completion_options.as_slice(),
             &[String::from("warm")],
@@ -1208,6 +1288,39 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_and_options() {
 }
 
 #[test]
+fn folder_browser_metadata_tag_field_renders_pending_category_prompt() {
+    let browser = super::FolderBrowserState::load_default();
+    let completion_options = vec![super::metadata_tags::MetadataTagCompletionOption {
+        tag: String::from("Sound Type"),
+        category: "Group",
+        selected: true,
+    }];
+    let frame = radiant::runtime::UiSurface::new(
+        super::folder_browser::folder_browser_view(
+            &browser,
+            260.0,
+            true,
+            "sound",
+            &[],
+            Some("deep-kick"),
+            "select group/parent tag",
+            Some("-type"),
+            completion_options.as_slice(),
+            &[],
+        )
+        .into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
+        &radiant::theme::ThemeTokens::default(),
+    );
+
+    assert!(frame_has_text(&frame, "deep-kick ->"));
+    assert!(frame_has_text(&frame, "Sound Type"));
+    assert!(frame_has_text(&frame, "Group"));
+}
+
+#[test]
 fn folder_browser_metadata_tag_input_moves_to_next_row_when_crowded() {
     let browser = super::FolderBrowserState::load_default();
     let tags = vec![
@@ -1222,6 +1335,8 @@ fn folder_browser_metadata_tag_input_moves_to_next_row_when_crowded() {
             true,
             "wow",
             &[],
+            None,
+            "add tag",
             None,
             &[],
             &tags,
@@ -1282,6 +1397,8 @@ fn folder_browser_metadata_tag_input_keeps_identity_when_wrapping_rows() {
             "wow",
             &[],
             None,
+            "add tag",
+            None,
             &[],
             &short_tags,
         )
@@ -1298,6 +1415,8 @@ fn folder_browser_metadata_tag_input_keeps_identity_when_wrapping_rows() {
             true,
             "wow",
             &[],
+            None,
+            "add tag",
             None,
             &[],
             &crowded_tags,
@@ -1331,6 +1450,8 @@ fn folder_browser_metadata_tag_input_wraps_after_full_tag_row() {
             true,
             "",
             &[],
+            None,
+            "add tag",
             None,
             &[],
             &tags,

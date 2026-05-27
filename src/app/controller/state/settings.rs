@@ -2,7 +2,7 @@
 
 use crate::audio::{AudioInputConfig, AudioOutputConfig};
 use crate::sample_sources::config::{AudioWriteFormatConfig, DropTargetConfig};
-use std::path::PathBuf;
+use std::{collections::BTreeMap, path::PathBuf};
 
 pub(crate) struct AppSettingsState {
     pub(crate) feature_flags: crate::sample_sources::config::FeatureFlags,
@@ -19,6 +19,7 @@ pub(crate) struct AppSettingsState {
     pub(crate) drop_targets: Vec<DropTargetConfig>,
     /// Global creator or artist identifier used by sample auto-rename.
     pub(crate) default_identifier: String,
+    pub(crate) tag_dictionary: BTreeMap<String, String>,
 }
 
 impl AppSettingsState {
@@ -37,6 +38,7 @@ impl AppSettingsState {
             trash_folder: None,
             drop_targets: Vec::new(),
             default_identifier: String::from("portal"),
+            tag_dictionary: BTreeMap::new(),
         }
     }
 }
