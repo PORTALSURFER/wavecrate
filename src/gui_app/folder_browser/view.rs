@@ -444,6 +444,7 @@ fn tag_field_height(
             visible_tags.push(token.clone());
         }
     }
+    order_metadata_tags_for_display(&mut visible_tags);
     let input_width =
         tag_input_width(tag_input_display_value(tag_draft, tag_completion_suffix).as_str());
     let rows = tag_field_rows(
@@ -469,7 +470,9 @@ fn tag_field_rows(
     input_width: f32,
     content_width: f32,
 ) -> Vec<Vec<TagEntryRowItem>> {
-    let mut rows = pack_tag_rows(tags, content_width);
+    let mut visible_tags = tags.to_vec();
+    order_metadata_tags_for_display(&mut visible_tags);
+    let mut rows = pack_tag_rows(&visible_tags, content_width);
     if should_break_before_tag_input(tags, input_width, content_width) || rows.is_empty() {
         rows.push(Vec::new());
     }
@@ -508,6 +511,20 @@ fn pack_tag_rows(tags: &[String], content_width: f32) -> Vec<Vec<TagEntryRowItem
         );
     }
     rows
+}
+
+fn order_metadata_tags_for_display(tags: &mut Vec<String>) {
+    let mut playback_tags = Vec::new();
+    let mut other_tags = Vec::new();
+    for tag in tags.drain(..) {
+        if metadata_tag_name_is_playback_type(&tag) {
+            playback_tags.push(tag);
+        } else {
+            other_tags.push(tag);
+        }
+    }
+    tags.extend(playback_tags);
+    tags.extend(other_tags);
 }
 
 fn push_row_item(

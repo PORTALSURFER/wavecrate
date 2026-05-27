@@ -870,6 +870,34 @@ fn clicking_metadata_tag_chip_selects_it_in_sidebar() {
 }
 
 #[test]
+fn metadata_tag_chips_display_playback_tags_first() {
+    let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("tag-target.wav");
+    state.metadata_tags_by_file.insert(
+        selected_file,
+        vec![
+            String::from("hat"),
+            String::from("warm"),
+            String::from("loop"),
+            String::from("one-shot"),
+        ],
+    );
+
+    let frame = radiant::runtime::UiSurface::new(super::view(&mut state).into_node()).frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(900.0, 620.0)),
+        &radiant::theme::ThemeTokens::default(),
+    );
+
+    let loop_rect = text_rect(&frame, "loop").expect("loop tag should paint");
+    let one_shot_rect = text_rect(&frame, "one-shot").expect("one-shot tag should paint");
+    let hat_rect = text_rect(&frame, "hat").expect("hat tag should paint");
+    let warm_rect = text_rect(&frame, "warm").expect("warm tag should paint");
+
+    assert!(loop_rect.min.x < hat_rect.min.x);
+    assert!(one_shot_rect.min.x < hat_rect.min.x);
+    assert!(hat_rect.min.x < warm_rect.min.x);
+}
+
+#[test]
 fn default_gui_tag_library_opens_beside_folder_sidebar() {
     let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("tag-target.wav");
     state.metadata_tags_by_file.insert(
