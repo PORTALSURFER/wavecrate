@@ -144,6 +144,9 @@ enum GuiMessage {
         tag: String,
         drag: DragHandleMessage,
     },
+    HoverMetadataTagDropCategory {
+        category_id: String,
+    },
     DropMetadataTagOnCategory {
         category_id: String,
     },
@@ -230,6 +233,7 @@ struct GuiAppState {
     metadata_tag_dictionary: BTreeMap<String, String>,
     metadata_tag_library_open: bool,
     metadata_tag_drag: Option<String>,
+    metadata_tag_drop_hover: Option<String>,
     selected_metadata_tag: Option<String>,
     collapsed_metadata_tag_categories: HashSet<String>,
     metadata_tags_by_file: HashMap<String, Vec<String>>,
@@ -406,6 +410,9 @@ impl GuiAppState {
             }
             GuiMessage::DragMetadataTag { tag, drag } => {
                 self.drag_metadata_tag(tag, drag, context);
+            }
+            GuiMessage::HoverMetadataTagDropCategory { category_id } => {
+                self.hover_metadata_tag_drop_category(category_id);
             }
             GuiMessage::DropMetadataTagOnCategory { category_id } => {
                 self.drop_metadata_tag_on_category(category_id, context);

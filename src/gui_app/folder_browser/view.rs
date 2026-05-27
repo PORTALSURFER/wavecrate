@@ -10,7 +10,9 @@ use radiant::{
     },
 };
 
-use crate::gui_app::metadata_tags::MetadataTagCompletionOption;
+use crate::gui_app::metadata_tags::{
+    MetadataTagCompletionOption, metadata_tag_name_is_playback_type,
+};
 
 use super::{
     FolderBrowserMessage, FolderBrowserState, GuiMessage, SourceEntry, TREE_DEPTH_INDENT,
@@ -746,12 +748,17 @@ fn tag_pill_width(tag: &str) -> f32 {
 }
 
 fn accepted_tag_token(tag: &str, selected: bool) -> ui::View<GuiMessage> {
+    let playback_type = metadata_tag_name_is_playback_type(tag);
     let mut badge = ui::badge(tag.to_string())
         .message(GuiMessage::SelectMetadataTag(tag.to_string()))
         .key(format!("metadata-tag-accepted-{tag}"))
         .style(WidgetStyle {
-            tone: WidgetTone::Accent,
-            prominence: if selected {
+            tone: if playback_type {
+                WidgetTone::Warning
+            } else {
+                WidgetTone::Accent
+            },
+            prominence: if selected || playback_type {
                 ui::WidgetProminence::Strong
             } else {
                 ui::WidgetProminence::Subtle
@@ -763,7 +770,7 @@ fn accepted_tag_token(tag: &str, selected: bool) -> ui::View<GuiMessage> {
         )))
         .height(TAG_FIELD_CONTROL_HEIGHT)
         .width(tag_pill_width(tag));
-    if !selected {
+    if !selected && !playback_type {
         badge = badge.subtle();
     }
     badge

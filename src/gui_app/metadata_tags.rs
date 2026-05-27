@@ -442,6 +442,19 @@ impl GuiAppState {
         self.metadata_tag_drag.is_some()
     }
 
+    pub(super) fn metadata_tag_drop_hover(&self) -> Option<&str> {
+        self.metadata_tag_drop_hover.as_deref()
+    }
+
+    pub(super) fn hover_metadata_tag_drop_category(&mut self, category_id: String) {
+        if self.metadata_tag_drag.is_none() || metadata_tag_category_is_locked(category_id.as_str())
+        {
+            self.metadata_tag_drop_hover = None;
+            return;
+        }
+        self.metadata_tag_drop_hover = Some(category_id);
+    }
+
     pub(super) fn drag_metadata_tag(
         &mut self,
         tag: String,
@@ -450,6 +463,7 @@ impl GuiAppState {
     ) {
         if metadata_tag_category_is_locked(self.metadata_tag_category_id(&tag)) {
             self.metadata_tag_drag = None;
+            self.metadata_tag_drop_hover = None;
             context.end_drag();
             self.sample_status = String::from("Playback Type tags are locked");
             return;
@@ -457,6 +471,7 @@ impl GuiAppState {
         match drag {
             DragHandleMessage::Started { position } => {
                 self.metadata_tag_drag = Some(tag.clone());
+                self.metadata_tag_drop_hover = None;
                 let width = (tag.chars().count() as f32 * 7.0 + 48.0).clamp(92.0, 180.0);
                 context.begin_drag(ui::DragRequest::new(
                     ui::DragPreview::sized(
@@ -470,6 +485,7 @@ impl GuiAppState {
             DragHandleMessage::Moved { .. } => {}
             DragHandleMessage::Ended { .. } => {
                 self.metadata_tag_drag = None;
+                self.metadata_tag_drop_hover = None;
                 context.end_drag();
             }
         }
@@ -484,6 +500,7 @@ impl GuiAppState {
             return;
         };
         self.metadata_tag_drag = None;
+        self.metadata_tag_drop_hover = None;
         context.end_drag();
         if metadata_tag_category_is_locked(category_id.as_str()) {
             self.sample_status = String::from("Playback Type is locked");
@@ -920,6 +937,10 @@ fn inferred_metadata_tag_category_id(tag: &str) -> &'static str {
     } else {
         "character"
     }
+}
+
+pub(super) fn metadata_tag_name_is_playback_type(tag: &str) -> bool {
+    inferred_metadata_tag_category_id(tag) == "playback-type"
 }
 
 fn metadata_tag_category_label_for_id(category_id: &str) -> Option<&'static str> {

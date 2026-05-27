@@ -6,6 +6,9 @@ use crate::gui_app::{
 };
 use radiant::prelude as ui;
 
+const TAG_LIBRARY_PILL_HEIGHT: f32 = 18.0;
+const TAG_LIBRARY_PILL_GAP: f32 = 3.0;
+
 pub(super) fn view(state: &mut GuiAppState) -> ui::View<GuiMessage> {
     let content = ui::column([
         top_status_bar(state),
@@ -61,10 +64,11 @@ fn folder_sidebar(state: &GuiAppState) -> ui::View<GuiMessage> {
 fn metadata_tag_library_panel(state: &GuiAppState) -> ui::View<GuiMessage> {
     let selected_tags = state.selected_metadata_tags();
     let drag_active = state.metadata_tag_drag_active();
+    let drop_hover = state.metadata_tag_drop_hover();
     let groups = state
         .categorized_metadata_tags()
         .into_iter()
-        .map(|group| metadata_tag_category_group(group, selected_tags, drag_active))
+        .map(|group| metadata_tag_category_group(group, selected_tags, drag_active, drop_hover))
         .collect::<Vec<_>>();
     ui::column([
         ui::row([
@@ -96,6 +100,7 @@ fn metadata_tag_category_group(
     group: MetadataTagCategoryGroup,
     selected_tags: &[String],
     drag_active: bool,
+    drop_hover: Option<&str>,
 ) -> ui::View<GuiMessage> {
     let disclosure = if group.collapsed { ">" } else { "v" };
     let count_label = if group.tags.is_empty() {
@@ -105,6 +110,7 @@ fn metadata_tag_category_group(
     };
     let locked = group.locked;
     let category_id = group.id.to_string();
+    let category_hovered = drop_hover == Some(group.id);
     let mut children = vec![metadata_tag_category_header(
         category_id.clone(),
         format!(
@@ -114,18 +120,29 @@ fn metadata_tag_category_group(
         ),
         locked,
         drag_active,
+        category_hovered,
     )];
+    if category_hovered {
+        children.push(
+            ui::row(Vec::<ui::View<GuiMessage>>::new())
+                .key(format!("metadata-tag-category-drop-indicator-{}", group.id))
+                .style(ui::WidgetStyle {
+                    tone: ui::WidgetTone::Warning,
+                    prominence: ui::WidgetProminence::Strong,
+                })
+                .fill_width()
+                .height(4.0),
+        );
+    }
     if !group.collapsed {
         if group.tags.is_empty() {
-            children.push(
-                ui::text("No tags yet")
-                    .height(20.0)
-                    .fill_width()
-                    .truncate()
-                    .padding(4.0),
-            );
+            children.push(metadata_tag_empty_category_target(
+                category_id.as_str(),
+                locked,
+                drag_active,
+            ));
         } else {
-            children.extend(group.tags.into_iter().map(|tag| {
+            let pills = group.tags.into_iter().map(|tag| {
                 metadata_tag_library_row(
                     tag,
                     category_id.as_str(),
@@ -133,7 +150,12 @@ fn metadata_tag_category_group(
                     selected_tags,
                     drag_active,
                 )
-            }));
+            });
+            children.push(
+                ui::wrap(pills, TAG_LIBRARY_PILL_GAP, TAG_LIBRARY_PILL_GAP)
+                    .key(format!("metadata-tag-category-pills-{}", group.id))
+                    .fill_width(),
+            );
         }
     }
     ui::column(children)
@@ -147,6 +169,7 @@ fn metadata_tag_category_header(
     label: String,
     locked: bool,
     drag_active: bool,
+    drop_hover: bool,
 ) -> ui::View<GuiMessage> {
     let category_for_input = category_id.clone();
     let mut input = ui::interactive_row();
@@ -161,21 +184,24 @@ fn metadata_tag_category_header(
             ui::InteractiveRowMessage::Drop => GuiMessage::DropMetadataTagOnCategory {
                 category_id: category_for_input.clone(),
             },
-            ui::InteractiveRowMessage::Drag(_) | ui::InteractiveRowMessage::HoverDropTarget => {
-                GuiMessage::Noop
+            ui::InteractiveRowMessage::HoverDropTarget => {
+                GuiMessage::HoverMetadataTagDropCategory {
+                    category_id: category_for_input.clone(),
+                }
             }
+            ui::InteractiveRowMessage::Drag(_) => GuiMessage::Noop,
         })
         .key(format!("metadata-tag-category-hit-{category_id}"))
         .input_only()
         .fill_width()
         .height(22.0);
     let style = ui::WidgetStyle {
-        tone: if locked {
+        tone: if locked || drop_hover {
             ui::WidgetTone::Warning
         } else {
             ui::WidgetTone::Neutral
         },
-        prominence: if locked {
+        prominence: if locked || drop_hover {
             ui::WidgetProminence::Strong
         } else {
             ui::WidgetProminence::Subtle
@@ -206,7 +232,6 @@ fn metadata_tag_library_row(
     drag_active: bool,
 ) -> ui::View<GuiMessage> {
     let selected = selected_tags.iter().any(|selected| selected == &tag);
-    let marker = if selected { "[x]" } else { "[ ]" };
     let style = ui::WidgetStyle {
         tone: if locked {
             ui::WidgetTone::Warning
@@ -221,15 +246,20 @@ fn metadata_tag_library_row(
             ui::WidgetProminence::Subtle
         },
     };
-    let visual = ui::row([
-        ui::text(marker).width(28.0).height(22.0),
-        ui::text(tag.clone()).fill_width().height(22.0).truncate(),
-    ])
-    .style(style)
-    .padding_x(4.0)
-    .spacing(2.0)
-    .fill_width()
-    .height(22.0);
+    let width = metadata_tag_pill_width(&tag);
+    let mut visual = ui::badge(tag.clone())
+        .message(GuiMessage::Noop)
+        .key(format!("metadata-tag-library-pill-visual-{tag}"))
+        .style(style)
+        .sizing(ui::WidgetSizing::fixed(ui::Vector2::new(
+            width,
+            TAG_LIBRARY_PILL_HEIGHT,
+        )))
+        .height(TAG_LIBRARY_PILL_HEIGHT)
+        .width(width);
+    if !selected && !locked {
+        visual = visual.subtle();
+    }
 
     let tag_for_input = tag.clone();
     let category_for_input = category_id.to_string();
@@ -252,16 +282,65 @@ fn metadata_tag_library_row(
             ui::InteractiveRowMessage::Drop => GuiMessage::DropMetadataTagOnCategory {
                 category_id: category_for_input.clone(),
             },
-            ui::InteractiveRowMessage::HoverDropTarget => GuiMessage::Noop,
+            ui::InteractiveRowMessage::HoverDropTarget => {
+                GuiMessage::HoverMetadataTagDropCategory {
+                    category_id: category_for_input.clone(),
+                }
+            }
         })
         .key(format!("metadata-tag-library-row-hit-{tag}"))
         .input_only()
-        .fill_width()
-        .height(22.0);
+        .width(width)
+        .height(TAG_LIBRARY_PILL_HEIGHT);
     ui::stack([visual, input])
         .key(format!("metadata-tag-library-row-{tag}"))
+        .width(width)
+        .height(TAG_LIBRARY_PILL_HEIGHT)
+}
+
+fn metadata_tag_empty_category_target(
+    category_id: &str,
+    locked: bool,
+    drag_active: bool,
+) -> ui::View<GuiMessage> {
+    let category_for_input = category_id.to_string();
+    let mut input = ui::interactive_row();
+    if drag_active && !locked {
+        input = input.droppable(true);
+    }
+    let input = input
+        .mapped(move |message| match message {
+            ui::InteractiveRowMessage::Drop => GuiMessage::DropMetadataTagOnCategory {
+                category_id: category_for_input.clone(),
+            },
+            ui::InteractiveRowMessage::HoverDropTarget => {
+                GuiMessage::HoverMetadataTagDropCategory {
+                    category_id: category_for_input.clone(),
+                }
+            }
+            ui::InteractiveRowMessage::Activate | ui::InteractiveRowMessage::Drag(_) => {
+                GuiMessage::Noop
+            }
+        })
+        .key(format!("metadata-tag-empty-category-hit-{category_id}"))
+        .input_only()
         .fill_width()
-        .height(22.0)
+        .height(20.0);
+    ui::stack([
+        ui::text("No tags yet")
+            .height(20.0)
+            .fill_width()
+            .truncate()
+            .padding(4.0),
+        input,
+    ])
+    .key(format!("metadata-tag-empty-category-{category_id}"))
+    .fill_width()
+    .height(20.0)
+}
+
+fn metadata_tag_pill_width(tag: &str) -> f32 {
+    (tag.chars().count() as f32 * 7.0 + 22.0).clamp(38.0, 180.0)
 }
 
 fn folder_splitter() -> ui::View<GuiMessage> {
