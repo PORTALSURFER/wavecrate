@@ -49,11 +49,24 @@ pub(super) enum ToolbarIcon {
 }
 
 impl ToolbarIcon {
-    pub(super) fn svg(self) -> &'static str {
+    pub(super) fn svg(self, color: &str) -> String {
         match self {
-            Self::Loop => include_str!("assets/icons/waveform_toolbar/loop.svg"),
-            Self::Play => include_str!("assets/icons/waveform_toolbar/play.svg"),
-            Self::Stop => include_str!("assets/icons/waveform_toolbar/stop.svg"),
+            Self::Loop => format!(
+                r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <path fill="{color}" d="M4 3h5.4V1.5L14 5l-4.6 3.5V7H4.2C3 7 2 8 2 9.2V10H.5v-.8C.5 5.8 2 3 4 3z"/>
+  <path fill="{color}" d="M12 13H6.6v1.5L2 11l4.6-3.5V9H12c1.2 0 2-1 2-2.2V6h1.5v.8C15.5 10.2 14 13 12 13z"/>
+</svg>"#
+            ),
+            Self::Play => format!(
+                r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <polygon fill="{color}" points="4,3 13,8 4,13"/>
+</svg>"#
+            ),
+            Self::Stop => format!(
+                r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <rect fill="{color}" x="4" y="4" width="8" height="8"/>
+</svg>"#
+            ),
         }
     }
 }
@@ -66,20 +79,7 @@ pub(super) fn toolbar_icon_svg(icon: ToolbarIcon, enabled: bool, active: bool) -
     } else {
         TOOLBAR_ICON_ENABLED_COLOR
     };
-    with_svg_current_color(icon.svg(), color)
-}
-
-fn with_svg_current_color(svg: &str, color: &str) -> String {
-    let Some(index) = svg.find("<svg") else {
-        return svg.to_string();
-    };
-    let insert_at = index + "<svg".len();
-    format!(
-        "{} fill=\"{}\"{}",
-        &svg[..insert_at],
-        color,
-        &svg[insert_at..]
-    )
+    icon.svg(color)
 }
 
 fn toolbar_button_message(icon: ToolbarIcon) -> GuiMessage {
