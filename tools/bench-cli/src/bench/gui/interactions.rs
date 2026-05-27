@@ -6,7 +6,7 @@ pub(super) mod step_patterns;
 use super::super::{options::BenchOptions, stats};
 use super::workspace::wait_for_rows;
 use wavecrate::app_core::actions::{NativeAppBridge, NativeMotionModel, NativeUiAction};
-use wavecrate::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
+use wavecrate::app_core::controller::{AppController, AppControllerUiRuntimeExt};
 use wavecrate::app_core::state::{
     MapBounds, MapPoint, MapQueryBounds, SampleBrowserSort, TriageFlagFilter,
 };
@@ -350,7 +350,7 @@ fn interaction_warmup(options: &BenchOptions) -> usize {
 
 /// Prime map cache fields so interaction benchmarks avoid cold-start query cost.
 pub(super) fn prime_map_cache_for_benchmark(controller: &mut AppController) -> Result<(), String> {
-    controller.apply_native_ui_action(NativeUiAction::SetBrowserTab { map: true });
+    controller.apply_ui_action(NativeUiAction::SetBrowserTab { map: true });
     let source_id = controller
         .ui
         .sources

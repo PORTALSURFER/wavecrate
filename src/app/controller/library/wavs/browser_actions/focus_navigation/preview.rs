@@ -60,7 +60,7 @@ impl AppController {
 
     /// Scroll the browser viewport without changing the current selection.
     ///
-    /// Native runtime inputs already clamp `visible_row` against the rows the
+    /// UI runtime inputs already clamp `visible_row` against the rows the
     /// user can actually see on screen, so this action preserves that
     /// requested top row in `view_window_start`. The retained browser-row
     /// projection still tracks its own larger host slice in

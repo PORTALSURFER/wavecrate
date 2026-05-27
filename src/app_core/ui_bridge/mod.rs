@@ -53,9 +53,7 @@ use crate::{
         NativeDirtySegments, NativeFileDropEvent, NativeFileDropPhase, NativeFrameBuildResult,
         NativeSegmentRevisions, NativeUiAction,
     },
-    app_core::controller::{
-        AppController, AppControllerNativeRuntimeExt, build_native_app_controller,
-    },
+    app_core::controller::{AppController, AppControllerUiRuntimeExt, build_ui_app_controller},
     audio::AudioPlayer,
     waveform::WaveformRenderer,
 };
@@ -128,8 +126,8 @@ impl WavecrateUiBridge {
         player: Option<Rc<RefCell<AudioPlayer>>>,
     ) -> Result<Self, String> {
         info!("Building UI bridge controller");
-        let controller = build_native_app_controller(renderer, player).map_err(|err| {
-            error!(err = %err, "Failed to build native app controller");
+        let controller = build_ui_app_controller(renderer, player).map_err(|err| {
+            error!(err = %err, "Failed to build UI app controller");
             err
         })?;
         info!("UI bridge controller ready");
@@ -343,7 +341,7 @@ impl NativeAppBridge for WavecrateUiBridge {
         self.flush_pending_input_actions();
         let bridge_exit_flush_ms = ms_duration(flush_started.elapsed());
         let config_started = Instant::now();
-        let config_result = self.controller.persist_native_exit_config();
+        let config_result = self.controller.persist_ui_exit_config();
         let config_persist_ms = ms_duration(config_started.elapsed());
         let failure_reason = if let Err(err) = config_result {
             error!(err = %err, "Failed to persist config on native exit");

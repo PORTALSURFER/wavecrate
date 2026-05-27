@@ -1,7 +1,7 @@
 use crate::app::controller::AppController;
 use crate::app::controller::ui::hotkeys::HotkeyAction;
 use crate::app::state::FocusContext;
-use crate::app_core::controller::AppControllerNativeRuntimeExt;
+use crate::app_core::controller::AppControllerUiRuntimeExt;
 
 pub(crate) trait HotkeysActions {
     fn handle_hotkey(&mut self, action: HotkeyAction, focus: FocusContext);
@@ -36,7 +36,7 @@ impl HotkeysActions for HotkeysController<'_> {
         if !action.is_active(focus) {
             return;
         }
-        self.apply_native_ui_action(action.action);
+        self.apply_ui_action(action.action);
     }
 }
 
@@ -320,9 +320,7 @@ mod tests {
         hotkey_bundle
             .controller
             .handle_hotkey(action.clone(), FocusContext::SampleBrowser);
-        native_bundle
-            .controller
-            .apply_native_ui_action(action.action);
+        native_bundle.controller.apply_ui_action(action.action);
 
         let hotkey_query = hotkey_bundle
             .controller

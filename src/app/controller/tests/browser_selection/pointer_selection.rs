@@ -1,6 +1,6 @@
 use super::*;
 use crate::app_core::actions::NativeUiAction;
-use crate::app_core::controller::AppControllerNativeRuntimeExt;
+use crate::app_core::controller::AppControllerUiRuntimeExt;
 
 #[test]
 fn click_clears_selection_and_focuses_row() {
@@ -47,7 +47,7 @@ fn native_click_clears_selection_and_focuses_row() {
     controller.toggle_browser_row_selection(1);
     assert_eq!(controller.ui.browser.selection.selected_paths.len(), 2);
 
-    controller.apply_native_ui_action(NativeUiAction::FocusBrowserRow { visible_row: 2 });
+    controller.apply_ui_action(NativeUiAction::FocusBrowserRow { visible_row: 2 });
 
     assert!(controller.ui.browser.selection.selected_paths.is_empty());
     assert_eq!(controller.ui.browser.selection.selected_visible, Some(2));

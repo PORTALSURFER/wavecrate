@@ -24,7 +24,7 @@ pub(crate) fn browser_viewport_max_start(visible_count: usize, max_window_len: u
 /// When autoscroll is enabled, focus navigation should move the projected row
 /// window before selection drifts outside the visible browser list. The
 /// controller tracks the requested top visible row separately from the larger
-/// retained host slice so native runtimes can keep the user-visible viewport
+/// retained host slice so UI runtimes can keep the user-visible viewport
 /// stable even when more rows are projected off-screen.
 ///
 /// The retained projection window can hold more rows than the desktop viewport

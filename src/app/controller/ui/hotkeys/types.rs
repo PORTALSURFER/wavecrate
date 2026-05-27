@@ -109,7 +109,7 @@ impl HotkeyGesture {
     }
 }
 
-/// Wavecrate-owned hotkey metadata for native runtime and help surfaces.
+/// Wavecrate-owned hotkey metadata for UI runtime and help surfaces.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct HotkeyAction {
     pub(crate) id: &'static str,

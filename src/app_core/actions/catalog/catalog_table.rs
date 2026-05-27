@@ -40,7 +40,7 @@ macro_rules! build_gui_action_catalog {
 
 gui_action_rows!(build_gui_action_catalog);
 
-/// Return the catalog entry for one concrete native action.
+/// Return the catalog entry for one concrete UI action.
 pub fn action_catalog_entry(action: &NativeUiAction) -> &'static GuiActionCatalogEntry {
     action_catalog_entry_by_kind(super::action_kind(action))
 }

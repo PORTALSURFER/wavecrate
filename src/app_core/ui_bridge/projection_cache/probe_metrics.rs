@@ -1,6 +1,6 @@
 use super::{ProjectionSegmentLookupCounts, ProjectionSegmentProbeMeasurement, UiProjectionCache};
 use crate::app_core::actions::{NativeAppModel, NativeMotionModel};
-use crate::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
+use crate::app_core::controller::{AppController, AppControllerUiRuntimeExt};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -34,13 +34,13 @@ pub(super) fn measure_projection_segment_lookup_counts(
     let mut cache = UiProjectionCache::default();
     for step in 0..warmup_iters.max(1) {
         apply_step(controller, step);
-        controller.prepare_native_frame(false);
+        controller.prepare_ui_frame(false);
         let _ = cache.resolve_or_project(controller);
     }
     let _ = cache.take_segment_lookup_counts();
     for step in 0..measure_iters.max(1) {
         apply_step(controller, step);
-        controller.prepare_native_frame(false);
+        controller.prepare_ui_frame(false);
         let _ = cache.resolve_or_project(controller);
     }
     cache.take_segment_lookup_counts()
@@ -57,14 +57,14 @@ pub(super) fn measure_projection_segment_probe(
     let mut cache = UiProjectionCache::default();
     for step in 0..warmup_iters.max(1) {
         apply_step(controller, step);
-        controller.prepare_native_frame(false);
+        controller.prepare_ui_frame(false);
         let _ = cache.resolve_or_project(controller);
     }
     let _ = cache.take_segment_lookup_counts();
     let mut projection_stage_samples_us = Vec::with_capacity(measure_iters.max(1));
     for step in 0..measure_iters.max(1) {
         apply_step(controller, step);
-        controller.prepare_native_frame(false);
+        controller.prepare_ui_frame(false);
         let started = Instant::now();
         let _ = cache.resolve_or_project(controller);
         projection_stage_samples_us.push(duration_to_micros_ceil(started.elapsed()));
@@ -171,7 +171,7 @@ fn run_rebuild_cause_probe_iters(
 ) {
     for step in 0..phase.iterations.max(1) {
         apply_step(controller, step);
-        controller.prepare_native_frame(false);
+        controller.prepare_ui_frame(false);
         let (model, dirty_segments) = state.cache.resolve_or_project(controller);
         let model_rebuild = state
             .previous_model
@@ -182,8 +182,8 @@ fn run_rebuild_cause_probe_iters(
         let mut motion_rebuild = false;
         let mut motion_layer_delta = (false, false);
         if phase.include_motion_pull {
-            controller.prepare_native_frame(true);
-            let motion = controller.project_native_motion_model();
+            controller.prepare_ui_frame(true);
+            let motion = controller.project_ui_motion_model();
             if let Some(previous) = state.previous_motion.as_ref() {
                 motion_layer_delta = motion_layer_delta_flags(previous, &motion);
             }

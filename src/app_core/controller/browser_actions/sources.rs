@@ -1,11 +1,11 @@
-//! Source-row and global options routing for native browser actions.
+//! Source-row and global options routing for UI browser actions.
 
 use super::super::AppController;
 use crate::app_core::actions::NativeUiAction;
 use crate::app_core::state::{AudioPickerTarget, FolderPaneId};
 
-/// Try to dispatch source-row and options-panel native actions.
-pub(super) fn apply_source_and_options_native_ui_action(
+/// Try to dispatch source-row and options-panel UI actions.
+pub(super) fn apply_source_and_options_ui_action(
     controller: &mut AppController,
     action: NativeUiAction,
 ) -> Result<(), NativeUiAction> {

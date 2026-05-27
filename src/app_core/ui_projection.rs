@@ -144,7 +144,7 @@ pub(crate) fn browser_row_cache_lookup_counts() -> (u64, u64) {
     )
 }
 
-/// Project app focus context into the native runtime focus model.
+/// Project app focus context into the UI runtime focus model.
 pub(crate) fn project_focus_context_model(focus: FocusContext) -> FocusContextModel {
     match focus {
         FocusContext::None => FocusContextModel::None,
@@ -309,7 +309,7 @@ pub(crate) fn project_browser_actions_model(ui: &UiState) -> BrowserActionsModel
     }
 }
 
-/// Project progress-overlay state for native runtime rendering.
+/// Project progress-overlay state for UI runtime rendering.
 pub(crate) fn project_progress_overlay_model(ui: &UiState) -> ProgressOverlayModel {
     ProgressOverlayModel {
         visible: ui.progress.visible,
@@ -376,7 +376,7 @@ pub(crate) fn project_drag_overlay_model(ui: &UiState) -> DragOverlayModel {
     }
 }
 
-/// Convert the retained drag cursor position into native overlay anchor coordinates.
+/// Convert the retained drag cursor position into UI overlay anchor coordinates.
 fn native_drag_overlay_pointer_anchor(position: UiPoint) -> (Option<u16>, Option<u16>) {
     (
         native_drag_overlay_pointer_component(position.x),
@@ -384,7 +384,7 @@ fn native_drag_overlay_pointer_anchor(position: UiPoint) -> (Option<u16>, Option
     )
 }
 
-/// Clamp one floating drag-chip coordinate into the native overlay wire format.
+/// Clamp one floating drag-chip coordinate into the UI overlay wire format.
 fn native_drag_overlay_pointer_component(value: f32) -> Option<u16> {
     if !value.is_finite() {
         return None;

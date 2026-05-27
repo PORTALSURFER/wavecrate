@@ -1,6 +1,6 @@
 use super::*;
 use crate::app_core::actions::NativeUiAction;
-use crate::app_core::controller::AppControllerNativeRuntimeExt;
+use crate::app_core::controller::AppControllerUiRuntimeExt;
 
 #[test]
 fn batched_zoom_matches_sequential_steps() {
@@ -96,7 +96,7 @@ fn selection_action_resolves_to_stable_frame_bounds_across_zoom_levels() {
         let start_micros = view_pointer_micros(view_start, view_end, start_ratio);
         let end_micros = view_pointer_micros(view_start, view_end, end_ratio);
 
-        controller.apply_native_ui_action(NativeUiAction::SetWaveformSelectionRange {
+        controller.apply_ui_action(NativeUiAction::SetWaveformSelectionRange {
             start_micros,
             end_micros,
             snap_override: true,
@@ -134,7 +134,7 @@ fn selection_frame_bounds_survive_pointer_zoom_pan_and_projection_refreshes() {
         let start_micros = view_pointer_micros(view_start, view_end, start_ratio);
         let end_micros = view_pointer_micros(view_start, view_end, end_ratio);
 
-        controller.apply_native_ui_action(NativeUiAction::SetWaveformSelectionRange {
+        controller.apply_ui_action(NativeUiAction::SetWaveformSelectionRange {
             start_micros,
             end_micros,
             snap_override: true,
@@ -146,14 +146,14 @@ fn selection_frame_bounds_survive_pointer_zoom_pan_and_projection_refreshes() {
         let selection = controller.ui.waveform.selection.expect("selection");
 
         for anchor_ratio_micros in [100_000, 500_000, 900_000] {
-            controller.apply_native_ui_action(NativeUiAction::ZoomWaveform {
+            controller.apply_ui_action(NativeUiAction::ZoomWaveform {
                 zoom_in: true,
                 steps: 2,
                 anchor_ratio_micros: Some(anchor_ratio_micros),
             });
             assert_selection_frame_bounds(&controller, expected, label);
 
-            controller.apply_native_ui_action(NativeUiAction::ZoomWaveform {
+            controller.apply_ui_action(NativeUiAction::ZoomWaveform {
                 zoom_in: false,
                 steps: 1,
                 anchor_ratio_micros: Some(anchor_ratio_micros),
@@ -162,7 +162,7 @@ fn selection_frame_bounds_survive_pointer_zoom_pan_and_projection_refreshes() {
         }
 
         for center_nanos in [250_000_000, 500_000_050, 750_000_000] {
-            controller.apply_native_ui_action(NativeUiAction::SetWaveformViewCenter {
+            controller.apply_ui_action(NativeUiAction::SetWaveformViewCenter {
                 center_micros: (center_nanos / 1_000).min(1_000_000),
                 center_nanos: Some(center_nanos),
             });
@@ -190,7 +190,7 @@ fn repeated_pointer_zoom_at_minimum_view_width_is_a_noop_for_selection_and_view(
         end: 0.57,
     };
 
-    controller.apply_native_ui_action(NativeUiAction::SetWaveformSelectionRange {
+    controller.apply_ui_action(NativeUiAction::SetWaveformSelectionRange {
         start_micros: 480_000,
         end_micros: 520_000,
         snap_override: true,
@@ -199,7 +199,7 @@ fn repeated_pointer_zoom_at_minimum_view_width_is_a_noop_for_selection_and_view(
     let expected_selection = controller.ui.waveform.selection.expect("selection");
     let expected_bounds = expected_selection.frame_bounds(10_000);
 
-    controller.apply_native_ui_action(NativeUiAction::ZoomWaveform {
+    controller.apply_ui_action(NativeUiAction::ZoomWaveform {
         zoom_in: true,
         steps: 1,
         anchor_ratio_micros: Some(250_000),
@@ -216,7 +216,7 @@ fn repeated_pointer_zoom_at_minimum_view_width_is_a_noop_for_selection_and_view(
     assert!((after_ratio - 0.25).abs() < 1.0e-9);
 
     for _ in 0..12 {
-        controller.apply_native_ui_action(NativeUiAction::ZoomWaveform {
+        controller.apply_ui_action(NativeUiAction::ZoomWaveform {
             zoom_in: true,
             steps: 1,
             anchor_ratio_micros: Some(250_000),
@@ -247,7 +247,7 @@ fn edit_selection_action_resolves_to_stable_frame_bounds_at_deep_zoom() {
     let start_micros = view_pointer_micros(0.812_345, 0.812_745, 0.2);
     let end_micros = view_pointer_micros(0.812_345, 0.812_745, 0.8);
 
-    controller.apply_native_ui_action(NativeUiAction::SetWaveformEditSelectionRange {
+    controller.apply_ui_action(NativeUiAction::SetWaveformEditSelectionRange {
         start_micros,
         end_micros,
         preserve_view_edge: false,

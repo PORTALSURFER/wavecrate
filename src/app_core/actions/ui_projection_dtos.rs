@@ -2,7 +2,7 @@
 //!
 //! These models describe Wavecrate application state as projected for the current
 //! UI projection. The runtime adapter in `gui_runtime` converts these app-core
-//! DTOs into the Wavecrate-owned native runtime contract consumed by Radiant.
+//! DTOs into the Wavecrate-owned UI runtime contract consumed by Radiant.
 
 use radiant::gui::frame;
 use radiant::gui::range;

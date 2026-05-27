@@ -1,10 +1,10 @@
 use super::*;
 
 #[test]
-fn apply_native_inverted_browser_rating_filter_toggles_off_when_reclicked() {
+fn apply_ui_inverted_browser_rating_filter_toggles_off_when_reclicked() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
 
-    controller.apply_native_ui_action(NativeUiAction::ToggleBrowserRatingFilter {
+    controller.apply_ui_action(NativeUiAction::ToggleBrowserRatingFilter {
         level: 4,
         invert: true,
     });
@@ -20,7 +20,7 @@ fn apply_native_inverted_browser_rating_filter_toggles_off_when_reclicked() {
         vec![-3, -2, -1, 0, 1, 2, 3]
     );
 
-    controller.apply_native_ui_action(NativeUiAction::ToggleBrowserRatingFilter {
+    controller.apply_ui_action(NativeUiAction::ToggleBrowserRatingFilter {
         level: 4,
         invert: true,
     });
@@ -28,10 +28,10 @@ fn apply_native_inverted_browser_rating_filter_toggles_off_when_reclicked() {
 }
 
 #[test]
-fn apply_native_locked_keep_filter_sets_only_locked_level() {
+fn apply_ui_locked_keep_filter_sets_only_locked_level() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
 
-    controller.apply_native_ui_action(NativeUiAction::ToggleBrowserRatingFilter {
+    controller.apply_ui_action(NativeUiAction::ToggleBrowserRatingFilter {
         level: 4,
         invert: false,
     });
@@ -50,10 +50,10 @@ fn apply_native_locked_keep_filter_sets_only_locked_level() {
 }
 
 #[test]
-fn apply_native_inverted_browser_playback_age_filter_toggles_off_when_reclicked() {
+fn apply_ui_inverted_browser_playback_age_filter_toggles_off_when_reclicked() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
 
-    controller.apply_native_ui_action(NativeUiAction::ToggleBrowserPlaybackAgeFilter {
+    controller.apply_ui_action(NativeUiAction::ToggleBrowserPlaybackAgeFilter {
         bucket: crate::app_core::actions::NativePlaybackAgeFilterChip::OlderThanWeek,
         invert: true,
     });
@@ -72,7 +72,7 @@ fn apply_native_inverted_browser_playback_age_filter_toggles_off_when_reclicked(
         ]
     );
 
-    controller.apply_native_ui_action(NativeUiAction::ToggleBrowserPlaybackAgeFilter {
+    controller.apply_ui_action(NativeUiAction::ToggleBrowserPlaybackAgeFilter {
         bucket: crate::app_core::actions::NativePlaybackAgeFilterChip::OlderThanWeek,
         invert: true,
     });
@@ -80,10 +80,10 @@ fn apply_native_inverted_browser_playback_age_filter_toggles_off_when_reclicked(
 }
 
 #[test]
-fn apply_native_toggle_browser_marked_filter_updates_search_state() {
+fn apply_ui_toggle_browser_marked_filter_updates_search_state() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
 
-    controller.apply_native_ui_action(NativeUiAction::ToggleBrowserMarkedFilter);
+    controller.apply_ui_action(NativeUiAction::ToggleBrowserMarkedFilter);
 
     assert!(controller.ui.browser.search.marked_only);
 }

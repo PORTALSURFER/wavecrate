@@ -1,10 +1,10 @@
-//! Prompt, progress, and update native action dispatch helpers.
+//! Prompt, progress, and update UI action dispatch helpers.
 
 use super::AppController;
 use crate::app_core::actions::NativeUiAction;
 
-/// Try to dispatch prompt/update/progress native actions.
-pub(super) fn apply_prompt_and_update_native_ui_action(
+/// Try to dispatch prompt/update/progress UI actions.
+pub(super) fn apply_prompt_and_update_ui_action(
     controller: &mut AppController,
     action: NativeUiAction,
 ) -> Result<(), NativeUiAction> {

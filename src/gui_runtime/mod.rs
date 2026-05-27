@@ -50,16 +50,16 @@ pub struct NativeRuntimeArtifacts {
     pub shutdown_timing: Option<NativeShutdownTimingArtifact>,
 }
 
-/// Result plus structured artifacts returned by one Wavecrate native runtime execution.
+/// Result plus structured artifacts returned by one Wavecrate UI runtime execution.
 #[derive(Debug)]
 pub struct NativeRunReport {
     /// Structured artifacts captured during the run.
     pub artifacts: NativeRuntimeArtifacts,
-    /// Native runtime success or error outcome.
+    /// UI runtime success or error outcome.
     pub result: Result<(), String>,
 }
 
-/// RGBA icon payload used by native runtime hosts.
+/// RGBA icon payload used by UI runtime hosts.
 #[derive(Clone, Debug)]
 pub struct WindowIconRgba {
     /// RGBA pixel bytes in row-major order.
@@ -70,7 +70,7 @@ pub struct WindowIconRgba {
     pub height: u32,
 }
 
-/// Native runtime launch options for Vello hosts.
+/// UI runtime launch options for Vello hosts.
 #[derive(Clone, Debug, Default)]
 pub struct NativeRunOptions {
     /// Window title.

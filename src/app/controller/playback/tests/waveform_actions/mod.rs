@@ -1,7 +1,7 @@
 use super::super::*;
 use crate::app::controller::test_support;
 use crate::app_core::actions::NativeUiAction;
-use crate::app_core::controller::AppControllerNativeRuntimeExt;
+use crate::app_core::controller::AppControllerUiRuntimeExt;
 use crate::waveform::DecodedWaveform;
 
 mod clearing;

@@ -1,4 +1,4 @@
-//! Browser-list routing for native browser actions.
+//! Browser-list routing for UI browser actions.
 
 #[path = "browser/drag.rs"]
 mod drag;
@@ -14,8 +14,8 @@ use crate::app_core::actions::NativeUiAction;
 use crate::app_core::app_api::state::FocusContext;
 use crate::app_core::state::StatusTone;
 
-/// Try to dispatch browser-list native actions.
-pub(super) fn apply_browser_list_native_ui_action(
+/// Try to dispatch browser-list UI actions.
+pub(super) fn apply_browser_list_ui_action(
     controller: &mut AppController,
     action: NativeUiAction,
 ) -> Result<(), NativeUiAction> {

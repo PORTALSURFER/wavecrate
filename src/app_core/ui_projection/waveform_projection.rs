@@ -155,7 +155,7 @@ fn project_waveform_bpm_grid_origin_micros(ui: &UiState) -> u32 {
     normalized_to_micros(origin)
 }
 
-/// Reuse or rebuild the projected waveform raster payload for the native model.
+/// Reuse or rebuild the projected waveform raster payload for the UI model.
 fn project_waveform_image(
     controller: &mut AppController,
     signature: Option<u64>,
@@ -231,7 +231,7 @@ pub(super) fn project_waveform_edit_selection_milli(ui: &UiState) -> Option<Norm
     })
 }
 
-/// Project waveform slice previews into the native runtime model.
+/// Project waveform slice previews into the UI runtime model.
 pub(super) fn project_waveform_slice_previews(
     ui: &UiState,
 ) -> Vec<crate::app_core::actions::NativeWaveformSlicePreviewModel> {
@@ -340,7 +340,7 @@ pub(super) fn project_waveform_edit_fade_overlay_model(
         })
 }
 
-/// Translate local waveform channel-view settings into native runtime model enums.
+/// Translate local waveform channel-view settings into UI runtime model enums.
 pub(super) fn project_waveform_channel_view_model(
     channel_view: crate::waveform::WaveformChannelView,
 ) -> crate::app_core::actions::NativeWaveformChannelViewModel {

@@ -1,11 +1,11 @@
-//! Waveform selection and drag routing for native actions.
+//! Waveform selection and drag routing for UI actions.
 
 use super::super::AppController;
 use crate::app_core::actions::NativeFolderPaneIdModel as FolderPaneIdModel;
 use crate::app_core::actions::NativeUiAction;
 use crate::app_core::app_api::state::{DragSource, DragTarget, FolderPaneId, UiPoint};
 
-/// Try to dispatch waveform selection and edit-selection native actions.
+/// Try to dispatch waveform selection and edit-selection UI actions.
 pub(super) fn apply_waveform_selection_action(
     controller: &mut AppController,
     action: NativeUiAction,
@@ -137,7 +137,7 @@ fn normalize_waveform_micros(position_micros: u32) -> f32 {
     position_micros.min(1_000_000) as f32 / 1_000_000.0
 }
 
-/// Convert native action pointer coordinates into controller UI points.
+/// Convert UI action pointer coordinates into controller UI points.
 fn native_drag_point(pointer_x: u16, pointer_y: u16) -> UiPoint {
     UiPoint::new(f32::from(pointer_x), f32::from(pointer_y))
 }

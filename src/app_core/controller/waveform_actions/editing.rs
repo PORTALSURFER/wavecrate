@@ -1,10 +1,10 @@
-//! Waveform editing, export, and slice cleanup routing for native actions.
+//! Waveform editing, export, and slice cleanup routing for UI actions.
 
 use super::super::AppController;
 use crate::app_core::actions::NativeUiAction;
 use crate::app_core::state::{DestructiveSelectionEdit, StatusTone};
 
-/// Try to dispatch waveform edit and export native actions.
+/// Try to dispatch waveform edit and export UI actions.
 pub(super) fn apply_waveform_edit_action(
     controller: &mut AppController,
     action: NativeUiAction,

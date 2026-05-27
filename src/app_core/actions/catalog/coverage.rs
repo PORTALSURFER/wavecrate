@@ -47,7 +47,7 @@ pub enum GuiEffectClass {
 pub enum GuiCoverageLayer {
     /// Semantic automation snapshot coverage for stable node/action contracts.
     SemanticContract,
-    /// Native runtime input-routing coverage.
+    /// UI runtime input-routing coverage.
     RuntimeInput,
     /// App-core or bridge projection snapshot coverage.
     ProjectionSnapshot,

@@ -107,7 +107,7 @@ fn async_waveform_image_arrival_is_projection_only_dirty_work() {
 
     assert!(
         updated.waveform.waveform_image.is_some(),
-        "arrived async waveform image should project into the native model"
+        "arrived async waveform image should project into the UI model"
     );
     assert!(
         !bridge

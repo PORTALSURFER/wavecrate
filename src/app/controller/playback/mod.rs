@@ -32,11 +32,11 @@ mod waveform_actions;
 #[cfg(test)]
 mod audio_options_tests;
 #[cfg(test)]
-/// Native waveform action regressions for playback behavior.
-mod native_action_tests;
-#[cfg(test)]
 /// Playback facade behavior tests.
 mod tests;
+#[cfg(test)]
+/// UI waveform action regressions for playback behavior.
+mod ui_action_tests;
 #[cfg(test)]
 /// Waveform action behavior tests.
 mod waveform_action_tests;
@@ -208,7 +208,7 @@ impl AppController {
 
     /// Return live player progress while transport is actively running.
     ///
-    /// Native projection paths use this to derive smoother motion-only playhead
+    /// UI projection paths use this to derive smoother motion-only playhead
     /// updates than the coarser retained UI snapshot alone can provide.
     pub(crate) fn live_playback_progress(&self) -> Option<f32> {
         player::live_progress(self)

@@ -1,10 +1,10 @@
-//! Folder-panel routing for native browser actions.
+//! Folder-panel routing for UI browser actions.
 
 use super::super::AppController;
 use crate::app_core::actions::NativeUiAction;
 
-/// Try to dispatch folder-panel native actions.
-pub(super) fn apply_folder_native_ui_action(
+/// Try to dispatch folder-panel UI actions.
+pub(super) fn apply_folder_ui_action(
     controller: &mut AppController,
     action: NativeUiAction,
 ) -> Result<(), NativeUiAction> {

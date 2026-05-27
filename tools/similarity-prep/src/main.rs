@@ -3,7 +3,7 @@
 use std::io::Write;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
-use wavecrate::app_core::controller::build_native_app_controller;
+use wavecrate::app_core::controller::build_ui_app_controller;
 use wavecrate::waveform::WaveformRenderer;
 
 struct Options {
@@ -30,7 +30,7 @@ fn main() {
     };
 
     let renderer = WaveformRenderer::new(1, 1);
-    let mut controller = match build_native_app_controller(renderer, None) {
+    let mut controller = match build_ui_app_controller(renderer, None) {
         Ok(controller) => controller,
         Err(err) => {
             eprintln!("{err}");

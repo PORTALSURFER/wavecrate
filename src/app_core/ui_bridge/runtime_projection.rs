@@ -19,7 +19,7 @@ use super::{
 use crate::app_core::{
     actions::{NativeAppModel, NativeMotionModel},
     app_api::controller_state::DerivedNodeId,
-    controller::{AppControllerNativeRuntimeExt, NativeFramePreparationPlan},
+    controller::{AppControllerUiRuntimeExt, UiFramePreparationPlan},
 };
 use std::{
     sync::Arc,
@@ -28,24 +28,24 @@ use std::{
 use tracing::debug;
 
 impl WavecrateUiBridge {
-    /// Resolve which native-frame maintenance lane to run for the next model pull.
-    fn model_pull_preparation_plan(&self) -> NativeFramePreparationPlan {
+    /// Resolve which UI-frame maintenance lane to run for the next model pull.
+    fn model_pull_preparation_plan(&self) -> UiFramePreparationPlan {
         if self.controller.can_prepare_browser_retained_pull() {
-            NativeFramePreparationPlan::BrowserRetainedPull
+            UiFramePreparationPlan::BrowserRetainedPull
         } else if self.controller.can_prepare_transport_retained_pull() {
-            NativeFramePreparationPlan::TransportRetainedPull
+            UiFramePreparationPlan::TransportRetainedPull
         } else if self.controller.can_prepare_metadata_retained_pull() {
-            NativeFramePreparationPlan::MetadataRetainedPull
+            UiFramePreparationPlan::MetadataRetainedPull
         } else if self.controller.can_prepare_startup_retained_pull() {
-            NativeFramePreparationPlan::StartupRetainedPull
+            UiFramePreparationPlan::StartupRetainedPull
         } else {
-            NativeFramePreparationPlan::Full
+            UiFramePreparationPlan::Full
         }
     }
 
     #[cfg(test)]
     /// Expose the selected non-local model-pull preparation plan to tests.
-    pub(super) fn model_pull_preparation_plan_for_tests(&self) -> NativeFramePreparationPlan {
+    pub(super) fn model_pull_preparation_plan_for_tests(&self) -> UiFramePreparationPlan {
         self.model_pull_preparation_plan()
     }
 
@@ -178,11 +178,11 @@ impl WavecrateUiBridge {
         if !use_local_pull_fast_path {
             let prepare_plan = self.model_pull_preparation_plan();
             let revisions_before_prepare = self.controller.ui.projection_revisions;
-            self.controller.prepare_native_frame_with_plan(prepare_plan);
+            self.controller.prepare_ui_frame_with_plan(prepare_plan);
             if revisions_before_prepare != self.controller.ui.projection_revisions {
                 self.invalidate_projection_key_snapshot();
             }
-            if prepare_plan != NativeFramePreparationPlan::MotionOnly {
+            if prepare_plan != UiFramePreparationPlan::MotionOnly {
                 self.flush_derived_updates_before_pull(false);
             }
         }
@@ -239,7 +239,7 @@ impl WavecrateUiBridge {
             return None;
         }
         let revisions_before_prepare = self.controller.ui.projection_revisions;
-        self.controller.prepare_native_frame(true);
+        self.controller.prepare_ui_frame(true);
         if revisions_before_prepare != self.controller.ui.projection_revisions {
             self.invalidate_projection_key_snapshot();
         }
@@ -250,7 +250,7 @@ impl WavecrateUiBridge {
             trace_pull_motion_preparation(prepare_duration);
         }
         let project_start = profiling.then(Instant::now);
-        let model = Some(self.controller.project_native_motion_model());
+        let model = Some(self.controller.project_ui_motion_model());
         let project_duration =
             project_start.map_or(Duration::ZERO, |start: Instant| start.elapsed());
         if profiling {

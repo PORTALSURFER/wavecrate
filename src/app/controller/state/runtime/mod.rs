@@ -1,7 +1,7 @@
 //! Runtime state and job coordination for the controller.
 
 mod deferred;
-/// Incremental derived-state dirty graph model used by native projection paths.
+/// Incremental derived-state dirty graph model used by UI projection paths.
 mod derived_graph;
 mod performance;
 mod source_lane;
@@ -101,7 +101,7 @@ pub(crate) struct ControllerRuntimeState {
     pub(crate) pending_waveform_render: Option<PendingWaveformRender>,
     /// Latest queued waveform transient compute request, when any.
     pub(crate) pending_waveform_transient_compute: Option<PendingWaveformTransientCompute>,
-    /// Incremental derived-state dirty graph used by native projection paths.
+    /// Incremental derived-state dirty graph used by UI projection paths.
     pub(crate) derived_graph: DerivedStateGraph,
     /// Pending playback-age DB update moved out of input action handlers.
     pub(crate) pending_age_update_commit: Option<PendingAgeUpdate>,

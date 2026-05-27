@@ -4,13 +4,13 @@ use crate::app::controller::{
 };
 
 #[test]
-fn apply_native_waveform_smart_scale_routes_to_controller_behavior() {
+fn apply_ui_waveform_smart_scale_routes_to_controller_behavior() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     controller.set_loaded_audio_duration_for_tests(4.0);
     controller.set_selection_range(crate::selection::SelectionRange::new(0.0, 0.25));
     controller.set_bpm_value(150.0);
 
-    controller.apply_native_ui_action(NativeUiAction::SetWaveformSelectionRangeSmartScale {
+    controller.apply_ui_action(NativeUiAction::SetWaveformSelectionRangeSmartScale {
         start_micros: 0,
         end_micros: 500_000,
     });
@@ -23,7 +23,7 @@ fn apply_native_waveform_smart_scale_routes_to_controller_behavior() {
     assert!((controller.settings.controls.bpm_value - 150.0).abs() < f32::EPSILON);
     assert!(controller.is_selection_dragging());
 
-    controller.apply_native_ui_action(NativeUiAction::FinishWaveformSelectionSmartScaleDrag);
+    controller.apply_ui_action(NativeUiAction::FinishWaveformSelectionSmartScaleDrag);
 
     assert!(!controller.is_selection_dragging());
     assert!((controller.settings.controls.bpm_value - 120.0).abs() < 0.1);
@@ -31,41 +31,39 @@ fn apply_native_waveform_smart_scale_routes_to_controller_behavior() {
 
 #[test]
 /// Waveform toolbar option actions should update controller waveform state.
-fn apply_native_waveform_option_actions_update_waveform_state() {
+fn apply_ui_waveform_option_actions_update_waveform_state() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
 
-    controller.apply_native_ui_action(NativeUiAction::SetWaveformChannelView { stereo: true });
+    controller.apply_ui_action(NativeUiAction::SetWaveformChannelView { stereo: true });
     assert_eq!(
         controller.ui.waveform.channel_view,
         WaveformChannelView::SplitStereo
     );
 
-    controller
-        .apply_native_ui_action(NativeUiAction::SetNormalizedAuditionEnabled { enabled: true });
+    controller.apply_ui_action(NativeUiAction::SetNormalizedAuditionEnabled { enabled: true });
     assert!(controller.ui.waveform.normalized_audition_enabled);
 
     controller.ui.waveform.bpm_value = Some(120.0);
-    controller.apply_native_ui_action(NativeUiAction::AdjustWaveformBpm { delta: 1 });
+    controller.apply_ui_action(NativeUiAction::AdjustWaveformBpm { delta: 1 });
     assert_eq!(controller.ui.waveform.bpm_value, Some(121.0));
-    controller.apply_native_ui_action(NativeUiAction::SetWaveformBpmValue { value_tenths: 1275 });
+    controller.apply_ui_action(NativeUiAction::SetWaveformBpmValue { value_tenths: 1275 });
     assert_eq!(controller.ui.waveform.bpm_value, Some(127.5));
 
-    controller.apply_native_ui_action(NativeUiAction::SetBpmSnapEnabled { enabled: true });
+    controller.apply_ui_action(NativeUiAction::SetBpmSnapEnabled { enabled: true });
     assert!(controller.ui.waveform.bpm_snap_enabled);
 
-    controller.apply_native_ui_action(NativeUiAction::SetRelativeBpmGridEnabled { enabled: true });
+    controller.apply_ui_action(NativeUiAction::SetRelativeBpmGridEnabled { enabled: true });
     assert!(controller.ui.waveform.relative_bpm_grid_enabled);
 
-    controller.apply_native_ui_action(NativeUiAction::SetTransientSnapEnabled { enabled: true });
+    controller.apply_ui_action(NativeUiAction::SetTransientSnapEnabled { enabled: true });
     assert!(controller.ui.waveform.transient_snap_enabled);
 
-    controller
-        .apply_native_ui_action(NativeUiAction::SetTransientMarkersEnabled { enabled: false });
+    controller.apply_ui_action(NativeUiAction::SetTransientMarkersEnabled { enabled: false });
     assert!(!controller.ui.waveform.transient_markers_enabled);
     assert!(!controller.ui.waveform.transient_snap_enabled);
 
     controller.ui.waveform.selected_slices = vec![0, 1];
-    controller.apply_native_ui_action(NativeUiAction::SetSliceModeEnabled { enabled: true });
+    controller.apply_ui_action(NativeUiAction::SetSliceModeEnabled { enabled: true });
     assert!(controller.ui.waveform.slice_mode_enabled);
 
     controller.ui.waveform.slices = vec![
@@ -73,15 +71,15 @@ fn apply_native_waveform_option_actions_update_waveform_state() {
         crate::selection::SelectionRange::new(0.3, 0.4),
     ];
     controller.ui.waveform.selected_slices.clear();
-    controller.apply_native_ui_action(NativeUiAction::ToggleWaveformSliceSelection { index: 1 });
+    controller.apply_ui_action(NativeUiAction::ToggleWaveformSliceSelection { index: 1 });
     assert_eq!(controller.ui.waveform.selected_slices, vec![1]);
     controller.start_slice_review();
-    controller.apply_native_ui_action(NativeUiAction::MoveWaveformSliceFocus { delta: 1 });
+    controller.apply_ui_action(NativeUiAction::MoveWaveformSliceFocus { delta: 1 });
     assert_eq!(controller.ui.waveform.slice_review.focused_index, Some(1));
-    controller.apply_native_ui_action(NativeUiAction::ToggleFocusedWaveformSliceExportMark);
+    controller.apply_ui_action(NativeUiAction::ToggleFocusedWaveformSliceExportMark);
     assert_eq!(controller.ui.waveform.slice_review.marked_indices, vec![1]);
 
-    controller.apply_native_ui_action(NativeUiAction::SetSliceModeEnabled { enabled: false });
+    controller.apply_ui_action(NativeUiAction::SetSliceModeEnabled { enabled: false });
     assert!(!controller.ui.waveform.slice_mode_enabled);
     assert!(controller.ui.waveform.selected_slices.is_empty());
     assert_eq!(
@@ -99,7 +97,7 @@ fn handle_escape_exits_slice_review_before_clearing_slice_batch() {
     ];
     controller.start_slice_review();
 
-    controller.apply_native_ui_action(NativeUiAction::HandleEscape);
+    controller.apply_ui_action(NativeUiAction::HandleEscape);
 
     assert!(!controller.ui.waveform.slice_review.active);
     assert_eq!(controller.ui.waveform.slices.len(), 2);
@@ -124,11 +122,10 @@ fn duplicate_preview_actions_focus_audition_and_toggle_exemption() {
         });
     controller.ui.waveform.slice_batch_beat_count = 1;
 
-    controller.apply_native_ui_action(NativeUiAction::AuditionWaveformDuplicateSlice { index: 0 });
+    controller.apply_ui_action(NativeUiAction::AuditionWaveformDuplicateSlice { index: 0 });
     assert_eq!(controller.ui.waveform.slice_review.focused_index, Some(0));
 
-    controller
-        .apply_native_ui_action(NativeUiAction::ToggleWaveformDuplicateSliceExemption { index: 0 });
+    controller.apply_ui_action(NativeUiAction::ToggleWaveformDuplicateSliceExemption { index: 0 });
     assert_eq!(controller.ui.waveform.slice_batch_beat_count, 0);
     assert!(
         controller
@@ -142,23 +139,22 @@ fn duplicate_preview_actions_focus_audition_and_toggle_exemption() {
 
 #[test]
 /// Native options panel actions should update UI settings state.
-fn apply_native_options_panel_actions_update_ui_state() {
+fn apply_ui_options_panel_actions_update_ui_state() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
 
-    controller.apply_native_ui_action(NativeUiAction::OpenOptionsMenu);
+    controller.apply_ui_action(NativeUiAction::OpenOptionsMenu);
     assert!(controller.ui.options_panel.open);
 
-    controller
-        .apply_native_ui_action(NativeUiAction::SetAdvanceAfterRatingEnabled { enabled: false });
+    controller.apply_ui_action(NativeUiAction::SetAdvanceAfterRatingEnabled { enabled: false });
     assert!(!controller.ui.controls.advance_after_rating);
 
-    controller.apply_native_ui_action(NativeUiAction::SetDestructiveYoloMode { enabled: true });
+    controller.apply_ui_action(NativeUiAction::SetDestructiveYoloMode { enabled: true });
     assert!(controller.ui.controls.destructive_yolo_mode);
 
-    controller.apply_native_ui_action(NativeUiAction::SetInvertWaveformScroll { enabled: false });
+    controller.apply_ui_action(NativeUiAction::SetInvertWaveformScroll { enabled: false });
     assert!(!controller.ui.controls.invert_waveform_scroll);
 
-    controller.apply_native_ui_action(NativeUiAction::CloseOptionsPanel);
+    controller.apply_ui_action(NativeUiAction::CloseOptionsPanel);
     assert!(!controller.ui.options_panel.open);
 }
 
@@ -166,7 +162,7 @@ fn apply_native_options_panel_actions_update_ui_state() {
 fn edit_default_identifier_prompt_updates_setting_and_ui_projection_state() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
 
-    controller.apply_native_ui_action(NativeUiAction::EditDefaultIdentifier);
+    controller.apply_ui_action(NativeUiAction::EditDefaultIdentifier);
     controller.set_active_prompt_input(String::from("Artist One"));
     controller.confirm_active_prompt_action();
 
@@ -183,7 +179,7 @@ fn open_options_menu_flushes_deferred_startup_audio_refresh_once() {
             .apply_configuration(crate::sample_sources::config::AppConfig::default())
             .expect("apply startup config");
 
-        controller.apply_native_ui_action(NativeUiAction::OpenOptionsMenu);
+        controller.apply_ui_action(NativeUiAction::OpenOptionsMenu);
         assert!(controller.ui.options_panel.open);
         assert_eq!(startup_audio_refresh_count_for_tests(), 1);
         assert!(!controller.has_pending_startup_audio_refresh());
@@ -197,8 +193,8 @@ fn open_options_menu_flushes_deferred_startup_audio_refresh_once() {
 fn audio_picker_actions_update_picker_state_and_return_to_overview() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
 
-    controller.apply_native_ui_action(NativeUiAction::OpenOptionsMenu);
-    controller.apply_native_ui_action(NativeUiAction::OpenAudioOutputSampleRatePicker);
+    controller.apply_ui_action(NativeUiAction::OpenOptionsMenu);
+    controller.apply_ui_action(NativeUiAction::OpenAudioOutputSampleRatePicker);
     assert_eq!(
         controller.ui.options_panel.active_audio_picker,
         Some(crate::app::state::AudioPickerTarget::OutputSampleRate)
@@ -206,18 +202,18 @@ fn audio_picker_actions_update_picker_state_and_return_to_overview() {
 
     controller.settings.audio_output.sample_rate = Some(48_000);
     controller.ui.audio.selected.sample_rate = Some(48_000);
-    controller.apply_native_ui_action(NativeUiAction::SetAudioOutputSampleRate {
+    controller.apply_ui_action(NativeUiAction::SetAudioOutputSampleRate {
         sample_rate: Some(48_000),
     });
     assert_eq!(controller.ui.options_panel.active_audio_picker, None);
 
-    controller.apply_native_ui_action(NativeUiAction::OpenAudioInputSampleRatePicker);
+    controller.apply_ui_action(NativeUiAction::OpenAudioInputSampleRatePicker);
     assert_eq!(
         controller.ui.options_panel.active_audio_picker,
         Some(crate::app::state::AudioPickerTarget::InputSampleRate)
     );
 
-    controller.apply_native_ui_action(NativeUiAction::SetAudioInputSampleRate {
+    controller.apply_ui_action(NativeUiAction::SetAudioInputSampleRate {
         sample_rate: Some(44_100),
     });
     assert_eq!(controller.settings.audio_input.sample_rate, Some(44_100));

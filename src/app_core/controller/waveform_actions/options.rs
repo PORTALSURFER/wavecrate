@@ -1,10 +1,10 @@
-//! Waveform option, BPM, and slice-review routing for native actions.
+//! Waveform option, BPM, and slice-review routing for UI actions.
 
 use super::super::AppController;
 use crate::app_core::actions::NativeUiAction;
 use crate::app_core::state::StatusTone;
 
-/// Try to dispatch waveform option and slice-review native actions.
+/// Try to dispatch waveform option and slice-review UI actions.
 pub(super) fn apply_waveform_option_action(
     controller: &mut AppController,
     action: NativeUiAction,

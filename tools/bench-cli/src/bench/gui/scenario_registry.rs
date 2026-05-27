@@ -9,7 +9,7 @@ use super::interactions::{
 };
 use super::{BenchOptions, stats};
 use wavecrate::app_core::actions::{NativeAppBridge, NativeAppModel, NativeMotionModel};
-use wavecrate::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
+use wavecrate::app_core::controller::{AppController, AppControllerUiRuntimeExt};
 use wavecrate::app_core::ui_bridge::{WavecrateUiBridge, measure_projection_segment_probe};
 
 /// Latency summaries collected for every GUI benchmark scenario.
@@ -122,8 +122,8 @@ fn bench_controller_app_model_projection(
 ) -> Result<stats::LatencySummary, String> {
     stats::bench_action(options, || {
         bridge.mutate_controller(|controller| {
-            controller.prepare_native_frame(false);
-            let _: NativeAppModel = controller.project_native_app_model();
+            controller.prepare_ui_frame(false);
+            let _: NativeAppModel = controller.project_ui_app_model();
         });
         Ok(())
     })

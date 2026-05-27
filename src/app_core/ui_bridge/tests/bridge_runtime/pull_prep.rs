@@ -1,5 +1,5 @@
 use super::*;
-use crate::app_core::controller::NativeFramePreparationPlan;
+use crate::app_core::controller::UiFramePreparationPlan;
 
 /// No-op immediate focus movement should keep projection cache keys intact.
 #[test]
@@ -115,7 +115,7 @@ fn browser_dirty_state_uses_browser_retained_pull_plan() {
 
     assert_eq!(
         bridge.model_pull_preparation_plan_for_tests(),
-        NativeFramePreparationPlan::BrowserRetainedPull
+        UiFramePreparationPlan::BrowserRetainedPull
     );
 }
 
@@ -143,7 +143,7 @@ fn startup_work_uses_startup_retained_pull_plan() {
 
     assert_eq!(
         bridge.model_pull_preparation_plan_for_tests(),
-        NativeFramePreparationPlan::StartupRetainedPull
+        UiFramePreparationPlan::StartupRetainedPull
     );
 }
 
@@ -182,7 +182,7 @@ fn metadata_work_uses_metadata_retained_pull_plan() {
 
     assert_eq!(
         bridge.model_pull_preparation_plan_for_tests(),
-        NativeFramePreparationPlan::MetadataRetainedPull
+        UiFramePreparationPlan::MetadataRetainedPull
     );
 }
 
@@ -194,7 +194,7 @@ fn transport_work_uses_transport_retained_pull_plan() {
 
     assert_eq!(
         bridge.model_pull_preparation_plan_for_tests(),
-        NativeFramePreparationPlan::TransportRetainedPull
+        UiFramePreparationPlan::TransportRetainedPull
     );
 }
 
@@ -210,7 +210,7 @@ fn mixed_retained_work_keeps_full_model_pull_plan() {
 
     assert_eq!(
         bridge.model_pull_preparation_plan_for_tests(),
-        NativeFramePreparationPlan::Full
+        UiFramePreparationPlan::Full
     );
 }
 
@@ -225,6 +225,6 @@ fn waveform_dirty_state_keeps_full_model_pull_plan() {
 
     assert_eq!(
         bridge.model_pull_preparation_plan_for_tests(),
-        NativeFramePreparationPlan::Full
+        UiFramePreparationPlan::Full
     );
 }

@@ -40,7 +40,7 @@ pub(super) fn build_waveform_projection_key(
 /// Measure retained projection segment hit/miss counters over a fixed action loop.
 ///
 /// The callback mutates controller state once per iteration. After each action
-/// mutation, this helper runs native frame preparation and retained projection.
+/// mutation, this helper runs UI frame preparation and retained projection.
 /// Warmup iterations are excluded from the returned counters.
 pub fn measure_projection_segment_lookup_counts(
     controller: &mut AppController,
@@ -60,7 +60,7 @@ pub fn measure_projection_segment_lookup_counts(
 /// measured projection-stage latency.
 ///
 /// The callback mutates controller state once per iteration. After each action
-/// mutation, this helper runs native frame preparation and measures only the
+/// mutation, this helper runs UI frame preparation and measures only the
 /// retained projection step. Warmup iterations are excluded from returned
 /// counters and from the reported `projection_p95_us`.
 pub fn measure_projection_segment_probe(
@@ -80,7 +80,7 @@ pub fn measure_projection_segment_probe(
 /// Measure rebuild-cause counters over a fixed action loop.
 ///
 /// The callback mutates controller state once per iteration. After each action
-/// mutation, this helper runs native frame preparation and retained projection.
+/// mutation, this helper runs UI frame preparation and retained projection.
 /// When `include_motion_pull` is `true`, an additional motion-model pull runs
 /// after model projection to approximate runtime motion-only refresh behavior.
 /// Warmup iterations are excluded from returned counts.

@@ -1,6 +1,6 @@
 use super::*;
 
-/// Clearing edit selection via native helper should clear edit state and preserve focus.
+/// Clearing edit selection via UI helper should clear edit state and preserve focus.
 #[test]
 fn clear_waveform_edit_selection_with_focus_clears_edit_selection() {
     let (mut controller, _source) = test_support::dummy_controller();

@@ -1,6 +1,6 @@
 use super::*;
 use crate::app_core::actions::NativeUiAction;
-use crate::app_core::controller::AppControllerNativeRuntimeExt;
+use crate::app_core::controller::AppControllerUiRuntimeExt;
 
 #[test]
 fn replay_from_last_start_requeues_pending_playback() {
@@ -141,7 +141,7 @@ fn space_play_from_start_uses_visible_playmark_selection_span() {
     let selection = crate::selection::SelectionRange::new(0.25, 0.6);
     controller.ui.waveform.selection = Some(selection);
 
-    controller.apply_native_ui_action(NativeUiAction::PlayFromStart);
+    controller.apply_ui_action(NativeUiAction::PlayFromStart);
 
     assert!(controller.is_playing());
     assert_eq!(
@@ -223,7 +223,7 @@ fn play_waveform_at_precise_starts_from_clicked_position_over_visible_playhead()
     controller.ui.waveform.playhead.visible = true;
     controller.ui.waveform.playhead.position = 0.84;
 
-    controller.apply_native_ui_action(NativeUiAction::PlayWaveformAtPrecise {
+    controller.apply_ui_action(NativeUiAction::PlayWaveformAtPrecise {
         position_nanos: 330_000_000,
     });
 
@@ -272,7 +272,7 @@ fn play_waveform_at_precise_clears_outside_play_selection_before_starting_audio(
     controller.selection_state.range.set_range(Some(selection));
     controller.apply_selection(Some(selection));
 
-    controller.apply_native_ui_action(NativeUiAction::PlayWaveformAtPrecise {
+    controller.apply_ui_action(NativeUiAction::PlayWaveformAtPrecise {
         position_nanos: 800_000_000,
     });
 

@@ -76,7 +76,7 @@ fn native_waveform_view_center_does_not_snap_back_to_visible_playhead() {
     controller.ui.waveform.playhead.visible = true;
     controller.ui.waveform.playhead.position = 0.0;
 
-    controller.apply_native_ui_action(NativeUiAction::SetWaveformViewCenter {
+    controller.apply_ui_action(NativeUiAction::SetWaveformViewCenter {
         center_micros: 700_000,
         center_nanos: None,
     });
@@ -94,7 +94,7 @@ fn native_waveform_view_center_uses_precise_nanos_when_available() {
         end: 0.500_000_2,
     };
 
-    controller.apply_native_ui_action(NativeUiAction::SetWaveformViewCenter {
+    controller.apply_ui_action(NativeUiAction::SetWaveformViewCenter {
         center_micros: 500_000,
         center_nanos: Some(500_000_050),
     });

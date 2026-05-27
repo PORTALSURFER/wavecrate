@@ -1,12 +1,12 @@
 <#
 .SYNOPSIS
-Prevents introducing new dependencies from `src/app_core` into legacy/UI runtime layers.
+Prevents introducing new dependencies from `src/app_core` into UI runtime layers.
 
 .DESCRIPTION
 Diff-aware check: inspects only added lines in diffs for forbidden dependencies.
-`crate::legacy_runtime::` is historical compatibility. `crate::gui_app::` is the
-current default GUI entrypoint, and `crate::gui_runtime::` is the retained legacy
-runtime adapter layer. `app_core` should depend on neither direction directly.
+`crate::gui_app::` is the current default GUI entrypoint, and
+`crate::gui_runtime::` is the retained runtime adapter layer. `app_core` should
+depend on neither direction directly.
 
 Allowlist file (last resort):
   scripts/internal/check/allowlists/app_core_dependency_boundary_allowlist.txt
@@ -57,9 +57,6 @@ try {
       if ($line -match '^\+\s*//') { continue }
 
       $text = $line.Substring(1)
-      if ($text -match '\bcrate::legacy_runtime::') {
-        $violations += ("{0}: legacy_runtime: {1}" -f $current, $text.Trim())
-      }
       if ($text -match '\bcrate::gui_app::') {
         $violations += ("{0}: gui_app: {1}" -f $current, $text.Trim())
       }
@@ -70,7 +67,7 @@ try {
 
     if ($violations.Count -gt 0) {
       Write-Error ("[app_core_boundary] Violations detected ({0}):" -f $Label)
-      Write-Host "[app_core_boundary] app_core must not take new dependencies on legacy/UI runtime layers."
+      Write-Host "[app_core_boundary] app_core must not take new dependencies on UI runtime layers."
       Write-Host "[app_core_boundary] Move code into the current runtime or adapter layer (usually src/gui_runtime or the legacy src/app boundary), or invert the dependency."
       Write-Host ("[app_core_boundary] Allowlist (last resort): {0}" -f $allowlistPath)
       foreach ($v in ($violations | Sort-Object)) {

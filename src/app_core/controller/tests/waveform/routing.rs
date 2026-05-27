@@ -1,9 +1,9 @@
 use super::*;
 
 #[test]
-fn apply_native_waveform_normalize_routes_to_controller_behavior() {
+fn apply_ui_waveform_normalize_routes_to_controller_behavior() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
-    controller.apply_native_ui_action(NativeUiAction::NormalizeWaveformSelectionOrSample);
+    controller.apply_ui_action(NativeUiAction::NormalizeWaveformSelectionOrSample);
 
     assert!(
         controller
@@ -17,9 +17,9 @@ fn apply_native_waveform_normalize_routes_to_controller_behavior() {
 }
 
 #[test]
-fn apply_native_waveform_crop_routes_to_controller_behavior() {
+fn apply_ui_waveform_crop_routes_to_controller_behavior() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
-    controller.apply_native_ui_action(NativeUiAction::CropWaveformSelection);
+    controller.apply_ui_action(NativeUiAction::CropWaveformSelection);
 
     assert!(
         controller
@@ -33,9 +33,9 @@ fn apply_native_waveform_crop_routes_to_controller_behavior() {
 }
 
 #[test]
-fn apply_native_waveform_trim_routes_to_controller_behavior() {
+fn apply_ui_waveform_trim_routes_to_controller_behavior() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
-    controller.apply_native_ui_action(NativeUiAction::TrimWaveformSelection);
+    controller.apply_ui_action(NativeUiAction::TrimWaveformSelection);
 
     assert!(
         controller
@@ -49,12 +49,12 @@ fn apply_native_waveform_trim_routes_to_controller_behavior() {
 }
 
 #[test]
-fn apply_native_waveform_commit_edit_fades_routes_to_controller_behavior() {
+fn apply_ui_waveform_commit_edit_fades_routes_to_controller_behavior() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     controller.set_edit_selection_range(
         crate::selection::SelectionRange::new(0.2, 0.6).with_fade_out(0.25, 0.2),
     );
-    controller.apply_native_ui_action(NativeUiAction::CommitWaveformEditFades);
+    controller.apply_ui_action(NativeUiAction::CommitWaveformEditFades);
 
     assert!(
         controller
@@ -68,9 +68,9 @@ fn apply_native_waveform_commit_edit_fades_routes_to_controller_behavior() {
 }
 
 #[test]
-fn apply_native_waveform_silence_slice_detect_routes_to_controller_behavior() {
+fn apply_ui_waveform_silence_slice_detect_routes_to_controller_behavior() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
-    controller.apply_native_ui_action(NativeUiAction::DetectWaveformSilenceSlices);
+    controller.apply_ui_action(NativeUiAction::DetectWaveformSilenceSlices);
 
     assert!(
         controller
@@ -84,9 +84,9 @@ fn apply_native_waveform_silence_slice_detect_routes_to_controller_behavior() {
 }
 
 #[test]
-fn apply_native_waveform_exact_duplicate_detect_routes_to_controller_behavior() {
+fn apply_ui_waveform_exact_duplicate_detect_routes_to_controller_behavior() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
-    controller.apply_native_ui_action(NativeUiAction::DetectWaveformExactDuplicateSlices);
+    controller.apply_ui_action(NativeUiAction::DetectWaveformExactDuplicateSlices);
 
     assert!(
         controller
@@ -100,9 +100,9 @@ fn apply_native_waveform_exact_duplicate_detect_routes_to_controller_behavior() 
 }
 
 #[test]
-fn apply_native_waveform_clean_duplicates_routes_to_controller_behavior() {
+fn apply_ui_waveform_clean_duplicates_routes_to_controller_behavior() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
-    controller.apply_native_ui_action(NativeUiAction::CleanWaveformExactDuplicateSlices);
+    controller.apply_ui_action(NativeUiAction::CleanWaveformExactDuplicateSlices);
 
     assert!(
         controller
@@ -116,14 +116,14 @@ fn apply_native_waveform_clean_duplicates_routes_to_controller_behavior() {
 }
 
 #[test]
-fn apply_native_waveform_view_center_routes_to_controller_behavior() {
+fn apply_ui_waveform_view_center_routes_to_controller_behavior() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     controller.ui.waveform.view = crate::app::state::WaveformView {
         start: 0.2,
         end: 0.4,
     };
 
-    controller.apply_native_ui_action(NativeUiAction::SetWaveformViewCenter {
+    controller.apply_ui_action(NativeUiAction::SetWaveformViewCenter {
         center_micros: 700_000,
         center_nanos: None,
     });
@@ -133,14 +133,14 @@ fn apply_native_waveform_view_center_routes_to_controller_behavior() {
 }
 
 #[test]
-fn apply_native_waveform_view_center_uses_precise_nanos_when_available() {
+fn apply_ui_waveform_view_center_uses_precise_nanos_when_available() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     controller.ui.waveform.view = crate::app::state::WaveformView {
         start: 0.5,
         end: 0.500_000_2,
     };
 
-    controller.apply_native_ui_action(NativeUiAction::SetWaveformViewCenter {
+    controller.apply_ui_action(NativeUiAction::SetWaveformViewCenter {
         center_micros: 500_000,
         center_nanos: Some(500_000_050),
     });

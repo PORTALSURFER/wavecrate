@@ -2,7 +2,7 @@ use super::*;
 use std::path::PathBuf;
 
 #[test]
-fn native_waveform_selection_begin_does_not_snap_to_visible_playhead() {
+fn ui_waveform_selection_begin_does_not_snap_to_visible_playhead() {
     let (mut controller, _source) = test_support::dummy_controller();
     seed_waveform_for_zoom(&mut controller);
     controller.ui.waveform.view = crate::app::state::WaveformView {
@@ -12,7 +12,7 @@ fn native_waveform_selection_begin_does_not_snap_to_visible_playhead() {
     controller.ui.waveform.playhead.visible = true;
     controller.ui.waveform.playhead.position = 0.95;
 
-    controller.apply_native_ui_action(NativeUiAction::BeginWaveformSelectionAt {
+    controller.apply_ui_action(NativeUiAction::BeginWaveformSelectionAt {
         anchor_micros: 300_000,
     });
 
@@ -21,7 +21,7 @@ fn native_waveform_selection_begin_does_not_snap_to_visible_playhead() {
 }
 
 #[test]
-fn native_waveform_selection_update_does_not_snap_to_visible_playhead() {
+fn ui_waveform_selection_update_does_not_snap_to_visible_playhead() {
     let (mut controller, _source) = test_support::dummy_controller();
     seed_waveform_for_zoom(&mut controller);
     controller.ui.waveform.view = crate::app::state::WaveformView {
@@ -31,7 +31,7 @@ fn native_waveform_selection_update_does_not_snap_to_visible_playhead() {
     controller.ui.waveform.playhead.visible = true;
     controller.ui.waveform.playhead.position = 0.95;
 
-    controller.apply_native_ui_action(NativeUiAction::SetWaveformSelectionRange {
+    controller.apply_ui_action(NativeUiAction::SetWaveformSelectionRange {
         start_micros: 300_000,
         end_micros: 350_000,
         snap_override: false,

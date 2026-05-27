@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn apply_native_toggle_browser_sample_mark_marks_focused_browser_row() {
+fn apply_ui_toggle_browser_sample_mark_marks_focused_browser_row() {
     let _sandbox = ControllerPersistenceSandbox::new();
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     let dir = tempdir().expect("temp source root");
@@ -51,7 +51,7 @@ fn apply_native_toggle_browser_sample_mark_marks_focused_browser_row() {
     controller.rebuild_browser_lists();
     controller.focus_browser_row_only(0);
 
-    controller.apply_native_ui_action(NativeUiAction::ToggleBrowserSampleMark);
+    controller.apply_ui_action(NativeUiAction::ToggleBrowserSampleMark);
 
     assert!(controller.browser_sample_marked(&source.id, Path::new("marked.wav")));
     assert_eq!(
@@ -66,7 +66,7 @@ fn apply_native_toggle_browser_sample_mark_marks_focused_browser_row() {
 }
 
 #[test]
-fn apply_native_toggle_browser_sample_mark_advances_on_repeated_marks() {
+fn apply_ui_toggle_browser_sample_mark_advances_on_repeated_marks() {
     let _sandbox = ControllerPersistenceSandbox::new();
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     let dir = tempdir().expect("temp source root");
@@ -131,8 +131,8 @@ fn apply_native_toggle_browser_sample_mark_advances_on_repeated_marks() {
     controller.rebuild_browser_lists();
     controller.focus_browser_row_only(0);
 
-    controller.apply_native_ui_action(NativeUiAction::ToggleBrowserSampleMark);
-    controller.apply_native_ui_action(NativeUiAction::ToggleBrowserSampleMark);
+    controller.apply_ui_action(NativeUiAction::ToggleBrowserSampleMark);
+    controller.apply_ui_action(NativeUiAction::ToggleBrowserSampleMark);
 
     assert!(controller.browser_sample_marked(&source.id, Path::new("first.wav")));
     assert!(controller.browser_sample_marked(&source.id, Path::new("second.wav")));

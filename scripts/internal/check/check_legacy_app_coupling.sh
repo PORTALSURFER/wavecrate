@@ -8,7 +8,7 @@
 #
 # Scope:
 # - Checks diffs under `src/`
-# - Skips legacy paths: `src/app/**`, `src/legacy_runtime/**`
+# - Skips legacy path: `src/app/**`
 # - Allows a small transitional allowlist in `scripts/internal/check/allowlists/legacy_app_coupling_allowlist.txt`
 
 set -euo pipefail
@@ -32,7 +32,7 @@ usage() {
 Usage: scripts/internal/check/check_legacy_app_coupling.sh [--base <ref>] [--head <ref>]
 
 Fails when added lines in `src/**` introduce new `crate::app` references outside
-legacy paths (`src/app/**`, `src/legacy_runtime/**`) and outside the allowlist:
+the legacy path (`src/app/**`) and outside the allowlist:
   scripts/internal/check/allowlists/legacy_app_coupling_allowlist.txt
 EOF
 }
@@ -61,7 +61,6 @@ git_has_commit() {
 is_legacy_path() {
   local file="$1"
   [[ "$file" == src/app/* ]] && return 0
-  [[ "$file" == src/legacy_runtime/* ]] && return 0
   return 1
 }
 

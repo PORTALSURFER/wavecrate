@@ -167,7 +167,7 @@ pub struct BrowserPanelModel {
     pub tag_sidebar: BrowserTagSidebarModel,
     /// Selection anchor in visible-row space.
     pub anchor_visible_row: Option<usize>,
-    /// Visible rows rendered by the native browser panel.
+    /// Visible rows rendered by the UI browser panel.
     pub rows: RetainedVec<BrowserRowModel>,
 }
 

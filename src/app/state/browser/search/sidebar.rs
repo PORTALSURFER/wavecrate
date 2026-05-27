@@ -81,7 +81,7 @@ pub enum BrowserSidebarFilterFacet {
     Key,
 }
 
-/// Sidebar filter option payload used by native actions.
+/// Sidebar filter option payload used by UI actions.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum BrowserSidebarFilterOption {
     /// WAV format option.

@@ -87,7 +87,7 @@ impl GuiTestModeConfig {
         Some(config)
     }
 
-    /// Apply deterministic window sizing to native runtime launch options.
+    /// Apply deterministic window sizing to UI runtime launch options.
     pub fn apply_to_run_options(&self, options: &mut NativeRunOptions) {
         let viewport = [self.viewport[0] as f32, self.viewport[1] as f32];
         options.inner_size = Some(viewport);

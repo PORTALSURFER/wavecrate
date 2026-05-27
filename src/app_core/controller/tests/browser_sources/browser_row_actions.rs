@@ -1,9 +1,9 @@
 use super::*;
 
 #[test]
-fn apply_native_browser_normalize_routes_to_hotkey_behavior() {
+fn apply_ui_browser_normalize_routes_to_hotkey_behavior() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
-    controller.apply_native_ui_action(NativeUiAction::NormalizeFocusedBrowserSample);
+    controller.apply_ui_action(NativeUiAction::NormalizeFocusedBrowserSample);
 
     assert!(
         controller
@@ -33,7 +33,7 @@ fn toggle_focused_browser_row_selection_action_preserves_focus_and_anchor() {
     controller.rebuild_browser_lists();
     controller.focus_browser_row_only(1);
 
-    controller.apply_native_ui_action(NativeUiAction::ToggleFocusedBrowserRowSelection);
+    controller.apply_ui_action(NativeUiAction::ToggleFocusedBrowserRowSelection);
 
     assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
     assert_eq!(
@@ -45,7 +45,7 @@ fn toggle_focused_browser_row_selection_action_preserves_focus_and_anchor() {
         vec![PathBuf::from("two.wav")]
     );
 
-    controller.apply_native_ui_action(NativeUiAction::ToggleFocusedBrowserRowSelection);
+    controller.apply_ui_action(NativeUiAction::ToggleFocusedBrowserRowSelection);
 
     assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
     assert_eq!(

@@ -12,7 +12,7 @@ use std::time::Instant;
 pub(crate) struct DeferredStartupAudioRefreshState {
     /// True while startup audio host/device probing still needs to run.
     pub(crate) armed: bool,
-    /// Number of prepared native frames observed since configuration load.
+    /// Number of prepared UI frames observed since configuration load.
     pub(crate) prepare_count: u8,
 }
 

@@ -2,18 +2,18 @@ use super::*;
 use crate::app::controller::{
     startup_audio_refresh_count_for_tests, with_stubbed_startup_audio_refresh_for_tests,
 };
-use crate::app_core::controller::NativeFramePreparationPlan;
+use crate::app_core::controller::UiFramePreparationPlan;
 
 #[test]
-fn prepare_native_frame_animation_only_updates_fps_when_not_playing() {
+fn prepare_ui_frame_animation_only_updates_fps_when_not_playing() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
 
     assert!(controller.average_fps().is_none());
-    controller.prepare_native_frame(true);
+    controller.prepare_ui_frame(true);
     assert!(controller.average_fps().is_none());
 
     sleep(Duration::from_millis(2));
-    controller.prepare_native_frame(true);
+    controller.prepare_ui_frame(true);
 
     assert!(controller.average_fps().is_some());
 }
@@ -26,8 +26,8 @@ fn browser_retained_pull_plan_skips_startup_lanes() {
             .apply_configuration(crate::sample_sources::config::AppConfig::default())
             .expect("apply startup config");
 
-        controller.prepare_native_frame_with_plan(NativeFramePreparationPlan::BrowserRetainedPull);
-        controller.prepare_native_frame_with_plan(NativeFramePreparationPlan::BrowserRetainedPull);
+        controller.prepare_ui_frame_with_plan(UiFramePreparationPlan::BrowserRetainedPull);
+        controller.prepare_ui_frame_with_plan(UiFramePreparationPlan::BrowserRetainedPull);
 
         assert!(controller.has_pending_startup_audio_refresh());
         assert_eq!(startup_audio_refresh_count_for_tests(), 0);
@@ -42,8 +42,8 @@ fn full_pull_plan_runs_startup_lanes() {
             .apply_configuration(crate::sample_sources::config::AppConfig::default())
             .expect("apply startup config");
 
-        controller.prepare_native_frame_with_plan(NativeFramePreparationPlan::Full);
-        controller.prepare_native_frame_with_plan(NativeFramePreparationPlan::Full);
+        controller.prepare_ui_frame_with_plan(UiFramePreparationPlan::Full);
+        controller.prepare_ui_frame_with_plan(UiFramePreparationPlan::Full);
 
         assert!(!controller.has_pending_startup_audio_refresh());
         assert_eq!(startup_audio_refresh_count_for_tests(), 1);
@@ -58,20 +58,20 @@ fn startup_retained_pull_plan_runs_startup_lanes() {
             .apply_configuration(crate::sample_sources::config::AppConfig::default())
             .expect("apply startup config");
 
-        controller.prepare_native_frame_with_plan(NativeFramePreparationPlan::StartupRetainedPull);
-        controller.prepare_native_frame_with_plan(NativeFramePreparationPlan::StartupRetainedPull);
+        controller.prepare_ui_frame_with_plan(UiFramePreparationPlan::StartupRetainedPull);
+        controller.prepare_ui_frame_with_plan(UiFramePreparationPlan::StartupRetainedPull);
 
         assert!(!controller.has_pending_startup_audio_refresh());
         assert_eq!(startup_audio_refresh_count_for_tests(), 1);
     });
 }
 
-/// Native seek actions should queue deferred playback commit work.
+/// UI seek actions should queue deferred playback commit work.
 #[test]
-fn apply_native_seek_queues_deferred_seek_commit() {
+fn apply_ui_seek_queues_deferred_seek_commit() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
 
-    controller.apply_native_ui_action(NativeUiAction::SeekWaveform {
+    controller.apply_ui_action(NativeUiAction::SeekWaveform {
         position_milli: 420,
     });
 
@@ -81,12 +81,12 @@ fn apply_native_seek_queues_deferred_seek_commit() {
     );
 }
 
-/// Precise native seek actions should preserve nanounit targets.
+/// Precise UI seek actions should preserve nanounit targets.
 #[test]
-fn apply_native_precise_seek_queues_exact_deferred_seek_commit() {
+fn apply_ui_precise_seek_queues_exact_deferred_seek_commit() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
 
-    controller.apply_native_ui_action(NativeUiAction::SeekWaveformPrecise {
+    controller.apply_ui_action(NativeUiAction::SeekWaveformPrecise {
         position_nanos: 420_123_456,
     });
 
@@ -96,9 +96,9 @@ fn apply_native_precise_seek_queues_exact_deferred_seek_commit() {
     );
 }
 
-/// Dispatch groups should route representative native actions to the right handlers.
+/// Dispatch groups should route representative UI actions to the right handlers.
 #[test]
-fn apply_native_ui_action_routes_grouped_dispatch_cases() {
+fn apply_ui_action_routes_grouped_dispatch_cases() {
     enum Expected {
         BrowserSearch(&'static str),
         BrowserSearchFocused(bool),
@@ -229,7 +229,7 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
         controller.ui.waveform.selection = Some(crate::selection::SelectionRange::new(0.2, 0.8));
         controller.ui.waveform.edit_selection =
             Some(crate::selection::SelectionRange::new(0.3, 0.7));
-        controller.apply_native_ui_action(case.action);
+        controller.apply_ui_action(case.action);
         match case.expected {
             Expected::BrowserSearch(expected) => {
                 assert_eq!(
@@ -344,12 +344,12 @@ fn apply_native_ui_action_routes_grouped_dispatch_cases() {
 }
 
 #[test]
-fn apply_native_begin_waveform_selection_at_arms_drag_without_visible_selection() {
+fn apply_ui_begin_waveform_selection_at_arms_drag_without_visible_selection() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     controller.set_bpm_snap_enabled(true);
     controller.set_bpm_value(120.0);
 
-    controller.apply_native_ui_action(NativeUiAction::BeginWaveformSelectionAt {
+    controller.apply_ui_action(NativeUiAction::BeginWaveformSelectionAt {
         anchor_micros: 5_000,
     });
 
@@ -358,14 +358,14 @@ fn apply_native_begin_waveform_selection_at_arms_drag_without_visible_selection(
 }
 
 #[test]
-fn apply_native_loop_lock_cycles_locked_loop_override() {
+fn apply_ui_loop_lock_cycles_locked_loop_override() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
 
-    controller.apply_native_ui_action(NativeUiAction::ToggleLoopLock);
+    controller.apply_ui_action(NativeUiAction::ToggleLoopLock);
     assert!(controller.ui.waveform.loop_lock_enabled);
     assert!(controller.ui.waveform.loop_enabled);
 
-    controller.apply_native_ui_action(NativeUiAction::ToggleLoopLock);
+    controller.apply_ui_action(NativeUiAction::ToggleLoopLock);
     assert!(controller.ui.waveform.loop_lock_enabled);
     assert!(!controller.ui.waveform.loop_enabled);
 }

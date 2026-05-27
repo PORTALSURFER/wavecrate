@@ -4,7 +4,7 @@ use crate::app_core::app_api::state::{SampleBrowserTab, UpdateStatus};
 use crate::app_dirs::ConfigBaseGuard;
 use crate::waveform::WaveformChannelView;
 
-use super::{AppController, AppControllerNativeRuntimeExt, WaveformRenderer};
+use super::{AppController, AppControllerUiRuntimeExt, WaveformRenderer};
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::thread::sleep;

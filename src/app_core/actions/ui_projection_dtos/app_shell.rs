@@ -151,7 +151,7 @@ pub enum ConfirmPromptKind {
     OptionsDefaultIdentifier,
 }
 
-/// Logical focus buckets projected into the native runtime.
+/// Logical focus buckets projected into the UI runtime.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum FocusContextModel {
     /// No UI surface currently owns keyboard focus.
@@ -182,7 +182,7 @@ pub struct AppModel {
     pub status: StatusBarModel,
     /// Output/input audio engine state rendered in the top-right chrome and options panel.
     pub audio_engine: AudioEngineModel,
-    /// Browser action availability for native action surfaces.
+    /// Browser action availability for UI action surfaces.
     pub browser_actions: BrowserActionsModel,
     /// Options-panel overlay projection.
     pub options_panel: OptionsPanelModel,
@@ -204,7 +204,7 @@ pub struct AppModel {
     pub sources: SourcesPanelModel,
     /// Browser panel summary consumed by the native renderer.
     pub browser: BrowserPanelModel,
-    /// Browser chrome labels consumed by native tabs/toolbar/footer text.
+    /// Browser chrome labels consumed by UI tabs/toolbar/footer text.
     pub browser_chrome: BrowserChromeModel,
     /// Map panel summary consumed by the native renderer.
     pub map: MapPanelModel,

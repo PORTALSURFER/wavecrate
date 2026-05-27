@@ -6,7 +6,7 @@ use crate::app::controller::state::runtime::{
 };
 use crate::app_core::ui_projection::project_waveform_model;
 
-/// Seed a loaded waveform with a reusable native projection signature.
+/// Seed a loaded waveform with a reusable UI projection signature.
 fn seed_stable_waveform_projection(
     controller: &mut crate::app::controller::AppController,
     source: &crate::sample_sources::SampleSource,

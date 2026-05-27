@@ -8,7 +8,7 @@ mod audio_engine;
 
 pub(crate) use audio_engine::{project_audio_engine_chip_model, project_audio_engine_model};
 
-/// Project the native options-panel model from UI state.
+/// Project the UI options-panel model from UI state.
 pub(crate) fn project_options_panel_model(
     ui: &UiState,
 ) -> crate::app_core::actions::NativeOptionsPanelModel {

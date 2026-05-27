@@ -1,4 +1,4 @@
-//! Derived-state dirty graph for native projection/update orchestration.
+//! Derived-state dirty graph for UI projection/update orchestration.
 
 /// Stable node identifiers for incremental derived-state propagation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

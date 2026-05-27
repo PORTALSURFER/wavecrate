@@ -1,4 +1,4 @@
-//! Wavecrate-owned native runtime action DTOs.
+//! Wavecrate-owned UI runtime action DTOs.
 //!
 //! These actions describe Wavecrate user intent inside app-core. Radiant still
 //! emits and consumes a compatibility copy at the runtime boundary, so this
@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(test)]
 mod precision_eq;
 
-/// Triage targets used by native browser action surfaces.
+/// Triage targets used by UI browser action surfaces.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BrowserTagTarget {
     /// Move selected/focused rows to trash.
@@ -23,7 +23,7 @@ pub enum BrowserTagTarget {
     Keep,
 }
 
-/// Action emitted by the native runtime input layer.
+/// Action emitted by the UI runtime input layer.
 #[cfg_attr(not(test), derive(PartialEq, Eq))]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum UiAction {
@@ -83,9 +83,9 @@ pub enum UiAction {
     BlurBrowserSearch,
     /// Open the source-add file dialog.
     OpenAddSourceDialog,
-    /// Open the native options menu.
+    /// Open the UI options menu.
     OpenOptionsMenu,
-    /// Close the native options panel.
+    /// Close the UI options panel.
     CloseOptionsPanel,
     /// Open a folder picker for the configured trash destination.
     PickTrashFolder,
@@ -696,7 +696,7 @@ pub enum UiAction {
         end_micros: u32,
         /// When true, bypass BPM snapping for this playback drag update.
         ///
-        /// Native waveform drags set this while Alt is held so the active
+        /// UI waveform drags set this while Alt is held so the active
         /// playback selection can move freely until Alt is released again.
         snap_override: bool,
         /// When true, keep an out-of-bounds drag clamped to the current viewport edge
@@ -867,7 +867,7 @@ pub enum UiAction {
         center_micros: u32,
         /// Optional exact center point within the full waveform (`0..=1_000_000_000`).
         ///
-        /// Native input supplies this at deep zoom so viewport gestures keep
+        /// UI input supplies this at deep zoom so viewport gestures keep
         /// sub-micro precision instead of collapsing to the nearest micro.
         center_nanos: Option<u32>,
     },

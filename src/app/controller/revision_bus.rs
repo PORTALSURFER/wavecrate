@@ -76,7 +76,7 @@ impl AppController {
 
     /// Refresh canonical projection revisions from current UI state snapshots.
     ///
-    /// This centralizes revision bumps so native projection keys depend on
+    /// This centralizes revision bumps so UI projection keys depend on
     /// scalar revisions instead of container hashing.
     pub(crate) fn refresh_projection_revision_bus(&mut self) -> bool {
         let dirty = self.runtime.projection_revision_dirty.0;

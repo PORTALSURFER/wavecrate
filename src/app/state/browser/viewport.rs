@@ -11,7 +11,7 @@ pub struct BrowserViewportState {
     pub visible_row_lookup_revision: u64,
     /// Revision for the current triage-column reverse lookup map.
     pub triage_index_lookup_revision: u64,
-    /// First visible-row index currently projected into the native browser window.
+    /// First visible-row index currently projected into the UI browser window.
     pub render_window_start: usize,
     /// Requested top visible-row index for manual browser viewport scrolling.
     pub view_window_start: usize,

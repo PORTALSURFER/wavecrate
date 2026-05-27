@@ -2,7 +2,7 @@
 //!
 //! These helpers keep waveform-specific destructive behaviors close to the
 //! controller internals they depend on, while exposing stable `AppController`
-//! methods that the native action bridge can call directly.
+//! methods that the UI action bridge can call directly.
 
 use super::AppController;
 use crate::app::controller::StatusTone;

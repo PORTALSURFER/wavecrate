@@ -1,10 +1,10 @@
-//! Map-tab and map-point native action dispatch helpers.
+//! Map-tab and map-point UI action dispatch helpers.
 
 use super::AppController;
 use crate::app_core::actions::NativeUiAction;
 
-/// Try to dispatch map/native tab actions.
-pub(super) fn apply_map_native_ui_action(
+/// Try to dispatch map/UI tab actions.
+pub(super) fn apply_map_ui_action(
     controller: &mut AppController,
     action: NativeUiAction,
 ) -> Result<(), NativeUiAction> {

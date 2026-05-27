@@ -34,7 +34,7 @@ pub fn capture_default_bundle(config: &GuiTestModeConfig) -> Result<GuiTestArtif
     ))
 }
 
-/// Dispatch one native action through the default bridge fixture and capture a bundle.
+/// Dispatch one UI action through the default bridge fixture and capture a bundle.
 pub fn dispatch_action_bundle(
     config: &GuiTestModeConfig,
     action: NativeUiAction,

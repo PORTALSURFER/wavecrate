@@ -1,4 +1,4 @@
-//! Controller logic shared by the active native runtime.
+//! Controller logic shared by the active UI runtime.
 //! This module now delegates responsibilities into focused submodules to
 //! keep files small and behavior easy to reason about.
 
@@ -167,9 +167,9 @@ pub struct AppController {
     library: LibraryState,
     cache: LibraryCacheState,
     ui_cache: ControllerUiCacheState,
-    /// Cached native projection payload for the currently rendered waveform image.
+    /// Cached UI projection payload for the currently rendered waveform image.
     pub(crate) projected_waveform_image_signature: Option<u64>,
-    /// Cached native projection payload for the currently rendered waveform image.
+    /// Cached UI projection payload for the currently rendered waveform image.
     pub(crate) projected_waveform_image: Option<Arc<crate::gui::types::ImageRgba>>,
     /// Selected source associated with the retained browser row projection cache.
     pub(crate) projected_browser_rows_source_id: Option<SourceId>,
@@ -181,7 +181,7 @@ pub struct AppController {
     pub(crate) projected_browser_preload_window: Option<ProjectedBrowserPreloadWindow>,
     /// Selected-path revision for the retained browser selected-path lookup cache.
     pub(crate) projected_selected_paths_revision: Option<u64>,
-    /// Selected absolute-index lookup reused across native browser projections.
+    /// Selected absolute-index lookup reused across UI browser projections.
     pub(crate) projected_selected_paths_lookup: Option<ProjectedSelectedPathsLookup>,
     /// Retained key for normalized map-point projection payloads.
     pub(crate) projected_map_points_key: Option<ProjectedMapPointsCacheKey>,

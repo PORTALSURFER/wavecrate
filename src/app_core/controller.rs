@@ -1,28 +1,28 @@
 //! Backend-neutral controller aliases for migration consumers.
 //!
-//! These aliases keep native runtime entrypoints stable while the runtime-agnostic
+//! These aliases keep UI runtime entrypoints stable while the runtime-agnostic
 //! controller API remains sourced from the legacy `app` implementation during
 //! migration.
 
-/// Native runtime action dispatch orchestration and telemetry helpers.
+/// UI runtime action dispatch orchestration and telemetry helpers.
 mod action_dispatch;
-/// Browser, source, and folder native action dispatch helpers.
+/// Browser, source, and folder UI action dispatch helpers.
 mod browser_actions;
-/// Native frame-preparation planning and maintenance helpers.
+/// UI frame-preparation planning and maintenance helpers.
 mod frame_preparation;
-/// Map-tab and map-point native action dispatch helpers.
+/// Map-tab and map-point UI action dispatch helpers.
 mod map_actions;
-/// Prompt, progress, and update native action dispatch helpers.
+/// Prompt, progress, and update UI action dispatch helpers.
 mod prompt_update_actions;
-/// Native-runtime controller startup helpers.
+/// UI-runtime controller startup helpers.
 mod startup;
-/// Focused waveform-native action dispatch extracted from the main controller shim.
+/// Focused waveform-UI action dispatch extracted from the main controller shim.
 mod waveform_actions;
 
 use crate::app_core::app_api::controller::AppController as LegacyAppController;
 pub(crate) use crate::app_core::app_api::controller::build_named_gui_fixture_controller;
-pub(crate) use frame_preparation::NativeFramePreparationPlan;
-pub use startup::build_native_app_controller;
+pub(crate) use frame_preparation::UiFramePreparationPlan;
+pub use startup::build_ui_app_controller;
 /// Runtime-facing app controller type used by migration hosts.
 pub type AppController = LegacyAppController;
 /// Retained browser preload-window cache type used by ui-projection helpers.
@@ -49,61 +49,61 @@ pub(crate) type AutoRenameBatchRowState =
 use crate::app_core::actions::{NativeAppModel, NativeUiAction};
 #[cfg(test)]
 use crate::waveform::WaveformRenderer;
-use action_dispatch::apply_native_ui_action;
-use browser_actions::apply_browser_native_ui_action;
-use map_actions::apply_map_native_ui_action;
-use prompt_update_actions::apply_prompt_and_update_native_ui_action;
-use waveform_actions::apply_waveform_native_ui_action;
+use action_dispatch::apply_ui_action;
+use browser_actions::apply_browser_ui_action;
+use map_actions::apply_map_ui_action;
+use prompt_update_actions::apply_prompt_and_update_ui_action;
+use waveform_actions::apply_waveform_ui_action;
 
-/// Backend-neutral native-runtime orchestration helpers.
-pub trait AppControllerNativeRuntimeExt {
+/// Backend-neutral UI-runtime orchestration helpers.
+pub trait AppControllerUiRuntimeExt {
     /// Apply per-frame controller maintenance before projecting the UI model.
     ///
     /// `animation_only` enables a minimal update path for motion-only frames, for
     /// example when only waveform cursor or playhead values changed.
-    fn prepare_native_frame(&mut self, animation_only: bool);
+    fn prepare_ui_frame(&mut self, animation_only: bool);
 
-    /// Project the current controller state into a native runtime app model.
-    fn project_native_app_model(&mut self) -> NativeAppModel;
+    /// Project the current controller state into a UI runtime app model.
+    fn project_ui_app_model(&mut self) -> NativeAppModel;
 
     /// Project motion-only fields for incremental animation updates.
-    fn project_native_motion_model(&mut self) -> crate::app_core::actions::NativeMotionModel;
+    fn project_ui_motion_model(&mut self) -> crate::app_core::actions::NativeMotionModel;
 
-    /// Persist full configuration during native runtime shutdown.
-    fn persist_native_exit_config(&self) -> Result<(), String>;
+    /// Persist full configuration during UI runtime shutdown.
+    fn persist_ui_exit_config(&self) -> Result<(), String>;
 
-    /// Apply a native runtime UI action to the controller.
+    /// Apply a UI runtime UI action to the controller.
     ///
     /// Returns `true` when one dispatcher group accepted the action and `false`
     /// when every dispatcher rejected it as unhandled.
-    fn apply_native_ui_action(&mut self, action: NativeUiAction) -> bool;
+    fn apply_ui_action(&mut self, action: NativeUiAction) -> bool;
 }
 
-impl AppControllerNativeRuntimeExt for AppController {
-    fn prepare_native_frame(&mut self, animation_only: bool) {
+impl AppControllerUiRuntimeExt for AppController {
+    fn prepare_ui_frame(&mut self, animation_only: bool) {
         let plan = if animation_only {
-            NativeFramePreparationPlan::MotionOnly
+            UiFramePreparationPlan::MotionOnly
         } else {
-            NativeFramePreparationPlan::Full
+            UiFramePreparationPlan::Full
         };
-        self.prepare_native_frame_with_plan(plan);
+        self.prepare_ui_frame_with_plan(plan);
     }
 
-    fn project_native_app_model(&mut self) -> NativeAppModel {
+    fn project_ui_app_model(&mut self) -> NativeAppModel {
         crate::app_core::ui_projection::project_app_model(self)
     }
 
-    fn project_native_motion_model(&mut self) -> crate::app_core::actions::NativeMotionModel {
+    fn project_ui_motion_model(&mut self) -> crate::app_core::actions::NativeMotionModel {
         crate::app_core::ui_projection::project_motion_model(self)
     }
 
-    fn persist_native_exit_config(&self) -> Result<(), String> {
+    fn persist_ui_exit_config(&self) -> Result<(), String> {
         self.save_full_config()
-            .map_err(|err| format!("Failed to persist config on native runtime exit: {err}"))
+            .map_err(|err| format!("Failed to persist config on UI runtime exit: {err}"))
     }
 
-    fn apply_native_ui_action(&mut self, action: NativeUiAction) -> bool {
-        apply_native_ui_action(self, action)
+    fn apply_ui_action(&mut self, action: NativeUiAction) -> bool {
+        apply_ui_action(self, action)
     }
 }
 

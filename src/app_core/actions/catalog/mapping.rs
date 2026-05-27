@@ -18,7 +18,7 @@ macro_rules! build_action_mapping {
             sample: $sample:expr
         }
     ),+ $(,)?) => {
-        /// Return the payload-free kind for one concrete native UI action.
+        /// Return the payload-free kind for one concrete UI action.
         pub fn action_kind(action: &NativeUiAction) -> GuiActionKind {
             match action {
                 $(build_action_mapping!(@match $kind $pattern) => GuiActionKind::$kind,)+

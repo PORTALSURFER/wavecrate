@@ -83,7 +83,7 @@ impl AppController {
 
     /// Commit the focused browser row when browser-focused; otherwise toggle transport.
     ///
-    /// Native runtime Enter uses this so list workflows can explicitly commit
+    /// UI runtime Enter uses this so list workflows can explicitly commit
     /// selection while preserving the existing transport shortcut elsewhere.
     pub fn commit_browser_focus_or_toggle_transport(&mut self) {
         if matches!(self.ui.focus.context, FocusContext::SampleBrowser)

@@ -14,7 +14,7 @@ pub type AudioOptionItemModel = form::OptionItem<AudioOptionValueModel>;
 /// Overview row shown for one audio field inside the options panel.
 pub type AudioFieldModel = form::SummaryField;
 
-/// Generic preference/settings panel state used by native overlay projections.
+/// Generic preference/settings panel state used by UI overlay projections.
 pub type PreferencePanelStateModel<const TOGGLES: usize> = form::PreferencePanelState<TOGGLES>;
 
 impl AppModel {

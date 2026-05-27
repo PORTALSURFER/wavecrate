@@ -125,6 +125,6 @@ fn runtime_exit_detaches_active_controller_shutdown_work() {
     assert!(
         artifact.runtime_exit_total_ms.unwrap_or(f64::MAX)
             < DETACHED_EXIT_BUDGET.as_secs_f64() * 1_000.0,
-        "artifact should keep the native runtime-exit boundary bounded"
+        "artifact should keep the UI runtime-exit boundary bounded"
     );
 }

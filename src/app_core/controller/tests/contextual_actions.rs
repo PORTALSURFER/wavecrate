@@ -20,11 +20,11 @@ fn dummy_similar_query() -> SimilarQuery {
 }
 
 #[test]
-fn apply_native_commit_focused_browser_row_uses_browser_commit_path_when_browser_has_focus() {
+fn apply_ui_commit_focused_browser_row_uses_browser_commit_path_when_browser_has_focus() {
     with_fixture_controller("browser", |controller| {
         controller.focus_browser_row_only(1);
 
-        controller.apply_native_ui_action(NativeUiAction::CommitFocusedBrowserRow);
+        controller.apply_ui_action(NativeUiAction::CommitFocusedBrowserRow);
 
         assert_eq!(controller.ui.focus.context, FocusContext::SampleBrowser);
         assert_eq!(controller.ui.browser.selection.selected_visible, Some(1));
@@ -41,11 +41,11 @@ fn apply_native_commit_focused_browser_row_uses_browser_commit_path_when_browser
 }
 
 #[test]
-fn apply_native_commit_focused_browser_row_falls_back_to_transport_outside_browser_focus() {
+fn apply_ui_commit_focused_browser_row_falls_back_to_transport_outside_browser_focus() {
     with_fixture_controller("browser", |controller| {
         controller.ui.focus.context = FocusContext::Waveform;
 
-        controller.apply_native_ui_action(NativeUiAction::CommitFocusedBrowserRow);
+        controller.apply_ui_action(NativeUiAction::CommitFocusedBrowserRow);
 
         assert!(
             controller.ui.status.text.contains("Audio"),
@@ -56,12 +56,12 @@ fn apply_native_commit_focused_browser_row_falls_back_to_transport_outside_brows
 }
 
 #[test]
-fn apply_native_commit_focused_browser_row_is_noop_for_hidden_browser_focus() {
+fn apply_ui_commit_focused_browser_row_is_noop_for_hidden_browser_focus() {
     with_fixture_controller("browser", |controller| {
         controller.focus_browser_row_only(1);
         controller.set_browser_search("kick");
 
-        controller.apply_native_ui_action(NativeUiAction::CommitFocusedBrowserRow);
+        controller.apply_ui_action(NativeUiAction::CommitFocusedBrowserRow);
 
         assert_eq!(controller.ui.focus.context, FocusContext::SampleBrowser);
         assert_eq!(
@@ -78,7 +78,7 @@ fn apply_native_commit_focused_browser_row_is_noop_for_hidden_browser_focus() {
 }
 
 #[test]
-fn apply_native_toggle_find_similar_switches_map_to_list_before_clearing_query() {
+fn apply_ui_toggle_find_similar_switches_map_to_list_before_clearing_query() {
     with_fixture_controller("map", |controller| {
         controller.focus_browser_row_only(0);
         controller.ui.browser.search.similar_query = Some(SimilarQuery {
@@ -88,7 +88,7 @@ fn apply_native_toggle_find_similar_switches_map_to_list_before_clearing_query()
             ..dummy_similar_query()
         });
 
-        controller.apply_native_ui_action(NativeUiAction::ToggleFindSimilarFocusedSample);
+        controller.apply_ui_action(NativeUiAction::ToggleFindSimilarFocusedSample);
 
         assert_eq!(controller.ui.browser.active_tab, SampleBrowserTab::List);
         assert!(controller.ui.browser.search.similar_query.is_none());
@@ -96,7 +96,7 @@ fn apply_native_toggle_find_similar_switches_map_to_list_before_clearing_query()
 }
 
 #[test]
-fn apply_native_toggle_find_similar_clears_existing_query() {
+fn apply_ui_toggle_find_similar_clears_existing_query() {
     with_fixture_controller("browser", |controller| {
         controller.focus_browser_row_only(0);
         controller.ui.browser.search.similar_query = Some(SimilarQuery {
@@ -106,17 +106,17 @@ fn apply_native_toggle_find_similar_clears_existing_query() {
             ..dummy_similar_query()
         });
 
-        controller.apply_native_ui_action(NativeUiAction::ToggleFindSimilarFocusedSample);
+        controller.apply_ui_action(NativeUiAction::ToggleFindSimilarFocusedSample);
 
         assert!(controller.ui.browser.search.similar_query.is_none());
     });
 }
 
 #[test]
-fn apply_native_toggle_find_similar_without_focus_sets_status() {
+fn apply_ui_toggle_find_similar_without_focus_sets_status() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
 
-    controller.apply_native_ui_action(NativeUiAction::ToggleFindSimilarFocusedSample);
+    controller.apply_ui_action(NativeUiAction::ToggleFindSimilarFocusedSample);
 
     assert!(
         controller
@@ -130,11 +130,11 @@ fn apply_native_toggle_find_similar_without_focus_sets_status() {
 }
 
 #[test]
-fn apply_native_focus_map_sample_stages_selection_and_preview() {
+fn apply_ui_focus_map_sample_stages_selection_and_preview() {
     with_fixture_controller("map", |controller| {
         let sample_id = controller.ui.map.cached_points[0].sample_id.to_string();
 
-        controller.apply_native_ui_action(NativeUiAction::FocusMapSample {
+        controller.apply_ui_action(NativeUiAction::FocusMapSample {
             sample_id: sample_id.clone(),
         });
 
@@ -155,32 +155,32 @@ fn apply_native_focus_map_sample_stages_selection_and_preview() {
 }
 
 #[test]
-fn apply_native_cancel_progress_only_sets_cancel_flag_for_cancelable_tasks() {
+fn apply_ui_cancel_progress_only_sets_cancel_flag_for_cancelable_tasks() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     controller.ui.progress =
         ProgressOverlayState::new(ProgressTaskKind::SelectionExport, "Export", 2, true);
 
-    controller.apply_native_ui_action(NativeUiAction::CancelProgress);
+    controller.apply_ui_action(NativeUiAction::CancelProgress);
 
     assert!(controller.ui.progress.cancel_requested);
 
     controller.ui.progress = ProgressOverlayState::new(ProgressTaskKind::Scan, "Scan", 4, false);
-    controller.apply_native_ui_action(NativeUiAction::CancelProgress);
+    controller.apply_ui_action(NativeUiAction::CancelProgress);
 
     assert!(!controller.ui.progress.cancel_requested);
 }
 
 #[test]
-fn apply_native_copy_selection_to_clipboard_uses_controller_clipboard_path() {
+fn apply_ui_copy_selection_to_clipboard_uses_controller_clipboard_path() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
 
-    controller.apply_native_ui_action(NativeUiAction::CopySelectionToClipboard);
+    controller.apply_ui_action(NativeUiAction::CopySelectionToClipboard);
 
     assert_eq!(controller.ui.status.text, "Select a sample to copy");
 }
 
 #[test]
-fn apply_native_open_feedback_issue_prompt_closes_overlay_and_primes_issue_state() {
+fn apply_ui_open_feedback_issue_prompt_closes_overlay_and_primes_issue_state() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     controller.ui.hotkeys.overlay_visible = true;
     controller.ui.feedback_issue.token_status = IssueTokenStatus::Connected;
@@ -188,7 +188,7 @@ fn apply_native_open_feedback_issue_prompt_closes_overlay_and_primes_issue_state
     controller.ui.feedback_issue.last_error = Some(String::from("stale error"));
     controller.ui.feedback_issue.last_success_url = Some(String::from("https://example.invalid"));
 
-    controller.apply_native_ui_action(NativeUiAction::OpenFeedbackIssuePrompt);
+    controller.apply_ui_action(NativeUiAction::OpenFeedbackIssuePrompt);
 
     assert!(!controller.ui.hotkeys.overlay_visible);
     assert!(controller.ui.feedback_issue.open);
@@ -204,12 +204,12 @@ fn apply_native_open_feedback_issue_prompt_closes_overlay_and_primes_issue_state
 }
 
 #[test]
-fn apply_native_open_update_link_without_url_is_noop() {
+fn apply_ui_open_update_link_without_url_is_noop() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
     controller.ui.update.status = UpdateStatus::Error;
     controller.ui.update.last_error = Some(String::from("existing error"));
 
-    controller.apply_native_ui_action(NativeUiAction::OpenUpdateLink);
+    controller.apply_ui_action(NativeUiAction::OpenUpdateLink);
 
     assert_eq!(controller.ui.update.status, UpdateStatus::Error);
     assert_eq!(
@@ -219,19 +219,19 @@ fn apply_native_open_update_link_without_url_is_noop() {
 }
 
 #[test]
-fn apply_native_install_update_without_available_release_sets_info_status() {
+fn apply_ui_install_update_without_available_release_sets_info_status() {
     let mut controller = AppController::new(WaveformRenderer::new(16, 16), None);
 
-    controller.apply_native_ui_action(NativeUiAction::InstallUpdate);
+    controller.apply_ui_action(NativeUiAction::InstallUpdate);
 
     assert_eq!(controller.ui.update.status, UpdateStatus::Idle);
     assert_eq!(controller.ui.status.text, "No update available");
 }
 
 #[test]
-fn apply_native_dismiss_update_clears_available_release_state() {
+fn apply_ui_dismiss_update_clears_available_release_state() {
     with_fixture_controller("update", |controller| {
-        controller.apply_native_ui_action(NativeUiAction::DismissUpdate);
+        controller.apply_ui_action(NativeUiAction::DismissUpdate);
 
         assert_eq!(controller.ui.update.status, UpdateStatus::Idle);
         assert!(controller.ui.update.available_tag.is_none());

@@ -8,7 +8,7 @@ Diff-aware check: inspects only added lines in diffs for `crate::app` usage.
 
 Scope:
 - Checks diffs under `src/`
-- Skips legacy paths: `src/app/**`, `src/legacy_runtime/**`
+- Skips legacy path: `src/app/**`
 - Allows a small transitional allowlist in `scripts/internal/check/allowlists/legacy_app_coupling_allowlist.txt`
 #>
 
@@ -46,7 +46,7 @@ try {
   }
 
   function Is-LegacyPath([string]$Path) {
-    return ($Path -like "src/app/*") -or ($Path -like "src/legacy_runtime/*")
+    return ($Path -like "src/app/*")
   }
 
   function Scan-DiffLines([string]$Label, [string[]]$Lines) {

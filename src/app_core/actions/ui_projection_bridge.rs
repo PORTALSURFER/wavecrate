@@ -1,7 +1,7 @@
-//! Wavecrate-owned native runtime bridge trait.
+//! Wavecrate-owned UI runtime bridge trait.
 //!
 //! Wavecrate code implements this trait so projected DTOs and actions remain owned
-//! in `app_core` while the native runtime adapter handles the Radiant launch
+//! in `app_core` while the UI runtime adapter handles the Radiant launch
 //! boundary.
 
 use super::{
@@ -11,7 +11,7 @@ use super::{
 use crate::{gui::repaint::RepaintSignal, gui_runtime::NativeShutdownTimingArtifact};
 use std::{path::PathBuf, sync::Arc};
 
-/// Host bridge used by Wavecrate's native runtime adapter.
+/// Host bridge used by Wavecrate's UI runtime adapter.
 pub trait NativeAppBridge {
     /// Project the latest app model snapshot before frame build.
     fn project_model(&mut self) -> Arc<NativeAppModel>;

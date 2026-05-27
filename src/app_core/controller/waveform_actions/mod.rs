@@ -1,4 +1,4 @@
-//! Waveform-oriented native action dispatch helpers.
+//! Waveform-oriented UI action dispatch helpers.
 //!
 //! The migration controller keeps high-level dispatch ordering in [`super`],
 //! while this module narrows waveform routing into smaller surface-specific
@@ -13,7 +13,7 @@ use super::AppController;
 use crate::app_core::actions::NativeUiAction;
 
 /// Try to dispatch waveform, zoom, and waveform-selection drag actions.
-pub(super) fn apply_waveform_native_ui_action(
+pub(super) fn apply_waveform_ui_action(
     controller: &mut AppController,
     action: NativeUiAction,
 ) -> Result<(), NativeUiAction> {

@@ -21,7 +21,7 @@ use super::{
 };
 use crate::app_core::actions::NativeUiAction;
 use crate::app_core::app_api::controller_state::{DerivedNodeId, DirtyReason};
-use crate::app_core::controller::AppControllerNativeRuntimeExt;
+use crate::app_core::controller::AppControllerUiRuntimeExt;
 use std::time::{Duration, Instant};
 use tracing::debug;
 
@@ -55,7 +55,7 @@ impl WavecrateUiBridge {
             self.mark_dirty_for_action(&action);
         }
         self.flush_pending_input_actions();
-        let handled = self.controller.apply_native_ui_action(action);
+        let handled = self.controller.apply_ui_action(action);
         self.invalidate_projection_key_snapshot();
         if !use_local_pull_fast_path {
             self.schedule_full_model_pull_preparation();
@@ -151,7 +151,7 @@ impl WavecrateUiBridge {
     fn apply_pending_waveform_action_batch(&mut self, pending: &PendingWaveformActions) -> u64 {
         self.controller.begin_waveform_refresh_batch();
         let emitted_actions = pending.emit_actions(|action| {
-            self.controller.apply_native_ui_action(action);
+            self.controller.apply_ui_action(action);
         });
         self.controller.end_waveform_refresh_batch();
         emitted_actions

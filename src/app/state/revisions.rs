@@ -1,4 +1,4 @@
-//! Canonical revision counters used by native projection invalidation.
+//! Canonical revision counters used by UI projection invalidation.
 
 /// Monotonic revision counters for projection-sensitive UI slices.
 ///

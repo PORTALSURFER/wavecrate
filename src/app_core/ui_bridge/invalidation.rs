@@ -112,7 +112,7 @@ pub(super) fn action_prefers_targeted_invalidation(action: &NativeUiAction) -> b
     )
 }
 
-/// Resolve the primary dirty source node and reason for one native action.
+/// Resolve the primary dirty source node and reason for one UI action.
 pub(super) fn classify_dirty_source(
     action: &NativeUiAction,
 ) -> Option<(DerivedNodeId, DirtyReason)> {

@@ -5,63 +5,60 @@ use crate::logging::{ActionDebugEvent, emit_action_debug_event};
 use tracing::error;
 
 use super::{
-    AppController, apply_browser_native_ui_action, apply_map_native_ui_action,
-    apply_prompt_and_update_native_ui_action, apply_waveform_native_ui_action,
+    AppController, apply_browser_ui_action, apply_map_ui_action, apply_prompt_and_update_ui_action,
+    apply_waveform_ui_action,
 };
 
-/// Apply one native runtime UI action and emit action telemetry.
-pub(super) fn apply_native_ui_action(
-    controller: &mut AppController,
-    action: NativeUiAction,
-) -> bool {
+/// Apply one UI runtime UI action and emit action telemetry.
+pub(super) fn apply_ui_action(controller: &mut AppController, action: NativeUiAction) -> bool {
     let started_at = Instant::now();
-    let action_id = native_action_id(&action);
-    let pane = native_action_pane(&action);
+    let action_id = ui_action_id(&action);
+    let pane = ui_action_pane(&action);
     controller.begin_waveform_refresh_batch();
-    let action = match apply_transport_native_ui_action(controller, action) {
+    let action = match apply_transport_ui_action(controller, action) {
         Ok(()) => {
             controller.end_waveform_refresh_batch();
-            record_native_action(action_id, pane, "success", started_at, None);
+            record_ui_action(action_id, pane, "success", started_at, None);
             return true;
         }
         Err(action) => action,
     };
-    let action = match apply_browser_native_ui_action(controller, action) {
+    let action = match apply_browser_ui_action(controller, action) {
         Ok(()) => {
             controller.end_waveform_refresh_batch();
-            record_native_action(action_id, pane, "success", started_at, None);
+            record_ui_action(action_id, pane, "success", started_at, None);
             return true;
         }
         Err(action) => action,
     };
-    let action = match apply_map_native_ui_action(controller, action) {
+    let action = match apply_map_ui_action(controller, action) {
         Ok(()) => {
             controller.end_waveform_refresh_batch();
-            record_native_action(action_id, pane, "success", started_at, None);
+            record_ui_action(action_id, pane, "success", started_at, None);
             return true;
         }
         Err(action) => action,
     };
-    let action = match apply_waveform_native_ui_action(controller, action) {
+    let action = match apply_waveform_ui_action(controller, action) {
         Ok(()) => {
             controller.end_waveform_refresh_batch();
-            record_native_action(action_id, pane, "success", started_at, None);
+            record_ui_action(action_id, pane, "success", started_at, None);
             return true;
         }
         Err(action) => action,
     };
-    let handled = match apply_prompt_and_update_native_ui_action(controller, action) {
+    let handled = match apply_prompt_and_update_ui_action(controller, action) {
         Ok(()) => true,
         Err(unhandled) => {
             error!(
                 ?unhandled,
-                "native ui action was not handled by any dispatcher group"
+                "UI action was not handled by any dispatcher group"
             );
             false
         }
     };
     controller.end_waveform_refresh_batch();
-    record_native_action(
+    record_ui_action(
         action_id,
         pane,
         if handled { "success" } else { "unhandled" },
@@ -71,8 +68,8 @@ pub(super) fn apply_native_ui_action(
     handled
 }
 
-/// Try to dispatch transport-oriented native actions.
-fn apply_transport_native_ui_action(
+/// Try to dispatch transport-oriented UI actions.
+fn apply_transport_ui_action(
     controller: &mut AppController,
     action: NativeUiAction,
 ) -> Result<(), NativeUiAction> {
@@ -107,11 +104,11 @@ fn apply_transport_native_ui_action(
     Ok(())
 }
 
-fn native_action_id(action: &NativeUiAction) -> &'static str {
+fn ui_action_id(action: &NativeUiAction) -> &'static str {
     action_catalog_entry(action).action_id
 }
 
-fn native_action_pane(action: &NativeUiAction) -> Option<&'static str> {
+fn ui_action_pane(action: &NativeUiAction) -> Option<&'static str> {
     let entry = action_catalog_entry(action);
     Some(match entry.surface {
         GuiSurface::Browser => "browser",
@@ -125,14 +122,14 @@ fn native_action_pane(action: &NativeUiAction) -> Option<&'static str> {
     })
 }
 
-fn record_native_action(
+fn record_ui_action(
     action: &'static str,
     pane: Option<&'static str>,
     outcome: &'static str,
     started_at: Instant,
     error: Option<&'static str>,
 ) {
-    if !should_record_native_action(action, outcome) {
+    if !should_record_ui_action(action, outcome) {
         return;
     }
     emit_action_debug_event(ActionDebugEvent {
@@ -145,7 +142,7 @@ fn record_native_action(
     });
 }
 
-fn should_record_native_action(action: &'static str, outcome: &'static str) -> bool {
+fn should_record_ui_action(action: &'static str, outcome: &'static str) -> bool {
     if action == "set_browser_view_start" && outcome == "success" {
         return crate::env_flags::env_var_truthy(crate::hotpath_telemetry::HOTPATH_TELEMETRY_ENV);
     }

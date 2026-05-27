@@ -2,7 +2,7 @@ use super::super::{
     AppController, WaveformRenderer, startup_audio_refresh_count_for_tests,
     with_stubbed_startup_audio_refresh_for_tests,
 };
-use crate::app_core::controller::AppControllerNativeRuntimeExt;
+use crate::app_core::controller::AppControllerUiRuntimeExt;
 
 #[test]
 fn apply_configuration_arms_deferred_startup_audio_refresh() {
@@ -46,11 +46,11 @@ fn startup_audio_refresh_waits_until_after_first_prepare() {
             .apply_configuration(crate::sample_sources::config::AppConfig::default())
             .expect("apply startup config");
 
-        controller.prepare_native_frame(false);
+        controller.prepare_ui_frame(false);
         assert!(controller.has_pending_startup_audio_refresh());
         assert_eq!(startup_audio_refresh_count_for_tests(), 0);
 
-        controller.prepare_native_frame(false);
+        controller.prepare_ui_frame(false);
         assert!(!controller.has_pending_startup_audio_refresh());
         assert_eq!(startup_audio_refresh_count_for_tests(), 1);
     });

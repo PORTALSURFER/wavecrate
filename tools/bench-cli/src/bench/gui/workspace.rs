@@ -6,7 +6,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use tempfile::TempDir;
-use wavecrate::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
+use wavecrate::app_core::controller::{AppController, AppControllerUiRuntimeExt};
 use wavecrate::waveform::WaveformRenderer;
 
 /// Number of frames written into each synthetic GUI benchmark wav.
@@ -58,7 +58,7 @@ pub(super) fn seed_rows(controller: &mut AppController, rows: usize) -> Result<u
 pub(super) fn wait_for_rows(controller: &mut AppController, target: usize) -> Result<(), String> {
     let deadline = Instant::now() + Duration::from_secs(5);
     while Instant::now() < deadline {
-        controller.prepare_native_frame(false);
+        controller.prepare_ui_frame(false);
         if observed_visible_rows(controller) >= target {
             return Ok(());
         }
@@ -104,7 +104,7 @@ fn finalize_wait_for_rows(controller: &mut AppController, target: usize) -> Resu
     if observed_visible_rows(controller) >= target {
         return Ok(());
     }
-    let model = controller.project_native_app_model();
+    let model = controller.project_ui_app_model();
     Err(format_timeout_message(
         &model,
         observed_visible_rows(controller),
@@ -135,7 +135,7 @@ fn format_timeout_message(
 
 fn observed_visible_rows(controller: &mut AppController) -> usize {
     let direct = controller.visible_browser_len();
-    let projected = controller.project_native_app_model();
+    let projected = controller.project_ui_app_model();
     let projected_visible = projected.browser.visible_count;
     let projected_columns_total = projected
         .columns

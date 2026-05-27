@@ -1,14 +1,14 @@
 use super::*;
 use crate::app::controller::test_support::{dummy_controller, write_test_wav};
 use crate::app_core::actions::NativeUiAction;
-use crate::app_core::controller::AppControllerNativeRuntimeExt;
+use crate::app_core::controller::AppControllerUiRuntimeExt;
 use std::time::{Duration, Instant};
 use tempfile::tempdir;
 
-fn setup_native_looping_controller(selection: SelectionRange) -> Option<AppController> {
+fn setup_ui_looping_controller(selection: SelectionRange) -> Option<AppController> {
     let mut player = crate::audio::AudioPlayer::playing_for_tests()?;
     let dir = tempdir().ok()?;
-    let wav_path = dir.path().join("native_loop_selection.wav");
+    let wav_path = dir.path().join("ui_loop_selection.wav");
     let long_samples = vec![0.1_f32; 240];
     write_test_wav(&wav_path, &long_samples);
     let bytes: std::sync::Arc<[u8]> = std::fs::read(&wav_path).ok()?.into();
@@ -19,7 +19,7 @@ fn setup_native_looping_controller(selection: SelectionRange) -> Option<AppContr
     controller.sample_view.wav.loaded_audio = Some(LoadedAudio {
         source_id: source.id.clone(),
         root: source.root.clone(),
-        relative_path: PathBuf::from("native_loop_selection.wav"),
+        relative_path: PathBuf::from("ui_loop_selection.wav"),
         bytes,
         duration_seconds: duration,
         sample_rate: 8,
@@ -33,14 +33,13 @@ fn setup_native_looping_controller(selection: SelectionRange) -> Option<AppContr
 }
 
 #[test]
-fn native_waveform_selection_update_retargets_loop_playback_after_cycle() {
-    let Some(mut controller) = setup_native_looping_controller(SelectionRange::new(0.1, 0.4))
-    else {
+fn ui_waveform_selection_update_retargets_loop_playback_after_cycle() {
+    let Some(mut controller) = setup_ui_looping_controller(SelectionRange::new(0.1, 0.4)) else {
         return;
     };
     controller.ui.waveform.playhead.position = 0.3;
 
-    controller.apply_native_ui_action(NativeUiAction::SetWaveformSelectionRange {
+    controller.apply_ui_action(NativeUiAction::SetWaveformSelectionRange {
         start_micros: 200_000,
         end_micros: 600_000,
         snap_override: false,
@@ -63,12 +62,11 @@ fn native_waveform_selection_update_retargets_loop_playback_after_cycle() {
 
 #[test]
 fn toggle_transport_stops_active_playback() {
-    let Some(mut controller) = setup_native_looping_controller(SelectionRange::new(0.1, 0.4))
-    else {
+    let Some(mut controller) = setup_ui_looping_controller(SelectionRange::new(0.1, 0.4)) else {
         return;
     };
 
-    controller.apply_native_ui_action(NativeUiAction::ToggleTransport);
+    controller.apply_ui_action(NativeUiAction::ToggleTransport);
 
     assert!(!controller.is_playing());
     assert!(!controller.ui.waveform.playhead.visible);
@@ -76,8 +74,7 @@ fn toggle_transport_stops_active_playback() {
 
 #[test]
 fn play_from_start_auditions_focused_review_slice_without_selection() {
-    let Some(mut controller) = setup_native_looping_controller(SelectionRange::new(0.1, 0.4))
-    else {
+    let Some(mut controller) = setup_ui_looping_controller(SelectionRange::new(0.1, 0.4)) else {
         return;
     };
     controller.selection_state.range.set_range(None);
@@ -89,7 +86,7 @@ fn play_from_start_auditions_focused_review_slice_without_selection() {
     controller.start_slice_review();
     controller.move_slice_review_focus(1);
 
-    controller.apply_native_ui_action(NativeUiAction::PlayFromStart);
+    controller.apply_ui_action(NativeUiAction::PlayFromStart);
 
     assert!(controller.selection_state.range.range().is_none());
     assert!(controller.ui.waveform.selection.is_none());
@@ -98,7 +95,7 @@ fn play_from_start_auditions_focused_review_slice_without_selection() {
 }
 
 #[test]
-fn fine_slide_native_action_bypasses_slice_review_navigation() {
+fn fine_slide_ui_action_bypasses_slice_review_navigation() {
     let (mut controller, _source) = dummy_controller();
     controller.set_loaded_audio_duration_for_tests(1.0);
     controller.sample_view.waveform.decoded =
@@ -118,7 +115,7 @@ fn fine_slide_native_action_bypasses_slice_review_navigation() {
         vec![SelectionRange::new(0.1, 0.2), SelectionRange::new(0.3, 0.4)];
     controller.start_slice_review();
 
-    controller.apply_native_ui_action(NativeUiAction::SlideWaveformSelection {
+    controller.apply_ui_action(NativeUiAction::SlideWaveformSelection {
         delta: 1,
         fine: true,
     });
@@ -132,6 +129,6 @@ fn fine_slide_native_action_bypasses_slice_review_navigation() {
     assert!((moved.end() - 0.625).abs() < 1.0e-6);
     assert_eq!(controller.ui.waveform.slice_review.focused_index, Some(0));
 
-    controller.apply_native_ui_action(NativeUiAction::MoveWaveformSliceFocus { delta: 1 });
+    controller.apply_ui_action(NativeUiAction::MoveWaveformSliceFocus { delta: 1 });
     assert_eq!(controller.ui.waveform.slice_review.focused_index, Some(1));
 }

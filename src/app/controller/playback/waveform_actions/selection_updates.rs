@@ -161,7 +161,7 @@ fn snap_translated_waveform_selection_range_to_global_grid(
 
 /// Snap one resized waveform endpoint relative to its preserved selection edge.
 ///
-/// Native waveform drags set `preserve_view_edge` when the pointer has moved
+/// UI waveform drags set `preserve_view_edge` when the pointer has moved
 /// beyond the waveform plot and the runtime intentionally clamps the drag to an
 /// exact off-plot boundary position. Preserve that absolute position verbatim
 /// so concurrent zoom changes do not re-snap the drag inward to a BPM step.

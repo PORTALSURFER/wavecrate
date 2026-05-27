@@ -4,11 +4,11 @@ use super::AppController;
 
 /// Internal frame-preparation plans used by the UI bridge.
 ///
-/// The controller still exposes `prepare_native_frame(bool)` as the stable runtime
+/// The controller still exposes `prepare_ui_frame(bool)` as the stable runtime
 /// API, but bridge pulls can choose a narrower maintenance lane when the pending
 /// state shows that only browser-local work needs to run before projection.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum NativeFramePreparationPlan {
+pub(crate) enum UiFramePreparationPlan {
     /// Run the full maintenance pass before projecting a model pull.
     Full,
     /// Run only the browser/status-safe subset for retained browser pulls.
@@ -24,39 +24,39 @@ pub(crate) enum NativeFramePreparationPlan {
 }
 
 impl AppController {
-    /// Execute one internal native-frame preparation plan.
-    pub(crate) fn prepare_native_frame_with_plan(&mut self, plan: NativeFramePreparationPlan) {
+    /// Execute one internal UI-frame preparation plan.
+    pub(crate) fn prepare_ui_frame_with_plan(&mut self, plan: UiFramePreparationPlan) {
         self.poll_background_jobs();
         match plan {
-            NativeFramePreparationPlan::Full => {
-                self.flush_transport_native_frame_lane();
-                self.flush_browser_native_frame_lane();
-                self.flush_metadata_native_frame_lane();
-                self.flush_waveform_native_frame_lane();
-                self.flush_startup_native_frame_lane();
+            UiFramePreparationPlan::Full => {
+                self.flush_transport_ui_frame_lane();
+                self.flush_browser_ui_frame_lane();
+                self.flush_metadata_ui_frame_lane();
+                self.flush_waveform_ui_frame_lane();
+                self.flush_startup_ui_frame_lane();
                 self.tick_playhead();
-                self.finish_non_motion_native_frame_preparation();
+                self.finish_non_motion_ui_frame_preparation();
             }
-            NativeFramePreparationPlan::BrowserRetainedPull => {
-                self.flush_browser_native_frame_lane();
-                self.finish_non_motion_native_frame_preparation();
+            UiFramePreparationPlan::BrowserRetainedPull => {
+                self.flush_browser_ui_frame_lane();
+                self.finish_non_motion_ui_frame_preparation();
             }
-            NativeFramePreparationPlan::TransportRetainedPull => {
-                self.flush_transport_native_frame_lane();
-                self.flush_browser_native_frame_lane();
-                self.finish_non_motion_native_frame_preparation();
+            UiFramePreparationPlan::TransportRetainedPull => {
+                self.flush_transport_ui_frame_lane();
+                self.flush_browser_ui_frame_lane();
+                self.finish_non_motion_ui_frame_preparation();
             }
-            NativeFramePreparationPlan::MetadataRetainedPull => {
-                self.flush_browser_native_frame_lane();
-                self.flush_metadata_native_frame_lane();
-                self.finish_non_motion_native_frame_preparation();
+            UiFramePreparationPlan::MetadataRetainedPull => {
+                self.flush_browser_ui_frame_lane();
+                self.flush_metadata_ui_frame_lane();
+                self.finish_non_motion_ui_frame_preparation();
             }
-            NativeFramePreparationPlan::StartupRetainedPull => {
-                self.flush_browser_native_frame_lane();
-                self.flush_startup_native_frame_lane();
-                self.finish_non_motion_native_frame_preparation();
+            UiFramePreparationPlan::StartupRetainedPull => {
+                self.flush_browser_ui_frame_lane();
+                self.flush_startup_ui_frame_lane();
+                self.finish_non_motion_ui_frame_preparation();
             }
-            NativeFramePreparationPlan::MotionOnly => {
+            UiFramePreparationPlan::MotionOnly => {
                 self.record_frame_timing_for_fps();
                 if !self.is_playing() {
                     let _ = self.refresh_projection_revision_bus();
@@ -75,44 +75,44 @@ impl AppController {
     /// the full preparation lane.
     pub(crate) fn can_prepare_browser_retained_pull(&self) -> bool {
         self.can_prepare_retained_pull_base()
-            && !self.has_transport_native_frame_work()
-            && !self.has_metadata_native_frame_work()
-            && !self.has_startup_native_frame_work()
+            && !self.has_transport_ui_frame_work()
+            && !self.has_metadata_ui_frame_work()
+            && !self.has_startup_ui_frame_work()
     }
 
     /// Return whether the bridge may use the transport-retained maintenance lane.
     pub(crate) fn can_prepare_transport_retained_pull(&self) -> bool {
         self.can_prepare_retained_pull_base()
-            && self.has_transport_native_frame_work()
-            && !self.has_metadata_native_frame_work()
-            && !self.has_startup_native_frame_work()
+            && self.has_transport_ui_frame_work()
+            && !self.has_metadata_ui_frame_work()
+            && !self.has_startup_ui_frame_work()
     }
 
     /// Return whether the bridge may use the metadata-retained maintenance lane.
     pub(crate) fn can_prepare_metadata_retained_pull(&self) -> bool {
         self.can_prepare_retained_pull_base()
-            && self.has_metadata_native_frame_work()
-            && !self.has_transport_native_frame_work()
-            && !self.has_startup_native_frame_work()
+            && self.has_metadata_ui_frame_work()
+            && !self.has_transport_ui_frame_work()
+            && !self.has_startup_ui_frame_work()
     }
 
     /// Return whether the bridge may use the startup-retained maintenance lane.
     pub(crate) fn can_prepare_startup_retained_pull(&self) -> bool {
         self.can_prepare_retained_pull_base()
-            && self.has_startup_native_frame_work()
-            && !self.has_transport_native_frame_work()
-            && !self.has_metadata_native_frame_work()
+            && self.has_startup_ui_frame_work()
+            && !self.has_transport_ui_frame_work()
+            && !self.has_metadata_ui_frame_work()
     }
 
-    /// Flush native-frame transport maintenance that can affect persisted runtime state.
-    fn flush_transport_native_frame_lane(&mut self) {
+    /// Flush UI-frame transport maintenance that can affect persisted runtime state.
+    fn flush_transport_ui_frame_lane(&mut self) {
         if self.has_pending_volume_setting_flush() {
             self.flush_pending_volume_setting();
         }
     }
 
-    /// Flush native-frame browser/status maintenance needed by retained browser pulls.
-    fn flush_browser_native_frame_lane(&mut self) {
+    /// Flush UI-frame browser/status maintenance needed by retained browser pulls.
+    fn flush_browser_ui_frame_lane(&mut self) {
         if self.has_pending_age_update_commit() {
             self.flush_pending_age_update_commit();
         }
@@ -125,14 +125,14 @@ impl AppController {
     }
 
     /// Flush deferred metadata writes owned by the controller.
-    fn flush_metadata_native_frame_lane(&mut self) {
+    fn flush_metadata_ui_frame_lane(&mut self) {
         if self.has_pending_loaded_duration_metadata_write() {
             self.flush_pending_loaded_duration_metadata_write();
         }
     }
 
     /// Flush waveform work that can change rendered pixels or playback targets.
-    fn flush_waveform_native_frame_lane(&mut self) {
+    fn flush_waveform_ui_frame_lane(&mut self) {
         if self.has_pending_waveform_seek_commit() {
             self.flush_pending_waveform_seek_commit();
         }
@@ -142,7 +142,7 @@ impl AppController {
     }
 
     /// Flush deferred startup work once the runtime is ready to expose it.
-    fn flush_startup_native_frame_lane(&mut self) {
+    fn flush_startup_ui_frame_lane(&mut self) {
         if self.has_pending_startup_source_db_maintenance() {
             self.flush_deferred_startup_source_db_maintenance();
         }
@@ -151,8 +151,8 @@ impl AppController {
         }
     }
 
-    /// Finish a non-motion native frame preparation pass.
-    fn finish_non_motion_native_frame_preparation(&mut self) {
+    /// Finish a non-motion UI frame preparation pass.
+    fn finish_non_motion_ui_frame_preparation(&mut self) {
         let _ = self.refresh_projection_revision_bus();
         self.update_performance_governor(false);
     }
@@ -160,30 +160,30 @@ impl AppController {
     /// Return true when a retained pull may skip full playhead, waveform, and map work.
     fn can_prepare_retained_pull_base(&self) -> bool {
         !self.is_playing()
-            && !self.has_waveform_native_frame_work()
+            && !self.has_waveform_ui_frame_work()
             && !self.is_derived_node_dirty(DerivedNodeId::MapState)
     }
 
     /// Return true when queued transport work still needs a frame-time flush.
-    fn has_transport_native_frame_work(&self) -> bool {
+    fn has_transport_ui_frame_work(&self) -> bool {
         self.has_pending_volume_setting_flush()
             || self.is_derived_node_dirty(DerivedNodeId::TransportState)
     }
 
     /// Return true when queued metadata work still needs a frame-time flush.
-    fn has_metadata_native_frame_work(&self) -> bool {
+    fn has_metadata_ui_frame_work(&self) -> bool {
         self.has_pending_loaded_duration_metadata_write()
     }
 
     /// Return true when queued waveform work still needs a frame-time flush.
-    fn has_waveform_native_frame_work(&self) -> bool {
+    fn has_waveform_ui_frame_work(&self) -> bool {
         self.has_pending_waveform_seek_commit()
             || self.has_pending_waveform_image_refresh()
             || self.is_derived_node_dirty(DerivedNodeId::WaveformState)
     }
 
     /// Return true when queued startup work still needs a frame-time flush.
-    fn has_startup_native_frame_work(&self) -> bool {
+    fn has_startup_ui_frame_work(&self) -> bool {
         self.has_pending_startup_source_db_maintenance() || self.has_pending_startup_audio_refresh()
     }
 }

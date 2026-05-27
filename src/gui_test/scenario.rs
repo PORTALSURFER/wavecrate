@@ -22,9 +22,9 @@ pub struct GuiScenario {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum GuiScenarioStep {
-    /// Dispatch a concrete native UI action.
+    /// Dispatch a concrete UI action.
     DispatchAction {
-        /// Concrete native UI action to apply to the in-process GUI harness.
+        /// Concrete UI action to apply to the in-process GUI harness.
         action: NativeUiAction,
     },
     /// Evaluate a deterministic semantic assertion.
