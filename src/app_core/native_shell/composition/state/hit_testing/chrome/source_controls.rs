@@ -14,6 +14,7 @@ use filters::sidebar_filter_action_at_point;
 use filters::{sidebar_filter_row_rects, sidebar_rating_chip_rects};
 use tags::{
     sidebar_pill_editor_input_rect, sidebar_pill_editor_text_rect, sidebar_tag_action_at_point,
+    tag_library_action_at_point,
 };
 
 impl NativeShellState {
@@ -336,6 +337,17 @@ impl NativeShellState {
             .into_iter()
             .find(|button| button.enabled && button.rect.contains(point))
             .map(|button| button.action)
+    }
+
+    /// Resolve an expanded tag-library panel click before underlying content hit-tests.
+    pub(crate) fn tag_library_action_at_point(
+        &mut self,
+        layout: &ShellLayout,
+        model: &AppModel,
+        point: Point,
+    ) -> Option<UiAction> {
+        let style = style_for_layout(layout);
+        tag_library_action_at_point(layout, &style, model, point)
     }
 
     /// Resolve a sidebar background click into a section-focus action.

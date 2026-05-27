@@ -74,5 +74,7 @@ mod filters;
 mod scrollbars;
 #[path = "opt_272/sidebar_workspace.rs"]
 mod sidebar_workspace;
+#[path = "opt_272/tag_library.rs"]
+mod tag_library;
 #[path = "opt_272/toolbar_options.rs"]
 mod toolbar_options;

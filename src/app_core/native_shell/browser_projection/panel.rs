@@ -332,7 +332,11 @@ fn project_normal_tag_candidates(
             .database_for(source)
             .map_err(|err| err.to_string())?;
         if normalized_input.is_empty() {
-            db.most_used_tags(18).map_err(|err| err.to_string())?
+            if controller.ui.browser.tag_sidebar_open {
+                db.used_tags().map_err(|err| err.to_string())?
+            } else {
+                db.most_used_tags(18).map_err(|err| err.to_string())?
+            }
         } else {
             db.search_tags(&input, 18).map_err(|err| err.to_string())?
         }

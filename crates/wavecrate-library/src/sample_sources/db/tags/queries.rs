@@ -29,6 +29,26 @@ impl SourceDatabase {
         )
     }
 
+    /// Return every persisted normal tag that is currently assigned to at least one wav.
+    pub fn used_tags(&self) -> Result<Vec<SourceTagUsage>, SourceDbError> {
+        let mut stmt = self
+            .connection
+            .prepare(
+                "SELECT st.id, st.display_label, st.normalized_text, COUNT(wft.path) AS usage_count
+                 FROM source_tags st
+                 JOIN wav_file_tags wft ON wft.tag_id = st.id
+                 GROUP BY st.id, st.display_label, st.normalized_text
+                 ORDER BY usage_count DESC,
+                          st.display_label COLLATE NOCASE ASC,
+                          st.normalized_text ASC",
+            )
+            .map_err(map_sql_error)?;
+        collect_tag_usage(
+            stmt.query_map([], tag_usage_from_row)
+                .map_err(map_sql_error)?,
+        )
+    }
+
     /// Search persisted normal tags by normalized text. Empty input falls back to most-used tags.
     pub fn search_tags(
         &self,

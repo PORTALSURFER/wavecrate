@@ -20,6 +20,7 @@ pub(super) fn render_sidebar(
     let rendered_folders = folders::render_folder_section(state, ctx, primitives, text_runs);
     tags::render_sidebar_tags(ctx, primitives, text_runs);
     filters::render_sidebar_filters(ctx, primitives, text_runs);
+    tags::render_tag_library_panel(ctx, primitives, text_runs);
     footer::render_sidebar_footer(
         ctx,
         primitives,
