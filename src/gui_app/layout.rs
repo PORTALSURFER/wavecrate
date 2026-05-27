@@ -200,9 +200,9 @@ fn metadata_tag_category_header(
         tone: if drop_hover {
             ui::WidgetTone::Warning
         } else {
-            metadata_tag_category_tone(category_id.as_str())
+            ui::WidgetTone::Neutral
         },
-        prominence: if locked || drop_hover {
+        prominence: if drop_hover {
             ui::WidgetProminence::Strong
         } else {
             ui::WidgetProminence::Subtle
