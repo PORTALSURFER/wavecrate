@@ -55,6 +55,7 @@ fn folder_sidebar(state: &GuiAppState) -> ui::View<GuiMessage> {
         state.metadata_tag_completion_suffix().as_deref(),
         state.metadata_tag_completion_options().as_slice(),
         state.selected_metadata_tags(),
+        state.selected_metadata_tag_display_categories().as_slice(),
         state.selected_metadata_tag.as_deref(),
     )
     .width(state.folder_width)
@@ -196,10 +197,10 @@ fn metadata_tag_category_header(
         .fill_width()
         .height(22.0);
     let style = ui::WidgetStyle {
-        tone: if locked || drop_hover {
+        tone: if drop_hover {
             ui::WidgetTone::Warning
         } else {
-            ui::WidgetTone::Neutral
+            metadata_tag_category_tone(category_id.as_str())
         },
         prominence: if locked || drop_hover {
             ui::WidgetProminence::Strong
@@ -233,13 +234,7 @@ fn metadata_tag_library_row(
 ) -> ui::View<GuiMessage> {
     let selected = selected_tags.iter().any(|selected| selected == &tag);
     let style = ui::WidgetStyle {
-        tone: if locked {
-            ui::WidgetTone::Warning
-        } else if selected {
-            ui::WidgetTone::Accent
-        } else {
-            ui::WidgetTone::Neutral
-        },
+        tone: metadata_tag_category_tone(category_id),
         prominence: if selected || locked {
             ui::WidgetProminence::Strong
         } else {
@@ -341,6 +336,17 @@ fn metadata_tag_empty_category_target(
 
 fn metadata_tag_pill_width(tag: &str) -> f32 {
     (tag.chars().count() as f32 * 7.0 + 22.0).clamp(38.0, 180.0)
+}
+
+fn metadata_tag_category_tone(category_id: &str) -> ui::WidgetTone {
+    match category_id {
+        "playback-type" => ui::WidgetTone::Warning,
+        "sound-type" => ui::WidgetTone::Accent,
+        "character" => ui::WidgetTone::Success,
+        "prefix" => ui::WidgetTone::Danger,
+        "tuning-scale" => ui::WidgetTone::Neutral,
+        _ => ui::WidgetTone::Neutral,
+    }
 }
 
 fn folder_splitter() -> ui::View<GuiMessage> {

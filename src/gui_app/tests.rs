@@ -775,6 +775,7 @@ fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
             None,
             &[],
             &tags,
+            &[],
             None,
         )
         .into_node(),
@@ -808,6 +809,7 @@ fn folder_browser_metadata_selected_tag_chip_uses_strong_accent_style() {
             None,
             &[],
             &tags,
+            &[],
             Some("hat"),
         )
         .into_node(),
@@ -895,6 +897,79 @@ fn metadata_tag_chips_display_playback_tags_first() {
     assert!(loop_rect.min.x < hat_rect.min.x);
     assert!(one_shot_rect.min.x < hat_rect.min.x);
     assert!(hat_rect.min.x < warm_rect.min.x);
+}
+
+#[test]
+fn metadata_tag_chips_group_by_target_category_order_and_color() {
+    let browser = super::FolderBrowserState::load_default();
+    let tags = vec![
+        String::from("warm"),
+        String::from("artist1"),
+        String::from("dorian"),
+        String::from("hat"),
+        String::from("loop"),
+    ];
+    let categories = vec![
+        super::metadata_tags::MetadataTagDisplayCategory {
+            tag: String::from("warm"),
+            category_id: "character",
+        },
+        super::metadata_tags::MetadataTagDisplayCategory {
+            tag: String::from("artist1"),
+            category_id: "prefix",
+        },
+        super::metadata_tags::MetadataTagDisplayCategory {
+            tag: String::from("dorian"),
+            category_id: "tuning-scale",
+        },
+        super::metadata_tags::MetadataTagDisplayCategory {
+            tag: String::from("hat"),
+            category_id: "sound-type",
+        },
+        super::metadata_tags::MetadataTagDisplayCategory {
+            tag: String::from("loop"),
+            category_id: "playback-type",
+        },
+    ];
+    let theme = radiant::theme::ThemeTokens::default();
+    let frame = radiant::runtime::UiSurface::new(
+        super::folder_browser::folder_browser_view(
+            &browser,
+            600.0,
+            true,
+            "",
+            &[],
+            None,
+            "add tag",
+            None,
+            &[],
+            &tags,
+            categories.as_slice(),
+            None,
+        )
+        .into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(600.0, 620.0)),
+        &theme,
+    );
+
+    let loop_rect = text_rect(&frame, "loop").expect("loop tag should paint");
+    let hat_rect = text_rect(&frame, "hat").expect("hat tag should paint");
+    let warm_rect = text_rect(&frame, "warm").expect("warm tag should paint");
+    let artist_rect = text_rect(&frame, "artist1").expect("prefix tag should paint");
+    let dorian_rect = text_rect(&frame, "dorian").expect("tuning tag should paint");
+
+    assert!(loop_rect.min.x < hat_rect.min.x);
+    assert!(hat_rect.min.x < warm_rect.min.x);
+    assert!(warm_rect.min.x < artist_rect.min.x);
+    assert!(artist_rect.min.x < dorian_rect.min.x);
+
+    assert_eq!(text_color(&frame, "loop"), Some(theme.bg_primary));
+    assert_eq!(text_color(&frame, "hat"), Some(theme.accent_mint));
+    assert_eq!(text_color(&frame, "warm"), Some(theme.highlight_cyan));
+    assert_eq!(text_color(&frame, "artist1"), Some(theme.accent_danger));
+    assert_eq!(text_color(&frame, "dorian"), Some(theme.text_muted));
 }
 
 #[test]
@@ -1184,6 +1259,7 @@ fn folder_browser_metadata_hides_tag_entry_when_no_file_is_selected() {
             None,
             &[],
             &tags,
+            &[],
             None,
         )
         .into_node(),
@@ -1227,6 +1303,7 @@ fn folder_browser_metadata_tags_grow_combined_entry_field() {
             None,
             &[],
             &small_tags,
+            &[],
             None,
         )
         .into_node(),
@@ -1247,6 +1324,7 @@ fn folder_browser_metadata_tags_grow_combined_entry_field() {
             None,
             &[],
             &larger_tags,
+            &[],
             None,
         )
         .into_node(),
@@ -1282,6 +1360,7 @@ fn folder_browser_metadata_tag_field_caps_at_six_rows_then_scrolls() {
             None,
             &[],
             &tags,
+            &[],
             None,
         )
         .into_node(),
@@ -1571,6 +1650,7 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_and_options() {
             Some("ck"),
             completion_options.as_slice(),
             &[String::from("warm")],
+            &[],
             None,
         )
         .into_node(),
@@ -2062,6 +2142,7 @@ fn folder_browser_metadata_tag_field_renders_pending_category_prompt() {
             Some("-type"),
             completion_options.as_slice(),
             &[],
+            &[],
             None,
         )
         .into_node(),
@@ -2121,6 +2202,7 @@ fn folder_browser_metadata_tag_input_moves_to_next_row_when_crowded() {
             None,
             &[],
             &tags,
+            &[],
             None,
         )
         .into_node(),
@@ -2172,6 +2254,7 @@ fn folder_browser_metadata_tag_input_keeps_identity_when_wrapping_rows() {
             None,
             &[],
             &short_tags,
+            &[],
             None,
         )
         .into_node(),
@@ -2192,6 +2275,7 @@ fn folder_browser_metadata_tag_input_keeps_identity_when_wrapping_rows() {
             None,
             &[],
             &crowded_tags,
+            &[],
             None,
         )
         .into_node(),
@@ -2228,6 +2312,7 @@ fn folder_browser_metadata_tag_input_wraps_after_full_tag_row() {
             None,
             &[],
             &tags,
+            &[],
             None,
         )
         .into_node(),
@@ -2599,6 +2684,17 @@ fn text_rect(frame: &ui::SurfaceFrame, expected: &str) -> Option<Rect> {
         .iter()
         .find_map(|primitive| match primitive {
             PaintPrimitive::Text(text) if text.text.as_str() == expected => Some(text.rect),
+            _ => None,
+        })
+}
+
+fn text_color(frame: &ui::SurfaceFrame, expected: &str) -> Option<radiant::gui::types::Rgba8> {
+    frame
+        .paint_plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::Text(text) if text.text.as_str() == expected => Some(text.color),
             _ => None,
         })
 }

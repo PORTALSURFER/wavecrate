@@ -11,7 +11,8 @@ use radiant::{
 };
 
 use crate::gui_app::metadata_tags::{
-    MetadataTagCompletionOption, metadata_tag_name_is_playback_type,
+    MetadataTagCompletionOption, MetadataTagDisplayCategory,
+    inferred_metadata_tag_category_id_for_name, metadata_tag_category_order,
 };
 
 use super::{
@@ -44,6 +45,7 @@ pub(in crate::gui_app) fn folder_browser_view(
     metadata_tag_completion_suffix: Option<&str>,
     metadata_tag_completion_options: &[MetadataTagCompletionOption],
     metadata_tags: &[String],
+    metadata_tag_display_categories: &[MetadataTagDisplayCategory],
     selected_metadata_tag: Option<&str>,
 ) -> ui::View<GuiMessage> {
     let tag_field_content_width = tag_field_content_width(sidebar_width);
@@ -53,6 +55,7 @@ pub(in crate::gui_app) fn folder_browser_view(
         metadata_tag_pending_category_tag,
         metadata_tag_completion_suffix,
         metadata_tags,
+        metadata_tag_display_categories,
         tag_field_content_width,
     );
     ui::column([
@@ -69,6 +72,7 @@ pub(in crate::gui_app) fn folder_browser_view(
             metadata_tag_completion_suffix,
             metadata_tag_completion_options,
             metadata_tags,
+            metadata_tag_display_categories,
             selected_metadata_tag,
             tag_field_content_width,
             tag_field_height,
@@ -302,6 +306,7 @@ fn metadata_section(
     tag_completion_suffix: Option<&str>,
     tag_completion_options: &[MetadataTagCompletionOption],
     tags: &[String],
+    tag_display_categories: &[MetadataTagDisplayCategory],
     selected_metadata_tag: Option<&str>,
     tag_field_content_width: f32,
     tag_field_height: f32,
@@ -335,6 +340,7 @@ fn metadata_section(
                 tag_input_placeholder,
                 tag_completion_suffix,
                 tags,
+                tag_display_categories,
                 selected_metadata_tag,
                 tag_field_height,
                 tag_field_content_width,
@@ -368,6 +374,7 @@ fn tag_entry_field(
     tag_input_placeholder: &str,
     tag_completion_suffix: Option<&str>,
     tags: &[String],
+    tag_display_categories: &[MetadataTagDisplayCategory],
     selected_metadata_tag: Option<&str>,
     height: f32,
     content_width: f32,
@@ -378,6 +385,7 @@ fn tag_entry_field(
             visible_tags.push(token.clone());
         }
     }
+    order_metadata_tags_for_display(&mut visible_tags, tag_display_categories);
 
     let pending_category_tag = tag_pending_category_tag.map(str::to_string);
     let display_value = tag_input_display_value(tag_draft, tag_completion_suffix);
@@ -388,6 +396,7 @@ fn tag_entry_field(
     };
     let rows = tag_field_rows(
         &visible_tags,
+        tag_display_categories,
         pending_category_tag.as_deref(),
         input_width,
         content_width,
@@ -399,6 +408,7 @@ fn tag_entry_field(
             .map(|(row_index, row)| {
                 tag_entry_row(
                     row,
+                    tag_display_categories,
                     tag_draft,
                     tag_input_placeholder,
                     tag_completion_suffix,
@@ -436,6 +446,7 @@ fn tag_field_height(
     tag_pending_category_tag: Option<&str>,
     tag_completion_suffix: Option<&str>,
     tags: &[String],
+    tag_display_categories: &[MetadataTagDisplayCategory],
     content_width: f32,
 ) -> f32 {
     let mut visible_tags = tags.to_vec();
@@ -444,11 +455,12 @@ fn tag_field_height(
             visible_tags.push(token.clone());
         }
     }
-    order_metadata_tags_for_display(&mut visible_tags);
+    order_metadata_tags_for_display(&mut visible_tags, tag_display_categories);
     let input_width =
         tag_input_width(tag_input_display_value(tag_draft, tag_completion_suffix).as_str());
     let rows = tag_field_rows(
         &visible_tags,
+        tag_display_categories,
         tag_pending_category_tag,
         input_width,
         content_width,
@@ -466,14 +478,15 @@ enum TagEntryRowItem {
 
 fn tag_field_rows(
     tags: &[String],
+    tag_display_categories: &[MetadataTagDisplayCategory],
     pending_category_tag: Option<&str>,
     input_width: f32,
     content_width: f32,
 ) -> Vec<Vec<TagEntryRowItem>> {
     let mut visible_tags = tags.to_vec();
-    order_metadata_tags_for_display(&mut visible_tags);
+    order_metadata_tags_for_display(&mut visible_tags, tag_display_categories);
     let mut rows = pack_tag_rows(&visible_tags, content_width);
-    if should_break_before_tag_input(tags, input_width, content_width) || rows.is_empty() {
+    if should_break_before_tag_input(&visible_tags, input_width, content_width) || rows.is_empty() {
         rows.push(Vec::new());
     }
 
@@ -513,18 +526,32 @@ fn pack_tag_rows(tags: &[String], content_width: f32) -> Vec<Vec<TagEntryRowItem
     rows
 }
 
-fn order_metadata_tags_for_display(tags: &mut Vec<String>) {
-    let mut playback_tags = Vec::new();
-    let mut other_tags = Vec::new();
-    for tag in tags.drain(..) {
-        if metadata_tag_name_is_playback_type(&tag) {
-            playback_tags.push(tag);
-        } else {
-            other_tags.push(tag);
-        }
-    }
-    tags.extend(playback_tags);
-    tags.extend(other_tags);
+fn order_metadata_tags_for_display(
+    tags: &mut Vec<String>,
+    tag_display_categories: &[MetadataTagDisplayCategory],
+) {
+    let mut indexed = tags.drain(..).enumerate().collect::<Vec<_>>();
+    indexed.sort_by_key(|(index, tag)| {
+        (
+            metadata_tag_category_order(metadata_tag_category_id_for_display(
+                tag,
+                tag_display_categories,
+            )),
+            *index,
+        )
+    });
+    tags.extend(indexed.into_iter().map(|(_index, tag)| tag));
+}
+
+fn metadata_tag_category_id_for_display<'a>(
+    tag: &str,
+    tag_display_categories: &'a [MetadataTagDisplayCategory],
+) -> &'a str {
+    tag_display_categories
+        .iter()
+        .find(|entry| entry.tag == tag)
+        .map(|entry| entry.category_id)
+        .unwrap_or_else(|| inferred_metadata_tag_category_id_for_name(tag))
 }
 
 fn push_row_item(
@@ -722,6 +749,7 @@ fn tag_input_display_value(tag_draft: &str, completion_suffix: Option<&str>) -> 
 
 fn tag_entry_row(
     row: Vec<TagEntryRowItem>,
+    tag_display_categories: &[MetadataTagDisplayCategory],
     tag_draft: &str,
     tag_input_placeholder: &str,
     tag_completion_suffix: Option<&str>,
@@ -731,9 +759,11 @@ fn tag_entry_row(
     ui::row(
         row.into_iter()
             .map(|item| match item {
-                TagEntryRowItem::Accepted(tag) => {
-                    accepted_tag_token(tag.as_str(), selected_metadata_tag == Some(tag.as_str()))
-                }
+                TagEntryRowItem::Accepted(tag) => accepted_tag_token(
+                    tag.as_str(),
+                    metadata_tag_category_id_for_display(tag.as_str(), tag_display_categories),
+                    selected_metadata_tag == Some(tag.as_str()),
+                ),
                 TagEntryRowItem::PendingCategory(tag) => pending_category_tag_token(tag.as_str()),
                 TagEntryRowItem::Input(width) => tag_text_input(
                     tag_draft,
@@ -764,33 +794,40 @@ fn tag_pill_width(tag: &str) -> f32 {
     (tag.chars().count() as f32 * 7.0 + 22.0).clamp(38.0, 180.0)
 }
 
-fn accepted_tag_token(tag: &str, selected: bool) -> ui::View<GuiMessage> {
-    let playback_type = metadata_tag_name_is_playback_type(tag);
+fn accepted_tag_token(tag: &str, category_id: &str, selected: bool) -> ui::View<GuiMessage> {
+    let style = metadata_tag_category_style(category_id, selected);
     let mut badge = ui::badge(tag.to_string())
         .message(GuiMessage::SelectMetadataTag(tag.to_string()))
         .key(format!("metadata-tag-accepted-{tag}"))
-        .style(WidgetStyle {
-            tone: if playback_type {
-                WidgetTone::Warning
-            } else {
-                WidgetTone::Accent
-            },
-            prominence: if selected || playback_type {
-                ui::WidgetProminence::Strong
-            } else {
-                ui::WidgetProminence::Subtle
-            },
-        })
+        .style(style)
         .sizing(ui::WidgetSizing::fixed(ui::Vector2::new(
             tag_pill_width(tag),
             TAG_FIELD_CONTROL_HEIGHT,
         )))
         .height(TAG_FIELD_CONTROL_HEIGHT)
         .width(tag_pill_width(tag));
-    if !selected && !playback_type {
+    if !selected && category_id != "playback-type" {
         badge = badge.subtle();
     }
     badge
+}
+
+fn metadata_tag_category_style(category_id: &str, selected: bool) -> WidgetStyle {
+    WidgetStyle {
+        tone: match category_id {
+            "playback-type" => WidgetTone::Warning,
+            "sound-type" => WidgetTone::Accent,
+            "character" => WidgetTone::Success,
+            "prefix" => WidgetTone::Danger,
+            "tuning-scale" => WidgetTone::Neutral,
+            _ => WidgetTone::Neutral,
+        },
+        prominence: if selected || category_id == "playback-type" {
+            ui::WidgetProminence::Strong
+        } else {
+            ui::WidgetProminence::Subtle
+        },
+    }
 }
 
 fn pending_category_tag_token(tag: &str) -> ui::View<GuiMessage> {

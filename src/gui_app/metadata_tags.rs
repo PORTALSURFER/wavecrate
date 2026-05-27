@@ -47,6 +47,12 @@ pub(super) struct MetadataTagCompletionOption {
     pub(super) selected: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct MetadataTagDisplayCategory {
+    pub(super) tag: String,
+    pub(super) category_id: &'static str,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(super) enum MetadataTagInputMode {
     #[default]
@@ -157,6 +163,18 @@ impl GuiAppState {
             .and_then(|file_id| self.metadata_tags_by_file.get(file_id))
             .map(Vec::as_slice)
             .unwrap_or(&[])
+    }
+
+    pub(super) fn selected_metadata_tag_display_categories(
+        &self,
+    ) -> Vec<MetadataTagDisplayCategory> {
+        self.selected_metadata_tags()
+            .iter()
+            .map(|tag| MetadataTagDisplayCategory {
+                tag: tag.clone(),
+                category_id: self.metadata_tag_category_id(tag),
+            })
+            .collect()
     }
 
     pub(super) fn select_metadata_tag(&mut self, tag: String) {
@@ -939,8 +957,15 @@ fn inferred_metadata_tag_category_id(tag: &str) -> &'static str {
     }
 }
 
-pub(super) fn metadata_tag_name_is_playback_type(tag: &str) -> bool {
-    inferred_metadata_tag_category_id(tag) == "playback-type"
+pub(super) fn metadata_tag_category_order(category_id: &str) -> usize {
+    METADATA_TAG_CATEGORIES
+        .iter()
+        .position(|(id, _label)| *id == category_id)
+        .unwrap_or(METADATA_TAG_CATEGORIES.len())
+}
+
+pub(super) fn inferred_metadata_tag_category_id_for_name(tag: &str) -> &'static str {
+    inferred_metadata_tag_category_id(tag)
 }
 
 fn metadata_tag_category_label_for_id(category_id: &str) -> Option<&'static str> {
