@@ -1318,6 +1318,12 @@ fn folder_browser_metadata_tag_field_renders_pending_category_prompt() {
     assert!(frame_has_text(&frame, "deep-kick ->"));
     assert!(frame_has_text(&frame, "Sound Type"));
     assert!(frame_has_text(&frame, "Group"));
+    let pending_tag_rect = text_rect(&frame, "deep-kick ->").expect("pending tag should paint");
+    let sound_type_rect = text_rect(&frame, "Sound Type").expect("completion option should paint");
+    assert!(
+        sound_type_rect.max.y < pending_tag_rect.min.y,
+        "completion popup should expand upward above the tag input"
+    );
 }
 
 #[test]
@@ -1814,6 +1820,17 @@ fn frame_has_clip_height(frame: &ui::SurfaceFrame, expected: f32) -> bool {
         .any(|primitive| match primitive {
             PaintPrimitive::ClipStart(clip) => (clip.rect.height() - expected).abs() < 0.01,
             _ => false,
+        })
+}
+
+fn text_rect(frame: &ui::SurfaceFrame, expected: &str) -> Option<Rect> {
+    frame
+        .paint_plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::Text(text) if text.text.as_str() == expected => Some(text.rect),
+            _ => None,
         })
 }
 
