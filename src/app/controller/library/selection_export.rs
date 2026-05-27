@@ -349,7 +349,7 @@ impl AppController {
             .ok_or_else(|| "Create a selection first".to_string())
     }
 
-    /// Emit one optimistic submit token so native shells can blink the selection immediately.
+    /// Emit one optimistic submit token so UI projections can blink the selection immediately.
     fn record_waveform_selection_export_flash(&mut self) {
         self.ui.waveform.selection_export_flash_nonce = self
             .ui
@@ -358,7 +358,7 @@ impl AppController {
             .wrapping_add(1);
     }
 
-    /// Emit one failure token so native shells can repaint the selection in an error color.
+    /// Emit one failure token so UI projections can repaint the selection in an error color.
     pub(crate) fn record_waveform_selection_export_failure_flash(&mut self) {
         self.ui.waveform.selection_export_failure_flash_nonce = self
             .ui

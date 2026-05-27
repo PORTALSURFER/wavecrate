@@ -399,7 +399,7 @@ fn large_tag_sidebar_background_auto_rename_streams_file_ops_progress_and_refres
     );
 
     let _ = controller.refresh_projection_revision_bus();
-    let projected = crate::app_core::native_shell::project_browser_model(&mut controller);
+    let projected = crate::app_core::ui_projection::project_browser_model(&mut controller);
     assert_eq!(projected.rows[0].label.as_ref(), "artistname_SS_vintagefx");
     assert_eq!(
         controller

@@ -6,7 +6,7 @@ use crate::app::controller::state::runtime::PendingWaveformTransientCompute;
 use crate::app::controller::test_support::write_test_wav;
 use crate::app::controller::test_support::{prepare_with_source_and_wav_entries, sample_entry};
 use crate::app::state::WaveformView;
-use crate::app_core::native_shell::project_waveform_model;
+use crate::app_core::ui_projection::project_waveform_model;
 use crate::sample_sources::Rating;
 use std::path::Path;
 use std::sync::Arc;

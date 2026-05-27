@@ -1,5 +1,5 @@
 use super::*;
-use crate::app_core::native_shell::{
+use crate::app_core::ui_projection::{
     project_app_model, project_browser_panel_frame_model, project_waveform_model,
 };
 

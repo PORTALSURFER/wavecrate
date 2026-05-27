@@ -58,7 +58,7 @@ impl AppController {
     /// Mark waveform projection state dirty after image/signature changes outside an action cycle.
     ///
     /// Async waveform-image completion can update controller state after the
-    /// native bridge has already cached a projection key for the loaded sample.
+    /// UI bridge has already cached a projection key for the loaded sample.
     /// Marking the waveform source dirty ensures the next pull recomputes the
     /// waveform segment instead of reusing a stale empty image. This is a
     /// projection-only invalidation; view-changing actions use

@@ -71,7 +71,7 @@ pub struct UiState {
     pub map: MapUiState,
     /// Interaction and navigation tuning options.
     pub controls: InteractionOptionsState,
-    /// Native-shell options panel state.
+    /// UI-projection options panel state.
     pub options_panel: OptionsPanelState,
     /// Active compare-anchor metadata used by transport compare affordances.
     pub compare_anchor: Option<CompareAnchorState>,

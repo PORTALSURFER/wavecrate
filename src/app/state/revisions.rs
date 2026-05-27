@@ -3,7 +3,7 @@
 /// Monotonic revision counters for projection-sensitive UI slices.
 ///
 /// Controller frame prep updates these counters whenever the corresponding
-/// source fields change. Native bridge cache keys then depend on these scalar
+/// source fields change. UI bridge cache keys then depend on these scalar
 /// revisions instead of hashing container payloads every pull.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct UiProjectionRevisions {

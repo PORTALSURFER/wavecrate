@@ -8,7 +8,7 @@ use crate::app::controller::state::runtime::BrowserRenameIntentKey;
 use crate::app::controller::test_support::{dummy_controller, sample_entry, write_test_wav};
 use crate::app::state::ProgressTaskKind;
 use crate::app_core::actions::NativeBrowserRowProcessingState;
-use crate::app_core::native_shell::{project_browser_model, project_waveform_model};
+use crate::app_core::ui_projection::{project_browser_model, project_waveform_model};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, atomic::AtomicBool, mpsc::channel};
 

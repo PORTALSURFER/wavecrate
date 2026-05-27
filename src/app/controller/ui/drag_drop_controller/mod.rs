@@ -3,7 +3,7 @@
 //! The shipping Wavecrate desktop GUI enters through `src/gui_app.rs`; folder
 //! browser drag/drop bugs in the current UI should start in
 //! `src/gui_app/folder_browser/**`. Keep this module for compatibility-model
-//! behavior and legacy/native-shell test coverage unless a task explicitly
+//! behavior and legacy/ui-projection test coverage unless a task explicitly
 //! targets the `src/app/**` controller layer.
 
 mod actions;

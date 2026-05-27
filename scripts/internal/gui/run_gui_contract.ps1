@@ -84,7 +84,7 @@ try {
       "-p",
       "wavecrate",
       "--lib",
-      "app_core::native_bridge::tests::bridge_runtime",
+      "app_core::ui_bridge::tests::bridge_runtime",
       "--",
       "--ignored"
     )

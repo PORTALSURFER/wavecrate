@@ -25,24 +25,24 @@ pub(crate) use frame_preparation::NativeFramePreparationPlan;
 pub use startup::build_native_app_controller;
 /// Runtime-facing app controller type used by migration hosts.
 pub type AppController = LegacyAppController;
-/// Retained browser preload-window cache type used by native-shell projection helpers.
+/// Retained browser preload-window cache type used by ui-projection helpers.
 pub(crate) type ProjectedBrowserPreloadWindow =
     crate::app_core::app_api::controller::ProjectedBrowserPreloadWindow;
-/// Retained browser-row cache entry used by native-shell projection helpers.
+/// Retained browser-row cache entry used by ui-projection helpers.
 pub(crate) type ProjectedBrowserRowCacheEntry =
     crate::app_core::app_api::controller::ProjectedBrowserRowCacheEntry;
-/// Retained map-point cache key used by native-shell projection helpers.
+/// Retained map-point cache key used by ui-projection helpers.
 pub(crate) type ProjectedMapPointsCacheKey =
     crate::app_core::app_api::controller::ProjectedMapPointsCacheKey;
-/// Retained normalized map-point cache entry used by native-shell projection helpers.
+/// Retained normalized map-point cache entry used by ui-projection helpers.
 pub(crate) type ProjectedMapPointCacheEntry =
     crate::app_core::app_api::controller::ProjectedMapPointCacheEntry;
-/// Retained selected-path lookup cache entry used by native-shell projection helpers.
+/// Retained selected-path lookup cache entry used by ui-projection helpers.
 pub(crate) type ProjectedSelectedPathsLookup =
     crate::app_core::app_api::controller::ProjectedSelectedPathsLookup;
-/// Map-point query payload alias used by native-shell map projection.
+/// Map-point query payload alias used by ui-projection map projection.
 pub(crate) type UmapPointQuery<'a> = crate::app_core::app_api::controller::UmapPointQuery<'a>;
-/// Active browser auto-rename row state used by native-shell projection.
+/// Active browser auto-rename row state used by ui-projection.
 pub(crate) type AutoRenameBatchRowState =
     crate::app_core::app_api::controller_state::AutoRenameBatchRowState;
 
@@ -90,11 +90,11 @@ impl AppControllerNativeRuntimeExt for AppController {
     }
 
     fn project_native_app_model(&mut self) -> NativeAppModel {
-        crate::app_core::native_shell::project_app_model(self)
+        crate::app_core::ui_projection::project_app_model(self)
     }
 
     fn project_native_motion_model(&mut self) -> crate::app_core::actions::NativeMotionModel {
-        crate::app_core::native_shell::project_motion_model(self)
+        crate::app_core::ui_projection::project_motion_model(self)
     }
 
     fn persist_native_exit_config(&self) -> Result<(), String> {

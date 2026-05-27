@@ -102,7 +102,7 @@ Use for tooling, fixtures, and numerical-reference flows.
 - `cargo nextest run golden_log_mel_matches_python`
 - `cargo nextest run golden_embedding_matches_python`
 
-### Wavecrate legacy native-shell compatibility tests
+### Wavecrate legacy ui-projection compatibility tests
 
 Use for deprecated compatibility-shell visual and behavior changes that are
 Wavecrate-owned. Default GUI work should prefer focused tests around
@@ -115,7 +115,7 @@ Wavecrate-owned. Default GUI work should prefer focused tests around
   - update fixtures with
     `cargo test -p wavecrate --lib update_shot_fixtures -- --ignored`
 
-### Radiant legacy native-shell tests
+### Radiant legacy ui-projection tests
 
 Use for generic Radiant behavior and explicit legacy compatibility coverage
 while `compat::legacy_shell` exists.

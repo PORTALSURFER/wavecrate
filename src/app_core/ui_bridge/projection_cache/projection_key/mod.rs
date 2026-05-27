@@ -1,0 +1,216 @@
+use super::super::projection_key_encoding::encode_browser_filter;
+use super::UiProjectionCacheKey;
+use crate::app_core::controller::AppController;
+
+mod browser;
+mod map;
+mod non_segment;
+mod shared;
+mod status;
+mod waveform;
+
+/// One derived projection-key snapshot spanning segment keys and the full app key.
+pub(super) struct DerivedProjectionKeyParts {
+    pub(super) app_key: UiProjectionCacheKey,
+    pub(super) selected_column: usize,
+    pub(super) status_key: super::StatusProjectionCacheKey,
+    pub(super) browser_frame_key: super::BrowserFrameProjectionCacheKey,
+    pub(super) browser_tag_sidebar_key: super::BrowserTagSidebarProjectionCacheKey,
+    pub(super) browser_rows_key: super::BrowserRowsProjectionCacheKey,
+    pub(super) browser_rows_state_key: super::BrowserRowsStateProjectionCacheKey,
+    pub(super) map_key: super::MapProjectionCacheKey,
+    pub(super) waveform_key: super::WaveformProjectionCacheKey,
+    pub(super) non_segment_static_key: super::NonSegmentStaticProjectionCacheKey,
+    pub(super) non_segment_overlay_key: super::NonSegmentOverlayProjectionCacheKey,
+}
+
+/// Build the full projection cache key from current controller state.
+#[cfg(test)]
+pub(super) fn build_projection_cache_key(controller: &AppController) -> UiProjectionCacheKey {
+    derive_projection_key_parts(controller).app_key
+}
+
+/// Derive all segment keys plus the full app key from current controller state.
+pub(super) fn derive_projection_key_parts(controller: &AppController) -> DerivedProjectionKeyParts {
+    let selected_column = crate::app_core::ui_projection::selected_column_index(&controller.ui);
+    let status_key = build_status_projection_key(controller, selected_column);
+    let browser_frame_key = build_browser_frame_projection_key(controller);
+    let browser_tag_sidebar_key = build_browser_tag_sidebar_projection_key(controller);
+    let browser_rows_key = build_browser_rows_projection_key(controller);
+    let browser_rows_state_key = build_browser_rows_state_projection_key(controller);
+    let map_key = build_map_projection_key(controller);
+    let waveform_key = build_waveform_projection_key(controller);
+    let non_segment_static_key = build_non_segment_static_projection_key(controller);
+    let non_segment_overlay_key = build_non_segment_overlay_projection_key(controller);
+    let app_key = UiProjectionCacheKey {
+        status_revision: controller.ui.projection_revisions.status,
+        sources_selected: non_segment_static_key.sources_selected,
+        sources_len: non_segment_static_key.sources_len,
+        tree_rows_len: non_segment_static_key.tree_rows_len,
+        folder_focused: non_segment_static_key.folder_focused,
+        folder_search_revision: non_segment_static_key.folder_search_revision,
+        folder_inline_kind: non_segment_static_key.folder_inline_kind,
+        folder_inline_path_hash: non_segment_static_key.folder_inline_path_hash,
+        folder_inline_name_hash: non_segment_static_key.folder_inline_name_hash,
+        folder_inline_focus_requested: non_segment_static_key.folder_inline_focus_requested,
+        folder_inline_select_all_on_focus: non_segment_static_key.folder_inline_select_all_on_focus,
+        browser_visible_len: browser_frame_key.browser_visible_len,
+        browser_visible_rows_revision: browser_rows_key.browser_visible_rows_revision,
+        browser_selected_visible: browser_frame_key.browser_selected_visible,
+        browser_anchor_visible: browser_frame_key.browser_anchor_visible,
+        browser_autoscroll: browser_frame_key.browser_autoscroll,
+        browser_view_window_start: browser_frame_key.browser_view_window_start,
+        browser_render_window_start: browser_rows_key.browser_render_window_start,
+        browser_selected_paths_len: browser_frame_key.browser_selected_paths_len,
+        browser_selected_paths_revision: browser_rows_state_key.browser_selected_paths_revision,
+        browser_auto_rename_rows_hash: browser_rows_state_key.browser_auto_rename_rows_hash,
+        browser_row_metadata_revision: browser_rows_key.browser_row_metadata_revision,
+        browser_tag_sidebar_selected_count: browser_tag_sidebar_key
+            .browser_tag_sidebar_selected_count,
+        browser_tag_sidebar_primary_hash: browser_tag_sidebar_key.browser_tag_sidebar_primary_hash,
+        browser_tag_sidebar_target_hash: browser_tag_sidebar_key.browser_tag_sidebar_target_hash,
+        browser_tag_sidebar_input_hash: browser_tag_sidebar_key.browser_tag_sidebar_input_hash,
+        browser_search_revision: browser_frame_key.browser_search_revision,
+        browser_similarity_filtered: browser_frame_key.browser_similarity_filtered,
+        browser_duplicate_cleanup_active: browser_frame_key.browser_duplicate_cleanup_active,
+        browser_tag_sidebar_open: browser_tag_sidebar_key.browser_tag_sidebar_open,
+        browser_tag_sidebar_auto_rename: browser_tag_sidebar_key.browser_tag_sidebar_auto_rename,
+        browser_filter: encode_browser_filter(controller.ui.browser.search.filter),
+        browser_sort: browser_frame_key.browser_sort,
+        browser_tab: browser_frame_key.browser_tab,
+        audio_engine_chip_state: non_segment_static_key.audio_engine_chip_state,
+        audio_engine_chip_label_hash: non_segment_static_key.audio_engine_chip_label_hash,
+        audio_engine_overlay_hash: non_segment_overlay_key.audio_engine_overlay_hash,
+        options_panel_hash: non_segment_overlay_key.options_panel_hash,
+        progress_overlay_hash: non_segment_overlay_key.progress_overlay_hash,
+        confirm_prompt_hash: non_segment_overlay_key.confirm_prompt_hash,
+        drag_overlay_hash: non_segment_overlay_key.drag_overlay_hash,
+        waveform_image_rendering: waveform_key.waveform_image_rendering,
+        waveform_signature: waveform_key.waveform_signature,
+        waveform_selection_start_milli: waveform_key.waveform_selection_start_milli,
+        waveform_selection_end_milli: waveform_key.waveform_selection_end_milli,
+        waveform_selection_start_micros: waveform_key.waveform_selection_start_micros,
+        waveform_selection_end_micros: waveform_key.waveform_selection_end_micros,
+        waveform_edit_selection_start_milli: waveform_key.waveform_edit_selection_start_milli,
+        waveform_edit_selection_end_milli: waveform_key.waveform_edit_selection_end_milli,
+        waveform_edit_selection_start_micros: waveform_key.waveform_edit_selection_start_micros,
+        waveform_edit_selection_end_micros: waveform_key.waveform_edit_selection_end_micros,
+        waveform_edit_fade_in_end_milli: waveform_key.waveform_edit_fade_in_end_milli,
+        waveform_edit_fade_in_mute_start_milli: waveform_key.waveform_edit_fade_in_mute_start_milli,
+        waveform_edit_fade_in_curve_milli: waveform_key.waveform_edit_fade_in_curve_milli,
+        waveform_edit_fade_out_start_milli: waveform_key.waveform_edit_fade_out_start_milli,
+        waveform_edit_fade_out_mute_end_milli: waveform_key.waveform_edit_fade_out_mute_end_milli,
+        waveform_edit_fade_out_curve_milli: waveform_key.waveform_edit_fade_out_curve_milli,
+        waveform_edit_fade_in_end_micros: waveform_key.waveform_edit_fade_in_end_micros,
+        waveform_edit_fade_in_mute_start_micros: waveform_key
+            .waveform_edit_fade_in_mute_start_micros,
+        waveform_edit_fade_out_start_micros: waveform_key.waveform_edit_fade_out_start_micros,
+        waveform_edit_fade_out_mute_end_micros: waveform_key.waveform_edit_fade_out_mute_end_micros,
+        waveform_view_start_milli: waveform_key.waveform_view_start_milli,
+        waveform_view_end_milli: waveform_key.waveform_view_end_milli,
+        waveform_view_start_micros: waveform_key.waveform_view_start_micros,
+        waveform_view_end_micros: waveform_key.waveform_view_end_micros,
+        waveform_view_start_nanos: waveform_key.waveform_view_start_nanos,
+        waveform_view_end_nanos: waveform_key.waveform_view_end_nanos,
+        waveform_loop_enabled: waveform_key.waveform_loop_enabled,
+        waveform_loop_lock_enabled: waveform_key.waveform_loop_lock_enabled,
+        waveform_bpm_bits: waveform_key.waveform_bpm_bits,
+        waveform_channel_view: waveform_key.waveform_channel_view,
+        waveform_normalized_audition_enabled: waveform_key.waveform_normalized_audition_enabled,
+        waveform_bpm_snap_enabled: waveform_key.waveform_bpm_snap_enabled,
+        waveform_relative_bpm_grid_enabled: waveform_key.waveform_relative_bpm_grid_enabled,
+        waveform_transient_snap_enabled: waveform_key.waveform_transient_snap_enabled,
+        waveform_transient_markers_enabled: waveform_key.waveform_transient_markers_enabled,
+        waveform_slice_mode_enabled: waveform_key.waveform_slice_mode_enabled,
+        map_open: map_key.map_open,
+        map_zoom_bits: map_key.map_zoom_bits,
+        map_pan_x_bits: map_key.map_pan_x_bits,
+        map_pan_y_bits: map_key.map_pan_y_bits,
+        map_selection_revision: map_key.map_selection_revision,
+        map_hover_revision: map_key.map_hover_revision,
+        map_dataset_revision: map_key.map_dataset_revision,
+        map_query_revision: map_key.map_query_revision,
+        map_points_revision: map_key.map_points_revision,
+        update_status: non_segment_static_key.update_status,
+        update_revision: non_segment_static_key.update_revision,
+        loaded_wav_revision: waveform_key.loaded_wav_revision,
+        volume_milli: non_segment_static_key.volume_milli,
+        transport_running: non_segment_static_key.transport_running,
+        focus_context: non_segment_static_key.focus_context,
+    };
+    DerivedProjectionKeyParts {
+        app_key,
+        selected_column,
+        status_key,
+        browser_frame_key,
+        browser_tag_sidebar_key,
+        browser_rows_key,
+        browser_rows_state_key,
+        map_key,
+        waveform_key,
+        non_segment_static_key,
+        non_segment_overlay_key,
+    }
+}
+
+/// Build a status-bar projection key from the current controller snapshot.
+pub(super) fn build_status_projection_key(
+    controller: &AppController,
+    selected_column: usize,
+) -> super::StatusProjectionCacheKey {
+    status::build_status_projection_key(controller, selected_column)
+}
+
+/// Build a browser-frame projection key from the current controller snapshot.
+pub(super) fn build_browser_frame_projection_key(
+    controller: &AppController,
+) -> super::BrowserFrameProjectionCacheKey {
+    browser::build_browser_frame_projection_key(controller)
+}
+
+/// Build a browser-rows projection key from the current controller snapshot.
+pub(super) fn build_browser_rows_projection_key(
+    controller: &AppController,
+) -> super::BrowserRowsProjectionCacheKey {
+    browser::build_browser_rows_projection_key(controller)
+}
+
+/// Build a browser tag-sidebar projection key from the current controller snapshot.
+pub(super) fn build_browser_tag_sidebar_projection_key(
+    controller: &AppController,
+) -> super::BrowserTagSidebarProjectionCacheKey {
+    browser::build_browser_tag_sidebar_projection_key(controller)
+}
+
+/// Build a browser-row-state projection key from the current controller snapshot.
+pub(super) fn build_browser_rows_state_projection_key(
+    controller: &AppController,
+) -> super::BrowserRowsStateProjectionCacheKey {
+    browser::build_browser_rows_state_projection_key(controller)
+}
+
+/// Build a map-panel projection key from the current controller snapshot.
+pub(super) fn build_map_projection_key(controller: &AppController) -> super::MapProjectionCacheKey {
+    map::build_map_projection_key(controller)
+}
+
+/// Build a waveform projection key from the current controller snapshot.
+pub(super) fn build_waveform_projection_key(
+    controller: &AppController,
+) -> super::WaveformProjectionCacheKey {
+    waveform::build_waveform_projection_key(controller)
+}
+
+/// Build a projection key for static model fields outside explicit segment keys.
+pub(super) fn build_non_segment_static_projection_key(
+    controller: &AppController,
+) -> super::NonSegmentStaticProjectionCacheKey {
+    non_segment::build_non_segment_static_projection_key(controller)
+}
+
+/// Build a projection key for overlay model fields outside explicit segment keys.
+pub(super) fn build_non_segment_overlay_projection_key(
+    controller: &AppController,
+) -> super::NonSegmentOverlayProjectionCacheKey {
+    non_segment::build_non_segment_overlay_projection_key(controller)
+}

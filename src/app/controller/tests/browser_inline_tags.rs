@@ -1,6 +1,6 @@
 use super::super::test_support::{dummy_controller, sample_entry};
 use crate::app::controller::{FeatureCache, FeatureStatus};
-use crate::app_core::native_shell::project_browser_rows_model_into;
+use crate::app_core::ui_projection::project_browser_rows_model_into;
 use crate::sample_sources::Rating;
 use std::path::PathBuf;
 

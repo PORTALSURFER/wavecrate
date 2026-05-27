@@ -3,7 +3,7 @@ use super::{
     action_catalog_entry_by_id, action_kind, representative_action_for_kind,
 };
 use crate::app_core::app_api::controller_state::DerivedNodeId;
-use crate::app_core::native_bridge::{
+use crate::app_core::ui_bridge::{
     InteractionActionClass, catalog_dirty_source, catalog_interaction_class,
     catalog_is_immediate_waveform_preview_action, catalog_prefers_targeted_invalidation,
     catalog_uses_local_model_pull_fast_path,

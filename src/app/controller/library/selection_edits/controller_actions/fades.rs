@@ -51,7 +51,7 @@ impl AppController {
         true
     }
 
-    /// Emit one success token so native shells can flash the edit selection.
+    /// Emit one success token so UI projections can flash the edit selection.
     pub(crate) fn record_edit_selection_apply_flash(&mut self) {
         self.ui.waveform.edit_selection_apply_flash_nonce = self
             .ui

@@ -15,7 +15,7 @@ pub enum AudioPickerTarget {
     InputSampleRate,
 }
 
-/// Native-shell options panel visibility state.
+/// UI-projection options panel visibility state.
 #[derive(Clone, Debug)]
 pub struct OptionsPanelState {
     /// Whether the options panel is currently visible.
@@ -28,7 +28,7 @@ pub struct OptionsPanelState {
     pub pending_prompt: Option<OptionsPanelPrompt>,
 }
 
-/// Prompt state owned by the native-shell options panel.
+/// Prompt state owned by the ui-projection options panel.
 #[derive(Clone, Debug)]
 pub enum OptionsPanelPrompt {
     /// Edit the default identifier used by auto rename.

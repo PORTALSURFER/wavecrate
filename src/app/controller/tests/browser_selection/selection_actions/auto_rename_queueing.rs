@@ -4,7 +4,7 @@ use crate::app::controller::jobs::SampleAutoRenameProgress;
 use crate::app::controller::state::runtime::{
     AutoRenameBatchRowSnapshot, AutoRenameBatchRowState, BrowserRenameIntentKey,
 };
-use crate::app_core::native_shell::project_waveform_model;
+use crate::app_core::ui_projection::project_waveform_model;
 
 /// Seed a loaded waveform with a reusable native projection signature.
 fn seed_stable_waveform_projection(

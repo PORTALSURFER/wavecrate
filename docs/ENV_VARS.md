@@ -139,7 +139,7 @@ source registry afterward.
     `~/Documents`, `~/Downloads`, `~/Desktop`).
 
 - `RADIANT_NATIVE_FONT_PATH`
-Optional path to a `.ttf` font used by the native shell text renderer when
+Optional path to a `.ttf` font used by the UI projection text renderer when
 system font discovery fails.
 
 - `WAVECRATE_GUI_TEST_MODE`
@@ -251,19 +251,19 @@ the Radiant `winit + vello` runtime. Accepted values: `1`, `true`, `on`, `yes`
 (case-insensitive).
 
 - `WAVECRATE_NATIVE_BRIDGE_PROFILE`
-Enables native bridge profiling logs when the build enables the
+Enables UI bridge profiling logs when the build enables the
 `native-bridge-metrics` cargo feature. Accepted values: `1`, `true`, `on`, `yes`
 (case-insensitive).
 
 - `WAVECRATE_NATIVE_BRIDGE_ASSERT_PROJECTION_SNAPSHOT`
-Enables runtime validation that the cached native-bridge projection-key
+Enables runtime validation that the cached UI bridge projection-key
 snapshot still matches a freshly rebuilt key before projection. This is only
 available when the build enables the `native-bridge-metrics` cargo feature.
 Accepted values: `1`, `true`, `on`, `yes` (case-insensitive).
 
 - `WAVECRATE_NATIVE_BRIDGE_IMMEDIATE_WAVEFORM_PREVIEW`
 Controls whether waveform overlay preview actions (cursor + selection-range
-updates) apply immediately in the native bridge instead of waiting for queue
+updates) apply immediately in the UI bridge instead of waiting for queue
 flush boundaries. Accepted values: `1`, `true`, `on`, `yes`
 (case-insensitive). Default: enabled (`true`).
 

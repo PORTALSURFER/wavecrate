@@ -4,9 +4,9 @@ This document collects the durable technical contracts that used to be spread
 across many narrow notes. Keep detailed plans in `tmp/` and keep this file for
 current, behavioral contracts only.
 
-## Native bridge projection cache
+## UI bridge projection cache
 
-`src/app_core/native_bridge/**` owns the retained native projection model.
+`src/app_core/ui_bridge/**` owns the retained UI projection model.
 
 Core rules:
 
@@ -24,7 +24,7 @@ Use the bridge metrics helpers instead of ad-hoc logging when profiling:
 
 Behavioral coverage anchor:
 
-- `src/app_core/native_bridge/tests.rs`
+- `src/app_core/ui_bridge/tests.rs`
 
 ## GUI test platform
 

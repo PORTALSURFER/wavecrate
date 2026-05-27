@@ -8,7 +8,7 @@ Environment sanity checks for local development and agent runs.
 .DESCRIPTION
 Checks the common footguns called out in README:
 - `CPAL_ASIO_DIR` (Windows ASIO builds)
-- `WAVECRATE_NATIVE_FONT_PATH` (native shell font override)
+- `WAVECRATE_NATIVE_FONT_PATH` (UI projection font override)
 - presence of `git lfs`
 Also checks toolchain sanity:
 - pinned Rust toolchain vs rust-toolchain.toml

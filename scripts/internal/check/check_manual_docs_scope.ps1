@@ -77,7 +77,7 @@ try {
       "manual/gui_migration_parity.md" { return $true }
       "manual/hints.md" { return $true }
       "manual/icon_assets.md" { return $true }
-      "manual/native_shell_legacy_baseline.md" { return $true }
+      "manual/legacy_ui_baseline.md" { return $true }
       "manual/performance_qa.md" { return $true }
       "manual/plan.md" { return $true }
       "manual/styleguide.md" { return $true }

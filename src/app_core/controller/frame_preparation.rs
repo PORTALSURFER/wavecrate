@@ -2,7 +2,7 @@ use crate::app_core::app_api::controller_state::DerivedNodeId;
 
 use super::AppController;
 
-/// Internal frame-preparation plans used by the native bridge.
+/// Internal frame-preparation plans used by the UI bridge.
 ///
 /// The controller still exposes `prepare_native_frame(bool)` as the stable runtime
 /// API, but bridge pulls can choose a narrower maintenance lane when the pending

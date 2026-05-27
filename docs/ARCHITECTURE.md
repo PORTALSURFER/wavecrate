@@ -64,13 +64,13 @@ Should avoid:
 Owns:
 
 - host-facing application state projection
-- native bridge projection/invalidation rules
+- UI bridge projection/invalidation rules
 - GUI action catalog and runtime test integration
 
 Should avoid:
 
 - direct filesystem mutation policy outside the persistence layer
-- new coupling back into the legacy runtime boundary
+- new coupling back into the removed legacy UI boundary
 
 ### `src/gui_app.rs`
 

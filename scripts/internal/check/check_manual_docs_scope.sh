@@ -106,7 +106,7 @@ is_allowlisted() {
     manual/gui_migration_parity.md) return 0 ;;
     manual/hints.md) return 0 ;;
     manual/icon_assets.md) return 0 ;;
-    manual/native_shell_legacy_baseline.md) return 0 ;;
+    manual/legacy_ui_baseline.md) return 0 ;;
     manual/performance_qa.md) return 0 ;;
     manual/plan.md) return 0 ;;
     manual/styleguide.md) return 0 ;;

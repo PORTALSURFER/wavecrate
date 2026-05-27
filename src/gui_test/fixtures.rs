@@ -7,9 +7,7 @@ use crate::{
             NativeSegmentRevisions, NativeUiAction,
         },
         controller::build_named_gui_fixture_controller,
-        native_bridge::{
-            WavecrateNativeBridge, new_native_bridge, new_native_bridge_with_controller,
-        },
+        ui_bridge::{WavecrateUiBridge, new_ui_bridge, new_ui_bridge_with_controller},
     },
     app_dirs::PersistenceProfileGuard,
     gui::repaint::RepaintSignal,
@@ -26,9 +24,9 @@ use tempfile::TempDir;
 ///
 /// Named GUI fixtures create temporary source trees and databases. Those must
 /// outlive the runtime bridge, so this wrapper owns the tempdir guards while
-/// delegating all bridge behavior to `WavecrateNativeBridge`.
+/// delegating all bridge behavior to `WavecrateUiBridge`.
 pub struct GuiFixtureBridge {
-    bridge: WavecrateNativeBridge,
+    bridge: WavecrateUiBridge,
     _profile_guard: Option<PersistenceProfileGuard>,
     _sandbox_guards: Vec<TempDir>,
     shutdown_emitted: bool,
@@ -44,7 +42,7 @@ impl GuiFixtureBridge {
     /// use deterministic seeded controllers without touching user data.
     pub fn new_with_viewport(fixture_tag: &str, viewport: [u32; 2]) -> Result<Self, String> {
         if gui_test_fixture_uses_live_profile(fixture_tag) {
-            let bridge = new_native_bridge(
+            let bridge = new_ui_bridge(
                 WaveformRenderer::new(viewport[0].max(320), viewport[1].max(180)),
                 None,
             )?;
@@ -57,7 +55,7 @@ impl GuiFixtureBridge {
         }
         if gui_test_fixture_uses_isolated_startup(fixture_tag) {
             let profile_guard = PersistenceProfileGuard::automated();
-            let bridge = new_native_bridge(
+            let bridge = new_ui_bridge(
                 WaveformRenderer::new(viewport[0].max(320), viewport[1].max(180)),
                 None,
             )?;
@@ -73,7 +71,7 @@ impl GuiFixtureBridge {
             canonical_gui_test_fixture_tag(fixture_tag),
         )?;
         Ok(Self {
-            bridge: new_native_bridge_with_controller(bundle.controller),
+            bridge: new_ui_bridge_with_controller(bundle.controller),
             _profile_guard: None,
             _sandbox_guards: bundle.sandbox_guards,
             shutdown_emitted: false,
@@ -133,15 +131,15 @@ impl GuiFixtureBridge {
 
 impl NativeAppBridge for GuiFixtureBridge {
     fn project_model(&mut self) -> Arc<crate::app_core::actions::NativeAppModel> {
-        <WavecrateNativeBridge as NativeAppBridge>::project_model(&mut self.bridge)
+        <WavecrateUiBridge as NativeAppBridge>::project_model(&mut self.bridge)
     }
 
     fn pull_model(&mut self) -> crate::app_core::actions::NativeAppModel {
-        <WavecrateNativeBridge as NativeAppBridge>::pull_model(&mut self.bridge)
+        <WavecrateUiBridge as NativeAppBridge>::pull_model(&mut self.bridge)
     }
 
     fn pull_model_arc(&mut self) -> Arc<crate::app_core::actions::NativeAppModel> {
-        <WavecrateNativeBridge as NativeAppBridge>::pull_model_arc(&mut self.bridge)
+        <WavecrateUiBridge as NativeAppBridge>::pull_model_arc(&mut self.bridge)
     }
 
     fn project_motion_model(&mut self) -> Option<NativeMotionModel> {

@@ -58,7 +58,7 @@ pub(crate) struct PreparedWaveformVisual {
 pub(crate) fn waveform_image_to_native_rgba(
     image: &crate::waveform::WaveformImage,
 ) -> Option<Arc<ImageRgba>> {
-    crate::app_core::native_shell::waveform_image_to_native_rgba(image)
+    crate::app_core::ui_projection::waveform_image_to_native_rgba(image)
 }
 
 /// Render the initial full-view waveform image for a freshly loaded sample.

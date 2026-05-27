@@ -38,7 +38,7 @@ PY
 
 declare -a REWRITES=(
   "manual/gui_migration_parity.md" "docs/ARCHITECTURE.md"
-  "manual/native_shell_legacy_baseline.md" "docs/SYSTEMS.md"
+  "manual/legacy_ui_baseline.md" "docs/SYSTEMS.md"
   "manual/performance_qa.md" "docs/SYSTEMS.md"
   "manual/feature_vector.md" "docs/SYSTEMS.md"
   "manual/ann_index_container.md" "docs/SYSTEMS.md"

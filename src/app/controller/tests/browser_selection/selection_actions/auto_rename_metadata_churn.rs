@@ -559,7 +559,7 @@ fn assert_sidebar_loop_state(
     controller: &mut AppController,
     expected: crate::app_core::actions::NativeBrowserTagState,
 ) {
-    let model = crate::app_core::native_shell::project_browser_tag_sidebar_model(controller);
+    let model = crate::app_core::ui_projection::project_browser_tag_sidebar_model(controller);
     assert_eq!(model.exclusive_pills[0].state, expected);
 }
 
@@ -567,7 +567,7 @@ fn assert_sidebar_one_shot_state(
     controller: &mut AppController,
     expected: crate::app_core::actions::NativeBrowserTagState,
 ) {
-    let model = crate::app_core::native_shell::project_browser_tag_sidebar_model(controller);
+    let model = crate::app_core::ui_projection::project_browser_tag_sidebar_model(controller);
     assert_eq!(model.exclusive_pills[1].state, expected);
 }
 
@@ -583,7 +583,7 @@ fn assert_renamed_loop_surfaces(
         controller.wav_entry(entry_index).unwrap().looped,
         "cached WavEntry should remain Loop after auto-rename"
     );
-    let projected = crate::app_core::native_shell::project_browser_model(controller);
+    let projected = crate::app_core::ui_projection::project_browser_model(controller);
     let row = projected
         .rows
         .iter()

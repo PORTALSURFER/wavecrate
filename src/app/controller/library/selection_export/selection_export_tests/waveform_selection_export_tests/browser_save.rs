@@ -60,7 +60,7 @@ fn save_waveform_selection_to_browser_exports_narrow_deep_selection() {
 }
 
 #[test]
-/// Queued waveform selection exports should raise one optimistic native-shell flash token.
+/// Queued waveform selection exports should raise one optimistic ui-projection flash token.
 fn save_waveform_selection_to_browser_records_flash_nonce_immediately() {
     let temp = tempdir().unwrap();
     let source_root = temp.path().join("source");

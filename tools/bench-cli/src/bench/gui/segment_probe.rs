@@ -6,7 +6,7 @@ use super::interactions::{execute_interaction_step, prime_map_cache_for_benchmar
 use super::workspace::wait_for_rows;
 use wavecrate::app_core::actions::NativeUiAction;
 use wavecrate::app_core::controller::{AppController, AppControllerNativeRuntimeExt};
-use wavecrate::app_core::native_bridge::{
+use wavecrate::app_core::ui_bridge::{
     ProjectionSegmentLookupCount, ProjectionSegmentProbeMeasurement,
     measure_projection_segment_probe,
 };

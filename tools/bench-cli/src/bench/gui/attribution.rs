@@ -1,7 +1,7 @@
 //! Attribution payloads emitted by GUI benchmark reports.
 
 use serde::Serialize;
-use wavecrate::app_core::native_bridge::ProjectionRebuildCauseCounts;
+use wavecrate::app_core::ui_bridge::ProjectionRebuildCauseCounts;
 
 /// Segment-level latency/counter summary emitted in benchmark reports.
 #[derive(Clone, Debug, Serialize)]

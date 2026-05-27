@@ -111,19 +111,19 @@ pub struct WaveformState {
     pub copy_flash_at: Option<Instant>,
     /// Monotonic token incremented when a waveform selection export is queued.
     ///
-    /// Native shells use this as a one-shot optimistic event marker so they
+    /// UI projections use this as a one-shot optimistic event marker so they
     /// can trigger immediate local blink feedback without depending on
     /// wall-clock synchronization with controller `Instant` values.
     pub selection_export_flash_nonce: u64,
     /// Monotonic token incremented when a queued waveform selection export fails.
     ///
-    /// Native shells use this as a one-shot error event marker so they can
+    /// UI projections use this as a one-shot error event marker so they can
     /// repaint the selection with a stronger failure color after an optimistic
     /// submit flash has already been shown.
     pub selection_export_failure_flash_nonce: u64,
     /// Monotonic token incremented when preview edit fades are committed.
     ///
-    /// Native shells use this as a one-shot success event marker so they can
+    /// UI projections use this as a one-shot success event marker so they can
     /// briefly brighten the edit-selection overlay when fade application
     /// succeeds without relying on synchronized wall-clock timestamps.
     pub edit_selection_apply_flash_nonce: u64,

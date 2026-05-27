@@ -1,18 +1,18 @@
 //! Backend-neutral application-core helpers shared by GUI runtimes.
 //!
-//! This module centralizes migration-facing types so legacy runtime hosts can
+//! This module centralizes migration-facing types so projection and test helpers can
 //! rely on `app_core` without taking direct `app` module dependencies.
 pub mod app_api;
 
 /// Controller aliases and helpers used by migration-facing runtimes.
 pub mod controller;
 
-/// Native runtime action/model aliases for migration-facing glue code.
+/// UI projection action/model aliases for migration-facing glue code.
 pub mod actions;
 
-/// Native runtime bridge implementations for migration-facing runtimes.
-pub mod native_bridge;
-pub(crate) mod native_shell;
+/// Retained projection bridge implementations for migration-facing runtimes.
+pub mod ui_bridge;
+pub(crate) mod ui_projection;
 
 /// Migration-facing state projections used by app bridge adapters.
 pub mod state;

@@ -21,7 +21,7 @@ Set-Location $root
 
 $rewrites = @(
   @{ From = "manual/gui_migration_parity.md"; To = "docs/ARCHITECTURE.md" },
-  @{ From = "manual/native_shell_legacy_baseline.md"; To = "docs/SYSTEMS.md" },
+  @{ From = "manual/legacy_ui_baseline.md"; To = "docs/SYSTEMS.md" },
   @{ From = "manual/performance_qa.md"; To = "docs/SYSTEMS.md" },
   @{ From = "manual/feature_vector.md"; To = "docs/SYSTEMS.md" },
   @{ From = "manual/ann_index_container.md"; To = "docs/SYSTEMS.md" },
