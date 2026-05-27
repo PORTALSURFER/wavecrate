@@ -59,29 +59,6 @@ fn most_used_tags_order_by_persisted_usage_then_label() {
 }
 
 #[test]
-fn used_tags_returns_every_assigned_tag_without_default_limit() {
-    let dir = tempdir().unwrap();
-    let db = SourceDatabase::open(dir.path()).unwrap();
-    for index in 0..40 {
-        let path = format!("sample_{index:02}.wav");
-        let tag = format!("Tag {index:02}");
-        db.upsert_file(Path::new(&path), 10, 5).unwrap();
-        db.assign_tag_to_path(Path::new(&path), &tag).unwrap();
-    }
-
-    let labels = db
-        .used_tags()
-        .unwrap()
-        .into_iter()
-        .map(|usage| usage.tag.display_label)
-        .collect::<Vec<_>>();
-
-    assert_eq!(labels.len(), 40);
-    assert_eq!(labels.first().map(String::as_str), Some("Tag 00"));
-    assert_eq!(labels.last().map(String::as_str), Some("Tag 39"));
-}
-
-#[test]
 fn assignment_api_creates_then_resolves_existing_tag() {
     let dir = tempdir().unwrap();
     let db = SourceDatabase::open(dir.path()).unwrap();

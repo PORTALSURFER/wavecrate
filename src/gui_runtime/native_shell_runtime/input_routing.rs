@@ -74,9 +74,6 @@ fn route_modal_and_chrome_actions(
     {
         return Some(action);
     }
-    if let Some(action) = shell_state.tag_library_action_at_point(layout, model, point) {
-        return Some(action);
-    }
     if shell_state.sidebar_filter_dropdown_visible() {
         if shell_state.sidebar_filter_dropdown_contains_point(layout, model, point) {
             return None;

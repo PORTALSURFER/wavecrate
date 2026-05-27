@@ -6,20 +6,6 @@ pub(super) fn tags_group(rect: Rect, model: &AppModel) -> AutomationNodeSnapshot
     let sidebar = model.browser.pill_editor();
     let mut children = Vec::new();
     children.push(simple_node(
-        "sources.tags.expand",
-        AutomationRole::Button,
-        Some(String::from("Tag library")),
-        sidebar_tag_expand_button_rect_for_automation(rect),
-        Some(if model.browser_actions.pill_editor_open() {
-            String::from("open")
-        } else {
-            String::from("closed")
-        }),
-        true,
-        model.browser_actions.pill_editor_open(),
-        vec![String::from("toggle_browser_pill_editor")],
-    ));
-    children.push(simple_node(
         "sources.tags.input",
         AutomationRole::SearchField,
         Some(String::from("Add tag")),
@@ -111,15 +97,6 @@ pub(super) fn tags_group(rect: Rect, model: &AppModel) -> AutomationNodeSnapshot
         ]),
         children,
     }
-}
-
-fn sidebar_tag_expand_button_rect_for_automation(rect: Rect) -> Rect {
-    let pad = 6.0;
-    let side = 14.0;
-    Rect::from_min_max(
-        Point::new(rect.max.x - pad - side, rect.min.y + 3.0),
-        Point::new(rect.max.x - pad, rect.min.y + 3.0 + side),
-    )
 }
 
 /// Return the sidebar tag input bounds used by automation snapshots.
