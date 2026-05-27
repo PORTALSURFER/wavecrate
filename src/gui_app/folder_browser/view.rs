@@ -3,6 +3,8 @@ use radiant::{
     widgets::{ButtonMessage, WidgetStyle, WidgetTone},
 };
 
+use crate::gui_app::metadata_tags::MetadataTagCompletionOption;
+
 use super::{
     FolderBrowserMessage, FolderBrowserState, GuiMessage, SourceEntry, TREE_DEPTH_INDENT,
     TREE_ROW_HEIGHT, VisibleFolder, plural,
@@ -16,6 +18,9 @@ const TAG_FIELD_LINE_GAP: f32 = 3.0;
 const TAG_FIELD_HORIZONTAL_CHROME: f32 = 26.0;
 const TAG_FIELD_VERTICAL_CHROME: f32 = 6.0;
 const MAX_TAG_FIELD_ROWS: usize = 6;
+const MAX_TAG_COMPLETION_ROWS: usize = 6;
+const TAG_COMPLETION_ROW_HEIGHT: f32 = 18.0;
+const TAG_COMPLETION_POPUP_VERTICAL_CHROME: f32 = 6.0;
 const MIN_TAG_INPUT_REMAINING_WIDTH: f32 = 180.0;
 const METADATA_TAG_INPUT_ID: u64 = 0x5743_0000_0000_5447;
 
@@ -25,7 +30,8 @@ pub(in crate::gui_app) fn folder_browser_view(
     has_selected_file: bool,
     metadata_tag_draft: &str,
     metadata_tag_tokens: &[String],
-    metadata_tag_suggestion: Option<&str>,
+    metadata_tag_completion_suffix: Option<&str>,
+    metadata_tag_completion_options: &[MetadataTagCompletionOption],
     metadata_tags: &[String],
 ) -> ui::View<GuiMessage> {
     ui::column([
@@ -37,7 +43,8 @@ pub(in crate::gui_app) fn folder_browser_view(
         metadata_section(
             metadata_tag_draft,
             metadata_tag_tokens,
-            metadata_tag_suggestion,
+            metadata_tag_completion_suffix,
+            metadata_tag_completion_options,
             metadata_tags,
             tag_field_content_width(sidebar_width),
             has_selected_file,
@@ -265,7 +272,8 @@ fn filter_section() -> ui::View<GuiMessage> {
 fn metadata_section(
     tag_draft: &str,
     tag_tokens: &[String],
-    tag_suggestion: Option<&str>,
+    tag_completion_suffix: Option<&str>,
+    tag_completion_options: &[MetadataTagCompletionOption],
     tags: &[String],
     tag_field_content_width: f32,
     has_selected_file: bool,
@@ -277,11 +285,12 @@ fn metadata_section(
     let tag_field_height = tag_field_height(
         tag_draft,
         tag_tokens,
-        tag_suggestion,
+        tag_completion_suffix,
         tags,
         tag_field_content_width,
     );
-    let section_height = 62.0 + tag_field_height;
+    let completion_popup_height = tag_completion_popup_height(tag_completion_options);
+    let section_height = 62.0 + tag_field_height + completion_popup_height;
     sidebar_section(
         "Metadata",
         ui::column([
@@ -301,7 +310,7 @@ fn metadata_section(
             tag_entry_field(
                 tag_draft,
                 tag_tokens,
-                tag_suggestion,
+                tag_completion_suffix,
                 tags,
                 tag_field_height,
                 tag_field_content_width,
@@ -309,9 +318,13 @@ fn metadata_section(
             .key("metadata-tag-entry-field")
             .fill_width()
             .height(tag_field_height),
+            tag_completion_popup(tag_completion_options, tag_field_content_width)
+                .key("metadata-tag-completion-popup")
+                .fill_width()
+                .height(completion_popup_height),
         ])
         .fill_width()
-        .spacing(4.0),
+        .spacing(3.0),
         section_height,
     )
 }
@@ -319,7 +332,7 @@ fn metadata_section(
 fn tag_entry_field(
     tag_draft: &str,
     tag_tokens: &[String],
-    tag_suggestion: Option<&str>,
+    tag_completion_suffix: Option<&str>,
     tags: &[String],
     height: f32,
     content_width: f32,
@@ -332,7 +345,12 @@ fn tag_entry_field(
     }
 
     let input_width = tag_input_width(tag_draft);
-    let rows = tag_field_rows(&visible_tags, input_width, tag_suggestion, content_width);
+    let rows = tag_field_rows(
+        &visible_tags,
+        input_width,
+        tag_completion_suffix,
+        content_width,
+    );
     let row_count = rows.len();
     let content = ui::column(
         rows.into_iter()
@@ -361,7 +379,7 @@ fn tag_field_content_width(sidebar_width: f32) -> f32 {
 fn tag_field_height(
     tag_draft: &str,
     tag_tokens: &[String],
-    tag_suggestion: Option<&str>,
+    tag_completion_suffix: Option<&str>,
     tags: &[String],
     content_width: f32,
 ) -> f32 {
@@ -372,7 +390,13 @@ fn tag_field_height(
         }
     }
     let input_width = tag_input_width(tag_draft);
-    let rows = tag_field_rows(&visible_tags, input_width, tag_suggestion, content_width).len();
+    let rows = tag_field_rows(
+        &visible_tags,
+        input_width,
+        tag_completion_suffix,
+        content_width,
+    )
+    .len();
     rows_height(rows.min(MAX_TAG_FIELD_ROWS).max(1)) + TAG_FIELD_VERTICAL_CHROME
 }
 
@@ -380,13 +404,13 @@ fn tag_field_height(
 enum TagEntryRowItem {
     Accepted(String),
     Input(f32),
-    Completion(String),
+    CompletionSuffix(String),
 }
 
 fn tag_field_rows(
     tags: &[String],
     input_width: f32,
-    tag_suggestion: Option<&str>,
+    tag_completion_suffix: Option<&str>,
     content_width: f32,
 ) -> Vec<Vec<TagEntryRowItem>> {
     let mut rows = pack_tag_rows(tags, content_width);
@@ -400,11 +424,11 @@ fn tag_field_rows(
         input_width,
         content_width,
     );
-    if let Some(suggestion) = tag_suggestion {
+    if let Some(suffix) = tag_completion_suffix {
         push_row_item(
             &mut rows,
-            TagEntryRowItem::Completion(suggestion.to_string()),
-            tag_completion_width(suggestion),
+            TagEntryRowItem::CompletionSuffix(suffix.to_string()),
+            tag_completion_suffix_width(suffix),
             content_width,
         );
     }
@@ -458,7 +482,7 @@ fn tag_entry_row_item_width(item: &TagEntryRowItem) -> f32 {
     match item {
         TagEntryRowItem::Accepted(tag) => tag_pill_width(tag),
         TagEntryRowItem::Input(width) => *width,
-        TagEntryRowItem::Completion(tag) => tag_completion_width(tag),
+        TagEntryRowItem::CompletionSuffix(suffix) => tag_completion_suffix_width(suffix),
     }
 }
 
@@ -516,7 +540,9 @@ fn tag_entry_row(
             .map(|item| match item {
                 TagEntryRowItem::Accepted(tag) => accepted_tag_token(tag.as_str()),
                 TagEntryRowItem::Input(width) => tag_text_input(tag_draft, width),
-                TagEntryRowItem::Completion(tag) => tag_completion_token(tag.as_str()),
+                TagEntryRowItem::CompletionSuffix(suffix) => {
+                    tag_completion_suffix_token(suffix.as_str())
+                }
             })
             .collect::<Vec<_>>(),
     )
@@ -535,8 +561,8 @@ fn tag_pill_width(tag: &str) -> f32 {
     (tag.chars().count() as f32 * 7.0 + 22.0).clamp(38.0, 180.0)
 }
 
-fn tag_completion_width(tag: &str) -> f32 {
-    tag_pill_width(tag)
+fn tag_completion_suffix_width(suffix: &str) -> f32 {
+    (suffix.chars().count() as f32 * 7.0 + 14.0).clamp(24.0, 120.0)
 }
 
 fn accepted_tag_token(tag: &str) -> ui::View<GuiMessage> {
@@ -556,15 +582,14 @@ fn accepted_tag_token(tag: &str) -> ui::View<GuiMessage> {
         .width(tag_pill_width(tag))
 }
 
-fn tag_completion_token(tag: &str) -> ui::View<GuiMessage> {
-    let width = tag_completion_width(tag);
-    ui::badge(tag.to_string())
-        .subtle()
+fn tag_completion_suffix_token(suffix: &str) -> ui::View<GuiMessage> {
+    let width = tag_completion_suffix_width(suffix);
+    ui::badge(suffix.to_string())
         .message(GuiMessage::Noop)
-        .key(format!("metadata-tag-completion-{tag}"))
+        .key(format!("metadata-tag-completion-suffix-{suffix}"))
         .style(WidgetStyle {
-            tone: WidgetTone::Neutral,
-            prominence: ui::WidgetProminence::Subtle,
+            tone: WidgetTone::Accent,
+            prominence: ui::WidgetProminence::Strong,
         })
         .sizing(ui::WidgetSizing::fixed(ui::Vector2::new(
             width,
@@ -572,6 +597,65 @@ fn tag_completion_token(tag: &str) -> ui::View<GuiMessage> {
         )))
         .height(TAG_FIELD_CONTROL_HEIGHT)
         .width(width)
+}
+
+fn tag_completion_popup_height(options: &[MetadataTagCompletionOption]) -> f32 {
+    if options.is_empty() {
+        return 0.0;
+    }
+    let rows = options.len().min(MAX_TAG_COMPLETION_ROWS);
+    rows as f32 * TAG_COMPLETION_ROW_HEIGHT + TAG_COMPLETION_POPUP_VERTICAL_CHROME
+}
+
+fn tag_completion_popup(
+    options: &[MetadataTagCompletionOption],
+    content_width: f32,
+) -> ui::View<GuiMessage> {
+    if options.is_empty() {
+        return ui::spacer().height(0.0).fill_width();
+    }
+    let tag_width = (content_width * 0.48).clamp(70.0, 140.0);
+    let rows = options
+        .iter()
+        .take(MAX_TAG_COMPLETION_ROWS)
+        .map(|option| tag_completion_row(option, tag_width))
+        .collect::<Vec<_>>();
+    ui::scroll(ui::column(rows).spacing(0.0).fill_width())
+        .style(WidgetStyle {
+            tone: WidgetTone::Neutral,
+            prominence: ui::WidgetProminence::Subtle,
+        })
+        .padding(3.0)
+        .fill_width()
+        .height(tag_completion_popup_height(options))
+}
+
+fn tag_completion_row(
+    option: &MetadataTagCompletionOption,
+    tag_width: f32,
+) -> ui::View<GuiMessage> {
+    ui::row([
+        ui::text(option.tag.clone())
+            .height(TAG_COMPLETION_ROW_HEIGHT)
+            .width(tag_width)
+            .truncate(),
+        ui::text(option.category.to_string())
+            .height(TAG_COMPLETION_ROW_HEIGHT)
+            .fill_width()
+            .truncate(),
+    ])
+    .key(format!("metadata-tag-completion-row-{}", option.tag))
+    .style(if option.selected {
+        WidgetStyle {
+            tone: WidgetTone::Accent,
+            prominence: ui::WidgetProminence::Strong,
+        }
+    } else {
+        WidgetStyle::default()
+    })
+    .height(TAG_COMPLETION_ROW_HEIGHT)
+    .fill_width()
+    .spacing(6.0)
 }
 
 fn sidebar_section(

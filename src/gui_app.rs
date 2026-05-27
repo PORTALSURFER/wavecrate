@@ -135,6 +135,7 @@ enum GuiMessage {
     SetAudioOutputDevice(Option<String>),
     SetAudioOutputSampleRate(Option<u32>),
     MetadataTagInput(radiant::widgets::TextInputMessage),
+    MoveMetadataTagCompletion(i32),
     ToggleMetadataTagLibrary,
     ToggleMetadataTagCategory(String),
     ToggleMetadataTag(String),
@@ -348,6 +349,9 @@ impl GuiAppState {
             }
             GuiMessage::MetadataTagInput(message) => {
                 self.apply_metadata_tag_input(message, context)
+            }
+            GuiMessage::MoveMetadataTagCompletion(delta) => {
+                self.move_metadata_tag_completion_selection(delta);
             }
             GuiMessage::ToggleMetadataTagLibrary => {
                 self.metadata_tag_library_open = !self.metadata_tag_library_open;

@@ -704,8 +704,17 @@ fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
     let browser = super::FolderBrowserState::load_default();
     let tags = vec![String::from("kick")];
     let frame = radiant::runtime::UiSurface::new(
-        super::folder_browser::folder_browser_view(&browser, 260.0, true, "", &[], None, &tags)
-            .into_node(),
+        super::folder_browser::folder_browser_view(
+            &browser,
+            260.0,
+            true,
+            "",
+            &[],
+            None,
+            &[],
+            &tags,
+        )
+        .into_node(),
     )
     .frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
@@ -827,8 +836,17 @@ fn folder_browser_metadata_hides_tag_entry_when_no_file_is_selected() {
     let browser = super::FolderBrowserState::load_default();
     let tags = vec![String::from("kick")];
     let frame = radiant::runtime::UiSurface::new(
-        super::folder_browser::folder_browser_view(&browser, 260.0, false, "", &[], None, &tags)
-            .into_node(),
+        super::folder_browser::folder_browser_view(
+            &browser,
+            260.0,
+            false,
+            "",
+            &[],
+            None,
+            &[],
+            &tags,
+        )
+        .into_node(),
     )
     .frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
@@ -865,6 +883,7 @@ fn folder_browser_metadata_tags_grow_combined_entry_field() {
             "",
             &[],
             None,
+            &[],
             &small_tags,
         )
         .into_node(),
@@ -881,6 +900,7 @@ fn folder_browser_metadata_tags_grow_combined_entry_field() {
             "",
             &[],
             None,
+            &[],
             &larger_tags,
         )
         .into_node(),
@@ -903,8 +923,17 @@ fn folder_browser_metadata_tag_field_caps_at_six_rows_then_scrolls() {
         .map(|index| format!("tag-{index:02}"))
         .collect::<Vec<_>>();
     let frame = radiant::runtime::UiSurface::new(
-        super::folder_browser::folder_browser_view(&browser, 260.0, true, "", &[], None, &tags)
-            .into_node(),
+        super::folder_browser::folder_browser_view(
+            &browser,
+            260.0,
+            true,
+            "",
+            &[],
+            None,
+            &[],
+            &tags,
+        )
+        .into_node(),
     )
     .frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
@@ -1026,7 +1055,7 @@ fn metadata_tag_input_keeps_delimiters_while_editing() {
 }
 
 #[test]
-fn metadata_tag_input_tabs_known_prefix_into_pending_pill() {
+fn metadata_tag_input_enters_selected_known_prefix() {
     let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("tag-target.wav");
     state.metadata_tags_by_file.insert(
         String::from("known-file"),
@@ -1039,29 +1068,18 @@ fn metadata_tag_input_tabs_known_prefix_into_pending_pill() {
         }),
         &mut ui::UpdateContext::default(),
     );
-    assert_eq!(state.metadata_tag_suggestion().as_deref(), Some("kick"));
-
-    state.apply_message(
-        super::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::CompletionRequested {
-                value: String::from("ki"),
-            },
-        ),
-        &mut ui::UpdateContext::default(),
+    assert_eq!(
+        state.metadata_tag_completion_suffix().as_deref(),
+        Some("ck")
     );
-
-    assert_eq!(state.metadata_tag_tokens, vec![String::from("kick")]);
-    assert!(state.metadata_tag_draft.is_empty());
-    assert_eq!(state.metadata_tags_by_file.get(&selected_file), None);
 
     state.apply_message(
         super::GuiMessage::MetadataTagInput(radiant::widgets::TextInputMessage::Submitted {
-            value: String::new(),
+            value: String::from("ki"),
         }),
         &mut ui::UpdateContext::default(),
     );
 
-    assert!(state.metadata_tag_tokens.is_empty());
     assert_eq!(
         state.metadata_tags_by_file.get(&selected_file),
         Some(&vec![String::from("kick")])
@@ -1069,7 +1087,7 @@ fn metadata_tag_input_tabs_known_prefix_into_pending_pill() {
 }
 
 #[test]
-fn metadata_tag_input_tabs_through_multiple_known_prefix_matches() {
+fn metadata_tag_input_arrows_through_multiple_known_prefix_matches() {
     let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("tag-target.wav");
     state.metadata_tags_by_file.insert(
         String::from("known-file"),
@@ -1086,27 +1104,40 @@ fn metadata_tag_input_tabs_through_multiple_known_prefix_matches() {
         }),
         &mut ui::UpdateContext::default(),
     );
-    assert_eq!(state.metadata_tag_suggestion().as_deref(), Some("kick"));
+    assert_eq!(
+        state
+            .metadata_tag_completion_options()
+            .iter()
+            .find(|option| option.selected)
+            .map(|option| option.tag.as_str()),
+        Some("kick")
+    );
 
     state.apply_message(
-        super::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::CompletionRequested {
-                value: String::from("ki"),
-            },
-        ),
+        super::GuiMessage::MoveMetadataTagCompletion(1),
         &mut ui::UpdateContext::default(),
     );
-    assert_eq!(state.metadata_tag_suggestion().as_deref(), Some("kicker"));
+    assert_eq!(
+        state
+            .metadata_tag_completion_options()
+            .iter()
+            .find(|option| option.selected)
+            .map(|option| option.tag.as_str()),
+        Some("kicker")
+    );
 
     state.apply_message(
-        super::GuiMessage::MetadataTagInput(
-            radiant::widgets::TextInputMessage::CompletionRequested {
-                value: String::from("ki"),
-            },
-        ),
+        super::GuiMessage::MoveMetadataTagCompletion(1),
         &mut ui::UpdateContext::default(),
     );
-    assert_eq!(state.metadata_tag_suggestion().as_deref(), Some("kind"));
+    assert_eq!(
+        state
+            .metadata_tag_completion_options()
+            .iter()
+            .find(|option| option.selected)
+            .map(|option| option.tag.as_str()),
+        Some("kind")
+    );
 
     state.apply_message(
         super::GuiMessage::MetadataTagInput(radiant::widgets::TextInputMessage::Submitted {
@@ -1123,8 +1154,20 @@ fn metadata_tag_input_tabs_through_multiple_known_prefix_matches() {
 }
 
 #[test]
-fn folder_browser_metadata_tag_field_renders_pending_pill_and_completion_hint() {
+fn folder_browser_metadata_tag_field_renders_completion_suffix_and_options() {
     let browser = super::FolderBrowserState::load_default();
+    let completion_options = vec![
+        super::metadata_tags::MetadataTagCompletionOption {
+            tag: String::from("kick"),
+            category: "Sound Type",
+            selected: true,
+        },
+        super::metadata_tags::MetadataTagCompletionOption {
+            tag: String::from("kicker"),
+            category: "Character",
+            selected: false,
+        },
+    ];
     let frame = radiant::runtime::UiSurface::new(
         super::folder_browser::folder_browser_view(
             &browser,
@@ -1132,7 +1175,8 @@ fn folder_browser_metadata_tag_field_renders_pending_pill_and_completion_hint() 
             true,
             "ki",
             &[String::from("kick")],
-            Some("kick"),
+            Some("ck"),
+            completion_options.as_slice(),
             &[String::from("warm")],
         )
         .into_node(),
@@ -1143,6 +1187,10 @@ fn folder_browser_metadata_tag_field_renders_pending_pill_and_completion_hint() 
     );
 
     assert!(frame_has_text(&frame, "kick"));
+    assert!(frame_has_text(&frame, "ck"));
+    assert!(frame_has_text(&frame, "Sound Type"));
+    assert!(frame_has_text(&frame, "kicker"));
+    assert!(frame_has_text(&frame, "Character"));
     assert!(!frame_has_text(&frame, "Tab kick"));
     assert!(frame_has_text(&frame, "warm"));
     assert!(frame.paint_plan.primitives.iter().any(|primitive| {
@@ -1168,8 +1216,17 @@ fn folder_browser_metadata_tag_input_moves_to_next_row_when_crowded() {
         String::from("cool-tag"),
     ];
     let frame = radiant::runtime::UiSurface::new(
-        super::folder_browser::folder_browser_view(&browser, 260.0, true, "wow", &[], None, &tags)
-            .into_node(),
+        super::folder_browser::folder_browser_view(
+            &browser,
+            260.0,
+            true,
+            "wow",
+            &[],
+            None,
+            &[],
+            &tags,
+        )
+        .into_node(),
     )
     .frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
@@ -1225,6 +1282,7 @@ fn folder_browser_metadata_tag_input_keeps_identity_when_wrapping_rows() {
             "wow",
             &[],
             None,
+            &[],
             &short_tags,
         )
         .into_node(),
@@ -1241,6 +1299,7 @@ fn folder_browser_metadata_tag_input_keeps_identity_when_wrapping_rows() {
             "wow",
             &[],
             None,
+            &[],
             &crowded_tags,
         )
         .into_node(),
@@ -1266,8 +1325,17 @@ fn folder_browser_metadata_tag_input_wraps_after_full_tag_row() {
         String::from("potato"),
     ];
     let frame = radiant::runtime::UiSurface::new(
-        super::folder_browser::folder_browser_view(&browser, 450.0, true, "", &[], None, &tags)
-            .into_node(),
+        super::folder_browser::folder_browser_view(
+            &browser,
+            450.0,
+            true,
+            "",
+            &[],
+            None,
+            &[],
+            &tags,
+        )
+        .into_node(),
     )
     .frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(450.0, 620.0)),

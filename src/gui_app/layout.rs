@@ -47,7 +47,8 @@ fn folder_sidebar(state: &GuiAppState) -> ui::View<GuiMessage> {
         state.folder_browser.selected_file_id().is_some(),
         state.metadata_tag_draft.as_str(),
         state.metadata_tag_tokens.as_slice(),
-        state.metadata_tag_suggestion().as_deref(),
+        state.metadata_tag_completion_suffix().as_deref(),
+        state.metadata_tag_completion_options().as_slice(),
         state.selected_metadata_tags(),
     )
     .width(state.folder_width)
