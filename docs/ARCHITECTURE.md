@@ -33,15 +33,14 @@ predictable, and lower-latency design.
 
 - domain workflows, persistence orchestration, and application state belong in
   `src/`
-- default product-specific GUI behavior should prefer `src/gui_app.rs` and
-  `src/app_core/**` over the deprecated legacy `src/app/**` layer unless the
-  task is explicitly legacy-runtime work
+- default product-specific GUI behavior should live in `src/gui_app.rs` and
+  `src/app_core/**`; do not reintroduce the removed legacy GUI path
 - current default-GUI folder/file drag/drop behavior lives under
   `src/gui_app/folder_browser/**`; do not route product drag/drop fixes to
   `src/app/controller/ui/drag_drop_controller/**` unless the task explicitly
   names the deprecated compatibility controller
 - reusable UI/runtime/layout work belongs in `vendor/radiant`
-- shell-compatibility behavior should stay inside the compatibility surfaces
+- runtime compatibility behavior should stay inside the runtime/test surfaces
   rather than leaking back into generic Radiant modules
 
 ## Ownership map
@@ -91,8 +90,7 @@ Should avoid:
 
 Owns:
 
-- deprecated compatibility-controller drag/drop behavior for the legacy
-  `src/app/**` model and its tests
+- controller-level drag/drop behavior still exercised by compatibility tests
 
 Should avoid:
 
@@ -125,7 +123,7 @@ Owns:
 - reusable layout primitives
 - reusable widgets
 - runtime/backend integration
-- compatibility shell rendering for Wavecrate while migration continues
+- reusable runtime/test primitives used by Wavecrate's GUI
 
 Should avoid:
 
@@ -149,7 +147,7 @@ Practical rule:
 - new generic GUI abstractions belong in the public Radiant layers
 - compatibility fixes may still touch runtime/test infrastructure
 - new Wavecrate product behavior should compose generic Radiant surfaces where
-  possible instead of expanding shell-only APIs
+  possible instead of expanding Wavecrate-only runtime APIs
 
 ## UI design direction
 

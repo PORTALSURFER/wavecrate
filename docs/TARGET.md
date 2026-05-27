@@ -2472,7 +2472,7 @@ Code smells to avoid:
 * audio-engine internals leaking into unrelated product code
 * persistence details leaking into every workflow
 * temporary hacks becoming architecture
-* stale legacy UI assumptions shaping the new architecture
+* stale removed-UI assumptions shaping the current architecture
 * UI code duplicating domain rules
 * background jobs without cancellation or stale-result protection
 * untyped stringly-typed state for important product concepts
@@ -2697,4 +2697,4 @@ Wavecrate is moving toward the target when:
 * Wavecrate code owns sample-domain decisions
 * Radiant code owns reusable GUI/runtime primitives
 * reusable audio-engine code is not unnecessarily coupled to Wavecrate product behavior
-* the new GUI can replace legacy UI paths without losing core workflows
+* the current GUI preserves core workflows without depending on removed UI paths

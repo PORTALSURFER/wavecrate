@@ -21,7 +21,7 @@ $ErrorActionPreference = "Stop"
 
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
 
-function Invoke-NativeStep {
+function Invoke-GuiStep {
   param(
     [Parameter(Mandatory = $true)]
     [string]$Label,
@@ -40,17 +40,17 @@ try {
   Enable-WavecrateCargoCache
 
   Write-Host "[gui-contract] cargo test app_core::actions::tests"
-  Invoke-NativeStep -Label "cargo test app_core::actions::tests" -Command {
+  Invoke-GuiStep -Label "cargo test app_core::actions::tests" -Command {
     Invoke-WavecrateCargo test app_core::actions::tests
   }
 
   Write-Host "[gui-contract] cargo test gui_test::"
-  Invoke-NativeStep -Label "cargo test gui_test::" -Command {
+  Invoke-GuiStep -Label "cargo test gui_test::" -Command {
     Invoke-WavecrateCargo test gui_test::
   }
 
   Write-Host "[gui-contract] cargo test gui_test::fixtures::tests -- --ignored"
-  Invoke-NativeStep -Label "cargo test gui_test::fixtures::tests -- --ignored" -Command {
+  Invoke-GuiStep -Label "cargo test gui_test::fixtures::tests -- --ignored" -Command {
     $guiFixtureArgs = @(
       "test",
       "-p",
@@ -64,7 +64,7 @@ try {
   }
 
   Write-Host "[gui-contract] cargo test gui_test::runner::tests -- --ignored"
-  Invoke-NativeStep -Label "cargo test gui_test::runner::tests -- --ignored" -Command {
+  Invoke-GuiStep -Label "cargo test gui_test::runner::tests -- --ignored" -Command {
     $guiRunnerArgs = @(
       "test",
       "-p",
@@ -78,7 +78,7 @@ try {
   }
 
   Write-Host "[gui-contract] cargo test bridge_runtime fixture checks -- --ignored"
-  Invoke-NativeStep -Label "cargo test bridge_runtime fixture checks -- --ignored" -Command {
+  Invoke-GuiStep -Label "cargo test bridge_runtime fixture checks -- --ignored" -Command {
     $bridgeRuntimeArgs = @(
       "test",
       "-p",
@@ -92,7 +92,7 @@ try {
   }
 
   Write-Host "[gui-contract] cargo test contract_smoke_pack_runs_cleanly -- --ignored --exact"
-  Invoke-NativeStep -Label "cargo test contract_smoke_pack_runs_cleanly -- --ignored --exact" -Command {
+  Invoke-GuiStep -Label "cargo test contract_smoke_pack_runs_cleanly -- --ignored --exact" -Command {
     $contractSmokeArgs = @(
       "test",
       "-p",
@@ -107,12 +107,12 @@ try {
   }
 
   Write-Host "[gui-contract] cargo test app_core::controller::tests::persistence_boundary::"
-  Invoke-NativeStep -Label "cargo test app_core::controller::tests::persistence_boundary::" -Command {
+  Invoke-GuiStep -Label "cargo test app_core::controller::tests::persistence_boundary::" -Command {
     Invoke-WavecrateCargo test app_core::controller::tests::persistence_boundary::
   }
 
   Write-Host "[gui-contract] cargo test --manifest-path vendor/radiant/Cargo.toml toolbar_hit_test_focuses_browser_search"
-  Invoke-NativeStep -Label "cargo test --manifest-path vendor/radiant/Cargo.toml toolbar_hit_test_focuses_browser_search" -Command {
+  Invoke-GuiStep -Label "cargo test --manifest-path vendor/radiant/Cargo.toml toolbar_hit_test_focuses_browser_search" -Command {
     Invoke-WavecrateCargo test --manifest-path vendor/radiant/Cargo.toml toolbar_hit_test_focuses_browser_search
   }
 } finally {

@@ -102,11 +102,11 @@ Use for tooling, fixtures, and numerical-reference flows.
 - `cargo nextest run golden_log_mel_matches_python`
 - `cargo nextest run golden_embedding_matches_python`
 
-### Wavecrate legacy ui-projection compatibility tests
+### Wavecrate UI projection compatibility tests
 
-Use for deprecated compatibility-shell visual and behavior changes that are
-Wavecrate-owned. Default GUI work should prefer focused tests around
-`src/gui_app.rs` and the relevant Radiant public API surface.
+Use for Wavecrate-owned projection snapshot and behavior changes. Default GUI
+work should prefer focused tests around `src/gui_app.rs` and the relevant
+Radiant public API surface.
 
 - targeted snapshot suites:
   - `startup_shot_matches_fixture`
