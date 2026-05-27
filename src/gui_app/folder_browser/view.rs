@@ -301,48 +301,49 @@ fn metadata_section(
 
     let content_height = 25.0 + tag_field_height;
     let section_height = 62.0 + tag_field_height;
-    sidebar_section(
-        "Metadata",
-        ui::stack([
-            ui::column([
-                ui::row([
-                    ui::text(format!("Tags ({})", tags.len()))
-                        .height(22.0)
-                        .fill_width(),
-                    ui::button(">")
-                        .message(GuiMessage::ToggleMetadataTagLibrary)
-                        .key("metadata-tag-library-toggle")
-                        .size(24.0, 20.0),
-                ])
-                .spacing(4.0)
-                .fill_width()
-                .height(22.0)
-                .key("metadata-tag-library-toggle-row"),
-                tag_entry_field(
-                    tag_draft,
-                    tag_tokens,
-                    tag_pending_category_tag,
-                    tag_input_placeholder,
-                    tag_completion_suffix,
-                    tags,
-                    tag_field_height,
-                    tag_field_content_width,
-                )
-                .key("metadata-tag-entry-field")
-                .fill_width()
-                .height(tag_field_height),
+    let mut layers = vec![
+        ui::column([
+            ui::row([
+                ui::text(format!("Tags ({})", tags.len()))
+                    .height(22.0)
+                    .fill_width(),
+                ui::button(">")
+                    .message(GuiMessage::ToggleMetadataTagLibrary)
+                    .key("metadata-tag-library-toggle")
+                    .size(24.0, 20.0),
             ])
+            .spacing(4.0)
             .fill_width()
-            .spacing(3.0),
-            tag_completion_panel_layer(
-                tag_completion_options,
-                tag_field_content_width,
-                content_height,
+            .height(22.0)
+            .key("metadata-tag-library-toggle-row"),
+            tag_entry_field(
+                tag_draft,
+                tag_tokens,
+                tag_pending_category_tag,
+                tag_input_placeholder,
+                tag_completion_suffix,
+                tags,
                 tag_field_height,
-            ),
+                tag_field_content_width,
+            )
+            .key("metadata-tag-entry-field")
+            .fill_width()
+            .height(tag_field_height),
         ])
         .fill_width()
-        .height(content_height),
+        .spacing(3.0),
+    ];
+    if !tag_completion_options.is_empty() {
+        layers.push(tag_completion_panel_layer(
+            tag_completion_options,
+            tag_field_content_width,
+            content_height,
+            tag_field_height,
+        ));
+    }
+    sidebar_section(
+        "Metadata",
+        ui::stack(layers).fill_width().height(content_height),
         section_height,
     )
 }
@@ -388,14 +389,20 @@ fn tag_entry_field(
     .height(rows_height(row_count))
     .spacing(TAG_FIELD_LINE_GAP);
 
-    ui::scroll(content)
-        .style(WidgetStyle {
-            tone: WidgetTone::Neutral,
-            prominence: ui::WidgetProminence::Subtle,
-        })
-        .padding(3.0)
-        .fill_width()
-        .height(height)
+    if row_count > MAX_TAG_FIELD_ROWS {
+        ui::scroll(content)
+            .style(WidgetStyle {
+                tone: WidgetTone::Neutral,
+                prominence: ui::WidgetProminence::Subtle,
+            })
+            .padding(3.0)
+            .fill_width()
+            .height(height)
+    } else {
+        content
+            .fill_width()
+            .height(height)
+    }
 }
 
 fn tag_field_content_width(sidebar_width: f32) -> f32 {
@@ -457,6 +464,11 @@ fn tag_field_rows(
             content_width,
         );
     }
+    let input_width = if rows.last().is_some_and(Vec::is_empty) {
+        content_width
+    } else {
+        input_width
+    };
     push_row_item(
         &mut rows,
         TagEntryRowItem::Input(input_width),

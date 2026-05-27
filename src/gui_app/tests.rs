@@ -1594,6 +1594,57 @@ fn metadata_autocomplete_does_not_block_source_row_clicks_with_tag_library_open(
 }
 
 #[test]
+fn metadata_tag_field_background_click_focuses_tag_input() {
+    let (state, _source_root, _selected_file) = gui_state_with_temp_sample("tag-target.wav");
+    let bridge = DeclarativeOwnedRuntimeBridge::new(
+        state,
+        |state| radiant::runtime::UiSurface::new(super::view(state).into_node()),
+        |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&radiant::theme::ThemeTokens::default());
+    let input_rect = frame
+        .paint_plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::TextInput(input) => Some(input.rect),
+            _ => None,
+        })
+        .expect("tag input should paint");
+    let input_id = text_input_widget_id(&frame).expect("tag input widget id");
+    assert!(
+        input_rect.width() > 160.0,
+        "tag input should expose a broad click target, got {input_rect:?}"
+    );
+    let point = Point::new(input_rect.min.x + 10.0, (input_rect.min.y + input_rect.max.y) * 0.5);
+
+    runtime.dispatch_event(Event::PointerPress {
+        position: point,
+        button: PointerButton::Primary,
+        modifiers: PointerModifiers::default(),
+    });
+    runtime.dispatch_event(Event::PointerRelease {
+        position: point,
+        button: PointerButton::Primary,
+        modifiers: PointerModifiers::default(),
+    });
+    let target = runtime.widget_at(point);
+    let target_rect = target.and_then(|widget_id| {
+        runtime
+            .frame(&radiant::theme::ThemeTokens::default())
+            .paint_plan
+            .first_widget_rect(widget_id)
+    });
+
+    assert_eq!(
+        runtime.focused_widget(),
+        Some(input_id),
+        "clicking the visible tag-entry field should focus the embedded tag input; target={target:?} target_rect={target_rect:?} input_rect={input_rect:?}"
+    );
+}
+
+#[test]
 fn folder_browser_metadata_tag_field_renders_pending_category_prompt() {
     let browser = super::FolderBrowserState::load_default();
     let completion_options = vec![super::metadata_tags::MetadataTagCompletionOption {
