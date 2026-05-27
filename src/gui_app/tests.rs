@@ -7,7 +7,7 @@ use radiant::{
     gui::types::{Point, Rect, Vector2},
     prelude::{self as ui, IntoView},
     runtime::{DeclarativeOwnedRuntimeBridge, Event, PaintPrimitive, SurfaceRuntime},
-    widgets::{DragHandleMessage, PointerButton, PointerModifiers},
+    widgets::{DragHandleMessage, PointerButton, PointerModifiers, WidgetInput, WidgetKey},
 };
 use std::{collections::HashMap, fs, path::PathBuf, sync::mpsc};
 
@@ -347,10 +347,16 @@ fn selecting_another_sample_cancels_metadata_tag_entry() {
         &mut ui::UpdateContext::default(),
     );
 
-    assert_eq!(state.folder_browser.selected_file_id(), Some(second_file.as_str()));
+    assert_eq!(
+        state.folder_browser.selected_file_id(),
+        Some(second_file.as_str())
+    );
     assert!(state.metadata_tag_draft.is_empty());
     assert!(state.metadata_tag_tokens.is_empty());
-    assert_eq!(state.metadata_tag_input_mode, super::MetadataTagInputMode::Tag);
+    assert_eq!(
+        state.metadata_tag_input_mode,
+        super::MetadataTagInputMode::Tag
+    );
     assert_eq!(state.metadata_tag_completion_prefix, None);
     assert_eq!(state.metadata_tag_completion_index, 0);
     assert_eq!(state.pending_metadata_tag_category_tag(), None);
@@ -1315,9 +1321,12 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_and_options() {
             _ => None,
         })
         .expect("tag input should paint");
-    assert_eq!(tag_input.state.value, "kick");
+    assert_eq!(tag_input.state.value, "ki");
     assert_eq!(tag_input.state.selection_anchor, 2);
-    assert_eq!(tag_input.state.caret, 4);
+    assert_eq!(tag_input.state.caret, 2);
+    assert!(frame.paint_plan.primitives.iter().any(|primitive| {
+        matches!(primitive, PaintPrimitive::Text(text) if text.text.as_str() == "ck")
+    }));
     assert!(frame_has_text(&frame, "Sound Type"));
     assert!(frame_has_text(&frame, "kicker"));
     assert!(frame_has_text(&frame, "Character"));
@@ -1335,6 +1344,62 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_and_options() {
             PaintPrimitive::FillRect(fill) if (fill.rect.height() - 18.0).abs() < 0.01
         )
     }));
+}
+
+#[test]
+fn metadata_autocomplete_suffix_is_not_editable_input_text() {
+    let (mut state, _source_root, _selected_file) = gui_state_with_temp_sample("tag-target.wav");
+    state
+        .metadata_tags_by_file
+        .insert(String::from("known.wav"), vec![String::from("kick")]);
+    state.metadata_tag_draft = String::from("ki");
+
+    let bridge = DeclarativeOwnedRuntimeBridge::new(
+        state,
+        |state| radiant::runtime::UiSurface::new(super::view(state).into_node()),
+        |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
+    );
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    let input_id = runtime
+        .frame(&radiant::theme::ThemeTokens::default())
+        .paint_plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::TextInput(input) => Some(input.widget_id),
+            _ => None,
+        })
+        .expect("metadata tag input should paint");
+    assert!(runtime.focus_widget(input_id));
+
+    assert_eq!(
+        runtime.dispatch_focused_input(WidgetInput::KeyPress(WidgetKey::Backspace)),
+        Some(input_id)
+    );
+    assert_eq!(runtime.bridge().state().metadata_tag_draft, "k");
+    assert_eq!(
+        runtime.dispatch_focused_input(WidgetInput::KeyPress(WidgetKey::Backspace)),
+        Some(input_id)
+    );
+    assert!(runtime.bridge().state().metadata_tag_draft.is_empty());
+    assert!(!runtime.bridge().state().metadata_tag_completion_active());
+
+    let frame = runtime.frame(&radiant::theme::ThemeTokens::default());
+    let tag_input = frame
+        .paint_plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::TextInput(input) if input.widget_id == input_id => Some(input),
+            _ => None,
+        })
+        .expect("metadata tag input should still paint");
+    assert!(tag_input.state.value.is_empty());
+    assert_eq!(tag_input.state.caret, 0);
+    assert_eq!(tag_input.state.selection_anchor, 0);
+    assert!(!frame.paint_plan.primitives.iter().any(
+        |primitive| matches!(primitive, PaintPrimitive::Text(text) if text.text.as_str() == "ick")
+    ));
 }
 
 #[test]

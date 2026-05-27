@@ -1,6 +1,13 @@
 use radiant::{
+    gui::types::Rect,
+    layout::LayoutOutput,
     prelude as ui,
-    widgets::{ButtonMessage, WidgetStyle, WidgetTone},
+    runtime::{PaintFillRect, PaintPrimitive, PaintText, PaintTextAlign, PaintTextRun},
+    theme::ThemeTokens,
+    widgets::{
+        ButtonMessage, TextWrap, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
+        WidgetStyle, WidgetTone,
+    },
 };
 
 use crate::gui_app::metadata_tags::MetadataTagCompletionOption;
@@ -567,14 +574,9 @@ fn tag_text_input(
     completion_suffix: Option<&str>,
     width: f32,
 ) -> ui::View<GuiMessage> {
-    let value = tag_input_display_value(tag_draft, completion_suffix);
-    let draft_len = tag_draft.chars().count();
-    let value_len = value.chars().count();
-    let mut input = ui::text_input(value).placeholder(placeholder).underline();
-    if value_len > draft_len {
-        input = input.selection(draft_len, value_len);
-    }
-    input
+    let input = ui::text_input(tag_draft.to_string())
+        .placeholder(placeholder)
+        .underline()
         .message_event(GuiMessage::MetadataTagInput)
         .id(METADATA_TAG_INPUT_ID)
         .key("metadata-tag-input")
@@ -583,7 +585,107 @@ fn tag_text_input(
             TAG_FIELD_CONTROL_HEIGHT,
         )))
         .height(TAG_FIELD_CONTROL_HEIGHT)
-        .width(width)
+        .width(width);
+
+    let Some(suffix) = completion_suffix.filter(|suffix| !suffix.is_empty()) else {
+        return input;
+    };
+
+    let draft_width = tag_draft.chars().count() as f32 * 7.0;
+    let suffix_width = (suffix.chars().count() as f32 * 7.0 + 6.0)
+        .max(14.0)
+        .min((width - 8.0).max(1.0));
+    let suffix_x = (8.0 + draft_width + 2.0).min((width - suffix_width).max(8.0));
+    ui::stack([
+        input,
+        ui::floating_layer(
+            ui::Point::new(suffix_x, 1.0),
+            ui::Vector2::new(suffix_width, TAG_FIELD_CONTROL_HEIGHT - 3.0),
+            ui::custom_widget(
+                TagCompletionGhost::new(suffix.to_string(), suffix_width),
+                |_| None,
+            )
+            .key("metadata-tag-completion-ghost")
+            .width(suffix_width)
+            .height(TAG_FIELD_CONTROL_HEIGHT - 3.0),
+        )
+        .key("metadata-tag-completion-ghost-layer")
+        .fill(),
+    ])
+    .width(width)
+    .height(TAG_FIELD_CONTROL_HEIGHT)
+}
+
+#[derive(Clone, Debug)]
+struct TagCompletionGhost {
+    common: WidgetCommon,
+    suffix: String,
+}
+
+impl TagCompletionGhost {
+    fn new(suffix: String, width: f32) -> Self {
+        Self {
+            common: WidgetCommon::new(
+                0,
+                WidgetSizing::fixed(ui::Vector2::new(
+                    width.max(1.0),
+                    TAG_FIELD_CONTROL_HEIGHT - 3.0,
+                )),
+            ),
+            suffix,
+        }
+    }
+}
+
+impl Widget for TagCompletionGhost {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+        None
+    }
+
+    fn needs_state_synchronization(&self) -> bool {
+        false
+    }
+
+    fn accepts_pointer_move(&self) -> bool {
+        false
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        theme: &ThemeTokens,
+    ) {
+        let fill = theme.accent_mint.blend_toward(theme.bg_primary, 0.12);
+        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: self.common.id,
+            rect: bounds,
+            color: fill,
+        }));
+        let text_rect = Rect::from_min_max(
+            ui::Point::new(bounds.min.x + 3.0, bounds.min.y),
+            ui::Point::new(bounds.max.x - 3.0, bounds.max.y),
+        );
+        primitives.push(PaintPrimitive::Text(PaintTextRun {
+            widget_id: self.common.id,
+            text: PaintText::from(self.suffix.clone()),
+            rect: text_rect,
+            font_size: 13.0,
+            baseline: Some((text_rect.height() * 0.5 + 13.0 * 0.35).max(0.0)),
+            color: theme.bg_primary,
+            align: PaintTextAlign::Left,
+            wrap: TextWrap::None,
+        }));
+    }
 }
 
 fn tag_input_display_value(tag_draft: &str, completion_suffix: Option<&str>) -> String {
