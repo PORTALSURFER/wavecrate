@@ -299,44 +299,49 @@ fn metadata_section(
         return sidebar_section("Metadata", ui::spacer().height(0.0).fill_width(), 36.0);
     }
 
-    let completion_popup_height = tag_completion_popup_height(tag_completion_options);
-    let section_height = 62.0 + tag_field_height + completion_popup_height;
+    let content_height = 25.0 + tag_field_height;
+    let section_height = 62.0 + tag_field_height;
     sidebar_section(
         "Metadata",
-        ui::column([
-            ui::row([
-                ui::text(format!("Tags ({})", tags.len()))
-                    .height(22.0)
-                    .fill_width(),
-                ui::button(">")
-                    .message(GuiMessage::ToggleMetadataTagLibrary)
-                    .key("metadata-tag-library-toggle")
-                    .size(24.0, 20.0),
-            ])
-            .spacing(4.0)
-            .fill_width()
-            .height(22.0)
-            .key("metadata-tag-library-toggle-row"),
-            tag_completion_popup(tag_completion_options, tag_field_content_width)
-                .key("metadata-tag-completion-popup")
+        ui::stack([
+            ui::column([
+                ui::row([
+                    ui::text(format!("Tags ({})", tags.len()))
+                        .height(22.0)
+                        .fill_width(),
+                    ui::button(">")
+                        .message(GuiMessage::ToggleMetadataTagLibrary)
+                        .key("metadata-tag-library-toggle")
+                        .size(24.0, 20.0),
+                ])
+                .spacing(4.0)
                 .fill_width()
-                .height(completion_popup_height),
-            tag_entry_field(
-                tag_draft,
-                tag_tokens,
-                tag_pending_category_tag,
-                tag_input_placeholder,
-                tag_completion_suffix,
-                tags,
-                tag_field_height,
-                tag_field_content_width,
-            )
-            .key("metadata-tag-entry-field")
+                .height(22.0)
+                .key("metadata-tag-library-toggle-row"),
+                tag_entry_field(
+                    tag_draft,
+                    tag_tokens,
+                    tag_pending_category_tag,
+                    tag_input_placeholder,
+                    tag_completion_suffix,
+                    tags,
+                    tag_field_height,
+                    tag_field_content_width,
+                )
+                .key("metadata-tag-entry-field")
+                .fill_width()
+                .height(tag_field_height),
+            ])
             .fill_width()
-            .height(tag_field_height),
+            .spacing(3.0),
+            tag_completion_panel_layer(
+                tag_completion_options,
+                tag_field_content_width,
+                tag_field_height,
+            ),
         ])
         .fill_width()
-        .spacing(3.0),
+        .height(content_height),
         section_height,
     )
 }
@@ -665,6 +670,28 @@ fn tag_completion_popup_height(options: &[MetadataTagCompletionOption]) -> f32 {
     }
     let rows = options.len().min(MAX_TAG_COMPLETION_ROWS);
     rows as f32 * TAG_COMPLETION_ROW_HEIGHT + TAG_COMPLETION_POPUP_VERTICAL_CHROME
+}
+
+fn tag_completion_panel_layer(
+    options: &[MetadataTagCompletionOption],
+    content_width: f32,
+    tag_field_height: f32,
+) -> ui::View<GuiMessage> {
+    if options.is_empty() {
+        return ui::spacer().height(0.0).fill_width();
+    }
+    let popup_height = tag_completion_popup_height(options);
+    ui::column([
+        ui::spacer().fill_height().fill_width(),
+        tag_completion_popup(options, content_width)
+            .key("metadata-tag-completion-popup")
+            .fill_width()
+            .height(popup_height),
+        ui::spacer().fill_width().height(tag_field_height + 3.0),
+    ])
+    .key("metadata-tag-completion-panel-layer")
+    .fill_width()
+    .fill_height()
 }
 
 fn tag_completion_popup(
