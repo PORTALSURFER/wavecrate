@@ -21,7 +21,6 @@ const MAX_TAG_FIELD_ROWS: usize = 6;
 const MAX_TAG_COMPLETION_ROWS: usize = 6;
 const TAG_COMPLETION_ROW_HEIGHT: f32 = 18.0;
 const TAG_COMPLETION_POPUP_VERTICAL_CHROME: f32 = 6.0;
-const TAG_COMPLETION_OVERLAY_BOTTOM_CHROME: f32 = 13.0;
 const MIN_TAG_INPUT_REMAINING_WIDTH: f32 = 180.0;
 const METADATA_TAG_INPUT_ID: u64 = 0x5743_0000_0000_5447;
 
@@ -46,8 +45,7 @@ pub(in crate::gui_app) fn folder_browser_view(
         metadata_tags,
         tag_field_content_width,
     );
-    let metadata_section_height = metadata_section_height(tag_field_height, has_selected_file);
-    let base = ui::column([
+    ui::column([
         source_selector(state),
         ui::text("Folders").height(22.0).fill_width(),
         ui::scroll(folder_tree_view(state)).fill(),
@@ -59,26 +57,16 @@ pub(in crate::gui_app) fn folder_browser_view(
             metadata_tag_pending_category_tag,
             metadata_tag_input_placeholder,
             metadata_tag_completion_suffix,
+            metadata_tag_completion_options,
             metadata_tags,
             tag_field_content_width,
             tag_field_height,
-            metadata_section_height,
             has_selected_file,
         ),
     ])
     .spacing(3.0)
     .padding(4.0)
     .style(WidgetStyle::default())
-    .fill_height();
-
-    ui::stack([
-        base,
-        tag_completion_overlay(
-            metadata_tag_completion_options,
-            tag_field_content_width,
-            tag_field_height,
-        ),
-    ])
     .fill_height()
 }
 
@@ -301,16 +289,18 @@ fn metadata_section(
     tag_pending_category_tag: Option<&str>,
     tag_input_placeholder: &str,
     tag_completion_suffix: Option<&str>,
+    tag_completion_options: &[MetadataTagCompletionOption],
     tags: &[String],
     tag_field_content_width: f32,
     tag_field_height: f32,
-    section_height: f32,
     has_selected_file: bool,
 ) -> ui::View<GuiMessage> {
     if !has_selected_file {
         return sidebar_section("Metadata", ui::spacer().height(0.0).fill_width(), 36.0);
     }
 
+    let completion_popup_height = tag_completion_popup_height(tag_completion_options);
+    let section_height = 62.0 + tag_field_height + completion_popup_height;
     sidebar_section(
         "Metadata",
         ui::column([
@@ -327,6 +317,10 @@ fn metadata_section(
             .fill_width()
             .height(22.0)
             .key("metadata-tag-library-toggle-row"),
+            tag_completion_popup(tag_completion_options, tag_field_content_width)
+                .key("metadata-tag-completion-popup")
+                .fill_width()
+                .height(completion_popup_height),
             tag_entry_field(
                 tag_draft,
                 tag_tokens,
@@ -345,14 +339,6 @@ fn metadata_section(
         .spacing(3.0),
         section_height,
     )
-}
-
-fn metadata_section_height(tag_field_height: f32, has_selected_file: bool) -> f32 {
-    if has_selected_file {
-        62.0 + tag_field_height
-    } else {
-        36.0
-    }
 }
 
 fn tag_entry_field(
@@ -675,34 +661,6 @@ fn tag_completion_popup_height(options: &[MetadataTagCompletionOption]) -> f32 {
     }
     let rows = options.len().min(MAX_TAG_COMPLETION_ROWS);
     rows as f32 * TAG_COMPLETION_ROW_HEIGHT + TAG_COMPLETION_POPUP_VERTICAL_CHROME
-}
-
-fn tag_completion_overlay(
-    options: &[MetadataTagCompletionOption],
-    content_width: f32,
-    tag_field_height: f32,
-) -> ui::View<GuiMessage> {
-    if options.is_empty() {
-        return ui::spacer().height(0.0).fill_width();
-    }
-    let popup_height = tag_completion_popup_height(options);
-    let bottom_gap = tag_field_height + TAG_COMPLETION_OVERLAY_BOTTOM_CHROME;
-    ui::column([
-        ui::spacer().fill_height().fill_width(),
-        ui::row([
-            ui::spacer().width(10.0).height(1.0),
-            tag_completion_popup(options, content_width)
-                .key("metadata-tag-completion-popup")
-                .width(content_width)
-                .height(popup_height),
-            ui::spacer().fill_width().height(1.0),
-        ])
-        .fill_width()
-        .height(popup_height),
-        ui::spacer().fill_width().height(bottom_gap),
-    ])
-    .key("metadata-tag-completion-overlay")
-    .fill()
 }
 
 fn tag_completion_popup(
