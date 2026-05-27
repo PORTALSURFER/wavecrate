@@ -319,6 +319,45 @@ fn sample_selection_loads_selected_file_into_waveform() {
 }
 
 #[test]
+fn selecting_another_sample_cancels_metadata_tag_entry() {
+    let source_root = tempfile::tempdir().expect("source root");
+    let first_path = source_root.path().join("first.wav");
+    let second_path = source_root.path().join("second.wav");
+    fs::write(&first_path, []).expect("first sample");
+    fs::write(&second_path, []).expect("second sample");
+
+    let mut state = gui_state_for_span_tests();
+    state.folder_browser = super::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+    ]);
+    let first_file = first_path.display().to_string();
+    let second_file = second_path.display().to_string();
+    state.folder_browser.select_file(first_file.clone());
+    state.metadata_tag_draft = String::from("ki");
+    state.metadata_tag_tokens = vec![String::from("warm")];
+    state.metadata_tag_input_mode = super::MetadataTagInputMode::Category {
+        pending_tag: String::from("new-tag"),
+    };
+    state.metadata_tag_completion_prefix = Some(String::from("ki"));
+    state.metadata_tag_completion_index = 2;
+
+    state.select_sample_with_modifiers(
+        second_file.clone(),
+        PointerModifiers::default(),
+        &mut ui::UpdateContext::default(),
+    );
+
+    assert_eq!(state.folder_browser.selected_file_id(), Some(second_file.as_str()));
+    assert!(state.metadata_tag_draft.is_empty());
+    assert!(state.metadata_tag_tokens.is_empty());
+    assert_eq!(state.metadata_tag_input_mode, super::MetadataTagInputMode::Tag);
+    assert_eq!(state.metadata_tag_completion_prefix, None);
+    assert_eq!(state.metadata_tag_completion_index, 0);
+    assert_eq!(state.pending_metadata_tag_category_tag(), None);
+    assert!(!state.metadata_tag_completion_active());
+}
+
+#[test]
 fn play_selected_sample_uses_active_playmark_selection_span() {
     let Ok(player) = wavecrate::audio::AudioPlayer::new() else {
         return;

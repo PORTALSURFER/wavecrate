@@ -44,8 +44,12 @@ impl GuiAppState {
         path: String,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
+        let previous_selection = self.folder_browser.selected_file_id().map(str::to_owned);
         self.folder_browser
             .focus_file_preserving_selection(path.clone());
+        if self.folder_browser.selected_file_id() != previous_selection.as_deref() {
+            self.cancel_metadata_tag_entry();
+        }
         self.load_sample(path, context);
     }
 
@@ -55,8 +59,12 @@ impl GuiAppState {
         modifiers: PointerModifiers,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
+        let previous_selection = self.folder_browser.selected_file_id().map(str::to_owned);
         self.folder_browser
             .select_file_with_modifiers(path.clone(), modifiers);
+        if self.folder_browser.selected_file_id() != previous_selection.as_deref() {
+            self.cancel_metadata_tag_entry();
+        }
         self.load_sample(path, context);
     }
 

@@ -350,6 +350,13 @@ impl GuiAppState {
         }
     }
 
+    pub(super) fn cancel_metadata_tag_entry(&mut self) {
+        self.metadata_tag_draft.clear();
+        self.metadata_tag_tokens.clear();
+        self.metadata_tag_input_mode = MetadataTagInputMode::Tag;
+        self.reset_metadata_tag_completion_cycle();
+    }
+
     fn selected_metadata_tag_completion_index(&self, suggestion_count: usize) -> usize {
         if suggestion_count == 0 {
             return 0;
