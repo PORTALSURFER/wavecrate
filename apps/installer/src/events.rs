@@ -16,7 +16,7 @@ pub(crate) type InstallerSender = mpsc::Sender<InstallerEvent>;
 /// Compatibility entrypoint for the removed interactive installer.
 pub(crate) fn removed_interactive_installer_entrypoint() -> Result<(), String> {
     Err(String::from(
-        "The deprecated native installer UI has been removed; use --dry-run or --uninstall.",
+        "The deprecated interactive installer UI has been removed; use --dry-run or --uninstall.",
     ))
 }
 
@@ -56,6 +56,6 @@ mod tests {
     fn removed_interactive_installer_ui_returns_actionable_error() {
         let err = removed_interactive_installer_entrypoint()
             .expect_err("interactive UI should be removed");
-        assert!(err.contains("deprecated native installer UI has been removed"));
+        assert!(err.contains("deprecated interactive installer UI has been removed"));
     }
 }
