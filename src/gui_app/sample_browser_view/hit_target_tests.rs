@@ -1,4 +1,3 @@
-
 use super::*;
 
 fn message_from(output: Option<WidgetOutput>) -> SampleFileHitMessage {

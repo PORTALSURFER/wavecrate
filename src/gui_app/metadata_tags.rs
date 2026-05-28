@@ -4,127 +4,43 @@ use radiant::prelude as ui;
 use radiant::widgets::{DragHandleMessage, TextInputMessage};
 use std::{
     collections::{BTreeSet, HashMap},
-    path::{Path, PathBuf},
-    time::{Instant, SystemTime},
+    path::PathBuf,
+    time::Instant,
 };
-use wavecrate::sample_sources::{SampleSource, SourceDatabase, SourceDbError};
+use wavecrate::sample_sources::SampleSource;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct MetadataTagCommit {
-    pub(super) tags: Vec<String>,
-    pub(super) remainder: String,
-}
+#[cfg(test)]
+pub(super) use types::MetadataTagCommit;
+pub(super) use types::{
+    MetadataTagCategoryGroup, MetadataTagCompletionOption, MetadataTagDisplayCategory,
+    MetadataTagInputMode, MetadataTagPersistResult,
+};
+pub(super) use vocabulary::{
+    commit_metadata_tag_text, inferred_metadata_tag_category_id_for_name,
+    metadata_tag_category_order, normalize_metadata_tag,
+};
+#[cfg(test)]
+pub(super) use vocabulary::{metadata_tag_category_id, metadata_tag_completion};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct MetadataTagPersistResult {
-    tags: Vec<String>,
-    assigned: bool,
-    result: Result<(), String>,
-}
+mod persistence;
+mod types;
+mod vocabulary;
 
-#[derive(Clone, Debug)]
-struct MetadataTagPersistRequest {
-    absolute_path: PathBuf,
-    source_root: PathBuf,
-    relative_path: PathBuf,
-    tags: Vec<String>,
-    assigned: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct MetadataTagCategoryGroup {
-    pub(super) id: &'static str,
-    pub(super) label: &'static str,
-    pub(super) tags: Vec<String>,
-    pub(super) collapsed: bool,
-    pub(super) locked: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct MetadataTagCompletionOption {
-    pub(super) tag: String,
-    pub(super) category: &'static str,
-    pub(super) selected: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct MetadataTagDisplayCategory {
-    pub(super) tag: String,
-    pub(super) category_id: &'static str,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(super) enum MetadataTagInputMode {
-    #[default]
-    Tag,
-    Category {
-        pending_tag: String,
-    },
-}
-
-const METADATA_TAG_CATEGORIES: [(&str, &str); 5] = [
-    ("playback-type", "Playback Type"),
-    ("sound-type", "Sound Type"),
-    ("character", "Character"),
-    ("prefix", "Prefix"),
-    ("tuning-scale", "Tuning/Scale"),
-];
-
-const USER_EXTENSIBLE_METADATA_TAG_CATEGORIES: [(&str, &str); 4] = [
-    ("sound-type", "Sound Type"),
-    ("character", "Character"),
-    ("prefix", "Prefix"),
-    ("tuning-scale", "Tuning/Scale"),
-];
-
-const DEFAULT_METADATA_TAGS: &[&str] = &["one-shot", "loop"];
-
-const PLAYBACK_TYPE_TAGS: &[&str] = &["loop", "one shot", "oneshot"];
-const SOUND_TYPE_TAGS: &[&str] = &[
-    "kick",
-    "snare",
-    "clap",
-    "hat",
-    "bass",
-    "stab",
-    "texture",
-    "vocal",
-    "percussion",
-    "ambience",
-    "effect",
-    "fx",
-    "drum loop",
-    "synth loop",
-];
-const CHARACTER_TAGS: &[&str] = &[
-    "warm",
-    "harsh",
-    "clean",
-    "noisy",
-    "distorted",
-    "punchy",
-    "soft",
-    "metallic",
-    "dark",
-    "bright",
-    "wide",
-    "dry",
-    "wet",
-    "raw",
-    "polished",
-];
-const TUNING_SCALE_TAGS: &[&str] = &[
-    "major",
-    "minor",
-    "dorian",
-    "phrygian",
-    "lydian",
-    "mixolydian",
-    "locrian",
-    "pentatonic",
-    "chromatic",
-    "microtonal",
-];
+use persistence::{
+    load_persisted_metadata_tags_for_source, persist_metadata_tag_assignment,
+    persist_metadata_tag_deletions,
+};
+#[cfg(test)]
+pub(super) use persistence::{
+    persist_metadata_tag_additions_for_tests, persist_metadata_tag_removals_for_tests,
+};
+use types::MetadataTagPersistRequest;
+use vocabulary::{
+    DEFAULT_METADATA_TAGS, METADATA_TAG_CATEGORIES, USER_EXTENSIBLE_METADATA_TAG_CATEGORIES,
+    inferred_metadata_tag_category_id, metadata_tag_category_is_locked,
+    metadata_tag_category_label_for_id, metadata_tag_completions_for_prefix,
+    normalize_metadata_category_query, static_metadata_tag_category_id,
+};
 
 impl GuiAppState {
     pub(super) fn load_persisted_metadata_tags(
@@ -838,260 +754,6 @@ impl GuiAppState {
             };
         }
     }
-}
-
-fn persist_metadata_tag_assignment(request: MetadataTagPersistRequest) -> MetadataTagPersistResult {
-    let result = persist_metadata_tag_assignment_inner(&request);
-    MetadataTagPersistResult {
-        tags: request.tags,
-        assigned: request.assigned,
-        result,
-    }
-}
-
-fn persist_metadata_tag_deletions(
-    requests: Vec<MetadataTagPersistRequest>,
-) -> MetadataTagPersistResult {
-    let tags = requests
-        .first()
-        .map(|request| request.tags.clone())
-        .unwrap_or_default();
-    let result = requests
-        .iter()
-        .try_for_each(persist_metadata_tag_assignment_inner);
-    MetadataTagPersistResult {
-        tags,
-        assigned: false,
-        result,
-    }
-}
-
-fn persist_metadata_tag_assignment_inner(
-    request: &MetadataTagPersistRequest,
-) -> Result<(), String> {
-    let (file_size, modified_ns) = file_metadata(&request.absolute_path)?;
-    let db = SourceDatabase::open_for_user_metadata_write(&request.source_root)
-        .map_err(|err| err.to_string())?;
-    let mut batch = db.write_batch().map_err(|err| err.to_string())?;
-    batch
-        .upsert_file(&request.relative_path, file_size, modified_ns)
-        .map_err(|err| err.to_string())?;
-    for tag in &request.tags {
-        if request.assigned {
-            batch
-                .assign_tag_to_path(&request.relative_path, tag)
-                .map(|_| ())
-        } else {
-            batch
-                .remove_tag_from_path(&request.relative_path, tag)
-                .map(|_| ())
-        }
-        .map_err(|err| err.to_string())?;
-    }
-    batch.commit().map_err(|err| err.to_string())
-}
-
-#[cfg(test)]
-pub(super) fn persist_metadata_tag_additions_for_tests(
-    absolute_path: PathBuf,
-    source_root: PathBuf,
-    relative_path: PathBuf,
-    tags: Vec<String>,
-) -> Result<(), String> {
-    persist_metadata_tag_assignment_inner(&MetadataTagPersistRequest {
-        absolute_path,
-        source_root,
-        relative_path,
-        tags,
-        assigned: true,
-    })
-}
-
-#[cfg(test)]
-pub(super) fn persist_metadata_tag_removals_for_tests(
-    absolute_path: PathBuf,
-    source_root: PathBuf,
-    relative_path: PathBuf,
-    tags: Vec<String>,
-) -> Result<(), String> {
-    persist_metadata_tag_assignment_inner(&MetadataTagPersistRequest {
-        absolute_path,
-        source_root,
-        relative_path,
-        tags,
-        assigned: false,
-    })
-}
-
-fn load_persisted_metadata_tags_for_source(
-    source_root: &Path,
-    tags_by_file: &mut HashMap<String, Vec<String>>,
-) -> Result<(), String> {
-    let db = match SourceDatabase::open_read_only(source_root) {
-        Ok(db) => db,
-        Err(SourceDbError::ReadOnlyDatabaseMissing(_)) => return Ok(()),
-        Err(err) => return Err(err.to_string()),
-    };
-    for entry in db.list_files().map_err(|err| err.to_string())? {
-        if entry.normal_tags.is_empty() {
-            continue;
-        }
-        let absolute_path = source_root.join(entry.relative_path);
-        tags_by_file.insert(
-            absolute_path.to_string_lossy().to_string(),
-            entry.normal_tags,
-        );
-    }
-    Ok(())
-}
-
-fn file_metadata(path: &Path) -> Result<(u64, i64), String> {
-    let metadata = std::fs::metadata(path)
-        .map_err(|err| format!("Sample metadata unavailable for {}: {err}", path.display()))?;
-    let modified_ns = metadata
-        .modified()
-        .ok()
-        .and_then(|modified| modified.duration_since(SystemTime::UNIX_EPOCH).ok())
-        .and_then(|duration| i64::try_from(duration.as_nanos()).ok())
-        .unwrap_or_default();
-    Ok((metadata.len(), modified_ns))
-}
-
-pub(super) fn commit_metadata_tag_text(value: &str) -> MetadataTagCommit {
-    let parts = value
-        .split(['\n', ',', ';'])
-        .map(str::trim)
-        .collect::<Vec<_>>();
-    MetadataTagCommit {
-        tags: parts
-            .into_iter()
-            .filter_map(normalize_metadata_tag)
-            .collect(),
-        remainder: String::new(),
-    }
-}
-
-pub(super) fn normalize_metadata_tag(value: &str) -> Option<String> {
-    let mut normalized = String::new();
-    let mut previous_separator = false;
-    for ch in value.trim().chars() {
-        let next = if ch.is_ascii_alphanumeric() {
-            previous_separator = false;
-            ch.to_ascii_lowercase()
-        } else if ch == '_' {
-            previous_separator = false;
-            ch
-        } else if ch.is_whitespace() || ch == '-' || ch.is_ascii_punctuation() {
-            if previous_separator || normalized.is_empty() {
-                previous_separator = true;
-                continue;
-            }
-            previous_separator = true;
-            '-'
-        } else {
-            continue;
-        };
-        normalized.push(next);
-    }
-    let normalized = normalized.trim_matches('-').to_string();
-    (!normalized.is_empty()).then_some(normalized)
-}
-
-#[cfg(test)]
-pub(super) fn metadata_tag_completion<'a>(
-    value: &str,
-    known_tags: impl IntoIterator<Item = &'a str>,
-) -> Option<String> {
-    let prefix = normalize_metadata_tag(value)?;
-    metadata_tag_completions_for_prefix(prefix.as_str(), known_tags)
-        .into_iter()
-        .next()
-}
-
-fn metadata_tag_completions_for_prefix<'a>(
-    prefix: &str,
-    known_tags: impl IntoIterator<Item = &'a str>,
-) -> Vec<String> {
-    known_tags
-        .into_iter()
-        .filter(|tag| tag.starts_with(prefix))
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .map(str::to_string)
-        .collect()
-}
-
-#[cfg(test)]
-fn metadata_tag_category_id(tag: &str) -> &'static str {
-    inferred_metadata_tag_category_id(tag)
-}
-
-fn inferred_metadata_tag_category_id(tag: &str) -> &'static str {
-    let normalized = normalize_metadata_category_match(tag);
-    if PLAYBACK_TYPE_TAGS.contains(&normalized.as_str()) {
-        "playback-type"
-    } else if SOUND_TYPE_TAGS.contains(&normalized.as_str()) {
-        "sound-type"
-    } else if CHARACTER_TAGS.contains(&normalized.as_str()) {
-        "character"
-    } else if TUNING_SCALE_TAGS.contains(&normalized.as_str()) {
-        "tuning-scale"
-    } else if has_metadata_category_prefix(&normalized, "prefix")
-        || has_metadata_category_prefix(&normalized, "artist")
-        || has_metadata_category_prefix(&normalized, "pack")
-        || has_metadata_category_prefix(&normalized, "project")
-    {
-        "prefix"
-    } else {
-        "character"
-    }
-}
-
-pub(super) fn metadata_tag_category_order(category_id: &str) -> usize {
-    METADATA_TAG_CATEGORIES
-        .iter()
-        .position(|(id, _label)| *id == category_id)
-        .unwrap_or(METADATA_TAG_CATEGORIES.len())
-}
-
-pub(super) fn inferred_metadata_tag_category_id_for_name(tag: &str) -> &'static str {
-    inferred_metadata_tag_category_id(tag)
-}
-
-fn metadata_tag_category_label_for_id(category_id: &str) -> Option<&'static str> {
-    METADATA_TAG_CATEGORIES
-        .iter()
-        .find_map(|(id, label)| (*id == category_id).then_some(*label))
-}
-
-fn static_metadata_tag_category_id(category_id: &str) -> Option<&'static str> {
-    METADATA_TAG_CATEGORIES
-        .iter()
-        .find_map(|(id, _label)| (*id == category_id).then_some(*id))
-}
-
-fn metadata_tag_category_is_locked(category_id: &str) -> bool {
-    category_id == "playback-type"
-}
-
-fn has_metadata_category_prefix(value: &str, prefix: &str) -> bool {
-    value == prefix
-        || value
-            .strip_prefix(prefix)
-            .is_some_and(|rest| rest.starts_with(':') || rest.starts_with(' '))
-}
-
-fn normalize_metadata_category_match(value: &str) -> String {
-    value
-        .split(|ch: char| ch == '-' || ch == '_' || ch.is_whitespace())
-        .filter(|part| !part.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ")
-        .to_ascii_lowercase()
-}
-
-fn normalize_metadata_category_query(value: &str) -> Option<String> {
-    normalize_metadata_tag(value).map(|normalized| normalized.replace('_', "-"))
 }
 
 #[cfg(test)]
