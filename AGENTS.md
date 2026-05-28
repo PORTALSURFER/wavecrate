@@ -68,6 +68,63 @@ validation expectations for `C:\dev\wavecrate`.
   report whether `ci_quick` or `ci_local` still need a user-run confirmation pass.
 - Run full CI in the platform wrapper before pushing broader validation/tooling/perf/dependency changes or when you need full CI parity (`scripts/ci.ps1 local` on Windows, `scripts/ci.sh local` elsewhere)
 
+## Rust Architecture Cleanup Standard
+- For audit/refactor work, operate in repeated cycles:
+  1. Audit current code and identify architectural, clarity, ownership,
+     correctness, testability, and performance weaknesses.
+  2. Refactor one coherent boundary at a time.
+  3. Run `cargo fmt`, `cargo clippy`, focused tests, and a build or broader
+     validation appropriate to the change.
+  4. Re-audit the affected area.
+  5. Commit and push each meaningful improvement set.
+  6. Create or update the active PR with what improved, remaining weaknesses,
+     validation status, estimated alignment percentage, and whether another
+     cycle is needed.
+- Do not stop after one cleanup pass unless the current evidence shows high
+  alignment, roughly 90% or better, and no obvious high-value cleanup remains.
+- Favor clarity over cleverness, explicitness over magic, simplicity over
+  abstraction, composition over inheritance-like patterns, pure logic over side
+  effects, strong domain modeling, small modules, predictable ownership/state
+  flow, and minimal shared mutable state.
+- Organize around domains and features. Avoid giant managers, god structs, and
+  dumping grounds such as `utils.rs`. Isolate side effects at app boundaries.
+  Separate parsing, validation, transformation, rendering, storage, networking,
+  and UI.
+- Prefer borrowing where appropriate and avoid unnecessary cloning. Avoid
+  excessive `Arc<Mutex<T>>`; when shared mutability is required, keep lock
+  scopes minimal and never hold locks during I/O, rendering, or expensive work.
+  Prefer message passing for concurrency.
+- Production code should not use `unwrap()`. Use `expect()` only with a clear
+  invariant explanation. Avoid `panic!` except for unrecoverable invariants,
+  startup failures, and tests. Do not silently swallow errors.
+- Prefer structured domain errors with `thiserror`; use `anyhow` only at
+  application boundaries.
+- Keep APIs private by default. Prefer `pub(crate)` or narrower visibility over
+  `pub`, and avoid leaking implementation details.
+- Add tests for extracted logic. Test behavior rather than implementation
+  details, and keep tests deterministic, isolated, and fast.
+- Use explicit imports. Avoid wildcard imports outside tests/preludes. Comments
+  should explain why, not restate what the code says. Remove `todo!()`,
+  `unimplemented!()`, and `dbg!()` before committing.
+- Optimize architecture first. Avoid unnecessary allocations, cloning, boxing,
+  and async unless justified.
+
+### Cleanup Size and Complexity Targets
+- Files: target 100-250 lines, warn at 300, hard limit 500.
+- Functions: target 5-30 lines, warn at 50, hard limit 80.
+- Args: target 0-3, warn at 4, hard limit 5.
+- Structs: target 3-8 fields, warn at 10, hard limit 15.
+- Traits: target 1-5 methods, warn at 8, hard limit 12.
+- Enums: target 2-10 variants, warn at 15, hard limit 25.
+- Nesting: target 0-2 levels, warn at 3, hard limit 4.
+- Module depth: target 1-3 levels, warn at 4, hard limit 5.
+- Generics: target 0-2 params, hard limit 4.
+- Lifetimes: target 0-1 explicit lifetimes, hard limit 3.
+- Cyclomatic complexity: target below 8, warn at 10, hard limit 15.
+- Treat public serialized contracts and compatibility enums carefully: do not
+  split them mechanically if that would worsen the API. Document the exception
+  and prefer a deliberate domain redesign.
+
 ## Golden Commands
 - Bootstrap:
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/bootstrap.ps1`
