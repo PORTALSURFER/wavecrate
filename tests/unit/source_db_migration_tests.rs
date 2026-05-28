@@ -333,3 +333,48 @@ fn current_stamped_pending_rename_table_repairs_missing_metadata_columns() {
     assert_eq!(pending[0].sound_type, None);
     assert_eq!(pending[0].user_tag, None);
 }
+
+#[test]
+fn current_stamped_wav_files_table_repairs_missing_collection_column() {
+    let dir = with_legacy_db(&format!(
+        "CREATE TABLE metadata (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+        CREATE TABLE wav_files (
+            path TEXT PRIMARY KEY,
+            file_size INTEGER NOT NULL,
+            modified_ns INTEGER NOT NULL,
+            content_hash TEXT,
+            tag INTEGER NOT NULL DEFAULT 0,
+            looped INTEGER NOT NULL DEFAULT 0,
+            locked INTEGER NOT NULL DEFAULT 0,
+            missing INTEGER NOT NULL DEFAULT 0,
+            extension TEXT NOT NULL DEFAULT '',
+            sound_type TEXT,
+            user_tag TEXT,
+            tag_named INTEGER NOT NULL DEFAULT 0,
+            last_played_at INTEGER
+        );
+        INSERT INTO wav_files (path, file_size, modified_ns, extension)
+        VALUES ('one.wav', 10, 5, 'wav');
+        PRAGMA user_version = {};",
+        schema::SOURCE_DB_SCHEMA_VERSION
+    ));
+
+    let db = SourceDatabase::open_for_user_metadata_write(dir.path()).unwrap();
+    let columns = column_names(&db.connection, "wav_files");
+    assert!(columns.iter().any(|column| column == "collection"));
+
+    let mut batch = db.write_batch().unwrap();
+    batch
+        .set_collection(std::path::Path::new("one.wav"), SampleCollection::new(2))
+        .unwrap();
+    batch.commit().unwrap();
+
+    assert_eq!(
+        db.collection_for_path(std::path::Path::new("one.wav"))
+            .unwrap(),
+        SampleCollection::new(2)
+    );
+}

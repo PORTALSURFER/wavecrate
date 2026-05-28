@@ -5,7 +5,7 @@ use radiant::prelude as ui;
 use radiant::runtime::NativeFileDrop;
 use radiant::widgets::{DragHandleMessage, PointerModifiers};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet, VecDeque},
     path::PathBuf,
     sync::mpsc::{Receiver, Sender},
     time::{Duration, Instant},
@@ -198,6 +198,19 @@ enum GuiMessage {
 struct SampleLoadResult {
     path: String,
     result: Result<WaveformState, String>,
+    autoplay: bool,
+}
+
+#[derive(Clone, Debug)]
+struct WaveformCacheEntry {
+    file: std::sync::Arc<waveform::WaveformFile>,
+    signature: SampleFileSignature,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct SampleFileSignature {
+    size_bytes: u64,
+    modified_ns: i64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -275,6 +288,10 @@ struct GuiAppState {
     collapsed_metadata_tag_categories: HashSet<String>,
     metadata_tags_by_file: HashMap<String, Vec<String>>,
     sample_name_view_mode: SampleNameViewMode,
+    startup_auto_load_pending: bool,
+    waveform_cache: HashMap<PathBuf, WaveformCacheEntry>,
+    waveform_cache_order: VecDeque<PathBuf>,
+    cached_sample_paths: HashSet<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -517,6 +534,7 @@ impl GuiAppState {
             }
             GuiMessage::NativeFileDrop(drop) => self.apply_native_file_drop(drop, context),
             GuiMessage::Frame => {
+                self.maybe_auto_load_startup_sample(context);
                 self.advance_frame();
             }
         }

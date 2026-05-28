@@ -40,6 +40,8 @@ impl FolderBrowserState {
 
     pub(super) fn select_folder(&mut self, id: String) {
         self.cancel_rename();
+        self.selected_collection = None;
+        self.collection_rename_edit = None;
         self.selected_folder = id;
         self.selected_file = None;
         self.selected_file_ids.clear();

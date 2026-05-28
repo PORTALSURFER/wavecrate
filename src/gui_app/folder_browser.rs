@@ -105,13 +105,38 @@ impl FolderBrowserState {
     }
 
     pub(super) fn selected_audio_files(&self) -> Vec<&FileEntry> {
-        let mut files = self
-            .selected_files()
-            .iter()
-            .filter(|file| file.is_audio())
-            .collect::<Vec<_>>();
+        let mut files = if let Some(collection) = self.selected_collection {
+            let mut files = Vec::new();
+            if let Some(folder) = self.selected_source_root_folder() {
+                collect_collection_audio_files(folder, collection, &mut files);
+            }
+            files
+        } else {
+            self.selected_files()
+                .iter()
+                .filter(|file| file.is_audio())
+                .collect::<Vec<_>>()
+        };
         self.sort_files(&mut files);
         files
+    }
+
+    pub(super) fn selected_source_audio_files(&self) -> Vec<&FileEntry> {
+        let mut files = Vec::new();
+        if let Some(folder) = self.selected_source_root_folder() {
+            collect_audio_files(folder, &mut files);
+        }
+        self.sort_files(&mut files);
+        files
+    }
+
+    fn selected_source_root_folder(&self) -> Option<&FolderEntry> {
+        self.folders.first().or_else(|| {
+            self.sources
+                .iter()
+                .find(|source| source.id == self.selected_source)
+                .and_then(|source| source.root_folder.as_ref())
+        })
     }
 
     pub(super) fn selected_file_id(&self) -> Option<&str> {
@@ -177,6 +202,9 @@ impl FolderBrowserState {
                 self.activate_folder(id);
             }
             FolderBrowserMessage::OpenFolderContextMenu(_, _) => {}
+            FolderBrowserMessage::CancelRename => {
+                self.cancel_rename();
+            }
             FolderBrowserMessage::DragFolder(id, message) => {
                 self.apply_folder_drag(id, message);
             }
@@ -195,10 +223,36 @@ impl FolderBrowserState {
             FolderBrowserMessage::ActivateCollection(collection) => {
                 self.activate_collection(collection);
             }
+            FolderBrowserMessage::RenameCollection(collection) => {
+                self.begin_rename_collection(collection);
+            }
             FolderBrowserMessage::HoverCollectionDropTarget(collection, position) => {
                 self.hover_drop_target_collection(collection, position);
             }
         }
+    }
+}
+
+fn collect_audio_files<'a>(folder: &'a FolderEntry, files: &mut Vec<&'a FileEntry>) {
+    files.extend(folder.files.iter().filter(|file| file.is_audio()));
+    for child in &folder.children {
+        collect_audio_files(child, files);
+    }
+}
+
+fn collect_collection_audio_files<'a>(
+    folder: &'a FolderEntry,
+    collection: SampleCollection,
+    files: &mut Vec<&'a FileEntry>,
+) {
+    files.extend(
+        folder
+            .files
+            .iter()
+            .filter(|file| file.is_audio() && file.collection == Some(collection)),
+    );
+    for child in &folder.children {
+        collect_collection_audio_files(child, collection, files);
     }
 }
 

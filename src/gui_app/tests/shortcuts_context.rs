@@ -45,7 +45,7 @@ fn escape_shortcut_routes_to_stop_playback() {
 }
 
 #[test]
-fn escape_shortcut_is_shielded_while_renaming() {
+fn escape_shortcut_cancels_rename_while_renaming() {
     let mut state = GuiAppState::load_default().expect("default state loads");
     let sample_path = state
         .folder_browser
@@ -65,7 +65,13 @@ fn escape_shortcut_is_shielded_while_renaming() {
         ui::KeyPress::new(ui::KeyCode::Escape),
     );
 
-    assert_eq!(resolution, ui::ShortcutResolution::unhandled());
+    assert_eq!(
+        resolution.action,
+        Some(crate::gui_app::GuiMessage::FolderBrowser(
+            crate::gui_app::FolderBrowserMessage::CancelRename
+        ))
+    );
+    assert!(resolution.handled);
 }
 
 #[test]

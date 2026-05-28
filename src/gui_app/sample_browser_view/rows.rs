@@ -11,6 +11,7 @@ use radiant::{
     },
 };
 use std::collections::HashMap;
+use std::collections::HashSet;
 use wavecrate::sample_sources::Rating;
 
 use super::{SampleFileHitMessage, SampleFileHitTarget};
@@ -27,6 +28,7 @@ pub(super) fn sample_browser_rows(
     window: ui::VirtualListWindow,
     name_view_mode: SampleNameViewMode,
     metadata_tags_by_file: &HashMap<String, Vec<String>>,
+    cached_sample_paths: &HashSet<String>,
     suppress_row_hover: bool,
 ) -> ui::View<GuiMessage> {
     if files.is_empty() {
@@ -52,6 +54,7 @@ pub(super) fn sample_browser_rows(
                 columns,
                 name_view_mode,
                 metadata_tags_by_file,
+                cached_sample_paths.contains(&file.id),
                 suppress_row_hover,
             )
         },
@@ -72,6 +75,7 @@ fn sample_browser_row(
     columns: &[&FileColumn],
     name_view_mode: SampleNameViewMode,
     metadata_tags_by_file: &HashMap<String, Vec<String>>,
+    cached: bool,
     suppress_row_hover: bool,
 ) -> ui::View<GuiMessage> {
     let hit_path = file.id.clone();
@@ -81,6 +85,7 @@ fn sample_browser_row(
         drag_revision,
         drag_active,
         drag_source,
+        cached,
         hit_path,
         suppress_row_hover,
     );
@@ -109,11 +114,12 @@ fn sample_file_hit_target(
     drag_revision: u64,
     drag_active: bool,
     drag_source: bool,
+    cached: bool,
     hit_path: String,
     suppress_hover: bool,
 ) -> ui::View<GuiMessage> {
     ui::custom_widget_mapped(
-        SampleFileHitTarget::new(selected, drag_active, drag_source, suppress_hover),
+        SampleFileHitTarget::new(selected, drag_active, drag_source, cached, suppress_hover),
         move |message| match message {
             SampleFileHitMessage::Activate(modifiers) => GuiMessage::SelectSampleWithModifiers {
                 path: hit_path.clone(),

@@ -7,7 +7,12 @@ pub(super) fn default_gui_shortcut_resolution(
     press: ui::KeyPress,
 ) -> ui::ShortcutResolution<GuiMessage> {
     if state.folder_browser.rename_active() {
-        return ui::ShortcutResolution::unhandled();
+        return ui::ShortcutLayer::modal()
+            .bind(
+                ui::KeyPress::new(ui::KeyCode::Escape),
+                GuiMessage::FolderBrowser(FolderBrowserMessage::CancelRename),
+            )
+            .resolve(press);
     }
     if state.context_menu.is_some() {
         return ui::ShortcutLayer::modal()
@@ -140,10 +145,6 @@ fn bind_collection_shortcuts(
         (ui::KeyCode::Num4, 3),
         (ui::KeyCode::Num5, 4),
         (ui::KeyCode::Num6, 5),
-        (ui::KeyCode::Num7, 6),
-        (ui::KeyCode::Num8, 7),
-        (ui::KeyCode::Num9, 8),
-        (ui::KeyCode::Num0, 9),
     ];
     keys.into_iter().fold(layer, |layer, (key, index)| {
         let collection = wavecrate::sample_sources::SampleCollection::new(index)

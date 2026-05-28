@@ -107,12 +107,9 @@ fn collections_section(state: &FolderBrowserState) -> ui::View<GuiMessage> {
             .spacing(4.0)
             .height(20.0)
             .fill_width(),
-            ui::scroll(
-                ui::column(rows)
-                    .spacing(1.0)
-                    .fill_width()
-                    .height(COLLECTION_ROW_HEIGHT * 10.0),
-            )
+            ui::scroll(ui::column(rows).spacing(1.0).fill_width().height(
+                COLLECTION_ROW_HEIGHT * wavecrate::sample_sources::SampleCollection::COUNT as f32,
+            ))
             .style(WidgetStyle {
                 tone: WidgetTone::Neutral,
                 prominence: ui::WidgetProminence::Subtle,
@@ -168,6 +165,9 @@ fn collection_row(
         move |message| match message {
             CollectionHitMessage::Activate => {
                 GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateCollection(collection_id))
+            }
+            CollectionHitMessage::Rename => {
+                GuiMessage::FolderBrowser(FolderBrowserMessage::RenameCollection(collection_id))
             }
             CollectionHitMessage::Drop => {
                 GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnCollection(collection_id))

@@ -164,6 +164,9 @@ impl SourceDatabase {
         let Some(path_str) = normalize_supported_audio_path(path)? else {
             return Ok(None);
         };
+        if !schema_has_collection_column(self)? {
+            return Ok(None);
+        }
         let value: Option<i64> = self
             .connection
             .query_row(
@@ -200,4 +203,9 @@ impl SourceDatabase {
     pub fn get_wav_paths_revision(&self) -> Result<u64, SourceDbError> {
         self.get_numeric_metadata(META_WAV_PATHS_REVISION)
     }
+}
+
+fn schema_has_collection_column(db: &SourceDatabase) -> Result<bool, SourceDbError> {
+    let columns = super::super::schema::table_columns(&db.connection, "wav_files")?;
+    Ok(columns.contains("collection"))
 }

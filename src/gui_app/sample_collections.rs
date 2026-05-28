@@ -30,11 +30,13 @@ impl GuiAppState {
     pub(super) fn drop_drag_on_collection(
         &mut self,
         collection: SampleCollection,
-        _context: &mut ui::UpdateContext<GuiMessage>,
+        context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let updates = self.collection_updates_for_dragged_files(collection);
-        self.apply_collection_updates(collection, updates, "drop");
+        context.end_drag();
+        context.end_external_drag();
         self.folder_browser.clear_drag();
+        self.apply_collection_updates(collection, updates, "drop");
     }
 
     fn collection_updates_for_selected_files(

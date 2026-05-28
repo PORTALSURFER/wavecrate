@@ -25,6 +25,8 @@ impl FolderBrowserState {
 
         let source_changed = self.selected_source != source_id;
         self.cancel_rename();
+        self.selected_collection = None;
+        self.collection_rename_edit = None;
         self.selected_source = source_id;
         self.selected_folder = parent_id;
         self.selected_file = Some(file_id.clone());
@@ -85,6 +87,15 @@ impl FolderBrowserState {
             .filter(|file| selected.contains(&file.id))
             .map(|file| PathBuf::from(&file.id))
             .collect()
+    }
+
+    pub(in crate::gui_app) fn first_audio_file_path(&self) -> Option<PathBuf> {
+        self.sources
+            .iter()
+            .find(|source| source.id == self.selected_source)
+            .and_then(|source| source.root_folder.as_ref())
+            .and_then(first_audio_file_in_folder)
+            .map(PathBuf::from)
     }
 
     pub(in crate::gui_app) fn selected_file_rating_candidates(
@@ -204,7 +215,7 @@ impl FolderBrowserState {
     }
 
     pub(in crate::gui_app) fn select_file(&mut self, id: String) {
-        if self.selected_files().iter().any(|file| file.id == id) {
+        if self.selected_audio_files().iter().any(|file| file.id == id) {
             self.cancel_rename();
             self.set_single_file_selection(id);
         }
@@ -215,7 +226,7 @@ impl FolderBrowserState {
         id: String,
         modifiers: PointerModifiers,
     ) {
-        if self.rename_active() || !self.selected_files().iter().any(|file| file.id == id) {
+        if self.rename_active() || !self.selected_audio_files().iter().any(|file| file.id == id) {
             return;
         }
         self.cancel_rename();
@@ -235,7 +246,7 @@ impl FolderBrowserState {
 
     pub(in crate::gui_app) fn focus_file_preserving_selection(&mut self, id: String) {
         if self.selected_file_ids.contains(&id)
-            && self.selected_files().iter().any(|file| file.id == id)
+            && self.selected_audio_files().iter().any(|file| file.id == id)
         {
             self.selected_file = Some(id);
         } else {
@@ -341,6 +352,13 @@ impl FolderBrowserState {
         }
         changed
     }
+}
+
+fn first_audio_file_in_folder(folder: &super::FolderEntry) -> Option<&str> {
+    if let Some(file) = folder.files.iter().find(|file| file.is_audio()) {
+        return Some(file.id.as_str());
+    }
+    folder.children.iter().find_map(first_audio_file_in_folder)
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

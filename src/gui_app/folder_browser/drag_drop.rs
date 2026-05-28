@@ -8,7 +8,12 @@ use super::{
 
 impl FolderBrowserState {
     pub(in crate::gui_app) fn begin_file_drag(&mut self, file_id: String, position: Point) {
-        if self.rename_active() || !self.selected_files().iter().any(|file| file.id == file_id) {
+        if self.rename_active()
+            || !self
+                .selected_audio_files()
+                .iter()
+                .any(|file| file.id == file_id)
+        {
             return;
         }
         let file_ids = if self.selected_file_ids.contains(&file_id) {
@@ -89,7 +94,11 @@ impl FolderBrowserState {
     }
 
     pub(in crate::gui_app) fn clear_drag(&mut self) {
-        if self.drag.is_some() || self.drag_pointer.is_some() || self.drop_target_folder.is_some() {
+        if self.drag.is_some()
+            || self.drag_pointer.is_some()
+            || self.drop_target_folder.is_some()
+            || self.drop_target_collection.is_some()
+        {
             self.drag_revision = self.drag_revision.wrapping_add(1);
         }
         self.drag = None;
@@ -195,7 +204,9 @@ impl FolderBrowserState {
             }
             Some(FolderBrowserDrag::Files { file_ids }) => file_ids.iter().any(|id| {
                 let path = Path::new(id);
-                self.selected_files().iter().any(|file| file.id == *id)
+                self.selected_audio_files()
+                    .iter()
+                    .any(|file| file.id == *id)
                     && path.parent() != Some(target_path)
             }),
             Some(FolderBrowserDrag::ExtractedFile { path }) => {

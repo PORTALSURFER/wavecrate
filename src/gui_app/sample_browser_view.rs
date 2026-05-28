@@ -47,6 +47,7 @@ pub(super) fn sample_browser(
             window,
             state.sample_name_view_mode,
             &state.metadata_tags_by_file,
+            &state.cached_sample_paths,
             suppress_row_hover,
         ),
         sample_browser_status(audio_count),

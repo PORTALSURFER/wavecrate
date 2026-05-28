@@ -17,7 +17,7 @@ use super::{FolderBrowserDrag, FolderBrowserState};
 pub(in crate::gui_app) const COLLECTION_ROW_HEIGHT: f32 = 22.0;
 pub(in crate::gui_app) const MIN_COLLECTIONS_PANEL_HEIGHT: f32 = 72.0;
 pub(in crate::gui_app) const MAX_COLLECTIONS_PANEL_HEIGHT: f32 = 260.0;
-pub(in crate::gui_app) const DEFAULT_COLLECTIONS_PANEL_HEIGHT: f32 = 168.0;
+pub(in crate::gui_app) const DEFAULT_COLLECTIONS_PANEL_HEIGHT: f32 = 148.0;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::gui_app) struct SampleCollectionView {
@@ -61,6 +61,7 @@ pub(in crate::gui_app) struct CollectionRenameView {
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::gui_app) enum CollectionHitMessage {
     Activate,
+    Rename,
     Drop,
     HoverDropTarget(Point),
 }
@@ -134,13 +135,11 @@ impl FolderBrowserState {
         let path_id = path.to_string_lossy();
         let mut updated = false;
         for folder in &mut self.folders {
-            if let Some(file) = folder
-                .files
-                .iter_mut()
-                .find(|file| file.id == path_id.as_ref())
-            {
-                file.collection = Some(collection);
-                updated = true;
+            updated |= folder.set_file_collection(path_id.as_ref(), collection);
+        }
+        for source in &mut self.sources {
+            if let Some(root_folder) = &mut source.root_folder {
+                updated |= root_folder.set_file_collection(path_id.as_ref(), collection);
             }
         }
         updated
@@ -165,7 +164,7 @@ impl FolderBrowserState {
             Some(FolderBrowserDrag::Files { file_ids }) => file_ids
                 .iter()
                 .filter(|file_id| {
-                    self.selected_files()
+                    self.selected_audio_files()
                         .iter()
                         .any(|file| file.id == **file_id)
                 })
@@ -188,7 +187,7 @@ impl FolderBrowserState {
                 let Some(resize) = self.collection_panel_resize.clone() else {
                     return;
                 };
-                self.collections_panel_height = (resize.start_height + position.y - resize.start_y)
+                self.collections_panel_height = (resize.start_height + resize.start_y - position.y)
                     .clamp(MIN_COLLECTIONS_PANEL_HEIGHT, MAX_COLLECTIONS_PANEL_HEIGHT);
                 if matches!(message, DragHandleMessage::Ended { .. }) {
                     self.collection_panel_resize = None;
@@ -198,9 +197,11 @@ impl FolderBrowserState {
     }
 
     pub(super) fn activate_collection(&mut self, collection: SampleCollection) {
-        if self.selected_collection == Some(collection) && self.collection_rename_edit.is_none() {
-            self.begin_rename_collection(collection);
-            return;
+        if self.selected_collection != Some(collection) {
+            self.collection_rename_edit = None;
+            self.selected_file = None;
+            self.selected_file_ids.clear();
+            self.file_view_start = 0;
         }
         self.selected_collection = Some(collection);
     }
@@ -275,7 +276,7 @@ impl FolderBrowserState {
 
     fn collection_counts(&self) -> BTreeMap<u8, usize> {
         let mut counts = BTreeMap::new();
-        for file in self.selected_audio_files() {
+        for file in self.selected_source_audio_files() {
             if let Some(collection) = file.collection {
                 *counts.entry(collection.index()).or_insert(0) += 1;
             }
@@ -345,6 +346,15 @@ impl Widget for CollectionHitTarget {
                 self.common.state.pressed = false;
                 self.common.state.hovered = bounds.contains(position);
                 activated.then(|| WidgetOutput::typed(CollectionHitMessage::Activate))
+            }
+            WidgetInput::PointerDoubleClick {
+                position,
+                button: PointerButton::Primary,
+                ..
+            } if bounds.contains(position) => {
+                self.common.state.hovered = true;
+                self.common.state.pressed = false;
+                Some(WidgetOutput::typed(CollectionHitMessage::Rename))
             }
             WidgetInput::PointerDrop {
                 position,
@@ -442,14 +452,11 @@ impl Widget for CollectionHitTarget {
 }
 
 pub(in crate::gui_app) fn collection_hotkey(collection: SampleCollection) -> char {
-    match collection.index() {
-        0..=8 => char::from(b'1' + collection.index()),
-        _ => '0',
-    }
+    char::from(b'1' + collection.index())
 }
 
 pub(in crate::gui_app) fn collection_color(collection: SampleCollection) -> Rgba8 {
-    const COLORS: [Rgba8; 10] = [
+    const COLORS: [Rgba8; 6] = [
         Rgba8 {
             r: 255,
             g: 86,
@@ -475,39 +482,15 @@ pub(in crate::gui_app) fn collection_color(collection: SampleCollection) -> Rgba
             a: 240,
         },
         Rgba8 {
-            r: 65,
-            g: 221,
-            b: 167,
-            a: 240,
-        },
-        Rgba8 {
-            r: 70,
-            g: 202,
-            b: 244,
-            a: 240,
-        },
-        Rgba8 {
-            r: 112,
-            g: 146,
+            r: 58,
+            g: 197,
             b: 255,
             a: 240,
         },
         Rgba8 {
-            r: 178,
-            g: 117,
+            r: 174,
+            g: 112,
             b: 255,
-            a: 240,
-        },
-        Rgba8 {
-            r: 246,
-            g: 105,
-            b: 218,
-            a: 240,
-        },
-        Rgba8 {
-            r: 255,
-            g: 132,
-            b: 165,
             a: 240,
         },
     ];

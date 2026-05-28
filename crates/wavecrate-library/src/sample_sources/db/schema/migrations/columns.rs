@@ -62,6 +62,17 @@ pub(super) fn ensure_wav_files_optional_columns(
     Ok(())
 }
 
+pub(super) fn ensure_wav_files_collection_column(
+    connection: &Connection,
+) -> Result<(), SourceDbError> {
+    let columns = table_columns(connection, "wav_files")?;
+    add_column_if_missing(
+        connection,
+        &columns,
+        OptionalColumn::new("wav_files", "collection", "INTEGER"),
+    )
+}
+
 pub(super) fn ensure_pending_rename_optional_columns(
     connection: &Connection,
 ) -> Result<(), SourceDbError> {

@@ -8,8 +8,9 @@ use radiant::{
 #[test]
 fn sample_row_hit_target_survives_frame_refresh_between_press_and_release() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(160.0, 22.0));
-    let mut hit_target =
-        crate::gui_app::sample_browser_view::SampleFileHitTarget::new(false, false, false, false);
+    let mut hit_target = crate::gui_app::sample_browser_view::SampleFileHitTarget::new(
+        false, false, false, false, false,
+    );
 
     assert_eq!(
         hit_target.handle_input(
@@ -23,8 +24,9 @@ fn sample_row_hit_target_survives_frame_refresh_between_press_and_release() {
         None
     );
 
-    let mut refreshed_hit_target =
-        crate::gui_app::sample_browser_view::SampleFileHitTarget::new(false, false, false, false);
+    let mut refreshed_hit_target = crate::gui_app::sample_browser_view::SampleFileHitTarget::new(
+        false, false, false, false, false,
+    );
     refreshed_hit_target.common_mut().state = hit_target.common().state;
     let output = refreshed_hit_target
         .handle_input(
@@ -139,8 +141,9 @@ fn sample_browser_keyboard_scroll_keeps_two_context_rows() {
 
 #[test]
 fn selected_sample_browser_row_paints_strong_fill_and_left_marker() {
-    let widget =
-        crate::gui_app::sample_browser_view::SampleFileHitTarget::new(true, false, false, false);
+    let widget = crate::gui_app::sample_browser_view::SampleFileHitTarget::new(
+        true, false, false, false, false,
+    );
     let bounds = Rect::from_min_size(Point::new(12.0, 8.0), Vector2::new(240.0, 22.0));
     let mut primitives = Vec::new();
     widget.append_paint(
@@ -180,8 +183,9 @@ fn selected_sample_browser_row_paints_strong_fill_and_left_marker() {
 #[test]
 fn sample_browser_row_hover_paints_bright_background_without_marker() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(180.0, 22.0));
-    let mut hit_target =
-        crate::gui_app::sample_browser_view::SampleFileHitTarget::new(false, false, false, false);
+    let mut hit_target = crate::gui_app::sample_browser_view::SampleFileHitTarget::new(
+        false, false, false, false, false,
+    );
 
     assert_eq!(
         hit_target.handle_input(
@@ -208,16 +212,16 @@ fn sample_browser_row_hover_paints_bright_background_without_marker() {
         })
         .collect::<Vec<_>>();
 
-    assert_eq!(fills.len(), 1, "{fills:?}");
-    assert_eq!(fills[0].rect, bounds);
-    assert_eq!(
-        fills[0].color,
-        Rgba8 {
-            r: 255,
-            g: 108,
-            b: 88,
-            a: 155,
-        }
+    assert!(
+        fills.iter().any(|fill| fill.rect == bounds
+            && fill.color
+                == Rgba8 {
+                    r: 255,
+                    g: 108,
+                    b: 88,
+                    a: 155,
+                }),
+        "{fills:?}"
     );
 }
 

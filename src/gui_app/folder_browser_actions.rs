@@ -74,6 +74,9 @@ impl GuiAppState {
                 self.open_source_context_menu(source_id, position);
             }
             FolderBrowserMessage::BeginRenameSelected => self.begin_folder_browser_rename(context),
+            FolderBrowserMessage::CancelRename => {
+                self.folder_browser.cancel_rename();
+            }
             FolderBrowserMessage::BeginCreateSubfolder => {
                 self.begin_folder_browser_subfolder_creation(context);
             }

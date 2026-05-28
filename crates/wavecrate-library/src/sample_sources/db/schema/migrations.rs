@@ -18,7 +18,7 @@ use self::analysis_jobs::{
 use self::columns::{
     ensure_feature_metric_columns, ensure_file_ops_journal_optional_columns,
     ensure_pending_rename_optional_columns, ensure_samples_optional_columns,
-    ensure_wav_files_optional_columns,
+    ensure_wav_files_collection_column, ensure_wav_files_optional_columns,
 };
 pub(super) use self::invalid_paths::remove_invalid_relative_paths;
 use self::tag_catalog::{backfill_tag_catalog, ensure_tag_catalog_schema};
@@ -40,6 +40,7 @@ pub(super) fn apply_optional_migrations(connection: &Connection) -> Result<(), S
 
 /// Apply low-cost additive repairs that must not be skipped for current stamps.
 pub(super) fn apply_current_stamp_repairs(connection: &Connection) -> Result<(), SourceDbError> {
+    ensure_wav_files_collection_column(connection)?;
     ensure_pending_rename_optional_columns(connection)?;
     Ok(())
 }

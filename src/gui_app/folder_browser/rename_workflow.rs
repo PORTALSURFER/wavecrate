@@ -171,6 +171,7 @@ impl FolderBrowserState {
         self.clear_drag();
         self.discard_pending_created_folder();
         self.file_rename_edit = None;
+        self.collection_rename_edit = None;
     }
 
     fn commit_rename(&mut self, value: String) -> String {

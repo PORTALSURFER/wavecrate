@@ -28,6 +28,15 @@ fn selected_asset_file_path(browser: &super::FolderBrowserState, name: &str) -> 
         .clone()
 }
 
+fn first_visible_asset_file_path(browser: &super::FolderBrowserState) -> String {
+    browser
+        .selected_audio_files()
+        .first()
+        .unwrap_or_else(|| panic!("expected at least one visible audio sample"))
+        .id
+        .clone()
+}
+
 fn gui_state_for_span_tests() -> GuiAppState {
     GuiAppState {
         folder_width: DEFAULT_FOLDER_WIDTH,
@@ -77,6 +86,10 @@ fn gui_state_for_span_tests() -> GuiAppState {
         collapsed_metadata_tag_categories: Default::default(),
         metadata_tags_by_file: HashMap::new(),
         sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
+        startup_auto_load_pending: false,
+        waveform_cache: HashMap::new(),
+        waveform_cache_order: Default::default(),
+        cached_sample_paths: Default::default(),
     }
 }
 
@@ -143,6 +156,10 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
         collapsed_metadata_tag_categories: Default::default(),
         metadata_tags_by_file: HashMap::new(),
         sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
+        startup_auto_load_pending: false,
+        waveform_cache: HashMap::new(),
+        waveform_cache_order: Default::default(),
+        cached_sample_paths: Default::default(),
     };
     state.resize_folder_browser(DragHandleMessage::Started {
         position: Point::new(100.0, 0.0),
@@ -318,8 +335,16 @@ fn sample_selection_loads_selected_file_into_waveform() {
         collapsed_metadata_tag_categories: Default::default(),
         metadata_tags_by_file: HashMap::new(),
         sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
+        startup_auto_load_pending: false,
+        waveform_cache: HashMap::new(),
+        waveform_cache_order: Default::default(),
+        cached_sample_paths: Default::default(),
     };
-    let sample_path = selected_asset_file_path(&state.folder_browser, "portal_SS_kick_003.wav");
+    let sample_path = first_visible_asset_file_path(&state.folder_browser);
+    let sample_name = PathBuf::from(&sample_path)
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .expect("sample file name");
 
     let mut context = ui::UpdateContext::default();
     state.apply_message(
@@ -331,7 +356,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
     );
     assert_eq!(
         state.waveform_loading_label.as_deref(),
-        Some("portal_SS_kick_003.wav")
+        Some(sample_name.as_str())
     );
     let ticket = state.sample_load_task.active().expect("sample load queued");
     state.apply_message(
@@ -340,6 +365,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
             output: super::SampleLoadResult {
                 path: sample_path.clone(),
                 result: super::WaveformState::load_path(sample_path.clone().into()),
+                autoplay: true,
             },
         }),
         &mut context,
@@ -349,10 +375,26 @@ fn sample_selection_loads_selected_file_into_waveform() {
         state.folder_browser.selected_file_id(),
         Some(sample_path.as_str())
     );
-    assert_eq!(state.waveform.file_name(), "portal_SS_kick_003.wav");
+    assert_eq!(state.waveform.file_name(), sample_name);
     assert_eq!(state.waveform_loading_label, None);
     assert!(state.waveform.frames() > 0);
-    assert!(state.sample_status.contains("portal_SS_kick_003.wav"));
+    assert!(state.sample_status.contains(&sample_name));
+    assert!(state.cached_sample_paths.contains(&sample_path));
+
+    state.apply_message(
+        super::GuiMessage::SelectSampleWithModifiers {
+            path: sample_path.clone(),
+            modifiers: Default::default(),
+        },
+        &mut context,
+    );
+
+    assert!(
+        state.sample_load_task.active().is_none(),
+        "repeat selection should reuse the in-memory waveform cache instead of queuing decode work"
+    );
+    assert_eq!(state.waveform_loading_label, None);
+    assert_eq!(state.waveform.file_name(), sample_name);
 }
 
 #[test]

@@ -60,14 +60,14 @@ impl Rating {
 
 /// Fixed sample collection slot assigned to one wav file.
 ///
-/// Slots are zero-based internally (`0..=9`) and displayed as `1..9, 0` in the
+/// Slots are zero-based internally (`0..=5`) and displayed as `1..6` in the
 /// GUI so the value maps directly to the number-row hotkeys.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SampleCollection(u8);
 
 impl SampleCollection {
     /// Number of fixed collection slots exposed by the UI.
-    pub const COUNT: usize = 10;
+    pub const COUNT: usize = 6;
 
     /// Build a collection slot from a zero-based index.
     pub fn new(index: u8) -> Option<Self> {
