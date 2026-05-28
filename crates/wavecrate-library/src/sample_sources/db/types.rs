@@ -58,6 +58,38 @@ impl Rating {
     }
 }
 
+/// Fixed sample collection slot assigned to one wav file.
+///
+/// Slots are zero-based internally (`0..=9`) and displayed as `1..9, 0` in the
+/// GUI so the value maps directly to the number-row hotkeys.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SampleCollection(u8);
+
+impl SampleCollection {
+    /// Number of fixed collection slots exposed by the UI.
+    pub const COUNT: usize = 10;
+
+    /// Build a collection slot from a zero-based index.
+    pub fn new(index: u8) -> Option<Self> {
+        (index < Self::COUNT as u8).then_some(Self(index))
+    }
+
+    /// Return the zero-based collection index.
+    pub fn index(self) -> u8 {
+        self.0
+    }
+
+    /// Convert the slot to a SQLite-friendly integer.
+    pub fn as_i64(self) -> i64 {
+        self.0 as i64
+    }
+
+    /// Parse a SQLite integer into a valid slot.
+    pub fn from_i64(value: i64) -> Option<Self> {
+        u8::try_from(value).ok().and_then(Self::new)
+    }
+}
+
 /// Canonical sound classifications stored for browser auto-rename metadata.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SampleSoundType {

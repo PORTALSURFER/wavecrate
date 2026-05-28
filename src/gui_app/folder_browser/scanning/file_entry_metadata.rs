@@ -8,16 +8,17 @@ use super::super::{
     FileEntry,
     path_helpers::{file_extension_label, file_label, file_stem_label, path_id},
 };
-use wavecrate::sample_sources::Rating;
+use wavecrate::sample_sources::{Rating, SampleCollection};
 
 pub(in crate::gui_app::folder_browser) fn file_entry(path: &PathBuf) -> FileEntry {
-    file_entry_with_rating(path, Rating::NEUTRAL, false)
+    file_entry_with_metadata(path, Rating::NEUTRAL, false, None)
 }
 
-pub(in crate::gui_app::folder_browser) fn file_entry_with_rating(
+pub(in crate::gui_app::folder_browser) fn file_entry_with_metadata(
     path: &PathBuf,
     rating: Rating,
     rating_locked: bool,
+    collection: Option<SampleCollection>,
 ) -> FileEntry {
     let metadata = fs::metadata(path).ok();
     let size_bytes = metadata.as_ref().map(fs::Metadata::len).unwrap_or_default();
@@ -34,6 +35,7 @@ pub(in crate::gui_app::folder_browser) fn file_entry_with_rating(
         modified_rank: modified_rank(modified),
         rating,
         rating_locked,
+        collection,
     }
 }
 

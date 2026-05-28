@@ -152,6 +152,15 @@ impl FolderBrowserState {
                         .to_ascii_lowercase()
                         .cmp(&b.name.to_ascii_lowercase())
                 }),
+                "collection" => a
+                    .collection
+                    .map(|collection| collection.index())
+                    .cmp(&b.collection.map(|collection| collection.index()))
+                    .then_with(|| {
+                        a.name
+                            .to_ascii_lowercase()
+                            .cmp(&b.name.to_ascii_lowercase())
+                    }),
                 "path" => a.id.cmp(&b.id),
                 _ => a
                     .name

@@ -48,6 +48,7 @@ pub(super) fn sample_browser_rows(
                 folder_browser.drag_revision(),
                 folder_browser.file_drag_active(),
                 folder_browser.file_drag_source(&file.id),
+                folder_browser,
                 columns,
                 name_view_mode,
                 metadata_tags_by_file,
@@ -67,6 +68,7 @@ fn sample_browser_row(
     drag_revision: u64,
     drag_active: bool,
     drag_source: bool,
+    folder_browser: &FolderBrowserState,
     columns: &[&FileColumn],
     name_view_mode: SampleNameViewMode,
     metadata_tags_by_file: &HashMap<String, Vec<String>>,
@@ -89,6 +91,7 @@ fn sample_browser_row(
                 file,
                 rename.clone(),
                 column,
+                folder_browser,
                 name_view_mode,
                 metadata_tags_by_file,
             )
@@ -135,6 +138,7 @@ fn sample_column_cell(
     file: &FileEntry,
     rename: Option<folder_browser::FileRenameView>,
     column: &FileColumn,
+    folder_browser: &FolderBrowserState,
     name_view_mode: SampleNameViewMode,
     metadata_tags_by_file: &HashMap<String, Vec<String>>,
 ) -> ui::View<GuiMessage> {
@@ -149,6 +153,9 @@ fn sample_column_cell(
     }
     if column.id == "rating" {
         return sample_rating_cell(file, column.width);
+    }
+    if column.id == "collection" {
+        return sample_collection_cell(file, column.width, folder_browser);
     }
     sample_file_cell(
         file,
@@ -218,9 +225,30 @@ fn sample_file_column_value(file: &FileEntry, column_id: &str) -> String {
         "size" => file.size.clone(),
         "modified" => file.modified.clone(),
         "kind" => file.kind.clone(),
+        "collection" => file
+            .collection
+            .map(|collection| folder_browser::collection_hotkey(collection).to_string())
+            .unwrap_or_default(),
         "path" => file.id.clone(),
         _ => file.stem.clone(),
     }
+}
+
+fn sample_collection_cell(
+    file: &FileEntry,
+    width: f32,
+    folder_browser: &FolderBrowserState,
+) -> ui::View<GuiMessage> {
+    ui::custom_widget(
+        CollectionBlock::new(
+            file.collection
+                .and_then(|collection| folder_browser.collection_color(collection)),
+        ),
+        |_| None,
+    )
+    .key(format!("sample-collection-{}", file.id))
+    .height(20.0)
+    .width(width)
 }
 
 fn sample_rating_cell(file: &FileEntry, width: f32) -> ui::View<GuiMessage> {
@@ -261,6 +289,60 @@ struct RatingSquares {
     common: WidgetCommon,
     rating: Rating,
     locked: bool,
+}
+
+#[derive(Clone, Debug)]
+struct CollectionBlock {
+    common: WidgetCommon,
+    color: Option<Rgba8>,
+}
+
+impl CollectionBlock {
+    fn new(color: Option<Rgba8>) -> Self {
+        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 1.0)));
+        common.focus = FocusBehavior::None;
+        common.paint.paints_focus = false;
+        common.paint.paints_state_layers = false;
+        Self { common, color }
+    }
+}
+
+impl Widget for CollectionBlock {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+        None
+    }
+
+    fn needs_state_synchronization(&self) -> bool {
+        false
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        _theme: &ThemeTokens,
+    ) {
+        let Some(color) = self.color else {
+            return;
+        };
+        let size = 10.0_f32.min(bounds.height().max(0.0));
+        let x = bounds.max.x - size - 4.0;
+        let y = bounds.min.y + (bounds.height() - size) * 0.5;
+        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+            widget_id: self.common.id,
+            rect: Rect::from_min_max(Point::new(x, y), Point::new(x + size, y + size)),
+            color,
+        }));
+    }
 }
 
 impl RatingSquares {
@@ -416,6 +498,7 @@ mod tests {
             modified_rank: 1,
             rating: Rating::NEUTRAL,
             rating_locked: false,
+            collection: None,
         }
     }
 

@@ -102,6 +102,7 @@ impl DragDropController<'_> {
                 .and_then(|tags| tags.get(&entry.relative_path))
                 .map(|tags| tags.iter().map(|tag| tag.display_label.clone()).collect())
                 .unwrap_or_else(|| entry.normal_tags.clone()),
+            collection: None,
         }
     }
 }

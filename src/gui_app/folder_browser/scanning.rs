@@ -12,13 +12,13 @@ use super::{
         FolderScanResult,
     },
 };
-use wavecrate::sample_sources::{Rating, SourceDatabase};
+use wavecrate::sample_sources::{Rating, SampleCollection, SourceDatabase};
 
 mod discovery_merge;
 mod file_entry_metadata;
 pub(super) use discovery_merge::{merge_scan_discovery, upsert_file, upsert_folder};
 pub(super) use file_entry_metadata::file_entry;
-use file_entry_metadata::file_entry_with_rating;
+use file_entry_metadata::file_entry_with_metadata;
 
 const MAX_SCAN_DEPTH: usize = 3;
 const MAX_CHILD_FOLDERS: usize = 80;
@@ -79,9 +79,9 @@ pub(in crate::gui_app) fn scan_source_with_progress(
     }
 }
 
-type SourceRatingMap = HashMap<PathBuf, (Rating, bool)>;
+type SourceMetadataMap = HashMap<PathBuf, (Rating, bool, Option<SampleCollection>)>;
 
-fn source_rating_map(root: &Path) -> SourceRatingMap {
+fn source_rating_map(root: &Path) -> SourceMetadataMap {
     let Ok(db) = SourceDatabase::open_read_only(root) else {
         return HashMap::new();
     };
@@ -90,7 +90,10 @@ fn source_rating_map(root: &Path) -> SourceRatingMap {
     };
     entries
         .into_iter()
-        .map(|entry| (entry.relative_path, (entry.tag, entry.locked)))
+        .map(|entry| {
+            let collection = db.collection_for_path(&entry.relative_path).ok().flatten();
+            (entry.relative_path, (entry.tag, entry.locked, collection))
+        })
         .collect()
 }
 
@@ -98,7 +101,7 @@ fn load_folder(
     path: &Path,
     depth: usize,
     source_root: &Path,
-    ratings: &SourceRatingMap,
+    ratings: &SourceMetadataMap,
 ) -> Option<FolderEntry> {
     if depth > MAX_SCAN_DEPTH {
         return None;
@@ -135,7 +138,7 @@ where
     D: FnMut(FolderScanDiscovery),
 {
     request: &'a FolderScanRequest,
-    ratings: SourceRatingMap,
+    ratings: SourceMetadataMap,
     counter: ScanProgressCounter,
     progress: &'a mut P,
     discovered: &'a mut D,
@@ -248,13 +251,13 @@ where
     })
 }
 
-fn rated_file_entry(path: &PathBuf, source_root: &Path, ratings: &SourceRatingMap) -> FileEntry {
-    let (rating, locked) = path
+fn rated_file_entry(path: &PathBuf, source_root: &Path, ratings: &SourceMetadataMap) -> FileEntry {
+    let (rating, locked, collection) = path
         .strip_prefix(source_root)
         .ok()
         .and_then(|relative| ratings.get(relative).copied())
-        .unwrap_or((Rating::NEUTRAL, false));
-    file_entry_with_rating(path, rating, locked)
+        .unwrap_or((Rating::NEUTRAL, false, None));
+    file_entry_with_metadata(path, rating, locked, collection)
 }
 
 fn read_sorted_entries(path: &Path) -> Vec<PathBuf> {

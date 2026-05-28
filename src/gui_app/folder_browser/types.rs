@@ -4,6 +4,7 @@ use radiant::{
     gui::types::Point,
     widgets::{DragHandleMessage, TextInputMessage},
 };
+use wavecrate::sample_sources::SampleCollection;
 
 use super::{FileEntry, FolderEntry};
 
@@ -60,6 +61,10 @@ pub(in crate::gui_app) enum FolderBrowserMessage {
     HoverDropTarget(String, Point),
     ClearDropTarget(Point),
     DropOnFolder(String),
+    ResizeCollectionsPanel(DragHandleMessage),
+    ActivateCollection(SampleCollection),
+    HoverCollectionDropTarget(SampleCollection, Point),
+    DropOnCollection(SampleCollection),
     BeginRenameSelected,
     BeginCreateSubfolder,
     RenameInput(TextInputMessage),

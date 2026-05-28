@@ -4,7 +4,8 @@ use rusqlite::OptionalExtension;
 
 use super::super::util::map_sql_error;
 use super::super::{
-    META_WAV_PATHS_REVISION, Rating, SampleSoundType, SourceDatabase, SourceDbError,
+    META_WAV_PATHS_REVISION, Rating, SampleCollection, SampleSoundType, SourceDatabase,
+    SourceDbError,
 };
 
 fn normalize_supported_audio_path(path: &Path) -> Result<Option<String>, SourceDbError> {
@@ -153,6 +154,27 @@ impl SourceDatabase {
             .map_err(map_sql_error)?
             .flatten();
         Ok(value)
+    }
+
+    /// Fetch the fixed collection slot for a specific wav path.
+    pub fn collection_for_path(
+        &self,
+        path: &Path,
+    ) -> Result<Option<SampleCollection>, SourceDbError> {
+        let Some(path_str) = normalize_supported_audio_path(path)? else {
+            return Ok(None);
+        };
+        let value: Option<i64> = self
+            .connection
+            .query_row(
+                "SELECT collection FROM wav_files WHERE path = ?1",
+                rusqlite::params![path_str.as_str()],
+                |row| row.get::<_, Option<i64>>(0),
+            )
+            .optional()
+            .map_err(map_sql_error)?
+            .flatten();
+        Ok(value.and_then(SampleCollection::from_i64))
     }
 
     /// Read a metadata value by key from the database.

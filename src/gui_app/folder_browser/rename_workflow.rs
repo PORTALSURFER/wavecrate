@@ -10,7 +10,9 @@ use super::{
 
 impl FolderBrowserState {
     pub(in crate::gui_app) fn rename_active(&self) -> bool {
-        self.rename_edit.is_some() || self.file_rename_edit.is_some()
+        self.rename_edit.is_some()
+            || self.file_rename_edit.is_some()
+            || self.collection_rename_edit.is_some()
     }
 
     pub(in crate::gui_app) fn selected_rename_target(&self) -> RenameTargetView {
@@ -23,6 +25,18 @@ impl FolderBrowserState {
             return RenameTargetView {
                 kind: "file",
                 label: file.name.clone(),
+                is_source_root: false,
+            };
+        }
+        if let Some(collection) = self.selected_collection
+            && let Some(entry) = self
+                .collections
+                .iter()
+                .find(|entry| entry.collection == collection)
+        {
+            return RenameTargetView {
+                kind: "collection",
+                label: entry.name.clone(),
                 is_source_root: false,
             };
         }
@@ -43,6 +57,11 @@ impl FolderBrowserState {
     pub(in crate::gui_app) fn begin_rename_selected(&mut self) -> Result<Option<u64>, String> {
         self.discard_pending_created_folder();
         if let Some(input_id) = self.begin_file_rename_selected() {
+            return Ok(Some(input_id));
+        }
+        if let Some(collection) = self.selected_collection
+            && let Some(input_id) = self.begin_rename_collection(collection)
+        {
             return Ok(Some(input_id));
         }
 
@@ -116,6 +135,13 @@ impl FolderBrowserState {
     ) -> Option<String> {
         match message {
             TextInputMessage::Changed { value } => {
+                if let Some(status) =
+                    self.apply_collection_rename_input(TextInputMessage::Changed {
+                        value: value.clone(),
+                    })
+                {
+                    return Some(status);
+                }
                 if let Some(edit) = &mut self.file_rename_edit {
                     edit.draft = value;
                 } else if let Some(edit) = &mut self.rename_edit {
@@ -124,6 +150,13 @@ impl FolderBrowserState {
                 None
             }
             TextInputMessage::Submitted { value } => {
+                if let Some(status) =
+                    self.apply_collection_rename_input(TextInputMessage::Submitted {
+                        value: value.clone(),
+                    })
+                {
+                    return Some(status);
+                }
                 if self.file_rename_edit.is_some() {
                     Some(self.commit_file_rename(value))
                 } else {

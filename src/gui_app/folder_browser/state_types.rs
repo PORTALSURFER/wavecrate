@@ -98,6 +98,7 @@ pub(super) fn default_file_columns() -> Vec<FileColumn> {
     vec![
         file_column("name", "Name", 240.0),
         file_column("rating", "Rating", 68.0),
+        file_column("collection", "Col", 58.0),
         file_column("extension", "Ext", 54.0),
         file_column("size", "Size", 78.0),
         file_column("modified", "Modified", 112.0),

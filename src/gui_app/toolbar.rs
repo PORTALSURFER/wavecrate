@@ -9,9 +9,10 @@ const TOOLBAR_ICON_DISABLED_COLOR: &str = "#919191";
 pub(super) const TOOLBAR_FOCUS_LOADED_ID: u64 = 32_100;
 const TOOLBAR_LOOP_ID: u64 = 32_101;
 const TOOLBAR_PLAY_ID: u64 = 32_102;
-const TOOLBAR_STOP_ID: u64 = 32_103;
+pub(super) const TOOLBAR_STOP_ID: u64 = 32_103;
 
 pub(super) fn main_toolbar(state: &GuiAppState) -> ui::View<GuiMessage> {
+    let stop_enabled = state.waveform.has_loaded_sample();
     ui::row([
         ui::spacer().height(24.0).fill_width(),
         toolbar_icon_button(
@@ -32,12 +33,7 @@ pub(super) fn main_toolbar(state: &GuiAppState) -> ui::View<GuiMessage> {
             true,
             state.waveform.is_playing(),
         ),
-        toolbar_icon_button(
-            TOOLBAR_STOP_ID,
-            ToolbarIcon::Stop,
-            state.waveform.is_playing(),
-            false,
-        ),
+        toolbar_icon_button(TOOLBAR_STOP_ID, ToolbarIcon::Stop, stop_enabled, false),
     ])
     .padding_y(3.0)
     .style(ui::WidgetStyle::default())

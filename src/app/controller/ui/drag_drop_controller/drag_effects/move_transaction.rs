@@ -22,6 +22,8 @@ pub(super) struct SampleMoveMetadata {
     pub(super) user_tag: Option<String>,
     /// Normal library tag labels assigned to the sample.
     pub(super) normal_tags: Vec<String>,
+    /// Fixed collection slot assigned to the sample.
+    pub(super) collection: Option<crate::sample_sources::SampleCollection>,
 }
 
 /// Filesystem/journal state prepared before DB mutation and finalization.
@@ -88,6 +90,9 @@ pub(super) fn load_sample_move_metadata(
     let normal_tags = db
         .tag_labels_for_path(relative_path)
         .map_err(|err| format!("Failed to read database: {err}"))?;
+    let collection = db
+        .collection_for_path(relative_path)
+        .map_err(|err| format!("Failed to read database: {err}"))?;
     Ok(SampleMoveMetadata {
         tag,
         looped,
@@ -96,6 +101,7 @@ pub(super) fn load_sample_move_metadata(
         sound_type,
         user_tag,
         normal_tags,
+        collection,
     })
 }
 

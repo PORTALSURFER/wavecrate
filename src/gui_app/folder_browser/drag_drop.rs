@@ -95,6 +95,7 @@ impl FolderBrowserState {
         self.drag = None;
         self.drag_pointer = None;
         self.drop_target_folder = None;
+        self.drop_target_collection = None;
     }
 
     pub(in crate::gui_app) fn hovered_drop_target_folder_id(&self) -> Option<String> {

@@ -84,6 +84,10 @@ impl GuiAppState {
                 self.context_menu = None;
                 self.drop_browser_drag_on_folder(folder_id, context);
             }
+            FolderBrowserMessage::DropOnCollection(collection) => {
+                self.context_menu = None;
+                self.drop_drag_on_collection(collection, context);
+            }
             FolderBrowserMessage::OpenFolderContextMenu(folder_id, position) => {
                 self.open_folder_context_menu(folder_id, position);
             }

@@ -15,6 +15,7 @@ use wavecrate::audio::{
     available_devices, available_hosts, supported_sample_rates,
 };
 use wavecrate::logging;
+use wavecrate::sample_sources::SampleCollection;
 #[cfg(test)]
 use wavecrate::sample_sources::config::AppConfig;
 use wavecrate::sample_sources::config::AppSettingsCore;
@@ -35,6 +36,7 @@ mod lifecycle;
 mod metadata_tags;
 mod playback;
 mod sample_browser_view;
+mod sample_collections;
 mod sample_load_actions;
 mod sample_ratings;
 mod selected_file_actions;
@@ -71,7 +73,9 @@ use sample_browser_view::sample_browser;
 use sample_load_actions::{NormalizedWaveformReload, WaveformPlaybackResume};
 use shortcuts::default_gui_shortcut_resolution;
 #[cfg(test)]
-use toolbar::{TOOLBAR_FOCUS_LOADED_ID, ToolbarIcon, toolbar_icon_button, toolbar_icon_svg};
+use toolbar::{
+    TOOLBAR_FOCUS_LOADED_ID, TOOLBAR_STOP_ID, ToolbarIcon, toolbar_icon_button, toolbar_icon_svg,
+};
 use waveform::{WaveformActiveDragKind, WaveformInteraction, WaveformSelectionKind, WaveformState};
 
 const DEFAULT_FOLDER_WIDTH: f32 = 260.0;
@@ -164,6 +168,7 @@ enum GuiMessage {
     ClearRebuildableCaches,
     FocusLoadedFile,
     AdjustSelectedRating(i8),
+    AssignSelectedCollection(SampleCollection),
     NormalizeSelectedSamples,
     CopySelectedFiles,
     CopyContextPath,
@@ -469,6 +474,9 @@ impl GuiAppState {
             GuiMessage::ClearRebuildableCaches => self.clear_rebuildable_caches(),
             GuiMessage::FocusLoadedFile => self.focus_loaded_file(context),
             GuiMessage::AdjustSelectedRating(delta) => self.adjust_selected_rating(delta, context),
+            GuiMessage::AssignSelectedCollection(collection) => {
+                self.assign_selected_collection(collection, context)
+            }
             GuiMessage::NormalizeSelectedSamples => self.normalize_selected_samples(context),
             GuiMessage::CopySelectedFiles => self.copy_selected_files(),
             GuiMessage::CopyContextPath => self.copy_context_path(),

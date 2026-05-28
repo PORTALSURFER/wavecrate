@@ -59,6 +59,8 @@ pub(crate) struct DropTargetTransferMetadata {
     pub(crate) user_tag: Option<String>,
     /// Normal library tag labels assigned to the sample.
     pub(crate) normal_tags: Vec<String>,
+    /// Fixed collection slot assigned to the sample.
+    pub(crate) collection: Option<crate::sample_sources::SampleCollection>,
 }
 
 /// Result of a background drop-target copy or move operation.
@@ -105,6 +107,8 @@ pub(crate) struct DropTargetTransferSuccess {
     pub(crate) user_tag: Option<String>,
     /// Normal library tag labels assigned to the sample.
     pub(crate) normal_tags: Vec<String>,
+    /// Fixed collection slot assigned to the sample.
+    pub(crate) collection: Option<crate::sample_sources::SampleCollection>,
 }
 
 /// Successful paste into a source folder with metadata for follow-up updates.
@@ -198,4 +202,6 @@ pub(crate) struct SourceMoveSuccess {
     pub(crate) user_tag: Option<String>,
     /// Normal library tag labels assigned to the sample.
     pub(crate) normal_tags: Vec<String>,
+    /// Fixed collection slot assigned to the sample.
+    pub(crate) collection: Option<crate::sample_sources::SampleCollection>,
 }

@@ -9,7 +9,7 @@ use crate::app::controller::jobs::{
     DropTargetTransferKind, DropTargetTransferRequest, FileOpMessage, FileOpResult,
 };
 use crate::app::state::{DragSample, ProgressTaskKind};
-use crate::sample_sources::{Rating, SourceId};
+use crate::sample_sources::{Rating, SampleCollection, SourceId};
 use std::path::PathBuf;
 use std::sync::{Arc, atomic::AtomicBool};
 use tracing::info;
@@ -33,6 +33,7 @@ pub(super) struct DroppedSampleMetadata {
     sound_type: Option<crate::sample_sources::SampleSoundType>,
     user_tag: Option<String>,
     normal_tags: Vec<String>,
+    collection: Option<SampleCollection>,
 }
 
 impl DragDropController<'_> {

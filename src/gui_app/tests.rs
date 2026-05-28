@@ -660,6 +660,106 @@ fn focus_loaded_toolbar_button_is_topmost_hit_target_and_paints_hover_feedback()
     );
 }
 
+#[test]
+fn stop_toolbar_button_is_hit_target_and_paints_hover_while_playing() {
+    let mut state = GuiAppState::load_default().expect("default state loads");
+    state.waveform = super::WaveformState::synthetic_for_tests();
+    state.waveform.start_playback(0.25);
+    let bridge = DeclarativeOwnedRuntimeBridge::new(
+        state,
+        |state| radiant::runtime::UiSurface::new(super::view(state).into_node()),
+        |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
+    );
+    let theme = radiant::theme::ThemeTokens::default();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&theme);
+    let icon_rect = frame
+        .paint_plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::Svg(svg) if svg.widget_id == super::TOOLBAR_STOP_ID => Some(svg.rect),
+            _ => None,
+        })
+        .expect("stop toolbar icon should paint");
+    let point = Point::new(
+        (icon_rect.min.x + icon_rect.max.x) * 0.5,
+        (icon_rect.min.y + icon_rect.max.y) * 0.5,
+    );
+
+    assert_eq!(
+        runtime.widget_at(point),
+        Some(super::TOOLBAR_STOP_ID),
+        "stop button must be the topmost hit target while playback is active"
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerMove { position: point }),
+        Some(super::TOOLBAR_STOP_ID)
+    );
+    let hovered_frame = runtime.frame(&theme);
+    assert!(
+        hovered_frame
+            .paint_plan
+            .primitives
+            .iter()
+            .any(|primitive| matches!(
+                primitive,
+                PaintPrimitive::FillPolygon(fill)
+                    if fill.widget_id == super::TOOLBAR_STOP_ID
+                        && fill.color.a > 0
+            )),
+        "hovering the playing stop button should paint a visible accent overlay"
+    );
+    runtime.dispatch_event(Event::PointerPress {
+        position: point,
+        button: PointerButton::Primary,
+        modifiers: PointerModifiers::default(),
+    });
+    runtime.dispatch_event(Event::PointerRelease {
+        position: point,
+        button: PointerButton::Primary,
+        modifiers: PointerModifiers::default(),
+    });
+    assert!(
+        !runtime.bridge().state().waveform.is_playing(),
+        "clicking the playing stop button should dispatch StopPlayback"
+    );
+}
+
+#[test]
+fn stop_toolbar_button_remains_available_for_loaded_idle_sample() {
+    let mut state = GuiAppState::load_default().expect("default state loads");
+    state.waveform = super::WaveformState::synthetic_for_tests();
+    assert!(!state.waveform.is_playing());
+    let bridge = DeclarativeOwnedRuntimeBridge::new(
+        state,
+        |state| radiant::runtime::UiSurface::new(super::view(state).into_node()),
+        |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
+    );
+    let theme = radiant::theme::ThemeTokens::default();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&theme);
+    let icon_rect = frame
+        .paint_plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::Svg(svg) if svg.widget_id == super::TOOLBAR_STOP_ID => Some(svg.rect),
+            _ => None,
+        })
+        .expect("stop toolbar icon should paint");
+    let point = Point::new(
+        (icon_rect.min.x + icon_rect.max.x) * 0.5,
+        (icon_rect.min.y + icon_rect.max.y) * 0.5,
+    );
+
+    assert_eq!(runtime.widget_at(point), Some(super::TOOLBAR_STOP_ID));
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerMove { position: point }),
+        Some(super::TOOLBAR_STOP_ID)
+    );
+}
+
 fn temp_gui_root(name: &str) -> PathBuf {
     let root = std::env::temp_dir().join(format!(
         "{name}-{}",
@@ -883,7 +983,7 @@ fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
     );
 
     assert!(frame_has_text(&frame, "Filter"));
-    assert!(frame_has_text(&frame, "Metadata"));
+    assert!(!frame_has_text(&frame, "Metadata"));
     assert!(!frame_has_text(&frame, "Tagging"));
     assert!(frame_has_text(&frame, "kick"));
     assert!(frame_has_text(&frame, ">"));
@@ -1463,7 +1563,7 @@ fn folder_browser_metadata_hides_tag_entry_when_no_file_is_selected() {
         &radiant::theme::ThemeTokens::default(),
     );
 
-    assert!(frame_has_text(&frame, "Metadata"));
+    assert!(!frame_has_text(&frame, "Metadata"));
     assert!(!frame_has_text(&frame, "Tags (1)"));
     assert!(!frame_has_text(&frame, "kick"));
     assert!(

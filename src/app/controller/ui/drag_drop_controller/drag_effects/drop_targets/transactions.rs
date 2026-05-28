@@ -16,6 +16,7 @@ pub(super) fn sample_move_metadata(metadata: &DroppedSampleMetadata) -> SampleMo
         sound_type: metadata.sound_type,
         user_tag: metadata.user_tag.clone(),
         normal_tags: metadata.normal_tags.clone(),
+        collection: metadata.collection,
     }
 }
 
@@ -60,6 +61,9 @@ pub(super) fn register_drop_target_target_entry(
     batch
         .replace_tags_for_path(relative_path, &metadata.normal_tags)
         .map_err(|err| format!("Failed to copy normal tags: {err}"))?;
+    batch
+        .set_collection(relative_path, metadata.collection)
+        .map_err(|err| format!("Failed to copy collection: {err}"))?;
     batch
         .commit()
         .map_err(|err| format!("Failed to commit target DB update: {err}"))

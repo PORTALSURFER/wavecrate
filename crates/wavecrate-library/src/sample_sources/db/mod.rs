@@ -34,7 +34,7 @@ pub use open::{test_reset_source_db_open_total_count, test_source_db_open_total_
 pub use open_profiles::SourceDatabaseConnectionRole;
 /// Metadata retained for a pruned row so later scans can recover rename state.
 pub use pending_renames::PendingRenameEntry;
-pub use types::{Rating, SampleSoundType, SourceTag, SourceTagUsage, WavEntry};
+pub use types::{Rating, SampleCollection, SampleSoundType, SourceTag, SourceTagUsage, WavEntry};
 pub use util::normalize_relative_path;
 
 /// Hidden filename used for per-source databases.

@@ -302,6 +302,7 @@ fn rewrite_entry(
         sound_type: entry.sound_type,
         user_tag: entry.user_tag.clone(),
         normal_tags: entry.normal_tags.clone(),
+        collection: None,
     })
 }
 

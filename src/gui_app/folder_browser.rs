@@ -2,6 +2,7 @@
 
 use radiant::{gui::types::Point, prelude as ui};
 use std::{collections::HashSet, path::PathBuf};
+use wavecrate::sample_sources::SampleCollection;
 
 use super::GuiMessage;
 
@@ -22,7 +23,13 @@ pub(super) struct FolderBrowserState {
     drag: Option<FolderBrowserDrag>,
     drag_pointer: Option<Point>,
     drop_target_folder: Option<String>,
+    drop_target_collection: Option<SampleCollection>,
     drag_revision: u64,
+    collections: Vec<SampleCollectionConfig>,
+    selected_collection: Option<SampleCollection>,
+    collection_rename_edit: Option<CollectionRenameEdit>,
+    collections_panel_height: f32,
+    collection_panel_resize: Option<CollectionPanelResize>,
     file_columns: Vec<FileColumn>,
     file_sort: ui::DetailsSort,
     file_column_resize: Option<FileColumnResize>,
@@ -63,7 +70,13 @@ impl FolderBrowserState {
             drag: None,
             drag_pointer: None,
             drop_target_folder: None,
+            drop_target_collection: None,
             drag_revision: 0,
+            collections: Self::default_collections(),
+            selected_collection: None,
+            collection_rename_edit: None,
+            collections_panel_height: DEFAULT_COLLECTIONS_PANEL_HEIGHT,
+            collection_panel_resize: None,
             file_columns: default_file_columns(),
             file_sort: ui::DetailsSort::new("name", ui::SortDirection::Ascending),
             file_column_resize: None,
@@ -149,7 +162,8 @@ impl FolderBrowserState {
             | FolderBrowserMessage::BeginRenameSelected
             | FolderBrowserMessage::BeginCreateSubfolder
             | FolderBrowserMessage::RenameInput(_)
-            | FolderBrowserMessage::DropOnFolder(_) => {}
+            | FolderBrowserMessage::DropOnFolder(_)
+            | FolderBrowserMessage::DropOnCollection(_) => {}
             FolderBrowserMessage::ClearDropTarget(position) => {
                 self.update_drag_pointer(position);
                 self.drop_target_folder = None;
@@ -175,9 +189,27 @@ impl FolderBrowserState {
             FolderBrowserMessage::DragFileColumn(column_id, message) => {
                 self.drag_file_column(column_id, message);
             }
+            FolderBrowserMessage::ResizeCollectionsPanel(message) => {
+                self.resize_collections_panel(message);
+            }
+            FolderBrowserMessage::ActivateCollection(collection) => {
+                self.activate_collection(collection);
+            }
+            FolderBrowserMessage::HoverCollectionDropTarget(collection, position) => {
+                self.hover_drop_target_collection(collection, position);
+            }
         }
     }
 }
+
+mod collections;
+pub(in crate::gui_app) use collections::{
+    CollectionHitMessage, CollectionHitTarget, SampleCollectionView, collection_hotkey,
+};
+use collections::{
+    CollectionPanelResize, CollectionRenameEdit, DEFAULT_COLLECTIONS_PANEL_HEIGHT,
+    SampleCollectionConfig,
+};
 
 mod path_helpers;
 use path_helpers::{folder_label, path_id, rewrite_path_id};
