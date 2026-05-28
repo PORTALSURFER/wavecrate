@@ -227,15 +227,13 @@ mod tests {
         trace_projection_segment_lookup(ProjectionSegment::BrowserRowsWindow, false);
         let after = BridgeMetricsSnapshot::capture();
 
-        assert!(after.projection_cache_hit_count >= before.projection_cache_hit_count + 1);
-        assert!(after.projection_cache_miss_count >= before.projection_cache_miss_count + 1);
-        assert!(after.status_segment_hit_count >= before.status_segment_hit_count + 1);
+        assert!(after.projection_cache_hit_count > before.projection_cache_hit_count);
+        assert!(after.projection_cache_miss_count > before.projection_cache_miss_count);
+        assert!(after.status_segment_hit_count > before.status_segment_hit_count);
         assert!(
             after.browser_tag_sidebar_segment_hit_count
-                >= before.browser_tag_sidebar_segment_hit_count + 1
+                > before.browser_tag_sidebar_segment_hit_count
         );
-        assert!(
-            after.browser_rows_segment_miss_count >= before.browser_rows_segment_miss_count + 1
-        );
+        assert!(after.browser_rows_segment_miss_count > before.browser_rows_segment_miss_count);
     }
 }

@@ -64,14 +64,14 @@ impl AppController {
             self.set_status("Select a source first", StatusTone::Info);
             return;
         };
-        if self.warn_if_retained_delete_path_busy(&source.id, &target, "deleting") {
+        if self.warn_if_retained_delete_path_busy(&source.id, target, "deleting") {
             return;
         }
         if target.as_os_str().is_empty() {
             self.set_status("Root folder cannot be deleted", StatusTone::Info);
             return;
         }
-        match self.remove_folder(&target) {
+        match self.remove_folder(target) {
             Ok(true) => {}
             Ok(false) => {}
             Err(err) => self.set_status(err, StatusTone::Error),

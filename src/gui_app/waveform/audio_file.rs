@@ -103,16 +103,15 @@ pub(super) fn load_waveform_file_with_progress_and_cancel(
     if cancelled() {
         return Err(String::from("cancelled"));
     }
-    if is_wav_path(&path) {
-        if let Ok(file) =
+    if is_wav_path(&path)
+        && let Ok(file) =
             load_wav_waveform_file_with_progress(path.clone(), Arc::clone(&bytes), &progress)
-        {
-            if cancelled() {
-                return Err(String::from("cancelled"));
-            }
-            store_cached_waveform_file(&file);
-            return Ok(file);
+    {
+        if cancelled() {
+            return Err(String::from("cancelled"));
         }
+        store_cached_waveform_file(&file);
+        return Ok(file);
     }
     if cancelled() {
         return Err(String::from("cancelled"));

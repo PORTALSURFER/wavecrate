@@ -53,10 +53,11 @@ impl Default for AudioWriteFormatConfig {
 }
 
 /// Sample-rate policy used when Wavecrate writes audio.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum AudioWriteSampleRate {
     /// Preserve the loaded/rendered source rate.
+    #[default]
     Source,
     /// Write at a fixed sample rate. Resampling support is staged separately.
     Hz(u32),
@@ -78,14 +79,8 @@ impl AudioWriteSampleRate {
     }
 }
 
-impl Default for AudioWriteSampleRate {
-    fn default() -> Self {
-        Self::Source
-    }
-}
-
 /// WAV sample encoding used when Wavecrate creates files.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum AudioWriteSampleFormat {
     /// 16-bit signed integer PCM.
@@ -93,6 +88,7 @@ pub enum AudioWriteSampleFormat {
     /// 24-bit signed integer PCM.
     Pcm24,
     /// 32-bit IEEE float.
+    #[default]
     Float32,
 }
 
@@ -114,17 +110,12 @@ impl AudioWriteSampleFormat {
     }
 }
 
-impl Default for AudioWriteSampleFormat {
-    fn default() -> Self {
-        Self::Float32
-    }
-}
-
 /// Channel policy for normal Wavecrate-created audio.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum AudioWriteChannelBehavior {
     /// Preserve mono/stereo source layout for ordinary writes.
+    #[default]
     PreserveMonoStereo,
 }
 
@@ -142,17 +133,12 @@ impl AudioWriteChannelBehavior {
     }
 }
 
-impl Default for AudioWriteChannelBehavior {
-    fn default() -> Self {
-        Self::PreserveMonoStereo
-    }
-}
-
 /// Dither policy for integer PCM writes.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum AudioWriteDither {
     /// Do not add dither during integer PCM quantization.
+    #[default]
     None,
 }
 
@@ -161,12 +147,6 @@ impl AudioWriteDither {
         match self {
             Self::None => "No dither",
         }
-    }
-}
-
-impl Default for AudioWriteDither {
-    fn default() -> Self {
-        Self::None
     }
 }
 

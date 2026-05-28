@@ -27,7 +27,7 @@ pub type ColumnModel = list::ColumnSummary;
 pub type MapRenderModeModel = visualization::PointRenderMode;
 
 /// Summary of map state consumed by the UI projection map tab.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct MapPanelModel {
     /// Whether the map panel is currently active.
     pub active: bool,
@@ -53,25 +53,6 @@ pub struct MapPanelModel {
     pub focused_item_id: Option<String>,
     /// Points available for rendering in normalized map coordinates.
     pub points: std::sync::Arc<[MapPointModel]>,
-}
-
-impl Default for MapPanelModel {
-    fn default() -> Self {
-        Self {
-            active: false,
-            summary: String::new(),
-            legend_label: String::new(),
-            selection_label: String::new(),
-            hover_label: String::new(),
-            cluster_label: String::new(),
-            viewport_label: String::new(),
-            error: None,
-            render_mode: MapRenderModeModel::default(),
-            selected_item_id: None,
-            focused_item_id: None,
-            points: std::sync::Arc::default(),
-        }
-    }
 }
 
 impl From<MapPanelModel> for visualization::SpatialPanel {

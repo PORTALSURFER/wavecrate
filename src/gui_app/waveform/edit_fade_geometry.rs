@@ -134,30 +134,30 @@ impl WaveformWidget {
     fn micros_for_edit_fade_handle(&self, handle: WaveformEditFadeHandle) -> Option<u32> {
         let selection = self.edit_preview.selection?;
         match handle {
-            WaveformEditFadeHandle::FadeInEnd => Some(
+            WaveformEditFadeHandle::InEnd => Some(
                 self.edit_preview
                     .leading_end_micros
                     .unwrap_or(selection.start_micros),
             ),
-            WaveformEditFadeHandle::FadeOutStart => Some(
+            WaveformEditFadeHandle::OutStart => Some(
                 self.edit_preview
                     .trailing_start_micros
                     .unwrap_or(selection.end_micros),
             ),
-            WaveformEditFadeHandle::FadeInStart => self
+            WaveformEditFadeHandle::InStart => self
                 .edit_preview
                 .leading_end_micros
                 .map(|_| selection.start_micros),
-            WaveformEditFadeHandle::FadeOutEnd => self
+            WaveformEditFadeHandle::OutEnd => self
                 .edit_preview
                 .trailing_start_micros
                 .map(|_| selection.end_micros),
-            WaveformEditFadeHandle::FadeInOuterStart => self.edit_preview.leading_end_micros.and(
+            WaveformEditFadeHandle::InOuterStart => self.edit_preview.leading_end_micros.and(
                 self.edit_preview
                     .leading_inner_start_micros
                     .or(Some(selection.start_micros)),
             ),
-            WaveformEditFadeHandle::FadeOutOuterEnd => self.edit_preview.trailing_start_micros.and(
+            WaveformEditFadeHandle::OutOuterEnd => self.edit_preview.trailing_start_micros.and(
                 self.edit_preview
                     .trailing_inner_end_micros
                     .or(Some(selection.end_micros)),
@@ -202,12 +202,12 @@ fn outer_right_band_rect(selection_rect: Rect, right_x: f32) -> Rect {
 
 fn edit_fade_handles() -> [WaveformEditFadeHandle; 6] {
     [
-        WaveformEditFadeHandle::FadeInEnd,
-        WaveformEditFadeHandle::FadeOutStart,
-        WaveformEditFadeHandle::FadeInStart,
-        WaveformEditFadeHandle::FadeOutEnd,
-        WaveformEditFadeHandle::FadeInOuterStart,
-        WaveformEditFadeHandle::FadeOutOuterEnd,
+        WaveformEditFadeHandle::InEnd,
+        WaveformEditFadeHandle::OutStart,
+        WaveformEditFadeHandle::InStart,
+        WaveformEditFadeHandle::OutEnd,
+        WaveformEditFadeHandle::InOuterStart,
+        WaveformEditFadeHandle::OutOuterEnd,
     ]
 }
 
@@ -231,13 +231,13 @@ fn edit_fade_handle_vertical_bounds(
     size: f32,
 ) -> (f32, f32) {
     match handle {
-        WaveformEditFadeHandle::FadeInEnd | WaveformEditFadeHandle::FadeOutStart => {
+        WaveformEditFadeHandle::InEnd | WaveformEditFadeHandle::OutStart => {
             top_tab_bounds(selection_rect, size)
         }
-        WaveformEditFadeHandle::FadeInStart | WaveformEditFadeHandle::FadeOutEnd => {
+        WaveformEditFadeHandle::InStart | WaveformEditFadeHandle::OutEnd => {
             bottom_tab_bounds(selection_rect, size)
         }
-        WaveformEditFadeHandle::FadeInOuterStart | WaveformEditFadeHandle::FadeOutOuterEnd => {
+        WaveformEditFadeHandle::InOuterStart | WaveformEditFadeHandle::OutOuterEnd => {
             centered_tab_bounds(selection_rect, size)
         }
     }

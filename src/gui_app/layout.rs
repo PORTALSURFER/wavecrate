@@ -18,10 +18,10 @@ pub(super) fn view(state: &mut GuiAppState) -> ui::View<GuiMessage> {
     .spacing(0.0)
     .fill();
     let mut layers = vec![content];
-    if state.job_details_open {
-        if let Some(progress) = state.folder_progress.as_ref() {
-            layers.push(status_bar::job_details_popover(progress));
-        }
+    if state.job_details_open
+        && let Some(progress) = state.folder_progress.as_ref()
+    {
+        layers.push(status_bar::job_details_popover(progress));
     }
     if let Some(menu) = state.context_menu.as_ref() {
         layers.push(context_menu::overlay(menu));

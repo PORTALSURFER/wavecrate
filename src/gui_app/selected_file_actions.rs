@@ -301,10 +301,10 @@ impl GuiAppState {
 
     pub(super) fn finish_normalization(&mut self, result: NormalizationResult) {
         let started_at = Instant::now();
-        if !self
+        if self
             .normalization_progress
             .as_ref()
-            .is_some_and(|active| active.task_id == result.task_id)
+            .is_none_or(|active| active.task_id != result.task_id)
         {
             return;
         }

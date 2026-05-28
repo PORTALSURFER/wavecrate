@@ -95,7 +95,7 @@ impl Widget for StatusProgressBar {
         _layout: &LayoutOutput,
         _theme: &ThemeTokens,
     ) {
-        let track_height = bounds.height().min(8.0).max(0.0);
+        let track_height = bounds.height().clamp(0.0, 8.0);
         let track_top = bounds.min.y + (bounds.height() - track_height) * 0.5;
         let track = Rect::from_min_max(
             Point::new(bounds.min.x, track_top),

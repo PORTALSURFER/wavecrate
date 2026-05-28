@@ -120,7 +120,7 @@ impl FolderBrowserState {
         Some(start_x - prior_width - width * 0.5)
     }
 
-    pub(super) fn sort_files<'a>(&self, files: &mut Vec<&'a FileEntry>) {
+    pub(super) fn sort_files(&self, files: &mut Vec<&FileEntry>) {
         files.sort_by(|a, b| {
             let ordering = match self.file_sort.column_id.as_str() {
                 "extension" => a

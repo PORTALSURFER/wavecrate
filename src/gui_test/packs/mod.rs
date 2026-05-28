@@ -72,11 +72,11 @@ mod tests {
     fn contract_smoke_pack_runs_cleanly() {
         let pack = gui_scenario_pack("contract-smoke").expect("pack");
         let config = GuiTestModeConfig::default();
-        let browser_search_options_batch = vec![
+        let browser_search_options_batch = [
             scenario_by_name(&pack, "browser_search_select_commit").clone(),
             scenario_by_name(&pack, "options_open_close").clone(),
         ];
-        let transport_batch = vec![
+        let transport_batch = [
             scenario_by_name(&pack, "transport_play_from_selection_start").clone(),
             scenario_by_name(&pack, "transport_volume_slider").clone(),
         ];

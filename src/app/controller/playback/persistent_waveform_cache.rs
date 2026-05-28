@@ -19,7 +19,6 @@ use std::sync::Arc;
 const CACHE_VERSION: u32 = 1;
 /// Extension used for persistent waveform cache payload files.
 const CACHE_FILE_EXTENSION: &str = "bin";
-/// Relative app-data namespace that stores persistent waveform cache entries.
 
 /// Persistent waveform cache hit hydrated from disk and ready for controller use.
 #[derive(Clone)]

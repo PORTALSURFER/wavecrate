@@ -562,7 +562,7 @@ fn tag_field_height(
         content_width,
     )
     .len();
-    rows_height(rows.min(MAX_TAG_FIELD_ROWS).max(1)) + TAG_FIELD_VERTICAL_CHROME
+    rows_height(rows.clamp(1, MAX_TAG_FIELD_ROWS)) + TAG_FIELD_VERTICAL_CHROME
 }
 
 #[derive(Clone, Debug, PartialEq)]

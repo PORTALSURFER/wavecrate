@@ -37,12 +37,12 @@ impl WaveformWidget {
         }
         self.append_edit_fade_curve_paint(primitives, bounds, selection_rect, accent);
         for handle in [
-            WaveformEditFadeHandle::FadeInEnd,
-            WaveformEditFadeHandle::FadeOutStart,
-            WaveformEditFadeHandle::FadeInStart,
-            WaveformEditFadeHandle::FadeOutEnd,
-            WaveformEditFadeHandle::FadeInOuterStart,
-            WaveformEditFadeHandle::FadeOutOuterEnd,
+            WaveformEditFadeHandle::InEnd,
+            WaveformEditFadeHandle::OutStart,
+            WaveformEditFadeHandle::InStart,
+            WaveformEditFadeHandle::OutEnd,
+            WaveformEditFadeHandle::InOuterStart,
+            WaveformEditFadeHandle::OutOuterEnd,
         ] {
             if let Some(rect) = self.edit_fade_handle_rect(bounds, selection_rect, handle) {
                 self.push_fill(primitives, rect, Rgba8 { a: 205, ..accent });
