@@ -21,7 +21,7 @@ mod transactions;
 mod worker;
 
 use paths::progress_title;
-use worker::run_drop_target_transfer_task;
+use worker::{DropTargetTransferTask, run_drop_target_transfer_task};
 
 /// Metadata copied from the source DB row onto the copied or moved target entry.
 #[derive(Clone, Debug)]
@@ -220,12 +220,14 @@ impl DragDropController<'_> {
         #[cfg(test)]
         {
             let result = run_drop_target_transfer_task(
-                kind,
-                target_source_id,
-                target_root,
-                target_relative_folder,
-                requests,
-                errors,
+                DropTargetTransferTask {
+                    kind,
+                    target_source_id,
+                    target_root,
+                    target_relative_folder,
+                    requests,
+                    errors,
+                },
                 cancel,
                 None,
             );
@@ -237,12 +239,14 @@ impl DragDropController<'_> {
             self.runtime.jobs.start_file_ops(rx, cancel.clone());
             std::thread::spawn(move || {
                 let result = run_drop_target_transfer_task(
-                    kind,
-                    target_source_id,
-                    target_root,
-                    target_relative_folder,
-                    requests,
-                    errors,
+                    DropTargetTransferTask {
+                        kind,
+                        target_source_id,
+                        target_root,
+                        target_relative_folder,
+                        requests,
+                        errors,
+                    },
                     cancel,
                     Some(&tx),
                 );

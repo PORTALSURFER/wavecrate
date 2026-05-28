@@ -1,4 +1,4 @@
-use super::*;
+use super::super::DroppedSampleMetadata;
 use crate::sample_sources::db::file_ops_journal::{self, FileOpStage};
 use crate::sample_sources::{Rating, SourceDatabase};
 use std::path::{Path, PathBuf};
