@@ -2623,7 +2623,8 @@ Durable product and architecture contracts belong in `docs/`. Planning and backl
 Meaningful changes should usually include:
 
 * focused tests for behavior that can regress
-* smoke or agent validation before commit/push
+* smoke or focused validation before ordinary commit/push
+* agent validation before merging PRs into `next`
 * updated docs when a durable contract changes
 * Radiant example updates when a new generic GUI API is introduced
 * audio-engine validation when playback, decode, seek, loop, warp, render, channel handling, or device behavior changes

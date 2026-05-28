@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 
 # Install local git hooks that keep wavecrate and the radiant submodule aligned
-# with their main-base workflow and rerun lightweight preflight checks after
+# with their next-integration workflow and rerun lightweight preflight checks after
 # branch/source updates.
 #
 # Hooks installed for wavecrate:
 # - post-merge / post-checkout: rerun agent preflight
-# - pre-commit / pre-push: verify local `main` tracks `origin/main`; feature branches are allowed for PR work
+# - pre-commit / pre-push: verify local `next` tracks `origin/next`; feature branches are allowed for PR work
 #
 # Hooks installed for vendor/radiant:
 # - post-merge / post-checkout / pre-commit / pre-push: fail unless radiant uses
@@ -26,7 +26,7 @@ usage() {
 Usage: scripts/internal/agent/install_agent_preflight_hooks.sh [--force]
 
 Install local git hooks that keep wavecrate and vendor/radiant aligned with their
-main-base workflow and rerun agent preflight checks after repo-level source
+next-integration workflow and rerun agent preflight checks after repo-level source
 updates.
 
 Options:

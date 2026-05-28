@@ -28,6 +28,7 @@ $commands = @{
   "file-size-budget" = "check_file_size_budget.ps1"
   "fix-doc-links" = "fix_trivial_doc_links.ps1"
   "golden-tests" = "ci_golden_tests.ps1"
+  "integration-branch" = "check_next_branch.ps1"
   "knowledge" = "knowledge_lint.ps1"
   "legacy-app-coupling" = "check_legacy_app_coupling.ps1"
   "manual-docs-scope" = "check_manual_docs_scope.ps1"

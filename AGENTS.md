@@ -38,8 +38,9 @@ validation expectations for `C:\dev\wavecrate`.
    - macOS/Linux/WSL: `bash scripts/doctor.sh`
 
 ## Non-Negotiable Workflow Rules
-- Use `main` as the default base branch for `C:\dev\wavecrate`; feature work should happen on a feature branch and merge through a PR.
-- Keep local `main` tracking `origin/main`; the repo hook installer and `scripts/check.* main-branch` branch guard enforce the base-branch contract while allowing feature branches for PR work.
+- Use `next` as the default integration branch for `C:\dev\wavecrate`; feature work should happen on a feature branch and merge into `next`.
+- Keep local `next` tracking `origin/next`; the repo hook installer and `scripts/check.* integration-branch` branch guard enforce the integration-branch contract while allowing feature branches for PR work.
+- Keep `main` as the release branch. When `next` is merged into `main`, bump the Wavecrate version by one patch number in the same release merge.
 - `C:\dev\wavecrate\vendor\radiant` also uses local `main` tracking `origin/main`; update the submodule pointer from a Wavecrate feature branch and merge it through a Wavecrate PR.
 - During the tight edit loop, prioritize implementation speed and direct manual
   checks for the behavior under active development. Do not run formatter or CI
@@ -48,9 +49,11 @@ validation expectations for `C:\dev\wavecrate`.
 - Intermediate commits and pushes are allowed without running the validation
   lanes. Use them to preserve progress on feature branches; clearly report when
   a pushed branch has not yet passed the final gate.
-- Before opening a PR for review, marking a PR ready, or merging, run formatting
-  if code changed and run the final validation gate. In constrained agent-side
-  work, the final gate is:
+- Normal commits and pushes to `next` do not require the agent CI lane. Use
+  focused checks or smoke checks when useful for the active change, and clearly
+  report any checks that were skipped.
+- Before merging a PR into `next`, run formatting if code changed and run the
+  final validation gate. In constrained agent-side work, the final gate is:
   - Windows PowerShell: `powershell -ExecutionPolicy Bypass -File scripts/ci.ps1 agent`
   - macOS/Linux/WSL: `bash scripts/ci.sh agent`
 - For broader integrated local validation built around `cargo nextest`:
@@ -59,7 +62,7 @@ validation expectations for `C:\dev\wavecrate`.
 - If a final validation lane fails: fix and rerun until green before merging.
 - Do not run multiple Rust test commands concurrently. Keep `cargo test` / `cargo nextest` invocations to one process at a time to avoid cargo lock contention and misleading timeouts, but allow the normal in-process Rust test threading within that single test run.
 - On Windows, do not run the Bash workflow scripts. Use only the PowerShell wrappers (`scripts/*.ps1`) for preflight/CI/devcheck unless the user explicitly overrides this.
-- After code changes: commit and push as useful for collaboration. Final PR
+- After code changes: commit and push as useful for collaboration. The final PR
   merge still requires the final validation gate to be green.
 - In constrained agent environments, do not merge unless `ci_agent` is green;
   report whether `ci_quick` or `ci_local` still need a user-run confirmation pass.

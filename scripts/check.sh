@@ -27,6 +27,7 @@ case "$command" in
   file-size-budget) exec "$script_dir/check_file_size_budget.sh" "$@" ;;
   fix-doc-links) exec "$script_dir/fix_trivial_doc_links.sh" "$@" ;;
   golden-tests) exec "$script_dir/ci_golden_tests.sh" "$@" ;;
+  integration-branch) exec "$script_dir/check_next_branch.sh" "$@" ;;
   knowledge) exec "$script_dir/knowledge_lint.sh" "$@" ;;
   legacy-app-coupling) exec "$script_dir/check_legacy_app_coupling.sh" "$@" ;;
   manual-docs-scope) exec "$script_dir/check_manual_docs_scope.sh" "$@" ;;

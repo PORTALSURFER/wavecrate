@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
 
-# Verify that the current repository uses main as its base branch.
+# Verify that the current repository uses next as its integration branch.
 #
-# Feature branches are allowed for PR work, but local `main` must exist and
-# track `origin/main`.
+# Feature branches are allowed for PR work, but local `next` must exist and
+# track `origin/next`.
 
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$ROOT_DIR"
 
-EXPECTED_BRANCH="main"
-EXPECTED_UPSTREAM="origin/main"
+EXPECTED_BRANCH="next"
+EXPECTED_UPSTREAM="origin/next"
 
 usage() {
   cat <<'USAGE'
 Usage: scripts/internal/check/check_next_branch.sh
 
-Verify that local main tracks origin/main; feature branches are allowed for PR work.
+Verify that local next tracks origin/next; feature branches are allowed for PR work.
 USAGE
 }
 
@@ -41,24 +41,19 @@ if [[ "$branch" == "HEAD" ]]; then
   exit 1
 fi
 
-if [[ "$branch" == "next" ]]; then
-  echo "[branch_guard] Local 'next' is retired. Use '$EXPECTED_BRANCH' as the base branch and feature branches for PR work." >&2
-  exit 1
-fi
-
-main_upstream="$(git -C "$ROOT_DIR" for-each-ref --format='%(upstream:short)' "refs/heads/$EXPECTED_BRANCH")"
-if [[ -z "$main_upstream" ]]; then
+integration_upstream="$(git -C "$ROOT_DIR" for-each-ref --format='%(upstream:short)' "refs/heads/$EXPECTED_BRANCH")"
+if [[ -z "$integration_upstream" ]]; then
   echo "[branch_guard] Local '$EXPECTED_BRANCH' must exist and track '$EXPECTED_UPSTREAM'." >&2
   exit 1
 fi
 
-if [[ "$main_upstream" != "$EXPECTED_UPSTREAM" ]]; then
-  echo "[branch_guard] Local '$EXPECTED_BRANCH' must track '$EXPECTED_UPSTREAM'. Current upstream: '$main_upstream'." >&2
+if [[ "$integration_upstream" != "$EXPECTED_UPSTREAM" ]]; then
+  echo "[branch_guard] Local '$EXPECTED_BRANCH' must track '$EXPECTED_UPSTREAM'. Current upstream: '$integration_upstream'." >&2
   exit 1
 fi
 
 if [[ "$branch" == "$EXPECTED_BRANCH" ]]; then
-  echo "[branch_guard] OK ($branch -> $main_upstream)"
+  echo "[branch_guard] OK ($branch -> $integration_upstream)"
 else
-  echo "[branch_guard] OK (feature branch '$branch', base $EXPECTED_BRANCH -> $main_upstream)"
+  echo "[branch_guard] OK (feature branch '$branch', base $EXPECTED_BRANCH -> $integration_upstream)"
 fi

@@ -5,8 +5,8 @@ Runs the fastest local compile/smoke check.
 .DESCRIPTION
 Executes the smallest useful development gate by type-checking library, test,
 and binary targets without running the test suite. Use this during normal edit
-loops, then escalate to `scripts/ci.ps1 quick` before commit and
-`scripts/ci.ps1 local` for full CI parity.
+loops, then escalate to `scripts/ci.ps1 quick` or `scripts/ci.ps1 local` when
+the change risk warrants broader validation.
 #>
 
 param(
