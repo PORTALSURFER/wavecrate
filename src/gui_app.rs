@@ -38,6 +38,7 @@ mod layout;
 mod lifecycle;
 mod message_dispatch;
 mod metadata_tags;
+mod normalization_actions;
 mod playback;
 mod sample_browser_view;
 mod sample_collections;
