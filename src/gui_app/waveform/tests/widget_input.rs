@@ -101,6 +101,53 @@ fn secondary_press_emits_edit_selection_begin_ratio() {
 }
 
 #[test]
+fn empty_waveform_keeps_hover_cursor_but_emits_no_interactions() {
+    let state = WaveformState::empty();
+    let mut widget = waveform_widget_for_state(&state);
+    let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(200.0, 80.0));
+    let inside = Point::new(60.0, 40.0);
+
+    assert!(
+        widget
+            .handle_input(bounds, WidgetInput::PointerMove { position: inside },)
+            .is_none()
+    );
+    assert!(
+        widget.common.state.hovered,
+        "empty waveform should keep pointer-hover state for the visual cursor path"
+    );
+    for input in [
+        WidgetInput::PointerPress {
+            position: inside,
+            button: PointerButton::Primary,
+            modifiers: Default::default(),
+        },
+        WidgetInput::PointerPress {
+            position: inside,
+            button: PointerButton::Secondary,
+            modifiers: Default::default(),
+        },
+        WidgetInput::PointerPress {
+            position: inside,
+            button: PointerButton::Auxiliary,
+            modifiers: Default::default(),
+        },
+        WidgetInput::PointerDoubleClick {
+            position: inside,
+            button: PointerButton::Primary,
+            modifiers: Default::default(),
+        },
+        WidgetInput::Wheel {
+            position: inside,
+            delta: Vector2::new(0.0, -120.0),
+            modifiers: Default::default(),
+        },
+    ] {
+        assert!(widget.handle_input(bounds, input).is_none());
+    }
+}
+
+#[test]
 fn primary_press_on_playmark_handle_starts_resize_instead_of_new_selection() {
     let mut state = WaveformState::synthetic_for_tests();
     state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));

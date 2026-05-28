@@ -40,6 +40,7 @@ fn gui_state_for_span_tests() -> GuiAppState {
         next_task_id: 1,
         sample_load_task: ui::LatestTask::new(),
         folder_progress: None,
+        normalization_progress: None,
         progress_tick: 0.0,
         waveform_loading_progress: 0.0,
         waveform_loading_target_progress: 0.0,
@@ -105,6 +106,7 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
         next_task_id: 1,
         sample_load_task: ui::LatestTask::new(),
         folder_progress: None,
+        normalization_progress: None,
         progress_tick: 0.0,
         waveform_loading_progress: 0.0,
         waveform_loading_target_progress: 0.0,
@@ -242,6 +244,31 @@ fn normalize_wav_file_in_place_scales_loaded_sample_peak() {
 }
 
 #[test]
+fn normalize_selected_samples_queues_worker_without_rewriting_on_ui_thread() {
+    let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("quiet.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1024, -2048, 4096]);
+    let before = fs::read(&path).expect("read wav before normalization");
+
+    let mut context = ui::UpdateContext::default();
+    state.apply_message(super::GuiMessage::NormalizeSelectedSamples, &mut context);
+
+    assert_eq!(
+        fs::read(&path).expect("read wav after queue"),
+        before,
+        "normalization must not rewrite the selected sample on the UI thread"
+    );
+    let progress = state
+        .normalization_progress
+        .as_ref()
+        .expect("normalization progress should be visible after queueing");
+    assert_eq!(progress.completed, 0);
+    assert_eq!(progress.total, 1);
+    assert_eq!(progress.detail, "Queued");
+    assert!(state.sample_status.contains("Normalizing 1 sample"));
+}
+
+#[test]
 fn sample_selection_loads_selected_file_into_waveform() {
     let mut state = GuiAppState {
         folder_width: DEFAULT_FOLDER_WIDTH,
@@ -254,6 +281,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         next_task_id: 1,
         sample_load_task: ui::LatestTask::new(),
         folder_progress: None,
+        normalization_progress: None,
         progress_tick: 0.0,
         waveform_loading_progress: 0.0,
         waveform_loading_target_progress: 0.0,
@@ -523,6 +551,7 @@ fn assert_player_progress_inside_span(state: &GuiAppState, start: f32, end: f32)
 #[test]
 fn toolbar_icon_assets_parse_and_paint_through_radiant_icon_button() {
     for icon in [
+        super::ToolbarIcon::FocusLoaded,
         super::ToolbarIcon::Loop,
         super::ToolbarIcon::Play,
         super::ToolbarIcon::Stop,
@@ -554,17 +583,80 @@ fn toolbar_icon_assets_parse_and_paint_through_radiant_icon_button() {
 }
 
 #[test]
-fn toolbar_icon_button_routes_transport_message_through_radiant_builder() {
-    let surface = radiant::runtime::UiSurface::new(
-        super::toolbar_icon_button(101, super::ToolbarIcon::Loop, true, false).into_node(),
+fn toolbar_icon_button_routes_messages_through_radiant_builder() {
+    for (icon, message) in [
+        (
+            super::ToolbarIcon::FocusLoaded,
+            super::GuiMessage::FocusLoadedFile,
+        ),
+        (
+            super::ToolbarIcon::Loop,
+            super::GuiMessage::ToggleLoopPlayback,
+        ),
+    ] {
+        let surface = radiant::runtime::UiSurface::new(
+            super::toolbar_icon_button(101, icon, true, false).into_node(),
+        );
+
+        assert_eq!(
+            surface.dispatch_widget_output(
+                101,
+                radiant::widgets::WidgetOutput::typed(radiant::widgets::ButtonMessage::Activate),
+            ),
+            Some(message)
+        );
+    }
+}
+
+#[test]
+fn focus_loaded_toolbar_button_is_topmost_hit_target_and_paints_hover_feedback() {
+    let state = GuiAppState::load_default().expect("default state loads");
+    let bridge = DeclarativeOwnedRuntimeBridge::new(
+        state,
+        |state| radiant::runtime::UiSurface::new(super::view(state).into_node()),
+        |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
+    );
+    let theme = radiant::theme::ThemeTokens::default();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&theme);
+    let icon_rect = frame
+        .paint_plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::Svg(svg) if svg.widget_id == super::TOOLBAR_FOCUS_LOADED_ID => {
+                Some(svg.rect)
+            }
+            _ => None,
+        })
+        .expect("focus-loaded toolbar icon should paint");
+    let point = Point::new(
+        (icon_rect.min.x + icon_rect.max.x) * 0.5,
+        (icon_rect.min.y + icon_rect.max.y) * 0.5,
     );
 
     assert_eq!(
-        surface.dispatch_widget_output(
-            101,
-            radiant::widgets::WidgetOutput::typed(radiant::widgets::ButtonMessage::Activate),
-        ),
-        Some(super::GuiMessage::ToggleLoopPlayback)
+        runtime.widget_at(point),
+        Some(super::TOOLBAR_FOCUS_LOADED_ID),
+        "focus-loaded button must be the topmost hit target at its painted icon"
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerMove { position: point }),
+        Some(super::TOOLBAR_FOCUS_LOADED_ID)
+    );
+    let hovered_frame = runtime.frame(&theme);
+    assert!(
+        hovered_frame
+            .paint_plan
+            .primitives
+            .iter()
+            .any(|primitive| matches!(
+                primitive,
+                PaintPrimitive::FillPolygon(fill)
+                    if fill.widget_id == super::TOOLBAR_FOCUS_LOADED_ID
+                        && fill.color.a > 0
+            )),
+        "hovering the focus-loaded button should paint a visible accent overlay"
     );
 }
 
@@ -634,6 +726,11 @@ fn clear_rebuildable_caches_action_removes_cache_payloads_only() {
         "{}",
         state.sample_status
     );
+}
+
+#[test]
+fn default_window_title_marks_alpha_build() {
+    assert_eq!(super::launch::DEFAULT_WINDOW_TITLE, "Wavecrate - alpha");
 }
 
 #[test]

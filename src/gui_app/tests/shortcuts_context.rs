@@ -1,4 +1,4 @@
-use super::{gui_state_for_span_tests, selected_asset_file_path};
+use super::gui_state_for_span_tests;
 use crate::gui_app::{
     DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG, GuiAppState, debug_layout_requested,
 };
@@ -47,7 +47,13 @@ fn escape_shortcut_routes_to_stop_playback() {
 #[test]
 fn escape_shortcut_is_shielded_while_renaming() {
     let mut state = GuiAppState::load_default().expect("default state loads");
-    let sample_path = selected_asset_file_path(&state.folder_browser, "portal_SS_kick_003.wav");
+    let sample_path = state
+        .folder_browser
+        .selected_audio_files()
+        .first()
+        .expect("default assets include an audio sample")
+        .id
+        .clone();
     state.folder_browser.select_file(sample_path);
     state
         .folder_browser
@@ -267,4 +273,29 @@ fn loop_shortcut_routes_to_loop_toggle() {
         Some(crate::gui_app::GuiMessage::ToggleLoopPlayback)
     );
     assert!(resolution.handled);
+}
+
+#[test]
+fn bracket_shortcuts_route_to_rating_adjustments() {
+    let state = GuiAppState::load_default().expect("default state loads");
+
+    let down = crate::gui_app::default_gui_shortcut_resolution(
+        &state,
+        ui::KeyPress::new(ui::KeyCode::OpenBracket),
+    );
+    let up = crate::gui_app::default_gui_shortcut_resolution(
+        &state,
+        ui::KeyPress::new(ui::KeyCode::CloseBracket),
+    );
+
+    assert_eq!(
+        down.action,
+        Some(crate::gui_app::GuiMessage::AdjustSelectedRating(-1))
+    );
+    assert_eq!(
+        up.action,
+        Some(crate::gui_app::GuiMessage::AdjustSelectedRating(1))
+    );
+    assert!(down.handled);
+    assert!(up.handled);
 }

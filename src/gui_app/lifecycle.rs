@@ -29,6 +29,7 @@ impl GuiAppState {
             next_task_id: 1,
             sample_load_task: ui::LatestTask::new(),
             folder_progress: None,
+            normalization_progress: None,
             progress_tick: 0.0,
             waveform_loading_progress: 0.0,
             waveform_loading_target_progress: 0.0,
@@ -107,7 +108,7 @@ impl GuiAppState {
     pub(super) fn advance_frame(&mut self) {
         self.waveform.apply_interaction(WaveformInteraction::Frame);
         self.refresh_playback_progress();
-        if self.folder_progress.is_some() {
+        if self.folder_progress.is_some() || self.normalization_progress.is_some() {
             self.progress_tick = (self.progress_tick + 0.035) % 1.0;
         }
         if self.waveform_loading_label.is_some() {

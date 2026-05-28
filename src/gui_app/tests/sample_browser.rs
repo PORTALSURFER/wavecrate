@@ -59,6 +59,12 @@ fn sample_row_hit_target_survives_frame_refresh_between_press_and_release() {
 #[test]
 fn sample_browser_frame_paints_column_and_file_text() {
     let mut state = crate::gui_app::GuiAppState::load_default().expect("default state loads");
+    let expected_stem = state
+        .folder_browser
+        .selected_audio_files()
+        .first()
+        .map(|file| file.stem.clone())
+        .expect("default assets include an audio sample");
     let surface = crate::gui_app::sample_browser(&mut state, false).into_node();
     let frame = radiant::runtime::UiSurface::new(surface).frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 360.0)),
@@ -79,7 +85,7 @@ fn sample_browser_frame_paints_column_and_file_text() {
         "{texts:?}"
     );
     assert!(
-        texts.iter().any(|text| text.starts_with("portal_SS_")),
+        texts.iter().any(|text| text.starts_with(&expected_stem)),
         "{texts:?}"
     );
 }
@@ -87,6 +93,12 @@ fn sample_browser_frame_paints_column_and_file_text() {
 #[test]
 fn sample_browser_rows_match_keyboard_scroll_stride() {
     let mut state = crate::gui_app::GuiAppState::load_default().expect("default state loads");
+    let expected_names = state
+        .folder_browser
+        .selected_audio_files()
+        .into_iter()
+        .map(|file| file.stem.clone())
+        .collect::<Vec<_>>();
     let surface = crate::gui_app::sample_browser(&mut state, false).into_node();
     let frame = radiant::runtime::UiSurface::new(surface).frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 360.0)),
@@ -97,7 +109,11 @@ fn sample_browser_rows_match_keyboard_scroll_stride() {
         .primitives
         .iter()
         .filter_map(|primitive| match primitive {
-            PaintPrimitive::Text(text) if text.text.as_str().starts_with("portal_SS_") => {
+            PaintPrimitive::Text(text)
+                if expected_names
+                    .iter()
+                    .any(|name| text.text.as_str().starts_with(name)) =>
+            {
                 Some(text.rect.min.y)
             }
             _ => None,
@@ -208,6 +224,12 @@ fn sample_browser_row_hover_paints_bright_background_without_marker() {
 #[test]
 fn full_gui_frame_places_sample_browser_text_inside_visible_area() {
     let mut state = crate::gui_app::GuiAppState::load_default().expect("default state loads");
+    let expected_names = state
+        .folder_browser
+        .selected_audio_files()
+        .into_iter()
+        .map(|file| file.stem.clone())
+        .collect::<Vec<_>>();
     let surface = crate::gui_app::view(&mut state).into_node();
     let frame = radiant::runtime::UiSurface::new(surface).frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(1517.0, 758.0)),
@@ -219,7 +241,10 @@ fn full_gui_frame_places_sample_browser_text_inside_visible_area() {
         .iter()
         .filter_map(|primitive| match primitive {
             PaintPrimitive::Text(text)
-                if text.text.as_str() == "Name" || text.text.as_str().starts_with("portal_SS_") =>
+                if text.text.as_str() == "Name"
+                    || expected_names
+                        .iter()
+                        .any(|name| text.text.as_str().starts_with(name)) =>
             {
                 Some((text.text.as_str().to_string(), text.rect, text.baseline))
             }

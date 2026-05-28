@@ -26,6 +26,7 @@ pub(super) struct FolderBrowserState {
     file_columns: Vec<FileColumn>,
     file_sort: ui::DetailsSort,
     file_column_resize: Option<FileColumnResize>,
+    file_column_reorder: Option<FileColumnReorder>,
     file_view_start: usize,
 }
 
@@ -66,6 +67,7 @@ impl FolderBrowserState {
             file_columns: default_file_columns(),
             file_sort: ui::DetailsSort::new("name", ui::SortDirection::Ascending),
             file_column_resize: None,
+            file_column_reorder: None,
             file_view_start: 0,
         }
     }
@@ -170,6 +172,9 @@ impl FolderBrowserState {
             FolderBrowserMessage::ResizeFileColumn(column_id, message) => {
                 self.resize_file_column(column_id, message);
             }
+            FolderBrowserMessage::DragFileColumn(column_id, message) => {
+                self.drag_file_column(column_id, message);
+            }
         }
     }
 }
@@ -193,6 +198,7 @@ mod file_view_window;
 mod file_rename_workflow;
 
 mod file_columns;
+pub(super) use file_columns::FILE_COLUMN_GAP;
 #[cfg(test)]
 pub(super) use file_columns::MIN_FILE_COLUMN_WIDTH;
 
@@ -212,8 +218,8 @@ mod rename_workflow;
 mod state_types;
 pub(super) use state_types::FileColumn;
 use state_types::{
-    FileColumnResize, FileRenameEdit, FolderBrowserDrag, FolderRenameEdit, FolderRenameKind,
-    SourceEntry, VisibleFolder, default_file_columns,
+    FileColumnReorder, FileColumnResize, FileRenameEdit, FolderBrowserDrag, FolderRenameEdit,
+    FolderRenameKind, SourceEntry, VisibleFolder, default_file_columns,
 };
 
 mod tree_state;

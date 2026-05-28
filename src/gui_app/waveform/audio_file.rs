@@ -35,6 +35,9 @@ pub(super) use visual_bands::split_frequency_bands_with_progress;
 mod wav_decode;
 use wav_decode::load_wav_waveform_file_with_progress;
 
+mod waveform_cache;
+use waveform_cache::{load_cached_waveform_file, store_cached_waveform_file};
+
 #[derive(Clone, Debug)]
 pub(in crate::gui_app) struct WaveformFile {
     pub(super) path: PathBuf,
@@ -71,10 +74,15 @@ pub(super) fn load_waveform_file_with_progress(
 ) -> Result<WaveformFile, String> {
     progress(0.0);
     let bytes = read_audio_file_with_progress(&path, 0.0, 0.08, &progress)?;
+    if let Some(file) = load_cached_waveform_file(path.clone(), Arc::clone(&bytes)) {
+        progress(0.99);
+        return Ok(file);
+    }
     if is_wav_path(&path) {
         if let Ok(file) =
             load_wav_waveform_file_with_progress(path.clone(), Arc::clone(&bytes), &progress)
         {
+            store_cached_waveform_file(&file);
             return Ok(file);
         }
     }
@@ -93,14 +101,16 @@ pub(super) fn load_waveform_file_with_progress(
     if mono_samples.is_empty() {
         return Err(String::from("audio file contains no complete frames"));
     }
-    Ok(waveform_file_from_mono_samples_with_progress(
+    let file = waveform_file_from_mono_samples_with_progress(
         path,
         bytes,
         decoded.sample_rate,
         channels,
         mono_samples,
         &progress,
-    ))
+    );
+    store_cached_waveform_file(&file);
+    Ok(file)
 }
 
 #[cfg(test)]
@@ -118,7 +128,7 @@ pub(super) fn synthetic_waveform_file() -> WaveformFile {
         .collect::<Vec<_>>();
     waveform_file_from_mono_samples(
         PathBuf::from("synthetic-waveform"),
-        Arc::from([]),
+        Arc::from([0_u8]),
         SYNTHETIC_SAMPLE_RATE,
         1,
         samples,

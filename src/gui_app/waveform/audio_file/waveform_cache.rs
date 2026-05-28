@@ -1,0 +1,273 @@
+use radiant::runtime::{GpuSignalSummary, GpuSignalSummaryBucket, GpuSignalSummaryLevel};
+use serde::{Deserialize, Serialize};
+use std::{
+    collections::hash_map::DefaultHasher,
+    fs,
+    hash::{Hash, Hasher},
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::SystemTime,
+};
+
+use super::{WaveformFile, content_revision_for_audio_bytes};
+
+const CACHE_FORMAT_VERSION: u32 = 1;
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct CachedWaveformFile {
+    version: u32,
+    path: PathBuf,
+    file_len: u64,
+    modified_ns: u128,
+    content_revision: u64,
+    sample_rate: u32,
+    channels: usize,
+    frames: usize,
+    summary: CachedGpuSignalSummary,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct CachedGpuSignalSummary {
+    frames: usize,
+    band_count: usize,
+    levels: Vec<CachedGpuSignalSummaryLevel>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct CachedGpuSignalSummaryLevel {
+    bucket_frames: usize,
+    buckets: Vec<CachedGpuSignalSummaryBucket>,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+struct CachedGpuSignalSummaryBucket {
+    min: f32,
+    max: f32,
+}
+
+pub(super) fn load_cached_waveform_file(
+    path: PathBuf,
+    audio_bytes: Arc<[u8]>,
+) -> Option<WaveformFile> {
+    let identity = CacheIdentity::for_path(&path).ok()?;
+    let cache_path = cache_path_for_identity(&path, &identity).ok()?;
+    let bytes = fs::read(cache_path).ok()?;
+    let cached: CachedWaveformFile = bincode::deserialize(&bytes).ok()?;
+    cached.into_waveform_file(path, audio_bytes, identity)
+}
+
+pub(super) fn store_cached_waveform_file(file: &WaveformFile) {
+    if file.path.as_os_str().is_empty() || file.audio_bytes.is_empty() {
+        return;
+    }
+    let Ok(identity) = CacheIdentity::for_path(&file.path) else {
+        return;
+    };
+    let Ok(cache_path) = cache_path_for_identity(&file.path, &identity) else {
+        return;
+    };
+    let cached = CachedWaveformFile::from_waveform_file(file, &identity);
+    let Ok(bytes) = bincode::serialize(&cached) else {
+        return;
+    };
+    let temp_path = cache_path.with_extension("tmp");
+    if fs::write(&temp_path, bytes).is_ok() {
+        let _ = fs::rename(temp_path, cache_path);
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct CacheIdentity {
+    file_len: u64,
+    modified_ns: u128,
+}
+
+impl CacheIdentity {
+    fn for_path(path: &Path) -> Result<Self, String> {
+        let metadata = fs::metadata(path).map_err(|err| err.to_string())?;
+        let modified_ns = metadata
+            .modified()
+            .map_err(|err| err.to_string())?
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map_err(|err| err.to_string())?
+            .as_nanos();
+        Ok(Self {
+            file_len: metadata.len(),
+            modified_ns,
+        })
+    }
+}
+
+fn cache_path_for_identity(path: &Path, identity: &CacheIdentity) -> Result<PathBuf, String> {
+    let dir = wavecrate::app_dirs::waveform_cache_dir().map_err(|err| err.to_string())?;
+    let mut hasher = DefaultHasher::new();
+    CACHE_FORMAT_VERSION.hash(&mut hasher);
+    path.to_string_lossy().hash(&mut hasher);
+    identity.file_len.hash(&mut hasher);
+    identity.modified_ns.hash(&mut hasher);
+    Ok(dir.join(format!("{:016x}.wfc", hasher.finish())))
+}
+
+impl CachedWaveformFile {
+    fn from_waveform_file(file: &WaveformFile, identity: &CacheIdentity) -> Self {
+        Self {
+            version: CACHE_FORMAT_VERSION,
+            path: file.path.clone(),
+            file_len: identity.file_len,
+            modified_ns: identity.modified_ns,
+            content_revision: file.content_revision,
+            sample_rate: file.sample_rate,
+            channels: file.channels,
+            frames: file.frames,
+            summary: CachedGpuSignalSummary::from_summary(&file.gpu_signal_summary),
+        }
+    }
+
+    fn into_waveform_file(
+        self,
+        path: PathBuf,
+        audio_bytes: Arc<[u8]>,
+        identity: CacheIdentity,
+    ) -> Option<WaveformFile> {
+        if self.version != CACHE_FORMAT_VERSION
+            || self.path != path
+            || self.file_len != identity.file_len
+            || self.modified_ns != identity.modified_ns
+            || self.content_revision != content_revision_for_audio_bytes(&audio_bytes)
+            || self.sample_rate == 0
+            || self.channels == 0
+            || self.frames == 0
+        {
+            return None;
+        }
+        Some(WaveformFile {
+            path,
+            audio_bytes,
+            content_revision: self.content_revision,
+            sample_rate: self.sample_rate,
+            channels: self.channels,
+            frames: self.frames,
+            gpu_signal_summary: Arc::new(self.summary.into_summary()?),
+        })
+    }
+}
+
+impl CachedGpuSignalSummary {
+    fn from_summary(summary: &GpuSignalSummary) -> Self {
+        Self {
+            frames: summary.frames,
+            band_count: summary.band_count,
+            levels: summary
+                .levels
+                .iter()
+                .map(CachedGpuSignalSummaryLevel::from_level)
+                .collect(),
+        }
+    }
+
+    fn into_summary(self) -> Option<GpuSignalSummary> {
+        if self.frames == 0 || self.band_count == 0 || self.levels.is_empty() {
+            return None;
+        }
+        let mut levels = Vec::with_capacity(self.levels.len());
+        for level in self.levels {
+            levels.push(level.into_level(self.band_count)?);
+        }
+        Some(GpuSignalSummary {
+            frames: self.frames,
+            band_count: self.band_count,
+            levels,
+        })
+    }
+}
+
+impl CachedGpuSignalSummaryLevel {
+    fn from_level(level: &GpuSignalSummaryLevel) -> Self {
+        Self {
+            bucket_frames: level.bucket_frames,
+            buckets: level
+                .buckets
+                .iter()
+                .map(|bucket| CachedGpuSignalSummaryBucket {
+                    min: bucket.min,
+                    max: bucket.max,
+                })
+                .collect(),
+        }
+    }
+
+    fn into_level(self, band_count: usize) -> Option<GpuSignalSummaryLevel> {
+        if self.bucket_frames == 0
+            || self.buckets.is_empty()
+            || !self.buckets.len().is_multiple_of(band_count)
+        {
+            return None;
+        }
+        let buckets = self
+            .buckets
+            .into_iter()
+            .map(|bucket| {
+                (bucket.min.is_finite() && bucket.max.is_finite()).then_some(
+                    GpuSignalSummaryBucket {
+                        min: bucket.min,
+                        max: bucket.max,
+                    },
+                )
+            })
+            .collect::<Option<Vec<_>>>()?;
+        Some(GpuSignalSummaryLevel {
+            bucket_frames: self.bucket_frames,
+            buckets: buckets.into(),
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::gui_app::waveform::audio_file::waveform_file_from_mono_samples;
+
+    #[test]
+    fn waveform_cache_round_trips_summary_payload() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("cached.wav");
+        fs::write(&path, [1_u8, 2, 3, 4]).expect("write sample");
+        let audio_bytes: Arc<[u8]> = Arc::from([1_u8, 2, 3, 4]);
+        let file = waveform_file_from_mono_samples(
+            path.clone(),
+            Arc::clone(&audio_bytes),
+            48_000,
+            1,
+            vec![0.0, 0.5, -0.5, 0.25],
+        );
+
+        store_cached_waveform_file(&file);
+        let cached =
+            load_cached_waveform_file(path.clone(), Arc::clone(&audio_bytes)).expect("cache hit");
+
+        assert_eq!(cached.path, path);
+        assert_eq!(cached.sample_rate, file.sample_rate);
+        assert_eq!(cached.frames, file.frames);
+        assert_eq!(cached.gpu_signal_summary, file.gpu_signal_summary);
+    }
+
+    #[test]
+    fn waveform_cache_misses_after_file_identity_changes() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("changed.wav");
+        fs::write(&path, [1_u8, 2, 3, 4]).expect("write sample");
+        let audio_bytes: Arc<[u8]> = Arc::from([1_u8, 2, 3, 4]);
+        let file = waveform_file_from_mono_samples(
+            path.clone(),
+            Arc::clone(&audio_bytes),
+            48_000,
+            1,
+            vec![0.0, 0.5, -0.5, 0.25],
+        );
+
+        store_cached_waveform_file(&file);
+        fs::write(&path, [1_u8, 2, 3, 4, 5]).expect("modify sample");
+
+        assert!(load_cached_waveform_file(path, Arc::from([1_u8, 2, 3, 4, 5])).is_none());
+    }
+}

@@ -100,6 +100,14 @@ fn default_shortcuts(state: &GuiAppState) -> ui::ShortcutLayer<GuiMessage> {
         )
         .bind(ui::KeyPress::new(ui::KeyCode::N), new_item_action(state))
         .bind(
+            ui::KeyPress::new(ui::KeyCode::OpenBracket),
+            GuiMessage::AdjustSelectedRating(-1),
+        )
+        .bind(
+            ui::KeyPress::new(ui::KeyCode::CloseBracket),
+            GuiMessage::AdjustSelectedRating(1),
+        )
+        .bind(
             ui::KeyPress::new(ui::KeyCode::Space),
             GuiMessage::PlaySelectedSample,
         )

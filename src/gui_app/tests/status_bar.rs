@@ -70,6 +70,30 @@ fn bottom_status_progress_bar_paints_without_text_chrome() {
 }
 
 #[test]
+fn bottom_status_bar_reports_normalization_progress() {
+    let mut state = GuiAppState::load_default().expect("default state loads");
+    state.normalization_progress = Some(crate::gui_app::NormalizationProgress {
+        task_id: 9,
+        label: String::from("2 samples"),
+        completed: 1,
+        total: 2,
+        detail: String::from("snare.wav"),
+    });
+    let frame = radiant::runtime::UiSurface::new(
+        crate::gui_app::status_bar::bottom_status_bar(&state).into_node(),
+    )
+    .frame(
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 30.0)),
+        &radiant::theme::ThemeTokens::default(),
+    );
+
+    assert!(frame_has_text(
+        &frame,
+        "Normalizing 2 samples | 1/2 | snare.wav"
+    ));
+}
+
+#[test]
 fn bottom_status_progress_bar_click_opens_job_details() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(180.0, 10.0));
     let mut progress = crate::gui_app::status_bar::StatusProgressBar::determinate(0.4);

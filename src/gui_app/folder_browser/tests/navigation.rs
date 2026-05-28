@@ -52,6 +52,80 @@ fn folder_keyboard_navigation_moves_visible_selection_and_expands_collapses() {
 }
 
 #[test]
+fn focus_file_across_sources_reselects_loaded_file_parent_folder() {
+    let root = temp_source_root("wavecrate-gui-focus-loaded");
+    let kicks = root.join("drums").join("kicks");
+    let loops = root.join("loops");
+    fs::create_dir_all(&kicks).expect("create kicks folder");
+    fs::create_dir_all(&loops).expect("create loops folder");
+    let kick = kicks.join("kick.wav");
+    let loop_file = loops.join("loop.wav");
+    fs::write(&kick, []).expect("write kick");
+    fs::write(&loop_file, []).expect("write loop");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+
+    browser.activate_folder(path_id(&loops));
+    browser.select_file(path_id(&loop_file));
+    assert_eq!(browser.selected_folder, path_id(&loops));
+
+    assert!(browser.focus_file_across_sources(&kick));
+
+    assert_eq!(browser.selected_folder, path_id(&kicks));
+    assert_eq!(browser.selected_file_id(), Some(path_id(&kick).as_str()));
+    assert!(browser.is_expanded(&path_id(&root.join("drums"))));
+    assert!(browser.is_expanded(&path_id(&kicks)));
+    assert_eq!(
+        browser
+            .selected_audio_files()
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["kick.wav"]
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn focus_file_across_sources_loads_configured_source_before_selecting_file() {
+    let first = temp_source_root("wavecrate-gui-focus-source-first");
+    let second = temp_source_root("wavecrate-gui-focus-source-second");
+    fs::write(first.join("first.wav"), []).expect("write first sample");
+    let nested = second.join("drums");
+    fs::create_dir_all(&nested).expect("create nested folder");
+    let target = nested.join("target.wav");
+    fs::write(&target, []).expect("write target sample");
+    let sources = vec![
+        wavecrate::sample_sources::SampleSource::new(first.clone()),
+        wavecrate::sample_sources::SampleSource::new(second.clone()),
+    ];
+    let mut browser = FolderBrowserState::from_sample_sources(&sources);
+
+    assert!(
+        browser
+            .sources
+            .iter()
+            .find(|source| source.root == second)
+            .and_then(|source| source.root_folder.as_ref())
+            .is_none()
+    );
+
+    assert!(browser.focus_file_across_sources(&target));
+
+    assert_eq!(browser.selected_folder, path_id(&nested));
+    assert_eq!(browser.selected_file_id(), Some(path_id(&target).as_str()));
+    assert!(
+        browser
+            .sources
+            .iter()
+            .find(|source| source.root == second)
+            .and_then(|source| source.root_folder.as_ref())
+            .is_some()
+    );
+    let _ = fs::remove_dir_all(first);
+    let _ = fs::remove_dir_all(second);
+}
+
+#[test]
 fn file_keyboard_navigation_moves_audio_selection_without_leaving_folder() {
     let root = temp_source_root("wavecrate-gui-file-keyboard");
     let drums = root.join("drums");
@@ -316,4 +390,37 @@ fn sample_file_column_resize_clamps_width() {
         .map(|column| column.width)
         .unwrap();
     assert_eq!(extension_width, MIN_FILE_COLUMN_WIDTH);
+}
+
+#[test]
+fn sample_file_column_drag_reorders_columns() {
+    let mut browser = FolderBrowserState::load_default();
+
+    browser.apply_message(FolderBrowserMessage::DragFileColumn(
+        String::from("rating"),
+        radiant::widgets::DragHandleMessage::Started {
+            position: Point::new(284.0, 0.0),
+        },
+    ));
+    browser.apply_message(FolderBrowserMessage::DragFileColumn(
+        String::from("rating"),
+        radiant::widgets::DragHandleMessage::Moved {
+            position: Point::new(460.0, 0.0),
+        },
+    ));
+    browser.apply_message(FolderBrowserMessage::DragFileColumn(
+        String::from("rating"),
+        radiant::widgets::DragHandleMessage::Ended {
+            position: Point::new(460.0, 0.0),
+        },
+    ));
+
+    assert_eq!(
+        browser
+            .visible_file_columns()
+            .into_iter()
+            .map(|column| column.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["name", "extension", "size", "rating", "modified"]
+    );
 }

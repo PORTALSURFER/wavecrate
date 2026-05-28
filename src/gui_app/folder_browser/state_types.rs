@@ -64,6 +64,12 @@ pub(super) struct FileColumnResize {
     pub(super) start_width: f32,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct FileColumnReorder {
+    pub(super) column_id: String,
+    pub(super) content_left: f32,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum FolderBrowserDrag {
     Folder { folder_id: String },
@@ -91,6 +97,7 @@ pub(super) struct VisibleFolder {
 pub(super) fn default_file_columns() -> Vec<FileColumn> {
     vec![
         file_column("name", "Name", 240.0),
+        file_column("rating", "Rating", 68.0),
         file_column("extension", "Ext", 54.0),
         file_column("size", "Size", 78.0),
         file_column("modified", "Modified", 112.0),
