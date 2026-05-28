@@ -131,6 +131,10 @@ impl WaveformWidget {
             active_drag_kind,
         }
     }
+
+    pub(super) fn has_loaded_sample(&self) -> bool {
+        !self.file.audio_bytes.is_empty() && !self.file.path.as_os_str().is_empty()
+    }
 }
 
 impl Widget for WaveformWidget {

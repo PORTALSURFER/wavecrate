@@ -123,6 +123,7 @@ fn apply_source_move_result_invalidates_touched_sources_and_selected_target_stat
                 sound_type: None,
                 user_tag: Some("Vintage FX".into()),
                 normal_tags: vec![String::from("Riser FX")],
+                collection: None,
             }],
             errors: vec!["secondary move failed".into()],
             cancelled: false,

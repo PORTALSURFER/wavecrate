@@ -1,4 +1,4 @@
-use super::{FolderScanProgress, GuiAppState, GuiMessage};
+use super::{FolderScanProgress, GuiAppState, GuiMessage, NormalizationProgress};
 use radiant::prelude as ui;
 
 mod progress_bar;
@@ -27,19 +27,32 @@ fn selected_sample_count_label(state: &GuiAppState) -> String {
 }
 
 fn bottom_status_text(state: &GuiAppState) -> String {
+    if let Some(progress) = state.folder_progress.as_ref() {
+        return if progress.total == 0 {
+            format!(
+                "{} {} | {} items found",
+                progress.phase, progress.label, progress.completed
+            )
+        } else {
+            format!(
+                "{} {} | {}/{} | {}",
+                progress.phase,
+                progress.label,
+                progress.completed.min(progress.total),
+                progress.total,
+                progress.detail
+            )
+        };
+    }
     state
-        .folder_progress
+        .normalization_progress
         .as_ref()
         .map(|progress| {
             if progress.total == 0 {
-                format!(
-                    "{} {} | {} items found",
-                    progress.phase, progress.label, progress.completed
-                )
+                format!("Normalizing {} | {}", progress.label, progress.detail)
             } else {
                 format!(
-                    "{} {} | {}/{} | {}",
-                    progress.phase,
+                    "Normalizing {} | {}/{} | {}",
                     progress.label,
                     progress.completed.min(progress.total),
                     progress.total,
@@ -51,14 +64,14 @@ fn bottom_status_text(state: &GuiAppState) -> String {
 }
 
 pub(super) fn worker_progress_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
-    let Some(progress) = state.folder_progress.as_ref() else {
+    let Some(progress) = active_worker_progress(state) else {
         return ui::text("").width(0.0).height(10.0);
     };
     let track_width = 180.0;
-    let progress_bar = if progress.total == 0 {
+    let progress_bar = if progress.total() == 0 {
         StatusProgressBar::indeterminate(state.progress_tick)
     } else {
-        StatusProgressBar::determinate(progress.completed as f32 / progress.total.max(1) as f32)
+        StatusProgressBar::determinate(progress.completed() as f32 / progress.total().max(1) as f32)
     };
     ui::custom_widget(progress_bar, |output| {
         output.typed_ref::<GuiMessage>().cloned()
@@ -66,6 +79,40 @@ pub(super) fn worker_progress_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
     .key("bottom-status-progress-bar")
     .width(track_width)
     .height(10.0)
+}
+
+fn active_worker_progress(state: &GuiAppState) -> Option<WorkerProgressView<'_>> {
+    state
+        .folder_progress
+        .as_ref()
+        .map(WorkerProgressView::Folder)
+        .or_else(|| {
+            state
+                .normalization_progress
+                .as_ref()
+                .map(WorkerProgressView::Normalization)
+        })
+}
+
+enum WorkerProgressView<'a> {
+    Folder(&'a FolderScanProgress),
+    Normalization(&'a NormalizationProgress),
+}
+
+impl WorkerProgressView<'_> {
+    fn completed(&self) -> usize {
+        match self {
+            Self::Folder(progress) => progress.completed,
+            Self::Normalization(progress) => progress.completed,
+        }
+    }
+
+    fn total(&self) -> usize {
+        match self {
+            Self::Folder(progress) => progress.total,
+            Self::Normalization(progress) => progress.total,
+        }
+    }
 }
 
 pub(super) fn job_details_popover(progress: &FolderScanProgress) -> ui::View<GuiMessage> {

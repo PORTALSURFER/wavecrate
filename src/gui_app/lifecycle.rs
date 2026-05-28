@@ -29,6 +29,7 @@ impl GuiAppState {
             next_task_id: 1,
             sample_load_task: ui::LatestTask::new(),
             folder_progress: None,
+            normalization_progress: None,
             progress_tick: 0.0,
             waveform_loading_progress: 0.0,
             waveform_loading_target_progress: 0.0,
@@ -65,6 +66,10 @@ impl GuiAppState {
             collapsed_metadata_tag_categories: Default::default(),
             metadata_tags_by_file,
             sample_name_view_mode: SampleNameViewMode::DiskFilename,
+            startup_auto_load_pending: !config.sources.is_empty(),
+            waveform_cache: HashMap::new(),
+            waveform_cache_order: Default::default(),
+            cached_sample_paths: Default::default(),
         };
         if let Some(error) = metadata_tag_load_error {
             state.sample_status = format!("Tags not loaded: {error}");
@@ -107,7 +112,7 @@ impl GuiAppState {
     pub(super) fn advance_frame(&mut self) {
         self.waveform.apply_interaction(WaveformInteraction::Frame);
         self.refresh_playback_progress();
-        if self.folder_progress.is_some() {
+        if self.folder_progress.is_some() || self.normalization_progress.is_some() {
             self.progress_tick = (self.progress_tick + 0.035) % 1.0;
         }
         if self.waveform_loading_label.is_some() {
@@ -117,6 +122,24 @@ impl GuiAppState {
             }
         }
         self.flush_pending_volume_persist();
+    }
+
+    pub(super) fn maybe_auto_load_startup_sample(
+        &mut self,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        if !self.startup_auto_load_pending {
+            return;
+        }
+        self.startup_auto_load_pending = false;
+        if self.folder_browser.selected_file_id().is_some() {
+            return;
+        }
+        let Some(path) = self.folder_browser.first_audio_file_path() else {
+            return;
+        };
+        self.folder_browser.focus_file_across_sources(&path);
+        self.load_sample_without_autoplay(path.display().to_string(), context);
     }
 
     pub(super) fn worker_subscription(&mut self) -> ui::Subscription<GuiMessage> {

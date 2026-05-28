@@ -49,6 +49,10 @@ impl WaveformState {
         Ok(Self::from_file(file))
     }
 
+    pub(super) fn from_cached_file(file: Arc<WaveformFile>) -> Self {
+        Self::from_file(file)
+    }
+
     pub(super) fn empty() -> Self {
         Self::from_file(Arc::new(empty_waveform_file()))
     }
@@ -305,14 +309,15 @@ mod state_selection;
 mod state_viewport;
 
 mod audio_file;
-use audio_file::{
-    WaveformFile, empty_waveform_file, extract_wav_range_to_folder, extract_wav_range_to_sibling,
-    is_wav_path, load_waveform_file, load_waveform_file_with_progress,
-};
+pub(super) use audio_file::WaveformFile;
 #[cfg(test)]
 use audio_file::{
     downmix_to_mono, split_frequency_bands, synthetic_waveform_file,
     waveform_file_from_mono_samples,
+};
+use audio_file::{
+    empty_waveform_file, extract_wav_range_to_folder, extract_wav_range_to_sibling, is_wav_path,
+    load_waveform_file, load_waveform_file_with_progress,
 };
 
 mod signal_widget;

@@ -7,7 +7,12 @@ pub(super) fn default_gui_shortcut_resolution(
     press: ui::KeyPress,
 ) -> ui::ShortcutResolution<GuiMessage> {
     if state.folder_browser.rename_active() {
-        return ui::ShortcutResolution::unhandled();
+        return ui::ShortcutLayer::modal()
+            .bind(
+                ui::KeyPress::new(ui::KeyCode::Escape),
+                GuiMessage::FolderBrowser(FolderBrowserMessage::CancelRename),
+            )
+            .resolve(press);
     }
     if state.context_menu.is_some() {
         return ui::ShortcutLayer::modal()
@@ -73,7 +78,7 @@ fn selected_metadata_tag_shortcuts() -> ui::ShortcutLayer<GuiMessage> {
 }
 
 fn default_shortcuts(state: &GuiAppState) -> ui::ShortcutLayer<GuiMessage> {
-    ui::ShortcutLayer::new()
+    let layer = ui::ShortcutLayer::new()
         .bind(
             ui::KeyPress::new(ui::KeyCode::Escape),
             GuiMessage::StopPlayback,
@@ -100,6 +105,14 @@ fn default_shortcuts(state: &GuiAppState) -> ui::ShortcutLayer<GuiMessage> {
         )
         .bind(ui::KeyPress::new(ui::KeyCode::N), new_item_action(state))
         .bind(
+            ui::KeyPress::new(ui::KeyCode::OpenBracket),
+            GuiMessage::AdjustSelectedRating(-1),
+        )
+        .bind(
+            ui::KeyPress::new(ui::KeyCode::CloseBracket),
+            GuiMessage::AdjustSelectedRating(1),
+        )
+        .bind(
             ui::KeyPress::new(ui::KeyCode::Space),
             GuiMessage::PlaySelectedSample,
         )
@@ -118,7 +131,29 @@ fn default_shortcuts(state: &GuiAppState) -> ui::ShortcutLayer<GuiMessage> {
         .bind(
             ui::KeyPress::new(ui::KeyCode::ArrowRight),
             GuiMessage::ExpandSelectedFolder,
+        );
+    bind_collection_shortcuts(layer)
+}
+
+fn bind_collection_shortcuts(
+    layer: ui::ShortcutLayer<GuiMessage>,
+) -> ui::ShortcutLayer<GuiMessage> {
+    let keys = [
+        (ui::KeyCode::Num1, 0),
+        (ui::KeyCode::Num2, 1),
+        (ui::KeyCode::Num3, 2),
+        (ui::KeyCode::Num4, 3),
+        (ui::KeyCode::Num5, 4),
+        (ui::KeyCode::Num6, 5),
+    ];
+    keys.into_iter().fold(layer, |layer, (key, index)| {
+        let collection = wavecrate::sample_sources::SampleCollection::new(index)
+            .expect("collection shortcut index is valid");
+        layer.bind(
+            ui::KeyPress::new(key),
+            GuiMessage::AssignSelectedCollection(collection),
         )
+    })
 }
 
 fn new_item_action(state: &GuiAppState) -> GuiMessage {

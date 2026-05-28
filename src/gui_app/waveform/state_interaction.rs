@@ -9,6 +9,10 @@ use super::{
 
 impl WaveformState {
     pub(in crate::gui_app) fn apply_interaction(&mut self, interaction: WaveformInteraction) {
+        if !self.has_loaded_sample() && !matches!(interaction, WaveformInteraction::Frame) {
+            self.active_drag = None;
+            return;
+        }
         match interaction {
             WaveformInteraction::Wheel {
                 delta,

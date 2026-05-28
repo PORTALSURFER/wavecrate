@@ -65,6 +65,7 @@ impl DropTargetRecoveryFixture {
             sound_type: None,
             user_tag: Some("Vintage FX".into()),
             normal_tags: Vec::new(),
+            collection: None,
         }
     }
 }

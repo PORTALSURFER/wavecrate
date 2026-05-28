@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs,
     path::{Path, PathBuf},
 };
@@ -11,11 +12,13 @@ use super::{
         FolderScanResult,
     },
 };
+use wavecrate::sample_sources::{Rating, SampleCollection, SourceDatabase};
 
 mod discovery_merge;
 mod file_entry_metadata;
 pub(super) use discovery_merge::{merge_scan_discovery, upsert_file, upsert_folder};
 pub(super) use file_entry_metadata::file_entry;
+use file_entry_metadata::file_entry_with_metadata;
 
 const MAX_SCAN_DEPTH: usize = 3;
 const MAX_CHILD_FOLDERS: usize = 80;
@@ -25,7 +28,8 @@ pub(super) fn default_root_path() -> PathBuf {
 }
 
 pub(super) fn load_root_folder(root: PathBuf) -> FolderEntry {
-    load_folder(&root, 0).unwrap_or_else(|| FolderEntry {
+    let ratings = source_rating_map(&root);
+    load_folder(&root, 0, &root, &ratings).unwrap_or_else(|| FolderEntry {
         id: path_id(&root),
         name: folder_label(&root),
         children: Vec::new(),
@@ -47,8 +51,10 @@ pub(in crate::gui_app) fn scan_source_with_progress(
     mut progress: impl FnMut(FolderScanProgress),
     mut discovered: impl FnMut(FolderScanDiscovery),
 ) -> FolderScanResult {
+    let ratings = source_rating_map(&request.root);
     let mut scan = ScanProgressContext {
         request: &request,
+        ratings,
         counter: ScanProgressCounter {
             completed: 0,
             files: 0,
@@ -73,7 +79,30 @@ pub(in crate::gui_app) fn scan_source_with_progress(
     }
 }
 
-fn load_folder(path: &Path, depth: usize) -> Option<FolderEntry> {
+type SourceMetadataMap = HashMap<PathBuf, (Rating, bool, Option<SampleCollection>)>;
+
+fn source_rating_map(root: &Path) -> SourceMetadataMap {
+    let Ok(db) = SourceDatabase::open_read_only(root) else {
+        return HashMap::new();
+    };
+    let Ok(entries) = db.list_files() else {
+        return HashMap::new();
+    };
+    entries
+        .into_iter()
+        .map(|entry| {
+            let collection = db.collection_for_path(&entry.relative_path).ok().flatten();
+            (entry.relative_path, (entry.tag, entry.locked, collection))
+        })
+        .collect()
+}
+
+fn load_folder(
+    path: &Path,
+    depth: usize,
+    source_root: &Path,
+    ratings: &SourceMetadataMap,
+) -> Option<FolderEntry> {
     if depth > MAX_SCAN_DEPTH {
         return None;
     }
@@ -82,12 +111,12 @@ fn load_folder(path: &Path, depth: usize) -> Option<FolderEntry> {
         .iter()
         .filter(|entry| entry.is_dir())
         .take(MAX_CHILD_FOLDERS)
-        .filter_map(|entry| load_folder(entry, depth + 1))
+        .filter_map(|entry| load_folder(entry, depth + 1, source_root, ratings))
         .collect::<Vec<_>>();
     let files = entries
         .iter()
         .filter(|entry| entry.is_file())
-        .map(file_entry)
+        .map(|entry| rated_file_entry(entry, source_root, ratings))
         .collect::<Vec<_>>();
     Some(FolderEntry {
         id: path_id(path),
@@ -109,6 +138,7 @@ where
     D: FnMut(FolderScanDiscovery),
 {
     request: &'a FolderScanRequest,
+    ratings: SourceMetadataMap,
     counter: ScanProgressCounter,
     progress: &'a mut P,
     discovered: &'a mut D,
@@ -208,7 +238,7 @@ where
         .iter()
         .filter(|entry| entry.is_file())
         .map(|entry| {
-            let file = file_entry(entry);
+            let file = rated_file_entry(entry, &scan.request.root, &scan.ratings);
             scan.record_file(entry, &parent_id, file.clone());
             file
         })
@@ -219,6 +249,15 @@ where
         children,
         files,
     })
+}
+
+fn rated_file_entry(path: &PathBuf, source_root: &Path, ratings: &SourceMetadataMap) -> FileEntry {
+    let (rating, locked, collection) = path
+        .strip_prefix(source_root)
+        .ok()
+        .and_then(|relative| ratings.get(relative).copied())
+        .unwrap_or((Rating::NEUTRAL, false, None));
+    file_entry_with_metadata(path, rating, locked, collection)
 }
 
 fn read_sorted_entries(path: &Path) -> Vec<PathBuf> {

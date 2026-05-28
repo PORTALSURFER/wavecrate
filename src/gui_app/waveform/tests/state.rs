@@ -55,6 +55,34 @@ fn dragging_primary_creates_playmark_selection_without_starting_playback() {
 }
 
 #[test]
+fn empty_waveform_ignores_selection_and_pan_interactions() {
+    let mut state = WaveformState::empty();
+
+    for interaction in [
+        WaveformInteraction::BeginSelection {
+            kind: WaveformSelectionKind::Play,
+            visible_ratio: 0.2,
+        },
+        WaveformInteraction::UpdateSelection { visible_ratio: 0.6 },
+        WaveformInteraction::FinishSelection { visible_ratio: 0.6 },
+        WaveformInteraction::BeginSelection {
+            kind: WaveformSelectionKind::Edit,
+            visible_ratio: 0.4,
+        },
+        WaveformInteraction::BeginPan { visible_ratio: 0.5 },
+    ] {
+        state.apply_interaction(interaction);
+    }
+
+    assert_eq!(state.play_mark_ratio(), None);
+    assert_eq!(state.edit_mark_ratio(), None);
+    assert_eq!(state.play_selection(), None);
+    assert_eq!(state.edit_selection(), None);
+    assert_eq!(state.active_drag_kind(), None);
+    assert!(!state.is_playing());
+}
+
+#[test]
 fn playmark_range_edges_are_resizable() {
     let mut state = WaveformState::synthetic_for_tests();
     state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));

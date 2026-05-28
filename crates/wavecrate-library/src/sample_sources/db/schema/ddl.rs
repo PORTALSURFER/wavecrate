@@ -21,7 +21,8 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         tag_named INTEGER NOT NULL DEFAULT 0,
         missing INTEGER NOT NULL DEFAULT 0,
         extension TEXT NOT NULL DEFAULT '',
-        last_played_at INTEGER
+        last_played_at INTEGER,
+        collection INTEGER
     );
     CREATE TABLE IF NOT EXISTS source_tags (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -180,6 +181,7 @@ const BASE_SCHEMA_SQL: &str = "CREATE TABLE IF NOT EXISTS metadata (
         last_played_at INTEGER,
         user_tag TEXT,
         normal_tags TEXT,
+        collection INTEGER,
         tag_named INTEGER NOT NULL DEFAULT 0
     );";
 

@@ -229,6 +229,7 @@ fn drop_target_metadata_from_request(
         sound_type: metadata.sound_type,
         user_tag: metadata.user_tag,
         normal_tags: metadata.normal_tags,
+        collection: metadata.collection,
     }
 }
 
@@ -266,6 +267,7 @@ fn load_dropped_sample_metadata(
         sound_type: metadata.sound_type,
         user_tag: metadata.user_tag,
         normal_tags: metadata.normal_tags,
+        collection: metadata.collection,
     })
 }
 
@@ -334,6 +336,7 @@ fn run_drop_target_copy(
         sound_type: metadata.sound_type,
         user_tag: metadata.user_tag.clone(),
         normal_tags: metadata.normal_tags.clone(),
+        collection: metadata.collection,
     })
 }
 
@@ -405,5 +408,6 @@ fn run_drop_target_move(
         sound_type: metadata.sound_type,
         user_tag: metadata.user_tag.clone(),
         normal_tags: metadata.normal_tags.clone(),
+        collection: metadata.collection,
     })
 }

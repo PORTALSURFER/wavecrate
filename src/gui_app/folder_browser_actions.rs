@@ -74,6 +74,9 @@ impl GuiAppState {
                 self.open_source_context_menu(source_id, position);
             }
             FolderBrowserMessage::BeginRenameSelected => self.begin_folder_browser_rename(context),
+            FolderBrowserMessage::CancelRename => {
+                self.folder_browser.cancel_rename();
+            }
             FolderBrowserMessage::BeginCreateSubfolder => {
                 self.begin_folder_browser_subfolder_creation(context);
             }
@@ -83,6 +86,10 @@ impl GuiAppState {
             FolderBrowserMessage::DropOnFolder(folder_id) => {
                 self.context_menu = None;
                 self.drop_browser_drag_on_folder(folder_id, context);
+            }
+            FolderBrowserMessage::DropOnCollection(collection) => {
+                self.context_menu = None;
+                self.drop_drag_on_collection(collection, context);
             }
             FolderBrowserMessage::OpenFolderContextMenu(folder_id, position) => {
                 self.open_folder_context_menu(folder_id, position);

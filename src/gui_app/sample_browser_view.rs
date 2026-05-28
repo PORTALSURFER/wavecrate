@@ -5,12 +5,12 @@ use radiant::{
     runtime::PaintPrimitive,
     theme::ThemeTokens,
     widgets::{
-        FocusBehavior, PaintBounds, PointerButton, Widget, WidgetCommon, WidgetInput, WidgetOutput,
-        WidgetSizing,
+        ButtonMessage, FocusBehavior, PaintBounds, PointerButton, Widget, WidgetCommon,
+        WidgetInput, WidgetOutput, WidgetSizing,
     },
 };
 
-use super::folder_browser::{FileColumn, FolderBrowserMessage};
+use super::folder_browser::{FILE_COLUMN_GAP, FileColumn, FolderBrowserMessage};
 use super::{
     GuiAppState, GuiMessage, SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_OVERSCAN_ROWS,
     SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS, SampleNameViewMode,
@@ -47,6 +47,7 @@ pub(super) fn sample_browser(
             window,
             state.sample_name_view_mode,
             &state.metadata_tags_by_file,
+            &state.cached_sample_paths,
             suppress_row_hover,
         ),
         sample_browser_status(audio_count),
@@ -111,7 +112,8 @@ fn sample_header_cell(column: &FileColumn, sort: &ui::DetailsSort) -> ui::View<G
     } else {
         ""
     };
-    let column_id = column.id.clone();
+    let sort_id = column.id.clone();
+    let drag_id = column.id.clone();
     let resize_id = column.id.clone();
     let label = format!("{}{marker}", column.label);
     ui::row([
@@ -123,9 +125,16 @@ fn sample_header_cell(column: &FileColumn, sort: &ui::DetailsSort) -> ui::View<G
                 .height(20.0)
                 .truncate(),
             ui::button(label)
-                .message(GuiMessage::FolderBrowser(
-                    FolderBrowserMessage::SortFileColumn(column_id),
-                ))
+                .draggable()
+                .mapped(move |message| match message {
+                    ButtonMessage::Activate => GuiMessage::FolderBrowser(
+                        FolderBrowserMessage::SortFileColumn(sort_id.clone()),
+                    ),
+                    ButtonMessage::Drag(drag) => GuiMessage::FolderBrowser(
+                        FolderBrowserMessage::DragFileColumn(drag_id.clone(), drag),
+                    ),
+                    ButtonMessage::SecondaryActivate { .. } => GuiMessage::Noop,
+                })
                 .key(format!("sample-sort-{}", column.id))
                 .fill_width()
                 .height(20.0)
@@ -160,7 +169,7 @@ fn details_header_row(
         .height(24.0)
         .padding_x(8.0)
         .padding_y(2.0)
-        .spacing(10.0)
+        .spacing(FILE_COLUMN_GAP)
 }
 
 fn sample_browser_status(audio_count: usize) -> ui::View<GuiMessage> {

@@ -36,6 +36,8 @@ pub(crate) struct FolderEntryMove {
     pub(crate) user_tag: Option<String>,
     /// Normal library tag labels assigned to the sample.
     pub(crate) normal_tags: Vec<String>,
+    /// Fixed collection slot assigned to the sample.
+    pub(crate) collection: Option<crate::sample_sources::SampleCollection>,
 }
 
 /// Result of a background in-source folder sample move operation.

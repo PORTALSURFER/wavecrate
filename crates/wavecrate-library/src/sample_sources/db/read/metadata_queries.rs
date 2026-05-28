@@ -4,7 +4,8 @@ use rusqlite::OptionalExtension;
 
 use super::super::util::map_sql_error;
 use super::super::{
-    META_WAV_PATHS_REVISION, Rating, SampleSoundType, SourceDatabase, SourceDbError,
+    META_WAV_PATHS_REVISION, Rating, SampleCollection, SampleSoundType, SourceDatabase,
+    SourceDbError,
 };
 
 fn normalize_supported_audio_path(path: &Path) -> Result<Option<String>, SourceDbError> {
@@ -155,6 +156,30 @@ impl SourceDatabase {
         Ok(value)
     }
 
+    /// Fetch the fixed collection slot for a specific wav path.
+    pub fn collection_for_path(
+        &self,
+        path: &Path,
+    ) -> Result<Option<SampleCollection>, SourceDbError> {
+        let Some(path_str) = normalize_supported_audio_path(path)? else {
+            return Ok(None);
+        };
+        if !schema_has_collection_column(self)? {
+            return Ok(None);
+        }
+        let value: Option<i64> = self
+            .connection
+            .query_row(
+                "SELECT collection FROM wav_files WHERE path = ?1",
+                rusqlite::params![path_str.as_str()],
+                |row| row.get::<_, Option<i64>>(0),
+            )
+            .optional()
+            .map_err(map_sql_error)?
+            .flatten();
+        Ok(value.and_then(SampleCollection::from_i64))
+    }
+
     /// Read a metadata value by key from the database.
     pub fn get_metadata(&self, key: &str) -> Result<Option<String>, SourceDbError> {
         let value: Option<String> = self
@@ -178,4 +203,9 @@ impl SourceDatabase {
     pub fn get_wav_paths_revision(&self) -> Result<u64, SourceDbError> {
         self.get_numeric_metadata(META_WAV_PATHS_REVISION)
     }
+}
+
+fn schema_has_collection_column(db: &SourceDatabase) -> Result<bool, SourceDbError> {
+    let columns = super::super::schema::table_columns(&db.connection, "wav_files")?;
+    Ok(columns.contains("collection"))
 }

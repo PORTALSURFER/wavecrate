@@ -28,6 +28,15 @@ fn selected_asset_file_path(browser: &super::FolderBrowserState, name: &str) -> 
         .clone()
 }
 
+fn first_visible_asset_file_path(browser: &super::FolderBrowserState) -> String {
+    browser
+        .selected_audio_files()
+        .first()
+        .unwrap_or_else(|| panic!("expected at least one visible audio sample"))
+        .id
+        .clone()
+}
+
 fn gui_state_for_span_tests() -> GuiAppState {
     GuiAppState {
         folder_width: DEFAULT_FOLDER_WIDTH,
@@ -40,6 +49,7 @@ fn gui_state_for_span_tests() -> GuiAppState {
         next_task_id: 1,
         sample_load_task: ui::LatestTask::new(),
         folder_progress: None,
+        normalization_progress: None,
         progress_tick: 0.0,
         waveform_loading_progress: 0.0,
         waveform_loading_target_progress: 0.0,
@@ -76,6 +86,10 @@ fn gui_state_for_span_tests() -> GuiAppState {
         collapsed_metadata_tag_categories: Default::default(),
         metadata_tags_by_file: HashMap::new(),
         sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
+        startup_auto_load_pending: false,
+        waveform_cache: HashMap::new(),
+        waveform_cache_order: Default::default(),
+        cached_sample_paths: Default::default(),
     }
 }
 
@@ -105,6 +119,7 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
         next_task_id: 1,
         sample_load_task: ui::LatestTask::new(),
         folder_progress: None,
+        normalization_progress: None,
         progress_tick: 0.0,
         waveform_loading_progress: 0.0,
         waveform_loading_target_progress: 0.0,
@@ -141,6 +156,10 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
         collapsed_metadata_tag_categories: Default::default(),
         metadata_tags_by_file: HashMap::new(),
         sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
+        startup_auto_load_pending: false,
+        waveform_cache: HashMap::new(),
+        waveform_cache_order: Default::default(),
+        cached_sample_paths: Default::default(),
     };
     state.resize_folder_browser(DragHandleMessage::Started {
         position: Point::new(100.0, 0.0),
@@ -242,6 +261,31 @@ fn normalize_wav_file_in_place_scales_loaded_sample_peak() {
 }
 
 #[test]
+fn normalize_selected_samples_queues_worker_without_rewriting_on_ui_thread() {
+    let (mut state, _source_root, selected_file) = gui_state_with_temp_sample("quiet.wav");
+    let path = PathBuf::from(&selected_file);
+    write_test_wav_i16(&path, &[0, 1024, -2048, 4096]);
+    let before = fs::read(&path).expect("read wav before normalization");
+
+    let mut context = ui::UpdateContext::default();
+    state.apply_message(super::GuiMessage::NormalizeSelectedSamples, &mut context);
+
+    assert_eq!(
+        fs::read(&path).expect("read wav after queue"),
+        before,
+        "normalization must not rewrite the selected sample on the UI thread"
+    );
+    let progress = state
+        .normalization_progress
+        .as_ref()
+        .expect("normalization progress should be visible after queueing");
+    assert_eq!(progress.completed, 0);
+    assert_eq!(progress.total, 1);
+    assert_eq!(progress.detail, "Queued");
+    assert!(state.sample_status.contains("Normalizing 1 sample"));
+}
+
+#[test]
 fn sample_selection_loads_selected_file_into_waveform() {
     let mut state = GuiAppState {
         folder_width: DEFAULT_FOLDER_WIDTH,
@@ -254,6 +298,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         next_task_id: 1,
         sample_load_task: ui::LatestTask::new(),
         folder_progress: None,
+        normalization_progress: None,
         progress_tick: 0.0,
         waveform_loading_progress: 0.0,
         waveform_loading_target_progress: 0.0,
@@ -290,8 +335,16 @@ fn sample_selection_loads_selected_file_into_waveform() {
         collapsed_metadata_tag_categories: Default::default(),
         metadata_tags_by_file: HashMap::new(),
         sample_name_view_mode: super::SampleNameViewMode::DiskFilename,
+        startup_auto_load_pending: false,
+        waveform_cache: HashMap::new(),
+        waveform_cache_order: Default::default(),
+        cached_sample_paths: Default::default(),
     };
-    let sample_path = selected_asset_file_path(&state.folder_browser, "portal_SS_kick_003.wav");
+    let sample_path = first_visible_asset_file_path(&state.folder_browser);
+    let sample_name = PathBuf::from(&sample_path)
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .expect("sample file name");
 
     let mut context = ui::UpdateContext::default();
     state.apply_message(
@@ -303,7 +356,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
     );
     assert_eq!(
         state.waveform_loading_label.as_deref(),
-        Some("portal_SS_kick_003.wav")
+        Some(sample_name.as_str())
     );
     let ticket = state.sample_load_task.active().expect("sample load queued");
     state.apply_message(
@@ -312,6 +365,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
             output: super::SampleLoadResult {
                 path: sample_path.clone(),
                 result: super::WaveformState::load_path(sample_path.clone().into()),
+                autoplay: true,
             },
         }),
         &mut context,
@@ -321,10 +375,26 @@ fn sample_selection_loads_selected_file_into_waveform() {
         state.folder_browser.selected_file_id(),
         Some(sample_path.as_str())
     );
-    assert_eq!(state.waveform.file_name(), "portal_SS_kick_003.wav");
+    assert_eq!(state.waveform.file_name(), sample_name);
     assert_eq!(state.waveform_loading_label, None);
     assert!(state.waveform.frames() > 0);
-    assert!(state.sample_status.contains("portal_SS_kick_003.wav"));
+    assert!(state.sample_status.contains(&sample_name));
+    assert!(state.cached_sample_paths.contains(&sample_path));
+
+    state.apply_message(
+        super::GuiMessage::SelectSampleWithModifiers {
+            path: sample_path.clone(),
+            modifiers: Default::default(),
+        },
+        &mut context,
+    );
+
+    assert!(
+        state.sample_load_task.active().is_none(),
+        "repeat selection should reuse the in-memory waveform cache instead of queuing decode work"
+    );
+    assert_eq!(state.waveform_loading_label, None);
+    assert_eq!(state.waveform.file_name(), sample_name);
 }
 
 #[test]
@@ -523,6 +593,7 @@ fn assert_player_progress_inside_span(state: &GuiAppState, start: f32, end: f32)
 #[test]
 fn toolbar_icon_assets_parse_and_paint_through_radiant_icon_button() {
     for icon in [
+        super::ToolbarIcon::FocusLoaded,
         super::ToolbarIcon::Loop,
         super::ToolbarIcon::Play,
         super::ToolbarIcon::Stop,
@@ -554,17 +625,180 @@ fn toolbar_icon_assets_parse_and_paint_through_radiant_icon_button() {
 }
 
 #[test]
-fn toolbar_icon_button_routes_transport_message_through_radiant_builder() {
-    let surface = radiant::runtime::UiSurface::new(
-        super::toolbar_icon_button(101, super::ToolbarIcon::Loop, true, false).into_node(),
+fn toolbar_icon_button_routes_messages_through_radiant_builder() {
+    for (icon, message) in [
+        (
+            super::ToolbarIcon::FocusLoaded,
+            super::GuiMessage::FocusLoadedFile,
+        ),
+        (
+            super::ToolbarIcon::Loop,
+            super::GuiMessage::ToggleLoopPlayback,
+        ),
+    ] {
+        let surface = radiant::runtime::UiSurface::new(
+            super::toolbar_icon_button(101, icon, true, false).into_node(),
+        );
+
+        assert_eq!(
+            surface.dispatch_widget_output(
+                101,
+                radiant::widgets::WidgetOutput::typed(radiant::widgets::ButtonMessage::Activate),
+            ),
+            Some(message)
+        );
+    }
+}
+
+#[test]
+fn focus_loaded_toolbar_button_is_topmost_hit_target_and_paints_hover_feedback() {
+    let state = GuiAppState::load_default().expect("default state loads");
+    let bridge = DeclarativeOwnedRuntimeBridge::new(
+        state,
+        |state| radiant::runtime::UiSurface::new(super::view(state).into_node()),
+        |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
+    );
+    let theme = radiant::theme::ThemeTokens::default();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&theme);
+    let icon_rect = frame
+        .paint_plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::Svg(svg) if svg.widget_id == super::TOOLBAR_FOCUS_LOADED_ID => {
+                Some(svg.rect)
+            }
+            _ => None,
+        })
+        .expect("focus-loaded toolbar icon should paint");
+    let point = Point::new(
+        (icon_rect.min.x + icon_rect.max.x) * 0.5,
+        (icon_rect.min.y + icon_rect.max.y) * 0.5,
     );
 
     assert_eq!(
-        surface.dispatch_widget_output(
-            101,
-            radiant::widgets::WidgetOutput::typed(radiant::widgets::ButtonMessage::Activate),
-        ),
-        Some(super::GuiMessage::ToggleLoopPlayback)
+        runtime.widget_at(point),
+        Some(super::TOOLBAR_FOCUS_LOADED_ID),
+        "focus-loaded button must be the topmost hit target at its painted icon"
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerMove { position: point }),
+        Some(super::TOOLBAR_FOCUS_LOADED_ID)
+    );
+    let hovered_frame = runtime.frame(&theme);
+    assert!(
+        hovered_frame
+            .paint_plan
+            .primitives
+            .iter()
+            .any(|primitive| matches!(
+                primitive,
+                PaintPrimitive::FillPolygon(fill)
+                    if fill.widget_id == super::TOOLBAR_FOCUS_LOADED_ID
+                        && fill.color.a > 0
+            )),
+        "hovering the focus-loaded button should paint a visible accent overlay"
+    );
+}
+
+#[test]
+fn stop_toolbar_button_is_hit_target_and_paints_hover_while_playing() {
+    let mut state = GuiAppState::load_default().expect("default state loads");
+    state.waveform = super::WaveformState::synthetic_for_tests();
+    state.waveform.start_playback(0.25);
+    let bridge = DeclarativeOwnedRuntimeBridge::new(
+        state,
+        |state| radiant::runtime::UiSurface::new(super::view(state).into_node()),
+        |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
+    );
+    let theme = radiant::theme::ThemeTokens::default();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&theme);
+    let icon_rect = frame
+        .paint_plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::Svg(svg) if svg.widget_id == super::TOOLBAR_STOP_ID => Some(svg.rect),
+            _ => None,
+        })
+        .expect("stop toolbar icon should paint");
+    let point = Point::new(
+        (icon_rect.min.x + icon_rect.max.x) * 0.5,
+        (icon_rect.min.y + icon_rect.max.y) * 0.5,
+    );
+
+    assert_eq!(
+        runtime.widget_at(point),
+        Some(super::TOOLBAR_STOP_ID),
+        "stop button must be the topmost hit target while playback is active"
+    );
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerMove { position: point }),
+        Some(super::TOOLBAR_STOP_ID)
+    );
+    let hovered_frame = runtime.frame(&theme);
+    assert!(
+        hovered_frame
+            .paint_plan
+            .primitives
+            .iter()
+            .any(|primitive| matches!(
+                primitive,
+                PaintPrimitive::FillPolygon(fill)
+                    if fill.widget_id == super::TOOLBAR_STOP_ID
+                        && fill.color.a > 0
+            )),
+        "hovering the playing stop button should paint a visible accent overlay"
+    );
+    runtime.dispatch_event(Event::PointerPress {
+        position: point,
+        button: PointerButton::Primary,
+        modifiers: PointerModifiers::default(),
+    });
+    runtime.dispatch_event(Event::PointerRelease {
+        position: point,
+        button: PointerButton::Primary,
+        modifiers: PointerModifiers::default(),
+    });
+    assert!(
+        !runtime.bridge().state().waveform.is_playing(),
+        "clicking the playing stop button should dispatch StopPlayback"
+    );
+}
+
+#[test]
+fn stop_toolbar_button_remains_available_for_loaded_idle_sample() {
+    let mut state = GuiAppState::load_default().expect("default state loads");
+    state.waveform = super::WaveformState::synthetic_for_tests();
+    assert!(!state.waveform.is_playing());
+    let bridge = DeclarativeOwnedRuntimeBridge::new(
+        state,
+        |state| radiant::runtime::UiSurface::new(super::view(state).into_node()),
+        |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
+    );
+    let theme = radiant::theme::ThemeTokens::default();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&theme);
+    let icon_rect = frame
+        .paint_plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::Svg(svg) if svg.widget_id == super::TOOLBAR_STOP_ID => Some(svg.rect),
+            _ => None,
+        })
+        .expect("stop toolbar icon should paint");
+    let point = Point::new(
+        (icon_rect.min.x + icon_rect.max.x) * 0.5,
+        (icon_rect.min.y + icon_rect.max.y) * 0.5,
+    );
+
+    assert_eq!(runtime.widget_at(point), Some(super::TOOLBAR_STOP_ID));
+    assert_eq!(
+        runtime.dispatch_event(Event::PointerMove { position: point }),
+        Some(super::TOOLBAR_STOP_ID)
     );
 }
 
@@ -634,6 +868,11 @@ fn clear_rebuildable_caches_action_removes_cache_payloads_only() {
         "{}",
         state.sample_status
     );
+}
+
+#[test]
+fn default_window_title_marks_alpha_build() {
+    assert_eq!(super::launch::DEFAULT_WINDOW_TITLE, "Wavecrate - alpha");
 }
 
 #[test]
@@ -786,7 +1025,7 @@ fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
     );
 
     assert!(frame_has_text(&frame, "Filter"));
-    assert!(frame_has_text(&frame, "Metadata"));
+    assert!(!frame_has_text(&frame, "Metadata"));
     assert!(!frame_has_text(&frame, "Tagging"));
     assert!(frame_has_text(&frame, "kick"));
     assert!(frame_has_text(&frame, ">"));
@@ -1366,7 +1605,7 @@ fn folder_browser_metadata_hides_tag_entry_when_no_file_is_selected() {
         &radiant::theme::ThemeTokens::default(),
     );
 
-    assert!(frame_has_text(&frame, "Metadata"));
+    assert!(!frame_has_text(&frame, "Metadata"));
     assert!(!frame_has_text(&frame, "Tags (1)"));
     assert!(!frame_has_text(&frame, "kick"));
     assert!(

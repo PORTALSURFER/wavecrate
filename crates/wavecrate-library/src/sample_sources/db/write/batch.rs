@@ -3,7 +3,9 @@ use std::path::Path;
 use rusqlite::params;
 
 use super::super::util::map_sql_error;
-use super::super::{Rating, SampleSoundType, SourceDatabase, SourceDbError, SourceWriteBatch};
+use super::super::{
+    Rating, SampleCollection, SampleSoundType, SourceDatabase, SourceDbError, SourceWriteBatch,
+};
 use super::mutation::{
     delete_path_statement, remap_analysis_sample_identity_statement, update_flag_statement,
     update_path_i64_statement, update_path_null_statement, update_path_text_statement,
@@ -21,6 +23,8 @@ const UPDATE_TAG_NAMED_SQL: &str = "UPDATE wav_files SET tag_named = ?1 WHERE pa
 const UPDATE_MISSING_SQL: &str = "UPDATE wav_files SET missing = ?1 WHERE path = ?2";
 const UPDATE_LAST_PLAYED_AT_SQL: &str = "UPDATE wav_files SET last_played_at = ?1 WHERE path = ?2";
 const CLEAR_LAST_PLAYED_AT_SQL: &str = "UPDATE wav_files SET last_played_at = NULL WHERE path = ?1";
+const UPDATE_COLLECTION_SQL: &str = "UPDATE wav_files SET collection = ?1 WHERE path = ?2";
+const CLEAR_COLLECTION_SQL: &str = "UPDATE wav_files SET collection = NULL WHERE path = ?1";
 
 impl<'conn> SourceWriteBatch<'conn> {
     /// Insert or update a metadata key/value pair within the active batch.
@@ -213,6 +217,23 @@ impl<'conn> SourceWriteBatch<'conn> {
     /// Clear the last played timestamp for a wav row within the batch.
     pub fn clear_last_played_at(&mut self, relative_path: &Path) -> Result<(), SourceDbError> {
         update_path_null_statement(&self.tx, CLEAR_LAST_PLAYED_AT_SQL, relative_path)
+    }
+
+    /// Update the fixed collection slot for a wav row within the batch.
+    pub fn set_collection(
+        &mut self,
+        relative_path: &Path,
+        collection: Option<SampleCollection>,
+    ) -> Result<(), SourceDbError> {
+        match collection {
+            Some(collection) => update_path_i64_statement(
+                &self.tx,
+                UPDATE_COLLECTION_SQL,
+                relative_path,
+                collection.as_i64(),
+            ),
+            None => update_path_null_statement(&self.tx, CLEAR_COLLECTION_SQL, relative_path),
+        }
     }
 
     /// Remove a wav row within the batch.

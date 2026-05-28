@@ -93,4 +93,38 @@ impl FolderEntry {
         }
         changed
     }
+
+    pub(super) fn set_file_rating(
+        &mut self,
+        file_id: &str,
+        rating: wavecrate::sample_sources::Rating,
+        locked: bool,
+    ) -> bool {
+        for file in &mut self.files {
+            if file.id == file_id {
+                file.rating = rating;
+                file.rating_locked = locked;
+                return true;
+            }
+        }
+        self.children
+            .iter_mut()
+            .any(|child| child.set_file_rating(file_id, rating, locked))
+    }
+
+    pub(super) fn set_file_collection(
+        &mut self,
+        file_id: &str,
+        collection: wavecrate::sample_sources::SampleCollection,
+    ) -> bool {
+        for file in &mut self.files {
+            if file.id == file_id {
+                file.collection = Some(collection);
+                return true;
+            }
+        }
+        self.children
+            .iter_mut()
+            .any(|child| child.set_file_collection(file_id, collection))
+    }
 }

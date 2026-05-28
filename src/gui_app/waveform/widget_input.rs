@@ -17,6 +17,9 @@ impl WaveformWidget {
         match input {
             WidgetInput::PointerMove { position } => {
                 self.common.state.hovered = bounds.contains(position);
+                if !self.has_loaded_sample() {
+                    return None;
+                }
                 if self.active_drag_kind == Some(WaveformActiveDragKind::PlaySelectionExport) {
                     return Some(WidgetOutput::typed(
                         WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::Moved {
@@ -30,6 +33,11 @@ impl WaveformWidget {
                     })
                 })
             }
+            WidgetInput::Wheel { position, .. }
+                if !self.has_loaded_sample() && bounds.contains(position) =>
+            {
+                None
+            }
             WidgetInput::Wheel {
                 position, delta, ..
             } if bounds.contains(position) => {
@@ -42,22 +50,28 @@ impl WaveformWidget {
                 position,
                 button: PointerButton::Primary,
                 ..
-            } if bounds.contains(position) => self.handle_primary_press(bounds, position),
+            } if self.has_loaded_sample() && bounds.contains(position) => {
+                self.handle_primary_press(bounds, position)
+            }
             WidgetInput::PointerDoubleClick {
                 position,
                 button: PointerButton::Primary,
                 ..
-            } if bounds.contains(position) => self.handle_primary_double_click(bounds, position),
+            } if self.has_loaded_sample() && bounds.contains(position) => {
+                self.handle_primary_double_click(bounds, position)
+            }
             WidgetInput::PointerPress {
                 position,
                 button: PointerButton::Secondary,
                 ..
-            } if bounds.contains(position) => self.handle_secondary_press(bounds, position),
+            } if self.has_loaded_sample() && bounds.contains(position) => {
+                self.handle_secondary_press(bounds, position)
+            }
             WidgetInput::PointerPress {
                 position,
                 button: PointerButton::Auxiliary,
                 ..
-            } if bounds.contains(position) => {
+            } if self.has_loaded_sample() && bounds.contains(position) => {
                 Some(WidgetOutput::typed(WaveformInteraction::BeginPan {
                     visible_ratio: self.ratio_from_position(bounds, position),
                 }))
@@ -66,7 +80,9 @@ impl WaveformWidget {
                 position,
                 button: PointerButton::Primary,
                 ..
-            } if self.active_drag_kind == Some(WaveformActiveDragKind::PlaySelectionExport) => {
+            } if self.has_loaded_sample()
+                && self.active_drag_kind == Some(WaveformActiveDragKind::PlaySelectionExport) =>
+            {
                 Some(WidgetOutput::typed(
                     WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::Ended {
                         position,
@@ -77,7 +93,7 @@ impl WaveformWidget {
                 position,
                 button: PointerButton::Primary,
                 ..
-            } if self.primary_release_finishes_drag() => {
+            } if self.has_loaded_sample() && self.primary_release_finishes_drag() => {
                 Some(WidgetOutput::typed(WaveformInteraction::FinishSelection {
                     visible_ratio: self.ratio_from_position(bounds, position),
                 }))
@@ -86,7 +102,7 @@ impl WaveformWidget {
                 position,
                 button: PointerButton::Secondary,
                 ..
-            } if self.secondary_release_finishes_drag() => {
+            } if self.has_loaded_sample() && self.secondary_release_finishes_drag() => {
                 Some(WidgetOutput::typed(WaveformInteraction::FinishSelection {
                     visible_ratio: self.ratio_from_position(bounds, position),
                 }))
@@ -95,7 +111,9 @@ impl WaveformWidget {
                 position,
                 button: PointerButton::Auxiliary,
                 ..
-            } if self.active_drag_kind == Some(WaveformActiveDragKind::Pan) => {
+            } if self.has_loaded_sample()
+                && self.active_drag_kind == Some(WaveformActiveDragKind::Pan) =>
+            {
                 Some(WidgetOutput::typed(WaveformInteraction::FinishSelection {
                     visible_ratio: self.ratio_from_position(bounds, position),
                 }))

@@ -68,6 +68,48 @@ fn playhead_cursor_paints_pixel_stable_rect_when_progress_is_subpixel() {
 }
 
 #[test]
+fn play_start_marker_is_hidden_at_sample_start() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.start_playback(0.0);
+    let widget = waveform_widget_for_state(&state);
+    let mut primitives = Vec::new();
+
+    widget.append_paint(
+        &mut primitives,
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(400.0, 80.0)),
+        &Default::default(),
+        &ThemeTokens::default(),
+    );
+
+    assert!(
+        !fill_rects(&primitives).iter().any(|fill| {
+            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 230)
+        }),
+        "play-start marker should be implicit when playback starts at sample head"
+    );
+}
+
+#[test]
+fn play_start_marker_paints_when_start_deviates_from_sample_start() {
+    let mut state = WaveformState::synthetic_for_tests();
+    state.start_playback(0.125);
+    let widget = waveform_widget_for_state(&state);
+    let mut primitives = Vec::new();
+
+    widget.append_paint(
+        &mut primitives,
+        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(400.0, 80.0)),
+        &Default::default(),
+        &ThemeTokens::default(),
+    );
+
+    assert!(fill_rects(&primitives).iter().any(|fill| {
+        (fill.rect.center().x / 400.0 - 0.125).abs() < 0.01
+            && (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (255, 142, 92, 230)
+    }));
+}
+
+#[test]
 fn selection_range_projects_visible_ratios_inside_viewport() {
     let mut state = WaveformState::synthetic_for_tests();
     state.apply_interaction(WaveformInteraction::BeginSelection {

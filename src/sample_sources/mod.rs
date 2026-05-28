@@ -19,7 +19,7 @@ pub mod library {
     pub use wavecrate_library::sample_sources::library::*;
 }
 
-pub use wavecrate_library::sample_sources::db::SampleSoundType;
+pub use wavecrate_library::sample_sources::db::{SampleCollection, SampleSoundType};
 pub(crate) use wavecrate_library::sample_sources::is_supported_audio;
 pub use wavecrate_library::sample_sources::normalize_relative_path;
 pub use wavecrate_library::sample_sources::{

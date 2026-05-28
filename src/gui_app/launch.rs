@@ -15,6 +15,7 @@ use wavecrate::logging::{self, ActionDebugEvent, emit_action_debug_event};
 
 pub(super) const DEBUG_LAYOUT_ARG: &str = "--debug-layout";
 pub(super) const DEBUG_LAYOUT_SHORT_ARG: &str = "-debug-layout";
+pub(super) const DEFAULT_WINDOW_TITLE: &str = "Wavecrate - alpha";
 
 /// Run the default Radiant GUI application shell.
 pub(crate) fn run() -> Result<(), String> {
@@ -36,7 +37,7 @@ pub(crate) fn run() -> Result<(), String> {
     let debug_layout = debug_layout_requested(args.iter().cloned());
     let options = NativeRunOptions {
         window: NativeWindowOptions {
-            title: String::from("Wavecrate"),
+            title: String::from(DEFAULT_WINDOW_TITLE),
             geometry: NativeWindowGeometry {
                 inner_size: Some([960.0, 540.0]),
                 min_inner_size: Some([640.0, 360.0]),

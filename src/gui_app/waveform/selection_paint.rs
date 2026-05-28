@@ -18,6 +18,7 @@ const EXTRACTED_RANGE_RAIL: Rgba8 = Rgba8 {
     a: 225,
 };
 const EXTRACTED_RANGE_RAIL_HEIGHT: f32 = 2.0;
+const IMPLICIT_SAMPLE_START_RATIO: f32 = 0.000_1;
 
 impl WaveformWidget {
     pub(super) fn append_selection_and_marker_paint(
@@ -196,6 +197,9 @@ impl WaveformWidget {
 
     fn append_marker_paint(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
         if self.play_selection.is_none()
+            && self
+                .play_mark_ratio
+                .is_some_and(|ratio| ratio.clamp(0.0, 1.0) > IMPLICIT_SAMPLE_START_RATIO)
             && let Some(play_mark_ratio) = self.visible_ratio_for_absolute(self.play_mark_ratio)
         {
             self.push_visible_cursor(

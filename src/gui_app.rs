@@ -5,7 +5,7 @@ use radiant::prelude as ui;
 use radiant::runtime::NativeFileDrop;
 use radiant::widgets::{DragHandleMessage, PointerModifiers};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet, VecDeque},
     path::PathBuf,
     sync::mpsc::{Receiver, Sender},
     time::{Duration, Instant},
@@ -15,6 +15,7 @@ use wavecrate::audio::{
     available_devices, available_hosts, supported_sample_rates,
 };
 use wavecrate::logging;
+use wavecrate::sample_sources::SampleCollection;
 #[cfg(test)]
 use wavecrate::sample_sources::config::AppConfig;
 use wavecrate::sample_sources::config::AppSettingsCore;
@@ -35,7 +36,9 @@ mod lifecycle;
 mod metadata_tags;
 mod playback;
 mod sample_browser_view;
+mod sample_collections;
 mod sample_load_actions;
+mod sample_ratings;
 mod selected_file_actions;
 mod shortcuts;
 mod status_bar;
@@ -70,7 +73,9 @@ use sample_browser_view::sample_browser;
 use sample_load_actions::{NormalizedWaveformReload, WaveformPlaybackResume};
 use shortcuts::default_gui_shortcut_resolution;
 #[cfg(test)]
-use toolbar::{ToolbarIcon, toolbar_icon_button, toolbar_icon_svg};
+use toolbar::{
+    TOOLBAR_FOCUS_LOADED_ID, TOOLBAR_STOP_ID, ToolbarIcon, toolbar_icon_button, toolbar_icon_svg,
+};
 use waveform::{WaveformActiveDragKind, WaveformInteraction, WaveformSelectionKind, WaveformState};
 
 const DEFAULT_FOLDER_WIDTH: f32 = 260.0;
@@ -106,6 +111,8 @@ enum GuiMessage {
     FolderScanProgress(FolderScanProgress),
     FolderScanDiscoveryBatch(FolderScanDiscoveryBatch),
     FolderScanFinished(FolderScanResult),
+    NormalizationProgress(NormalizationProgress),
+    NormalizationFinished(NormalizationResult),
     SelectSampleWithModifiers {
         path: String,
         modifiers: PointerModifiers,
@@ -159,6 +166,9 @@ enum GuiMessage {
     MetadataTagsPersisted(MetadataTagPersistResult),
     ToggleSampleNameViewMode,
     ClearRebuildableCaches,
+    FocusLoadedFile,
+    AdjustSelectedRating(i8),
+    AssignSelectedCollection(SampleCollection),
     NormalizeSelectedSamples,
     CopySelectedFiles,
     CopyContextPath,
@@ -188,6 +198,40 @@ enum GuiMessage {
 struct SampleLoadResult {
     path: String,
     result: Result<WaveformState, String>,
+    autoplay: bool,
+}
+
+#[derive(Clone, Debug)]
+struct WaveformCacheEntry {
+    file: std::sync::Arc<waveform::WaveformFile>,
+    signature: SampleFileSignature,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct SampleFileSignature {
+    size_bytes: u64,
+    modified_ns: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct NormalizationProgress {
+    task_id: u64,
+    label: String,
+    completed: usize,
+    total: usize,
+    detail: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct NormalizationResult {
+    task_id: u64,
+    loaded_path: PathBuf,
+    normalizing_loaded: bool,
+    was_playing: bool,
+    restart_ratio: f32,
+    restart_span: Option<(f32, f32)>,
+    normalized: Vec<PathBuf>,
+    last_error: Option<String>,
 }
 
 impl PartialEq for SampleLoadResult {
@@ -207,6 +251,7 @@ struct GuiAppState {
     next_task_id: u64,
     sample_load_task: ui::LatestTask,
     folder_progress: Option<FolderScanProgress>,
+    normalization_progress: Option<NormalizationProgress>,
     progress_tick: f32,
     waveform_loading_progress: f32,
     waveform_loading_target_progress: f32,
@@ -243,6 +288,10 @@ struct GuiAppState {
     collapsed_metadata_tag_categories: HashSet<String>,
     metadata_tags_by_file: HashMap<String, Vec<String>>,
     sample_name_view_mode: SampleNameViewMode,
+    startup_auto_load_pending: bool,
+    waveform_cache: HashMap<PathBuf, WaveformCacheEntry>,
+    waveform_cache_order: VecDeque<PathBuf>,
+    cached_sample_paths: HashSet<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -324,6 +373,10 @@ impl GuiAppState {
                 self.apply_folder_scan_discovery_batch(batch);
             }
             GuiMessage::FolderScanFinished(result) => self.finish_folder_scan(result),
+            GuiMessage::NormalizationProgress(progress) => {
+                self.apply_normalization_progress(progress);
+            }
+            GuiMessage::NormalizationFinished(result) => self.finish_normalization(result),
             GuiMessage::SelectSampleWithModifiers { path, modifiers } => {
                 self.context_menu = None;
                 self.select_sample_with_modifiers(path, modifiers, context);
@@ -436,7 +489,12 @@ impl GuiAppState {
                 self.sample_name_view_mode = self.sample_name_view_mode.toggled();
             }
             GuiMessage::ClearRebuildableCaches => self.clear_rebuildable_caches(),
-            GuiMessage::NormalizeSelectedSamples => self.normalize_selected_samples(),
+            GuiMessage::FocusLoadedFile => self.focus_loaded_file(context),
+            GuiMessage::AdjustSelectedRating(delta) => self.adjust_selected_rating(delta, context),
+            GuiMessage::AssignSelectedCollection(collection) => {
+                self.assign_selected_collection(collection, context)
+            }
+            GuiMessage::NormalizeSelectedSamples => self.normalize_selected_samples(context),
             GuiMessage::CopySelectedFiles => self.copy_selected_files(),
             GuiMessage::CopyContextPath => self.copy_context_path(),
             GuiMessage::OpenContextTarget => self.open_context_target(),
@@ -476,6 +534,7 @@ impl GuiAppState {
             }
             GuiMessage::NativeFileDrop(drop) => self.apply_native_file_drop(drop, context),
             GuiMessage::Frame => {
+                self.maybe_auto_load_startup_sample(context);
                 self.advance_frame();
             }
         }

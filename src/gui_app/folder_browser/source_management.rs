@@ -219,6 +219,8 @@ impl FolderBrowserState {
 
     fn select_pending_source(&mut self, id: String, folder: FolderEntry) {
         self.cancel_rename();
+        self.selected_collection = None;
+        self.collection_rename_edit = None;
         let root_id = folder.id.clone();
         self.selected_source = id;
         self.selected_folder = root_id.clone();
@@ -232,6 +234,8 @@ impl FolderBrowserState {
 
     fn select_loaded_source(&mut self, id: String, root_folder: FolderEntry) {
         self.cancel_rename();
+        self.selected_collection = None;
+        self.collection_rename_edit = None;
         let root_id = root_folder.id.clone();
         self.selected_source = id;
         self.selected_folder = root_id.clone();

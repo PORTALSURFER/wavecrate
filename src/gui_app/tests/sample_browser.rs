@@ -8,8 +8,9 @@ use radiant::{
 #[test]
 fn sample_row_hit_target_survives_frame_refresh_between_press_and_release() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(160.0, 22.0));
-    let mut hit_target =
-        crate::gui_app::sample_browser_view::SampleFileHitTarget::new(false, false, false, false);
+    let mut hit_target = crate::gui_app::sample_browser_view::SampleFileHitTarget::new(
+        false, false, false, false, false,
+    );
 
     assert_eq!(
         hit_target.handle_input(
@@ -23,8 +24,9 @@ fn sample_row_hit_target_survives_frame_refresh_between_press_and_release() {
         None
     );
 
-    let mut refreshed_hit_target =
-        crate::gui_app::sample_browser_view::SampleFileHitTarget::new(false, false, false, false);
+    let mut refreshed_hit_target = crate::gui_app::sample_browser_view::SampleFileHitTarget::new(
+        false, false, false, false, false,
+    );
     refreshed_hit_target.common_mut().state = hit_target.common().state;
     let output = refreshed_hit_target
         .handle_input(
@@ -59,6 +61,12 @@ fn sample_row_hit_target_survives_frame_refresh_between_press_and_release() {
 #[test]
 fn sample_browser_frame_paints_column_and_file_text() {
     let mut state = crate::gui_app::GuiAppState::load_default().expect("default state loads");
+    let expected_stem = state
+        .folder_browser
+        .selected_audio_files()
+        .first()
+        .map(|file| file.stem.clone())
+        .expect("default assets include an audio sample");
     let surface = crate::gui_app::sample_browser(&mut state, false).into_node();
     let frame = radiant::runtime::UiSurface::new(surface).frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 360.0)),
@@ -79,7 +87,7 @@ fn sample_browser_frame_paints_column_and_file_text() {
         "{texts:?}"
     );
     assert!(
-        texts.iter().any(|text| text.starts_with("portal_SS_")),
+        texts.iter().any(|text| text.starts_with(&expected_stem)),
         "{texts:?}"
     );
 }
@@ -87,6 +95,12 @@ fn sample_browser_frame_paints_column_and_file_text() {
 #[test]
 fn sample_browser_rows_match_keyboard_scroll_stride() {
     let mut state = crate::gui_app::GuiAppState::load_default().expect("default state loads");
+    let expected_names = state
+        .folder_browser
+        .selected_audio_files()
+        .into_iter()
+        .map(|file| file.stem.clone())
+        .collect::<Vec<_>>();
     let surface = crate::gui_app::sample_browser(&mut state, false).into_node();
     let frame = radiant::runtime::UiSurface::new(surface).frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 360.0)),
@@ -97,7 +111,11 @@ fn sample_browser_rows_match_keyboard_scroll_stride() {
         .primitives
         .iter()
         .filter_map(|primitive| match primitive {
-            PaintPrimitive::Text(text) if text.text.as_str().starts_with("portal_SS_") => {
+            PaintPrimitive::Text(text)
+                if expected_names
+                    .iter()
+                    .any(|name| text.text.as_str().starts_with(name)) =>
+            {
                 Some(text.rect.min.y)
             }
             _ => None,
@@ -123,8 +141,9 @@ fn sample_browser_keyboard_scroll_keeps_two_context_rows() {
 
 #[test]
 fn selected_sample_browser_row_paints_strong_fill_and_left_marker() {
-    let widget =
-        crate::gui_app::sample_browser_view::SampleFileHitTarget::new(true, false, false, false);
+    let widget = crate::gui_app::sample_browser_view::SampleFileHitTarget::new(
+        true, false, false, false, false,
+    );
     let bounds = Rect::from_min_size(Point::new(12.0, 8.0), Vector2::new(240.0, 22.0));
     let mut primitives = Vec::new();
     widget.append_paint(
@@ -164,8 +183,9 @@ fn selected_sample_browser_row_paints_strong_fill_and_left_marker() {
 #[test]
 fn sample_browser_row_hover_paints_bright_background_without_marker() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(180.0, 22.0));
-    let mut hit_target =
-        crate::gui_app::sample_browser_view::SampleFileHitTarget::new(false, false, false, false);
+    let mut hit_target = crate::gui_app::sample_browser_view::SampleFileHitTarget::new(
+        false, false, false, false, false,
+    );
 
     assert_eq!(
         hit_target.handle_input(
@@ -192,22 +212,28 @@ fn sample_browser_row_hover_paints_bright_background_without_marker() {
         })
         .collect::<Vec<_>>();
 
-    assert_eq!(fills.len(), 1, "{fills:?}");
-    assert_eq!(fills[0].rect, bounds);
-    assert_eq!(
-        fills[0].color,
-        Rgba8 {
-            r: 255,
-            g: 108,
-            b: 88,
-            a: 155,
-        }
+    assert!(
+        fills.iter().any(|fill| fill.rect == bounds
+            && fill.color
+                == Rgba8 {
+                    r: 255,
+                    g: 108,
+                    b: 88,
+                    a: 155,
+                }),
+        "{fills:?}"
     );
 }
 
 #[test]
 fn full_gui_frame_places_sample_browser_text_inside_visible_area() {
     let mut state = crate::gui_app::GuiAppState::load_default().expect("default state loads");
+    let expected_names = state
+        .folder_browser
+        .selected_audio_files()
+        .into_iter()
+        .map(|file| file.stem.clone())
+        .collect::<Vec<_>>();
     let surface = crate::gui_app::view(&mut state).into_node();
     let frame = radiant::runtime::UiSurface::new(surface).frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(1517.0, 758.0)),
@@ -219,7 +245,10 @@ fn full_gui_frame_places_sample_browser_text_inside_visible_area() {
         .iter()
         .filter_map(|primitive| match primitive {
             PaintPrimitive::Text(text)
-                if text.text.as_str() == "Name" || text.text.as_str().starts_with("portal_SS_") =>
+                if text.text.as_str() == "Name"
+                    || expected_names
+                        .iter()
+                        .any(|name| text.text.as_str().starts_with(name)) =>
             {
                 Some((text.text.as_str().to_string(), text.rect, text.baseline))
             }

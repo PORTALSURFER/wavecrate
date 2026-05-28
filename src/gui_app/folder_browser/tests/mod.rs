@@ -8,6 +8,7 @@ use radiant::{
     widgets::{DragHandleMessage, PointerModifiers, TextInputMessage},
 };
 use std::{fs, path::PathBuf};
+use wavecrate::sample_sources::SampleCollection;
 
 mod delete;
 mod drag_drop;

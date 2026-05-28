@@ -254,6 +254,48 @@ fn clearing_file_drag_advances_drag_revision_for_retained_row_reset() {
 }
 
 #[test]
+fn clearing_collection_drop_target_advances_drag_revision() {
+    let root = temp_source_root("wavecrate-gui-collection-drag-revision");
+    let drums = root.join("drums");
+    fs::create_dir_all(&drums).expect("create drums folder");
+    let kick = drums.join("kick.wav");
+    fs::write(&kick, [0_u8; 8]).expect("write wav");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&drums));
+    browser.select_file(path_id(&kick));
+
+    browser.begin_file_drag(path_id(&kick), Point::new(4.0, 8.0));
+    browser.apply_message(FolderBrowserMessage::HoverCollectionDropTarget(
+        SampleCollection::new(0).unwrap(),
+        Point::new(12.0, 18.0),
+    ));
+    assert!(
+        browser
+            .visible_collections()
+            .into_iter()
+            .any(|collection| collection.drop_target),
+        "hovering a collection during file drag should mark the collection drop target"
+    );
+
+    let revision_before_clear = browser.drag_revision();
+    browser.clear_drag();
+
+    assert_eq!(
+        browser.drag_revision(),
+        revision_before_clear + 1,
+        "clearing a collection drop target must refresh retained drag widgets"
+    );
+    assert!(browser.drag_preview().is_none());
+    assert!(
+        browser
+            .visible_collections()
+            .into_iter()
+            .all(|collection| !collection.drop_target)
+    );
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn file_drag_drop_moves_selected_files_into_target_folder() {
     let root = temp_source_root("wavecrate-gui-file-drag-drop");
     let drums = root.join("drums");

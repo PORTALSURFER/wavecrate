@@ -2,6 +2,7 @@
 
 use radiant::{gui::types::Point, prelude as ui};
 use std::{collections::HashSet, path::PathBuf};
+use wavecrate::sample_sources::SampleCollection;
 
 use super::GuiMessage;
 
@@ -22,10 +23,17 @@ pub(super) struct FolderBrowserState {
     drag: Option<FolderBrowserDrag>,
     drag_pointer: Option<Point>,
     drop_target_folder: Option<String>,
+    drop_target_collection: Option<SampleCollection>,
     drag_revision: u64,
+    collections: Vec<SampleCollectionConfig>,
+    selected_collection: Option<SampleCollection>,
+    collection_rename_edit: Option<CollectionRenameEdit>,
+    collections_panel_height: f32,
+    collection_panel_resize: Option<CollectionPanelResize>,
     file_columns: Vec<FileColumn>,
     file_sort: ui::DetailsSort,
     file_column_resize: Option<FileColumnResize>,
+    file_column_reorder: Option<FileColumnReorder>,
     file_view_start: usize,
 }
 
@@ -62,10 +70,17 @@ impl FolderBrowserState {
             drag: None,
             drag_pointer: None,
             drop_target_folder: None,
+            drop_target_collection: None,
             drag_revision: 0,
+            collections: Self::default_collections(),
+            selected_collection: None,
+            collection_rename_edit: None,
+            collections_panel_height: DEFAULT_COLLECTIONS_PANEL_HEIGHT,
+            collection_panel_resize: None,
             file_columns: default_file_columns(),
             file_sort: ui::DetailsSort::new("name", ui::SortDirection::Ascending),
             file_column_resize: None,
+            file_column_reorder: None,
             file_view_start: 0,
         }
     }
@@ -90,13 +105,38 @@ impl FolderBrowserState {
     }
 
     pub(super) fn selected_audio_files(&self) -> Vec<&FileEntry> {
-        let mut files = self
-            .selected_files()
-            .iter()
-            .filter(|file| file.is_audio())
-            .collect::<Vec<_>>();
+        let mut files = if let Some(collection) = self.selected_collection {
+            let mut files = Vec::new();
+            if let Some(folder) = self.selected_source_root_folder() {
+                collect_collection_audio_files(folder, collection, &mut files);
+            }
+            files
+        } else {
+            self.selected_files()
+                .iter()
+                .filter(|file| file.is_audio())
+                .collect::<Vec<_>>()
+        };
         self.sort_files(&mut files);
         files
+    }
+
+    pub(super) fn selected_source_audio_files(&self) -> Vec<&FileEntry> {
+        let mut files = Vec::new();
+        if let Some(folder) = self.selected_source_root_folder() {
+            collect_audio_files(folder, &mut files);
+        }
+        self.sort_files(&mut files);
+        files
+    }
+
+    fn selected_source_root_folder(&self) -> Option<&FolderEntry> {
+        self.folders.first().or_else(|| {
+            self.sources
+                .iter()
+                .find(|source| source.id == self.selected_source)
+                .and_then(|source| source.root_folder.as_ref())
+        })
     }
 
     pub(super) fn selected_file_id(&self) -> Option<&str> {
@@ -147,7 +187,8 @@ impl FolderBrowserState {
             | FolderBrowserMessage::BeginRenameSelected
             | FolderBrowserMessage::BeginCreateSubfolder
             | FolderBrowserMessage::RenameInput(_)
-            | FolderBrowserMessage::DropOnFolder(_) => {}
+            | FolderBrowserMessage::DropOnFolder(_)
+            | FolderBrowserMessage::DropOnCollection(_) => {}
             FolderBrowserMessage::ClearDropTarget(position) => {
                 self.update_drag_pointer(position);
                 self.drop_target_folder = None;
@@ -161,6 +202,9 @@ impl FolderBrowserState {
                 self.activate_folder(id);
             }
             FolderBrowserMessage::OpenFolderContextMenu(_, _) => {}
+            FolderBrowserMessage::CancelRename => {
+                self.cancel_rename();
+            }
             FolderBrowserMessage::DragFolder(id, message) => {
                 self.apply_folder_drag(id, message);
             }
@@ -170,9 +214,56 @@ impl FolderBrowserState {
             FolderBrowserMessage::ResizeFileColumn(column_id, message) => {
                 self.resize_file_column(column_id, message);
             }
+            FolderBrowserMessage::DragFileColumn(column_id, message) => {
+                self.drag_file_column(column_id, message);
+            }
+            FolderBrowserMessage::ResizeCollectionsPanel(message) => {
+                self.resize_collections_panel(message);
+            }
+            FolderBrowserMessage::ActivateCollection(collection) => {
+                self.activate_collection(collection);
+            }
+            FolderBrowserMessage::RenameCollection(collection) => {
+                self.begin_rename_collection(collection);
+            }
+            FolderBrowserMessage::HoverCollectionDropTarget(collection, position) => {
+                self.hover_drop_target_collection(collection, position);
+            }
         }
     }
 }
+
+fn collect_audio_files<'a>(folder: &'a FolderEntry, files: &mut Vec<&'a FileEntry>) {
+    files.extend(folder.files.iter().filter(|file| file.is_audio()));
+    for child in &folder.children {
+        collect_audio_files(child, files);
+    }
+}
+
+fn collect_collection_audio_files<'a>(
+    folder: &'a FolderEntry,
+    collection: SampleCollection,
+    files: &mut Vec<&'a FileEntry>,
+) {
+    files.extend(
+        folder
+            .files
+            .iter()
+            .filter(|file| file.is_audio() && file.collection == Some(collection)),
+    );
+    for child in &folder.children {
+        collect_collection_audio_files(child, collection, files);
+    }
+}
+
+mod collections;
+pub(in crate::gui_app) use collections::{
+    CollectionHitMessage, CollectionHitTarget, SampleCollectionView, collection_hotkey,
+};
+use collections::{
+    CollectionPanelResize, CollectionRenameEdit, DEFAULT_COLLECTIONS_PANEL_HEIGHT,
+    SampleCollectionConfig,
+};
 
 mod path_helpers;
 use path_helpers::{folder_label, path_id, rewrite_path_id};
@@ -193,6 +284,7 @@ mod file_view_window;
 mod file_rename_workflow;
 
 mod file_columns;
+pub(super) use file_columns::FILE_COLUMN_GAP;
 #[cfg(test)]
 pub(super) use file_columns::MIN_FILE_COLUMN_WIDTH;
 
@@ -212,8 +304,8 @@ mod rename_workflow;
 mod state_types;
 pub(super) use state_types::FileColumn;
 use state_types::{
-    FileColumnResize, FileRenameEdit, FolderBrowserDrag, FolderRenameEdit, FolderRenameKind,
-    SourceEntry, VisibleFolder, default_file_columns,
+    FileColumnReorder, FileColumnResize, FileRenameEdit, FolderBrowserDrag, FolderRenameEdit,
+    FolderRenameKind, SourceEntry, VisibleFolder, default_file_columns,
 };
 
 mod tree_state;

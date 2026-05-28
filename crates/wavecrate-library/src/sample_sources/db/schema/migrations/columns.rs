@@ -54,7 +54,23 @@ pub(super) fn ensure_wav_files_optional_columns(
         &columns,
         OptionalColumn::new("wav_files", "last_played_at", "INTEGER"),
     )?;
+    add_column_if_missing(
+        connection,
+        &columns,
+        OptionalColumn::new("wav_files", "collection", "INTEGER"),
+    )?;
     Ok(())
+}
+
+pub(super) fn ensure_wav_files_collection_column(
+    connection: &Connection,
+) -> Result<(), SourceDbError> {
+    let columns = table_columns(connection, "wav_files")?;
+    add_column_if_missing(
+        connection,
+        &columns,
+        OptionalColumn::new("wav_files", "collection", "INTEGER"),
+    )
 }
 
 pub(super) fn ensure_pending_rename_optional_columns(
@@ -78,6 +94,11 @@ pub(super) fn ensure_pending_rename_optional_columns(
         connection,
         &columns,
         OptionalColumn::new("pending_wav_renames", "normal_tags", "TEXT"),
+    )?;
+    add_column_if_missing(
+        connection,
+        &columns,
+        OptionalColumn::new("pending_wav_renames", "collection", "INTEGER"),
     )?;
     add_column_if_missing(
         connection,

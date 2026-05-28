@@ -16,8 +16,10 @@ use crate::gui_app::metadata_tags::{
 };
 
 use super::{
-    FolderBrowserMessage, FolderBrowserState, GuiMessage, SourceEntry, TREE_DEPTH_INDENT,
-    TREE_ROW_HEIGHT, VisibleFolder, plural,
+    CollectionHitMessage, CollectionHitTarget, FolderBrowserMessage, FolderBrowserState,
+    GuiMessage, SourceEntry, TREE_DEPTH_INDENT, TREE_ROW_HEIGHT, VisibleFolder,
+    collections::COLLECTION_ROW_HEIGHT,
+    plural,
     tree_hit_target::{FolderTreeHitMessage, FolderTreeHitTarget},
     tree_widgets::FolderDropClearTarget,
 };
@@ -63,6 +65,7 @@ pub(in crate::gui_app) fn folder_browser_view(
         ui::text("Folders").height(22.0).fill_width(),
         ui::scroll(folder_tree_view(state)).fill(),
         selected_folder_status(state),
+        collections_section(state),
         filter_section(),
         metadata_section(
             metadata_tag_draft,
@@ -83,6 +86,100 @@ pub(in crate::gui_app) fn folder_browser_view(
     .padding(4.0)
     .style(WidgetStyle::default())
     .fill_height()
+}
+
+fn collections_section(state: &FolderBrowserState) -> ui::View<GuiMessage> {
+    let rows = state
+        .visible_collections()
+        .into_iter()
+        .map(|collection| collection_row(state, collection))
+        .collect::<Vec<_>>();
+    sidebar_panel(
+        ui::column([
+            ui::row([
+                ui::text("Collections").height(20.0).fill_width(),
+                ui::drag_handle_mapped(|message| {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeCollectionsPanel(message))
+                })
+                .key("collections-resize-handle")
+                .size(26.0, 18.0),
+            ])
+            .spacing(4.0)
+            .height(20.0)
+            .fill_width(),
+            ui::scroll(ui::column(rows).spacing(1.0).fill_width().height(
+                COLLECTION_ROW_HEIGHT * wavecrate::sample_sources::SampleCollection::COUNT as f32,
+            ))
+            .style(WidgetStyle {
+                tone: WidgetTone::Neutral,
+                prominence: ui::WidgetProminence::Subtle,
+            })
+            .fill_width()
+            .fill_height(),
+        ])
+        .spacing(4.0)
+        .fill_width()
+        .fill_height(),
+        state.collections_panel_height(),
+    )
+}
+
+fn collection_row(
+    state: &FolderBrowserState,
+    collection: super::SampleCollectionView,
+) -> ui::View<GuiMessage> {
+    let collection_id = collection.collection;
+    if let Some(rename) = state.collection_rename_view(collection_id) {
+        let caret = rename.draft.chars().count();
+        return ui::row([
+            ui::custom_widget(CollectionHitTarget::new(&collection), |_| None)
+                .key(format!(
+                    "collection-rename-swatch-{}",
+                    collection.collection.index()
+                ))
+                .width(34.0)
+                .height(COLLECTION_ROW_HEIGHT),
+            ui::text_input(rename.draft)
+                .selection(0, caret)
+                .message_event(|message| {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message))
+                })
+                .id(rename.input_id)
+                .key(format!(
+                    "collection-rename-input-{}",
+                    collection.collection.index()
+                ))
+                .fill_width()
+                .height(COLLECTION_ROW_HEIGHT),
+        ])
+        .key(format!(
+            "collection-rename-row-{}",
+            collection.collection.index()
+        ))
+        .fill_width()
+        .height(COLLECTION_ROW_HEIGHT)
+        .spacing(2.0);
+    }
+    ui::custom_widget_mapped(
+        CollectionHitTarget::new(&collection),
+        move |message| match message {
+            CollectionHitMessage::Activate => {
+                GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateCollection(collection_id))
+            }
+            CollectionHitMessage::Rename => {
+                GuiMessage::FolderBrowser(FolderBrowserMessage::RenameCollection(collection_id))
+            }
+            CollectionHitMessage::Drop => {
+                GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnCollection(collection_id))
+            }
+            CollectionHitMessage::HoverDropTarget(position) => GuiMessage::FolderBrowser(
+                FolderBrowserMessage::HoverCollectionDropTarget(collection_id, position),
+            ),
+        },
+    )
+    .key(format!("collection-row-{}", collection.collection.index()))
+    .fill_width()
+    .height(COLLECTION_ROW_HEIGHT)
 }
 
 fn folder_tree_view(state: &FolderBrowserState) -> ui::View<GuiMessage> {
@@ -313,11 +410,11 @@ fn metadata_section(
     has_selected_file: bool,
 ) -> ui::View<GuiMessage> {
     if !has_selected_file {
-        return sidebar_section("Metadata", ui::spacer().height(0.0).fill_width(), 36.0);
+        return sidebar_panel(ui::spacer().height(0.0).fill_width(), 12.0);
     }
 
     let content_height = 25.0 + tag_field_height;
-    let section_height = 62.0 + tag_field_height;
+    let section_height = 38.0 + tag_field_height;
     let mut layers = vec![
         ui::column([
             ui::row([
@@ -360,8 +457,7 @@ fn metadata_section(
             tag_field_height,
         ));
     }
-    sidebar_section(
-        "Metadata",
+    sidebar_panel(
         ui::stack(layers).fill_width().height(content_height),
         section_height,
     )
@@ -934,13 +1030,21 @@ fn sidebar_section(
     content: ui::View<GuiMessage>,
     height: f32,
 ) -> ui::View<GuiMessage> {
-    ui::column([ui::text(title).height(20.0).fill_width(), content])
+    sidebar_panel(
+        ui::column([ui::text(title).height(20.0).fill_width(), content])
+            .spacing(4.0)
+            .fill_width(),
+        height,
+    )
+}
+
+fn sidebar_panel(content: ui::View<GuiMessage>, height: f32) -> ui::View<GuiMessage> {
+    content
         .style(WidgetStyle {
             tone: WidgetTone::Neutral,
             prominence: ui::WidgetProminence::Subtle,
         })
         .padding(6.0)
-        .spacing(4.0)
         .fill_width()
         .height(height)
 }

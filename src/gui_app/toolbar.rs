@@ -6,12 +6,34 @@ const TOOLBAR_ICON_ACTIVE_COLOR: &str = "#ffa052";
 const TOOLBAR_ICON_ENABLED_COLOR: &str = "#eeeeee";
 const TOOLBAR_ICON_DISABLED_COLOR: &str = "#919191";
 
+pub(super) const TOOLBAR_FOCUS_LOADED_ID: u64 = 32_100;
+const TOOLBAR_LOOP_ID: u64 = 32_101;
+const TOOLBAR_PLAY_ID: u64 = 32_102;
+pub(super) const TOOLBAR_STOP_ID: u64 = 32_103;
+
 pub(super) fn main_toolbar(state: &GuiAppState) -> ui::View<GuiMessage> {
+    let stop_enabled = state.waveform.has_loaded_sample();
     ui::row([
         ui::spacer().height(24.0).fill_width(),
-        toolbar_icon_button(19, ToolbarIcon::Loop, true, state.loop_playback),
-        toolbar_icon_button(20, ToolbarIcon::Play, true, state.waveform.is_playing()),
-        toolbar_icon_button(21, ToolbarIcon::Stop, state.waveform.is_playing(), false),
+        toolbar_icon_button(
+            TOOLBAR_FOCUS_LOADED_ID,
+            ToolbarIcon::FocusLoaded,
+            true,
+            false,
+        ),
+        toolbar_icon_button(
+            TOOLBAR_LOOP_ID,
+            ToolbarIcon::Loop,
+            true,
+            state.loop_playback,
+        ),
+        toolbar_icon_button(
+            TOOLBAR_PLAY_ID,
+            ToolbarIcon::Play,
+            true,
+            state.waveform.is_playing(),
+        ),
+        toolbar_icon_button(TOOLBAR_STOP_ID, ToolbarIcon::Stop, stop_enabled, false),
     ])
     .padding_y(3.0)
     .style(ui::WidgetStyle::default())
@@ -43,6 +65,7 @@ pub(super) fn toolbar_icon_button(
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum ToolbarIcon {
+    FocusLoaded,
     Loop,
     Play,
     Stop,
@@ -51,6 +74,16 @@ pub(super) enum ToolbarIcon {
 impl ToolbarIcon {
     pub(super) fn svg(self, color: &str) -> String {
         match self {
+            Self::FocusLoaded => format!(
+                r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <rect fill="{color}" x="3" y="3" width="2" height="2"/>
+  <rect fill="{color}" x="6" y="3.25" width="7" height="1.5"/>
+  <rect fill="{color}" x="3" y="7" width="2" height="2"/>
+  <rect fill="{color}" x="6" y="7.25" width="7" height="1.5"/>
+  <rect fill="{color}" x="3" y="11" width="2" height="2"/>
+  <rect fill="{color}" x="6" y="11.25" width="7" height="1.5"/>
+</svg>"#
+            ),
             Self::Loop => format!(
                 r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
   <path fill="{color}" d="M4 3h5.4V1.5L14 5l-4.6 3.5V7H4.2C3 7 2 8 2 9.2V10H.5v-.8C.5 5.8 2 3 4 3z"/>
@@ -84,6 +117,7 @@ pub(super) fn toolbar_icon_svg(icon: ToolbarIcon, enabled: bool, active: bool) -
 
 fn toolbar_button_message(icon: ToolbarIcon) -> GuiMessage {
     match icon {
+        ToolbarIcon::FocusLoaded => GuiMessage::FocusLoadedFile,
         ToolbarIcon::Loop => GuiMessage::ToggleLoopPlayback,
         ToolbarIcon::Play => GuiMessage::PlaySelectedSample,
         ToolbarIcon::Stop => GuiMessage::StopPlayback,

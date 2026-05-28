@@ -1,5 +1,5 @@
 use crate::app::controller::AppController;
-use crate::sample_sources::{Rating, WavEntry};
+use crate::sample_sources::{Rating, SampleCollection, WavEntry};
 use std::path::Path;
 
 /// Sample metadata persisted when registering a newly moved or copied file.
@@ -16,6 +16,8 @@ pub(in crate::app::controller::ui::drag_drop_controller::drag_effects) struct Mo
         Option<crate::sample_sources::SampleSoundType>,
     pub(in crate::app::controller::ui::drag_drop_controller::drag_effects) user_tag: Option<String>,
     pub(in crate::app::controller::ui::drag_drop_controller::drag_effects) normal_tags: Vec<String>,
+    pub(in crate::app::controller::ui::drag_drop_controller::drag_effects) collection:
+        Option<SampleCollection>,
 }
 
 impl AppController {
@@ -60,8 +62,11 @@ impl AppController {
             .replace_tags_for_path(relative_path, &registration.normal_tags)
             .map_err(|err| format!("Failed to copy normal tags: {err}"))?;
         batch
+            .set_collection(relative_path, registration.collection)
+            .map_err(|err| format!("Failed to copy collection: {err}"))?;
+        batch
             .commit()
-            .map_err(|err| format!("Failed to commit normal tags: {err}"))?;
+            .map_err(|err| format!("Failed to commit copied metadata: {err}"))?;
         Ok(())
     }
 
