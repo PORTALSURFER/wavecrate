@@ -41,11 +41,22 @@ impl WaveformState {
         Ok(Self::from_file(file))
     }
 
+    #[cfg(test)]
     pub(super) fn load_path_with_progress(
         path: PathBuf,
         progress: impl Fn(f32),
     ) -> Result<Self, String> {
-        let file = Arc::new(load_waveform_file_with_progress(path, progress)?);
+        Self::load_path_with_progress_and_cancel(path, progress, || false)
+    }
+
+    pub(super) fn load_path_with_progress_and_cancel(
+        path: PathBuf,
+        progress: impl Fn(f32),
+        cancelled: impl Fn() -> bool,
+    ) -> Result<Self, String> {
+        let file = Arc::new(load_waveform_file_with_progress_and_cancel(
+            path, progress, cancelled,
+        )?);
         Ok(Self::from_file(file))
     }
 
@@ -279,6 +290,10 @@ impl WaveformState {
         Arc::clone(&self.file.audio_bytes)
     }
 
+    pub(super) fn playback_samples(&self) -> Option<Arc<[f32]>> {
+        self.file.playback_samples.as_ref().map(Arc::clone)
+    }
+
     pub(super) fn visible_fraction(&self) -> f32 {
         self.viewport.visible_fraction(self.file.frames)
     }
@@ -292,6 +307,16 @@ impl WaveformState {
 
     pub(super) fn offset_fraction(&self) -> f32 {
         self.viewport.offset_fraction(self.file.frames)
+    }
+
+    pub(super) fn visible_ratio_for_absolute(&self, ratio: f32) -> Option<f32> {
+        let frame = ratio.clamp(0.0, 1.0) * self.file.frames.max(1) as f32;
+        let visible_start = self.viewport.start as f32;
+        let visible_width = self.viewport.visible_items() as f32;
+        let visible_ratio = (frame - visible_start) / visible_width.max(1.0);
+        (0.0..=1.0)
+            .contains(&visible_ratio)
+            .then_some(visible_ratio)
     }
 }
 
@@ -310,6 +335,7 @@ mod state_viewport;
 
 mod audio_file;
 pub(super) use audio_file::WaveformFile;
+pub(in crate::gui_app) use audio_file::cached_waveform_file_exists;
 #[cfg(test)]
 use audio_file::{
     downmix_to_mono, split_frequency_bands, synthetic_waveform_file,
@@ -317,7 +343,7 @@ use audio_file::{
 };
 use audio_file::{
     empty_waveform_file, extract_wav_range_to_folder, extract_wav_range_to_sibling, is_wav_path,
-    load_waveform_file, load_waveform_file_with_progress,
+    load_waveform_file, load_waveform_file_with_progress_and_cancel,
 };
 
 mod signal_widget;

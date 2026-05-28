@@ -238,6 +238,60 @@ mod tests {
             "suppressed rows should not paint hover highlights during sidebar resize"
         );
     }
+
+    #[test]
+    fn loaded_rows_paint_right_edge_marker() {
+        let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(120.0, 22.0));
+        let target = SampleFileHitTarget::new(false, false, false, true, false);
+        let mut primitives = Vec::new();
+
+        target.append_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        assert!(
+            primitives.iter().any(|primitive| {
+                matches!(
+                    primitive,
+                    PaintPrimitive::FillRect(fill)
+                        if fill.rect.min.x == bounds.max.x - 3.0
+                            && fill.rect.width() == 2.0
+                            && fill.color == Rgba8 { r: 226, g: 226, b: 226, a: 210 }
+                )
+            }),
+            "loaded rows should show a near-white right-edge marker"
+        );
+    }
+
+    #[test]
+    fn unloaded_rows_do_not_paint_loaded_marker() {
+        let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(120.0, 22.0));
+        let target = SampleFileHitTarget::new(false, false, false, false, false);
+        let mut primitives = Vec::new();
+
+        target.append_paint(
+            &mut primitives,
+            bounds,
+            &LayoutOutput::default(),
+            &ThemeTokens::default(),
+        );
+
+        assert!(
+            !primitives.iter().any(|primitive| {
+                matches!(
+                    primitive,
+                    PaintPrimitive::FillRect(fill)
+                        if fill.rect.min.x == bounds.max.x - 3.0
+                            && fill.rect.width() == 2.0
+                            && fill.color == Rgba8 { r: 226, g: 226, b: 226, a: 210 }
+                )
+            }),
+            "unloaded rows should not show the loaded marker"
+        );
+    }
 }
 
 impl Widget for SampleFileHitTarget {
@@ -312,10 +366,9 @@ impl Widget for SampleFileHitTarget {
         _theme: &ThemeTokens,
     ) {
         self.paint_selection_fill(primitives, bounds);
-        self.paint_cache_fill(primitives, bounds);
         self.paint_interaction_fill(primitives, bounds);
+        self.paint_loaded_marker(primitives, bounds);
         self.paint_selection_marker(primitives, bounds);
-        self.paint_cache_marker(primitives, bounds);
     }
 }
 
@@ -381,29 +434,22 @@ impl SampleFileHitTarget {
         }));
     }
 
-    fn paint_cache_fill(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
-        if self.selected {
+    fn paint_loaded_marker(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
+        if !self.cached || self.selected {
             return;
         }
-        let color = if self.cached {
-            Rgba8 {
-                r: 80,
-                g: 210,
-                b: 255,
-                a: 28,
-            }
-        } else {
-            Rgba8 {
-                r: 0,
-                g: 0,
-                b: 0,
-                a: 26,
-            }
-        };
         primitives.push(PaintPrimitive::FillRect(PaintFillRect {
             widget_id: self.common.id,
-            rect: bounds,
-            color,
+            rect: Rect::from_min_size(
+                Point::new(bounds.max.x - 3.0, bounds.min.y + 3.0),
+                Vector2::new(2.0, (bounds.height() - 6.0).max(8.0)),
+            ),
+            color: Rgba8 {
+                r: 226,
+                g: 226,
+                b: 226,
+                a: 210,
+            },
         }));
     }
 
@@ -449,25 +495,6 @@ impl SampleFileHitTarget {
                 g: 82,
                 b: 62,
                 a: 245,
-            },
-        }));
-    }
-
-    fn paint_cache_marker(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
-        if !self.cached || self.selected {
-            return;
-        }
-        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-            widget_id: self.common.id,
-            rect: Rect::from_min_size(
-                Point::new(bounds.max.x - 3.0, bounds.min.y + 5.0),
-                Vector2::new(2.0, (bounds.height() - 10.0).max(6.0)),
-            ),
-            color: Rgba8 {
-                r: 80,
-                g: 210,
-                b: 255,
-                a: 190,
             },
         }));
     }

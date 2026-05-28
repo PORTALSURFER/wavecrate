@@ -7,7 +7,10 @@ use radiant::widgets::{DragHandleMessage, PointerModifiers};
 use std::{
     collections::{BTreeMap, HashMap, HashSet, VecDeque},
     path::PathBuf,
-    sync::mpsc::{Receiver, Sender},
+    sync::{
+        Arc, Mutex,
+        mpsc::{Receiver, Sender},
+    },
     time::{Duration, Instant},
 };
 use wavecrate::audio::{
@@ -92,6 +95,9 @@ const VOLUME_SLIDER_ID: u64 = 31_000;
 const VOLUME_SLIDER_WIDTH: f32 = 92.0;
 const VOLUME_SLIDER_HEIGHT: f32 = 14.0;
 const VOLUME_PERSIST_DEBOUNCE: Duration = Duration::from_millis(250);
+const UI_FRAME_SPIKE_WARN: Duration = Duration::from_millis(34);
+const UI_FRAME_SPIKE_ERROR: Duration = Duration::from_millis(100);
+const UI_FRAME_PERIODIC_LOG_EVERY: u64 = 120;
 const AUDIO_ENGINE_PILL_ID: u64 = 31_100;
 const AUDIO_ENGINE_PILL_WIDTH: f32 = 54.0;
 const AUDIO_ENGINE_PILL_HEIGHT: f32 = 18.0;
@@ -101,6 +107,7 @@ const DRAG_PREVIEW_MAX_WIDTH: f32 = 280.0;
 const DRAG_PREVIEW_HEIGHT: f32 = 20.0;
 const WAVEFORM_VIEW_HEIGHT: f32 = 172.0;
 const WAVEFORM_PANEL_HEIGHT: f32 = 226.0;
+const WAVEFORM_SIGNAL_WIDGET_ID: u64 = 11;
 const WAVEFORM_WIDGET_ID: u64 = 12;
 const PLAYBACK_START_ACTIVE_SOURCE_GRACE: Duration = Duration::from_millis(120);
 
@@ -128,6 +135,7 @@ enum GuiMessage {
     ExternalDragCompleted(Result<ui::ExternalDragOutcome, String>),
     SampleLoadProgress(ui::TaskTicket, f32),
     SampleLoadFinished(ui::TaskCompletion<SampleLoadResult>),
+    AudioPlayerOpenFinished(ui::TaskTicket),
     PlaySelectedSample,
     StopPlayback,
     ToggleLoopPlayback,
@@ -205,6 +213,7 @@ struct SampleLoadResult {
 struct WaveformCacheEntry {
     file: std::sync::Arc<waveform::WaveformFile>,
     signature: SampleFileSignature,
+    byte_len: usize,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -234,6 +243,13 @@ struct NormalizationResult {
     last_error: Option<String>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct PendingPlaybackStart {
+    start_ratio: f32,
+    end_ratio: f32,
+    loop_offset_ratio: Option<f32>,
+}
+
 impl PartialEq for SampleLoadResult {
     fn eq(&self, other: &Self) -> bool {
         self.path == other.path && self.result.as_ref().err() == other.result.as_ref().err()
@@ -250,9 +266,15 @@ struct GuiAppState {
     worker_receiver: Option<Receiver<GuiMessage>>,
     next_task_id: u64,
     sample_load_task: ui::LatestTask,
+    sample_load_cancel: Option<ui::CancellationToken>,
+    audio_open_task: ui::LatestTask,
+    audio_open_results: Arc<Mutex<HashMap<ui::TaskTicket, Result<AudioPlayer, String>>>>,
     folder_progress: Option<FolderScanProgress>,
     normalization_progress: Option<NormalizationProgress>,
     progress_tick: f32,
+    frame_index: u64,
+    last_frame_at: Option<Instant>,
+    max_frame_delta: Duration,
     waveform_loading_progress: f32,
     waveform_loading_target_progress: f32,
     audio_player: Option<AudioPlayer>,
@@ -274,6 +296,7 @@ struct GuiAppState {
     waveform_loading_label: Option<String>,
     audio_settings_error: Option<String>,
     current_playback_span: Option<(f32, f32)>,
+    pending_playback_start: Option<PendingPlaybackStart>,
     native_file_drop_hover: Option<NativeFileDropHover>,
     metadata_tag_draft: String,
     metadata_tag_tokens: Vec<String>,
@@ -291,6 +314,7 @@ struct GuiAppState {
     startup_auto_load_pending: bool,
     waveform_cache: HashMap<PathBuf, WaveformCacheEntry>,
     waveform_cache_order: VecDeque<PathBuf>,
+    waveform_cache_bytes: usize,
     cached_sample_paths: HashSet<String>,
 }
 
@@ -397,6 +421,7 @@ impl GuiAppState {
                 }
             }
             GuiMessage::SampleLoadFinished(result) => self.finish_sample_load(result),
+            GuiMessage::AudioPlayerOpenFinished(ticket) => self.finish_audio_player_open(ticket),
             GuiMessage::PlaySelectedSample => self.play_selected_sample(context),
             GuiMessage::StopPlayback => self.stop_playback(),
             GuiMessage::ToggleLoopPlayback => self.toggle_loop_playback(),
@@ -534,6 +559,7 @@ impl GuiAppState {
             }
             GuiMessage::NativeFileDrop(drop) => self.apply_native_file_drop(drop, context),
             GuiMessage::Frame => {
+                self.maybe_open_audio_player(context);
                 self.maybe_auto_load_startup_sample(context);
                 self.advance_frame();
             }

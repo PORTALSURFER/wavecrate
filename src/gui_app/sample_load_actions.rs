@@ -3,9 +3,11 @@ use radiant::widgets::PointerModifiers;
 use std::{
     collections::hash_map::Entry,
     path::{Path, PathBuf},
+    sync::{OnceLock, mpsc},
     time::Instant,
 };
 
+use super::waveform::cached_waveform_file_exists;
 use super::{
     GuiAppState, GuiMessage, SampleLoadResult, WaveformCacheEntry, WaveformState, emit_gui_action,
     sample_path_label,
@@ -13,7 +15,10 @@ use super::{
 
 const SAMPLE_LOAD_PROGRESS_MIN_INTERVAL: std::time::Duration = std::time::Duration::from_millis(50);
 const SAMPLE_LOAD_PROGRESS_MIN_DELTA: f32 = 0.01;
-const WAVEFORM_MEMORY_CACHE_LIMIT: usize = 96;
+const WAVEFORM_MEMORY_CACHE_MAX_FILES: usize = 48;
+const WAVEFORM_MEMORY_CACHE_MAX_BYTES: usize = 256 * 1024 * 1024;
+type DeferredDropJob = Box<dyn FnOnce() + Send + 'static>;
+static DEFERRED_DROP_SENDER: OnceLock<Option<mpsc::Sender<DeferredDropJob>>> = OnceLock::new();
 
 pub(super) struct NormalizedWaveformReload<'a> {
     pub(super) path: &'a Path,
@@ -30,7 +35,7 @@ impl GuiAppState {
         &mut self,
         reload: NormalizedWaveformReload<'_>,
     ) -> Result<(), String> {
-        self.waveform = WaveformState::load_path(reload.path.to_path_buf())?;
+        self.replace_waveform_deferred(WaveformState::load_path(reload.path.to_path_buf())?);
         self.folder_browser
             .select_file(reload.path.display().to_string());
         if let Some(playback) = reload.playback {
@@ -96,6 +101,7 @@ impl GuiAppState {
         autoplay: bool,
     ) {
         let started_at = Instant::now();
+        self.cancel_inflight_sample_load();
         if let Some(waveform) = self.cached_waveform_state(Path::new(&path)) {
             self.finish_cached_sample_load(waveform, autoplay, started_at);
             return;
@@ -121,16 +127,32 @@ impl GuiAppState {
             None,
         );
         let ticket = self.sample_load_task.begin();
+        let token = ui::CancellationToken::new();
+        self.sample_load_cancel = Some(token.clone());
         let sender = self.worker_sender.clone();
-        context.spawn(
+        context.spawn_cancellable(
             "gui-sample-load",
-            move || {
+            token,
+            move |token| {
+                if token.is_cancelled() {
+                    return ui::TaskCompletion {
+                        ticket,
+                        output: SampleLoadResult {
+                            path,
+                            result: Err(String::from("cancelled")),
+                            autoplay,
+                        },
+                    };
+                }
                 let progress_reporter =
                     std::cell::RefCell::new(SampleLoadProgressReporter::new(sender, ticket));
-                let result =
-                    WaveformState::load_path_with_progress(PathBuf::from(&path), |progress| {
+                let result = WaveformState::load_path_with_progress_and_cancel(
+                    PathBuf::from(&path),
+                    |progress| {
                         progress_reporter.borrow_mut().report(progress);
-                    });
+                    },
+                    || token.is_cancelled(),
+                );
                 ui::TaskCompletion {
                     ticket,
                     output: SampleLoadResult {
@@ -163,11 +185,12 @@ impl GuiAppState {
         self.waveform_loading_label = None;
         self.waveform_loading_progress = 0.0;
         self.waveform_loading_target_progress = 0.0;
+        self.sample_load_cancel = None;
         match load.result {
             Ok(waveform) => {
                 let file_name = waveform.file_name();
                 self.remember_waveform(&waveform);
-                self.waveform = waveform;
+                self.replace_waveform_deferred(waveform);
                 if !load.autoplay {
                     self.sample_status = format!("Loaded {file_name}");
                     emit_gui_action(
@@ -234,11 +257,11 @@ impl GuiAppState {
             self.current_playback_span = None;
         }
         let file_name = waveform.file_name();
-        self.sample_load_task.cancel();
+        self.cancel_inflight_sample_load();
         self.waveform_loading_label = None;
         self.waveform_loading_progress = 0.0;
         self.waveform_loading_target_progress = 0.0;
-        self.waveform = waveform;
+        self.replace_waveform_deferred(waveform);
         if !autoplay {
             self.sample_status = format!("Loaded {file_name}");
             emit_gui_action(
@@ -282,7 +305,7 @@ impl GuiAppState {
         let signature = sample_file_signature(&path)?;
         let entry = self.waveform_cache.get(&path)?;
         if entry.signature != signature {
-            self.waveform_cache.remove(&path);
+            self.remove_waveform_cache_path(&path);
             self.cached_sample_paths.remove(&path.display().to_string());
             return None;
         }
@@ -300,14 +323,26 @@ impl GuiAppState {
             return;
         };
         let entry = WaveformCacheEntry {
+            byte_len: waveform.audio_bytes().len()
+                + waveform
+                    .playback_samples()
+                    .map(|samples| samples.len() * std::mem::size_of::<f32>())
+                    .unwrap_or(0),
             file: waveform.file(),
             signature,
         };
         match self.waveform_cache.entry(path.clone()) {
             Entry::Occupied(mut occupied) => {
-                *occupied.get_mut() = entry;
+                let old_entry = std::mem::replace(occupied.get_mut(), entry);
+                self.waveform_cache_bytes = self
+                    .waveform_cache_bytes
+                    .saturating_sub(old_entry.byte_len)
+                    .saturating_add(occupied.get().byte_len);
+                defer_large_drop(old_entry);
             }
             Entry::Vacant(vacant) => {
+                self.waveform_cache_bytes =
+                    self.waveform_cache_bytes.saturating_add(entry.byte_len);
                 vacant.insert(entry);
             }
         }
@@ -322,14 +357,61 @@ impl GuiAppState {
     }
 
     fn enforce_waveform_cache_limit(&mut self) {
-        while self.waveform_cache_order.len() > WAVEFORM_MEMORY_CACHE_LIMIT {
+        while self.waveform_cache_order.len() > WAVEFORM_MEMORY_CACHE_MAX_FILES
+            || (self.waveform_cache_bytes > WAVEFORM_MEMORY_CACHE_MAX_BYTES
+                && self.waveform_cache_order.len() > 1)
+        {
             let Some(path) = self.waveform_cache_order.pop_front() else {
                 break;
             };
-            if self.waveform_cache.remove(&path).is_some() {
-                self.cached_sample_paths.remove(&path.display().to_string());
+            if self.remove_waveform_cache_path(&path) {
+                self.remove_cached_sample_path_if_not_persisted(&path);
             }
         }
+    }
+
+    fn remove_waveform_cache_path(&mut self, path: &Path) -> bool {
+        let Some(entry) = self.waveform_cache.remove(path) else {
+            return false;
+        };
+        self.waveform_cache_bytes = self.waveform_cache_bytes.saturating_sub(entry.byte_len);
+        defer_large_drop(entry);
+        true
+    }
+
+    pub(super) fn refresh_persisted_waveform_cache_indicators(&mut self) {
+        let audio_files = self
+            .folder_browser
+            .selected_audio_files()
+            .into_iter()
+            .map(|file| file.id.clone())
+            .collect::<Vec<_>>();
+        for file_id in audio_files {
+            let path = PathBuf::from(&file_id);
+            if self.waveform_cache.contains_key(&path) || cached_waveform_file_exists(&path) {
+                self.cached_sample_paths.insert(file_id);
+            } else {
+                self.cached_sample_paths.remove(&file_id);
+            }
+        }
+    }
+
+    fn remove_cached_sample_path_if_not_persisted(&mut self, path: &Path) {
+        if !cached_waveform_file_exists(path) {
+            self.cached_sample_paths.remove(&path.display().to_string());
+        }
+    }
+
+    fn cancel_inflight_sample_load(&mut self) {
+        if let Some(token) = self.sample_load_cancel.take() {
+            token.cancel();
+        }
+        self.sample_load_task.cancel();
+    }
+
+    fn replace_waveform_deferred(&mut self, waveform: WaveformState) {
+        let previous = std::mem::replace(&mut self.waveform, waveform);
+        defer_large_drop(previous);
     }
 }
 
@@ -347,6 +429,74 @@ fn sample_file_signature(path: &Path) -> Option<super::SampleFileSignature> {
         size_bytes: metadata.len(),
         modified_ns,
     })
+}
+
+fn defer_large_drop<T: Send + 'static>(value: T) {
+    let job: DeferredDropJob = Box::new(move || drop(value));
+    let Some(sender) = deferred_drop_sender() else {
+        job();
+        return;
+    };
+    if let Err(err) = sender.send(job) {
+        (err.0)();
+    }
+}
+
+fn deferred_drop_sender() -> Option<&'static mpsc::Sender<DeferredDropJob>> {
+    DEFERRED_DROP_SENDER
+        .get_or_init(|| {
+            let (sender, receiver) = mpsc::channel::<DeferredDropJob>();
+            match std::thread::Builder::new()
+                .name(String::from("wavecrate-deferred-drop"))
+                .spawn(move || {
+                    while let Ok(job) = receiver.recv() {
+                        job();
+                    }
+                }) {
+                Ok(_) => Some(sender),
+                Err(err) => {
+                    tracing::warn!("Failed to spawn deferred waveform drop worker: {err}");
+                    None
+                }
+            }
+        })
+        .as_ref()
+}
+
+#[cfg(test)]
+fn deferred_drop_sender_initialized_for_tests() -> bool {
+    DEFERRED_DROP_SENDER.get().is_some()
+}
+
+#[cfg(test)]
+mod deferred_drop_tests {
+    use super::*;
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    };
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn deferred_drop_uses_reusable_worker() {
+        let dropped = Arc::new(AtomicBool::new(false));
+        struct Probe(Arc<AtomicBool>);
+        impl Drop for Probe {
+            fn drop(&mut self) {
+                self.0.store(true, Ordering::Release);
+            }
+        }
+
+        defer_large_drop(Probe(Arc::clone(&dropped)));
+
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while !dropped.load(Ordering::Acquire) && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+
+        assert!(dropped.load(Ordering::Acquire));
+        assert!(deferred_drop_sender_initialized_for_tests());
+    }
 }
 
 struct SampleLoadProgressReporter {

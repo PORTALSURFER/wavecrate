@@ -23,14 +23,25 @@ pub(in crate::gui_app::waveform) fn load_wav_waveform_file_with_progress(
     if mono_samples.is_empty() {
         return Err(String::from("WAV contains no complete frames"));
     }
-    Ok(super::waveform_file_from_mono_samples_with_progress(
+    let mut file = super::waveform_file_from_mono_samples_with_progress(
         path,
         bytes,
         spec.sample_rate,
         channels,
         mono_samples,
         progress,
-    ))
+    );
+    file.playback_samples = Some(Arc::from(samples));
+    Ok(file)
+}
+
+pub(super) fn read_wav_playback_samples(bytes: &Arc<[u8]>) -> Result<Vec<f32>, String> {
+    let cursor = Cursor::new(bytes.as_ref());
+    let mut reader =
+        hound::WavReader::new(cursor).map_err(|err| format!("failed to open WAV: {err}"))?;
+    let spec = reader.spec();
+    let channels = usize::from(spec.channels).max(1);
+    read_wav_samples_with_progress(&mut reader, spec, channels, &|_| {})
 }
 
 fn read_wav_samples_with_progress<R: std::io::Read>(

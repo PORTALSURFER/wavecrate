@@ -84,6 +84,13 @@ pub(crate) fn run() -> Result<(), String> {
                         && !state.folder_browser.drag_active())
             })
             .on_frame(|| GuiMessage::Frame)
+            .animated_transient_overlay_at(
+                60,
+                |state| state.waveform.is_playing(),
+                |state, context, primitives| {
+                    state.paint_playback_overlay(context, primitives);
+                },
+            )
             .subscriptions(GuiAppState::worker_subscription)
             .auxiliary_windows(audio_settings::auxiliary_windows)
             .on_scroll(|state, update, _context| {
@@ -99,8 +106,14 @@ pub(crate) fn run() -> Result<(), String> {
             })
             .shortcuts(|state, _, press, _| default_gui_shortcut_resolution(state, press))
             .update_with(|state, message, context| {
+                let frame_scope = matches!(message, GuiMessage::Frame)
+                    .then(|| state.frame_repaint_scope_before_update());
                 state.apply_message(message, context);
-                context.request_repaint();
+                if frame_scope.is_some_and(|scope| state.frame_can_use_paint_only(scope)) {
+                    context.request_paint_only();
+                } else {
+                    context.request_repaint();
+                }
             })
             .run()
     }));

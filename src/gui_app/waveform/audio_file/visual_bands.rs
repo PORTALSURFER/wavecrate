@@ -67,10 +67,7 @@ fn normalize_visual_band_peaks_with_progress(
     end: f32,
     progress: &impl Fn(f32),
 ) {
-    let raw_peak = bands
-        .chunks_exact(BAND_COUNT)
-        .map(|frame| frame[3].abs())
-        .fold(0.0_f32, f32::max);
+    let raw_peak = raw_band_peak(bands);
     if raw_peak <= 0.000_01 || !raw_peak.is_finite() {
         return;
     }
@@ -113,11 +110,22 @@ fn normalize_visual_band_peaks_with_progress(
     progress(end);
 }
 
+fn raw_band_peak(bands: &[f32]) -> f32 {
+    let mut peak = 0.0_f32;
+    for (index, frame) in bands.chunks_exact(BAND_COUNT).enumerate() {
+        peak = peak.max(frame[3].abs());
+        super::cooperate_with_ui(index + 1);
+    }
+    peak
+}
+
 fn visual_band_peak(bands: &[f32], band: usize) -> f32 {
-    bands
-        .chunks_exact(BAND_COUNT)
-        .map(|frame| frame[band].abs())
-        .fold(0.0_f32, f32::max)
+    let mut peak = 0.0_f32;
+    for (index, frame) in bands.chunks_exact(BAND_COUNT).enumerate() {
+        peak = peak.max(frame[band].abs());
+        super::cooperate_with_ui(index + 1);
+    }
+    peak
 }
 
 fn smoothstep_scalar(edge0: f32, edge1: f32, value: f32) -> f32 {

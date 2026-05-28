@@ -11,7 +11,7 @@ use radiant::{
 };
 use std::sync::Arc;
 
-use crate::gui_app::{GuiMessage, WAVEFORM_WIDGET_ID};
+use crate::gui_app::{GuiMessage, WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_WIDGET_ID};
 
 use super::{
     WAVEFORM_HEIGHT, WAVEFORM_WIDTH, WaveformActiveDragKind, WaveformFile, WaveformInteraction,
@@ -29,7 +29,7 @@ pub(in crate::gui_app) fn waveform_viewport_view(state: &WaveformState) -> ui::V
             ),
             |_| None,
         )
-        .id(11)
+        .id(WAVEFORM_SIGNAL_WIDGET_ID)
         .size(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32),
         ui::custom_widget(
             WaveformWidget::new(WaveformWidgetProps::from_state(state)),
@@ -58,6 +58,7 @@ pub(in crate::gui_app) struct WaveformWidgetProps {
     edit_selection: Option<wavecrate::selection::SelectionRange>,
     extracted_ranges: Vec<wavecrate::selection::SelectionRange>,
     play_selection_flash_frames: u8,
+    playing: bool,
     pub(in crate::gui_app::waveform) active_drag_kind: Option<WaveformActiveDragKind>,
 }
 
@@ -73,6 +74,7 @@ impl WaveformWidgetProps {
             edit_selection: state.edit_selection(),
             extracted_ranges: state.extracted_ranges().to_vec(),
             play_selection_flash_frames: state.play_selection_flash_frames(),
+            playing: state.is_playing(),
             active_drag_kind: state.active_drag_kind(),
         }
     }
@@ -90,6 +92,7 @@ pub(in crate::gui_app) struct WaveformWidget {
     pub(super) edit_selection: Option<wavecrate::selection::SelectionRange>,
     pub(super) extracted_ranges: Vec<wavecrate::selection::SelectionRange>,
     pub(super) play_selection_flash_frames: u8,
+    pub(super) playing: bool,
     pub(super) edit_preview: TimelineEditPreview,
     pub(in crate::gui_app::waveform) active_drag_kind: Option<WaveformActiveDragKind>,
 }
@@ -106,6 +109,7 @@ impl WaveformWidget {
             edit_selection,
             extracted_ranges,
             play_selection_flash_frames,
+            playing,
             active_drag_kind,
         } = props;
         let mut common = WidgetCommon::new(
@@ -127,6 +131,7 @@ impl WaveformWidget {
             edit_selection,
             extracted_ranges,
             play_selection_flash_frames,
+            playing,
             edit_preview: edit_preview_for_selection(edit_selection),
             active_drag_kind,
         }

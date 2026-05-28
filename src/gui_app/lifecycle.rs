@@ -1,10 +1,15 @@
 use super::{
     DEFAULT_FOLDER_WIDTH, FolderBrowserState, GuiAppState, GuiMessage, SampleNameViewMode,
-    WaveformState,
+    UI_FRAME_PERIODIC_LOG_EVERY, UI_FRAME_SPIKE_ERROR, UI_FRAME_SPIKE_WARN, WaveformState,
+    sample_path_label,
 };
 use crate::gui_app::{launch::emit_gui_action, waveform::WaveformInteraction};
 use radiant::prelude as ui;
-use std::{collections::HashMap, sync::mpsc, time::Instant};
+use std::{
+    collections::HashMap,
+    sync::mpsc,
+    time::{Duration, Instant},
+};
 use wavecrate::sample_sources::config::{AppConfig, AppSettingsCore};
 
 impl GuiAppState {
@@ -28,9 +33,15 @@ impl GuiAppState {
             worker_receiver: Some(worker_receiver),
             next_task_id: 1,
             sample_load_task: ui::LatestTask::new(),
+            sample_load_cancel: None,
+            audio_open_task: ui::LatestTask::new(),
+            audio_open_results: Default::default(),
             folder_progress: None,
             normalization_progress: None,
             progress_tick: 0.0,
+            frame_index: 0,
+            last_frame_at: None,
+            max_frame_delta: Duration::ZERO,
             waveform_loading_progress: 0.0,
             waveform_loading_target_progress: 0.0,
             audio_player: None,
@@ -52,6 +63,7 @@ impl GuiAppState {
             waveform_loading_label: None,
             audio_settings_error: None,
             current_playback_span: None,
+            pending_playback_start: None,
             native_file_drop_hover: None,
             metadata_tag_draft: String::new(),
             metadata_tag_tokens: Vec::new(),
@@ -69,14 +81,11 @@ impl GuiAppState {
             startup_auto_load_pending: !config.sources.is_empty(),
             waveform_cache: HashMap::new(),
             waveform_cache_order: Default::default(),
+            waveform_cache_bytes: 0,
             cached_sample_paths: Default::default(),
         };
         if let Some(error) = metadata_tag_load_error {
             state.sample_status = format!("Tags not loaded: {error}");
-        }
-        state.refresh_audio_options();
-        if let Err(error) = state.open_configured_audio_player() {
-            state.audio_settings_error = Some(error);
         }
         emit_gui_action(
             "runtime.startup.load_default_state",
@@ -110,6 +119,7 @@ impl GuiAppState {
     }
 
     pub(super) fn advance_frame(&mut self) {
+        self.record_frame_timing();
         self.waveform.apply_interaction(WaveformInteraction::Frame);
         self.refresh_playback_progress();
         if self.folder_progress.is_some() || self.normalization_progress.is_some() {
@@ -122,6 +132,93 @@ impl GuiAppState {
             }
         }
         self.flush_pending_volume_persist();
+    }
+
+    fn record_frame_timing(&mut self) {
+        let now = Instant::now();
+        let delta = self.last_frame_at.replace(now).map(|last| now - last);
+        self.frame_index = self.frame_index.saturating_add(1);
+        let Some(delta) = delta else {
+            tracing::debug!(
+                target: "wavecrate::debug::ui_frame",
+                event = "ui.frame",
+                frame = self.frame_index,
+                "UI frame timing started"
+            );
+            return;
+        };
+        if delta > self.max_frame_delta {
+            self.max_frame_delta = delta;
+        }
+        let delta_ms = duration_ms(delta);
+        let max_delta_ms = duration_ms(self.max_frame_delta);
+        let sample_loading = self.sample_load_task.active().is_some();
+        let audio_opening = self.audio_open_task.active().is_some();
+        let folder_scanning = self.folder_progress.is_some();
+        let normalizing = self.normalization_progress.is_some();
+        let waveform_loading = self.waveform_loading_label.is_some();
+        let playing = self.waveform.is_playing();
+        let pending_playback = self.pending_playback_start.is_some();
+        let selected = self
+            .folder_browser
+            .selected_file_id()
+            .map(sample_path_label)
+            .unwrap_or_default();
+
+        if delta >= UI_FRAME_SPIKE_ERROR {
+            tracing::warn!(
+                target: "wavecrate::debug::ui_frame",
+                event = "ui.frame.spike",
+                severity = "error",
+                frame = self.frame_index,
+                delta_ms,
+                max_delta_ms,
+                sample_loading,
+                audio_opening,
+                folder_scanning,
+                normalizing,
+                waveform_loading,
+                playing,
+                pending_playback,
+                selected = selected.as_str(),
+                "UI frame spike"
+            );
+        } else if delta >= UI_FRAME_SPIKE_WARN {
+            tracing::warn!(
+                target: "wavecrate::debug::ui_frame",
+                event = "ui.frame.spike",
+                severity = "warn",
+                frame = self.frame_index,
+                delta_ms,
+                max_delta_ms,
+                sample_loading,
+                audio_opening,
+                folder_scanning,
+                normalizing,
+                waveform_loading,
+                playing,
+                pending_playback,
+                selected = selected.as_str(),
+                "UI frame spike"
+            );
+        } else if self.frame_index.is_multiple_of(UI_FRAME_PERIODIC_LOG_EVERY) {
+            tracing::debug!(
+                target: "wavecrate::debug::ui_frame",
+                event = "ui.frame",
+                frame = self.frame_index,
+                delta_ms,
+                max_delta_ms,
+                sample_loading,
+                audio_opening,
+                folder_scanning,
+                normalizing,
+                waveform_loading,
+                playing,
+                pending_playback,
+                selected = selected.as_str(),
+                "UI frame timing"
+            );
+        }
     }
 
     pub(super) fn maybe_auto_load_startup_sample(
@@ -166,4 +263,8 @@ impl GuiAppState {
         })
         .map_err(|err| err.to_string())
     }
+}
+
+fn duration_ms(duration: Duration) -> f64 {
+    duration.as_secs_f64() * 1_000.0
 }

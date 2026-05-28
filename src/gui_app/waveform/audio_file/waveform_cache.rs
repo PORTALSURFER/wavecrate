@@ -11,7 +11,8 @@ use std::{
 
 use super::{WaveformFile, content_revision_for_audio_bytes};
 
-const CACHE_FORMAT_VERSION: u32 = 1;
+const CACHE_FORMAT_VERSION: u32 = 2;
+const MAX_PERSISTED_PLAYBACK_SAMPLE_BYTES: usize = 256 * 1024 * 1024;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct CachedWaveformFile {
@@ -24,6 +25,7 @@ struct CachedWaveformFile {
     channels: usize,
     frames: usize,
     summary: CachedGpuSignalSummary,
+    playback_samples: Option<Vec<f32>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -54,6 +56,13 @@ pub(super) fn load_cached_waveform_file(
     let bytes = fs::read(cache_path).ok()?;
     let cached: CachedWaveformFile = bincode::deserialize(&bytes).ok()?;
     cached.into_waveform_file(path, audio_bytes, identity)
+}
+
+pub(in crate::gui_app) fn cached_waveform_file_exists(path: &Path) -> bool {
+    let Ok(identity) = CacheIdentity::for_path(path) else {
+        return false;
+    };
+    cache_path_for_identity(path, &identity).is_ok_and(|path| path.is_file())
 }
 
 pub(super) fn store_cached_waveform_file(file: &WaveformFile) {
@@ -120,6 +129,7 @@ impl CachedWaveformFile {
             channels: file.channels,
             frames: file.frames,
             summary: CachedGpuSignalSummary::from_summary(&file.gpu_signal_summary),
+            playback_samples: playback_samples_for_cache(file),
         }
     }
 
@@ -143,6 +153,7 @@ impl CachedWaveformFile {
         Some(WaveformFile {
             path,
             audio_bytes,
+            playback_samples: self.playback_samples.map(Arc::from),
             content_revision: self.content_revision,
             sample_rate: self.sample_rate,
             channels: self.channels,
@@ -150,6 +161,22 @@ impl CachedWaveformFile {
             gpu_signal_summary: Arc::new(self.summary.into_summary()?),
         })
     }
+}
+
+fn playback_samples_for_cache(file: &WaveformFile) -> Option<Vec<f32>> {
+    playback_samples_for_cache_with_limit(file, MAX_PERSISTED_PLAYBACK_SAMPLE_BYTES)
+}
+
+fn playback_samples_for_cache_with_limit(
+    file: &WaveformFile,
+    max_bytes: usize,
+) -> Option<Vec<f32>> {
+    let samples = file.playback_samples.as_ref()?;
+    let sample_bytes = samples.len().checked_mul(std::mem::size_of::<f32>())?;
+    if sample_bytes > max_bytes {
+        return None;
+    }
+    Some(samples.as_ref().to_vec())
 }
 
 impl CachedGpuSignalSummary {
@@ -233,13 +260,14 @@ mod tests {
         let path = dir.path().join("cached.wav");
         fs::write(&path, [1_u8, 2, 3, 4]).expect("write sample");
         let audio_bytes: Arc<[u8]> = Arc::from([1_u8, 2, 3, 4]);
-        let file = waveform_file_from_mono_samples(
+        let mut file = waveform_file_from_mono_samples(
             path.clone(),
             Arc::clone(&audio_bytes),
             48_000,
             1,
             vec![0.0, 0.5, -0.5, 0.25],
         );
+        file.playback_samples = Some(Arc::from(vec![0.0, 0.5, -0.5, 0.25]));
 
         store_cached_waveform_file(&file);
         let cached =
@@ -249,6 +277,32 @@ mod tests {
         assert_eq!(cached.sample_rate, file.sample_rate);
         assert_eq!(cached.frames, file.frames);
         assert_eq!(cached.gpu_signal_summary, file.gpu_signal_summary);
+        assert_eq!(
+            cached
+                .playback_samples
+                .as_ref()
+                .map(|samples| samples.as_ref()),
+            Some([0.0, 0.5, -0.5, 0.25].as_slice())
+        );
+        assert!(cached_waveform_file_exists(&path));
+    }
+
+    #[test]
+    fn waveform_cache_skips_oversized_playback_payloads() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("huge.wav");
+        fs::write(&path, [1_u8, 2, 3, 4]).expect("write sample");
+        let audio_bytes: Arc<[u8]> = Arc::from([1_u8, 2, 3, 4]);
+        let mut file = waveform_file_from_mono_samples(
+            path.clone(),
+            Arc::clone(&audio_bytes),
+            48_000,
+            1,
+            vec![0.0, 0.5, -0.5, 0.25],
+        );
+        file.playback_samples = Some(Arc::from(vec![0.0_f32, 0.5, -0.5, 0.25, 0.125]));
+
+        assert!(playback_samples_for_cache_with_limit(&file, 16).is_none());
     }
 
     #[test]

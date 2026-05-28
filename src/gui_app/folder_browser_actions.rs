@@ -99,6 +99,7 @@ impl GuiAppState {
                 let source = folder_id.clone();
                 self.folder_browser
                     .apply_message(FolderBrowserMessage::ActivateFolder(folder_id));
+                self.refresh_persisted_waveform_cache_indicators();
                 emit_gui_action(
                     "folder_browser.activate_folder",
                     Some("folder_browser"),
@@ -111,6 +112,11 @@ impl GuiAppState {
             FolderBrowserMessage::DragFolder(folder_id, drag) => {
                 self.context_menu = None;
                 self.drag_folder(folder_id, drag, context);
+            }
+            FolderBrowserMessage::ActivateCollection(collection) => {
+                self.folder_browser
+                    .apply_message(FolderBrowserMessage::ActivateCollection(collection));
+                self.refresh_persisted_waveform_cache_indicators();
             }
             message => self.folder_browser.apply_message(message),
         }

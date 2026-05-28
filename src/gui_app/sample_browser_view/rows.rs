@@ -99,6 +99,7 @@ fn sample_browser_row(
                 folder_browser,
                 name_view_mode,
                 metadata_tags_by_file,
+                cached,
             )
         })),
     ])
@@ -147,6 +148,7 @@ fn sample_column_cell(
     folder_browser: &FolderBrowserState,
     name_view_mode: SampleNameViewMode,
     metadata_tags_by_file: &HashMap<String, Vec<String>>,
+    cached: bool,
 ) -> ui::View<GuiMessage> {
     if column.id == "name" {
         return sample_name_cell(
@@ -155,6 +157,7 @@ fn sample_column_cell(
             column.width,
             name_view_mode,
             metadata_tags_by_file,
+            cached,
         );
     }
     if column.id == "rating" {
@@ -168,6 +171,7 @@ fn sample_column_cell(
         sample_file_column_value(file, column.id.as_str()),
         column.width,
         column.id.as_str(),
+        cached,
     )
 }
 
@@ -177,6 +181,7 @@ fn sample_name_cell(
     width: f32,
     name_view_mode: SampleNameViewMode,
     metadata_tags_by_file: &HashMap<String, Vec<String>>,
+    cached: bool,
 ) -> ui::View<GuiMessage> {
     let Some(rename) = rename else {
         return sample_file_cell(
@@ -184,6 +189,7 @@ fn sample_name_cell(
             sample_name_cell_value(file, name_view_mode, metadata_tags_by_file),
             width,
             "name",
+            cached,
         );
     };
     ui::text_input(rename.draft)
@@ -271,12 +277,12 @@ fn sample_file_cell(
     value: String,
     width: f32,
     column_id: &str,
+    cached: bool,
 ) -> ui::View<GuiMessage> {
-    ui::text(value)
+    ui::custom_widget(SampleCellText::new(value, !cached), |_| None)
         .key(format!("sample-{}-{column_id}", file.id))
         .height(20.0)
         .width(width)
-        .truncate()
 }
 
 fn compact_details_row(
@@ -301,6 +307,75 @@ struct RatingSquares {
 struct CollectionBlock {
     common: WidgetCommon,
     color: Option<Rgba8>,
+}
+
+#[derive(Clone, Debug)]
+struct SampleCellText {
+    common: WidgetCommon,
+    text: PaintText,
+    muted: bool,
+}
+
+impl SampleCellText {
+    fn new(text: String, muted: bool) -> Self {
+        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 20.0)));
+        common.focus = FocusBehavior::None;
+        common.paint.paints_focus = false;
+        common.paint.paints_state_layers = false;
+        Self {
+            common,
+            text: PaintText::from(text),
+            muted,
+        }
+    }
+}
+
+impl Widget for SampleCellText {
+    fn common(&self) -> &WidgetCommon {
+        &self.common
+    }
+
+    fn common_mut(&mut self) -> &mut WidgetCommon {
+        &mut self.common
+    }
+
+    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
+        None
+    }
+
+    fn needs_state_synchronization(&self) -> bool {
+        false
+    }
+
+    fn append_paint(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        _layout: &LayoutOutput,
+        theme: &ThemeTokens,
+    ) {
+        let font_size = if bounds.height() >= 38.0 {
+            18.0
+        } else if bounds.height() >= 28.0 {
+            14.0
+        } else {
+            13.0
+        };
+        primitives.push(PaintPrimitive::Text(PaintTextRun {
+            widget_id: self.common.id,
+            text: self.text.clone(),
+            rect: bounds,
+            font_size,
+            baseline: Some((bounds.height() * 0.5 + font_size * 0.35).max(0.0)),
+            color: if self.muted {
+                theme.text_muted
+            } else {
+                theme.text_primary
+            },
+            align: PaintTextAlign::Left,
+            wrap: TextWrap::None,
+        }));
+    }
 }
 
 impl CollectionBlock {
@@ -562,5 +637,47 @@ mod tests {
         assert_eq!(RatingSquares::new(Rating::new(2), false).count(), 2);
         assert_eq!(RatingSquares::new(Rating::TRASH_3, false).count(), 3);
         assert_eq!(RatingSquares::new(Rating::KEEP_3, true).count(), 3);
+    }
+
+    #[test]
+    fn unloaded_sample_text_uses_muted_theme_color() {
+        let theme = ThemeTokens::default();
+        let mut primitives = Vec::new();
+        let widget = SampleCellText::new(String::from("kick_deep"), true);
+
+        widget.append_paint(
+            &mut primitives,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 20.0)),
+            &LayoutOutput::default(),
+            &theme,
+        );
+
+        assert!(
+            primitives
+                .iter()
+                .any(|primitive| matches!(primitive, PaintPrimitive::Text(run) if run.text == "kick_deep" && run.color == theme.text_muted)),
+            "unloaded sample rows should paint text with the muted theme color"
+        );
+    }
+
+    #[test]
+    fn loaded_sample_text_uses_primary_theme_color() {
+        let theme = ThemeTokens::default();
+        let mut primitives = Vec::new();
+        let widget = SampleCellText::new(String::from("kick_deep"), false);
+
+        widget.append_paint(
+            &mut primitives,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 20.0)),
+            &LayoutOutput::default(),
+            &theme,
+        );
+
+        assert!(
+            primitives
+                .iter()
+                .any(|primitive| matches!(primitive, PaintPrimitive::Text(run) if run.text == "kick_deep" && run.color == theme.text_primary)),
+            "loaded sample rows should paint text with the primary theme color"
+        );
     }
 }

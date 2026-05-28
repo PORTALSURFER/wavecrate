@@ -231,7 +231,9 @@ impl WaveformWidget {
                 1.25,
             );
         }
-        if let Some(playhead_ratio) = self.visible_ratio_for_absolute(self.playhead_ratio) {
+        if !self.playing
+            && let Some(playhead_ratio) = self.visible_ratio_for_absolute(self.playhead_ratio)
+        {
             self.push_visible_cursor(
                 primitives,
                 bounds,

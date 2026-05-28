@@ -1,10 +1,10 @@
-#[cfg(test)]
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use crate::audio::SamplesBuffer;
 use crate::audio::timebase::{duration_for_frames, frames_to_seconds, seconds_to_frames_round};
 use crate::audio::{AsyncSource, Source};
 
+use super::super::decoder::SymphoniaDecoder;
 use super::super::fade::{EdgeFade, fade_duration};
 use super::super::mixer::{decoder_from_bytes, map_seek_error};
 use super::{AudioPlayer, EditFadeSource};
@@ -54,25 +54,52 @@ impl AudioPlayer {
 
         self.fade_out_current_sink(self.anti_clip_fade());
 
-        let source = decoder_from_bytes(bytes)?;
-        let sample_rate = source.sample_rate().max(1);
-        let channels = source.channels().max(1);
-        let mut samples: Vec<f32> = source.collect();
-        let frame_width = channels as usize;
-        let usable_samples = (samples.len() / frame_width) * frame_width;
-        samples.truncate(usable_samples);
-        let total_frames = (usable_samples / frame_width) as u64;
+        let sample_rate = self.sample_rate.unwrap_or(44_100).max(1);
+        let channels = self.track_channels.unwrap_or(1).max(1);
+        let total_frames = self
+            .track_total_frames
+            .unwrap_or_else(|| seconds_to_frames_round(duration, sample_rate).max(1));
         if total_frames == 0 {
             return Err("Load a .wav file first".into());
         }
 
-        let buffer = SamplesBuffer::new(channels, sample_rate, samples);
         let offset_frames = ((start.clamp(0.0, 1.0) * total_frames as f64).floor() as u64)
             .min(total_frames.saturating_sub(1));
-        let offset_samples = offset_frames.saturating_mul(channels as u64) as usize;
-        let repeated = buffer.repeat_infinite().skip_samples(offset_samples);
+        let span_samples = total_frames.saturating_mul(channels as u64);
+        let diagnostic: Box<dyn Source<Item = f32> + Send> =
+            if let Some(samples) = self.playback_samples.as_ref().cloned() {
+                let offset_samples = offset_frames.saturating_mul(channels as u64) as usize;
+                let source = SamplesBuffer::from_arc_span_at(
+                    channels,
+                    sample_rate,
+                    samples,
+                    0,
+                    span_samples as usize,
+                    offset_samples,
+                )
+                .repeat_infinite();
+                Box::new(crate::audio::loop_diagnostic::LoopDiagnostic::new(
+                    source,
+                    span_samples,
+                ))
+            } else {
+                let loop_source = LazyRepeatingSpanSource::new(
+                    bytes,
+                    sample_rate,
+                    channels,
+                    0,
+                    span_samples,
+                    offset_frames,
+                );
+                let mut async_source = AsyncSource::new(loop_source);
+                async_source.prefill();
+                Box::new(crate::audio::loop_diagnostic::LoopDiagnostic::new(
+                    async_source,
+                    span_samples,
+                ))
+            };
 
-        let (handle, format) = self.build_sink_with_fade(repeated)?;
+        let (handle, format) = self.build_sink_with_fade(diagnostic)?;
         let track_duration_seconds = frames_to_seconds(total_frames, sample_rate);
         self.started_at = Some(std::time::Instant::now());
         self.play_span = Some((0.0, track_duration_seconds));
@@ -106,9 +133,8 @@ impl AudioPlayer {
 
         self.fade_out_current_sink(self.anti_clip_fade());
 
-        let mut source = decoder_from_bytes(bytes)?;
-        let sample_rate = source.sample_rate().max(1);
-        let channels = source.channels().max(1);
+        let sample_rate = self.sample_rate.unwrap_or(44_100).max(1);
+        let channels = self.track_channels.unwrap_or(1).max(1);
         let (track_frames, start_frame, end_frame) =
             Self::quantize_span_bounds(start_seconds, end_seconds, duration, sample_rate);
         let span_frames = end_frame.saturating_sub(start_frame).max(1);
@@ -116,32 +142,43 @@ impl AudioPlayer {
         let start_secs = frames_to_seconds(start_frame, sample_rate);
         let end_secs = frames_to_seconds(end_frame, sample_rate);
 
-        source
-            .try_seek(duration_for_frames(start_frame, sample_rate))
-            .map_err(map_seek_error)?;
-
         let fade = fade_duration(
             (end_secs - start_secs).max(f32::EPSILON),
             self.anti_clip_fade(),
         );
         let final_source: Box<dyn Source<Item = f32> + Send> = if looped {
-            let mut limited = source.take_samples(span_samples as usize);
-            let mut samples = Vec::with_capacity(span_samples as usize);
-            for _ in 0..span_samples {
-                if let Some(sample) = limited.next() {
-                    samples.push(sample);
+            let diagnostic: Box<dyn Source<Item = f32> + Send> =
+                if let Some(samples) = self.playback_samples.as_ref().cloned() {
+                    let start_sample = start_frame.saturating_mul(channels as u64) as usize;
+                    let end_sample = start_sample.saturating_add(span_samples as usize);
+                    let source = SamplesBuffer::from_arc_span(
+                        channels,
+                        sample_rate,
+                        samples,
+                        start_sample,
+                        end_sample,
+                    )
+                    .repeat_infinite();
+                    Box::new(crate::audio::loop_diagnostic::LoopDiagnostic::new(
+                        source,
+                        span_samples,
+                    ))
                 } else {
-                    break;
-                }
-            }
-            while samples.len() < span_samples as usize {
-                samples.push(0.0);
-            }
-            let buffer = SamplesBuffer::new(channels, sample_rate, samples);
-            let diagnostic = crate::audio::loop_diagnostic::LoopDiagnostic::new(
-                buffer.repeat_infinite(),
-                span_samples,
-            );
+                    let loop_source = LazyRepeatingSpanSource::new(
+                        bytes,
+                        sample_rate,
+                        channels,
+                        start_frame,
+                        span_samples,
+                        0,
+                    );
+                    let mut async_source = AsyncSource::new(loop_source);
+                    async_source.prefill();
+                    Box::new(crate::audio::loop_diagnostic::LoopDiagnostic::new(
+                        async_source,
+                        span_samples,
+                    ))
+                };
             let editable = EditFadeSource::new_looped(
                 diagnostic,
                 self.edit_fade_handle.clone(),
@@ -151,10 +188,31 @@ impl AudioPlayer {
             );
             Box::new(editable)
         } else {
-            let mut async_source = AsyncSource::new(source);
-            async_source.prefill();
-            let limited = async_source.take_samples(span_samples as usize).buffered();
-            let editable = EditFadeSource::new(limited, self.edit_fade_handle.clone(), start_secs);
+            let source: Box<dyn Source<Item = f32> + Send> =
+                if let Some(samples) = self.playback_samples.as_ref().cloned() {
+                    let start_sample = start_frame.saturating_mul(channels as u64) as usize;
+                    let end_sample = start_sample.saturating_add(span_samples as usize);
+                    Box::new(SamplesBuffer::from_arc_span(
+                        channels,
+                        sample_rate,
+                        samples,
+                        start_sample,
+                        end_sample,
+                    ))
+                } else {
+                    let lazy_source = LazySpanSource::new(
+                        bytes,
+                        sample_rate,
+                        channels,
+                        start_frame,
+                        span_samples,
+                        duration,
+                    );
+                    let mut async_source = AsyncSource::new(lazy_source);
+                    async_source.prefill();
+                    Box::new(async_source.take_samples(span_samples as usize).buffered())
+                };
+            let editable = EditFadeSource::new(source, self.edit_fade_handle.clone(), start_secs);
             let faded = EdgeFade::new(editable, fade);
             Box::new(faded)
         };
@@ -192,9 +250,8 @@ impl AudioPlayer {
 
         self.fade_out_current_sink(self.anti_clip_fade());
 
-        let mut source = decoder_from_bytes(bytes)?;
-        let sample_rate = source.sample_rate().max(1);
-        let channels = source.channels().max(1);
+        let sample_rate = self.sample_rate.unwrap_or(44_100).max(1);
+        let channels = self.track_channels.unwrap_or(1).max(1);
         let (track_frames, start_frame, end_frame) =
             Self::quantize_span_bounds(start_seconds, end_seconds, duration, sample_rate);
         let span_frames = end_frame.saturating_sub(start_frame).max(1);
@@ -205,36 +262,56 @@ impl AudioPlayer {
             seconds_to_frames_round(offset_seconds, sample_rate) % span_frames
         };
 
-        source
-            .try_seek(duration_for_frames(start_frame, sample_rate))
-            .map_err(map_seek_error)?;
-
-        let mut limited = source.take_samples(span_samples as usize);
-        let mut samples = Vec::with_capacity(span_samples as usize);
-        for _ in 0..span_samples {
-            if let Some(sample) = limited.next() {
-                samples.push(sample);
-            } else {
-                break;
-            }
-        }
-        while samples.len() < span_samples as usize {
-            samples.push(0.0);
-        }
-
-        let buffer = SamplesBuffer::new(channels, sample_rate, samples);
-        let offset_samples = offset_frames.saturating_mul(channels as u64) as usize;
         let start_secs = frames_to_seconds(start_frame, sample_rate);
         let end_secs = frames_to_seconds(end_frame, sample_rate);
-        let editable = EditFadeSource::new_looped(
-            buffer,
-            self.edit_fade_handle.clone(),
-            start_secs,
-            span_frames,
-            offset_frames,
-        );
-        let repeated = editable.repeat_infinite().skip_samples(offset_samples);
-        let diagnostic = crate::audio::loop_diagnostic::LoopDiagnostic::new(repeated, span_samples);
+        let diagnostic: Box<dyn Source<Item = f32> + Send> =
+            if let Some(samples) = self.playback_samples.as_ref().cloned() {
+                let start_sample = start_frame.saturating_mul(channels as u64) as usize;
+                let end_sample = start_sample.saturating_add(span_samples as usize);
+                let offset_samples = start_sample
+                    .saturating_add(offset_frames.saturating_mul(channels as u64) as usize);
+                let source = SamplesBuffer::from_arc_span_at(
+                    channels,
+                    sample_rate,
+                    samples,
+                    start_sample,
+                    end_sample,
+                    offset_samples,
+                );
+                let editable = EditFadeSource::new_looped(
+                    source,
+                    self.edit_fade_handle.clone(),
+                    start_secs,
+                    span_frames,
+                    offset_frames,
+                );
+                Box::new(crate::audio::loop_diagnostic::LoopDiagnostic::new(
+                    editable.repeat_infinite(),
+                    span_samples,
+                ))
+            } else {
+                let loop_source = LazyRepeatingSpanSource::new(
+                    bytes,
+                    sample_rate,
+                    channels,
+                    start_frame,
+                    span_samples,
+                    offset_frames,
+                );
+                let mut async_source = AsyncSource::new(loop_source);
+                async_source.prefill();
+                let editable = EditFadeSource::new_looped(
+                    async_source,
+                    self.edit_fade_handle.clone(),
+                    start_secs,
+                    span_frames,
+                    offset_frames,
+                );
+                Box::new(crate::audio::loop_diagnostic::LoopDiagnostic::new(
+                    editable,
+                    span_samples,
+                ))
+            };
 
         let (handle, format) = self.build_sink_with_fade(diagnostic)?;
         self.started_at = Some(std::time::Instant::now());
@@ -348,5 +425,232 @@ impl AudioPlayer {
             emitted = emitted.saturating_add(1);
         }
         Ok((emitted, span_frames as usize, sample_rate, channels))
+    }
+}
+
+struct LazySpanSource {
+    bytes: Arc<[u8]>,
+    decoder: Option<SymphoniaDecoder>,
+    sample_rate: u32,
+    channels: u16,
+    seek_to: Duration,
+    remaining_samples: usize,
+    total_duration: Duration,
+    last_error: Option<String>,
+}
+
+impl LazySpanSource {
+    fn new(
+        bytes: Arc<[u8]>,
+        sample_rate: u32,
+        channels: u16,
+        start_frame: u64,
+        span_samples: u64,
+        total_duration: f32,
+    ) -> Self {
+        let sample_rate = sample_rate.max(1);
+        let channels = channels.max(1);
+        Self {
+            bytes,
+            decoder: None,
+            sample_rate,
+            channels,
+            seek_to: duration_for_frames(start_frame, sample_rate),
+            remaining_samples: span_samples as usize,
+            total_duration: Duration::from_secs_f32(total_duration.max(0.0)),
+            last_error: None,
+        }
+    }
+
+    fn decoder_mut(&mut self) -> Option<&mut SymphoniaDecoder> {
+        if self.decoder.is_none() {
+            match decoder_from_bytes(Arc::clone(&self.bytes)).and_then(|mut decoder| {
+                decoder.try_seek(self.seek_to).map_err(map_seek_error)?;
+                Ok(decoder)
+            }) {
+                Ok(decoder) => {
+                    self.decoder = Some(decoder);
+                }
+                Err(error) => {
+                    self.last_error = Some(error);
+                    self.remaining_samples = 0;
+                    return None;
+                }
+            }
+        }
+        self.decoder.as_mut()
+    }
+}
+
+impl Iterator for LazySpanSource {
+    type Item = f32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.remaining_samples == 0 {
+            return None;
+        }
+        let decoder = self.decoder_mut()?;
+        match decoder.next() {
+            Some(sample) => {
+                self.remaining_samples = self.remaining_samples.saturating_sub(1);
+                Some(sample)
+            }
+            None => {
+                if let Some(error) = decoder.last_error() {
+                    self.last_error = Some(error);
+                }
+                self.remaining_samples = 0;
+                None
+            }
+        }
+    }
+}
+
+impl Source for LazySpanSource {
+    fn current_frame_len(&self) -> Option<usize> {
+        Some(self.remaining_samples)
+    }
+
+    fn channels(&self) -> u16 {
+        self.channels
+    }
+
+    fn sample_rate(&self) -> u32 {
+        self.sample_rate
+    }
+
+    fn total_duration(&self) -> Option<Duration> {
+        Some(self.total_duration)
+    }
+
+    fn last_error(&self) -> Option<String> {
+        self.last_error.clone()
+    }
+}
+
+struct LazyRepeatingSpanSource {
+    bytes: Arc<[u8]>,
+    decoder: Option<SymphoniaDecoder>,
+    sample_rate: u32,
+    channels: u16,
+    start_frame: u64,
+    span_samples: u64,
+    samples_into_cycle: u64,
+    initial_offset_samples: u64,
+    last_error: Option<String>,
+}
+
+impl LazyRepeatingSpanSource {
+    fn new(
+        bytes: Arc<[u8]>,
+        sample_rate: u32,
+        channels: u16,
+        start_frame: u64,
+        span_samples: u64,
+        offset_frames: u64,
+    ) -> Self {
+        let sample_rate = sample_rate.max(1);
+        let channels = channels.max(1);
+        let span_samples = span_samples.max(channels as u64);
+        let initial_offset_samples = offset_frames.saturating_mul(channels as u64) % span_samples;
+        Self {
+            bytes,
+            decoder: None,
+            sample_rate,
+            channels,
+            start_frame,
+            span_samples,
+            samples_into_cycle: initial_offset_samples,
+            initial_offset_samples,
+            last_error: None,
+        }
+    }
+
+    fn decoder_mut(&mut self) -> Option<&mut SymphoniaDecoder> {
+        if self.decoder.is_none() {
+            if self
+                .seek_to_cycle_position(self.initial_offset_samples)
+                .is_err()
+            {
+                return None;
+            }
+        }
+        self.decoder.as_mut()
+    }
+
+    fn seek_to_cycle_position(&mut self, cycle_sample_offset: u64) -> Result<(), ()> {
+        let frame_offset = cycle_sample_offset / self.channels as u64;
+        match decoder_from_bytes(Arc::clone(&self.bytes)).and_then(|mut decoder| {
+            decoder
+                .try_seek(duration_for_frames(
+                    self.start_frame.saturating_add(frame_offset),
+                    self.sample_rate,
+                ))
+                .map_err(map_seek_error)?;
+            Ok(decoder)
+        }) {
+            Ok(decoder) => {
+                self.decoder = Some(decoder);
+                self.samples_into_cycle = cycle_sample_offset.min(self.span_samples);
+                Ok(())
+            }
+            Err(error) => {
+                self.last_error = Some(error);
+                self.decoder = None;
+                Err(())
+            }
+        }
+    }
+
+    fn restart_cycle(&mut self) -> Option<()> {
+        self.seek_to_cycle_position(0).ok()
+    }
+}
+
+impl Iterator for LazyRepeatingSpanSource {
+    type Item = f32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.samples_into_cycle >= self.span_samples {
+            self.restart_cycle()?;
+        }
+        let decoder = self.decoder_mut()?;
+        match decoder.next() {
+            Some(sample) => {
+                self.samples_into_cycle = self.samples_into_cycle.saturating_add(1);
+                Some(sample)
+            }
+            None => {
+                if let Some(error) = decoder.last_error() {
+                    self.last_error = Some(error);
+                }
+                self.restart_cycle()?;
+                let sample = self.decoder_mut()?.next()?;
+                self.samples_into_cycle = self.samples_into_cycle.saturating_add(1);
+                Some(sample)
+            }
+        }
+    }
+}
+
+impl Source for LazyRepeatingSpanSource {
+    fn current_frame_len(&self) -> Option<usize> {
+        None
+    }
+
+    fn channels(&self) -> u16 {
+        self.channels
+    }
+
+    fn sample_rate(&self) -> u32 {
+        self.sample_rate
+    }
+
+    fn total_duration(&self) -> Option<Duration> {
+        None
+    }
+
+    fn last_error(&self) -> Option<String> {
+        self.last_error.clone()
     }
 }

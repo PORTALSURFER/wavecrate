@@ -6,10 +6,13 @@ use super::{
 use radiant::{
     gui::types::{Point, Rect, Vector2},
     prelude::{self as ui, IntoView},
-    runtime::{DeclarativeOwnedRuntimeBridge, Event, PaintPrimitive, SurfaceRuntime},
+    runtime::{
+        DeclarativeOwnedRuntimeBridge, Event, PaintPrimitive, SurfaceRuntime,
+        TransientOverlayContext,
+    },
     widgets::{DragHandleMessage, PointerButton, PointerModifiers, WidgetInput, WidgetKey},
 };
-use std::{collections::HashMap, fs, path::PathBuf, sync::mpsc};
+use std::{collections::HashMap, fs, path::PathBuf, sync::mpsc, time::Duration};
 
 mod audio_settings_controls;
 mod audio_settings_dropdowns;
@@ -48,9 +51,15 @@ fn gui_state_for_span_tests() -> GuiAppState {
         worker_receiver: None,
         next_task_id: 1,
         sample_load_task: ui::LatestTask::new(),
+        sample_load_cancel: None,
+        audio_open_task: ui::LatestTask::new(),
+        audio_open_results: Default::default(),
         folder_progress: None,
         normalization_progress: None,
         progress_tick: 0.0,
+        frame_index: 0,
+        last_frame_at: None,
+        max_frame_delta: Duration::ZERO,
         waveform_loading_progress: 0.0,
         waveform_loading_target_progress: 0.0,
         audio_player: None,
@@ -72,6 +81,7 @@ fn gui_state_for_span_tests() -> GuiAppState {
         waveform_loading_label: None,
         audio_settings_error: None,
         current_playback_span: None,
+        pending_playback_start: None,
         native_file_drop_hover: None,
         metadata_tag_draft: String::new(),
         metadata_tag_tokens: Vec::new(),
@@ -89,6 +99,7 @@ fn gui_state_for_span_tests() -> GuiAppState {
         startup_auto_load_pending: false,
         waveform_cache: HashMap::new(),
         waveform_cache_order: Default::default(),
+        waveform_cache_bytes: 0,
         cached_sample_paths: Default::default(),
     }
 }
@@ -118,9 +129,15 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
         worker_receiver: None,
         next_task_id: 1,
         sample_load_task: ui::LatestTask::new(),
+        sample_load_cancel: None,
+        audio_open_task: ui::LatestTask::new(),
+        audio_open_results: Default::default(),
         folder_progress: None,
         normalization_progress: None,
         progress_tick: 0.0,
+        frame_index: 0,
+        last_frame_at: None,
+        max_frame_delta: Duration::ZERO,
         waveform_loading_progress: 0.0,
         waveform_loading_target_progress: 0.0,
         audio_player: None,
@@ -142,6 +159,7 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
         waveform_loading_label: None,
         audio_settings_error: None,
         current_playback_span: None,
+        pending_playback_start: None,
         native_file_drop_hover: None,
         metadata_tag_draft: String::new(),
         metadata_tag_tokens: Vec::new(),
@@ -159,6 +177,7 @@ fn folder_browser_splitter_resizes_and_clamps_width() {
         startup_auto_load_pending: false,
         waveform_cache: HashMap::new(),
         waveform_cache_order: Default::default(),
+        waveform_cache_bytes: 0,
         cached_sample_paths: Default::default(),
     };
     state.resize_folder_browser(DragHandleMessage::Started {
@@ -297,9 +316,15 @@ fn sample_selection_loads_selected_file_into_waveform() {
         worker_receiver: None,
         next_task_id: 1,
         sample_load_task: ui::LatestTask::new(),
+        sample_load_cancel: None,
+        audio_open_task: ui::LatestTask::new(),
+        audio_open_results: Default::default(),
         folder_progress: None,
         normalization_progress: None,
         progress_tick: 0.0,
+        frame_index: 0,
+        last_frame_at: None,
+        max_frame_delta: Duration::ZERO,
         waveform_loading_progress: 0.0,
         waveform_loading_target_progress: 0.0,
         audio_player: None,
@@ -321,6 +346,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         waveform_loading_label: None,
         audio_settings_error: None,
         current_playback_span: None,
+        pending_playback_start: None,
         native_file_drop_hover: None,
         metadata_tag_draft: String::new(),
         metadata_tag_tokens: Vec::new(),
@@ -338,6 +364,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         startup_auto_load_pending: false,
         waveform_cache: HashMap::new(),
         waveform_cache_order: Default::default(),
+        waveform_cache_bytes: 0,
         cached_sample_paths: Default::default(),
     };
     let sample_path = first_visible_asset_file_path(&state.folder_browser);
@@ -799,6 +826,82 @@ fn stop_toolbar_button_remains_available_for_loaded_idle_sample() {
     assert_eq!(
         runtime.dispatch_event(Event::PointerMove { position: point }),
         Some(super::TOOLBAR_STOP_ID)
+    );
+}
+
+#[test]
+fn playback_frame_uses_paint_only_when_only_playhead_changes() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.start_playback(0.25);
+
+    let before = state.frame_repaint_scope_before_update();
+    state.advance_frame();
+
+    assert!(
+        state.frame_can_use_paint_only(before),
+        "playback-only frames should not force full surface reprojection"
+    );
+}
+
+#[test]
+fn playback_frame_repaints_surface_when_playback_state_changes() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.start_playback(0.25);
+
+    let before = state.frame_repaint_scope_before_update();
+    state.waveform.stop_playback();
+
+    assert!(
+        !state.frame_can_use_paint_only(before),
+        "stopping playback changes toolbar/status surface state and needs a full repaint"
+    );
+}
+
+#[test]
+fn playback_cursor_paints_as_transient_overlay() {
+    let mut state = gui_state_for_span_tests();
+    state.waveform.start_playback(0.25);
+    let bridge = DeclarativeOwnedRuntimeBridge::new(
+        state,
+        |state| radiant::runtime::UiSurface::new(super::view(state).into_node()),
+        |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
+    );
+    let theme = radiant::theme::ThemeTokens::default();
+    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    let frame = runtime.frame(&theme);
+
+    assert!(
+        !frame.paint_plan.primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillRect(fill)
+                if fill.widget_id == super::WAVEFORM_WIDGET_ID
+                    && fill.color.r == 71
+                    && fill.color.g == 220
+                    && fill.color.b == 255
+        )),
+        "live playback cursor should not be baked into the cached surface"
+    );
+
+    let mut primitives = Vec::new();
+    runtime.bridge_mut().state_mut().paint_playback_overlay(
+        TransientOverlayContext::new(
+            &frame.paint_plan,
+            Vector2::new(900.0, 620.0),
+            Duration::ZERO,
+        ),
+        &mut primitives,
+    );
+
+    assert!(
+        primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::FillRect(fill)
+                if fill.widget_id == super::WAVEFORM_WIDGET_ID
+                    && fill.color.r == 71
+                    && fill.color.g == 220
+                    && fill.color.b == 255
+        )),
+        "paint-only playback overlay should append the live cursor"
     );
 }
 

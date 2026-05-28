@@ -119,11 +119,19 @@ impl GuiAppState {
         end_ratio: f32,
         loop_offset_ratio: Option<f32>,
     ) -> Result<(), String> {
-        if self.audio_player.is_none() {
-            self.open_configured_audio_player()?;
-        }
         if !self.waveform.has_loaded_sample() {
             return Err(String::from("Select a sample to load"));
+        }
+        if self.audio_player.is_none() {
+            self.pending_playback_start = Some(PendingPlaybackStart {
+                start_ratio,
+                end_ratio,
+                loop_offset_ratio,
+            });
+            if self.audio_open_task.active().is_none() {
+                return Err(String::from("Audio output is starting"));
+            }
+            return Ok(());
         }
         let playback_span = self.resolve_playback_span(start_ratio, end_ratio, loop_offset_ratio);
         let start_ratio = playback_span.start_ratio;
@@ -135,7 +143,22 @@ impl GuiAppState {
             .ok_or_else(|| String::from("audio player did not initialize"))?;
         player.set_volume(self.volume);
         self.audio_output_resolved = Some(player.output_details().clone());
-        player.set_audio(self.waveform.audio_bytes(), duration);
+        if let Some(samples) = self.waveform.playback_samples() {
+            player.set_audio_samples_with_metadata(
+                self.waveform.audio_bytes(),
+                samples,
+                duration,
+                self.waveform.sample_rate(),
+                self.waveform.channels(),
+            );
+        } else {
+            player.set_audio_with_metadata(
+                self.waveform.audio_bytes(),
+                duration,
+                self.waveform.sample_rate(),
+                self.waveform.channels(),
+            );
+        }
         player.set_edit_fade_state(self.waveform.edit_selection());
         let playback_start = if self.loop_playback {
             player.play_looped_range_from(

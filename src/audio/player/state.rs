@@ -29,8 +29,10 @@ impl AudioPlayer {
             fade_out: None,
             sink_format: None,
             current_audio: None,
+            playback_samples: None,
             track_duration: None,
             track_total_frames: None,
+            track_channels: None,
             sample_rate: None,
             started_at: None,
             play_span: None,
@@ -60,16 +62,66 @@ impl AudioPlayer {
             .or_else(|| wav_header_duration(&audio))
             .unwrap_or(0.0);
 
-        let sample_rate = wav_spec_from_bytes(&audio)
-            .map(|(_, rate)| rate)
+        let wav_spec = wav_spec_from_bytes(&audio);
+        let sample_rate = wav_spec
+            .map(|(_, rate, _)| rate)
             .or_else(|| decoder_sample_rate(&audio));
+        let channels = wav_spec.map(|(_, _, channels)| channels);
         let chosen = if provided > 0.0 { provided } else { fallback };
         self.track_duration = Some(chosen);
         self.track_total_frames = sample_rate
             .map(|rate| seconds_to_frames_round(chosen, rate).max(1))
             .filter(|frames| *frames > 0);
+        self.track_channels = channels;
         self.sample_rate = sample_rate;
         self.current_audio = Some(audio);
+        self.playback_samples = None;
+        self.reset_playback_state();
+    }
+
+    /// Store audio bytes with caller-provided timing metadata.
+    ///
+    /// This avoids opening a decoder on latency-sensitive UI paths when the
+    /// waveform loader has already established the file duration and sample
+    /// rate.
+    pub fn set_audio_with_metadata(
+        &mut self,
+        data: impl Into<Arc<[u8]>>,
+        duration: f32,
+        sample_rate: u32,
+        channels: usize,
+    ) {
+        let audio: Arc<[u8]> = data.into();
+        let duration = duration.max(0.0);
+        let sample_rate = sample_rate.max(1);
+        self.track_duration = Some(duration);
+        self.track_total_frames = Some(seconds_to_frames_round(duration, sample_rate).max(1));
+        self.track_channels = Some(channels.clamp(1, u16::MAX as usize) as u16);
+        self.sample_rate = Some(sample_rate);
+        self.current_audio = Some(audio);
+        self.playback_samples = None;
+        self.reset_playback_state();
+    }
+
+    /// Store audio bytes and decoded playback samples with caller-provided
+    /// timing metadata.
+    pub fn set_audio_samples_with_metadata(
+        &mut self,
+        data: impl Into<Arc<[u8]>>,
+        samples: Arc<[f32]>,
+        duration: f32,
+        sample_rate: u32,
+        channels: usize,
+    ) {
+        let audio: Arc<[u8]> = data.into();
+        let duration = duration.max(0.0);
+        let sample_rate = sample_rate.max(1);
+        self.track_duration = Some(duration);
+        self.track_total_frames = Some(seconds_to_frames_round(duration, sample_rate).max(1));
+        self.track_channels = Some(channels.clamp(1, u16::MAX as usize) as u16);
+        self.sample_rate = Some(sample_rate);
+        self.current_audio = Some(audio);
+        self.playback_samples = Some(samples);
         self.reset_playback_state();
     }
 
@@ -139,8 +191,10 @@ impl AudioPlayer {
             fade_out: None,
             sink_format: None,
             current_audio: None,
+            playback_samples: None,
             track_duration,
             track_total_frames: None,
+            track_channels: None,
             sample_rate: None,
             started_at,
             play_span,

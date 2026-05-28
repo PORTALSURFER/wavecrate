@@ -191,6 +191,7 @@ impl GuiAppState {
                 None,
             );
             self.refresh_persisted_metadata_tags_for_source(&source_id);
+            self.refresh_persisted_waveform_cache_indicators();
             self.persist_user_configuration("folder_browser.sources.persist", started_at);
         } else {
             emit_gui_action(

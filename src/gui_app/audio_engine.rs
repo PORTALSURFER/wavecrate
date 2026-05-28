@@ -3,6 +3,122 @@ use super::*;
 mod options;
 
 impl GuiAppState {
+    pub(super) fn maybe_open_audio_player(
+        &mut self,
+        context: &mut radiant::prelude::UpdateContext<super::GuiMessage>,
+    ) {
+        if self.audio_player.is_some()
+            || self.audio_open_task.active().is_some()
+            || self.audio_settings_error.is_some()
+        {
+            return;
+        }
+        self.queue_configured_audio_player_open(context);
+    }
+
+    pub(super) fn queue_configured_audio_player_open(
+        &mut self,
+        context: &mut radiant::prelude::UpdateContext<super::GuiMessage>,
+    ) {
+        if self.audio_open_task.active().is_some() {
+            return;
+        }
+        let started_at = Instant::now();
+        let ticket = self.audio_open_task.begin();
+        let config = self.audio_output_config.clone();
+        let volume = self.volume;
+        let results = self.audio_open_results.clone();
+        self.audio_settings_error = None;
+        context.spawn(
+            "gui-audio-open",
+            move || {
+                let result = AudioPlayer::from_config(&config).map(|mut player| {
+                    player.set_volume(volume);
+                    player
+                });
+                if let Ok(mut results) = results.lock() {
+                    results.insert(ticket, result);
+                }
+                ticket
+            },
+            super::GuiMessage::AudioPlayerOpenFinished,
+        );
+        emit_gui_action(
+            "audio.output.open",
+            Some("audio"),
+            None,
+            "queued",
+            started_at,
+            None,
+        );
+    }
+
+    pub(super) fn finish_audio_player_open(&mut self, ticket: radiant::prelude::TaskTicket) {
+        let started_at = Instant::now();
+        let result = self
+            .audio_open_results
+            .lock()
+            .ok()
+            .and_then(|mut results| results.remove(&ticket));
+        if !self.audio_open_task.finish(ticket) {
+            emit_gui_action(
+                "audio.output.open",
+                Some("audio"),
+                None,
+                "stale",
+                started_at,
+                None,
+            );
+            return;
+        }
+        match result.unwrap_or_else(|| Err(String::from("audio output worker did not report"))) {
+            Ok(player) => {
+                self.audio_output_resolved = Some(player.output_details().clone());
+                self.audio_settings_error = None;
+                self.audio_player = Some(player);
+                let pending = self.pending_playback_start.take();
+                if let Some(pending) = pending {
+                    match self.start_playback_span(
+                        pending.start_ratio,
+                        pending.end_ratio,
+                        pending.loop_offset_ratio,
+                    ) {
+                        Ok(()) => {
+                            let file_name = self.waveform.file_name();
+                            self.sample_status = format!("Playing {file_name}");
+                        }
+                        Err(err) => {
+                            self.sample_status = format!("Playback unavailable: {err}");
+                            self.audio_settings_error = Some(err);
+                        }
+                    }
+                }
+                emit_gui_action(
+                    "audio.output.open",
+                    Some("audio"),
+                    None,
+                    "success",
+                    started_at,
+                    None,
+                );
+            }
+            Err(err) => {
+                self.audio_settings_error = Some(err.clone());
+                self.audio_player = None;
+                self.audio_output_resolved = None;
+                self.pending_playback_start = None;
+                emit_gui_action(
+                    "audio.output.open",
+                    Some("audio"),
+                    None,
+                    "error",
+                    started_at,
+                    Some(&err),
+                );
+            }
+        }
+    }
+
     pub(super) fn set_volume(&mut self, volume: f32) {
         let started_at = Instant::now();
         let previous = volume_milli(self.volume);
@@ -59,6 +175,7 @@ impl GuiAppState {
     }
 
     pub(super) fn open_audio_settings_window(&mut self) {
+        self.refresh_audio_options();
         self.audio_settings_open = true;
         self.close_audio_settings_dropdowns();
         self.audio_settings_error = None;
@@ -149,6 +266,7 @@ impl GuiAppState {
         if let Some(player) = self.audio_player.as_mut() {
             player.stop();
         }
+        self.audio_open_task.cancel();
         self.audio_player = None;
         self.audio_output_resolved = None;
         self.refresh_audio_options();

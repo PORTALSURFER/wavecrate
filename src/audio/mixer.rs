@@ -22,10 +22,10 @@ pub(crate) fn decoder_sample_rate(bytes: &Arc<[u8]>) -> Option<u32> {
 }
 
 pub(crate) fn wav_header_duration(bytes: &Arc<[u8]>) -> Option<f32> {
-    wav_spec_from_bytes(bytes).map(|(duration, _)| duration)
+    wav_spec_from_bytes(bytes).map(|(duration, _, _)| duration)
 }
 
-pub(crate) fn wav_spec_from_bytes(bytes: &Arc<[u8]>) -> Option<(f32, u32)> {
+pub(crate) fn wav_spec_from_bytes(bytes: &Arc<[u8]>) -> Option<(f32, u32, u16)> {
     let reader = hound::WavReader::new(Cursor::new(bytes.clone())).ok()?;
     let spec = reader.spec();
     let sample_rate = spec.sample_rate as f32;
@@ -34,7 +34,7 @@ pub(crate) fn wav_spec_from_bytes(bytes: &Arc<[u8]>) -> Option<(f32, u32)> {
         return None;
     }
     let duration = reader.duration() as f32 / (sample_rate * channels);
-    Some((duration, spec.sample_rate))
+    Some((duration, spec.sample_rate, spec.channels.max(1)))
 }
 
 pub(crate) fn map_seek_error(error: String) -> String {
