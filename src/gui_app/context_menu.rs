@@ -1,5 +1,4 @@
 use super::GuiMessage;
-mod action_button;
 
 use radiant::gui::types::Point;
 use radiant::prelude as ui;
@@ -145,7 +144,7 @@ fn context_menu_height(menu: &BrowserContextMenu) -> f32 {
 }
 
 fn context_menu_action(label: impl Into<String>, message: GuiMessage) -> ui::View<GuiMessage> {
-    action_button::view(label, message)
+    ui::action_row(label).subtle().message(message)
 }
 
 fn overlay_gap() -> ui::View<GuiMessage> {
