@@ -2622,6 +2622,7 @@ Durable product and architecture contracts belong in `docs/`. Planning and backl
 
 Meaningful changes should usually include:
 
+* a cleanup pass against the touched area and obvious neighboring code before commit, using this target document and `AGENTS.md` as the quality contract
 * focused tests for behavior that can regress
 * smoke or focused validation before ordinary commit/push
 * agent validation before merging PRs into `next`
