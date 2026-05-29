@@ -3,13 +3,14 @@ use std::sync::Arc;
 
 use super::super::BAND_COUNT;
 
-pub(in crate::gui_app::waveform) fn gpu_signal_summary_with_progress(
+pub(in crate::gui_app::waveform) fn gpu_signal_summary_with_progress_and_cancel(
     samples: &[f32],
     frames: usize,
     start: f32,
     end: f32,
     progress: &impl Fn(f32),
-) -> GpuSignalSummary {
+    cancelled: &impl Fn() -> bool,
+) -> Result<GpuSignalSummary, String> {
     let band_count = BAND_COUNT.max(1);
     let frames = frames.min(samples.len() / band_count);
     let mut levels = Vec::with_capacity(signal_summary_level_count(frames));
@@ -31,7 +32,9 @@ pub(in crate::gui_app::waveform) fn gpu_signal_summary_with_progress(
             level_start,
             level_end,
             progress,
+            cancelled,
         );
+        let buckets = buckets?;
         levels.push(GpuSignalSummaryLevel {
             bucket_frames,
             buckets: Arc::clone(&buckets),
@@ -43,11 +46,11 @@ pub(in crate::gui_app::waveform) fn gpu_signal_summary_with_progress(
         bucket_frames = bucket_frames.saturating_mul(2).max(bucket_frames + 1);
     }
     progress(end);
-    GpuSignalSummary {
+    Ok(GpuSignalSummary {
         frames,
         band_count,
         levels,
-    }
+    })
 }
 
 struct SignalSummaryLevelInput<'a> {
@@ -63,7 +66,8 @@ fn build_signal_summary_level(
     start: f32,
     end: f32,
     progress: &impl Fn(f32),
-) -> Arc<[GpuSignalSummaryBucket]> {
+    cancelled: &impl Fn() -> bool,
+) -> Result<Arc<[GpuSignalSummaryBucket]>, String> {
     match input.previous {
         Some(previous) => merge_signal_summary_level_with_progress(
             previous,
@@ -73,6 +77,7 @@ fn build_signal_summary_level(
             start,
             end,
             progress,
+            cancelled,
         ),
         None => build_signal_summary_base_level_with_progress(
             input.samples,
@@ -81,6 +86,7 @@ fn build_signal_summary_level(
             start,
             end,
             progress,
+            cancelled,
         ),
     }
 }
@@ -97,18 +103,22 @@ fn build_signal_summary_base_level_with_progress(
     start: f32,
     end: f32,
     progress: &impl Fn(f32),
-) -> Arc<[GpuSignalSummaryBucket]> {
+    cancelled: &impl Fn() -> bool,
+) -> Result<Arc<[GpuSignalSummaryBucket]>, String> {
     if frames == 0 {
-        return vec![GpuSignalSummaryBucket::default(); band_count].into();
+        return Ok(vec![GpuSignalSummaryBucket::default(); band_count].into());
     }
     let sample_count = frames.saturating_mul(band_count);
     let mut buckets = Vec::with_capacity(sample_count);
     for (index, value) in samples.iter().copied().take(sample_count).enumerate() {
+        if cancelled() {
+            return Err(String::from("cancelled"));
+        }
         buckets.push(signal_summary_bucket(value));
         super::report_phase_progress_throttled(start, end, index + 1, sample_count, progress);
     }
     progress(end);
-    buckets.into()
+    Ok(buckets.into())
 }
 
 fn signal_summary_bucket(value: f32) -> GpuSignalSummaryBucket {
@@ -130,11 +140,15 @@ fn merge_signal_summary_level_with_progress(
     start: f32,
     end: f32,
     progress: &impl Fn(f32),
-) -> Arc<[GpuSignalSummaryBucket]> {
+    cancelled: &impl Fn() -> bool,
+) -> Result<Arc<[GpuSignalSummaryBucket]>, String> {
     let bucket_count = frames.div_ceil(bucket_frames.max(1)).max(1);
     let previous_bucket_count = previous.len() / band_count.max(1);
     let mut buckets = Vec::with_capacity(bucket_count.saturating_mul(band_count));
     for bucket in 0..bucket_count {
+        if cancelled() {
+            return Err(String::from("cancelled"));
+        }
         push_merged_bucket_bands(
             previous,
             previous_bucket_count,
@@ -145,7 +159,7 @@ fn merge_signal_summary_level_with_progress(
         super::report_phase_progress_throttled(start, end, bucket + 1, bucket_count, progress);
     }
     progress(end);
-    buckets.into()
+    Ok(buckets.into())
 }
 
 fn push_merged_bucket_bands(

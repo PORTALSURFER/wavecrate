@@ -13,7 +13,7 @@ use super::{WAVEFORM_HEIGHT, WAVEFORM_WIDTH};
 mod downmix;
 #[cfg(test)]
 pub(super) use downmix::downmix_to_mono;
-use downmix::downmix_to_mono_with_progress;
+use downmix::downmix_to_mono_with_progress_and_cancel;
 
 mod extraction;
 pub(super) use extraction::{extract_wav_range_to_folder, extract_wav_range_to_sibling};
@@ -25,12 +25,12 @@ mod progress;
 pub(super) use progress::{cooperate_with_ui, report_phase_progress_throttled};
 
 mod signal_summary;
-use signal_summary::gpu_signal_summary_with_progress;
+use signal_summary::gpu_signal_summary_with_progress_and_cancel;
 
 mod visual_bands;
 #[cfg(test)]
 pub(super) use visual_bands::split_frequency_bands;
-pub(super) use visual_bands::split_frequency_bands_with_progress;
+pub(super) use visual_bands::split_frequency_bands_with_progress_and_cancel;
 
 mod wav_decode;
 use wav_decode::load_wav_waveform_file_with_progress;
@@ -86,7 +86,7 @@ pub(super) fn load_waveform_file_with_progress_and_cancel(
         return Err(String::from("cancelled"));
     }
     progress(0.0);
-    let bytes = read_audio_file_with_progress(&path, 0.0, 0.08, &progress)?;
+    let bytes = read_audio_file_with_progress(&path, 0.0, 0.08, &progress, &cancelled)?;
     if cancelled() {
         return Err(String::from("cancelled"));
     }
@@ -104,8 +104,12 @@ pub(super) fn load_waveform_file_with_progress_and_cancel(
         return Err(String::from("cancelled"));
     }
     if is_wav_path(&path)
-        && let Ok(file) =
-            load_wav_waveform_file_with_progress(path.clone(), Arc::clone(&bytes), &progress)
+        && let Ok(file) = load_wav_waveform_file_with_progress(
+            path.clone(),
+            Arc::clone(&bytes),
+            &progress,
+            &cancelled,
+        )
     {
         if cancelled() {
             return Err(String::from("cancelled"));
@@ -129,7 +133,15 @@ pub(super) fn load_waveform_file_with_progress_and_cancel(
     let mono_samples = if decoded.samples.is_empty() {
         decoded.analysis_samples.iter().copied().collect::<Vec<_>>()
     } else {
-        downmix_to_mono_with_progress(&decoded.samples, channels, frames, 0.48, 0.62, &progress)
+        downmix_to_mono_with_progress_and_cancel(
+            &decoded.samples,
+            channels,
+            frames,
+            0.48,
+            0.62,
+            &progress,
+            &cancelled,
+        )?
     };
     if cancelled() {
         return Err(String::from("cancelled"));
@@ -137,14 +149,15 @@ pub(super) fn load_waveform_file_with_progress_and_cancel(
     if mono_samples.is_empty() {
         return Err(String::from("audio file contains no complete frames"));
     }
-    let file = waveform_file_from_mono_samples_with_progress(
+    let file = waveform_file_from_mono_samples_with_progress_and_cancel(
         path,
         bytes,
         decoded.sample_rate,
         channels,
         mono_samples,
         &progress,
-    );
+        &cancelled,
+    )?;
     if cancelled() {
         return Err(String::from("cancelled"));
     }
@@ -203,16 +216,44 @@ fn waveform_file_from_mono_samples_with_progress(
     mono_samples: Vec<f32>,
     progress: &impl Fn(f32),
 ) -> WaveformFile {
-    let gpu_signal_samples =
-        split_frequency_bands_with_progress(&mono_samples, sample_rate, 0.62, 0.9, progress);
-    let gpu_signal_summary = Arc::new(gpu_signal_summary_with_progress(
+    waveform_file_from_mono_samples_with_progress_and_cancel(
+        path,
+        audio_bytes,
+        sample_rate,
+        channels,
+        mono_samples,
+        progress,
+        &|| false,
+    )
+    .expect("non-cancellable waveform construction cannot be cancelled")
+}
+
+fn waveform_file_from_mono_samples_with_progress_and_cancel(
+    path: PathBuf,
+    audio_bytes: Arc<[u8]>,
+    sample_rate: u32,
+    channels: usize,
+    mono_samples: Vec<f32>,
+    progress: &impl Fn(f32),
+    cancelled: &impl Fn() -> bool,
+) -> Result<WaveformFile, String> {
+    let gpu_signal_samples = split_frequency_bands_with_progress_and_cancel(
+        &mono_samples,
+        sample_rate,
+        0.62,
+        0.9,
+        progress,
+        cancelled,
+    )?;
+    let gpu_signal_summary = Arc::new(gpu_signal_summary_with_progress_and_cancel(
         &gpu_signal_samples,
         mono_samples.len(),
         0.9,
         0.99,
         progress,
-    ));
-    WaveformFile {
+        cancelled,
+    )?);
+    Ok(WaveformFile {
         path,
         content_revision: content_revision_for_audio_bytes(&audio_bytes),
         audio_bytes,
@@ -221,7 +262,7 @@ fn waveform_file_from_mono_samples_with_progress(
         channels,
         frames: mono_samples.len(),
         gpu_signal_summary,
-    }
+    })
 }
 
 pub(super) fn gain_preview_for_selection(

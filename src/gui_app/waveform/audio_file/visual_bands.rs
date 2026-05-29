@@ -7,18 +7,22 @@ pub(in crate::gui_app::waveform) fn split_frequency_bands(
     samples: &[f32],
     sample_rate: u32,
 ) -> Arc<[f32]> {
-    split_frequency_bands_with_progress(samples, sample_rate, 0.0, 1.0, &|_| {})
+    split_frequency_bands_with_progress_and_cancel(samples, sample_rate, 0.0, 1.0, &|_| {}, &|| {
+        false
+    })
+    .expect("non-cancellable band split cannot be cancelled")
 }
 
-pub(in crate::gui_app::waveform) fn split_frequency_bands_with_progress(
+pub(in crate::gui_app::waveform) fn split_frequency_bands_with_progress_and_cancel(
     samples: &[f32],
     sample_rate: u32,
     start: f32,
     end: f32,
     progress: &impl Fn(f32),
-) -> Arc<[f32]> {
+    cancelled: &impl Fn() -> bool,
+) -> Result<Arc<[f32]>, String> {
     if samples.is_empty() {
-        return Arc::from([]);
+        return Ok(Arc::from([]));
     }
     let filter_end = start + (end - start) * 0.76;
     let normalize_end = start + (end - start) * 0.98;
@@ -34,6 +38,9 @@ pub(in crate::gui_app::waveform) fn split_frequency_bands_with_progress(
     let high_release = envelope_release_alpha(sample_rate, 2.2);
     let mut bands = Vec::with_capacity(samples.len().saturating_mul(BAND_COUNT));
     for (index, sample) in samples.iter().enumerate() {
+        if cancelled() {
+            return Err(String::from("cancelled"));
+        }
         let sample = sample.clamp(-1.0, 1.0);
         low += alpha_low * (sample - low);
         mid_low += alpha_mid * (sample - mid_low);
@@ -56,9 +63,15 @@ pub(in crate::gui_app::waveform) fn split_frequency_bands_with_progress(
         );
     }
     progress(filter_end);
-    normalize_visual_band_peaks_with_progress(&mut bands, filter_end, normalize_end, progress);
+    normalize_visual_band_peaks_with_progress(
+        &mut bands,
+        filter_end,
+        normalize_end,
+        progress,
+        cancelled,
+    )?;
     progress(end);
-    bands.into()
+    Ok(bands.into())
 }
 
 fn normalize_visual_band_peaks_with_progress(
@@ -66,15 +79,16 @@ fn normalize_visual_band_peaks_with_progress(
     start: f32,
     end: f32,
     progress: &impl Fn(f32),
-) {
-    let raw_peak = raw_band_peak(bands);
+    cancelled: &impl Fn() -> bool,
+) -> Result<(), String> {
+    let raw_peak = raw_band_peak(bands, cancelled)?;
     if raw_peak <= 0.000_01 || !raw_peak.is_finite() {
-        return;
+        return Ok(());
     }
     let peaks = [
-        visual_band_peak(bands, 0),
-        visual_band_peak(bands, 1),
-        visual_band_peak(bands, 2),
+        visual_band_peak(bands, 0, cancelled)?,
+        visual_band_peak(bands, 1, cancelled)?,
+        visual_band_peak(bands, 2, cancelled)?,
     ];
     let spectral_total = peaks.iter().copied().sum::<f32>().max(0.000_01);
     let targets = [raw_peak * 0.98, raw_peak * 0.74, raw_peak * 0.34];
@@ -95,6 +109,9 @@ fn normalize_visual_band_peaks_with_progress(
         let gain = (target / peak).clamp(0.25, max_gain);
         let frame_count = bands.len() / BAND_COUNT;
         for (index, frame) in bands.chunks_exact_mut(BAND_COUNT).enumerate() {
+            if cancelled() {
+                return Err(String::from("cancelled"));
+            }
             frame[band] = (frame[band] * gain).clamp(-1.0, 1.0);
             let band_start = start + (end - start) * (band as f32 / 3.0);
             let band_end = start + (end - start) * ((band + 1) as f32 / 3.0);
@@ -108,24 +125,35 @@ fn normalize_visual_band_peaks_with_progress(
         }
     }
     progress(end);
+    Ok(())
 }
 
-fn raw_band_peak(bands: &[f32]) -> f32 {
+fn raw_band_peak(bands: &[f32], cancelled: &impl Fn() -> bool) -> Result<f32, String> {
     let mut peak = 0.0_f32;
     for (index, frame) in bands.chunks_exact(BAND_COUNT).enumerate() {
+        if cancelled() {
+            return Err(String::from("cancelled"));
+        }
         peak = peak.max(frame[3].abs());
         super::cooperate_with_ui(index + 1);
     }
-    peak
+    Ok(peak)
 }
 
-fn visual_band_peak(bands: &[f32], band: usize) -> f32 {
+fn visual_band_peak(
+    bands: &[f32],
+    band: usize,
+    cancelled: &impl Fn() -> bool,
+) -> Result<f32, String> {
     let mut peak = 0.0_f32;
     for (index, frame) in bands.chunks_exact(BAND_COUNT).enumerate() {
+        if cancelled() {
+            return Err(String::from("cancelled"));
+        }
         peak = peak.max(frame[band].abs());
         super::cooperate_with_ui(index + 1);
     }
-    peak
+    Ok(peak)
 }
 
 fn smoothstep_scalar(edge0: f32, edge1: f32, value: f32) -> f32 {

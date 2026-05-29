@@ -5,6 +5,7 @@ pub(in crate::gui_app::waveform) fn read_audio_file_with_progress(
     start: f32,
     end: f32,
     progress: &impl Fn(f32),
+    cancelled: &impl Fn() -> bool,
 ) -> Result<Arc<[u8]>, String> {
     let mut file =
         std::fs::File::open(path).map_err(|err| format!("failed to read audio file: {err}"))?;
@@ -13,6 +14,9 @@ pub(in crate::gui_app::waveform) fn read_audio_file_with_progress(
     let mut buffer = [0_u8; 256 * 1024];
     let mut read = 0usize;
     loop {
+        if cancelled() {
+            return Err(String::from("cancelled"));
+        }
         let count = file
             .read(&mut buffer)
             .map_err(|err| format!("failed to read audio file: {err}"))?;

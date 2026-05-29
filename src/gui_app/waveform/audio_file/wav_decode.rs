@@ -1,25 +1,29 @@
 use std::{io::Cursor, path::PathBuf, sync::Arc};
 
-use super::{WaveformFile, downmix_to_mono_with_progress, report_phase_progress_throttled};
+use super::{
+    WaveformFile, downmix_to_mono_with_progress_and_cancel, report_phase_progress_throttled,
+};
 
 pub(in crate::gui_app::waveform) fn load_wav_waveform_file_with_progress(
     path: PathBuf,
     bytes: Arc<[u8]>,
     progress: &impl Fn(f32),
+    cancelled: &impl Fn() -> bool,
 ) -> Result<WaveformFile, String> {
     let cursor = Cursor::new(bytes.as_ref());
     let mut reader =
         hound::WavReader::new(cursor).map_err(|err| format!("failed to open WAV: {err}"))?;
     let spec = reader.spec();
     let channels = usize::from(spec.channels).max(1);
-    let samples = read_wav_samples_with_progress(&mut reader, spec, channels, progress)?;
+    let samples = read_wav_samples_with_progress(&mut reader, spec, channels, progress, cancelled)?;
     if samples.is_empty() {
         return Err(String::from("WAV contains no samples"));
     }
 
     let frames = samples.len() / channels;
-    let mono_samples =
-        downmix_to_mono_with_progress(&samples, channels, frames, 0.46, 0.62, progress);
+    let mono_samples = downmix_to_mono_with_progress_and_cancel(
+        &samples, channels, frames, 0.46, 0.62, progress, cancelled,
+    )?;
     if mono_samples.is_empty() {
         return Err(String::from("WAV contains no complete frames"));
     }
@@ -41,7 +45,7 @@ pub(super) fn read_wav_playback_samples(bytes: &Arc<[u8]>) -> Result<Vec<f32>, S
         hound::WavReader::new(cursor).map_err(|err| format!("failed to open WAV: {err}"))?;
     let spec = reader.spec();
     let channels = usize::from(spec.channels).max(1);
-    read_wav_samples_with_progress(&mut reader, spec, channels, &|_| {})
+    read_wav_samples_with_progress(&mut reader, spec, channels, &|_| {}, &|| false)
 }
 
 fn read_wav_samples_with_progress<R: std::io::Read>(
@@ -49,16 +53,27 @@ fn read_wav_samples_with_progress<R: std::io::Read>(
     spec: hound::WavSpec,
     channels: usize,
     progress: &impl Fn(f32),
+    cancelled: &impl Fn() -> bool,
 ) -> Result<Vec<f32>, String> {
     let total_samples = reader.duration() as usize * channels;
     match spec.sample_format {
-        hound::SampleFormat::Float => read_float_samples(reader, total_samples, progress),
-        hound::SampleFormat::Int if spec.bits_per_sample <= 16 => {
-            read_i16_samples(reader, spec.bits_per_sample, total_samples, progress)
+        hound::SampleFormat::Float => {
+            read_float_samples(reader, total_samples, progress, cancelled)
         }
-        hound::SampleFormat::Int => {
-            read_i32_samples(reader, spec.bits_per_sample, total_samples, progress)
-        }
+        hound::SampleFormat::Int if spec.bits_per_sample <= 16 => read_i16_samples(
+            reader,
+            spec.bits_per_sample,
+            total_samples,
+            progress,
+            cancelled,
+        ),
+        hound::SampleFormat::Int => read_i32_samples(
+            reader,
+            spec.bits_per_sample,
+            total_samples,
+            progress,
+            cancelled,
+        ),
     }
 }
 
@@ -66,9 +81,13 @@ fn read_float_samples<R: std::io::Read>(
     reader: &mut hound::WavReader<R>,
     total_samples: usize,
     progress: &impl Fn(f32),
+    cancelled: &impl Fn() -> bool,
 ) -> Result<Vec<f32>, String> {
     let mut samples = Vec::with_capacity(total_samples);
     for (index, sample) in reader.samples::<f32>().enumerate() {
+        if cancelled() {
+            return Err(String::from("cancelled"));
+        }
         let sample = sample
             .map(|value| value.clamp(-1.0, 1.0))
             .map_err(|err| format!("failed to read float sample: {err}"))?;
@@ -84,10 +103,14 @@ fn read_i16_samples<R: std::io::Read>(
     bits_per_sample: u16,
     total_samples: usize,
     progress: &impl Fn(f32),
+    cancelled: &impl Fn() -> bool,
 ) -> Result<Vec<f32>, String> {
     let max = integer_sample_max_i32(bits_per_sample);
     let mut samples = Vec::with_capacity(total_samples);
     for (index, sample) in reader.samples::<i16>().enumerate() {
+        if cancelled() {
+            return Err(String::from("cancelled"));
+        }
         let sample = sample
             .map(|value| (f32::from(value) / max).clamp(-1.0, 1.0))
             .map_err(|err| format!("failed to read integer sample: {err}"))?;
@@ -103,10 +126,14 @@ fn read_i32_samples<R: std::io::Read>(
     bits_per_sample: u16,
     total_samples: usize,
     progress: &impl Fn(f32),
+    cancelled: &impl Fn() -> bool,
 ) -> Result<Vec<f32>, String> {
     let max = integer_sample_max_i64(bits_per_sample);
     let mut samples = Vec::with_capacity(total_samples);
     for (index, sample) in reader.samples::<i32>().enumerate() {
+        if cancelled() {
+            return Err(String::from("cancelled"));
+        }
         let sample = sample
             .map(|value| ((value as f32) / max).clamp(-1.0, 1.0))
             .map_err(|err| format!("failed to read integer sample: {err}"))?;
