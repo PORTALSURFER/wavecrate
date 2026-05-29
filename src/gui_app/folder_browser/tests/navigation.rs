@@ -503,13 +503,13 @@ fn sample_file_column_drag_reorders_columns() {
     browser.apply_message(FolderBrowserMessage::DragFileColumn(
         String::from("rating"),
         radiant::widgets::DragHandleMessage::Moved {
-            position: Point::new(460.0, 0.0),
+            position: Point::new(560.0, 0.0),
         },
     ));
     browser.apply_message(FolderBrowserMessage::DragFileColumn(
         String::from("rating"),
         radiant::widgets::DragHandleMessage::Ended {
-            position: Point::new(460.0, 0.0),
+            position: Point::new(560.0, 0.0),
         },
     ));
 
@@ -519,6 +519,13 @@ fn sample_file_column_drag_reorders_columns() {
             .into_iter()
             .map(|column| column.id.as_str())
             .collect::<Vec<_>>(),
-        vec!["name", "extension", "size", "rating", "modified"]
+        vec![
+            "name",
+            "collection",
+            "extension",
+            "size",
+            "rating",
+            "modified"
+        ]
     );
 }

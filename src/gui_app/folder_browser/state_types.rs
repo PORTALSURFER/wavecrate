@@ -57,19 +57,6 @@ pub(in crate::gui_app) struct FileColumn {
     pub(in crate::gui_app) width: f32,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub(super) struct FileColumnResize {
-    pub(super) column_id: String,
-    pub(super) start_x: f32,
-    pub(super) start_width: f32,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(super) struct FileColumnReorder {
-    pub(super) column_id: String,
-    pub(super) content_left: f32,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum FolderBrowserDrag {
     Folder { folder_id: String },

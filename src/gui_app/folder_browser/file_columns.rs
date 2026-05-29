@@ -3,7 +3,7 @@ use radiant::{
     widgets::{DragHandleMessage, DragHandleMessage::*},
 };
 
-use super::{FileColumn, FileColumnReorder, FileColumnResize, FileEntry, FolderBrowserState};
+use super::{FileColumn, FileEntry, FolderBrowserState};
 
 pub(in crate::gui_app) const MIN_FILE_COLUMN_WIDTH: f32 = 48.0;
 const MAX_FILE_COLUMN_WIDTH: f32 = 420.0;
@@ -34,11 +34,11 @@ impl FolderBrowserState {
                     .iter()
                     .find(|column| column.id == column_id)
                 {
-                    self.file_column_resize = Some(FileColumnResize {
+                    self.file_column_resize = Some(ui::DetailsColumnResizeDrag::new(
                         column_id,
-                        start_x: position.x,
-                        start_width: column.width,
-                    });
+                        position.x,
+                        column.width,
+                    ));
                 }
             }
             Moved { position } | Ended { position } => {
@@ -50,8 +50,8 @@ impl FolderBrowserState {
                     .iter_mut()
                     .find(|column| column.id == resize.column_id)
                 {
-                    column.width = (resize.start_width + position.x - resize.start_x)
-                        .clamp(MIN_FILE_COLUMN_WIDTH, MAX_FILE_COLUMN_WIDTH);
+                    column.width =
+                        resize.width_at(position.x, MIN_FILE_COLUMN_WIDTH, MAX_FILE_COLUMN_WIDTH);
                 }
                 if matches!(message, Ended { .. }) {
                     self.file_column_resize = None;
@@ -63,31 +63,25 @@ impl FolderBrowserState {
     pub(super) fn drag_file_column(&mut self, column_id: String, message: DragHandleMessage) {
         match message {
             Started { position } => {
-                if let Some(content_left) =
-                    self.estimated_column_drag_content_left(&column_id, position.x)
-                {
-                    self.file_column_reorder = Some(FileColumnReorder {
-                        column_id,
-                        content_left,
-                    });
+                let placements = self.details_column_placements();
+                if let Some(content_left) = ui::details_column_drag_content_left(
+                    &placements,
+                    &column_id,
+                    position.x,
+                    FILE_COLUMN_GAP,
+                ) {
+                    self.file_column_reorder =
+                        Some(ui::DetailsColumnReorderDrag::new(column_id, content_left));
                 }
             }
             Moved { position } | Ended { position } => {
                 let Some(reorder) = self.file_column_reorder.clone() else {
                     return;
                 };
-                let placements = self
-                    .file_columns
-                    .iter()
-                    .map(|column| ui::DetailsColumnPlacement::new(column.id.as_str(), column.width))
-                    .collect::<Vec<_>>();
-                if let Some(target_index) = ui::details_column_reorder_index(
-                    &placements,
-                    &reorder.column_id,
-                    position.x,
-                    reorder.content_left,
-                    FILE_COLUMN_GAP,
-                ) {
+                let placements = self.details_column_placements();
+                if let Some(target_index) =
+                    reorder.target_index(&placements, position.x, FILE_COLUMN_GAP)
+                {
                     ui::reorder_details_columns_by_id(
                         &mut self.file_columns,
                         &reorder.column_id,
@@ -102,22 +96,11 @@ impl FolderBrowserState {
         }
     }
 
-    fn estimated_column_drag_content_left(&self, column_id: &str, start_x: f32) -> Option<f32> {
-        let index = self
-            .file_columns
+    fn details_column_placements(&self) -> Vec<ui::DetailsColumnPlacement> {
+        self.file_columns
             .iter()
-            .position(|column| column.id == column_id)?;
-        let prior_width = self
-            .file_columns
-            .iter()
-            .take(index)
-            .map(|column| column.width + FILE_COLUMN_GAP)
-            .sum::<f32>();
-        let width = self.file_columns.get(index)?.width;
-        // Header drag messages expose pointer positions but not row bounds. Treat
-        // the drag as if it started from the column midpoint; this preserves
-        // stable reorder thresholds while keeping geometry logic in Radiant.
-        Some(start_x - prior_width - width * 0.5)
+            .map(|column| ui::DetailsColumnPlacement::new(column.id.as_str(), column.width))
+            .collect()
     }
 
     pub(super) fn sort_files(&self, files: &mut Vec<&FileEntry>) {

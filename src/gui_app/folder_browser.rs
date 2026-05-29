@@ -32,8 +32,8 @@ pub(super) struct FolderBrowserState {
     collection_panel_resize: Option<CollectionPanelResize>,
     file_columns: Vec<FileColumn>,
     file_sort: ui::DetailsSort,
-    file_column_resize: Option<FileColumnResize>,
-    file_column_reorder: Option<FileColumnReorder>,
+    file_column_resize: Option<ui::DetailsColumnResizeDrag>,
+    file_column_reorder: Option<ui::DetailsColumnReorderDrag>,
     file_view_start: usize,
 }
 
@@ -304,8 +304,8 @@ mod rename_workflow;
 mod state_types;
 pub(super) use state_types::FileColumn;
 use state_types::{
-    FileColumnReorder, FileColumnResize, FileRenameEdit, FolderBrowserDrag, FolderRenameEdit,
-    FolderRenameKind, SourceEntry, VisibleFolder, default_file_columns,
+    FileRenameEdit, FolderBrowserDrag, FolderRenameEdit, FolderRenameKind, SourceEntry,
+    VisibleFolder, default_file_columns,
 };
 
 mod tree_state;
