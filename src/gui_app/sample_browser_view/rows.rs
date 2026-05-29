@@ -2,7 +2,7 @@ use radiant::prelude as ui;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use super::row_widgets::RatingSquares;
+use super::row_widgets::{KeepBadge, RatingIndicator};
 use super::{SampleFileHitMessage, SampleFileHitTarget};
 use crate::gui_app::{
     GuiMessage, SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_OVERSCAN_ROWS, SAMPLE_BROWSER_ROW_HEIGHT,
@@ -249,10 +249,23 @@ fn sample_collection_cell(
 }
 
 fn sample_rating_cell(file: &FileEntry, width: f32) -> ui::View<GuiMessage> {
-    ui::widget(RatingSquares::new(file.rating, file.rating_locked))
-        .key(format!("sample-rating-{}", file.id))
-        .height(20.0)
-        .width(width)
+    let indicator = RatingIndicator::new(file.rating, file.rating_locked);
+    if indicator.shows_keep_badge() {
+        return ui::custom_widget(KeepBadge::new(), |_| None)
+            .key(format!("sample-rating-{}", file.id))
+            .height(20.0)
+            .width(width);
+    }
+
+    ui::widget(
+        ui::MarkerRunWidget::new(indicator.color(), indicator.count() as u8)
+            .with_side(5)
+            .with_gap(4)
+            .with_inset(4),
+    )
+    .key(format!("sample-rating-{}", file.id))
+    .height(20.0)
+    .width(width)
 }
 
 fn sample_file_cell(

@@ -74,12 +74,19 @@ fn metadata_label_view_falls_back_to_file_stem_without_file_tags() {
 }
 
 #[test]
-fn rating_squares_count_reflects_rating_strength() {
-    assert_eq!(RatingSquares::new(Rating::NEUTRAL, false).count(), 0);
-    assert_eq!(RatingSquares::new(Rating::KEEP_1, false).count(), 1);
-    assert_eq!(RatingSquares::new(Rating::new(2), false).count(), 2);
-    assert_eq!(RatingSquares::new(Rating::TRASH_3, false).count(), 3);
-    assert_eq!(RatingSquares::new(Rating::KEEP_3, true).count(), 3);
+fn rating_indicator_count_reflects_rating_strength() {
+    assert_eq!(RatingIndicator::new(Rating::NEUTRAL, false).count(), 0);
+    assert_eq!(RatingIndicator::new(Rating::KEEP_1, false).count(), 1);
+    assert_eq!(RatingIndicator::new(Rating::new(2), false).count(), 2);
+    assert_eq!(RatingIndicator::new(Rating::TRASH_3, false).count(), 3);
+    assert_eq!(RatingIndicator::new(Rating::KEEP_3, true).count(), 3);
+}
+
+#[test]
+fn locked_keep_rating_uses_keep_badge() {
+    assert!(RatingIndicator::new(Rating::KEEP_3, true).shows_keep_badge());
+    assert!(!RatingIndicator::new(Rating::KEEP_3, false).shows_keep_badge());
+    assert!(!RatingIndicator::new(Rating::TRASH_3, true).shows_keep_badge());
 }
 
 #[test]
