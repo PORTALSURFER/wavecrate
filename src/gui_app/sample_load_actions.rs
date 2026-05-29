@@ -178,11 +178,11 @@ impl GuiAppState {
         let token = ui::CancellationToken::new();
         self.sample_load_cancel = Some(token.clone());
         let sender = self.worker_sender.clone();
-        context.spawn_cancellable(
+        context.spawn_cancellable_with_priority(
             "gui-sample-load",
+            ui::TaskPriority::Idle,
             token,
             move |token| {
-                configure_sample_load_worker_thread();
                 if token.is_cancelled() {
                     return ui::TaskCompletion {
                         ticket,
@@ -417,18 +417,3 @@ fn log_slow_sample_load_phase(event: &'static str, source: &str, started_at: Ins
         "Slow sample load UI phase"
     );
 }
-
-#[cfg(target_os = "windows")]
-fn configure_sample_load_worker_thread() {
-    use windows::Win32::System::Threading::{
-        GetCurrentThread, SetThreadPriority, THREAD_PRIORITY_LOWEST,
-    };
-
-    let ok = unsafe { SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_LOWEST) };
-    if ok.is_err() {
-        tracing::debug!("Could not lower sample load worker priority");
-    }
-}
-
-#[cfg(not(target_os = "windows"))]
-fn configure_sample_load_worker_thread() {}
