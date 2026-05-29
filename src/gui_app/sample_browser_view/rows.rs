@@ -2,7 +2,7 @@ use radiant::prelude as ui;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use super::row_widgets::{CollectionBlock, RatingSquares, SampleCellText};
+use super::row_widgets::{CollectionBlock, RatingSquares};
 use super::{SampleFileHitMessage, SampleFileHitTarget};
 use crate::gui_app::{
     GuiMessage, SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_OVERSCAN_ROWS, SAMPLE_BROWSER_ROW_HEIGHT,
@@ -262,8 +262,9 @@ fn sample_file_cell(
     column_id: &str,
     cached: bool,
 ) -> ui::View<GuiMessage> {
-    ui::widget(SampleCellText::new(value, !cached))
-        .key(format!("sample-{}-{column_id}", file.id))
+    let text = ui::text(value);
+    let text = if cached { text } else { text.muted_text() };
+    text.key(format!("sample-{}-{column_id}", file.id))
         .height(20.0)
         .width(width)
 }

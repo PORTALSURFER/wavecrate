@@ -1,10 +1,10 @@
 use super::*;
 use radiant::{
     gui::types::{Point, Rect},
-    layout::{LayoutOutput, Vector2},
+    layout::Vector2,
+    prelude::IntoView,
     runtime::PaintPrimitive,
     theme::ThemeTokens,
-    widgets::Widget,
 };
 use std::collections::HashMap;
 use wavecrate::sample_sources::Rating;
@@ -85,18 +85,23 @@ fn rating_squares_count_reflects_rating_strength() {
 #[test]
 fn unloaded_sample_text_uses_muted_theme_color() {
     let theme = ThemeTokens::default();
-    let mut primitives = Vec::new();
-    let widget = SampleCellText::new(String::from("kick_deep"), true);
-
-    widget.append_paint(
-        &mut primitives,
+    let frame = radiant::runtime::UiSurface::new(
+        sample_file_cell(
+            &file_entry(),
+            String::from("kick_deep"),
+            120.0,
+            "name",
+            false,
+        )
+        .into_node(),
+    )
+    .frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 20.0)),
-        &LayoutOutput::default(),
         &theme,
     );
 
     assert!(
-            primitives
+            frame.paint_plan.primitives
                 .iter()
                 .any(|primitive| matches!(primitive, PaintPrimitive::Text(run) if run.text == "kick_deep" && run.color == theme.text_muted)),
             "unloaded sample rows should paint text with the muted theme color"
@@ -106,18 +111,23 @@ fn unloaded_sample_text_uses_muted_theme_color() {
 #[test]
 fn loaded_sample_text_uses_primary_theme_color() {
     let theme = ThemeTokens::default();
-    let mut primitives = Vec::new();
-    let widget = SampleCellText::new(String::from("kick_deep"), false);
-
-    widget.append_paint(
-        &mut primitives,
+    let frame = radiant::runtime::UiSurface::new(
+        sample_file_cell(
+            &file_entry(),
+            String::from("kick_deep"),
+            120.0,
+            "name",
+            true,
+        )
+        .into_node(),
+    )
+    .frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 20.0)),
-        &LayoutOutput::default(),
         &theme,
     );
 
     assert!(
-            primitives
+            frame.paint_plan.primitives
                 .iter()
                 .any(|primitive| matches!(primitive, PaintPrimitive::Text(run) if run.text == "kick_deep" && run.color == theme.text_primary)),
             "loaded sample rows should paint text with the primary theme color"
