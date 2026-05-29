@@ -1,7 +1,6 @@
 use super::{
     DEFAULT_FOLDER_WIDTH, FolderBrowserState, GuiAppState, GuiMessage, SampleNameViewMode,
-    UI_FRAME_PERIODIC_LOG_EVERY, UI_FRAME_SPIKE_ERROR, UI_FRAME_SPIKE_WARN, WaveformState,
-    sample_path_label,
+    WaveformState, sample_path_label,
 };
 use crate::gui_app::{launch::emit_gui_action, waveform::WaveformInteraction};
 use radiant::prelude as ui;
@@ -11,6 +10,9 @@ use std::{
     time::{Duration, Instant},
 };
 use wavecrate::sample_sources::config::{AppConfig, AppSettingsCore};
+
+const UI_FRAME_CADENCE: ui::FrameCadenceConfig =
+    ui::FrameCadenceConfig::new(Duration::from_millis(34), Duration::from_millis(100), 120);
 
 impl GuiAppState {
     pub(super) fn load_default() -> Result<Self, String> {
@@ -40,9 +42,7 @@ impl GuiAppState {
             folder_progress: None,
             normalization_progress: None,
             progress_tick: 0.0,
-            frame_index: 0,
-            last_frame_at: None,
-            max_frame_delta: Duration::ZERO,
+            frame_cadence: ui::FrameCadenceMonitor::new(),
             waveform_loading_progress: 0.0,
             waveform_loading_target_progress: 0.0,
             audio_player: None,
@@ -144,23 +144,18 @@ impl GuiAppState {
     }
 
     fn record_frame_timing(&mut self) {
-        let now = Instant::now();
-        let delta = self.last_frame_at.replace(now).map(|last| now - last);
-        self.frame_index = self.frame_index.saturating_add(1);
-        let Some(delta) = delta else {
+        let report = self.frame_cadence.record_now(UI_FRAME_CADENCE);
+        let Some(delta) = report.delta else {
             tracing::debug!(
                 target: "wavecrate::debug::ui_frame",
                 event = "ui.frame",
-                frame = self.frame_index,
+                frame = report.frame_index,
                 "UI frame timing started"
             );
             return;
         };
-        if delta > self.max_frame_delta {
-            self.max_frame_delta = delta;
-        }
         let delta_ms = duration_ms(delta);
-        let max_delta_ms = duration_ms(self.max_frame_delta);
+        let max_delta_ms = duration_ms(report.max_delta);
         let sample_loading = self.sample_load_task.active().is_some();
         let audio_opening = self.audio_open_task.active().is_some();
         let folder_scanning = self.folder_progress.is_some();
@@ -174,59 +169,45 @@ impl GuiAppState {
             .map(sample_path_label)
             .unwrap_or_default();
 
-        if delta >= UI_FRAME_SPIKE_ERROR {
-            tracing::warn!(
-                target: "wavecrate::debug::ui_frame",
-                event = "ui.frame.spike",
-                severity = "error",
-                frame = self.frame_index,
-                delta_ms,
-                max_delta_ms,
-                sample_loading,
-                audio_opening,
-                folder_scanning,
-                normalizing,
-                waveform_loading,
-                playing,
-                pending_playback,
-                selected = selected.as_str(),
-                "UI frame spike"
-            );
-        } else if delta >= UI_FRAME_SPIKE_WARN {
-            tracing::warn!(
-                target: "wavecrate::debug::ui_frame",
-                event = "ui.frame.spike",
-                severity = "warn",
-                frame = self.frame_index,
-                delta_ms,
-                max_delta_ms,
-                sample_loading,
-                audio_opening,
-                folder_scanning,
-                normalizing,
-                waveform_loading,
-                playing,
-                pending_playback,
-                selected = selected.as_str(),
-                "UI frame spike"
-            );
-        } else if self.frame_index.is_multiple_of(UI_FRAME_PERIODIC_LOG_EVERY) {
-            tracing::debug!(
-                target: "wavecrate::debug::ui_frame",
-                event = "ui.frame",
-                frame = self.frame_index,
-                delta_ms,
-                max_delta_ms,
-                sample_loading,
-                audio_opening,
-                folder_scanning,
-                normalizing,
-                waveform_loading,
-                playing,
-                pending_playback,
-                selected = selected.as_str(),
-                "UI frame timing"
-            );
+        match report.kind {
+            ui::FrameCadenceKind::ErrorSpike | ui::FrameCadenceKind::WarnSpike => {
+                tracing::warn!(
+                    target: "wavecrate::debug::ui_frame",
+                    event = "ui.frame.spike",
+                    severity = report.kind.severity().unwrap_or("warn"),
+                    frame = report.frame_index,
+                    delta_ms,
+                    max_delta_ms,
+                    sample_loading,
+                    audio_opening,
+                    folder_scanning,
+                    normalizing,
+                    waveform_loading,
+                    playing,
+                    pending_playback,
+                    selected = selected.as_str(),
+                    "UI frame spike"
+                );
+            }
+            ui::FrameCadenceKind::Periodic => {
+                tracing::debug!(
+                    target: "wavecrate::debug::ui_frame",
+                    event = "ui.frame",
+                    frame = report.frame_index,
+                    delta_ms,
+                    max_delta_ms,
+                    sample_loading,
+                    audio_opening,
+                    folder_scanning,
+                    normalizing,
+                    waveform_loading,
+                    playing,
+                    pending_playback,
+                    selected = selected.as_str(),
+                    "UI frame timing"
+                );
+            }
+            ui::FrameCadenceKind::Started | ui::FrameCadenceKind::Normal => {}
         }
     }
 

@@ -98,9 +98,6 @@ const VOLUME_SLIDER_ID: u64 = 31_000;
 const VOLUME_SLIDER_WIDTH: f32 = 92.0;
 const VOLUME_SLIDER_HEIGHT: f32 = 14.0;
 const VOLUME_PERSIST_DEBOUNCE: Duration = Duration::from_millis(250);
-const UI_FRAME_SPIKE_WARN: Duration = Duration::from_millis(34);
-const UI_FRAME_SPIKE_ERROR: Duration = Duration::from_millis(100);
-const UI_FRAME_PERIODIC_LOG_EVERY: u64 = 120;
 const AUDIO_ENGINE_PILL_ID: u64 = 31_100;
 const AUDIO_ENGINE_PILL_WIDTH: f32 = 54.0;
 const AUDIO_ENGINE_PILL_HEIGHT: f32 = 18.0;
@@ -282,9 +279,7 @@ struct GuiAppState {
     folder_progress: Option<FolderScanProgress>,
     normalization_progress: Option<NormalizationProgress>,
     progress_tick: f32,
-    frame_index: u64,
-    last_frame_at: Option<Instant>,
-    max_frame_delta: Duration,
+    frame_cadence: ui::FrameCadenceMonitor,
     waveform_loading_progress: f32,
     waveform_loading_target_progress: f32,
     audio_player: Option<AudioPlayer>,
