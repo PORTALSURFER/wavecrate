@@ -7,6 +7,12 @@ fn message_from(output: Option<WidgetOutput>) -> SampleFileHitMessage {
         .expect("expected sample file message")
 }
 
+fn paints_hover_fill(primitives: &[PaintPrimitive]) -> bool {
+    primitives.iter().any(
+        |primitive| matches!(primitive, PaintPrimitive::FillRect(fill) if fill.color == HOVER_FILL),
+    )
+}
+
 #[test]
 fn active_drag_uses_runtime_preview_after_widget_refresh() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
@@ -106,15 +112,13 @@ fn active_drag_non_source_rows_do_not_keep_hover_highlight() {
         &ThemeTokens::default(),
     );
     assert!(
-        !primitives.iter().any(
-            |primitive| matches!(primitive, PaintPrimitive::FillRect(fill) if fill.color.a == 155)
-        ),
+        !paints_hover_fill(&primitives),
         "non-source rows should not paint hover highlights during active file drags"
     );
 }
 
 #[test]
-fn hover_state_survives_retained_widget_refresh() {
+fn hover_state_clears_on_retained_widget_refresh() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
     let mut previous = SampleFileHitTarget::new(false, false, false, false, false);
     previous.handle_input(
@@ -129,8 +133,8 @@ fn hover_state_survives_retained_widget_refresh() {
     refreshed.synchronize_from_previous(&previous);
 
     assert!(
-        refreshed.common.state.hovered,
-        "sample row hover paint should not blink off between retained projections"
+        !refreshed.common.state.hovered,
+        "sample row hover paint must not stick after retained projections"
     );
     let mut primitives = Vec::new();
     refreshed.append_paint(
@@ -140,11 +144,63 @@ fn hover_state_survives_retained_widget_refresh() {
         &ThemeTokens::default(),
     );
     assert!(
-        primitives.iter().any(
-            |primitive| matches!(primitive, PaintPrimitive::FillRect(fill) if fill.color.a == 155)
-        ),
-        "refreshed hovered row should keep painting the hover highlight"
+        !paints_hover_fill(&primitives),
+        "refreshed rows should not paint stale hover highlights"
     );
+}
+
+#[test]
+fn hover_fill_is_neutral_not_selection_red() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+    let mut target = SampleFileHitTarget::new(false, false, false, false, false);
+    target.handle_input(
+        bounds,
+        WidgetInput::PointerMove {
+            position: Point::new(34.0, 8.0),
+        },
+    );
+
+    let mut primitives = Vec::new();
+    target.append_paint(
+        &mut primitives,
+        bounds,
+        &LayoutOutput::default(),
+        &ThemeTokens::default(),
+    );
+
+    assert!(paints_hover_fill(&primitives));
+    assert!(!primitives.iter().any(|primitive| matches!(
+        primitive,
+        PaintPrimitive::FillRect(fill)
+            if fill.color == Rgba8 {
+                r: 255,
+                g: 82,
+                b: 62,
+                a: 120
+            }
+    )));
+}
+
+#[test]
+fn pressed_state_survives_retained_widget_refresh_without_hover() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+    let mut previous = SampleFileHitTarget::new(false, false, false, false, false);
+    previous.handle_input(
+        bounds,
+        WidgetInput::PointerPress {
+            position: Point::new(34.0, 8.0),
+            button: PointerButton::Primary,
+            modifiers: PointerModifiers::default(),
+        },
+    );
+    assert!(previous.common.state.hovered);
+    assert!(previous.common.state.pressed);
+
+    let mut refreshed = SampleFileHitTarget::new(false, false, false, false, false);
+    refreshed.synchronize_from_previous(&previous);
+
+    assert!(!refreshed.common.state.hovered);
+    assert!(refreshed.common.state.pressed);
 }
 
 #[test]
@@ -178,9 +234,7 @@ fn suppressed_hover_clears_and_omits_stale_hover_paint() {
         &ThemeTokens::default(),
     );
     assert!(
-        !primitives.iter().any(
-            |primitive| matches!(primitive, PaintPrimitive::FillRect(fill) if fill.color.a == 155)
-        ),
+        !paints_hover_fill(&primitives),
         "suppressed rows should not paint hover highlights during sidebar resize"
     );
 }
