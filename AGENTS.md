@@ -107,6 +107,11 @@ validation expectations for `C:\dev\wavecrate`.
 - On Windows, do not run the Bash workflow scripts. Use only the PowerShell wrappers (`scripts/*.ps1`) for preflight/CI/devcheck unless the user explicitly overrides this.
 - After code changes: commit and push as useful for collaboration. The final PR
   merge still requires the final validation gate to be green.
+- Before committing code changes, do a cleanup pass against the touched area and
+  its obvious neighbors. Use `docs/TARGET.md` as the product/engineering
+  contract and apply the Rust architecture cleanup standards in this file:
+  remove avoidable complexity, tighten ownership and boundaries, keep modules
+  small, eliminate dead or debug code, and add focused tests for extracted logic.
 - In constrained agent environments, do not merge unless `ci_agent` is green;
   report whether `ci_quick` or `ci_local` still need a user-run confirmation pass.
 - Run full CI in the platform wrapper before pushing broader validation/tooling/perf/dependency changes or when you need full CI parity (`scripts/ci.ps1 local` on Windows, `scripts/ci.sh local` elsewhere)
