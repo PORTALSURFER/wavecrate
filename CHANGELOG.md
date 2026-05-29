@@ -2,56 +2,137 @@
 
 ### 🚀 Features
 
-- Highlight every fourth bpm guide
-- Nudge waveform selection with shift+alt arrows
-- Use loop bar for selection slide
-- Clip bpm guides under loop bar and handle
-- Move waveform scrollbar below view
-- Snap loop bar slide to bpm grid on shift
-- Add red bpm guide gradient
-- Thicken waveform bands when zoomed out
-- Add waveform zero line
-- Increase low-zoom waveform fill
+- Show sample rate in audio status pill
+- Add waveform range drag extraction
+- Preserve source focus after range extraction
+- Show extracted waveform ranges
+- Strengthen extracted range markers
+- Add root internal run script
+- Add source removal context action
+- Add sidebar filter and metadata sections
+- Add metadata tag input chips
+- Add sample name view toggle
+- Scope tag labels to selected sample
+- Improve metadata tag panel
+- Improve metadata tag entry workflow
+- Add expanded tag library sidebar
+- Show tag library in default GUI
+- Toggle tags from GUI tag library
+- Group GUI tag editor by target categories
+- Add category step for new GUI tags
+- Float GUI tag autocomplete upward
+- Overlay tag autocomplete within metadata panel
+- Use Radiant floating overlay for tag autocomplete
+- Add sidebar click regressions and diagnostics
+- Render tag autocomplete suffix inline
+- Render tag autocomplete suffix as ghost text
+- Seed playback type metadata tags
+- Add selectable metadata tag chips
+- Use Radiant release state for tag chips
+- Add tag library category drag and lock styling
+- Show playback metadata tags first
+- Group metadata tags by target category
+- Use neutral tag category headers
+- Add tag editor delete context menu
+- Improve Wavecrate sample workflow interactions
+- Add sample collections sidebar
+- Improve sample collections and waveform caching
+- Add target pre-commit cleanup rule
 
 ### 🐛 Bug Fixes
 
-- *(analysis-jobs)* Export cache types
-- *(analysis-jobs)* Expose context fields
-- *(scanner)* Adjust scan phase borrows
-- *(waveform)* Preserve selection on normalize
-- *(scanner)* Borrow batch for missing sync
-- Loop full selection when enabling loop mid-play
-- Play from click after clearing selection
-- Sort ann search results by distance
-- Prioritize waveform modifiers over alt focus nav
-- Align loop spans to frame boundaries
-- Resolve test fixture compile errors
-- Avoid loop restart on waveform pan
-- Resolve waveform render compile errors
-- Correct bpm gradient mesh vertices
+- Stabilize sample row hover highlight
+- Fix transport toolbar icon colors
+- Smooth folder hover and sidebar resizing
+- Keep tag autocomplete from blocking sidebar
+- Keep category input beside pending tag
+- Fix metadata tag section hit targets
+- Cancel tag entry when switching samples
+- Fix waveform toolbar icon fills
+- Fix sample row hover state
 
 ### 💼 Other
 
-- Integrate main into next
+- Revise GUI tag autocomplete
+- Select metadata tag chips on press
+- Align local agent engineering rules
 
 ### 🚜 Refactor
 
-- *(analysis-jobs)* Split analysis execution
-- *(scanner)* Split scan phases
-- *(audio)* Split decode io and prep
-- Remove legacy WGPU analysis settings from config
+- Revert "Add expanded tag library sidebar"
+
+This reverts commit 0388db41e6485d9320ddf3974954d069084d0dcf.
+- Remove deprecated native shell UI
+- Rename retained UI projection modules
+- Remove installer and updater UI shims
+- Rename controller UI runtime boundary
+- Remove stale native shell documentation stub
+- Split sample loading helpers and clear clippy debt
+- Move sample hit target tests out of widget module
+- Split metadata tag logic by responsibility
+- Move metadata tag assignment actions into module
+- Split folder browser tag editor view
+- Split sample browser row paint widgets
+- Split audio playback lazy sources
+- Move metadata tag library actions into module
+- Move GUI message dispatch into module
+- Split metadata tag entry layout
+- Split collection hit target widget
+- Split metadata tag completion logic
+- Split GUI metadata tag tests
+- Split GUI toolbar playback tests
+- Split GUI context menu tests
+- Split GUI config source tests
+- Split GUI waveform playback tests
+- Split GUI window chrome tests
+- Split GUI normalization workflow
+- Split GUI native file drop actions
+- Split sample browser row tests
+- Split audio playback span helpers
+- Split drop target transfer worker
+- Split source move rollback logic
+- Split selection edit fade operations
+- Split folder browser view sections
+- Split motion projection model
+- Split analysis job sample metadata helpers
+- Split context menu action widget
+- Split native UI bridge implementation
+- Split persistent waveform cache entry schema
+- Split random navigation playback facade
+- Split analysis claim error logging
+- Split source hydration apply phase
+- Split similarity background compute work
 
 ### 📚 Documentation
 
-- Add third-party license mentions
+- Refresh GUI migration documentation
+- Document Rust cleanup standards for agents
+- Document agent engineering standards
+- Document pre-commit cleanup pass
 
-### 🧪 Testing
+### ⚡ Performance
 
-- Add controller fixtures for waveform and browser tests
+- Optimize metadata tag persistence on the GUI worker
+- Improve sample playback caching and UI responsiveness
+
+### 🎨 Styling
+
+- Polish tag field and resize hover behavior
+- Refine tag entry layout and autocomplete
+- Refine tag library pill layout and drop feedback
 
 ### ⚙️ Miscellaneous Tasks
 
-- Update lockfile
+- Update Radiant submodule to main
+- Update Radiant text input shortcut routing
+- Update Radiant live resize performance
+- Update Radiant resize optimizations
+- Update Radiant floating overlay identity fix
+- Update Radiant SVG rendering
+- Merge sample browser improvements into next
+- Update next branch workflow policy
+- Update Radiant cleanup guardrails
+
 ## [0.363.0] - 2025-12-17
 
 ### ⚙️ Miscellaneous Tasks
