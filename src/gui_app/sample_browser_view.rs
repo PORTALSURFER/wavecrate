@@ -1,14 +1,5 @@
 use radiant::prelude as ui;
-use radiant::{
-    gui::types::Rect,
-    layout::{LayoutOutput, Vector2},
-    runtime::PaintPrimitive,
-    theme::ThemeTokens,
-    widgets::{
-        ButtonMessage, FocusBehavior, PaintBounds, PointerButton, Widget, WidgetCommon,
-        WidgetInput, WidgetOutput, WidgetSizing,
-    },
-};
+use radiant::widgets::ButtonMessage;
 
 use super::folder_browser::{FILE_COLUMN_GAP, FileColumn, FolderBrowserMessage};
 use super::{
@@ -61,14 +52,47 @@ pub(super) fn sample_browser(
     }
     ui::stack([
         browser,
-        ui::custom_widget_mapped(SampleListDropTarget::new(), |()| {
-            GuiMessage::DropWaveformSelectionOnSampleList
-        })
+        ui::custom_widget_mapped(
+            ui::PointerShieldWidget::pointer_drop_only(true),
+            sample_list_drop_target_message,
+        )
         .key("sample-list-waveform-drop-target")
         .input_only()
         .fill(),
     ])
     .fill()
+}
+
+fn sample_list_drop_target_message(message: ui::PointerShieldMessage) -> GuiMessage {
+    match message {
+        ui::PointerShieldMessage::PointerDrop { .. } => {
+            GuiMessage::DropWaveformSelectionOnSampleList
+        }
+        _ => GuiMessage::Noop,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sample_list_drop_target_maps_only_drop_messages() {
+        assert!(matches!(
+            sample_list_drop_target_message(ui::PointerShieldMessage::PointerDrop {
+                position: ui::Point::new(10.0, 12.0),
+                button: ui::PointerButton::Primary,
+                modifiers: Default::default(),
+            }),
+            GuiMessage::DropWaveformSelectionOnSampleList
+        ));
+        assert!(matches!(
+            sample_list_drop_target_message(ui::PointerShieldMessage::PointerMove {
+                position: ui::Point::new(10.0, 12.0),
+            }),
+            GuiMessage::Noop
+        ));
+    }
 }
 
 fn sample_browser_header_bar(
@@ -186,50 +210,4 @@ fn sample_browser_status(audio_count: usize) -> ui::View<GuiMessage> {
     .padding_x(3.0)
     .fill_width()
     .height(28.0)
-}
-
-#[derive(Clone, Debug)]
-struct SampleListDropTarget {
-    common: WidgetCommon,
-}
-
-impl SampleListDropTarget {
-    fn new() -> Self {
-        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 1.0)));
-        common.focus = FocusBehavior::None;
-        common.paint.bounds = PaintBounds::ClipToRect;
-        common.paint.paints_focus = false;
-        common.paint.paints_state_layers = false;
-        Self { common }
-    }
-}
-
-impl Widget for SampleListDropTarget {
-    fn common(&self) -> &WidgetCommon {
-        &self.common
-    }
-
-    fn common_mut(&mut self) -> &mut WidgetCommon {
-        &mut self.common
-    }
-
-    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        match input {
-            WidgetInput::PointerDrop {
-                position,
-                button: PointerButton::Primary,
-                ..
-            } if bounds.contains(position) => Some(WidgetOutput::typed(())),
-            _ => None,
-        }
-    }
-
-    fn append_paint(
-        &self,
-        _primitives: &mut Vec<PaintPrimitive>,
-        _bounds: Rect,
-        _layout: &LayoutOutput,
-        _theme: &ThemeTokens,
-    ) {
-    }
 }
