@@ -7,7 +7,7 @@ impl FolderTreeHitTarget {
             return;
         };
         primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-            widget_id: self.common.id,
+            widget_id: self.row.common.id,
             rect: bounds,
             color,
         }));
@@ -22,7 +22,7 @@ impl FolderTreeHitTarget {
             return;
         }
         primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
-            widget_id: self.common.id,
+            widget_id: self.row.common.id,
             rect: Rect::from_min_max(
                 Point::new(bounds.min.x + 0.5, bounds.min.y + 0.5),
                 Point::new(bounds.max.x - 0.5, bounds.max.y - 0.5),
@@ -49,7 +49,7 @@ impl FolderTreeHitTarget {
             Point::new(bounds.max.x - 4.0, bounds.max.y),
         );
         primitives.push(PaintPrimitive::Text(PaintTextRun {
-            widget_id: self.common.id,
+            widget_id: self.row.common.id,
             text: self.label.clone(),
             rect: label_rect,
             font_size,
@@ -68,19 +68,23 @@ impl FolderTreeHitTarget {
                 b: 78,
                 a: 150,
             })
-        } else if self.common.state.hovered && self.drop_candidate {
+        } else if self.row.common.state.hovered && self.drop_candidate {
             Some(Rgba8 {
                 r: 255,
                 g: 122,
                 b: 74,
                 a: 110,
             })
-        } else if self.common.state.pressed || self.common.state.hovered {
+        } else if self.row.common.state.pressed || self.row.common.state.hovered {
             Some(Rgba8 {
                 r: 255,
                 g: 110,
                 b: 85,
-                a: if self.common.state.pressed { 120 } else { 80 },
+                a: if self.row.common.state.pressed {
+                    120
+                } else {
+                    80
+                },
             })
         } else if self.selected {
             Some(Rgba8 {
@@ -108,7 +112,7 @@ impl FolderTreeHitTarget {
     }
 
     fn label_is_highlighted(&self) -> bool {
-        self.drop_target || (self.common.state.hovered && self.drop_candidate) || self.selected
+        self.drop_target || (self.row.common.state.hovered && self.drop_candidate) || self.selected
     }
 }
 
