@@ -17,60 +17,6 @@ pub(super) struct RatingSquares {
     locked: bool,
 }
 
-#[derive(Clone, Debug)]
-pub(super) struct CollectionBlock {
-    common: WidgetCommon,
-    color: Option<Rgba8>,
-}
-
-impl CollectionBlock {
-    pub(super) fn new(color: Option<Rgba8>) -> Self {
-        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 1.0)));
-        common.focus = FocusBehavior::None;
-        common.paint.paints_focus = false;
-        common.paint.paints_state_layers = false;
-        Self { common, color }
-    }
-}
-
-impl Widget for CollectionBlock {
-    fn common(&self) -> &WidgetCommon {
-        &self.common
-    }
-
-    fn common_mut(&mut self) -> &mut WidgetCommon {
-        &mut self.common
-    }
-
-    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
-        None
-    }
-
-    fn needs_state_synchronization(&self) -> bool {
-        false
-    }
-
-    fn append_paint(
-        &self,
-        primitives: &mut Vec<PaintPrimitive>,
-        bounds: Rect,
-        _layout: &LayoutOutput,
-        _theme: &ThemeTokens,
-    ) {
-        let Some(color) = self.color else {
-            return;
-        };
-        let size = 10.0_f32.min(bounds.height().max(0.0));
-        let x = bounds.max.x - size - 4.0;
-        let y = bounds.min.y + (bounds.height() - size) * 0.5;
-        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-            widget_id: self.common.id,
-            rect: Rect::from_min_max(Point::new(x, y), Point::new(x + size, y + size)),
-            color,
-        }));
-    }
-}
-
 impl RatingSquares {
     pub(super) fn new(rating: Rating, locked: bool) -> Self {
         let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 1.0)));

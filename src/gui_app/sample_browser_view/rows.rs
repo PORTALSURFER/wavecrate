@@ -2,7 +2,7 @@ use radiant::prelude as ui;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use super::row_widgets::{CollectionBlock, RatingSquares};
+use super::row_widgets::RatingSquares;
 use super::{SampleFileHitMessage, SampleFileHitTarget};
 use crate::gui_app::{
     GuiMessage, SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_OVERSCAN_ROWS, SAMPLE_BROWSER_ROW_HEIGHT,
@@ -240,7 +240,7 @@ fn sample_collection_cell(
     width: f32,
     folder_browser: &FolderBrowserState,
 ) -> ui::View<GuiMessage> {
-    ui::widget(CollectionBlock::new(file.collection.and_then(
+    ui::widget(ui::ColorMarkerWidget::new(file.collection.and_then(
         |collection| folder_browser.collection_color(collection),
     )))
     .key(format!("sample-collection-{}", file.id))
