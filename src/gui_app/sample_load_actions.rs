@@ -6,7 +6,8 @@ use std::{
 };
 
 use super::{
-    GuiAppState, GuiMessage, SampleLoadResult, WaveformState, emit_gui_action, sample_path_label,
+    GuiAppState, GuiMessage, SampleLoadResult, UNCACHED_SAMPLE_LOAD_DEBOUNCE, WaveformState,
+    emit_gui_action, sample_path_label,
 };
 use progress_reporter::SampleLoadProgressReporter;
 pub(super) use types::{NormalizedWaveformReload, WaveformPlaybackResume};
@@ -119,6 +120,59 @@ impl GuiAppState {
             "browser.select_sample",
             Some("browser"),
             Some(&label),
+            "load_deferred",
+            started_at,
+            None,
+        );
+        let ticket = self.next_task_id;
+        self.next_task_id = self.next_task_id.saturating_add(1);
+        self.pending_sample_load_ticket = Some(ticket);
+        context.after(
+            UNCACHED_SAMPLE_LOAD_DEBOUNCE,
+            GuiMessage::DeferredSampleLoad {
+                ticket,
+                path,
+                autoplay,
+            },
+        );
+    }
+
+    pub(super) fn start_deferred_sample_load(
+        &mut self,
+        ticket: u64,
+        path: String,
+        autoplay: bool,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        let started_at = Instant::now();
+        if self.pending_sample_load_ticket != Some(ticket)
+            || self.folder_browser.selected_file_id() != Some(path.as_str())
+        {
+            emit_gui_action(
+                "browser.select_sample",
+                Some("browser"),
+                Some(&sample_path_label(path.as_str())),
+                "load_deferred_stale",
+                started_at,
+                None,
+            );
+            return;
+        }
+        self.pending_sample_load_ticket = None;
+        self.start_uncached_sample_load(path, autoplay, context, started_at);
+    }
+
+    fn start_uncached_sample_load(
+        &mut self,
+        path: String,
+        autoplay: bool,
+        context: &mut ui::UpdateContext<GuiMessage>,
+        started_at: Instant,
+    ) {
+        emit_gui_action(
+            "browser.select_sample",
+            Some("browser"),
+            Some(&sample_path_label(path.as_str())),
             "load_queued",
             started_at,
             None,
@@ -345,6 +399,7 @@ impl GuiAppState {
     }
 
     fn cancel_inflight_sample_load(&mut self) {
+        self.pending_sample_load_ticket = None;
         if let Some(token) = self.sample_load_cancel.take() {
             token.cancel();
         }

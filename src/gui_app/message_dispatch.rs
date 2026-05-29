@@ -87,6 +87,13 @@ impl GuiAppState {
             GuiMessage::ExternalDragCompleted(result) => {
                 self.external_drag_completed(result, context)
             }
+            GuiMessage::DeferredSampleLoad {
+                ticket,
+                path,
+                autoplay,
+            } => {
+                self.start_deferred_sample_load(ticket, path, autoplay, context);
+            }
             GuiMessage::SampleLoadProgress(ticket, progress) => {
                 if self.sample_load_task.is_active(ticket) {
                     self.waveform_loading_target_progress = progress.clamp(0.0, 0.995);

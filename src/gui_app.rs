@@ -113,6 +113,7 @@ const WAVEFORM_PANEL_HEIGHT: f32 = 226.0;
 const WAVEFORM_SIGNAL_WIDGET_ID: u64 = 11;
 const WAVEFORM_WIDGET_ID: u64 = 12;
 const PLAYBACK_START_ACTIVE_SOURCE_GRACE: Duration = Duration::from_millis(120);
+const UNCACHED_SAMPLE_LOAD_DEBOUNCE: Duration = Duration::from_millis(90);
 
 #[derive(Clone, Debug, PartialEq)]
 enum GuiMessage {
@@ -136,6 +137,11 @@ enum GuiMessage {
         drag: DragHandleMessage,
     },
     ExternalDragCompleted(Result<ui::ExternalDragOutcome, String>),
+    DeferredSampleLoad {
+        ticket: u64,
+        path: String,
+        autoplay: bool,
+    },
     SampleLoadProgress(ui::TaskTicket, f32),
     SampleLoadFinished(ui::TaskCompletion<SampleLoadResult>),
     AudioPlayerOpenFinished(ui::TaskTicket),
@@ -268,6 +274,7 @@ struct GuiAppState {
     worker_sender: Sender<GuiMessage>,
     worker_receiver: Option<Receiver<GuiMessage>>,
     next_task_id: u64,
+    pending_sample_load_ticket: Option<u64>,
     sample_load_task: ui::LatestTask,
     sample_load_cancel: Option<ui::CancellationToken>,
     audio_open_task: ui::LatestTask,
