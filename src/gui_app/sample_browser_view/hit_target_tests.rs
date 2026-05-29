@@ -38,7 +38,7 @@ fn active_drag_uses_runtime_preview_after_widget_refresh() {
     );
 
     let mut refreshed = SampleFileHitTarget::new(false, true, true, false, false);
-    refreshed.common.state = first.common.state;
+    refreshed.row.common.state = first.row.common.state;
     assert!(
         refreshed
             .handle_input(
@@ -87,7 +87,7 @@ fn active_drag_source_does_not_depend_on_retained_pressed_state() {
 fn active_drag_non_source_rows_do_not_keep_hover_highlight() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
     let mut target = SampleFileHitTarget::new(false, true, false, false, false);
-    target.common.state.hovered = true;
+    target.row.common.state.hovered = true;
 
     assert!(
         target
@@ -100,7 +100,7 @@ fn active_drag_non_source_rows_do_not_keep_hover_highlight() {
             .is_none()
     );
     assert!(
-        !target.common.state.hovered,
+        !target.row.common.state.hovered,
         "sample rows should not retain hover while another file is being dragged"
     );
 
@@ -127,13 +127,13 @@ fn hover_state_clears_on_retained_widget_refresh() {
             position: Point::new(34.0, 8.0),
         },
     );
-    assert!(previous.common.state.hovered);
+    assert!(previous.row.common.state.hovered);
 
     let mut refreshed = SampleFileHitTarget::new(false, false, false, false, false);
     refreshed.synchronize_from_previous(&previous);
 
     assert!(
-        !refreshed.common.state.hovered,
+        !refreshed.row.common.state.hovered,
         "sample row hover paint must not stick after retained projections"
     );
     let mut primitives = Vec::new();
@@ -193,14 +193,14 @@ fn pressed_state_survives_retained_widget_refresh_without_hover() {
             modifiers: PointerModifiers::default(),
         },
     );
-    assert!(previous.common.state.hovered);
-    assert!(previous.common.state.pressed);
+    assert!(previous.row.common.state.hovered);
+    assert!(previous.row.common.state.pressed);
 
     let mut refreshed = SampleFileHitTarget::new(false, false, false, false, false);
     refreshed.synchronize_from_previous(&previous);
 
-    assert!(!refreshed.common.state.hovered);
-    assert!(refreshed.common.state.pressed);
+    assert!(!refreshed.row.common.state.hovered);
+    assert!(refreshed.row.common.state.pressed);
 }
 
 #[test]
@@ -213,18 +213,18 @@ fn suppressed_hover_clears_and_omits_stale_hover_paint() {
             position: Point::new(34.0, 8.0),
         },
     );
-    assert!(previous.common.state.hovered);
+    assert!(previous.row.common.state.hovered);
 
     let mut suppressed = SampleFileHitTarget::new(false, false, false, false, true);
     suppressed.synchronize_from_previous(&previous);
-    assert!(!suppressed.common.state.hovered);
+    assert!(!suppressed.row.common.state.hovered);
     suppressed.handle_input(
         bounds,
         WidgetInput::PointerMove {
             position: Point::new(34.0, 8.0),
         },
     );
-    assert!(!suppressed.common.state.hovered);
+    assert!(!suppressed.row.common.state.hovered);
 
     let mut primitives = Vec::new();
     suppressed.append_paint(

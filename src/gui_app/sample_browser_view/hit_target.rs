@@ -3,8 +3,8 @@ use radiant::layout::{LayoutOutput, Vector2};
 use radiant::runtime::{PaintFillRect, PaintPrimitive};
 use radiant::theme::ThemeTokens;
 use radiant::widgets::{
-    DragHandleMessage, FocusBehavior, PaintBounds, PointerButton, PointerModifiers, Widget,
-    WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
+    DragHandleMessage, FocusBehavior, InteractiveRowMessage, InteractiveRowWidget, PaintBounds,
+    PointerButton, PointerModifiers, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
 };
 
 const HOVER_FILL: Rgba8 = Rgba8 {
@@ -22,13 +22,12 @@ const PRESSED_FILL: Rgba8 = Rgba8 {
 
 #[derive(Clone, Debug)]
 pub(in crate::gui_app) struct SampleFileHitTarget {
-    common: WidgetCommon,
+    row: InteractiveRowWidget,
     selected: bool,
     drag_active: bool,
     drag_source: bool,
     cached: bool,
     suppress_hover: bool,
-    dragged: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -46,70 +45,42 @@ impl SampleFileHitTarget {
         cached: bool,
         suppress_hover: bool,
     ) -> Self {
-        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 22.0)));
-        common.focus = FocusBehavior::None;
-        common.paint.bounds = PaintBounds::ClipToRect;
-        common.paint.paints_focus = false;
-        common.paint.paints_state_layers = false;
+        let mut row = InteractiveRowWidget::new(0, WidgetSizing::fixed(Vector2::new(1.0, 22.0)))
+            .with_drag()
+            .with_drag_active(drag_active)
+            .with_drag_source(drag_source)
+            .suppress_hover(suppress_hover)
+            .clear_hover_on_sync();
+        row.common.focus = FocusBehavior::None;
+        row.common.paint.bounds = PaintBounds::ClipToRect;
+        row.common.paint.paints_focus = false;
+        row.common.paint.paints_state_layers = false;
         Self {
-            common,
+            row,
             selected,
             drag_active,
             drag_source,
             cached,
             suppress_hover,
-            dragged: false,
         }
     }
 }
 
 impl Widget for SampleFileHitTarget {
     fn common(&self) -> &WidgetCommon {
-        &self.common
+        &self.row.common
     }
 
     fn common_mut(&mut self) -> &mut WidgetCommon {
-        &mut self.common
+        &mut self.row.common
     }
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        match input {
-            WidgetInput::PointerMove { position } => self.handle_pointer_move(bounds, position),
-            WidgetInput::PointerPress {
-                position,
-                button: PointerButton::Primary,
-                ..
-            } if bounds.contains(position) => {
-                self.common.state.hovered = true;
-                self.common.state.pressed = true;
-                self.dragged = false;
-                None
-            }
-            WidgetInput::PointerPress {
-                position,
-                button: PointerButton::Secondary,
-                ..
-            } if bounds.contains(position) => {
-                self.common.state.hovered = true;
-                self.common.state.pressed = false;
-                self.dragged = false;
-                Some(WidgetOutput::typed(SampleFileHitMessage::ContextMenu(
-                    position,
-                )))
-            }
-            WidgetInput::PointerRelease {
-                position,
-                button: PointerButton::Primary,
-                modifiers,
-            } => self.handle_primary_release(bounds, position, modifiers),
-            _ => {
-                if matches!(input, WidgetInput::PointerRelease { .. }) {
-                    self.common.state.pressed = false;
-                    self.dragged = false;
-                }
-                None
-            }
-        }
+        let release_modifiers = primary_release_modifiers(&input);
+        self.row
+            .handle_input(bounds, input)
+            .and_then(|message| self.map_row_message(message, release_modifiers))
+            .map(WidgetOutput::typed)
     }
 
     fn accepts_pointer_move(&self) -> bool {
@@ -120,9 +91,7 @@ impl Widget for SampleFileHitTarget {
         let Some(previous) = previous.as_any().downcast_ref::<Self>() else {
             return;
         };
-        self.common.state = previous.common.state;
-        self.common.state.hovered = false;
-        self.dragged = previous.dragged;
+        self.row.synchronize_from_previous(&previous.row);
     }
 
     fn append_paint(
@@ -140,49 +109,21 @@ impl Widget for SampleFileHitTarget {
 }
 
 impl SampleFileHitTarget {
-    fn handle_pointer_move(&mut self, bounds: Rect, position: Point) -> Option<WidgetOutput> {
-        if self.suppress_hover {
-            self.common.state.hovered = false;
-            return None;
+    fn map_row_message(
+        &self,
+        message: InteractiveRowMessage,
+        release_modifiers: Option<PointerModifiers>,
+    ) -> Option<SampleFileHitMessage> {
+        match message {
+            InteractiveRowMessage::Activate => Some(SampleFileHitMessage::Activate(
+                release_modifiers.unwrap_or_default(),
+            )),
+            InteractiveRowMessage::SecondaryActivate { position } => {
+                Some(SampleFileHitMessage::ContextMenu(position))
+            }
+            InteractiveRowMessage::Drag(message) => Some(SampleFileHitMessage::Drag(message)),
+            InteractiveRowMessage::Drop | InteractiveRowMessage::HoverDropTarget => None,
         }
-        if self.drag_active && !self.drag_source {
-            self.common.state.hovered = false;
-            return None;
-        }
-        self.common.state.hovered = bounds.contains(position);
-        if self.drag_active && self.drag_source {
-            return None;
-        }
-        if !self.common.state.pressed && !self.drag_source {
-            return None;
-        }
-        let message = if self.dragged || self.drag_active {
-            DragHandleMessage::Moved { position }
-        } else {
-            self.dragged = true;
-            DragHandleMessage::Started { position }
-        };
-        Some(WidgetOutput::typed(SampleFileHitMessage::Drag(message)))
-    }
-
-    fn handle_primary_release(
-        &mut self,
-        bounds: Rect,
-        position: Point,
-        modifiers: PointerModifiers,
-    ) -> Option<WidgetOutput> {
-        let activated = self.common.state.pressed && !self.dragged && bounds.contains(position);
-        let dragged =
-            self.drag_source || (self.common.state.pressed && (self.dragged || self.drag_active));
-        self.common.state.pressed = false;
-        self.common.state.hovered = bounds.contains(position);
-        self.dragged = false;
-        if dragged {
-            return Some(WidgetOutput::typed(SampleFileHitMessage::Drag(
-                DragHandleMessage::Ended { position },
-            )));
-        }
-        activated.then(|| WidgetOutput::typed(SampleFileHitMessage::Activate(modifiers)))
     }
 
     fn paint_selection_fill(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
@@ -190,7 +131,7 @@ impl SampleFileHitTarget {
             return;
         }
         primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-            widget_id: self.common.id,
+            widget_id: self.row.common.id,
             rect: bounds,
             color: Rgba8 {
                 r: 255,
@@ -206,7 +147,7 @@ impl SampleFileHitTarget {
             return;
         }
         primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-            widget_id: self.common.id,
+            widget_id: self.row.common.id,
             rect: Rect::from_min_size(
                 Point::new(bounds.max.x - 3.0, bounds.min.y + 3.0),
                 Vector2::new(2.0, (bounds.height() - 6.0).max(8.0)),
@@ -227,16 +168,16 @@ impl SampleFileHitTarget {
         if self.drag_active && !self.drag_source {
             return;
         }
-        if !self.common.state.pressed && !self.common.state.hovered {
+        if !self.row.common.state.pressed && !self.row.common.state.hovered {
             return;
         }
-        let color = if self.common.state.pressed {
+        let color = if self.row.common.state.pressed {
             PRESSED_FILL
         } else {
             HOVER_FILL
         };
         primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-            widget_id: self.common.id,
+            widget_id: self.row.common.id,
             rect: bounds,
             color,
         }));
@@ -248,7 +189,7 @@ impl SampleFileHitTarget {
         }
         let marker_height = (bounds.height() - 8.0).max(8.0).min(bounds.height());
         primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-            widget_id: self.common.id,
+            widget_id: self.row.common.id,
             rect: Rect::from_min_size(
                 Point::new(
                     bounds.min.x + 1.0,
@@ -263,6 +204,17 @@ impl SampleFileHitTarget {
                 a: 245,
             },
         }));
+    }
+}
+
+fn primary_release_modifiers(input: &WidgetInput) -> Option<PointerModifiers> {
+    match input {
+        WidgetInput::PointerRelease {
+            button: PointerButton::Primary,
+            modifiers,
+            ..
+        } => Some(*modifiers),
+        _ => None,
     }
 }
 
