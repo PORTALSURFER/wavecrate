@@ -37,7 +37,7 @@ use wav_decode::load_wav_waveform_file_with_progress;
 
 mod waveform_cache;
 pub(in crate::gui_app) use waveform_cache::cached_waveform_file_exists;
-use waveform_cache::{load_cached_waveform_file, store_cached_waveform_file};
+use waveform_cache::{load_cached_waveform_file, store_cached_waveform_file_async};
 
 #[derive(Clone, Debug)]
 pub(in crate::gui_app) struct WaveformFile {
@@ -110,7 +110,7 @@ pub(super) fn load_waveform_file_with_progress_and_cancel(
         if cancelled() {
             return Err(String::from("cancelled"));
         }
-        store_cached_waveform_file(&file);
+        store_cached_waveform_file_async(&file);
         return Ok(file);
     }
     if cancelled() {
@@ -148,7 +148,7 @@ pub(super) fn load_waveform_file_with_progress_and_cancel(
     if cancelled() {
         return Err(String::from("cancelled"));
     }
-    store_cached_waveform_file(&file);
+    store_cached_waveform_file_async(&file);
     Ok(file)
 }
 
