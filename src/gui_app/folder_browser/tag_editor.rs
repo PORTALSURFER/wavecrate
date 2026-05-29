@@ -6,7 +6,7 @@ use radiant::{
 use crate::gui_app::metadata_tags::{MetadataTagCompletionOption, MetadataTagDisplayCategory};
 
 use super::GuiMessage;
-use super::tag_completion::{TagCompletionGhost, tag_completion_panel_layer};
+use super::tag_completion::tag_completion_panel_layer;
 use super::tag_entry_layout::{
     MAX_TAG_FIELD_ROWS, TAG_FIELD_CONTROL_HEIGHT, TAG_FIELD_HORIZONTAL_CHROME, TAG_FIELD_ITEM_GAP,
     TAG_FIELD_LINE_GAP, TAG_FIELD_VERTICAL_CHROME, TagEntryRowItem,
@@ -219,13 +219,13 @@ fn tag_text_input(
         ui::floating_layer(
             ui::Point::new(suffix_x, 1.0),
             ui::Vector2::new(suffix_width, TAG_FIELD_CONTROL_HEIGHT - 3.0),
-            ui::custom_widget(
-                TagCompletionGhost::new(suffix.to_string(), suffix_width),
-                |_| None,
-            )
-            .key("metadata-tag-completion-ghost")
-            .width(suffix_width)
-            .height(TAG_FIELD_CONTROL_HEIGHT - 3.0),
+            ui::text(suffix.to_string())
+                .text_background(ui::TextBackgroundRole::Accent)
+                .on_accent_text()
+                .text_inset(3.0, 0.0)
+                .key("metadata-tag-completion-ghost")
+                .width(suffix_width)
+                .height(TAG_FIELD_CONTROL_HEIGHT - 3.0),
         )
         .key("metadata-tag-completion-ghost-layer")
         .fill(),

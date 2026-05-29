@@ -1,13 +1,6 @@
 use radiant::{
-    gui::types::Rect,
-    layout::LayoutOutput,
     prelude as ui,
-    runtime::{PaintFillRect, PaintPrimitive, PaintText, PaintTextAlign, PaintTextRun},
-    theme::ThemeTokens,
-    widgets::{
-        TextWrap, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing, WidgetStyle,
-        WidgetTone,
-    },
+    widgets::{WidgetStyle, WidgetTone},
 };
 
 use crate::gui_app::metadata_tags::MetadataTagCompletionOption;
@@ -17,79 +10,6 @@ use super::GuiMessage;
 const MAX_TAG_COMPLETION_ROWS: usize = 6;
 const TAG_COMPLETION_ROW_HEIGHT: f32 = 18.0;
 const TAG_COMPLETION_POPUP_VERTICAL_CHROME: f32 = 6.0;
-const TAG_FIELD_CONTROL_HEIGHT: f32 = 18.0;
-
-#[derive(Clone, Debug)]
-pub(super) struct TagCompletionGhost {
-    common: WidgetCommon,
-    suffix: String,
-}
-
-impl TagCompletionGhost {
-    pub(super) fn new(suffix: String, width: f32) -> Self {
-        Self {
-            common: WidgetCommon::new(
-                0,
-                WidgetSizing::fixed(ui::Vector2::new(
-                    width.max(1.0),
-                    TAG_FIELD_CONTROL_HEIGHT - 3.0,
-                )),
-            ),
-            suffix,
-        }
-    }
-}
-
-impl Widget for TagCompletionGhost {
-    fn common(&self) -> &WidgetCommon {
-        &self.common
-    }
-
-    fn common_mut(&mut self) -> &mut WidgetCommon {
-        &mut self.common
-    }
-
-    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
-        None
-    }
-
-    fn needs_state_synchronization(&self) -> bool {
-        false
-    }
-
-    fn accepts_pointer_move(&self) -> bool {
-        false
-    }
-
-    fn append_paint(
-        &self,
-        primitives: &mut Vec<PaintPrimitive>,
-        bounds: Rect,
-        _layout: &LayoutOutput,
-        theme: &ThemeTokens,
-    ) {
-        let fill = theme.accent_mint.blend_toward(theme.bg_primary, 0.12);
-        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-            widget_id: self.common.id,
-            rect: bounds,
-            color: fill,
-        }));
-        let text_rect = Rect::from_min_max(
-            ui::Point::new(bounds.min.x + 3.0, bounds.min.y),
-            ui::Point::new(bounds.max.x - 3.0, bounds.max.y),
-        );
-        primitives.push(PaintPrimitive::Text(PaintTextRun {
-            widget_id: self.common.id,
-            text: PaintText::from(self.suffix.clone()),
-            rect: text_rect,
-            font_size: 13.0,
-            baseline: Some((text_rect.height() * 0.5 + 13.0 * 0.35).max(0.0)),
-            color: theme.bg_primary,
-            align: PaintTextAlign::Left,
-            wrap: TextWrap::None,
-        }));
-    }
-}
 
 fn tag_completion_popup_height(options: &[MetadataTagCompletionOption]) -> f32 {
     if options.is_empty() {

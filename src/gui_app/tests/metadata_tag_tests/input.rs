@@ -4,6 +4,7 @@ use super::super::*;
 fn folder_browser_metadata_hides_tag_entry_when_no_file_is_selected() {
     let browser = super::super::super::FolderBrowserState::load_default();
     let tags = vec![String::from("kick")];
+    let theme = radiant::theme::ThemeTokens::default();
     let frame = radiant::runtime::UiSurface::new(
         super::super::super::folder_browser::folder_browser_view(
             &browser,
@@ -23,7 +24,7 @@ fn folder_browser_metadata_hides_tag_entry_when_no_file_is_selected() {
     )
     .frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
-        &radiant::theme::ThemeTokens::default(),
+        &theme,
     );
 
     assert!(!frame_has_text(&frame, "Metadata"));
@@ -413,6 +414,7 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_and_options() {
             selected: false,
         },
     ];
+    let theme = radiant::theme::ThemeTokens::default();
     let frame = radiant::runtime::UiSurface::new(
         super::super::super::folder_browser::folder_browser_view(
             &browser,
@@ -432,7 +434,7 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_and_options() {
     )
     .frame(
         Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
-        &radiant::theme::ThemeTokens::default(),
+        &theme,
     );
 
     assert!(frame_has_text(&frame, "kick"));
@@ -450,6 +452,14 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_and_options() {
     assert_eq!(tag_input.state.caret, 2);
     assert!(frame.paint_plan.primitives.iter().any(|primitive| {
         matches!(primitive, PaintPrimitive::Text(text) if text.text.as_str() == "ck")
+    }));
+    assert!(frame.paint_plan.primitives.iter().any(|primitive| {
+        matches!(
+            primitive,
+            PaintPrimitive::FillRect(fill)
+                if (fill.rect.height() - 15.0).abs() < 0.01
+                    && fill.color == theme.accent_mint.blend_toward(theme.bg_primary, 0.12)
+        )
     }));
     assert!(frame_has_text(&frame, "Sound Type"));
     assert!(frame_has_text(&frame, "kicker"));
