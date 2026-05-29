@@ -4,7 +4,7 @@ use crate::logging::{ActionDebugEvent, emit_action_debug_event};
 pub(crate) use crate::sample_sources::*;
 pub(crate) use crate::selection::SelectionRange;
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 pub(crate) mod audio_cache;
@@ -24,6 +24,7 @@ mod formatting;
 mod player;
 mod playhead_trail;
 mod random_nav;
+mod random_nav_facade;
 mod tagging;
 mod transport;
 /// Waveform selection/cursor/zoom action facade methods.
@@ -312,70 +313,6 @@ impl AppController {
     /// Extend selection with shift navigation while keeping the current focus for playback.
     pub fn grow_selection(&mut self, offset: isize) {
         browser_nav::grow_selection(self, offset);
-    }
-
-    /// Jump to a random visible sample in the browser and start playback.
-    pub fn play_random_visible_sample(&mut self) {
-        let started_at = Instant::now();
-        let selected_source = self.selected_source_id();
-        random_nav::play_random_visible_sample(self);
-        emit_action_debug_event(ActionDebugEvent {
-            action: "playback.play_random_visible_sample",
-            pane: Some("browser"),
-            source: selected_source.as_ref().map(SourceId::as_str),
-            outcome: "success",
-            elapsed: started_at.elapsed(),
-            error: None,
-        });
-    }
-
-    #[cfg(test)]
-    pub(crate) fn play_random_visible_sample_with_seed(&mut self, seed: u64) {
-        random_nav::play_random_visible_sample_with_seed(self, seed);
-    }
-
-    /// Focus a random visible sample without starting playback (used for navigation flows).
-    pub fn focus_random_visible_sample(&mut self) {
-        random_nav::focus_random_visible_sample(self);
-    }
-
-    /// Resolve the next random visible sample path without changing browser focus.
-    pub(crate) fn next_random_visible_sample_path(&mut self) -> Option<PathBuf> {
-        random_nav::next_random_visible_sample_path(self)
-    }
-
-    /// Record one chosen random-navigation destination in the visit/history state.
-    pub(crate) fn record_random_navigation_target_for_source(
-        &mut self,
-        source_id: &SourceId,
-        relative_path: &Path,
-    ) {
-        random_nav::record_random_navigation_target_for_source(self, source_id, relative_path);
-    }
-
-    /// Play the previous entry from the random history stack.
-    pub fn play_previous_random_sample(&mut self) {
-        let started_at = Instant::now();
-        let selected_source = self.selected_source_id();
-        random_nav::play_previous_random_sample(self);
-        emit_action_debug_event(ActionDebugEvent {
-            action: "playback.play_previous_random_sample",
-            pane: Some("browser"),
-            source: selected_source.as_ref().map(SourceId::as_str),
-            outcome: "success",
-            elapsed: started_at.elapsed(),
-            error: None,
-        });
-    }
-
-    /// Toggle sticky random navigation for Up/Down in the browser.
-    pub fn toggle_random_navigation_mode(&mut self) {
-        random_nav::toggle_random_navigation_mode(self);
-    }
-
-    /// Return whether sticky random navigation mode is enabled.
-    pub fn random_navigation_mode_enabled(&self) -> bool {
-        random_nav::random_navigation_mode_enabled(self)
     }
 
     /// Cycle the triage flag filter (-1 left, +1 right) to mirror old column navigation.
