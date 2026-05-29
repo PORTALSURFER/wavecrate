@@ -3,13 +3,12 @@ mod paint;
 
 use radiant::prelude as ui;
 use radiant::{
-    gui::types::{Point, Rect},
+    gui::types::Rect,
     layout::{LayoutOutput, Vector2},
     runtime::PaintPrimitive,
     theme::ThemeTokens,
     widgets::{
-        FocusBehavior, PaintBounds, PointerButton, Widget, WidgetCommon, WidgetInput, WidgetOutput,
-        WidgetSizing,
+        FocusBehavior, PaintBounds, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
     },
 };
 
@@ -52,32 +51,14 @@ impl Widget for ContextMenuActionButton {
     }
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        match input {
-            WidgetInput::PointerMove { position } => {
-                self.common.state.hovered = bounds.contains(position);
-                None
-            }
-            WidgetInput::PointerPress {
-                position,
-                button: PointerButton::Primary,
-                ..
-            } if bounds.contains(position) => {
-                self.common.state.hovered = true;
-                self.common.state.pressed = true;
-                None
-            }
-            WidgetInput::PointerRelease {
-                position,
-                button: PointerButton::Primary,
-                ..
-            } => self.handle_primary_release(bounds, position),
-            _ => {
-                if matches!(input, WidgetInput::PointerRelease { .. }) {
-                    self.common.state.pressed = false;
-                }
-                None
-            }
-        }
+        ui::handle_activation_input(
+            &mut self.common.state,
+            bounds,
+            &input,
+            ui::ActivationInputPolicy::pointer_only(),
+        )
+        .activated()
+        .then(|| WidgetOutput::typed(self.message.clone()))
     }
 
     fn accepts_pointer_move(&self) -> bool {
@@ -105,18 +86,11 @@ impl Widget for ContextMenuActionButton {
     }
 }
 
-impl ContextMenuActionButton {
-    fn handle_primary_release(&mut self, bounds: Rect, position: Point) -> Option<WidgetOutput> {
-        let activated = self.common.state.pressed && bounds.contains(position);
-        self.common.state.pressed = false;
-        self.common.state.hovered = bounds.contains(position);
-        activated.then(|| WidgetOutput::typed(self.message.clone()))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use radiant::gui::types::Point;
+    use radiant::widgets::PointerButton;
     use radiant::widgets::PointerModifiers;
 
     fn action_primitives(button: &ContextMenuActionButton) -> Vec<PaintPrimitive> {
