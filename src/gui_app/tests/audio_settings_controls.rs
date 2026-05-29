@@ -4,7 +4,7 @@ use radiant::{
     gui::types::{Point, Rect, Vector2},
     prelude::IntoView,
     runtime::PaintPrimitive,
-    widgets::{PointerButton, Widget, WidgetInput},
+    widgets::{BadgeMessage, BadgeWidget},
 };
 use std::time::{Duration, Instant};
 
@@ -107,34 +107,27 @@ fn default_gui_volume_drag_defers_config_persistence_until_debounce() {
 
 #[test]
 fn audio_engine_pill_activates_settings_toggle() {
-    let mut pill =
-        crate::gui_app::audio_settings::AudioEnginePill::new(String::from("48 kHz"), false);
-    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(66.0, 18.0));
-    assert!(
-        pill.handle_input(
-            bounds,
-            WidgetInput::PointerPress {
-                position: Point::new(24.0, 8.0),
-                button: PointerButton::Primary,
-                modifiers: Default::default(),
-            },
-        )
-        .is_none()
-    );
-    let output = pill
-        .handle_input(
-            bounds,
-            WidgetInput::PointerRelease {
-                position: Point::new(24.0, 8.0),
-                button: PointerButton::Primary,
-                modifiers: Default::default(),
-            },
-        )
-        .expect("audio pill should activate");
+    let mut state = GuiAppState::load_default().expect("default state loads");
+    state.audio_settings_open = true;
+    let surface =
+        radiant::runtime::UiSurface::new(crate::gui_app::top_status_bar(&state).into_node());
+    let pill = surface
+        .find_widget(crate::gui_app::AUDIO_ENGINE_PILL_ID)
+        .and_then(|widget| {
+            widget
+                .widget_object()
+                .as_any()
+                .downcast_ref::<BadgeWidget>()
+        })
+        .expect("audio pill should use a Radiant badge");
 
+    assert!(pill.common.state.active);
     assert_eq!(
-        output.typed_ref::<crate::gui_app::GuiMessage>(),
-        Some(&crate::gui_app::GuiMessage::ToggleAudioSettings)
+        surface.dispatch_widget_output(
+            crate::gui_app::AUDIO_ENGINE_PILL_ID,
+            radiant::widgets::WidgetOutput::typed(BadgeMessage::Activate),
+        ),
+        Some(crate::gui_app::GuiMessage::ToggleAudioSettings)
     );
 }
 

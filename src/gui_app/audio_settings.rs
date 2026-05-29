@@ -9,9 +9,6 @@ use super::{
     VOLUME_SLIDER_HEIGHT, VOLUME_SLIDER_ID, VOLUME_SLIDER_WIDTH,
 };
 
-mod audio_engine_pill;
-pub(super) use audio_engine_pill::AudioEnginePill;
-
 mod popover;
 #[cfg(test)]
 pub(super) use popover::audio_settings_popover;
@@ -98,12 +95,13 @@ fn audio_engine_pill_with_id(
     id: u64,
     key: &'static str,
 ) -> ui::View<GuiMessage> {
-    ui::custom_widget(AudioEnginePill::new(label, active), |output| {
-        output.typed_ref::<GuiMessage>().cloned()
-    })
-    .id(id)
-    .key(key)
-    .size(AUDIO_ENGINE_PILL_WIDTH, AUDIO_ENGINE_PILL_HEIGHT)
+    ui::badge(label)
+        .subtle()
+        .active(active)
+        .message(GuiMessage::ToggleAudioSettings)
+        .id(id)
+        .key(key)
+        .size(AUDIO_ENGINE_PILL_WIDTH, AUDIO_ENGINE_PILL_HEIGHT)
 }
 
 pub(super) fn volume_slider(volume: f32) -> ui::View<GuiMessage> {
