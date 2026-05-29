@@ -119,9 +119,14 @@ impl GuiAppState {
     }
 
     pub(super) fn advance_frame(&mut self) {
+        let frame_update_started_at = Instant::now();
         self.record_frame_timing();
+        let waveform_started_at = Instant::now();
         self.waveform.apply_interaction(WaveformInteraction::Frame);
+        log_slow_frame_phase("ui.frame.update.waveform_interaction", waveform_started_at);
+        let playback_started_at = Instant::now();
         self.refresh_playback_progress();
+        log_slow_frame_phase("ui.frame.update.playback_progress", playback_started_at);
         if self.folder_progress.is_some() || self.normalization_progress.is_some() {
             self.progress_tick = (self.progress_tick + 0.035) % 1.0;
         }
@@ -131,7 +136,10 @@ impl GuiAppState {
                 self.waveform_loading_progress += remaining.min(0.03);
             }
         }
+        let persist_started_at = Instant::now();
         self.flush_pending_volume_persist();
+        log_slow_frame_phase("ui.frame.update.persist_volume", persist_started_at);
+        log_slow_frame_phase("ui.frame.update.total", frame_update_started_at);
     }
 
     fn record_frame_timing(&mut self) {
@@ -267,4 +275,17 @@ impl GuiAppState {
 
 fn duration_ms(duration: Duration) -> f64 {
     duration.as_secs_f64() * 1_000.0
+}
+
+fn log_slow_frame_phase(event: &'static str, started_at: Instant) {
+    let elapsed = started_at.elapsed();
+    if elapsed < Duration::from_millis(4) {
+        return;
+    }
+    tracing::warn!(
+        target: "wavecrate::debug::ui_frame",
+        event,
+        elapsed_ms = duration_ms(elapsed),
+        "Slow UI frame update phase"
+    );
 }

@@ -1,6 +1,9 @@
 use radiant::prelude as ui;
 use radiant::widgets::PointerModifiers;
-use std::{path::Path, path::PathBuf, time::Instant};
+use std::{
+    path::{Path, PathBuf},
+    time::{Duration, Instant},
+};
 
 use super::{
     GuiAppState, GuiMessage, SampleLoadResult, WaveformState, emit_gui_action, sample_path_label,
@@ -85,10 +88,21 @@ impl GuiAppState {
     ) {
         let started_at = Instant::now();
         self.cancel_inflight_sample_load();
+        let cache_lookup_started_at = Instant::now();
         if let Some(waveform) = self.cached_waveform_state(Path::new(&path)) {
+            log_slow_sample_load_phase(
+                "browser.select_sample.cache_lookup",
+                &path,
+                cache_lookup_started_at,
+            );
             self.finish_cached_sample_load(waveform, autoplay, started_at);
             return;
         }
+        log_slow_sample_load_phase(
+            "browser.select_sample.cache_lookup",
+            &path,
+            cache_lookup_started_at,
+        );
         if self.waveform.is_playing() {
             if let Some(player) = self.audio_player.as_mut() {
                 player.stop();
@@ -172,8 +186,20 @@ impl GuiAppState {
         match load.result {
             Ok(waveform) => {
                 let file_name = waveform.file_name();
+                let remember_started_at = Instant::now();
                 self.remember_waveform(&waveform);
+                log_slow_sample_load_phase(
+                    "browser.sample_load.finish.remember_cache",
+                    &file_name,
+                    remember_started_at,
+                );
+                let replace_started_at = Instant::now();
                 self.replace_waveform_deferred(waveform);
+                log_slow_sample_load_phase(
+                    "browser.sample_load.finish.replace_waveform",
+                    &file_name,
+                    replace_started_at,
+                );
                 if !load.autoplay {
                     self.sample_status = format!("Loaded {file_name}");
                     emit_gui_action(
@@ -186,8 +212,14 @@ impl GuiAppState {
                     );
                     return;
                 }
+                let playback_started_at = Instant::now();
                 match self.start_playback_current_span(0.0, 1.0) {
                     Ok(()) => {
+                        log_slow_sample_load_phase(
+                            "browser.sample_load.finish.start_playback",
+                            &file_name,
+                            playback_started_at,
+                        );
                         self.sample_status = format!("Playing {file_name}");
                         emit_gui_action(
                             "browser.sample_load.finish",
@@ -199,6 +231,11 @@ impl GuiAppState {
                         );
                     }
                     Err(err) => {
+                        log_slow_sample_load_phase(
+                            "browser.sample_load.finish.start_playback",
+                            &file_name,
+                            playback_started_at,
+                        );
                         self.sample_status =
                             format!("Loaded {file_name} | playback unavailable: {err}");
                         emit_gui_action(
@@ -232,19 +269,31 @@ impl GuiAppState {
         autoplay: bool,
         started_at: Instant,
     ) {
-        if self.waveform.is_playing() {
+        if !autoplay && self.waveform.is_playing() {
+            let stop_started_at = Instant::now();
             if let Some(player) = self.audio_player.as_mut() {
                 player.stop();
             }
             self.waveform.stop_playback();
             self.current_playback_span = None;
+            log_slow_sample_load_phase(
+                "browser.select_sample.cache_finish.stop_previous",
+                waveform.path().to_string_lossy().as_ref(),
+                stop_started_at,
+            );
         }
         let file_name = waveform.file_name();
         self.cancel_inflight_sample_load();
         self.waveform_loading_label = None;
         self.waveform_loading_progress = 0.0;
         self.waveform_loading_target_progress = 0.0;
+        let replace_started_at = Instant::now();
         self.replace_waveform_deferred(waveform);
+        log_slow_sample_load_phase(
+            "browser.select_sample.cache_finish.replace_waveform",
+            &file_name,
+            replace_started_at,
+        );
         if !autoplay {
             self.sample_status = format!("Loaded {file_name}");
             emit_gui_action(
@@ -257,8 +306,14 @@ impl GuiAppState {
             );
             return;
         }
+        let playback_started_at = Instant::now();
         match self.start_playback_current_span(0.0, 1.0) {
             Ok(()) => {
+                log_slow_sample_load_phase(
+                    "browser.select_sample.cache_finish.start_playback",
+                    &file_name,
+                    playback_started_at,
+                );
                 self.sample_status = format!("Playing {file_name}");
                 emit_gui_action(
                     "browser.select_sample",
@@ -270,6 +325,11 @@ impl GuiAppState {
                 );
             }
             Err(err) => {
+                log_slow_sample_load_phase(
+                    "browser.select_sample.cache_finish.start_playback",
+                    &file_name,
+                    playback_started_at,
+                );
                 self.sample_status = format!("Loaded {file_name} | playback unavailable: {err}");
                 emit_gui_action(
                     "browser.select_sample",
@@ -289,4 +349,18 @@ impl GuiAppState {
         }
         self.sample_load_task.cancel();
     }
+}
+
+fn log_slow_sample_load_phase(event: &'static str, source: &str, started_at: Instant) {
+    let elapsed = started_at.elapsed();
+    if elapsed < Duration::from_millis(4) {
+        return;
+    }
+    tracing::warn!(
+        target: "wavecrate::debug::sample_load",
+        event,
+        elapsed_ms = elapsed.as_secs_f64() * 1000.0,
+        source,
+        "Slow sample load UI phase"
+    );
 }

@@ -1,6 +1,7 @@
 use super::*;
 use span::ResolvedPlaybackSpan;
 use std::path::Path;
+use std::time::Duration;
 
 mod loop_control;
 mod progress;
@@ -120,6 +121,7 @@ impl GuiAppState {
         end_ratio: f32,
         loop_offset_ratio: Option<f32>,
     ) -> Result<(), String> {
+        let playback_started_at = Instant::now();
         if !self.waveform.has_loaded_sample() {
             return Err(String::from("Select a sample to load"));
         }
@@ -142,8 +144,22 @@ impl GuiAppState {
             .audio_player
             .as_mut()
             .ok_or_else(|| String::from("audio player did not initialize"))?;
+        let source_kind = if self.waveform.playback_samples().is_some() {
+            "decoded_samples"
+        } else {
+            "audio_bytes"
+        };
+        let file_name = self.waveform.file_name();
+        let output_setup_started_at = Instant::now();
         player.set_volume(self.volume);
         self.audio_output_resolved = Some(player.output_details().clone());
+        log_slow_playback_phase(
+            "playback.start.output_setup",
+            &file_name,
+            source_kind,
+            output_setup_started_at,
+        );
+        let metadata_started_at = Instant::now();
         if let Some(samples) = self.waveform.playback_samples() {
             player.set_audio_samples_with_metadata(
                 self.waveform.audio_bytes(),
@@ -160,7 +176,21 @@ impl GuiAppState {
                 self.waveform.channels(),
             );
         }
+        log_slow_playback_phase(
+            "playback.start.set_audio",
+            &file_name,
+            source_kind,
+            metadata_started_at,
+        );
+        let fade_started_at = Instant::now();
         player.set_edit_fade_state(self.waveform.edit_selection());
+        log_slow_playback_phase(
+            "playback.start.set_edit_fade",
+            &file_name,
+            source_kind,
+            fade_started_at,
+        );
+        let play_started_at = Instant::now();
         let playback_start = if self.loop_playback {
             player.play_looped_range_from(
                 f64::from(start_ratio),
@@ -172,8 +202,27 @@ impl GuiAppState {
             player.play_range(f64::from(start_ratio), f64::from(end_ratio), false)?;
             start_ratio
         };
+        log_slow_playback_phase(
+            "playback.start.player_play",
+            &file_name,
+            source_kind,
+            play_started_at,
+        );
+        let waveform_started_at = Instant::now();
         self.waveform.start_playback(playback_start);
         self.current_playback_span = Some((start_ratio, end_ratio));
+        log_slow_playback_phase(
+            "playback.start.waveform_state",
+            &file_name,
+            source_kind,
+            waveform_started_at,
+        );
+        log_slow_playback_phase(
+            "playback.start.total",
+            &file_name,
+            source_kind,
+            playback_started_at,
+        );
         Ok(())
     }
 
@@ -214,4 +263,24 @@ impl GuiAppState {
             offset_ratio,
         }
     }
+}
+
+fn log_slow_playback_phase(
+    event: &'static str,
+    file_name: &str,
+    source_kind: &'static str,
+    started_at: Instant,
+) {
+    let elapsed = started_at.elapsed();
+    if elapsed < Duration::from_millis(4) {
+        return;
+    }
+    tracing::warn!(
+        target: "wavecrate::debug::playback",
+        event,
+        elapsed_ms = elapsed.as_secs_f64() * 1000.0,
+        file_name,
+        source_kind,
+        "Slow playback UI phase"
+    );
 }

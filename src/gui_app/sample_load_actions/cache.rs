@@ -1,4 +1,4 @@
-use std::{collections::hash_map::Entry, path::Path};
+use std::{collections::hash_map::Entry, path::Path, time::Instant};
 
 use crate::gui_app::waveform::cached_waveform_file_exists;
 use crate::gui_app::{GuiAppState, SampleFileSignature, WaveformCacheEntry, WaveformState};
@@ -10,16 +10,25 @@ const WAVEFORM_MEMORY_CACHE_MAX_BYTES: usize = 256 * 1024 * 1024;
 
 impl GuiAppState {
     pub(super) fn cached_waveform_state(&mut self, path: &Path) -> Option<WaveformState> {
+        let started_at = Instant::now();
         let path = path.to_path_buf();
-        let signature = sample_file_signature(&path)?;
         let entry = self.waveform_cache.get(&path)?;
+        let signature_started_at = Instant::now();
+        let signature = sample_file_signature(&path)?;
+        log_slow_cache_phase(
+            "browser.sample_cache.signature",
+            &path,
+            signature_started_at,
+        );
         if entry.signature != signature {
             self.remove_waveform_cache_path(&path);
             self.cached_sample_paths.remove(&path.display().to_string());
+            log_slow_cache_phase("browser.sample_cache.lookup", &path, started_at);
             return None;
         }
         let file = std::sync::Arc::clone(&entry.file);
         self.touch_waveform_cache_path(path.clone());
+        log_slow_cache_phase("browser.sample_cache.lookup", &path, started_at);
         Some(WaveformState::from_cached_file(file))
     }
 
@@ -27,6 +36,7 @@ impl GuiAppState {
         if !waveform.has_loaded_sample() {
             return;
         }
+        let started_at = Instant::now();
         let path = waveform.path();
         let Some(signature) = sample_file_signature(&path) else {
             return;
@@ -41,6 +51,11 @@ impl GuiAppState {
             signature,
         };
         self.insert_waveform_cache_entry(path, entry);
+        log_slow_cache_phase(
+            "browser.sample_cache.remember",
+            &waveform.path(),
+            started_at,
+        );
     }
 
     pub(in crate::gui_app) fn refresh_persisted_waveform_cache_indicators(&mut self) {
@@ -130,4 +145,18 @@ fn sample_file_signature(path: &Path) -> Option<SampleFileSignature> {
         size_bytes: metadata.len(),
         modified_ns,
     })
+}
+
+fn log_slow_cache_phase(event: &'static str, path: &Path, started_at: Instant) {
+    let elapsed = started_at.elapsed();
+    if elapsed < std::time::Duration::from_millis(4) {
+        return;
+    }
+    tracing::warn!(
+        target: "wavecrate::debug::sample_cache",
+        event,
+        elapsed_ms = elapsed.as_secs_f64() * 1000.0,
+        path = %path.display(),
+        "Slow sample cache phase"
+    );
 }
