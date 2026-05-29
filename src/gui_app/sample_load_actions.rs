@@ -124,12 +124,10 @@ impl GuiAppState {
             started_at,
             None,
         );
-        let ticket = self.next_task_id;
-        self.next_task_id = self.next_task_id.saturating_add(1);
-        self.pending_sample_load_ticket = Some(ticket);
-        context.after(
+        context.after_latest(
+            &mut self.deferred_sample_load_task,
             UNCACHED_SAMPLE_LOAD_DEBOUNCE,
-            GuiMessage::DeferredSampleLoad {
+            |ticket| GuiMessage::DeferredSampleLoad {
                 ticket,
                 path,
                 autoplay,
@@ -139,13 +137,13 @@ impl GuiAppState {
 
     pub(super) fn start_deferred_sample_load(
         &mut self,
-        ticket: u64,
+        ticket: ui::TaskTicket,
         path: String,
         autoplay: bool,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        if self.pending_sample_load_ticket != Some(ticket)
+        if !self.deferred_sample_load_task.finish(ticket)
             || self.folder_browser.selected_file_id() != Some(path.as_str())
         {
             emit_gui_action(
@@ -158,7 +156,6 @@ impl GuiAppState {
             );
             return;
         }
-        self.pending_sample_load_ticket = None;
         self.start_uncached_sample_load(path, autoplay, context, started_at);
     }
 
@@ -399,7 +396,7 @@ impl GuiAppState {
     }
 
     fn cancel_inflight_sample_load(&mut self) {
-        self.pending_sample_load_ticket = None;
+        self.deferred_sample_load_task.cancel();
         if let Some(token) = self.sample_load_cancel.take() {
             token.cancel();
         }

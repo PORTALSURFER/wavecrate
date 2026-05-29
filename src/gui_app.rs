@@ -138,7 +138,7 @@ enum GuiMessage {
     },
     ExternalDragCompleted(Result<ui::ExternalDragOutcome, String>),
     DeferredSampleLoad {
-        ticket: u64,
+        ticket: ui::TaskTicket,
         path: String,
         autoplay: bool,
     },
@@ -274,7 +274,7 @@ struct GuiAppState {
     worker_sender: Sender<GuiMessage>,
     worker_receiver: Option<Receiver<GuiMessage>>,
     next_task_id: u64,
-    pending_sample_load_ticket: Option<u64>,
+    deferred_sample_load_task: ui::LatestTask,
     sample_load_task: ui::LatestTask,
     sample_load_cancel: Option<ui::CancellationToken>,
     audio_open_task: ui::LatestTask,

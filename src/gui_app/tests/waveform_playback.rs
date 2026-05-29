@@ -110,7 +110,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         worker_sender: mpsc::channel().0,
         worker_receiver: None,
         next_task_id: 1,
-        pending_sample_load_ticket: None,
+        deferred_sample_load_task: ui::LatestTask::new(),
         sample_load_task: ui::LatestTask::new(),
         sample_load_cancel: None,
         audio_open_task: ui::LatestTask::new(),

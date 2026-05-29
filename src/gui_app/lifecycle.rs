@@ -32,7 +32,7 @@ impl GuiAppState {
             worker_sender,
             worker_receiver: Some(worker_receiver),
             next_task_id: 1,
-            pending_sample_load_ticket: None,
+            deferred_sample_load_task: ui::LatestTask::new(),
             sample_load_task: ui::LatestTask::new(),
             sample_load_cancel: None,
             audio_open_task: ui::LatestTask::new(),
