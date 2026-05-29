@@ -71,10 +71,9 @@ impl Widget for CollectionHitTarget {
     }
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        let move_position = pointer_move_position(&input);
         self.row
             .handle_input(bounds, input)
-            .and_then(|message| map_collection_row_message(message, move_position))
+            .and_then(map_collection_row_message)
             .map(WidgetOutput::typed)
     }
 
@@ -199,23 +198,13 @@ impl CollectionHitTarget {
     }
 }
 
-fn pointer_move_position(input: &WidgetInput) -> Option<Point> {
-    match input {
-        WidgetInput::PointerMove { position } => Some(*position),
-        _ => None,
-    }
-}
-
-fn map_collection_row_message(
-    message: InteractiveRowMessage,
-    move_position: Option<Point>,
-) -> Option<CollectionHitMessage> {
+fn map_collection_row_message(message: InteractiveRowMessage) -> Option<CollectionHitMessage> {
     match message {
         InteractiveRowMessage::Activate => Some(CollectionHitMessage::Activate),
         InteractiveRowMessage::DoubleActivate => Some(CollectionHitMessage::Rename),
         InteractiveRowMessage::Drop => Some(CollectionHitMessage::Drop),
-        InteractiveRowMessage::HoverDropTarget => {
-            move_position.map(CollectionHitMessage::HoverDropTarget)
+        InteractiveRowMessage::HoverDropTarget { position } => {
+            Some(CollectionHitMessage::HoverDropTarget(position))
         }
         InteractiveRowMessage::SecondaryActivate { .. } | InteractiveRowMessage::Drag(_) => None,
     }

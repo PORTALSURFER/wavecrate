@@ -81,10 +81,9 @@ impl Widget for FolderTreeHitTarget {
     }
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        let move_position = pointer_move_position(&input);
         self.row
             .handle_input(bounds, input)
-            .and_then(|message| self.map_row_message(message, move_position))
+            .and_then(|message| self.map_row_message(message))
             .map(WidgetOutput::typed)
     }
 
@@ -116,11 +115,7 @@ impl Widget for FolderTreeHitTarget {
 }
 
 impl FolderTreeHitTarget {
-    fn map_row_message(
-        &self,
-        message: InteractiveRowMessage,
-        move_position: Option<Point>,
-    ) -> Option<FolderTreeHitMessage> {
+    fn map_row_message(&self, message: InteractiveRowMessage) -> Option<FolderTreeHitMessage> {
         match message {
             InteractiveRowMessage::Activate | InteractiveRowMessage::DoubleActivate => {
                 Some(FolderTreeHitMessage::Activate)
@@ -130,17 +125,10 @@ impl FolderTreeHitTarget {
             }
             InteractiveRowMessage::Drag(message) => Some(FolderTreeHitMessage::Drag(message)),
             InteractiveRowMessage::Drop => Some(FolderTreeHitMessage::Drop),
-            InteractiveRowMessage::HoverDropTarget => {
-                move_position.map(FolderTreeHitMessage::HoverDropTarget)
+            InteractiveRowMessage::HoverDropTarget { position } => {
+                Some(FolderTreeHitMessage::HoverDropTarget(position))
             }
         }
-    }
-}
-
-fn pointer_move_position(input: &WidgetInput) -> Option<Point> {
-    match input {
-        WidgetInput::PointerMove { position } => Some(*position),
-        _ => None,
     }
 }
 

@@ -187,7 +187,7 @@ fn metadata_tag_category_header(
             ui::InteractiveRowMessage::Drop => GuiMessage::DropMetadataTagOnCategory {
                 category_id: category_for_input.clone(),
             },
-            ui::InteractiveRowMessage::HoverDropTarget => {
+            ui::InteractiveRowMessage::HoverDropTarget { .. } => {
                 GuiMessage::HoverMetadataTagDropCategory {
                     category_id: category_for_input.clone(),
                 }
@@ -286,7 +286,7 @@ fn metadata_tag_library_row(
             ui::InteractiveRowMessage::Drop => GuiMessage::DropMetadataTagOnCategory {
                 category_id: category_for_input.clone(),
             },
-            ui::InteractiveRowMessage::HoverDropTarget => {
+            ui::InteractiveRowMessage::HoverDropTarget { .. } => {
                 GuiMessage::HoverMetadataTagDropCategory {
                     category_id: category_for_input.clone(),
                 }
@@ -319,7 +319,7 @@ fn metadata_tag_empty_category_target(
             },
             ui::InteractiveRowMessage::DoubleActivate
             | ui::InteractiveRowMessage::SecondaryActivate { .. } => GuiMessage::Noop,
-            ui::InteractiveRowMessage::HoverDropTarget => {
+            ui::InteractiveRowMessage::HoverDropTarget { .. } => {
                 GuiMessage::HoverMetadataTagDropCategory {
                     category_id: category_for_input.clone(),
                 }

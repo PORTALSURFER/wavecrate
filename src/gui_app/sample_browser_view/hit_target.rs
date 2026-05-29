@@ -122,7 +122,7 @@ impl SampleFileHitTarget {
                 Some(SampleFileHitMessage::ContextMenu(position))
             }
             InteractiveRowMessage::Drag(message) => Some(SampleFileHitMessage::Drag(message)),
-            InteractiveRowMessage::Drop | InteractiveRowMessage::HoverDropTarget => None,
+            InteractiveRowMessage::Drop | InteractiveRowMessage::HoverDropTarget { .. } => None,
         }
     }
 
