@@ -4,7 +4,7 @@ use radiant::{
     gui::types::{Point, Rect, Vector2},
     prelude::IntoView,
     runtime::PaintPrimitive,
-    widgets::{PointerButton, Widget, WidgetInput},
+    widgets::{PointerButton, WidgetInput},
 };
 
 #[test]
@@ -96,7 +96,7 @@ fn bottom_status_bar_reports_normalization_progress() {
 #[test]
 fn bottom_status_progress_bar_click_opens_job_details() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(180.0, 10.0));
-    let mut progress = crate::gui_app::status_bar::StatusProgressBar::determinate(0.4);
+    let mut progress = radiant::widgets::ProgressBarWidget::determinate(0.4).with_activation();
     assert_eq!(
         progress.handle_input(
             bounds,
@@ -109,19 +109,16 @@ fn bottom_status_progress_bar_click_opens_job_details() {
         None
     );
 
-    let output = progress
-        .handle_input(
+    assert_eq!(
+        progress.handle_input(
             bounds,
             WidgetInput::PointerRelease {
                 position: Point::new(90.0, 5.0),
                 button: PointerButton::Primary,
                 modifiers: Default::default(),
             },
-        )
-        .expect("progress bar click should activate details");
-    assert_eq!(
-        output.typed_ref::<crate::gui_app::GuiMessage>(),
-        Some(&crate::gui_app::GuiMessage::ToggleJobDetails)
+        ),
+        Some(radiant::widgets::ProgressBarMessage::Activate)
     );
 }
 

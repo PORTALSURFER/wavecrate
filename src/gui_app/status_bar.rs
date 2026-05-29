@@ -1,9 +1,6 @@
 use super::{FolderScanProgress, GuiAppState, GuiMessage, NormalizationProgress};
 use radiant::prelude as ui;
 
-mod progress_bar;
-pub(super) use progress_bar::StatusProgressBar;
-
 pub(super) fn bottom_status_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
     ui::row([
         ui::text(selected_sample_count_label(state))
@@ -69,13 +66,24 @@ pub(super) fn worker_progress_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
     };
     let track_width = 180.0;
     let progress_bar = if progress.total() == 0 {
-        StatusProgressBar::indeterminate(state.progress_tick)
+        ui::ProgressBarWidget::indeterminate(state.progress_tick)
     } else {
-        StatusProgressBar::determinate(progress.completed() as f32 / progress.total().max(1) as f32)
-    };
-    ui::custom_widget(progress_bar, |output| {
-        output.typed_ref::<GuiMessage>().cloned()
-    })
+        ui::ProgressBarWidget::determinate(
+            progress.completed() as f32 / progress.total().max(1) as f32,
+        )
+    }
+    .with_colors(
+        ui::Rgba8::new(48, 50, 51, 210),
+        ui::Rgba8::new(255, 112, 86, 210),
+    )
+    .with_max_track_height(8.0)
+    .with_activation();
+    ui::custom_widget_mapped(
+        progress_bar,
+        |message: ui::ProgressBarMessage| match message {
+            ui::ProgressBarMessage::Activate => GuiMessage::ToggleJobDetails,
+        },
+    )
     .key("bottom-status-progress-bar")
     .width(track_width)
     .height(10.0)
