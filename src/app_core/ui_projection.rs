@@ -23,7 +23,7 @@ use crate::app_core::actions::{
     NativeFolderActionsModel as FolderActionsModel, NativeFolderPaneIdModel as FolderPaneIdModel,
     NativeFolderPaneModel as FolderPaneModel, NativeFolderRecoveryModel as FolderRecoveryModel,
     NativeFolderRowModel as FolderRowModel, NativeMapPanelModel as MapPanelModel,
-    NativeMapRenderModeModel as MapRenderModeModel, NativeMotionModel as MotionModel,
+    NativeMapRenderModeModel as MapRenderModeModel,
     NativeNormalizedRangeModel as NormalizedRangeModel,
     NativeOptionsPanelModel as OptionsPanelModel,
     NativeProgressOverlayModel as ProgressOverlayModel, NativeRetainedVec as RetainedVec,
@@ -36,7 +36,6 @@ use crate::app_core::app_api::controller::supports_wav_destructive_edits;
 use crate::app_core::app_api::state::DragPayload;
 use crate::app_core::app_api::state::FocusContext;
 use crate::app_core::app_api::state::UiPoint;
-use crate::app_core::app_api::state::WaveformSliceBatchProfile;
 #[cfg(test)]
 use crate::app_core::state::{
     DestructiveEditPrompt, DestructiveSelectionEdit, FolderDeleteRecoveryAction,
@@ -46,7 +45,6 @@ use crate::app_core::state::{
     DragTarget, FolderActionPrompt, InlineFolderEditKind, MapBounds, MapPoint, MapQueryBounds,
     MapRenderMode, PlaybackAgeBucket, PlaybackAgeFilterChip, SampleBrowserActionPrompt,
     SampleBrowserSort, SampleBrowserTab, TriageFlagColumn, UiState, UpdateStatus,
-    browser_playback_age_filter_chips,
 };
 use crate::app_core::ui::{MAX_RENDERED_BROWSER_ROWS, MAX_RENDERED_MAP_POINTS};
 use crate::gui::types::ImageRgba;
@@ -65,6 +63,8 @@ mod browser_projection;
 mod confirm_prompt_projection;
 /// Map panel projection helpers and retained projected map-point caches.
 mod map_projection;
+/// Motion-only projection helpers used by paint/animation updates.
+mod motion_projection;
 /// Options-panel projection helpers.
 mod options_panel_projection;
 /// Source/folder sidebar projection helpers.
@@ -98,6 +98,7 @@ pub(crate) use browser_projection::{
 };
 pub(crate) use confirm_prompt_projection::project_confirm_prompt_model;
 pub(crate) use map_projection::project_map_model;
+pub(crate) use motion_projection::project_motion_model;
 pub(crate) use options_panel_projection::{
     project_audio_engine_chip_model, project_audio_engine_model, project_options_panel_model,
 };
@@ -152,136 +153,6 @@ pub(crate) fn project_focus_context_model(focus: FocusContext) -> FocusContextMo
         FocusContext::SampleBrowser => FocusContextModel::SampleBrowser,
         FocusContext::SourceFolders => FocusContextModel::SourceFolders,
         FocusContext::SourcesList => FocusContextModel::SourcesList,
-    }
-}
-
-/// Project motion-only model fields used by animation-phase redraws.
-///
-/// This path intentionally avoids rebuilding static panel payloads and should
-/// stay aligned with corresponding waveform/map/status fields in `project_app_model`.
-pub(crate) fn project_motion_model(controller: &mut AppController) -> MotionModel {
-    let selected_column = selected_column_index(&controller.ui);
-    let fade_overlay =
-        waveform_projection::project_waveform_edit_fade_overlay_model(&controller.ui);
-    let projected_playhead = waveform_projection::projected_playhead_ratio(controller);
-    MotionModel {
-        transport_running: controller.is_playing(),
-        map_active: matches!(
-            SampleBrowserTab::from(controller.ui.browser.active_tab),
-            SampleBrowserTab::Map
-        ),
-        active_rating_filters: {
-            let mut flags = [false; 8];
-            for (index, level) in [-3, -2, -1, 0, 1, 2, 3, 4].into_iter().enumerate() {
-                flags[index] = controller.ui.browser.search.rating_filter.contains(&level);
-            }
-            flags
-        },
-        active_playback_age_filters: {
-            let mut flags = [false; 3];
-            for (index, chip) in browser_playback_age_filter_chips().into_iter().enumerate() {
-                flags[index] = controller
-                    .ui
-                    .browser
-                    .search
-                    .playback_age_filter
-                    .contains(&chip);
-            }
-            flags
-        },
-        marked_filter_active: controller.ui.browser.search.marked_only,
-        waveform_selection_milli: controller.ui.waveform.selection.map(|selection| {
-            crate::app_core::actions::NativeNormalizedRangeModel::from_micros(
-                waveform_projection::normalized_to_micros(selection.start()),
-                waveform_projection::normalized_to_micros(selection.end()),
-            )
-        }),
-        waveform_slices: waveform_projection::project_waveform_slice_previews(&controller.ui)
-            .into_iter()
-            .collect(),
-        waveform_selection_export_flash_nonce: controller.ui.waveform.selection_export_flash_nonce,
-        waveform_selection_export_failure_flash_nonce: controller
-            .ui
-            .waveform
-            .selection_export_failure_flash_nonce,
-        waveform_edit_selection_apply_flash_nonce: controller
-            .ui
-            .waveform
-            .edit_selection_apply_flash_nonce,
-        waveform_edit_selection_milli: waveform_projection::project_waveform_edit_selection_milli(
-            &controller.ui,
-        ),
-        waveform_edit_fade_in_end_milli: fade_overlay.fade_in_end_milli,
-        waveform_edit_fade_in_end_micros: fade_overlay.fade_in_end_micros,
-        waveform_edit_fade_in_mute_start_milli: fade_overlay.fade_in_mute_start_milli,
-        waveform_edit_fade_in_mute_start_micros: fade_overlay.fade_in_mute_start_micros,
-        waveform_edit_fade_in_curve_milli: fade_overlay.fade_in_curve_milli,
-        waveform_edit_fade_out_start_milli: fade_overlay.fade_out_start_milli,
-        waveform_edit_fade_out_start_micros: fade_overlay.fade_out_start_micros,
-        waveform_edit_fade_out_mute_end_milli: fade_overlay.fade_out_mute_end_milli,
-        waveform_edit_fade_out_mute_end_micros: fade_overlay.fade_out_mute_end_micros,
-        waveform_edit_fade_out_curve_milli: fade_overlay.fade_out_curve_milli,
-        waveform_loop_enabled: controller.ui.waveform.loop_enabled,
-        waveform_loop_lock_enabled: controller.ui.waveform.loop_lock_enabled,
-        waveform_cursor_milli: controller
-            .ui
-            .waveform
-            .cursor
-            .map(waveform_projection::normalized_to_milli),
-        waveform_playhead_milli: projected_playhead.map(waveform_projection::normalized_to_milli),
-        waveform_playhead_micros: projected_playhead.map(waveform_projection::normalized_to_micros),
-        waveform_view_start_milli: waveform_projection::normalized64_to_milli(
-            controller.ui.waveform.view.start,
-        ),
-        waveform_view_end_milli: waveform_projection::normalized64_to_milli(
-            controller.ui.waveform.view.end,
-        ),
-        waveform_view_start_micros: waveform_projection::normalized64_to_micros(
-            controller.ui.waveform.view.start,
-        ),
-        waveform_view_end_micros: waveform_projection::normalized64_to_micros(
-            controller.ui.waveform.view.end,
-        ),
-        waveform_view_start_nanos: waveform_projection::normalized64_to_nanos(
-            controller.ui.waveform.view.start,
-        ),
-        waveform_view_end_nanos: waveform_projection::normalized64_to_nanos(
-            controller.ui.waveform.view.end,
-        ),
-        waveform_tempo_label: controller
-            .ui
-            .waveform
-            .bpm_value
-            .map(|bpm| format!("{bpm:.1} BPM")),
-        waveform_zoom_label: Some(format!(
-            "{:.0}%",
-            (100.0
-                / (controller.ui.waveform.view.end - controller.ui.waveform.view.start)
-                    .clamp(0.000_1, 1.0) as f32)
-                .round()
-                .clamp(100.0, 9999.0)
-        )),
-        waveform_image_signature: waveform_projection::effective_waveform_image_signature(
-            controller,
-        ),
-        waveform_loaded_label: waveform_projection::project_waveform_target_label(&controller.ui),
-        waveform_loading: controller.ui.waveform.loading.is_some(),
-        waveform_transport_hint: waveform_projection::waveform_transport_hint(&controller.ui),
-        waveform_compare_anchor_available: controller.ui.compare_anchor.is_some(),
-        waveform_compare_anchor_label: controller.ui.waveform.compare_anchor_label.clone(),
-        waveform_channel_view: waveform_projection::project_waveform_channel_view_model(
-            controller.ui.waveform.channel_view,
-        ),
-        waveform_normalized_audition_enabled: controller.ui.waveform.normalized_audition_enabled,
-        waveform_bpm_snap_enabled: controller.ui.waveform.bpm_snap_enabled,
-        waveform_relative_bpm_grid_enabled: controller.ui.waveform.relative_bpm_grid_enabled,
-        waveform_transient_snap_enabled: controller.ui.waveform.transient_snap_enabled,
-        waveform_transient_markers_enabled: controller.ui.waveform.transient_markers_enabled,
-        waveform_slice_mode_enabled: controller.ui.waveform.slice_mode_enabled,
-        waveform_exact_duplicate_cleanup_available: controller.ui.waveform.slice_batch_profile
-            == WaveformSliceBatchProfile::ExactDuplicateBeats
-            && !controller.ui.waveform.slices.is_empty(),
-        status_right: status_bar_right_text(selected_column),
     }
 }
 

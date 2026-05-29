@@ -10,12 +10,12 @@ fn edit_fade_out_bottom_handle_keeps_collapsed_silence_after_release() {
     );
 
     state.apply_interaction(WaveformInteraction::BeginEditFade {
-        handle: WaveformEditFadeHandle::FadeOutEnd,
+        handle: WaveformEditFadeHandle::OutEnd,
         visible_ratio: 0.6,
     });
     state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 1.0 });
     state.apply_interaction(WaveformInteraction::BeginEditFade {
-        handle: WaveformEditFadeHandle::FadeOutEnd,
+        handle: WaveformEditFadeHandle::OutEnd,
         visible_ratio: 1.0,
     });
     state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.7 });
@@ -40,10 +40,10 @@ fn double_click_outer_fade_handles_collapses_silence_without_clearing_fade() {
     );
 
     state.apply_interaction(WaveformInteraction::ClearEditFadeSilence {
-        handle: WaveformEditFadeHandle::FadeInOuterStart,
+        handle: WaveformEditFadeHandle::InOuterStart,
     });
     state.apply_interaction(WaveformInteraction::ClearEditFadeSilence {
-        handle: WaveformEditFadeHandle::FadeOutOuterEnd,
+        handle: WaveformEditFadeHandle::OutOuterEnd,
     });
 
     let selection = state.edit_selection().expect("edit selection");
@@ -86,7 +86,7 @@ fn double_click_on_outer_fade_handle_emits_silence_clear_interaction() {
     assert_eq!(
         interaction,
         WaveformInteraction::ClearEditFadeSilence {
-            handle: WaveformEditFadeHandle::FadeOutOuterEnd
+            handle: WaveformEditFadeHandle::OutOuterEnd
         }
     );
 }
@@ -101,12 +101,12 @@ fn edit_fade_out_top_handle_preserves_silence_after_bottom_handle_collapse() {
     );
 
     state.apply_interaction(WaveformInteraction::BeginEditFade {
-        handle: WaveformEditFadeHandle::FadeOutEnd,
+        handle: WaveformEditFadeHandle::OutEnd,
         visible_ratio: 0.6,
     });
     state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.5 });
     state.apply_interaction(WaveformInteraction::BeginEditFade {
-        handle: WaveformEditFadeHandle::FadeOutStart,
+        handle: WaveformEditFadeHandle::OutStart,
         visible_ratio: 0.5,
     });
     state.apply_interaction(WaveformInteraction::FinishSelection {
@@ -136,7 +136,7 @@ fn edit_fade_out_bottom_handle_keeps_left_crossfade_pinned_to_sample_edge() {
     );
 
     state.apply_interaction(WaveformInteraction::BeginEditFade {
-        handle: WaveformEditFadeHandle::FadeOutEnd,
+        handle: WaveformEditFadeHandle::OutEnd,
         visible_ratio: 0.6,
     });
     state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.7 });
@@ -159,7 +159,7 @@ fn edit_fade_out_bottom_handle_keeps_left_crossfade_pinned_across_wiggles() {
     );
 
     state.apply_interaction(WaveformInteraction::BeginEditFade {
-        handle: WaveformEditFadeHandle::FadeOutEnd,
+        handle: WaveformEditFadeHandle::OutEnd,
         visible_ratio: 0.6,
     });
     for visible_ratio in [0.7, 0.69, 0.71, 0.705, 0.7] {
@@ -185,7 +185,7 @@ fn edit_fade_in_bottom_handle_keeps_opposite_fade_boundary_stable() {
     );
 
     state.apply_interaction(WaveformInteraction::BeginEditFade {
-        handle: WaveformEditFadeHandle::FadeInStart,
+        handle: WaveformEditFadeHandle::InStart,
         visible_ratio: 0.2,
     });
     state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.1 });
@@ -213,7 +213,7 @@ fn edit_fade_in_bottom_handle_keeps_crossfade_handles_stable() {
     );
 
     state.apply_interaction(WaveformInteraction::BeginEditFade {
-        handle: WaveformEditFadeHandle::FadeInStart,
+        handle: WaveformEditFadeHandle::InStart,
         visible_ratio: 0.2,
     });
     state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.1 });

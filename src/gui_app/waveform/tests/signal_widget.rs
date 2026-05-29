@@ -123,7 +123,7 @@ fn signal_widget_keeps_summary_cached_during_live_edit_fade_drag() {
         viewport,
         edit_selection,
         Some(WaveformActiveDragKind::EditFade(
-            WaveformEditFadeHandle::FadeInEnd,
+            WaveformEditFadeHandle::InEnd,
         )),
     );
     let mut primitives = Vec::new();

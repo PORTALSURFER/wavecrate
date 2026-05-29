@@ -1,5 +1,6 @@
 use super::*;
 use span::ResolvedPlaybackSpan;
+use std::path::Path;
 
 mod loop_control;
 mod progress;
@@ -9,7 +10,7 @@ impl GuiAppState {
     pub(super) fn play_selected_sample(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
         let started_at = Instant::now();
         if let Some(path) = self.folder_browser.selected_file_id()
-            && PathBuf::from(path) != self.waveform.path()
+            && self.waveform.path() != Path::new(path)
         {
             let label = sample_path_label(path);
             emit_gui_action(

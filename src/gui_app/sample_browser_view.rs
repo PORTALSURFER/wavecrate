@@ -19,6 +19,7 @@ use super::{
 mod hit_target;
 pub(super) use hit_target::{SampleFileHitMessage, SampleFileHitTarget};
 
+mod row_widgets;
 mod rows;
 use rows::sample_browser_rows;
 

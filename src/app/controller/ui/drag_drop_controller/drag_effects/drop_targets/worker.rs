@@ -1,23 +1,18 @@
 //! Background worker for drop-target copy and move operations.
 
-use super::super::move_transaction::{
-    load_sample_move_metadata, move_sample_file, prepare_staged_copy, prepare_staged_move,
-};
-use super::DroppedSampleMetadata;
 use super::paths::{copy_destination_relative, move_destination_relative};
-use super::transactions::{
-    clear_file_op_journal_entry, register_drop_target_target_entry, rollback_staged_copy,
-    rollback_staged_move, rollback_staged_move_after_target_db_stage, sample_move_metadata,
-    warn_on_journal_stage_update,
-};
 use crate::app::controller::jobs::{
-    DropTargetTransferKind, DropTargetTransferMetadata, DropTargetTransferRequest,
-    DropTargetTransferResult, DropTargetTransferSuccess, FileOpMessage,
+    DropTargetTransferKind, DropTargetTransferRequest, DropTargetTransferResult,
+    DropTargetTransferSuccess, FileOpMessage,
 };
-use crate::sample_sources::db::file_ops_journal;
-use crate::sample_sources::{SourceDatabase, SourceId};
+use crate::sample_sources::SourceDatabase;
+use operations::{run_drop_target_copy, run_drop_target_move};
+use progress::DropTargetTransferProgress;
+use request_context::{
+    drop_target_metadata_from_request, file_name_for_request, load_dropped_sample_metadata,
+    source_db_for,
+};
 use std::collections::HashMap;
-use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::{
     Arc,
@@ -25,20 +20,29 @@ use std::sync::{
     mpsc::Sender,
 };
 
+mod operations;
+mod progress;
+mod request_context;
+mod task;
 #[cfg(test)]
 mod tests;
 
+pub(super) use task::DropTargetTransferTask;
+
 /// Execute a batch of drop-target copy or move requests on the file-op worker.
 pub(super) fn run_drop_target_transfer_task(
-    kind: DropTargetTransferKind,
-    target_source_id: SourceId,
-    target_root: PathBuf,
-    target_relative_folder: PathBuf,
-    requests: Vec<DropTargetTransferRequest>,
-    mut errors: Vec<String>,
+    task: DropTargetTransferTask,
     cancel: Arc<AtomicBool>,
     sender: Option<&Sender<FileOpMessage>>,
 ) -> DropTargetTransferResult {
+    let DropTargetTransferTask {
+        kind,
+        target_source_id,
+        target_root,
+        target_relative_folder,
+        requests,
+        mut errors,
+    } = task;
     let target_dir = if target_relative_folder.as_os_str().is_empty() {
         target_root.clone()
     } else {
@@ -73,7 +77,7 @@ pub(super) fn run_drop_target_transfer_task(
         }
     };
     let mut source_dbs = HashMap::new();
-    let mut progress = DropTargetTransferProgress::new(kind, sender);
+    let mut progress = DropTargetTransferProgress::new(sender);
     for request in requests {
         if cancel.load(Ordering::Relaxed) {
             cancelled = true;
@@ -104,32 +108,6 @@ pub(super) fn run_drop_target_transfer_task(
         transferred,
         errors,
         cancelled,
-    }
-}
-
-/// Progress reporter for drop-target worker steps.
-struct DropTargetTransferProgress<'a> {
-    sender: Option<&'a Sender<FileOpMessage>>,
-    completed: usize,
-}
-
-impl<'a> DropTargetTransferProgress<'a> {
-    fn new(_kind: DropTargetTransferKind, sender: Option<&'a Sender<FileOpMessage>>) -> Self {
-        Self {
-            sender,
-            completed: 0,
-        }
-    }
-
-    fn complete(&mut self, detail: Option<String>) {
-        self.completed = self.completed.saturating_add(1);
-        if let Some(tx) = self.sender {
-            let _ = tx.send(FileOpMessage::Progress {
-                completed: self.completed,
-                detail,
-                item: None,
-            });
-        }
     }
 }
 
@@ -215,199 +193,4 @@ fn run_drop_target_transfer_request(
             errors,
         ),
     }
-}
-
-/// Convert controller-captured metadata into the worker-local representation.
-fn drop_target_metadata_from_request(
-    metadata: DropTargetTransferMetadata,
-) -> DroppedSampleMetadata {
-    DroppedSampleMetadata {
-        tag: metadata.tag,
-        looped: metadata.looped,
-        locked: metadata.locked,
-        last_played_at: metadata.last_played_at,
-        sound_type: metadata.sound_type,
-        user_tag: metadata.user_tag,
-        normal_tags: metadata.normal_tags,
-        collection: metadata.collection,
-    }
-}
-
-/// Open or reuse the source database for one drop-target request.
-fn source_db_for<'a>(
-    target_root: &Path,
-    target_db: &'a SourceDatabase,
-    source_dbs: &'a mut HashMap<PathBuf, SourceDatabase>,
-    source_root: &Path,
-) -> Result<&'a SourceDatabase, String> {
-    if source_root == target_root {
-        return Ok(target_db);
-    }
-    if !source_dbs.contains_key(source_root) {
-        let db = SourceDatabase::open(source_root)
-            .map_err(|err| format!("Failed to open source DB: {err}"))?;
-        source_dbs.insert(source_root.to_path_buf(), db);
-    }
-    source_dbs
-        .get(source_root)
-        .ok_or_else(|| "Source database unavailable".to_string())
-}
-
-/// Read the source-row metadata needed to recreate the target DB row.
-fn load_dropped_sample_metadata(
-    db: &SourceDatabase,
-    relative_path: &Path,
-) -> Result<DroppedSampleMetadata, String> {
-    let metadata = load_sample_move_metadata(db, relative_path)?;
-    Ok(DroppedSampleMetadata {
-        tag: metadata.tag,
-        looped: metadata.looped,
-        locked: metadata.locked,
-        last_played_at: metadata.last_played_at,
-        sound_type: metadata.sound_type,
-        user_tag: metadata.user_tag,
-        normal_tags: metadata.normal_tags,
-        collection: metadata.collection,
-    })
-}
-
-/// Resolve the file name for a requested source-relative sample path.
-fn file_name_for_request(relative_path: &Path) -> Result<OsString, String> {
-    relative_path
-        .file_name()
-        .map(|name| name.to_owned())
-        .ok_or_else(|| "Sample name unavailable for drop".to_string())
-}
-
-/// Run the staged copy flow for a drop-target request.
-fn run_drop_target_copy(
-    target_root: &Path,
-    target_db: &SourceDatabase,
-    request: DropTargetTransferRequest,
-    source_absolute: PathBuf,
-    target_relative: PathBuf,
-    metadata: DroppedSampleMetadata,
-    errors: &mut Vec<String>,
-) -> Option<DropTargetTransferSuccess> {
-    let prepared = match prepare_staged_copy(
-        target_db,
-        &source_absolute,
-        target_root,
-        &target_relative,
-        sample_move_metadata(&metadata),
-    ) {
-        Ok(prepared) => prepared,
-        Err(err) => {
-            errors.push(err);
-            return None;
-        }
-    };
-    if let Err(err) = register_drop_target_target_entry(
-        target_db,
-        &target_relative,
-        prepared.file_size,
-        prepared.modified_ns,
-        &metadata,
-    ) {
-        rollback_staged_copy(target_db, &prepared);
-        errors.push(err);
-        return None;
-    }
-    warn_on_journal_stage_update(
-        target_db,
-        &prepared.op_id,
-        file_ops_journal::FileOpStage::TargetDb,
-    );
-    if let Err(err) = move_sample_file(&prepared.staged_absolute, &prepared.target_absolute) {
-        errors.push(format!("Failed to finalize copy: {err}"));
-        return None;
-    }
-    clear_file_op_journal_entry(target_db, &prepared.op_id);
-    Some(DropTargetTransferSuccess {
-        source_id: request.source_id,
-        source_relative: request.relative_path,
-        target_relative,
-        file_size: prepared.file_size,
-        modified_ns: prepared.modified_ns,
-        tag: metadata.tag,
-        looped: metadata.looped,
-        locked: metadata.locked,
-        last_played_at: metadata.last_played_at,
-        sound_type: metadata.sound_type,
-        user_tag: metadata.user_tag.clone(),
-        normal_tags: metadata.normal_tags.clone(),
-        collection: metadata.collection,
-    })
-}
-
-/// Run the staged move flow for a drop-target request.
-fn run_drop_target_move(
-    target_root: &Path,
-    target_db: &SourceDatabase,
-    source_db: &SourceDatabase,
-    request: DropTargetTransferRequest,
-    target_relative: PathBuf,
-    metadata: DroppedSampleMetadata,
-    errors: &mut Vec<String>,
-) -> Option<DropTargetTransferSuccess> {
-    let prepared = match prepare_staged_move(
-        target_db,
-        &request.source_root,
-        &request.relative_path,
-        target_root,
-        &target_relative,
-        sample_move_metadata(&metadata),
-    ) {
-        Ok(prepared) => prepared,
-        Err(err) => {
-            errors.push(err);
-            return None;
-        }
-    };
-    if let Err(err) = register_drop_target_target_entry(
-        target_db,
-        &target_relative,
-        prepared.file_size,
-        prepared.modified_ns,
-        &metadata,
-    ) {
-        rollback_staged_move(target_db, &prepared);
-        errors.push(err);
-        return None;
-    }
-    warn_on_journal_stage_update(
-        target_db,
-        &prepared.op_id,
-        file_ops_journal::FileOpStage::TargetDb,
-    );
-    if let Err(err) = source_db.remove_file(&request.relative_path) {
-        rollback_staged_move_after_target_db_stage(target_db, &prepared, &target_relative);
-        errors.push(format!("Failed to drop database row: {err}"));
-        return None;
-    }
-    warn_on_journal_stage_update(
-        target_db,
-        &prepared.op_id,
-        file_ops_journal::FileOpStage::SourceDb,
-    );
-    if let Err(err) = move_sample_file(&prepared.staged_absolute, &prepared.target_absolute) {
-        errors.push(format!("Failed to finalize move: {err}"));
-        return None;
-    }
-    clear_file_op_journal_entry(target_db, &prepared.op_id);
-    Some(DropTargetTransferSuccess {
-        source_id: request.source_id,
-        source_relative: request.relative_path,
-        target_relative,
-        file_size: prepared.file_size,
-        modified_ns: prepared.modified_ns,
-        tag: metadata.tag,
-        looped: metadata.looped,
-        locked: metadata.locked,
-        last_played_at: metadata.last_played_at,
-        sound_type: metadata.sound_type,
-        user_tag: metadata.user_tag.clone(),
-        normal_tags: metadata.normal_tags.clone(),
-        collection: metadata.collection,
-    })
 }

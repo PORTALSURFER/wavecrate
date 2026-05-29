@@ -321,6 +321,9 @@ pub(super) use types::{
     FolderScanProgress, FolderScanRequest, FolderScanResult, RemovedSource, RenameTargetView,
 };
 
+mod tag_completion;
+mod tag_editor;
+mod tag_entry_layout;
 mod view;
 pub(super) use view::folder_browser_view;
 

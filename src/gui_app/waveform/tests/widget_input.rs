@@ -302,7 +302,7 @@ fn primary_press_on_edit_fade_handle_starts_fade_drag_instead_of_playmark() {
     assert_eq!(
         interaction,
         WaveformInteraction::BeginEditFade {
-            handle: WaveformEditFadeHandle::FadeInEnd,
+            handle: WaveformEditFadeHandle::InEnd,
             visible_ratio: 0.2
         }
     );

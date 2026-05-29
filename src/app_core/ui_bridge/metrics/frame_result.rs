@@ -11,62 +11,64 @@ pub(in crate::app_core::ui_bridge) fn trace_frame_result(result: &NativeFrameBui
         .frame_result_count
         .fetch_add(1, Ordering::Relaxed)
         + 1;
-    if result.needs_animation {
+    if result.animation.needs_animation {
         BRIDGE_METRICS
             .frame_result_animation_count
             .fetch_add(1, Ordering::Relaxed);
     }
-    if result.presented {
+    if result.presentation.presented {
         BRIDGE_METRICS
             .frame_result_presented_count
             .fetch_add(1, Ordering::Relaxed);
     }
-    if result.missed_present {
+    if result.presentation.missed_present {
         BRIDGE_METRICS
             .frame_result_missed_present_count
             .fetch_add(1, Ordering::Relaxed);
     }
-    if result.jank {
+    if result.timing.jank {
         BRIDGE_METRICS
             .frame_result_jank_count
             .fetch_add(1, Ordering::Relaxed);
     }
     BRIDGE_METRICS
         .frame_result_total_us
-        .fetch_add(result.frame_total_us as u64, Ordering::Relaxed);
+        .fetch_add(result.timing.frame_total_us as u64, Ordering::Relaxed);
     BRIDGE_METRICS
         .frame_result_present_us_total
-        .fetch_add(result.present_us as u64, Ordering::Relaxed);
+        .fetch_add(result.timing.present_us as u64, Ordering::Relaxed);
     BRIDGE_METRICS
         .frame_result_frame_budget_us
-        .store(result.frame_budget_us as u64, Ordering::Relaxed);
+        .store(result.timing.frame_budget_us as u64, Ordering::Relaxed);
     BRIDGE_METRICS
         .frame_result_primitives_total
-        .fetch_add(result.primitive_count as u64, Ordering::Relaxed);
+        .fetch_add(result.counts.primitive_count as u64, Ordering::Relaxed);
     BRIDGE_METRICS
         .frame_result_text_runs_total
-        .fetch_add(result.text_run_count as u64, Ordering::Relaxed);
-    if result.layout_rebuild {
+        .fetch_add(result.counts.text_run_count as u64, Ordering::Relaxed);
+    if result.rebuilds.layout_rebuild {
         BRIDGE_METRICS
             .frame_result_layout_rebuild_count
             .fetch_add(1, Ordering::Relaxed);
     }
-    if result.static_rebuild {
+    if result.rebuilds.static_rebuild {
         BRIDGE_METRICS
             .frame_result_static_rebuild_count
             .fetch_add(1, Ordering::Relaxed);
     }
-    if result.state_overlay_rebuild {
+    if result.rebuilds.state_overlay_rebuild {
         BRIDGE_METRICS
             .frame_result_state_overlay_rebuild_count
             .fetch_add(1, Ordering::Relaxed);
     }
-    if result.motion_overlay_rebuild {
+    if result.rebuilds.motion_overlay_rebuild {
         BRIDGE_METRICS
             .frame_result_motion_overlay_rebuild_count
             .fetch_add(1, Ordering::Relaxed);
     }
-    if !result.static_rebuild && (result.state_overlay_rebuild || result.motion_overlay_rebuild) {
+    if !result.rebuilds.static_rebuild
+        && (result.rebuilds.state_overlay_rebuild || result.rebuilds.motion_overlay_rebuild)
+    {
         BRIDGE_METRICS
             .frame_result_overlay_only_count
             .fetch_add(1, Ordering::Relaxed);
@@ -105,50 +107,45 @@ mod tests {
             .frame_result_overlay_only_count
             .load(Ordering::Relaxed);
 
-        trace_frame_result(&NativeFrameBuildResult {
-            layout_rebuild: true,
-            static_rebuild: true,
-            state_overlay_rebuild: true,
-            motion_overlay_rebuild: false,
-            ..NativeFrameBuildResult::default()
-        });
-        trace_frame_result(&NativeFrameBuildResult {
-            layout_rebuild: false,
-            static_rebuild: false,
-            state_overlay_rebuild: false,
-            motion_overlay_rebuild: true,
-            ..NativeFrameBuildResult::default()
-        });
+        let mut static_result = NativeFrameBuildResult::default();
+        static_result.rebuilds.layout_rebuild = true;
+        static_result.rebuilds.static_rebuild = true;
+        static_result.rebuilds.state_overlay_rebuild = true;
+        trace_frame_result(&static_result);
+
+        let mut overlay_result = NativeFrameBuildResult::default();
+        overlay_result.rebuilds.motion_overlay_rebuild = true;
+        trace_frame_result(&overlay_result);
 
         assert!(
             BRIDGE_METRICS
                 .frame_result_layout_rebuild_count
                 .load(Ordering::Relaxed)
-                >= before_layout + 1
+                > before_layout
         );
         assert!(
             BRIDGE_METRICS
                 .frame_result_static_rebuild_count
                 .load(Ordering::Relaxed)
-                >= before_static + 1
+                > before_static
         );
         assert!(
             BRIDGE_METRICS
                 .frame_result_state_overlay_rebuild_count
                 .load(Ordering::Relaxed)
-                >= before_state_overlay + 1
+                > before_state_overlay
         );
         assert!(
             BRIDGE_METRICS
                 .frame_result_motion_overlay_rebuild_count
                 .load(Ordering::Relaxed)
-                >= before_motion_overlay + 1
+                > before_motion_overlay
         );
         assert!(
             BRIDGE_METRICS
                 .frame_result_overlay_only_count
                 .load(Ordering::Relaxed)
-                >= before_overlay_only + 1
+                > before_overlay_only
         );
     }
 }

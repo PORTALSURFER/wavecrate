@@ -17,7 +17,7 @@ pub type BrowserTagState = selection::TriState;
 pub type BrowserTagPillModel = badge::SelectablePill<BrowserTagState>;
 
 /// Browser-local metadata sidebar shown beside the sample list.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct BrowserTagSidebarModel {
     /// Whether the panel should render in the current view.
     pub open: bool,
@@ -45,29 +45,6 @@ pub struct BrowserTagSidebarModel {
     pub option_pills: Vec<BrowserTagPillModel>,
     /// Create-new tag candidate when the input does not match an existing option.
     pub create_pill: Option<BrowserTagPillModel>,
-}
-
-impl Default for BrowserTagSidebarModel {
-    fn default() -> Self {
-        Self {
-            open: false,
-            selected_count: 0,
-            header_label: String::new(),
-            primary_action_enabled: false,
-            input_value: String::new(),
-            input_placeholder: String::new(),
-            input_focused: false,
-            input_caret: 0,
-            input_selection: None,
-            exclusive_pills: [
-                BrowserTagPillModel::default(),
-                BrowserTagPillModel::default(),
-            ],
-            accepted_pills: Vec::new(),
-            option_pills: Vec::new(),
-            create_pill: None,
-        }
-    }
 }
 
 impl From<BrowserTagSidebarModel> for badge::PillEditorPanel<BrowserTagState> {

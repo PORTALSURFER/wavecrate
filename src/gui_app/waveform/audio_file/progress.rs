@@ -9,7 +9,7 @@ pub(in crate::gui_app::waveform) fn report_phase_progress_throttled(
     progress: &impl Fn(f32),
 ) {
     cooperate_with_ui(completed);
-    if completed == total || completed % 16_384 == 0 {
+    if completed == total || completed.is_multiple_of(16_384) {
         report_phase_progress(start, end, completed, total, progress);
     }
 }
@@ -18,9 +18,9 @@ pub(in crate::gui_app::waveform) fn cooperate_with_ui(completed: usize) {
     if completed == 0 {
         return;
     }
-    if completed % COOPERATIVE_SLEEP_INTERVAL == 0 {
+    if completed.is_multiple_of(COOPERATIVE_SLEEP_INTERVAL) {
         std::thread::sleep(std::time::Duration::from_millis(1));
-    } else if completed % COOPERATIVE_YIELD_INTERVAL == 0 {
+    } else if completed.is_multiple_of(COOPERATIVE_YIELD_INTERVAL) {
         std::thread::yield_now();
     }
 }

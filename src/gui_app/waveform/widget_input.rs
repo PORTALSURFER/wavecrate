@@ -175,8 +175,7 @@ impl WaveformWidget {
 
     fn handle_primary_double_click(&self, bounds: Rect, position: Point) -> Option<WidgetOutput> {
         if let Some(
-            handle @ (WaveformEditFadeHandle::FadeInOuterStart
-            | WaveformEditFadeHandle::FadeOutOuterEnd),
+            handle @ (WaveformEditFadeHandle::InOuterStart | WaveformEditFadeHandle::OutOuterEnd),
         ) = self.edit_fade_handle_at(bounds, position)
         {
             return Some(WidgetOutput::typed(

@@ -57,12 +57,12 @@ pub(in crate::gui_app) enum WaveformSelectionEdge {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(in crate::gui_app) enum WaveformEditFadeHandle {
-    FadeInEnd,
-    FadeInStart,
-    FadeInOuterStart,
-    FadeOutStart,
-    FadeOutEnd,
-    FadeOutOuterEnd,
+    InEnd,
+    InStart,
+    InOuterStart,
+    OutStart,
+    OutEnd,
+    OutOuterEnd,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -29,11 +29,11 @@ impl AppController {
         completed: usize,
         detail: Option<String>,
     ) {
-        if !self
+        if self
             .runtime
             .jobs
             .pending_slice_batch_export()
-            .is_some_and(|pending| pending.request_id == request_id)
+            .is_none_or(|pending| pending.request_id != request_id)
         {
             return;
         }

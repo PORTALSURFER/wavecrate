@@ -215,10 +215,10 @@ impl WaveformState {
             return;
         };
         let next = match handle {
-            WaveformEditFadeHandle::FadeInOuterStart => selection
+            WaveformEditFadeHandle::InOuterStart => selection
                 .fade_in()
                 .map(|fade| selection.with_fade_in_and_mute(fade.length, fade.curve, 0.0)),
-            WaveformEditFadeHandle::FadeOutOuterEnd => selection
+            WaveformEditFadeHandle::OutOuterEnd => selection
                 .fade_out()
                 .map(|fade| selection.with_fade_out_and_mute(fade.length, fade.curve, 0.0)),
             _ => None,

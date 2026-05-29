@@ -1,17 +1,12 @@
 use radiant::layout::Vector2;
 use radiant::prelude as ui;
-use radiant::runtime::{NativeFileDrop, NativeFileDropPhase};
 use radiant::widgets::DragHandleMessage;
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    time::Instant,
-};
+use std::{fs, path::PathBuf, time::Instant};
 use wavecrate::external_clipboard;
 
 use super::{
     DRAG_PREVIEW_HEIGHT, DRAG_PREVIEW_MAX_WIDTH, FolderBrowserMessage, GuiAppState, GuiMessage,
-    NativeFileDropHover, WAVEFORM_WIDGET_ID, emit_gui_action, sample_path_label,
+    emit_gui_action, sample_path_label,
 };
 
 impl GuiAppState {
@@ -206,121 +201,6 @@ impl GuiAppState {
         }
     }
 
-    pub(super) fn apply_native_file_drop(
-        &mut self,
-        drop: NativeFileDrop,
-        context: &mut ui::UpdateContext<GuiMessage>,
-    ) {
-        let over_waveform = native_file_drop_targets_waveform(drop.target_widget);
-        match drop.phase {
-            NativeFileDropPhase::Hover => self.track_native_file_hover(drop.path, over_waveform),
-            NativeFileDropPhase::Cancel => {
-                self.native_file_drop_hover = None;
-            }
-            NativeFileDropPhase::Drop => {
-                self.native_file_drop_hover = None;
-                let Some(path) = drop.path else {
-                    return;
-                };
-                if over_waveform {
-                    self.drop_external_file_on_waveform(path, context);
-                }
-            }
-        }
-    }
-
-    fn track_native_file_hover(&mut self, path: Option<PathBuf>, over_waveform: bool) {
-        let Some(path) = path else {
-            self.native_file_drop_hover = None;
-            return;
-        };
-        self.native_file_drop_hover = over_waveform.then(|| NativeFileDropHover {
-            supported: supported_waveform_drop_file(&path),
-            path,
-        });
-    }
-
-    fn drop_external_file_on_waveform(
-        &mut self,
-        path: PathBuf,
-        context: &mut ui::UpdateContext<GuiMessage>,
-    ) {
-        let started_at = Instant::now();
-        if !supported_waveform_drop_file(&path) {
-            self.sample_status = format!(
-                "Unsupported waveform drop: {}",
-                path.file_name()
-                    .map(|name| name.to_string_lossy())
-                    .unwrap_or_else(|| path.display().to_string().into())
-            );
-            emit_gui_action(
-                "waveform.external_file_drop",
-                Some("waveform"),
-                None,
-                "unsupported",
-                started_at,
-                Some("unsupported file type"),
-            );
-            return;
-        }
-        match self.copy_external_file_to_selected_folder(&path) {
-            Ok(copied) => {
-                let copied_id = copied.display().to_string();
-                self.folder_browser.refresh_file_path(&copied);
-                self.folder_browser.select_file(copied_id.clone());
-                self.load_sample(copied_id, context);
-                emit_gui_action(
-                    "waveform.external_file_drop",
-                    Some("waveform"),
-                    None,
-                    "copied",
-                    started_at,
-                    None,
-                );
-            }
-            Err(error) => {
-                self.sample_status = format!("External drop failed: {error}");
-                emit_gui_action(
-                    "waveform.external_file_drop",
-                    Some("waveform"),
-                    None,
-                    "error",
-                    started_at,
-                    Some(&error),
-                );
-            }
-        }
-    }
-
-    fn copy_external_file_to_selected_folder(&mut self, source: &Path) -> Result<PathBuf, String> {
-        if !source.is_file() {
-            return Err(format!("not a file: {}", source.display()));
-        }
-        let target_folder = self
-            .folder_browser
-            .selected_folder_path()
-            .ok_or_else(|| String::from("no selected folder"))?;
-        fs::create_dir_all(&target_folder).map_err(|err| {
-            format!(
-                "failed to create target folder {}: {err}",
-                target_folder.display()
-            )
-        })?;
-        let file_name = source
-            .file_name()
-            .ok_or_else(|| String::from("dropped file has no file name"))?;
-        let first_candidate = target_folder.join(file_name);
-        let target = unique_copy_destination(&first_candidate);
-        fs::copy(source, &target).map_err(|err| {
-            format!(
-                "failed to copy {} to {}: {err}",
-                source.display(),
-                target.display()
-            )
-        })?;
-        Ok(target)
-    }
-
     pub(super) fn external_drag_completed(
         &mut self,
         result: Result<ui::ExternalDragOutcome, String>,
@@ -387,41 +267,4 @@ impl GuiAppState {
 
 fn folder_drag_preview_width(label: &str) -> f32 {
     (label.chars().count() as f32 * 7.0 + 28.0).clamp(96.0, DRAG_PREVIEW_MAX_WIDTH)
-}
-
-fn supported_waveform_drop_file(path: &Path) -> bool {
-    path.is_file()
-        && path
-            .extension()
-            .and_then(|extension| extension.to_str())
-            .is_some_and(|extension| extension.eq_ignore_ascii_case("wav"))
-}
-
-fn native_file_drop_targets_waveform(target_widget: Option<u64>) -> bool {
-    target_widget.is_none() || target_widget == Some(WAVEFORM_WIDGET_ID)
-}
-
-fn unique_copy_destination(first_candidate: &Path) -> PathBuf {
-    if !first_candidate.exists() {
-        return first_candidate.to_path_buf();
-    }
-    let parent = first_candidate.parent().unwrap_or_else(|| Path::new(""));
-    let stem = first_candidate
-        .file_stem()
-        .map(|stem| stem.to_string_lossy().to_string())
-        .unwrap_or_else(|| String::from("sample"));
-    let extension = first_candidate
-        .extension()
-        .map(|extension| extension.to_string_lossy().to_string());
-    for count in 1.. {
-        let file_name = match &extension {
-            Some(extension) => format!("{stem}_copy{count:03}.{extension}"),
-            None => format!("{stem}_copy{count:03}"),
-        };
-        let candidate = parent.join(file_name);
-        if !candidate.exists() {
-            return candidate;
-        }
-    }
-    unreachable!("unbounded copy suffix search should find a destination")
 }

@@ -11,7 +11,7 @@ fn edit_fade_top_handle_drag_sets_fade_in_length() {
     state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.6 });
 
     state.apply_interaction(WaveformInteraction::BeginEditFade {
-        handle: WaveformEditFadeHandle::FadeInEnd,
+        handle: WaveformEditFadeHandle::InEnd,
         visible_ratio: 0.2,
     });
     state.apply_interaction(WaveformInteraction::UpdateSelection { visible_ratio: 0.3 });
@@ -35,7 +35,7 @@ fn edit_fade_top_handles_push_and_restore_opposite_fade() {
     );
 
     state.apply_interaction(WaveformInteraction::BeginEditFade {
-        handle: WaveformEditFadeHandle::FadeInEnd,
+        handle: WaveformEditFadeHandle::InEnd,
         visible_ratio: 0.3,
     });
     state.apply_interaction(WaveformInteraction::UpdateSelection { visible_ratio: 0.6 });
@@ -63,7 +63,7 @@ fn edit_fade_outer_handles_set_crossfade_lengths_without_resizing_selection() {
         Some(wavecrate::selection::SelectionRange::new(0.2, 0.6).with_fade_in(0.25, 0.2));
 
     state.apply_interaction(WaveformInteraction::BeginEditFade {
-        handle: WaveformEditFadeHandle::FadeInOuterStart,
+        handle: WaveformEditFadeHandle::InOuterStart,
         visible_ratio: 0.2,
     });
     state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.1 });
@@ -76,7 +76,7 @@ fn edit_fade_outer_handles_set_crossfade_lengths_without_resizing_selection() {
     assert!((fade.mute - 0.25).abs() < 0.001);
 
     state.apply_interaction(WaveformInteraction::BeginEditFade {
-        handle: WaveformEditFadeHandle::FadeInOuterStart,
+        handle: WaveformEditFadeHandle::InOuterStart,
         visible_ratio: 0.1,
     });
     state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.2 });
@@ -89,7 +89,7 @@ fn edit_fade_outer_handles_set_crossfade_lengths_without_resizing_selection() {
     state.edit_selection =
         Some(wavecrate::selection::SelectionRange::new(0.2, 0.6).with_fade_out(0.25, 0.7));
     state.apply_interaction(WaveformInteraction::BeginEditFade {
-        handle: WaveformEditFadeHandle::FadeOutOuterEnd,
+        handle: WaveformEditFadeHandle::OutOuterEnd,
         visible_ratio: 0.6,
     });
     state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.7 });
@@ -128,7 +128,7 @@ fn primary_press_on_outer_fade_handle_uses_distinct_handle() {
     assert_eq!(
         interaction,
         WaveformInteraction::BeginEditFade {
-            handle: WaveformEditFadeHandle::FadeInOuterStart,
+            handle: WaveformEditFadeHandle::InOuterStart,
             visible_ratio: 0.2
         }
     );
@@ -141,7 +141,7 @@ fn edit_fade_bottom_handle_resizes_selection_and_keeps_fade_boundary() {
         Some(wavecrate::selection::SelectionRange::new(0.2, 0.6).with_fade_in(0.25, 0.2));
 
     state.apply_interaction(WaveformInteraction::BeginEditFade {
-        handle: WaveformEditFadeHandle::FadeInStart,
+        handle: WaveformEditFadeHandle::InStart,
         visible_ratio: 0.2,
     });
     state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.1 });
@@ -164,7 +164,7 @@ fn edit_fade_out_bottom_handle_keeps_opposite_fade_boundary_stable() {
     );
 
     state.apply_interaction(WaveformInteraction::BeginEditFade {
-        handle: WaveformEditFadeHandle::FadeOutEnd,
+        handle: WaveformEditFadeHandle::OutEnd,
         visible_ratio: 0.6,
     });
     state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.8 });
@@ -192,7 +192,7 @@ fn edit_fade_out_bottom_handle_keeps_crossfade_handles_stable() {
     );
 
     state.apply_interaction(WaveformInteraction::BeginEditFade {
-        handle: WaveformEditFadeHandle::FadeOutEnd,
+        handle: WaveformEditFadeHandle::OutEnd,
         visible_ratio: 0.6,
     });
     state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.7 });
@@ -225,7 +225,7 @@ fn edit_fade_out_bottom_handle_preserves_crossfade_when_fade_collapses() {
     );
 
     state.apply_interaction(WaveformInteraction::BeginEditFade {
-        handle: WaveformEditFadeHandle::FadeOutEnd,
+        handle: WaveformEditFadeHandle::OutEnd,
         visible_ratio: 0.6,
     });
     state.apply_interaction(WaveformInteraction::FinishSelection { visible_ratio: 0.5 });
@@ -255,7 +255,7 @@ fn edit_fade_out_bottom_handle_does_not_pick_up_silence_during_same_drag() {
     );
 
     state.apply_interaction(WaveformInteraction::BeginEditFade {
-        handle: WaveformEditFadeHandle::FadeOutEnd,
+        handle: WaveformEditFadeHandle::OutEnd,
         visible_ratio: 0.6,
     });
     state.apply_interaction(WaveformInteraction::UpdateSelection { visible_ratio: 1.0 });
