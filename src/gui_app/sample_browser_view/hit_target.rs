@@ -7,6 +7,19 @@ use radiant::widgets::{
     WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
 };
 
+const HOVER_FILL: Rgba8 = Rgba8 {
+    r: 255,
+    g: 255,
+    b: 255,
+    a: 24,
+};
+const PRESSED_FILL: Rgba8 = Rgba8 {
+    r: 255,
+    g: 108,
+    b: 88,
+    a: 170,
+};
+
 #[derive(Clone, Debug)]
 pub(in crate::gui_app) struct SampleFileHitTarget {
     common: WidgetCommon,
@@ -108,9 +121,7 @@ impl Widget for SampleFileHitTarget {
             return;
         };
         self.common.state = previous.common.state;
-        if self.suppress_hover || previous.suppress_hover {
-            self.common.state.hovered = false;
-        }
+        self.common.state.hovered = false;
         self.dragged = previous.dragged;
     }
 
@@ -219,16 +230,15 @@ impl SampleFileHitTarget {
         if !self.common.state.pressed && !self.common.state.hovered {
             return;
         }
-        let alpha = if self.common.state.pressed { 170 } else { 155 };
+        let color = if self.common.state.pressed {
+            PRESSED_FILL
+        } else {
+            HOVER_FILL
+        };
         primitives.push(PaintPrimitive::FillRect(PaintFillRect {
             widget_id: self.common.id,
             rect: bounds,
-            color: Rgba8 {
-                r: 255,
-                g: 108,
-                b: 88,
-                a: alpha,
-            },
+            color,
         }));
     }
 
