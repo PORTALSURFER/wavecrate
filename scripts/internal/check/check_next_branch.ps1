@@ -1,11 +1,10 @@
 <#
 .SYNOPSIS
-Verifies that the current repository uses next as its integration branch.
+Verifies that the current repository is working directly on next.
 
 .DESCRIPTION
-Allows feature branches for PR work, but verifies that local `next` exists and
-tracks `origin/next`. When the current branch is `next`, it must track
-`origin/next` directly.
+Requires the current branch to be local `next` tracking `origin/next`. Agent
+work should be committed and pushed directly to `next`, not to feature branches.
 #>
 
 param(
@@ -17,7 +16,7 @@ $ErrorActionPreference = "Stop"
 
 if ($Help) {
   Write-Host "Usage: scripts/internal/check/check_next_branch.ps1"
-  Write-Host "Verify that local next tracks origin/next; feature branches are allowed for PR work."
+  Write-Host "Verify that the current branch is local next tracking origin/next."
   exit 0
 }
 
@@ -47,7 +46,11 @@ $branch = Invoke-GitText -Arguments @(
 )
 
 if ($branch -eq "HEAD") {
-  throw "[branch_guard] Detached HEAD is not allowed. Use local '$expectedBranch' or a feature branch."
+  throw "[branch_guard] Detached HEAD is not allowed. Use local '$expectedBranch'."
+}
+
+if ($branch -ne $expectedBranch) {
+  throw "[branch_guard] Current branch must be '$expectedBranch'. Current branch: '$branch'."
 }
 
 $integrationUpstream = Invoke-GitText -Arguments @(
@@ -65,8 +68,4 @@ if ($integrationUpstream -ne $expectedUpstream) {
   throw "[branch_guard] Local '$expectedBranch' must track '$expectedUpstream'. Current upstream: '$integrationUpstream'."
 }
 
-if ($branch -eq $expectedBranch) {
-  Write-Host "[branch_guard] OK ($branch -> $integrationUpstream)"
-} else {
-  Write-Host "[branch_guard] OK (feature branch '$branch', base $expectedBranch -> $integrationUpstream)"
-}
+Write-Host "[branch_guard] OK ($branch -> $integrationUpstream)"

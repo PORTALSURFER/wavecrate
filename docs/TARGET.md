@@ -2625,7 +2625,7 @@ Meaningful changes should usually include:
 * a cleanup pass against the touched area and obvious neighboring code before commit, using this target document and `AGENTS.md` as the quality contract
 * focused tests for behavior that can regress
 * smoke or focused validation before ordinary commit/push
-* agent validation before merging PRs into `next`
+* agent validation before merging `next` into `main`
 * updated docs when a durable contract changes
 * Radiant example updates when a new generic GUI API is introduced
 * audio-engine validation when playback, decode, seek, loop, warp, render, channel handling, or device behavior changes
