@@ -312,8 +312,6 @@ mod tree_state;
 
 mod tree_hit_target;
 
-mod tree_widgets;
-
 mod types;
 pub(super) use types::{
     FileDeleteTargetView, FileRenameView, FolderBrowserMessage, FolderDeleteTargetView,

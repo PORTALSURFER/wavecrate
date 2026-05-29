@@ -46,8 +46,8 @@ fn waveform_viewport_with_loading_state(state: &GuiAppState) -> ui::View<GuiMess
         if !state.folder_browser.drag_active() {
             layers.push(
                 ui::custom_widget_mapped(
-                    WaveformLoadingInputBlocker::new(),
-                    |message: GuiMessage| message,
+                    ui::PointerShieldWidget::fill(true),
+                    |_: ui::PointerShieldMessage| GuiMessage::Noop,
                 )
                 .key("waveform-loading-input-blocker")
                 .input_only()
@@ -218,58 +218,6 @@ impl Widget for WaveformLoadingVisual {
                 },
             }));
         }
-    }
-}
-
-#[derive(Clone, Debug)]
-struct WaveformLoadingInputBlocker {
-    common: WidgetCommon,
-}
-
-impl WaveformLoadingInputBlocker {
-    fn new() -> Self {
-        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 1.0)));
-        common.focus = FocusBehavior::None;
-        common.paint.paints_focus = false;
-        common.paint.paints_state_layers = false;
-        Self { common }
-    }
-}
-
-impl Widget for WaveformLoadingInputBlocker {
-    fn common(&self) -> &WidgetCommon {
-        &self.common
-    }
-
-    fn common_mut(&mut self) -> &mut WidgetCommon {
-        &mut self.common
-    }
-
-    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        match input {
-            WidgetInput::PointerMove { position }
-            | WidgetInput::PointerPress { position, .. }
-            | WidgetInput::PointerRelease { position, .. }
-            | WidgetInput::PointerDrop { position, .. }
-                if bounds.contains(position) =>
-            {
-                Some(WidgetOutput::typed(GuiMessage::Noop))
-            }
-            _ => None,
-        }
-    }
-
-    fn accepts_pointer_move(&self) -> bool {
-        true
-    }
-
-    fn append_paint(
-        &self,
-        _primitives: &mut Vec<PaintPrimitive>,
-        _bounds: Rect,
-        _layout: &LayoutOutput,
-        _theme: &ThemeTokens,
-    ) {
     }
 }
 

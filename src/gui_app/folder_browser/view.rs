@@ -10,7 +10,6 @@ use super::{
     FolderBrowserMessage, FolderBrowserState, GuiMessage, TREE_DEPTH_INDENT, TREE_ROW_HEIGHT,
     VisibleFolder, plural,
     tree_hit_target::{FolderTreeHitMessage, FolderTreeHitTarget},
-    tree_widgets::FolderDropClearTarget,
 };
 
 mod collections_section;
@@ -71,11 +70,42 @@ pub(in crate::gui_app) fn folder_browser_view(
     .fill_height()
 }
 
+#[cfg(test)]
+mod tests {
+    use radiant::gui::types::Point;
+    use radiant::widgets::{PointerButton, PointerModifiers};
+
+    use super::*;
+
+    #[test]
+    fn folder_drop_clear_maps_pointer_move_to_clear_message() {
+        assert!(matches!(
+            folder_drop_clear_message(ui::PointerShieldMessage::PointerMove {
+                position: Point::new(30.0, 12.0),
+            }),
+            GuiMessage::FolderBrowser(FolderBrowserMessage::ClearDropTarget(position))
+                if position == Point::new(30.0, 12.0)
+        ));
+    }
+
+    #[test]
+    fn folder_drop_clear_ignores_non_move_messages() {
+        assert!(matches!(
+            folder_drop_clear_message(ui::PointerShieldMessage::PointerRelease {
+                position: Point::new(30.0, 12.0),
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+            }),
+            GuiMessage::Noop
+        ));
+    }
+}
+
 fn folder_tree_view(state: &FolderBrowserState) -> ui::View<GuiMessage> {
     ui::stack([
         ui::custom_widget_mapped(
-            FolderDropClearTarget::new(state.drop_target_folder.is_some()),
-            GuiMessage::FolderBrowser,
+            ui::PointerShieldWidget::pointer_move_only(state.drop_target_folder.is_some()),
+            folder_drop_clear_message,
         )
         .key("folder-drop-clear-target")
         .input_only()
@@ -91,6 +121,15 @@ fn folder_tree_view(state: &FolderBrowserState) -> ui::View<GuiMessage> {
         .spacing(1.0),
     ])
     .fill()
+}
+
+fn folder_drop_clear_message(message: ui::PointerShieldMessage) -> GuiMessage {
+    match message {
+        ui::PointerShieldMessage::PointerMove { position } => {
+            GuiMessage::FolderBrowser(FolderBrowserMessage::ClearDropTarget(position))
+        }
+        _ => GuiMessage::Noop,
+    }
 }
 
 fn folder_row(folder: VisibleFolder) -> ui::View<GuiMessage> {
