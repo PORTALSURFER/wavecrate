@@ -1,11 +1,4 @@
-use radiant::gui::types::{Point, Rect, Rgba8};
-use radiant::layout::{LayoutOutput, Vector2};
 use radiant::prelude as ui;
-use radiant::runtime::{PaintFillRect, PaintPrimitive};
-use radiant::theme::ThemeTokens;
-use radiant::widgets::{
-    FocusBehavior, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
-};
 
 use super::waveform::{self, WaveformInteraction, WaveformState};
 use super::{GuiAppState, GuiMessage, WAVEFORM_PANEL_HEIGHT, WAVEFORM_VIEW_HEIGHT};
@@ -65,160 +58,41 @@ fn waveform_viewport_with_loading_state(state: &GuiAppState) -> ui::View<GuiMess
 
 #[cfg_attr(test, allow(dead_code))]
 pub(crate) fn waveform_loading_visual(_label: &str, progress: f32) -> ui::View<GuiMessage> {
-    ui::custom_widget(WaveformLoadingVisual::new(progress), |_| None)
-        .key("waveform-loading-visual")
-        .fill_width()
-        .height(WAVEFORM_VIEW_HEIGHT)
+    ui::custom_widget(
+        ui::FeedbackOverlayWidget::fill()
+            .with_background(ui::Rgba8::new(22, 24, 25, 72))
+            .with_progress(progress, ui::Rgba8::new(174, 178, 181, 118)),
+        |_| None,
+    )
+    .key("waveform-loading-visual")
+    .fill_width()
+    .height(WAVEFORM_VIEW_HEIGHT)
 }
 
 fn waveform_drop_hover_visual(supported: bool) -> ui::View<GuiMessage> {
-    ui::custom_widget(WaveformDropHoverVisual::new(supported), |_| None)
-        .key("waveform-drop-hover-visual")
-        .fill_width()
-        .height(WAVEFORM_VIEW_HEIGHT)
-}
-
-#[derive(Clone, Debug)]
-struct WaveformDropHoverVisual {
-    common: WidgetCommon,
-    supported: bool,
-}
-
-impl WaveformDropHoverVisual {
-    fn new(supported: bool) -> Self {
-        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 1.0)));
-        common.focus = FocusBehavior::None;
-        common.paint.paints_focus = false;
-        common.paint.paints_state_layers = false;
-        Self { common, supported }
-    }
-}
-
-impl Widget for WaveformDropHoverVisual {
-    fn common(&self) -> &WidgetCommon {
-        &self.common
-    }
-
-    fn common_mut(&mut self) -> &mut WidgetCommon {
-        &mut self.common
-    }
-
-    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
-        None
-    }
-
-    fn needs_state_synchronization(&self) -> bool {
-        false
-    }
-
-    fn append_paint(
-        &self,
-        primitives: &mut Vec<PaintPrimitive>,
-        bounds: Rect,
-        _layout: &LayoutOutput,
-        _theme: &ThemeTokens,
-    ) {
-        let (r, g, b) = if self.supported {
-            (74, 178, 116)
-        } else {
-            (214, 62, 62)
-        };
-        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-            widget_id: self.common.id,
-            rect: bounds,
-            color: Rgba8 { r, g, b, a: 56 },
-        }));
-        let edge = 3.0_f32.min(bounds.height().max(1.0));
-        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-            widget_id: self.common.id,
-            rect: Rect::from_min_max(
-                bounds.min,
-                Point::new(bounds.max.x, (bounds.min.y + edge).min(bounds.max.y)),
-            ),
-            color: Rgba8 { r, g, b, a: 210 },
-        }));
-        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-            widget_id: self.common.id,
-            rect: Rect::from_min_max(
-                Point::new(bounds.min.x, (bounds.max.y - edge).max(bounds.min.y)),
-                bounds.max,
-            ),
-            color: Rgba8 { r, g, b, a: 210 },
-        }));
-    }
-}
-
-#[derive(Clone, Debug)]
-struct WaveformLoadingVisual {
-    common: WidgetCommon,
-    progress: f32,
-}
-
-impl WaveformLoadingVisual {
-    fn new(progress: f32) -> Self {
-        let mut common = WidgetCommon::new(0, WidgetSizing::fixed(Vector2::new(1.0, 1.0)));
-        common.focus = FocusBehavior::None;
-        common.paint.paints_focus = false;
-        common.paint.paints_state_layers = false;
-        Self {
-            common,
-            progress: progress.clamp(0.0, 1.0),
-        }
-    }
-}
-
-impl Widget for WaveformLoadingVisual {
-    fn common(&self) -> &WidgetCommon {
-        &self.common
-    }
-
-    fn common_mut(&mut self) -> &mut WidgetCommon {
-        &mut self.common
-    }
-
-    fn handle_input(&mut self, _bounds: Rect, _input: WidgetInput) -> Option<WidgetOutput> {
-        None
-    }
-
-    fn needs_state_synchronization(&self) -> bool {
-        false
-    }
-
-    fn append_paint(
-        &self,
-        primitives: &mut Vec<PaintPrimitive>,
-        bounds: Rect,
-        _layout: &LayoutOutput,
-        _theme: &ThemeTokens,
-    ) {
-        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-            widget_id: self.common.id,
-            rect: bounds,
-            color: Rgba8 {
-                r: 22,
-                g: 24,
-                b: 25,
-                a: 72,
-            },
-        }));
-
-        let fill_width = bounds.width() * self.progress;
-        if fill_width > 0.5 {
-            primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-                widget_id: self.common.id,
-                rect: Rect::from_min_max(
-                    bounds.min,
-                    Point::new((bounds.min.x + fill_width).min(bounds.max.x), bounds.max.y),
-                ),
-                color: Rgba8 {
-                    r: 174,
-                    g: 178,
-                    b: 181,
-                    a: 118,
+    let color = if supported {
+        ui::Rgba8::new(74, 178, 116, 255)
+    } else {
+        ui::Rgba8::new(214, 62, 62, 255)
+    };
+    ui::custom_widget(
+        ui::FeedbackOverlayWidget::fill()
+            .with_background(color.with_alpha(56))
+            .with_edge(
+                color.with_alpha(210),
+                3.0,
+                ui::BorderSides {
+                    top: true,
+                    bottom: true,
+                    left: false,
+                    right: false,
                 },
-            }));
-        }
-    }
+            ),
+        |_| None,
+    )
+    .key("waveform-drop-hover-visual")
+    .fill_width()
+    .height(WAVEFORM_VIEW_HEIGHT)
 }
 
 fn waveform_title(waveform: &WaveformState) -> String {
