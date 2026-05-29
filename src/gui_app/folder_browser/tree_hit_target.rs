@@ -122,7 +122,9 @@ impl FolderTreeHitTarget {
         move_position: Option<Point>,
     ) -> Option<FolderTreeHitMessage> {
         match message {
-            InteractiveRowMessage::Activate => Some(FolderTreeHitMessage::Activate),
+            InteractiveRowMessage::Activate | InteractiveRowMessage::DoubleActivate => {
+                Some(FolderTreeHitMessage::Activate)
+            }
             InteractiveRowMessage::SecondaryActivate { position } => {
                 Some(FolderTreeHitMessage::ContextMenu(position))
             }

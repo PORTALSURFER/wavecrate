@@ -4,8 +4,8 @@ use radiant::{
     runtime::{PaintFillRect, PaintPrimitive, PaintStrokeRect, PaintText, PaintTextRun},
     theme::ThemeTokens,
     widgets::{
-        FocusBehavior, PaintBounds, PointerButton, TextWrap, Widget, WidgetCommon, WidgetInput,
-        WidgetOutput, WidgetSizing,
+        FocusBehavior, InteractiveRowMessage, InteractiveRowWidget, PaintBounds, TextWrap, Widget,
+        WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
     },
 };
 
@@ -21,7 +21,7 @@ pub(in crate::gui_app) enum CollectionHitMessage {
 
 #[derive(Clone, Debug)]
 pub(in crate::gui_app) struct CollectionHitTarget {
-    common: WidgetCommon,
+    row: InteractiveRowWidget,
     label: String,
     hotkey: char,
     color: Rgba8,
@@ -33,16 +33,23 @@ pub(in crate::gui_app) struct CollectionHitTarget {
 
 impl CollectionHitTarget {
     pub(in crate::gui_app) fn new(collection: &SampleCollectionView) -> Self {
-        let mut common = WidgetCommon::new(
+        let mut row = InteractiveRowWidget::new(
             0,
             WidgetSizing::fixed(Vector2::new(1.0, COLLECTION_ROW_HEIGHT)),
         );
-        common.focus = FocusBehavior::None;
-        common.paint.bounds = PaintBounds::ClipToRect;
-        common.paint.paints_focus = false;
-        common.paint.paints_state_layers = false;
+        row = if collection.drag_active && !collection.drop_target {
+            row.with_drop_target(true)
+        } else if collection.drag_active {
+            row.with_drop_only(true)
+        } else {
+            row
+        };
+        row.common.focus = FocusBehavior::None;
+        row.common.paint.bounds = PaintBounds::ClipToRect;
+        row.common.paint.paints_focus = false;
+        row.common.paint.paints_state_layers = false;
         Self {
-            common,
+            row,
             label: collection.name.clone(),
             hotkey: collection.hotkey,
             color: collection.color,
@@ -56,70 +63,30 @@ impl CollectionHitTarget {
 
 impl Widget for CollectionHitTarget {
     fn common(&self) -> &WidgetCommon {
-        &self.common
+        &self.row.common
     }
 
     fn common_mut(&mut self) -> &mut WidgetCommon {
-        &mut self.common
+        &mut self.row.common
     }
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        match input {
-            WidgetInput::PointerMove { position } => {
-                self.common.state.hovered = bounds.contains(position);
-                if self.common.state.hovered && self.drag_active && !self.drop_target {
-                    return Some(WidgetOutput::typed(CollectionHitMessage::HoverDropTarget(
-                        position,
-                    )));
-                }
-                None
-            }
-            WidgetInput::PointerPress {
-                position,
-                button: PointerButton::Primary,
-                ..
-            } if bounds.contains(position) => {
-                self.common.state.hovered = true;
-                self.common.state.pressed = true;
-                None
-            }
-            WidgetInput::PointerRelease {
-                position,
-                button: PointerButton::Primary,
-                ..
-            } => {
-                let activated = self.common.state.pressed && bounds.contains(position);
-                self.common.state.pressed = false;
-                self.common.state.hovered = bounds.contains(position);
-                activated.then(|| WidgetOutput::typed(CollectionHitMessage::Activate))
-            }
-            WidgetInput::PointerDoubleClick {
-                position,
-                button: PointerButton::Primary,
-                ..
-            } if bounds.contains(position) => {
-                self.common.state.hovered = true;
-                self.common.state.pressed = false;
-                Some(WidgetOutput::typed(CollectionHitMessage::Rename))
-            }
-            WidgetInput::PointerDrop {
-                position,
-                button: PointerButton::Primary,
-                ..
-            } if bounds.contains(position) => Some(WidgetOutput::typed(CollectionHitMessage::Drop)),
-            _ => None,
-        }
+        let move_position = pointer_move_position(&input);
+        self.row
+            .handle_input(bounds, input)
+            .and_then(|message| map_collection_row_message(message, move_position))
+            .map(WidgetOutput::typed)
     }
 
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
         let Some(previous) = previous.as_any().downcast_ref::<Self>() else {
             return;
         };
-        self.common.state = previous.common.state;
+        self.row.synchronize_from_previous(&previous.row);
     }
 
     fn accepts_pointer_move(&self) -> bool {
-        self.drag_active || self.drop_target || self.common.state.pressed
+        self.drag_active || self.drop_target || self.row.common.state.pressed
     }
 
     fn append_paint(
@@ -144,7 +111,7 @@ impl CollectionHitTarget {
         bounds: Rect,
         theme: &ThemeTokens,
     ) {
-        if !(self.selected || self.common.state.hovered || self.drop_target) {
+        if !(self.selected || self.row.common.state.hovered || self.drop_target) {
             return;
         }
 
@@ -156,7 +123,7 @@ impl CollectionHitTarget {
             theme.bg_secondary.blend_toward(theme.text_primary, 0.10)
         };
         primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-            widget_id: self.common.id,
+            widget_id: self.row.common.id,
             rect: bounds,
             color,
         }));
@@ -168,7 +135,7 @@ impl CollectionHitTarget {
         }
 
         primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
-            widget_id: self.common.id,
+            widget_id: self.row.common.id,
             rect: Rect::from_min_max(
                 Point::new(bounds.min.x + 1.0, bounds.min.y + 1.0),
                 Point::new(bounds.max.x - 1.0, bounds.max.y - 1.0),
@@ -184,7 +151,7 @@ impl CollectionHitTarget {
             Vector2::new(10.0, 10.0),
         );
         primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-            widget_id: self.common.id,
+            widget_id: self.row.common.id,
             rect: swatch,
             color: self.color,
         }));
@@ -192,7 +159,7 @@ impl CollectionHitTarget {
 
     fn paint_label(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect, theme: &ThemeTokens) {
         primitives.push(PaintPrimitive::Text(PaintTextRun {
-            widget_id: self.common.id,
+            widget_id: self.row.common.id,
             text: PaintText::from(format!("{}  {}", self.hotkey, self.label)),
             rect: Rect::from_min_max(
                 Point::new(bounds.min.x + 22.0, bounds.min.y),
@@ -217,7 +184,7 @@ impl CollectionHitTarget {
         }
 
         primitives.push(PaintPrimitive::Text(PaintTextRun {
-            widget_id: self.common.id,
+            widget_id: self.row.common.id,
             text: PaintText::from(self.assigned_count.to_string()),
             rect: Rect::from_min_max(
                 Point::new(bounds.max.x - 34.0, bounds.min.y),
@@ -229,5 +196,94 @@ impl CollectionHitTarget {
             align: radiant::runtime::PaintTextAlign::Right,
             wrap: TextWrap::None,
         }));
+    }
+}
+
+fn pointer_move_position(input: &WidgetInput) -> Option<Point> {
+    match input {
+        WidgetInput::PointerMove { position } => Some(*position),
+        _ => None,
+    }
+}
+
+fn map_collection_row_message(
+    message: InteractiveRowMessage,
+    move_position: Option<Point>,
+) -> Option<CollectionHitMessage> {
+    match message {
+        InteractiveRowMessage::Activate => Some(CollectionHitMessage::Activate),
+        InteractiveRowMessage::DoubleActivate => Some(CollectionHitMessage::Rename),
+        InteractiveRowMessage::Drop => Some(CollectionHitMessage::Drop),
+        InteractiveRowMessage::HoverDropTarget => {
+            move_position.map(CollectionHitMessage::HoverDropTarget)
+        }
+        InteractiveRowMessage::SecondaryActivate { .. } | InteractiveRowMessage::Drag(_) => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use radiant::widgets::{PointerButton, PointerModifiers};
+    use wavecrate::sample_sources::SampleCollection;
+
+    fn collection_view(drag_active: bool, drop_target: bool) -> SampleCollectionView {
+        SampleCollectionView {
+            collection: SampleCollection::new(0).expect("valid collection"),
+            hotkey: '1',
+            name: String::from("Collection 1"),
+            color: Rgba8 {
+                r: 255,
+                g: 86,
+                b: 98,
+                a: 240,
+            },
+            selected: false,
+            drop_target,
+            drag_active,
+            assigned_count: 0,
+        }
+    }
+
+    fn message_from(output: Option<WidgetOutput>) -> CollectionHitMessage {
+        output
+            .expect("expected collection output")
+            .typed_ref::<CollectionHitMessage>()
+            .expect("expected collection message")
+            .clone()
+    }
+
+    #[test]
+    fn double_click_requests_collection_rename() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+        let mut target = CollectionHitTarget::new(&collection_view(false, false));
+
+        assert_eq!(
+            message_from(target.handle_input(
+                bounds,
+                WidgetInput::PointerDoubleClick {
+                    position: Point::new(12.0, 8.0),
+                    button: PointerButton::Primary,
+                    modifiers: PointerModifiers::default(),
+                },
+            )),
+            CollectionHitMessage::Rename
+        );
+    }
+
+    #[test]
+    fn drag_hover_reports_collection_drop_target() {
+        let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+        let mut target = CollectionHitTarget::new(&collection_view(true, false));
+
+        assert_eq!(
+            message_from(target.handle_input(
+                bounds,
+                WidgetInput::PointerMove {
+                    position: Point::new(18.0, 8.0),
+                },
+            )),
+            CollectionHitMessage::HoverDropTarget(Point::new(18.0, 8.0))
+        );
     }
 }

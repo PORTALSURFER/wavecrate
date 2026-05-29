@@ -115,9 +115,9 @@ impl SampleFileHitTarget {
         release_modifiers: Option<PointerModifiers>,
     ) -> Option<SampleFileHitMessage> {
         match message {
-            InteractiveRowMessage::Activate => Some(SampleFileHitMessage::Activate(
-                release_modifiers.unwrap_or_default(),
-            )),
+            InteractiveRowMessage::Activate | InteractiveRowMessage::DoubleActivate => Some(
+                SampleFileHitMessage::Activate(release_modifiers.unwrap_or_default()),
+            ),
             InteractiveRowMessage::SecondaryActivate { position } => {
                 Some(SampleFileHitMessage::ContextMenu(position))
             }
