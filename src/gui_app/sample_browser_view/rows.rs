@@ -240,25 +240,19 @@ fn sample_collection_cell(
     width: f32,
     folder_browser: &FolderBrowserState,
 ) -> ui::View<GuiMessage> {
-    ui::custom_widget(
-        CollectionBlock::new(
-            file.collection
-                .and_then(|collection| folder_browser.collection_color(collection)),
-        ),
-        |_| None,
-    )
+    ui::widget(CollectionBlock::new(file.collection.and_then(
+        |collection| folder_browser.collection_color(collection),
+    )))
     .key(format!("sample-collection-{}", file.id))
     .height(20.0)
     .width(width)
 }
 
 fn sample_rating_cell(file: &FileEntry, width: f32) -> ui::View<GuiMessage> {
-    ui::custom_widget(RatingSquares::new(file.rating, file.rating_locked), |_| {
-        None
-    })
-    .key(format!("sample-rating-{}", file.id))
-    .height(20.0)
-    .width(width)
+    ui::widget(RatingSquares::new(file.rating, file.rating_locked))
+        .key(format!("sample-rating-{}", file.id))
+        .height(20.0)
+        .width(width)
 }
 
 fn sample_file_cell(
@@ -268,7 +262,7 @@ fn sample_file_cell(
     column_id: &str,
     cached: bool,
 ) -> ui::View<GuiMessage> {
-    ui::custom_widget(SampleCellText::new(value, !cached), |_| None)
+    ui::widget(SampleCellText::new(value, !cached))
         .key(format!("sample-{}-{column_id}", file.id))
         .height(20.0)
         .width(width)
