@@ -1,4 +1,4 @@
-use super::{frame_has_text, selected_asset_file_path};
+use super::{frame_has_text, gui_state_for_span_tests};
 use crate::gui_app::GuiAppState;
 use radiant::{
     gui::types::{Point, Rect, Vector2},
@@ -9,7 +9,13 @@ use radiant::{
 
 #[test]
 fn bottom_status_bar_reports_selected_sample_count() {
-    let mut state = GuiAppState::load_default().expect("default state loads");
+    let mut state = gui_state_for_span_tests();
+    let source_root = tempfile::tempdir().expect("source root");
+    let sample_path = source_root.path().join("selected-count.wav");
+    std::fs::write(&sample_path, []).expect("sample file");
+    state.folder_browser = crate::gui_app::FolderBrowserState::from_sample_sources(&[
+        wavecrate::sample_sources::SampleSource::new(source_root.path().to_path_buf()),
+    ]);
     let empty_frame = radiant::runtime::UiSurface::new(
         crate::gui_app::status_bar::bottom_status_bar(&state).into_node(),
     )
@@ -20,8 +26,9 @@ fn bottom_status_bar_reports_selected_sample_count() {
     assert!(frame_has_text(&empty_frame, "0 samples"));
     assert!(!frame_has_text(&empty_frame, "1 sample"));
 
-    let sample_path = selected_asset_file_path(&state.folder_browser, "portal_SS_kick_003.wav");
-    state.folder_browser.select_file(sample_path);
+    state
+        .folder_browser
+        .select_file(sample_path.display().to_string());
     let selected_frame = radiant::runtime::UiSurface::new(
         crate::gui_app::status_bar::bottom_status_bar(&state).into_node(),
     )

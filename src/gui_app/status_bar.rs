@@ -25,18 +25,20 @@ fn selected_sample_count_label(state: &GuiAppState) -> String {
 
 fn bottom_status_text(state: &GuiAppState) -> String {
     if let Some(progress) = state.folder_progress.as_ref() {
-        return if progress.total == 0 {
+        let counters = ui::ProgressSnapshot::new(progress.completed, progress.total);
+        return if counters.is_indeterminate() {
             format!(
-                "{} {} | {} items found",
-                progress.phase, progress.label, progress.completed
+                "{} {} | {}",
+                progress.phase,
+                progress.label,
+                counters.count_label("items found")
             )
         } else {
             format!(
-                "{} {} | {}/{} | {}",
+                "{} {} | {} | {}",
                 progress.phase,
                 progress.label,
-                progress.completed.min(progress.total),
-                progress.total,
+                counters.count_label("items found"),
                 progress.detail
             )
         };
@@ -45,14 +47,14 @@ fn bottom_status_text(state: &GuiAppState) -> String {
         .normalization_progress
         .as_ref()
         .map(|progress| {
-            if progress.total == 0 {
+            let counters = ui::ProgressSnapshot::new(progress.completed, progress.total);
+            if counters.is_indeterminate() {
                 format!("Normalizing {} | {}", progress.label, progress.detail)
             } else {
                 format!(
-                    "Normalizing {} | {}/{} | {}",
+                    "Normalizing {} | {} | {}",
                     progress.label,
-                    progress.completed.min(progress.total),
-                    progress.total,
+                    counters.count_label("items found"),
                     progress.detail
                 )
             }
@@ -65,10 +67,11 @@ pub(super) fn worker_progress_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
         return ui::text("").width(0.0).height(10.0);
     };
     let track_width = 180.0;
-    let progress_bar = if progress.total() == 0 {
-        ui::indeterminate_progress_bar(state.progress_tick)
+    let snapshot = progress.snapshot();
+    let progress_bar = if let Some(fraction) = snapshot.fraction() {
+        ui::determinate_progress_bar(fraction)
     } else {
-        ui::determinate_progress_bar(progress.completed() as f32 / progress.total().max(1) as f32)
+        ui::indeterminate_progress_bar(state.progress_tick)
     }
     .colors(
         ui::Rgba8::new(48, 50, 51, 210),
@@ -104,31 +107,19 @@ enum WorkerProgressView<'a> {
 }
 
 impl WorkerProgressView<'_> {
-    fn completed(&self) -> usize {
+    fn snapshot(&self) -> ui::ProgressSnapshot {
         match self {
-            Self::Folder(progress) => progress.completed,
-            Self::Normalization(progress) => progress.completed,
-        }
-    }
-
-    fn total(&self) -> usize {
-        match self {
-            Self::Folder(progress) => progress.total,
-            Self::Normalization(progress) => progress.total,
+            Self::Folder(progress) => ui::ProgressSnapshot::new(progress.completed, progress.total),
+            Self::Normalization(progress) => {
+                ui::ProgressSnapshot::new(progress.completed, progress.total)
+            }
         }
     }
 }
 
 pub(super) fn job_details_popover(progress: &FolderScanProgress) -> ui::View<GuiMessage> {
-    let total_label = if progress.total == 0 {
-        format!("{} found", progress.completed)
-    } else {
-        format!(
-            "{}/{}",
-            progress.completed.min(progress.total),
-            progress.total
-        )
-    };
+    let total_label =
+        ui::ProgressSnapshot::new(progress.completed, progress.total).count_label("found");
     let detail = if progress.detail.is_empty() {
         String::from("Waiting for next item")
     } else {
