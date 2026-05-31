@@ -9,8 +9,7 @@ const SAMPLE_LOAD_PROGRESS_MIN_DELTA: f32 = 0.01;
 pub(super) struct SampleLoadProgressReporter {
     sender: std::sync::mpsc::Sender<GuiMessage>,
     ticket: ui::TaskTicket,
-    last_sent_at: Option<Instant>,
-    last_progress: f32,
+    gate: ui::ProgressUpdateGate,
 }
 
 impl SampleLoadProgressReporter {
@@ -18,8 +17,11 @@ impl SampleLoadProgressReporter {
         Self {
             sender,
             ticket,
-            last_sent_at: None,
-            last_progress: 0.0,
+            gate: ui::ProgressUpdateGate::new(
+                SAMPLE_LOAD_PROGRESS_MIN_INTERVAL,
+                SAMPLE_LOAD_PROGRESS_MIN_DELTA,
+            )
+            .with_max_fraction(0.995),
         }
     }
 
@@ -28,29 +30,12 @@ impl SampleLoadProgressReporter {
     }
 
     fn report_at(&mut self, progress: f32, now: Instant) {
-        let progress = progress.clamp(0.0, 0.995);
-        if !self.should_send(progress, now) {
+        let Some(progress) = self.gate.accept_at(progress, now) else {
             return;
-        }
-        self.last_sent_at = Some(now);
-        self.last_progress = progress;
+        };
         let _ = self
             .sender
             .send(GuiMessage::SampleLoadProgress(self.ticket, progress));
-    }
-
-    fn should_send(&self, progress: f32, now: Instant) -> bool {
-        if progress >= 0.995 {
-            return true;
-        }
-        let Some(last_sent_at) = self.last_sent_at else {
-            return true;
-        };
-        if progress <= self.last_progress {
-            return false;
-        }
-        now.duration_since(last_sent_at) >= SAMPLE_LOAD_PROGRESS_MIN_INTERVAL
-            && progress - self.last_progress >= SAMPLE_LOAD_PROGRESS_MIN_DELTA
     }
 }
 
