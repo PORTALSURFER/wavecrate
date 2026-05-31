@@ -135,7 +135,9 @@ fn context_menu_escape_shortcut_closes_context_menu() {
 #[test]
 fn audio_backend_dropdown_escape_shortcut_closes_dropdown() {
     let mut state = gui_state_for_span_tests();
-    state.audio_backend_dropdown_open = true;
+    state
+        .audio_settings_dropdown
+        .open(crate::gui_app::AudioSettingsDropdown::Backend);
 
     let resolution = crate::gui_app::default_gui_shortcut_resolution(
         &state,

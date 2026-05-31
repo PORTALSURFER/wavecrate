@@ -33,9 +33,15 @@ impl AudioSettingsSnapshot {
             detail_label: state.audio_engine_detail_label(),
             error: state.audio_settings_error.clone(),
             audio_output_config: state.audio_output_config.clone(),
-            audio_backend_dropdown_open: state.audio_backend_dropdown_open,
-            audio_output_dropdown_open: state.audio_output_dropdown_open,
-            audio_sample_rate_dropdown_open: state.audio_sample_rate_dropdown_open,
+            audio_backend_dropdown_open: state
+                .audio_settings_dropdown
+                .is_open(&super::AudioSettingsDropdown::Backend),
+            audio_output_dropdown_open: state
+                .audio_settings_dropdown
+                .is_open(&super::AudioSettingsDropdown::Output),
+            audio_sample_rate_dropdown_open: state
+                .audio_settings_dropdown
+                .is_open(&super::AudioSettingsDropdown::SampleRate),
             audio_hosts: state.audio_hosts.clone(),
             audio_devices: state.audio_devices.clone(),
             audio_sample_rates: state.audio_sample_rates.clone(),
