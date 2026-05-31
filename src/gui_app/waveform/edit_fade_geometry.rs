@@ -107,7 +107,7 @@ impl WaveformWidget {
         let x = self.x_for_micros(bounds, micros)?;
         let size = edit_fade_handle_size(bounds);
         let horizontal = bounds.vertical_strip_around_x(x, size);
-        let vertical = edit_fade_handle_vertical_band(selection_rect, handle, size);
+        let vertical = edit_fade_handle_vertical_band(bounds, selection_rect, handle, size);
         horizontal.intersection(vertical)
     }
 
@@ -184,6 +184,7 @@ fn edit_fade_handle_size(bounds: Rect) -> f32 {
 }
 
 fn edit_fade_handle_vertical_band(
+    bounds: Rect,
     selection_rect: Rect,
     handle: WaveformEditFadeHandle,
     size: f32,
@@ -196,7 +197,7 @@ fn edit_fade_handle_vertical_band(
             selection_rect.bottom_edge_strip(size)
         }
         WaveformEditFadeHandle::InOuterStart | WaveformEditFadeHandle::OutOuterEnd => {
-            selection_rect.horizontal_center_strip(size)
+            bounds.horizontal_center_strip(size)
         }
     }
 }
