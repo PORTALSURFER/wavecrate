@@ -6,11 +6,7 @@ impl FolderTreeHitTarget {
         let Some(color) = self.background_fill() else {
             return;
         };
-        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-            widget_id: self.row.common.id,
-            rect: bounds,
-            color,
-        }));
+        push_row_fill(primitives, self.row.common.id, bounds, color);
     }
 
     pub(super) fn paint_drop_target_outline(
@@ -21,12 +17,12 @@ impl FolderTreeHitTarget {
         if !self.drop_target {
             return;
         }
+        let Some(rect) = ui::dense_row_inset_rect(bounds, 0.5) else {
+            return;
+        };
         primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
             widget_id: self.row.common.id,
-            rect: Rect::from_min_max(
-                Point::new(bounds.min.x + 0.5, bounds.min.y + 0.5),
-                Point::new(bounds.max.x - 0.5, bounds.max.y - 0.5),
-            ),
+            rect,
             color: Rgba8 {
                 r: 255,
                 g: 180,
@@ -61,41 +57,46 @@ impl FolderTreeHitTarget {
     }
 
     fn background_fill(&self) -> Option<Rgba8> {
-        if self.drop_target {
-            Some(Rgba8 {
-                r: 255,
-                g: 130,
-                b: 78,
-                a: 150,
-            })
-        } else if self.row.common.state.hovered && self.drop_candidate {
-            Some(Rgba8 {
-                r: 255,
-                g: 122,
-                b: 74,
-                a: 110,
-            })
-        } else if self.row.common.state.pressed || self.row.common.state.hovered {
-            Some(Rgba8 {
-                r: 255,
-                g: 110,
-                b: 85,
-                a: if self.row.common.state.pressed {
-                    120
-                } else {
-                    80
-                },
-            })
-        } else if self.selected {
-            Some(Rgba8 {
-                r: 255,
-                g: 82,
-                b: 62,
-                a: 105,
-            })
-        } else {
-            None
-        }
+        let interaction_fill = Rgba8 {
+            r: 255,
+            g: 110,
+            b: 85,
+            a: if self.row.common.state.pressed {
+                120
+            } else {
+                80
+            },
+        };
+        ui::dense_row_fill_color(
+            ui::DenseRowVisualState {
+                selected: self.selected,
+                hovered: self.row.common.state.hovered,
+                pressed: self.row.common.state.pressed,
+                active_target: self.drop_target,
+                candidate: self.drop_candidate,
+            },
+            ui::DenseRowPalette::new()
+                .selected(Rgba8 {
+                    r: 255,
+                    g: 82,
+                    b: 62,
+                    a: 105,
+                })
+                .hovered(interaction_fill)
+                .pressed(interaction_fill)
+                .active_target(Rgba8 {
+                    r: 255,
+                    g: 130,
+                    b: 78,
+                    a: 150,
+                })
+                .candidate_hovered(Rgba8 {
+                    r: 255,
+                    g: 122,
+                    b: 74,
+                    a: 110,
+                }),
+        )
     }
 
     fn label_color(&self, theme: &ThemeTokens) -> Rgba8 {
@@ -124,4 +125,17 @@ fn label_font_size(bounds: Rect) -> f32 {
     } else {
         13.0
     }
+}
+
+fn push_row_fill(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: WidgetId,
+    rect: Rect,
+    color: Rgba8,
+) {
+    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+        widget_id,
+        rect,
+        color,
+    }));
 }

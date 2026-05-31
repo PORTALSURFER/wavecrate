@@ -6,7 +6,7 @@ use radiant::{
     theme::ThemeTokens,
     widgets::{
         DragHandleMessage, FocusBehavior, InteractiveRowMessage, InteractiveRowWidget, PaintBounds,
-        Widget, WidgetCommon, WidgetInput, WidgetOutput,
+        Widget, WidgetCommon, WidgetId, WidgetInput, WidgetOutput,
     },
 };
 

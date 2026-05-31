@@ -1,11 +1,13 @@
 use radiant::gui::types::{Point, Rect, Rgba8};
-use radiant::layout::{LayoutOutput, Vector2};
+use radiant::layout::LayoutOutput;
+#[cfg(test)]
+use radiant::layout::Vector2;
 use radiant::prelude as ui;
 use radiant::runtime::{PaintFillRect, PaintPrimitive};
 use radiant::theme::ThemeTokens;
 use radiant::widgets::{
     DragHandleMessage, FocusBehavior, InteractiveRowMessage, InteractiveRowWidget, PaintBounds,
-    PointerModifiers, Widget, WidgetCommon, WidgetInput, WidgetOutput,
+    PointerModifiers, Widget, WidgetCommon, WidgetId, WidgetInput, WidgetOutput,
 };
 
 const HOVER_FILL: Rgba8 = Rgba8 {
@@ -132,38 +134,50 @@ impl SampleFileHitTarget {
     }
 
     fn paint_selection_fill(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
-        if !self.selected {
-            return;
-        }
-        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-            widget_id: self.row.common.id,
-            rect: bounds,
-            color: Rgba8 {
+        let Some(color) = ui::dense_row_fill_color(
+            ui::DenseRowVisualState {
+                selected: self.selected,
+                ..ui::DenseRowVisualState::default()
+            },
+            ui::DenseRowPalette::new().selected(Rgba8 {
                 r: 255,
                 g: 82,
                 b: 62,
                 a: 120,
-            },
-        }));
+            }),
+        ) else {
+            return;
+        };
+        push_row_fill(primitives, self.row.common.id, bounds, color);
     }
 
     fn paint_loaded_marker(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
         if !self.cached || self.selected {
             return;
         }
-        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-            widget_id: self.row.common.id,
-            rect: Rect::from_min_size(
-                Point::new(bounds.max.x - 3.0, bounds.min.y + 3.0),
-                Vector2::new(2.0, (bounds.height() - 6.0).max(8.0)),
-            ),
-            color: Rgba8 {
+        let Some(rect) = ui::dense_row_vertical_marker_rect(
+            bounds,
+            ui::DenseRowMarkerParts {
+                edge: ui::DenseRowMarkerEdge::Trailing,
+                width: 2.0,
+                edge_inset: 1.0,
+                vertical_inset: 3.0,
+                min_height: 8.0,
+            },
+        ) else {
+            return;
+        };
+        push_row_fill(
+            primitives,
+            self.row.common.id,
+            rect,
+            Rgba8 {
                 r: 226,
                 g: 226,
                 b: 226,
                 a: 210,
             },
-        }));
+        );
     }
 
     fn paint_interaction_fill(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
@@ -173,43 +187,62 @@ impl SampleFileHitTarget {
         if self.drag_active && !self.drag_source {
             return;
         }
-        if !self.row.common.state.pressed && !self.row.common.state.hovered {
+        let Some(color) = ui::dense_row_fill_color(
+            ui::DenseRowVisualState {
+                hovered: self.row.common.state.hovered,
+                pressed: self.row.common.state.pressed,
+                ..ui::DenseRowVisualState::default()
+            },
+            ui::DenseRowPalette::new()
+                .hovered(HOVER_FILL)
+                .pressed(PRESSED_FILL),
+        ) else {
             return;
-        }
-        let color = if self.row.common.state.pressed {
-            PRESSED_FILL
-        } else {
-            HOVER_FILL
         };
-        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-            widget_id: self.row.common.id,
-            rect: bounds,
-            color,
-        }));
+        push_row_fill(primitives, self.row.common.id, bounds, color);
     }
 
     fn paint_selection_marker(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
         if !self.selected {
             return;
         }
-        let marker_height = (bounds.height() - 8.0).max(8.0).min(bounds.height());
-        primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-            widget_id: self.row.common.id,
-            rect: Rect::from_min_size(
-                Point::new(
-                    bounds.min.x + 1.0,
-                    bounds.min.y + (bounds.height() - marker_height) * 0.5,
-                ),
-                Vector2::new(3.0, marker_height),
-            ),
-            color: Rgba8 {
+        let Some(rect) = ui::dense_row_vertical_marker_rect(
+            bounds,
+            ui::DenseRowMarkerParts {
+                edge: ui::DenseRowMarkerEdge::Leading,
+                width: 3.0,
+                edge_inset: 1.0,
+                vertical_inset: 4.0,
+                min_height: 8.0,
+            },
+        ) else {
+            return;
+        };
+        push_row_fill(
+            primitives,
+            self.row.common.id,
+            rect,
+            Rgba8 {
                 r: 255,
                 g: 82,
                 b: 62,
                 a: 245,
             },
-        }));
+        );
     }
+}
+
+fn push_row_fill(
+    primitives: &mut Vec<PaintPrimitive>,
+    widget_id: WidgetId,
+    rect: Rect,
+    color: Rgba8,
+) {
+    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
+        widget_id,
+        rect,
+        color,
+    }));
 }
 
 #[cfg(test)]
