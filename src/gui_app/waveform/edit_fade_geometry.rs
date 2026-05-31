@@ -1,7 +1,10 @@
 use radiant::gui::{
-    range::NormalizedRange,
+    range::{NormalizedPixelSnap, NormalizedRange},
     types::{Point, Rect},
-    visualization::canvas_selection_rect,
+    visualization::{
+        TimelineCoordinateMapper, TimelineEditHandle, TimelineEditHandleGeometry,
+        TimelineEditPreview, TimelineEditPreviewParts, TimelineViewport,
+    },
 };
 
 use super::{WaveformEditFadeHandle, WaveformWidget};
@@ -103,12 +106,15 @@ impl WaveformWidget {
         selection_rect: Rect,
         handle: WaveformEditFadeHandle,
     ) -> Option<Rect> {
-        let micros = self.micros_for_edit_fade_handle(handle)?;
-        let x = self.x_for_micros(bounds, micros)?;
-        let size = edit_fade_handle_size(bounds);
-        let horizontal = bounds.vertical_strip_around_x(x, size);
-        let vertical = edit_fade_handle_vertical_band(bounds, selection_rect, handle, size);
-        horizontal.intersection(vertical)
+        self.edit_preview.handle_rect(
+            self.timeline_mapper(bounds),
+            TimelineEditHandleGeometry {
+                bounds,
+                selection_rect,
+                handle_size: edit_fade_handle_size(bounds),
+            },
+            timeline_edit_handle(handle),
+        )
     }
 
     pub(super) fn visible_rect_for_normalized_range(
@@ -116,52 +122,27 @@ impl WaveformWidget {
         bounds: Rect,
         range: NormalizedRange,
     ) -> Option<Rect> {
-        let start = self.visible_ratio_for_micros(range.start_micros)?;
-        let end = self.visible_ratio_for_micros(range.end_micros)?;
-        canvas_selection_rect(bounds, start.min(end), start.max(end))
+        TimelineEditPreview::from_parts(TimelineEditPreviewParts {
+            selection: Some(range),
+            ..TimelineEditPreviewParts::default()
+        })
+        .selection_rect(self.timeline_mapper(bounds))
     }
 
-    fn micros_for_edit_fade_handle(&self, handle: WaveformEditFadeHandle) -> Option<u32> {
-        let selection = self.edit_preview.selection?;
-        match handle {
-            WaveformEditFadeHandle::InEnd => Some(
-                self.edit_preview
-                    .leading_end_micros
-                    .unwrap_or(selection.start_micros),
-            ),
-            WaveformEditFadeHandle::OutStart => Some(
-                self.edit_preview
-                    .trailing_start_micros
-                    .unwrap_or(selection.end_micros),
-            ),
-            WaveformEditFadeHandle::InStart => self
-                .edit_preview
-                .leading_end_micros
-                .map(|_| selection.start_micros),
-            WaveformEditFadeHandle::OutEnd => self
-                .edit_preview
-                .trailing_start_micros
-                .map(|_| selection.end_micros),
-            WaveformEditFadeHandle::InOuterStart => self.edit_preview.leading_end_micros.and(
-                self.edit_preview
-                    .leading_inner_start_micros
-                    .or(Some(selection.start_micros)),
-            ),
-            WaveformEditFadeHandle::OutOuterEnd => self.edit_preview.trailing_start_micros.and(
-                self.edit_preview
-                    .trailing_inner_end_micros
-                    .or(Some(selection.end_micros)),
-            ),
-        }
+    fn timeline_mapper(&self, bounds: Rect) -> TimelineCoordinateMapper {
+        TimelineCoordinateMapper::new(
+            TimelineViewport::from_index_viewport(self.viewport, self.file.frames),
+            bounds,
+            NormalizedPixelSnap::None,
+        )
     }
 
     fn x_for_micros(&self, bounds: Rect, micros: u32) -> Option<f32> {
-        Some(bounds.x_for_ratio(self.visible_ratio_for_micros(micros)?))
-    }
-
-    fn visible_ratio_for_micros(&self, micros: u32) -> Option<f32> {
-        let ratio = micros.min(1_000_000) as f32 / 1_000_000.0;
-        self.visible_ratio_for_absolute(Some(ratio))
+        let mapper = self.timeline_mapper(bounds);
+        if micros < mapper.viewport.start_micros || micros > mapper.viewport.end_micros {
+            return None;
+        }
+        Some(mapper.x_for_micros(micros))
     }
 }
 
@@ -183,21 +164,13 @@ fn edit_fade_handle_size(bounds: Rect) -> f32 {
         .min(bounds.height().max(1.0))
 }
 
-fn edit_fade_handle_vertical_band(
-    bounds: Rect,
-    selection_rect: Rect,
-    handle: WaveformEditFadeHandle,
-    size: f32,
-) -> Rect {
+fn timeline_edit_handle(handle: WaveformEditFadeHandle) -> TimelineEditHandle {
     match handle {
-        WaveformEditFadeHandle::InEnd | WaveformEditFadeHandle::OutStart => {
-            selection_rect.top_edge_strip(size)
-        }
-        WaveformEditFadeHandle::InStart | WaveformEditFadeHandle::OutEnd => {
-            selection_rect.bottom_edge_strip(size)
-        }
-        WaveformEditFadeHandle::InOuterStart | WaveformEditFadeHandle::OutOuterEnd => {
-            bounds.horizontal_center_strip(size)
-        }
+        WaveformEditFadeHandle::InEnd => TimelineEditHandle::LeadingEnd,
+        WaveformEditFadeHandle::InStart => TimelineEditHandle::LeadingStart,
+        WaveformEditFadeHandle::InOuterStart => TimelineEditHandle::LeadingOuterStart,
+        WaveformEditFadeHandle::OutStart => TimelineEditHandle::TrailingStart,
+        WaveformEditFadeHandle::OutEnd => TimelineEditHandle::TrailingEnd,
+        WaveformEditFadeHandle::OutOuterEnd => TimelineEditHandle::TrailingOuterEnd,
     }
 }
