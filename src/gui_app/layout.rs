@@ -197,7 +197,6 @@ fn metadata_tag_category_header(
             ui::InteractiveRowMessage::Drag(_) => GuiMessage::Noop,
         })
         .key(format!("metadata-tag-category-hit-{category_id}"))
-        .input_only()
         .fill_width()
         .height(22.0);
     let style = ui::WidgetStyle::new(
@@ -212,21 +211,19 @@ fn metadata_tag_category_header(
             ui::WidgetProminence::Subtle
         },
     );
-    ui::stack([
-        ui::row([ui::text(label)
-            .key(format!("metadata-tag-category-label-{category_id}"))
-            .fill_width()
-            .height(22.0)
-            .truncate()])
-        .style(style)
-        .padding_x(4.0)
+    let visual = ui::row([ui::text(label)
+        .key(format!("metadata-tag-category-label-{category_id}"))
         .fill_width()
-        .height(22.0),
-        input,
-    ])
-    .key(format!("metadata-tag-category-{}", category_id))
+        .height(22.0)
+        .truncate()])
+    .style(style)
+    .padding_x(4.0)
     .fill_width()
-    .height(22.0)
+    .height(22.0);
+    ui::input_overlay(visual, input)
+        .key(format!("metadata-tag-category-{}", category_id))
+        .fill_width()
+        .height(22.0)
 }
 
 fn metadata_tag_library_row(
@@ -301,10 +298,9 @@ fn metadata_tag_library_row(
             }
         })
         .key(format!("metadata-tag-library-row-hit-{tag}"))
-        .input_only()
         .width(width)
         .height(TAG_LIBRARY_PILL_HEIGHT);
-    ui::stack([visual, input])
+    ui::input_overlay(visual, input)
         .key(format!("metadata-tag-library-row-{tag}"))
         .width(width)
         .height(TAG_LIBRARY_PILL_HEIGHT)
@@ -338,20 +334,17 @@ fn metadata_tag_empty_category_target(
             }
         })
         .key(format!("metadata-tag-empty-category-hit-{category_id}"))
-        .input_only()
         .fill_width()
         .height(20.0);
-    ui::stack([
-        ui::text("No tags yet")
-            .height(20.0)
-            .fill_width()
-            .truncate()
-            .padding(4.0),
-        input,
-    ])
-    .key(format!("metadata-tag-empty-category-{category_id}"))
-    .fill_width()
-    .height(20.0)
+    let visual = ui::text("No tags yet")
+        .height(20.0)
+        .fill_width()
+        .truncate()
+        .padding(4.0);
+    ui::input_overlay(visual, input)
+        .key(format!("metadata-tag-empty-category-{category_id}"))
+        .fill_width()
+        .height(20.0)
 }
 
 fn metadata_tag_category_tone(category_id: &str) -> ui::WidgetTone {

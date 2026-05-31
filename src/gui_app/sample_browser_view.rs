@@ -107,7 +107,7 @@ fn sample_header_cell(column: &FileColumn, sort: &ui::DetailsSort) -> ui::View<G
     let resize_id = column.id.clone();
     let label = format!("{}{marker}", column.label);
     ui::row([
-        ui::stack([
+        ui::input_overlay(
             ui::text(label.clone())
                 .key(format!("sample-header-label-{}", column.id))
                 .align_text(ui::TextAlign::Left)
@@ -126,9 +126,8 @@ fn sample_header_cell(column: &FileColumn, sort: &ui::DetailsSort) -> ui::View<G
                 )
                 .key(format!("sample-sort-{}", column.id))
                 .fill_width()
-                .height(20.0)
-                .input_only(),
-        ])
+                .height(20.0),
+        )
         .fill_width()
         .height(20.0),
         ui::drag_handle()
