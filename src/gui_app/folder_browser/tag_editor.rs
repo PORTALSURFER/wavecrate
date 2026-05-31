@@ -3,7 +3,10 @@ use radiant::{
     widgets::{WidgetStyle, WidgetTone},
 };
 
-use crate::gui_app::metadata_tags::{MetadataTagCompletionOption, MetadataTagDisplayCategory};
+use crate::gui_app::{
+    metadata_tag_metrics::{metadata_tag_completion_suffix_width, metadata_tag_text_content_width},
+    metadata_tags::{MetadataTagCompletionOption, MetadataTagDisplayCategory},
+};
 
 use super::GuiMessage;
 use super::tag_completion::tag_completion_panel_layer;
@@ -209,10 +212,8 @@ fn tag_text_input(
         return input;
     };
 
-    let draft_width = tag_draft.chars().count() as f32 * 7.0;
-    let suffix_width = (suffix.chars().count() as f32 * 7.0 + 6.0)
-        .max(14.0)
-        .min((width - 8.0).max(1.0));
+    let draft_width = metadata_tag_text_content_width(tag_draft);
+    let suffix_width = metadata_tag_completion_suffix_width(suffix, 14.0, (width - 8.0).max(1.0));
     let suffix_x = (8.0 + draft_width + 2.0).min((width - suffix_width).max(8.0));
     ui::stack([
         input,

@@ -1,4 +1,6 @@
-use crate::gui_app::metadata_tag_metrics::metadata_tag_pill_width;
+use crate::gui_app::metadata_tag_metrics::{
+    metadata_tag_input_width_for_char_count, metadata_tag_pill_width,
+};
 use crate::gui_app::metadata_tags::{
     MetadataTagDisplayCategory, inferred_metadata_tag_category_id_for_name,
     metadata_tag_category_order,
@@ -141,13 +143,15 @@ pub(super) fn tag_input_display_value(tag_draft: &str, completion_suffix: Option
 }
 
 pub(super) fn tag_input_width(value: &str) -> f32 {
-    let char_width = value.chars().count().max(7) as f32;
-    (char_width * 7.0 + 12.0).clamp(61.0, 180.0)
+    metadata_tag_input_width_for_char_count(value.chars().count().max(7), 61.0, 180.0)
 }
 
 pub(super) fn tag_input_width_for_placeholder(value: &str, placeholder: &str) -> f32 {
-    let content_width = value.chars().count().max(placeholder.chars().count()) as f32;
-    (content_width * 7.0 + 12.0).clamp(61.0, 180.0)
+    metadata_tag_input_width_for_char_count(
+        value.chars().count().max(placeholder.chars().count()),
+        61.0,
+        180.0,
+    )
 }
 
 pub(super) fn tag_pill_width(tag: &str) -> f32 {
