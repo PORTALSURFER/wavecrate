@@ -2,6 +2,7 @@ use crate::gui_app::metadata_tags::{
     MetadataTagDisplayCategory, inferred_metadata_tag_category_id_for_name,
     metadata_tag_category_order,
 };
+use radiant::prelude as ui;
 
 pub(super) const TAG_FIELD_CONTROL_HEIGHT: f32 = 18.0;
 pub(super) const TAG_FIELD_ITEM_GAP: f32 = 3.0;
@@ -16,6 +17,12 @@ pub(super) enum TagEntryRowItem {
     Accepted(String),
     PendingCategory(String),
     Input(f32),
+}
+
+impl ui::FlowItemWidth for TagEntryRowItem {
+    fn flow_width(&self) -> f32 {
+        tag_entry_row_item_width(self)
+    }
 }
 
 pub(super) fn tag_field_rows(
@@ -34,11 +41,12 @@ pub(super) fn tag_field_rows(
 
     if let Some(tag) = pending_category_tag {
         let label = format!("{tag} ->");
-        push_row_item(
+        ui::push_flow_row_item(
             &mut rows,
             TagEntryRowItem::PendingCategory(label.clone()),
             tag_pill_width(&label),
             content_width,
+            tag_field_flow_metrics(),
         );
     }
     let input_width = if rows.last().is_some_and(Vec::is_empty) {
@@ -46,26 +54,24 @@ pub(super) fn tag_field_rows(
     } else {
         input_width
     };
-    push_row_item(
+    ui::push_flow_row_item(
         &mut rows,
         TagEntryRowItem::Input(input_width),
         input_width,
         content_width,
+        tag_field_flow_metrics(),
     );
     rows
 }
 
 fn pack_tag_rows(tags: &[String], content_width: f32) -> Vec<Vec<TagEntryRowItem>> {
-    let mut rows = Vec::new();
-    for tag in tags {
-        push_row_item(
-            &mut rows,
-            TagEntryRowItem::Accepted(tag.clone()),
-            tag_pill_width(tag),
-            content_width,
-        );
-    }
-    rows
+    ui::pack_flow_rows(
+        tags.iter().map(|tag| {
+            ui::FlowItem::new(TagEntryRowItem::Accepted(tag.clone()), tag_pill_width(tag))
+        }),
+        content_width,
+        tag_field_flow_metrics(),
+    )
 }
 
 pub(super) fn order_metadata_tags_for_display(
@@ -96,35 +102,6 @@ pub(super) fn metadata_tag_category_id_for_display<'a>(
         .unwrap_or_else(|| inferred_metadata_tag_category_id_for_name(tag))
 }
 
-fn push_row_item(
-    rows: &mut Vec<Vec<TagEntryRowItem>>,
-    item: TagEntryRowItem,
-    width: f32,
-    content_width: f32,
-) {
-    if rows.is_empty() {
-        rows.push(Vec::new());
-    }
-
-    let current_width = row_width(rows.last().expect("row exists"));
-    let proposed = if current_width <= 0.0 {
-        width
-    } else {
-        current_width + TAG_FIELD_ITEM_GAP + width
-    };
-    if proposed > content_width && current_width > 0.0 {
-        rows.push(Vec::new());
-    }
-    rows.last_mut().expect("row exists").push(item);
-}
-
-fn row_width(row: &[TagEntryRowItem]) -> f32 {
-    row.iter()
-        .map(tag_entry_row_item_width)
-        .reduce(|total, width| total + TAG_FIELD_ITEM_GAP + width)
-        .unwrap_or(0.0)
-}
-
 fn tag_entry_row_item_width(item: &TagEntryRowItem) -> f32 {
     match item {
         TagEntryRowItem::Accepted(tag) => tag_pill_width(tag),
@@ -134,32 +111,25 @@ fn tag_entry_row_item_width(item: &TagEntryRowItem) -> f32 {
 }
 
 fn should_break_before_tag_input(tags: &[String], input_width: f32, content_width: f32) -> bool {
-    let mut row_width = 0.0;
-    for tag in tags {
-        let width = tag_pill_width(tag);
-        let proposed = if row_width <= 0.0 {
-            width
-        } else {
-            row_width + TAG_FIELD_ITEM_GAP + width
-        };
-        if proposed > content_width && row_width > 0.0 {
-            row_width = width;
-        } else {
-            row_width = proposed;
-        }
-    }
-
-    row_width > 0.0
-        && content_width - row_width - TAG_FIELD_ITEM_GAP
-            < input_width.max(MIN_TAG_INPUT_REMAINING_WIDTH)
+    ui::flow_trailing_item_starts_new_row(
+        tags.iter().map(|tag| tag_pill_width(tag)),
+        input_width,
+        MIN_TAG_INPUT_REMAINING_WIDTH,
+        content_width,
+        tag_field_flow_metrics(),
+    )
 }
 
 pub(super) fn rows_height(row_count: usize) -> f32 {
-    if row_count == 0 {
-        return 0.0;
-    }
-    row_count as f32 * TAG_FIELD_CONTROL_HEIGHT
-        + row_count.saturating_sub(1) as f32 * TAG_FIELD_LINE_GAP
+    ui::flow_rows_height(row_count, tag_field_flow_metrics())
+}
+
+fn tag_field_flow_metrics() -> ui::FlowLayoutMetrics {
+    ui::FlowLayoutMetrics::new(
+        TAG_FIELD_ITEM_GAP,
+        TAG_FIELD_LINE_GAP,
+        TAG_FIELD_CONTROL_HEIGHT,
+    )
 }
 
 pub(super) fn tag_input_display_value(tag_draft: &str, completion_suffix: Option<&str>) -> String {
