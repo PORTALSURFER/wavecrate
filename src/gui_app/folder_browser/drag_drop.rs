@@ -99,7 +99,7 @@ impl FolderBrowserState {
             || self.drop_target_folder.is_some()
             || self.drop_target_collection.is_some()
         {
-            self.drag_revision = self.drag_revision.wrapping_add(1);
+            self.drag_revision.bump();
         }
         self.drag = None;
         self.drag_pointer = None;

@@ -24,7 +24,7 @@ pub(super) struct FolderBrowserState {
     drag_pointer: Option<Point>,
     drop_target_folder: Option<String>,
     drop_target_collection: Option<SampleCollection>,
-    drag_revision: u64,
+    drag_revision: ui::RevisionCounter,
     collections: Vec<SampleCollectionConfig>,
     selected_collection: Option<SampleCollection>,
     collection_rename_edit: Option<CollectionRenameEdit>,
@@ -71,7 +71,7 @@ impl FolderBrowserState {
             drag_pointer: None,
             drop_target_folder: None,
             drop_target_collection: None,
-            drag_revision: 0,
+            drag_revision: ui::RevisionCounter::default(),
             collections: Self::default_collections(),
             selected_collection: None,
             collection_rename_edit: None,
@@ -107,7 +107,7 @@ impl FolderBrowserState {
             drag_pointer: None,
             drop_target_folder: None,
             drop_target_collection: None,
-            drag_revision: 0,
+            drag_revision: ui::RevisionCounter::default(),
             collections: Self::default_collections(),
             selected_collection: None,
             collection_rename_edit: None,
@@ -206,7 +206,7 @@ impl FolderBrowserState {
     }
 
     pub(super) fn drag_revision(&self) -> u64 {
-        self.drag_revision
+        self.drag_revision.get()
     }
 
     pub(super) fn scan_is_active(&self, source_id: &str, task_id: u64) -> bool {
