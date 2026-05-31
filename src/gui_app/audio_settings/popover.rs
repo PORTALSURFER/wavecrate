@@ -63,13 +63,15 @@ fn audio_settings_panel_rows(snapshot: &AudioSettingsSnapshot) -> Vec<ui::View<G
         rows.push(audio_settings_error_row(error));
     }
     rows.push(audio_settings_backend_section(snapshot));
-    rows.push(audio_settings_section(
+    rows.push(ui::labeled_control(
         "Output",
         audio_output_dropdown(snapshot),
+        45.0,
     ));
-    rows.push(audio_settings_section(
+    rows.push(ui::labeled_control(
         "Sample Rate",
         audio_sample_rate_dropdown(snapshot),
+        45.0,
     ));
     rows.push(cache_maintenance_section());
     rows
@@ -96,17 +98,15 @@ fn audio_settings_error_row(error: &str) -> ui::View<GuiMessage> {
 }
 
 fn cache_maintenance_section() -> ui::View<GuiMessage> {
-    ui::column(vec![
-        section_label("Maintenance"),
+    ui::labeled_control(
+        "Maintenance",
         ui::button("Clear Rebuildable Caches")
             .message(GuiMessage::ClearRebuildableCaches)
             .key("settings-clear-rebuildable-caches")
             .fill_width()
             .height(24.0),
-    ])
-    .spacing(3.0)
-    .fill_width()
-    .height(45.0)
+        45.0,
+    )
 }
 
 fn audio_settings_backend_section(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
@@ -114,33 +114,11 @@ fn audio_settings_backend_section(snapshot: &AudioSettingsSnapshot) -> ui::View<
         snapshot.audio_backend_dropdown_open,
         snapshot.audio_hosts.len() + 1,
     );
-    ui::column(vec![
-        section_label("Backend"),
-        audio_host_dropdown(snapshot),
-    ])
-    .spacing(AUDIO_SETTINGS_SECTION_SPACING)
-    .fill_width()
-    .height(21.0 + dropdown_height)
-}
-
-fn audio_settings_section(
-    label: &'static str,
-    control: ui::View<GuiMessage>,
-) -> ui::View<GuiMessage> {
-    ui::column(vec![section_label(label), control])
-        .spacing(3.0)
-        .fill_width()
-        .height(45.0)
-}
-
-fn section_label(label: &'static str) -> ui::View<GuiMessage> {
-    ui::text(label)
-        .style(ui::WidgetStyle {
-            tone: ui::WidgetTone::Accent,
-            prominence: ui::WidgetProminence::Subtle,
-        })
-        .fill_width()
-        .height(18.0)
+    ui::labeled_control_from_parts(
+        ui::LabeledControlParts::new("Backend", audio_host_dropdown(snapshot))
+            .spacing(AUDIO_SETTINGS_SECTION_SPACING)
+            .height(21.0 + dropdown_height),
+    )
 }
 
 fn audio_host_dropdown(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
