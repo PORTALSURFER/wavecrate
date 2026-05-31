@@ -110,6 +110,13 @@ const WAVEFORM_WIDGET_ID: u64 = 12;
 const PLAYBACK_START_ACTIVE_SOURCE_GRACE: Duration = Duration::from_millis(120);
 const UNCACHED_SAMPLE_LOAD_DEBOUNCE: Duration = Duration::from_millis(90);
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AudioSettingsDropdown {
+    Backend,
+    Output,
+    SampleRate,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 enum GuiMessage {
     ResizeFolder(DragHandleMessage),

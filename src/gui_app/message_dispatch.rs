@@ -3,27 +3,21 @@ use radiant::widgets::DragHandleMessage;
 use std::time::Instant;
 
 use super::{
-    GuiAppState, GuiMessage, WaveformActiveDragKind, WaveformInteraction, WaveformSelectionKind,
-    emit_gui_action,
+    AudioSettingsDropdown, GuiAppState, GuiMessage, WaveformActiveDragKind, WaveformInteraction,
+    WaveformSelectionKind, emit_gui_action,
 };
 
 impl GuiAppState {
     fn toggle_audio_backend_dropdown(&mut self) {
-        self.audio_backend_dropdown_open = !self.audio_backend_dropdown_open;
-        self.audio_output_dropdown_open = false;
-        self.audio_sample_rate_dropdown_open = false;
+        self.toggle_audio_settings_dropdown(AudioSettingsDropdown::Backend);
     }
 
     fn toggle_audio_output_dropdown(&mut self) {
-        self.audio_output_dropdown_open = !self.audio_output_dropdown_open;
-        self.audio_backend_dropdown_open = false;
-        self.audio_sample_rate_dropdown_open = false;
+        self.toggle_audio_settings_dropdown(AudioSettingsDropdown::Output);
     }
 
     fn toggle_audio_sample_rate_dropdown(&mut self) {
-        self.audio_sample_rate_dropdown_open = !self.audio_sample_rate_dropdown_open;
-        self.audio_backend_dropdown_open = false;
-        self.audio_output_dropdown_open = false;
+        self.toggle_audio_settings_dropdown(AudioSettingsDropdown::SampleRate);
     }
 
     fn apply_waveform_message(

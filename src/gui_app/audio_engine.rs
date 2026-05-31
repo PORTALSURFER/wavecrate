@@ -187,15 +187,39 @@ impl GuiAppState {
     }
 
     pub(super) fn audio_settings_dropdown_open(&self) -> bool {
-        self.audio_backend_dropdown_open
-            || self.audio_output_dropdown_open
-            || self.audio_sample_rate_dropdown_open
+        self.audio_settings_dropdowns().any_open()
     }
 
     pub(super) fn close_audio_settings_dropdowns(&mut self) {
-        self.audio_backend_dropdown_open = false;
-        self.audio_output_dropdown_open = false;
-        self.audio_sample_rate_dropdown_open = false;
+        self.apply_audio_settings_dropdowns(radiant::prelude::ExclusiveOpen::new());
+    }
+
+    pub(super) fn toggle_audio_settings_dropdown(&mut self, dropdown: AudioSettingsDropdown) {
+        let mut dropdowns = self.audio_settings_dropdowns();
+        dropdowns.toggle(dropdown);
+        self.apply_audio_settings_dropdowns(dropdowns);
+    }
+
+    fn audio_settings_dropdowns(&self) -> radiant::prelude::ExclusiveOpen<AudioSettingsDropdown> {
+        radiant::prelude::ExclusiveOpen::from_open(if self.audio_backend_dropdown_open {
+            Some(AudioSettingsDropdown::Backend)
+        } else if self.audio_output_dropdown_open {
+            Some(AudioSettingsDropdown::Output)
+        } else if self.audio_sample_rate_dropdown_open {
+            Some(AudioSettingsDropdown::SampleRate)
+        } else {
+            None
+        })
+    }
+
+    fn apply_audio_settings_dropdowns(
+        &mut self,
+        dropdowns: radiant::prelude::ExclusiveOpen<AudioSettingsDropdown>,
+    ) {
+        self.audio_backend_dropdown_open = dropdowns.is_open(&AudioSettingsDropdown::Backend);
+        self.audio_output_dropdown_open = dropdowns.is_open(&AudioSettingsDropdown::Output);
+        self.audio_sample_rate_dropdown_open =
+            dropdowns.is_open(&AudioSettingsDropdown::SampleRate);
     }
 
     pub(super) fn set_audio_output_host(&mut self, host: Option<String>) {
