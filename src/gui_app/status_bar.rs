@@ -162,13 +162,12 @@ pub(super) fn job_details_popover(progress: &FolderScanProgress) -> ui::View<Gui
     .padding(8.0)
     .width(300.0)
     .height(132.0);
-    ui::column([
-        ui::spacer().fill_height(),
-        ui::row([ui::spacer().fill_width(), panel])
-            .padding_x(14.0)
-            .padding_y(38.0)
-            .fill_width()
-            .height(172.0),
-    ])
-    .fill()
+    ui::anchored_layer(
+        panel,
+        ui::Vector2::new(300.0, 132.0),
+        ui::LayerHorizontalAnchor::End,
+        ui::LayerVerticalAnchor::End,
+        14.0,
+        38.0,
+    )
 }
