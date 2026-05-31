@@ -116,6 +116,7 @@ const UNCACHED_SAMPLE_LOAD_DEBOUNCE: Duration = Duration::from_millis(90);
 enum GuiMessage {
     ResizeFolder(DragHandleMessage),
     FolderBrowser(FolderBrowserMessage),
+    AddSourceDialogFinished(Result<ui::PlatformResponse, String>),
     FolderScanProgress(FolderScanProgress),
     FolderScanDiscoveryBatch(FolderScanDiscoveryBatch),
     FolderScanFinished(FolderScanResult),

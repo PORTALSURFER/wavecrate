@@ -59,6 +59,9 @@ impl GuiAppState {
     ) {
         match message {
             GuiMessage::ResizeFolder(message) => self.resize_folder_browser(message),
+            GuiMessage::AddSourceDialogFinished(result) => {
+                self.finish_add_source_dialog(result, context);
+            }
             GuiMessage::FolderBrowser(message) => {
                 self.apply_folder_browser_message(message, context);
             }

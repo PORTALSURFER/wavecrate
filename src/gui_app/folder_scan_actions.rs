@@ -1,5 +1,5 @@
 use radiant::prelude as ui;
-use rfd::FileDialog;
+use std::path::PathBuf;
 use std::time::Instant;
 
 use super::folder_browser::{self, FolderScanDiscoveryBatch, FolderScanProgress, FolderScanResult};
@@ -59,17 +59,61 @@ impl GuiAppState {
 
     pub(super) fn add_source_from_dialog(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
         let started_at = Instant::now();
-        let Some(path) = FileDialog::new().set_title("Add source").pick_folder() else {
-            emit_gui_action(
-                "folder_browser.add_source_dialog",
-                Some("folder_browser"),
-                None,
-                "cancelled",
-                started_at,
-                None,
-            );
-            return;
+        context.pick_folder(
+            ui::FileDialogRequest::new().title("Add source"),
+            GuiMessage::AddSourceDialogFinished,
+        );
+        emit_gui_action(
+            "folder_browser.add_source_dialog",
+            Some("folder_browser"),
+            None,
+            "requested",
+            started_at,
+            None,
+        );
+    }
+
+    pub(super) fn finish_add_source_dialog(
+        &mut self,
+        result: Result<ui::PlatformResponse, String>,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        let started_at = Instant::now();
+        let path = match selected_folder_path(result) {
+            Ok(Some(path)) => path,
+            Ok(None) => {
+                emit_gui_action(
+                    "folder_browser.add_source_dialog",
+                    Some("folder_browser"),
+                    None,
+                    "cancelled",
+                    started_at,
+                    None,
+                );
+                return;
+            }
+            Err(error) => {
+                self.sample_status = format!("Add source failed: {error}");
+                emit_gui_action(
+                    "folder_browser.add_source_dialog",
+                    Some("folder_browser"),
+                    None,
+                    "error",
+                    started_at,
+                    Some(&error),
+                );
+                return;
+            }
         };
+        self.queue_add_source_path(path, started_at, context);
+    }
+
+    fn queue_add_source_path(
+        &mut self,
+        path: PathBuf,
+        started_at: Instant,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
         let task_id = self.next_folder_task_id();
         if let Some(request) = self.folder_browser.begin_add_source_path(path, task_id) {
             let label = request.label.clone();
@@ -239,6 +283,16 @@ impl GuiAppState {
     }
 }
 
+fn selected_folder_path(
+    result: Result<ui::PlatformResponse, String>,
+) -> Result<Option<PathBuf>, String> {
+    match result? {
+        ui::PlatformResponse::Path(path) => Ok(Some(path)),
+        ui::PlatformResponse::Canceled => Ok(None),
+        other => Err(format!("unexpected platform response: {other:?}")),
+    }
+}
+
 fn run_folder_scan_worker(
     request: folder_browser::FolderScanRequest,
     sender: std::sync::mpsc::Sender<GuiMessage>,
@@ -289,4 +343,35 @@ fn send_discovery_batch(
             events,
         },
     ));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn selected_folder_path_maps_platform_dialog_results() {
+        let path = PathBuf::from(r"C:\samples");
+
+        assert_eq!(
+            selected_folder_path(Ok(ui::PlatformResponse::Path(path.clone()))),
+            Ok(Some(path))
+        );
+        assert_eq!(
+            selected_folder_path(Ok(ui::PlatformResponse::Canceled)),
+            Ok(None)
+        );
+        assert_eq!(
+            selected_folder_path(Err(String::from("unsupported"))),
+            Err(String::from("unsupported"))
+        );
+    }
+
+    #[test]
+    fn selected_folder_path_rejects_non_path_platform_responses() {
+        let error = selected_folder_path(Ok(ui::PlatformResponse::Completed))
+            .expect_err("folder picker should only accept path or cancel responses");
+
+        assert!(error.contains("unexpected platform response"));
+    }
 }
