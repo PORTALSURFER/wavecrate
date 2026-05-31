@@ -66,10 +66,13 @@ fn metadata_tag_library_panel(state: &GuiAppState) -> ui::View<GuiMessage> {
     let selected_tags = state.selected_metadata_tags();
     let drag_active = state.metadata_tag_drag_active();
     let drop_hover = state.metadata_tag_drop_hover();
+    let dragged_tag = state.dragged_metadata_tag();
     let groups = state
         .categorized_metadata_tags()
         .into_iter()
-        .map(|group| metadata_tag_category_group(group, selected_tags, drag_active, drop_hover))
+        .map(|group| {
+            metadata_tag_category_group(group, selected_tags, drag_active, drop_hover, dragged_tag)
+        })
         .collect::<Vec<_>>();
     ui::column([
         ui::row([
@@ -102,6 +105,7 @@ fn metadata_tag_category_group(
     selected_tags: &[String],
     drag_active: bool,
     drop_hover: Option<&str>,
+    dragged_tag: Option<&str>,
 ) -> ui::View<GuiMessage> {
     let disclosure = if group.collapsed { ">" } else { "v" };
     let count_label = if group.tags.is_empty() {
@@ -144,12 +148,14 @@ fn metadata_tag_category_group(
             ));
         } else {
             let pills = group.tags.into_iter().map(|tag| {
+                let drag_source = dragged_tag == Some(tag.as_str());
                 metadata_tag_library_row(
                     tag,
                     category_id.as_str(),
                     locked,
                     selected_tags,
                     drag_active,
+                    drag_source,
                 )
             });
             children.push(
@@ -234,6 +240,7 @@ fn metadata_tag_library_row(
     locked: bool,
     selected_tags: &[String],
     drag_active: bool,
+    drag_source: bool,
 ) -> ui::View<GuiMessage> {
     let selected = selected_tags.iter().any(|selected| selected == &tag);
     let style = ui::WidgetStyle {
@@ -263,7 +270,11 @@ fn metadata_tag_library_row(
     let category_for_input = category_id.to_string();
     let mut input = ui::interactive_row();
     if !locked {
-        input = input.draggable();
+        input = input
+            .draggable()
+            .drag_active(drag_active)
+            .drag_source(drag_source)
+            .drag_source_motion(true);
         if drag_active {
             input = input.droppable(true);
         }

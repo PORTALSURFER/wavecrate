@@ -18,6 +18,11 @@ impl GuiAppState {
         self.metadata_tag_drop_hover.as_deref()
     }
 
+    /// Returns the tag currently being dragged from the metadata-tag library.
+    pub(in crate::gui_app) fn dragged_metadata_tag(&self) -> Option<&str> {
+        self.metadata_tag_drag.as_deref()
+    }
+
     pub(in crate::gui_app) fn hover_metadata_tag_drop_category(&mut self, category_id: String) {
         if self.metadata_tag_drag.is_none() || metadata_tag_category_is_locked(category_id.as_str())
         {
