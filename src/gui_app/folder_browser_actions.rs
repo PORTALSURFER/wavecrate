@@ -4,9 +4,8 @@ use std::time::Instant;
 
 use super::folder_browser::FolderBrowserMessage;
 use super::{
-    FolderResize, GuiAppState, GuiMessage, MAX_FOLDER_WIDTH, MIN_FOLDER_WIDTH,
-    SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_ROW_HEIGHT,
-    emit_gui_action,
+    GuiAppState, GuiMessage, MAX_FOLDER_WIDTH, MIN_FOLDER_WIDTH, SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
+    SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_ROW_HEIGHT, emit_gui_action,
 };
 
 impl GuiAppState {
@@ -20,18 +19,21 @@ impl GuiAppState {
         };
         match message {
             DragHandleMessage::Started { position } => {
-                self.folder_resize = Some(FolderResize {
-                    start_x: position.x,
-                    start_width: self.folder_width,
-                });
+                self.folder_resize = Some(ui::PanelResizeDrag::new(
+                    ui::PanelResizeEdge::Right,
+                    position,
+                    self.folder_width,
+                ));
             }
             DragHandleMessage::Moved { position } | DragHandleMessage::Ended { position } => {
-                let resize = self.folder_resize.unwrap_or(FolderResize {
-                    start_x: position.x,
-                    start_width: self.folder_width,
+                let resize = self.folder_resize.unwrap_or_else(|| {
+                    ui::PanelResizeDrag::new(
+                        ui::PanelResizeEdge::Right,
+                        position,
+                        self.folder_width,
+                    )
                 });
-                self.folder_width = (resize.start_width + position.x - resize.start_x)
-                    .clamp(MIN_FOLDER_WIDTH, MAX_FOLDER_WIDTH);
+                self.folder_width = resize.size_at(position, MIN_FOLDER_WIDTH, MAX_FOLDER_WIDTH);
                 if matches!(message, DragHandleMessage::Ended { .. }) {
                     self.folder_resize = None;
                 }

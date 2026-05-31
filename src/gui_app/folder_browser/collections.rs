@@ -2,6 +2,7 @@ use std::{collections::BTreeMap, path::PathBuf};
 
 use radiant::{
     gui::types::{Point, Rgba8},
+    prelude as ui,
     widgets::{DragHandleMessage, TextInputMessage},
 };
 use wavecrate::sample_sources::SampleCollection;
@@ -31,12 +32,6 @@ pub(super) struct SampleCollectionConfig {
     pub(super) hotkey: char,
     pub(super) name: String,
     pub(super) color: Rgba8,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(super) struct CollectionPanelResize {
-    pub(super) start_y: f32,
-    pub(super) start_height: f32,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -152,17 +147,21 @@ impl FolderBrowserState {
     pub(super) fn resize_collections_panel(&mut self, message: DragHandleMessage) {
         match message {
             DragHandleMessage::Started { position } => {
-                self.collection_panel_resize = Some(CollectionPanelResize {
-                    start_y: position.y,
-                    start_height: self.collections_panel_height,
-                });
+                self.collection_panel_resize = Some(ui::PanelResizeDrag::new(
+                    ui::PanelResizeEdge::Top,
+                    position,
+                    self.collections_panel_height,
+                ));
             }
             DragHandleMessage::Moved { position } | DragHandleMessage::Ended { position } => {
-                let Some(resize) = self.collection_panel_resize.clone() else {
+                let Some(resize) = self.collection_panel_resize else {
                     return;
                 };
-                self.collections_panel_height = (resize.start_height + resize.start_y - position.y)
-                    .clamp(MIN_COLLECTIONS_PANEL_HEIGHT, MAX_COLLECTIONS_PANEL_HEIGHT);
+                self.collections_panel_height = resize.size_at(
+                    position,
+                    MIN_COLLECTIONS_PANEL_HEIGHT,
+                    MAX_COLLECTIONS_PANEL_HEIGHT,
+                );
                 if matches!(message, DragHandleMessage::Ended { .. }) {
                     self.collection_panel_resize = None;
                 }

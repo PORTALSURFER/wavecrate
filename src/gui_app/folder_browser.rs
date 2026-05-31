@@ -29,7 +29,7 @@ pub(super) struct FolderBrowserState {
     selected_collection: Option<SampleCollection>,
     collection_rename_edit: Option<CollectionRenameEdit>,
     collections_panel_height: f32,
-    collection_panel_resize: Option<CollectionPanelResize>,
+    collection_panel_resize: Option<ui::PanelResizeDrag>,
     file_columns: Vec<FileColumn>,
     file_sort: ui::DetailsSort,
     file_column_resize: Option<ui::DetailsColumnResizeDrag>,
@@ -293,10 +293,7 @@ fn collect_collection_audio_files<'a>(
 }
 
 mod collections;
-use collections::{
-    CollectionPanelResize, CollectionRenameEdit, DEFAULT_COLLECTIONS_PANEL_HEIGHT,
-    SampleCollectionConfig,
-};
+use collections::{CollectionRenameEdit, DEFAULT_COLLECTIONS_PANEL_HEIGHT, SampleCollectionConfig};
 pub(in crate::gui_app) use collections::{SampleCollectionView, collection_hotkey};
 
 mod path_helpers;

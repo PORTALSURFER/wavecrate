@@ -1,4 +1,7 @@
 use super::*;
+use crate::gui_app::folder_browser::collections::{
+    MAX_COLLECTIONS_PANEL_HEIGHT, MIN_COLLECTIONS_PANEL_HEIGHT,
+};
 
 #[test]
 fn visible_folder_depths_are_stable_for_siblings() {
@@ -47,6 +50,47 @@ fn folder_keyboard_navigation_moves_visible_selection_and_expands_collapses() {
     assert_eq!(browser.selected_folder, path_id(&snares));
     assert!(!browser.navigate_selected_folder(1));
     assert_eq!(browser.selected_folder, path_id(&snares));
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn collections_panel_splitter_resizes_and_clamps_height() {
+    let root = temp_source_root("wavecrate-gui-collections-panel-resize");
+    let mut browser = FolderBrowserState::from_root(root.clone());
+
+    assert_eq!(
+        browser.collections_panel_height,
+        super::super::DEFAULT_COLLECTIONS_PANEL_HEIGHT
+    );
+
+    browser.resize_collections_panel(DragHandleMessage::Started {
+        position: Point::new(0.0, 200.0),
+    });
+    browser.resize_collections_panel(DragHandleMessage::Moved {
+        position: Point::new(0.0, 120.0),
+    });
+    assert_eq!(
+        browser.collections_panel_height,
+        super::super::DEFAULT_COLLECTIONS_PANEL_HEIGHT + 80.0
+    );
+
+    browser.resize_collections_panel(DragHandleMessage::Moved {
+        position: Point::new(0.0, 1_000.0),
+    });
+    assert_eq!(
+        browser.collections_panel_height,
+        MIN_COLLECTIONS_PANEL_HEIGHT
+    );
+
+    browser.resize_collections_panel(DragHandleMessage::Ended {
+        position: Point::new(0.0, -1_000.0),
+    });
+    assert_eq!(
+        browser.collections_panel_height,
+        MAX_COLLECTIONS_PANEL_HEIGHT
+    );
+    assert!(browser.collection_panel_resize.is_none());
 
     let _ = fs::remove_dir_all(root);
 }

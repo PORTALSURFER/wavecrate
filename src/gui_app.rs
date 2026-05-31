@@ -281,7 +281,7 @@ impl PartialEq for SampleLoadResult {
 
 struct GuiAppState {
     folder_width: f32,
-    folder_resize: Option<FolderResize>,
+    folder_resize: Option<ui::PanelResizeDrag>,
     folder_browser: FolderBrowserState,
     waveform: WaveformState,
     sample_status: String,
@@ -358,12 +358,6 @@ impl SampleNameViewMode {
 struct NativeFileDropHover {
     path: PathBuf,
     supported: bool,
-}
-
-#[derive(Clone, Copy, Debug)]
-struct FolderResize {
-    start_x: f32,
-    start_width: f32,
 }
 
 #[cfg(test)]
