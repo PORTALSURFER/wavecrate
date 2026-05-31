@@ -63,3 +63,23 @@ fn default_assets_source_is_not_removable() {
     assert_eq!(error, "Default source cannot be removed");
     assert_eq!(browser.source_labels(), vec![String::from("Assets")]);
 }
+
+#[test]
+fn deferred_sample_sources_start_with_placeholder_and_queue_selected_scan() {
+    let root = temp_source_root("wavecrate-gui-deferred-source");
+    let sources = vec![wavecrate::sample_sources::SampleSource::new_with_id(
+        wavecrate::sample_sources::SourceId::from_string(root.to_string_lossy().to_string()),
+        root.clone(),
+    )];
+    let mut browser = FolderBrowserState::from_sample_sources_deferred(&sources);
+
+    assert!(!browser.selected_source_loaded());
+    let request = browser
+        .begin_selected_source_scan(7)
+        .expect("selected source scan should be queued");
+
+    assert_eq!(request.task_id, 7);
+    assert_eq!(request.root, root);
+    assert!(browser.scan_is_active(&request.source_id, 7));
+    let _ = fs::remove_dir_all(request.root);
+}

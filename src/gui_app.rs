@@ -316,6 +316,7 @@ struct GuiAppState {
     collapsed_metadata_tag_categories: HashSet<String>,
     metadata_tags_by_file: HashMap<String, Vec<String>>,
     sample_name_view_mode: SampleNameViewMode,
+    startup_source_scan_pending: bool,
     startup_auto_load_pending: bool,
     waveform_cache: HashMap<PathBuf, WaveformCacheEntry>,
     waveform_cache_order: VecDeque<PathBuf>,

@@ -124,6 +124,39 @@ impl GuiAppState {
         }
     }
 
+    pub(super) fn maybe_startup_source_scan(
+        &mut self,
+        context: &mut ui::UpdateContext<GuiMessage>,
+    ) {
+        if !self.startup_source_scan_pending {
+            return;
+        }
+        self.startup_source_scan_pending = false;
+        let started_at = Instant::now();
+        let task_id = self.next_folder_task_id();
+        if let Some(request) = self.folder_browser.begin_selected_source_scan(task_id) {
+            let label = request.label.clone();
+            emit_gui_action(
+                "folder_browser.startup_scan",
+                Some("folder_browser"),
+                Some(&label),
+                "scan_queued",
+                started_at,
+                None,
+            );
+            self.launch_folder_scan(request, context);
+        } else {
+            emit_gui_action(
+                "folder_browser.startup_scan",
+                Some("folder_browser"),
+                None,
+                "short_circuit",
+                started_at,
+                Some("source_not_queued"),
+            );
+        }
+    }
+
     fn launch_folder_scan(
         &mut self,
         request: folder_browser::FolderScanRequest,

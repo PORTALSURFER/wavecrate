@@ -19,16 +19,12 @@ impl GuiAppState {
         let started_at = Instant::now();
         let config = wavecrate::sample_sources::config::load_or_default()
             .map_err(|err| format!("load app configuration: {err}"))?;
-        let (metadata_tags_by_file, metadata_tag_load_error) =
-            match Self::load_persisted_metadata_tags(&config.sources) {
-                Ok(tags) => (tags, None),
-                Err(error) => (HashMap::new(), Some(error)),
-            };
+        let has_configured_sources = !config.sources.is_empty();
         let (worker_sender, worker_receiver) = mpsc::channel();
-        let mut state = Self {
+        let state = Self {
             folder_width: DEFAULT_FOLDER_WIDTH,
             folder_resize: None,
-            folder_browser: FolderBrowserState::from_sample_sources(&config.sources),
+            folder_browser: FolderBrowserState::from_sample_sources_deferred(&config.sources),
             waveform: WaveformState::load_default()?,
             sample_status: String::from("Select a sample to load"),
             worker_sender,
@@ -77,17 +73,15 @@ impl GuiAppState {
             metadata_tag_drop_hover: None,
             selected_metadata_tag: None,
             collapsed_metadata_tag_categories: Default::default(),
-            metadata_tags_by_file,
+            metadata_tags_by_file: HashMap::new(),
             sample_name_view_mode: SampleNameViewMode::DiskFilename,
-            startup_auto_load_pending: !config.sources.is_empty(),
+            startup_source_scan_pending: has_configured_sources,
+            startup_auto_load_pending: has_configured_sources,
             waveform_cache: HashMap::new(),
             waveform_cache_order: Default::default(),
             waveform_cache_bytes: 0,
             cached_sample_paths: Default::default(),
         };
-        if let Some(error) = metadata_tag_load_error {
-            state.sample_status = format!("Tags not loaded: {error}");
-        }
         emit_gui_action(
             "runtime.startup.load_default_state",
             Some("background"),
@@ -218,13 +212,17 @@ impl GuiAppState {
         if !self.startup_auto_load_pending {
             return;
         }
-        self.startup_auto_load_pending = false;
         if self.folder_browser.selected_file_id().is_some() {
+            self.startup_auto_load_pending = false;
             return;
         }
         let Some(path) = self.folder_browser.first_audio_file_path() else {
+            if self.folder_browser.selected_source_loaded() {
+                self.startup_auto_load_pending = false;
+            }
             return;
         };
+        self.startup_auto_load_pending = false;
         self.folder_browser.focus_file_across_sources(&path);
         self.load_sample_without_autoplay(path.display().to_string(), context);
     }

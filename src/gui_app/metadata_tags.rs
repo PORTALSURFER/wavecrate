@@ -2,8 +2,7 @@ use super::GuiAppState;
 use super::GuiMessage;
 use radiant::prelude as ui;
 use radiant::widgets::TextInputMessage;
-use std::{collections::HashMap, time::Instant};
-use wavecrate::sample_sources::SampleSource;
+use std::time::Instant;
 
 #[cfg(test)]
 pub(super) use types::MetadataTagCommit;
@@ -33,25 +32,6 @@ pub(super) use persistence::{
     persist_metadata_tag_additions_for_tests, persist_metadata_tag_removals_for_tests,
 };
 impl GuiAppState {
-    pub(super) fn load_persisted_metadata_tags(
-        sources: &[SampleSource],
-    ) -> Result<HashMap<String, Vec<String>>, String> {
-        let mut tags_by_file = HashMap::new();
-        let mut errors = Vec::new();
-        for source in sources {
-            if let Err(error) =
-                load_persisted_metadata_tags_for_source(&source.root, &mut tags_by_file)
-            {
-                errors.push(format!("{}: {error}", source.root.display()));
-            }
-        }
-        if errors.is_empty() {
-            Ok(tags_by_file)
-        } else {
-            Err(errors.join("; "))
-        }
-    }
-
     pub(super) fn refresh_persisted_metadata_tags_for_source(&mut self, source_id: &str) {
         let Some(root) = self.folder_browser.source_root_path(source_id) else {
             return;

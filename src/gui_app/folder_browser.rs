@@ -85,6 +85,42 @@ impl FolderBrowserState {
         }
     }
 
+    fn from_sources_deferred(sources: Vec<SourceEntry>, selected_source: String) -> Self {
+        let source_index = sources
+            .iter()
+            .position(|source| source.id == selected_source)
+            .or(if sources.is_empty() { None } else { Some(0) })
+            .expect("folder browser needs at least one source");
+        let root_folder = placeholder_folder(&sources[source_index].root);
+        let root_id = root_folder.id.clone();
+        Self {
+            selected_source: sources[source_index].id.clone(),
+            sources,
+            selected_folder: root_id.clone(),
+            selected_file: None,
+            selected_file_ids: HashSet::new(),
+            expanded_folders: [root_id].into_iter().collect(),
+            folders: vec![root_folder],
+            rename_edit: None,
+            file_rename_edit: None,
+            drag: None,
+            drag_pointer: None,
+            drop_target_folder: None,
+            drop_target_collection: None,
+            drag_revision: 0,
+            collections: Self::default_collections(),
+            selected_collection: None,
+            collection_rename_edit: None,
+            collections_panel_height: DEFAULT_COLLECTIONS_PANEL_HEIGHT,
+            collection_panel_resize: None,
+            file_columns: default_file_columns(),
+            file_sort: ui::DetailsSort::new("name", ui::SortDirection::Ascending),
+            file_column_resize: None,
+            file_column_reorder: None,
+            file_view_start: 0,
+        }
+    }
+
     #[cfg(test)]
     pub(super) fn root_path(&self) -> &std::path::Path {
         self.folders
@@ -292,7 +328,7 @@ use file_model::plural;
 
 mod scanning;
 pub(super) use scanning::scan_source_with_progress;
-use scanning::{default_root_path, file_entry, load_root_folder};
+use scanning::{default_root_path, file_entry, load_root_folder, placeholder_folder};
 
 mod source_management;
 

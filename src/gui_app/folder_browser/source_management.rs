@@ -9,6 +9,7 @@ use super::{
 use wavecrate::sample_sources::{SampleSource, SourceId};
 
 impl FolderBrowserState {
+    #[cfg(test)]
     pub(in crate::gui_app) fn from_sample_sources(sources: &[SampleSource]) -> Self {
         if sources.is_empty() {
             return Self::load_default();
@@ -24,6 +25,23 @@ impl FolderBrowserState {
             })
             .collect::<Vec<_>>();
         Self::from_sources(entries, sources[0].id.as_str().to_string())
+    }
+
+    pub(in crate::gui_app) fn from_sample_sources_deferred(sources: &[SampleSource]) -> Self {
+        if sources.is_empty() {
+            return Self::load_default();
+        }
+        let entries = sources
+            .iter()
+            .map(|source| {
+                SourceEntry::new(
+                    source.id.as_str().to_string(),
+                    folder_label(&source.root),
+                    source.root.clone(),
+                )
+            })
+            .collect::<Vec<_>>();
+        Self::from_sources_deferred(entries, sources[0].id.as_str().to_string())
     }
 
     pub(in crate::gui_app) fn configured_sample_sources(&self) -> Vec<SampleSource> {
@@ -154,6 +172,20 @@ impl FolderBrowserState {
             label: source.label,
             root: source.root,
         })
+    }
+
+    pub(in crate::gui_app) fn begin_selected_source_scan(
+        &mut self,
+        task_id: u64,
+    ) -> Option<FolderScanRequest> {
+        self.begin_select_source(self.selected_source.clone(), task_id)
+    }
+
+    pub(in crate::gui_app) fn selected_source_loaded(&self) -> bool {
+        self.sources
+            .iter()
+            .find(|source| source.id == self.selected_source)
+            .is_some_and(|source| source.root_folder.is_some())
     }
 
     pub(in crate::gui_app) fn apply_scan_finished(&mut self, result: FolderScanResult) -> bool {

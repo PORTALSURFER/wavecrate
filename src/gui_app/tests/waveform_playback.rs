@@ -155,6 +155,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         collapsed_metadata_tag_categories: Default::default(),
         metadata_tags_by_file: HashMap::new(),
         sample_name_view_mode: super::super::SampleNameViewMode::DiskFilename,
+        startup_source_scan_pending: false,
         startup_auto_load_pending: false,
         waveform_cache: HashMap::new(),
         waveform_cache_order: Default::default(),

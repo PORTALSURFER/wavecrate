@@ -211,6 +211,7 @@ impl GuiAppState {
             GuiMessage::NativeFileDrop(drop) => self.apply_native_file_drop(drop, context),
             GuiMessage::Frame => {
                 self.maybe_open_audio_player(context);
+                self.maybe_startup_source_scan(context);
                 self.maybe_auto_load_startup_sample(context);
                 self.advance_frame();
             }

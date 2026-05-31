@@ -24,6 +24,7 @@ pub(in crate::gui_app) struct FrameRepaintScopeSnapshot {
     waveform_loading_active: bool,
     sample_loading: bool,
     audio_opening: bool,
+    startup_source_scan_pending: bool,
     startup_auto_load_pending: bool,
     pending_playback_start: bool,
 }
@@ -180,6 +181,7 @@ impl FrameRepaintScopeSnapshot {
             waveform_loading_active: state.waveform_loading_label.is_some(),
             sample_loading: state.sample_load_task.active().is_some(),
             audio_opening: state.audio_open_task.active().is_some(),
+            startup_source_scan_pending: state.startup_source_scan_pending,
             startup_auto_load_pending: state.startup_auto_load_pending,
             pending_playback_start: state.pending_playback_start.is_some(),
         }
@@ -192,6 +194,7 @@ impl FrameRepaintScopeSnapshot {
             || self.waveform_loading_active
             || self.sample_loading
             || self.audio_opening
+            || self.startup_source_scan_pending
             || self.startup_auto_load_pending
             || self.pending_playback_start
     }
