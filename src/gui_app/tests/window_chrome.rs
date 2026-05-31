@@ -123,13 +123,13 @@ fn default_folder_browser_loads_assets_root() {
         browser
             .selected_files()
             .iter()
-            .any(|file| file.name == "portal_SS_kick_003.wav")
+            .any(|file| file.name == "portal_SS_kick_001.wav")
     );
     assert!(
         browser
             .selected_audio_files()
             .iter()
-            .any(|file| file.name == "portal_SS_kick_003.wav")
+            .any(|file| file.name == "portal_SS_kick_001.wav")
     );
 }
 

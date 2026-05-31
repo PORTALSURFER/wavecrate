@@ -257,7 +257,7 @@ fn metadata_autocomplete_does_not_block_tag_library_clicks() {
 
     let tag_rect = text_rect(
         &runtime.frame(&radiant::theme::ThemeTokens::default()),
-        "[ ] bass",
+        "bass",
     )
     .expect("available tag should paint");
     let point = Point::new(

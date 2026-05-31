@@ -214,15 +214,19 @@ fn metadata_tag_input_persists_tag_assignments_and_removals_to_source_database()
     let source_root = tempfile::tempdir().expect("source root");
     let sample_path = source_root.path().join("persistent-tag.wav");
     fs::write(&sample_path, []).expect("sample file");
+    let source = wavecrate::sample_sources::SampleSource::new_with_id(
+        wavecrate::sample_sources::SourceId::from_string("metadata-tags-persist-test"),
+        source_root.path().to_path_buf(),
+    );
+    let source_id = source.id.as_str().to_string();
     wavecrate::sample_sources::config::save(&super::super::super::AppConfig {
-        sources: vec![wavecrate::sample_sources::SampleSource::new(
-            source_root.path().to_path_buf(),
-        )],
+        sources: vec![source.clone()],
         core: super::super::super::AppSettingsCore::default(),
     })
     .expect("seed config");
     let selected_file = sample_path.display().to_string();
-    let mut state = GuiAppState::load_default().expect("default state loads");
+    let mut state = gui_state_for_span_tests();
+    state.folder_browser = super::super::super::FolderBrowserState::from_sample_sources(&[source]);
     state.folder_browser.select_file(selected_file.clone());
 
     state.apply_message(
@@ -268,7 +272,8 @@ fn metadata_tag_input_persists_tag_assignments_and_removals_to_source_database()
         vec![String::from("warm-tone")]
     );
 
-    let reloaded = GuiAppState::load_default().expect("default state reloads");
+    let mut reloaded = GuiAppState::load_default().expect("default state reloads");
+    reloaded.refresh_persisted_metadata_tags_for_source(&source_id);
     assert_eq!(
         reloaded.metadata_tags_by_file.get(&selected_file),
         Some(&vec![String::from("warm-tone")])
