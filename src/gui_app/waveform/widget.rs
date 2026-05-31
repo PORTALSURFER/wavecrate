@@ -5,9 +5,7 @@ use radiant::{
     prelude as ui,
     runtime::PaintPrimitive,
     theme::ThemeTokens,
-    widgets::{
-        FocusBehavior, PaintBounds, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
-    },
+    widgets::{Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing},
 };
 use std::sync::Arc;
 
@@ -112,14 +110,12 @@ impl WaveformWidget {
             playing,
             active_drag_kind,
         } = props;
-        let mut common = WidgetCommon::new(
+        let common = WidgetCommon::new(
             0,
             WidgetSizing::fixed(Vector2::new(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)),
-        );
-        common.focus = FocusBehavior::Pointer;
-        common.paint.bounds = PaintBounds::ClipToRect;
-        common.paint.paints_focus = false;
-        common.paint.paints_state_layers = false;
+        )
+        .with_pointer_focus()
+        .without_default_chrome();
         Self {
             common,
             file,

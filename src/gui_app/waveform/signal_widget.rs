@@ -6,7 +6,7 @@ use radiant::{
         PaintGpuSurface, PaintPrimitive,
     },
     theme::ThemeTokens,
-    widgets::{PaintBounds, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing},
+    widgets::{Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing},
 };
 use std::sync::Arc;
 
@@ -30,13 +30,11 @@ impl WaveformSignalWidget {
         edit_selection: Option<wavecrate::selection::SelectionRange>,
         _active_drag_kind: Option<WaveformActiveDragKind>,
     ) -> Self {
-        let mut common = WidgetCommon::new(
+        let common = WidgetCommon::new(
             0,
             WidgetSizing::fixed(Vector2::new(WAVEFORM_WIDTH as f32, WAVEFORM_HEIGHT as f32)),
-        );
-        common.paint.bounds = PaintBounds::ClipToRect;
-        common.paint.paints_focus = false;
-        common.paint.paints_state_layers = false;
+        )
+        .without_default_chrome();
         Self {
             common,
             file,
