@@ -131,7 +131,10 @@ impl SampleFileHitTarget {
     }
 
     fn paint_selection_fill(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
-        let Some(color) = ui::dense_row_fill_color(
+        ui::push_dense_row_fill(
+            primitives,
+            self.row.common.id,
+            bounds,
             ui::DenseRowVisualState {
                 selected: self.selected,
                 ..ui::DenseRowVisualState::default()
@@ -142,17 +145,16 @@ impl SampleFileHitTarget {
                 b: 62,
                 a: 120,
             }),
-        ) else {
-            return;
-        };
-        ui::push_fill_rect(primitives, self.row.common.id, bounds, color);
+        );
     }
 
     fn paint_loaded_marker(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
         if !self.cached || self.selected {
             return;
         }
-        let Some(rect) = ui::dense_row_vertical_marker_rect(
+        ui::push_dense_row_vertical_marker(
+            primitives,
+            self.row.common.id,
             bounds,
             ui::DenseRowMarkerParts {
                 edge: ui::DenseRowMarkerEdge::Trailing,
@@ -161,13 +163,6 @@ impl SampleFileHitTarget {
                 vertical_inset: 3.0,
                 min_height: 8.0,
             },
-        ) else {
-            return;
-        };
-        ui::push_fill_rect(
-            primitives,
-            self.row.common.id,
-            rect,
             Rgba8 {
                 r: 226,
                 g: 226,
@@ -184,7 +179,10 @@ impl SampleFileHitTarget {
         if self.drag_active && !self.drag_source {
             return;
         }
-        let Some(color) = ui::dense_row_fill_color(
+        ui::push_dense_row_fill(
+            primitives,
+            self.row.common.id,
+            bounds,
             ui::DenseRowVisualState {
                 hovered: self.row.common.state.hovered,
                 pressed: self.row.common.state.pressed,
@@ -193,17 +191,16 @@ impl SampleFileHitTarget {
             ui::DenseRowPalette::new()
                 .hovered(HOVER_FILL)
                 .pressed(PRESSED_FILL),
-        ) else {
-            return;
-        };
-        ui::push_fill_rect(primitives, self.row.common.id, bounds, color);
+        );
     }
 
     fn paint_selection_marker(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
         if !self.selected {
             return;
         }
-        let Some(rect) = ui::dense_row_vertical_marker_rect(
+        ui::push_dense_row_vertical_marker(
+            primitives,
+            self.row.common.id,
             bounds,
             ui::DenseRowMarkerParts {
                 edge: ui::DenseRowMarkerEdge::Leading,
@@ -212,13 +209,6 @@ impl SampleFileHitTarget {
                 vertical_inset: 4.0,
                 min_height: 8.0,
             },
-        ) else {
-            return;
-        };
-        ui::push_fill_rect(
-            primitives,
-            self.row.common.id,
-            rect,
             Rgba8 {
                 r: 255,
                 g: 82,

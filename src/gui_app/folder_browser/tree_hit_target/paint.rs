@@ -1,12 +1,15 @@
 use super::*;
-use radiant::runtime::{PaintStrokeRect, PaintTextAlign, PaintTextRun};
+use radiant::runtime::{PaintTextAlign, PaintTextRun};
 
 impl FolderTreeHitTarget {
     pub(super) fn paint_background(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
-        let Some(color) = self.background_fill() else {
-            return;
-        };
-        ui::push_fill_rect(primitives, self.row.common.id, bounds, color);
+        ui::push_dense_row_fill(
+            primitives,
+            self.row.common.id,
+            bounds,
+            self.background_state(),
+            self.background_palette(),
+        );
     }
 
     pub(super) fn paint_drop_target_outline(
@@ -17,20 +20,19 @@ impl FolderTreeHitTarget {
         if !self.drop_target {
             return;
         }
-        let Some(rect) = ui::dense_row_inset_rect(bounds, 0.5) else {
-            return;
-        };
-        primitives.push(PaintPrimitive::StrokeRect(PaintStrokeRect {
-            widget_id: self.row.common.id,
-            rect,
-            color: Rgba8 {
+        ui::push_dense_row_inset_stroke(
+            primitives,
+            self.row.common.id,
+            bounds,
+            0.5,
+            Rgba8 {
                 r: 255,
                 g: 180,
                 b: 130,
                 a: 210,
             },
-            width: 1.0,
-        }));
+            1.0,
+        );
     }
 
     pub(super) fn paint_label(
@@ -54,7 +56,17 @@ impl FolderTreeHitTarget {
         }));
     }
 
-    fn background_fill(&self) -> Option<Rgba8> {
+    fn background_state(&self) -> ui::DenseRowVisualState {
+        ui::DenseRowVisualState {
+            selected: self.selected,
+            hovered: self.row.common.state.hovered,
+            pressed: self.row.common.state.pressed,
+            active_target: self.drop_target,
+            candidate: self.drop_candidate,
+        }
+    }
+
+    fn background_palette(&self) -> ui::DenseRowPalette {
         let interaction_fill = Rgba8 {
             r: 255,
             g: 110,
@@ -65,36 +77,27 @@ impl FolderTreeHitTarget {
                 80
             },
         };
-        ui::dense_row_fill_color(
-            ui::DenseRowVisualState {
-                selected: self.selected,
-                hovered: self.row.common.state.hovered,
-                pressed: self.row.common.state.pressed,
-                active_target: self.drop_target,
-                candidate: self.drop_candidate,
-            },
-            ui::DenseRowPalette::new()
-                .selected(Rgba8 {
-                    r: 255,
-                    g: 82,
-                    b: 62,
-                    a: 105,
-                })
-                .hovered(interaction_fill)
-                .pressed(interaction_fill)
-                .active_target(Rgba8 {
-                    r: 255,
-                    g: 130,
-                    b: 78,
-                    a: 150,
-                })
-                .candidate_hovered(Rgba8 {
-                    r: 255,
-                    g: 122,
-                    b: 74,
-                    a: 110,
-                }),
-        )
+        ui::DenseRowPalette::new()
+            .selected(Rgba8 {
+                r: 255,
+                g: 82,
+                b: 62,
+                a: 105,
+            })
+            .hovered(interaction_fill)
+            .pressed(interaction_fill)
+            .active_target(Rgba8 {
+                r: 255,
+                g: 130,
+                b: 78,
+                a: 150,
+            })
+            .candidate_hovered(Rgba8 {
+                r: 255,
+                g: 122,
+                b: 74,
+                a: 110,
+            })
     }
 
     fn label_color(&self, theme: &ThemeTokens) -> Rgba8 {
