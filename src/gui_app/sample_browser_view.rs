@@ -1,5 +1,4 @@
 use radiant::prelude as ui;
-use radiant::widgets::ButtonMessage;
 
 use super::folder_browser::{FILE_COLUMN_GAP, FileColumn, FolderBrowserMessage};
 use super::{
@@ -116,16 +115,15 @@ fn sample_header_cell(column: &FileColumn, sort: &ui::DetailsSort) -> ui::View<G
                 .height(20.0)
                 .truncate(),
             ui::button(label)
-                .draggable()
-                .mapped(move |message| match message {
-                    ButtonMessage::Activate => GuiMessage::FolderBrowser(
-                        FolderBrowserMessage::SortFileColumn(sort_id.clone()),
-                    ),
-                    ButtonMessage::Drag(drag) => GuiMessage::FolderBrowser(
-                        FolderBrowserMessage::DragFileColumn(drag_id.clone(), drag),
-                    ),
-                    ButtonMessage::SecondaryActivate { .. } => GuiMessage::Noop,
-                })
+                .click_or_drag(
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::SortFileColumn(sort_id)),
+                    move |drag| {
+                        GuiMessage::FolderBrowser(FolderBrowserMessage::DragFileColumn(
+                            drag_id.clone(),
+                            drag,
+                        ))
+                    },
+                )
                 .key(format!("sample-sort-{}", column.id))
                 .fill_width()
                 .height(20.0)
