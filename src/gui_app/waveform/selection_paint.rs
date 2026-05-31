@@ -52,9 +52,8 @@ impl WaveformWidget {
         start: f32,
         end: f32,
     ) {
-        let left = bounds.min.x + bounds.width() * start.min(end).clamp(0.0, 1.0);
-        let right = bounds.min.x + bounds.width() * start.max(end).clamp(0.0, 1.0);
-        if right <= left {
+        let range = bounds.horizontal_ratio_span(start, end);
+        if range.width() <= 0.0 {
             return;
         }
         let height = EXTRACTED_RANGE_RAIL_HEIGHT
@@ -63,16 +62,16 @@ impl WaveformWidget {
         self.push_fill(
             primitives,
             Rect::from_min_max(
-                Point::new(left, bounds.min.y),
-                Point::new(right, (bounds.min.y + height).min(bounds.max.y)),
+                range.min,
+                Point::new(range.max.x, (bounds.min.y + height).min(bounds.max.y)),
             ),
             EXTRACTED_RANGE_RAIL,
         );
         self.push_fill(
             primitives,
             Rect::from_min_max(
-                Point::new(left, (bounds.max.y - height).max(bounds.min.y)),
-                Point::new(right, bounds.max.y),
+                Point::new(range.min.x, (bounds.max.y - height).max(bounds.min.y)),
+                range.max,
             ),
             EXTRACTED_RANGE_RAIL,
         );

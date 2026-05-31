@@ -3,7 +3,10 @@ use super::{
     WAVEFORM_WIDGET_ID, emit_gui_action,
 };
 use radiant::{
-    gui::types::{Point, Rect, Rgba8},
+    gui::{
+        feedback::horizontal_value_cursor_rect,
+        types::{Rect, Rgba8},
+    },
     runtime::{PaintFillRect, PaintPrimitive, TransientOverlayContext},
 };
 
@@ -201,30 +204,12 @@ impl FrameRepaintScopeSnapshot {
 }
 
 fn push_playback_cursor(primitives: &mut Vec<PaintPrimitive>, bounds: Rect, ratio: f32) {
-    if bounds.width() <= 0.0 || bounds.height() <= 0.0 {
+    let Some(rect) = horizontal_value_cursor_rect(bounds, ratio, PLAYBACK_CURSOR_WIDTH) else {
         return;
-    }
-    let cursor_width = PLAYBACK_CURSOR_WIDTH
-        .ceil()
-        .max(2.0)
-        .min(bounds.width().max(1.0));
-    let x = (bounds.min.x + bounds.width() * ratio.clamp(0.0, 1.0))
-        .round()
-        .clamp(bounds.min.x, bounds.max.x);
-    let left = (x - cursor_width * 0.5).clamp(
-        bounds.min.x,
-        (bounds.max.x - cursor_width).max(bounds.min.x),
-    );
-    let right = (left + cursor_width).min(bounds.max.x);
-    if right <= left {
-        return;
-    }
+    };
     primitives.push(PaintPrimitive::FillRect(PaintFillRect {
         widget_id: WAVEFORM_WIDGET_ID,
-        rect: Rect::from_min_max(
-            Point::new(left, bounds.min.y),
-            Point::new(right, bounds.max.y),
-        ),
+        rect,
         color: PLAYBACK_CURSOR_COLOR,
     }));
 }

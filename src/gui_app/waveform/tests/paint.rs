@@ -5,6 +5,8 @@ fn overlay_paint_projects_play_edit_and_playhead_markers() {
     let mut state = WaveformState::synthetic_for_tests();
     state.start_playback(0.125);
     state.set_playhead_ratio(0.25);
+    state.stop_playback();
+    state.set_playhead_ratio(0.25);
     state.apply_interaction(WaveformInteraction::BeginSelection {
         kind: WaveformSelectionKind::Edit,
         visible_ratio: 0.375,
@@ -44,7 +46,6 @@ fn overlay_paint_projects_play_edit_and_playhead_markers() {
 #[test]
 fn playhead_cursor_paints_pixel_stable_rect_when_progress_is_subpixel() {
     let mut state = WaveformState::synthetic_for_tests();
-    state.start_playback(0.0);
     state.set_playhead_ratio(0.12345);
     let widget = waveform_widget_for_state(&state);
     let mut primitives = Vec::new();
