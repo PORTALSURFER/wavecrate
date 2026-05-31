@@ -5,8 +5,6 @@ use radiant::prelude as ui;
 use std::path::{Path, PathBuf};
 
 const CONTEXT_MENU_WIDTH: f32 = 210.0;
-const CONTEXT_MENU_BASE_HEIGHT: f32 = 104.0;
-const CONTEXT_MENU_EXTRA_ACTION_HEIGHT: f32 = 33.0;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum BrowserContextTargetKind {
@@ -59,11 +57,13 @@ pub(super) fn missing_target_message(kind: &BrowserContextTargetKind) -> &'stati
 }
 
 pub(super) fn overlay(menu: &BrowserContextMenu) -> ui::View<GuiMessage> {
+    let commands = context_menu_commands(menu);
+    let height = ui::message_menu_height(commands.len());
     ui::dismissible_context_menu(
         menu.anchor,
-        ui::Vector2::new(CONTEXT_MENU_WIDTH, context_menu_height(menu)),
+        ui::Vector2::new(CONTEXT_MENU_WIDTH, height),
         menu.title.clone(),
-        context_menu_commands(menu),
+        commands,
         GuiMessage::CloseContextMenu,
     )
 }
@@ -89,14 +89,4 @@ fn context_menu_commands(menu: &BrowserContextMenu) -> Vec<ui::MenuCommand<GuiMe
             .push(ui::MenuCommand::new("Remove Source", GuiMessage::RemoveContextSource).danger());
     }
     actions
-}
-
-fn context_menu_height(menu: &BrowserContextMenu) -> f32 {
-    if menu.kind == BrowserContextTargetKind::MetadataTag {
-        CONTEXT_MENU_BASE_HEIGHT - CONTEXT_MENU_EXTRA_ACTION_HEIGHT
-    } else if menu.kind == BrowserContextTargetKind::Source && menu.source_id.is_some() {
-        CONTEXT_MENU_BASE_HEIGHT + CONTEXT_MENU_EXTRA_ACTION_HEIGHT
-    } else {
-        CONTEXT_MENU_BASE_HEIGHT
-    }
 }
