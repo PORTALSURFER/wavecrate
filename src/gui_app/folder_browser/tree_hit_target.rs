@@ -1,11 +1,12 @@
 use radiant::{
     gui::types::{Point, Rect, Rgba8},
-    layout::{LayoutOutput, Vector2},
+    layout::LayoutOutput,
+    prelude as ui,
     runtime::{PaintPrimitive, PaintText},
     theme::ThemeTokens,
     widgets::{
         DragHandleMessage, FocusBehavior, InteractiveRowMessage, InteractiveRowWidget, PaintBounds,
-        Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
+        Widget, WidgetCommon, WidgetInput, WidgetOutput,
     },
 };
 
@@ -39,24 +40,26 @@ impl FolderTreeHitTarget {
         drop_candidate: bool,
         drop_target_active: bool,
     ) -> Self {
-        let mut row = InteractiveRowWidget::new(0, WidgetSizing::fixed(Vector2::new(1.0, 22.0)))
-            .with_drag()
-            .with_drag_active(drag_active)
-            .with_drag_source(drag_source)
-            .with_drag_source_motion(true)
-            .with_pointer_motion_during_interaction()
-            .with_pointer_motion_active(drop_target_active);
+        let mut row = ui::interactive_row()
+            .draggable()
+            .drag_active(drag_active)
+            .drag_source(drag_source)
+            .drag_source_motion(true)
+            .pointer_motion_during_interaction()
+            .pointer_motion_active(drop_target_active);
         if drag_active && !drag_source {
             row = if drop_hover_enabled(drop_target, drop_candidate, drop_target_active) {
-                row.with_drop_target(true)
+                row.droppable(true)
             } else {
-                row.with_drop_only(true)
+                row.drop_only(true)
             };
         }
-        row.common.focus = FocusBehavior::None;
-        row.common.paint.bounds = PaintBounds::ClipToRect;
-        row.common.paint.paints_focus = false;
-        row.common.paint.paints_state_layers = false;
+        let row = row
+            .focus(FocusBehavior::None)
+            .paint_bounds(PaintBounds::ClipToRect)
+            .paint_focus(false)
+            .paint_state_layers(false)
+            .widget();
         Self {
             row,
             label: label.into(),

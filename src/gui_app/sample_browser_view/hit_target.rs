@@ -1,10 +1,11 @@
 use radiant::gui::types::{Point, Rect, Rgba8};
 use radiant::layout::{LayoutOutput, Vector2};
+use radiant::prelude as ui;
 use radiant::runtime::{PaintFillRect, PaintPrimitive};
 use radiant::theme::ThemeTokens;
 use radiant::widgets::{
     DragHandleMessage, FocusBehavior, InteractiveRowMessage, InteractiveRowWidget, PaintBounds,
-    PointerModifiers, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
+    PointerModifiers, Widget, WidgetCommon, WidgetInput, WidgetOutput,
 };
 
 const HOVER_FILL: Rgba8 = Rgba8 {
@@ -45,17 +46,18 @@ impl SampleFileHitTarget {
         cached: bool,
         suppress_hover: bool,
     ) -> Self {
-        let mut row = InteractiveRowWidget::new(0, WidgetSizing::fixed(Vector2::new(1.0, 22.0)))
-            .with_drag()
-            .with_drag_active(drag_active)
-            .with_drag_source(drag_source)
+        let row = ui::interactive_row()
+            .draggable()
+            .drag_active(drag_active)
+            .drag_source(drag_source)
             .suppress_hover(suppress_hover)
             .clear_hover_on_sync()
-            .with_activation_modifiers();
-        row.common.focus = FocusBehavior::None;
-        row.common.paint.bounds = PaintBounds::ClipToRect;
-        row.common.paint.paints_focus = false;
-        row.common.paint.paints_state_layers = false;
+            .activation_modifiers()
+            .focus(FocusBehavior::None)
+            .paint_bounds(PaintBounds::ClipToRect)
+            .paint_focus(false)
+            .paint_state_layers(false)
+            .widget();
         Self {
             row,
             selected,

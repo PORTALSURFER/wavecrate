@@ -1,4 +1,5 @@
 use super::*;
+use radiant::layout::Vector2;
 use radiant::widgets::{PointerButton, PointerModifiers};
 
 fn message_from(output: Option<WidgetOutput>) -> FolderTreeHitMessage {
