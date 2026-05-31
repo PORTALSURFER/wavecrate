@@ -7,7 +7,7 @@ use radiant::{
         feedback::horizontal_value_cursor_rect,
         types::{Rect, Rgba8},
     },
-    runtime::{PaintFillRect, PaintPrimitive, TransientOverlayContext},
+    runtime::{PaintPrimitive, TransientOverlayContext},
 };
 
 const PLAYBACK_CURSOR_COLOR: Rgba8 = Rgba8 {
@@ -207,9 +207,10 @@ fn push_playback_cursor(primitives: &mut Vec<PaintPrimitive>, bounds: Rect, rati
     let Some(rect) = horizontal_value_cursor_rect(bounds, ratio, PLAYBACK_CURSOR_WIDTH) else {
         return;
     };
-    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-        widget_id: WAVEFORM_WIDGET_ID,
+    radiant::runtime::push_visible_fill_rect(
+        primitives,
+        WAVEFORM_WIDGET_ID,
         rect,
-        color: PLAYBACK_CURSOR_COLOR,
-    }));
+        PLAYBACK_CURSOR_COLOR,
+    );
 }
