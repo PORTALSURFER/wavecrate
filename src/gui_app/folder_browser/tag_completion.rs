@@ -30,9 +30,11 @@ pub(super) fn tag_completion_panel_layer(
         return ui::spacer().height(0.0).fill_width();
     }
     let popup_height = tag_completion_popup_height(options);
-    let popup_y = content_height - tag_field_height - 3.0 - popup_height;
-    ui::floating_layer(
-        ui::Point::new(0.0, popup_y),
+    let trigger_y = content_height - tag_field_height;
+    ui::floating_layer_above(
+        0.0,
+        trigger_y,
+        3.0,
         ui::Vector2::new(content_width, popup_height),
         tag_completion_popup(options, content_width)
             .key("metadata-tag-completion-popup")
