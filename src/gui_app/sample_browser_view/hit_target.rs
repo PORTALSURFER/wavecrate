@@ -3,11 +3,11 @@ use radiant::layout::LayoutOutput;
 #[cfg(test)]
 use radiant::layout::Vector2;
 use radiant::prelude as ui;
-use radiant::runtime::{PaintFillRect, PaintPrimitive};
+use radiant::runtime::PaintPrimitive;
 use radiant::theme::ThemeTokens;
 use radiant::widgets::{
-    DragHandleMessage, FocusBehavior, InteractiveRowMessage, InteractiveRowWidget, PaintBounds,
-    PointerModifiers, Widget, WidgetCommon, WidgetId, WidgetInput, WidgetOutput,
+    DragHandleMessage, InteractiveRowMessage, InteractiveRowWidget, PointerModifiers, Widget,
+    WidgetCommon, WidgetInput, WidgetOutput,
 };
 
 const HOVER_FILL: Rgba8 = Rgba8 {
@@ -55,10 +55,7 @@ impl SampleFileHitTarget {
             .suppress_hover(suppress_hover)
             .clear_hover_on_sync()
             .activation_modifiers()
-            .focus(FocusBehavior::None)
-            .paint_bounds(PaintBounds::ClipToRect)
-            .paint_focus(false)
-            .paint_state_layers(false)
+            .custom_paint_hit_target()
             .widget();
         Self {
             row,
@@ -148,7 +145,7 @@ impl SampleFileHitTarget {
         ) else {
             return;
         };
-        push_row_fill(primitives, self.row.common.id, bounds, color);
+        ui::push_fill_rect(primitives, self.row.common.id, bounds, color);
     }
 
     fn paint_loaded_marker(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
@@ -167,7 +164,7 @@ impl SampleFileHitTarget {
         ) else {
             return;
         };
-        push_row_fill(
+        ui::push_fill_rect(
             primitives,
             self.row.common.id,
             rect,
@@ -199,7 +196,7 @@ impl SampleFileHitTarget {
         ) else {
             return;
         };
-        push_row_fill(primitives, self.row.common.id, bounds, color);
+        ui::push_fill_rect(primitives, self.row.common.id, bounds, color);
     }
 
     fn paint_selection_marker(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
@@ -218,7 +215,7 @@ impl SampleFileHitTarget {
         ) else {
             return;
         };
-        push_row_fill(
+        ui::push_fill_rect(
             primitives,
             self.row.common.id,
             rect,
@@ -230,19 +227,6 @@ impl SampleFileHitTarget {
             },
         );
     }
-}
-
-fn push_row_fill(
-    primitives: &mut Vec<PaintPrimitive>,
-    widget_id: WidgetId,
-    rect: Rect,
-    color: Rgba8,
-) {
-    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-        widget_id,
-        rect,
-        color,
-    }));
 }
 
 #[cfg(test)]

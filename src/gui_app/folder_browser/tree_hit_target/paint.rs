@@ -1,12 +1,12 @@
 use super::*;
-use radiant::runtime::{PaintFillRect, PaintStrokeRect, PaintTextAlign, PaintTextRun};
+use radiant::runtime::{PaintStrokeRect, PaintTextAlign, PaintTextRun};
 
 impl FolderTreeHitTarget {
     pub(super) fn paint_background(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
         let Some(color) = self.background_fill() else {
             return;
         };
-        push_row_fill(primitives, self.row.common.id, bounds, color);
+        ui::push_fill_rect(primitives, self.row.common.id, bounds, color);
     }
 
     pub(super) fn paint_drop_target_outline(
@@ -125,17 +125,4 @@ fn label_font_size(bounds: Rect) -> f32 {
     } else {
         13.0
     }
-}
-
-fn push_row_fill(
-    primitives: &mut Vec<PaintPrimitive>,
-    widget_id: WidgetId,
-    rect: Rect,
-    color: Rgba8,
-) {
-    primitives.push(PaintPrimitive::FillRect(PaintFillRect {
-        widget_id,
-        rect,
-        color,
-    }));
 }

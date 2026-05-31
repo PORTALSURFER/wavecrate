@@ -5,8 +5,8 @@ use radiant::{
     runtime::{PaintPrimitive, PaintText},
     theme::ThemeTokens,
     widgets::{
-        DragHandleMessage, FocusBehavior, InteractiveRowMessage, InteractiveRowWidget, PaintBounds,
-        Widget, WidgetCommon, WidgetId, WidgetInput, WidgetOutput,
+        DragHandleMessage, InteractiveRowMessage, InteractiveRowWidget, Widget, WidgetCommon,
+        WidgetInput, WidgetOutput,
     },
 };
 
@@ -54,12 +54,7 @@ impl FolderTreeHitTarget {
                 row.drop_only(true)
             };
         }
-        let row = row
-            .focus(FocusBehavior::None)
-            .paint_bounds(PaintBounds::ClipToRect)
-            .paint_focus(false)
-            .paint_state_layers(false)
-            .widget();
+        let row = row.custom_paint_hit_target().widget();
         Self {
             row,
             label: label.into(),
