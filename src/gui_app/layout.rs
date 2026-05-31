@@ -1,8 +1,9 @@
 use super::{GuiAppState, GuiMessage};
 use crate::gui_app::{
     audio_settings::top_status_bar, context_menu, folder_browser,
-    metadata_tags::MetadataTagCategoryGroup, sample_browser_view::sample_browser, status_bar,
-    toolbar::main_toolbar, waveform_panel::waveform_panel,
+    metadata_tag_metrics::metadata_tag_pill_width, metadata_tags::MetadataTagCategoryGroup,
+    sample_browser_view::sample_browser, status_bar, toolbar::main_toolbar,
+    waveform_panel::waveform_panel,
 };
 use radiant::prelude as ui;
 
@@ -351,10 +352,6 @@ fn metadata_tag_empty_category_target(
     .key(format!("metadata-tag-empty-category-{category_id}"))
     .fill_width()
     .height(20.0)
-}
-
-fn metadata_tag_pill_width(tag: &str) -> f32 {
-    (tag.chars().count() as f32 * 7.0 + 22.0).clamp(38.0, 180.0)
 }
 
 fn metadata_tag_category_tone(category_id: &str) -> ui::WidgetTone {

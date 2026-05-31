@@ -37,6 +37,7 @@ mod launch;
 mod layout;
 mod lifecycle;
 mod message_dispatch;
+mod metadata_tag_metrics;
 mod metadata_tags;
 mod native_file_drop_actions;
 mod normalization_actions;
