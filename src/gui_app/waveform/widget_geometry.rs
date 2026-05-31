@@ -101,31 +101,12 @@ impl WaveformWidget {
         range: Option<wavecrate::selection::SelectionRange>,
     ) -> Option<(f32, f32)> {
         let range = range?;
-        let total = self.file.frames.max(1) as f32;
-        let visible_start = self.viewport.start as f32;
-        let visible_end = self.viewport.end as f32;
-        let visible_width = self.viewport.visible_items() as f32;
-        let start_frame = range.start().clamp(0.0, 1.0) * total;
-        let end_frame = range.end().clamp(0.0, 1.0) * total;
-        let left_frame = start_frame.min(end_frame).max(visible_start);
-        let right_frame = start_frame.max(end_frame).min(visible_end);
-        if right_frame <= left_frame {
-            return None;
-        }
-        let start = ((left_frame - visible_start) / visible_width.max(1.0)).clamp(0.0, 1.0);
-        let end = ((right_frame - visible_start) / visible_width.max(1.0)).clamp(0.0, 1.0);
-        Some((start, end))
+        self.viewport
+            .visible_range_from_absolute(self.file.frames, range.start(), range.end())
     }
 
     pub(super) fn visible_ratio_for_absolute(&self, ratio: Option<f32>) -> Option<f32> {
-        let absolute_ratio = ratio?;
-        let frame = absolute_ratio.clamp(0.0, 1.0) * self.file.frames.max(1) as f32;
-        let visible_start = self.viewport.start as f32;
-        let visible_width = self.viewport.visible_items() as f32;
-        let visible_ratio = (frame - visible_start) / visible_width.max(1.0);
-        if !(0.0..=1.0).contains(&visible_ratio) {
-            return None;
-        }
-        Some(visible_ratio)
+        self.viewport
+            .visible_ratio_from_absolute(self.file.frames, ratio?)
     }
 }

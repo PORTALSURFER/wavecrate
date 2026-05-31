@@ -310,13 +310,8 @@ impl WaveformState {
     }
 
     pub(super) fn visible_ratio_for_absolute(&self, ratio: f32) -> Option<f32> {
-        let frame = ratio.clamp(0.0, 1.0) * self.file.frames.max(1) as f32;
-        let visible_start = self.viewport.start as f32;
-        let visible_width = self.viewport.visible_items() as f32;
-        let visible_ratio = (frame - visible_start) / visible_width.max(1.0);
-        (0.0..=1.0)
-            .contains(&visible_ratio)
-            .then_some(visible_ratio)
+        self.viewport
+            .visible_ratio_from_absolute(self.file.frames, ratio)
     }
 }
 
