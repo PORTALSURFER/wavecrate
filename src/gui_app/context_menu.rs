@@ -59,78 +59,36 @@ pub(super) fn missing_target_message(kind: &BrowserContextTargetKind) -> &'stati
 }
 
 pub(super) fn overlay(menu: &BrowserContextMenu) -> ui::View<GuiMessage> {
+    ui::dismissible_context_menu(
+        menu.anchor,
+        ui::Vector2::new(CONTEXT_MENU_WIDTH, context_menu_height(menu)),
+        menu.title.clone(),
+        context_menu_commands(menu),
+        GuiMessage::CloseContextMenu,
+    )
+}
+
+fn context_menu_commands(menu: &BrowserContextMenu) -> Vec<ui::MenuCommand<GuiMessage>> {
+    if menu.kind == BrowserContextTargetKind::MetadataTag {
+        return vec![
+            ui::MenuCommand::new("Delete Tag", GuiMessage::DeleteContextMetadataTag).danger(),
+        ];
+    }
+
     let action_label = match menu.kind {
         BrowserContextTargetKind::Source | BrowserContextTargetKind::Folder => "Open in Explorer",
         BrowserContextTargetKind::Sample => "Reveal in Explorer",
-        BrowserContextTargetKind::MetadataTag => "Delete Tag",
+        BrowserContextTargetKind::MetadataTag => unreachable!("handled above"),
     };
-    let top = menu.anchor.y.max(0.0);
-    let left = menu.anchor.x.max(0.0);
-    let height = context_menu_height(menu);
-    ui::stack([
-        dismiss_area("browser-context-dismiss").fill(),
-        ui::column([
-            overlay_gap().fill_width().height(top),
-            ui::row([
-                overlay_gap().width(left).height(1.0),
-                context_menu_panel(menu, action_label),
-                overlay_gap().fill_width().height(1.0),
-            ])
-            .fill_width()
-            .height(height),
-            overlay_gap().fill_width().fill_height(),
-        ])
-        .fill(),
-    ])
-    .fill()
-}
-
-fn context_menu_panel(
-    menu: &BrowserContextMenu,
-    action_label: &'static str,
-) -> ui::View<GuiMessage> {
     let mut actions = vec![
-        ui::text(menu.title.clone())
-            .height(22.0)
-            .fill_width()
-            .truncate(),
+        ui::MenuCommand::new(action_label, GuiMessage::OpenContextTarget).subtle(),
+        ui::MenuCommand::new("Copy Path", GuiMessage::CopyContextPath).subtle(),
     ];
-    if menu.kind == BrowserContextTargetKind::MetadataTag {
-        actions.push(
-            context_menu_action(action_label, GuiMessage::DeleteContextMetadataTag)
-                .key("metadata-tag-context-delete")
-                .fill_width()
-                .height(28.0),
-        );
-    } else {
-        actions.extend([
-            context_menu_action(action_label, GuiMessage::OpenContextTarget)
-                .key("browser-context-open-explorer")
-                .fill_width()
-                .height(28.0),
-            context_menu_action("Copy Path", GuiMessage::CopyContextPath)
-                .key("browser-context-copy-path")
-                .fill_width()
-                .height(28.0),
-        ]);
-    }
     if menu.kind == BrowserContextTargetKind::Source && menu.source_id.is_some() {
-        actions.push(
-            context_menu_action("Remove Source", GuiMessage::RemoveContextSource)
-                .key("browser-context-remove-source")
-                .fill_width()
-                .height(28.0),
-        );
+        actions
+            .push(ui::MenuCommand::new("Remove Source", GuiMessage::RemoveContextSource).danger());
     }
-    ui::column(actions)
-        .style(ui::WidgetStyle {
-            tone: ui::WidgetTone::Neutral,
-            prominence: ui::WidgetProminence::Strong,
-        })
-        .padding(8.0)
-        .spacing(5.0)
-        .width(CONTEXT_MENU_WIDTH)
-        .height(context_menu_height(menu))
+    actions
 }
 
 fn context_menu_height(menu: &BrowserContextMenu) -> f32 {
@@ -141,19 +99,4 @@ fn context_menu_height(menu: &BrowserContextMenu) -> f32 {
     } else {
         CONTEXT_MENU_BASE_HEIGHT
     }
-}
-
-fn context_menu_action(label: impl Into<String>, message: GuiMessage) -> ui::View<GuiMessage> {
-    ui::action_row(label).subtle().message(message)
-}
-
-fn overlay_gap() -> ui::View<GuiMessage> {
-    ui::text("")
-}
-
-fn dismiss_area(key: &'static str) -> ui::View<GuiMessage> {
-    ui::button("")
-        .message(GuiMessage::CloseContextMenu)
-        .key(key)
-        .input_only()
 }
