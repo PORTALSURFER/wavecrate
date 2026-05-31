@@ -69,8 +69,12 @@ fn registered_build() -> Result<RegisteredBuild, String> {
             public_key_b64,
         }),
         _ => Err(String::from(
-            "incomplete Wavecrate activation build metadata; set WAVECRATE_BUILD_ID, \
-             WAVECRATE_BUILD_SIGNATURE, and WAVECRATE_SIGNING_PUBLIC_KEY_B64",
+            "this Wavecrate binary was built as a registered release, but activation build \
+             metadata is missing. For local development, run .\\run.ps1 from the repo root \
+             instead of cargo run -r; the wrapper builds an internal release binary with \
+             registration disabled. For a real registered release, use \
+             scripts\\registered-run.ps1 so WAVECRATE_BUILD_ID, WAVECRATE_BUILD_SIGNATURE, \
+             and WAVECRATE_SIGNING_PUBLIC_KEY_B64 are provided.",
         )),
     }
 }
