@@ -74,28 +74,22 @@ fn metadata_tag_library_panel(state: &GuiAppState) -> ui::View<GuiMessage> {
             metadata_tag_category_group(group, selected_tags, drag_active, drop_hover, dragged_tag)
         })
         .collect::<Vec<_>>();
-    ui::column([
-        ui::row([
-            ui::text("Tag Editor").height(22.0).fill_width(),
+    ui::panel_section_from_parts(
+        ui::PanelSectionParts::new(
+            "Tag Editor",
+            ui::scroll(ui::column(groups).spacing(3.0).fill_width())
+                .fill_width()
+                .fill_height(),
+        )
+        .trailing(
             ui::button("x")
                 .message(GuiMessage::ToggleMetadataTagLibrary)
                 .key("metadata-tag-library-close")
                 .size(22.0, 20.0),
-        ])
-        .spacing(4.0)
-        .fill_width()
-        .height(24.0),
-        ui::scroll(ui::column(groups).spacing(3.0).fill_width())
-            .fill_width()
-            .fill_height(),
-    ])
+        )
+        .title_height(24.0),
+    )
     .key("metadata-tag-library-panel")
-    .style(ui::WidgetStyle {
-        tone: ui::WidgetTone::Neutral,
-        prominence: ui::WidgetProminence::Subtle,
-    })
-    .padding(6.0)
-    .spacing(4.0)
     .width(220.0)
     .fill_height()
 }

@@ -8,7 +8,6 @@ use super::super::{
     FolderBrowserMessage, FolderBrowserState, GuiMessage, SampleCollectionView,
     collections::COLLECTION_ROW_HEIGHT,
 };
-use super::sidebar_panel;
 
 pub(super) fn collections_section(state: &FolderBrowserState) -> ui::View<GuiMessage> {
     let rows = state
@@ -16,19 +15,9 @@ pub(super) fn collections_section(state: &FolderBrowserState) -> ui::View<GuiMes
         .into_iter()
         .map(|collection| collection_row(state, collection))
         .collect::<Vec<_>>();
-    sidebar_panel(
-        ui::column([
-            ui::row([
-                ui::text("Collections").height(20.0).fill_width(),
-                ui::drag_handle_mapped(|message| {
-                    GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeCollectionsPanel(message))
-                })
-                .key("collections-resize-handle")
-                .size(26.0, 18.0),
-            ])
-            .spacing(4.0)
-            .height(20.0)
-            .fill_width(),
+    ui::panel_section_from_parts(
+        ui::PanelSectionParts::new(
+            "Collections",
             ui::scroll(ui::column(rows).spacing(1.0).fill_width().height(
                 COLLECTION_ROW_HEIGHT * wavecrate::sample_sources::SampleCollection::COUNT as f32,
             ))
@@ -38,12 +27,18 @@ pub(super) fn collections_section(state: &FolderBrowserState) -> ui::View<GuiMes
             })
             .fill_width()
             .fill_height(),
-        ])
-        .spacing(4.0)
-        .fill_width()
-        .fill_height(),
-        state.collections_panel_height(),
+        )
+        .trailing(
+            ui::drag_handle_mapped(|message| {
+                GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeCollectionsPanel(message))
+            })
+            .key("collections-resize-handle")
+            .size(26.0, 18.0),
+        )
+        .height(state.collections_panel_height()),
     )
+    .fill_width()
+    .fill_height()
 }
 
 fn collection_row(

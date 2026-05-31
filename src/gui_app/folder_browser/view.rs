@@ -195,7 +195,7 @@ fn selected_folder_status(state: &FolderBrowserState) -> ui::View<GuiMessage> {
 }
 
 fn filter_section() -> ui::View<GuiMessage> {
-    sidebar_section(
+    ui::panel_section(
         "Filter",
         ui::column([
             ui::row([
@@ -217,28 +217,4 @@ fn filter_section() -> ui::View<GuiMessage> {
         .spacing(2.0),
         76.0,
     )
-}
-
-fn sidebar_section(
-    title: &'static str,
-    content: ui::View<GuiMessage>,
-    height: f32,
-) -> ui::View<GuiMessage> {
-    sidebar_panel(
-        ui::column([ui::text(title).height(20.0).fill_width(), content])
-            .spacing(4.0)
-            .fill_width(),
-        height,
-    )
-}
-
-fn sidebar_panel(content: ui::View<GuiMessage>, height: f32) -> ui::View<GuiMessage> {
-    content
-        .style(WidgetStyle {
-            tone: WidgetTone::Neutral,
-            prominence: ui::WidgetProminence::Subtle,
-        })
-        .padding(6.0)
-        .fill_width()
-        .height(height)
 }
