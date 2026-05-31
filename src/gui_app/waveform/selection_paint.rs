@@ -1,5 +1,5 @@
 use radiant::{
-    gui::types::{Point, Rect, Rgba8},
+    gui::types::{Rect, Rgba8},
     runtime::PaintPrimitive,
 };
 
@@ -61,18 +61,12 @@ impl WaveformWidget {
             .max(1.0);
         self.push_fill(
             primitives,
-            Rect::from_min_max(
-                range.min,
-                Point::new(range.max.x, (bounds.min.y + height).min(bounds.max.y)),
-            ),
+            range.top_edge_strip(height),
             EXTRACTED_RANGE_RAIL,
         );
         self.push_fill(
             primitives,
-            Rect::from_min_max(
-                Point::new(range.min.x, (bounds.max.y - height).max(bounds.min.y)),
-                range.max,
-            ),
+            range.bottom_edge_strip(height),
             EXTRACTED_RANGE_RAIL,
         );
     }

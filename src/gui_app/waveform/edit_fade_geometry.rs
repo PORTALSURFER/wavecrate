@@ -108,10 +108,7 @@ impl WaveformWidget {
         let size = edit_fade_handle_size(bounds);
         let horizontal = bounds.vertical_strip_around_x(x, size);
         let vertical = edit_fade_handle_vertical_band(selection_rect, handle, size);
-        Some(Rect::from_min_max(
-            Point::new(horizontal.min.x, vertical.min.y),
-            Point::new(horizontal.max.x, vertical.max.y),
-        ))
+        horizontal.intersection(vertical)
     }
 
     pub(super) fn visible_rect_for_normalized_range(
