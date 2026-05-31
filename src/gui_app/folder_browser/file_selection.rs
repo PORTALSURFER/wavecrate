@@ -5,7 +5,7 @@ use wavecrate::sample_sources::Rating;
 
 use super::{
     FolderBrowserState,
-    path_helpers::{offset_index, path_id},
+    path_helpers::path_id,
     scanning::{file_entry, load_root_folder, upsert_file},
 };
 
@@ -186,7 +186,9 @@ impl FolderBrowserState {
         else {
             return false;
         };
-        let target_index = offset_index(current_index, delta, folders.len());
+        let target_index =
+            radiant::prelude::list_index_after_delta(current_index, delta as isize, folders.len())
+                .unwrap_or(current_index);
         if target_index == current_index {
             return false;
         }
@@ -198,7 +200,8 @@ impl FolderBrowserState {
         let files = self.selected_audio_files();
         let current = self.selected_file.as_deref()?;
         let current_index = files.iter().position(|file| file.id == current)?;
-        let target_index = offset_index(current_index, delta, files.len());
+        let target_index =
+            radiant::prelude::list_index_after_delta(current_index, delta as isize, files.len())?;
         if target_index == current_index {
             return None;
         }

@@ -101,16 +101,3 @@ pub(super) fn file_extension_label(path: &Path) -> String {
         .map(|extension| extension.to_string_lossy().to_string())
         .unwrap_or_default()
 }
-
-pub(super) fn offset_index(current: usize, delta: i32, len: usize) -> usize {
-    if len == 0 {
-        return 0;
-    }
-    if delta.is_negative() {
-        current.saturating_sub(delta.unsigned_abs() as usize)
-    } else {
-        current
-            .saturating_add(delta as usize)
-            .min(len.saturating_sub(1))
-    }
-}
