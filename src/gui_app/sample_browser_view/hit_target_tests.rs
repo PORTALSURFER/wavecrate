@@ -1,5 +1,7 @@
 use super::*;
+use radiant::widgets::PointerButton;
 
+/// Extracts the sample-file hit-target message from a widget output.
 fn message_from(output: Option<WidgetOutput>) -> SampleFileHitMessage {
     *output
         .expect("expected widget output")
@@ -7,6 +9,7 @@ fn message_from(output: Option<WidgetOutput>) -> SampleFileHitMessage {
         .expect("expected sample file message")
 }
 
+/// Reports whether the paint plan contains the row hover fill.
 fn paints_hover_fill(primitives: &[PaintPrimitive]) -> bool {
     primitives.iter().any(
         |primitive| matches!(primitive, PaintPrimitive::FillRect(fill) if fill.color == HOVER_FILL),
@@ -14,6 +17,7 @@ fn paints_hover_fill(primitives: &[PaintPrimitive]) -> bool {
 }
 
 #[test]
+/// Verifies retained refreshes do not duplicate runtime drag-preview motion.
 fn active_drag_uses_runtime_preview_after_widget_refresh() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
     let mut first = SampleFileHitTarget::new(false, false, false, false, false);
@@ -53,6 +57,7 @@ fn active_drag_uses_runtime_preview_after_widget_refresh() {
 }
 
 #[test]
+/// Verifies refreshed drag-source rows can still end the drag sequence.
 fn active_drag_source_does_not_depend_on_retained_pressed_state() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
     let mut refreshed = SampleFileHitTarget::new(false, true, true, false, false);
@@ -84,6 +89,7 @@ fn active_drag_source_does_not_depend_on_retained_pressed_state() {
 }
 
 #[test]
+/// Verifies non-source rows clear hover while another sample row is dragged.
 fn active_drag_non_source_rows_do_not_keep_hover_highlight() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
     let mut target = SampleFileHitTarget::new(false, true, false, false, false);
@@ -118,6 +124,7 @@ fn active_drag_non_source_rows_do_not_keep_hover_highlight() {
 }
 
 #[test]
+/// Verifies stale hover state is not retained across widget refreshes.
 fn hover_state_clears_on_retained_widget_refresh() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
     let mut previous = SampleFileHitTarget::new(false, false, false, false, false);
@@ -150,6 +157,7 @@ fn hover_state_clears_on_retained_widget_refresh() {
 }
 
 #[test]
+/// Verifies unselected hover paint remains visually neutral.
 fn hover_fill_is_neutral_not_selection_red() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
     let mut target = SampleFileHitTarget::new(false, false, false, false, false);
@@ -182,6 +190,39 @@ fn hover_fill_is_neutral_not_selection_red() {
 }
 
 #[test]
+/// Verifies row activation preserves primary-release modifier state.
+fn primary_activation_preserves_release_modifiers() {
+    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+    let mut target = SampleFileHitTarget::new(false, false, false, false, false);
+    let modifiers = PointerModifiers {
+        shift: true,
+        ..PointerModifiers::default()
+    };
+
+    target.handle_input(
+        bounds,
+        WidgetInput::PointerPress {
+            position: Point::new(34.0, 8.0),
+            button: PointerButton::Primary,
+            modifiers: PointerModifiers::default(),
+        },
+    );
+
+    assert_eq!(
+        message_from(target.handle_input(
+            bounds,
+            WidgetInput::PointerRelease {
+                position: Point::new(34.0, 8.0),
+                button: PointerButton::Primary,
+                modifiers,
+            },
+        )),
+        SampleFileHitMessage::Activate(modifiers)
+    );
+}
+
+#[test]
+/// Verifies retained pressed state survives without carrying stale hover.
 fn pressed_state_survives_retained_widget_refresh_without_hover() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
     let mut previous = SampleFileHitTarget::new(false, false, false, false, false);
@@ -204,6 +245,7 @@ fn pressed_state_survives_retained_widget_refresh_without_hover() {
 }
 
 #[test]
+/// Verifies suppressed rows clear hover and omit stale hover paint.
 fn suppressed_hover_clears_and_omits_stale_hover_paint() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
     let mut previous = SampleFileHitTarget::new(false, false, false, false, false);
@@ -240,6 +282,7 @@ fn suppressed_hover_clears_and_omits_stale_hover_paint() {
 }
 
 #[test]
+/// Verifies cached sample rows paint the loaded marker.
 fn loaded_rows_paint_right_edge_marker() {
     let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(120.0, 22.0));
     let target = SampleFileHitTarget::new(false, false, false, true, false);
@@ -267,6 +310,7 @@ fn loaded_rows_paint_right_edge_marker() {
 }
 
 #[test]
+/// Verifies uncached sample rows do not paint the loaded marker.
 fn unloaded_rows_do_not_paint_loaded_marker() {
     let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(120.0, 22.0));
     let target = SampleFileHitTarget::new(false, false, false, false, false);

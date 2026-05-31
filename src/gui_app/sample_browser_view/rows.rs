@@ -2,7 +2,7 @@ use radiant::prelude as ui;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use super::row_widgets::{KeepBadge, RatingIndicator};
+use super::row_widgets::RatingIndicator;
 use super::{SampleFileHitMessage, SampleFileHitTarget};
 use crate::gui_app::{
     GuiMessage, SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_OVERSCAN_ROWS, SAMPLE_BROWSER_ROW_HEIGHT,
@@ -240,9 +240,11 @@ fn sample_collection_cell(
     width: f32,
     folder_browser: &FolderBrowserState,
 ) -> ui::View<GuiMessage> {
-    ui::widget(ui::ColorMarkerWidget::new(file.collection.and_then(
-        |collection| folder_browser.collection_color(collection),
-    )))
+    ui::color_marker(
+        file.collection
+            .and_then(|collection| folder_browser.collection_color(collection)),
+    )
+    .view()
     .key(format!("sample-collection-{}", file.id))
     .height(20.0)
     .width(width)
@@ -251,21 +253,27 @@ fn sample_collection_cell(
 fn sample_rating_cell(file: &FileEntry, width: f32) -> ui::View<GuiMessage> {
     let indicator = RatingIndicator::new(file.rating, file.rating_locked);
     if indicator.shows_keep_badge() {
-        return ui::custom_widget(KeepBadge::new(), |_| None)
-            .key(format!("sample-rating-{}", file.id))
-            .height(20.0)
-            .width(width);
+        return ui::floating_layer(
+            ui::Point::new((width - 40.0).max(0.0), 3.0),
+            ui::Vector2::new(38.0, 14.0),
+            ui::passive_badge("KEEP").style(ui::WidgetStyle {
+                tone: ui::WidgetTone::Warning,
+                prominence: ui::WidgetProminence::Subtle,
+            }),
+        )
+        .key(format!("sample-rating-{}", file.id))
+        .height(20.0)
+        .width(width);
     }
 
-    ui::widget(
-        ui::MarkerRunWidget::new(indicator.color(), indicator.count() as u8)
-            .with_side(5)
-            .with_gap(4)
-            .with_inset(4),
-    )
-    .key(format!("sample-rating-{}", file.id))
-    .height(20.0)
-    .width(width)
+    ui::marker_run(indicator.color(), indicator.count() as u8)
+        .side(5)
+        .gap(4)
+        .inset(4)
+        .view()
+        .key(format!("sample-rating-{}", file.id))
+        .height(20.0)
+        .width(width)
 }
 
 fn sample_file_cell(

@@ -8,9 +8,6 @@ use wavecrate::sample_sources::SampleCollection;
 
 use super::{FolderBrowserDrag, FolderBrowserState};
 
-mod collection_hit_target;
-pub(in crate::gui_app) use collection_hit_target::{CollectionHitMessage, CollectionHitTarget};
-
 pub(in crate::gui_app) const COLLECTION_ROW_HEIGHT: f32 = 22.0;
 pub(in crate::gui_app) const MIN_COLLECTIONS_PANEL_HEIGHT: f32 = 72.0;
 pub(in crate::gui_app) const MAX_COLLECTIONS_PANEL_HEIGHT: f32 = 260.0;

@@ -52,13 +52,11 @@ pub(super) fn sample_browser(
     }
     ui::stack([
         browser,
-        ui::custom_widget_mapped(
-            ui::PointerShieldWidget::pointer_drop_only(true),
-            sample_list_drop_target_message,
-        )
-        .key("sample-list-waveform-drop-target")
-        .input_only()
-        .fill(),
+        ui::pointer_drop_shield(true)
+            .mapped(sample_list_drop_target_message)
+            .key("sample-list-waveform-drop-target")
+            .input_only()
+            .fill(),
     ])
     .fill()
 }
@@ -69,29 +67,6 @@ fn sample_list_drop_target_message(message: ui::PointerShieldMessage) -> GuiMess
             GuiMessage::DropWaveformSelectionOnSampleList
         }
         _ => GuiMessage::Noop,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn sample_list_drop_target_maps_only_drop_messages() {
-        assert!(matches!(
-            sample_list_drop_target_message(ui::PointerShieldMessage::PointerDrop {
-                position: ui::Point::new(10.0, 12.0),
-                button: ui::PointerButton::Primary,
-                modifiers: Default::default(),
-            }),
-            GuiMessage::DropWaveformSelectionOnSampleList
-        ));
-        assert!(matches!(
-            sample_list_drop_target_message(ui::PointerShieldMessage::PointerMove {
-                position: ui::Point::new(10.0, 12.0),
-            }),
-            GuiMessage::Noop
-        ));
     }
 }
 
@@ -210,4 +185,27 @@ fn sample_browser_status(audio_count: usize) -> ui::View<GuiMessage> {
     .padding_x(3.0)
     .fill_width()
     .height(28.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sample_list_drop_target_maps_only_drop_messages() {
+        assert!(matches!(
+            sample_list_drop_target_message(ui::PointerShieldMessage::PointerDrop {
+                position: ui::Point::new(10.0, 12.0),
+                button: ui::PointerButton::Primary,
+                modifiers: Default::default(),
+            }),
+            GuiMessage::DropWaveformSelectionOnSampleList
+        ));
+        assert!(matches!(
+            sample_list_drop_target_message(ui::PointerShieldMessage::PointerMove {
+                position: ui::Point::new(10.0, 12.0),
+            }),
+            GuiMessage::Noop
+        ));
+    }
 }

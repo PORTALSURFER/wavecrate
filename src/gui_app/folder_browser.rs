@@ -257,13 +257,11 @@ fn collect_collection_audio_files<'a>(
 }
 
 mod collections;
-pub(in crate::gui_app) use collections::{
-    CollectionHitMessage, CollectionHitTarget, SampleCollectionView, collection_hotkey,
-};
 use collections::{
     CollectionPanelResize, CollectionRenameEdit, DEFAULT_COLLECTIONS_PANEL_HEIGHT,
     SampleCollectionConfig,
 };
+pub(in crate::gui_app) use collections::{SampleCollectionView, collection_hotkey};
 
 mod path_helpers;
 use path_helpers::{folder_label, path_id, rewrite_path_id};

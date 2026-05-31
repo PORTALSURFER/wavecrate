@@ -26,10 +26,7 @@ pub(super) struct FolderTreeHitTarget {
     label: PaintText,
     selected: bool,
     drop_target: bool,
-    drag_active: bool,
-    drag_source: bool,
     drop_candidate: bool,
-    drop_target_active: bool,
 }
 
 impl FolderTreeHitTarget {
@@ -46,7 +43,9 @@ impl FolderTreeHitTarget {
             .with_drag()
             .with_drag_active(drag_active)
             .with_drag_source(drag_source)
-            .with_drag_source_motion(true);
+            .with_drag_source_motion(true)
+            .with_pointer_motion_during_interaction()
+            .with_pointer_motion_active(drop_target_active);
         if drag_active && !drag_source {
             row = if drop_hover_enabled(drop_target, drop_candidate, drop_target_active) {
                 row.with_drop_target(true)
@@ -63,10 +62,7 @@ impl FolderTreeHitTarget {
             label: label.into(),
             selected,
             drop_target,
-            drag_active,
-            drag_source,
             drop_candidate,
-            drop_target_active,
         }
     }
 }
@@ -95,10 +91,7 @@ impl Widget for FolderTreeHitTarget {
     }
 
     fn accepts_pointer_move(&self) -> bool {
-        self.row.common.state.pressed
-            || self.drag_active
-            || self.drag_source
-            || self.drop_target_active
+        self.row.accepts_pointer_move()
     }
 
     fn append_paint(
@@ -117,9 +110,9 @@ impl Widget for FolderTreeHitTarget {
 impl FolderTreeHitTarget {
     fn map_row_message(&self, message: InteractiveRowMessage) -> Option<FolderTreeHitMessage> {
         match message {
-            InteractiveRowMessage::Activate | InteractiveRowMessage::DoubleActivate => {
-                Some(FolderTreeHitMessage::Activate)
-            }
+            InteractiveRowMessage::Activate
+            | InteractiveRowMessage::ActivateWithModifiers { .. }
+            | InteractiveRowMessage::DoubleActivate => Some(FolderTreeHitMessage::Activate),
             InteractiveRowMessage::SecondaryActivate { position } => {
                 Some(FolderTreeHitMessage::ContextMenu(position))
             }

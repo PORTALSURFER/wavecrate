@@ -66,27 +66,23 @@ pub(super) fn worker_progress_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
     };
     let track_width = 180.0;
     let progress_bar = if progress.total() == 0 {
-        ui::ProgressBarWidget::indeterminate(state.progress_tick)
+        ui::indeterminate_progress_bar(state.progress_tick)
     } else {
-        ui::ProgressBarWidget::determinate(
-            progress.completed() as f32 / progress.total().max(1) as f32,
-        )
+        ui::determinate_progress_bar(progress.completed() as f32 / progress.total().max(1) as f32)
     }
-    .with_colors(
+    .colors(
         ui::Rgba8::new(48, 50, 51, 210),
         ui::Rgba8::new(255, 112, 86, 210),
     )
-    .with_max_track_height(8.0)
-    .with_activation();
-    ui::custom_widget_mapped(
-        progress_bar,
-        |message: ui::ProgressBarMessage| match message {
+    .max_track_height(8.0)
+    .activatable();
+    progress_bar
+        .mapped(|message| match message {
             ui::ProgressBarMessage::Activate => GuiMessage::ToggleJobDetails,
-        },
-    )
-    .key("bottom-status-progress-bar")
-    .width(track_width)
-    .height(10.0)
+        })
+        .key("bottom-status-progress-bar")
+        .width(track_width)
+        .height(10.0)
 }
 
 fn active_worker_progress(state: &GuiAppState) -> Option<WorkerProgressView<'_>> {

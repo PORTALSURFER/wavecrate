@@ -4,7 +4,7 @@ use radiant::runtime::{PaintFillRect, PaintPrimitive};
 use radiant::theme::ThemeTokens;
 use radiant::widgets::{
     DragHandleMessage, FocusBehavior, InteractiveRowMessage, InteractiveRowWidget, PaintBounds,
-    PointerButton, PointerModifiers, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
+    PointerModifiers, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing,
 };
 
 const HOVER_FILL: Rgba8 = Rgba8 {
@@ -50,7 +50,8 @@ impl SampleFileHitTarget {
             .with_drag_active(drag_active)
             .with_drag_source(drag_source)
             .suppress_hover(suppress_hover)
-            .clear_hover_on_sync();
+            .clear_hover_on_sync()
+            .with_activation_modifiers();
         row.common.focus = FocusBehavior::None;
         row.common.paint.bounds = PaintBounds::ClipToRect;
         row.common.paint.paints_focus = false;
@@ -76,10 +77,9 @@ impl Widget for SampleFileHitTarget {
     }
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        let release_modifiers = primary_release_modifiers(&input);
         self.row
             .handle_input(bounds, input)
-            .and_then(|message| self.map_row_message(message, release_modifiers))
+            .and_then(|message| self.map_row_message(message))
             .map(WidgetOutput::typed)
     }
 
@@ -109,15 +109,18 @@ impl Widget for SampleFileHitTarget {
 }
 
 impl SampleFileHitTarget {
-    fn map_row_message(
-        &self,
-        message: InteractiveRowMessage,
-        release_modifiers: Option<PointerModifiers>,
-    ) -> Option<SampleFileHitMessage> {
+    /// Maps generic Radiant row interactions into sample-browser hit messages.
+    fn map_row_message(&self, message: InteractiveRowMessage) -> Option<SampleFileHitMessage> {
         match message {
-            InteractiveRowMessage::Activate | InteractiveRowMessage::DoubleActivate => Some(
-                SampleFileHitMessage::Activate(release_modifiers.unwrap_or_default()),
-            ),
+            InteractiveRowMessage::Activate => {
+                Some(SampleFileHitMessage::Activate(PointerModifiers::default()))
+            }
+            InteractiveRowMessage::ActivateWithModifiers { modifiers } => {
+                Some(SampleFileHitMessage::Activate(modifiers))
+            }
+            InteractiveRowMessage::DoubleActivate => {
+                Some(SampleFileHitMessage::Activate(PointerModifiers::default()))
+            }
             InteractiveRowMessage::SecondaryActivate { position } => {
                 Some(SampleFileHitMessage::ContextMenu(position))
             }
@@ -204,17 +207,6 @@ impl SampleFileHitTarget {
                 a: 245,
             },
         }));
-    }
-}
-
-fn primary_release_modifiers(input: &WidgetInput) -> Option<PointerModifiers> {
-    match input {
-        WidgetInput::PointerRelease {
-            button: PointerButton::Primary,
-            modifiers,
-            ..
-        } => Some(*modifiers),
-        _ => None,
     }
 }
 

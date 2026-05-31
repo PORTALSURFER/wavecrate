@@ -70,37 +70,6 @@ pub(in crate::gui_app) fn folder_browser_view(
     .fill_height()
 }
 
-#[cfg(test)]
-mod tests {
-    use radiant::gui::types::Point;
-    use radiant::widgets::{PointerButton, PointerModifiers};
-
-    use super::*;
-
-    #[test]
-    fn folder_drop_clear_maps_pointer_move_to_clear_message() {
-        assert!(matches!(
-            folder_drop_clear_message(ui::PointerShieldMessage::PointerMove {
-                position: Point::new(30.0, 12.0),
-            }),
-            GuiMessage::FolderBrowser(FolderBrowserMessage::ClearDropTarget(position))
-                if position == Point::new(30.0, 12.0)
-        ));
-    }
-
-    #[test]
-    fn folder_drop_clear_ignores_non_move_messages() {
-        assert!(matches!(
-            folder_drop_clear_message(ui::PointerShieldMessage::PointerRelease {
-                position: Point::new(30.0, 12.0),
-                button: PointerButton::Primary,
-                modifiers: PointerModifiers::default(),
-            }),
-            GuiMessage::Noop
-        ));
-    }
-}
-
 fn folder_tree_view(state: &FolderBrowserState) -> ui::View<GuiMessage> {
     ui::stack([
         ui::custom_widget_mapped(
@@ -281,4 +250,35 @@ fn sidebar_panel(content: ui::View<GuiMessage>, height: f32) -> ui::View<GuiMess
         .padding(6.0)
         .fill_width()
         .height(height)
+}
+
+#[cfg(test)]
+mod tests {
+    use radiant::gui::types::Point;
+    use radiant::widgets::{PointerButton, PointerModifiers};
+
+    use super::*;
+
+    #[test]
+    fn folder_drop_clear_maps_pointer_move_to_clear_message() {
+        assert!(matches!(
+            folder_drop_clear_message(ui::PointerShieldMessage::PointerMove {
+                position: Point::new(30.0, 12.0),
+            }),
+            GuiMessage::FolderBrowser(FolderBrowserMessage::ClearDropTarget(position))
+                if position == Point::new(30.0, 12.0)
+        ));
+    }
+
+    #[test]
+    fn folder_drop_clear_ignores_non_move_messages() {
+        assert!(matches!(
+            folder_drop_clear_message(ui::PointerShieldMessage::PointerRelease {
+                position: Point::new(30.0, 12.0),
+                button: PointerButton::Primary,
+                modifiers: PointerModifiers::default(),
+            }),
+            GuiMessage::Noop
+        ));
+    }
 }
