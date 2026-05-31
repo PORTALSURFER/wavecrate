@@ -73,7 +73,9 @@ pub(in crate::gui_app) fn folder_browser_view(
 fn folder_tree_view(state: &FolderBrowserState) -> ui::View<GuiMessage> {
     ui::stack([
         ui::pointer_move_shield(state.drop_target_folder.is_some())
-            .mapped(folder_drop_clear_message)
+            .on_pointer_move(|position| {
+                GuiMessage::FolderBrowser(FolderBrowserMessage::ClearDropTarget(position))
+            })
             .key("folder-drop-clear-target")
             .input_only()
             .fill(),
@@ -88,15 +90,6 @@ fn folder_tree_view(state: &FolderBrowserState) -> ui::View<GuiMessage> {
         .spacing(1.0),
     ])
     .fill()
-}
-
-fn folder_drop_clear_message(message: ui::PointerShieldMessage) -> GuiMessage {
-    match message {
-        ui::PointerShieldMessage::PointerMove { position } => {
-            GuiMessage::FolderBrowser(FolderBrowserMessage::ClearDropTarget(position))
-        }
-        _ => GuiMessage::Noop,
-    }
 }
 
 fn folder_row(folder: VisibleFolder) -> ui::View<GuiMessage> {
@@ -248,35 +241,4 @@ fn sidebar_panel(content: ui::View<GuiMessage>, height: f32) -> ui::View<GuiMess
         .padding(6.0)
         .fill_width()
         .height(height)
-}
-
-#[cfg(test)]
-mod tests {
-    use radiant::gui::types::Point;
-    use radiant::widgets::{PointerButton, PointerModifiers};
-
-    use super::*;
-
-    #[test]
-    fn folder_drop_clear_maps_pointer_move_to_clear_message() {
-        assert!(matches!(
-            folder_drop_clear_message(ui::PointerShieldMessage::PointerMove {
-                position: Point::new(30.0, 12.0),
-            }),
-            GuiMessage::FolderBrowser(FolderBrowserMessage::ClearDropTarget(position))
-                if position == Point::new(30.0, 12.0)
-        ));
-    }
-
-    #[test]
-    fn folder_drop_clear_ignores_non_move_messages() {
-        assert!(matches!(
-            folder_drop_clear_message(ui::PointerShieldMessage::PointerRelease {
-                position: Point::new(30.0, 12.0),
-                button: PointerButton::Primary,
-                modifiers: PointerModifiers::default(),
-            }),
-            GuiMessage::Noop
-        ));
-    }
 }

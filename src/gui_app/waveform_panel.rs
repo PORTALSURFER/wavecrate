@@ -39,7 +39,7 @@ fn waveform_viewport_with_loading_state(state: &GuiAppState) -> ui::View<GuiMess
         if !state.folder_browser.drag_active() {
             layers.push(
                 ui::pointer_shield(true)
-                    .mapped(|_: ui::PointerShieldMessage| GuiMessage::Noop)
+                    .view()
                     .key("waveform-loading-input-blocker")
                     .input_only()
                     .fill_width()
