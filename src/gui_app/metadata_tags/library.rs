@@ -49,11 +49,13 @@ impl GuiAppState {
             DragHandleMessage::Started { position } => {
                 self.metadata_tag_drag = Some(tag.clone());
                 self.metadata_tag_drop_hover = None;
-                let width = (tag.chars().count() as f32 * 7.0 + 48.0).clamp(92.0, 180.0);
                 context.begin_drag(ui::DragRequest::new(
-                    ui::DragPreview::sized(
+                    ui::DragPreview::text_sized(
                         format!("Move {tag}"),
-                        ui::Vector2::new(width, DRAG_PREVIEW_HEIGHT),
+                        ui::DragPreviewTextSizing::new(DRAG_PREVIEW_HEIGHT)
+                            .horizontal_padding(48.0)
+                            .min_width(92.0)
+                            .max_width(180.0),
                     ),
                     position,
                 ));

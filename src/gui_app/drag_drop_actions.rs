@@ -1,4 +1,3 @@
-use radiant::layout::Vector2;
 use radiant::prelude as ui;
 use radiant::widgets::DragHandleMessage;
 use std::{fs, path::PathBuf, time::Instant};
@@ -144,9 +143,13 @@ impl GuiAppState {
 
     fn arm_browser_drag(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
         if let Some(preview) = self.folder_browser.drag_preview() {
-            let width = folder_drag_preview_width(&preview.label);
             context.begin_drag(ui::DragRequest::new(
-                ui::DragPreview::sized(preview.label, Vector2::new(width, DRAG_PREVIEW_HEIGHT)),
+                ui::DragPreview::text_sized(
+                    preview.label,
+                    ui::DragPreviewTextSizing::new(DRAG_PREVIEW_HEIGHT)
+                        .min_width(96.0)
+                        .max_width(DRAG_PREVIEW_MAX_WIDTH),
+                ),
                 preview.pointer,
             ));
         }
@@ -263,8 +266,4 @@ impl GuiAppState {
             }
         }
     }
-}
-
-fn folder_drag_preview_width(label: &str) -> f32 {
-    (label.chars().count() as f32 * 7.0 + 28.0).clamp(96.0, DRAG_PREVIEW_MAX_WIDTH)
 }
