@@ -67,22 +67,16 @@ impl WaveformWidget {
             let Some(visible_ratio) = self.visible_ratio_for_absolute(Some(position)) else {
                 continue;
             };
-            let x = bounds.min.x + bounds.width() * visible_ratio.clamp(0.0, 1.0);
+            let x = bounds.x_for_ratio(visible_ratio);
             let gain = selection.gain_at_position(position, 0.0).clamp(0.0, 1.0);
             let y = selection_rect.max.y - selection_rect.height() * gain;
-            let half = marker * 0.5;
+            let marker_bounds = Rect::from_min_max(
+                Point::new(bounds.min.x, selection_rect.min.y),
+                Point::new(bounds.max.x, selection_rect.max.y),
+            );
             self.push_fill(
                 primitives,
-                Rect::from_min_max(
-                    Point::new(
-                        (x - half).clamp(bounds.min.x, bounds.max.x),
-                        (y - half).clamp(selection_rect.min.y, selection_rect.max.y),
-                    ),
-                    Point::new(
-                        (x + half).clamp(bounds.min.x, bounds.max.x),
-                        (y + half).clamp(selection_rect.min.y, selection_rect.max.y),
-                    ),
-                ),
+                Rect::square_around(Point::new(x, y), marker).clamp_to(marker_bounds),
                 color,
             );
         }
