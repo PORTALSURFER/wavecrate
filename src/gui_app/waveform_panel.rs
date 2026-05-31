@@ -38,14 +38,12 @@ fn waveform_viewport_with_loading_state(state: &GuiAppState) -> ui::View<GuiMess
         ));
         if !state.folder_browser.drag_active() {
             layers.push(
-                ui::custom_widget_mapped(
-                    ui::PointerShieldWidget::fill(true),
-                    |_: ui::PointerShieldMessage| GuiMessage::Noop,
-                )
-                .key("waveform-loading-input-blocker")
-                .input_only()
-                .fill_width()
-                .height(WAVEFORM_VIEW_HEIGHT),
+                ui::pointer_shield(true)
+                    .mapped(|_: ui::PointerShieldMessage| GuiMessage::Noop)
+                    .key("waveform-loading-input-blocker")
+                    .input_only()
+                    .fill_width()
+                    .height(WAVEFORM_VIEW_HEIGHT),
             );
         }
     }

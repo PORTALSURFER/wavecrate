@@ -72,13 +72,11 @@ pub(in crate::gui_app) fn folder_browser_view(
 
 fn folder_tree_view(state: &FolderBrowserState) -> ui::View<GuiMessage> {
     ui::stack([
-        ui::custom_widget_mapped(
-            ui::PointerShieldWidget::pointer_move_only(state.drop_target_folder.is_some()),
-            folder_drop_clear_message,
-        )
-        .key("folder-drop-clear-target")
-        .input_only()
-        .fill(),
+        ui::pointer_move_shield(state.drop_target_folder.is_some())
+            .mapped(folder_drop_clear_message)
+            .key("folder-drop-clear-target")
+            .input_only()
+            .fill(),
         ui::column(
             state
                 .visible_folders()
