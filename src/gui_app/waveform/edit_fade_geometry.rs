@@ -1,6 +1,7 @@
 use radiant::gui::{
     range::NormalizedRange,
     types::{Point, Rect},
+    visualization::canvas_selection_rect,
 };
 
 use super::{WaveformEditFadeHandle, WaveformWidget};
@@ -36,10 +37,8 @@ impl WaveformWidget {
             return None;
         }
         let x = self.x_for_micros(bounds, end)?;
-        Some(left_band_rect(
-            selection_rect,
-            x.clamp(selection_rect.min.x, selection_rect.max.x),
-        ))
+        let right_x = x.clamp(selection_rect.min.x, selection_rect.max.x);
+        Some(selection_rect.left_edge_strip(right_x - selection_rect.min.x))
     }
 
     pub(super) fn fade_out_rect(
@@ -56,10 +55,8 @@ impl WaveformWidget {
             return None;
         }
         let x = self.x_for_micros(bounds, start)?;
-        Some(right_band_rect(
-            selection_rect,
-            x.clamp(selection_rect.min.x, selection_rect.max.x),
-        ))
+        let left_x = x.clamp(selection_rect.min.x, selection_rect.max.x);
+        Some(selection_rect.right_edge_strip(selection_rect.max.x - left_x))
     }
 
     pub(super) fn fade_in_outer_rect(
@@ -73,10 +70,12 @@ impl WaveformWidget {
             return None;
         }
         let x = self.x_for_micros(bounds, start)?;
-        Some(outer_left_band_rect(
-            selection_rect,
-            x.clamp(bounds.min.x, selection_rect.min.x),
-        ))
+        let left_x = x.clamp(bounds.min.x, selection_rect.min.x);
+        let outer_bounds = Rect::from_min_max(
+            Point::new(bounds.min.x, selection_rect.min.y),
+            Point::new(selection_rect.min.x, selection_rect.max.y),
+        );
+        Some(outer_bounds.right_edge_strip(selection_rect.min.x - left_x))
     }
 
     pub(super) fn fade_out_outer_rect(
@@ -90,10 +89,12 @@ impl WaveformWidget {
             return None;
         }
         let x = self.x_for_micros(bounds, end)?;
-        Some(outer_right_band_rect(
-            selection_rect,
-            x.clamp(selection_rect.max.x, bounds.max.x),
-        ))
+        let right_x = x.clamp(selection_rect.max.x, bounds.max.x);
+        let outer_bounds = Rect::from_min_max(
+            Point::new(selection_rect.max.x, selection_rect.min.y),
+            Point::new(bounds.max.x, selection_rect.max.y),
+        );
+        Some(outer_bounds.left_edge_strip(right_x - selection_rect.max.x))
     }
 
     pub(super) fn edit_fade_handle_rect(
@@ -105,11 +106,11 @@ impl WaveformWidget {
         let micros = self.micros_for_edit_fade_handle(handle)?;
         let x = self.x_for_micros(bounds, micros)?;
         let size = edit_fade_handle_size(bounds);
-        let (left, right) = edit_fade_handle_horizontal_bounds(bounds, x, size);
-        let (top, bottom) = edit_fade_handle_vertical_bounds(selection_rect, handle, size);
+        let horizontal = bounds.vertical_strip_around_x(x, size);
+        let vertical = edit_fade_handle_vertical_band(selection_rect, handle, size);
         Some(Rect::from_min_max(
-            Point::new(left, top),
-            Point::new(right, bottom),
+            Point::new(horizontal.min.x, vertical.min.y),
+            Point::new(horizontal.max.x, vertical.max.y),
         ))
     }
 
@@ -118,17 +119,9 @@ impl WaveformWidget {
         bounds: Rect,
         range: NormalizedRange,
     ) -> Option<Rect> {
-        let start = self.x_for_micros(bounds, range.start_micros)?;
-        let end = self.x_for_micros(bounds, range.end_micros)?;
-        let min_x = start.min(end).max(bounds.min.x);
-        let max_x = start.max(end).min(bounds.max.x);
-        if max_x <= min_x {
-            return None;
-        }
-        Some(Rect::from_min_max(
-            Point::new(min_x, bounds.min.y),
-            Point::new(max_x, bounds.max.y),
-        ))
+        let start = self.visible_ratio_for_micros(range.start_micros)?;
+        let end = self.visible_ratio_for_micros(range.end_micros)?;
+        canvas_selection_rect(bounds, start.min(end), start.max(end))
     }
 
     fn micros_for_edit_fade_handle(&self, handle: WaveformEditFadeHandle) -> Option<u32> {
@@ -166,38 +159,13 @@ impl WaveformWidget {
     }
 
     fn x_for_micros(&self, bounds: Rect, micros: u32) -> Option<f32> {
-        let ratio = micros.min(1_000_000) as f32 / 1_000_000.0;
-        let visible_ratio = self.visible_ratio_for_absolute(Some(ratio))?;
-        Some(bounds.min.x + bounds.width() * visible_ratio)
+        Some(bounds.x_for_ratio(self.visible_ratio_for_micros(micros)?))
     }
-}
 
-fn left_band_rect(selection_rect: Rect, right_x: f32) -> Rect {
-    Rect::from_min_max(
-        Point::new(selection_rect.min.x, selection_rect.min.y),
-        Point::new(right_x, selection_rect.max.y),
-    )
-}
-
-fn right_band_rect(selection_rect: Rect, left_x: f32) -> Rect {
-    Rect::from_min_max(
-        Point::new(left_x, selection_rect.min.y),
-        Point::new(selection_rect.max.x, selection_rect.max.y),
-    )
-}
-
-fn outer_left_band_rect(selection_rect: Rect, left_x: f32) -> Rect {
-    Rect::from_min_max(
-        Point::new(left_x, selection_rect.min.y),
-        Point::new(selection_rect.min.x, selection_rect.max.y),
-    )
-}
-
-fn outer_right_band_rect(selection_rect: Rect, right_x: f32) -> Rect {
-    Rect::from_min_max(
-        Point::new(selection_rect.max.x, selection_rect.min.y),
-        Point::new(right_x, selection_rect.max.y),
-    )
+    fn visible_ratio_for_micros(&self, micros: u32) -> Option<f32> {
+        let ratio = micros.min(1_000_000) as f32 / 1_000_000.0;
+        self.visible_ratio_for_absolute(Some(ratio))
+    }
 }
 
 fn edit_fade_handles() -> [WaveformEditFadeHandle; 6] {
@@ -218,51 +186,20 @@ fn edit_fade_handle_size(bounds: Rect) -> f32 {
         .min(bounds.height().max(1.0))
 }
 
-fn edit_fade_handle_horizontal_bounds(bounds: Rect, x: f32, size: f32) -> (f32, f32) {
-    let half = size * 0.5;
-    let left = (x - half).clamp(bounds.min.x, bounds.max.x - size.max(1.0));
-    let right = (left + size).min(bounds.max.x).max(left + 1.0);
-    (left, right)
-}
-
-fn edit_fade_handle_vertical_bounds(
+fn edit_fade_handle_vertical_band(
     selection_rect: Rect,
     handle: WaveformEditFadeHandle,
     size: f32,
-) -> (f32, f32) {
+) -> Rect {
     match handle {
         WaveformEditFadeHandle::InEnd | WaveformEditFadeHandle::OutStart => {
-            top_tab_bounds(selection_rect, size)
+            selection_rect.top_edge_strip(size)
         }
         WaveformEditFadeHandle::InStart | WaveformEditFadeHandle::OutEnd => {
-            bottom_tab_bounds(selection_rect, size)
+            selection_rect.bottom_edge_strip(size)
         }
         WaveformEditFadeHandle::InOuterStart | WaveformEditFadeHandle::OutOuterEnd => {
-            centered_tab_bounds(selection_rect, size)
+            selection_rect.horizontal_center_strip(size)
         }
     }
-}
-
-fn top_tab_bounds(selection_rect: Rect, size: f32) -> (f32, f32) {
-    let bottom = (selection_rect.min.y + size)
-        .min(selection_rect.max.y)
-        .max(selection_rect.min.y + 1.0);
-    (selection_rect.min.y, bottom)
-}
-
-fn bottom_tab_bounds(selection_rect: Rect, size: f32) -> (f32, f32) {
-    let top = (selection_rect.max.y - size)
-        .max(selection_rect.min.y)
-        .min(selection_rect.max.y - 1.0);
-    (top, selection_rect.max.y)
-}
-
-fn centered_tab_bounds(selection_rect: Rect, size: f32) -> (f32, f32) {
-    let half = size * 0.5;
-    let center_y = selection_rect.center().y;
-    let top = (center_y - half)
-        .max(selection_rect.min.y)
-        .min(selection_rect.max.y - 1.0);
-    let bottom = (top + size).min(selection_rect.max.y).max(top + 1.0);
-    (top, bottom)
 }
