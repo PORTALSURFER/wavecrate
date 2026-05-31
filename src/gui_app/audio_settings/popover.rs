@@ -30,18 +30,10 @@ pub(in crate::gui_app) fn audio_settings_window_view(
         .padding(AUDIO_SETTINGS_PANEL_PADDING)
         .width(AUDIO_SETTINGS_POPUP_WIDTH)
         .height(AUDIO_SETTINGS_POPUP_HEIGHT);
-    let base = ui::column(vec![
-        ui::spacer().fill_height(),
-        ui::row(vec![
-            ui::spacer().fill_width(),
-            panel,
-            ui::spacer().fill_width(),
-        ])
-        .fill_width()
-        .height(AUDIO_SETTINGS_POPUP_HEIGHT),
-        ui::spacer().fill_height(),
-    ])
-    .fill();
+    let base = ui::centered_layer(
+        panel,
+        ui::Vector2::new(AUDIO_SETTINGS_POPUP_WIDTH, AUDIO_SETTINGS_POPUP_HEIGHT),
+    );
     if snapshot.audio_backend_dropdown_open
         || snapshot.audio_output_dropdown_open
         || snapshot.audio_sample_rate_dropdown_open
