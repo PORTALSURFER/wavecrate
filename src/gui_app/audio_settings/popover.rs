@@ -189,25 +189,23 @@ fn audio_dropdown_dismiss_overlay() -> ui::View<GuiMessage> {
 }
 
 fn audio_host_dropdown_y(snapshot: &AudioSettingsSnapshot) -> f32 {
-    let mut y = ui::StackedLayoutCursor::new();
-    y.advance(20.0, AUDIO_SETTINGS_ROW_SPACING);
-    if snapshot.error.is_some() {
-        y.advance(20.0, AUDIO_SETTINGS_ROW_SPACING);
-    }
-    y.advance(18.0, AUDIO_SETTINGS_SECTION_SPACING);
-    y.offset()
+    ui::StackedLayoutCursor::new()
+        .advanced(20.0, AUDIO_SETTINGS_ROW_SPACING)
+        .advanced_if(snapshot.error.is_some(), 20.0, AUDIO_SETTINGS_ROW_SPACING)
+        .advanced(18.0, AUDIO_SETTINGS_SECTION_SPACING)
+        .offset()
 }
 
 fn audio_output_dropdown_y(snapshot: &AudioSettingsSnapshot) -> f32 {
-    let mut y = ui::StackedLayoutCursor::from_offset(audio_host_dropdown_y(snapshot));
-    y.advance(45.0, AUDIO_SETTINGS_ROW_SPACING);
-    y.offset()
+    ui::StackedLayoutCursor::from_offset(audio_host_dropdown_y(snapshot))
+        .advanced(45.0, AUDIO_SETTINGS_ROW_SPACING)
+        .offset()
 }
 
 fn audio_sample_rate_dropdown_y(snapshot: &AudioSettingsSnapshot) -> f32 {
-    let mut y = ui::StackedLayoutCursor::from_offset(audio_output_dropdown_y(snapshot));
-    y.advance(45.0, AUDIO_SETTINGS_ROW_SPACING);
-    y.offset()
+    ui::StackedLayoutCursor::from_offset(audio_output_dropdown_y(snapshot))
+        .advanced(45.0, AUDIO_SETTINGS_ROW_SPACING)
+        .offset()
 }
 
 fn audio_host_dropdown_options(
