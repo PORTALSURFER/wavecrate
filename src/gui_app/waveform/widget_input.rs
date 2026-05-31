@@ -1,6 +1,9 @@
 use radiant::{
-    gui::types::{Point, Rect},
-    widgets::{DragHandleMessage, PointerButton, WidgetInput, WidgetOutput},
+    gui::types::Rect,
+    widgets::{
+        CanvasGestureEvent, CanvasPointer, DragHandleMessage, PointerButton, WidgetInput,
+        WidgetOutput,
+    },
 };
 
 use super::{
@@ -14,70 +17,69 @@ impl WaveformWidget {
         bounds: Rect,
         input: WidgetInput,
     ) -> Option<WidgetOutput> {
-        match input {
-            WidgetInput::PointerMove { position } => {
-                self.common.state.hovered = bounds.contains(position);
+        if input_starts_outside(bounds, &input) {
+            return None;
+        }
+        let event = self.gesture.handle_input(bounds, &input)?;
+        match event {
+            CanvasGestureEvent::Hover(pointer) => {
+                self.common.state.hovered = bounds.contains(pointer.position);
                 if !self.has_loaded_sample() {
                     return None;
                 }
                 if self.active_drag_kind == Some(WaveformActiveDragKind::PlaySelectionExport) {
                     return Some(WidgetOutput::typed(
                         WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::Moved {
-                            position,
+                            position: pointer.position,
                         }),
                     ));
                 }
                 self.active_drag_kind.map(|_| {
                     WidgetOutput::typed(WaveformInteraction::UpdateSelection {
-                        visible_ratio: self.ratio_from_position(bounds, position),
+                        visible_ratio: visible_ratio(pointer),
                     })
                 })
             }
-            WidgetInput::Wheel { position, .. }
-                if !self.has_loaded_sample() && bounds.contains(position) =>
-            {
-                None
-            }
-            WidgetInput::Wheel {
-                position, delta, ..
-            } if bounds.contains(position) => {
+            CanvasGestureEvent::Wheel { pointer, .. } if !bounds.contains(pointer.position) => None,
+            CanvasGestureEvent::Wheel { pointer, .. } if !self.has_loaded_sample() => None,
+            CanvasGestureEvent::Wheel { pointer, delta } => {
                 Some(WidgetOutput::typed(WaveformInteraction::Wheel {
                     delta,
-                    anchor_ratio: self.ratio_from_position(bounds, position),
+                    anchor_ratio: visible_ratio(pointer),
                 }))
             }
-            WidgetInput::PointerPress {
-                position,
+            CanvasGestureEvent::Press {
+                pointer,
                 button: PointerButton::Primary,
                 ..
-            } if self.has_loaded_sample() && bounds.contains(position) => {
-                self.handle_primary_press(bounds, position)
+            } if self.has_loaded_sample() && bounds.contains(pointer.position) => {
+                self.handle_primary_press(bounds, pointer)
             }
-            WidgetInput::PointerDoubleClick {
-                position,
+            CanvasGestureEvent::DoubleClick {
+                pointer,
                 button: PointerButton::Primary,
                 ..
-            } if self.has_loaded_sample() && bounds.contains(position) => {
-                self.handle_primary_double_click(bounds, position)
+            } if self.has_loaded_sample() && bounds.contains(pointer.position) => {
+                self.handle_primary_double_click(bounds, pointer)
             }
-            WidgetInput::PointerPress {
-                position,
+            CanvasGestureEvent::Press {
+                pointer,
                 button: PointerButton::Secondary,
                 ..
-            } if self.has_loaded_sample() && bounds.contains(position) => {
-                self.handle_secondary_press(bounds, position)
+            } if self.has_loaded_sample() && bounds.contains(pointer.position) => {
+                self.handle_secondary_press(bounds, pointer)
             }
-            WidgetInput::PointerPress {
-                position,
+            CanvasGestureEvent::Press {
+                pointer,
                 button: PointerButton::Auxiliary,
                 ..
-            } if self.has_loaded_sample() && bounds.contains(position) => {
+            } if self.has_loaded_sample() && bounds.contains(pointer.position) => {
                 Some(WidgetOutput::typed(WaveformInteraction::BeginPan {
-                    visible_ratio: self.ratio_from_position(bounds, position),
+                    visible_ratio: visible_ratio(pointer),
                 }))
             }
-            WidgetInput::PointerRelease {
-                position,
+            CanvasGestureEvent::Release {
+                pointer,
                 button: PointerButton::Primary,
                 ..
             } if self.has_loaded_sample()
@@ -85,48 +87,46 @@ impl WaveformWidget {
             {
                 Some(WidgetOutput::typed(
                     WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::Ended {
-                        position,
+                        position: pointer.position,
                     }),
                 ))
             }
-            WidgetInput::PointerRelease {
-                position,
+            CanvasGestureEvent::Release {
+                pointer,
                 button: PointerButton::Primary,
                 ..
             } if self.has_loaded_sample() && self.primary_release_finishes_drag() => {
                 Some(WidgetOutput::typed(WaveformInteraction::FinishSelection {
-                    visible_ratio: self.ratio_from_position(bounds, position),
+                    visible_ratio: visible_ratio(pointer),
                 }))
             }
-            WidgetInput::PointerRelease {
-                position,
+            CanvasGestureEvent::Release {
+                pointer,
                 button: PointerButton::Secondary,
                 ..
             } if self.has_loaded_sample() && self.secondary_release_finishes_drag() => {
                 Some(WidgetOutput::typed(WaveformInteraction::FinishSelection {
-                    visible_ratio: self.ratio_from_position(bounds, position),
+                    visible_ratio: visible_ratio(pointer),
                 }))
             }
-            WidgetInput::PointerRelease {
-                position,
+            CanvasGestureEvent::Release {
+                pointer,
                 button: PointerButton::Auxiliary,
                 ..
             } if self.has_loaded_sample()
                 && self.active_drag_kind == Some(WaveformActiveDragKind::Pan) =>
             {
                 Some(WidgetOutput::typed(WaveformInteraction::FinishSelection {
-                    visible_ratio: self.ratio_from_position(bounds, position),
+                    visible_ratio: visible_ratio(pointer),
                 }))
             }
             _ => None,
         }
     }
 
-    fn ratio_from_position(&self, bounds: Rect, position: Point) -> f32 {
-        bounds.ratio_for_x(position.x)
-    }
-
-    fn handle_primary_press(&self, bounds: Rect, position: Point) -> Option<WidgetOutput> {
+    fn handle_primary_press(&self, bounds: Rect, pointer: CanvasPointer) -> Option<WidgetOutput> {
+        let position = pointer.position;
+        let visible_ratio = visible_ratio(pointer);
         if self.play_selection_export_handle_at(bounds, position) {
             return Some(WidgetOutput::typed(
                 WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::Started {
@@ -137,7 +137,7 @@ impl WaveformWidget {
         if let Some(handle) = self.edit_fade_handle_at(bounds, position) {
             return Some(WidgetOutput::typed(WaveformInteraction::BeginEditFade {
                 handle,
-                visible_ratio: self.ratio_from_position(bounds, position),
+                visible_ratio,
             }));
         }
         if let Some(edge) =
@@ -147,7 +147,7 @@ impl WaveformWidget {
                 WaveformInteraction::BeginSelectionResize {
                     kind: WaveformSelectionKind::Play,
                     edge,
-                    visible_ratio: self.ratio_from_position(bounds, position),
+                    visible_ratio,
                 },
             ));
         }
@@ -155,7 +155,7 @@ impl WaveformWidget {
             return Some(WidgetOutput::typed(
                 WaveformInteraction::BeginSelectionMove {
                     kind: WaveformSelectionKind::Play,
-                    visible_ratio: self.ratio_from_position(bounds, position),
+                    visible_ratio,
                 },
             ));
         }
@@ -163,17 +163,22 @@ impl WaveformWidget {
             return Some(WidgetOutput::typed(
                 WaveformInteraction::BeginSelectionMove {
                     kind: WaveformSelectionKind::Edit,
-                    visible_ratio: self.ratio_from_position(bounds, position),
+                    visible_ratio,
                 },
             ));
         }
         Some(WidgetOutput::typed(WaveformInteraction::BeginSelection {
             kind: WaveformSelectionKind::Play,
-            visible_ratio: self.ratio_from_position(bounds, position),
+            visible_ratio,
         }))
     }
 
-    fn handle_primary_double_click(&self, bounds: Rect, position: Point) -> Option<WidgetOutput> {
+    fn handle_primary_double_click(
+        &self,
+        bounds: Rect,
+        pointer: CanvasPointer,
+    ) -> Option<WidgetOutput> {
+        let position = pointer.position;
         if let Some(
             handle @ (WaveformEditFadeHandle::InOuterStart | WaveformEditFadeHandle::OutOuterEnd),
         ) = self.edit_fade_handle_at(bounds, position)
@@ -185,24 +190,26 @@ impl WaveformWidget {
         None
     }
 
-    fn handle_secondary_press(&self, bounds: Rect, position: Point) -> Option<WidgetOutput> {
+    fn handle_secondary_press(&self, bounds: Rect, pointer: CanvasPointer) -> Option<WidgetOutput> {
+        let position = pointer.position;
+        let visible_ratio = visible_ratio(pointer);
         if let Some(handle) = self.edit_fade_handle_at(bounds, position) {
             return Some(WidgetOutput::typed(WaveformInteraction::BeginEditFade {
                 handle,
-                visible_ratio: self.ratio_from_position(bounds, position),
+                visible_ratio,
             }));
         }
         if self.selection_move_handle_at(bounds, position, WaveformSelectionKind::Edit) {
             return Some(WidgetOutput::typed(
                 WaveformInteraction::BeginSelectionMove {
                     kind: WaveformSelectionKind::Edit,
-                    visible_ratio: self.ratio_from_position(bounds, position),
+                    visible_ratio,
                 },
             ));
         }
         Some(WidgetOutput::typed(WaveformInteraction::BeginSelection {
             kind: WaveformSelectionKind::Edit,
-            visible_ratio: self.ratio_from_position(bounds, position),
+            visible_ratio,
         }))
     }
 
@@ -233,5 +240,18 @@ impl WaveformWidget {
                         | WaveformActiveDragKind::SelectionMove(WaveformSelectionKind::Edit)
                 )
             )
+    }
+}
+
+fn visible_ratio(pointer: CanvasPointer) -> f32 {
+    pointer.normalized.x
+}
+
+fn input_starts_outside(bounds: Rect, input: &WidgetInput) -> bool {
+    match input {
+        WidgetInput::PointerPress { position, .. }
+        | WidgetInput::PointerDoubleClick { position, .. }
+        | WidgetInput::Wheel { position, .. } => !bounds.contains(*position),
+        _ => false,
     }
 }

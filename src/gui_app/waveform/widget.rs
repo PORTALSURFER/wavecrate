@@ -5,7 +5,7 @@ use radiant::{
     prelude as ui,
     runtime::PaintPrimitive,
     theme::ThemeTokens,
-    widgets::{Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing},
+    widgets::{CanvasGestureState, Widget, WidgetCommon, WidgetInput, WidgetOutput, WidgetSizing},
 };
 use std::sync::Arc;
 
@@ -81,6 +81,7 @@ impl WaveformWidgetProps {
 #[derive(Clone, Debug)]
 pub(in crate::gui_app) struct WaveformWidget {
     pub(super) common: WidgetCommon,
+    pub(super) gesture: CanvasGestureState,
     pub(super) file: Arc<WaveformFile>,
     pub(super) viewport: WaveformViewport,
     pub(super) playhead_ratio: Option<f32>,
@@ -118,6 +119,7 @@ impl WaveformWidget {
         .without_default_chrome();
         Self {
             common,
+            gesture: CanvasGestureState::new(),
             file,
             viewport,
             playhead_ratio,
