@@ -1,6 +1,6 @@
 use radiant::prelude as ui;
 
-use super::folder_browser::{FILE_COLUMN_GAP, FileColumn, FolderBrowserMessage};
+use super::folder_browser::{FileColumn, FolderBrowserMessage};
 use super::{
     GuiAppState, GuiMessage, SAMPLE_BROWSER_EDGE_CONTEXT_ROWS, SAMPLE_BROWSER_OVERSCAN_ROWS,
     SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS, SampleNameViewMode,
@@ -86,7 +86,7 @@ fn sample_name_view_mode_button(mode: SampleNameViewMode) -> ui::View<GuiMessage
 }
 
 fn sample_browser_header(columns: &[&FileColumn], sort: &ui::DetailsSort) -> ui::View<GuiMessage> {
-    details_header_row(
+    ui::compact_details_header_row(
         columns
             .iter()
             .map(|column| sample_header_cell(column, sort)),
@@ -94,18 +94,10 @@ fn sample_browser_header(columns: &[&FileColumn], sort: &ui::DetailsSort) -> ui:
 }
 
 fn sample_header_cell(column: &FileColumn, sort: &ui::DetailsSort) -> ui::View<GuiMessage> {
-    let marker = if sort.column_id == column.id {
-        match sort.direction {
-            ui::SortDirection::Ascending => " ^",
-            ui::SortDirection::Descending => " v",
-        }
-    } else {
-        ""
-    };
     let sort_id = column.id.clone();
     let drag_id = column.id.clone();
     let resize_id = column.id.clone();
-    let label = format!("{}{marker}", column.label);
+    let label = ui::details_sort_label(column.label.as_str(), column.id.as_str(), Some(sort));
     ui::row([
         ui::input_overlay(
             ui::text(label.clone())
@@ -143,21 +135,6 @@ fn sample_header_cell(column: &FileColumn, sort: &ui::DetailsSort) -> ui::View<G
     .width(column.width)
     .height(20.0)
     .spacing(1.0)
-}
-
-fn details_header_row(
-    children: impl IntoIterator<Item = ui::View<GuiMessage>>,
-) -> ui::View<GuiMessage> {
-    ui::row(children)
-        .style(ui::WidgetStyle::new(
-            ui::WidgetTone::Accent,
-            ui::WidgetProminence::Subtle,
-        ))
-        .fill_width()
-        .height(24.0)
-        .padding_x(8.0)
-        .padding_y(2.0)
-        .spacing(FILE_COLUMN_GAP)
 }
 
 fn sample_browser_status(audio_count: usize) -> ui::View<GuiMessage> {

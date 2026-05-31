@@ -318,7 +318,6 @@ mod file_view_window;
 mod file_rename_workflow;
 
 mod file_columns;
-pub(super) use file_columns::FILE_COLUMN_GAP;
 #[cfg(test)]
 pub(super) use file_columns::MIN_FILE_COLUMN_WIDTH;
 
