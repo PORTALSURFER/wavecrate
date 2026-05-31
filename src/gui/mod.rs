@@ -23,27 +23,6 @@ pub mod input {
 pub mod layout_core {
     //! Generic slot-based layout primitives from `radiant`.
     pub use radiant::gui::layout_core::*;
-
-    /// Backwards-compatible constructor for Wavecrate layout adapter code.
-    ///
-    /// Radiant now exposes named `ConstraintsParts` construction publicly; this
-    /// keeps Wavecrate call sites concise while preserving the same normalization
-    /// behavior at the app boundary.
-    pub trait ConstraintsCompat {
-        /// Build normalized constraints from raw min/max bounds.
-        fn new(min_w: f32, max_w: f32, min_h: f32, max_h: f32) -> Self;
-    }
-
-    impl ConstraintsCompat for Constraints {
-        fn new(min_w: f32, max_w: f32, min_h: f32, max_h: f32) -> Self {
-            Self::from_parts(ConstraintsParts {
-                min_w,
-                max_w,
-                min_h,
-                max_h,
-            })
-        }
-    }
 }
 
 pub mod text_layout {
