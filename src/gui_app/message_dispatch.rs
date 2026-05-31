@@ -175,8 +175,14 @@ impl GuiAppState {
             }
             GuiMessage::NormalizeSelectedSamples => self.normalize_selected_samples(context),
             GuiMessage::CopySelectedFiles => self.copy_selected_files(),
-            GuiMessage::CopyContextPath => self.copy_context_path(),
-            GuiMessage::OpenContextTarget => self.open_context_target(),
+            GuiMessage::CopyContextPath => self.copy_context_path(context),
+            GuiMessage::ContextPathCopyFinished { kind, path, result } => {
+                self.finish_context_path_copy(kind, path, result);
+            }
+            GuiMessage::OpenContextTarget => self.open_context_target(context),
+            GuiMessage::ContextTargetOpenFinished { kind, path, result } => {
+                self.finish_context_target_open(kind, path, result);
+            }
             GuiMessage::RemoveContextSource => self.remove_context_source(),
             GuiMessage::CloseContextMenu => {
                 self.context_menu = None;

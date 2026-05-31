@@ -56,9 +56,7 @@ use audio_settings::audio_settings_popover;
 use audio_settings::format_sample_rate_label;
 #[cfg(test)]
 use audio_settings::top_status_bar;
-use context_menu::BrowserContextMenu;
-#[cfg(test)]
-use context_menu::BrowserContextTargetKind;
+use context_menu::{BrowserContextMenu, BrowserContextTargetKind};
 #[cfg(test)]
 use file_actions::format_copy_path;
 #[cfg(test)]
@@ -117,6 +115,16 @@ enum GuiMessage {
     ResizeFolder(DragHandleMessage),
     FolderBrowser(FolderBrowserMessage),
     AddSourceDialogFinished(Result<ui::PlatformResponse, String>),
+    ContextPathCopyFinished {
+        kind: BrowserContextTargetKind,
+        path: PathBuf,
+        result: Result<ui::PlatformResponse, String>,
+    },
+    ContextTargetOpenFinished {
+        kind: BrowserContextTargetKind,
+        path: PathBuf,
+        result: Result<ui::PlatformResponse, String>,
+    },
     FolderScanProgress(FolderScanProgress),
     FolderScanDiscoveryBatch(FolderScanDiscoveryBatch),
     FolderScanFinished(FolderScanResult),

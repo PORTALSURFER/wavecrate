@@ -215,10 +215,52 @@ fn stale_context_menu_copy_path_refuses_missing_sample_file() {
         title: String::from("missing.wav"),
     });
 
-    state.copy_context_path();
+    let mut context = ui::UpdateContext::default();
+    state.copy_context_path(&mut context);
 
     assert_eq!(state.sample_status, "Sample file is missing");
     assert_eq!(state.context_menu, None);
+}
+
+#[test]
+fn context_path_copy_completion_updates_status() {
+    let mut state = GuiAppState::load_default().expect("default state loads");
+
+    state.finish_context_path_copy(
+        crate::gui_app::BrowserContextTargetKind::Sample,
+        std::path::PathBuf::from("C:\\samples\\kick.wav"),
+        Ok(ui::PlatformResponse::Completed),
+    );
+    assert_eq!(state.sample_status, "Copied path");
+
+    state.finish_context_path_copy(
+        crate::gui_app::BrowserContextTargetKind::Sample,
+        std::path::PathBuf::from("C:\\samples\\kick.wav"),
+        Err(String::from("clipboard unavailable")),
+    );
+    assert_eq!(
+        state.sample_status,
+        "Copy path failed: clipboard unavailable"
+    );
+}
+
+#[test]
+fn context_target_open_completion_updates_status() {
+    let mut state = GuiAppState::load_default().expect("default state loads");
+
+    state.finish_context_target_open(
+        crate::gui_app::BrowserContextTargetKind::Sample,
+        std::path::PathBuf::from("C:\\samples\\kick.wav"),
+        Ok(ui::PlatformResponse::Completed),
+    );
+    assert_eq!(state.sample_status, "Revealed sample");
+
+    state.finish_context_target_open(
+        crate::gui_app::BrowserContextTargetKind::Folder,
+        std::path::PathBuf::from("C:\\samples"),
+        Err(String::from("shell unavailable")),
+    );
+    assert_eq!(state.sample_status, "shell unavailable");
 }
 
 #[test]
