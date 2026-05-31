@@ -175,7 +175,7 @@ impl FolderBrowserState {
             self.collection_rename_edit = None;
             self.selected_file = None;
             self.selected_file_ids.clear();
-            self.file_view_start = 0;
+            self.reset_file_view();
         }
         self.selected_collection = Some(collection);
     }

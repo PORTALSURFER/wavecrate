@@ -147,7 +147,7 @@ impl FolderBrowserState {
         let previous_selected_folder = self.selected_folder.clone();
         let previous_selected_file = self.selected_file.clone();
         let previous_selected_file_ids = self.selected_file_ids.clone();
-        let previous_file_view_start = self.file_view_start;
+        let previous_file_view_controller = self.file_view_controller.clone();
         if let Err(error) = self.relocate_moved_files(&completed, &target_path) {
             rollback_completed_file_moves(&completed);
             return Err(error);
@@ -155,7 +155,7 @@ impl FolderBrowserState {
         self.selected_folder = previous_selected_folder;
         self.selected_file = previous_selected_file;
         self.selected_file_ids = previous_selected_file_ids;
-        self.file_view_start = previous_file_view_start;
+        self.file_view_controller = previous_file_view_controller;
         Ok(FolderDropResult {
             moved_paths: completed,
             status: Some(format!(

@@ -32,7 +32,7 @@ impl FolderBrowserState {
         self.selected_file = Some(file_id.clone());
         self.selected_file_ids.clear();
         self.selected_file_ids.insert(file_id);
-        self.file_view_start = 0;
+        self.reset_file_view();
         self.folders = vec![root_folder];
         if source_changed {
             self.expanded_folders.clear();

@@ -34,7 +34,7 @@ pub(super) struct FolderBrowserState {
     file_sort: ui::DetailsSort,
     file_column_resize: Option<ui::DetailsColumnResizeDrag>,
     file_column_reorder: Option<ui::DetailsColumnReorderDrag>,
-    file_view_start: usize,
+    file_view_controller: ui::VirtualListController,
 }
 
 impl FolderBrowserState {
@@ -81,7 +81,7 @@ impl FolderBrowserState {
             file_sort: ui::DetailsSort::new("name", ui::SortDirection::Ascending),
             file_column_resize: None,
             file_column_reorder: None,
-            file_view_start: 0,
+            file_view_controller: ui::VirtualListController::default(),
         }
     }
 
@@ -117,7 +117,7 @@ impl FolderBrowserState {
             file_sort: ui::DetailsSort::new("name", ui::SortDirection::Ascending),
             file_column_resize: None,
             file_column_reorder: None,
-            file_view_start: 0,
+            file_view_controller: ui::VirtualListController::default(),
         }
     }
 

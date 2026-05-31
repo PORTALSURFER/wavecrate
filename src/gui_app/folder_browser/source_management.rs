@@ -258,7 +258,7 @@ impl FolderBrowserState {
         self.selected_folder = root_id.clone();
         self.selected_file = None;
         self.selected_file_ids.clear();
-        self.file_view_start = 0;
+        self.reset_file_view();
         self.expanded_folders.clear();
         self.expanded_folders.insert(root_id);
         self.folders = vec![folder];
@@ -273,7 +273,7 @@ impl FolderBrowserState {
         self.selected_folder = root_id.clone();
         self.selected_file = None;
         self.selected_file_ids.clear();
-        self.file_view_start = 0;
+        self.reset_file_view();
         self.expanded_folders.clear();
         self.expanded_folders.insert(root_id);
         self.folders = vec![root_folder];

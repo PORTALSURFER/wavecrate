@@ -246,7 +246,7 @@ impl FolderBrowserState {
         self.selected_folder = new_id;
         self.selected_file = None;
         self.selected_file_ids.clear();
-        self.file_view_start = 0;
+        self.reset_file_view();
         format!("Created folder {new_name}")
     }
 }

@@ -45,7 +45,7 @@ impl FolderBrowserState {
         self.selected_folder = id;
         self.selected_file = None;
         self.selected_file_ids.clear();
-        self.file_view_start = 0;
+        self.reset_file_view();
     }
 
     pub(super) fn selected_folder_is_source_root(&self) -> bool {

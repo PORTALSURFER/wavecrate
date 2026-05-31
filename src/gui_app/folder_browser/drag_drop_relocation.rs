@@ -126,7 +126,7 @@ impl FolderBrowserState {
             moved_ids.iter().cloned().collect()
         };
         self.selected_folder = target_parent_id.clone();
-        self.file_view_start = 0;
+        self.reset_file_view();
         self.expanded_folders.insert(target_parent_id);
         Ok(())
     }
