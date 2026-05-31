@@ -80,7 +80,7 @@ fn sample_browser_row(
     );
     let row = ui::stack([
         hit_target,
-        compact_details_row(columns.iter().map(|column| {
+        ui::compact_details_row(columns.iter().map(|column| {
             sample_column_cell(
                 file,
                 rename.clone(),
@@ -288,17 +288,6 @@ fn sample_file_cell(
     text.key(format!("sample-{}-{column_id}", file.id))
         .height(20.0)
         .width(width)
-}
-
-fn compact_details_row(
-    children: impl IntoIterator<Item = ui::View<GuiMessage>>,
-) -> ui::View<GuiMessage> {
-    ui::row(children)
-        .fill_width()
-        .height(22.0)
-        .padding_x(8.0)
-        .padding_y(1.0)
-        .spacing(10.0)
 }
 
 #[cfg(test)]
