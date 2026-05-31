@@ -209,11 +209,7 @@ fn audio_settings_dropdown_overlay(snapshot: &AudioSettingsSnapshot) -> ui::View
 }
 
 fn audio_dropdown_dismiss_overlay() -> ui::View<GuiMessage> {
-    ui::button("")
-        .message(GuiMessage::CloseAudioSettingsDropdowns)
-        .key("audio-backend-dropdown-dismiss")
-        .input_only()
-        .fill()
+    ui::dismiss_layer(GuiMessage::CloseAudioSettingsDropdowns).key("audio-backend-dropdown-dismiss")
 }
 
 fn audio_host_dropdown_overlay_y(snapshot: &AudioSettingsSnapshot) -> f32 {
