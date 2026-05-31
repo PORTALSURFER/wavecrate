@@ -12,11 +12,12 @@ const TAG_COMPLETION_ROW_HEIGHT: f32 = 18.0;
 const TAG_COMPLETION_POPUP_VERTICAL_CHROME: f32 = 6.0;
 
 fn tag_completion_popup_height(options: &[MetadataTagCompletionOption]) -> f32 {
-    if options.is_empty() {
-        return 0.0;
-    }
-    let rows = options.len().min(MAX_TAG_COMPLETION_ROWS);
-    rows as f32 * TAG_COMPLETION_ROW_HEIGHT + TAG_COMPLETION_POPUP_VERTICAL_CHROME
+    ui::bounded_list_height(
+        options.len(),
+        MAX_TAG_COMPLETION_ROWS,
+        TAG_COMPLETION_ROW_HEIGHT,
+        TAG_COMPLETION_POPUP_VERTICAL_CHROME,
+    )
 }
 
 pub(super) fn tag_completion_panel_layer(
