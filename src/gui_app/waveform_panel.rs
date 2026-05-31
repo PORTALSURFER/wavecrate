@@ -56,15 +56,13 @@ fn waveform_viewport_with_loading_state(state: &GuiAppState) -> ui::View<GuiMess
 
 #[cfg_attr(test, allow(dead_code))]
 pub(crate) fn waveform_loading_visual(_label: &str, progress: f32) -> ui::View<GuiMessage> {
-    ui::custom_widget(
-        ui::FeedbackOverlayWidget::fill()
-            .with_background(ui::Rgba8::new(22, 24, 25, 72))
-            .with_progress(progress, ui::Rgba8::new(174, 178, 181, 118)),
-        |_| None,
-    )
-    .key("waveform-loading-visual")
-    .fill_width()
-    .height(WAVEFORM_VIEW_HEIGHT)
+    ui::feedback_overlay()
+        .background(ui::Rgba8::new(22, 24, 25, 72))
+        .progress(progress, ui::Rgba8::new(174, 178, 181, 118))
+        .view()
+        .key("waveform-loading-visual")
+        .fill_width()
+        .height(WAVEFORM_VIEW_HEIGHT)
 }
 
 fn waveform_drop_hover_visual(supported: bool) -> ui::View<GuiMessage> {
@@ -73,24 +71,22 @@ fn waveform_drop_hover_visual(supported: bool) -> ui::View<GuiMessage> {
     } else {
         ui::Rgba8::new(214, 62, 62, 255)
     };
-    ui::custom_widget(
-        ui::FeedbackOverlayWidget::fill()
-            .with_background(color.with_alpha(56))
-            .with_edge(
-                color.with_alpha(210),
-                3.0,
-                ui::BorderSides {
-                    top: true,
-                    bottom: true,
-                    left: false,
-                    right: false,
-                },
-            ),
-        |_| None,
-    )
-    .key("waveform-drop-hover-visual")
-    .fill_width()
-    .height(WAVEFORM_VIEW_HEIGHT)
+    ui::feedback_overlay()
+        .background(color.with_alpha(56))
+        .edge(
+            color.with_alpha(210),
+            3.0,
+            ui::BorderSides {
+                top: true,
+                bottom: true,
+                left: false,
+                right: false,
+            },
+        )
+        .view()
+        .key("waveform-drop-hover-visual")
+        .fill_width()
+        .height(WAVEFORM_VIEW_HEIGHT)
 }
 
 fn waveform_title(waveform: &WaveformState) -> String {
