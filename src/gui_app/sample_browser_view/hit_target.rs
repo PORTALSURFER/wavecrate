@@ -135,10 +135,11 @@ impl SampleFileHitTarget {
             primitives,
             self.row.common.id,
             bounds,
-            ui::DenseRowVisualState {
-                selected: self.selected,
-                ..ui::DenseRowVisualState::default()
-            },
+            self.row
+                .dense_visual_state(ui::InteractiveRowVisualStateParts {
+                    selected: self.selected,
+                    ..ui::InteractiveRowVisualStateParts::default()
+                }),
             ui::DenseRowPalette::new().selected(Rgba8 {
                 r: 255,
                 g: 82,
@@ -183,11 +184,8 @@ impl SampleFileHitTarget {
             primitives,
             self.row.common.id,
             bounds,
-            ui::DenseRowVisualState {
-                hovered: self.row.common.state.hovered,
-                pressed: self.row.common.state.pressed,
-                ..ui::DenseRowVisualState::default()
-            },
+            self.row
+                .dense_visual_state(ui::InteractiveRowVisualStateParts::default()),
             ui::DenseRowPalette::new()
                 .hovered(HOVER_FILL)
                 .pressed(PRESSED_FILL),

@@ -57,25 +57,21 @@ impl FolderTreeHitTarget {
     }
 
     fn background_state(&self) -> ui::DenseRowVisualState {
-        ui::DenseRowVisualState {
-            selected: self.selected,
-            hovered: self.row.common.state.hovered,
-            pressed: self.row.common.state.pressed,
-            active_target: self.drop_target,
-            candidate: self.drop_candidate,
-        }
+        self.row
+            .dense_visual_state(ui::InteractiveRowVisualStateParts {
+                selected: self.selected,
+                active_target: self.drop_target,
+                candidate: self.drop_candidate,
+            })
     }
 
     fn background_palette(&self) -> ui::DenseRowPalette {
+        let background_state = self.background_state();
         let interaction_fill = Rgba8 {
             r: 255,
             g: 110,
             b: 85,
-            a: if self.row.common.state.pressed {
-                120
-            } else {
-                80
-            },
+            a: if background_state.pressed { 120 } else { 80 },
         };
         ui::DenseRowPalette::new()
             .selected(Rgba8 {
@@ -114,7 +110,8 @@ impl FolderTreeHitTarget {
     }
 
     fn label_is_highlighted(&self) -> bool {
-        self.drop_target || (self.row.common.state.hovered && self.drop_candidate) || self.selected
+        let state = self.background_state();
+        state.active_target || (state.hovered && state.candidate) || state.selected
     }
 }
 
