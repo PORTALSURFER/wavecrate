@@ -1,8 +1,5 @@
 use radiant::{
-    gui::{
-        feedback::horizontal_value_cursor_rect,
-        types::{Rect, Rgba8},
-    },
+    gui::types::{Rect, Rgba8},
     runtime::PaintPrimitive,
 };
 
@@ -21,7 +18,15 @@ impl WaveformWidget {
         end: f32,
         color: Rgba8,
     ) {
-        self.push_fill(primitives, bounds.horizontal_ratio_span(start, end), color);
+        radiant::gui::feedback::push_horizontal_value_range_fill(
+            primitives,
+            self.common.id,
+            bounds,
+            start,
+            end,
+            1.0,
+            color,
+        );
     }
 
     pub(super) fn push_visible_cursor(
@@ -32,8 +37,13 @@ impl WaveformWidget {
         color: Rgba8,
         width: f32,
     ) {
-        if let Some(rect) = horizontal_value_cursor_rect(bounds, ratio, width.max(2.0)) {
-            self.push_fill(primitives, rect, color);
-        }
+        radiant::gui::feedback::push_horizontal_value_cursor_fill(
+            primitives,
+            self.common.id,
+            bounds,
+            ratio,
+            width.max(2.0),
+            color,
+        );
     }
 }

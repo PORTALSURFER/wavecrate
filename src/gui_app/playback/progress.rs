@@ -4,7 +4,7 @@ use super::{
 };
 use radiant::{
     gui::{
-        feedback::horizontal_value_cursor_rect,
+        feedback::push_horizontal_value_cursor_fill,
         types::{Rect, Rgba8},
     },
     runtime::{PaintPrimitive, TransientOverlayContext},
@@ -204,13 +204,12 @@ impl FrameRepaintScopeSnapshot {
 }
 
 fn push_playback_cursor(primitives: &mut Vec<PaintPrimitive>, bounds: Rect, ratio: f32) {
-    let Some(rect) = horizontal_value_cursor_rect(bounds, ratio, PLAYBACK_CURSOR_WIDTH) else {
-        return;
-    };
-    radiant::runtime::push_visible_fill_rect(
+    push_horizontal_value_cursor_fill(
         primitives,
         WAVEFORM_WIDGET_ID,
-        rect,
+        bounds,
+        ratio,
+        PLAYBACK_CURSOR_WIDTH,
         PLAYBACK_CURSOR_COLOR,
     );
 }
