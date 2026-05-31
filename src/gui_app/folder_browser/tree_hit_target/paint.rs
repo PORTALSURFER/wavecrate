@@ -40,16 +40,14 @@ impl FolderTreeHitTarget {
         theme: &ThemeTokens,
     ) {
         let font_size = label_font_size(bounds);
-        let label_rect = Rect::from_min_max(
-            Point::new(bounds.min.x + 4.0, bounds.min.y),
-            Point::new(bounds.max.x - 4.0, bounds.max.y),
-        );
+        let label_rect =
+            ui::centered_text_line(bounds, font_size, ui::TextLineInsets::horizontal(4.0), 0.0);
         primitives.push(PaintPrimitive::Text(PaintTextRun {
             widget_id: self.row.common.id,
             text: self.label.clone(),
             rect: label_rect,
             font_size,
-            baseline: Some((label_rect.height() * 0.5 + font_size * 0.35).max(0.0)),
+            baseline: ui::centered_text_baseline(label_rect, font_size),
             color: self.label_color(theme),
             align: PaintTextAlign::Left,
             wrap: radiant::widgets::TextWrap::None,
