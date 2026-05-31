@@ -217,9 +217,9 @@ fn sample_browser_row_hover_paints_bright_background_without_marker() {
             && fill.color
                 == Rgba8 {
                     r: 255,
-                    g: 108,
-                    b: 88,
-                    a: 155,
+                    g: 255,
+                    b: 255,
+                    a: 24,
                 }),
         "{fills:?}"
     );
