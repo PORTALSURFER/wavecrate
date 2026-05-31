@@ -123,7 +123,7 @@ impl WaveformWidget {
     }
 
     fn ratio_from_position(&self, bounds: Rect, position: Point) -> f32 {
-        ((position.x - bounds.min.x) / bounds.width().max(1.0)).clamp(0.0, 1.0)
+        bounds.ratio_for_x(position.x)
     }
 
     fn handle_primary_press(&self, bounds: Rect, position: Point) -> Option<WidgetOutput> {
