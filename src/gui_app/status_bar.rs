@@ -154,10 +154,10 @@ pub(super) fn job_details_popover(progress: &FolderScanProgress) -> ui::View<Gui
             .truncate(),
     ])
     .key("bottom-job-details-popover")
-    .style(ui::WidgetStyle {
-        tone: ui::WidgetTone::Neutral,
-        prominence: ui::WidgetProminence::Strong,
-    })
+    .style(ui::WidgetStyle::new(
+        ui::WidgetTone::Neutral,
+        ui::WidgetProminence::Strong,
+    ))
     .spacing(5.0)
     .padding(8.0)
     .width(300.0)

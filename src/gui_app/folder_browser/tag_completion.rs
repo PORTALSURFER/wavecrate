@@ -56,10 +56,10 @@ fn tag_completion_popup(
         .map(|option| tag_completion_row(option, tag_width))
         .collect::<Vec<_>>();
     ui::scroll(ui::column(rows).spacing(0.0).fill_width())
-        .style(WidgetStyle {
-            tone: WidgetTone::Neutral,
-            prominence: ui::WidgetProminence::Subtle,
-        })
+        .style(WidgetStyle::new(
+            WidgetTone::Neutral,
+            ui::WidgetProminence::Subtle,
+        ))
         .padding(3.0)
         .fill_width()
         .height(tag_completion_popup_height(options))
@@ -81,10 +81,7 @@ fn tag_completion_row(
     ])
     .key(format!("metadata-tag-completion-row-{}", option.tag))
     .style(if option.selected {
-        WidgetStyle {
-            tone: WidgetTone::Accent,
-            prominence: ui::WidgetProminence::Strong,
-        }
+        WidgetStyle::new(WidgetTone::Accent, ui::WidgetProminence::Strong)
     } else {
         WidgetStyle::default()
     })

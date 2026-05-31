@@ -22,10 +22,10 @@ pub(in crate::gui_app) fn audio_settings_window_view(
 ) -> ui::View<GuiMessage> {
     let panel = ui::column(audio_settings_panel_rows(snapshot))
         .key("audio-settings-window")
-        .style(ui::WidgetStyle {
-            tone: ui::WidgetTone::Neutral,
-            prominence: ui::WidgetProminence::Strong,
-        })
+        .style(ui::WidgetStyle::new(
+            ui::WidgetTone::Neutral,
+            ui::WidgetProminence::Strong,
+        ))
         .spacing(AUDIO_SETTINGS_ROW_SPACING)
         .padding(AUDIO_SETTINGS_PANEL_PADDING)
         .width(AUDIO_SETTINGS_POPUP_WIDTH)
@@ -80,10 +80,10 @@ fn audio_engine_detail_row(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMess
 fn audio_settings_error_row(error: &str) -> ui::View<GuiMessage> {
     ui::text(error.to_string())
         .key("audio-settings-error")
-        .style(ui::WidgetStyle {
-            tone: ui::WidgetTone::Danger,
-            prominence: ui::WidgetProminence::Subtle,
-        })
+        .style(ui::WidgetStyle::new(
+            ui::WidgetTone::Danger,
+            ui::WidgetProminence::Subtle,
+        ))
         .fill_width()
         .height(20.0)
         .truncate()

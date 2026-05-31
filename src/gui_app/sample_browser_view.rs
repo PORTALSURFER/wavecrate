@@ -150,10 +150,10 @@ fn details_header_row(
     children: impl IntoIterator<Item = ui::View<GuiMessage>>,
 ) -> ui::View<GuiMessage> {
     ui::row(children)
-        .style(ui::WidgetStyle {
-            tone: ui::WidgetTone::Accent,
-            prominence: ui::WidgetProminence::Subtle,
-        })
+        .style(ui::WidgetStyle::new(
+            ui::WidgetTone::Accent,
+            ui::WidgetProminence::Subtle,
+        ))
         .fill_width()
         .height(24.0)
         .padding_x(8.0)

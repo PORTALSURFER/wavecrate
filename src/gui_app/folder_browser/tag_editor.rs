@@ -141,10 +141,10 @@ fn tag_entry_field(
 
     if row_count > MAX_TAG_FIELD_ROWS {
         ui::scroll(content)
-            .style(WidgetStyle {
-                tone: WidgetTone::Neutral,
-                prominence: ui::WidgetProminence::Subtle,
-            })
+            .style(WidgetStyle::new(
+                WidgetTone::Neutral,
+                ui::WidgetProminence::Subtle,
+            ))
             .padding(3.0)
             .fill_width()
             .height(height)
@@ -286,8 +286,8 @@ fn accepted_tag_token(tag: &str, category_id: &str, selected: bool) -> ui::View<
 }
 
 fn metadata_tag_category_style(category_id: &str, selected: bool) -> WidgetStyle {
-    WidgetStyle {
-        tone: match category_id {
+    WidgetStyle::new(
+        match category_id {
             "playback-type" => WidgetTone::Warning,
             "sound-type" => WidgetTone::Accent,
             "character" => WidgetTone::Success,
@@ -295,12 +295,12 @@ fn metadata_tag_category_style(category_id: &str, selected: bool) -> WidgetStyle
             "tuning-scale" => WidgetTone::Neutral,
             _ => WidgetTone::Neutral,
         },
-        prominence: if selected || category_id == "playback-type" {
+        if selected || category_id == "playback-type" {
             ui::WidgetProminence::Strong
         } else {
             ui::WidgetProminence::Subtle
         },
-    }
+    )
 }
 
 fn pending_category_tag_token(tag: &str) -> ui::View<GuiMessage> {
@@ -308,10 +308,10 @@ fn pending_category_tag_token(tag: &str) -> ui::View<GuiMessage> {
         .subtle()
         .message(GuiMessage::Noop)
         .key(format!("metadata-tag-pending-category-{tag}"))
-        .style(WidgetStyle {
-            tone: WidgetTone::Accent,
-            prominence: ui::WidgetProminence::Subtle,
-        })
+        .style(WidgetStyle::new(
+            WidgetTone::Accent,
+            ui::WidgetProminence::Subtle,
+        ))
         .sizing(ui::WidgetSizing::fixed(ui::Vector2::new(
             tag_pill_width(tag),
             TAG_FIELD_CONTROL_HEIGHT,
@@ -322,10 +322,10 @@ fn pending_category_tag_token(tag: &str) -> ui::View<GuiMessage> {
 
 fn metadata_sidebar_panel(content: ui::View<GuiMessage>, height: f32) -> ui::View<GuiMessage> {
     content
-        .style(WidgetStyle {
-            tone: WidgetTone::Neutral,
-            prominence: ui::WidgetProminence::Subtle,
-        })
+        .style(WidgetStyle::new(
+            WidgetTone::Neutral,
+            ui::WidgetProminence::Subtle,
+        ))
         .padding(6.0)
         .fill_width()
         .height(height)

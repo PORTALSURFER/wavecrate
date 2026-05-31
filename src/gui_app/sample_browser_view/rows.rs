@@ -256,10 +256,10 @@ fn sample_rating_cell(file: &FileEntry, width: f32) -> ui::View<GuiMessage> {
         return ui::floating_layer(
             ui::Point::new((width - 40.0).max(0.0), 3.0),
             ui::Vector2::new(38.0, 14.0),
-            ui::passive_badge("KEEP").style(ui::WidgetStyle {
-                tone: ui::WidgetTone::Warning,
-                prominence: ui::WidgetProminence::Subtle,
-            }),
+            ui::passive_badge("KEEP").style(ui::WidgetStyle::new(
+                ui::WidgetTone::Warning,
+                ui::WidgetProminence::Subtle,
+            )),
         )
         .key(format!("sample-rating-{}", file.id))
         .height(20.0)
