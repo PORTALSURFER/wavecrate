@@ -12,11 +12,11 @@ fn auxiliary_drag_pans_zoomed_waveform_viewport() {
     let output = widget
         .handle_input(
             bounds,
-            WidgetInput::PointerPress {
-                position: Point::new(100.0, 40.0),
-                button: PointerButton::Auxiliary,
-                modifiers: Default::default(),
-            },
+            WidgetInput::pointer_press(
+                Point::new(100.0, 40.0),
+                PointerButton::Auxiliary,
+                Default::default(),
+            ),
         )
         .expect("middle press should arm waveform pan");
     let interaction = output
@@ -47,14 +47,7 @@ fn primary_press_emits_playback_ratio_matching_hover_cursor_ratio() {
     let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(200.0, 80.0));
 
     let output = widget
-        .handle_input(
-            bounds,
-            WidgetInput::PointerPress {
-                position: Point::new(60.0, 40.0),
-                button: PointerButton::Primary,
-                modifiers: Default::default(),
-            },
-        )
+        .handle_input(bounds, WidgetInput::primary_press(Point::new(60.0, 40.0)))
         .expect("playback interaction");
     let interaction = output
         .typed_ref::<WaveformInteraction>()
@@ -79,11 +72,11 @@ fn secondary_press_emits_edit_selection_begin_ratio() {
     let output = widget
         .handle_input(
             bounds,
-            WidgetInput::PointerPress {
-                position: Point::new(160.0, 40.0),
-                button: PointerButton::Secondary,
-                modifiers: Default::default(),
-            },
+            WidgetInput::pointer_press(
+                Point::new(160.0, 40.0),
+                PointerButton::Secondary,
+                Default::default(),
+            ),
         )
         .expect("edit selection interaction");
     let interaction = output
@@ -109,7 +102,7 @@ fn empty_waveform_keeps_hover_cursor_but_emits_no_interactions() {
 
     assert!(
         widget
-            .handle_input(bounds, WidgetInput::PointerMove { position: inside },)
+            .handle_input(bounds, WidgetInput::pointer_move(inside))
             .is_none()
     );
     assert!(
@@ -117,31 +110,11 @@ fn empty_waveform_keeps_hover_cursor_but_emits_no_interactions() {
         "empty waveform should keep pointer-hover state for the visual cursor path"
     );
     for input in [
-        WidgetInput::PointerPress {
-            position: inside,
-            button: PointerButton::Primary,
-            modifiers: Default::default(),
-        },
-        WidgetInput::PointerPress {
-            position: inside,
-            button: PointerButton::Secondary,
-            modifiers: Default::default(),
-        },
-        WidgetInput::PointerPress {
-            position: inside,
-            button: PointerButton::Auxiliary,
-            modifiers: Default::default(),
-        },
-        WidgetInput::PointerDoubleClick {
-            position: inside,
-            button: PointerButton::Primary,
-            modifiers: Default::default(),
-        },
-        WidgetInput::Wheel {
-            position: inside,
-            delta: Vector2::new(0.0, -120.0),
-            modifiers: Default::default(),
-        },
+        WidgetInput::primary_press(inside),
+        WidgetInput::pointer_press(inside, PointerButton::Secondary, Default::default()),
+        WidgetInput::pointer_press(inside, PointerButton::Auxiliary, Default::default()),
+        WidgetInput::primary_double_click(inside),
+        WidgetInput::plain_wheel(inside, Vector2::new(0.0, -120.0)),
     ] {
         assert!(widget.handle_input(bounds, input).is_none());
     }
@@ -156,14 +129,7 @@ fn primary_press_on_playmark_handle_starts_resize_instead_of_new_selection() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
 
     let output = widget
-        .handle_input(
-            bounds,
-            WidgetInput::PointerPress {
-                position: Point::new(120.0, 8.0),
-                button: PointerButton::Primary,
-                modifiers: Default::default(),
-            },
-        )
+        .handle_input(bounds, WidgetInput::primary_press(Point::new(120.0, 8.0)))
         .expect("playmark resize interaction");
     let interaction = output
         .typed_ref::<WaveformInteraction>()
@@ -189,14 +155,7 @@ fn primary_press_on_playmark_top_handle_starts_move() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
 
     let output = widget
-        .handle_input(
-            bounds,
-            WidgetInput::PointerPress {
-                position: Point::new(80.0, 3.0),
-                button: PointerButton::Primary,
-                modifiers: Default::default(),
-            },
-        )
+        .handle_input(bounds, WidgetInput::primary_press(Point::new(80.0, 3.0)))
         .expect("playmark move interaction");
     let interaction = output
         .typed_ref::<WaveformInteraction>()
@@ -221,14 +180,7 @@ fn primary_press_on_play_selection_export_handle_starts_export_drag() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
 
     let output = widget
-        .handle_input(
-            bounds,
-            WidgetInput::PointerPress {
-                position: Point::new(118.0, 76.0),
-                button: PointerButton::Primary,
-                modifiers: Default::default(),
-            },
-        )
+        .handle_input(bounds, WidgetInput::primary_press(Point::new(118.0, 76.0)))
         .expect("selection export drag interaction");
     let interaction = output
         .typed_ref::<WaveformInteraction>()
@@ -256,11 +208,11 @@ fn secondary_press_on_edit_top_handle_starts_move() {
     let output = widget
         .handle_input(
             bounds,
-            WidgetInput::PointerPress {
-                position: Point::new(80.0, 3.0),
-                button: PointerButton::Secondary,
-                modifiers: Default::default(),
-            },
+            WidgetInput::pointer_press(
+                Point::new(80.0, 3.0),
+                PointerButton::Secondary,
+                Default::default(),
+            ),
         )
         .expect("edit move interaction");
     let interaction = output
@@ -285,14 +237,7 @@ fn primary_press_on_edit_fade_handle_starts_fade_drag_instead_of_playmark() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
 
     let output = widget
-        .handle_input(
-            bounds,
-            WidgetInput::PointerPress {
-                position: Point::new(40.0, 4.0),
-                button: PointerButton::Primary,
-                modifiers: Default::default(),
-            },
-        )
+        .handle_input(bounds, WidgetInput::primary_press(Point::new(40.0, 4.0)))
         .expect("fade handle interaction");
     let interaction = output
         .typed_ref::<WaveformInteraction>()

@@ -1,5 +1,5 @@
 use super::*;
-use radiant::widgets::PointerButton;
+use radiant::widgets::{PointerButton, PointerModifiers};
 
 /// Extracts the sample-file hit-target message from a widget output.
 fn message_from(output: Option<WidgetOutput>) -> SampleFileHitMessage {
@@ -22,21 +22,9 @@ fn paints_hover_fill(primitives: &[PaintPrimitive]) -> bool {
 fn active_drag_uses_runtime_preview_after_widget_refresh() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
     let mut first = SampleFileHitTarget::new(false, false, false, false, false);
-    first.handle_input(
-        bounds,
-        WidgetInput::PointerPress {
-            position: Point::new(6.0, 6.0),
-            button: PointerButton::Primary,
-            modifiers: PointerModifiers::default(),
-        },
-    );
+    first.handle_input(bounds, WidgetInput::primary_press(Point::new(6.0, 6.0)));
     assert_eq!(
-        message_from(first.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(16.0, 7.0),
-            },
-        )),
+        message_from(first.handle_input(bounds, WidgetInput::pointer_move(Point::new(16.0, 7.0)),)),
         SampleFileHitMessage::Drag(DragHandleMessage::Started {
             position: Point::new(16.0, 7.0),
         })
@@ -46,12 +34,7 @@ fn active_drag_uses_runtime_preview_after_widget_refresh() {
     refreshed.row.common.state = first.row.common.state;
     assert!(
         refreshed
-            .handle_input(
-                bounds,
-                WidgetInput::PointerMove {
-                    position: Point::new(34.0, 8.0),
-                },
-            )
+            .handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)),)
             .is_none(),
         "runtime drag preview already tracks pointer movement without app refresh"
     );
@@ -65,23 +48,14 @@ fn active_drag_source_does_not_depend_on_retained_pressed_state() {
 
     assert!(
         refreshed
-            .handle_input(
-                bounds,
-                WidgetInput::PointerMove {
-                    position: Point::new(34.0, 8.0),
-                },
-            )
+            .handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)),)
             .is_none(),
         "active drag moves are runtime-local and should not require retained pressed state"
     );
     assert_eq!(
         message_from(refreshed.handle_input(
             bounds,
-            WidgetInput::PointerRelease {
-                position: Point::new(220.0, 90.0),
-                button: PointerButton::Primary,
-                modifiers: PointerModifiers::default(),
-            },
+            WidgetInput::primary_release(Point::new(220.0, 90.0)),
         )),
         SampleFileHitMessage::Drag(DragHandleMessage::Ended {
             position: Point::new(220.0, 90.0),
@@ -98,12 +72,7 @@ fn active_drag_non_source_rows_do_not_keep_hover_highlight() {
 
     assert!(
         target
-            .handle_input(
-                bounds,
-                WidgetInput::PointerMove {
-                    position: Point::new(34.0, 8.0),
-                },
-            )
+            .handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)),)
             .is_none()
     );
     assert!(
@@ -129,12 +98,7 @@ fn active_drag_non_source_rows_do_not_keep_hover_highlight() {
 fn hover_state_clears_on_retained_widget_refresh() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
     let mut previous = SampleFileHitTarget::new(false, false, false, false, false);
-    previous.handle_input(
-        bounds,
-        WidgetInput::PointerMove {
-            position: Point::new(34.0, 8.0),
-        },
-    );
+    previous.handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)));
     assert!(previous.row.common.state.hovered);
 
     let mut refreshed = SampleFileHitTarget::new(false, false, false, false, false);
@@ -162,12 +126,7 @@ fn hover_state_clears_on_retained_widget_refresh() {
 fn hover_fill_is_neutral_not_selection_red() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
     let mut target = SampleFileHitTarget::new(false, false, false, false, false);
-    target.handle_input(
-        bounds,
-        WidgetInput::PointerMove {
-            position: Point::new(34.0, 8.0),
-        },
-    );
+    target.handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)));
 
     let mut primitives = Vec::new();
     target.append_paint(
@@ -202,23 +161,12 @@ fn primary_activation_preserves_release_modifiers() {
         ..PointerModifiers::default()
     };
 
-    target.handle_input(
-        bounds,
-        WidgetInput::PointerPress {
-            position: Point::new(34.0, 8.0),
-            button: PointerButton::Primary,
-            modifiers: PointerModifiers::default(),
-        },
-    );
+    target.handle_input(bounds, WidgetInput::primary_press(Point::new(34.0, 8.0)));
 
     assert_eq!(
         message_from(target.handle_input(
             bounds,
-            WidgetInput::PointerRelease {
-                position: Point::new(34.0, 8.0),
-                button: PointerButton::Primary,
-                modifiers,
-            },
+            WidgetInput::pointer_release(Point::new(34.0, 8.0), PointerButton::Primary, modifiers),
         )),
         SampleFileHitMessage::Activate(modifiers)
     );
@@ -229,14 +177,7 @@ fn primary_activation_preserves_release_modifiers() {
 fn pressed_state_survives_retained_widget_refresh_without_hover() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
     let mut previous = SampleFileHitTarget::new(false, false, false, false, false);
-    previous.handle_input(
-        bounds,
-        WidgetInput::PointerPress {
-            position: Point::new(34.0, 8.0),
-            button: PointerButton::Primary,
-            modifiers: PointerModifiers::default(),
-        },
-    );
+    previous.handle_input(bounds, WidgetInput::primary_press(Point::new(34.0, 8.0)));
     assert!(previous.row.common.state.hovered);
     assert!(previous.row.common.state.pressed);
 
@@ -252,23 +193,13 @@ fn pressed_state_survives_retained_widget_refresh_without_hover() {
 fn suppressed_hover_clears_and_omits_stale_hover_paint() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
     let mut previous = SampleFileHitTarget::new(false, false, false, false, false);
-    previous.handle_input(
-        bounds,
-        WidgetInput::PointerMove {
-            position: Point::new(34.0, 8.0),
-        },
-    );
+    previous.handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)));
     assert!(previous.row.common.state.hovered);
 
     let mut suppressed = SampleFileHitTarget::new(false, false, false, false, true);
     suppressed.synchronize_from_previous(&previous);
     assert!(!suppressed.row.common.state.hovered);
-    suppressed.handle_input(
-        bounds,
-        WidgetInput::PointerMove {
-            position: Point::new(34.0, 8.0),
-        },
-    );
+    suppressed.handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)));
     assert!(!suppressed.row.common.state.hovered);
 
     let mut primitives = Vec::new();

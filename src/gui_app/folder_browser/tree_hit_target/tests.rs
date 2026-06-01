@@ -1,6 +1,5 @@
 use super::*;
 use radiant::layout::Vector2;
-use radiant::widgets::{PointerButton, PointerModifiers};
 
 fn message_from(output: Option<WidgetOutput>) -> FolderTreeHitMessage {
     *output
@@ -17,21 +16,9 @@ fn row_bounds() -> Rect {
 fn active_drag_survives_widget_refresh_as_moved() {
     let bounds = row_bounds();
     let mut first = FolderTreeHitTarget::new("kicks", false, false, false, false, false, false);
-    first.handle_input(
-        bounds,
-        WidgetInput::PointerPress {
-            position: Point::new(6.0, 6.0),
-            button: PointerButton::Primary,
-            modifiers: PointerModifiers::default(),
-        },
-    );
+    first.handle_input(bounds, WidgetInput::primary_press(Point::new(6.0, 6.0)));
     assert_eq!(
-        message_from(first.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(16.0, 7.0),
-            },
-        )),
+        message_from(first.handle_input(bounds, WidgetInput::pointer_move(Point::new(16.0, 7.0)),)),
         FolderTreeHitMessage::Drag(DragHandleMessage::Started {
             position: Point::new(16.0, 7.0),
         })
@@ -40,12 +27,9 @@ fn active_drag_survives_widget_refresh_as_moved() {
     let mut refreshed = FolderTreeHitTarget::new("kicks", false, false, true, true, false, false);
     refreshed.row.common.state = first.row.common.state;
     assert_eq!(
-        message_from(refreshed.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(34.0, 8.0),
-            },
-        )),
+        message_from(
+            refreshed.handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)),)
+        ),
         FolderTreeHitMessage::Drag(DragHandleMessage::Moved {
             position: Point::new(34.0, 8.0),
         })
@@ -59,14 +43,9 @@ fn active_drag_survives_widget_refresh_until_release() {
     refreshed.row.common.state.pressed = true;
 
     assert_eq!(
-        message_from(refreshed.handle_input(
-            bounds,
-            WidgetInput::PointerRelease {
-                position: Point::new(90.0, 9.0),
-                button: PointerButton::Primary,
-                modifiers: PointerModifiers::default(),
-            },
-        )),
+        message_from(
+            refreshed.handle_input(bounds, WidgetInput::primary_release(Point::new(90.0, 9.0)),)
+        ),
         FolderTreeHitMessage::Drag(DragHandleMessage::Ended {
             position: Point::new(90.0, 9.0),
         })
@@ -79,25 +58,17 @@ fn active_drag_source_does_not_depend_on_retained_pressed_state() {
     let mut refreshed = FolderTreeHitTarget::new("kicks", false, false, true, true, false, false);
 
     assert_eq!(
-        message_from(refreshed.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(34.0, 8.0),
-            },
-        )),
+        message_from(
+            refreshed.handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)),)
+        ),
         FolderTreeHitMessage::Drag(DragHandleMessage::Moved {
             position: Point::new(34.0, 8.0),
         })
     );
     assert_eq!(
-        message_from(refreshed.handle_input(
-            bounds,
-            WidgetInput::PointerRelease {
-                position: Point::new(90.0, 9.0),
-                button: PointerButton::Primary,
-                modifiers: PointerModifiers::default(),
-            },
-        )),
+        message_from(
+            refreshed.handle_input(bounds, WidgetInput::primary_release(Point::new(90.0, 9.0)),)
+        ),
         FolderTreeHitMessage::Drag(DragHandleMessage::Ended {
             position: Point::new(90.0, 9.0),
         })
@@ -110,14 +81,9 @@ fn active_drag_release_on_target_row_emits_drop_without_press_capture() {
     let mut target = FolderTreeHitTarget::new("loops", false, true, true, false, true, true);
 
     assert_eq!(
-        message_from(target.handle_input(
-            bounds,
-            WidgetInput::PointerRelease {
-                position: Point::new(90.0, 9.0),
-                button: PointerButton::Primary,
-                modifiers: PointerModifiers::default(),
-            },
-        )),
+        message_from(
+            target.handle_input(bounds, WidgetInput::primary_release(Point::new(90.0, 9.0)),)
+        ),
         FolderTreeHitMessage::Drop
     );
 }
@@ -149,12 +115,9 @@ fn drag_hover_reports_new_drop_target_once() {
     let mut target = FolderTreeHitTarget::new("loops", false, false, true, false, true, false);
 
     assert_eq!(
-        message_from(target.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(40.0, 9.0),
-            },
-        )),
+        message_from(
+            target.handle_input(bounds, WidgetInput::pointer_move(Point::new(40.0, 9.0)),)
+        ),
         FolderTreeHitMessage::HoverDropTarget(Point::new(40.0, 9.0)),
         "a new valid target must notify the app so the committed drop target can change"
     );
@@ -167,12 +130,7 @@ fn current_drop_target_hover_stays_local() {
 
     assert!(
         target
-            .handle_input(
-                bounds,
-                WidgetInput::PointerMove {
-                    position: Point::new(40.0, 9.0),
-                },
-            )
+            .handle_input(bounds, WidgetInput::pointer_move(Point::new(40.0, 9.0)),)
             .is_none(),
         "pointer motion inside the already-highlighted target should not force another scene rebuild"
     );
@@ -185,24 +143,17 @@ fn invalid_drag_hover_only_reports_when_it_can_clear_existing_target() {
         FolderTreeHitTarget::new("kicks", false, false, true, false, false, false);
     assert!(
         quiet_invalid
-            .handle_input(
-                bounds,
-                WidgetInput::PointerMove {
-                    position: Point::new(40.0, 9.0),
-                },
-            )
+            .handle_input(bounds, WidgetInput::pointer_move(Point::new(40.0, 9.0)),)
             .is_none()
     );
 
     let mut clearing_invalid =
         FolderTreeHitTarget::new("kicks", false, false, true, false, false, true);
     assert_eq!(
-        message_from(clearing_invalid.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(40.0, 9.0),
-            },
-        )),
+        message_from(
+            clearing_invalid
+                .handle_input(bounds, WidgetInput::pointer_move(Point::new(40.0, 9.0)),)
+        ),
         FolderTreeHitMessage::HoverDropTarget(Point::new(40.0, 9.0)),
         "invalid rows only need to notify the app when they can clear a previous drop target"
     );
