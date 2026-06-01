@@ -121,17 +121,7 @@ pub(super) fn job_details_popover(progress: &FolderScanProgress) -> ui::View<Gui
     } else {
         progress.detail.clone()
     };
-    let panel = ui::column([
-        ui::row([
-            ui::text("Job Details").height(20.0).fill_width(),
-            ui::button("x")
-                .subtle()
-                .message(GuiMessage::CloseJobDetails)
-                .width(24.0)
-                .height(20.0),
-        ])
-        .height(22.0)
-        .fill_width(),
+    let content = ui::column([
         ui::text(format!("Type: {}", progress.phase))
             .height(20.0)
             .fill_width()
@@ -149,13 +139,27 @@ pub(super) fn job_details_popover(progress: &FolderScanProgress) -> ui::View<Gui
             .fill_width()
             .truncate(),
     ])
-    .key("bottom-job-details-popover")
-    .style(ui::WidgetStyle::new(
-        ui::WidgetTone::Neutral,
-        ui::WidgetProminence::Strong,
-    ))
     .spacing(5.0)
-    .padding(8.0)
+    .fill_width();
+    let panel = ui::panel_section_from_parts(
+        ui::PanelSectionParts::new("Job Details", content)
+            .trailing(
+                ui::button("x")
+                    .subtle()
+                    .message(GuiMessage::CloseJobDetails)
+                    .width(24.0)
+                    .height(20.0),
+            )
+            .style(ui::WidgetStyle::new(
+                ui::WidgetTone::Neutral,
+                ui::WidgetProminence::Strong,
+            ))
+            .padding(8.0)
+            .spacing(5.0)
+            .title_height(22.0)
+            .height(132.0),
+    )
+    .key("bottom-job-details-popover")
     .width(300.0)
     .height(132.0);
     ui::anchored_layer(
