@@ -29,6 +29,26 @@ impl WaveformWidget {
         );
     }
 
+    pub(super) fn push_visible_range_edge_fills(
+        &self,
+        primitives: &mut Vec<PaintPrimitive>,
+        bounds: Rect,
+        start: f32,
+        end: f32,
+        edge_height: f32,
+        color: Rgba8,
+    ) {
+        radiant::gui::feedback::push_horizontal_value_range_edge_fills(
+            primitives,
+            self.common.id,
+            bounds,
+            start,
+            end,
+            edge_height,
+            color,
+        );
+    }
+
     pub(super) fn push_visible_cursor(
         &self,
         primitives: &mut Vec<PaintPrimitive>,

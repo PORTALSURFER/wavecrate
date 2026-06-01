@@ -52,21 +52,12 @@ impl WaveformWidget {
         start: f32,
         end: f32,
     ) {
-        let range = bounds.horizontal_ratio_span(start, end);
-        if range.width() <= 0.0 {
-            return;
-        }
-        let height = EXTRACTED_RANGE_RAIL_HEIGHT
-            .min(bounds.height().max(1.0))
-            .max(1.0);
-        self.push_fill(
+        self.push_visible_range_edge_fills(
             primitives,
-            range.top_edge_strip(height),
-            EXTRACTED_RANGE_RAIL,
-        );
-        self.push_fill(
-            primitives,
-            range.bottom_edge_strip(height),
+            bounds,
+            start,
+            end,
+            EXTRACTED_RANGE_RAIL_HEIGHT,
             EXTRACTED_RANGE_RAIL,
         );
     }
