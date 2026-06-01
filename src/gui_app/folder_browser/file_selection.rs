@@ -212,7 +212,7 @@ impl FolderBrowserState {
         if file_ids.contains(&id) {
             self.cancel_rename();
             let mut selection = ui::KeyedListSelection::new();
-            selection.select(id, &file_ids, ui::ListSelectionModifiers::new());
+            selection.select_with_intent(id, &file_ids, ui::ListSelectionIntent::Replace);
             self.apply_file_selection_model(selection);
         }
     }
@@ -229,11 +229,11 @@ impl FolderBrowserState {
         self.cancel_rename();
 
         let mut selection = self.file_selection_model();
-        if modifiers.shift && modifiers.command {
-            selection.extend_preserving_existing(id, &file_ids);
-        } else {
-            selection.select(id, &file_ids, file_selection_modifiers(modifiers));
-        }
+        selection.select_with_intent(
+            id,
+            &file_ids,
+            ui::ListSelectionIntent::from_extend_toggle(modifiers.shift, modifiers.command),
+        );
         self.apply_file_selection_model(selection);
     }
 
@@ -347,14 +347,4 @@ fn folder_ancestor_ids(root: &Path, folder: &Path) -> Vec<String> {
         ids.push(path_id(&current));
     }
     ids
-}
-
-fn file_selection_modifiers(modifiers: PointerModifiers) -> ui::ListSelectionModifiers {
-    if modifiers.shift {
-        ui::ListSelectionModifiers::extend()
-    } else if modifiers.command {
-        ui::ListSelectionModifiers::toggle()
-    } else {
-        ui::ListSelectionModifiers::new()
-    }
 }
