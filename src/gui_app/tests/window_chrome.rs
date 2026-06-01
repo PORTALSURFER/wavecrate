@@ -58,19 +58,14 @@ fn audio_settings_window_does_not_add_full_height_panel_chrome() {
     );
     let audio_panel_fills = frame
         .paint_plan
-        .primitives
-        .iter()
-        .filter_map(|primitive| match primitive {
-            PaintPrimitive::FillRect(fill)
-                if fill.widget_id == 0
-                    && fill.rect.min.x >= 250.0
-                    && fill.rect.max.x <= 710.0
-                    && fill.rect.width() >= 300.0 =>
-            {
-                Some(fill.rect)
-            }
-            _ => None,
+        .fill_rects()
+        .filter(|fill| {
+            fill.widget_id == 0
+                && fill.rect.min.x >= 250.0
+                && fill.rect.max.x <= 710.0
+                && fill.rect.width() >= 300.0
         })
+        .map(|fill| fill.rect)
         .collect::<Vec<_>>();
 
     assert!(
@@ -173,15 +168,7 @@ fn waveform_loading_visual_paints_full_height_gray_fill_without_chrome() {
                 &radiant::theme::ThemeTokens::default(),
             );
 
-    let fill_rects = frame
-        .paint_plan
-        .primitives
-        .iter()
-        .filter_map(|primitive| match primitive {
-            PaintPrimitive::FillRect(rect) => Some(rect),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let fill_rects = frame.paint_plan.fill_rects().collect::<Vec<_>>();
 
     assert!(fill_rects.iter().any(|fill| {
         (fill.rect.width() - 180.0).abs() < 0.01
@@ -193,13 +180,7 @@ fn waveform_loading_visual_paints_full_height_gray_fill_without_chrome() {
             && fill.color.b == 181
     }));
     assert!(
-        frame
-            .paint_plan
-            .primitives
-            .iter()
-            .all(|primitive| !matches!(
-                primitive,
-                PaintPrimitive::StrokeRect(_) | PaintPrimitive::Text(_)
-            ))
+        frame.paint_plan.stroke_rects().next().is_none()
+            && frame.paint_plan.text_runs().next().is_none()
     );
 }

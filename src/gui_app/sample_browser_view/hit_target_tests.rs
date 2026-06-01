@@ -11,9 +11,10 @@ fn message_from(output: Option<WidgetOutput>) -> SampleFileHitMessage {
 
 /// Reports whether the paint plan contains the row hover fill.
 fn paints_hover_fill(primitives: &[PaintPrimitive]) -> bool {
-    primitives.iter().any(
-        |primitive| matches!(primitive, PaintPrimitive::FillRect(fill) if fill.color == HOVER_FILL),
-    )
+    primitives
+        .iter()
+        .filter_map(PaintPrimitive::fill_rect)
+        .any(|fill| fill.color == HOVER_FILL)
 }
 
 #[test]
@@ -177,16 +178,18 @@ fn hover_fill_is_neutral_not_selection_red() {
     );
 
     assert!(paints_hover_fill(&primitives));
-    assert!(!primitives.iter().any(|primitive| matches!(
-        primitive,
-        PaintPrimitive::FillRect(fill)
-            if fill.color == Rgba8 {
-                r: 255,
-                g: 82,
-                b: 62,
-                a: 120
-            }
-    )));
+    assert!(
+        !primitives
+            .iter()
+            .filter_map(PaintPrimitive::fill_rect)
+            .any(|fill| fill.color
+                == Rgba8 {
+                    r: 255,
+                    g: 82,
+                    b: 62,
+                    a: 120
+                })
+    );
 }
 
 #[test]
@@ -296,15 +299,18 @@ fn loaded_rows_paint_right_edge_marker() {
     );
 
     assert!(
-        primitives.iter().any(|primitive| {
-            matches!(
-                primitive,
-                PaintPrimitive::FillRect(fill)
-                    if fill.rect.min.x == bounds.max.x - 3.0
-                        && fill.rect.width() == 2.0
-                        && fill.color == Rgba8 { r: 226, g: 226, b: 226, a: 210 }
-            )
-        }),
+        primitives
+            .iter()
+            .filter_map(PaintPrimitive::fill_rect)
+            .any(|fill| fill.rect.min.x == bounds.max.x - 3.0
+                && fill.rect.width() == 2.0
+                && fill.color
+                    == Rgba8 {
+                        r: 226,
+                        g: 226,
+                        b: 226,
+                        a: 210
+                    }),
         "loaded rows should show a near-white right-edge marker"
     );
 }
@@ -324,15 +330,18 @@ fn unloaded_rows_do_not_paint_loaded_marker() {
     );
 
     assert!(
-        !primitives.iter().any(|primitive| {
-            matches!(
-                primitive,
-                PaintPrimitive::FillRect(fill)
-                    if fill.rect.min.x == bounds.max.x - 3.0
-                        && fill.rect.width() == 2.0
-                        && fill.color == Rgba8 { r: 226, g: 226, b: 226, a: 210 }
-            )
-        }),
+        !primitives
+            .iter()
+            .filter_map(PaintPrimitive::fill_rect)
+            .any(|fill| fill.rect.min.x == bounds.max.x - 3.0
+                && fill.rect.width() == 2.0
+                && fill.color
+                    == Rgba8 {
+                        r: 226,
+                        g: 226,
+                        b: 226,
+                        a: 210
+                    }),
         "unloaded rows should not show the loaded marker"
     );
 }

@@ -3,7 +3,6 @@ use crate::gui_app::GuiAppState;
 use radiant::{
     gui::types::{Point, Rect, Vector2},
     prelude::IntoView,
-    runtime::PaintPrimitive,
     widgets::{PointerButton, WidgetInput},
 };
 
@@ -60,20 +59,9 @@ fn bottom_status_progress_bar_paints_without_text_chrome() {
         &radiant::theme::ThemeTokens::default(),
     );
 
-    let fills = frame
-        .paint_plan
-        .primitives
-        .iter()
-        .filter(|primitive| matches!(primitive, PaintPrimitive::FillRect(_)))
-        .count();
+    let fills = frame.paint_plan.fill_rects().count();
     assert_eq!(fills, 2);
-    assert!(
-        frame
-            .paint_plan
-            .primitives
-            .iter()
-            .all(|primitive| !matches!(primitive, PaintPrimitive::StrokeRect(_)))
-    );
+    assert_eq!(frame.paint_plan.stroke_rects().count(), 0);
 }
 
 #[test]
@@ -150,20 +138,9 @@ fn bottom_status_progress_bar_shows_indeterminate_fill_for_unknown_totals() {
         &radiant::theme::ThemeTokens::default(),
     );
 
-    let fills = frame
-        .paint_plan
-        .primitives
-        .iter()
-        .filter(|primitive| matches!(primitive, PaintPrimitive::FillRect(_)))
-        .count();
+    let fills = frame.paint_plan.fill_rects().count();
     assert_eq!(fills, 2);
-    assert!(
-        frame
-            .paint_plan
-            .primitives
-            .iter()
-            .all(|primitive| !matches!(primitive, PaintPrimitive::StrokeRect(_)))
-    );
+    assert_eq!(frame.paint_plan.stroke_rects().count(), 0);
 }
 
 #[test]

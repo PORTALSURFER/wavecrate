@@ -154,10 +154,7 @@ fn selected_sample_browser_row_paints_strong_fill_and_left_marker() {
     );
     let fills = primitives
         .iter()
-        .filter_map(|primitive| match primitive {
-            PaintPrimitive::FillRect(fill) => Some(fill),
-            _ => None,
-        })
+        .filter_map(PaintPrimitive::fill_rect)
         .collect::<Vec<_>>();
 
     assert!(fills.iter().any(|fill| fill.rect == bounds
@@ -206,10 +203,7 @@ fn sample_browser_row_hover_paints_bright_background_without_marker() {
     );
     let fills = primitives
         .iter()
-        .filter_map(|primitive| match primitive {
-            PaintPrimitive::FillRect(fill) => Some(fill),
-            _ => None,
-        })
+        .filter_map(PaintPrimitive::fill_rect)
         .collect::<Vec<_>>();
 
     assert!(
