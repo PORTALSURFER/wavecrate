@@ -67,12 +67,8 @@ fn sample_browser_frame_paints_column_and_file_text() {
     );
     let texts = frame
         .paint_plan
-        .primitives
-        .iter()
-        .filter_map(|primitive| match primitive {
-            PaintPrimitive::Text(text) => Some(text.text.as_str().to_string()),
-            _ => None,
-        })
+        .text_runs()
+        .map(|text| text.text.as_str().to_string())
         .collect::<Vec<_>>();
 
     assert!(
@@ -101,18 +97,13 @@ fn sample_browser_rows_match_keyboard_scroll_stride() {
     );
     let mut row_tops = frame
         .paint_plan
-        .primitives
-        .iter()
-        .filter_map(|primitive| match primitive {
-            PaintPrimitive::Text(text)
-                if expected_names
-                    .iter()
-                    .any(|name| text.text.as_str().starts_with(name)) =>
-            {
-                Some(text.rect.min.y)
-            }
-            _ => None,
+        .text_runs()
+        .filter(|text| {
+            expected_names
+                .iter()
+                .any(|name| text.text.as_str().starts_with(name))
         })
+        .map(|text| text.rect.min.y)
         .collect::<Vec<_>>();
     row_tops.sort_by(|a, b| a.total_cmp(b));
     row_tops.dedup_by(|a, b| (*a - *b).abs() < 0.5);
@@ -223,19 +214,14 @@ fn full_gui_frame_places_sample_browser_text_inside_visible_area() {
     );
     let sample_texts = frame
         .paint_plan
-        .primitives
-        .iter()
-        .filter_map(|primitive| match primitive {
-            PaintPrimitive::Text(text)
-                if text.text.as_str() == "Name"
-                    || expected_names
-                        .iter()
-                        .any(|name| text.text.as_str().starts_with(name)) =>
-            {
-                Some((text.text.as_str().to_string(), text.rect, text.baseline))
-            }
-            _ => None,
+        .text_runs()
+        .filter(|text| {
+            text.text.as_str() == "Name"
+                || expected_names
+                    .iter()
+                    .any(|name| text.text.as_str().starts_with(name))
         })
+        .map(|text| (text.text.as_str().to_string(), text.rect, text.baseline))
         .collect::<Vec<_>>();
 
     assert!(!sample_texts.is_empty(), "{sample_texts:?}");

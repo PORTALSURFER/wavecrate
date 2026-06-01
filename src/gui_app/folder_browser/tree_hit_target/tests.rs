@@ -98,13 +98,10 @@ fn drop_target_paints_highlighted_label_text() {
     target.append_paint(&mut primitives, bounds, &LayoutOutput::default(), &theme);
 
     assert!(
-        primitives.iter().any(|primitive| {
-            matches!(
-                primitive,
-                PaintPrimitive::Text(run)
-                    if run.text == "loops" && run.color != theme.text_primary
-            )
-        }),
+        primitives
+            .iter()
+            .filter_map(PaintPrimitive::text_run)
+            .any(|run| run.text == "loops" && run.color != theme.text_primary),
         "folder drop targets should light up the label itself, not only the row marker"
     );
 }

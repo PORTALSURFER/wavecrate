@@ -3,7 +3,6 @@ use crate::gui_app::GuiAppState;
 use radiant::{
     gui::types::{Point, Rect, Vector2},
     prelude::IntoView,
-    runtime::PaintPrimitive,
     widgets::{BadgeMessage, BadgeWidget},
 };
 use std::time::{Duration, Instant};
@@ -31,17 +30,11 @@ fn top_status_bar_replaces_text_labels_with_volume_slider_and_audio_pill() {
         .collect::<Vec<_>>();
     let slider_fills = frame
         .paint_plan
-        .primitives
-        .iter()
-        .filter_map(|primitive| match primitive {
-            PaintPrimitive::FillRect(fill)
-                if fill.widget_id == crate::gui_app::VOLUME_SLIDER_ID
-                    && fill.rect.width() > 0.0
-                    && fill.rect.height() > 0.0 =>
-            {
-                Some(fill)
-            }
-            _ => None,
+        .fill_rects()
+        .filter(|fill| {
+            fill.widget_id == crate::gui_app::VOLUME_SLIDER_ID
+                && fill.rect.width() > 0.0
+                && fill.rect.height() > 0.0
         })
         .count();
 

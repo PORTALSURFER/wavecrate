@@ -3,7 +3,6 @@ use radiant::{
     gui::types::{Point, Rect},
     layout::Vector2,
     prelude::IntoView,
-    runtime::PaintPrimitive,
     theme::ThemeTokens,
 };
 use std::collections::HashMap;
@@ -109,11 +108,7 @@ fn locked_keep_rating_cell_paints_keep_badge_text() {
         );
 
     assert!(
-        frame
-            .paint_plan
-            .primitives
-            .iter()
-            .any(|primitive| matches!(primitive, PaintPrimitive::Text(run) if run.text == "KEEP")),
+        frame.paint_plan.text_runs().any(|run| run.text == "KEEP"),
         "locked keep ratings should paint the KEEP badge label"
     );
 }
@@ -138,9 +133,10 @@ fn unloaded_sample_text_uses_muted_theme_color() {
     );
 
     assert!(
-        frame.paint_plan.primitives.iter().any(
-            |primitive| matches!(primitive, PaintPrimitive::Text(run) if run.text == "kick_deep" && run.color == theme.text_muted)
-        ),
+        frame
+            .paint_plan
+            .text_runs()
+            .any(|run| run.text == "kick_deep" && run.color == theme.text_muted),
         "unloaded sample rows should paint text with the muted theme color"
     );
 }
@@ -165,9 +161,10 @@ fn loaded_sample_text_uses_primary_theme_color() {
     );
 
     assert!(
-        frame.paint_plan.primitives.iter().any(
-            |primitive| matches!(primitive, PaintPrimitive::Text(run) if run.text == "kick_deep" && run.color == theme.text_primary)
-        ),
+        frame
+            .paint_plan
+            .text_runs()
+            .any(|run| run.text == "kick_deep" && run.color == theme.text_primary),
         "loaded sample rows should paint text with the primary theme color"
     );
 }
