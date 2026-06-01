@@ -1,5 +1,8 @@
 use radiant::gui::types::{Point, Rect};
-use radiant::gui::visualization::{canvas_selection_edge_visual_rect, canvas_selection_rect};
+use radiant::gui::visualization::{
+    CanvasSelectionBodyHandleParts, canvas_selection_body_handle_rect,
+    canvas_selection_edge_visual_rect, canvas_selection_trailing_control_rect,
+};
 
 use super::{WaveformSelectionEdge, WaveformSelectionKind, widget::WaveformWidget};
 
@@ -22,8 +25,13 @@ impl WaveformWidget {
         start: f32,
         end: f32,
     ) -> Option<Rect> {
-        let selection = canvas_selection_rect(bounds, start.min(end), start.max(end))?;
-        Some(selection.bottom_right_square(SELECTION_EXPORT_HANDLE_SIZE, 0.0))
+        canvas_selection_trailing_control_rect(
+            bounds,
+            start.min(end),
+            start.max(end),
+            SELECTION_EXPORT_HANDLE_SIZE,
+            0.0,
+        )
     }
 
     pub(super) fn selection_move_handle_at(
@@ -49,18 +57,15 @@ impl WaveformWidget {
         start: f32,
         end: f32,
     ) -> Option<Rect> {
-        let selection = canvas_selection_rect(bounds, start.min(end), start.max(end))?;
-        let width = selection.width();
-        let inset = SELECTION_MOVE_HANDLE_END_INSET.min(width * 0.28);
-        let handle = if width > inset * 2.0 + 1.0 {
-            selection.inset_horizontal_saturating(inset)
-        } else {
-            selection
-        };
-        let height = SELECTION_MOVE_HANDLE_HEIGHT
-            .min(bounds.height().max(1.0))
-            .max(1.0);
-        Some(handle.top_edge_strip(height))
+        canvas_selection_body_handle_rect(CanvasSelectionBodyHandleParts {
+            bounds,
+            start_fraction: start.min(end),
+            end_fraction: start.max(end),
+            height: SELECTION_MOVE_HANDLE_HEIGHT,
+            end_inset: SELECTION_MOVE_HANDLE_END_INSET,
+            max_end_inset_fraction: 0.28,
+            min_width_after_inset: 1.0,
+        })
     }
 
     pub(super) fn selection_resize_handle_at(
