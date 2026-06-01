@@ -84,7 +84,7 @@ fn focus_loaded_toolbar_button_is_topmost_hit_target_and_paints_hover_feedback()
         "focus-loaded button must be the topmost hit target at its painted icon"
     );
     assert_eq!(
-        runtime.dispatch_event(Event::PointerMove { position: point }),
+        runtime.dispatch_event(Event::pointer_move(point)),
         Some(super::super::TOOLBAR_FOCUS_LOADED_ID)
     );
     let hovered_frame = runtime.frame(&theme);
@@ -129,7 +129,7 @@ fn stop_toolbar_button_is_hit_target_and_paints_hover_while_playing() {
         "stop button must be the topmost hit target while playback is active"
     );
     assert_eq!(
-        runtime.dispatch_event(Event::PointerMove { position: point }),
+        runtime.dispatch_event(Event::pointer_move(point)),
         Some(super::super::TOOLBAR_STOP_ID)
     );
     let hovered_frame = runtime.frame(&theme);
@@ -176,7 +176,7 @@ fn stop_toolbar_button_remains_available_for_loaded_idle_sample() {
         Some(super::super::TOOLBAR_STOP_ID)
     );
     assert_eq!(
-        runtime.dispatch_event(Event::PointerMove { position: point }),
+        runtime.dispatch_event(Event::pointer_move(point)),
         Some(super::super::TOOLBAR_STOP_ID)
     );
 }

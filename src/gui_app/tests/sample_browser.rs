@@ -13,14 +13,7 @@ fn sample_row_hit_target_survives_frame_refresh_between_press_and_release() {
     );
 
     assert_eq!(
-        hit_target.handle_input(
-            bounds,
-            WidgetInput::PointerPress {
-                position: Point::new(24.0, 10.0),
-                button: PointerButton::Primary,
-                modifiers: Default::default(),
-            },
-        ),
+        hit_target.handle_input(bounds, WidgetInput::primary_press(Point::new(24.0, 10.0)),),
         None
     );
 
@@ -31,15 +24,15 @@ fn sample_row_hit_target_survives_frame_refresh_between_press_and_release() {
     let output = refreshed_hit_target
         .handle_input(
             bounds,
-            WidgetInput::PointerRelease {
-                position: Point::new(24.0, 10.0),
-                button: PointerButton::Primary,
-                modifiers: PointerModifiers {
+            WidgetInput::pointer_release(
+                Point::new(24.0, 10.0),
+                PointerButton::Primary,
+                PointerModifiers {
                     command: true,
                     shift: true,
                     ..Default::default()
                 },
-            },
+            ),
         )
         .expect("sample row should activate after a frame refresh");
 
@@ -185,12 +178,7 @@ fn sample_browser_row_hover_paints_bright_background_without_marker() {
     );
 
     assert_eq!(
-        hit_target.handle_input(
-            bounds,
-            WidgetInput::PointerMove {
-                position: Point::new(20.0, 10.0),
-            },
-        ),
+        hit_target.handle_input(bounds, WidgetInput::pointer_move(Point::new(20.0, 10.0)),),
         None
     );
 

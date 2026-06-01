@@ -111,14 +111,7 @@ fn primary_press_on_outer_fade_handle_uses_distinct_handle() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
 
     let output = widget
-        .handle_input(
-            bounds,
-            WidgetInput::PointerPress {
-                position: Point::new(40.0, 40.0),
-                button: PointerButton::Primary,
-                modifiers: Default::default(),
-            },
-        )
+        .handle_input(bounds, WidgetInput::primary_press(Point::new(40.0, 40.0)))
         .expect("outer fade handle interaction");
     let interaction = output
         .typed_ref::<WaveformInteraction>()

@@ -96,17 +96,9 @@ fn clicking_metadata_tag_chip_selects_it_in_sidebar() {
         (tag_rect.min.y + tag_rect.max.y) * 0.5,
     );
 
-    runtime.dispatch_event(Event::PointerPress {
-        position: point,
-        button: PointerButton::Primary,
-        modifiers: PointerModifiers::default(),
-    });
+    runtime.dispatch_event(Event::primary_press(point));
     runtime.dispatch_message(super::super::super::GuiMessage::Frame);
-    runtime.dispatch_event(Event::PointerRelease {
-        position: point,
-        button: PointerButton::Primary,
-        modifiers: PointerModifiers::default(),
-    });
+    runtime.dispatch_event(Event::primary_release(point));
 
     assert_eq!(
         runtime.bridge().state().selected_metadata_tag.as_deref(),

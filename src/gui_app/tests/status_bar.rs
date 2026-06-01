@@ -3,7 +3,7 @@ use crate::gui_app::GuiAppState;
 use radiant::{
     gui::types::{Point, Rect, Vector2},
     prelude::IntoView,
-    widgets::{PointerButton, WidgetInput},
+    widgets::WidgetInput,
 };
 
 #[test]
@@ -93,26 +93,12 @@ fn bottom_status_progress_bar_click_opens_job_details() {
     let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(180.0, 10.0));
     let mut progress = radiant::widgets::ProgressBarWidget::determinate(0.4).with_activation();
     assert_eq!(
-        progress.handle_input(
-            bounds,
-            WidgetInput::PointerPress {
-                position: Point::new(90.0, 5.0),
-                button: PointerButton::Primary,
-                modifiers: Default::default(),
-            },
-        ),
+        progress.handle_input(bounds, WidgetInput::primary_press(Point::new(90.0, 5.0)),),
         None
     );
 
     assert_eq!(
-        progress.handle_input(
-            bounds,
-            WidgetInput::PointerRelease {
-                position: Point::new(90.0, 5.0),
-                button: PointerButton::Primary,
-                modifiers: Default::default(),
-            },
-        ),
+        progress.handle_input(bounds, WidgetInput::primary_release(Point::new(90.0, 5.0)),),
         Some(radiant::widgets::ProgressBarMessage::Activate)
     );
 }

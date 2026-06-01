@@ -71,11 +71,7 @@ fn double_click_on_outer_fade_handle_emits_silence_clear_interaction() {
     let output = widget
         .handle_input(
             bounds,
-            WidgetInput::PointerDoubleClick {
-                position: Point::new(140.0, 40.0),
-                button: PointerButton::Primary,
-                modifiers: Default::default(),
-            },
+            WidgetInput::primary_double_click(Point::new(140.0, 40.0)),
         )
         .expect("outer fade double-click interaction");
     let interaction = output

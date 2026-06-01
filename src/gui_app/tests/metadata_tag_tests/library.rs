@@ -226,19 +226,12 @@ fn default_gui_tag_library_pointer_drag_drops_tag_on_category_header() {
         (character_rect.min.y + character_rect.max.y) * 0.5,
     );
 
-    runtime.dispatch_event(Event::PointerPress {
-        position: bass_point,
-        button: PointerButton::Primary,
-        modifiers: PointerModifiers::default(),
-    });
-    runtime.dispatch_event(Event::PointerMove {
-        position: Point::new(bass_point.x + 8.0, bass_point.y + 2.0),
-    });
-    runtime.dispatch_event(Event::PointerRelease {
-        position: character_point,
-        button: PointerButton::Primary,
-        modifiers: PointerModifiers::default(),
-    });
+    runtime.dispatch_event(Event::primary_press(bass_point));
+    runtime.dispatch_event(Event::pointer_move(Point::new(
+        bass_point.x + 8.0,
+        bass_point.y + 2.0,
+    )));
+    runtime.dispatch_event(Event::primary_release(character_point));
 
     assert_eq!(
         runtime
@@ -274,11 +267,7 @@ fn default_gui_tag_library_right_click_opens_tag_context_menu() {
         (tag_rect.min.y + tag_rect.max.y) * 0.5,
     );
 
-    runtime.dispatch_event(Event::PointerPress {
-        position: point,
-        button: PointerButton::Secondary,
-        modifiers: PointerModifiers::default(),
-    });
+    runtime.dispatch_event(Event::secondary_press(point));
 
     let menu = runtime
         .bridge()
