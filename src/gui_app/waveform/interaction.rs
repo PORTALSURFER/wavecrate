@@ -1,5 +1,5 @@
 use radiant::gui::{
-    range::NormalizedRange,
+    range::{NormalizedRange, normalized_fraction_to_micros, normalized_fraction_to_milli},
     visualization::{TimelineEditPreview, TimelineEditPreviewParts},
 };
 
@@ -154,30 +154,24 @@ pub(super) fn edit_preview_for_selection(
     let fade_in = selection.fade_in();
     let fade_out = selection.fade_out();
     TimelineEditPreview::from_parts(TimelineEditPreviewParts {
-        selection: Some(NormalizedRange::from_micros(
-            normalized_to_micros(start),
-            normalized_to_micros(end),
-        )),
-        leading_end_milli: fade_in.map(|fade| normalized_to_milli(start + width * fade.length)),
-        leading_end_micros: fade_in.map(|fade| normalized_to_micros(start + width * fade.length)),
+        selection: Some(NormalizedRange::from_fractions(start, end)),
+        leading_end_milli: fade_in
+            .map(|fade| normalized_fraction_to_milli(start + width * fade.length)),
+        leading_end_micros: fade_in
+            .map(|fade| normalized_fraction_to_micros(start + width * fade.length)),
         leading_inner_start_milli: fade_in
-            .map(|fade| normalized_to_milli(start - width * fade.mute)),
+            .map(|fade| normalized_fraction_to_milli(start - width * fade.mute)),
         leading_inner_start_micros: fade_in
-            .map(|fade| normalized_to_micros(start - width * fade.mute)),
-        leading_curve_milli: fade_in.map(|fade| normalized_to_milli(fade.curve)),
-        trailing_start_milli: fade_out.map(|fade| normalized_to_milli(end - width * fade.length)),
-        trailing_start_micros: fade_out.map(|fade| normalized_to_micros(end - width * fade.length)),
-        trailing_inner_end_milli: fade_out.map(|fade| normalized_to_milli(end + width * fade.mute)),
+            .map(|fade| normalized_fraction_to_micros(start - width * fade.mute)),
+        leading_curve_milli: fade_in.map(|fade| normalized_fraction_to_milli(fade.curve)),
+        trailing_start_milli: fade_out
+            .map(|fade| normalized_fraction_to_milli(end - width * fade.length)),
+        trailing_start_micros: fade_out
+            .map(|fade| normalized_fraction_to_micros(end - width * fade.length)),
+        trailing_inner_end_milli: fade_out
+            .map(|fade| normalized_fraction_to_milli(end + width * fade.mute)),
         trailing_inner_end_micros: fade_out
-            .map(|fade| normalized_to_micros(end + width * fade.mute)),
-        trailing_curve_milli: fade_out.map(|fade| normalized_to_milli(fade.curve)),
+            .map(|fade| normalized_fraction_to_micros(end + width * fade.mute)),
+        trailing_curve_milli: fade_out.map(|fade| normalized_fraction_to_milli(fade.curve)),
     })
-}
-
-fn normalized_to_milli(value: f32) -> u16 {
-    (value.clamp(0.0, 1.0) * 1000.0).round() as u16
-}
-
-fn normalized_to_micros(value: f32) -> u32 {
-    (value.clamp(0.0, 1.0) * 1_000_000.0).round() as u32
 }
