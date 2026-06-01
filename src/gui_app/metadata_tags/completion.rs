@@ -75,9 +75,13 @@ impl GuiAppState {
         } else {
             0
         };
-        let len = suggestions.len() as i32;
         self.metadata_tag_completion_prefix = Some(prefix);
-        self.metadata_tag_completion_index = (current as i32 + delta).rem_euclid(len) as usize;
+        self.metadata_tag_completion_index = radiant::prelude::cyclic_list_index_after_delta(
+            current,
+            delta as isize,
+            suggestions.len(),
+        )
+        .unwrap_or(0);
     }
 
     pub(super) fn selected_metadata_tag_completion(&self) -> Option<String> {
@@ -250,9 +254,13 @@ impl GuiAppState {
         } else {
             0
         };
-        let len = suggestions.len() as i32;
         self.metadata_tag_completion_prefix = Some(prefix);
-        self.metadata_tag_completion_index = (current as i32 + delta).rem_euclid(len) as usize;
+        self.metadata_tag_completion_index = radiant::prelude::cyclic_list_index_after_delta(
+            current,
+            delta as isize,
+            suggestions.len(),
+        )
+        .unwrap_or(0);
     }
 
     pub(super) fn reset_metadata_tag_completion_cycle(&mut self) {
