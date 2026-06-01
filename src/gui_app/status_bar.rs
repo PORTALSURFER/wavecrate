@@ -2,20 +2,15 @@ use super::{FolderScanProgress, GuiAppState, GuiMessage, NormalizationProgress};
 use radiant::prelude as ui;
 
 pub(super) fn bottom_status_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
-    ui::row([
-        ui::text(selected_sample_count_label(state))
-            .height(20.0)
-            .width(120.0),
-        ui::text(bottom_status_text(state))
-            .height(20.0)
-            .fill_width(),
-        worker_progress_bar(state),
-    ])
-    .spacing(8.0)
-    .padding_x(12.0)
-    .padding_y(4.0)
-    .fill_width()
-    .height(30.0)
+    ui::status_bar_from_parts(
+        ui::StatusBarParts::new(ui::StatusSegments::new(
+            selected_sample_count_label(state),
+            bottom_status_text(state),
+            "",
+        ))
+        .left_width(120.0)
+        .trailing(worker_progress_bar(state)),
+    )
 }
 
 fn selected_sample_count_label(state: &GuiAppState) -> String {
