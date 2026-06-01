@@ -41,7 +41,7 @@ impl FolderTreeHitTarget {
         bounds: Rect,
         theme: &ThemeTokens,
     ) {
-        let font_size = label_font_size(bounds);
+        let font_size = ui::dense_row_label_font_size(bounds.height());
         let label_rect =
             ui::centered_text_line(bounds, font_size, ui::TextLineInsets::horizontal(4.0), 0.0);
         primitives.push(PaintPrimitive::Text(PaintTextRun {
@@ -112,15 +112,5 @@ impl FolderTreeHitTarget {
     fn label_is_highlighted(&self) -> bool {
         let state = self.background_state();
         state.active_target || (state.hovered && state.candidate) || state.selected
-    }
-}
-
-fn label_font_size(bounds: Rect) -> f32 {
-    if bounds.height() >= 38.0 {
-        18.0
-    } else if bounds.height() >= 28.0 {
-        14.0
-    } else {
-        13.0
     }
 }
