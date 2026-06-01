@@ -349,6 +349,41 @@ fn file_scroll_tracking_allows_runtime_clamped_bottom_offsets() {
 }
 
 #[test]
+fn folder_tree_follow_window_tracks_selected_folder() {
+    let root = temp_source_root("wavecrate-gui-folder-tree-follow-window");
+    for index in 0..20 {
+        fs::create_dir_all(root.join(format!("folder_{index:02}"))).expect("create folder");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+    browser.activate_folder(path_id(&root.join("folder_12")));
+    let visible = browser.visible_folders();
+    let selected = visible.iter().position(|folder| folder.selected);
+
+    let window = browser.follow_selected_tree_view(visible.len(), selected, 6, 1, 1);
+
+    assert_eq!(window.viewport_start, 10);
+    assert_eq!(browser.tree_view_start(), 10);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn folder_tree_scroll_tracking_allows_runtime_offsets() {
+    let root = temp_source_root("wavecrate-gui-folder-tree-scroll");
+    for index in 0..24 {
+        fs::create_dir_all(root.join(format!("folder_{index:02}"))).expect("create folder");
+    }
+    let mut browser = FolderBrowserState::from_root(root.clone());
+
+    browser.set_tree_view_start_from_scroll_offset(
+        23.0 * super::super::TREE_ROW_HEIGHT,
+        super::super::TREE_ROW_HEIGHT,
+    );
+
+    assert_eq!(browser.tree_view_start(), 23);
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn select_all_audio_files_selects_current_folder_samples() {
     let root = temp_source_root("wavecrate-gui-file-select-all");
     let drums = root.join("drums");

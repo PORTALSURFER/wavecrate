@@ -30,14 +30,13 @@ impl FolderBrowserState {
         guard_rows: usize,
     ) -> ui::VirtualListWindow {
         let total_items = self.selected_audio_files().len();
-        self.file_view_controller.configure(
+        self.file_view_controller.configure_and_focus_optional(
             total_items,
             viewport_rows,
             overscan_rows,
             guard_rows.saturating_add(1),
-        );
-        self.file_view_controller
-            .focus_optional(self.selected_audio_file_index())
+            self.selected_audio_file_index(),
+        )
     }
 
     pub(in crate::gui_app) fn selected_audio_file_index(&self) -> Option<usize> {

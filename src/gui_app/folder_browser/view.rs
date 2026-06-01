@@ -4,6 +4,10 @@ use radiant::{
 };
 
 use crate::gui_app::metadata_tags::{MetadataTagCompletionOption, MetadataTagDisplayCategory};
+use crate::gui_app::{
+    FOLDER_TREE_EDGE_CONTEXT_ROWS, FOLDER_TREE_LIST_ID, FOLDER_TREE_OVERSCAN_ROWS,
+    FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
+};
 
 use super::tag_editor::{metadata_section, tag_field_content_width, tag_field_height};
 use super::{
@@ -18,8 +22,8 @@ mod source_section;
 use collections_section::collections_section;
 use source_section::source_selector;
 
-pub(in crate::gui_app) fn folder_browser_view(
-    state: &FolderBrowserState,
+pub(in crate::gui_app) fn folder_browser_view_mut(
+    state: &mut FolderBrowserState,
     sidebar_width: f32,
     has_selected_file: bool,
     metadata_tag_draft: &str,
@@ -45,7 +49,7 @@ pub(in crate::gui_app) fn folder_browser_view(
     ui::column([
         source_selector(state),
         ui::text("Folders").height(22.0).fill_width(),
-        ui::scroll(folder_tree_view(state)).fill(),
+        folder_tree_view(state),
         selected_folder_status(state),
         collections_section(state),
         filter_section(),
@@ -70,7 +74,49 @@ pub(in crate::gui_app) fn folder_browser_view(
     .fill_height()
 }
 
-fn folder_tree_view(state: &FolderBrowserState) -> ui::View<GuiMessage> {
+#[cfg(test)]
+#[allow(clippy::too_many_arguments)]
+pub(in crate::gui_app) fn folder_browser_view(
+    state: &FolderBrowserState,
+    sidebar_width: f32,
+    has_selected_file: bool,
+    metadata_tag_draft: &str,
+    metadata_tag_tokens: &[String],
+    metadata_tag_pending_category_tag: Option<&str>,
+    metadata_tag_input_placeholder: &str,
+    metadata_tag_completion_suffix: Option<&str>,
+    metadata_tag_completion_options: &[MetadataTagCompletionOption],
+    metadata_tags: &[String],
+    metadata_tag_display_categories: &[MetadataTagDisplayCategory],
+    selected_metadata_tag: Option<&str>,
+) -> ui::View<GuiMessage> {
+    let mut state = state.clone();
+    folder_browser_view_mut(
+        &mut state,
+        sidebar_width,
+        has_selected_file,
+        metadata_tag_draft,
+        metadata_tag_tokens,
+        metadata_tag_pending_category_tag,
+        metadata_tag_input_placeholder,
+        metadata_tag_completion_suffix,
+        metadata_tag_completion_options,
+        metadata_tags,
+        metadata_tag_display_categories,
+        selected_metadata_tag,
+    )
+}
+
+fn folder_tree_view(state: &mut FolderBrowserState) -> ui::View<GuiMessage> {
+    let visible_folders = state.visible_folders();
+    let selected_index = visible_folders.iter().position(|folder| folder.selected);
+    let window = state.follow_selected_tree_view(
+        visible_folders.len(),
+        selected_index,
+        FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
+        FOLDER_TREE_OVERSCAN_ROWS,
+        FOLDER_TREE_EDGE_CONTEXT_ROWS,
+    );
     ui::stack([
         ui::pointer_move_shield(state.drop_target_folder.is_some())
             .on_pointer_move(|position| {
@@ -79,15 +125,15 @@ fn folder_tree_view(state: &FolderBrowserState) -> ui::View<GuiMessage> {
             .key("folder-drop-clear-target")
             .input_only()
             .fill(),
-        ui::column(
-            state
-                .visible_folders()
-                .into_iter()
-                .map(folder_row)
-                .collect::<Vec<_>>(),
+        ui::virtual_list_window(
+            window,
+            TREE_ROW_HEIGHT,
+            move |index| folder_row(visible_folders[index].clone()),
+            TREE_ROW_HEIGHT * FOLDER_TREE_OVERSCAN_ROWS as f32,
         )
+        .id(FOLDER_TREE_LIST_ID)
         .fill_width()
-        .spacing(1.0),
+        .fill_height(),
     ])
     .fill()
 }

@@ -86,6 +86,10 @@ use waveform::{WaveformActiveDragKind, WaveformInteraction, WaveformSelectionKin
 const DEFAULT_FOLDER_WIDTH: f32 = 260.0;
 const MIN_FOLDER_WIDTH: f32 = 180.0;
 const MAX_FOLDER_WIDTH: f32 = 420.0;
+const FOLDER_TREE_LIST_ID: u64 = 29_000;
+const FOLDER_TREE_EDGE_CONTEXT_ROWS: usize = 2;
+const FOLDER_TREE_OVERSCAN_ROWS: usize = 4;
+const FOLDER_TREE_PROJECTED_VIEWPORT_ROWS: usize = 96;
 const SAMPLE_BROWSER_LIST_ID: u64 = 30_000;
 const SAMPLE_BROWSER_ROW_HEIGHT: f32 = 22.0;
 const SAMPLE_BROWSER_EDGE_CONTEXT_ROWS: usize = 2;

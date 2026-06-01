@@ -1,4 +1,7 @@
-use super::{GuiAppState, GuiMessage, SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_ROW_HEIGHT, view};
+use super::{
+    FOLDER_TREE_LIST_ID, GuiAppState, GuiMessage, SAMPLE_BROWSER_LIST_ID,
+    SAMPLE_BROWSER_ROW_HEIGHT, folder_browser::TREE_ROW_HEIGHT, view,
+};
 use crate::gui_app::{audio_settings, default_gui_shortcut_resolution};
 use radiant::runtime::{
     NativeFrameOptions, NativeRunOptions, NativeTextOptions, NativeWindowBehavior,
@@ -99,6 +102,10 @@ pub(crate) fn run() -> Result<(), String> {
                         update.offset.y,
                         SAMPLE_BROWSER_ROW_HEIGHT,
                     );
+                } else if update.node_id == FOLDER_TREE_LIST_ID {
+                    state
+                        .folder_browser
+                        .set_tree_view_start_from_scroll_offset(update.offset.y, TREE_ROW_HEIGHT);
                 }
             })
             .on_native_file_drop(|_state, drop, context| {

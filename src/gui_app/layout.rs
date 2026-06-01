@@ -44,22 +44,33 @@ fn center_panel(state: &mut GuiAppState) -> ui::View<GuiMessage> {
     ui::row(children).padding(6.0).fill()
 }
 
-fn folder_sidebar(state: &GuiAppState) -> ui::View<GuiMessage> {
-    folder_browser::folder_browser_view(
-        &state.folder_browser,
-        state.folder_width,
-        state.folder_browser.selected_file_id().is_some(),
+fn folder_sidebar(state: &mut GuiAppState) -> ui::View<GuiMessage> {
+    let folder_width = state.folder_width;
+    let has_selected_file = state.folder_browser.selected_file_id().is_some();
+    let pending_category_tag = state
+        .pending_metadata_tag_category_tag()
+        .map(str::to_string);
+    let completion_suffix = state.metadata_tag_completion_suffix();
+    let completion_options = state.metadata_tag_completion_options();
+    let selected_metadata_tags = state.selected_metadata_tags().to_vec();
+    let display_categories = state.selected_metadata_tag_display_categories();
+    let selected_metadata_tag = state.selected_metadata_tag.clone();
+    let input_placeholder = state.metadata_tag_input_placeholder();
+    folder_browser::folder_browser_view_mut(
+        &mut state.folder_browser,
+        folder_width,
+        has_selected_file,
         state.metadata_tag_draft.as_str(),
         state.metadata_tag_tokens.as_slice(),
-        state.pending_metadata_tag_category_tag(),
-        state.metadata_tag_input_placeholder(),
-        state.metadata_tag_completion_suffix().as_deref(),
-        state.metadata_tag_completion_options().as_slice(),
-        state.selected_metadata_tags(),
-        state.selected_metadata_tag_display_categories().as_slice(),
-        state.selected_metadata_tag.as_deref(),
+        pending_category_tag.as_deref(),
+        input_placeholder,
+        completion_suffix.as_deref(),
+        completion_options.as_slice(),
+        selected_metadata_tags.as_slice(),
+        display_categories.as_slice(),
+        selected_metadata_tag.as_deref(),
     )
-    .width(state.folder_width)
+    .width(folder_width)
     .fill_height()
 }
 

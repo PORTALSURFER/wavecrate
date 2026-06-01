@@ -6,7 +6,7 @@ use wavecrate::sample_sources::SampleCollection;
 
 use super::GuiMessage;
 
-const TREE_ROW_HEIGHT: f32 = 23.0;
+pub(super) const TREE_ROW_HEIGHT: f32 = 23.0;
 const TREE_DEPTH_INDENT: f32 = 4.0;
 
 #[derive(Clone, Debug)]
@@ -34,6 +34,7 @@ pub(super) struct FolderBrowserState {
     file_sort: ui::DetailsSort,
     file_column_resize: Option<ui::DetailsColumnResizeDrag>,
     file_column_reorder: Option<ui::DetailsColumnReorderDrag>,
+    tree_view_controller: ui::VirtualListController,
     file_view_controller: ui::VirtualListController,
 }
 
@@ -81,6 +82,7 @@ impl FolderBrowserState {
             file_sort: ui::DetailsSort::new("name", ui::SortDirection::Ascending),
             file_column_resize: None,
             file_column_reorder: None,
+            tree_view_controller: ui::VirtualListController::default(),
             file_view_controller: ui::VirtualListController::default(),
         }
     }
@@ -117,6 +119,7 @@ impl FolderBrowserState {
             file_sort: ui::DetailsSort::new("name", ui::SortDirection::Ascending),
             file_column_resize: None,
             file_column_reorder: None,
+            tree_view_controller: ui::VirtualListController::default(),
             file_view_controller: ui::VirtualListController::default(),
         }
     }
@@ -342,6 +345,8 @@ mod tree_state;
 
 mod tree_hit_target;
 
+mod tree_view_window;
+
 mod types;
 pub(super) use types::{
     FileDeleteTargetView, FileRenameView, FolderBrowserMessage, FolderDeleteTargetView,
@@ -353,7 +358,9 @@ mod tag_completion;
 mod tag_editor;
 mod tag_entry_layout;
 mod view;
+#[cfg(test)]
 pub(super) use view::folder_browser_view;
+pub(super) use view::folder_browser_view_mut;
 
 #[cfg(test)]
 mod tests;
