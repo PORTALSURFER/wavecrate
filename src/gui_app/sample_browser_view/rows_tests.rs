@@ -96,8 +96,8 @@ fn locked_keep_rating_cell_paints_keep_badge_text() {
     file.rating = Rating::KEEP_3;
     file.rating_locked = true;
     let theme = ThemeTokens::default();
-    let frame = radiant::runtime::UiSurface::new(sample_rating_cell(&file, 64.0).into_node())
-        .frame_at_size(Vector2::new(64.0, 20.0), &theme);
+    let frame =
+        sample_rating_cell(&file, 64.0).view_frame_at_size(Vector2::new(64.0, 20.0), &theme);
 
     assert!(
         frame.paint_plan.text_runs().any(|run| run.text == "KEEP"),
@@ -109,17 +109,14 @@ fn locked_keep_rating_cell_paints_keep_badge_text() {
 /// Verifies unloaded sample names use muted text color.
 fn unloaded_sample_text_uses_muted_theme_color() {
     let theme = ThemeTokens::default();
-    let frame = radiant::runtime::UiSurface::new(
-        sample_file_cell(
-            &file_entry(),
-            String::from("kick_deep"),
-            120.0,
-            "name",
-            false,
-        )
-        .into_node(),
+    let frame = sample_file_cell(
+        &file_entry(),
+        String::from("kick_deep"),
+        120.0,
+        "name",
+        false,
     )
-    .frame_at_size(Vector2::new(120.0, 20.0), &theme);
+    .view_frame_at_size(Vector2::new(120.0, 20.0), &theme);
 
     assert!(
         frame
@@ -134,17 +131,14 @@ fn unloaded_sample_text_uses_muted_theme_color() {
 /// Verifies loaded sample names use primary text color.
 fn loaded_sample_text_uses_primary_theme_color() {
     let theme = ThemeTokens::default();
-    let frame = radiant::runtime::UiSurface::new(
-        sample_file_cell(
-            &file_entry(),
-            String::from("kick_deep"),
-            120.0,
-            "name",
-            true,
-        )
-        .into_node(),
+    let frame = sample_file_cell(
+        &file_entry(),
+        String::from("kick_deep"),
+        120.0,
+        "name",
+        true,
     )
-    .frame_at_size(Vector2::new(120.0, 20.0), &theme);
+    .view_frame_at_size(Vector2::new(120.0, 20.0), &theme);
 
     assert!(
         frame

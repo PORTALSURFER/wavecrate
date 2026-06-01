@@ -13,8 +13,8 @@ fn default_gui_tag_library_opens_beside_folder_sidebar() {
     );
     state.metadata_tag_library_open = true;
 
-    let frame = radiant::runtime::UiSurface::new(super::super::super::view(&mut state).into_node())
-        .frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
+    let frame = super::super::super::view(&mut state)
+        .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
 
     assert!(frame.paint_plan.contains_text("Tag Editor"));
     assert!(frame.paint_plan.contains_text("Playback Type (2) [locked]"));
@@ -141,8 +141,8 @@ fn default_gui_tag_library_category_headers_collapse_groups() {
         &mut ui::UpdateContext::default(),
     );
 
-    let frame = radiant::runtime::UiSurface::new(super::super::super::view(&mut state).into_node())
-        .frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
+    let frame = super::super::super::view(&mut state)
+        .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
 
     assert!(frame.paint_plan.contains_text("Sound Type (1)"));
     assert!(
@@ -338,8 +338,8 @@ fn default_gui_tag_library_uses_custom_dictionary_categories() {
         .insert(String::from("deep-kick"), String::from("sound-type"));
     state.metadata_tag_library_open = true;
 
-    let frame = radiant::runtime::UiSurface::new(super::super::super::view(&mut state).into_node())
-        .frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
+    let frame = super::super::super::view(&mut state)
+        .view_frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
 
     assert!(frame.paint_plan.contains_text("Sound Type (1)"));
     assert!(frame.paint_plan.contains_text("deep-kick"));
