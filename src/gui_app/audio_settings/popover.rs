@@ -102,15 +102,7 @@ fn cache_maintenance_section() -> ui::View<GuiMessage> {
 }
 
 fn audio_settings_backend_section(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
-    let dropdown_height = ui::dropdown_height(
-        snapshot.audio_backend_dropdown_open,
-        snapshot.audio_hosts.len() + 1,
-    );
-    ui::labeled_control_from_parts(
-        ui::LabeledControlParts::new("Backend", audio_host_dropdown(snapshot))
-            .spacing(AUDIO_SETTINGS_SECTION_SPACING)
-            .height(21.0 + dropdown_height),
-    )
+    ui::labeled_control("Backend", audio_host_dropdown(snapshot), 45.0)
 }
 
 fn audio_host_dropdown(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
