@@ -26,12 +26,8 @@ fn top_status_bar_replaces_text_labels_with_volume_slider_and_audio_pill() {
         );
     let texts = frame
         .paint_plan
-        .primitives
-        .iter()
-        .filter_map(|primitive| match primitive {
-            PaintPrimitive::Text(text) => Some(text.text.as_str().to_string()),
-            _ => None,
-        })
+        .text_runs()
+        .map(|text| text.text.as_str().to_string())
         .collect::<Vec<_>>();
     let slider_fills = frame
         .paint_plan
@@ -232,12 +228,8 @@ fn audio_settings_popover_stays_output_only() {
     );
     let texts = frame
         .paint_plan
-        .primitives
-        .iter()
-        .filter_map(|primitive| match primitive {
-            PaintPrimitive::Text(text) => Some(text.text.as_str().to_string()),
-            _ => None,
-        })
+        .text_runs()
+        .map(|text| text.text.as_str().to_string())
         .collect::<Vec<_>>();
 
     assert!(

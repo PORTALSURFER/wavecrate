@@ -2,7 +2,6 @@ use super::gui_state_for_span_tests;
 use radiant::{
     gui::types::{Point, Rect, Vector2},
     prelude::{self as ui, IntoView},
-    runtime::PaintPrimitive,
 };
 
 fn audio_settings_texts(state: &crate::gui_app::GuiAppState) -> Vec<String> {
@@ -12,12 +11,8 @@ fn audio_settings_texts(state: &crate::gui_app::GuiAppState) -> Vec<String> {
             &radiant::theme::ThemeTokens::default(),
         )
         .paint_plan
-        .primitives
-        .iter()
-        .filter_map(|primitive| match primitive {
-            PaintPrimitive::Text(text) => Some(text.text.as_str().to_string()),
-            _ => None,
-        })
+        .text_runs()
+        .map(|text| text.text.as_str().to_string())
         .collect()
 }
 
@@ -212,23 +207,15 @@ fn audio_settings_frame(state: &crate::gui_app::GuiAppState) -> radiant::runtime
 fn text_top(frame: &radiant::runtime::SurfaceFrame, label: &str) -> f32 {
     frame
         .paint_plan
-        .primitives
-        .iter()
-        .find_map(|primitive| match primitive {
-            PaintPrimitive::Text(text) if text.text.as_str() == label => Some(text.rect.min.y),
-            _ => None,
-        })
+        .first_text_run(label)
+        .map(|text| text.rect.min.y)
         .unwrap_or_else(|| panic!("expected text {label}"))
 }
 
 fn text_index(frame: &radiant::runtime::SurfaceFrame, label: &str) -> usize {
     frame
         .paint_plan
-        .primitives
-        .iter()
-        .position(|primitive| match primitive {
-            PaintPrimitive::Text(text) => text.text.as_str() == label,
-            _ => false,
-        })
+        .text_runs()
+        .position(|text| text.text.as_str() == label)
         .unwrap_or_else(|| panic!("expected text {label}"))
 }

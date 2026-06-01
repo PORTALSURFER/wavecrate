@@ -278,27 +278,14 @@ fn clear_rebuildable_caches_action_removes_cache_payloads_only() {
 }
 
 fn frame_has_text(frame: &ui::SurfaceFrame, expected: &str) -> bool {
-    frame
-        .paint_plan
-        .primitives
-        .iter()
-        .any(|primitive| match primitive {
-            PaintPrimitive::Text(text) => text.text.as_str() == expected,
-            _ => false,
-        })
+    frame.paint_plan.contains_text(expected)
 }
 
 fn frame_has_text_after_x(frame: &ui::SurfaceFrame, expected: &str, min_x: f32) -> bool {
     frame
         .paint_plan
-        .primitives
-        .iter()
-        .any(|primitive| match primitive {
-            PaintPrimitive::Text(text) => {
-                text.text.as_str() == expected && text.rect.min.x >= min_x
-            }
-            _ => false,
-        })
+        .text_runs()
+        .any(|text| text.text.as_str() == expected && text.rect.min.x >= min_x)
 }
 
 fn frame_has_clip_height(frame: &ui::SurfaceFrame, expected: f32) -> bool {
@@ -315,32 +302,21 @@ fn frame_has_clip_height(frame: &ui::SurfaceFrame, expected: f32) -> bool {
 fn text_rect(frame: &ui::SurfaceFrame, expected: &str) -> Option<Rect> {
     frame
         .paint_plan
-        .primitives
-        .iter()
-        .find_map(|primitive| match primitive {
-            PaintPrimitive::Text(text) if text.text.as_str() == expected => Some(text.rect),
-            _ => None,
-        })
+        .first_text_run(expected)
+        .map(|text| text.rect)
 }
 
 fn text_color(frame: &ui::SurfaceFrame, expected: &str) -> Option<radiant::gui::types::Rgba8> {
     frame
         .paint_plan
-        .primitives
-        .iter()
-        .find_map(|primitive| match primitive {
-            PaintPrimitive::Text(text) if text.text.as_str() == expected => Some(text.color),
-            _ => None,
-        })
+        .first_text_run(expected)
+        .map(|text| text.color)
 }
 
 fn text_input_widget_id(frame: &ui::SurfaceFrame) -> Option<u64> {
     frame
         .paint_plan
-        .primitives
-        .iter()
-        .find_map(|primitive| match primitive {
-            PaintPrimitive::TextInput(input) => Some(input.widget_id),
-            _ => None,
-        })
+        .text_inputs()
+        .map(|input| input.widget_id)
+        .next()
 }
