@@ -114,11 +114,12 @@ fn audio_settings_backend_section(snapshot: &AudioSettingsSnapshot) -> ui::View<
 }
 
 fn audio_host_dropdown(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
-    let selected_label = selected_audio_host_label(snapshot);
-    ui::dropdown(selected_label, false)
-        .toggle_message(GuiMessage::ToggleAudioBackendDropdown)
-        .options(audio_host_dropdown_options(snapshot))
-        .build()
+    ui::dropdown_trigger(
+        selected_audio_host_label(snapshot),
+        snapshot.audio_backend_dropdown_open,
+    )
+    .toggle_message(GuiMessage::ToggleAudioBackendDropdown)
+    .build()
 }
 
 fn audio_host_dropdown_overlay(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
@@ -133,12 +134,11 @@ fn audio_host_dropdown_overlay(snapshot: &AudioSettingsSnapshot) -> ui::View<Gui
 }
 
 fn audio_output_dropdown(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
-    ui::dropdown(
+    ui::dropdown_trigger(
         selected_audio_output_label(snapshot),
         snapshot.audio_output_dropdown_open,
     )
     .toggle_message(GuiMessage::ToggleAudioOutputDropdown)
-    .options(audio_output_dropdown_options(snapshot))
     .build()
 }
 
@@ -154,12 +154,11 @@ fn audio_output_dropdown_overlay(snapshot: &AudioSettingsSnapshot) -> ui::View<G
 }
 
 fn audio_sample_rate_dropdown(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
-    ui::dropdown(
+    ui::dropdown_trigger(
         selected_audio_sample_rate_label(snapshot),
         snapshot.audio_sample_rate_dropdown_open,
     )
     .toggle_message(GuiMessage::ToggleAudioSampleRateDropdown)
-    .options(audio_sample_rate_dropdown_options(snapshot))
     .build()
 }
 
