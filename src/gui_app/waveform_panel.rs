@@ -47,11 +47,9 @@ fn waveform_viewport_with_loading_state(state: &GuiAppState) -> ui::View<GuiMess
             );
         }
     }
-    if layers.len() == 1 {
-        layers.pop().expect("viewport layer")
-    } else {
-        ui::stack(layers).fill_width().height(WAVEFORM_VIEW_HEIGHT)
-    }
+    ui::stack_layers(layers)
+        .fill_width()
+        .height(WAVEFORM_VIEW_HEIGHT)
 }
 
 #[cfg_attr(test, allow(dead_code))]

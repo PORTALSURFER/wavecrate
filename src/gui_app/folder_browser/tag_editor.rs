@@ -79,7 +79,7 @@ pub(super) fn metadata_section(
         ));
     }
     metadata_sidebar_panel(
-        ui::stack(layers).fill_width().height(content_height),
+        ui::stack_layers(layers).fill_width().height(content_height),
         section_height,
     )
 }

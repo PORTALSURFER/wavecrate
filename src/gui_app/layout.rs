@@ -27,11 +27,7 @@ pub(super) fn view(state: &mut GuiAppState) -> ui::View<GuiMessage> {
     if let Some(menu) = state.context_menu.as_ref() {
         layers.push(context_menu::overlay(menu));
     }
-    if layers.len() > 1 {
-        ui::stack(layers).fill()
-    } else {
-        layers.remove(0)
-    }
+    ui::stack_layers(layers).fill()
 }
 
 fn center_panel(state: &mut GuiAppState) -> ui::View<GuiMessage> {
