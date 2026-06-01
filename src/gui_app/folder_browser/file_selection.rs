@@ -1,4 +1,4 @@
-use radiant::widgets::PointerModifiers;
+use radiant::{prelude as ui, widgets::PointerModifiers};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use wavecrate::sample_sources::Rating;
@@ -186,9 +186,8 @@ impl FolderBrowserState {
         else {
             return false;
         };
-        let target_index =
-            radiant::prelude::list_index_after_delta(current_index, delta as isize, folders.len())
-                .unwrap_or(current_index);
+        let target_index = ui::list_index_after_delta(current_index, delta as isize, folders.len())
+            .unwrap_or(current_index);
         if target_index == current_index {
             return false;
         }
@@ -197,30 +196,24 @@ impl FolderBrowserState {
     }
 
     fn navigate_selected_file(&mut self, delta: i32, extend: bool) -> Option<String> {
-        let files = self.selected_audio_files();
-        let current = self.selected_file.as_deref()?;
-        let current_index = files.iter().position(|file| file.id == current)?;
-        let target_index =
-            radiant::prelude::list_index_after_delta(current_index, delta as isize, files.len())?;
-        if target_index == current_index {
-            return None;
-        }
-        let target = files[target_index].id.clone();
-        if extend {
-            self.selected_file_ids.insert(current.to_string());
-            self.selected_file_ids.insert(target.clone());
+        let file_ids = self.selected_audio_file_ids();
+        let mut selection = self.file_selection_model();
+        let target = if extend {
+            selection.navigate_preserving_existing(delta as isize, &file_ids)?
         } else {
-            self.selected_file_ids.clear();
-            self.selected_file_ids.insert(target.clone());
-        }
-        self.selected_file = Some(target.clone());
+            selection.navigate(delta as isize, &file_ids, false)?
+        };
+        self.apply_file_selection_model(selection);
         Some(target)
     }
 
     pub(in crate::gui_app) fn select_file(&mut self, id: String) {
-        if self.selected_audio_files().iter().any(|file| file.id == id) {
+        let file_ids = self.selected_audio_file_ids();
+        if file_ids.contains(&id) {
             self.cancel_rename();
-            self.set_single_file_selection(id);
+            let mut selection = ui::KeyedListSelection::new();
+            selection.select(id, &file_ids, ui::ListSelectionModifiers::new());
+            self.apply_file_selection_model(selection);
         }
     }
 
@@ -229,22 +222,19 @@ impl FolderBrowserState {
         id: String,
         modifiers: PointerModifiers,
     ) {
-        if self.rename_active() || !self.selected_audio_files().iter().any(|file| file.id == id) {
+        let file_ids = self.selected_audio_file_ids();
+        if self.rename_active() || !file_ids.contains(&id) {
             return;
         }
         self.cancel_rename();
 
-        if modifiers.shift {
-            self.select_file_range_to(id, modifiers.command);
-            return;
+        let mut selection = self.file_selection_model();
+        if modifiers.shift && modifiers.command {
+            selection.extend_preserving_existing(id, &file_ids);
+        } else {
+            selection.select(id, &file_ids, file_selection_modifiers(modifiers));
         }
-
-        if modifiers.command {
-            self.toggle_file_selection(id);
-            return;
-        }
-
-        self.set_single_file_selection(id);
+        self.apply_file_selection_model(selection);
     }
 
     pub(in crate::gui_app) fn focus_file_preserving_selection(&mut self, id: String) {
@@ -261,56 +251,31 @@ impl FolderBrowserState {
         if self.rename_active() {
             return self.selected_file_ids.len();
         }
-        let ids = self
-            .selected_audio_files()
-            .into_iter()
-            .map(|file| file.id.clone())
-            .collect::<Vec<_>>();
-        self.selected_file_ids = ids.iter().cloned().collect();
-        if self.selected_file.is_none() {
-            self.selected_file = ids.first().cloned();
-        }
+        let ids = self.selected_audio_file_ids();
+        let mut selection = self.file_selection_model();
+        selection.select_all(&ids);
+        self.apply_file_selection_model(selection);
         self.selected_file_ids.len()
     }
 
-    fn select_file_range_to(&mut self, id: String, add_to_existing: bool) {
-        let files = self.selected_audio_files();
-        let Some(target_index) = files.iter().position(|file| file.id == id) else {
-            return;
-        };
-        let anchor = self
-            .selected_file
-            .as_deref()
-            .and_then(|selected| files.iter().position(|file| file.id == selected))
-            .unwrap_or(target_index);
-        let start = anchor.min(target_index);
-        let end = anchor.max(target_index);
-        let range_ids = files[start..=end]
-            .iter()
+    fn selected_audio_file_ids(&self) -> Vec<String> {
+        self.selected_audio_files()
+            .into_iter()
             .map(|file| file.id.clone())
-            .collect::<Vec<_>>();
-        drop(files);
-
-        if !add_to_existing {
-            self.selected_file_ids.clear();
-        }
-        self.selected_file_ids.extend(range_ids);
-        self.selected_file = Some(id);
+            .collect()
     }
 
-    fn toggle_file_selection(&mut self, id: String) {
-        if self.selected_file_ids.contains(&id) && self.selected_file_ids.len() > 1 {
-            self.selected_file_ids.remove(&id);
-        } else {
-            self.selected_file_ids.insert(id.clone());
-        }
-        self.selected_file = Some(id);
+    fn file_selection_model(&self) -> ui::KeyedListSelection<String> {
+        ui::KeyedListSelection::from_parts(
+            self.selected_file.clone(),
+            self.selected_file.clone(),
+            self.active_selected_file_ids(),
+        )
     }
 
-    fn set_single_file_selection(&mut self, id: String) {
-        self.selected_file = Some(id.clone());
-        self.selected_file_ids.clear();
-        self.selected_file_ids.insert(id);
+    fn apply_file_selection_model(&mut self, selection: ui::KeyedListSelection<String>) {
+        self.selected_file = selection.focused_key().cloned();
+        self.selected_file_ids = selection.selected_keys().iter().cloned().collect();
     }
 
     pub(in crate::gui_app) fn refresh_file_path(&mut self, path: &Path) -> bool {
@@ -382,4 +347,14 @@ fn folder_ancestor_ids(root: &Path, folder: &Path) -> Vec<String> {
         ids.push(path_id(&current));
     }
     ids
+}
+
+fn file_selection_modifiers(modifiers: PointerModifiers) -> ui::ListSelectionModifiers {
+    if modifiers.shift {
+        ui::ListSelectionModifiers::extend()
+    } else if modifiers.command {
+        ui::ListSelectionModifiers::toggle()
+    } else {
+        ui::ListSelectionModifiers::new()
+    }
 }
