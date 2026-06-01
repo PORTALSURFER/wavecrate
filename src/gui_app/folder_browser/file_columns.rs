@@ -24,73 +24,42 @@ impl FolderBrowserState {
     }
 
     pub(super) fn resize_file_column(&mut self, column_id: String, message: DragHandleMessage) {
-        match message {
-            DragHandleMessage::Started { position } => {
-                if let Some(column) = self
-                    .file_columns
-                    .iter()
-                    .find(|column| column.id == column_id)
-                {
-                    self.file_column_resize = Some(ui::DetailsColumnResizeDrag::new(
-                        column_id,
-                        position.x,
-                        column.width,
-                    ));
-                }
-            }
-            DragHandleMessage::Moved { position } | DragHandleMessage::Ended { position } => {
-                let Some(resize) = self.file_column_resize.clone() else {
-                    return;
-                };
-                if let Some(column) = self
-                    .file_columns
-                    .iter_mut()
-                    .find(|column| column.id == resize.column_id)
-                {
-                    column.width =
-                        resize.width_at(position.x, MIN_FILE_COLUMN_WIDTH, MAX_FILE_COLUMN_WIDTH);
-                }
-                if message.is_ended() {
-                    self.file_column_resize = None;
-                }
-            }
-        }
+        let current_width = self
+            .file_columns
+            .iter()
+            .find(|column| column.id == column_id)
+            .map(|column| column.width);
+        let Some(update) = ui::update_details_column_resize_drag(
+            &mut self.file_column_resize,
+            column_id,
+            message,
+            current_width,
+            MIN_FILE_COLUMN_WIDTH,
+            MAX_FILE_COLUMN_WIDTH,
+        ) else {
+            return;
+        };
+        let Some(column) = self
+            .file_columns
+            .iter_mut()
+            .find(|column| column.id == update.column_id)
+        else {
+            return;
+        };
+        column.width = update.width;
     }
 
     pub(super) fn drag_file_column(&mut self, column_id: String, message: DragHandleMessage) {
-        match message {
-            DragHandleMessage::Started { position } => {
-                let placements = self.details_column_placements();
-                if let Some(content_left) = ui::details_column_drag_content_left(
-                    &placements,
-                    &column_id,
-                    position.x,
-                    FILE_COLUMN_GAP,
-                ) {
-                    self.file_column_reorder =
-                        Some(ui::DetailsColumnReorderDrag::new(column_id, content_left));
-                }
-            }
-            DragHandleMessage::Moved { position } | DragHandleMessage::Ended { position } => {
-                let Some(reorder) = self.file_column_reorder.clone() else {
-                    return;
-                };
-                let placements = self.details_column_placements();
-                if let Some(target_index) =
-                    reorder.target_index(&placements, position.x, FILE_COLUMN_GAP)
-                {
-                    ui::reorder_details_columns_by_id(
-                        &mut self.file_columns,
-                        &reorder.column_id,
-                        target_index,
-                        |column: &FileColumn| column.id.as_str(),
-                    );
-                }
-                if message.is_ended() {
-                    self.file_column_reorder = None;
-                }
-            }
-        }
+        let placements = self.details_column_placements();
+        ui::update_details_column_reorder_drag(
+            &mut self.file_column_reorder,
+            &mut self.file_columns,
+            column_id,
+            message,
+            &placements,
+            FILE_COLUMN_GAP,
+            |column: &FileColumn| column.id.as_str(),
+        );
     }
 
     fn details_column_placements(&self) -> Vec<ui::DetailsColumnPlacement> {
