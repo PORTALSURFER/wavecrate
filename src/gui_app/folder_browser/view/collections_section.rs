@@ -113,7 +113,7 @@ fn collection_input(
                     collection_id,
                 ));
             }
-            if matches!(message, ui::InteractiveRowMessage::DoubleActivate) {
+            if message.is_double_activation() {
                 return GuiMessage::FolderBrowser(FolderBrowserMessage::RenameCollection(
                     collection_id,
                 ));
