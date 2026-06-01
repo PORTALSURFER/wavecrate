@@ -286,11 +286,9 @@ impl GuiAppState {
 fn selected_folder_path(
     result: Result<ui::PlatformResponse, String>,
 ) -> Result<Option<PathBuf>, String> {
-    match result? {
-        ui::PlatformResponse::Path(path) => Ok(Some(path)),
-        ui::PlatformResponse::Canceled => Ok(None),
-        other => Err(format!("unexpected platform response: {other:?}")),
-    }
+    result?
+        .into_path_or_canceled()
+        .map_err(|other| format!("unexpected platform response: {other:?}"))
 }
 
 fn run_folder_scan_worker(

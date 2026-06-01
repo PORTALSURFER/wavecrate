@@ -391,8 +391,7 @@ fn path_is_within(path: &Path, root: &Path) -> bool {
 fn completed_platform_action(
     result: Result<radiant::prelude::PlatformResponse, String>,
 ) -> Result<(), String> {
-    match result? {
-        radiant::prelude::PlatformResponse::Completed => Ok(()),
-        other => Err(format!("unexpected platform response: {other:?}")),
-    }
+    result?
+        .into_completed()
+        .map_err(|other| format!("unexpected platform response: {other:?}"))
 }
