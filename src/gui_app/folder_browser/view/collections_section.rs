@@ -96,29 +96,28 @@ fn collection_input(
         .pointer_motion_active(collection.drop_target)
         .drop_target_mode(collection.drag_active, !collection.drop_target);
     input
-        .mapped(move |message| {
+        .filter_mapped(move |message| {
             if message.is_drop() {
-                return GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnCollection(
-                    collection_id,
+                return Some(GuiMessage::FolderBrowser(
+                    FolderBrowserMessage::DropOnCollection(collection_id),
                 ));
             }
             if let Some(position) = message.hover_drop_position() {
-                return GuiMessage::FolderBrowser(FolderBrowserMessage::HoverCollectionDropTarget(
-                    collection_id,
-                    position,
+                return Some(GuiMessage::FolderBrowser(
+                    FolderBrowserMessage::HoverCollectionDropTarget(collection_id, position),
                 ));
             }
             if message.is_single_activation() {
-                return GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateCollection(
-                    collection_id,
+                return Some(GuiMessage::FolderBrowser(
+                    FolderBrowserMessage::ActivateCollection(collection_id),
                 ));
             }
             if message.is_double_activation() {
-                return GuiMessage::FolderBrowser(FolderBrowserMessage::RenameCollection(
-                    collection_id,
+                return Some(GuiMessage::FolderBrowser(
+                    FolderBrowserMessage::RenameCollection(collection_id),
                 ));
             }
-            GuiMessage::Noop
+            None
         })
         .id(collection_row_input_id(collection_id))
         .style(collection_input_style(collection))

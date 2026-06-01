@@ -184,21 +184,23 @@ fn metadata_tag_category_header(
     let category_for_input = category_id.clone();
     let input = ui::interactive_row()
         .drop_target_mode(drag_active && !locked, true)
-        .mapped(move |message| {
+        .filter_mapped(move |message| {
             if message.is_drop() {
-                return GuiMessage::DropMetadataTagOnCategory {
+                return Some(GuiMessage::DropMetadataTagOnCategory {
                     category_id: category_for_input.clone(),
-                };
+                });
             }
             if message.hover_drop_position().is_some() {
-                return GuiMessage::HoverMetadataTagDropCategory {
+                return Some(GuiMessage::HoverMetadataTagDropCategory {
                     category_id: category_for_input.clone(),
-                };
+                });
             }
             if message.is_single_activation() {
-                return GuiMessage::ToggleMetadataTagCategory(category_for_input.clone());
+                return Some(GuiMessage::ToggleMetadataTagCategory(
+                    category_for_input.clone(),
+                ));
             }
-            GuiMessage::Noop
+            None
         })
         .key(format!("metadata-tag-category-hit-{category_id}"))
         .fill_width()
@@ -276,33 +278,33 @@ fn metadata_tag_library_row(
             .drop_target_mode(drag_active, true);
     }
     let input = input
-        .mapped(move |message| {
+        .filter_mapped(move |message| {
             if let Some(position) = message.secondary_position() {
-                return GuiMessage::OpenMetadataTagContextMenu {
+                return Some(GuiMessage::OpenMetadataTagContextMenu {
                     tag: tag_for_input.clone(),
                     position,
-                };
+                });
             }
             if let Some(drag) = message.drag_message() {
-                return GuiMessage::DragMetadataTag {
+                return Some(GuiMessage::DragMetadataTag {
                     tag: tag_for_input.clone(),
                     drag,
-                };
+                });
             }
             if message.is_drop() {
-                return GuiMessage::DropMetadataTagOnCategory {
+                return Some(GuiMessage::DropMetadataTagOnCategory {
                     category_id: category_for_input.clone(),
-                };
+                });
             }
             if message.hover_drop_position().is_some() {
-                return GuiMessage::HoverMetadataTagDropCategory {
+                return Some(GuiMessage::HoverMetadataTagDropCategory {
                     category_id: category_for_input.clone(),
-                };
+                });
             }
             if message.is_single_activation() {
-                return GuiMessage::ToggleMetadataTag(tag_for_input.clone());
+                return Some(GuiMessage::ToggleMetadataTag(tag_for_input.clone()));
             }
-            GuiMessage::Noop
+            None
         })
         .key(format!("metadata-tag-library-row-hit-{tag}"))
         .width(width)
@@ -321,18 +323,18 @@ fn metadata_tag_empty_category_target(
     let category_for_input = category_id.to_string();
     let input = ui::interactive_row()
         .drop_target_mode(drag_active && !locked, true)
-        .mapped(move |message| {
+        .filter_mapped(move |message| {
             if message.is_drop() {
-                return GuiMessage::DropMetadataTagOnCategory {
+                return Some(GuiMessage::DropMetadataTagOnCategory {
                     category_id: category_for_input.clone(),
-                };
+                });
             }
             if message.hover_drop_position().is_some() {
-                return GuiMessage::HoverMetadataTagDropCategory {
+                return Some(GuiMessage::HoverMetadataTagDropCategory {
                     category_id: category_for_input.clone(),
-                };
+                });
             }
-            GuiMessage::Noop
+            None
         })
         .key(format!("metadata-tag-empty-category-hit-{category_id}"))
         .fill_width()
