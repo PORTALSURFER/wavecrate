@@ -18,10 +18,7 @@ fn bottom_status_bar_reports_selected_sample_count() {
     let empty_frame = radiant::runtime::UiSurface::new(
         crate::gui_app::status_bar::bottom_status_bar(&state).into_node(),
     )
-    .frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 30.0)),
-        &radiant::theme::ThemeTokens::default(),
-    );
+    .frame_at_size_with_default_theme(Vector2::new(720.0, 30.0));
     assert!(frame_has_text(&empty_frame, "0 samples"));
     assert!(!frame_has_text(&empty_frame, "1 sample"));
 
@@ -31,10 +28,7 @@ fn bottom_status_bar_reports_selected_sample_count() {
     let selected_frame = radiant::runtime::UiSurface::new(
         crate::gui_app::status_bar::bottom_status_bar(&state).into_node(),
     )
-    .frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 30.0)),
-        &radiant::theme::ThemeTokens::default(),
-    );
+    .frame_at_size_with_default_theme(Vector2::new(720.0, 30.0));
 
     assert!(frame_has_text(&selected_frame, "1 sample"));
 }
@@ -54,10 +48,7 @@ fn bottom_status_progress_bar_paints_without_text_chrome() {
     let frame = radiant::runtime::UiSurface::new(
         crate::gui_app::status_bar::worker_progress_bar(&state).into_node(),
     )
-    .frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(180.0, 10.0)),
-        &radiant::theme::ThemeTokens::default(),
-    );
+    .frame_at_size_with_default_theme(Vector2::new(180.0, 10.0));
 
     let fills = frame.paint_plan.fill_rects().count();
     assert_eq!(fills, 2);
@@ -77,10 +68,7 @@ fn bottom_status_bar_reports_normalization_progress() {
     let frame = radiant::runtime::UiSurface::new(
         crate::gui_app::status_bar::bottom_status_bar(&state).into_node(),
     )
-    .frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 30.0)),
-        &radiant::theme::ThemeTokens::default(),
-    );
+    .frame_at_size_with_default_theme(Vector2::new(720.0, 30.0));
 
     assert!(frame_has_text(
         &frame,
@@ -119,10 +107,7 @@ fn bottom_status_progress_bar_shows_indeterminate_fill_for_unknown_totals() {
     let frame = radiant::runtime::UiSurface::new(
         crate::gui_app::status_bar::worker_progress_bar(&state).into_node(),
     )
-    .frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(180.0, 10.0)),
-        &radiant::theme::ThemeTokens::default(),
-    );
+    .frame_at_size_with_default_theme(Vector2::new(180.0, 10.0));
 
     let fills = frame.paint_plan.fill_rects().count();
     assert_eq!(fills, 2);
@@ -143,10 +128,7 @@ fn job_details_popover_reports_active_scan_progress() {
     let frame = radiant::runtime::UiSurface::new(
         crate::gui_app::status_bar::job_details_popover(&progress).into_node(),
     )
-    .frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(360.0, 180.0)),
-        &radiant::theme::ThemeTokens::default(),
-    );
+    .frame_at_size_with_default_theme(Vector2::new(360.0, 180.0));
 
     assert!(frame_has_text(&frame, "Job Details"));
     assert!(frame_has_text(&frame, "Type: Scanning"));

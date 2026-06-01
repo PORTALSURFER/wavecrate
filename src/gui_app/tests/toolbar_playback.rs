@@ -19,10 +19,7 @@ fn toolbar_icon_assets_parse_and_paint_through_radiant_icon_button() {
         let frame = radiant::runtime::UiSurface::new(
             super::super::toolbar_icon_button(101, icon, true, false).into_node(),
         )
-        .frame(
-            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(28.0, 24.0)),
-            &radiant::theme::ThemeTokens::default(),
-        );
+        .frame_at_size_with_default_theme(Vector2::new(28.0, 24.0));
         assert!(
             frame.paint_plan.svgs().next().is_some(),
             "toolbar icon should paint as a retained Radiant SVG"

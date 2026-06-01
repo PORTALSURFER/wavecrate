@@ -1,7 +1,7 @@
 use super::gui_state_for_span_tests;
 use crate::gui_app::GuiAppState;
 use radiant::{
-    gui::types::{Point, Rect, Vector2},
+    gui::types::Vector2,
     prelude::IntoView,
     widgets::{BadgeMessage, BadgeWidget},
 };
@@ -19,10 +19,8 @@ fn top_status_bar_replaces_text_labels_with_volume_slider_and_audio_pill() {
         used_fallback: false,
     });
     let frame =
-        radiant::runtime::UiSurface::new(crate::gui_app::top_status_bar(&state).into_node()).frame(
-            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(320.0, 30.0)),
-            &radiant::theme::ThemeTokens::default(),
-        );
+        radiant::runtime::UiSurface::new(crate::gui_app::top_status_bar(&state).into_node())
+            .frame_at_size_with_default_theme(Vector2::new(320.0, 30.0));
     let texts = frame
         .paint_plan
         .text_runs()
@@ -215,10 +213,7 @@ fn audio_settings_popover_stays_output_only() {
     let frame = radiant::runtime::UiSurface::new(
         crate::gui_app::audio_settings_popover(&state).into_node(),
     )
-    .frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(480.0, 360.0)),
-        &radiant::theme::ThemeTokens::default(),
-    );
+    .frame_at_size_with_default_theme(Vector2::new(480.0, 360.0));
     let texts = frame
         .paint_plan
         .text_runs()

@@ -61,10 +61,8 @@ fn sample_browser_frame_paints_column_and_file_text() {
         .map(|file| file.stem.clone())
         .expect("default assets include an audio sample");
     let surface = crate::gui_app::sample_browser(&mut state, false).into_node();
-    let frame = radiant::runtime::UiSurface::new(surface).frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 360.0)),
-        &radiant::theme::ThemeTokens::default(),
-    );
+    let frame = radiant::runtime::UiSurface::new(surface)
+        .frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
     let texts = frame
         .paint_plan
         .text_runs()
@@ -91,10 +89,8 @@ fn sample_browser_rows_match_keyboard_scroll_stride() {
         .map(|file| file.stem.clone())
         .collect::<Vec<_>>();
     let surface = crate::gui_app::sample_browser(&mut state, false).into_node();
-    let frame = radiant::runtime::UiSurface::new(surface).frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 360.0)),
-        &radiant::theme::ThemeTokens::default(),
-    );
+    let frame = radiant::runtime::UiSurface::new(surface)
+        .frame_at_size_with_default_theme(Vector2::new(720.0, 360.0));
     let mut row_tops = frame
         .paint_plan
         .text_runs()
@@ -208,10 +204,8 @@ fn full_gui_frame_places_sample_browser_text_inside_visible_area() {
         .map(|file| file.stem.clone())
         .collect::<Vec<_>>();
     let surface = crate::gui_app::view(&mut state).into_node();
-    let frame = radiant::runtime::UiSurface::new(surface).frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(1517.0, 758.0)),
-        &radiant::theme::ThemeTokens::default(),
-    );
+    let frame = radiant::runtime::UiSurface::new(surface)
+        .frame_at_size_with_default_theme(Vector2::new(1517.0, 758.0));
     let sample_texts = frame
         .paint_plan
         .text_runs()

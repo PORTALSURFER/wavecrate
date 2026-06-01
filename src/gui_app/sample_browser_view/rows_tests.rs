@@ -1,10 +1,5 @@
 use super::*;
-use radiant::{
-    gui::types::{Point, Rect},
-    layout::Vector2,
-    prelude::IntoView,
-    theme::ThemeTokens,
-};
+use radiant::{layout::Vector2, prelude::IntoView, theme::ThemeTokens};
 use std::collections::HashMap;
 use wavecrate::sample_sources::Rating;
 
@@ -102,10 +97,7 @@ fn locked_keep_rating_cell_paints_keep_badge_text() {
     file.rating_locked = true;
     let theme = ThemeTokens::default();
     let frame = radiant::runtime::UiSurface::new(sample_rating_cell(&file, 64.0).into_node())
-        .frame(
-            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(64.0, 20.0)),
-            &theme,
-        );
+        .frame_at_size(Vector2::new(64.0, 20.0), &theme);
 
     assert!(
         frame.paint_plan.text_runs().any(|run| run.text == "KEEP"),
@@ -127,10 +119,7 @@ fn unloaded_sample_text_uses_muted_theme_color() {
         )
         .into_node(),
     )
-    .frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 20.0)),
-        &theme,
-    );
+    .frame_at_size(Vector2::new(120.0, 20.0), &theme);
 
     assert!(
         frame
@@ -155,10 +144,7 @@ fn loaded_sample_text_uses_primary_theme_color() {
         )
         .into_node(),
     )
-    .frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 20.0)),
-        &theme,
-    );
+    .frame_at_size(Vector2::new(120.0, 20.0), &theme);
 
     assert!(
         frame

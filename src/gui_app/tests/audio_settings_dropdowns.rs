@@ -1,15 +1,12 @@
 use super::gui_state_for_span_tests;
 use radiant::{
-    gui::types::{Point, Rect, Vector2},
+    gui::types::Vector2,
     prelude::{self as ui, IntoView},
 };
 
 fn audio_settings_texts(state: &crate::gui_app::GuiAppState) -> Vec<String> {
     radiant::runtime::UiSurface::new(crate::gui_app::audio_settings_popover(state).into_node())
-        .frame(
-            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(480.0, 360.0)),
-            &radiant::theme::ThemeTokens::default(),
-        )
+        .frame_at_size_with_default_theme(Vector2::new(480.0, 360.0))
         .paint_plan
         .text_runs()
         .map(|text| text.text.as_str().to_string())
@@ -198,10 +195,7 @@ fn audio_backend_dropdown_toggle_and_close_are_ui_only() {
 
 fn audio_settings_frame(state: &crate::gui_app::GuiAppState) -> radiant::runtime::SurfaceFrame {
     radiant::runtime::UiSurface::new(crate::gui_app::audio_settings_popover(state).into_node())
-        .frame(
-            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(480.0, 360.0)),
-            &radiant::theme::ThemeTokens::default(),
-        )
+        .frame_at_size_with_default_theme(Vector2::new(480.0, 360.0))
 }
 
 fn text_top(frame: &radiant::runtime::SurfaceFrame, label: &str) -> f32 {

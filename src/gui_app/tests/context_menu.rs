@@ -12,10 +12,7 @@ fn folder_context_menu_paints_as_full_width_overlay_panel() {
     };
     let frame =
         radiant::runtime::UiSurface::new(super::super::context_menu::overlay(&menu).into_node())
-            .frame(
-                Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 540.0)),
-                &radiant::theme::ThemeTokens::default(),
-            );
+            .frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
 
     let action_text_rect = frame
         .paint_plan
@@ -80,10 +77,7 @@ fn source_context_menu_paints_remove_source_action_for_user_sources() {
     };
     let frame =
         radiant::runtime::UiSurface::new(super::super::context_menu::overlay(&menu).into_node())
-            .frame(
-                Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 540.0)),
-                &radiant::theme::ThemeTokens::default(),
-            );
+            .frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
 
     assert!(frame_has_text(&frame, "Remove Source"));
 }
