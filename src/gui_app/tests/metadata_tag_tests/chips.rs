@@ -21,10 +21,7 @@ fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
         )
         .into_node(),
     )
-    .frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
-        &radiant::theme::ThemeTokens::default(),
-    );
+    .frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
 
     assert!(frame_has_text(&frame, "Filter"));
     assert!(!frame_has_text(&frame, "Metadata"));
@@ -62,10 +59,7 @@ fn folder_browser_metadata_selected_tag_chip_uses_strong_accent_style() {
         )
         .into_node(),
     )
-    .frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
-        &theme,
-    );
+    .frame_at_size(Vector2::new(260.0, 620.0), &theme);
 
     let tag_text = frame
         .paint_plan
@@ -117,10 +111,7 @@ fn metadata_tag_chips_display_playback_tags_first() {
     );
 
     let frame = radiant::runtime::UiSurface::new(super::super::super::view(&mut state).into_node())
-        .frame(
-            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(900.0, 620.0)),
-            &radiant::theme::ThemeTokens::default(),
-        );
+        .frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
 
     let loop_rect = text_rect(&frame, "loop").expect("loop tag should paint");
     let one_shot_rect = text_rect(&frame, "one-shot").expect("one-shot tag should paint");
@@ -182,10 +173,7 @@ fn metadata_tag_chips_group_by_target_category_order_and_color() {
         )
         .into_node(),
     )
-    .frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(600.0, 620.0)),
-        &theme,
-    );
+    .frame_at_size(Vector2::new(600.0, 620.0), &theme);
 
     let loop_rect = text_rect(&frame, "loop").expect("loop tag should paint");
     let hat_rect = text_rect(&frame, "hat").expect("hat tag should paint");

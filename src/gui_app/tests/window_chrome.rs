@@ -15,10 +15,7 @@ fn audio_settings_popover_opens_as_centered_floating_window() {
     state.audio_settings_error = None;
     let frame =
         radiant::runtime::UiSurface::new(super::super::audio_settings_popover(&state).into_node())
-            .frame(
-                Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(480.0, 360.0)),
-                &radiant::theme::ThemeTokens::default(),
-            );
+            .frame_at_size_with_default_theme(Vector2::new(480.0, 360.0));
     assert!(
         !frame.paint_plan.contains_text("Audio Engine"),
         "audio settings should rely on the native window title"
@@ -43,10 +40,8 @@ fn audio_settings_popover_opens_as_centered_floating_window() {
 fn audio_settings_window_does_not_add_full_height_panel_chrome() {
     let mut state = GuiAppState::load_default().expect("default state loads");
     state.audio_settings_open = true;
-    let frame = radiant::runtime::UiSurface::new(super::super::view(&mut state).into_node()).frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(960.0, 540.0)),
-        &radiant::theme::ThemeTokens::default(),
-    );
+    let frame = radiant::runtime::UiSurface::new(super::super::view(&mut state).into_node())
+        .frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
     let audio_panel_fills = frame
         .paint_plan
         .fill_rects()
@@ -129,10 +124,7 @@ fn sample_browser_toggles_between_disk_and_metadata_label_names() {
     let disk_frame = radiant::runtime::UiSurface::new(
         super::super::sample_browser(&mut state, false).into_node(),
     )
-    .frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 240.0)),
-        &radiant::theme::ThemeTokens::default(),
-    );
+    .frame_at_size_with_default_theme(Vector2::new(720.0, 240.0));
     assert!(frame_has_text(&disk_frame, "Disk"));
 
     state.apply_message(
@@ -142,10 +134,7 @@ fn sample_browser_toggles_between_disk_and_metadata_label_names() {
     let label_frame = radiant::runtime::UiSurface::new(
         super::super::sample_browser(&mut state, false).into_node(),
     )
-    .frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 240.0)),
-        &radiant::theme::ThemeTokens::default(),
-    );
+    .frame_at_size_with_default_theme(Vector2::new(720.0, 240.0));
 
     assert!(frame_has_text(&label_frame, "Label"));
 }
@@ -154,10 +143,7 @@ fn sample_browser_toggles_between_disk_and_metadata_label_names() {
 fn waveform_loading_visual_paints_full_height_gray_fill_without_chrome() {
     let frame =
         radiant::runtime::UiSurface::new(waveform_loading_visual("kick.wav", 0.25).into_node())
-            .frame(
-                Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(720.0, 172.0)),
-                &radiant::theme::ThemeTokens::default(),
-            );
+            .frame_at_size_with_default_theme(Vector2::new(720.0, 172.0));
 
     let fill_rects = frame.paint_plan.fill_rects().collect::<Vec<_>>();
 

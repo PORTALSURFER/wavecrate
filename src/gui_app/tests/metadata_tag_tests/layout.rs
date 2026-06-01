@@ -65,10 +65,7 @@ fn folder_browser_metadata_tag_field_renders_pending_category_prompt() {
         )
         .into_node(),
     )
-    .frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
-        &radiant::theme::ThemeTokens::default(),
-    );
+    .frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
 
     assert!(frame_has_text(&frame, "deep-kick ->"));
     assert!(frame_has_text(&frame, "Sound Type"));
@@ -118,10 +115,7 @@ fn folder_browser_metadata_tag_input_moves_to_next_row_when_crowded() {
         )
         .into_node(),
     )
-    .frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
-        &radiant::theme::ThemeTokens::default(),
-    );
+    .frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
 
     let first_tag_y = frame
         .paint_plan
@@ -161,10 +155,7 @@ fn folder_browser_metadata_tag_input_keeps_identity_when_wrapping_rows() {
         )
         .into_node(),
     )
-    .frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
-        &radiant::theme::ThemeTokens::default(),
-    );
+    .frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
     let crowded_frame = radiant::runtime::UiSurface::new(
         super::super::super::folder_browser::folder_browser_view(
             &browser,
@@ -182,10 +173,7 @@ fn folder_browser_metadata_tag_input_keeps_identity_when_wrapping_rows() {
         )
         .into_node(),
     )
-    .frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
-        &radiant::theme::ThemeTokens::default(),
-    );
+    .frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
 
     let short_input = text_input_widget_id(&short_frame).expect("short tag field input");
     let crowded_input = text_input_widget_id(&crowded_frame).expect("crowded tag field input");
@@ -219,10 +207,7 @@ fn folder_browser_metadata_tag_input_wraps_after_full_tag_row() {
         )
         .into_node(),
     )
-    .frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(450.0, 620.0)),
-        &radiant::theme::ThemeTokens::default(),
-    );
+    .frame_at_size_with_default_theme(Vector2::new(450.0, 620.0));
 
     let first_tag_y = frame
         .paint_plan

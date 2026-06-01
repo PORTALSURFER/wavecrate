@@ -22,10 +22,7 @@ fn folder_browser_metadata_hides_tag_entry_when_no_file_is_selected() {
         )
         .into_node(),
     )
-    .frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
-        &theme,
-    );
+    .frame_at_size(Vector2::new(260.0, 620.0), &theme);
 
     assert!(!frame_has_text(&frame, "Metadata"));
     assert!(!frame_has_text(&frame, "Tags (1)"));
@@ -60,10 +57,7 @@ fn folder_browser_metadata_tags_grow_combined_entry_field() {
         )
         .into_node(),
     )
-    .frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
-        &radiant::theme::ThemeTokens::default(),
-    );
+    .frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
     let larger = radiant::runtime::UiSurface::new(
         super::super::super::folder_browser::folder_browser_view(
             &browser,
@@ -81,10 +75,7 @@ fn folder_browser_metadata_tags_grow_combined_entry_field() {
         )
         .into_node(),
     )
-    .frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
-        &radiant::theme::ThemeTokens::default(),
-    );
+    .frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
 
     assert!(frame_has_text(&larger, "distorted"));
     assert!(!frame_has_text(&larger, "More"));
@@ -117,10 +108,7 @@ fn folder_browser_metadata_tag_field_caps_at_six_rows_then_scrolls() {
         )
         .into_node(),
     )
-    .frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
-        &radiant::theme::ThemeTokens::default(),
-    );
+    .frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
 
     let tag_clip = frame
         .paint_plan
@@ -427,10 +415,7 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_and_options() {
         )
         .into_node(),
     )
-    .frame(
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(260.0, 620.0)),
-        &theme,
-    );
+    .frame_at_size(Vector2::new(260.0, 620.0), &theme);
 
     assert!(frame_has_text(&frame, "kick"));
     let tag_input = frame

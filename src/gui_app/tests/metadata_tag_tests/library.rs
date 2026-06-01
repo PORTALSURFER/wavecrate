@@ -14,10 +14,7 @@ fn default_gui_tag_library_opens_beside_folder_sidebar() {
     state.metadata_tag_library_open = true;
 
     let frame = radiant::runtime::UiSurface::new(super::super::super::view(&mut state).into_node())
-        .frame(
-            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(900.0, 620.0)),
-            &radiant::theme::ThemeTokens::default(),
-        );
+        .frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
 
     assert!(frame_has_text(&frame, "Tag Editor"));
     assert!(frame_has_text(&frame, "Playback Type (2) [locked]"));
@@ -145,10 +142,7 @@ fn default_gui_tag_library_category_headers_collapse_groups() {
     );
 
     let frame = radiant::runtime::UiSurface::new(super::super::super::view(&mut state).into_node())
-        .frame(
-            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(900.0, 620.0)),
-            &radiant::theme::ThemeTokens::default(),
-        );
+        .frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
 
     assert!(frame_has_text(&frame, "Sound Type (1)"));
     assert!(!frame_has_text_after_x(&frame, "hat", DEFAULT_FOLDER_WIDTH));
@@ -343,10 +337,7 @@ fn default_gui_tag_library_uses_custom_dictionary_categories() {
     state.metadata_tag_library_open = true;
 
     let frame = radiant::runtime::UiSurface::new(super::super::super::view(&mut state).into_node())
-        .frame(
-            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(900.0, 620.0)),
-            &radiant::theme::ThemeTokens::default(),
-        );
+        .frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
 
     assert!(frame_has_text(&frame, "Sound Type (1)"));
     assert!(frame_has_text(&frame, "deep-kick"));
