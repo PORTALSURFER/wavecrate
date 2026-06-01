@@ -36,12 +36,11 @@ pub(in crate::gui_app) fn audio_settings_window_view(
         ui::Vector2::new(AUDIO_SETTINGS_POPUP_WIDTH, AUDIO_SETTINGS_POPUP_HEIGHT),
     );
     if snapshot.open_dropdown().is_some() {
-        ui::stack([
+        ui::dismissible_overlay(
             base,
-            audio_dropdown_dismiss_overlay(),
             audio_settings_dropdown_overlay(snapshot),
-        ])
-        .fill()
+            GuiMessage::CloseAudioSettingsDropdowns,
+        )
     } else {
         base
     }
@@ -167,10 +166,6 @@ fn audio_settings_dropdown_overlay(snapshot: &AudioSettingsSnapshot) -> ui::View
         Some(AudioSettingsDropdown::SampleRate) => audio_sample_rate_dropdown_overlay(snapshot),
         None => ui::spacer().height(0.0).fill_width(),
     }
-}
-
-fn audio_dropdown_dismiss_overlay() -> ui::View<GuiMessage> {
-    ui::dismiss_layer(GuiMessage::CloseAudioSettingsDropdowns).key("audio-backend-dropdown-dismiss")
 }
 
 fn audio_host_dropdown_y(snapshot: &AudioSettingsSnapshot) -> f32 {
