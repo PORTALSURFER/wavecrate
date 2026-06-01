@@ -3,9 +3,9 @@ use radiant::widgets::{PointerButton, PointerModifiers};
 
 /// Extracts the sample-file hit-target message from a widget output.
 fn message_from(output: Option<WidgetOutput>) -> SampleFileHitMessage {
-    *output
+    output
         .expect("expected widget output")
-        .typed_ref::<SampleFileHitMessage>()
+        .typed_copied::<SampleFileHitMessage>()
         .expect("expected sample file message")
 }
 

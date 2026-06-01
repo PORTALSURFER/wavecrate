@@ -37,15 +37,13 @@ fn sample_row_hit_target_survives_frame_refresh_between_press_and_release() {
         .expect("sample row should activate after a frame refresh");
 
     assert_eq!(
-        output.typed_ref::<crate::gui_app::sample_browser_view::SampleFileHitMessage>(),
+        output.typed_copied::<crate::gui_app::sample_browser_view::SampleFileHitMessage>(),
         Some(
-            &crate::gui_app::sample_browser_view::SampleFileHitMessage::Activate(
-                PointerModifiers {
-                    command: true,
-                    shift: true,
-                    ..Default::default()
-                }
-            )
+            crate::gui_app::sample_browser_view::SampleFileHitMessage::Activate(PointerModifiers {
+                command: true,
+                shift: true,
+                ..Default::default()
+            })
         )
     );
     assert!(!refreshed_hit_target.common().state.pressed);

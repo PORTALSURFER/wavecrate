@@ -33,8 +33,7 @@ pub(in crate::gui_app) fn waveform_viewport_view(state: &WaveformState) -> ui::V
             WaveformWidget::new(WaveformWidgetProps::from_state(state)),
             |output| {
                 output
-                    .typed_ref::<WaveformInteraction>()
-                    .copied()
+                    .typed_copied::<WaveformInteraction>()
                     .map(GuiMessage::Waveform)
             },
         )

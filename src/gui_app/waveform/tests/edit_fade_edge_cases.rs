@@ -75,8 +75,7 @@ fn double_click_on_outer_fade_handle_emits_silence_clear_interaction() {
         )
         .expect("outer fade double-click interaction");
     let interaction = output
-        .typed_ref::<WaveformInteraction>()
-        .copied()
+        .typed_copied::<WaveformInteraction>()
         .expect("waveform interaction");
 
     assert_eq!(

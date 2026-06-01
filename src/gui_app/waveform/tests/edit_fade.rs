@@ -114,8 +114,7 @@ fn primary_press_on_outer_fade_handle_uses_distinct_handle() {
         .handle_input(bounds, WidgetInput::primary_press(Point::new(40.0, 40.0)))
         .expect("outer fade handle interaction");
     let interaction = output
-        .typed_ref::<WaveformInteraction>()
-        .copied()
+        .typed_copied::<WaveformInteraction>()
         .expect("waveform interaction");
 
     assert_eq!(

@@ -2,9 +2,9 @@ use super::*;
 use radiant::layout::Vector2;
 
 fn message_from(output: Option<WidgetOutput>) -> FolderTreeHitMessage {
-    *output
+    output
         .expect("expected widget output")
-        .typed_ref::<FolderTreeHitMessage>()
+        .typed_copied::<FolderTreeHitMessage>()
         .expect("expected folder tree message")
 }
 

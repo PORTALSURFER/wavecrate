@@ -20,8 +20,7 @@ fn auxiliary_drag_pans_zoomed_waveform_viewport() {
         )
         .expect("middle press should arm waveform pan");
     let interaction = output
-        .typed_ref::<WaveformInteraction>()
-        .copied()
+        .typed_copied::<WaveformInteraction>()
         .expect("waveform pan interaction");
 
     assert_eq!(
@@ -50,8 +49,7 @@ fn primary_press_emits_playback_ratio_matching_hover_cursor_ratio() {
         .handle_input(bounds, WidgetInput::primary_press(Point::new(60.0, 40.0)))
         .expect("playback interaction");
     let interaction = output
-        .typed_ref::<WaveformInteraction>()
-        .copied()
+        .typed_copied::<WaveformInteraction>()
         .expect("waveform interaction");
 
     assert_eq!(
@@ -80,8 +78,7 @@ fn secondary_press_emits_edit_selection_begin_ratio() {
         )
         .expect("edit selection interaction");
     let interaction = output
-        .typed_ref::<WaveformInteraction>()
-        .copied()
+        .typed_copied::<WaveformInteraction>()
         .expect("waveform interaction");
 
     assert_eq!(
@@ -132,8 +129,7 @@ fn primary_press_on_playmark_handle_starts_resize_instead_of_new_selection() {
         .handle_input(bounds, WidgetInput::primary_press(Point::new(120.0, 8.0)))
         .expect("playmark resize interaction");
     let interaction = output
-        .typed_ref::<WaveformInteraction>()
-        .copied()
+        .typed_copied::<WaveformInteraction>()
         .expect("waveform interaction");
 
     assert_eq!(
@@ -158,8 +154,7 @@ fn primary_press_on_playmark_top_handle_starts_move() {
         .handle_input(bounds, WidgetInput::primary_press(Point::new(80.0, 3.0)))
         .expect("playmark move interaction");
     let interaction = output
-        .typed_ref::<WaveformInteraction>()
-        .copied()
+        .typed_copied::<WaveformInteraction>()
         .expect("waveform interaction");
 
     assert_eq!(
@@ -183,8 +178,7 @@ fn primary_press_on_play_selection_export_handle_starts_export_drag() {
         .handle_input(bounds, WidgetInput::primary_press(Point::new(118.0, 76.0)))
         .expect("selection export drag interaction");
     let interaction = output
-        .typed_ref::<WaveformInteraction>()
-        .copied()
+        .typed_copied::<WaveformInteraction>()
         .expect("waveform interaction");
 
     assert_eq!(
@@ -216,8 +210,7 @@ fn secondary_press_on_edit_top_handle_starts_move() {
         )
         .expect("edit move interaction");
     let interaction = output
-        .typed_ref::<WaveformInteraction>()
-        .copied()
+        .typed_copied::<WaveformInteraction>()
         .expect("waveform interaction");
 
     assert_eq!(
@@ -240,8 +233,7 @@ fn primary_press_on_edit_fade_handle_starts_fade_drag_instead_of_playmark() {
         .handle_input(bounds, WidgetInput::primary_press(Point::new(40.0, 4.0)))
         .expect("fade handle interaction");
     let interaction = output
-        .typed_ref::<WaveformInteraction>()
-        .copied()
+        .typed_copied::<WaveformInteraction>()
         .expect("waveform interaction");
 
     assert_eq!(
