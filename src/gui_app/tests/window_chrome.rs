@@ -44,12 +44,9 @@ fn audio_settings_window_does_not_add_full_height_panel_chrome() {
         .frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
     let audio_panel_fills = frame
         .paint_plan
-        .fill_rects()
+        .fill_rects_for_widget(0)
         .filter(|fill| {
-            fill.widget_id == 0
-                && fill.rect.min.x >= 250.0
-                && fill.rect.max.x <= 710.0
-                && fill.rect.width() >= 300.0
+            fill.rect.min.x >= 250.0 && fill.rect.max.x <= 710.0 && fill.rect.width() >= 300.0
         })
         .map(|fill| fill.rect)
         .collect::<Vec<_>>();

@@ -61,9 +61,7 @@ fn focus_loaded_toolbar_button_is_topmost_hit_target_and_paints_hover_feedback()
     let frame = runtime.frame(&theme);
     let icon_rect = frame
         .paint_plan
-        .svgs()
-        .find(|svg| svg.widget_id == super::super::TOOLBAR_FOCUS_LOADED_ID)
-        .map(|svg| svg.rect)
+        .first_svg_rect_for_widget(super::super::TOOLBAR_FOCUS_LOADED_ID)
         .expect("focus-loaded toolbar icon should paint");
     let point = icon_rect.center();
 
@@ -80,10 +78,7 @@ fn focus_loaded_toolbar_button_is_topmost_hit_target_and_paints_hover_feedback()
     assert!(
         hovered_frame
             .paint_plan
-            .fill_polygons()
-            .any(
-                |fill| fill.widget_id == super::super::TOOLBAR_FOCUS_LOADED_ID && fill.color.a > 0
-            ),
+            .contains_visible_fill_polygon_for_widget(super::super::TOOLBAR_FOCUS_LOADED_ID),
         "hovering the focus-loaded button should paint a visible accent overlay"
     );
 }
@@ -98,9 +93,7 @@ fn stop_toolbar_button_is_hit_target_and_paints_hover_while_playing() {
     let frame = runtime.frame(&theme);
     let icon_rect = frame
         .paint_plan
-        .svgs()
-        .find(|svg| svg.widget_id == super::super::TOOLBAR_STOP_ID)
-        .map(|svg| svg.rect)
+        .first_svg_rect_for_widget(super::super::TOOLBAR_STOP_ID)
         .expect("stop toolbar icon should paint");
     let point = icon_rect.center();
 
@@ -117,8 +110,7 @@ fn stop_toolbar_button_is_hit_target_and_paints_hover_while_playing() {
     assert!(
         hovered_frame
             .paint_plan
-            .fill_polygons()
-            .any(|fill| fill.widget_id == super::super::TOOLBAR_STOP_ID && fill.color.a > 0),
+            .contains_visible_fill_polygon_for_widget(super::super::TOOLBAR_STOP_ID),
         "hovering the playing stop button should paint a visible accent overlay"
     );
     runtime.dispatch_primary_click(point);
@@ -138,9 +130,7 @@ fn stop_toolbar_button_remains_available_for_loaded_idle_sample() {
     let frame = runtime.frame(&theme);
     let icon_rect = frame
         .paint_plan
-        .svgs()
-        .find(|svg| svg.widget_id == super::super::TOOLBAR_STOP_ID)
-        .map(|svg| svg.rect)
+        .first_svg_rect_for_widget(super::super::TOOLBAR_STOP_ID)
         .expect("stop toolbar icon should paint");
     let point = icon_rect.center();
 
@@ -191,12 +181,10 @@ fn playback_cursor_paints_as_transient_overlay() {
     let frame = runtime.frame(&theme);
 
     assert!(
-        !frame.paint_plan.fill_rects().any(|fill| {
-            fill.widget_id == super::super::WAVEFORM_WIDGET_ID
-                && fill.color.r == 71
-                && fill.color.g == 220
-                && fill.color.b == 255
-        }),
+        !frame
+            .paint_plan
+            .fill_rects_for_widget(super::super::WAVEFORM_WIDGET_ID)
+            .any(|fill| { fill.color.r == 71 && fill.color.g == 220 && fill.color.b == 255 }),
         "live playback cursor should not be baked into the cached surface"
     );
 

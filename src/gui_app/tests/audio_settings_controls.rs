@@ -28,12 +28,7 @@ fn top_status_bar_replaces_text_labels_with_volume_slider_and_audio_pill() {
         .collect::<Vec<_>>();
     let slider_fills = frame
         .paint_plan
-        .fill_rects()
-        .filter(|fill| {
-            fill.widget_id == crate::gui_app::VOLUME_SLIDER_ID
-                && fill.rect.width() > 0.0
-                && fill.rect.height() > 0.0
-        })
+        .visible_fill_rects_for_widget(crate::gui_app::VOLUME_SLIDER_ID)
         .count();
 
     assert!(!texts.iter().any(|text| text == "Wavecrate"));
