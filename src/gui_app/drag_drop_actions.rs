@@ -25,8 +25,7 @@ impl GuiAppState {
             }
             DragHandleMessage::Ended { .. } => {
                 self.folder_browser.clear_drag();
-                context.end_drag();
-                context.end_external_drag();
+                context.end_drag_session();
             }
         }
     }
@@ -43,8 +42,7 @@ impl GuiAppState {
             } else {
                 self.folder_browser
                     .apply_message(FolderBrowserMessage::DragFolder(folder_id, drag));
-                context.end_drag();
-                context.end_external_drag();
+                context.end_drag_session();
             }
             return;
         }
@@ -100,8 +98,7 @@ impl GuiAppState {
             }
             DragHandleMessage::Ended { .. } => {
                 self.folder_browser.clear_drag();
-                context.end_drag();
-                context.end_external_drag();
+                context.end_drag_session();
                 true
             }
         }
@@ -132,8 +129,7 @@ impl GuiAppState {
         let Some(path) = self.folder_browser.extracted_file_drag_path() else {
             return;
         };
-        context.end_drag();
-        context.end_external_drag();
+        context.end_drag_session();
         self.folder_browser.clear_drag();
         self.folder_browser.refresh_file_path(&path);
         self.sample_status = format!("Extracted {}", sample_path_label(&path));
@@ -227,8 +223,7 @@ impl GuiAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        context.end_drag();
-        context.end_external_drag();
+        context.end_drag_session();
         match self.folder_browser.drop_drag_on_folder(&folder_id) {
             Ok(result) => {
                 for (old_path, new_path) in &result.moved_paths {

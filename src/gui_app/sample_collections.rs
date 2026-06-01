@@ -33,8 +33,7 @@ impl GuiAppState {
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let updates = self.collection_updates_for_dragged_files(collection);
-        context.end_drag();
-        context.end_external_drag();
+        context.end_drag_session();
         self.folder_browser.clear_drag();
         self.apply_collection_updates(collection, updates, "drop");
     }
