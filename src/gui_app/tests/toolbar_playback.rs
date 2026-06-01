@@ -140,16 +140,7 @@ fn stop_toolbar_button_is_hit_target_and_paints_hover_while_playing() {
             .any(|fill| fill.widget_id == super::super::TOOLBAR_STOP_ID && fill.color.a > 0),
         "hovering the playing stop button should paint a visible accent overlay"
     );
-    runtime.dispatch_event(Event::PointerPress {
-        position: point,
-        button: PointerButton::Primary,
-        modifiers: PointerModifiers::default(),
-    });
-    runtime.dispatch_event(Event::PointerRelease {
-        position: point,
-        button: PointerButton::Primary,
-        modifiers: PointerModifiers::default(),
-    });
+    runtime.dispatch_primary_click(point);
     assert!(
         !runtime.bridge().state().waveform.is_playing(),
         "clicking the playing stop button should dispatch StopPlayback"

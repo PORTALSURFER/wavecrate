@@ -70,16 +70,7 @@ fn metadata_autocomplete_does_not_block_sidebar_button_clicks() {
         (input_rect.min.x + input_rect.max.x) * 0.5,
         (input_rect.min.y + input_rect.max.y) * 0.5,
     );
-    runtime.dispatch_event(Event::PointerPress {
-        position: input_point,
-        button: PointerButton::Primary,
-        modifiers: PointerModifiers::default(),
-    });
-    runtime.dispatch_event(Event::PointerRelease {
-        position: input_point,
-        button: PointerButton::Primary,
-        modifiers: PointerModifiers::default(),
-    });
+    runtime.dispatch_primary_click(input_point);
     assert!(runtime.focused_widget().is_some());
 
     let toggle_rect = tag_library_toggle_rect(
@@ -92,16 +83,7 @@ fn metadata_autocomplete_does_not_block_sidebar_button_clicks() {
         (toggle_rect.min.y + toggle_rect.max.y) * 0.5,
     );
 
-    runtime.dispatch_event(Event::PointerPress {
-        position: point,
-        button: PointerButton::Primary,
-        modifiers: PointerModifiers::default(),
-    });
-    runtime.dispatch_event(Event::PointerRelease {
-        position: point,
-        button: PointerButton::Primary,
-        modifiers: PointerModifiers::default(),
-    });
+    runtime.dispatch_primary_click(point);
 
     assert!(
         runtime.bridge().state().metadata_tag_library_open,
@@ -154,16 +136,7 @@ fn metadata_autocomplete_does_not_block_folder_tree_clicks() {
         (input_rect.min.x + input_rect.max.x) * 0.5,
         (input_rect.min.y + input_rect.max.y) * 0.5,
     );
-    runtime.dispatch_event(Event::PointerPress {
-        position: input_point,
-        button: PointerButton::Primary,
-        modifiers: PointerModifiers::default(),
-    });
-    runtime.dispatch_event(Event::PointerRelease {
-        position: input_point,
-        button: PointerButton::Primary,
-        modifiers: PointerModifiers::default(),
-    });
+    runtime.dispatch_primary_click(input_point);
     assert!(runtime.focused_widget().is_some());
 
     let frame = runtime.frame(&radiant::theme::ThemeTokens::default());
@@ -182,16 +155,7 @@ fn metadata_autocomplete_does_not_block_folder_tree_clicks() {
         (folder_rect.min.y + folder_rect.max.y) * 0.5,
     );
 
-    runtime.dispatch_event(Event::PointerPress {
-        position: point,
-        button: PointerButton::Primary,
-        modifiers: PointerModifiers::default(),
-    });
-    runtime.dispatch_event(Event::PointerRelease {
-        position: point,
-        button: PointerButton::Primary,
-        modifiers: PointerModifiers::default(),
-    });
+    runtime.dispatch_primary_click(point);
 
     assert_eq!(
         runtime
@@ -230,16 +194,7 @@ fn metadata_autocomplete_does_not_block_tag_library_clicks() {
         (input_rect.min.x + input_rect.max.x) * 0.5,
         (input_rect.min.y + input_rect.max.y) * 0.5,
     );
-    runtime.dispatch_event(Event::PointerPress {
-        position: input_point,
-        button: PointerButton::Primary,
-        modifiers: PointerModifiers::default(),
-    });
-    runtime.dispatch_event(Event::PointerRelease {
-        position: input_point,
-        button: PointerButton::Primary,
-        modifiers: PointerModifiers::default(),
-    });
+    runtime.dispatch_primary_click(input_point);
     assert!(runtime.focused_widget().is_some());
 
     let tag_rect = text_rect(
@@ -252,16 +207,7 @@ fn metadata_autocomplete_does_not_block_tag_library_clicks() {
         (tag_rect.min.y + tag_rect.max.y) * 0.5,
     );
 
-    runtime.dispatch_event(Event::PointerPress {
-        position: point,
-        button: PointerButton::Primary,
-        modifiers: PointerModifiers::default(),
-    });
-    runtime.dispatch_event(Event::PointerRelease {
-        position: point,
-        button: PointerButton::Primary,
-        modifiers: PointerModifiers::default(),
-    });
+    runtime.dispatch_primary_click(point);
 
     assert_eq!(
         runtime
@@ -313,16 +259,7 @@ fn metadata_autocomplete_does_not_block_source_row_clicks_with_tag_library_open(
         (input_rect.min.x + input_rect.max.x) * 0.5,
         (input_rect.min.y + input_rect.max.y) * 0.5,
     );
-    runtime.dispatch_event(Event::PointerPress {
-        position: input_point,
-        button: PointerButton::Primary,
-        modifiers: PointerModifiers::default(),
-    });
-    runtime.dispatch_event(Event::PointerRelease {
-        position: input_point,
-        button: PointerButton::Primary,
-        modifiers: PointerModifiers::default(),
-    });
+    runtime.dispatch_primary_click(input_point);
     assert!(runtime.focused_widget().is_some());
 
     let source_rect = text_rect(
@@ -334,16 +271,7 @@ fn metadata_autocomplete_does_not_block_source_row_clicks_with_tag_library_open(
         (source_rect.min.x + source_rect.max.x) * 0.5,
         (source_rect.min.y + source_rect.max.y) * 0.5,
     );
-    runtime.dispatch_event(Event::PointerPress {
-        position: point,
-        button: PointerButton::Primary,
-        modifiers: PointerModifiers::default(),
-    });
-    runtime.dispatch_event(Event::PointerRelease {
-        position: point,
-        button: PointerButton::Primary,
-        modifiers: PointerModifiers::default(),
-    });
+    runtime.dispatch_primary_click(point);
 
     assert_eq!(
         runtime

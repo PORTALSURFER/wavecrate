@@ -60,16 +60,7 @@ fn folder_context_menu_outside_click_closes_menu() {
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(960.0, 540.0));
     let outside_menu = Point::new(18.0, 18.0);
 
-    runtime.dispatch_event(Event::PointerPress {
-        position: outside_menu,
-        button: PointerButton::Primary,
-        modifiers: PointerModifiers::default(),
-    });
-    runtime.dispatch_event(Event::PointerRelease {
-        position: outside_menu,
-        button: PointerButton::Primary,
-        modifiers: PointerModifiers::default(),
-    });
+    runtime.dispatch_primary_click(outside_menu);
 
     assert!(
         !*runtime.bridge().state(),

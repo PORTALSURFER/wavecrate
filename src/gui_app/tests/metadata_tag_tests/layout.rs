@@ -25,16 +25,7 @@ fn metadata_tag_field_background_click_focuses_tag_input() {
         (input_rect.min.y + input_rect.max.y) * 0.5,
     );
 
-    runtime.dispatch_event(Event::PointerPress {
-        position: point,
-        button: PointerButton::Primary,
-        modifiers: PointerModifiers::default(),
-    });
-    runtime.dispatch_event(Event::PointerRelease {
-        position: point,
-        button: PointerButton::Primary,
-        modifiers: PointerModifiers::default(),
-    });
+    runtime.dispatch_primary_click(point);
     let target = runtime.widget_at(point);
     let target_rect = target.and_then(|widget_id| {
         runtime
