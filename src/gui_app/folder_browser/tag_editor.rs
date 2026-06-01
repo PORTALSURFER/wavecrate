@@ -42,7 +42,7 @@ pub(super) fn metadata_section(
                 ui::text(format!("Tags ({})", tags.len()))
                     .height(22.0)
                     .fill_width(),
-                ui::button(">")
+                ui::disclosure_button(false)
                     .message(GuiMessage::ToggleMetadataTagLibrary)
                     .key("metadata-tag-library-toggle")
                     .size(24.0, 20.0),

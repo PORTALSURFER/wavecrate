@@ -139,7 +139,7 @@ pub(super) fn job_details_popover(progress: &FolderScanProgress) -> ui::View<Gui
     let panel = ui::panel_section_from_parts(
         ui::PanelSectionParts::new("Job Details", content)
             .trailing(
-                ui::button("x")
+                ui::close_button()
                     .subtle()
                     .message(GuiMessage::CloseJobDetails)
                     .width(24.0)

@@ -20,11 +20,11 @@ fn default_gui_tag_library_opens_beside_folder_sidebar() {
         );
 
     assert!(frame_has_text(&frame, "Tag Editor"));
-    assert!(frame_has_text(&frame, "v Playback Type (2) [locked]"));
-    assert!(frame_has_text(&frame, "v Sound Type (2)"));
-    assert!(frame_has_text(&frame, "v Character (1)"));
-    assert!(frame_has_text(&frame, "v Prefix"));
-    assert!(frame_has_text(&frame, "v Tuning/Scale"));
+    assert!(frame_has_text(&frame, "Playback Type (2) [locked]"));
+    assert!(frame_has_text(&frame, "Sound Type (2)"));
+    assert!(frame_has_text(&frame, "Character (1)"));
+    assert!(frame_has_text(&frame, "Prefix"));
+    assert!(frame_has_text(&frame, "Tuning/Scale"));
     assert!(frame_has_text(&frame, "loop"));
     assert!(frame_has_text(&frame, "one-shot"));
     assert!(frame_has_text(&frame, "hat"));
@@ -150,7 +150,7 @@ fn default_gui_tag_library_category_headers_collapse_groups() {
             &radiant::theme::ThemeTokens::default(),
         );
 
-    assert!(frame_has_text(&frame, "> Sound Type (1)"));
+    assert!(frame_has_text(&frame, "Sound Type (1)"));
     assert!(!frame_has_text_after_x(&frame, "hat", DEFAULT_FOLDER_WIDTH));
 }
 
@@ -216,7 +216,7 @@ fn default_gui_tag_library_pointer_drag_drops_tag_on_category_header() {
     let theme = radiant::theme::ThemeTokens::default();
     let frame = runtime.frame(&theme);
     let bass_rect = text_rect(&frame, "bass").expect("bass tag should paint");
-    let character_rect = text_rect(&frame, "v Character").expect("character header should paint");
+    let character_rect = text_rect(&frame, "Character").expect("character header should paint");
     let bass_point = Point::new(
         (bass_rect.min.x + bass_rect.max.x) * 0.5,
         (bass_rect.min.y + bass_rect.max.y) * 0.5,
@@ -368,8 +368,8 @@ fn default_gui_tag_library_uses_custom_dictionary_categories() {
             &radiant::theme::ThemeTokens::default(),
         );
 
-    assert!(frame_has_text(&frame, "v Sound Type (1)"));
+    assert!(frame_has_text(&frame, "Sound Type (1)"));
     assert!(frame_has_text(&frame, "deep-kick"));
-    assert!(frame_has_text(&frame, "v Character"));
-    assert!(!frame_has_text(&frame, "v Character (1)"));
+    assert!(frame_has_text(&frame, "Character"));
+    assert!(!frame_has_text(&frame, "Character (1)"));
 }

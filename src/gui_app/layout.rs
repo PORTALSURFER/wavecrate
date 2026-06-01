@@ -94,7 +94,7 @@ fn metadata_tag_library_panel(state: &GuiAppState) -> ui::View<GuiMessage> {
                 .fill_height(),
         )
         .trailing(
-            ui::button("x")
+            ui::close_button()
                 .message(GuiMessage::ToggleMetadataTagLibrary)
                 .key("metadata-tag-library-close")
                 .size(22.0, 20.0),
@@ -113,7 +113,6 @@ fn metadata_tag_category_group(
     drop_hover: Option<&str>,
     dragged_tag: Option<&str>,
 ) -> ui::View<GuiMessage> {
-    let disclosure = if group.collapsed { ">" } else { "v" };
     let count_label = if group.tags.is_empty() {
         String::new()
     } else {
@@ -124,8 +123,9 @@ fn metadata_tag_category_group(
     let category_hovered = drop_hover == Some(group.id);
     let mut children = vec![metadata_tag_category_header(
         category_id.clone(),
+        group.collapsed,
         format!(
-            "{disclosure} {}{count_label}{}",
+            "{}{count_label}{}",
             group.label,
             if locked { " [locked]" } else { "" }
         ),
@@ -179,6 +179,7 @@ fn metadata_tag_category_group(
 
 fn metadata_tag_category_header(
     category_id: String,
+    collapsed: bool,
     label: String,
     locked: bool,
     drag_active: bool,
@@ -220,13 +221,20 @@ fn metadata_tag_category_header(
             ui::WidgetProminence::Subtle
         },
     );
-    let visual = ui::row([ui::text(label)
-        .key(format!("metadata-tag-category-label-{category_id}"))
-        .fill_width()
-        .height(22.0)
-        .truncate()])
+    let visual = ui::row([
+        ui::disclosure_button(!collapsed)
+            .message(GuiMessage::Noop)
+            .key(format!("metadata-tag-category-disclosure-{category_id}"))
+            .size(20.0, 18.0),
+        ui::text(label)
+            .key(format!("metadata-tag-category-label-{category_id}"))
+            .fill_width()
+            .height(22.0)
+            .truncate(),
+    ])
     .style(style)
     .padding_x(4.0)
+    .spacing(4.0)
     .fill_width()
     .height(22.0);
     ui::input_overlay(visual, input)
