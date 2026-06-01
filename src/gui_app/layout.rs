@@ -246,12 +246,7 @@ fn metadata_tag_library_row(
         .message(GuiMessage::Noop)
         .key(format!("metadata-tag-library-pill-visual-{tag}"))
         .style(style)
-        .sizing(ui::WidgetSizing::fixed(ui::Vector2::new(
-            width,
-            TAG_LIBRARY_PILL_HEIGHT,
-        )))
-        .height(TAG_LIBRARY_PILL_HEIGHT)
-        .width(width);
+        .size(width, TAG_LIBRARY_PILL_HEIGHT);
     if !selected && !locked {
         visual = visual.subtle();
     }

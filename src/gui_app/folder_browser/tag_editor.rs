@@ -204,12 +204,7 @@ fn tag_text_input(
         .message_event(GuiMessage::MetadataTagInput)
         .id(METADATA_TAG_INPUT_ID)
         .key("metadata-tag-input")
-        .sizing(ui::WidgetSizing::fixed(ui::Vector2::new(
-            width,
-            TAG_FIELD_CONTROL_HEIGHT,
-        )))
-        .height(TAG_FIELD_CONTROL_HEIGHT)
-        .width(width)
+        .size(width, TAG_FIELD_CONTROL_HEIGHT)
 }
 
 fn tag_entry_row(
@@ -251,12 +246,7 @@ fn accepted_tag_token(tag: &str, category_id: &str, selected: bool) -> ui::View<
         .message(GuiMessage::SelectMetadataTag(tag.to_string()))
         .key(format!("metadata-tag-accepted-{tag}"))
         .style(style)
-        .sizing(ui::WidgetSizing::fixed(ui::Vector2::new(
-            tag_pill_width(tag),
-            TAG_FIELD_CONTROL_HEIGHT,
-        )))
-        .height(TAG_FIELD_CONTROL_HEIGHT)
-        .width(tag_pill_width(tag));
+        .size(tag_pill_width(tag), TAG_FIELD_CONTROL_HEIGHT);
     if !selected && category_id != "playback-type" {
         badge = badge.subtle();
     }
@@ -290,12 +280,7 @@ fn pending_category_tag_token(tag: &str) -> ui::View<GuiMessage> {
             WidgetTone::Accent,
             ui::WidgetProminence::Subtle,
         ))
-        .sizing(ui::WidgetSizing::fixed(ui::Vector2::new(
-            tag_pill_width(tag),
-            TAG_FIELD_CONTROL_HEIGHT,
-        )))
-        .height(TAG_FIELD_CONTROL_HEIGHT)
-        .width(tag_pill_width(tag))
+        .size(tag_pill_width(tag), TAG_FIELD_CONTROL_HEIGHT)
 }
 
 fn metadata_sidebar_panel(content: ui::View<GuiMessage>, height: f32) -> ui::View<GuiMessage> {
