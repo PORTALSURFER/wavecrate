@@ -37,21 +37,59 @@ pub(super) fn tag_field_rows(
 ) -> Vec<Vec<TagEntryRowItem>> {
     let mut visible_tags = tags.to_vec();
     order_metadata_tags_for_display(&mut visible_tags, tag_display_categories);
-    let mut rows = pack_tag_rows(&visible_tags, content_width);
-    if should_break_before_tag_input(&visible_tags, input_width, content_width) || rows.is_empty() {
+
+    if let Some(tag) = pending_category_tag {
+        return tag_field_rows_with_pending_category(
+            &visible_tags,
+            tag,
+            input_width,
+            content_width,
+        );
+    }
+
+    ui::pack_flow_rows_with_trailing_item(
+        tag_entry_flow_items(&visible_tags),
+        ui::FlowTrailingItemParts::new(
+            TagEntryRowItem::Input,
+            input_width,
+            content_width,
+            MIN_TAG_INPUT_REMAINING_WIDTH,
+        ),
+        content_width,
+        tag_field_flow_metrics(),
+    )
+}
+
+fn tag_field_rows_with_pending_category(
+    tags: &[String],
+    pending_category_tag: &str,
+    input_width: f32,
+    content_width: f32,
+) -> Vec<Vec<TagEntryRowItem>> {
+    let mut rows = ui::pack_flow_rows(
+        tag_entry_flow_items(tags),
+        content_width,
+        tag_field_flow_metrics(),
+    );
+    if ui::flow_trailing_item_starts_new_row(
+        tags.iter().map(|tag| tag_pill_width(tag)),
+        input_width,
+        MIN_TAG_INPUT_REMAINING_WIDTH,
+        content_width,
+        tag_field_flow_metrics(),
+    ) || rows.is_empty()
+    {
         rows.push(Vec::new());
     }
 
-    if let Some(tag) = pending_category_tag {
-        let label = format!("{tag} ->");
-        ui::push_flow_row_item(
-            &mut rows,
-            TagEntryRowItem::PendingCategory(label.clone()),
-            tag_pill_width(&label),
-            content_width,
-            tag_field_flow_metrics(),
-        );
-    }
+    let label = format!("{pending_category_tag} ->");
+    ui::push_flow_row_item(
+        &mut rows,
+        TagEntryRowItem::PendingCategory(label.clone()),
+        tag_pill_width(&label),
+        content_width,
+        tag_field_flow_metrics(),
+    );
     let input_width = if rows.last().is_some_and(Vec::is_empty) {
         content_width
     } else {
@@ -67,14 +105,10 @@ pub(super) fn tag_field_rows(
     rows
 }
 
-fn pack_tag_rows(tags: &[String], content_width: f32) -> Vec<Vec<TagEntryRowItem>> {
-    ui::pack_flow_rows(
-        tags.iter().map(|tag| {
-            ui::FlowItem::new(TagEntryRowItem::Accepted(tag.clone()), tag_pill_width(tag))
-        }),
-        content_width,
-        tag_field_flow_metrics(),
-    )
+fn tag_entry_flow_items(tags: &[String]) -> Vec<ui::FlowItem<TagEntryRowItem>> {
+    tags.iter()
+        .map(|tag| ui::FlowItem::new(TagEntryRowItem::Accepted(tag.clone()), tag_pill_width(tag)))
+        .collect()
 }
 
 pub(super) fn order_metadata_tags_for_display(
@@ -111,16 +145,6 @@ fn tag_entry_row_item_width(item: &TagEntryRowItem) -> f32 {
         TagEntryRowItem::PendingCategory(tag) => tag_pill_width(tag),
         TagEntryRowItem::Input(width) => *width,
     }
-}
-
-fn should_break_before_tag_input(tags: &[String], input_width: f32, content_width: f32) -> bool {
-    ui::flow_trailing_item_starts_new_row(
-        tags.iter().map(|tag| tag_pill_width(tag)),
-        input_width,
-        MIN_TAG_INPUT_REMAINING_WIDTH,
-        content_width,
-        tag_field_flow_metrics(),
-    )
 }
 
 pub(super) fn rows_height(row_count: usize) -> f32 {
