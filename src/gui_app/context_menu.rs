@@ -57,13 +57,11 @@ pub(super) fn missing_target_message(kind: &BrowserContextTargetKind) -> &'stati
 }
 
 pub(super) fn overlay(menu: &BrowserContextMenu) -> ui::View<GuiMessage> {
-    let commands = context_menu_commands(menu);
-    let height = ui::message_menu_height(commands.len());
-    ui::dismissible_context_menu(
+    ui::dismissible_context_menu_with_width(
         menu.anchor,
-        ui::Vector2::new(CONTEXT_MENU_WIDTH, height),
+        CONTEXT_MENU_WIDTH,
         menu.title.clone(),
-        commands,
+        context_menu_commands(menu),
         GuiMessage::CloseContextMenu,
     )
 }
