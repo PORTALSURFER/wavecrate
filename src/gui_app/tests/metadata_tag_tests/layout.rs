@@ -102,9 +102,7 @@ fn folder_browser_metadata_tag_field_renders_pending_category_prompt() {
     assert_eq!(category_input.state.value, "sound");
     assert_eq!(category_input.state.selection_anchor, 5);
     assert_eq!(category_input.state.caret, 5);
-    assert!(frame.paint_plan.primitives.iter().any(|primitive| {
-        matches!(primitive, PaintPrimitive::Text(text) if text.text.as_str() == "-type")
-    }));
+    assert_eq!(category_input.completion_suffix.as_deref(), Some("-type"));
     assert!(
         category_input.rect.min.x > pending_tag_rect.max.x,
         "category input should stay on the same row after the pending tag arrow"

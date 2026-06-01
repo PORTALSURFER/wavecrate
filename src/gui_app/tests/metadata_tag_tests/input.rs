@@ -455,17 +455,8 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_and_options() {
     assert_eq!(tag_input.state.value, "ki");
     assert_eq!(tag_input.state.selection_anchor, 2);
     assert_eq!(tag_input.state.caret, 2);
-    assert!(frame.paint_plan.primitives.iter().any(|primitive| {
-        matches!(primitive, PaintPrimitive::Text(text) if text.text.as_str() == "ck")
-    }));
-    assert!(frame.paint_plan.primitives.iter().any(|primitive| {
-        matches!(
-            primitive,
-            PaintPrimitive::FillRect(fill)
-                if (fill.rect.height() - 15.0).abs() < 0.01
-                    && fill.color == theme.accent_mint.blend_toward(theme.bg_primary, 0.12)
-        )
-    }));
+    assert_eq!(tag_input.completion_suffix.as_deref(), Some("ck"));
+    assert_eq!(tag_input.completion_color, theme.text_muted);
     assert!(frame_has_text(&frame, "Sound Type"));
     assert!(frame_has_text(&frame, "kicker"));
     assert!(frame_has_text(&frame, "Character"));

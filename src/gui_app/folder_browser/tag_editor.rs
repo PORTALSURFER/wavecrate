@@ -3,10 +3,7 @@ use radiant::{
     widgets::{WidgetStyle, WidgetTone},
 };
 
-use crate::gui_app::{
-    metadata_tag_metrics::{metadata_tag_completion_suffix_width, metadata_tag_text_content_width},
-    metadata_tags::{MetadataTagCompletionOption, MetadataTagDisplayCategory},
-};
+use crate::gui_app::metadata_tags::{MetadataTagCompletionOption, MetadataTagDisplayCategory};
 
 use super::GuiMessage;
 use super::tag_completion::tag_completion_panel_layer;
@@ -195,9 +192,15 @@ fn tag_text_input(
     completion_suffix: Option<&str>,
     width: f32,
 ) -> ui::View<GuiMessage> {
-    let input = ui::text_input(tag_draft.to_string())
+    let mut input = ui::text_input(tag_draft.to_string())
         .placeholder(placeholder)
-        .underline()
+        .underline();
+
+    if let Some(suffix) = completion_suffix.filter(|suffix| !suffix.is_empty()) {
+        input = input.completion_suffix(suffix);
+    }
+
+    input
         .message_event(GuiMessage::MetadataTagInput)
         .id(METADATA_TAG_INPUT_ID)
         .key("metadata-tag-input")
@@ -206,33 +209,7 @@ fn tag_text_input(
             TAG_FIELD_CONTROL_HEIGHT,
         )))
         .height(TAG_FIELD_CONTROL_HEIGHT)
-        .width(width);
-
-    let Some(suffix) = completion_suffix.filter(|suffix| !suffix.is_empty()) else {
-        return input;
-    };
-
-    let draft_width = metadata_tag_text_content_width(tag_draft);
-    let suffix_width = metadata_tag_completion_suffix_width(suffix, 14.0, (width - 8.0).max(1.0));
-    let suffix_x = (8.0 + draft_width + 2.0).min((width - suffix_width).max(8.0));
-    ui::stack([
-        input,
-        ui::floating_layer(
-            ui::Point::new(suffix_x, 1.0),
-            ui::Vector2::new(suffix_width, TAG_FIELD_CONTROL_HEIGHT - 3.0),
-            ui::text(suffix.to_string())
-                .text_background(ui::TextBackgroundRole::Accent)
-                .on_accent_text()
-                .text_inset(3.0, 0.0)
-                .key("metadata-tag-completion-ghost")
-                .width(suffix_width)
-                .height(TAG_FIELD_CONTROL_HEIGHT - 3.0),
-        )
-        .key("metadata-tag-completion-ghost-layer")
-        .fill(),
-    ])
-    .width(width)
-    .height(TAG_FIELD_CONTROL_HEIGHT)
+        .width(width)
 }
 
 fn tag_entry_row(

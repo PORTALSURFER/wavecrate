@@ -10,7 +10,6 @@ const METADATA_TAG_PILL_MIN_WIDTH: f32 = 38.0;
 const METADATA_TAG_PILL_MAX_WIDTH: f32 = 180.0;
 const METADATA_TAG_INPUT_CHARACTER_ADVANCE: f32 = 7.0;
 const METADATA_TAG_INPUT_PADDING: f32 = 12.0;
-const METADATA_TAG_COMPLETION_SUFFIX_PADDING: f32 = 6.0;
 
 pub(super) fn metadata_tag_pill_width(tag: &str) -> f32 {
     ui::inline_badge_width_in_range(
@@ -45,37 +44,9 @@ pub(super) fn metadata_tag_input_width_for_char_count(
     )
 }
 
-pub(super) fn metadata_tag_completion_suffix_width(
-    suffix: &str,
-    min_width: f32,
-    max_width: f32,
-) -> f32 {
-    ui::estimated_text_width_in_range(
-        suffix,
-        metadata_tag_completion_suffix_width_estimate(),
-        min_width,
-        max_width,
-    )
-}
-
-pub(super) fn metadata_tag_text_content_width(text: &str) -> f32 {
-    ui::estimated_text_width(text, metadata_tag_text_content_width_estimate())
-}
-
 fn metadata_tag_input_width_estimate() -> ui::TextWidthEstimate {
     ui::TextWidthEstimate::new(
         METADATA_TAG_INPUT_CHARACTER_ADVANCE,
         METADATA_TAG_INPUT_PADDING,
     )
-}
-
-fn metadata_tag_completion_suffix_width_estimate() -> ui::TextWidthEstimate {
-    ui::TextWidthEstimate::new(
-        METADATA_TAG_INPUT_CHARACTER_ADVANCE,
-        METADATA_TAG_COMPLETION_SUFFIX_PADDING,
-    )
-}
-
-fn metadata_tag_text_content_width_estimate() -> ui::TextWidthEstimate {
-    ui::TextWidthEstimate::new(METADATA_TAG_INPUT_CHARACTER_ADVANCE, 0.0)
 }
