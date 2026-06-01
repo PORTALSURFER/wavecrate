@@ -15,18 +15,14 @@ impl GuiAppState {
         drag: DragHandleMessage,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        match drag {
-            DragHandleMessage::Started { position } => {
-                self.folder_browser.begin_file_drag(path, position);
-                self.arm_browser_drag(context);
-            }
-            DragHandleMessage::Moved { position } => {
-                self.folder_browser.update_drag_pointer(position);
-            }
-            DragHandleMessage::Ended { .. } => {
-                self.folder_browser.clear_drag();
-                context.end_drag_session();
-            }
+        if let Some(position) = drag.started_position() {
+            self.folder_browser.begin_file_drag(path, position);
+            self.arm_browser_drag(context);
+        } else if let Some(position) = drag.moved_position() {
+            self.folder_browser.update_drag_pointer(position);
+        } else if drag.is_ended() {
+            self.folder_browser.clear_drag();
+            context.end_drag_session();
         }
     }
 
@@ -58,49 +54,47 @@ impl GuiAppState {
         drag: DragHandleMessage,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) -> bool {
-        match drag {
-            DragHandleMessage::Started { position } => {
-                let started_at = Instant::now();
-                match self.extract_waveform_drag_file() {
-                    Ok(path) => {
-                        self.waveform.flash_play_selection();
-                        self.folder_browser
-                            .begin_extracted_file_drag(path.clone(), position);
-                        self.arm_browser_drag(context);
-                        self.sample_status = format!("Dragging {}", sample_path_label(&path));
-                        emit_gui_action(
-                            "waveform.selection_drag.start",
-                            Some("waveform"),
-                            None,
-                            "success",
-                            started_at,
-                            None,
-                        );
-                        true
-                    }
-                    Err(error) => {
-                        self.sample_status = error.clone();
-                        emit_gui_action(
-                            "waveform.selection_drag.start",
-                            Some("waveform"),
-                            None,
-                            "error",
-                            started_at,
-                            Some(&error),
-                        );
-                        false
-                    }
+        if let Some(position) = drag.started_position() {
+            let started_at = Instant::now();
+            match self.extract_waveform_drag_file() {
+                Ok(path) => {
+                    self.waveform.flash_play_selection();
+                    self.folder_browser
+                        .begin_extracted_file_drag(path.clone(), position);
+                    self.arm_browser_drag(context);
+                    self.sample_status = format!("Dragging {}", sample_path_label(&path));
+                    emit_gui_action(
+                        "waveform.selection_drag.start",
+                        Some("waveform"),
+                        None,
+                        "success",
+                        started_at,
+                        None,
+                    );
+                    true
+                }
+                Err(error) => {
+                    self.sample_status = error.clone();
+                    emit_gui_action(
+                        "waveform.selection_drag.start",
+                        Some("waveform"),
+                        None,
+                        "error",
+                        started_at,
+                        Some(&error),
+                    );
+                    false
                 }
             }
-            DragHandleMessage::Moved { position } => {
-                self.folder_browser.update_drag_pointer(position);
-                true
-            }
-            DragHandleMessage::Ended { .. } => {
-                self.folder_browser.clear_drag();
-                context.end_drag_session();
-                true
-            }
+        } else if let Some(position) = drag.moved_position() {
+            self.folder_browser.update_drag_pointer(position);
+            true
+        } else if drag.is_ended() {
+            self.folder_browser.clear_drag();
+            context.end_drag_session();
+            true
+        } else {
+            false
         }
     }
 

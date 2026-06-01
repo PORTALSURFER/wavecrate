@@ -145,23 +145,19 @@ impl FolderBrowserState {
         if self.rename_active() {
             return;
         }
-        match message {
-            DragHandleMessage::Started { position } => {
-                if self.selected_folder_is_source_root_id(&folder_id) {
-                    return;
-                }
-                if self.find_folder(&folder_id).is_some() {
-                    self.drag = Some(FolderBrowserDrag::Folder { folder_id });
-                    self.drag_pointer = Some(position);
-                    self.drop_target_folder = None;
-                }
+        if let Some(position) = message.started_position() {
+            if self.selected_folder_is_source_root_id(&folder_id) {
+                return;
             }
-            DragHandleMessage::Moved { position } => {
-                self.update_drag_pointer(position);
+            if self.find_folder(&folder_id).is_some() {
+                self.drag = Some(FolderBrowserDrag::Folder { folder_id });
+                self.drag_pointer = Some(position);
+                self.drop_target_folder = None;
             }
-            DragHandleMessage::Ended { .. } => {
-                self.clear_drag();
-            }
+        } else if let Some(position) = message.moved_position() {
+            self.update_drag_pointer(position);
+        } else if message.is_ended() {
+            self.clear_drag();
         }
     }
 

@@ -45,28 +45,24 @@ impl GuiAppState {
             self.sample_status = String::from("Playback Type tags are locked");
             return;
         }
-        match drag {
-            DragHandleMessage::Started { position } => {
-                self.metadata_tag_drag = Some(tag.clone());
-                self.metadata_tag_drop_hover = None;
-                context.begin_drag(ui::DragRequest::new(
-                    ui::DragPreview::text_sized(
-                        format!("Move {tag}"),
-                        ui::DragPreviewTextSizing::new(DRAG_PREVIEW_HEIGHT)
-                            .horizontal_padding(48.0)
-                            .min_width(92.0)
-                            .max_width(180.0),
-                    ),
-                    position,
-                ));
-                self.sample_status = format!("Moving tag {tag}");
-            }
-            DragHandleMessage::Moved { .. } => {}
-            DragHandleMessage::Ended { .. } => {
-                self.metadata_tag_drag = None;
-                self.metadata_tag_drop_hover = None;
-                context.end_drag();
-            }
+        if let Some(position) = drag.started_position() {
+            self.metadata_tag_drag = Some(tag.clone());
+            self.metadata_tag_drop_hover = None;
+            context.begin_drag(ui::DragRequest::new(
+                ui::DragPreview::text_sized(
+                    format!("Move {tag}"),
+                    ui::DragPreviewTextSizing::new(DRAG_PREVIEW_HEIGHT)
+                        .horizontal_padding(48.0)
+                        .min_width(92.0)
+                        .max_width(180.0),
+                ),
+                position,
+            ));
+            self.sample_status = format!("Moving tag {tag}");
+        } else if drag.is_ended() {
+            self.metadata_tag_drag = None;
+            self.metadata_tag_drop_hover = None;
+            context.end_drag();
         }
     }
 
