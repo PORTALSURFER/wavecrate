@@ -1,7 +1,4 @@
-use radiant::{
-    prelude as ui,
-    widgets::{WidgetStyle, WidgetTone},
-};
+use radiant::prelude as ui;
 
 use crate::gui_app::metadata_tags::MetadataTagCompletionOption;
 
@@ -53,47 +50,18 @@ fn tag_completion_popup(
         return ui::spacer().height(0.0).fill_width();
     }
     let tag_width = (content_width * 0.48).clamp(70.0, 140.0);
-    let rows = options
+    let items = options
         .iter()
-        .take(MAX_TAG_COMPLETION_ROWS)
-        .map(|option| tag_completion_row(option, tag_width))
+        .map(|option| {
+            ui::CompactOptionListItem::new(option.tag.clone())
+                .secondary_label(option.category)
+                .selected(option.selected)
+        })
         .collect::<Vec<_>>();
-    ui::bounded_scroll_column_from_parts(
-        ui::BoundedScrollColumnParts::new(
-            rows,
-            MAX_TAG_COMPLETION_ROWS,
-            TAG_COMPLETION_ROW_HEIGHT,
-            TAG_COMPLETION_POPUP_VERTICAL_CHROME,
-        )
-        .style(WidgetStyle::new(
-            WidgetTone::Neutral,
-            ui::WidgetProminence::Subtle,
-        ))
-        .padding(3.0),
+    ui::compact_option_list_from_parts(
+        ui::CompactOptionListParts::new(items, tag_width)
+            .max_visible_rows(MAX_TAG_COMPLETION_ROWS)
+            .row_height(TAG_COMPLETION_ROW_HEIGHT)
+            .vertical_chrome(TAG_COMPLETION_POPUP_VERTICAL_CHROME),
     )
-}
-
-fn tag_completion_row(
-    option: &MetadataTagCompletionOption,
-    tag_width: f32,
-) -> ui::View<GuiMessage> {
-    ui::row([
-        ui::text(option.tag.clone())
-            .height(TAG_COMPLETION_ROW_HEIGHT)
-            .width(tag_width)
-            .truncate(),
-        ui::text(option.category.to_string())
-            .height(TAG_COMPLETION_ROW_HEIGHT)
-            .fill_width()
-            .truncate(),
-    ])
-    .key(format!("metadata-tag-completion-row-{}", option.tag))
-    .style(if option.selected {
-        WidgetStyle::new(WidgetTone::Accent, ui::WidgetProminence::Strong)
-    } else {
-        WidgetStyle::default()
-    })
-    .height(TAG_COMPLETION_ROW_HEIGHT)
-    .fill_width()
-    .spacing(6.0)
 }

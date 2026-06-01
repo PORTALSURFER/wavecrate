@@ -96,8 +96,11 @@ fn metadata_autocomplete_does_not_block_sidebar_button_clicks() {
     });
     assert!(runtime.focused_widget().is_some());
 
-    let toggle_rect = text_rect(&runtime.frame(&radiant::theme::ThemeTokens::default()), ">")
-        .expect("tag library toggle should paint");
+    let toggle_rect = tag_library_toggle_rect(
+        &runtime.frame(&radiant::theme::ThemeTokens::default()),
+        input_rect,
+    )
+    .expect("tag library toggle should paint");
     let point = Point::new(
         (toggle_rect.min.x + toggle_rect.max.x) * 0.5,
         (toggle_rect.min.y + toggle_rect.max.y) * 0.5,
@@ -118,6 +121,22 @@ fn metadata_autocomplete_does_not_block_sidebar_button_clicks() {
         runtime.bridge().state().metadata_tag_library_open,
         "autocomplete popup must not prevent clicking the sidebar tag editor button"
     );
+}
+
+fn tag_library_toggle_rect(frame: &ui::SurfaceFrame, tag_input_rect: Rect) -> Option<Rect> {
+    frame
+        .paint_plan
+        .primitives
+        .iter()
+        .find_map(|primitive| match primitive {
+            PaintPrimitive::Svg(svg)
+                if svg.rect.max.y <= tag_input_rect.min.y
+                    && svg.rect.min.x > tag_input_rect.min.x =>
+            {
+                Some(svg.rect)
+            }
+            _ => None,
+        })
 }
 
 #[test]

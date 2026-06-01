@@ -30,7 +30,15 @@ fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
     assert!(!frame_has_text(&frame, "Metadata"));
     assert!(!frame_has_text(&frame, "Tagging"));
     assert!(frame_has_text(&frame, "kick"));
-    assert!(frame_has_text(&frame, ">"));
+    let tags_header = text_rect(&frame, "Tags (1)").expect("metadata tags header should paint");
+    assert!(
+        frame.paint_plan.primitives.iter().any(|primitive| matches!(
+            primitive,
+            PaintPrimitive::Svg(svg)
+                if svg.rect.min.x > tags_header.max.x && svg.rect.min.y <= tags_header.max.y
+        )),
+        "metadata tag library disclosure icon should paint beside the tags header"
+    );
 }
 
 #[test]
