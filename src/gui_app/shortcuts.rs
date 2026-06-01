@@ -9,21 +9,21 @@ pub(super) fn default_gui_shortcut_resolution(
     ui::ShortcutStack::new()
         .push_when(
             state.folder_browser.rename_active(),
-            escape_modal_shortcut(GuiMessage::FolderBrowser(
+            ui::ShortcutLayer::modal_escape(GuiMessage::FolderBrowser(
                 FolderBrowserMessage::CancelRename,
             )),
         )
         .push_when(
             state.context_menu.is_some(),
-            escape_modal_shortcut(GuiMessage::CloseContextMenu),
+            ui::ShortcutLayer::modal_escape(GuiMessage::CloseContextMenu),
         )
         .push_when(
             state.audio_settings_dropdown_open(),
-            escape_modal_shortcut(GuiMessage::CloseAudioSettingsDropdowns),
+            ui::ShortcutLayer::modal_escape(GuiMessage::CloseAudioSettingsDropdowns),
         )
         .push_when(
             state.job_details_open,
-            escape_modal_shortcut(GuiMessage::CloseJobDetails),
+            ui::ShortcutLayer::modal_escape(GuiMessage::CloseJobDetails),
         )
         .push_when(
             state.metadata_tag_completion_active(),
@@ -35,10 +35,6 @@ pub(super) fn default_gui_shortcut_resolution(
         )
         .push(default_shortcuts(state))
         .resolve_or_else(press, || navigation_shortcut(press))
-}
-
-fn escape_modal_shortcut(action: GuiMessage) -> ui::ShortcutLayer<GuiMessage> {
-    ui::ShortcutLayer::modal().bind(ui::KeyPress::new(ui::KeyCode::Escape), action)
 }
 
 fn metadata_tag_completion_shortcuts() -> ui::ShortcutLayer<GuiMessage> {
