@@ -91,10 +91,7 @@ fn clicking_metadata_tag_chip_selects_it_in_sidebar() {
         "hat",
     )
     .expect("metadata tag chip should paint");
-    let point = Point::new(
-        (tag_rect.min.x + tag_rect.max.x) * 0.5,
-        (tag_rect.min.y + tag_rect.max.y) * 0.5,
-    );
+    let point = tag_rect.center();
 
     runtime.dispatch_event(Event::primary_press(point));
     runtime.dispatch_message(super::super::super::GuiMessage::Frame);

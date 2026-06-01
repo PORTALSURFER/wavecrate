@@ -66,10 +66,7 @@ fn metadata_autocomplete_does_not_block_sidebar_button_clicks() {
         .first_text_input()
         .map(|input| input.rect)
         .expect("metadata tag input should paint");
-    let input_point = Point::new(
-        (input_rect.min.x + input_rect.max.x) * 0.5,
-        (input_rect.min.y + input_rect.max.y) * 0.5,
-    );
+    let input_point = input_rect.center();
     runtime.dispatch_primary_click(input_point);
     assert!(runtime.focused_widget().is_some());
 
@@ -78,10 +75,7 @@ fn metadata_autocomplete_does_not_block_sidebar_button_clicks() {
         input_rect,
     )
     .expect("tag library toggle should paint");
-    let point = Point::new(
-        (toggle_rect.min.x + toggle_rect.max.x) * 0.5,
-        (toggle_rect.min.y + toggle_rect.max.y) * 0.5,
-    );
+    let point = toggle_rect.center();
 
     runtime.dispatch_primary_click(point);
 
@@ -132,10 +126,7 @@ fn metadata_autocomplete_does_not_block_folder_tree_clicks() {
         .first_text_input()
         .map(|input| input.rect)
         .expect("metadata tag input should paint");
-    let input_point = Point::new(
-        (input_rect.min.x + input_rect.max.x) * 0.5,
-        (input_rect.min.y + input_rect.max.y) * 0.5,
-    );
+    let input_point = input_rect.center();
     runtime.dispatch_primary_click(input_point);
     assert!(runtime.focused_widget().is_some());
 
@@ -150,10 +141,7 @@ fn metadata_autocomplete_does_not_block_folder_tree_clicks() {
                 .then(|| (text.text.to_string(), text.rect))
         })
         .expect("expanded selected root folder should paint");
-    let point = Point::new(
-        (folder_rect.min.x + folder_rect.max.x) * 0.5,
-        (folder_rect.min.y + folder_rect.max.y) * 0.5,
-    );
+    let point = folder_rect.center();
 
     runtime.dispatch_primary_click(point);
 
@@ -190,10 +178,7 @@ fn metadata_autocomplete_does_not_block_tag_library_clicks() {
         .first_text_input()
         .map(|input| input.rect)
         .expect("metadata tag input should paint");
-    let input_point = Point::new(
-        (input_rect.min.x + input_rect.max.x) * 0.5,
-        (input_rect.min.y + input_rect.max.y) * 0.5,
-    );
+    let input_point = input_rect.center();
     runtime.dispatch_primary_click(input_point);
     assert!(runtime.focused_widget().is_some());
 
@@ -202,10 +187,7 @@ fn metadata_autocomplete_does_not_block_tag_library_clicks() {
         "bass",
     )
     .expect("available tag should paint");
-    let point = Point::new(
-        (tag_rect.min.x + tag_rect.max.x) * 0.5,
-        (tag_rect.min.y + tag_rect.max.y) * 0.5,
-    );
+    let point = tag_rect.center();
 
     runtime.dispatch_primary_click(point);
 
@@ -255,10 +237,7 @@ fn metadata_autocomplete_does_not_block_source_row_clicks_with_tag_library_open(
         .first_text_input()
         .map(|input| input.rect)
         .expect("metadata tag input should paint");
-    let input_point = Point::new(
-        (input_rect.min.x + input_rect.max.x) * 0.5,
-        (input_rect.min.y + input_rect.max.y) * 0.5,
-    );
+    let input_point = input_rect.center();
     runtime.dispatch_primary_click(input_point);
     assert!(runtime.focused_widget().is_some());
 
@@ -267,10 +246,7 @@ fn metadata_autocomplete_does_not_block_source_row_clicks_with_tag_library_open(
         "Beta Samples",
     )
     .expect("second source should paint");
-    let point = Point::new(
-        (source_rect.min.x + source_rect.max.x) * 0.5,
-        (source_rect.min.y + source_rect.max.y) * 0.5,
-    );
+    let point = source_rect.center();
     runtime.dispatch_primary_click(point);
 
     assert_eq!(

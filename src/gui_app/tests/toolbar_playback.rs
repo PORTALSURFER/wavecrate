@@ -73,10 +73,7 @@ fn focus_loaded_toolbar_button_is_topmost_hit_target_and_paints_hover_feedback()
         .find(|svg| svg.widget_id == super::super::TOOLBAR_FOCUS_LOADED_ID)
         .map(|svg| svg.rect)
         .expect("focus-loaded toolbar icon should paint");
-    let point = Point::new(
-        (icon_rect.min.x + icon_rect.max.x) * 0.5,
-        (icon_rect.min.y + icon_rect.max.y) * 0.5,
-    );
+    let point = icon_rect.center();
 
     assert_eq!(
         runtime.widget_at(point),
@@ -118,10 +115,7 @@ fn stop_toolbar_button_is_hit_target_and_paints_hover_while_playing() {
         .find(|svg| svg.widget_id == super::super::TOOLBAR_STOP_ID)
         .map(|svg| svg.rect)
         .expect("stop toolbar icon should paint");
-    let point = Point::new(
-        (icon_rect.min.x + icon_rect.max.x) * 0.5,
-        (icon_rect.min.y + icon_rect.max.y) * 0.5,
-    );
+    let point = icon_rect.center();
 
     assert_eq!(
         runtime.widget_at(point),
@@ -166,10 +160,7 @@ fn stop_toolbar_button_remains_available_for_loaded_idle_sample() {
         .find(|svg| svg.widget_id == super::super::TOOLBAR_STOP_ID)
         .map(|svg| svg.rect)
         .expect("stop toolbar icon should paint");
-    let point = Point::new(
-        (icon_rect.min.x + icon_rect.max.x) * 0.5,
-        (icon_rect.min.y + icon_rect.max.y) * 0.5,
-    );
+    let point = icon_rect.center();
 
     assert_eq!(
         runtime.widget_at(point),

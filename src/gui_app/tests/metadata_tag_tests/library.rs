@@ -217,14 +217,8 @@ fn default_gui_tag_library_pointer_drag_drops_tag_on_category_header() {
     let frame = runtime.frame(&theme);
     let bass_rect = text_rect(&frame, "bass").expect("bass tag should paint");
     let character_rect = text_rect(&frame, "Character").expect("character header should paint");
-    let bass_point = Point::new(
-        (bass_rect.min.x + bass_rect.max.x) * 0.5,
-        (bass_rect.min.y + bass_rect.max.y) * 0.5,
-    );
-    let character_point = Point::new(
-        (character_rect.min.x + character_rect.max.x) * 0.5,
-        (character_rect.min.y + character_rect.max.y) * 0.5,
-    );
+    let bass_point = bass_rect.center();
+    let character_point = character_rect.center();
 
     runtime.dispatch_event(Event::primary_press(bass_point));
     runtime.dispatch_event(Event::pointer_move(Point::new(
@@ -262,10 +256,7 @@ fn default_gui_tag_library_right_click_opens_tag_context_menu() {
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
     let frame = runtime.frame(&radiant::theme::ThemeTokens::default());
     let tag_rect = text_rect(&frame, "oneshot").expect("oneshot tag should paint");
-    let point = Point::new(
-        (tag_rect.min.x + tag_rect.max.x) * 0.5,
-        (tag_rect.min.y + tag_rect.max.y) * 0.5,
-    );
+    let point = tag_rect.center();
 
     runtime.dispatch_event(Event::secondary_press(point));
 

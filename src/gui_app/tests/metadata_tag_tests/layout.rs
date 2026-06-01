@@ -20,10 +20,7 @@ fn metadata_tag_field_background_click_focuses_tag_input() {
         input_rect.width() > 160.0,
         "tag input should expose a broad click target, got {input_rect:?}"
     );
-    let point = Point::new(
-        input_rect.min.x + 10.0,
-        (input_rect.min.y + input_rect.max.y) * 0.5,
-    );
+    let point = Point::new(input_rect.min.x + 10.0, input_rect.center().y);
 
     runtime.dispatch_primary_click(point);
     let target = runtime.widget_at(point);
