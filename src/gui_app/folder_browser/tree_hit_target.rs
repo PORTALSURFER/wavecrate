@@ -107,19 +107,19 @@ impl Widget for FolderTreeHitTarget {
 
 impl FolderTreeHitTarget {
     fn map_row_message(&self, message: InteractiveRowMessage) -> Option<FolderTreeHitMessage> {
-        match message {
-            InteractiveRowMessage::Activate
-            | InteractiveRowMessage::ActivateWithModifiers { .. }
-            | InteractiveRowMessage::DoubleActivate => Some(FolderTreeHitMessage::Activate),
-            InteractiveRowMessage::SecondaryActivate { position } => {
-                Some(FolderTreeHitMessage::ContextMenu(position))
-            }
-            InteractiveRowMessage::Drag(message) => Some(FolderTreeHitMessage::Drag(message)),
-            InteractiveRowMessage::Drop => Some(FolderTreeHitMessage::Drop),
-            InteractiveRowMessage::HoverDropTarget { position } => {
-                Some(FolderTreeHitMessage::HoverDropTarget(position))
-            }
+        if message.is_activation() {
+            return Some(FolderTreeHitMessage::Activate);
         }
+        if let Some(position) = message.secondary_position() {
+            return Some(FolderTreeHitMessage::ContextMenu(position));
+        }
+        if let Some(message) = message.drag_message() {
+            return Some(FolderTreeHitMessage::Drag(message));
+        }
+        if let Some(position) = message.hover_drop_position() {
+            return Some(FolderTreeHitMessage::HoverDropTarget(position));
+        }
+        message.is_drop().then_some(FolderTreeHitMessage::Drop)
     }
 }
 

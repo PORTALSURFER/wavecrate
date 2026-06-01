@@ -112,22 +112,13 @@ impl Widget for SampleFileHitTarget {
 impl SampleFileHitTarget {
     /// Maps generic Radiant row interactions into sample-browser hit messages.
     fn map_row_message(&self, message: InteractiveRowMessage) -> Option<SampleFileHitMessage> {
-        match message {
-            InteractiveRowMessage::Activate => {
-                Some(SampleFileHitMessage::Activate(PointerModifiers::default()))
-            }
-            InteractiveRowMessage::ActivateWithModifiers { modifiers } => {
-                Some(SampleFileHitMessage::Activate(modifiers))
-            }
-            InteractiveRowMessage::DoubleActivate => {
-                Some(SampleFileHitMessage::Activate(PointerModifiers::default()))
-            }
-            InteractiveRowMessage::SecondaryActivate { position } => {
-                Some(SampleFileHitMessage::ContextMenu(position))
-            }
-            InteractiveRowMessage::Drag(message) => Some(SampleFileHitMessage::Drag(message)),
-            InteractiveRowMessage::Drop | InteractiveRowMessage::HoverDropTarget { .. } => None,
+        if let Some(modifiers) = message.activation_modifiers() {
+            return Some(SampleFileHitMessage::Activate(modifiers));
         }
+        if let Some(position) = message.secondary_position() {
+            return Some(SampleFileHitMessage::ContextMenu(position));
+        }
+        message.drag_message().map(SampleFileHitMessage::Drag)
     }
 
     fn paint_selection_fill(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
