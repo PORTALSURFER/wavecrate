@@ -78,18 +78,11 @@ impl GuiAppState {
         message: TextInputMessage,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        match message {
-            TextInputMessage::Changed { value } => {
-                self.metadata_tag_draft = value;
-                self.reset_metadata_tag_completion_cycle();
-            }
-            TextInputMessage::Submitted { value } => {
-                self.submit_metadata_tag_input(value, context);
-            }
-            TextInputMessage::CompletionRequested { value } => {
-                self.metadata_tag_draft = value;
-                self.reset_metadata_tag_completion_cycle();
-            }
+        if message.is_submitted() {
+            self.submit_metadata_tag_input(message.into_value(), context);
+        } else {
+            self.metadata_tag_draft = message.into_value();
+            self.reset_metadata_tag_completion_cycle();
         }
     }
 

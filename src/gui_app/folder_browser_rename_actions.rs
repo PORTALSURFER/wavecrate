@@ -137,10 +137,7 @@ impl GuiAppState {
 }
 
 fn rename_input_action(message: &radiant::widgets::TextInputMessage) -> Option<&'static str> {
-    match message {
-        radiant::widgets::TextInputMessage::Submitted { .. } => {
-            Some("folder_browser.rename.submit")
-        }
-        _ => None,
-    }
+    message
+        .is_submitted()
+        .then_some("folder_browser.rename.submit")
 }

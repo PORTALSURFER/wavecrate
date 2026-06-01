@@ -133,37 +133,28 @@ impl FolderBrowserState {
         &mut self,
         message: TextInputMessage,
     ) -> Option<String> {
-        match message {
-            TextInputMessage::Changed { value } => {
-                if let Some(status) =
-                    self.apply_collection_rename_input(TextInputMessage::Changed {
-                        value: value.clone(),
-                    })
-                {
-                    return Some(status);
-                }
-                if let Some(edit) = &mut self.file_rename_edit {
-                    edit.draft = value;
-                } else if let Some(edit) = &mut self.rename_edit {
-                    edit.draft = value;
-                }
-                None
+        if message.is_completion_requested() {
+            return None;
+        }
+
+        let value = message.value().to_owned();
+        if let Some(status) = self.apply_collection_rename_input(message.clone()) {
+            return Some(status);
+        }
+
+        if message.is_submitted() {
+            if self.file_rename_edit.is_some() {
+                Some(self.commit_file_rename(value))
+            } else {
+                Some(self.commit_rename(value))
             }
-            TextInputMessage::Submitted { value } => {
-                if let Some(status) =
-                    self.apply_collection_rename_input(TextInputMessage::Submitted {
-                        value: value.clone(),
-                    })
-                {
-                    return Some(status);
-                }
-                if self.file_rename_edit.is_some() {
-                    Some(self.commit_file_rename(value))
-                } else {
-                    Some(self.commit_rename(value))
-                }
+        } else {
+            if let Some(edit) = &mut self.file_rename_edit {
+                edit.draft = value;
+            } else if let Some(edit) = &mut self.rename_edit {
+                edit.draft = value;
             }
-            TextInputMessage::CompletionRequested { .. } => None,
+            None
         }
     }
 

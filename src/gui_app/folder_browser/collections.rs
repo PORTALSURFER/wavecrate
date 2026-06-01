@@ -201,29 +201,28 @@ impl FolderBrowserState {
         message: TextInputMessage,
     ) -> Option<String> {
         let edit = self.collection_rename_edit.as_mut()?;
-        match message {
-            TextInputMessage::Changed { value } => {
-                edit.draft = value;
-                None
-            }
-            TextInputMessage::Submitted { value } => {
-                let label = value.trim();
-                if label.is_empty() {
-                    self.collection_rename_edit = None;
-                    return Some(String::from("Collection rename cancelled"));
-                }
-                if let Some(entry) = self
-                    .collections
-                    .iter_mut()
-                    .find(|entry| entry.collection == edit.collection)
-                {
-                    entry.name = label.to_string();
-                }
-                self.collection_rename_edit = None;
-                Some(String::from("Collection renamed"))
-            }
-            TextInputMessage::CompletionRequested { .. } => None,
+        if message.is_completion_requested() {
+            return None;
         }
+        if message.is_changed() {
+            edit.draft = message.into_value();
+            return None;
+        }
+
+        let label = message.value().trim();
+        if label.is_empty() {
+            self.collection_rename_edit = None;
+            return Some(String::from("Collection rename cancelled"));
+        }
+        if let Some(entry) = self
+            .collections
+            .iter_mut()
+            .find(|entry| entry.collection == edit.collection)
+        {
+            entry.name = label.to_string();
+        }
+        self.collection_rename_edit = None;
+        Some(String::from("Collection renamed"))
     }
 
     pub(super) fn hover_drop_target_collection(
