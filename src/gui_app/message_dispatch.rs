@@ -1,5 +1,4 @@
 use radiant::prelude as ui;
-use radiant::widgets::DragHandleMessage;
 use std::time::Instant;
 
 use super::{
@@ -288,15 +287,15 @@ fn waveform_interaction_action(interaction: &WaveformInteraction) -> Option<&'st
         WaveformInteraction::BeginSelectionResize { .. } => Some("waveform.selection.resize_begin"),
         WaveformInteraction::BeginSelectionMove { .. } => Some("waveform.selection.move_begin"),
         WaveformInteraction::BeginPan { .. } => Some("waveform.pan_begin"),
-        WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::Started { .. }) => {
+        WaveformInteraction::DragPlaySelectionExport(drag) if drag.is_started() => {
             Some("waveform.selection_export_drag.begin")
         }
-        WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::Ended { .. }) => {
+        WaveformInteraction::DragPlaySelectionExport(drag) if drag.is_ended() => {
             Some("waveform.selection_export_drag.end")
         }
         WaveformInteraction::FinishSelection { .. } => Some("waveform.selection.finish"),
         WaveformInteraction::UpdateSelection { .. }
-        | WaveformInteraction::DragPlaySelectionExport(DragHandleMessage::Moved { .. })
+        | WaveformInteraction::DragPlaySelectionExport(_)
         | WaveformInteraction::Frame => None,
     }
 }

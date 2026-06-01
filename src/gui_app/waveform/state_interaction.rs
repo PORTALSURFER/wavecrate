@@ -187,16 +187,12 @@ impl WaveformState {
     }
 
     fn apply_play_selection_export_drag(&mut self, drag: radiant::widgets::DragHandleMessage) {
-        match drag {
-            radiant::widgets::DragHandleMessage::Started { .. } => {
-                self.active_drag = Some(WaveformDrag::PlaySelectionExport);
-            }
-            radiant::widgets::DragHandleMessage::Moved { .. } => {}
-            radiant::widgets::DragHandleMessage::Ended { .. } => {
-                if matches!(self.active_drag, Some(WaveformDrag::PlaySelectionExport)) {
-                    self.active_drag = None;
-                }
-            }
+        if drag.is_started() {
+            self.active_drag = Some(WaveformDrag::PlaySelectionExport);
+        } else if drag.is_ended()
+            && matches!(self.active_drag, Some(WaveformDrag::PlaySelectionExport))
+        {
+            self.active_drag = None;
         }
     }
 

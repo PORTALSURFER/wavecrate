@@ -162,7 +162,7 @@ impl FolderBrowserState {
                     MIN_COLLECTIONS_PANEL_HEIGHT,
                     MAX_COLLECTIONS_PANEL_HEIGHT,
                 );
-                if matches!(message, DragHandleMessage::Ended { .. }) {
+                if message.is_ended() {
                     self.collection_panel_resize = None;
                 }
             }

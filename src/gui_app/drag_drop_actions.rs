@@ -37,9 +37,7 @@ impl GuiAppState {
         drag: DragHandleMessage,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        let started = matches!(drag, DragHandleMessage::Started { .. });
-        let ended = matches!(drag, DragHandleMessage::Ended { .. });
-        if ended {
+        if drag.is_ended() {
             if let Some(target_folder_id) = self.folder_browser.hovered_drop_target_folder_id() {
                 self.drop_browser_drag_on_folder(target_folder_id, context);
             } else {
@@ -52,7 +50,7 @@ impl GuiAppState {
         }
         self.folder_browser
             .apply_message(FolderBrowserMessage::DragFolder(folder_id, drag));
-        if started {
+        if drag.is_started() {
             self.arm_browser_drag(context);
         }
     }

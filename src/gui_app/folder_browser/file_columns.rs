@@ -1,7 +1,4 @@
-use radiant::{
-    prelude as ui,
-    widgets::{DragHandleMessage, DragHandleMessage::*},
-};
+use radiant::{prelude as ui, widgets::DragHandleMessage};
 
 use super::{FileColumn, FileEntry, FolderBrowserState};
 
@@ -28,7 +25,7 @@ impl FolderBrowserState {
 
     pub(super) fn resize_file_column(&mut self, column_id: String, message: DragHandleMessage) {
         match message {
-            Started { position } => {
+            DragHandleMessage::Started { position } => {
                 if let Some(column) = self
                     .file_columns
                     .iter()
@@ -41,7 +38,7 @@ impl FolderBrowserState {
                     ));
                 }
             }
-            Moved { position } | Ended { position } => {
+            DragHandleMessage::Moved { position } | DragHandleMessage::Ended { position } => {
                 let Some(resize) = self.file_column_resize.clone() else {
                     return;
                 };
@@ -53,7 +50,7 @@ impl FolderBrowserState {
                     column.width =
                         resize.width_at(position.x, MIN_FILE_COLUMN_WIDTH, MAX_FILE_COLUMN_WIDTH);
                 }
-                if matches!(message, Ended { .. }) {
+                if message.is_ended() {
                     self.file_column_resize = None;
                 }
             }
@@ -62,7 +59,7 @@ impl FolderBrowserState {
 
     pub(super) fn drag_file_column(&mut self, column_id: String, message: DragHandleMessage) {
         match message {
-            Started { position } => {
+            DragHandleMessage::Started { position } => {
                 let placements = self.details_column_placements();
                 if let Some(content_left) = ui::details_column_drag_content_left(
                     &placements,
@@ -74,7 +71,7 @@ impl FolderBrowserState {
                         Some(ui::DetailsColumnReorderDrag::new(column_id, content_left));
                 }
             }
-            Moved { position } | Ended { position } => {
+            DragHandleMessage::Moved { position } | DragHandleMessage::Ended { position } => {
                 let Some(reorder) = self.file_column_reorder.clone() else {
                     return;
                 };
@@ -89,7 +86,7 @@ impl FolderBrowserState {
                         |column: &FileColumn| column.id.as_str(),
                     );
                 }
-                if matches!(message, Ended { .. }) {
+                if message.is_ended() {
                     self.file_column_reorder = None;
                 }
             }
