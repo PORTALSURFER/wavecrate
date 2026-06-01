@@ -68,17 +68,13 @@ pub(super) fn worker_progress_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
     };
     let track_width = 180.0;
     let snapshot = progress.snapshot();
-    let progress_bar = if let Some(fraction) = snapshot.fraction() {
-        ui::determinate_progress_bar(fraction)
-    } else {
-        ui::indeterminate_progress_bar(state.progress_tick)
-    }
-    .colors(
-        ui::Rgba8::new(48, 50, 51, 210),
-        ui::Rgba8::new(255, 112, 86, 210),
-    )
-    .max_track_height(8.0)
-    .activatable();
+    let progress_bar = ui::progress_bar_for_snapshot(snapshot, state.progress_tick)
+        .colors(
+            ui::Rgba8::new(48, 50, 51, 210),
+            ui::Rgba8::new(255, 112, 86, 210),
+        )
+        .max_track_height(8.0)
+        .activatable();
     progress_bar
         .mapped(|message| match message {
             ui::ProgressBarMessage::Activate => GuiMessage::ToggleJobDetails,
