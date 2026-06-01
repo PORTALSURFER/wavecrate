@@ -123,10 +123,9 @@ fn audio_host_dropdown(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage>
 }
 
 fn audio_host_dropdown_overlay(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
-    ui::dropdown_menu_overlay_below(
+    ui::dropdown_menu_overlay_below_trigger(
         AUDIO_SETTINGS_PANEL_PADDING,
         AUDIO_SETTINGS_PANEL_PADDING + audio_host_dropdown_y(snapshot),
-        ui::dropdown_height(false, snapshot.audio_hosts.len() + 1),
         AUDIO_SETTINGS_DROPDOWN_GAP,
         Some(AUDIO_SETTINGS_POPUP_WIDTH - AUDIO_SETTINGS_PANEL_PADDING * 2.0),
         audio_host_dropdown_options(snapshot),
@@ -143,10 +142,9 @@ fn audio_output_dropdown(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessag
 }
 
 fn audio_output_dropdown_overlay(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
-    ui::dropdown_menu_overlay_below(
+    ui::dropdown_menu_overlay_below_trigger(
         AUDIO_SETTINGS_PANEL_PADDING,
         AUDIO_SETTINGS_PANEL_PADDING + audio_output_dropdown_y(snapshot),
-        ui::dropdown_height(false, snapshot.audio_devices.len() + 1),
         AUDIO_SETTINGS_DROPDOWN_GAP,
         Some(AUDIO_SETTINGS_POPUP_WIDTH - AUDIO_SETTINGS_PANEL_PADDING * 2.0),
         audio_output_dropdown_options(snapshot),
@@ -163,10 +161,9 @@ fn audio_sample_rate_dropdown(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiM
 }
 
 fn audio_sample_rate_dropdown_overlay(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
-    ui::dropdown_menu_overlay_below(
+    ui::dropdown_menu_overlay_below_trigger(
         AUDIO_SETTINGS_PANEL_PADDING,
         AUDIO_SETTINGS_PANEL_PADDING + audio_sample_rate_dropdown_y(snapshot),
-        ui::dropdown_height(false, snapshot.audio_sample_rates.len() + 1),
         AUDIO_SETTINGS_DROPDOWN_GAP,
         Some(AUDIO_SETTINGS_POPUP_WIDTH - AUDIO_SETTINGS_PANEL_PADDING * 2.0),
         audio_sample_rate_dropdown_options(snapshot),
