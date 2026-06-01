@@ -192,26 +192,12 @@ fn selected_folder_status(state: &FolderBrowserState) -> ui::View<GuiMessage> {
 }
 
 fn filter_section() -> ui::View<GuiMessage> {
-    ui::panel_section(
+    ui::property_panel(
         "Filter",
-        ui::column([
-            ui::row([
-                ui::text("Name").height(20.0).width(48.0),
-                ui::text("Any").height(20.0).fill_width(),
-            ])
-            .fill_width()
-            .height(20.0)
-            .spacing(6.0),
-            ui::row([
-                ui::text("Type").height(20.0).width(48.0),
-                ui::text("Audio").height(20.0).fill_width(),
-            ])
-            .fill_width()
-            .height(20.0)
-            .spacing(6.0),
-        ])
-        .fill_width()
-        .spacing(2.0),
-        76.0,
+        [
+            ui::PropertyRow::new("name", "Name", "Any"),
+            ui::PropertyRow::new("type", "Type", "Audio"),
+        ],
     )
+    .height(76.0)
 }
