@@ -180,7 +180,10 @@ fn audio_host_dropdown_y(snapshot: &AudioSettingsSnapshot) -> f32 {
     ui::StackedLayoutCursor::new()
         .advanced(20.0, AUDIO_SETTINGS_ROW_SPACING)
         .advanced_if(snapshot.error.is_some(), 20.0, AUDIO_SETTINGS_ROW_SPACING)
-        .advanced(18.0, AUDIO_SETTINGS_SECTION_SPACING)
+        .advanced(
+            ui::labeled_control_control_offset(),
+            AUDIO_SETTINGS_SECTION_SPACING,
+        )
         .offset()
 }
 
