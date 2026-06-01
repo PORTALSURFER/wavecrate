@@ -1,6 +1,6 @@
 use radiant::{
     gui::types::{Point, Rect, Rgba8},
-    runtime::PaintPrimitive,
+    runtime::{PaintPrimitive, push_stroke_polyline},
 };
 
 use super::WaveformWidget;
@@ -60,7 +60,11 @@ impl WaveformWidget {
     ) {
         let width = ((end - start).abs() * bounds.width()).max(1.0);
         let steps = ((width / 4.0).round() as usize).clamp(10, 96);
-        let marker = 2.25_f32.min(selection_rect.height().max(1.0));
+        let marker_bounds = Rect::from_min_max(
+            Point::new(bounds.min.x, selection_rect.min.y),
+            Point::new(bounds.max.x, selection_rect.max.y),
+        );
+        let mut points = Vec::with_capacity(steps + 1);
         for step in 0..=steps {
             let t = step as f32 / steps as f32;
             let position = start + (end - start) * t;
@@ -70,15 +74,11 @@ impl WaveformWidget {
             let x = bounds.x_for_ratio(visible_ratio);
             let gain = selection.gain_at_position(position, 0.0).clamp(0.0, 1.0);
             let y = selection_rect.max.y - selection_rect.height() * gain;
-            let marker_bounds = Rect::from_min_max(
-                Point::new(bounds.min.x, selection_rect.min.y),
-                Point::new(bounds.max.x, selection_rect.max.y),
-            );
-            self.push_fill(
-                primitives,
-                Rect::square_around(Point::new(x, y), marker).clamp_to(marker_bounds),
-                color,
-            );
+            points.push(Point::new(
+                x.clamp(marker_bounds.min.x, marker_bounds.max.x),
+                y.clamp(marker_bounds.min.y, marker_bounds.max.y),
+            ));
         }
+        push_stroke_polyline(primitives, self.common.id, points, color, 2.0);
     }
 }

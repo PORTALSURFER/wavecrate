@@ -236,7 +236,7 @@ fn edit_selection_paints_start_and_end_boundary_lines() {
 }
 
 #[test]
-fn edit_fade_curve_paints_volume_trace_as_overlay_rects() {
+fn edit_fade_curve_paints_volume_trace_as_polyline() {
     let mut state = WaveformState::synthetic_for_tests();
     state.edit_selection = Some(
         wavecrate::selection::SelectionRange::new(0.2, 0.6)
@@ -253,14 +253,21 @@ fn edit_fade_curve_paints_volume_trace_as_overlay_rects() {
         &ThemeTokens::default(),
     );
 
-    let curve_points = fill_rects(&primitives)
+    let curve_points = stroke_polylines(&primitives)
         .into_iter()
-        .filter(|fill| {
-            (fill.color.r, fill.color.g, fill.color.b, fill.color.a) == (82, 168, 255, 225)
+        .filter(|stroke| {
+            (
+                stroke.color.r,
+                stroke.color.g,
+                stroke.color.b,
+                stroke.color.a,
+            ) == (82, 168, 255, 225)
+                && stroke.width == 2.0
+                && stroke.points.len() >= 10
         })
         .count();
     assert!(
-        curve_points >= 16,
-        "expected visible fade curve trace points, got {curve_points}"
+        curve_points >= 2,
+        "expected visible fade curve trace polylines, got {curve_points}"
     );
 }

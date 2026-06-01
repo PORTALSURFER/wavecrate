@@ -6,7 +6,7 @@ use super::{
 };
 use radiant::{
     gui::types::{Point, Rect, Vector2},
-    runtime::{GpuSurfaceContent, PaintFillRect, PaintPrimitive},
+    runtime::{GpuSurfaceContent, PaintFillRect, PaintPrimitive, PaintStrokePolyline},
     theme::ThemeTokens,
     widgets::{PointerButton, Widget, WidgetInput},
 };
@@ -30,6 +30,16 @@ fn fill_rects(primitives: &[PaintPrimitive]) -> Vec<&PaintFillRect> {
         .iter()
         .filter_map(|primitive| match primitive {
             PaintPrimitive::FillRect(fill) => Some(fill),
+            _ => None,
+        })
+        .collect()
+}
+
+fn stroke_polylines(primitives: &[PaintPrimitive]) -> Vec<&PaintStrokePolyline> {
+    primitives
+        .iter()
+        .filter_map(|primitive| match primitive {
+            PaintPrimitive::StrokePolyline(stroke) => Some(stroke),
             _ => None,
         })
         .collect()
