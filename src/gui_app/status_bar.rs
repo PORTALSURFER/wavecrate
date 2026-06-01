@@ -59,7 +59,7 @@ fn bottom_status_text(state: &GuiAppState) -> String {
 
 pub(super) fn worker_progress_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
     let Some(progress) = active_worker_progress(state) else {
-        return ui::text("").width(0.0).height(10.0);
+        return ui::empty().width(0.0).height(10.0);
     };
     let track_width = 180.0;
     let snapshot = progress.snapshot();

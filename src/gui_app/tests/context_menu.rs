@@ -46,7 +46,7 @@ fn folder_context_menu_outside_click_closes_menu() {
                     super::super::context_menu::overlay(&menu).into_node(),
                 )
             } else {
-                radiant::runtime::UiSurface::new(ui::text("").into_node())
+                radiant::runtime::UiSurface::new(ui::empty().into_node())
             }
         },
         |open, message| {

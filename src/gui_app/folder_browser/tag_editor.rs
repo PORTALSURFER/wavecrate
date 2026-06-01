@@ -31,7 +31,7 @@ pub(super) fn metadata_section(
     has_selected_file: bool,
 ) -> ui::View<GuiMessage> {
     if !has_selected_file {
-        return metadata_sidebar_panel(ui::spacer().height(0.0).fill_width(), 12.0);
+        return metadata_sidebar_panel(ui::empty().fill_width(), 12.0);
     }
 
     let content_height = 25.0 + tag_field_height;

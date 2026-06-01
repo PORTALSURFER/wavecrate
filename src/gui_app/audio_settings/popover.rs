@@ -163,7 +163,7 @@ fn audio_settings_dropdown_overlay(snapshot: &AudioSettingsSnapshot) -> ui::View
         Some(AudioSettingsDropdown::Backend) => audio_host_dropdown_overlay(snapshot),
         Some(AudioSettingsDropdown::Output) => audio_output_dropdown_overlay(snapshot),
         Some(AudioSettingsDropdown::SampleRate) => audio_sample_rate_dropdown_overlay(snapshot),
-        None => ui::spacer().height(0.0).fill_width(),
+        None => ui::empty().fill_width(),
     }
 }
 

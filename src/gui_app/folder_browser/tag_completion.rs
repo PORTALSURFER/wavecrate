@@ -24,7 +24,7 @@ pub(super) fn tag_completion_panel_layer(
     tag_field_height: f32,
 ) -> ui::View<GuiMessage> {
     if options.is_empty() {
-        return ui::spacer().height(0.0).fill_width();
+        return ui::empty().fill_width();
     }
     let popup_height = tag_completion_popup_height(options);
     let trigger_y = content_height - tag_field_height;
@@ -47,7 +47,7 @@ fn tag_completion_popup(
     content_width: f32,
 ) -> ui::View<GuiMessage> {
     if options.is_empty() {
-        return ui::spacer().height(0.0).fill_width();
+        return ui::empty().fill_width();
     }
     let tag_width = (content_width * 0.48).clamp(70.0, 140.0);
     let items = options
