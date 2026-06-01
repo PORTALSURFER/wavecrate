@@ -5,8 +5,8 @@ use wavecrate::audio::{AudioDeviceSummary, AudioHostSummary, AudioOutputConfig};
 
 use super::{
     AUDIO_ENGINE_PILL_HEIGHT, AUDIO_ENGINE_PILL_ID, AUDIO_ENGINE_PILL_WIDTH,
-    AUDIO_SETTINGS_POPUP_HEIGHT, AUDIO_SETTINGS_POPUP_WIDTH, GuiAppState, GuiMessage,
-    VOLUME_SLIDER_HEIGHT, VOLUME_SLIDER_ID, VOLUME_SLIDER_WIDTH,
+    AUDIO_SETTINGS_POPUP_HEIGHT, AUDIO_SETTINGS_POPUP_WIDTH, AudioSettingsDropdown, GuiAppState,
+    GuiMessage, VOLUME_SLIDER_HEIGHT, VOLUME_SLIDER_ID, VOLUME_SLIDER_WIDTH,
 };
 
 mod popover;
@@ -19,9 +19,7 @@ pub(super) struct AudioSettingsSnapshot {
     pub(super) detail_label: String,
     pub(super) error: Option<String>,
     pub(super) audio_output_config: AudioOutputConfig,
-    pub(super) audio_backend_dropdown_open: bool,
-    pub(super) audio_output_dropdown_open: bool,
-    pub(super) audio_sample_rate_dropdown_open: bool,
+    open_dropdown: Option<AudioSettingsDropdown>,
     pub(super) audio_hosts: Vec<AudioHostSummary>,
     pub(super) audio_devices: Vec<AudioDeviceSummary>,
     pub(super) audio_sample_rates: Vec<u32>,
@@ -33,19 +31,19 @@ impl AudioSettingsSnapshot {
             detail_label: state.audio_engine_detail_label(),
             error: state.audio_settings_error.clone(),
             audio_output_config: state.audio_output_config.clone(),
-            audio_backend_dropdown_open: state
-                .audio_settings_dropdown
-                .is_open(&super::AudioSettingsDropdown::Backend),
-            audio_output_dropdown_open: state
-                .audio_settings_dropdown
-                .is_open(&super::AudioSettingsDropdown::Output),
-            audio_sample_rate_dropdown_open: state
-                .audio_settings_dropdown
-                .is_open(&super::AudioSettingsDropdown::SampleRate),
+            open_dropdown: state.audio_settings_dropdown.current().copied(),
             audio_hosts: state.audio_hosts.clone(),
             audio_devices: state.audio_devices.clone(),
             audio_sample_rates: state.audio_sample_rates.clone(),
         }
+    }
+
+    pub(super) fn dropdown_open(&self, dropdown: AudioSettingsDropdown) -> bool {
+        self.open_dropdown == Some(dropdown)
+    }
+
+    pub(super) fn open_dropdown(&self) -> Option<AudioSettingsDropdown> {
+        self.open_dropdown
     }
 }
 

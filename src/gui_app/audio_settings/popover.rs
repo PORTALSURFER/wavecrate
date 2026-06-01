@@ -3,7 +3,8 @@ use radiant::prelude as ui;
 #[cfg(test)]
 use super::GuiAppState;
 use super::{
-    AUDIO_SETTINGS_POPUP_HEIGHT, AUDIO_SETTINGS_POPUP_WIDTH, AudioSettingsSnapshot, GuiMessage,
+    AUDIO_SETTINGS_POPUP_HEIGHT, AUDIO_SETTINGS_POPUP_WIDTH, AudioSettingsDropdown,
+    AudioSettingsSnapshot, GuiMessage,
 };
 
 const AUDIO_SETTINGS_PANEL_PADDING: f32 = 8.0;
@@ -34,10 +35,7 @@ pub(in crate::gui_app) fn audio_settings_window_view(
         panel,
         ui::Vector2::new(AUDIO_SETTINGS_POPUP_WIDTH, AUDIO_SETTINGS_POPUP_HEIGHT),
     );
-    if snapshot.audio_backend_dropdown_open
-        || snapshot.audio_output_dropdown_open
-        || snapshot.audio_sample_rate_dropdown_open
-    {
+    if snapshot.open_dropdown().is_some() {
         ui::stack([
             base,
             audio_dropdown_dismiss_overlay(),
@@ -108,7 +106,7 @@ fn audio_settings_backend_section(snapshot: &AudioSettingsSnapshot) -> ui::View<
 fn audio_host_dropdown(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
     ui::dropdown_trigger(
         selected_audio_host_label(snapshot),
-        snapshot.audio_backend_dropdown_open,
+        snapshot.dropdown_open(AudioSettingsDropdown::Backend),
     )
     .toggle_message(GuiMessage::ToggleAudioBackendDropdown)
     .build()
@@ -127,7 +125,7 @@ fn audio_host_dropdown_overlay(snapshot: &AudioSettingsSnapshot) -> ui::View<Gui
 fn audio_output_dropdown(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
     ui::dropdown_trigger(
         selected_audio_output_label(snapshot),
-        snapshot.audio_output_dropdown_open,
+        snapshot.dropdown_open(AudioSettingsDropdown::Output),
     )
     .toggle_message(GuiMessage::ToggleAudioOutputDropdown)
     .build()
@@ -146,7 +144,7 @@ fn audio_output_dropdown_overlay(snapshot: &AudioSettingsSnapshot) -> ui::View<G
 fn audio_sample_rate_dropdown(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
     ui::dropdown_trigger(
         selected_audio_sample_rate_label(snapshot),
-        snapshot.audio_sample_rate_dropdown_open,
+        snapshot.dropdown_open(AudioSettingsDropdown::SampleRate),
     )
     .toggle_message(GuiMessage::ToggleAudioSampleRateDropdown)
     .build()
@@ -163,12 +161,11 @@ fn audio_sample_rate_dropdown_overlay(snapshot: &AudioSettingsSnapshot) -> ui::V
 }
 
 fn audio_settings_dropdown_overlay(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
-    if snapshot.audio_output_dropdown_open {
-        audio_output_dropdown_overlay(snapshot)
-    } else if snapshot.audio_sample_rate_dropdown_open {
-        audio_sample_rate_dropdown_overlay(snapshot)
-    } else {
-        audio_host_dropdown_overlay(snapshot)
+    match snapshot.open_dropdown() {
+        Some(AudioSettingsDropdown::Backend) => audio_host_dropdown_overlay(snapshot),
+        Some(AudioSettingsDropdown::Output) => audio_output_dropdown_overlay(snapshot),
+        Some(AudioSettingsDropdown::SampleRate) => audio_sample_rate_dropdown_overlay(snapshot),
+        None => ui::spacer().height(0.0).fill_width(),
     }
 }
 
