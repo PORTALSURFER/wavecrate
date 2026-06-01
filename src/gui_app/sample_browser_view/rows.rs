@@ -78,8 +78,7 @@ fn sample_browser_row(
         hit_path,
         suppress_row_hover,
     );
-    let row = ui::stack([
-        hit_target,
+    let row = ui::input_underlay(
         ui::compact_details_row(columns.iter().map(|column| {
             sample_column_cell(
                 file,
@@ -91,7 +90,8 @@ fn sample_browser_row(
                 cached,
             )
         })),
-    ])
+        hit_target,
+    )
     .key(format!("sample-row-{}", file.id))
     .fill_width()
     .height(22.0);

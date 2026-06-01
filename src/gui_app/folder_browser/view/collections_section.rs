@@ -77,10 +77,10 @@ fn collection_row(
         .height(COLLECTION_ROW_HEIGHT)
         .spacing(2.0);
     }
-    ui::stack([
-        collection_input(collection_id, &collection),
+    ui::input_underlay(
         collection_visual(&collection),
-    ])
+        collection_input(collection_id, &collection),
+    )
     .key(format!("collection-row-{}", collection.collection.index()))
     .fill_width()
     .height(COLLECTION_ROW_HEIGHT)
