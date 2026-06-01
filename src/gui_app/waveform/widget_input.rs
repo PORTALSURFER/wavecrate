@@ -17,7 +17,7 @@ impl WaveformWidget {
         bounds: Rect,
         input: WidgetInput,
     ) -> Option<WidgetOutput> {
-        if input_starts_outside(bounds, &input) {
+        if input.pointer_start_outside(bounds) {
             return None;
         }
         let event = self.gesture.handle_input(bounds, &input)?;
@@ -245,13 +245,4 @@ impl WaveformWidget {
 
 fn visible_ratio(pointer: CanvasPointer) -> f32 {
     pointer.normalized.x
-}
-
-fn input_starts_outside(bounds: Rect, input: &WidgetInput) -> bool {
-    match input {
-        WidgetInput::PointerPress { position, .. }
-        | WidgetInput::PointerDoubleClick { position, .. }
-        | WidgetInput::Wheel { position, .. } => !bounds.contains(*position),
-        _ => false,
-    }
 }
