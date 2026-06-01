@@ -145,27 +145,15 @@ impl FolderBrowserState {
     }
 
     pub(super) fn resize_collections_panel(&mut self, message: DragHandleMessage) {
-        match message {
-            DragHandleMessage::Started { position } => {
-                self.collection_panel_resize = Some(ui::PanelResizeDrag::new(
-                    ui::PanelResizeEdge::Top,
-                    position,
-                    self.collections_panel_height,
-                ));
-            }
-            DragHandleMessage::Moved { position } | DragHandleMessage::Ended { position } => {
-                let Some(resize) = self.collection_panel_resize else {
-                    return;
-                };
-                self.collections_panel_height = resize.size_at(
-                    position,
-                    MIN_COLLECTIONS_PANEL_HEIGHT,
-                    MAX_COLLECTIONS_PANEL_HEIGHT,
-                );
-                if message.is_ended() {
-                    self.collection_panel_resize = None;
-                }
-            }
+        if let Some(height) = ui::update_panel_resize_drag(
+            &mut self.collection_panel_resize,
+            message,
+            ui::PanelResizeEdge::Top,
+            self.collections_panel_height,
+            MIN_COLLECTIONS_PANEL_HEIGHT,
+            MAX_COLLECTIONS_PANEL_HEIGHT,
+        ) {
+            self.collections_panel_height = height;
         }
     }
 

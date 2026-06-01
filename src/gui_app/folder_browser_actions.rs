@@ -18,27 +18,15 @@ impl GuiAppState {
             DragHandlePhase::Moved => "moved",
             DragHandlePhase::Ended => "ended",
         };
-        match message {
-            DragHandleMessage::Started { position } => {
-                self.folder_resize = Some(ui::PanelResizeDrag::new(
-                    ui::PanelResizeEdge::Right,
-                    position,
-                    self.folder_width,
-                ));
-            }
-            DragHandleMessage::Moved { position } | DragHandleMessage::Ended { position } => {
-                let resize = self.folder_resize.unwrap_or_else(|| {
-                    ui::PanelResizeDrag::new(
-                        ui::PanelResizeEdge::Right,
-                        position,
-                        self.folder_width,
-                    )
-                });
-                self.folder_width = resize.size_at(position, MIN_FOLDER_WIDTH, MAX_FOLDER_WIDTH);
-                if phase == DragHandlePhase::Ended {
-                    self.folder_resize = None;
-                }
-            }
+        if let Some(width) = ui::update_panel_resize_drag(
+            &mut self.folder_resize,
+            message,
+            ui::PanelResizeEdge::Right,
+            self.folder_width,
+            MIN_FOLDER_WIDTH,
+            MAX_FOLDER_WIDTH,
+        ) {
+            self.folder_width = width;
         }
         if should_log {
             emit_gui_action(
