@@ -91,14 +91,10 @@ fn collection_input(
     collection_id: wavecrate::sample_sources::SampleCollection,
     collection: &SampleCollectionView,
 ) -> ui::View<GuiMessage> {
-    let mut input = ui::interactive_row()
+    let input = ui::interactive_row()
         .pointer_motion_during_interaction()
-        .pointer_motion_active(collection.drop_target);
-    if collection.drag_active && !collection.drop_target {
-        input = input.droppable(true);
-    } else if collection.drag_active {
-        input = input.drop_only(true);
-    }
+        .pointer_motion_active(collection.drop_target)
+        .drop_target_mode(collection.drag_active, !collection.drop_target);
     input
         .mapped(move |message| {
             if message.is_drop() {

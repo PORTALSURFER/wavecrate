@@ -40,21 +40,19 @@ impl FolderTreeHitTarget {
         drop_candidate: bool,
         drop_target_active: bool,
     ) -> Self {
-        let mut row = ui::interactive_row()
+        let row = ui::interactive_row()
             .draggable()
             .drag_active(drag_active)
             .drag_source(drag_source)
             .drag_source_motion(true)
             .pointer_motion_during_interaction()
-            .pointer_motion_active(drop_target_active);
-        if drag_active && !drag_source {
-            row = if drop_hover_enabled(drop_target, drop_candidate, drop_target_active) {
-                row.droppable(true)
-            } else {
-                row.drop_only(true)
-            };
-        }
-        let row = row.custom_paint_hit_target().widget();
+            .pointer_motion_active(drop_target_active)
+            .drop_target_mode(
+                drag_active && !drag_source,
+                drop_hover_enabled(drop_target, drop_candidate, drop_target_active),
+            )
+            .custom_paint_hit_target()
+            .widget();
         Self {
             row,
             label: label.into(),

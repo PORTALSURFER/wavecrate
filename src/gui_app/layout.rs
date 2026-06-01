@@ -174,11 +174,8 @@ fn metadata_tag_category_header(
     drop_hover: bool,
 ) -> ui::View<GuiMessage> {
     let category_for_input = category_id.clone();
-    let mut input = ui::interactive_row();
-    if drag_active && !locked {
-        input = input.droppable(true);
-    }
-    let input = input
+    let input = ui::interactive_row()
+        .drop_target_mode(drag_active && !locked, true)
         .mapped(move |message| {
             if message.is_drop() {
                 return GuiMessage::DropMetadataTagOnCategory {
@@ -267,10 +264,8 @@ fn metadata_tag_library_row(
             .draggable()
             .drag_active(drag_active)
             .drag_source(drag_source)
-            .drag_source_motion(true);
-        if drag_active {
-            input = input.droppable(true);
-        }
+            .drag_source_motion(true)
+            .drop_target_mode(drag_active, true);
     }
     let input = input
         .mapped(move |message| {
@@ -318,11 +313,8 @@ fn metadata_tag_empty_category_target(
     drag_active: bool,
 ) -> ui::View<GuiMessage> {
     let category_for_input = category_id.to_string();
-    let mut input = ui::interactive_row();
-    if drag_active && !locked {
-        input = input.droppable(true);
-    }
-    let input = input
+    let input = ui::interactive_row()
+        .drop_target_mode(drag_active && !locked, true)
         .mapped(move |message| {
             if message.is_drop() {
                 return GuiMessage::DropMetadataTagOnCategory {
