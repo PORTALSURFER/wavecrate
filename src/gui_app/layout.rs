@@ -199,12 +199,10 @@ fn metadata_tag_category_header(
                     category_id: category_for_input.clone(),
                 };
             }
-            match message {
-                ui::InteractiveRowMessage::Activate => {
-                    GuiMessage::ToggleMetadataTagCategory(category_for_input.clone())
-                }
-                _ => GuiMessage::Noop,
+            if message.is_single_activation() {
+                return GuiMessage::ToggleMetadataTagCategory(category_for_input.clone());
             }
+            GuiMessage::Noop
         })
         .key(format!("metadata-tag-category-hit-{category_id}"))
         .fill_width()
@@ -305,12 +303,10 @@ fn metadata_tag_library_row(
                     category_id: category_for_input.clone(),
                 };
             }
-            match message {
-                ui::InteractiveRowMessage::Activate => {
-                    GuiMessage::ToggleMetadataTag(tag_for_input.clone())
-                }
-                _ => GuiMessage::Noop,
+            if message.is_single_activation() {
+                return GuiMessage::ToggleMetadataTag(tag_for_input.clone());
             }
+            GuiMessage::Noop
         })
         .key(format!("metadata-tag-library-row-hit-{tag}"))
         .width(width)

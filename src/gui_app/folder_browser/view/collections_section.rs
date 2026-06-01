@@ -108,18 +108,17 @@ fn collection_input(
                     position,
                 ));
             }
-            match message {
-                ui::InteractiveRowMessage::Activate
-                | ui::InteractiveRowMessage::ActivateWithModifiers { .. } => {
-                    GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateCollection(
-                        collection_id,
-                    ))
-                }
-                ui::InteractiveRowMessage::DoubleActivate => {
-                    GuiMessage::FolderBrowser(FolderBrowserMessage::RenameCollection(collection_id))
-                }
-                _ => GuiMessage::Noop,
+            if message.is_single_activation() {
+                return GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateCollection(
+                    collection_id,
+                ));
             }
+            if matches!(message, ui::InteractiveRowMessage::DoubleActivate) {
+                return GuiMessage::FolderBrowser(FolderBrowserMessage::RenameCollection(
+                    collection_id,
+                ));
+            }
+            GuiMessage::Noop
         })
         .id(collection_row_input_id(collection_id))
         .style(collection_input_style(collection))
