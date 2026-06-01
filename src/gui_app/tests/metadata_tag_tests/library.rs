@@ -205,12 +205,7 @@ fn default_gui_tag_library_pointer_drag_drops_tag_on_category_header() {
         .metadata_tags_by_file
         .insert(String::from("other.wav"), vec![String::from("bass")]);
     state.metadata_tag_library_open = true;
-    let bridge = DeclarativeOwnedRuntimeBridge::new(
-        state,
-        |state| radiant::runtime::UiSurface::new(super::super::super::view(state).into_node()),
-        |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
-    );
-    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame_with_default_theme();
     let bass_rect = frame
         .paint_plan
@@ -251,12 +246,7 @@ fn default_gui_tag_library_right_click_opens_tag_context_menu() {
         .metadata_tag_dictionary
         .insert(String::from("oneshot"), String::from("sound-type"));
     state.metadata_tag_library_open = true;
-    let bridge = DeclarativeOwnedRuntimeBridge::new(
-        state,
-        |state| radiant::runtime::UiSurface::new(super::super::super::view(state).into_node()),
-        |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
-    );
-    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame_with_default_theme();
     let tag_rect = frame
         .paint_plan

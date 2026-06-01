@@ -5,7 +5,9 @@ use super::{
 use radiant::{
     gui::types::{Point, Rect, Vector2},
     prelude::{self as ui, IntoView},
-    runtime::{DeclarativeOwnedRuntimeBridge, Event, SurfaceRuntime, TransientOverlayContext},
+    runtime::{
+        DeclarativeOwnedRuntimeBridge, Event, SurfaceRuntime, TransientOverlayContext, UiSurface,
+    },
     widgets::{DragHandleMessage, PointerModifiers, WidgetInput, WidgetKey},
 };
 use std::{collections::HashMap, fs, path::PathBuf, sync::mpsc, time::Duration};
@@ -102,6 +104,33 @@ fn gui_state_for_span_tests() -> GuiAppState {
         waveform_cache_bytes: 0,
         cached_sample_paths: Default::default(),
     }
+}
+
+type GuiRuntimeForTests = SurfaceRuntime<
+    DeclarativeOwnedRuntimeBridge<
+        GuiAppState,
+        super::GuiMessage,
+        fn(&mut GuiAppState) -> UiSurface<super::GuiMessage>,
+        fn(&mut GuiAppState, super::GuiMessage),
+    >,
+    super::GuiMessage,
+>;
+
+fn gui_runtime_for_tests(state: GuiAppState, viewport: Vector2) -> GuiRuntimeForTests {
+    SurfaceRuntime::new_declarative_owned(
+        state,
+        viewport,
+        project_gui_surface_for_tests,
+        reduce_gui_message_for_tests,
+    )
+}
+
+fn project_gui_surface_for_tests(state: &mut GuiAppState) -> UiSurface<super::GuiMessage> {
+    radiant::runtime::UiSurface::new(super::view(state).into_node())
+}
+
+fn reduce_gui_message_for_tests(state: &mut GuiAppState, message: super::GuiMessage) {
+    state.apply_message(message, &mut ui::UpdateContext::default());
 }
 
 fn gui_state_with_temp_sample(name: &str) -> (GuiAppState, tempfile::TempDir, String) {

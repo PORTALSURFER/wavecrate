@@ -3,12 +3,7 @@ use super::super::*;
 #[test]
 fn metadata_tag_field_background_click_focuses_tag_input() {
     let (state, _source_root, _selected_file) = gui_state_with_temp_sample("tag-target.wav");
-    let bridge = DeclarativeOwnedRuntimeBridge::new(
-        state,
-        |state| radiant::runtime::UiSurface::new(super::super::super::view(state).into_node()),
-        |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
-    );
-    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame_with_default_theme();
     let input_rect = frame
         .paint_plan

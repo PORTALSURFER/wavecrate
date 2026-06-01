@@ -8,12 +8,7 @@ fn metadata_autocomplete_suffix_is_not_editable_input_text() {
         .insert(String::from("known.wav"), vec![String::from("kick")]);
     state.metadata_tag_draft = String::from("ki");
 
-    let bridge = DeclarativeOwnedRuntimeBridge::new(
-        state,
-        |state| radiant::runtime::UiSurface::new(super::super::super::view(state).into_node()),
-        |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
-    );
-    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let input_id = runtime
         .frame_with_default_theme()
         .paint_plan
@@ -54,12 +49,7 @@ fn metadata_autocomplete_does_not_block_sidebar_button_clicks() {
         .insert(String::from("known.wav"), vec![String::from("kick")]);
     state.metadata_tag_draft = String::from("ki");
 
-    let bridge = DeclarativeOwnedRuntimeBridge::new(
-        state,
-        |state| radiant::runtime::UiSurface::new(super::super::super::view(state).into_node()),
-        |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
-    );
-    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame_with_default_theme();
     let input_rect = frame
         .paint_plan
@@ -111,12 +101,7 @@ fn metadata_autocomplete_does_not_block_folder_tree_clicks() {
         .display()
         .to_string();
 
-    let bridge = DeclarativeOwnedRuntimeBridge::new(
-        state,
-        |state| radiant::runtime::UiSurface::new(super::super::super::view(state).into_node()),
-        |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
-    );
-    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame_with_default_theme();
     let input_rect = frame
         .paint_plan
@@ -163,12 +148,7 @@ fn metadata_autocomplete_does_not_block_tag_library_clicks() {
     state.metadata_tag_draft = String::from("ki");
     state.metadata_tag_library_open = true;
 
-    let bridge = DeclarativeOwnedRuntimeBridge::new(
-        state,
-        |state| radiant::runtime::UiSurface::new(super::super::super::view(state).into_node()),
-        |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
-    );
-    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame_with_default_theme();
     let input_rect = frame
         .paint_plan
@@ -222,12 +202,7 @@ fn metadata_autocomplete_does_not_block_source_row_clicks_with_tag_library_open(
     state.metadata_tag_draft = String::from("ki");
     state.metadata_tag_library_open = true;
 
-    let bridge = DeclarativeOwnedRuntimeBridge::new(
-        state,
-        |state| radiant::runtime::UiSurface::new(super::super::super::view(state).into_node()),
-        |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
-    );
-    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(589.0, 571.0));
+    let mut runtime = gui_runtime_for_tests(state, Vector2::new(589.0, 571.0));
     let frame = runtime.frame_with_default_theme();
     let input_rect = frame
         .paint_plan

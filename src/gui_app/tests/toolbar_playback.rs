@@ -56,13 +56,8 @@ fn toolbar_icon_button_routes_messages_through_radiant_builder() {
 #[test]
 fn focus_loaded_toolbar_button_is_topmost_hit_target_and_paints_hover_feedback() {
     let state = GuiAppState::load_default().expect("default state loads");
-    let bridge = DeclarativeOwnedRuntimeBridge::new(
-        state,
-        |state| radiant::runtime::UiSurface::new(super::super::view(state).into_node()),
-        |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
-    );
     let theme = radiant::theme::ThemeTokens::default();
-    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame(&theme);
     let icon_rect = frame
         .paint_plan
@@ -98,13 +93,8 @@ fn stop_toolbar_button_is_hit_target_and_paints_hover_while_playing() {
     let mut state = GuiAppState::load_default().expect("default state loads");
     state.waveform = super::super::WaveformState::synthetic_for_tests();
     state.waveform.start_playback(0.25);
-    let bridge = DeclarativeOwnedRuntimeBridge::new(
-        state,
-        |state| radiant::runtime::UiSurface::new(super::super::view(state).into_node()),
-        |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
-    );
     let theme = radiant::theme::ThemeTokens::default();
-    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame(&theme);
     let icon_rect = frame
         .paint_plan
@@ -143,13 +133,8 @@ fn stop_toolbar_button_remains_available_for_loaded_idle_sample() {
     let mut state = GuiAppState::load_default().expect("default state loads");
     state.waveform = super::super::WaveformState::synthetic_for_tests();
     assert!(!state.waveform.is_playing());
-    let bridge = DeclarativeOwnedRuntimeBridge::new(
-        state,
-        |state| radiant::runtime::UiSurface::new(super::super::view(state).into_node()),
-        |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
-    );
     let theme = radiant::theme::ThemeTokens::default();
-    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame(&theme);
     let icon_rect = frame
         .paint_plan
@@ -201,13 +186,8 @@ fn playback_frame_repaints_surface_when_playback_state_changes() {
 fn playback_cursor_paints_as_transient_overlay() {
     let mut state = gui_state_for_span_tests();
     state.waveform.start_playback(0.25);
-    let bridge = DeclarativeOwnedRuntimeBridge::new(
-        state,
-        |state| radiant::runtime::UiSurface::new(super::super::view(state).into_node()),
-        |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
-    );
     let theme = radiant::theme::ThemeTokens::default();
-    let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
+    let mut runtime = gui_runtime_for_tests(state, Vector2::new(900.0, 620.0));
     let frame = runtime.frame(&theme);
 
     assert!(
