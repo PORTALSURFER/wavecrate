@@ -98,43 +98,21 @@ fn sample_header_cell(column: &FileColumn, sort: &ui::DetailsSort) -> ui::View<G
     let drag_id = column.id.clone();
     let resize_id = column.id.clone();
     let label = ui::details_sort_label(column.label.as_str(), column.id.as_str(), Some(sort));
-    ui::row([
-        ui::input_overlay(
-            ui::text(label.clone())
-                .key(format!("sample-header-label-{}", column.id))
-                .align_text(ui::TextAlign::Left)
-                .fill_width()
-                .height(20.0)
-                .truncate(),
-            ui::button(label)
-                .click_or_drag(
-                    GuiMessage::FolderBrowser(FolderBrowserMessage::SortFileColumn(sort_id)),
-                    move |drag| {
-                        GuiMessage::FolderBrowser(FolderBrowserMessage::DragFileColumn(
-                            drag_id.clone(),
-                            drag,
-                        ))
-                    },
-                )
-                .key(format!("sample-sort-{}", column.id))
-                .fill_width()
-                .height(20.0),
-        )
-        .fill_width()
-        .height(20.0),
-        ui::drag_handle()
-            .mapped(move |message| {
-                GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeFileColumn(
-                    resize_id.clone(),
-                    message,
-                ))
-            })
-            .key(format!("sample-column-resize-{}", column.id))
-            .size(4.0, 20.0),
-    ])
-    .width(column.width)
-    .height(20.0)
-    .spacing(1.0)
+    ui::compact_resizable_details_header_cell(
+        format!("sample-header-{}", column.id),
+        label,
+        column.width,
+        GuiMessage::FolderBrowser(FolderBrowserMessage::SortFileColumn(sort_id)),
+        move |drag| {
+            GuiMessage::FolderBrowser(FolderBrowserMessage::DragFileColumn(drag_id.clone(), drag))
+        },
+        move |message| {
+            GuiMessage::FolderBrowser(FolderBrowserMessage::ResizeFileColumn(
+                resize_id.clone(),
+                message,
+            ))
+        },
+    )
 }
 
 fn sample_browser_status(audio_count: usize) -> ui::View<GuiMessage> {
