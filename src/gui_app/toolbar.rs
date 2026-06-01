@@ -13,33 +13,30 @@ pub(super) const TOOLBAR_STOP_ID: u64 = 32_103;
 
 pub(super) fn main_toolbar(state: &GuiAppState) -> ui::View<GuiMessage> {
     let stop_enabled = state.waveform.has_loaded_sample();
-    ui::row([
-        ui::spacer().height(24.0).fill_width(),
-        toolbar_icon_button(
-            TOOLBAR_FOCUS_LOADED_ID,
-            ToolbarIcon::FocusLoaded,
-            true,
-            false,
-        ),
-        toolbar_icon_button(
-            TOOLBAR_LOOP_ID,
-            ToolbarIcon::Loop,
-            true,
-            state.loop_playback,
-        ),
-        toolbar_icon_button(
-            TOOLBAR_PLAY_ID,
-            ToolbarIcon::Play,
-            true,
-            state.waveform.is_playing(),
-        ),
-        toolbar_icon_button(TOOLBAR_STOP_ID, ToolbarIcon::Stop, stop_enabled, false),
-    ])
-    .padding_y(3.0)
-    .style(ui::WidgetStyle::default())
-    .spacing(4.0)
-    .fill_width()
-    .height(34.0)
+    ui::toolbar_from_parts(
+        ui::ToolbarParts::new([
+            toolbar_icon_button(
+                TOOLBAR_FOCUS_LOADED_ID,
+                ToolbarIcon::FocusLoaded,
+                true,
+                false,
+            ),
+            toolbar_icon_button(
+                TOOLBAR_LOOP_ID,
+                ToolbarIcon::Loop,
+                true,
+                state.loop_playback,
+            ),
+            toolbar_icon_button(
+                TOOLBAR_PLAY_ID,
+                ToolbarIcon::Play,
+                true,
+                state.waveform.is_playing(),
+            ),
+            toolbar_icon_button(TOOLBAR_STOP_ID, ToolbarIcon::Stop, stop_enabled, false),
+        ])
+        .align_end(),
+    )
 }
 
 pub(super) fn toolbar_icon_button(
