@@ -58,14 +58,19 @@ fn tag_completion_popup(
         .take(MAX_TAG_COMPLETION_ROWS)
         .map(|option| tag_completion_row(option, tag_width))
         .collect::<Vec<_>>();
-    ui::scroll(ui::column(rows).spacing(0.0).fill_width())
+    ui::bounded_scroll_column_from_parts(
+        ui::BoundedScrollColumnParts::new(
+            rows,
+            MAX_TAG_COMPLETION_ROWS,
+            TAG_COMPLETION_ROW_HEIGHT,
+            TAG_COMPLETION_POPUP_VERTICAL_CHROME,
+        )
         .style(WidgetStyle::new(
             WidgetTone::Neutral,
             ui::WidgetProminence::Subtle,
         ))
-        .padding(3.0)
-        .fill_width()
-        .height(tag_completion_popup_height(options))
+        .padding(3.0),
+    )
 }
 
 fn tag_completion_row(
