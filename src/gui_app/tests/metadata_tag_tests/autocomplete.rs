@@ -17,12 +17,8 @@ fn metadata_autocomplete_suffix_is_not_editable_input_text() {
     let input_id = runtime
         .frame(&radiant::theme::ThemeTokens::default())
         .paint_plan
-        .primitives
-        .iter()
-        .find_map(|primitive| match primitive {
-            PaintPrimitive::TextInput(input) => Some(input.widget_id),
-            _ => None,
-        })
+        .first_text_input()
+        .map(|input| input.widget_id)
         .expect("metadata tag input should paint");
     assert!(runtime.focus_widget(input_id));
 
@@ -41,19 +37,13 @@ fn metadata_autocomplete_suffix_is_not_editable_input_text() {
     let frame = runtime.frame(&radiant::theme::ThemeTokens::default());
     let tag_input = frame
         .paint_plan
-        .primitives
-        .iter()
-        .find_map(|primitive| match primitive {
-            PaintPrimitive::TextInput(input) if input.widget_id == input_id => Some(input),
-            _ => None,
-        })
+        .text_inputs()
+        .find(|input| input.widget_id == input_id)
         .expect("metadata tag input should still paint");
     assert!(tag_input.state.value.is_empty());
     assert_eq!(tag_input.state.caret, 0);
     assert_eq!(tag_input.state.selection_anchor, 0);
-    assert!(!frame.paint_plan.primitives.iter().any(
-        |primitive| matches!(primitive, PaintPrimitive::Text(text) if text.text.as_str() == "ick")
-    ));
+    assert!(!frame.paint_plan.contains_text("ick"));
 }
 
 #[test]
@@ -73,12 +63,8 @@ fn metadata_autocomplete_does_not_block_sidebar_button_clicks() {
     let frame = runtime.frame(&radiant::theme::ThemeTokens::default());
     let input_rect = frame
         .paint_plan
-        .primitives
-        .iter()
-        .find_map(|primitive| match primitive {
-            PaintPrimitive::TextInput(input) => Some(input.rect),
-            _ => None,
-        })
+        .first_text_input()
+        .map(|input| input.rect)
         .expect("metadata tag input should paint");
     let input_point = Point::new(
         (input_rect.min.x + input_rect.max.x) * 0.5,
@@ -124,19 +110,10 @@ fn metadata_autocomplete_does_not_block_sidebar_button_clicks() {
 }
 
 fn tag_library_toggle_rect(frame: &ui::SurfaceFrame, tag_input_rect: Rect) -> Option<Rect> {
-    frame
-        .paint_plan
-        .primitives
-        .iter()
-        .find_map(|primitive| match primitive {
-            PaintPrimitive::Svg(svg)
-                if svg.rect.max.y <= tag_input_rect.min.y
-                    && svg.rect.min.x > tag_input_rect.min.x =>
-            {
-                Some(svg.rect)
-            }
-            _ => None,
-        })
+    frame.paint_plan.svgs().find_map(|svg| {
+        (svg.rect.max.y <= tag_input_rect.min.y && svg.rect.min.x > tag_input_rect.min.x)
+            .then_some(svg.rect)
+    })
 }
 
 #[test]
@@ -170,12 +147,8 @@ fn metadata_autocomplete_does_not_block_folder_tree_clicks() {
     let frame = runtime.frame(&radiant::theme::ThemeTokens::default());
     let input_rect = frame
         .paint_plan
-        .primitives
-        .iter()
-        .find_map(|primitive| match primitive {
-            PaintPrimitive::TextInput(input) => Some(input.rect),
-            _ => None,
-        })
+        .first_text_input()
+        .map(|input| input.rect)
         .expect("metadata tag input should paint");
     let input_point = Point::new(
         (input_rect.min.x + input_rect.max.x) * 0.5,
@@ -196,13 +169,12 @@ fn metadata_autocomplete_does_not_block_folder_tree_clicks() {
     let frame = runtime.frame(&radiant::theme::ThemeTokens::default());
     let (label, folder_rect) = frame
         .paint_plan
-        .primitives
-        .iter()
-        .find_map(|primitive| match primitive {
-            PaintPrimitive::Text(text) if text.text.as_str().starts_with("[-] ") => {
-                Some((text.text.to_string(), text.rect))
-            }
-            _ => None,
+        .text_runs()
+        .find_map(|text| {
+            text.text
+                .as_str()
+                .starts_with("[-] ")
+                .then(|| (text.text.to_string(), text.rect))
         })
         .expect("expanded selected root folder should paint");
     let point = Point::new(
@@ -251,12 +223,8 @@ fn metadata_autocomplete_does_not_block_tag_library_clicks() {
     let frame = runtime.frame(&radiant::theme::ThemeTokens::default());
     let input_rect = frame
         .paint_plan
-        .primitives
-        .iter()
-        .find_map(|primitive| match primitive {
-            PaintPrimitive::TextInput(input) => Some(input.rect),
-            _ => None,
-        })
+        .first_text_input()
+        .map(|input| input.rect)
         .expect("metadata tag input should paint");
     let input_point = Point::new(
         (input_rect.min.x + input_rect.max.x) * 0.5,
@@ -338,12 +306,8 @@ fn metadata_autocomplete_does_not_block_source_row_clicks_with_tag_library_open(
     let frame = runtime.frame(&radiant::theme::ThemeTokens::default());
     let input_rect = frame
         .paint_plan
-        .primitives
-        .iter()
-        .find_map(|primitive| match primitive {
-            PaintPrimitive::TextInput(input) => Some(input.rect),
-            _ => None,
-        })
+        .first_text_input()
+        .map(|input| input.rect)
         .expect("metadata tag input should paint");
     let input_point = Point::new(
         (input_rect.min.x + input_rect.max.x) * 0.5,

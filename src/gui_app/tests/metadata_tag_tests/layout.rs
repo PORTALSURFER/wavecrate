@@ -12,12 +12,8 @@ fn metadata_tag_field_background_click_focuses_tag_input() {
     let frame = runtime.frame(&radiant::theme::ThemeTokens::default());
     let input_rect = frame
         .paint_plan
-        .primitives
-        .iter()
-        .find_map(|primitive| match primitive {
-            PaintPrimitive::TextInput(input) => Some(input.rect),
-            _ => None,
-        })
+        .first_text_input()
+        .map(|input| input.rect)
         .expect("tag input should paint");
     let input_id = text_input_widget_id(&frame).expect("tag input widget id");
     assert!(
@@ -92,12 +88,7 @@ fn folder_browser_metadata_tag_field_renders_pending_category_prompt() {
     let pending_tag_rect = text_rect(&frame, "deep-kick ->").expect("pending tag should paint");
     let category_input = frame
         .paint_plan
-        .primitives
-        .iter()
-        .find_map(|primitive| match primitive {
-            PaintPrimitive::TextInput(input) => Some(input),
-            _ => None,
-        })
+        .first_text_input()
         .expect("category input should paint");
     assert_eq!(category_input.state.value, "sound");
     assert_eq!(category_input.state.selection_anchor, 5);
@@ -144,21 +135,12 @@ fn folder_browser_metadata_tag_input_moves_to_next_row_when_crowded() {
         &radiant::theme::ThemeTokens::default(),
     );
 
-    let first_tag_y = frame.paint_plan.primitives.iter().find_map(|primitive| {
-        if let PaintPrimitive::FillRect(fill) = primitive
-            && (fill.rect.height() - 18.0).abs() < 0.01
-        {
-            return Some(fill.rect.min.y);
-        }
-        None
-    });
+    let first_tag_y = frame
+        .paint_plan
+        .fill_rects()
+        .find_map(|fill| ((fill.rect.height() - 18.0).abs() < 0.01).then_some(fill.rect.min.y));
     let first_tag_y = first_tag_y.expect("tag pill should paint in the tag field");
-    let input_rect = frame.paint_plan.primitives.iter().find_map(|primitive| {
-        if let PaintPrimitive::TextInput(input) = primitive {
-            return Some(input.rect);
-        }
-        None
-    });
+    let input_rect = frame.paint_plan.first_text_input().map(|input| input.rect);
     let input_rect = input_rect.expect("tag input should paint");
 
     assert!(input_rect.min.y > first_tag_y);
@@ -254,21 +236,12 @@ fn folder_browser_metadata_tag_input_wraps_after_full_tag_row() {
         &radiant::theme::ThemeTokens::default(),
     );
 
-    let first_tag_y = frame.paint_plan.primitives.iter().find_map(|primitive| {
-        if let PaintPrimitive::FillRect(fill) = primitive
-            && (fill.rect.height() - 18.0).abs() < 0.01
-        {
-            return Some(fill.rect.min.y);
-        }
-        None
-    });
+    let first_tag_y = frame
+        .paint_plan
+        .fill_rects()
+        .find_map(|fill| ((fill.rect.height() - 18.0).abs() < 0.01).then_some(fill.rect.min.y));
     let first_tag_y = first_tag_y.expect("tag pill should paint in the tag field");
-    let input_rect = frame.paint_plan.primitives.iter().find_map(|primitive| {
-        if let PaintPrimitive::TextInput(input) = primitive {
-            return Some(input.rect);
-        }
-        None
-    });
+    let input_rect = frame.paint_plan.first_text_input().map(|input| input.rect);
     let input_rect = input_rect.expect("tag input should paint");
 
     assert!(input_rect.min.y > first_tag_y);

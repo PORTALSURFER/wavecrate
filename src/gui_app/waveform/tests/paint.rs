@@ -153,7 +153,7 @@ fn selection_fill_paints_as_overlay_widget_rects() {
     assert!(
         !primitives
             .iter()
-            .any(|primitive| matches!(primitive, PaintPrimitive::GpuSurface(_))),
+            .any(|primitive| primitive.gpu_surface().is_some()),
         "ordinary waveform overlay widget must not emit the GPU waveform"
     );
     let fills = fill_rects(&primitives);

@@ -20,16 +20,14 @@ fn signal_widget_paints_gpu_surface_without_app_overlay_handles() {
 
     let surface = primitives
         .iter()
-        .find_map(|primitive| match primitive {
-            PaintPrimitive::GpuSurface(surface)
-                if matches!(
+        .find_map(|primitive| {
+            primitive.gpu_surface().and_then(|surface| {
+                matches!(
                     surface.content,
                     GpuSurfaceContent::SignalSummaryBands { .. }
-                ) =>
-            {
-                Some(surface)
-            }
-            _ => None,
+                )
+                .then_some(surface)
+            })
         })
         .expect("waveform gpu surface");
 
@@ -60,10 +58,7 @@ fn signal_widget_attaches_active_edit_fade_gain_preview() {
 
     let surface = primitives
         .iter()
-        .find_map(|primitive| match primitive {
-            PaintPrimitive::GpuSurface(surface) => Some(surface),
-            _ => None,
-        })
+        .find_map(PaintPrimitive::gpu_surface)
         .expect("waveform gpu surface");
 
     assert!(surface.revision > 0);
@@ -137,10 +132,7 @@ fn signal_widget_keeps_summary_cached_during_live_edit_fade_drag() {
 
     let surface = primitives
         .iter()
-        .find_map(|primitive| match primitive {
-            PaintPrimitive::GpuSurface(surface) => Some(surface),
-            _ => None,
-        })
+        .find_map(PaintPrimitive::gpu_surface)
         .expect("waveform gpu surface");
 
     assert!(surface.revision > 0);

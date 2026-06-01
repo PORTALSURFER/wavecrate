@@ -19,14 +19,8 @@ fn folder_context_menu_paints_as_full_width_overlay_panel() {
 
     let action_text_rect = frame
         .paint_plan
-        .primitives
-        .iter()
-        .find_map(|primitive| match primitive {
-            PaintPrimitive::Text(text) if text.text.as_str() == "Open in Explorer" => {
-                Some(text.rect)
-            }
-            _ => None,
-        })
+        .first_text_run("Open in Explorer")
+        .map(|text| text.rect)
         .expect("folder context menu action text should render");
 
     assert!(action_text_rect.width() > 150.0, "{action_text_rect:?}");

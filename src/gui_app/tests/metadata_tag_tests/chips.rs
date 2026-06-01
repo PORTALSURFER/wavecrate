@@ -32,11 +32,10 @@ fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
     assert!(frame_has_text(&frame, "kick"));
     let tags_header = text_rect(&frame, "Tags (1)").expect("metadata tags header should paint");
     assert!(
-        frame.paint_plan.primitives.iter().any(|primitive| matches!(
-            primitive,
-            PaintPrimitive::Svg(svg)
-                if svg.rect.min.x > tags_header.max.x && svg.rect.min.y <= tags_header.max.y
-        )),
+        frame
+            .paint_plan
+            .svgs()
+            .any(|svg| svg.rect.min.x > tags_header.max.x && svg.rect.min.y <= tags_header.max.y),
         "metadata tag library disclosure icon should paint beside the tags header"
     );
 }
@@ -70,12 +69,7 @@ fn folder_browser_metadata_selected_tag_chip_uses_strong_accent_style() {
 
     let tag_text = frame
         .paint_plan
-        .primitives
-        .iter()
-        .find_map(|primitive| match primitive {
-            PaintPrimitive::Text(text) if text.text.as_str() == "hat" => Some(text),
-            _ => None,
-        })
+        .first_text_run("hat")
         .expect("selected tag chip should paint");
     assert_eq!(tag_text.color, theme.text_primary);
 }

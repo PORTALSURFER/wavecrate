@@ -5,10 +5,7 @@ use super::{
 use radiant::{
     gui::types::{Point, Rect, Vector2},
     prelude::{self as ui, IntoView},
-    runtime::{
-        DeclarativeOwnedRuntimeBridge, Event, PaintPrimitive, SurfaceRuntime,
-        TransientOverlayContext,
-    },
+    runtime::{DeclarativeOwnedRuntimeBridge, Event, SurfaceRuntime, TransientOverlayContext},
     widgets::{DragHandleMessage, PointerButton, PointerModifiers, WidgetInput, WidgetKey},
 };
 use std::{collections::HashMap, fs, path::PathBuf, sync::mpsc, time::Duration};
@@ -291,12 +288,8 @@ fn frame_has_text_after_x(frame: &ui::SurfaceFrame, expected: &str, min_x: f32) 
 fn frame_has_clip_height(frame: &ui::SurfaceFrame, expected: f32) -> bool {
     frame
         .paint_plan
-        .primitives
-        .iter()
-        .any(|primitive| match primitive {
-            PaintPrimitive::ClipStart(clip) => (clip.rect.height() - expected).abs() < 0.01,
-            _ => false,
-        })
+        .clip_starts()
+        .any(|clip| (clip.rect.height() - expected).abs() < 0.01)
 }
 
 fn text_rect(frame: &ui::SurfaceFrame, expected: &str) -> Option<Rect> {
@@ -316,7 +309,6 @@ fn text_color(frame: &ui::SurfaceFrame, expected: &str) -> Option<radiant::gui::
 fn text_input_widget_id(frame: &ui::SurfaceFrame) -> Option<u64> {
     frame
         .paint_plan
-        .text_inputs()
+        .first_text_input()
         .map(|input| input.widget_id)
-        .next()
 }

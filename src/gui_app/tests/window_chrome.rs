@@ -20,22 +20,13 @@ fn audio_settings_popover_opens_as_centered_floating_window() {
                 &radiant::theme::ThemeTokens::default(),
             );
     assert!(
-        !frame.paint_plan.primitives.iter().any(|primitive| {
-            matches!(
-                primitive,
-                PaintPrimitive::Text(text) if text.text.as_str() == "Audio Engine"
-            )
-        }),
+        !frame.paint_plan.contains_text("Audio Engine"),
         "audio settings should rely on the native window title"
     );
     let backend_rect = frame
         .paint_plan
-        .primitives
-        .iter()
-        .find_map(|primitive| match primitive {
-            PaintPrimitive::Text(text) if text.text.as_str() == "Backend" => Some(text.rect),
-            _ => None,
-        })
+        .first_text_run("Backend")
+        .map(|text| text.rect)
         .expect("audio settings backend label paints");
 
     assert!(

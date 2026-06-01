@@ -91,14 +91,10 @@ fn focus_loaded_toolbar_button_is_topmost_hit_target_and_paints_hover_feedback()
     assert!(
         hovered_frame
             .paint_plan
-            .primitives
-            .iter()
-            .any(|primitive| matches!(
-                primitive,
-                PaintPrimitive::FillPolygon(fill)
-                    if fill.widget_id == super::super::TOOLBAR_FOCUS_LOADED_ID
-                        && fill.color.a > 0
-            )),
+            .fill_polygons()
+            .any(
+                |fill| fill.widget_id == super::super::TOOLBAR_FOCUS_LOADED_ID && fill.color.a > 0
+            ),
         "hovering the focus-loaded button should paint a visible accent overlay"
     );
 }
@@ -140,14 +136,8 @@ fn stop_toolbar_button_is_hit_target_and_paints_hover_while_playing() {
     assert!(
         hovered_frame
             .paint_plan
-            .primitives
-            .iter()
-            .any(|primitive| matches!(
-                primitive,
-                PaintPrimitive::FillPolygon(fill)
-                    if fill.widget_id == super::super::TOOLBAR_STOP_ID
-                        && fill.color.a > 0
-            )),
+            .fill_polygons()
+            .any(|fill| fill.widget_id == super::super::TOOLBAR_STOP_ID && fill.color.a > 0),
         "hovering the playing stop button should paint a visible accent overlay"
     );
     runtime.dispatch_event(Event::PointerPress {
@@ -264,7 +254,7 @@ fn playback_cursor_paints_as_transient_overlay() {
     assert!(
         primitives
             .iter()
-            .filter_map(PaintPrimitive::fill_rect)
+            .filter_map(|primitive| primitive.fill_rect())
             .any(|fill| {
                 fill.widget_id == super::super::WAVEFORM_WIDGET_ID
                     && fill.color.r == 71

@@ -28,20 +28,14 @@ fn waveform_widget_for_state(state: &WaveformState) -> WaveformWidget {
 fn fill_rects(primitives: &[PaintPrimitive]) -> Vec<&PaintFillRect> {
     primitives
         .iter()
-        .filter_map(|primitive| match primitive {
-            PaintPrimitive::FillRect(fill) => Some(fill),
-            _ => None,
-        })
+        .filter_map(PaintPrimitive::fill_rect)
         .collect()
 }
 
 fn stroke_polylines(primitives: &[PaintPrimitive]) -> Vec<&PaintStrokePolyline> {
     primitives
         .iter()
-        .filter_map(|primitive| match primitive {
-            PaintPrimitive::StrokePolyline(stroke) => Some(stroke),
-            _ => None,
-        })
+        .filter_map(PaintPrimitive::stroke_polyline)
         .collect()
 }
 
@@ -57,10 +51,7 @@ fn gpu_surface_revision_for_file(file: Arc<super::WaveformFile>) -> u64 {
     );
     primitives
         .iter()
-        .find_map(|primitive| match primitive {
-            PaintPrimitive::GpuSurface(surface) => Some(surface.revision),
-            _ => None,
-        })
+        .find_map(|primitive| primitive.gpu_surface().map(|surface| surface.revision))
         .expect("waveform gpu surface")
 }
 

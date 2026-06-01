@@ -30,13 +30,7 @@ fn folder_browser_metadata_hides_tag_entry_when_no_file_is_selected() {
     assert!(!frame_has_text(&frame, "Metadata"));
     assert!(!frame_has_text(&frame, "Tags (1)"));
     assert!(!frame_has_text(&frame, "kick"));
-    assert!(
-        !frame
-            .paint_plan
-            .primitives
-            .iter()
-            .any(|primitive| matches!(primitive, PaintPrimitive::TextInput(_)))
-    );
+    assert!(!frame.paint_plan.contains_text_input());
 }
 
 #[test]
@@ -128,14 +122,10 @@ fn folder_browser_metadata_tag_field_caps_at_six_rows_then_scrolls() {
         &radiant::theme::ThemeTokens::default(),
     );
 
-    let tag_clip = frame.paint_plan.primitives.iter().find_map(|primitive| {
-        if let PaintPrimitive::ClipStart(clip) = primitive
-            && (clip.rect.height() - 129.0).abs() < 0.01
-        {
-            return Some(clip.rect);
-        }
-        None
-    });
+    let tag_clip = frame
+        .paint_plan
+        .clip_starts()
+        .find_map(|clip| ((clip.rect.height() - 129.0).abs() < 0.01).then_some(clip.rect));
     assert!(
         tag_clip.is_some(),
         "combined tag field should clip overflowing tag rows"
@@ -445,12 +435,7 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_and_options() {
     assert!(frame_has_text(&frame, "kick"));
     let tag_input = frame
         .paint_plan
-        .primitives
-        .iter()
-        .find_map(|primitive| match primitive {
-            PaintPrimitive::TextInput(input) => Some(input),
-            _ => None,
-        })
+        .first_text_input()
         .expect("tag input should paint");
     assert_eq!(tag_input.state.value, "ki");
     assert_eq!(tag_input.state.selection_anchor, 2);
@@ -462,16 +447,16 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_and_options() {
     assert!(frame_has_text(&frame, "Character"));
     assert!(!frame_has_text(&frame, "Tab kick"));
     assert!(frame_has_text(&frame, "warm"));
-    assert!(frame.paint_plan.primitives.iter().any(|primitive| {
-        matches!(
-            primitive,
-            PaintPrimitive::TextInput(input) if input.rect.height() <= 14.0
-        )
-    }));
-    assert!(frame.paint_plan.primitives.iter().any(|primitive| {
-        matches!(
-            primitive,
-            PaintPrimitive::FillRect(fill) if (fill.rect.height() - 18.0).abs() < 0.01
-        )
-    }));
+    assert!(
+        frame
+            .paint_plan
+            .text_inputs()
+            .any(|input| input.rect.height() <= 14.0)
+    );
+    assert!(
+        frame
+            .paint_plan
+            .fill_rects()
+            .any(|fill| (fill.rect.height() - 18.0).abs() < 0.01)
+    );
 }
