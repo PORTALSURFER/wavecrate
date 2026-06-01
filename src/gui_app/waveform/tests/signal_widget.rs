@@ -9,14 +9,10 @@ fn signal_widget_paints_gpu_surface_without_app_overlay_handles() {
         state.edit_selection(),
         state.active_drag_kind(),
     );
-    let mut primitives = Vec::new();
-
-    widget.append_paint(
-        &mut primitives,
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0)),
-        &Default::default(),
-        &ThemeTokens::default(),
-    );
+    let primitives = widget.paint_primitives_with_defaults(Rect::from_min_size(
+        Point::new(0.0, 0.0),
+        Vector2::new(200.0, 80.0),
+    ));
 
     let surface = primitives
         .iter()
@@ -47,14 +43,10 @@ fn signal_widget_attaches_active_edit_fade_gain_preview() {
     let edit_selection =
         Some(wavecrate::selection::SelectionRange::new(0.0, 1.0).with_fade_in(1.0, 0.0));
     let widget = WaveformSignalWidget::new(Arc::clone(&file), viewport, edit_selection, None);
-    let mut primitives = Vec::new();
-
-    widget.append_paint(
-        &mut primitives,
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0)),
-        &Default::default(),
-        &ThemeTokens::default(),
-    );
+    let primitives = widget.paint_primitives_with_defaults(Rect::from_min_size(
+        Point::new(0.0, 0.0),
+        Vector2::new(200.0, 80.0),
+    ));
 
     let surface = primitives
         .iter()
@@ -121,14 +113,10 @@ fn signal_widget_keeps_summary_cached_during_live_edit_fade_drag() {
             WaveformEditFadeHandle::InEnd,
         )),
     );
-    let mut primitives = Vec::new();
-
-    widget.append_paint(
-        &mut primitives,
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0)),
-        &Default::default(),
-        &ThemeTokens::default(),
-    );
+    let primitives = widget.paint_primitives_with_defaults(Rect::from_min_size(
+        Point::new(0.0, 0.0),
+        Vector2::new(200.0, 80.0),
+    ));
 
     let surface = primitives
         .iter()

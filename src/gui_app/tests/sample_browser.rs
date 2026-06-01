@@ -125,13 +125,7 @@ fn selected_sample_browser_row_paints_strong_fill_and_left_marker() {
         true, false, false, false, false,
     );
     let bounds = Rect::from_min_size(Point::new(12.0, 8.0), Vector2::new(240.0, 22.0));
-    let mut primitives = Vec::new();
-    widget.append_paint(
-        &mut primitives,
-        bounds,
-        &Default::default(),
-        &radiant::theme::ThemeTokens::default(),
-    );
+    let primitives = widget.paint_primitives_with_defaults(bounds);
     let fills = primitives
         .iter()
         .filter_map(PaintPrimitive::fill_rect)
@@ -169,13 +163,7 @@ fn sample_browser_row_hover_paints_bright_background_without_marker() {
         None
     );
 
-    let mut primitives = Vec::new();
-    hit_target.append_paint(
-        &mut primitives,
-        bounds,
-        &Default::default(),
-        &radiant::theme::ThemeTokens::default(),
-    );
+    let primitives = hit_target.paint_primitives_with_defaults(bounds);
     let fills = primitives
         .iter()
         .filter_map(PaintPrimitive::fill_rect)

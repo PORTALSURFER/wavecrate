@@ -93,9 +93,7 @@ fn drop_target_paints_highlighted_label_text() {
     let bounds = row_bounds();
     let target = FolderTreeHitTarget::new("loops", false, true, true, false, true, true);
     let theme = ThemeTokens::default();
-    let mut primitives = Vec::new();
-
-    target.append_paint(&mut primitives, bounds, &LayoutOutput::default(), &theme);
+    let primitives = target.paint_primitives(bounds, &LayoutOutput::default(), &theme);
 
     assert!(
         primitives

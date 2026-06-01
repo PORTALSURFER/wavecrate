@@ -7,7 +7,6 @@ use super::{
 use radiant::{
     gui::types::{Point, Rect, Vector2},
     runtime::{GpuSurfaceContent, PaintFillRect, PaintPrimitive, PaintStrokePolyline},
-    theme::ThemeTokens,
     widgets::{PointerButton, Widget, WidgetInput},
 };
 use std::{fs, sync::Arc};
@@ -42,13 +41,10 @@ fn stroke_polylines(primitives: &[PaintPrimitive]) -> Vec<&PaintStrokePolyline> 
 fn gpu_surface_revision_for_file(file: Arc<super::WaveformFile>) -> u64 {
     let viewport = super::WaveformViewport::full(file.frames);
     let widget = WaveformSignalWidget::new(file, viewport, None, None);
-    let mut primitives = Vec::new();
-    widget.append_paint(
-        &mut primitives,
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0)),
-        &Default::default(),
-        &ThemeTokens::default(),
-    );
+    let primitives = widget.paint_primitives_with_defaults(Rect::from_min_size(
+        Point::new(0.0, 0.0),
+        Vector2::new(200.0, 80.0),
+    ));
     primitives
         .iter()
         .find_map(|primitive| primitive.gpu_surface().map(|surface| surface.revision))

@@ -80,13 +80,7 @@ fn active_drag_non_source_rows_do_not_keep_hover_highlight() {
         "sample rows should not retain hover while another file is being dragged"
     );
 
-    let mut primitives = Vec::new();
-    target.append_paint(
-        &mut primitives,
-        bounds,
-        &LayoutOutput::default(),
-        &ThemeTokens::default(),
-    );
+    let primitives = target.paint_primitives_with_defaults(bounds);
     assert!(
         !paints_hover_fill(&primitives),
         "non-source rows should not paint hover highlights during active file drags"
@@ -108,13 +102,7 @@ fn hover_state_clears_on_retained_widget_refresh() {
         !refreshed.row.common.state.hovered,
         "sample row hover paint must not stick after retained projections"
     );
-    let mut primitives = Vec::new();
-    refreshed.append_paint(
-        &mut primitives,
-        bounds,
-        &LayoutOutput::default(),
-        &ThemeTokens::default(),
-    );
+    let primitives = refreshed.paint_primitives_with_defaults(bounds);
     assert!(
         !paints_hover_fill(&primitives),
         "refreshed rows should not paint stale hover highlights"
@@ -128,13 +116,7 @@ fn hover_fill_is_neutral_not_selection_red() {
     let mut target = SampleFileHitTarget::new(false, false, false, false, false);
     target.handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)));
 
-    let mut primitives = Vec::new();
-    target.append_paint(
-        &mut primitives,
-        bounds,
-        &LayoutOutput::default(),
-        &ThemeTokens::default(),
-    );
+    let primitives = target.paint_primitives_with_defaults(bounds);
 
     assert!(paints_hover_fill(&primitives));
     assert!(
@@ -202,13 +184,7 @@ fn suppressed_hover_clears_and_omits_stale_hover_paint() {
     suppressed.handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)));
     assert!(!suppressed.row.common.state.hovered);
 
-    let mut primitives = Vec::new();
-    suppressed.append_paint(
-        &mut primitives,
-        bounds,
-        &LayoutOutput::default(),
-        &ThemeTokens::default(),
-    );
+    let primitives = suppressed.paint_primitives_with_defaults(bounds);
     assert!(
         !paints_hover_fill(&primitives),
         "suppressed rows should not paint hover highlights during sidebar resize"
@@ -220,14 +196,7 @@ fn suppressed_hover_clears_and_omits_stale_hover_paint() {
 fn loaded_rows_paint_right_edge_marker() {
     let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(120.0, 22.0));
     let target = SampleFileHitTarget::new(false, false, false, true, false);
-    let mut primitives = Vec::new();
-
-    target.append_paint(
-        &mut primitives,
-        bounds,
-        &LayoutOutput::default(),
-        &ThemeTokens::default(),
-    );
+    let primitives = target.paint_primitives_with_defaults(bounds);
 
     assert!(
         primitives
@@ -251,14 +220,7 @@ fn loaded_rows_paint_right_edge_marker() {
 fn unloaded_rows_do_not_paint_loaded_marker() {
     let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(120.0, 22.0));
     let target = SampleFileHitTarget::new(false, false, false, false, false);
-    let mut primitives = Vec::new();
-
-    target.append_paint(
-        &mut primitives,
-        bounds,
-        &LayoutOutput::default(),
-        &ThemeTokens::default(),
-    );
+    let primitives = target.paint_primitives_with_defaults(bounds);
 
     assert!(
         !primitives

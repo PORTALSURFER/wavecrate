@@ -16,14 +16,10 @@ fn overlay_paint_projects_play_edit_and_playhead_markers() {
     });
 
     let widget = waveform_widget_for_state(&state);
-    let mut primitives = Vec::new();
-
-    widget.append_paint(
-        &mut primitives,
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(400.0, 80.0)),
-        &Default::default(),
-        &ThemeTokens::default(),
-    );
+    let primitives = widget.paint_primitives_with_defaults(Rect::from_min_size(
+        Point::new(0.0, 0.0),
+        Vector2::new(400.0, 80.0),
+    ));
 
     let fills = fill_rects(&primitives);
     assert!(fills.iter().any(|fill| {
@@ -48,14 +44,10 @@ fn playhead_cursor_paints_pixel_stable_rect_when_progress_is_subpixel() {
     let mut state = WaveformState::synthetic_for_tests();
     state.set_playhead_ratio(0.12345);
     let widget = waveform_widget_for_state(&state);
-    let mut primitives = Vec::new();
-
-    widget.append_paint(
-        &mut primitives,
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(400.0, 80.0)),
-        &Default::default(),
-        &ThemeTokens::default(),
-    );
+    let primitives = widget.paint_primitives_with_defaults(Rect::from_min_size(
+        Point::new(0.0, 0.0),
+        Vector2::new(400.0, 80.0),
+    ));
 
     let playhead = fill_rects(&primitives)
         .into_iter()
@@ -73,14 +65,10 @@ fn play_start_marker_is_hidden_at_sample_start() {
     let mut state = WaveformState::synthetic_for_tests();
     state.start_playback(0.0);
     let widget = waveform_widget_for_state(&state);
-    let mut primitives = Vec::new();
-
-    widget.append_paint(
-        &mut primitives,
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(400.0, 80.0)),
-        &Default::default(),
-        &ThemeTokens::default(),
-    );
+    let primitives = widget.paint_primitives_with_defaults(Rect::from_min_size(
+        Point::new(0.0, 0.0),
+        Vector2::new(400.0, 80.0),
+    ));
 
     assert!(
         !fill_rects(&primitives).iter().any(|fill| {
@@ -95,14 +83,10 @@ fn play_start_marker_paints_when_start_deviates_from_sample_start() {
     let mut state = WaveformState::synthetic_for_tests();
     state.start_playback(0.125);
     let widget = waveform_widget_for_state(&state);
-    let mut primitives = Vec::new();
-
-    widget.append_paint(
-        &mut primitives,
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(400.0, 80.0)),
-        &Default::default(),
-        &ThemeTokens::default(),
-    );
+    let primitives = widget.paint_primitives_with_defaults(Rect::from_min_size(
+        Point::new(0.0, 0.0),
+        Vector2::new(400.0, 80.0),
+    ));
 
     assert!(fill_rects(&primitives).iter().any(|fill| {
         (fill.rect.center().x / 400.0 - 0.125).abs() < 0.01
@@ -141,14 +125,10 @@ fn selection_fill_paints_as_overlay_widget_rects() {
     });
     state.apply_interaction(WaveformInteraction::UpdateSelection { visible_ratio: 0.6 });
     let widget = waveform_widget_for_state(&state);
-    let mut primitives = Vec::new();
-
-    widget.append_paint(
-        &mut primitives,
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0)),
-        &Default::default(),
-        &ThemeTokens::default(),
-    );
+    let primitives = widget.paint_primitives_with_defaults(Rect::from_min_size(
+        Point::new(0.0, 0.0),
+        Vector2::new(200.0, 80.0),
+    ));
 
     assert!(
         !primitives
@@ -179,14 +159,10 @@ fn extracted_ranges_paint_as_gray_waveform_overlays() {
         .extracted_ranges
         .push(wavecrate::selection::SelectionRange::new(0.2, 0.6));
     let widget = waveform_widget_for_state(&state);
-    let mut primitives = Vec::new();
-
-    widget.append_paint(
-        &mut primitives,
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0)),
-        &Default::default(),
-        &ThemeTokens::default(),
-    );
+    let primitives = widget.paint_primitives_with_defaults(Rect::from_min_size(
+        Point::new(0.0, 0.0),
+        Vector2::new(200.0, 80.0),
+    ));
 
     let fills = fill_rects(&primitives);
     assert!(fills.iter().any(|fill| {
@@ -215,14 +191,10 @@ fn edit_selection_paints_start_and_end_boundary_lines() {
     let mut state = WaveformState::synthetic_for_tests();
     state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
     let widget = waveform_widget_for_state(&state);
-    let mut primitives = Vec::new();
-
-    widget.append_paint(
-        &mut primitives,
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0)),
-        &Default::default(),
-        &ThemeTokens::default(),
-    );
+    let primitives = widget.paint_primitives_with_defaults(Rect::from_min_size(
+        Point::new(0.0, 0.0),
+        Vector2::new(200.0, 80.0),
+    ));
 
     let fills = fill_rects(&primitives);
     assert!(fills.iter().any(|fill| {
@@ -244,14 +216,10 @@ fn edit_fade_curve_paints_volume_trace_as_polyline() {
             .with_fade_out(0.25, 0.0),
     );
     let widget = waveform_widget_for_state(&state);
-    let mut primitives = Vec::new();
-
-    widget.append_paint(
-        &mut primitives,
-        Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0)),
-        &Default::default(),
-        &ThemeTokens::default(),
-    );
+    let primitives = widget.paint_primitives_with_defaults(Rect::from_min_size(
+        Point::new(0.0, 0.0),
+        Vector2::new(200.0, 80.0),
+    ));
 
     let curve_points = stroke_polylines(&primitives)
         .into_iter()
