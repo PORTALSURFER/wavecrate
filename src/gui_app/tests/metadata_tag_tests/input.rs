@@ -5,24 +5,21 @@ fn folder_browser_metadata_hides_tag_entry_when_no_file_is_selected() {
     let browser = super::super::super::FolderBrowserState::load_default();
     let tags = vec![String::from("kick")];
     let theme = radiant::theme::ThemeTokens::default();
-    let frame = radiant::runtime::UiSurface::new(
-        super::super::super::folder_browser::folder_browser_view(
-            &browser,
-            260.0,
-            false,
-            "",
-            &[],
-            None,
-            "add tag",
-            None,
-            &[],
-            &tags,
-            &[],
-            None,
-        )
-        .into_node(),
+    let frame = super::super::super::folder_browser::folder_browser_view(
+        &browser,
+        260.0,
+        false,
+        "",
+        &[],
+        None,
+        "add tag",
+        None,
+        &[],
+        &tags,
+        &[],
+        None,
     )
-    .frame_at_size(Vector2::new(260.0, 620.0), &theme);
+    .view_frame_at_size(Vector2::new(260.0, 620.0), &theme);
 
     assert!(!frame.paint_plan.contains_text("Metadata"));
     assert!(!frame.paint_plan.contains_text("Tags (1)"));
@@ -40,42 +37,36 @@ fn folder_browser_metadata_tags_grow_combined_entry_field() {
         String::from("one-shot"),
         String::from("distorted"),
     ];
-    let small = radiant::runtime::UiSurface::new(
-        super::super::super::folder_browser::folder_browser_view(
-            &browser,
-            260.0,
-            true,
-            "",
-            &[],
-            None,
-            "add tag",
-            None,
-            &[],
-            &small_tags,
-            &[],
-            None,
-        )
-        .into_node(),
+    let small = super::super::super::folder_browser::folder_browser_view(
+        &browser,
+        260.0,
+        true,
+        "",
+        &[],
+        None,
+        "add tag",
+        None,
+        &[],
+        &small_tags,
+        &[],
+        None,
     )
-    .frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
-    let larger = radiant::runtime::UiSurface::new(
-        super::super::super::folder_browser::folder_browser_view(
-            &browser,
-            260.0,
-            true,
-            "",
-            &[],
-            None,
-            "add tag",
-            None,
-            &[],
-            &larger_tags,
-            &[],
-            None,
-        )
-        .into_node(),
+    .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
+    let larger = super::super::super::folder_browser::folder_browser_view(
+        &browser,
+        260.0,
+        true,
+        "",
+        &[],
+        None,
+        "add tag",
+        None,
+        &[],
+        &larger_tags,
+        &[],
+        None,
     )
-    .frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
+    .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
 
     assert!(larger.paint_plan.contains_text("distorted"));
     assert!(!larger.paint_plan.contains_text("More"));
@@ -97,24 +88,21 @@ fn folder_browser_metadata_tag_field_caps_at_six_rows_then_scrolls() {
     let tags = (0..24)
         .map(|index| format!("tag-{index:02}"))
         .collect::<Vec<_>>();
-    let frame = radiant::runtime::UiSurface::new(
-        super::super::super::folder_browser::folder_browser_view(
-            &browser,
-            260.0,
-            true,
-            "",
-            &[],
-            None,
-            "add tag",
-            None,
-            &[],
-            &tags,
-            &[],
-            None,
-        )
-        .into_node(),
+    let frame = super::super::super::folder_browser::folder_browser_view(
+        &browser,
+        260.0,
+        true,
+        "",
+        &[],
+        None,
+        "add tag",
+        None,
+        &[],
+        &tags,
+        &[],
+        None,
     )
-    .frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
+    .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
 
     let tag_clip = frame
         .paint_plan
@@ -404,24 +392,21 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_and_options() {
         },
     ];
     let theme = radiant::theme::ThemeTokens::default();
-    let frame = radiant::runtime::UiSurface::new(
-        super::super::super::folder_browser::folder_browser_view(
-            &browser,
-            260.0,
-            true,
-            "ki",
-            &[String::from("kick")],
-            None,
-            "add tag",
-            Some("ck"),
-            completion_options.as_slice(),
-            &[String::from("warm")],
-            &[],
-            None,
-        )
-        .into_node(),
+    let frame = super::super::super::folder_browser::folder_browser_view(
+        &browser,
+        260.0,
+        true,
+        "ki",
+        &[String::from("kick")],
+        None,
+        "add tag",
+        Some("ck"),
+        completion_options.as_slice(),
+        &[String::from("warm")],
+        &[],
+        None,
     )
-    .frame_at_size(Vector2::new(260.0, 620.0), &theme);
+    .view_frame_at_size(Vector2::new(260.0, 620.0), &theme);
 
     assert!(frame.paint_plan.contains_text("kick"));
     let tag_input = frame

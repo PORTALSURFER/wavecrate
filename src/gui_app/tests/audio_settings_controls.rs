@@ -18,9 +18,8 @@ fn top_status_bar_replaces_text_labels_with_volume_slider_and_audio_pill() {
         channel_count: 2,
         used_fallback: false,
     });
-    let frame =
-        radiant::runtime::UiSurface::new(crate::gui_app::top_status_bar(&state).into_node())
-            .frame_at_size_with_default_theme(Vector2::new(320.0, 30.0));
+    let frame = crate::gui_app::top_status_bar(&state)
+        .view_frame_at_size_with_default_theme(Vector2::new(320.0, 30.0));
     let texts = frame
         .paint_plan
         .text_runs()
@@ -42,10 +41,7 @@ fn top_status_bar_replaces_text_labels_with_volume_slider_and_audio_pill() {
 #[test]
 fn volume_slider_drag_emits_normalized_volume() {
     assert_eq!(
-        radiant::runtime::UiSurface::new(
-            crate::gui_app::audio_settings::volume_slider(0.25).into_node(),
-        )
-        .dispatch_widget_output(
+        crate::gui_app::audio_settings::volume_slider(0.25).view_dispatch_widget_output(
             crate::gui_app::VOLUME_SLIDER_ID,
             radiant::widgets::WidgetOutput::typed(radiant::widgets::SliderMessage::ValueChanged {
                 value: 0.75
@@ -91,8 +87,7 @@ fn default_gui_volume_drag_defers_config_persistence_until_debounce() {
 fn audio_engine_pill_activates_settings_toggle() {
     let mut state = GuiAppState::load_default().expect("default state loads");
     state.audio_settings_open = true;
-    let surface =
-        radiant::runtime::UiSurface::new(crate::gui_app::top_status_bar(&state).into_node());
+    let surface = crate::gui_app::top_status_bar(&state).into_surface();
     let pill = surface
         .find_widget(crate::gui_app::AUDIO_ENGINE_PILL_ID)
         .and_then(|widget| {
@@ -205,10 +200,8 @@ fn audio_settings_popover_stays_output_only() {
         is_default: true,
     }];
     state.audio_sample_rates = vec![44_100, 48_000];
-    let frame = radiant::runtime::UiSurface::new(
-        crate::gui_app::audio_settings_popover(&state).into_node(),
-    )
-    .frame_at_size_with_default_theme(Vector2::new(480.0, 360.0));
+    let frame = crate::gui_app::audio_settings_popover(&state)
+        .view_frame_at_size_with_default_theme(Vector2::new(480.0, 360.0));
     let texts = frame
         .paint_plan
         .text_runs()

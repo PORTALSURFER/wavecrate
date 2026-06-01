@@ -187,7 +187,7 @@ fn collection_row_input_id(collection: wavecrate::sample_sources::SampleCollecti
 #[cfg(test)]
 mod tests {
     use super::*;
-    use radiant::{prelude::IntoView, runtime::UiSurface};
+    use radiant::prelude::IntoView;
     use wavecrate::sample_sources::SampleCollection;
 
     /// Builds a minimal collection view for interaction tests.
@@ -215,11 +215,9 @@ mod tests {
     fn collection_input_routes_double_click_to_rename() {
         let collection = collection_view(false, false);
         let collection_id = collection.collection;
-        let surface: UiSurface<GuiMessage> =
-            UiSurface::new(collection_input(collection_id, &collection).into_node());
 
         assert!(matches!(
-            surface.dispatch_widget_output(
+            collection_input(collection_id, &collection).view_dispatch_widget_output(
                 collection_row_input_id(collection_id),
                 ui::WidgetOutput::typed(ui::InteractiveRowMessage::DoubleActivate),
             ),
@@ -234,8 +232,7 @@ mod tests {
     fn collection_input_uses_drop_only_for_current_drop_target() {
         let collection = collection_view(true, true);
         let collection_id = collection.collection;
-        let surface: UiSurface<GuiMessage> =
-            UiSurface::new(collection_input(collection_id, &collection).into_node());
+        let surface = collection_input(collection_id, &collection).into_surface();
         let widget = surface
             .find_widget(collection_row_input_id(collection_id))
             .and_then(|widget| {

@@ -10,9 +10,8 @@ fn folder_context_menu_paints_as_full_width_overlay_panel() {
         anchor: Point::new(72.0, 142.0),
         title: String::from("Documents"),
     };
-    let frame =
-        radiant::runtime::UiSurface::new(super::super::context_menu::overlay(&menu).into_node())
-            .frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
+    let frame = super::super::context_menu::overlay(&menu)
+        .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
 
     let action_text_rect = frame
         .paint_plan
@@ -42,11 +41,9 @@ fn folder_context_menu_outside_click_closes_menu() {
         Vector2::new(960.0, 540.0),
         move |open| {
             if *open {
-                radiant::runtime::UiSurface::new(
-                    super::super::context_menu::overlay(&menu).into_node(),
-                )
+                super::super::context_menu::overlay(&menu).into_surface()
             } else {
-                radiant::runtime::UiSurface::new(ui::empty().into_node())
+                ui::empty().into_surface()
             }
         },
         |open, message| {
@@ -75,9 +72,8 @@ fn source_context_menu_paints_remove_source_action_for_user_sources() {
         anchor: Point::new(72.0, 142.0),
         title: String::from("Samples"),
     };
-    let frame =
-        radiant::runtime::UiSurface::new(super::super::context_menu::overlay(&menu).into_node())
-            .frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
+    let frame = super::super::context_menu::overlay(&menu)
+        .view_frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
 
     assert!(frame.paint_plan.contains_text("Remove Source"));
 }

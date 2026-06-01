@@ -16,10 +16,8 @@ fn toolbar_icon_assets_parse_and_paint_through_radiant_icon_button() {
         assert!(disabled_svg.contains(r##"fill="#919191""##));
         assert!(!enabled_svg.contains("currentColor"));
         assert!(radiant::gui::svg::SvgIcon::from_svg(&enabled_svg).is_some());
-        let frame = radiant::runtime::UiSurface::new(
-            super::super::toolbar_icon_button(101, icon, true, false).into_node(),
-        )
-        .frame_at_size_with_default_theme(Vector2::new(28.0, 24.0));
+        let frame = super::super::toolbar_icon_button(101, icon, true, false)
+            .view_frame_at_size_with_default_theme(Vector2::new(28.0, 24.0));
         assert!(
             frame.paint_plan.svgs().next().is_some(),
             "toolbar icon should paint as a retained Radiant SVG"
@@ -39,12 +37,8 @@ fn toolbar_icon_button_routes_messages_through_radiant_builder() {
             super::super::GuiMessage::ToggleLoopPlayback,
         ),
     ] {
-        let surface = radiant::runtime::UiSurface::new(
-            super::super::toolbar_icon_button(101, icon, true, false).into_node(),
-        );
-
         assert_eq!(
-            surface.dispatch_widget_output(
+            super::super::toolbar_icon_button(101, icon, true, false).view_dispatch_widget_output(
                 101,
                 radiant::widgets::WidgetOutput::typed(radiant::widgets::ButtonMessage::Activate),
             ),

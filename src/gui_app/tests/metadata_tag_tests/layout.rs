@@ -43,24 +43,21 @@ fn folder_browser_metadata_tag_field_renders_pending_category_prompt() {
             selected: true,
         },
     ];
-    let frame = radiant::runtime::UiSurface::new(
-        super::super::super::folder_browser::folder_browser_view(
-            &browser,
-            260.0,
-            true,
-            "sound",
-            &[],
-            Some("deep-kick"),
-            "select group/parent tag",
-            Some("-type"),
-            completion_options.as_slice(),
-            &[],
-            &[],
-            None,
-        )
-        .into_node(),
+    let frame = super::super::super::folder_browser::folder_browser_view(
+        &browser,
+        260.0,
+        true,
+        "sound",
+        &[],
+        Some("deep-kick"),
+        "select group/parent tag",
+        Some("-type"),
+        completion_options.as_slice(),
+        &[],
+        &[],
+        None,
     )
-    .frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
+    .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
 
     assert!(frame.paint_plan.contains_text("deep-kick ->"));
     assert!(frame.paint_plan.contains_text("Sound Type"));
@@ -99,24 +96,21 @@ fn folder_browser_metadata_tag_input_moves_to_next_row_when_crowded() {
         String::from("another"),
         String::from("cool-tag"),
     ];
-    let frame = radiant::runtime::UiSurface::new(
-        super::super::super::folder_browser::folder_browser_view(
-            &browser,
-            260.0,
-            true,
-            "wow",
-            &[],
-            None,
-            "add tag",
-            None,
-            &[],
-            &tags,
-            &[],
-            None,
-        )
-        .into_node(),
+    let frame = super::super::super::folder_browser::folder_browser_view(
+        &browser,
+        260.0,
+        true,
+        "wow",
+        &[],
+        None,
+        "add tag",
+        None,
+        &[],
+        &tags,
+        &[],
+        None,
     )
-    .frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
+    .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
 
     let first_tag_y = frame
         .paint_plan
@@ -139,42 +133,36 @@ fn folder_browser_metadata_tag_input_keeps_identity_when_wrapping_rows() {
         String::from("another"),
         String::from("cool-tag"),
     ];
-    let short_frame = radiant::runtime::UiSurface::new(
-        super::super::super::folder_browser::folder_browser_view(
-            &browser,
-            260.0,
-            true,
-            "wow",
-            &[],
-            None,
-            "add tag",
-            None,
-            &[],
-            &short_tags,
-            &[],
-            None,
-        )
-        .into_node(),
+    let short_frame = super::super::super::folder_browser::folder_browser_view(
+        &browser,
+        260.0,
+        true,
+        "wow",
+        &[],
+        None,
+        "add tag",
+        None,
+        &[],
+        &short_tags,
+        &[],
+        None,
     )
-    .frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
-    let crowded_frame = radiant::runtime::UiSurface::new(
-        super::super::super::folder_browser::folder_browser_view(
-            &browser,
-            260.0,
-            true,
-            "wow",
-            &[],
-            None,
-            "add tag",
-            None,
-            &[],
-            &crowded_tags,
-            &[],
-            None,
-        )
-        .into_node(),
+    .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
+    let crowded_frame = super::super::super::folder_browser::folder_browser_view(
+        &browser,
+        260.0,
+        true,
+        "wow",
+        &[],
+        None,
+        "add tag",
+        None,
+        &[],
+        &crowded_tags,
+        &[],
+        None,
     )
-    .frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
+    .view_frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
 
     let short_input = text_input_widget_id(&short_frame).expect("short tag field input");
     let crowded_input = text_input_widget_id(&crowded_frame).expect("crowded tag field input");
@@ -191,24 +179,21 @@ fn folder_browser_metadata_tag_input_wraps_after_full_tag_row() {
         String::from("thing"),
         String::from("potato"),
     ];
-    let frame = radiant::runtime::UiSurface::new(
-        super::super::super::folder_browser::folder_browser_view(
-            &browser,
-            450.0,
-            true,
-            "",
-            &[],
-            None,
-            "add tag",
-            None,
-            &[],
-            &tags,
-            &[],
-            None,
-        )
-        .into_node(),
+    let frame = super::super::super::folder_browser::folder_browser_view(
+        &browser,
+        450.0,
+        true,
+        "",
+        &[],
+        None,
+        "add tag",
+        None,
+        &[],
+        &tags,
+        &[],
+        None,
     )
-    .frame_at_size_with_default_theme(Vector2::new(450.0, 620.0));
+    .view_frame_at_size_with_default_theme(Vector2::new(450.0, 620.0));
 
     let first_tag_y = frame
         .paint_plan

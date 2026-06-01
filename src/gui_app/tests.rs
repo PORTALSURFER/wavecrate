@@ -126,7 +126,7 @@ fn gui_runtime_for_tests(state: GuiAppState, viewport: Vector2) -> GuiRuntimeFor
 }
 
 fn project_gui_surface_for_tests(state: &mut GuiAppState) -> UiSurface<super::GuiMessage> {
-    radiant::runtime::UiSurface::new(super::view(state).into_node())
+    super::view(state).into_surface()
 }
 
 fn reduce_gui_message_for_tests(state: &mut GuiAppState, message: super::GuiMessage) {

@@ -57,7 +57,7 @@ pub(super) fn auxiliary_windows(state: &mut GuiAppState) -> Vec<ui::AuxiliaryWin
         AUDIO_SETTINGS_POPUP_WIDTH,
         AUDIO_SETTINGS_POPUP_HEIGHT,
     );
-    let surface = ui::UiSurface::new(audio_settings_window_view(&snapshot).into_node());
+    let surface = audio_settings_window_view(&snapshot).into_surface();
     vec![
         ui::AuxiliaryWindow::new("audio-settings", options, Arc::new(surface))
             .on_close(GuiMessage::CloseAudioSettings),
