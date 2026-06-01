@@ -23,11 +23,14 @@ fn folder_browser_sidebar_paints_filter_and_metadata_sections() {
     )
     .frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
 
-    assert!(frame_has_text(&frame, "Filter"));
-    assert!(!frame_has_text(&frame, "Metadata"));
-    assert!(!frame_has_text(&frame, "Tagging"));
-    assert!(frame_has_text(&frame, "kick"));
-    let tags_header = text_rect(&frame, "Tags (1)").expect("metadata tags header should paint");
+    assert!(frame.paint_plan.contains_text("Filter"));
+    assert!(!frame.paint_plan.contains_text("Metadata"));
+    assert!(!frame.paint_plan.contains_text("Tagging"));
+    assert!(frame.paint_plan.contains_text("kick"));
+    let tags_header = frame
+        .paint_plan
+        .first_text_rect("Tags (1)")
+        .expect("metadata tags header should paint");
     assert!(
         frame
             .paint_plan
@@ -80,11 +83,11 @@ fn clicking_metadata_tag_chip_selects_it_in_sidebar() {
         |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
     );
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
-    let tag_rect = text_rect(
-        &runtime.frame(&radiant::theme::ThemeTokens::default()),
-        "hat",
-    )
-    .expect("metadata tag chip should paint");
+    let tag_rect = runtime
+        .frame(&radiant::theme::ThemeTokens::default())
+        .paint_plan
+        .first_text_rect("hat")
+        .expect("metadata tag chip should paint");
     let point = tag_rect.center();
 
     runtime.dispatch_event(Event::primary_press(point));
@@ -113,10 +116,22 @@ fn metadata_tag_chips_display_playback_tags_first() {
     let frame = radiant::runtime::UiSurface::new(super::super::super::view(&mut state).into_node())
         .frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
 
-    let loop_rect = text_rect(&frame, "loop").expect("loop tag should paint");
-    let one_shot_rect = text_rect(&frame, "one-shot").expect("one-shot tag should paint");
-    let hat_rect = text_rect(&frame, "hat").expect("hat tag should paint");
-    let warm_rect = text_rect(&frame, "warm").expect("warm tag should paint");
+    let loop_rect = frame
+        .paint_plan
+        .first_text_rect("loop")
+        .expect("loop tag should paint");
+    let one_shot_rect = frame
+        .paint_plan
+        .first_text_rect("one-shot")
+        .expect("one-shot tag should paint");
+    let hat_rect = frame
+        .paint_plan
+        .first_text_rect("hat")
+        .expect("hat tag should paint");
+    let warm_rect = frame
+        .paint_plan
+        .first_text_rect("warm")
+        .expect("warm tag should paint");
 
     assert!(loop_rect.min.x < hat_rect.min.x);
     assert!(one_shot_rect.min.x < hat_rect.min.x);
@@ -175,20 +190,50 @@ fn metadata_tag_chips_group_by_target_category_order_and_color() {
     )
     .frame_at_size(Vector2::new(600.0, 620.0), &theme);
 
-    let loop_rect = text_rect(&frame, "loop").expect("loop tag should paint");
-    let hat_rect = text_rect(&frame, "hat").expect("hat tag should paint");
-    let warm_rect = text_rect(&frame, "warm").expect("warm tag should paint");
-    let artist_rect = text_rect(&frame, "artist1").expect("prefix tag should paint");
-    let dorian_rect = text_rect(&frame, "dorian").expect("tuning tag should paint");
+    let loop_rect = frame
+        .paint_plan
+        .first_text_rect("loop")
+        .expect("loop tag should paint");
+    let hat_rect = frame
+        .paint_plan
+        .first_text_rect("hat")
+        .expect("hat tag should paint");
+    let warm_rect = frame
+        .paint_plan
+        .first_text_rect("warm")
+        .expect("warm tag should paint");
+    let artist_rect = frame
+        .paint_plan
+        .first_text_rect("artist1")
+        .expect("prefix tag should paint");
+    let dorian_rect = frame
+        .paint_plan
+        .first_text_rect("dorian")
+        .expect("tuning tag should paint");
 
     assert!(loop_rect.min.x < hat_rect.min.x);
     assert!(hat_rect.min.x < warm_rect.min.x);
     assert!(warm_rect.min.x < artist_rect.min.x);
     assert!(artist_rect.min.x < dorian_rect.min.x);
 
-    assert_eq!(text_color(&frame, "loop"), Some(theme.bg_primary));
-    assert_eq!(text_color(&frame, "hat"), Some(theme.accent_mint));
-    assert_eq!(text_color(&frame, "warm"), Some(theme.highlight_cyan));
-    assert_eq!(text_color(&frame, "artist1"), Some(theme.accent_danger));
-    assert_eq!(text_color(&frame, "dorian"), Some(theme.text_muted));
+    assert_eq!(
+        frame.paint_plan.first_text_color("loop"),
+        Some(theme.bg_primary)
+    );
+    assert_eq!(
+        frame.paint_plan.first_text_color("hat"),
+        Some(theme.accent_mint)
+    );
+    assert_eq!(
+        frame.paint_plan.first_text_color("warm"),
+        Some(theme.highlight_cyan)
+    );
+    assert_eq!(
+        frame.paint_plan.first_text_color("artist1"),
+        Some(theme.accent_danger)
+    );
+    assert_eq!(
+        frame.paint_plan.first_text_color("dorian"),
+        Some(theme.text_muted)
+    );
 }

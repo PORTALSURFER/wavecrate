@@ -16,17 +16,17 @@ fn default_gui_tag_library_opens_beside_folder_sidebar() {
     let frame = radiant::runtime::UiSurface::new(super::super::super::view(&mut state).into_node())
         .frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
 
-    assert!(frame_has_text(&frame, "Tag Editor"));
-    assert!(frame_has_text(&frame, "Playback Type (2) [locked]"));
-    assert!(frame_has_text(&frame, "Sound Type (2)"));
-    assert!(frame_has_text(&frame, "Character (1)"));
-    assert!(frame_has_text(&frame, "Prefix"));
-    assert!(frame_has_text(&frame, "Tuning/Scale"));
-    assert!(frame_has_text(&frame, "loop"));
-    assert!(frame_has_text(&frame, "one-shot"));
-    assert!(frame_has_text(&frame, "hat"));
-    assert!(frame_has_text(&frame, "bass"));
-    assert!(frame_has_text(&frame, "seq"));
+    assert!(frame.paint_plan.contains_text("Tag Editor"));
+    assert!(frame.paint_plan.contains_text("Playback Type (2) [locked]"));
+    assert!(frame.paint_plan.contains_text("Sound Type (2)"));
+    assert!(frame.paint_plan.contains_text("Character (1)"));
+    assert!(frame.paint_plan.contains_text("Prefix"));
+    assert!(frame.paint_plan.contains_text("Tuning/Scale"));
+    assert!(frame.paint_plan.contains_text("loop"));
+    assert!(frame.paint_plan.contains_text("one-shot"));
+    assert!(frame.paint_plan.contains_text("hat"));
+    assert!(frame.paint_plan.contains_text("bass"));
+    assert!(frame.paint_plan.contains_text("seq"));
 }
 
 #[test]
@@ -144,8 +144,12 @@ fn default_gui_tag_library_category_headers_collapse_groups() {
     let frame = radiant::runtime::UiSurface::new(super::super::super::view(&mut state).into_node())
         .frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
 
-    assert!(frame_has_text(&frame, "Sound Type (1)"));
-    assert!(!frame_has_text_after_x(&frame, "hat", DEFAULT_FOLDER_WIDTH));
+    assert!(frame.paint_plan.contains_text("Sound Type (1)"));
+    assert!(
+        !frame
+            .paint_plan
+            .contains_text_after_x("hat", DEFAULT_FOLDER_WIDTH)
+    );
 }
 
 #[test]
@@ -209,8 +213,14 @@ fn default_gui_tag_library_pointer_drag_drops_tag_on_category_header() {
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
     let theme = radiant::theme::ThemeTokens::default();
     let frame = runtime.frame(&theme);
-    let bass_rect = text_rect(&frame, "bass").expect("bass tag should paint");
-    let character_rect = text_rect(&frame, "Character").expect("character header should paint");
+    let bass_rect = frame
+        .paint_plan
+        .first_text_rect("bass")
+        .expect("bass tag should paint");
+    let character_rect = frame
+        .paint_plan
+        .first_text_rect("Character")
+        .expect("character header should paint");
     let bass_point = bass_rect.center();
     let character_point = character_rect.center();
 
@@ -249,7 +259,10 @@ fn default_gui_tag_library_right_click_opens_tag_context_menu() {
     );
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
     let frame = runtime.frame(&radiant::theme::ThemeTokens::default());
-    let tag_rect = text_rect(&frame, "oneshot").expect("oneshot tag should paint");
+    let tag_rect = frame
+        .paint_plan
+        .first_text_rect("oneshot")
+        .expect("oneshot tag should paint");
     let point = tag_rect.center();
 
     runtime.dispatch_event(Event::secondary_press(point));
@@ -339,8 +352,8 @@ fn default_gui_tag_library_uses_custom_dictionary_categories() {
     let frame = radiant::runtime::UiSurface::new(super::super::super::view(&mut state).into_node())
         .frame_at_size_with_default_theme(Vector2::new(900.0, 620.0));
 
-    assert!(frame_has_text(&frame, "Sound Type (1)"));
-    assert!(frame_has_text(&frame, "deep-kick"));
-    assert!(frame_has_text(&frame, "Character"));
-    assert!(!frame_has_text(&frame, "Character (1)"));
+    assert!(frame.paint_plan.contains_text("Sound Type (1)"));
+    assert!(frame.paint_plan.contains_text("deep-kick"));
+    assert!(frame.paint_plan.contains_text("Character"));
+    assert!(!frame.paint_plan.contains_text("Character (1)"));
 }

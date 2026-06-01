@@ -24,9 +24,9 @@ fn folder_browser_metadata_hides_tag_entry_when_no_file_is_selected() {
     )
     .frame_at_size(Vector2::new(260.0, 620.0), &theme);
 
-    assert!(!frame_has_text(&frame, "Metadata"));
-    assert!(!frame_has_text(&frame, "Tags (1)"));
-    assert!(!frame_has_text(&frame, "kick"));
+    assert!(!frame.paint_plan.contains_text("Metadata"));
+    assert!(!frame.paint_plan.contains_text("Tags (1)"));
+    assert!(!frame.paint_plan.contains_text("kick"));
     assert!(!frame.paint_plan.contains_text_input());
 }
 
@@ -77,11 +77,17 @@ fn folder_browser_metadata_tags_grow_combined_entry_field() {
     )
     .frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
 
-    assert!(frame_has_text(&larger, "distorted"));
-    assert!(!frame_has_text(&larger, "More"));
+    assert!(larger.paint_plan.contains_text("distorted"));
+    assert!(!larger.paint_plan.contains_text("More"));
     assert!(frame_has_clip_height(&small, 24.0));
-    let first_tag = text_rect(&larger, "kick").expect("first tag should paint");
-    let wrapped_tag = text_rect(&larger, "distorted").expect("wrapped tag should paint");
+    let first_tag = larger
+        .paint_plan
+        .first_text_rect("kick")
+        .expect("first tag should paint");
+    let wrapped_tag = larger
+        .paint_plan
+        .first_text_rect("distorted")
+        .expect("wrapped tag should paint");
     assert!(wrapped_tag.min.y > first_tag.min.y);
 }
 
@@ -417,7 +423,7 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_and_options() {
     )
     .frame_at_size(Vector2::new(260.0, 620.0), &theme);
 
-    assert!(frame_has_text(&frame, "kick"));
+    assert!(frame.paint_plan.contains_text("kick"));
     let tag_input = frame
         .paint_plan
         .first_text_input()
@@ -427,11 +433,11 @@ fn folder_browser_metadata_tag_field_renders_completion_suffix_and_options() {
     assert_eq!(tag_input.state.caret, 2);
     assert_eq!(tag_input.completion_suffix.as_deref(), Some("ck"));
     assert_eq!(tag_input.completion_color, theme.text_muted);
-    assert!(frame_has_text(&frame, "Sound Type"));
-    assert!(frame_has_text(&frame, "kicker"));
-    assert!(frame_has_text(&frame, "Character"));
-    assert!(!frame_has_text(&frame, "Tab kick"));
-    assert!(frame_has_text(&frame, "warm"));
+    assert!(frame.paint_plan.contains_text("Sound Type"));
+    assert!(frame.paint_plan.contains_text("kicker"));
+    assert!(frame.paint_plan.contains_text("Character"));
+    assert!(!frame.paint_plan.contains_text("Tab kick"));
+    assert!(frame.paint_plan.contains_text("warm"));
     assert!(
         frame
             .paint_plan

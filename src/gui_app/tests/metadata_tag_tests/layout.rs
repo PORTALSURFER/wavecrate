@@ -67,10 +67,13 @@ fn folder_browser_metadata_tag_field_renders_pending_category_prompt() {
     )
     .frame_at_size_with_default_theme(Vector2::new(260.0, 620.0));
 
-    assert!(frame_has_text(&frame, "deep-kick ->"));
-    assert!(frame_has_text(&frame, "Sound Type"));
-    assert!(frame_has_text(&frame, "Group"));
-    let pending_tag_rect = text_rect(&frame, "deep-kick ->").expect("pending tag should paint");
+    assert!(frame.paint_plan.contains_text("deep-kick ->"));
+    assert!(frame.paint_plan.contains_text("Sound Type"));
+    assert!(frame.paint_plan.contains_text("Group"));
+    let pending_tag_rect = frame
+        .paint_plan
+        .first_text_rect("deep-kick ->")
+        .expect("pending tag should paint");
     let category_input = frame
         .paint_plan
         .first_text_input()
@@ -83,7 +86,10 @@ fn folder_browser_metadata_tag_field_renders_pending_category_prompt() {
         category_input.rect.min.x > pending_tag_rect.max.x,
         "category input should stay on the same row after the pending tag arrow"
     );
-    let sound_type_rect = text_rect(&frame, "Sound Type").expect("completion option should paint");
+    let sound_type_rect = frame
+        .paint_plan
+        .first_text_rect("Sound Type")
+        .expect("completion option should paint");
     assert!(
         sound_type_rect.max.y < pending_tag_rect.min.y,
         "completion popup should expand upward above the tag input"

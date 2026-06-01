@@ -274,36 +274,11 @@ fn clear_rebuildable_caches_action_removes_cache_payloads_only() {
     );
 }
 
-fn frame_has_text(frame: &ui::SurfaceFrame, expected: &str) -> bool {
-    frame.paint_plan.contains_text(expected)
-}
-
-fn frame_has_text_after_x(frame: &ui::SurfaceFrame, expected: &str, min_x: f32) -> bool {
-    frame
-        .paint_plan
-        .text_runs()
-        .any(|text| text.text.as_str() == expected && text.rect.min.x >= min_x)
-}
-
 fn frame_has_clip_height(frame: &ui::SurfaceFrame, expected: f32) -> bool {
     frame
         .paint_plan
         .clip_starts()
         .any(|clip| (clip.rect.height() - expected).abs() < 0.01)
-}
-
-fn text_rect(frame: &ui::SurfaceFrame, expected: &str) -> Option<Rect> {
-    frame
-        .paint_plan
-        .first_text_run(expected)
-        .map(|text| text.rect)
-}
-
-fn text_color(frame: &ui::SurfaceFrame, expected: &str) -> Option<radiant::gui::types::Rgba8> {
-    frame
-        .paint_plan
-        .first_text_run(expected)
-        .map(|text| text.color)
 }
 
 fn text_input_widget_id(frame: &ui::SurfaceFrame) -> Option<u64> {

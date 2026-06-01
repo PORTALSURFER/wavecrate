@@ -182,11 +182,11 @@ fn metadata_autocomplete_does_not_block_tag_library_clicks() {
     runtime.dispatch_primary_click(input_point);
     assert!(runtime.focused_widget().is_some());
 
-    let tag_rect = text_rect(
-        &runtime.frame(&radiant::theme::ThemeTokens::default()),
-        "bass",
-    )
-    .expect("available tag should paint");
+    let tag_rect = runtime
+        .frame(&radiant::theme::ThemeTokens::default())
+        .paint_plan
+        .first_text_rect("bass")
+        .expect("available tag should paint");
     let point = tag_rect.center();
 
     runtime.dispatch_primary_click(point);
@@ -241,11 +241,11 @@ fn metadata_autocomplete_does_not_block_source_row_clicks_with_tag_library_open(
     runtime.dispatch_primary_click(input_point);
     assert!(runtime.focused_widget().is_some());
 
-    let source_rect = text_rect(
-        &runtime.frame(&radiant::theme::ThemeTokens::default()),
-        "Beta Samples",
-    )
-    .expect("second source should paint");
+    let source_rect = runtime
+        .frame(&radiant::theme::ThemeTokens::default())
+        .paint_plan
+        .first_text_rect("Beta Samples")
+        .expect("second source should paint");
     let point = source_rect.center();
     runtime.dispatch_primary_click(point);
 

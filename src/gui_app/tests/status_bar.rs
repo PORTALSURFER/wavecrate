@@ -1,4 +1,4 @@
-use super::{frame_has_text, gui_state_for_span_tests};
+use super::gui_state_for_span_tests;
 use crate::gui_app::GuiAppState;
 use radiant::{
     gui::types::{Point, Rect, Vector2},
@@ -19,8 +19,8 @@ fn bottom_status_bar_reports_selected_sample_count() {
         crate::gui_app::status_bar::bottom_status_bar(&state).into_node(),
     )
     .frame_at_size_with_default_theme(Vector2::new(720.0, 30.0));
-    assert!(frame_has_text(&empty_frame, "0 samples"));
-    assert!(!frame_has_text(&empty_frame, "1 sample"));
+    assert!(empty_frame.paint_plan.contains_text("0 samples"));
+    assert!(!empty_frame.paint_plan.contains_text("1 sample"));
 
     state
         .folder_browser
@@ -30,7 +30,7 @@ fn bottom_status_bar_reports_selected_sample_count() {
     )
     .frame_at_size_with_default_theme(Vector2::new(720.0, 30.0));
 
-    assert!(frame_has_text(&selected_frame, "1 sample"));
+    assert!(selected_frame.paint_plan.contains_text("1 sample"));
 }
 
 #[test]
@@ -70,10 +70,11 @@ fn bottom_status_bar_reports_normalization_progress() {
     )
     .frame_at_size_with_default_theme(Vector2::new(720.0, 30.0));
 
-    assert!(frame_has_text(
-        &frame,
-        "Normalizing 2 samples | 1/2 | snare.wav"
-    ));
+    assert!(
+        frame
+            .paint_plan
+            .contains_text("Normalizing 2 samples | 1/2 | snare.wav")
+    );
 }
 
 #[test]
@@ -130,8 +131,8 @@ fn job_details_popover_reports_active_scan_progress() {
     )
     .frame_at_size_with_default_theme(Vector2::new(360.0, 180.0));
 
-    assert!(frame_has_text(&frame, "Job Details"));
-    assert!(frame_has_text(&frame, "Type: Scanning"));
-    assert!(frame_has_text(&frame, "Progress: 2/5"));
-    assert!(frame_has_text(&frame, "Current: kick.wav"));
+    assert!(frame.paint_plan.contains_text("Job Details"));
+    assert!(frame.paint_plan.contains_text("Type: Scanning"));
+    assert!(frame.paint_plan.contains_text("Progress: 2/5"));
+    assert!(frame.paint_plan.contains_text("Current: kick.wav"));
 }

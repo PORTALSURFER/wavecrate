@@ -79,7 +79,7 @@ fn source_context_menu_paints_remove_source_action_for_user_sources() {
         radiant::runtime::UiSurface::new(super::super::context_menu::overlay(&menu).into_node())
             .frame_at_size_with_default_theme(Vector2::new(960.0, 540.0));
 
-    assert!(frame_has_text(&frame, "Remove Source"));
+    assert!(frame.paint_plan.contains_text("Remove Source"));
 }
 
 #[test]

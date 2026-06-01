@@ -125,7 +125,7 @@ fn sample_browser_toggles_between_disk_and_metadata_label_names() {
         super::super::sample_browser(&mut state, false).into_node(),
     )
     .frame_at_size_with_default_theme(Vector2::new(720.0, 240.0));
-    assert!(frame_has_text(&disk_frame, "Disk"));
+    assert!(disk_frame.paint_plan.contains_text("Disk"));
 
     state.apply_message(
         super::super::GuiMessage::ToggleSampleNameViewMode,
@@ -136,7 +136,7 @@ fn sample_browser_toggles_between_disk_and_metadata_label_names() {
     )
     .frame_at_size_with_default_theme(Vector2::new(720.0, 240.0));
 
-    assert!(frame_has_text(&label_frame, "Label"));
+    assert!(label_frame.paint_plan.contains_text("Label"));
 }
 
 #[test]
