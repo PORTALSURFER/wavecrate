@@ -9,7 +9,7 @@ fn metadata_tag_field_background_click_focuses_tag_input() {
         |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
     );
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
-    let frame = runtime.frame(&radiant::theme::ThemeTokens::default());
+    let frame = runtime.frame_with_default_theme();
     let input_rect = frame
         .paint_plan
         .first_text_input()
@@ -26,7 +26,7 @@ fn metadata_tag_field_background_click_focuses_tag_input() {
     let target = runtime.widget_at(point);
     let target_rect = target.and_then(|widget_id| {
         runtime
-            .frame(&radiant::theme::ThemeTokens::default())
+            .frame_with_default_theme()
             .paint_plan
             .first_widget_rect(widget_id)
     });

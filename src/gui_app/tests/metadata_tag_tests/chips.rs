@@ -84,7 +84,7 @@ fn clicking_metadata_tag_chip_selects_it_in_sidebar() {
     );
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
     let tag_rect = runtime
-        .frame(&radiant::theme::ThemeTokens::default())
+        .frame_with_default_theme()
         .paint_plan
         .first_text_rect("hat")
         .expect("metadata tag chip should paint");

@@ -211,8 +211,7 @@ fn default_gui_tag_library_pointer_drag_drops_tag_on_category_header() {
         |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
     );
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
-    let theme = radiant::theme::ThemeTokens::default();
-    let frame = runtime.frame(&theme);
+    let frame = runtime.frame_with_default_theme();
     let bass_rect = frame
         .paint_plan
         .first_text_rect("bass")
@@ -258,7 +257,7 @@ fn default_gui_tag_library_right_click_opens_tag_context_menu() {
         |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
     );
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
-    let frame = runtime.frame(&radiant::theme::ThemeTokens::default());
+    let frame = runtime.frame_with_default_theme();
     let tag_rect = frame
         .paint_plan
         .first_text_rect("oneshot")

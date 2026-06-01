@@ -15,7 +15,7 @@ fn metadata_autocomplete_suffix_is_not_editable_input_text() {
     );
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
     let input_id = runtime
-        .frame(&radiant::theme::ThemeTokens::default())
+        .frame_with_default_theme()
         .paint_plan
         .first_text_input()
         .map(|input| input.widget_id)
@@ -34,7 +34,7 @@ fn metadata_autocomplete_suffix_is_not_editable_input_text() {
     assert!(runtime.bridge().state().metadata_tag_draft.is_empty());
     assert!(!runtime.bridge().state().metadata_tag_completion_active());
 
-    let frame = runtime.frame(&radiant::theme::ThemeTokens::default());
+    let frame = runtime.frame_with_default_theme();
     let tag_input = frame
         .paint_plan
         .text_inputs()
@@ -60,7 +60,7 @@ fn metadata_autocomplete_does_not_block_sidebar_button_clicks() {
         |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
     );
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
-    let frame = runtime.frame(&radiant::theme::ThemeTokens::default());
+    let frame = runtime.frame_with_default_theme();
     let input_rect = frame
         .paint_plan
         .first_text_input()
@@ -70,11 +70,8 @@ fn metadata_autocomplete_does_not_block_sidebar_button_clicks() {
     runtime.dispatch_primary_click(input_point);
     assert!(runtime.focused_widget().is_some());
 
-    let toggle_rect = tag_library_toggle_rect(
-        &runtime.frame(&radiant::theme::ThemeTokens::default()),
-        input_rect,
-    )
-    .expect("tag library toggle should paint");
+    let toggle_rect = tag_library_toggle_rect(&runtime.frame_with_default_theme(), input_rect)
+        .expect("tag library toggle should paint");
     let point = toggle_rect.center();
 
     runtime.dispatch_primary_click(point);
@@ -120,7 +117,7 @@ fn metadata_autocomplete_does_not_block_folder_tree_clicks() {
         |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
     );
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
-    let frame = runtime.frame(&radiant::theme::ThemeTokens::default());
+    let frame = runtime.frame_with_default_theme();
     let input_rect = frame
         .paint_plan
         .first_text_input()
@@ -130,7 +127,7 @@ fn metadata_autocomplete_does_not_block_folder_tree_clicks() {
     runtime.dispatch_primary_click(input_point);
     assert!(runtime.focused_widget().is_some());
 
-    let frame = runtime.frame(&radiant::theme::ThemeTokens::default());
+    let frame = runtime.frame_with_default_theme();
     let (label, folder_rect) = frame
         .paint_plan
         .text_runs()
@@ -172,7 +169,7 @@ fn metadata_autocomplete_does_not_block_tag_library_clicks() {
         |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
     );
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(900.0, 620.0));
-    let frame = runtime.frame(&radiant::theme::ThemeTokens::default());
+    let frame = runtime.frame_with_default_theme();
     let input_rect = frame
         .paint_plan
         .first_text_input()
@@ -183,7 +180,7 @@ fn metadata_autocomplete_does_not_block_tag_library_clicks() {
     assert!(runtime.focused_widget().is_some());
 
     let tag_rect = runtime
-        .frame(&radiant::theme::ThemeTokens::default())
+        .frame_with_default_theme()
         .paint_plan
         .first_text_rect("bass")
         .expect("available tag should paint");
@@ -231,7 +228,7 @@ fn metadata_autocomplete_does_not_block_source_row_clicks_with_tag_library_open(
         |state, message| state.apply_message(message, &mut ui::UpdateContext::default()),
     );
     let mut runtime = SurfaceRuntime::new(bridge, Vector2::new(589.0, 571.0));
-    let frame = runtime.frame(&radiant::theme::ThemeTokens::default());
+    let frame = runtime.frame_with_default_theme();
     let input_rect = frame
         .paint_plan
         .first_text_input()
@@ -242,7 +239,7 @@ fn metadata_autocomplete_does_not_block_source_row_clicks_with_tag_library_open(
     assert!(runtime.focused_widget().is_some());
 
     let source_rect = runtime
-        .frame(&radiant::theme::ThemeTokens::default())
+        .frame_with_default_theme()
         .paint_plan
         .first_text_rect("Beta Samples")
         .expect("second source should paint");
