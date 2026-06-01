@@ -74,16 +74,13 @@ impl Widget for FolderTreeHitTarget {
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
         self.row
-            .handle_input(bounds, input)
-            .and_then(|message| self.map_row_message(message))
-            .map(WidgetOutput::typed)
+            .handle_input_mapped(bounds, input, Self::map_row_message)
     }
 
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
-        let Some(previous) = previous.as_any().downcast_ref::<Self>() else {
-            return;
-        };
-        self.row.synchronize_from_previous(&previous.row);
+        let _ = self
+            .row
+            .synchronize_from_previous_embedded::<Self>(previous, |previous| &previous.row);
     }
 
     fn accepts_pointer_move(&self) -> bool {
@@ -104,7 +101,7 @@ impl Widget for FolderTreeHitTarget {
 }
 
 impl FolderTreeHitTarget {
-    fn map_row_message(&self, message: InteractiveRowMessage) -> Option<FolderTreeHitMessage> {
+    fn map_row_message(message: InteractiveRowMessage) -> Option<FolderTreeHitMessage> {
         if message.is_activation() {
             return Some(FolderTreeHitMessage::Activate);
         }
