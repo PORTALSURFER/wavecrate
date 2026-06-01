@@ -1,6 +1,6 @@
 use radiant::{
     prelude as ui,
-    widgets::{ButtonMessage, WidgetStyle, WidgetTone},
+    widgets::{WidgetStyle, WidgetTone},
 };
 
 use super::super::{FolderBrowserMessage, FolderBrowserState, GuiMessage, SourceEntry};
@@ -44,11 +44,14 @@ fn source_row(state: &FolderBrowserState, source: &SourceEntry) -> ui::View<GuiM
     };
     let mut row = ui::button(label)
         .secondary_clicks()
-        .mapped(move |message| match message {
-            ButtonMessage::SecondaryActivate { position } => GuiMessage::FolderBrowser(
-                FolderBrowserMessage::OpenSourceContextMenu(menu_id.clone(), position),
-            ),
-            _ => GuiMessage::FolderBrowser(FolderBrowserMessage::SelectSource(id.clone())),
+        .mapped(move |message| {
+            if let Some(position) = message.secondary_position() {
+                return GuiMessage::FolderBrowser(FolderBrowserMessage::OpenSourceContextMenu(
+                    menu_id.clone(),
+                    position,
+                ));
+            }
+            GuiMessage::FolderBrowser(FolderBrowserMessage::SelectSource(id.clone()))
         })
         .key(format!("source-row-{row_key}"))
         .fill_width()
