@@ -9,7 +9,6 @@ use super::{
 
 const AUDIO_SETTINGS_PANEL_PADDING: f32 = 8.0;
 const AUDIO_SETTINGS_ROW_SPACING: f32 = 7.0;
-const AUDIO_SETTINGS_SECTION_SPACING: f32 = 3.0;
 const AUDIO_SETTINGS_DROPDOWN_GAP: f32 = 3.0;
 
 #[cfg(test)]
@@ -172,11 +171,7 @@ fn audio_host_dropdown_y(snapshot: &AudioSettingsSnapshot) -> f32 {
     ui::StackedLayoutCursor::new()
         .advanced(20.0, AUDIO_SETTINGS_ROW_SPACING)
         .advanced_if(snapshot.error.is_some(), 20.0, AUDIO_SETTINGS_ROW_SPACING)
-        .advanced(
-            ui::labeled_control_control_offset(),
-            AUDIO_SETTINGS_SECTION_SPACING,
-        )
-        .offset()
+        .offset_within_item(ui::labeled_control_control_offset())
 }
 
 fn audio_output_dropdown_y(snapshot: &AudioSettingsSnapshot) -> f32 {
