@@ -179,22 +179,23 @@ fn metadata_tag_category_header(
         input = input.droppable(true);
     }
     let input = input
-        .mapped(move |message| match message {
-            ui::InteractiveRowMessage::Activate => {
-                GuiMessage::ToggleMetadataTagCategory(category_for_input.clone())
-            }
-            ui::InteractiveRowMessage::ActivateWithModifiers { .. } => GuiMessage::Noop,
-            ui::InteractiveRowMessage::DoubleActivate
-            | ui::InteractiveRowMessage::SecondaryActivate { .. } => GuiMessage::Noop,
-            ui::InteractiveRowMessage::Drop => GuiMessage::DropMetadataTagOnCategory {
-                category_id: category_for_input.clone(),
-            },
-            ui::InteractiveRowMessage::HoverDropTarget { .. } => {
-                GuiMessage::HoverMetadataTagDropCategory {
+        .mapped(move |message| {
+            if message.is_drop() {
+                return GuiMessage::DropMetadataTagOnCategory {
                     category_id: category_for_input.clone(),
-                }
+                };
             }
-            ui::InteractiveRowMessage::Drag(_) => GuiMessage::Noop,
+            if message.hover_drop_position().is_some() {
+                return GuiMessage::HoverMetadataTagDropCategory {
+                    category_id: category_for_input.clone(),
+                };
+            }
+            match message {
+                ui::InteractiveRowMessage::Activate => {
+                    GuiMessage::ToggleMetadataTagCategory(category_for_input.clone())
+                }
+                _ => GuiMessage::Noop,
+            }
         })
         .key(format!("metadata-tag-category-hit-{category_id}"))
         .fill_width()
@@ -272,29 +273,34 @@ fn metadata_tag_library_row(
         }
     }
     let input = input
-        .mapped(move |message| match message {
-            ui::InteractiveRowMessage::Activate => {
-                GuiMessage::ToggleMetadataTag(tag_for_input.clone())
-            }
-            ui::InteractiveRowMessage::ActivateWithModifiers { .. } => GuiMessage::Noop,
-            ui::InteractiveRowMessage::DoubleActivate => GuiMessage::Noop,
-            ui::InteractiveRowMessage::SecondaryActivate { position } => {
-                GuiMessage::OpenMetadataTagContextMenu {
+        .mapped(move |message| {
+            if let Some(position) = message.secondary_position() {
+                return GuiMessage::OpenMetadataTagContextMenu {
                     tag: tag_for_input.clone(),
                     position,
-                }
+                };
             }
-            ui::InteractiveRowMessage::Drag(drag) => GuiMessage::DragMetadataTag {
-                tag: tag_for_input.clone(),
-                drag,
-            },
-            ui::InteractiveRowMessage::Drop => GuiMessage::DropMetadataTagOnCategory {
-                category_id: category_for_input.clone(),
-            },
-            ui::InteractiveRowMessage::HoverDropTarget { .. } => {
-                GuiMessage::HoverMetadataTagDropCategory {
+            if let Some(drag) = message.drag_message() {
+                return GuiMessage::DragMetadataTag {
+                    tag: tag_for_input.clone(),
+                    drag,
+                };
+            }
+            if message.is_drop() {
+                return GuiMessage::DropMetadataTagOnCategory {
                     category_id: category_for_input.clone(),
+                };
+            }
+            if message.hover_drop_position().is_some() {
+                return GuiMessage::HoverMetadataTagDropCategory {
+                    category_id: category_for_input.clone(),
+                };
+            }
+            match message {
+                ui::InteractiveRowMessage::Activate => {
+                    GuiMessage::ToggleMetadataTag(tag_for_input.clone())
                 }
+                _ => GuiMessage::Noop,
             }
         })
         .key(format!("metadata-tag-library-row-hit-{tag}"))
@@ -317,21 +323,18 @@ fn metadata_tag_empty_category_target(
         input = input.droppable(true);
     }
     let input = input
-        .mapped(move |message| match message {
-            ui::InteractiveRowMessage::Drop => GuiMessage::DropMetadataTagOnCategory {
-                category_id: category_for_input.clone(),
-            },
-            ui::InteractiveRowMessage::DoubleActivate
-            | ui::InteractiveRowMessage::ActivateWithModifiers { .. }
-            | ui::InteractiveRowMessage::SecondaryActivate { .. } => GuiMessage::Noop,
-            ui::InteractiveRowMessage::HoverDropTarget { .. } => {
-                GuiMessage::HoverMetadataTagDropCategory {
+        .mapped(move |message| {
+            if message.is_drop() {
+                return GuiMessage::DropMetadataTagOnCategory {
                     category_id: category_for_input.clone(),
-                }
+                };
             }
-            ui::InteractiveRowMessage::Activate | ui::InteractiveRowMessage::Drag(_) => {
-                GuiMessage::Noop
+            if message.hover_drop_position().is_some() {
+                return GuiMessage::HoverMetadataTagDropCategory {
+                    category_id: category_for_input.clone(),
+                };
             }
+            GuiMessage::Noop
         })
         .key(format!("metadata-tag-empty-category-hit-{category_id}"))
         .fill_width()

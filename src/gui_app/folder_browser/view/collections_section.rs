@@ -100,22 +100,30 @@ fn collection_input(
         input = input.drop_only(true);
     }
     input
-        .mapped(move |message| match message {
-            ui::InteractiveRowMessage::Activate
-            | ui::InteractiveRowMessage::ActivateWithModifiers { .. } => {
-                GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateCollection(collection_id))
+        .mapped(move |message| {
+            if message.is_drop() {
+                return GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnCollection(
+                    collection_id,
+                ));
             }
-            ui::InteractiveRowMessage::DoubleActivate => {
-                GuiMessage::FolderBrowser(FolderBrowserMessage::RenameCollection(collection_id))
+            if let Some(position) = message.hover_drop_position() {
+                return GuiMessage::FolderBrowser(FolderBrowserMessage::HoverCollectionDropTarget(
+                    collection_id,
+                    position,
+                ));
             }
-            ui::InteractiveRowMessage::Drop => {
-                GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnCollection(collection_id))
+            match message {
+                ui::InteractiveRowMessage::Activate
+                | ui::InteractiveRowMessage::ActivateWithModifiers { .. } => {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateCollection(
+                        collection_id,
+                    ))
+                }
+                ui::InteractiveRowMessage::DoubleActivate => {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::RenameCollection(collection_id))
+                }
+                _ => GuiMessage::Noop,
             }
-            ui::InteractiveRowMessage::HoverDropTarget { position } => GuiMessage::FolderBrowser(
-                FolderBrowserMessage::HoverCollectionDropTarget(collection_id, position),
-            ),
-            ui::InteractiveRowMessage::SecondaryActivate { .. }
-            | ui::InteractiveRowMessage::Drag(_) => GuiMessage::Noop,
         })
         .id(collection_row_input_id(collection_id))
         .style(collection_input_style(collection))
