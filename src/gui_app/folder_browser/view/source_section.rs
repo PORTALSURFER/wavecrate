@@ -66,7 +66,7 @@ fn source_row(state: &FolderBrowserState, source: &SourceEntry) -> ui::View<GuiM
 
 fn source_row_style(selected: bool) -> ui::WidgetStyle {
     if selected {
-        ui::WidgetStyle::new(ui::WidgetTone::Accent, ui::WidgetProminence::Subtle)
+        ui::WidgetStyle::subtle(ui::WidgetTone::Accent)
     } else {
         ui::WidgetStyle::default()
     }

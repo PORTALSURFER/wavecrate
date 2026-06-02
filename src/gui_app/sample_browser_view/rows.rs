@@ -257,10 +257,7 @@ fn sample_rating_cell(file: &FileEntry, width: f32) -> ui::View<GuiMessage> {
     if indicator.shows_keep_badge() {
         return ui::compact_details_cell(
             ui::anchored_layer(
-                ui::passive_badge("KEEP").style(ui::WidgetStyle::new(
-                    ui::WidgetTone::Warning,
-                    ui::WidgetProminence::Subtle,
-                )),
+                ui::passive_badge("KEEP").style(ui::WidgetStyle::subtle(ui::WidgetTone::Warning)),
                 ui::Vector2::new(38.0, 14.0),
                 ui::LayerHorizontalAnchor::End,
                 ui::LayerVerticalAnchor::Start,

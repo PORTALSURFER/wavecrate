@@ -154,10 +154,7 @@ fn folder_row(folder: VisibleFolder) -> ui::View<GuiMessage> {
                 .height(22.0),
         ])
         .key(format!("folder-row-{id}"))
-        .style(ui::WidgetStyle::new(
-            ui::WidgetTone::Accent,
-            ui::WidgetProminence::Subtle,
-        ))
+        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
         .fill_width()
         .height(TREE_ROW_HEIGHT)
         .spacing(1.0)
@@ -210,7 +207,7 @@ fn folder_row(folder: VisibleFolder) -> ui::View<GuiMessage> {
     ])
     .key(format!("folder-row-{id}"))
     .style(if folder.selected || folder.drop_target {
-        ui::WidgetStyle::new(ui::WidgetTone::Accent, ui::WidgetProminence::Subtle)
+        ui::WidgetStyle::subtle(ui::WidgetTone::Accent)
     } else {
         ui::WidgetStyle::default()
     })

@@ -19,10 +19,7 @@ pub(super) fn collections_section(state: &FolderBrowserState) -> ui::View<GuiMes
             ui::scroll(ui::column(rows).spacing(1.0).fill_width().height(
                 COLLECTION_ROW_HEIGHT * wavecrate::sample_sources::SampleCollection::COUNT as f32,
             ))
-            .style(ui::WidgetStyle::new(
-                ui::WidgetTone::Neutral,
-                ui::WidgetProminence::Subtle,
-            ))
+            .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
             .fill_width()
             .fill_height(),
         )
@@ -157,18 +154,16 @@ fn collection_count(count: usize) -> ui::View<GuiMessage> {
 
 /// Resolves selected and drop-target visual state for the input layer.
 fn collection_input_style(collection: &SampleCollectionView) -> ui::WidgetStyle {
-    ui::WidgetStyle::new(
-        if collection.drop_target {
-            ui::WidgetTone::Warning
-        } else {
-            ui::WidgetTone::Accent
-        },
-        if collection.selected || collection.drop_target {
-            ui::WidgetProminence::Strong
-        } else {
-            ui::WidgetProminence::Subtle
-        },
-    )
+    let tone = if collection.drop_target {
+        ui::WidgetTone::Warning
+    } else {
+        ui::WidgetTone::Accent
+    };
+    if collection.selected || collection.drop_target {
+        ui::WidgetStyle::strong(tone)
+    } else {
+        ui::WidgetStyle::subtle(tone)
+    }
 }
 
 /// Returns the stable input widget id for a collection row.

@@ -16,14 +16,12 @@ pub(in crate::gui_app) fn metadata_tag_category_style(
     category_id: &str,
     selected: bool,
 ) -> ui::WidgetStyle {
-    ui::WidgetStyle::new(
-        metadata_tag_category_tone(category_id),
-        if selected || metadata_tag_category_is_pinned(category_id) {
-            ui::WidgetProminence::Strong
-        } else {
-            ui::WidgetProminence::Subtle
-        },
-    )
+    let tone = metadata_tag_category_tone(category_id);
+    if selected || metadata_tag_category_is_pinned(category_id) {
+        ui::WidgetStyle::strong(tone)
+    } else {
+        ui::WidgetStyle::subtle(tone)
+    }
 }
 
 pub(in crate::gui_app) fn metadata_tag_category_is_pinned(category_id: &str) -> bool {

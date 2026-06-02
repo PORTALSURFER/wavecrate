@@ -138,10 +138,7 @@ fn tag_entry_field(
 
     if tag_field_requires_scroll(row_count) {
         ui::scroll(content)
-            .style(ui::WidgetStyle::new(
-                ui::WidgetTone::Neutral,
-                ui::WidgetProminence::Subtle,
-            ))
+            .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
             .padding(3.0)
             .fill_width()
             .height(height)
@@ -251,19 +248,13 @@ fn pending_category_tag_token(tag: &str) -> ui::View<GuiMessage> {
         .subtle()
         .passive()
         .key(format!("metadata-tag-pending-category-{tag}"))
-        .style(ui::WidgetStyle::new(
-            ui::WidgetTone::Accent,
-            ui::WidgetProminence::Subtle,
-        ))
+        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
         .size(tag_pill_width(tag), TAG_FIELD_CONTROL_HEIGHT)
 }
 
 fn metadata_sidebar_panel(content: ui::View<GuiMessage>, height: f32) -> ui::View<GuiMessage> {
     content
-        .style(ui::WidgetStyle::new(
-            ui::WidgetTone::Neutral,
-            ui::WidgetProminence::Subtle,
-        ))
+        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Neutral))
         .padding(6.0)
         .fill_width()
         .height(height)

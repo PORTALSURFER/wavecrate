@@ -136,10 +136,7 @@ pub(super) fn job_details_popover(progress: &FolderScanProgress) -> ui::View<Gui
     .fill_width();
     let panel = ui::closeable_panel_section_from_parts(
         ui::PanelSectionParts::new("Job Details", content)
-            .style(ui::WidgetStyle::new(
-                ui::WidgetTone::Neutral,
-                ui::WidgetProminence::Strong,
-            ))
+            .style(ui::WidgetStyle::strong(ui::WidgetTone::Neutral))
             .padding(8.0)
             .spacing(5.0)
             .title_height(22.0)

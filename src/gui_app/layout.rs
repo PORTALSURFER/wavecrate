@@ -137,10 +137,7 @@ fn metadata_tag_category_group(
         children.push(
             ui::row(Vec::<ui::View<GuiMessage>>::new())
                 .key(format!("metadata-tag-category-drop-indicator-{}", group.id))
-                .style(ui::WidgetStyle::new(
-                    ui::WidgetTone::Warning,
-                    ui::WidgetProminence::Strong,
-                ))
+                .style(ui::WidgetStyle::strong(ui::WidgetTone::Warning))
                 .fill_width()
                 .height(4.0),
         );
@@ -188,18 +185,11 @@ fn metadata_tag_category_header(
     drop_hover: bool,
 ) -> ui::View<GuiMessage> {
     let category_for_input = category_id.clone();
-    let style = ui::WidgetStyle::new(
-        if drop_hover {
-            ui::WidgetTone::Warning
-        } else {
-            ui::WidgetTone::Neutral
-        },
-        if drop_hover {
-            ui::WidgetProminence::Strong
-        } else {
-            ui::WidgetProminence::Subtle
-        },
-    );
+    let style = if drop_hover {
+        ui::WidgetStyle::strong(ui::WidgetTone::Warning)
+    } else {
+        ui::WidgetStyle::subtle(ui::WidgetTone::Neutral)
+    };
     let visual = ui::row([
         ui::disclosure_button(!collapsed)
             .passive()
@@ -252,14 +242,12 @@ fn metadata_tag_library_row(
     active_drop_target: bool,
 ) -> ui::View<GuiMessage> {
     let selected = selected_tags.iter().any(|selected| selected == &tag);
-    let style = ui::WidgetStyle::new(
-        metadata_tag_category_tone(category_id),
-        if selected || locked {
-            ui::WidgetProminence::Strong
-        } else {
-            ui::WidgetProminence::Subtle
-        },
-    );
+    let tone = metadata_tag_category_tone(category_id);
+    let style = if selected || locked {
+        ui::WidgetStyle::strong(tone)
+    } else {
+        ui::WidgetStyle::subtle(tone)
+    };
     let width = metadata_tag_pill_width(&tag);
     let tag_for_input = tag.clone();
     let category_for_input = category_id.to_string();
@@ -348,10 +336,7 @@ fn folder_splitter() -> ui::View<GuiMessage> {
     ui::drag_handle()
         .mapped(GuiMessage::ResizeFolder)
         .key("folder-browser-splitter-handle")
-        .style(ui::WidgetStyle::new(
-            ui::WidgetTone::Accent,
-            ui::WidgetProminence::Subtle,
-        ))
+        .style(ui::WidgetStyle::subtle(ui::WidgetTone::Accent))
         .width(11.0)
         .fill_height()
         .padding(2.0)
