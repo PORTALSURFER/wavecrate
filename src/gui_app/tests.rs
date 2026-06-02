@@ -5,9 +5,7 @@ use super::{
 use radiant::{
     gui::types::{Point, Rect, Vector2},
     prelude::{self as ui, IntoView},
-    runtime::{
-        DeclarativeOwnedRuntimeBridge, Event, SurfaceRuntime, TransientOverlayContext, UiSurface,
-    },
+    runtime::{Event, TransientOverlayContext, UiSurface},
     widgets::{DragHandleMessage, PointerModifiers, WidgetInput, WidgetKey},
 };
 use std::{collections::HashMap, fs, path::PathBuf, sync::mpsc, time::Duration};
@@ -95,18 +93,15 @@ fn gui_state_for_span_tests() -> GuiAppState {
     }
 }
 
-type GuiRuntimeForTests = SurfaceRuntime<
-    DeclarativeOwnedRuntimeBridge<
-        GuiAppState,
-        super::GuiMessage,
-        fn(&mut GuiAppState) -> UiSurface<super::GuiMessage>,
-        fn(&mut GuiAppState, super::GuiMessage),
-    >,
+type GuiRuntimeForTests = ui::DeclarativeOwnedSurfaceRuntime<
+    GuiAppState,
     super::GuiMessage,
+    fn(&mut GuiAppState) -> UiSurface<super::GuiMessage>,
+    fn(&mut GuiAppState, super::GuiMessage),
 >;
 
 fn gui_runtime_for_tests(state: GuiAppState, viewport: Vector2) -> GuiRuntimeForTests {
-    SurfaceRuntime::new_declarative_owned(
+    GuiRuntimeForTests::new_declarative_owned(
         state,
         viewport,
         project_gui_surface_for_tests,
