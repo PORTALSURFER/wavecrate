@@ -143,8 +143,7 @@ fn sample_selection_loads_selected_file_into_waveform() {
         metadata_tag_draft: String::new(),
         metadata_tag_tokens: Vec::new(),
         metadata_tag_input_mode: Default::default(),
-        metadata_tag_completion_prefix: None,
-        metadata_tag_completion_index: 0,
+        metadata_tag_completion_cycle: ui::CyclicListSelectionCycle::new(),
         metadata_tag_dictionary: Default::default(),
         metadata_tag_library_open: false,
         metadata_tag_drag: None,
@@ -237,8 +236,7 @@ fn selecting_another_sample_cancels_metadata_tag_entry() {
     state.metadata_tag_input_mode = super::super::MetadataTagInputMode::Category {
         pending_tag: String::from("new-tag"),
     };
-    state.metadata_tag_completion_prefix = Some(String::from("ki"));
-    state.metadata_tag_completion_index = 2;
+    state.metadata_tag_completion_cycle.select("ki", 2, 4);
 
     state.select_sample_with_modifiers(
         second_file.clone(),
@@ -256,8 +254,8 @@ fn selecting_another_sample_cancels_metadata_tag_entry() {
         state.metadata_tag_input_mode,
         super::super::MetadataTagInputMode::Tag
     );
-    assert_eq!(state.metadata_tag_completion_prefix, None);
-    assert_eq!(state.metadata_tag_completion_index, 0);
+    assert_eq!(state.metadata_tag_completion_cycle.query_key(), None);
+    assert_eq!(state.metadata_tag_completion_cycle.stored_index(), 0);
     assert_eq!(state.pending_metadata_tag_category_tag(), None);
     assert!(!state.metadata_tag_completion_active());
 }

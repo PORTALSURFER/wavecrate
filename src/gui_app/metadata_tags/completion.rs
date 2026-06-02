@@ -70,18 +70,11 @@ impl GuiAppState {
             self.reset_metadata_tag_completion_cycle();
             return;
         }
-        let current = if self.metadata_tag_completion_prefix.as_deref() == Some(prefix.as_str()) {
-            self.metadata_tag_completion_index % suggestions.len()
-        } else {
-            0
-        };
-        self.metadata_tag_completion_prefix = Some(prefix);
-        self.metadata_tag_completion_index = radiant::prelude::cyclic_list_index_after_delta(
-            current,
+        self.metadata_tag_completion_cycle.move_selection(
+            prefix,
             delta as isize,
             suggestions.len(),
-        )
-        .unwrap_or(0);
+        );
     }
 
     pub(super) fn selected_metadata_tag_completion(&self) -> Option<String> {
@@ -117,11 +110,9 @@ impl GuiAppState {
         let Some(prefix) = normalize_metadata_tag(&self.metadata_tag_draft) else {
             return 0;
         };
-        if self.metadata_tag_completion_prefix.as_deref() == Some(prefix.as_str()) {
-            self.metadata_tag_completion_index % suggestion_count
-        } else {
-            0
-        }
+        self.metadata_tag_completion_cycle
+            .selected_index(prefix.as_str(), suggestion_count)
+            .unwrap_or(0)
     }
 
     pub(super) fn known_metadata_tags(&self) -> Vec<String> {
@@ -249,22 +240,14 @@ impl GuiAppState {
             self.reset_metadata_tag_completion_cycle();
             return;
         }
-        let current = if self.metadata_tag_completion_prefix.as_deref() == Some(prefix.as_str()) {
-            self.metadata_tag_completion_index % suggestions.len()
-        } else {
-            0
-        };
-        self.metadata_tag_completion_prefix = Some(prefix);
-        self.metadata_tag_completion_index = radiant::prelude::cyclic_list_index_after_delta(
-            current,
+        self.metadata_tag_completion_cycle.move_selection(
+            prefix,
             delta as isize,
             suggestions.len(),
-        )
-        .unwrap_or(0);
+        );
     }
 
     pub(super) fn reset_metadata_tag_completion_cycle(&mut self) {
-        self.metadata_tag_completion_prefix = None;
-        self.metadata_tag_completion_index = 0;
+        self.metadata_tag_completion_cycle.reset();
     }
 }
