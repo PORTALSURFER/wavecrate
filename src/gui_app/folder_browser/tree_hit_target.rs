@@ -43,10 +43,11 @@ impl FolderTreeHitTarget {
             .drag_source(drag_source)
             .drag_source_motion(true)
             .pointer_motion_during_interaction()
-            .pointer_motion_active(drop_target_active)
-            .drop_target_mode(
+            .tracked_drop_candidate(
                 drag_active && !drag_source,
-                drop_hover_enabled(drop_target, drop_candidate, drop_target_active),
+                drop_target,
+                drop_candidate,
+                drop_target_active,
             )
             .custom_paint_hit_target()
             .widget();
@@ -104,10 +105,6 @@ impl FolderTreeHitTarget {
         }
         message.is_drop().then_some(FolderTreeHitMessage::Drop)
     }
-}
-
-fn drop_hover_enabled(drop_target: bool, drop_candidate: bool, drop_target_active: bool) -> bool {
-    !drop_target && (drop_candidate || drop_target_active)
 }
 
 #[cfg(test)]
