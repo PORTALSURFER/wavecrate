@@ -3,9 +3,12 @@ use radiant::gui::visualization::{CanvasSelectionGeometry, DragHandleRole};
 
 use super::{WaveformSelectionEdge, WaveformSelectionKind, widget::WaveformWidget};
 
-const SELECTION_MOVE_HANDLE_HEIGHT: f32 = 7.0;
-const SELECTION_MOVE_HANDLE_END_INSET: f32 = 9.0;
-const SELECTION_EXPORT_HANDLE_SIZE: f32 = 16.0;
+pub(super) const SELECTION_MOVE_HANDLE_HEIGHT: f32 = 7.0;
+pub(super) const SELECTION_MOVE_HANDLE_END_INSET: f32 = 9.0;
+pub(super) const SELECTION_EXPORT_HANDLE_SIZE: f32 = 16.0;
+pub(super) const SELECTION_RESIZE_HANDLE_WIDTH: f32 = 7.0;
+pub(super) const SELECTION_RESIZE_HANDLE_STRIP_HEIGHT: f32 = 22.0;
+pub(super) const SELECTION_HANDLE_VERTICAL_INSET: f32 = 0.0;
 
 impl WaveformWidget {
     pub(super) fn play_selection_export_handle_at(&self, bounds: Rect, position: Point) -> bool {
@@ -59,26 +62,12 @@ impl WaveformWidget {
             WaveformSelectionKind::Edit => self.edit_selection,
         };
         let role = self.selection_geometry(bounds, range)?.edge_at_point(
-            bounds.top_edge_strip(22.0),
+            bounds.top_edge_strip(SELECTION_RESIZE_HANDLE_STRIP_HEIGHT),
             position,
-            7.0,
-            0.0,
+            SELECTION_RESIZE_HANDLE_WIDTH,
+            SELECTION_HANDLE_VERTICAL_INSET,
         )?;
         waveform_selection_edge(role)
-    }
-
-    pub(super) fn selection_resize_handle_rect(
-        &self,
-        bounds: Rect,
-        geometry: CanvasSelectionGeometry,
-        edge: WaveformSelectionEdge,
-    ) -> Option<Rect> {
-        geometry.edge_visual_rect(
-            bounds.top_edge_strip(22.0),
-            drag_handle_role(edge),
-            7.0,
-            0.0,
-        )
     }
 
     pub(super) fn visible_range_for_selection(
@@ -105,7 +94,7 @@ impl WaveformWidget {
     }
 }
 
-fn drag_handle_role(edge: WaveformSelectionEdge) -> DragHandleRole {
+pub(super) fn drag_handle_role(edge: WaveformSelectionEdge) -> DragHandleRole {
     match edge {
         WaveformSelectionEdge::Start => DragHandleRole::Start,
         WaveformSelectionEdge::End => DragHandleRole::End,

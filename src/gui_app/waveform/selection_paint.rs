@@ -1,10 +1,20 @@
 use radiant::{
     gui::types::{Rect, Rgba8},
-    gui::visualization::CanvasSelectionGeometry,
+    gui::visualization::{
+        CanvasSelectionBodyHandlePaintParts, CanvasSelectionEdgeVisualPaintParts,
+        CanvasSelectionGeometry, CanvasSelectionTrailingControlPaintParts,
+    },
     runtime::PaintPrimitive,
 };
 
-use super::{WaveformSelectionEdge, WaveformWidget};
+use super::{
+    WaveformSelectionEdge, WaveformWidget,
+    widget_geometry::{
+        SELECTION_EXPORT_HANDLE_SIZE, SELECTION_HANDLE_VERTICAL_INSET,
+        SELECTION_MOVE_HANDLE_END_INSET, SELECTION_MOVE_HANDLE_HEIGHT,
+        SELECTION_RESIZE_HANDLE_STRIP_HEIGHT, SELECTION_RESIZE_HANDLE_WIDTH, drag_handle_role,
+    },
+};
 
 const EXTRACTED_RANGE_FILL: Rgba8 = Rgba8 {
     r: 156,
@@ -251,9 +261,17 @@ impl WaveformWidget {
         color: Rgba8,
     ) {
         for edge in [WaveformSelectionEdge::Start, WaveformSelectionEdge::End] {
-            if let Some(rect) = self.selection_resize_handle_rect(bounds, geometry, edge) {
-                self.push_fill(primitives, rect, color);
-            }
+            geometry.push_edge_visual_fill(
+                primitives,
+                self.common.id,
+                CanvasSelectionEdgeVisualPaintParts::new(
+                    bounds.top_edge_strip(SELECTION_RESIZE_HANDLE_STRIP_HEIGHT),
+                    drag_handle_role(edge),
+                    SELECTION_RESIZE_HANDLE_WIDTH,
+                    SELECTION_HANDLE_VERTICAL_INSET,
+                    color,
+                ),
+            );
         }
     }
 
@@ -263,9 +281,17 @@ impl WaveformWidget {
         geometry: CanvasSelectionGeometry,
         color: Rgba8,
     ) {
-        if let Some(rect) = self.selection_move_handle_rect(geometry) {
-            self.push_fill(primitives, rect, color);
-        }
+        geometry.push_body_handle_fill(
+            primitives,
+            self.common.id,
+            CanvasSelectionBodyHandlePaintParts::new(
+                SELECTION_MOVE_HANDLE_HEIGHT,
+                SELECTION_MOVE_HANDLE_END_INSET,
+                0.28,
+                1.0,
+                color,
+            ),
+        );
     }
 
     fn append_selection_export_handle(
@@ -274,8 +300,10 @@ impl WaveformWidget {
         geometry: CanvasSelectionGeometry,
         color: Rgba8,
     ) {
-        if let Some(rect) = self.selection_export_handle_rect(geometry) {
-            self.push_fill(primitives, rect, color);
-        }
+        geometry.push_trailing_control_fill(
+            primitives,
+            self.common.id,
+            CanvasSelectionTrailingControlPaintParts::new(SELECTION_EXPORT_HANDLE_SIZE, 0.0, color),
+        );
     }
 }
