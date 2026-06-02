@@ -286,15 +286,12 @@ fn waveform_interaction_action(interaction: &WaveformInteraction) -> Option<&'st
         WaveformInteraction::BeginSelectionResize { .. } => Some("waveform.selection.resize_begin"),
         WaveformInteraction::BeginSelectionMove { .. } => Some("waveform.selection.move_begin"),
         WaveformInteraction::BeginPan { .. } => Some("waveform.pan_begin"),
-        WaveformInteraction::DragPlaySelectionExport(drag) if drag.is_started() => {
-            Some("waveform.selection_export_drag.begin")
-        }
-        WaveformInteraction::DragPlaySelectionExport(drag) if drag.is_ended() => {
-            Some("waveform.selection_export_drag.end")
-        }
+        WaveformInteraction::DragPlaySelectionExport(drag) => match drag.phase() {
+            ui::DragHandlePhase::Started => Some("waveform.selection_export_drag.begin"),
+            ui::DragHandlePhase::Moved => None,
+            ui::DragHandlePhase::Ended => Some("waveform.selection_export_drag.end"),
+        },
         WaveformInteraction::FinishSelection { .. } => Some("waveform.selection.finish"),
-        WaveformInteraction::UpdateSelection { .. }
-        | WaveformInteraction::DragPlaySelectionExport(_)
-        | WaveformInteraction::Frame => None,
+        WaveformInteraction::UpdateSelection { .. } | WaveformInteraction::Frame => None,
     }
 }

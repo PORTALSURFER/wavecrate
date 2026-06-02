@@ -12,7 +12,7 @@ impl GuiAppState {
     pub(super) fn resize_folder_browser(&mut self, message: DragHandleMessage) {
         let started_at = Instant::now();
         let phase = message.phase();
-        let should_log = !message.is_moved();
+        let should_log = phase != DragHandlePhase::Moved;
         let outcome = match phase {
             DragHandlePhase::Started => "started",
             DragHandlePhase::Moved => "moved",

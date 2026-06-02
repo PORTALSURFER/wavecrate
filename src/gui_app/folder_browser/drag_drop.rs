@@ -1,4 +1,8 @@
-use radiant::{gui::types::Point, prelude as ui, widgets::DragHandleMessage};
+use radiant::{
+    gui::types::Point,
+    prelude as ui,
+    widgets::{DragHandleMessage, DragHandlePhase},
+};
 use std::path::{Path, PathBuf};
 
 use super::{
@@ -145,19 +149,23 @@ impl FolderBrowserState {
         if self.rename_active() {
             return;
         }
-        if let Some(position) = message.started_position() {
-            if self.selected_folder_is_source_root_id(&folder_id) {
-                return;
+        match message.phase() {
+            DragHandlePhase::Started => {
+                if self.selected_folder_is_source_root_id(&folder_id) {
+                    return;
+                }
+                if self.find_folder(&folder_id).is_some() {
+                    self.drag = Some(FolderBrowserDrag::Folder { folder_id });
+                    self.drag_pointer = Some(message.position());
+                    self.drop_target_folder = None;
+                }
             }
-            if self.find_folder(&folder_id).is_some() {
-                self.drag = Some(FolderBrowserDrag::Folder { folder_id });
-                self.drag_pointer = Some(position);
-                self.drop_target_folder = None;
+            DragHandlePhase::Moved => {
+                self.update_drag_pointer(message.position());
             }
-        } else if let Some(position) = message.moved_position() {
-            self.update_drag_pointer(position);
-        } else if message.is_ended() {
-            self.clear_drag();
+            DragHandlePhase::Ended => {
+                self.clear_drag();
+            }
         }
     }
 
