@@ -50,15 +50,13 @@ fn metadata_tag_completion_shortcuts() -> ui::ShortcutLayer<GuiMessage> {
 }
 
 fn selected_metadata_tag_shortcuts() -> ui::ShortcutLayer<GuiMessage> {
-    ui::ShortcutLayer::new()
-        .bind(
+    ui::ShortcutLayer::new().bind_all(
+        [
             ui::KeyPress::new(ui::KeyCode::Delete),
-            GuiMessage::DeleteSelectedMetadataTag,
-        )
-        .bind(
             ui::KeyPress::new(ui::KeyCode::Backspace),
-            GuiMessage::DeleteSelectedMetadataTag,
-        )
+        ],
+        GuiMessage::DeleteSelectedMetadataTag,
+    )
 }
 
 fn default_shortcuts(state: &GuiAppState) -> ui::ShortcutLayer<GuiMessage> {
@@ -71,12 +69,11 @@ fn default_shortcuts(state: &GuiAppState) -> ui::ShortcutLayer<GuiMessage> {
             ui::KeyPress::new(ui::KeyCode::F2),
             GuiMessage::FolderBrowser(FolderBrowserMessage::BeginRenameSelected),
         )
-        .bind(
-            ui::KeyPress::new(ui::KeyCode::Delete),
-            GuiMessage::DeleteSelectedItem,
-        )
-        .bind(
-            ui::KeyPress::new(ui::KeyCode::Backspace),
+        .bind_all(
+            [
+                ui::KeyPress::new(ui::KeyCode::Delete),
+                ui::KeyPress::new(ui::KeyCode::Backspace),
+            ],
             GuiMessage::DeleteSelectedItem,
         )
         .bind(
