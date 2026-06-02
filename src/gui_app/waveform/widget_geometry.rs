@@ -13,15 +13,9 @@ pub(super) const SELECTION_HANDLE_VERTICAL_INSET: f32 = 0.0;
 impl WaveformWidget {
     pub(super) fn play_selection_export_handle_at(&self, bounds: Rect, position: Point) -> bool {
         self.selection_geometry(bounds, self.play_selection)
-            .and_then(|geometry| self.selection_export_handle_rect(geometry))
-            .is_some_and(|rect| rect.contains(position))
-    }
-
-    pub(super) fn selection_export_handle_rect(
-        &self,
-        geometry: CanvasSelectionGeometry,
-    ) -> Option<Rect> {
-        geometry.trailing_control_rect(SELECTION_EXPORT_HANDLE_SIZE, 0.0)
+            .is_some_and(|geometry| {
+                geometry.trailing_control_at_point(SELECTION_EXPORT_HANDLE_SIZE, 0.0, position)
+            })
     }
 
     pub(super) fn selection_move_handle_at(
@@ -35,20 +29,15 @@ impl WaveformWidget {
             WaveformSelectionKind::Edit => self.edit_selection,
         };
         self.selection_geometry(bounds, range)
-            .and_then(|geometry| self.selection_move_handle_rect(geometry))
-            .is_some_and(|rect| rect.contains(position))
-    }
-
-    pub(super) fn selection_move_handle_rect(
-        &self,
-        geometry: CanvasSelectionGeometry,
-    ) -> Option<Rect> {
-        geometry.body_handle_rect(
-            SELECTION_MOVE_HANDLE_HEIGHT,
-            SELECTION_MOVE_HANDLE_END_INSET,
-            0.28,
-            1.0,
-        )
+            .is_some_and(|geometry| {
+                geometry.body_handle_at_point(
+                    SELECTION_MOVE_HANDLE_HEIGHT,
+                    SELECTION_MOVE_HANDLE_END_INSET,
+                    0.28,
+                    1.0,
+                    position,
+                )
+            })
     }
 
     pub(super) fn selection_resize_handle_at(
