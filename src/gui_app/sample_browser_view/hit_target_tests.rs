@@ -1,4 +1,5 @@
 use super::*;
+use radiant::runtime::SurfacePaintPlan;
 use radiant::widgets::{PointerButton, PointerModifiers};
 
 /// Extracts the sample-file hit-target message from a widget output.
@@ -10,17 +11,14 @@ fn message_from(output: Option<WidgetOutput>) -> SampleFileHitMessage {
 }
 
 /// Reports whether the paint plan contains the row hover fill.
-fn paints_hover_fill(primitives: &[PaintPrimitive]) -> bool {
-    primitives
-        .iter()
-        .filter_map(PaintPrimitive::fill_rect)
-        .any(|fill| fill.color == HOVER_FILL)
+fn paints_hover_fill(plan: &SurfacePaintPlan) -> bool {
+    plan.fill_rects().any(|fill| fill.color == HOVER_FILL)
 }
 
 #[test]
 /// Verifies retained refreshes do not duplicate runtime drag-preview motion.
 fn active_drag_uses_runtime_preview_after_widget_refresh() {
-    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+    let bounds = Rect::from_size(120.0, 22.0);
     let mut first = SampleFileHitTarget::new(false, false, false, false, false);
     first.handle_input(bounds, WidgetInput::primary_press(Point::new(6.0, 6.0)));
     assert_eq!(
@@ -43,7 +41,7 @@ fn active_drag_uses_runtime_preview_after_widget_refresh() {
 #[test]
 /// Verifies refreshed drag-source rows can still end the drag sequence.
 fn active_drag_source_does_not_depend_on_retained_pressed_state() {
-    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+    let bounds = Rect::from_size(120.0, 22.0);
     let mut refreshed = SampleFileHitTarget::new(false, true, true, false, false);
 
     assert!(
@@ -66,7 +64,7 @@ fn active_drag_source_does_not_depend_on_retained_pressed_state() {
 #[test]
 /// Verifies non-source rows clear hover while another sample row is dragged.
 fn active_drag_non_source_rows_do_not_keep_hover_highlight() {
-    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+    let bounds = Rect::from_size(120.0, 22.0);
     let mut target = SampleFileHitTarget::new(false, true, false, false, false);
     target.row.common.state.hovered = true;
 
@@ -80,9 +78,9 @@ fn active_drag_non_source_rows_do_not_keep_hover_highlight() {
         "sample rows should not retain hover while another file is being dragged"
     );
 
-    let primitives = target.paint_primitives_with_defaults(bounds);
+    let plan = target.paint_plan_with_defaults(bounds);
     assert!(
-        !paints_hover_fill(&primitives),
+        !paints_hover_fill(&plan),
         "non-source rows should not paint hover highlights during active file drags"
     );
 }
@@ -90,7 +88,7 @@ fn active_drag_non_source_rows_do_not_keep_hover_highlight() {
 #[test]
 /// Verifies stale hover state is not retained across widget refreshes.
 fn hover_state_clears_on_retained_widget_refresh() {
-    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+    let bounds = Rect::from_size(120.0, 22.0);
     let mut previous = SampleFileHitTarget::new(false, false, false, false, false);
     previous.handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)));
     assert!(previous.row.common.state.hovered);
@@ -102,9 +100,9 @@ fn hover_state_clears_on_retained_widget_refresh() {
         !refreshed.row.common.state.hovered,
         "sample row hover paint must not stick after retained projections"
     );
-    let primitives = refreshed.paint_primitives_with_defaults(bounds);
+    let plan = refreshed.paint_plan_with_defaults(bounds);
     assert!(
-        !paints_hover_fill(&primitives),
+        !paints_hover_fill(&plan),
         "refreshed rows should not paint stale hover highlights"
     );
 }
@@ -112,31 +110,26 @@ fn hover_state_clears_on_retained_widget_refresh() {
 #[test]
 /// Verifies unselected hover paint remains visually neutral.
 fn hover_fill_is_neutral_not_selection_red() {
-    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+    let bounds = Rect::from_size(120.0, 22.0);
     let mut target = SampleFileHitTarget::new(false, false, false, false, false);
     target.handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)));
 
-    let primitives = target.paint_primitives_with_defaults(bounds);
+    let plan = target.paint_plan_with_defaults(bounds);
 
-    assert!(paints_hover_fill(&primitives));
-    assert!(
-        !primitives
-            .iter()
-            .filter_map(PaintPrimitive::fill_rect)
-            .any(|fill| fill.color
-                == Rgba8 {
-                    r: 255,
-                    g: 82,
-                    b: 62,
-                    a: 120
-                })
-    );
+    assert!(paints_hover_fill(&plan));
+    assert!(!plan.fill_rects().any(|fill| fill.color
+        == Rgba8 {
+            r: 255,
+            g: 82,
+            b: 62,
+            a: 120
+        }));
 }
 
 #[test]
 /// Verifies row activation preserves primary-release modifier state.
 fn primary_activation_preserves_release_modifiers() {
-    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+    let bounds = Rect::from_size(120.0, 22.0);
     let mut target = SampleFileHitTarget::new(false, false, false, false, false);
     let modifiers = PointerModifiers {
         shift: true,
@@ -157,7 +150,7 @@ fn primary_activation_preserves_release_modifiers() {
 #[test]
 /// Verifies retained pressed state survives without carrying stale hover.
 fn pressed_state_survives_retained_widget_refresh_without_hover() {
-    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+    let bounds = Rect::from_size(120.0, 22.0);
     let mut previous = SampleFileHitTarget::new(false, false, false, false, false);
     previous.handle_input(bounds, WidgetInput::primary_press(Point::new(34.0, 8.0)));
     assert!(previous.row.common.state.hovered);
@@ -173,7 +166,7 @@ fn pressed_state_survives_retained_widget_refresh_without_hover() {
 #[test]
 /// Verifies suppressed rows clear hover and omit stale hover paint.
 fn suppressed_hover_clears_and_omits_stale_hover_paint() {
-    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0));
+    let bounds = Rect::from_size(120.0, 22.0);
     let mut previous = SampleFileHitTarget::new(false, false, false, false, false);
     previous.handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)));
     assert!(previous.row.common.state.hovered);
@@ -184,9 +177,9 @@ fn suppressed_hover_clears_and_omits_stale_hover_paint() {
     suppressed.handle_input(bounds, WidgetInput::pointer_move(Point::new(34.0, 8.0)));
     assert!(!suppressed.row.common.state.hovered);
 
-    let primitives = suppressed.paint_primitives_with_defaults(bounds);
+    let plan = suppressed.paint_plan_with_defaults(bounds);
     assert!(
-        !paints_hover_fill(&primitives),
+        !paints_hover_fill(&plan),
         "suppressed rows should not paint hover highlights during sidebar resize"
     );
 }
@@ -196,12 +189,10 @@ fn suppressed_hover_clears_and_omits_stale_hover_paint() {
 fn loaded_rows_paint_right_edge_marker() {
     let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(120.0, 22.0));
     let target = SampleFileHitTarget::new(false, false, false, true, false);
-    let primitives = target.paint_primitives_with_defaults(bounds);
+    let plan = target.paint_plan_with_defaults(bounds);
 
     assert!(
-        primitives
-            .iter()
-            .filter_map(PaintPrimitive::fill_rect)
+        plan.fill_rects()
             .any(|fill| fill.rect.min.x == bounds.max.x - 3.0
                 && fill.rect.width() == 2.0
                 && fill.color
@@ -220,12 +211,11 @@ fn loaded_rows_paint_right_edge_marker() {
 fn unloaded_rows_do_not_paint_loaded_marker() {
     let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(120.0, 22.0));
     let target = SampleFileHitTarget::new(false, false, false, false, false);
-    let primitives = target.paint_primitives_with_defaults(bounds);
+    let plan = target.paint_plan_with_defaults(bounds);
 
     assert!(
-        !primitives
-            .iter()
-            .filter_map(PaintPrimitive::fill_rect)
+        !plan
+            .fill_rects()
             .any(|fill| fill.rect.min.x == bounds.max.x - 3.0
                 && fill.rect.width() == 2.0
                 && fill.color
