@@ -181,15 +181,16 @@ fn sample_name_cell(
             cached,
         );
     };
-    ui::text_input(rename.draft)
-        .selection(rename.selection_start, rename.selection_end)
-        .message_event(|message| {
-            GuiMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message))
-        })
-        .id(rename.input_id)
-        .key(format!("sample-rename-input-{}", file.id))
-        .width(width)
-        .height(20.0)
+    ui::compact_details_cell(
+        ui::text_input(rename.draft)
+            .selection(rename.selection_start, rename.selection_end)
+            .message_event(|message| {
+                GuiMessage::FolderBrowser(FolderBrowserMessage::RenameInput(message))
+            })
+            .id(rename.input_id)
+            .key(format!("sample-rename-input-{}", file.id)),
+        Some(width),
+    )
 }
 
 pub(super) fn sample_name_cell_value(
@@ -240,43 +241,46 @@ fn sample_collection_cell(
     width: f32,
     folder_browser: &FolderBrowserState,
 ) -> ui::View<GuiMessage> {
-    ui::color_marker(
-        file.collection
-            .and_then(|collection| folder_browser.collection_color(collection)),
+    ui::compact_details_cell(
+        ui::color_marker(
+            file.collection
+                .and_then(|collection| folder_browser.collection_color(collection)),
+        )
+        .view()
+        .key(format!("sample-collection-{}", file.id)),
+        Some(width),
     )
-    .view()
-    .key(format!("sample-collection-{}", file.id))
-    .height(20.0)
-    .width(width)
 }
 
 fn sample_rating_cell(file: &FileEntry, width: f32) -> ui::View<GuiMessage> {
     let indicator = RatingIndicator::new(file.rating, file.rating_locked);
     if indicator.shows_keep_badge() {
-        return ui::anchored_layer(
-            ui::passive_badge("KEEP").style(ui::WidgetStyle::new(
-                ui::WidgetTone::Warning,
-                ui::WidgetProminence::Subtle,
-            )),
-            ui::Vector2::new(38.0, 14.0),
-            ui::LayerHorizontalAnchor::End,
-            ui::LayerVerticalAnchor::Start,
-            2.0,
-            3.0,
-        )
-        .key(format!("sample-rating-{}", file.id))
-        .height(20.0)
-        .width(width);
+        return ui::compact_details_cell(
+            ui::anchored_layer(
+                ui::passive_badge("KEEP").style(ui::WidgetStyle::new(
+                    ui::WidgetTone::Warning,
+                    ui::WidgetProminence::Subtle,
+                )),
+                ui::Vector2::new(38.0, 14.0),
+                ui::LayerHorizontalAnchor::End,
+                ui::LayerVerticalAnchor::Start,
+                2.0,
+                3.0,
+            )
+            .key(format!("sample-rating-{}", file.id)),
+            Some(width),
+        );
     }
 
-    ui::marker_run(indicator.color(), indicator.count() as u8)
-        .side(5)
-        .gap(4)
-        .inset(4)
-        .view()
-        .key(format!("sample-rating-{}", file.id))
-        .height(20.0)
-        .width(width)
+    ui::compact_details_cell(
+        ui::marker_run(indicator.color(), indicator.count() as u8)
+            .side(5)
+            .gap(4)
+            .inset(4)
+            .view()
+            .key(format!("sample-rating-{}", file.id)),
+        Some(width),
+    )
 }
 
 fn sample_file_cell(
@@ -288,9 +292,10 @@ fn sample_file_cell(
 ) -> ui::View<GuiMessage> {
     let text = ui::text(value);
     let text = if cached { text } else { text.muted_text() };
-    text.key(format!("sample-{}-{column_id}", file.id))
-        .height(20.0)
-        .width(width)
+    ui::compact_details_cell(
+        text.key(format!("sample-{}-{column_id}", file.id)),
+        Some(width),
+    )
 }
 
 #[cfg(test)]
