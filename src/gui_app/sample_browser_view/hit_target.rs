@@ -145,13 +145,7 @@ impl SampleFileHitTarget {
             primitives,
             self.row.id(),
             bounds,
-            ui::DenseRowMarkerParts {
-                edge: ui::DenseRowMarkerEdge::Trailing,
-                width: 2.0,
-                edge_inset: 1.0,
-                vertical_inset: 3.0,
-                min_height: 8.0,
-            },
+            ui::DenseRowMarkerParts::trailing(2.0),
             Rgba8 {
                 r: 226,
                 g: 226,
@@ -188,13 +182,7 @@ impl SampleFileHitTarget {
             primitives,
             self.row.id(),
             bounds,
-            ui::DenseRowMarkerParts {
-                edge: ui::DenseRowMarkerEdge::Leading,
-                width: 3.0,
-                edge_inset: 1.0,
-                vertical_inset: 4.0,
-                min_height: 8.0,
-            },
+            ui::DenseRowMarkerParts::leading(3.0).vertical_inset(4.0),
             Rgba8 {
                 r: 255,
                 g: 82,
