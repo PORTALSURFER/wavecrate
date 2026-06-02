@@ -51,6 +51,14 @@ predictable, and lower-latency design.
   facade may wire focused modules together, but it should not become the owner
   of app state shape, widget construction, side effects, and reusable GUI
   helpers.
+- normal Wavecrate view-construction modules should prefer
+  `use radiant::prelude as ui;` and then call `ui::...` builders/types. Low-level
+  custom widget modules may import explicit Radiant subsystem contracts such as
+  widget input/output, paint primitives, layout output, and theme tokens, but a
+  long cross-subsystem list should trigger a boundary review: keep
+  Wavecrate-specific paint/domain mapping app-side, move reusable interaction,
+  layout, focus, invalidation, or rendering behavior into Radiant, and avoid
+  creating Wavecrate-local GUI preludes to hide the dependency shape.
 
 ## Ownership map
 
