@@ -18,9 +18,8 @@ impl FolderBrowserState {
         row_height: f32,
     ) {
         let total_items = self.visible_folders().len();
-        self.tree_view_controller.set_total_items(total_items);
         self.tree_view_controller
-            .set_scroll_offset(offset_y, row_height);
+            .set_scroll_offset_for_items(total_items, offset_y, row_height);
     }
 
     pub(in crate::gui_app) fn follow_selected_tree_view(
