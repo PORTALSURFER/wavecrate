@@ -1,4 +1,5 @@
 use radiant::prelude as ui;
+use radiant::prelude::PlatformResultExt as _;
 use std::path::PathBuf;
 use std::time::Instant;
 
@@ -75,11 +76,11 @@ impl GuiAppState {
 
     pub(super) fn finish_add_source_dialog(
         &mut self,
-        result: Result<ui::PlatformResponse, String>,
+        result: ui::PlatformResult,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         let started_at = Instant::now();
-        let path = match selected_folder_path(result) {
+        let path = match result.into_path_or_canceled() {
             Ok(Some(path)) => path,
             Ok(None) => {
                 emit_gui_action(
@@ -283,14 +284,6 @@ impl GuiAppState {
     }
 }
 
-fn selected_folder_path(
-    result: Result<ui::PlatformResponse, String>,
-) -> Result<Option<PathBuf>, String> {
-    result?
-        .into_path_or_canceled()
-        .map_err(|other| format!("unexpected platform response: {other:?}"))
-}
-
 fn run_folder_scan_worker(
     request: folder_browser::FolderScanRequest,
     sender: std::sync::mpsc::Sender<GuiMessage>,
@@ -341,35 +334,4 @@ fn send_discovery_batch(
             events,
         },
     ));
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn selected_folder_path_maps_platform_dialog_results() {
-        let path = PathBuf::from(r"C:\samples");
-
-        assert_eq!(
-            selected_folder_path(Ok(ui::PlatformResponse::Path(path.clone()))),
-            Ok(Some(path))
-        );
-        assert_eq!(
-            selected_folder_path(Ok(ui::PlatformResponse::Canceled)),
-            Ok(None)
-        );
-        assert_eq!(
-            selected_folder_path(Err(String::from("unsupported"))),
-            Err(String::from("unsupported"))
-        );
-    }
-
-    #[test]
-    fn selected_folder_path_rejects_non_path_platform_responses() {
-        let error = selected_folder_path(Ok(ui::PlatformResponse::Completed))
-            .expect_err("folder picker should only accept path or cancel responses");
-
-        assert!(error.contains("unexpected platform response"));
-    }
 }

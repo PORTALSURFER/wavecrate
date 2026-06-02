@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 use std::time::Instant;
 
+use radiant::prelude::PlatformResultExt as _;
+
 use super::super::context_menu::{self, BrowserContextTargetKind};
 use super::super::file_actions::format_copy_path;
 use super::super::{GuiAppState, GuiMessage, emit_gui_action};
@@ -53,10 +55,10 @@ impl GuiAppState {
         &mut self,
         kind: BrowserContextTargetKind,
         path: PathBuf,
-        result: Result<radiant::prelude::PlatformResponse, String>,
+        result: radiant::prelude::PlatformResult,
     ) {
         let started_at = Instant::now();
-        match completed_platform_action(result) {
+        match result.into_completed() {
             Ok(()) => {
                 self.sample_status = String::from("Copied path");
                 emit_gui_action(
@@ -144,10 +146,10 @@ impl GuiAppState {
         &mut self,
         kind: BrowserContextTargetKind,
         path: PathBuf,
-        result: Result<radiant::prelude::PlatformResponse, String>,
+        result: radiant::prelude::PlatformResult,
     ) {
         let started_at = Instant::now();
-        match completed_platform_action(result) {
+        match result.into_completed() {
             Ok(()) => {
                 self.sample_status = match &kind {
                     BrowserContextTargetKind::Sample => String::from("Revealed sample"),
@@ -177,12 +179,4 @@ impl GuiAppState {
             }
         }
     }
-}
-
-fn completed_platform_action(
-    result: Result<radiant::prelude::PlatformResponse, String>,
-) -> Result<(), String> {
-    result?
-        .into_completed()
-        .map_err(|other| format!("unexpected platform response: {other:?}"))
 }

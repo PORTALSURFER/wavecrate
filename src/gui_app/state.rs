@@ -69,16 +69,16 @@ pub(in crate::gui_app) enum AudioSettingsDropdown {
 pub(in crate::gui_app) enum GuiMessage {
     ResizeFolder(DragHandleMessage),
     FolderBrowser(FolderBrowserMessage),
-    AddSourceDialogFinished(Result<ui::PlatformResponse, String>),
+    AddSourceDialogFinished(ui::PlatformResult),
     ContextPathCopyFinished {
         kind: BrowserContextTargetKind,
         path: PathBuf,
-        result: Result<ui::PlatformResponse, String>,
+        result: ui::PlatformResult,
     },
     ContextTargetOpenFinished {
         kind: BrowserContextTargetKind,
         path: PathBuf,
-        result: Result<ui::PlatformResponse, String>,
+        result: ui::PlatformResult,
     },
     FolderScanProgress(FolderScanProgress),
     FolderScanDiscoveryBatch(FolderScanDiscoveryBatch),
