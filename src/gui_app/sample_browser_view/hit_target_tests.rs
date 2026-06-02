@@ -1,6 +1,6 @@
 use super::*;
 use radiant::runtime::SurfacePaintPlan;
-use radiant::widgets::{PointerButton, PointerModifiers};
+use radiant::widgets::{PointerButton, PointerModifiers, Widget, WidgetInput, WidgetOutput};
 
 /// Extracts the sample-file hit-target message from a widget output.
 fn message_from(output: Option<WidgetOutput>) -> SampleFileHitMessage {

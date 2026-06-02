@@ -4,10 +4,7 @@ use radiant::{
     prelude as ui,
     runtime::{PaintPrimitive, PaintText},
     theme::ThemeTokens,
-    widgets::{
-        DragHandleMessage, InteractiveRowMessage, InteractiveRowWidget, Widget, WidgetCommon,
-        WidgetInput, WidgetOutput,
-    },
+    widgets::{DragHandleMessage, InteractiveRowMessage, InteractiveRowWidget},
 };
 
 mod paint;
@@ -63,31 +60,22 @@ impl FolderTreeHitTarget {
     }
 }
 
-impl Widget for FolderTreeHitTarget {
-    fn common(&self) -> &WidgetCommon {
-        self.row.common()
+impl ui::EmbeddedInteractiveRowWidget for FolderTreeHitTarget {
+    type Message = FolderTreeHitMessage;
+
+    fn interactive_row(&self) -> &InteractiveRowWidget {
+        &self.row
     }
 
-    fn common_mut(&mut self) -> &mut WidgetCommon {
-        self.row.common_mut()
+    fn interactive_row_mut(&mut self) -> &mut InteractiveRowWidget {
+        &mut self.row
     }
 
-    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        self.row
-            .handle_input_mapped(bounds, input, Self::map_row_message)
+    fn map_interactive_row_message(message: InteractiveRowMessage) -> Option<Self::Message> {
+        Self::map_row_message(message)
     }
 
-    fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
-        let _ = self
-            .row
-            .synchronize_from_previous_embedded::<Self>(previous, |previous| &previous.row);
-    }
-
-    fn accepts_pointer_move(&self) -> bool {
-        self.row.accepts_pointer_move()
-    }
-
-    fn append_paint(
+    fn append_interactive_row_paint(
         &self,
         primitives: &mut Vec<PaintPrimitive>,
         bounds: Rect,

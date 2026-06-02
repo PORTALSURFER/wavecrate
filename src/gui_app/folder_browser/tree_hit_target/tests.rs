@@ -1,4 +1,5 @@
 use super::*;
+use radiant::widgets::{Widget, WidgetInput, WidgetOutput};
 
 fn message_from(output: Option<WidgetOutput>) -> FolderTreeHitMessage {
     output

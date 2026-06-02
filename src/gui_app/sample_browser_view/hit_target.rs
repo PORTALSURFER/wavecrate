@@ -4,8 +4,7 @@ use radiant::prelude as ui;
 use radiant::runtime::PaintPrimitive;
 use radiant::theme::ThemeTokens;
 use radiant::widgets::{
-    DragHandleMessage, InteractiveRowMessage, InteractiveRowWidget, PointerModifiers, Widget,
-    WidgetCommon, WidgetInput, WidgetOutput,
+    DragHandleMessage, InteractiveRowMessage, InteractiveRowWidget, PointerModifiers,
 };
 
 const HOVER_FILL: Rgba8 = Rgba8 {
@@ -67,31 +66,22 @@ impl SampleFileHitTarget {
     }
 }
 
-impl Widget for SampleFileHitTarget {
-    fn common(&self) -> &WidgetCommon {
-        self.row.common()
+impl ui::EmbeddedInteractiveRowWidget for SampleFileHitTarget {
+    type Message = SampleFileHitMessage;
+
+    fn interactive_row(&self) -> &InteractiveRowWidget {
+        &self.row
     }
 
-    fn common_mut(&mut self) -> &mut WidgetCommon {
-        self.row.common_mut()
+    fn interactive_row_mut(&mut self) -> &mut InteractiveRowWidget {
+        &mut self.row
     }
 
-    fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
-        self.row
-            .handle_input_mapped(bounds, input, Self::map_row_message)
+    fn map_interactive_row_message(message: InteractiveRowMessage) -> Option<Self::Message> {
+        Self::map_row_message(message)
     }
 
-    fn accepts_pointer_move(&self) -> bool {
-        self.row.accepts_pointer_move()
-    }
-
-    fn synchronize_from_previous(&mut self, previous: &dyn Widget) {
-        let _ = self
-            .row
-            .synchronize_from_previous_embedded::<Self>(previous, |previous| &previous.row);
-    }
-
-    fn append_paint(
+    fn append_interactive_row_paint(
         &self,
         primitives: &mut Vec<PaintPrimitive>,
         bounds: Rect,
