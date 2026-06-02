@@ -257,27 +257,24 @@ fn metadata_tag_library_row(
         },
     );
     let width = metadata_tag_pill_width(&tag);
-    let mut visual = ui::badge(tag.clone())
-        .message(GuiMessage::Noop)
-        .key(format!("metadata-tag-library-pill-visual-{tag}"))
-        .style(style)
-        .size(width, TAG_LIBRARY_PILL_HEIGHT);
-    if !selected && !locked {
-        visual = visual.subtle();
-    }
-
     let tag_for_input = tag.clone();
     let category_for_input = category_id.to_string();
-    let mut input = ui::interactive_row();
+    let mut badge = ui::interactive_badge(tag.clone())
+        .style(style)
+        .active(selected || locked);
+    if !selected && !locked {
+        badge = badge.subtle();
+    }
+
     if !locked {
-        input = input
+        badge = badge
             .draggable()
             .drag_active(drag_active)
             .drag_source(drag_source)
             .drag_source_motion(true)
             .drop_target_mode(drag_active, true);
     }
-    let input = input
+    badge
         .filter_mapped(move |message| {
             if let Some(position) = message.secondary_position() {
                 return Some(GuiMessage::OpenMetadataTagContextMenu {
@@ -306,10 +303,6 @@ fn metadata_tag_library_row(
             }
             None
         })
-        .key(format!("metadata-tag-library-row-hit-{tag}"))
-        .width(width)
-        .height(TAG_LIBRARY_PILL_HEIGHT);
-    ui::input_overlay(visual, input)
         .key(format!("metadata-tag-library-row-{tag}"))
         .width(width)
         .height(TAG_LIBRARY_PILL_HEIGHT)
