@@ -38,6 +38,26 @@ fn architecture_docs_call_out_large_gui_import_lists() {
 }
 
 #[test]
+fn agent_instructions_call_out_large_gui_import_lists() {
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let source = fs::read_to_string(format!("{manifest_dir}/AGENTS.md"))
+        .expect("AGENTS.md should be readable");
+
+    for required in [
+        "large import lists as architecture signals",
+        "split the module by responsibility",
+        "move reusable",
+        "GUI behavior into Radiant",
+        "facade may wire",
+    ] {
+        assert!(
+            source.contains(required),
+            "AGENTS.md should preserve the GUI import hygiene rule: missing `{required}`"
+        );
+    }
+}
+
+#[test]
 fn production_gui_modules_do_not_use_top_level_wildcard_imports() {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let gui_root = manifest_dir.join("src/gui_app");

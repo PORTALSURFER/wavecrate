@@ -155,6 +155,12 @@ validation expectations for `C:\dev\wavecrate`.
 - Use explicit imports. Avoid wildcard imports outside tests/preludes. Comments
   should explain why, not restate what the code says. Remove `todo!()`,
   `unimplemented!()`, and `dbg!()` before committing.
+- Treat large import lists as architecture signals, not formatting problems. If
+  a production GUI module needs broad imports from unrelated UI, domain,
+  runtime, and helper areas, split the module by responsibility or move reusable
+  GUI behavior into Radiant before adding more imports. A facade may wire
+  focused modules together, but it should not own app state shape, widget
+  construction, side effects, and reusable GUI helpers at the same time.
 - Optimize architecture first. Avoid unnecessary allocations, cloning, boxing,
   and async unless justified.
 
