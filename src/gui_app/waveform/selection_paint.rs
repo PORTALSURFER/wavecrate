@@ -1,5 +1,6 @@
 use radiant::{
     gui::types::{Rect, Rgba8},
+    gui::visualization::CanvasSelectionGeometry,
     runtime::PaintPrimitive,
 };
 
@@ -27,11 +28,11 @@ impl WaveformWidget {
         bounds: Rect,
     ) {
         self.append_extracted_range_paint(primitives, bounds);
-        if let Some((start, end)) = self.visible_range_for_selection(self.play_selection) {
-            self.append_play_selection_paint(primitives, bounds, start, end);
+        if let Some(geometry) = self.selection_geometry(bounds, self.play_selection) {
+            self.append_play_selection_paint(primitives, bounds, geometry);
         }
-        if let Some((start, end)) = self.visible_range_for_selection(self.edit_selection) {
-            self.append_edit_selection_paint(primitives, bounds, start, end);
+        if let Some(geometry) = self.selection_geometry(bounds, self.edit_selection) {
+            self.append_edit_selection_paint(primitives, bounds, geometry);
         }
         self.append_marker_paint(primitives, bounds);
     }
@@ -66,8 +67,7 @@ impl WaveformWidget {
         &self,
         primitives: &mut Vec<PaintPrimitive>,
         bounds: Rect,
-        start: f32,
-        end: f32,
+        geometry: CanvasSelectionGeometry,
     ) {
         let flash_active = self.play_selection_flash_frames > 0;
         let cursor_color = Rgba8 {
@@ -79,8 +79,8 @@ impl WaveformWidget {
         self.push_visible_range_fill(
             primitives,
             bounds,
-            start,
-            end,
+            geometry.start_fraction,
+            geometry.end_fraction,
             Rgba8 {
                 r: 255,
                 g: 142,
@@ -98,8 +98,7 @@ impl WaveformWidget {
         self.append_selection_resize_handles(
             primitives,
             bounds,
-            start,
-            end,
+            geometry,
             Rgba8 {
                 r: 255,
                 g: 142,
@@ -109,9 +108,7 @@ impl WaveformWidget {
         );
         self.append_selection_move_handle(
             primitives,
-            bounds,
-            start,
-            end,
+            geometry,
             Rgba8 {
                 r: 255,
                 g: 142,
@@ -121,9 +118,7 @@ impl WaveformWidget {
         );
         self.append_selection_export_handle(
             primitives,
-            bounds,
-            start,
-            end,
+            geometry,
             Rgba8 {
                 r: 255,
                 g: 142,
@@ -137,8 +132,7 @@ impl WaveformWidget {
         &self,
         primitives: &mut Vec<PaintPrimitive>,
         bounds: Rect,
-        start: f32,
-        end: f32,
+        geometry: CanvasSelectionGeometry,
     ) {
         let cursor_color = Rgba8 {
             r: 82,
@@ -149,8 +143,8 @@ impl WaveformWidget {
         self.push_visible_range_fill(
             primitives,
             bounds,
-            start,
-            end,
+            geometry.start_fraction,
+            geometry.end_fraction,
             Rgba8 {
                 r: 82,
                 g: 168,
@@ -167,9 +161,7 @@ impl WaveformWidget {
         );
         self.append_selection_move_handle(
             primitives,
-            bounds,
-            start,
-            end,
+            geometry,
             Rgba8 {
                 r: 82,
                 g: 168,
@@ -255,12 +247,11 @@ impl WaveformWidget {
         &self,
         primitives: &mut Vec<PaintPrimitive>,
         bounds: Rect,
-        start: f32,
-        end: f32,
+        geometry: CanvasSelectionGeometry,
         color: Rgba8,
     ) {
         for edge in [WaveformSelectionEdge::Start, WaveformSelectionEdge::End] {
-            if let Some(rect) = self.selection_resize_handle_rect(bounds, start, end, edge) {
+            if let Some(rect) = self.selection_resize_handle_rect(bounds, geometry, edge) {
                 self.push_fill(primitives, rect, color);
             }
         }
@@ -269,12 +260,10 @@ impl WaveformWidget {
     fn append_selection_move_handle(
         &self,
         primitives: &mut Vec<PaintPrimitive>,
-        bounds: Rect,
-        start: f32,
-        end: f32,
+        geometry: CanvasSelectionGeometry,
         color: Rgba8,
     ) {
-        if let Some(rect) = self.selection_move_handle_rect(bounds, start, end) {
+        if let Some(rect) = self.selection_move_handle_rect(geometry) {
             self.push_fill(primitives, rect, color);
         }
     }
@@ -282,12 +271,10 @@ impl WaveformWidget {
     fn append_selection_export_handle(
         &self,
         primitives: &mut Vec<PaintPrimitive>,
-        bounds: Rect,
-        start: f32,
-        end: f32,
+        geometry: CanvasSelectionGeometry,
         color: Rgba8,
     ) {
-        if let Some(rect) = self.selection_export_handle_rect(bounds, start, end) {
+        if let Some(rect) = self.selection_export_handle_rect(geometry) {
             self.push_fill(primitives, rect, color);
         }
     }
