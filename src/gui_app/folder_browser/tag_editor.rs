@@ -4,6 +4,7 @@ use radiant::{
 };
 
 use crate::gui_app::metadata_tags::{MetadataTagCompletionOption, MetadataTagDisplayCategory};
+use crate::gui_app::metadata_tags::{metadata_tag_category_is_pinned, metadata_tag_category_style};
 
 use super::GuiMessage;
 use super::tag_completion::tag_completion_panel_layer;
@@ -247,28 +248,10 @@ fn accepted_tag_token(tag: &str, category_id: &str, selected: bool) -> ui::View<
         .key(format!("metadata-tag-accepted-{tag}"))
         .style(style)
         .size(tag_pill_width(tag), TAG_FIELD_CONTROL_HEIGHT);
-    if !selected && category_id != "playback-type" {
+    if !selected && !metadata_tag_category_is_pinned(category_id) {
         badge = badge.subtle();
     }
     badge
-}
-
-fn metadata_tag_category_style(category_id: &str, selected: bool) -> WidgetStyle {
-    WidgetStyle::new(
-        match category_id {
-            "playback-type" => WidgetTone::Warning,
-            "sound-type" => WidgetTone::Accent,
-            "character" => WidgetTone::Success,
-            "prefix" => WidgetTone::Danger,
-            "tuning-scale" => WidgetTone::Neutral,
-            _ => WidgetTone::Neutral,
-        },
-        if selected || category_id == "playback-type" {
-            ui::WidgetProminence::Strong
-        } else {
-            ui::WidgetProminence::Subtle
-        },
-    )
 }
 
 fn pending_category_tag_token(tag: &str) -> ui::View<GuiMessage> {

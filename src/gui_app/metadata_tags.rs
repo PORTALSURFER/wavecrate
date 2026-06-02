@@ -4,6 +4,9 @@ use radiant::prelude as ui;
 use radiant::widgets::{TextInputMessage, TextInputMessageKind};
 use std::time::Instant;
 
+pub(in crate::gui_app) use style::{
+    metadata_tag_category_is_pinned, metadata_tag_category_style, metadata_tag_category_tone,
+};
 #[cfg(test)]
 pub(super) use types::MetadataTagCommit;
 pub(super) use types::{
@@ -23,6 +26,7 @@ mod assignment;
 mod completion;
 mod library;
 mod persistence;
+mod style;
 mod types;
 mod vocabulary;
 

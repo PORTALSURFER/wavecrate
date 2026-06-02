@@ -1,8 +1,12 @@
 use super::{GuiAppState, GuiMessage};
 use crate::gui_app::{
-    audio_settings::top_status_bar, context_menu, folder_browser,
-    metadata_tag_metrics::metadata_tag_pill_width, metadata_tags::MetadataTagCategoryGroup,
-    sample_browser_view::sample_browser, status_bar, toolbar::main_toolbar,
+    audio_settings::top_status_bar,
+    context_menu, folder_browser,
+    metadata_tag_metrics::metadata_tag_pill_width,
+    metadata_tags::{MetadataTagCategoryGroup, metadata_tag_category_tone},
+    sample_browser_view::sample_browser,
+    status_bar,
+    toolbar::main_toolbar,
     waveform_panel::waveform_panel,
 };
 use radiant::prelude as ui;
@@ -334,17 +338,6 @@ fn metadata_tag_empty_category_target(
         .key(format!("metadata-tag-empty-category-{category_id}"))
         .fill_width()
         .height(20.0)
-}
-
-fn metadata_tag_category_tone(category_id: &str) -> ui::WidgetTone {
-    match category_id {
-        "playback-type" => ui::WidgetTone::Warning,
-        "sound-type" => ui::WidgetTone::Accent,
-        "character" => ui::WidgetTone::Success,
-        "prefix" => ui::WidgetTone::Danger,
-        "tuning-scale" => ui::WidgetTone::Neutral,
-        _ => ui::WidgetTone::Neutral,
-    }
 }
 
 fn folder_splitter() -> ui::View<GuiMessage> {
