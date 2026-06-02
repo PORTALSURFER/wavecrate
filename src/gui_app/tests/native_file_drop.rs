@@ -117,6 +117,11 @@ fn native_file_drop_on_waveform_copies_into_selected_folder_and_queues_load() {
         Some(copied_id.as_str())
     );
     assert_eq!(state.waveform_loading_label.as_deref(), Some("kick.wav"));
+    assert!(
+        state.deferred_sample_load_task.active().is_some(),
+        "native file import should debounce uncached sample loading before queueing decode work"
+    );
+    super::start_deferred_sample_load_for_tests(&mut state, copied_id, true, &mut context);
     assert!(state.sample_load_task.active().is_some());
     let _ = fs::remove_dir_all(root);
     let _ = fs::remove_dir_all(external_root);

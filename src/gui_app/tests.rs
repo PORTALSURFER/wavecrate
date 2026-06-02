@@ -25,16 +25,6 @@ mod toolbar_playback;
 mod waveform_playback;
 mod window_chrome;
 
-fn selected_asset_file_path(browser: &super::FolderBrowserState, name: &str) -> String {
-    browser
-        .selected_audio_files()
-        .iter()
-        .find(|file| file.name == name)
-        .unwrap_or_else(|| panic!("expected bundled asset {name} to be visible"))
-        .id
-        .clone()
-}
-
 fn first_visible_asset_file_path(browser: &super::FolderBrowserState) -> String {
     browser
         .selected_audio_files()
@@ -143,6 +133,26 @@ fn gui_state_with_temp_sample(name: &str) -> (GuiAppState, tempfile::TempDir, St
     let selected_file = sample_path.display().to_string();
     state.folder_browser.select_file(selected_file.clone());
     (state, source_root, selected_file)
+}
+
+fn start_deferred_sample_load_for_tests(
+    state: &mut GuiAppState,
+    path: String,
+    autoplay: bool,
+    context: &mut ui::UpdateContext<super::GuiMessage>,
+) {
+    let ticket = state
+        .deferred_sample_load_task
+        .active()
+        .expect("deferred sample load queued");
+    state.apply_message(
+        super::GuiMessage::DeferredSampleLoad {
+            ticket,
+            path,
+            autoplay,
+        },
+        context,
+    );
 }
 
 #[test]

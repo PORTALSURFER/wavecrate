@@ -177,6 +177,11 @@ fn sample_selection_loads_selected_file_into_waveform() {
         state.waveform_loading_label.as_deref(),
         Some(sample_name.as_str())
     );
+    assert!(
+        state.deferred_sample_load_task.active().is_some(),
+        "selection should debounce uncached sample loading before queueing decode work"
+    );
+    start_deferred_sample_load_for_tests(&mut state, sample_path.clone(), true, &mut context);
     let ticket = state.sample_load_task.active().expect("sample load queued");
     state.apply_message(
         super::super::GuiMessage::SampleLoadFinished(ui::TaskCompletion {
@@ -267,7 +272,7 @@ fn play_selected_sample_uses_active_playmark_selection_span() {
     };
     let mut state = GuiAppState::load_default().expect("default state loads");
     state.audio_player = Some(player);
-    let sample_path = selected_asset_file_path(&state.folder_browser, "portal_SS_kick_003.wav");
+    let sample_path = first_visible_asset_file_path(&state.folder_browser);
     state.waveform =
         super::super::WaveformState::load_path(sample_path.into()).expect("test sample loads");
     state
@@ -318,7 +323,7 @@ fn looped_playback_retargets_when_playmark_selection_is_created_and_resized() {
     };
     let mut state = gui_state_for_span_tests();
     state.audio_player = Some(player);
-    let sample_path = selected_asset_file_path(&state.folder_browser, "portal_SS_kick_003.wav");
+    let sample_path = first_visible_asset_file_path(&state.folder_browser);
     state.waveform =
         super::super::WaveformState::load_path(sample_path.into()).expect("test sample loads");
     state.loop_playback = true;
