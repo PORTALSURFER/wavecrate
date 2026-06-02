@@ -120,7 +120,7 @@ impl WaveformState {
             WaveformDrag::Selection(mut drag) => {
                 drag.update(ratio);
                 self.active_drag = Some(WaveformDrag::Selection(drag));
-                if drag.moved {
+                if drag.moved() {
                     self.set_selection_for_drag(drag);
                 }
             }
@@ -148,7 +148,7 @@ impl WaveformState {
         match drag {
             WaveformDrag::Selection(mut drag) => {
                 drag.update(ratio);
-                if drag.moved {
+                if drag.moved() {
                     self.set_selection_for_drag(drag);
                     return;
                 }

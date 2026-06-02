@@ -1,5 +1,8 @@
 use radiant::gui::{
-    range::{NormalizedRange, normalized_fraction_to_micros, normalized_fraction_to_milli},
+    range::{
+        NormalizedRange, NormalizedRangeDrag, NormalizedRangeEdge, normalized_fraction_to_micros,
+        normalized_fraction_to_milli,
+    },
     visualization::{TimelineEditPreview, TimelineEditPreviewParts},
 };
 
@@ -55,24 +58,31 @@ impl WaveformPanDrag {
 #[derive(Clone, Copy, Debug)]
 pub(super) struct WaveformSelectionDrag {
     pub(super) kind: WaveformSelectionKind,
-    pub(super) anchor_ratio: f32,
-    pub(super) current_ratio: f32,
-    pub(super) moved: bool,
+    drag: NormalizedRangeDrag,
 }
 
 impl WaveformSelectionDrag {
     pub(super) fn new(kind: WaveformSelectionKind, ratio: f32) -> Self {
         Self {
             kind,
-            anchor_ratio: ratio,
-            current_ratio: ratio,
-            moved: false,
+            drag: NormalizedRangeDrag::new(ratio),
         }
     }
 
     pub(super) fn update(&mut self, ratio: f32) {
-        self.current_ratio = ratio;
-        self.moved |= (self.current_ratio - self.anchor_ratio).abs() > SELECTION_DRAG_EPSILON;
+        self.drag.update(ratio, SELECTION_DRAG_EPSILON);
+    }
+
+    pub(super) fn moved(self) -> bool {
+        self.drag.moved
+    }
+
+    pub(super) fn anchor_ratio(self) -> f32 {
+        self.drag.anchor_fraction
+    }
+
+    pub(super) fn range(self) -> NormalizedRange {
+        self.drag.range()
     }
 }
 
@@ -125,21 +135,23 @@ impl WaveformSelectionResizeDrag {
         }
     }
 
-    pub(super) fn apply(
-        self,
-        _selection: wavecrate::selection::SelectionRange,
-        ratio: f32,
-    ) -> wavecrate::selection::SelectionRange {
-        let ratio = ratio.clamp(0.0, 1.0);
-        match self.edge {
-            WaveformSelectionEdge::Start => {
-                wavecrate::selection::SelectionRange::new(ratio, self.fixed_ratio)
-            }
-            WaveformSelectionEdge::End => {
-                wavecrate::selection::SelectionRange::new(self.fixed_ratio, ratio)
-            }
-        }
+    pub(super) fn apply(self, ratio: f32) -> wavecrate::selection::SelectionRange {
+        let edge = match self.edge {
+            WaveformSelectionEdge::Start => NormalizedRangeEdge::Start,
+            WaveformSelectionEdge::End => NormalizedRangeEdge::End,
+        };
+        let base = match self.edge {
+            WaveformSelectionEdge::Start => NormalizedRange::from_fractions(0.0, self.fixed_ratio),
+            WaveformSelectionEdge::End => NormalizedRange::from_fractions(self.fixed_ratio, 1.0),
+        };
+        selection_from_normalized_range(base.with_edge_fraction(edge, ratio))
     }
+}
+
+pub(super) fn selection_from_normalized_range(
+    range: NormalizedRange,
+) -> wavecrate::selection::SelectionRange {
+    wavecrate::selection::SelectionRange::new(range.start_fraction(), range.end_fraction())
 }
 
 pub(super) fn edit_preview_for_selection(
