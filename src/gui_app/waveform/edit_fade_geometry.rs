@@ -10,8 +10,7 @@ use radiant::gui::{
 
 use super::{WaveformEditFadeHandle, WaveformWidget};
 
-const EDIT_FADE_HANDLE_TAB_SIZE: f32 = 10.0;
-const EDIT_FADE_HANDLE_WIDTH: f32 = 3.0;
+const EDIT_FADE_HANDLE_SIZE: f32 = 10.0;
 
 impl WaveformWidget {
     pub(super) fn edit_fade_handle_at(
@@ -19,18 +18,12 @@ impl WaveformWidget {
         bounds: Rect,
         position: Point,
     ) -> Option<WaveformEditFadeHandle> {
-        let selection = self.edit_preview.selection?;
-        let selection_rect = self.visible_rect_for_normalized_range(bounds, selection)?;
+        let mapper = self.timeline_mapper(bounds);
+        let geometry = self
+            .edit_preview
+            .handle_geometry(mapper, EDIT_FADE_HANDLE_SIZE)?;
         self.edit_preview
-            .standard_handle_at(
-                self.timeline_mapper(bounds),
-                TimelineEditHandleGeometry {
-                    bounds,
-                    selection_rect,
-                    handle_size: edit_fade_handle_size(bounds),
-                },
-                position,
-            )
+            .standard_handle_at(mapper, geometry, position)
             .and_then(waveform_edit_fade_handle)
     }
 
@@ -56,15 +49,11 @@ impl WaveformWidget {
         selection_rect: Rect,
         handle: WaveformEditFadeHandle,
     ) -> Option<Rect> {
-        self.edit_preview.handle_rect(
-            self.timeline_mapper(bounds),
-            TimelineEditHandleGeometry {
-                bounds,
-                selection_rect,
-                handle_size: edit_fade_handle_size(bounds),
-            },
-            timeline_edit_handle(handle),
-        )
+        let mapper = self.timeline_mapper(bounds);
+        let geometry =
+            TimelineEditHandleGeometry::new(bounds, selection_rect, EDIT_FADE_HANDLE_SIZE);
+        self.edit_preview
+            .handle_rect(mapper, geometry, timeline_edit_handle(handle))
     }
 
     pub(super) fn visible_rect_for_normalized_range(
@@ -93,22 +82,10 @@ impl WaveformWidget {
         selection_rect: Rect,
         region: TimelineEditRegion,
     ) -> Option<Rect> {
-        self.edit_preview.region_rect(
-            self.timeline_mapper(bounds),
-            TimelineEditRegionGeometry {
-                bounds,
-                selection_rect,
-            },
-            region,
-        )
+        let mapper = self.timeline_mapper(bounds);
+        let geometry = TimelineEditRegionGeometry::new(bounds, selection_rect);
+        self.edit_preview.region_rect(mapper, geometry, region)
     }
-}
-
-fn edit_fade_handle_size(bounds: Rect) -> f32 {
-    EDIT_FADE_HANDLE_TAB_SIZE
-        .max(EDIT_FADE_HANDLE_WIDTH)
-        .min(bounds.width().max(1.0))
-        .min(bounds.height().max(1.0))
 }
 
 pub(super) fn timeline_edit_handle(handle: WaveformEditFadeHandle) -> TimelineEditHandle {

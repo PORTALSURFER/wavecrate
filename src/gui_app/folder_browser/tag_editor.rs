@@ -8,8 +8,8 @@ use super::tag_completion::tag_completion_panel_layer;
 use super::tag_entry_layout::{
     TAG_FIELD_CONTROL_HEIGHT, TAG_FIELD_ITEM_GAP, TAG_FIELD_LINE_GAP, TagEntryRowItem,
     capped_rows_height, metadata_tag_category_id_for_display, order_metadata_tags_for_display,
-    rows_height, tag_field_content_width, tag_field_requires_scroll, tag_field_rows,
-    tag_input_display_value, tag_input_width, tag_input_width_for_placeholder, tag_pill_width,
+    rows_height, tag_field_requires_scroll, tag_field_rows, tag_input_display_value,
+    tag_input_width, tag_input_width_for_placeholder, tag_pill_width,
 };
 
 const METADATA_TAG_INPUT_ID: u64 = 0x5743_0000_0000_5447;
