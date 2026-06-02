@@ -108,10 +108,8 @@ fn waveform_scrollbar(waveform: &WaveformState) -> ui::View<GuiMessage> {
     ui::scrollbar(ui::ScrollbarAxis::Horizontal)
         .viewport_fraction(waveform.visible_fraction())
         .offset_fraction(waveform.offset_fraction())
-        .mapped(|message| match message {
-            ui::ScrollbarMessage::OffsetChanged { offset_fraction } => {
-                GuiMessage::Waveform(WaveformInteraction::ScrollTo { offset_fraction })
-            }
+        .message(|offset_fraction| {
+            GuiMessage::Waveform(WaveformInteraction::ScrollTo { offset_fraction })
         })
         .fill_width()
         .height(6.0)
