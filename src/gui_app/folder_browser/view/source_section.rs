@@ -42,29 +42,84 @@ fn source_row(state: &FolderBrowserState, source: &SourceEntry) -> ui::View<GuiM
     } else {
         source.label.clone()
     };
-    let mut row = ui::button(label)
-        .secondary_clicks()
-        .mapped(move |message| {
+    let visual = ui::text(label)
+        .truncate()
+        .fill_width()
+        .height(24.0)
+        .padding_x(8.0);
+    ui::interactive_row_underlay(visual)
+        .input_id(source_row_input_id(source.id.as_str()))
+        .filter_mapped(move |message| {
             if let Some(position) = message.secondary_position() {
-                return GuiMessage::FolderBrowser(FolderBrowserMessage::OpenSourceContextMenu(
-                    menu_id.clone(),
-                    position,
+                return Some(GuiMessage::FolderBrowser(
+                    FolderBrowserMessage::OpenSourceContextMenu(menu_id.clone(), position),
                 ));
             }
-            GuiMessage::FolderBrowser(FolderBrowserMessage::SelectSource(id.clone()))
+            message
+                .is_single_activation()
+                .then(|| GuiMessage::FolderBrowser(FolderBrowserMessage::SelectSource(id.clone())))
         })
         .key(format!("source-row-{row_key}"))
+        .style(source_row_style(selected))
         .fill_width()
-        .height(24.0);
+        .height(24.0)
+}
+
+fn source_row_style(selected: bool) -> WidgetStyle {
     if selected {
-        row = row.primary();
-    } else {
-        row = row.subtle();
-    }
-    row.style(if selected {
         WidgetStyle::new(WidgetTone::Accent, ui::WidgetProminence::Subtle)
     } else {
         WidgetStyle::default()
+    }
+}
+
+fn source_row_input_id(source_id: &str) -> u64 {
+    source_id.bytes().fold(0x5743_0000_0000_5300, |hash, byte| {
+        hash.wrapping_mul(16_777_619) ^ u64::from(byte)
     })
-    .fill_width()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use radiant::prelude::IntoView;
+
+    fn test_source(id: &str) -> SourceEntry {
+        SourceEntry::new(id, "Source", std::path::PathBuf::from("C:/samples"))
+    }
+
+    #[test]
+    fn source_row_routes_primary_activation_through_interactive_row() {
+        let source = test_source("source-a");
+        let state =
+            FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
+
+        assert_eq!(
+            source_row(&state, &source).view_dispatch_widget_output(
+                source_row_input_id(source.id.as_str()),
+                ui::WidgetOutput::typed(ui::InteractiveRowMessage::Activate),
+            ),
+            Some(GuiMessage::FolderBrowser(
+                FolderBrowserMessage::SelectSource(source.id.clone())
+            ))
+        );
+    }
+
+    #[test]
+    fn source_row_routes_secondary_activation_to_context_menu() {
+        let source = test_source("source-b");
+        let state =
+            FolderBrowserState::from_sources_deferred(vec![source.clone()], source.id.clone());
+        let position = ui::Point::new(12.0, 20.0);
+
+        assert_eq!(
+            source_row(&state, &source).view_dispatch_widget_output(
+                source_row_input_id(source.id.as_str()),
+                ui::WidgetOutput::typed(ui::InteractiveRowMessage::SecondaryActivate { position }),
+            ),
+            Some(GuiMessage::FolderBrowser(
+                FolderBrowserMessage::OpenSourceContextMenu(source.id.clone(), position)
+            ))
+        );
+    }
 }
