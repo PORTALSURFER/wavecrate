@@ -1,5 +1,5 @@
 use radiant::prelude as ui;
-use radiant::widgets::{DragHandleMessage, DragHandlePhase};
+use radiant::widgets::DragHandleMessage;
 use std::time::Instant;
 
 use super::folder_browser::FolderBrowserMessage;
@@ -12,12 +12,8 @@ impl GuiAppState {
     pub(super) fn resize_folder_browser(&mut self, message: DragHandleMessage) {
         let started_at = Instant::now();
         let phase = message.phase();
-        let should_log = phase != DragHandlePhase::Moved;
-        let outcome = match phase {
-            DragHandlePhase::Started => "started",
-            DragHandlePhase::Moved => "moved",
-            DragHandlePhase::Ended => "ended",
-        };
+        let should_log = !message.is_moved();
+        let outcome = phase.as_str();
         if let Some(width) = ui::update_panel_resize_drag(
             &mut self.folder_resize,
             message,
