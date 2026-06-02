@@ -21,10 +21,17 @@ impl WaveformWidget {
     ) -> Option<WaveformEditFadeHandle> {
         let selection = self.edit_preview.selection?;
         let selection_rect = self.visible_rect_for_normalized_range(bounds, selection)?;
-        edit_fade_handles().into_iter().find(|handle| {
-            self.edit_fade_handle_rect(bounds, selection_rect, *handle)
-                .is_some_and(|rect| rect.contains(position))
-        })
+        self.edit_preview
+            .standard_handle_at(
+                self.timeline_mapper(bounds),
+                TimelineEditHandleGeometry {
+                    bounds,
+                    selection_rect,
+                    handle_size: edit_fade_handle_size(bounds),
+                },
+                position,
+            )
+            .and_then(waveform_edit_fade_handle)
     }
 
     pub(super) fn fade_in_rect(&self, bounds: Rect, selection_rect: Rect) -> Option<Rect> {
@@ -97,17 +104,6 @@ impl WaveformWidget {
     }
 }
 
-fn edit_fade_handles() -> [WaveformEditFadeHandle; 6] {
-    [
-        WaveformEditFadeHandle::InEnd,
-        WaveformEditFadeHandle::OutStart,
-        WaveformEditFadeHandle::InStart,
-        WaveformEditFadeHandle::OutEnd,
-        WaveformEditFadeHandle::InOuterStart,
-        WaveformEditFadeHandle::OutOuterEnd,
-    ]
-}
-
 fn edit_fade_handle_size(bounds: Rect) -> f32 {
     EDIT_FADE_HANDLE_TAB_SIZE
         .max(EDIT_FADE_HANDLE_WIDTH)
@@ -115,7 +111,7 @@ fn edit_fade_handle_size(bounds: Rect) -> f32 {
         .min(bounds.height().max(1.0))
 }
 
-fn timeline_edit_handle(handle: WaveformEditFadeHandle) -> TimelineEditHandle {
+pub(super) fn timeline_edit_handle(handle: WaveformEditFadeHandle) -> TimelineEditHandle {
     match handle {
         WaveformEditFadeHandle::InEnd => TimelineEditHandle::LeadingEnd,
         WaveformEditFadeHandle::InStart => TimelineEditHandle::LeadingStart,
@@ -123,5 +119,18 @@ fn timeline_edit_handle(handle: WaveformEditFadeHandle) -> TimelineEditHandle {
         WaveformEditFadeHandle::OutStart => TimelineEditHandle::TrailingStart,
         WaveformEditFadeHandle::OutEnd => TimelineEditHandle::TrailingEnd,
         WaveformEditFadeHandle::OutOuterEnd => TimelineEditHandle::TrailingOuterEnd,
+    }
+}
+
+pub(super) fn waveform_edit_fade_handle(
+    handle: TimelineEditHandle,
+) -> Option<WaveformEditFadeHandle> {
+    match handle {
+        TimelineEditHandle::LeadingEnd => Some(WaveformEditFadeHandle::InEnd),
+        TimelineEditHandle::LeadingStart => Some(WaveformEditFadeHandle::InStart),
+        TimelineEditHandle::LeadingOuterStart => Some(WaveformEditFadeHandle::InOuterStart),
+        TimelineEditHandle::TrailingStart => Some(WaveformEditFadeHandle::OutStart),
+        TimelineEditHandle::TrailingEnd => Some(WaveformEditFadeHandle::OutEnd),
+        TimelineEditHandle::TrailingOuterEnd => Some(WaveformEditFadeHandle::OutOuterEnd),
     }
 }

@@ -1,9 +1,10 @@
 use radiant::{
     gui::types::{Rect, Rgba8},
+    gui::visualization::TimelineEditHandle,
     runtime::PaintPrimitive,
 };
 
-use super::{WaveformEditFadeHandle, WaveformWidget};
+use super::{WaveformWidget, edit_fade_geometry::waveform_edit_fade_handle};
 
 impl WaveformWidget {
     pub(super) fn append_edit_fade_paint(
@@ -36,14 +37,10 @@ impl WaveformWidget {
             self.push_fill(primitives, fade_rect, Rgba8 { a: 38, ..accent });
         }
         self.append_edit_fade_curve_paint(primitives, bounds, selection_rect, accent);
-        for handle in [
-            WaveformEditFadeHandle::InEnd,
-            WaveformEditFadeHandle::OutStart,
-            WaveformEditFadeHandle::InStart,
-            WaveformEditFadeHandle::OutEnd,
-            WaveformEditFadeHandle::InOuterStart,
-            WaveformEditFadeHandle::OutOuterEnd,
-        ] {
+        for handle in TimelineEditHandle::standard_order()
+            .into_iter()
+            .filter_map(waveform_edit_fade_handle)
+        {
             if let Some(rect) = self.edit_fade_handle_rect(bounds, selection_rect, handle) {
                 self.push_fill(primitives, rect, Rgba8 { a: 205, ..accent });
             }
