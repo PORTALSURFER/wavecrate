@@ -9,13 +9,14 @@ use super::{
     GuiAppState, GuiMessage, SampleLoadResult, UNCACHED_SAMPLE_LOAD_DEBOUNCE, WaveformState,
     emit_gui_action, sample_path_label,
 };
-use progress_reporter::SampleLoadProgressReporter;
 pub(super) use types::{NormalizedWaveformReload, WaveformPlaybackResume};
 
 mod cache;
 mod deferred_drop;
-mod progress_reporter;
 mod types;
+
+const SAMPLE_LOAD_PROGRESS_MIN_INTERVAL: Duration = Duration::from_millis(50);
+const SAMPLE_LOAD_PROGRESS_MIN_DELTA: f32 = 0.01;
 
 impl GuiAppState {
     pub(super) fn reload_normalized_waveform(
@@ -193,8 +194,16 @@ impl GuiAppState {
                         },
                     };
                 }
-                let progress_reporter =
-                    std::cell::RefCell::new(SampleLoadProgressReporter::new(sender, ticket));
+                let progress_gate = ui::ProgressUpdateGate::new(
+                    SAMPLE_LOAD_PROGRESS_MIN_INTERVAL,
+                    SAMPLE_LOAD_PROGRESS_MIN_DELTA,
+                )
+                .with_max_fraction(0.995);
+                let progress_reporter = std::cell::RefCell::new(
+                    ui::ThrottledProgressReporter::new(progress_gate, move |progress| {
+                        let _ = sender.send(GuiMessage::SampleLoadProgress(ticket, progress));
+                    }),
+                );
                 let result = WaveformState::load_path_with_progress_and_cancel(
                     PathBuf::from(&path),
                     |progress| {
