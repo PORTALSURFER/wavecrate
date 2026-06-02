@@ -215,7 +215,7 @@ fn metadata_tag_category_header(
     .fill_width()
     .height(22.0);
     ui::interactive_row_underlay(visual)
-        .row(|row| row.drop_target_mode(drag_active && !locked, true))
+        .row(|row| row.tracked_drop_target(drag_active && !locked, drop_hover))
         .style(style)
         .filter_mapped(move |message| {
             if message.is_drop() {

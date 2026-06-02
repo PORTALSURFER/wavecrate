@@ -92,11 +92,7 @@ fn collection_input(
     collection: &SampleCollectionView,
 ) -> ui::View<GuiMessage> {
     ui::interactive_row_underlay(visual)
-        .row(|row| {
-            row.pointer_motion_during_interaction()
-                .pointer_motion_active(collection.drop_target)
-                .drop_target_mode(collection.drag_active, !collection.drop_target)
-        })
+        .row(|row| row.tracked_drop_target(collection.drag_active, collection.drop_target))
         .input_id(collection_row_input_id(collection_id))
         .style(collection_input_style(collection))
         .filter_mapped(move |message| {
