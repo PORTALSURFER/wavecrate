@@ -164,16 +164,18 @@ fn audio_settings_dropdown_cursor(
 fn audio_host_dropdown_options(
     snapshot: &AudioSettingsSnapshot,
 ) -> Vec<ui::DropdownOption<GuiMessage>> {
-    let mut options = vec![ui::DropdownOption::new(
+    let mut options = vec![ui::DropdownOption::for_optional_value(
         "System default",
-        snapshot.audio_output_config.host.is_none(),
-        GuiMessage::SetAudioOutputHost(None),
+        None::<String>,
+        snapshot.audio_output_config.host.as_ref(),
+        GuiMessage::SetAudioOutputHost,
     )];
     for host in &snapshot.audio_hosts {
-        options.push(ui::DropdownOption::new(
+        options.push(ui::DropdownOption::for_optional_value(
             default_option_label(host.label.as_str(), host.is_default),
-            snapshot.audio_output_config.host.as_deref() == Some(host.id.as_str()),
-            GuiMessage::SetAudioOutputHost(Some(host.id.clone())),
+            Some(host.id.clone()),
+            snapshot.audio_output_config.host.as_ref(),
+            GuiMessage::SetAudioOutputHost,
         ));
     }
     options
@@ -198,16 +200,18 @@ fn selected_audio_host_label(snapshot: &AudioSettingsSnapshot) -> String {
 fn audio_output_dropdown_options(
     snapshot: &AudioSettingsSnapshot,
 ) -> Vec<ui::DropdownOption<GuiMessage>> {
-    let mut options = vec![ui::DropdownOption::new(
+    let mut options = vec![ui::DropdownOption::for_optional_value(
         "Host default",
-        snapshot.audio_output_config.device.is_none(),
-        GuiMessage::SetAudioOutputDevice(None),
+        None::<String>,
+        snapshot.audio_output_config.device.as_ref(),
+        GuiMessage::SetAudioOutputDevice,
     )];
     options.extend(snapshot.audio_devices.iter().map(|device| {
-        ui::DropdownOption::new(
+        ui::DropdownOption::for_optional_value(
             default_option_label(device.name.as_str(), device.is_default),
-            snapshot.audio_output_config.device.as_deref() == Some(device.name.as_str()),
-            GuiMessage::SetAudioOutputDevice(Some(device.name.clone())),
+            Some(device.name.clone()),
+            snapshot.audio_output_config.device.as_ref(),
+            GuiMessage::SetAudioOutputDevice,
         )
     }));
     options
@@ -232,16 +236,18 @@ fn selected_audio_output_label(snapshot: &AudioSettingsSnapshot) -> String {
 fn audio_sample_rate_dropdown_options(
     snapshot: &AudioSettingsSnapshot,
 ) -> Vec<ui::DropdownOption<GuiMessage>> {
-    let mut options = vec![ui::DropdownOption::new(
+    let mut options = vec![ui::DropdownOption::for_optional_value(
         "Device default",
-        snapshot.audio_output_config.sample_rate.is_none(),
-        GuiMessage::SetAudioOutputSampleRate(None),
+        None::<u32>,
+        snapshot.audio_output_config.sample_rate.as_ref(),
+        GuiMessage::SetAudioOutputSampleRate,
     )];
     options.extend(snapshot.audio_sample_rates.iter().copied().map(|rate| {
-        ui::DropdownOption::new(
+        ui::DropdownOption::for_optional_value(
             format_sample_rate_label(rate),
-            snapshot.audio_output_config.sample_rate == Some(rate),
-            GuiMessage::SetAudioOutputSampleRate(Some(rate)),
+            Some(rate),
+            snapshot.audio_output_config.sample_rate.as_ref(),
+            GuiMessage::SetAudioOutputSampleRate,
         )
     }));
     options
