@@ -53,6 +53,7 @@ impl SampleFileHitTarget {
             .suppress_hover(suppress_hover)
             .clear_hover_on_sync()
             .activation_modifiers()
+            .pointer_motion_during_interaction()
             .custom_paint_hit_target()
             .widget();
         Self {
@@ -81,7 +82,7 @@ impl Widget for SampleFileHitTarget {
     }
 
     fn accepts_pointer_move(&self) -> bool {
-        true
+        self.row.accepts_pointer_move()
     }
 
     fn synchronize_from_previous(&mut self, previous: &dyn Widget) {

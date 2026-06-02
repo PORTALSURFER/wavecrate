@@ -86,6 +86,45 @@ fn active_drag_non_source_rows_do_not_keep_hover_highlight() {
 }
 
 #[test]
+/// Verifies ordinary sample rows do not request stable pointer-motion routing.
+fn idle_rows_do_not_request_stable_pointer_moves() {
+    let target = SampleFileHitTarget::new(false, false, false, false, false);
+
+    assert!(
+        !target.accepts_pointer_move(),
+        "idle sample rows should update hover on enter/leave without routing every stable move"
+    );
+}
+
+#[test]
+/// Verifies pressed sample rows keep motion so drags can start reliably.
+fn pressed_rows_request_pointer_moves_for_drag_start() {
+    let mut target = SampleFileHitTarget::new(false, false, false, false, false);
+    target.row.common.state.pressed = true;
+
+    assert!(
+        target.accepts_pointer_move(),
+        "pressed sample rows need pointer motion to detect drag start"
+    );
+}
+
+#[test]
+/// Verifies active sample drags keep motion routing for source and non-source rows.
+fn active_drag_rows_request_pointer_moves() {
+    let source = SampleFileHitTarget::new(false, true, true, false, false);
+    let non_source = SampleFileHitTarget::new(false, true, false, false, false);
+
+    assert!(
+        source.accepts_pointer_move(),
+        "active drag source rows still need release and drag-session motion routing"
+    );
+    assert!(
+        non_source.accepts_pointer_move(),
+        "non-source rows need drag-active motion routing to clear stale hover"
+    );
+}
+
+#[test]
 /// Verifies stale hover state is not retained across widget refreshes.
 fn hover_state_clears_on_retained_widget_refresh() {
     let bounds = Rect::from_size(120.0, 22.0);
