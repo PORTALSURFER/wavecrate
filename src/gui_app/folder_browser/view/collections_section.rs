@@ -181,7 +181,7 @@ fn collection_input_style(collection: &SampleCollectionView) -> WidgetStyle {
 
 /// Returns the stable input widget id for a collection row.
 fn collection_row_input_id(collection: wavecrate::sample_sources::SampleCollection) -> u64 {
-    ui::stable_widget_id(COLLECTION_ROW_INPUT_SCOPE, collection.index().to_string())
+    ui::stable_widget_id_u64(COLLECTION_ROW_INPUT_SCOPE, collection.index() as u64)
 }
 
 /// Collection-section view tests.
