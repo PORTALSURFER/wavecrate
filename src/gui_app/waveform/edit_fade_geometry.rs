@@ -3,7 +3,8 @@ use radiant::gui::{
     types::{Point, Rect},
     visualization::{
         TimelineCoordinateMapper, TimelineEditHandle, TimelineEditHandleGeometry,
-        TimelineEditPreview, TimelineEditPreviewParts, TimelineViewport,
+        TimelineEditPreview, TimelineEditPreviewParts, TimelineEditRegion,
+        TimelineEditRegionGeometry, TimelineViewport,
     },
 };
 
@@ -26,78 +27,20 @@ impl WaveformWidget {
         })
     }
 
-    pub(super) fn fade_in_rect(
-        &self,
-        bounds: Rect,
-        selection: NormalizedRange,
-        selection_rect: Rect,
-    ) -> Option<Rect> {
-        let end = self
-            .edit_preview
-            .leading_end_micros
-            .unwrap_or(selection.start_micros);
-        if end <= selection.start_micros {
-            return None;
-        }
-        let x = self.x_for_micros(bounds, end)?;
-        let right_x = x.clamp(selection_rect.min.x, selection_rect.max.x);
-        Some(selection_rect.left_edge_strip(right_x - selection_rect.min.x))
+    pub(super) fn fade_in_rect(&self, bounds: Rect, selection_rect: Rect) -> Option<Rect> {
+        self.edit_region_rect(bounds, selection_rect, TimelineEditRegion::LeadingInner)
     }
 
-    pub(super) fn fade_out_rect(
-        &self,
-        bounds: Rect,
-        selection: NormalizedRange,
-        selection_rect: Rect,
-    ) -> Option<Rect> {
-        let start = self
-            .edit_preview
-            .trailing_start_micros
-            .unwrap_or(selection.end_micros);
-        if start >= selection.end_micros {
-            return None;
-        }
-        let x = self.x_for_micros(bounds, start)?;
-        let left_x = x.clamp(selection_rect.min.x, selection_rect.max.x);
-        Some(selection_rect.right_edge_strip(selection_rect.max.x - left_x))
+    pub(super) fn fade_out_rect(&self, bounds: Rect, selection_rect: Rect) -> Option<Rect> {
+        self.edit_region_rect(bounds, selection_rect, TimelineEditRegion::TrailingInner)
     }
 
-    pub(super) fn fade_in_outer_rect(
-        &self,
-        bounds: Rect,
-        selection: NormalizedRange,
-        selection_rect: Rect,
-    ) -> Option<Rect> {
-        let start = self.edit_preview.leading_inner_start_micros?;
-        if start >= selection.start_micros {
-            return None;
-        }
-        let x = self.x_for_micros(bounds, start)?;
-        let left_x = x.clamp(bounds.min.x, selection_rect.min.x);
-        let outer_bounds = Rect::from_min_max(
-            Point::new(bounds.min.x, selection_rect.min.y),
-            Point::new(selection_rect.min.x, selection_rect.max.y),
-        );
-        Some(outer_bounds.right_edge_strip(selection_rect.min.x - left_x))
+    pub(super) fn fade_in_outer_rect(&self, bounds: Rect, selection_rect: Rect) -> Option<Rect> {
+        self.edit_region_rect(bounds, selection_rect, TimelineEditRegion::LeadingOuter)
     }
 
-    pub(super) fn fade_out_outer_rect(
-        &self,
-        bounds: Rect,
-        selection: NormalizedRange,
-        selection_rect: Rect,
-    ) -> Option<Rect> {
-        let end = self.edit_preview.trailing_inner_end_micros?;
-        if end <= selection.end_micros {
-            return None;
-        }
-        let x = self.x_for_micros(bounds, end)?;
-        let right_x = x.clamp(selection_rect.max.x, bounds.max.x);
-        let outer_bounds = Rect::from_min_max(
-            Point::new(selection_rect.max.x, selection_rect.min.y),
-            Point::new(bounds.max.x, selection_rect.max.y),
-        );
-        Some(outer_bounds.left_edge_strip(right_x - selection_rect.max.x))
+    pub(super) fn fade_out_outer_rect(&self, bounds: Rect, selection_rect: Rect) -> Option<Rect> {
+        self.edit_region_rect(bounds, selection_rect, TimelineEditRegion::TrailingOuter)
     }
 
     pub(super) fn edit_fade_handle_rect(
@@ -137,12 +80,20 @@ impl WaveformWidget {
         )
     }
 
-    fn x_for_micros(&self, bounds: Rect, micros: u32) -> Option<f32> {
-        let mapper = self.timeline_mapper(bounds);
-        if micros < mapper.viewport.start_micros || micros > mapper.viewport.end_micros {
-            return None;
-        }
-        Some(mapper.x_for_micros(micros))
+    fn edit_region_rect(
+        &self,
+        bounds: Rect,
+        selection_rect: Rect,
+        region: TimelineEditRegion,
+    ) -> Option<Rect> {
+        self.edit_preview.region_rect(
+            self.timeline_mapper(bounds),
+            TimelineEditRegionGeometry {
+                bounds,
+                selection_rect,
+            },
+            region,
+        )
     }
 }
 

@@ -23,16 +23,16 @@ impl WaveformWidget {
             b: 255,
             a: 210,
         };
-        if let Some(fade_rect) = self.fade_in_rect(bounds, selection, selection_rect) {
+        if let Some(fade_rect) = self.fade_in_rect(bounds, selection_rect) {
             self.push_fill(primitives, fade_rect, Rgba8 { a: 52, ..accent });
         }
-        if let Some(fade_rect) = self.fade_out_rect(bounds, selection, selection_rect) {
+        if let Some(fade_rect) = self.fade_out_rect(bounds, selection_rect) {
             self.push_fill(primitives, fade_rect, Rgba8 { a: 52, ..accent });
         }
-        if let Some(fade_rect) = self.fade_in_outer_rect(bounds, selection, selection_rect) {
+        if let Some(fade_rect) = self.fade_in_outer_rect(bounds, selection_rect) {
             self.push_fill(primitives, fade_rect, Rgba8 { a: 38, ..accent });
         }
-        if let Some(fade_rect) = self.fade_out_outer_rect(bounds, selection, selection_rect) {
+        if let Some(fade_rect) = self.fade_out_outer_rect(bounds, selection_rect) {
             self.push_fill(primitives, fade_rect, Rgba8 { a: 38, ..accent });
         }
         self.append_edit_fade_curve_paint(primitives, bounds, selection_rect, accent);
