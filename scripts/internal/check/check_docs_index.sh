@@ -16,10 +16,9 @@ cd "$ROOT_DIR"
 DOCS_README="docs/README.md"
 
 required=(
-  "docs/ARCHITECTURE.md"
   "docs/ENV_VARS.md"
   "docs/TEST.md"
-  "docs/SYSTEMS.md"
+  "docs/TARGET.md"
   "docs/TROUBLESHOOTING.md"
 )
 required_non_doc_refs=(

@@ -10,18 +10,14 @@ Machine-consumed check allowlists do not live here anymore. They now live under
 
 ## Canonical docs
 
-- `docs/ARCHITECTURE.md`
-  - product principles, ownership boundaries, and the Radiant compatibility
-    boundary
 - `docs/ENV_VARS.md`
   - environment variable reference and safety notes
 - `docs/TEST.md`
   - development workflow, validation gates, and test suite map
-- `docs/SYSTEMS.md`
-  - runtime contracts, recovery rules, automation surfaces, and data formats
 - `docs/TARGET.md`
-  - product target, UI/performance direction, and the Wavecrate/Radiant ownership
-    boundary
+  - product target, architecture ownership, runtime contracts, recovery rules,
+    automation surfaces, data formats, UI/performance direction, and the
+    Wavecrate/Radiant ownership boundary
 - `docs/TROUBLESHOOTING.md`
   - common failure modes, diagnostics, and guardrail-change workflow
 
@@ -46,7 +42,8 @@ Machine-consumed check allowlists do not live here anymore. They now live under
      `bash scripts/agent.sh request`
 2. Use `docs/TEST.md` for the right validation lane.
 3. Use `docs/TROUBLESHOOTING.md` when a guardrail or environment check fails.
-4. Keep changes small, update the canonical doc that owns the changed behavior,
+4. Keep changes small, update `docs/TARGET.md` when durable product,
+   architecture, runtime, recovery, automation, or data-format contracts change,
    and avoid creating one-off docs unless the information truly needs to live
    separately.
 

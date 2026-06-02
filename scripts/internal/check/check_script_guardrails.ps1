@@ -556,10 +556,9 @@ try {
     Copy-Item (Join-Path $scriptsDir "internal/check/check_docs_index.ps1") (Join-Path $repoDir "scripts/internal/check/check_docs_index.ps1")
 
     foreach ($path in @(
-        "docs/ARCHITECTURE.md",
         "docs/ENV_VARS.md",
         "docs/TEST.md",
-        "docs/SYSTEMS.md",
+        "docs/TARGET.md",
         "docs/TROUBLESHOOTING.md"
       )) {
       New-Item -ItemType File -Path (Join-Path $repoDir $path) -Force | Out-Null
@@ -568,10 +567,9 @@ try {
     Set-Content -Path (Join-Path $repoDir "docs/README.md") -Value @(
       "# Developer documentation",
       "",
-      '- `docs/ARCHITECTURE.md`',
       '- `docs/ENV_VARS.md`',
       '- `docs/TEST.md`',
-      '- `docs/SYSTEMS.md`',
+      '- `docs/TARGET.md`',
       '- `docs/TROUBLESHOOTING.md`',
       '- `AGENTS.md`',
       '- Planning and backlog',
@@ -583,10 +581,9 @@ try {
     Set-Content -Path (Join-Path $repoDir "docs/README.md") -Value @(
       "# Developer documentation",
       "",
-      '- `docs/ARCHITECTURE.md`',
       '- `docs/ENV_VARS.md`',
       '- `docs/TEST.md`',
-      '- `docs/SYSTEMS.md`',
+      '- `docs/TARGET.md`',
       '- `docs/TROUBLESHOOTING.md`',
       '- `AGENTS.md`',
       '- `docs/plans/index.md`'

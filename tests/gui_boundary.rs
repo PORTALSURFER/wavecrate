@@ -18,10 +18,10 @@ fn gui_module_stays_a_pure_radiant_reexport_boundary() {
 }
 
 #[test]
-fn architecture_docs_call_out_large_gui_import_lists() {
+fn target_docs_call_out_large_gui_import_lists() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    let source = fs::read_to_string(format!("{manifest_dir}/docs/ARCHITECTURE.md"))
-        .expect("docs/ARCHITECTURE.md should be readable");
+    let source = fs::read_to_string(format!("{manifest_dir}/docs/TARGET.md"))
+        .expect("docs/TARGET.md should be readable");
 
     for required in [
         "large import lists are architecture signals",
@@ -32,7 +32,7 @@ fn architecture_docs_call_out_large_gui_import_lists() {
     ] {
         assert!(
             source.contains(required),
-            "docs/ARCHITECTURE.md should preserve the GUI import hygiene rule: missing `{required}`"
+            "docs/TARGET.md should preserve the GUI import hygiene rule: missing `{required}`"
         );
     }
 }

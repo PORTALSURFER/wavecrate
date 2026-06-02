@@ -70,7 +70,7 @@ Windows note:
 
 Before push:
 
-1. Route the change to the right owner using `docs/ARCHITECTURE.md`.
+1. Route the change to the right owner using `docs/TARGET.md`.
 2. Add or update tests for non-trivial logic.
 3. Update the canonical doc that owns the changed behavior.
 4. Run the appropriate validation lane until green.
@@ -151,7 +151,7 @@ Use for semantic GUI contracts, CLI scenarios, and desktop AIV loops.
 - live AIV suite:
   - `powershell -ExecutionPolicy Bypass -File scripts/gui.ps1 aiv-suite -PackName desktop-regression`
 
-See `docs/SYSTEMS.md` for the GUI artifact and automation contract details.
+See `docs/TARGET.md` for the GUI artifact and automation contract details.
 
 ### Persistence profile boundary
 

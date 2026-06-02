@@ -180,10 +180,9 @@ run_docs_index_fixture() {
   chmod +x "$script_path"
 
   for path in \
-    docs/ARCHITECTURE.md \
     docs/ENV_VARS.md \
     docs/TEST.md \
-    docs/SYSTEMS.md \
+    docs/TARGET.md \
     docs/TROUBLESHOOTING.md
   do
     mkdir -p "$repo_dir/$(dirname "$path")"
@@ -193,10 +192,9 @@ run_docs_index_fixture() {
   cat >"$repo_dir/docs/README.md" <<'EOF'
 # Developer documentation
 
-- `docs/ARCHITECTURE.md`
 - `docs/ENV_VARS.md`
 - `docs/TEST.md`
-- `docs/SYSTEMS.md`
+- `docs/TARGET.md`
 - `docs/TROUBLESHOOTING.md`
 - `AGENTS.md`
 - Planning and backlog
@@ -212,10 +210,9 @@ EOF
   cat >"$repo_dir/docs/README.md" <<'EOF'
 # Developer documentation
 
-- `docs/ARCHITECTURE.md`
 - `docs/ENV_VARS.md`
 - `docs/TEST.md`
-- `docs/SYSTEMS.md`
+- `docs/TARGET.md`
 - `docs/TROUBLESHOOTING.md`
 - `AGENTS.md`
 - `docs/plans/index.md`

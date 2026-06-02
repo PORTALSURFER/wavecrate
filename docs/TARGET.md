@@ -2314,6 +2314,37 @@ Performance-sensitive paths should have focused tests, diagnostics, examples, be
 
 Wavecrate owns product behavior. Radiant owns reusable GUI capability. The audio engine should move toward reusable audio capability. The persistence layer should provide fast, reliable storage and indexing without leaking database details into every product workflow.
 
+### Change Routing Rules
+
+Route changes by ownership before editing:
+
+* domain workflows, persistence orchestration, and application state belong in `src/`
+* default product-specific GUI behavior belongs in `src/gui_app.rs` and `src/app_core/**`
+* current default-GUI folder/file drag/drop behavior belongs under `src/gui_app/folder_browser/**`
+* do not route current product drag/drop fixes to `src/app/controller/ui/drag_drop_controller/**` unless a task explicitly names that deprecated compatibility controller
+* reusable UI, runtime, layout, widget, input, focus, invalidation, rendering, and test primitives belong in `vendor/radiant`
+* runtime compatibility behavior should stay inside runtime/test surfaces rather than leaking into generic Radiant modules
+
+Large import lists are not formatting problems. In short: large import lists are architecture signals. When a Wavecrate GUI module needs broad imports from unrelated UI, domain, runtime, and helper areas, first split the module by responsibility or move reusable GUI behavior into Radiant. Keep imports explicit, avoid wildcard imports outside tests/preludes, and avoid using facade modules as dumping grounds for state, view construction, side effects, and re-exports at the same time. A facade may wire focused modules together, but it should not become the owner of app state shape, widget construction, side effects, and reusable GUI helpers.
+
+Normal Wavecrate view-construction modules should prefer `use radiant::prelude as ui;` and then call `ui::...` builders/types. Low-level custom widget modules may import explicit Radiant subsystem contracts such as widget input/output, paint primitives, layout output, and theme tokens, but a long cross-subsystem list should trigger a boundary review: keep Wavecrate-specific paint/domain mapping app-side, move reusable interaction, layout, focus, invalidation, or rendering behavior into Radiant, and avoid creating Wavecrate-local GUI preludes to hide the dependency shape.
+
+### Implementation Ownership Map
+
+`src/app/controller/**` owns UI intent handling, controller orchestration, and library workflows that have not yet moved to newer app-core or GUI seams. It should avoid renderer-specific geometry logic and low-level database primitives.
+
+`src/app_core/**` owns host-facing projections, action catalog state, UI bridge projection/invalidation rules, and controller integration used by tests and companion runtime surfaces. It should avoid direct filesystem mutation policy outside the persistence layer and new coupling back into the removed legacy UI boundary.
+
+`src/gui_app.rs` owns the default Wavecrate desktop GUI entrypoint and composition of Radiant application, runtime, widget, and GPU-surface APIs for the sample-workstation UI. Its support modules under `src/gui_app/**` own Wavecrate-specific product UI behavior and should avoid owning reusable Radiant behavior or reintroducing dependencies on the deprecated legacy UI path.
+
+`src/app/controller/ui/drag_drop_controller/**` owns controller-level drag/drop behavior still exercised by compatibility tests. It is not the default target for current `src/gui_app.rs` product drag/drop bugs.
+
+`src/sample_sources/**` owns database schema, read/write APIs, journal-backed file operations, and crash recovery behavior for file and folder mutations. It should avoid UI policy and rendering behavior.
+
+`src/issue_gateway/**` owns issue-reporting DTOs, token storage, and integration boundaries.
+
+`vendor/radiant/**` owns reusable layout primitives, widgets, runtime/backend integration, and reusable runtime/test primitives used by Wavecrate's GUI. It should avoid Wavecrate-specific controller, audio, persistence, or product policy.
+
 ### Wavecrate Owns
 
 * source configuration and sample-library policy
@@ -2379,6 +2410,129 @@ Wavecrate owns product behavior. Radiant owns reusable GUI capability. The audio
 If Wavecrate has to build a custom UI primitive only because Radiant lacks the right general API, prefer improving Radiant and then migrating Wavecrate back to the generic primitive.
 
 If Wavecrate has to add playback, decoding, looping, warping, destructive rendering, or reusable audio-analysis code only because the audio engine lacks a reusable primitive, prefer improving the audio-engine boundary instead of embedding one-off audio behavior directly into product code.
+
+## Runtime and Data Contracts
+
+Durable runtime, automation, recovery, and data-format contracts belong in this target document with their owning code boundaries.
+
+### UI Bridge Projection Cache
+
+`src/app_core/ui_bridge/**` owns the retained UI projection model.
+
+Core rules:
+
+* pulls should reuse retained segments when the relevant projection keys match
+* invalidation should stay as targeted as correctness allows
+* overlay-only waveform edits should avoid unnecessary waveform-image rebuilds
+* local-only pull shortcuts are conservative and must never bypass required derived invalidation
+
+Use the bridge metrics helpers instead of ad-hoc logging when profiling:
+
+* `measure_projection_segment_lookup_counts`
+* `measure_projection_segment_probe`
+* `measure_projection_rebuild_cause_counts`
+
+Behavioral coverage anchor: `src/app_core/ui_bridge/tests.rs`.
+
+### GUI Test Platform
+
+The GUI test platform has four layers:
+
+1. host action catalog in `src/app_core/actions/**`
+2. semantic automation snapshots emitted by runtime/test projection helpers
+3. deterministic GUI test mode and artifact emission
+4. in-process scenario runner and `tools/gui-test-cli`
+
+The important contract is semantic stability:
+
+* target controls by stable node IDs and action IDs
+* prefer semantic automation over screenshot matching when possible
+* correlate GUI artifacts through the existing runtime/test projection helpers instead of inventing a separate reporting format
+
+Current development loops:
+
+* semantic contract lane: `scripts/gui.ps1 contract`
+* broader suite: `scripts/gui.ps1 suite`
+* local desktop AIV smoke/suite: `scripts/gui.ps1 aiv-smoke` and `scripts/gui.ps1 aiv-suite -PackName desktop-regression`
+
+Desktop AIV remains local-only until foreground/focus stability is strong enough for promotion.
+
+### Run Artifacts
+
+Run outputs should remain machine-readable and deterministic. Artifacts include run manifest metadata, GUI test artifacts, optional bug-bundle outputs, and perf-guard outputs where relevant. When adding a new run artifact, reuse the existing run metadata model instead of inventing a parallel schema.
+
+### File-Operation Recovery
+
+`src/sample_sources/db/file_ops_journal.rs` owns copy/move crash recovery.
+
+Durability rules:
+
+1. write journal intent before assuming filesystem mutation
+2. advance journal stages only after each durable boundary completes
+3. reconcile by checking filesystem state again instead of trusting the journal blindly
+4. prefer data preservation when observed state is ambiguous
+
+### Analysis Enqueue Triggers
+
+`src/app/controller/library/analysis_backfill.rs` owns the explicit controller contract for scheduling analysis work.
+
+Allowed enqueue reasons:
+
+* sample added to a source
+* destructive audio-content edit
+* user-requested reanalysis
+* explicit similarity-prep bootstrap
+
+Forbidden implicit reasons:
+
+* scan completion
+* watcher or auto-sync follow-up
+* deferred maintenance or startup catch-up
+* rename or move without audio-byte changes
+* similarity browsing or read-path resolution
+
+When analysis-trigger behavior changes, update this contract and route controller call sites through that module instead of adding a new direct enqueue path.
+
+### Folder-Delete Recovery
+
+`src/app/controller/library/source_folders/delete_recovery/**` owns retained folder-delete recovery.
+
+Contract:
+
+* staged deletes move data into an app-owned trash area
+* startup recovery restores incomplete deletes conservatively
+* fully committed deletes remain recoverable until explicit restore or purge
+* explicit restore merges carefully and keeps both copies when content differs
+
+### Updater Policy
+
+Updater behavior is intentionally conservative:
+
+* install paths must not traverse unsafe symlink paths
+* Windows release installs are manual by design
+* development-only overrides belong behind explicit env vars
+* updater failures should preserve the installed app rather than forcing risky writes
+
+See `docs/TROUBLESHOOTING.md` and `docs/ENV_VARS.md` for diagnostics and overrides.
+
+### Data-Format Notes
+
+Keep these formats stable unless there is a coordinated migration:
+
+* feature-vector payloads used by the similarity pipeline
+* ANN container artifacts used for search/index assets
+
+When either format changes, document the migration at the owning code boundary, update regression or fixture coverage, and avoid version drift between generated assets and the reader.
+
+### Performance Posture
+
+Performance-sensitive work should preserve these expectations:
+
+* the app stays responsive under large-library workloads
+* bridge and waveform hot paths remain measurable and testable
+* performance checks use the existing wrapper scripts and reproducible datasets instead of one-off local measurements
+
+Historical execution diaries and phase logs belong in `tmp/`, not durable target sections.
 
 ## Code Quality and Maintainability Target
 

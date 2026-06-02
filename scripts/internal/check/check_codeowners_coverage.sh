@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Ensures `.github/CODEOWNERS` continues to mirror the high-level ownership
-# buckets described in `docs/ARCHITECTURE.md`.
+# buckets described in `docs/TARGET.md`.
 #
 # This is intentionally lightweight: it checks for coverage, not exact matches.
 
@@ -56,7 +56,7 @@ for prefix in "${required_prefixes[@]}"; do
   if ! has_pattern_prefix "$prefix"; then
     if (( missing == 0 )); then
       echo "[codeowners_coverage] Missing required CODEOWNERS bucket entries:" >&2
-      echo "[codeowners_coverage] (Update docs/ARCHITECTURE.md and .github/CODEOWNERS together.)" >&2
+      echo "[codeowners_coverage] (Update docs/TARGET.md and .github/CODEOWNERS together.)" >&2
     fi
     echo " - $prefix" >&2
     missing=$((missing + 1))

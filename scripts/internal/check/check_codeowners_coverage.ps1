@@ -7,7 +7,7 @@ Ensures `.github/CODEOWNERS` covers the high-level ownership buckets.
 
 .DESCRIPTION
 This is intentionally lightweight: it checks for coverage, not exact matches.
-Keep `docs/ARCHITECTURE.md` (map) and `.github/CODEOWNERS` (enforcement) in sync.
+Keep `docs/TARGET.md` (ownership map) and `.github/CODEOWNERS` (enforcement) in sync.
 #>
 
 $rootDir = (Resolve-Path (Join-Path $PSScriptRoot "../../..")).Path
@@ -64,7 +64,7 @@ try {
 
   if ($missing.Count -gt 0) {
     Write-Error "[codeowners_coverage] Missing required CODEOWNERS bucket entries:"
-    Write-Host "[codeowners_coverage] (Update docs/ARCHITECTURE.md and .github/CODEOWNERS together.)"
+    Write-Host "[codeowners_coverage] (Update docs/TARGET.md and .github/CODEOWNERS together.)"
     foreach ($m in $missing) {
       Write-Host (" - {0}" -f $m)
     }
