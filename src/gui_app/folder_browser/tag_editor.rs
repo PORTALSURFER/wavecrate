@@ -274,7 +274,7 @@ fn metadata_tag_category_style(category_id: &str, selected: bool) -> WidgetStyle
 fn pending_category_tag_token(tag: &str) -> ui::View<GuiMessage> {
     ui::badge(tag.to_string())
         .subtle()
-        .message(GuiMessage::Noop)
+        .passive()
         .key(format!("metadata-tag-pending-category-{tag}"))
         .style(WidgetStyle::new(
             WidgetTone::Accent,
