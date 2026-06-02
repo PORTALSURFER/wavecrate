@@ -2,9 +2,9 @@ use radiant::prelude as ui;
 
 use super::{GuiAppState, GuiMessage};
 
-const TOOLBAR_ICON_ACTIVE_COLOR: &str = "#ffa052";
-const TOOLBAR_ICON_ENABLED_COLOR: &str = "#eeeeee";
-const TOOLBAR_ICON_DISABLED_COLOR: &str = "#919191";
+const TOOLBAR_ICON_ACTIVE_COLOR: ui::Rgba8 = ui::Rgba8::new(255, 160, 82, 255);
+const TOOLBAR_ICON_ENABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(238, 238, 238, 255);
+const TOOLBAR_ICON_DISABLED_COLOR: ui::Rgba8 = ui::Rgba8::new(145, 145, 145, 255);
 
 pub(super) const TOOLBAR_FOCUS_LOADED_ID: u64 = 32_100;
 const TOOLBAR_LOOP_ID: u64 = 32_101;
@@ -45,14 +45,7 @@ pub(super) fn toolbar_icon_button(
     enabled: bool,
     active: bool,
 ) -> ui::View<GuiMessage> {
-    let svg = toolbar_icon_svg(icon, enabled, active);
-    let Some(svg_icon) = ui::SvgIcon::from_svg(&svg) else {
-        return ui::button("")
-            .message(toolbar_button_message(icon))
-            .id(id)
-            .size(28.0, 24.0);
-    };
-    ui::icon_button(svg_icon)
+    ui::icon_button(toolbar_icon_glyph(icon, enabled, active))
         .enabled(enabled)
         .active(active)
         .message(toolbar_button_message(icon))
@@ -69,47 +62,28 @@ pub(super) enum ToolbarIcon {
 }
 
 impl ToolbarIcon {
-    pub(super) fn svg(self, color: &str) -> String {
+    fn cache(self) -> &'static ui::SvgIconTintCache {
         match self {
-            Self::FocusLoaded => format!(
-                r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-  <rect fill="{color}" x="3" y="3" width="2" height="2"/>
-  <rect fill="{color}" x="6" y="3.25" width="7" height="1.5"/>
-  <rect fill="{color}" x="3" y="7" width="2" height="2"/>
-  <rect fill="{color}" x="6" y="7.25" width="7" height="1.5"/>
-  <rect fill="{color}" x="3" y="11" width="2" height="2"/>
-  <rect fill="{color}" x="6" y="11.25" width="7" height="1.5"/>
-</svg>"#
-            ),
-            Self::Loop => format!(
-                r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-  <path fill="{color}" d="M4 3h5.4V1.5L14 5l-4.6 3.5V7H4.2C3 7 2 8 2 9.2V10H.5v-.8C.5 5.8 2 3 4 3z"/>
-  <path fill="{color}" d="M12 13H6.6v1.5L2 11l4.6-3.5V9H12c1.2 0 2-1 2-2.2V6h1.5v.8C15.5 10.2 14 13 12 13z"/>
-</svg>"#
-            ),
-            Self::Play => format!(
-                r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-  <polygon fill="{color}" points="4,3 13,8 4,13"/>
-</svg>"#
-            ),
-            Self::Stop => format!(
-                r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-  <rect fill="{color}" x="4" y="4" width="8" height="8"/>
-</svg>"#
-            ),
+            Self::FocusLoaded => &FOCUS_LOADED_ICON,
+            Self::Loop => &LOOP_ICON,
+            Self::Play => &PLAY_ICON,
+            Self::Stop => &STOP_ICON,
         }
     }
 }
 
-pub(super) fn toolbar_icon_svg(icon: ToolbarIcon, enabled: bool, active: bool) -> String {
-    let color = if !enabled {
+pub(super) fn toolbar_icon_color(enabled: bool, active: bool) -> ui::Rgba8 {
+    if !enabled {
         TOOLBAR_ICON_DISABLED_COLOR
     } else if active {
         TOOLBAR_ICON_ACTIVE_COLOR
     } else {
         TOOLBAR_ICON_ENABLED_COLOR
-    };
-    icon.svg(color)
+    }
+}
+
+pub(super) fn toolbar_icon_glyph(icon: ToolbarIcon, enabled: bool, active: bool) -> ui::SvgIcon {
+    icon.cache().icon(toolbar_icon_color(enabled, active))
 }
 
 fn toolbar_button_message(icon: ToolbarIcon) -> GuiMessage {
@@ -120,3 +94,33 @@ fn toolbar_button_message(icon: ToolbarIcon) -> GuiMessage {
         ToolbarIcon::Stop => GuiMessage::StopPlayback,
     }
 }
+
+static FOCUS_LOADED_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
+    r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <rect x="3" y="3" width="2" height="2"/>
+  <rect x="6" y="3.25" width="7" height="1.5"/>
+  <rect x="3" y="7" width="2" height="2"/>
+  <rect x="6" y="7.25" width="7" height="1.5"/>
+  <rect x="3" y="11" width="2" height="2"/>
+  <rect x="6" y="11.25" width="7" height="1.5"/>
+</svg>"#,
+);
+
+static LOOP_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
+    r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <path d="M4 3h5.4V1.5L14 5l-4.6 3.5V7H4.2C3 7 2 8 2 9.2V10H.5v-.8C.5 5.8 2 3 4 3z"/>
+  <path d="M12 13H6.6v1.5L2 11l4.6-3.5V9H12c1.2 0 2-1 2-2.2V6h1.5v.8C15.5 10.2 14 13 12 13z"/>
+</svg>"#,
+);
+
+static PLAY_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
+    r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <polygon points="4,3 13,8 4,13"/>
+</svg>"#,
+);
+
+static STOP_ICON: ui::SvgIconTintCache = ui::SvgIconTintCache::new(
+    r#"<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <rect x="4" y="4" width="8" height="8"/>
+</svg>"#,
+);

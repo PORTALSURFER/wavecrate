@@ -8,14 +8,30 @@ fn toolbar_icon_assets_parse_and_paint_through_radiant_icon_button() {
         super::super::ToolbarIcon::Play,
         super::super::ToolbarIcon::Stop,
     ] {
-        let enabled_svg = super::super::toolbar_icon_svg(icon, true, false);
-        let active_svg = super::super::toolbar_icon_svg(icon, true, true);
-        let disabled_svg = super::super::toolbar_icon_svg(icon, false, false);
-        assert!(enabled_svg.contains(r##"fill="#eeeeee""##));
-        assert!(active_svg.contains(r##"fill="#ffa052""##));
-        assert!(disabled_svg.contains(r##"fill="#919191""##));
-        assert!(!enabled_svg.contains("currentColor"));
-        assert!(radiant::gui::svg::SvgIcon::from_svg(&enabled_svg).is_some());
+        assert_eq!(
+            super::super::toolbar_icon_color(true, false),
+            radiant::prelude::Rgba8::new(238, 238, 238, 255)
+        );
+        assert_eq!(
+            super::super::toolbar_icon_color(true, true),
+            radiant::prelude::Rgba8::new(255, 160, 82, 255)
+        );
+        assert_eq!(
+            super::super::toolbar_icon_color(false, false),
+            radiant::prelude::Rgba8::new(145, 145, 145, 255)
+        );
+        let mut primitives = Vec::new();
+        super::super::toolbar_icon_glyph(icon, true, false).append_paint(
+            &mut primitives,
+            101,
+            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(28.0, 24.0)),
+        );
+        assert!(
+            primitives
+                .iter()
+                .any(|primitive| matches!(primitive, radiant::runtime::PaintPrimitive::Svg(_))),
+            "toolbar icon cache should produce a retained Radiant SVG"
+        );
         let frame = super::super::toolbar_icon_button(101, icon, true, false)
             .view_frame_at_size_with_default_theme(Vector2::new(28.0, 24.0));
         assert!(

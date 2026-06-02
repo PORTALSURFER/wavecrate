@@ -79,7 +79,8 @@ use sample_load_actions::{NormalizedWaveformReload, WaveformPlaybackResume};
 use shortcuts::default_gui_shortcut_resolution;
 #[cfg(test)]
 use toolbar::{
-    TOOLBAR_FOCUS_LOADED_ID, TOOLBAR_STOP_ID, ToolbarIcon, toolbar_icon_button, toolbar_icon_svg,
+    TOOLBAR_FOCUS_LOADED_ID, TOOLBAR_STOP_ID, ToolbarIcon, toolbar_icon_button, toolbar_icon_color,
+    toolbar_icon_glyph,
 };
 use waveform::{WaveformActiveDragKind, WaveformInteraction, WaveformSelectionKind, WaveformState};
 
