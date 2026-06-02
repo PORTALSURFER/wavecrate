@@ -6,7 +6,8 @@ use crate::gui_app::{
     FOLDER_TREE_PROJECTED_VIEWPORT_ROWS,
 };
 
-use super::tag_editor::{metadata_section, tag_field_content_width, tag_field_height};
+use super::tag_editor::{metadata_section, tag_field_height};
+use super::tag_entry_layout::tag_field_content_width;
 use super::{
     FolderBrowserMessage, FolderBrowserState, GuiMessage, TREE_DEPTH_INDENT, TREE_ROW_HEIGHT,
     VisibleFolder, plural,

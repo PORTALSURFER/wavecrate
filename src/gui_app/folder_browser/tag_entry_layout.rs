@@ -10,9 +10,10 @@ use radiant::prelude as ui;
 pub(super) const TAG_FIELD_CONTROL_HEIGHT: f32 = 18.0;
 pub(super) const TAG_FIELD_ITEM_GAP: f32 = 3.0;
 pub(super) const TAG_FIELD_LINE_GAP: f32 = 3.0;
-pub(super) const TAG_FIELD_HORIZONTAL_CHROME: f32 = 26.0;
-pub(super) const TAG_FIELD_VERTICAL_CHROME: f32 = 6.0;
-pub(super) const MAX_TAG_FIELD_ROWS: usize = 6;
+const TAG_FIELD_HORIZONTAL_CHROME: f32 = 26.0;
+const TAG_FIELD_VERTICAL_CHROME: f32 = 6.0;
+const TAG_FIELD_MIN_CONTENT_WIDTH: f32 = 120.0;
+const MAX_TAG_FIELD_ROWS: usize = 6;
 const MIN_TAG_INPUT_REMAINING_WIDTH: f32 = 180.0;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -134,13 +135,15 @@ pub(super) fn rows_height(row_count: usize) -> f32 {
 }
 
 pub(super) fn capped_rows_height(row_count: usize) -> f32 {
-    ui::capped_flow_rows_height(
-        row_count,
-        1,
-        MAX_TAG_FIELD_ROWS,
-        TAG_FIELD_VERTICAL_CHROME,
-        tag_field_flow_metrics(),
-    )
+    tag_field_metrics().visible_field_height(row_count)
+}
+
+pub(super) fn tag_field_content_width(sidebar_width: f32) -> f32 {
+    tag_field_metrics().content_width(sidebar_width)
+}
+
+pub(super) fn tag_field_requires_scroll(row_count: usize) -> bool {
+    tag_field_metrics().requires_scroll(row_count)
 }
 
 fn tag_field_flow_metrics() -> ui::FlowLayoutMetrics {
@@ -148,6 +151,16 @@ fn tag_field_flow_metrics() -> ui::FlowLayoutMetrics {
         TAG_FIELD_ITEM_GAP,
         TAG_FIELD_LINE_GAP,
         TAG_FIELD_CONTROL_HEIGHT,
+    )
+}
+
+fn tag_field_metrics() -> ui::FlowFieldMetrics {
+    ui::FlowFieldMetrics::new(
+        tag_field_flow_metrics(),
+        TAG_FIELD_HORIZONTAL_CHROME,
+        TAG_FIELD_VERTICAL_CHROME,
+        TAG_FIELD_MIN_CONTENT_WIDTH,
+        MAX_TAG_FIELD_ROWS,
     )
 }
 
