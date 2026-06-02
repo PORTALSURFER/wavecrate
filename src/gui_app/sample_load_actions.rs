@@ -175,23 +175,17 @@ impl GuiAppState {
             started_at,
             None,
         );
-        let ticket = self.sample_load_task.begin();
-        let token = ui::CancellationToken::new();
-        self.sample_load_cancel = Some(token.clone());
         let sender = self.worker_sender.clone();
-        context.spawn_cancellable_with_priority(
+        self.sample_load_cancel = Some(context.spawn_cancellable_latest_with_priority(
+            &mut self.sample_load_task,
             "gui-sample-load",
             ui::TaskPriority::Idle,
-            token,
-            move |token| {
+            move |ticket, token| {
                 if token.is_cancelled() {
-                    return ui::TaskCompletion {
-                        ticket,
-                        output: SampleLoadResult {
-                            path,
-                            result: Err(String::from("cancelled")),
-                            autoplay,
-                        },
+                    return SampleLoadResult {
+                        path,
+                        result: Err(String::from("cancelled")),
+                        autoplay,
                     };
                 }
                 let progress_gate = ui::ProgressUpdateGate::new(
@@ -211,17 +205,14 @@ impl GuiAppState {
                     },
                     || token.is_cancelled(),
                 );
-                ui::TaskCompletion {
-                    ticket,
-                    output: SampleLoadResult {
-                        path,
-                        result,
-                        autoplay,
-                    },
+                SampleLoadResult {
+                    path,
+                    result,
+                    autoplay,
                 }
             },
             GuiMessage::SampleLoadFinished,
-        );
+        ));
     }
 
     pub(super) fn finish_sample_load(&mut self, load: ui::TaskCompletion<SampleLoadResult>) {
