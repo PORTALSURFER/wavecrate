@@ -23,6 +23,7 @@ const PRESSED_FILL: Rgba8 = Rgba8 {
 #[derive(Clone, Debug)]
 pub(in crate::gui_app) struct SampleFileHitTarget {
     row: InteractiveRowWidget,
+    actions: ui::InteractiveRowActions<SampleFileHitMessage>,
     selected: bool,
     drag_active: bool,
     drag_source: bool,
@@ -55,8 +56,14 @@ impl SampleFileHitTarget {
             .pointer_motion_during_interaction()
             .custom_paint_hit_target()
             .widget();
+        let actions = ui::InteractiveRowActions::new()
+            .activate_with_modifiers(SampleFileHitMessage::Activate)
+            .double_activate(|| SampleFileHitMessage::Activate(PointerModifiers::default()))
+            .secondary(SampleFileHitMessage::ContextMenu)
+            .drag(SampleFileHitMessage::Drag);
         Self {
             row,
+            actions,
             selected,
             drag_active,
             drag_source,
@@ -77,8 +84,8 @@ impl ui::EmbeddedInteractiveRowWidget for SampleFileHitTarget {
         &mut self.row
     }
 
-    fn map_interactive_row_message(message: InteractiveRowMessage) -> Option<Self::Message> {
-        Self::map_row_message(message)
+    fn map_interactive_row_message(&self, message: InteractiveRowMessage) -> Option<Self::Message> {
+        self.actions.route(message)
     }
 
     fn append_interactive_row_paint(
@@ -96,17 +103,6 @@ impl ui::EmbeddedInteractiveRowWidget for SampleFileHitTarget {
 }
 
 impl SampleFileHitTarget {
-    /// Maps generic Radiant row interactions into sample-browser hit messages.
-    fn map_row_message(message: InteractiveRowMessage) -> Option<SampleFileHitMessage> {
-        if let Some(modifiers) = message.activation_modifiers() {
-            return Some(SampleFileHitMessage::Activate(modifiers));
-        }
-        if let Some(position) = message.secondary_position() {
-            return Some(SampleFileHitMessage::ContextMenu(position));
-        }
-        message.drag_message().map(SampleFileHitMessage::Drag)
-    }
-
     fn paint_selection_fill(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
         self.row.push_dense_fill(
             primitives,

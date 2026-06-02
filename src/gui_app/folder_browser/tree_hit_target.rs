@@ -21,6 +21,7 @@ pub(super) enum FolderTreeHitMessage {
 #[derive(Clone, Debug)]
 pub(super) struct FolderTreeHitTarget {
     row: InteractiveRowWidget,
+    actions: ui::InteractiveRowActions<FolderTreeHitMessage>,
     label: PaintText,
     selected: bool,
     drop_target: bool,
@@ -51,8 +52,16 @@ impl FolderTreeHitTarget {
             )
             .custom_paint_hit_target()
             .widget();
+        let actions = ui::InteractiveRowActions::new()
+            .activate(|| FolderTreeHitMessage::Activate)
+            .double_activate(|| FolderTreeHitMessage::Activate)
+            .secondary(FolderTreeHitMessage::ContextMenu)
+            .drag(FolderTreeHitMessage::Drag)
+            .hover_drop(FolderTreeHitMessage::HoverDropTarget)
+            .drop(|| FolderTreeHitMessage::Drop);
         Self {
             row,
+            actions,
             label: label.into(),
             selected,
             drop_target,
@@ -72,8 +81,8 @@ impl ui::EmbeddedInteractiveRowWidget for FolderTreeHitTarget {
         &mut self.row
     }
 
-    fn map_interactive_row_message(message: InteractiveRowMessage) -> Option<Self::Message> {
-        Self::map_row_message(message)
+    fn map_interactive_row_message(&self, message: InteractiveRowMessage) -> Option<Self::Message> {
+        self.actions.route(message)
     }
 
     fn append_interactive_row_paint(
@@ -86,24 +95,6 @@ impl ui::EmbeddedInteractiveRowWidget for FolderTreeHitTarget {
         self.paint_background(primitives, bounds);
         self.paint_drop_target_outline(primitives, bounds);
         self.paint_label(primitives, bounds, _theme);
-    }
-}
-
-impl FolderTreeHitTarget {
-    fn map_row_message(message: InteractiveRowMessage) -> Option<FolderTreeHitMessage> {
-        if message.is_activation() {
-            return Some(FolderTreeHitMessage::Activate);
-        }
-        if let Some(position) = message.secondary_position() {
-            return Some(FolderTreeHitMessage::ContextMenu(position));
-        }
-        if let Some(message) = message.drag_message() {
-            return Some(FolderTreeHitMessage::Drag(message));
-        }
-        if let Some(position) = message.hover_drop_position() {
-            return Some(FolderTreeHitMessage::HoverDropTarget(position));
-        }
-        message.is_drop().then_some(FolderTreeHitMessage::Drop)
     }
 }
 
