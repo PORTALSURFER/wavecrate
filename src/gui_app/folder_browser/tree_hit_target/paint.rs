@@ -1,4 +1,11 @@
-use super::*;
+use radiant::{
+    gui::types::{Rect, Rgba8},
+    prelude as ui,
+    runtime::PaintPrimitive,
+    theme::ThemeTokens,
+};
+
+use super::FolderTreeHitTarget;
 
 impl FolderTreeHitTarget {
     pub(super) fn paint_background(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {

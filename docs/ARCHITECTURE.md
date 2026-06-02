@@ -47,7 +47,10 @@ predictable, and lower-latency design.
   and helper areas, first split the module by responsibility or move reusable
   GUI behavior into Radiant. Keep imports explicit, avoid wildcard imports
   outside tests/preludes, and avoid using facade modules as dumping grounds for
-  state, view construction, side effects, and re-exports at the same time.
+  state, view construction, side effects, and re-exports at the same time. A
+  facade may wire focused modules together, but it should not become the owner
+  of app state shape, widget construction, side effects, and reusable GUI
+  helpers.
 
 ## Ownership map
 

@@ -1,5 +1,5 @@
 use radiant::{
-    gui::types::{Point, Rect, Rgba8},
+    gui::types::{Point, Rect},
     layout::LayoutOutput,
     prelude as ui,
     runtime::{PaintPrimitive, PaintText},

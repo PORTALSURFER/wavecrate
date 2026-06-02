@@ -1,26 +1,12 @@
 //! Default Wavecrate GUI application built on Radiant's current public API.
 
-use radiant::gui::types::Point;
-use radiant::prelude as ui;
-use radiant::runtime::NativeFileDrop;
-use radiant::widgets::{DragHandleMessage, PointerModifiers};
-use std::{
-    collections::{BTreeMap, HashMap, HashSet, VecDeque},
-    path::PathBuf,
-    sync::{
-        Arc, Mutex,
-        mpsc::{Receiver, Sender},
-    },
-    time::{Duration, Instant},
-};
-use wavecrate::audio::{
-    AudioDeviceSummary, AudioHostSummary, AudioOutputConfig, AudioPlayer, ResolvedOutput,
+#[cfg(test)]
+pub(in crate::gui_app) use wavecrate::audio::{
+    AudioDeviceSummary, AudioHostSummary, AudioOutputConfig, ResolvedOutput,
 };
 use wavecrate::logging;
-use wavecrate::sample_sources::SampleCollection;
 #[cfg(test)]
-use wavecrate::sample_sources::config::AppConfig;
-use wavecrate::sample_sources::config::AppSettingsCore;
+pub(in crate::gui_app) use wavecrate::sample_sources::config::{AppConfig, AppSettingsCore};
 
 mod audio_engine;
 mod audio_settings;
@@ -47,6 +33,7 @@ mod sample_load_actions;
 mod sample_ratings;
 mod selected_file_actions;
 mod shortcuts;
+mod state;
 mod status_bar;
 mod toolbar;
 mod waveform;
@@ -56,311 +43,47 @@ use audio_settings::audio_settings_popover;
 use audio_settings::format_sample_rate_label;
 #[cfg(test)]
 use audio_settings::top_status_bar;
-use context_menu::{BrowserContextMenu, BrowserContextTargetKind};
+#[cfg(test)]
+pub(in crate::gui_app) use context_menu::{BrowserContextMenu, BrowserContextTargetKind};
 #[cfg(test)]
 use file_actions::format_copy_path;
 #[cfg(test)]
 use file_actions::normalize_wav_file_in_place;
 use file_actions::sample_path_label;
-use folder_browser::{
-    FolderBrowserMessage, FolderBrowserState, FolderScanDiscoveryBatch, FolderScanProgress,
-    FolderScanResult,
-};
+use folder_browser::{FolderBrowserMessage, FolderBrowserState, FolderScanProgress};
 use launch::emit_gui_action;
 pub(crate) use launch::run;
 #[cfg(test)]
 use launch::{DEBUG_LAYOUT_ARG, DEBUG_LAYOUT_SHORT_ARG, debug_layout_requested};
 use layout::view;
-use metadata_tags::{MetadataTagInputMode, MetadataTagPersistResult};
+#[cfg(test)]
+pub(in crate::gui_app) use metadata_tags::MetadataTagInputMode;
 #[cfg(test)]
 use sample_browser_view::sample_browser;
 use sample_load_actions::{NormalizedWaveformReload, WaveformPlaybackResume};
 use shortcuts::default_gui_shortcut_resolution;
+#[cfg(test)]
+pub(in crate::gui_app) use state::DEFAULT_VOLUME;
+pub(in crate::gui_app) use state::{
+    AUDIO_ENGINE_PILL_HEIGHT, AUDIO_ENGINE_PILL_ID, AUDIO_ENGINE_PILL_WIDTH,
+    AUDIO_SETTINGS_POPUP_HEIGHT, AUDIO_SETTINGS_POPUP_WIDTH, AudioSettingsDropdown,
+    DEFAULT_FOLDER_WIDTH, DRAG_PREVIEW_HEIGHT, DRAG_PREVIEW_MAX_WIDTH,
+    FOLDER_TREE_EDGE_CONTEXT_ROWS, FOLDER_TREE_LIST_ID, FOLDER_TREE_OVERSCAN_ROWS,
+    FOLDER_TREE_PROJECTED_VIEWPORT_ROWS, GuiAppState, GuiMessage, MAX_FOLDER_WIDTH,
+    MIN_FOLDER_WIDTH, NativeFileDropHover, NormalizationProgress, NormalizationResult,
+    PLAYBACK_START_ACTIVE_SOURCE_GRACE, PendingPlaybackStart, SAMPLE_BROWSER_EDGE_CONTEXT_ROWS,
+    SAMPLE_BROWSER_LIST_ID, SAMPLE_BROWSER_OVERSCAN_ROWS, SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS,
+    SAMPLE_BROWSER_ROW_HEIGHT, SampleFileSignature, SampleLoadResult, SampleNameViewMode,
+    UNCACHED_SAMPLE_LOAD_DEBOUNCE, VOLUME_PERSIST_DEBOUNCE, VOLUME_SLIDER_HEIGHT, VOLUME_SLIDER_ID,
+    VOLUME_SLIDER_WIDTH, WAVEFORM_PANEL_HEIGHT, WAVEFORM_SIGNAL_WIDGET_ID, WAVEFORM_VIEW_HEIGHT,
+    WAVEFORM_WIDGET_ID, WaveformCacheEntry,
+};
 #[cfg(test)]
 use toolbar::{
     TOOLBAR_FOCUS_LOADED_ID, TOOLBAR_STOP_ID, ToolbarIcon, toolbar_icon_button, toolbar_icon_color,
     toolbar_icon_glyph,
 };
 use waveform::{WaveformActiveDragKind, WaveformInteraction, WaveformSelectionKind, WaveformState};
-
-const DEFAULT_FOLDER_WIDTH: f32 = 260.0;
-const MIN_FOLDER_WIDTH: f32 = 180.0;
-const MAX_FOLDER_WIDTH: f32 = 420.0;
-const FOLDER_TREE_LIST_ID: u64 = 29_000;
-const FOLDER_TREE_EDGE_CONTEXT_ROWS: usize = 2;
-const FOLDER_TREE_OVERSCAN_ROWS: usize = 4;
-const FOLDER_TREE_PROJECTED_VIEWPORT_ROWS: usize = 96;
-const SAMPLE_BROWSER_LIST_ID: u64 = 30_000;
-const SAMPLE_BROWSER_ROW_HEIGHT: f32 = 22.0;
-const SAMPLE_BROWSER_EDGE_CONTEXT_ROWS: usize = 2;
-const SAMPLE_BROWSER_OVERSCAN_ROWS: usize = 4;
-const SAMPLE_BROWSER_PROJECTED_VIEWPORT_ROWS: usize = 128;
-#[cfg(test)]
-const DEFAULT_VOLUME: f32 = 1.0;
-const VOLUME_SLIDER_ID: u64 = 31_000;
-const VOLUME_SLIDER_WIDTH: f32 = 92.0;
-const VOLUME_SLIDER_HEIGHT: f32 = 14.0;
-const VOLUME_PERSIST_DEBOUNCE: Duration = Duration::from_millis(250);
-const AUDIO_ENGINE_PILL_ID: u64 = 31_100;
-const AUDIO_ENGINE_PILL_WIDTH: f32 = 54.0;
-const AUDIO_ENGINE_PILL_HEIGHT: f32 = 18.0;
-const AUDIO_SETTINGS_POPUP_WIDTH: f32 = 360.0;
-const AUDIO_SETTINGS_POPUP_HEIGHT: f32 = 344.0;
-const DRAG_PREVIEW_MAX_WIDTH: f32 = 280.0;
-const DRAG_PREVIEW_HEIGHT: f32 = 20.0;
-const WAVEFORM_VIEW_HEIGHT: f32 = 172.0;
-const WAVEFORM_PANEL_HEIGHT: f32 = 226.0;
-const WAVEFORM_SIGNAL_WIDGET_ID: u64 = 11;
-const WAVEFORM_WIDGET_ID: u64 = 12;
-const PLAYBACK_START_ACTIVE_SOURCE_GRACE: Duration = Duration::from_millis(120);
-const UNCACHED_SAMPLE_LOAD_DEBOUNCE: Duration = Duration::from_millis(90);
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum AudioSettingsDropdown {
-    Backend,
-    Output,
-    SampleRate,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-enum GuiMessage {
-    ResizeFolder(DragHandleMessage),
-    FolderBrowser(FolderBrowserMessage),
-    AddSourceDialogFinished(Result<ui::PlatformResponse, String>),
-    ContextPathCopyFinished {
-        kind: BrowserContextTargetKind,
-        path: PathBuf,
-        result: Result<ui::PlatformResponse, String>,
-    },
-    ContextTargetOpenFinished {
-        kind: BrowserContextTargetKind,
-        path: PathBuf,
-        result: Result<ui::PlatformResponse, String>,
-    },
-    FolderScanProgress(FolderScanProgress),
-    FolderScanDiscoveryBatch(FolderScanDiscoveryBatch),
-    FolderScanFinished(FolderScanResult),
-    NormalizationProgress(NormalizationProgress),
-    NormalizationFinished(NormalizationResult),
-    SelectSampleWithModifiers {
-        path: String,
-        modifiers: PointerModifiers,
-    },
-    OpenSampleContextMenu {
-        path: String,
-        position: Point,
-    },
-    DragSampleFile {
-        path: String,
-        drag: DragHandleMessage,
-    },
-    ExternalDragCompleted(Result<ui::ExternalDragOutcome, String>),
-    DeferredSampleLoad {
-        ticket: ui::TaskTicket,
-        path: String,
-        autoplay: bool,
-    },
-    SampleLoadProgress(ui::TaskTicket, f32),
-    SampleLoadFinished(ui::TaskCompletion<SampleLoadResult>),
-    AudioPlayerOpenFinished(ui::TaskTicket),
-    PlaySelectedSample,
-    StopPlayback,
-    ToggleLoopPlayback,
-    SetVolume(f32),
-    ToggleAudioSettings,
-    CloseAudioSettings,
-    ToggleAudioBackendDropdown,
-    ToggleAudioOutputDropdown,
-    ToggleAudioSampleRateDropdown,
-    CloseAudioSettingsDropdowns,
-    SetAudioOutputHost(Option<String>),
-    SetAudioOutputDevice(Option<String>),
-    SetAudioOutputSampleRate(Option<u32>),
-    MetadataTagInput(radiant::widgets::TextInputMessage),
-    MoveMetadataTagCompletion(i32),
-    ToggleMetadataTagLibrary,
-    ToggleMetadataTagCategory(String),
-    SelectMetadataTag(String),
-    ToggleMetadataTag(String),
-    DragMetadataTag {
-        tag: String,
-        drag: DragHandleMessage,
-    },
-    HoverMetadataTagDropCategory {
-        category_id: String,
-    },
-    DropMetadataTagOnCategory {
-        category_id: String,
-    },
-    OpenMetadataTagContextMenu {
-        tag: String,
-        position: ui::Point,
-    },
-    DeleteContextMetadataTag,
-    DeleteSelectedMetadataTag,
-    MetadataTagsPersisted(MetadataTagPersistResult),
-    ToggleSampleNameViewMode,
-    ClearRebuildableCaches,
-    FocusLoadedFile,
-    AdjustSelectedRating(i8),
-    AssignSelectedCollection(SampleCollection),
-    NormalizeSelectedSamples,
-    CopySelectedFiles,
-    CopyContextPath,
-    OpenContextTarget,
-    RemoveContextSource,
-    CloseContextMenu,
-    ToggleJobDetails,
-    CloseJobDetails,
-    FocusRenameInput(u64),
-    DeleteSelectedItem,
-    ExtractPlaymarkedRange,
-    NavigateBrowser {
-        delta: i32,
-        extend: bool,
-    },
-    SelectAllSamples,
-    CollapseSelectedFolder,
-    ExpandSelectedFolder,
-    DropWaveformSelectionOnSampleList,
-    Waveform(WaveformInteraction),
-    NativeFileDrop(NativeFileDrop),
-    Frame,
-}
-
-#[derive(Clone, Debug)]
-struct SampleLoadResult {
-    path: String,
-    result: Result<WaveformState, String>,
-    autoplay: bool,
-}
-
-#[derive(Clone, Debug)]
-struct WaveformCacheEntry {
-    file: std::sync::Arc<waveform::WaveformFile>,
-    signature: SampleFileSignature,
-    byte_len: usize,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct SampleFileSignature {
-    size_bytes: u64,
-    modified_ns: i64,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct NormalizationProgress {
-    task_id: u64,
-    label: String,
-    completed: usize,
-    total: usize,
-    detail: String,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-struct NormalizationResult {
-    task_id: u64,
-    loaded_path: PathBuf,
-    normalizing_loaded: bool,
-    was_playing: bool,
-    restart_ratio: f32,
-    restart_span: Option<(f32, f32)>,
-    normalized: Vec<PathBuf>,
-    last_error: Option<String>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
-struct PendingPlaybackStart {
-    start_ratio: f32,
-    end_ratio: f32,
-    loop_offset_ratio: Option<f32>,
-}
-
-impl PartialEq for SampleLoadResult {
-    fn eq(&self, other: &Self) -> bool {
-        self.path == other.path && self.result.as_ref().err() == other.result.as_ref().err()
-    }
-}
-
-struct GuiAppState {
-    folder_width: f32,
-    folder_resize: Option<ui::PanelResizeDrag>,
-    folder_browser: FolderBrowserState,
-    waveform: WaveformState,
-    sample_status: String,
-    worker_sender: Sender<GuiMessage>,
-    worker_receiver: Option<Receiver<GuiMessage>>,
-    next_task_id: u64,
-    deferred_sample_load_task: ui::LatestTask,
-    sample_load_task: ui::LatestTask,
-    sample_load_cancel: Option<ui::CancellationToken>,
-    audio_open_task: ui::LatestTask,
-    audio_open_results: Arc<Mutex<HashMap<ui::TaskTicket, Result<AudioPlayer, String>>>>,
-    folder_progress: Option<FolderScanProgress>,
-    normalization_progress: Option<NormalizationProgress>,
-    progress_tick: f32,
-    frame_cadence: ui::FrameCadenceMonitor,
-    waveform_loading_progress: f32,
-    waveform_loading_target_progress: f32,
-    audio_player: Option<AudioPlayer>,
-    loop_playback: bool,
-    volume: f32,
-    volume_persist_deadline: Option<Instant>,
-    audio_output_config: AudioOutputConfig,
-    audio_output_resolved: Option<ResolvedOutput>,
-    audio_hosts: Vec<AudioHostSummary>,
-    audio_devices: Vec<AudioDeviceSummary>,
-    audio_sample_rates: Vec<u32>,
-    persisted_settings: AppSettingsCore,
-    audio_settings_open: bool,
-    audio_settings_dropdown: ui::ExclusiveOpen<AudioSettingsDropdown>,
-    job_details_open: bool,
-    context_menu: Option<BrowserContextMenu>,
-    waveform_loading_label: Option<String>,
-    audio_settings_error: Option<String>,
-    current_playback_span: Option<(f32, f32)>,
-    pending_playback_start: Option<PendingPlaybackStart>,
-    native_file_drop_hover: Option<NativeFileDropHover>,
-    metadata_tag_draft: String,
-    metadata_tag_tokens: Vec<String>,
-    metadata_tag_input_mode: MetadataTagInputMode,
-    metadata_tag_completion_cycle: ui::CyclicListSelectionCycle,
-    metadata_tag_dictionary: BTreeMap<String, String>,
-    metadata_tag_library_open: bool,
-    metadata_tag_drag: Option<String>,
-    metadata_tag_drop_hover: Option<String>,
-    selected_metadata_tag: Option<String>,
-    collapsed_metadata_tag_categories: HashSet<String>,
-    metadata_tags_by_file: HashMap<String, Vec<String>>,
-    sample_name_view_mode: SampleNameViewMode,
-    startup_source_scan_pending: bool,
-    startup_auto_load_pending: bool,
-    waveform_cache: HashMap<PathBuf, WaveformCacheEntry>,
-    waveform_cache_order: VecDeque<PathBuf>,
-    waveform_cache_bytes: usize,
-    cached_sample_paths: HashSet<String>,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum SampleNameViewMode {
-    DiskFilename,
-    MetadataLabel,
-}
-
-impl SampleNameViewMode {
-    fn toggled(self) -> Self {
-        match self {
-            Self::DiskFilename => Self::MetadataLabel,
-            Self::MetadataLabel => Self::DiskFilename,
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct NativeFileDropHover {
-    path: PathBuf,
-    supported: bool,
-}
 
 #[cfg(test)]
 mod tests;
