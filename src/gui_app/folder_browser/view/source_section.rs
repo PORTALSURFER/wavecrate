@@ -5,6 +5,8 @@ use radiant::{
 
 use super::super::{FolderBrowserMessage, FolderBrowserState, GuiMessage, SourceEntry};
 
+const SOURCE_ROW_INPUT_SCOPE: u64 = 0x5743_0000_0000_5301;
+
 pub(super) fn source_selector(state: &FolderBrowserState) -> ui::View<GuiMessage> {
     ui::column([
         ui::row([
@@ -74,9 +76,7 @@ fn source_row_style(selected: bool) -> WidgetStyle {
 }
 
 fn source_row_input_id(source_id: &str) -> u64 {
-    source_id.bytes().fold(0x5743_0000_0000_5300, |hash, byte| {
-        hash.wrapping_mul(16_777_619) ^ u64::from(byte)
-    })
+    ui::stable_widget_id(SOURCE_ROW_INPUT_SCOPE, source_id)
 }
 
 #[cfg(test)]

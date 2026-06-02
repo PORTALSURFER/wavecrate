@@ -1,7 +1,9 @@
 use std::path::Path;
 
-const FOLDER_RENAME_INPUT_BASE_ID: u64 = 70_000_000;
-const FILE_RENAME_INPUT_BASE_ID: u64 = 80_000_000;
+use radiant::prelude as ui;
+
+const FOLDER_RENAME_INPUT_SCOPE: u64 = 0x5743_0000_0000_4601;
+const FILE_RENAME_INPUT_SCOPE: u64 = 0x5743_0000_0000_4602;
 
 pub(super) fn path_id(path: &Path) -> String {
     path.to_string_lossy().to_string()
@@ -61,19 +63,11 @@ pub(super) fn file_rename_draft(name: &str) -> String {
 }
 
 pub(super) fn rename_input_id(folder_id: &str) -> u64 {
-    folder_id
-        .bytes()
-        .fold(FOLDER_RENAME_INPUT_BASE_ID, |hash, byte| {
-            hash.wrapping_mul(16_777_619) ^ u64::from(byte)
-        })
+    ui::stable_widget_id(FOLDER_RENAME_INPUT_SCOPE, folder_id)
 }
 
 pub(super) fn file_rename_input_id(file_id: &str) -> u64 {
-    file_id
-        .bytes()
-        .fold(FILE_RENAME_INPUT_BASE_ID, |hash, byte| {
-            hash.wrapping_mul(16_777_619) ^ u64::from(byte)
-        })
+    ui::stable_widget_id(FILE_RENAME_INPUT_SCOPE, file_id)
 }
 
 pub(super) fn folder_label(path: &Path) -> String {

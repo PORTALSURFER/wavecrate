@@ -9,6 +9,8 @@ use super::super::{
     collections::COLLECTION_ROW_HEIGHT,
 };
 
+const COLLECTION_ROW_INPUT_SCOPE: u64 = 0x5743_0000_0000_4c01;
+
 pub(super) fn collections_section(state: &FolderBrowserState) -> ui::View<GuiMessage> {
     let rows = state
         .visible_collections()
@@ -179,7 +181,7 @@ fn collection_input_style(collection: &SampleCollectionView) -> WidgetStyle {
 
 /// Returns the stable input widget id for a collection row.
 fn collection_row_input_id(collection: wavecrate::sample_sources::SampleCollection) -> u64 {
-    0x5743_0000_0000_4c00 + collection.index() as u64
+    ui::stable_widget_id(COLLECTION_ROW_INPUT_SCOPE, collection.index().to_string())
 }
 
 /// Collection-section view tests.

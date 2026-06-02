@@ -13,6 +13,7 @@ pub(in crate::gui_app) const COLLECTION_ROW_HEIGHT: f32 = 22.0;
 pub(in crate::gui_app) const MIN_COLLECTIONS_PANEL_HEIGHT: f32 = 72.0;
 pub(in crate::gui_app) const MAX_COLLECTIONS_PANEL_HEIGHT: f32 = 260.0;
 pub(in crate::gui_app) const DEFAULT_COLLECTIONS_PANEL_HEIGHT: f32 = 148.0;
+const COLLECTION_RENAME_INPUT_SCOPE: u64 = 0x5743_0000_0000_4301;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(in crate::gui_app) struct SampleCollectionView {
@@ -292,7 +293,10 @@ pub(in crate::gui_app) fn collection_color(collection: SampleCollection) -> Rgba
 }
 
 fn collection_rename_input_id(collection: SampleCollection) -> u64 {
-    0x5743_0000_0000_4300 + collection.index() as u64
+    ui::stable_widget_id(
+        COLLECTION_RENAME_INPUT_SCOPE,
+        collection.index().to_string(),
+    )
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
