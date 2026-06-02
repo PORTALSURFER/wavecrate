@@ -1,5 +1,4 @@
 use super::*;
-use radiant::runtime::{PaintTextAlign, PaintTextRun};
 
 impl FolderTreeHitTarget {
     pub(super) fn paint_background(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
@@ -41,19 +40,12 @@ impl FolderTreeHitTarget {
         bounds: Rect,
         theme: &ThemeTokens,
     ) {
-        let font_size = ui::dense_row_label_font_size(bounds.height());
-        let label_rect =
-            ui::centered_text_line(bounds, font_size, ui::TextLineInsets::horizontal(4.0), 0.0);
-        primitives.push(PaintPrimitive::Text(PaintTextRun {
-            widget_id: self.row.id(),
-            text: self.label.clone(),
-            rect: label_rect,
-            font_size,
-            baseline: ui::centered_text_baseline(label_rect, font_size),
-            color: self.label_color(theme),
-            align: PaintTextAlign::Left,
-            wrap: radiant::widgets::TextWrap::None,
-        }));
+        ui::push_dense_row_label(
+            primitives,
+            self.row.id(),
+            bounds,
+            ui::DenseRowLabelParts::new(self.label.clone(), self.label_color(theme)),
+        );
     }
 
     fn background_state(&self) -> ui::DenseRowVisualState {
