@@ -70,11 +70,11 @@ impl SampleFileHitTarget {
 
 impl Widget for SampleFileHitTarget {
     fn common(&self) -> &WidgetCommon {
-        &self.row.common
+        self.row.common()
     }
 
     fn common_mut(&mut self) -> &mut WidgetCommon {
-        &mut self.row.common
+        self.row.common_mut()
     }
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {
@@ -121,7 +121,7 @@ impl SampleFileHitTarget {
     fn paint_selection_fill(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
         ui::push_dense_row_fill(
             primitives,
-            self.row.common.id,
+            self.row.id(),
             bounds,
             self.row
                 .dense_visual_state(ui::InteractiveRowVisualStateParts {
@@ -143,7 +143,7 @@ impl SampleFileHitTarget {
         }
         ui::push_dense_row_vertical_marker(
             primitives,
-            self.row.common.id,
+            self.row.id(),
             bounds,
             ui::DenseRowMarkerParts {
                 edge: ui::DenseRowMarkerEdge::Trailing,
@@ -170,7 +170,7 @@ impl SampleFileHitTarget {
         }
         ui::push_dense_row_fill(
             primitives,
-            self.row.common.id,
+            self.row.id(),
             bounds,
             self.row
                 .dense_visual_state(ui::InteractiveRowVisualStateParts::default()),
@@ -186,7 +186,7 @@ impl SampleFileHitTarget {
         }
         ui::push_dense_row_vertical_marker(
             primitives,
-            self.row.common.id,
+            self.row.id(),
             bounds,
             ui::DenseRowMarkerParts {
                 edge: ui::DenseRowMarkerEdge::Leading,

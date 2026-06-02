@@ -65,11 +65,11 @@ impl FolderTreeHitTarget {
 
 impl Widget for FolderTreeHitTarget {
     fn common(&self) -> &WidgetCommon {
-        &self.row.common
+        self.row.common()
     }
 
     fn common_mut(&mut self) -> &mut WidgetCommon {
-        &mut self.row.common
+        self.row.common_mut()
     }
 
     fn handle_input(&mut self, bounds: Rect, input: WidgetInput) -> Option<WidgetOutput> {

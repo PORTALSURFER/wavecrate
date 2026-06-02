@@ -5,7 +5,7 @@ impl FolderTreeHitTarget {
     pub(super) fn paint_background(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
         ui::push_dense_row_fill(
             primitives,
-            self.row.common.id,
+            self.row.id(),
             bounds,
             self.background_state(),
             self.background_palette(),
@@ -22,7 +22,7 @@ impl FolderTreeHitTarget {
         }
         ui::push_dense_row_inset_stroke(
             primitives,
-            self.row.common.id,
+            self.row.id(),
             bounds,
             0.5,
             Rgba8 {
@@ -45,7 +45,7 @@ impl FolderTreeHitTarget {
         let label_rect =
             ui::centered_text_line(bounds, font_size, ui::TextLineInsets::horizontal(4.0), 0.0);
         primitives.push(PaintPrimitive::Text(PaintTextRun {
-            widget_id: self.row.common.id,
+            widget_id: self.row.id(),
             text: self.label.clone(),
             rect: label_rect,
             font_size,
