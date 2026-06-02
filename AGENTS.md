@@ -161,6 +161,19 @@ validation expectations for `C:\dev\wavecrate`.
   GUI behavior into Radiant before adding more imports. A facade may wire
   focused modules together, but it should not own app state shape, widget
   construction, side effects, and reusable GUI helpers at the same time.
+- When a large import list appears, classify the imported symbols before
+  editing: app/domain state, side-effect boundary, Radiant GUI primitive,
+  reusable GUI helper, or test-only support. Keep each production module focused
+  on one or two of those categories; otherwise extract a focused module or move
+  the generic GUI capability into Radiant first.
+- Do not hide import sprawl with wildcard imports or catch-all local preludes in
+  production code. Use explicit imports, `radiant::prelude as ui` for common
+  app-facing GUI construction, and explicit Radiant subsystem paths only when a
+  module intentionally works at that lower level.
+- Radiant prelude exports must stay grouped by subsystem. Add common exports to
+  the smallest focused file under `vendor/radiant/src/prelude/**`; do not grow
+  `src/prelude.rs` or a split first-level facade back into one giant export
+  list.
 - Optimize architecture first. Avoid unnecessary allocations, cloning, boxing,
   and async unless justified.
 

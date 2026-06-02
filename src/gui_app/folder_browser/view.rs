@@ -1,7 +1,4 @@
-use radiant::{
-    prelude as ui,
-    widgets::{WidgetStyle, WidgetTone},
-};
+use radiant::prelude as ui;
 
 use crate::gui_app::metadata_tags::{MetadataTagCompletionOption, MetadataTagDisplayCategory};
 use crate::gui_app::{
@@ -70,7 +67,7 @@ pub(in crate::gui_app) fn folder_browser_view_mut(
     ])
     .spacing(3.0)
     .padding(4.0)
-    .style(WidgetStyle::default())
+    .style(ui::WidgetStyle::default())
     .fill_height()
 }
 
@@ -156,8 +153,8 @@ fn folder_row(folder: VisibleFolder) -> ui::View<GuiMessage> {
                 .height(22.0),
         ])
         .key(format!("folder-row-{id}"))
-        .style(WidgetStyle::new(
-            WidgetTone::Accent,
+        .style(ui::WidgetStyle::new(
+            ui::WidgetTone::Accent,
             ui::WidgetProminence::Subtle,
         ))
         .fill_width()
@@ -212,9 +209,9 @@ fn folder_row(folder: VisibleFolder) -> ui::View<GuiMessage> {
     ])
     .key(format!("folder-row-{id}"))
     .style(if folder.selected || folder.drop_target {
-        WidgetStyle::new(WidgetTone::Accent, ui::WidgetProminence::Subtle)
+        ui::WidgetStyle::new(ui::WidgetTone::Accent, ui::WidgetProminence::Subtle)
     } else {
-        WidgetStyle::default()
+        ui::WidgetStyle::default()
     })
     .fill_width()
     .height(TREE_ROW_HEIGHT)

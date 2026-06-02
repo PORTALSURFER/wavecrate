@@ -1,7 +1,4 @@
-use radiant::{
-    prelude as ui,
-    widgets::{WidgetStyle, WidgetTone},
-};
+use radiant::prelude as ui;
 
 use super::super::{FolderBrowserMessage, FolderBrowserState, GuiMessage, SourceEntry};
 
@@ -67,11 +64,11 @@ fn source_row(state: &FolderBrowserState, source: &SourceEntry) -> ui::View<GuiM
         .height(24.0)
 }
 
-fn source_row_style(selected: bool) -> WidgetStyle {
+fn source_row_style(selected: bool) -> ui::WidgetStyle {
     if selected {
-        WidgetStyle::new(WidgetTone::Accent, ui::WidgetProminence::Subtle)
+        ui::WidgetStyle::new(ui::WidgetTone::Accent, ui::WidgetProminence::Subtle)
     } else {
-        WidgetStyle::default()
+        ui::WidgetStyle::default()
     }
 }
 

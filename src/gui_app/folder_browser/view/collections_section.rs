@@ -1,8 +1,4 @@
-use radiant::{
-    gui::types::Rgba8,
-    prelude as ui,
-    widgets::{TextColorRole, WidgetStyle},
-};
+use radiant::prelude as ui;
 
 use super::super::{
     FolderBrowserMessage, FolderBrowserState, GuiMessage, SampleCollectionView,
@@ -23,7 +19,7 @@ pub(super) fn collections_section(state: &FolderBrowserState) -> ui::View<GuiMes
             ui::scroll(ui::column(rows).spacing(1.0).fill_width().height(
                 COLLECTION_ROW_HEIGHT * wavecrate::sample_sources::SampleCollection::COUNT as f32,
             ))
-            .style(WidgetStyle::new(
+            .style(ui::WidgetStyle::new(
                 ui::WidgetTone::Neutral,
                 ui::WidgetProminence::Subtle,
             ))
@@ -140,7 +136,7 @@ fn collection_visual(collection: &SampleCollectionView) -> ui::View<GuiMessage> 
 }
 
 /// Builds the reusable collection color swatch.
-fn collection_swatch(color: Rgba8) -> ui::View<GuiMessage> {
+fn collection_swatch(color: ui::Rgba8) -> ui::View<GuiMessage> {
     ui::color_marker(Some(color))
         .view()
         .width(16.0)
@@ -154,14 +150,14 @@ fn collection_count(count: usize) -> ui::View<GuiMessage> {
     }
     ui::text(count.to_string())
         .align_text(ui::TextAlign::Right)
-        .text_color(TextColorRole::Muted)
+        .text_color(ui::TextColorRole::Muted)
         .width(28.0)
         .height(COLLECTION_ROW_HEIGHT)
 }
 
 /// Resolves selected and drop-target visual state for the input layer.
-fn collection_input_style(collection: &SampleCollectionView) -> WidgetStyle {
-    WidgetStyle::new(
+fn collection_input_style(collection: &SampleCollectionView) -> ui::WidgetStyle {
+    ui::WidgetStyle::new(
         if collection.drop_target {
             ui::WidgetTone::Warning
         } else {
@@ -194,7 +190,7 @@ mod tests {
             collection,
             hotkey: '1',
             name: String::from("Collection 1"),
-            color: Rgba8 {
+            color: ui::Rgba8 {
                 r: 255,
                 g: 86,
                 b: 98,
