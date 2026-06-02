@@ -2,11 +2,10 @@ use super::*;
 
 impl FolderTreeHitTarget {
     pub(super) fn paint_background(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
-        ui::push_dense_row_fill(
+        self.row.push_dense_fill(
             primitives,
-            self.row.id(),
             bounds,
-            self.background_state(),
+            self.background_state_parts(),
             self.background_palette(),
         );
     }
@@ -48,17 +47,16 @@ impl FolderTreeHitTarget {
         );
     }
 
-    fn background_state(&self) -> ui::DenseRowVisualState {
-        self.row
-            .dense_visual_state(ui::InteractiveRowVisualStateParts {
-                selected: self.selected,
-                active_target: self.drop_target,
-                candidate: self.drop_candidate,
-            })
+    fn background_state_parts(&self) -> ui::InteractiveRowVisualStateParts {
+        ui::InteractiveRowVisualStateParts {
+            selected: self.selected,
+            active_target: self.drop_target,
+            candidate: self.drop_candidate,
+        }
     }
 
     fn background_palette(&self) -> ui::DenseRowPalette {
-        let background_state = self.background_state();
+        let background_state = self.row.dense_visual_state(self.background_state_parts());
         let interaction_fill = Rgba8 {
             r: 255,
             g: 110,
@@ -102,7 +100,7 @@ impl FolderTreeHitTarget {
     }
 
     fn label_is_highlighted(&self) -> bool {
-        let state = self.background_state();
+        let state = self.row.dense_visual_state(self.background_state_parts());
         state.active_target || (state.hovered && state.candidate) || state.selected
     }
 }

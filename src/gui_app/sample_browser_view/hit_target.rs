@@ -119,15 +119,13 @@ impl SampleFileHitTarget {
     }
 
     fn paint_selection_fill(&self, primitives: &mut Vec<PaintPrimitive>, bounds: Rect) {
-        ui::push_dense_row_fill(
+        self.row.push_dense_fill(
             primitives,
-            self.row.id(),
             bounds,
-            self.row
-                .dense_visual_state(ui::InteractiveRowVisualStateParts {
-                    selected: self.selected,
-                    ..ui::InteractiveRowVisualStateParts::default()
-                }),
+            ui::InteractiveRowVisualStateParts {
+                selected: self.selected,
+                ..ui::InteractiveRowVisualStateParts::default()
+            },
             ui::DenseRowPalette::new().selected(Rgba8 {
                 r: 255,
                 g: 82,
@@ -162,12 +160,10 @@ impl SampleFileHitTarget {
         if self.drag_active && !self.drag_source {
             return;
         }
-        ui::push_dense_row_fill(
+        self.row.push_dense_fill(
             primitives,
-            self.row.id(),
             bounds,
-            self.row
-                .dense_visual_state(ui::InteractiveRowVisualStateParts::default()),
+            ui::InteractiveRowVisualStateParts::default(),
             ui::DenseRowPalette::new()
                 .hovered(HOVER_FILL)
                 .pressed(PRESSED_FILL),
