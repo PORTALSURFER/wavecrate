@@ -10,6 +10,7 @@ use super::{
 const AUDIO_SETTINGS_PANEL_PADDING: f32 = 8.0;
 const AUDIO_SETTINGS_ROW_SPACING: f32 = 7.0;
 const AUDIO_SETTINGS_DROPDOWN_GAP: f32 = 3.0;
+const AUDIO_SETTINGS_LABELED_ROW_HEIGHT: f32 = 45.0;
 
 #[cfg(test)]
 pub(in crate::gui_app) fn audio_settings_popover(state: &GuiAppState) -> ui::View<GuiMessage> {
@@ -51,15 +52,13 @@ fn audio_settings_panel_rows(snapshot: &AudioSettingsSnapshot) -> Vec<ui::View<G
         rows.push(audio_settings_error_row(error));
     }
     rows.push(audio_settings_backend_section(snapshot));
-    rows.push(ui::labeled_control(
+    rows.push(audio_settings_labeled_control(
         "Output",
         audio_output_dropdown(snapshot),
-        45.0,
     ));
-    rows.push(ui::labeled_control(
+    rows.push(audio_settings_labeled_control(
         "Sample Rate",
         audio_sample_rate_dropdown(snapshot),
-        45.0,
     ));
     rows.push(cache_maintenance_section());
     rows
@@ -93,12 +92,19 @@ fn cache_maintenance_section() -> ui::View<GuiMessage> {
             .key("settings-clear-rebuildable-caches")
             .fill_width()
             .height(24.0),
-        45.0,
+        AUDIO_SETTINGS_LABELED_ROW_HEIGHT,
     )
 }
 
 fn audio_settings_backend_section(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
-    ui::labeled_control("Backend", audio_host_dropdown(snapshot), 45.0)
+    audio_settings_labeled_control("Backend", audio_host_dropdown(snapshot))
+}
+
+fn audio_settings_labeled_control(
+    label: &'static str,
+    control: ui::View<GuiMessage>,
+) -> ui::View<GuiMessage> {
+    ui::labeled_control(label, control, AUDIO_SETTINGS_LABELED_ROW_HEIGHT)
 }
 
 fn audio_host_dropdown(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
@@ -110,17 +116,6 @@ fn audio_host_dropdown(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage>
     .build()
 }
 
-fn audio_host_dropdown_overlay(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
-    ui::dropdown_menu_overlay_below_stacked_labeled_control(
-        AUDIO_SETTINGS_PANEL_PADDING,
-        AUDIO_SETTINGS_PANEL_PADDING,
-        audio_settings_dropdown_cursor(snapshot, 0),
-        AUDIO_SETTINGS_DROPDOWN_GAP,
-        Some(AUDIO_SETTINGS_POPUP_WIDTH - AUDIO_SETTINGS_PANEL_PADDING * 2.0),
-        audio_host_dropdown_options(snapshot),
-    )
-}
-
 fn audio_output_dropdown(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
     ui::dropdown_trigger(
         selected_audio_output_label(snapshot),
@@ -128,17 +123,6 @@ fn audio_output_dropdown(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessag
     )
     .toggle_message(GuiMessage::ToggleAudioOutputDropdown)
     .build()
-}
-
-fn audio_output_dropdown_overlay(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
-    ui::dropdown_menu_overlay_below_stacked_labeled_control(
-        AUDIO_SETTINGS_PANEL_PADDING,
-        AUDIO_SETTINGS_PANEL_PADDING,
-        audio_settings_dropdown_cursor(snapshot, 1),
-        AUDIO_SETTINGS_DROPDOWN_GAP,
-        Some(AUDIO_SETTINGS_POPUP_WIDTH - AUDIO_SETTINGS_PANEL_PADDING * 2.0),
-        audio_output_dropdown_options(snapshot),
-    )
 }
 
 fn audio_sample_rate_dropdown(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
@@ -150,23 +134,29 @@ fn audio_sample_rate_dropdown(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiM
     .build()
 }
 
-fn audio_sample_rate_dropdown_overlay(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
+fn audio_settings_dropdown_overlay(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
+    let Some((row_index, options)) = audio_settings_open_dropdown_options(snapshot) else {
+        return ui::empty().fill_width();
+    };
     ui::dropdown_menu_overlay_below_stacked_labeled_control(
         AUDIO_SETTINGS_PANEL_PADDING,
         AUDIO_SETTINGS_PANEL_PADDING,
-        audio_settings_dropdown_cursor(snapshot, 2),
+        audio_settings_dropdown_cursor(snapshot, row_index),
         AUDIO_SETTINGS_DROPDOWN_GAP,
         Some(AUDIO_SETTINGS_POPUP_WIDTH - AUDIO_SETTINGS_PANEL_PADDING * 2.0),
-        audio_sample_rate_dropdown_options(snapshot),
+        options,
     )
 }
 
-fn audio_settings_dropdown_overlay(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
-    match snapshot.open_dropdown() {
-        Some(AudioSettingsDropdown::Backend) => audio_host_dropdown_overlay(snapshot),
-        Some(AudioSettingsDropdown::Output) => audio_output_dropdown_overlay(snapshot),
-        Some(AudioSettingsDropdown::SampleRate) => audio_sample_rate_dropdown_overlay(snapshot),
-        None => ui::empty().fill_width(),
+fn audio_settings_open_dropdown_options(
+    snapshot: &AudioSettingsSnapshot,
+) -> Option<(usize, Vec<ui::DropdownOption<GuiMessage>>)> {
+    match snapshot.open_dropdown()? {
+        AudioSettingsDropdown::Backend => Some((0, audio_host_dropdown_options(snapshot))),
+        AudioSettingsDropdown::Output => Some((1, audio_output_dropdown_options(snapshot))),
+        AudioSettingsDropdown::SampleRate => {
+            Some((2, audio_sample_rate_dropdown_options(snapshot)))
+        }
     }
 }
 
@@ -177,7 +167,11 @@ fn audio_settings_dropdown_cursor(
     ui::StackedLayoutCursor::new()
         .advanced(20.0, AUDIO_SETTINGS_ROW_SPACING)
         .advanced_if(snapshot.error.is_some(), 20.0, AUDIO_SETTINGS_ROW_SPACING)
-        .advanced_many(labeled_rows_before, 45.0, AUDIO_SETTINGS_ROW_SPACING)
+        .advanced_many(
+            labeled_rows_before,
+            AUDIO_SETTINGS_LABELED_ROW_HEIGHT,
+            AUDIO_SETTINGS_ROW_SPACING,
+        )
 }
 
 fn audio_host_dropdown_options(
