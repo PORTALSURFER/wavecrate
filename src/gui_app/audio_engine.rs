@@ -1,12 +1,16 @@
-use super::*;
+use radiant::prelude as ui;
+use std::time::Instant;
+use wavecrate::audio::{AudioPlayer, available_devices, available_hosts, supported_sample_rates};
+
+use super::{
+    AudioSettingsDropdown, GuiAppState, GuiMessage, VOLUME_PERSIST_DEBOUNCE, emit_gui_action,
+    format_sample_rate_label,
+};
 
 mod options;
 
 impl GuiAppState {
-    pub(super) fn maybe_open_audio_player(
-        &mut self,
-        context: &mut radiant::prelude::UpdateContext<super::GuiMessage>,
-    ) {
+    pub(super) fn maybe_open_audio_player(&mut self, context: &mut ui::UpdateContext<GuiMessage>) {
         if self.audio_player.is_some()
             || self.audio_open_task.active().is_some()
             || self.audio_settings_error.is_some()
@@ -18,7 +22,7 @@ impl GuiAppState {
 
     pub(super) fn queue_configured_audio_player_open(
         &mut self,
-        context: &mut radiant::prelude::UpdateContext<super::GuiMessage>,
+        context: &mut ui::UpdateContext<GuiMessage>,
     ) {
         if self.audio_open_task.active().is_some() {
             return;
@@ -41,7 +45,7 @@ impl GuiAppState {
                 }
                 ticket
             },
-            super::GuiMessage::AudioPlayerOpenFinished,
+            GuiMessage::AudioPlayerOpenFinished,
         );
         emit_gui_action(
             "audio.output.open",
@@ -53,7 +57,7 @@ impl GuiAppState {
         );
     }
 
-    pub(super) fn finish_audio_player_open(&mut self, ticket: radiant::prelude::TaskTicket) {
+    pub(super) fn finish_audio_player_open(&mut self, ticket: ui::TaskTicket) {
         let started_at = Instant::now();
         let result = self
             .audio_open_results

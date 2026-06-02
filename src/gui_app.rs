@@ -15,7 +15,6 @@ use std::{
 };
 use wavecrate::audio::{
     AudioDeviceSummary, AudioHostSummary, AudioOutputConfig, AudioPlayer, ResolvedOutput,
-    available_devices, available_hosts, supported_sample_rates,
 };
 use wavecrate::logging;
 use wavecrate::sample_sources::SampleCollection;
