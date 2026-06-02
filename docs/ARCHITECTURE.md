@@ -42,6 +42,12 @@ predictable, and lower-latency design.
 - reusable UI/runtime/layout work belongs in `vendor/radiant`
 - runtime compatibility behavior should stay inside the runtime/test surfaces
   rather than leaking back into generic Radiant modules
+- large import lists are architecture signals, not formatting problems. When a
+  Wavecrate GUI module needs broad imports from unrelated UI, domain, runtime,
+  and helper areas, first split the module by responsibility or move reusable
+  GUI behavior into Radiant. Keep imports explicit, avoid wildcard imports
+  outside tests/preludes, and avoid using facade modules as dumping grounds for
+  state, view construction, side effects, and re-exports at the same time.
 
 ## Ownership map
 
