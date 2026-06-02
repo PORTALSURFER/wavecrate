@@ -65,16 +65,17 @@ pub(super) fn auxiliary_windows(state: &mut GuiAppState) -> Vec<ui::AuxiliaryWin
 }
 
 pub(super) fn top_status_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
-    ui::row([
-        volume_slider(state.volume),
-        ui::spacer().height(20.0).fill_width(),
-        audio_engine_pill(state.audio_engine_pill_label(), state.audio_settings_open),
-    ])
-    .spacing(8.0)
-    .padding_x(12.0)
-    .padding_y(4.0)
-    .fill_width()
-    .height(30.0)
+    ui::toolbar_from_parts(
+        ui::ToolbarParts::new([volume_slider(state.volume)])
+            .trailing(audio_engine_pill(
+                state.audio_engine_pill_label(),
+                state.audio_settings_open,
+            ))
+            .spacing(8.0)
+            .padding(12.0, 4.0)
+            .spacer_height(20.0)
+            .height(30.0),
+    )
 }
 
 fn audio_engine_pill(label: String, active: bool) -> ui::View<GuiMessage> {
