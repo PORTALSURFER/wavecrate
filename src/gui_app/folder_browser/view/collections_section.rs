@@ -88,29 +88,26 @@ fn collection_input(
         .row(|row| row.tracked_drop_target(collection.drag_active, collection.drop_target))
         .input_id(collection_row_input_id(collection_id))
         .style(collection_input_style(collection))
-        .filter_mapped(move |message| {
-            if message.is_drop() {
-                return Some(GuiMessage::FolderBrowser(
-                    FolderBrowserMessage::DropOnCollection(collection_id),
-                ));
-            }
-            if let Some(position) = message.hover_drop_position() {
-                return Some(GuiMessage::FolderBrowser(
-                    FolderBrowserMessage::HoverCollectionDropTarget(collection_id, position),
-                ));
-            }
-            if message.is_single_activation() {
-                return Some(GuiMessage::FolderBrowser(
-                    FolderBrowserMessage::ActivateCollection(collection_id),
-                ));
-            }
-            if message.is_double_activation() {
-                return Some(GuiMessage::FolderBrowser(
-                    FolderBrowserMessage::RenameCollection(collection_id),
-                ));
-            }
-            None
-        })
+        .actions(
+            ui::InteractiveRowActions::new()
+                .drop(move || {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::DropOnCollection(collection_id))
+                })
+                .hover_drop(move |position| {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::HoverCollectionDropTarget(
+                        collection_id,
+                        position,
+                    ))
+                })
+                .activate(move || {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::ActivateCollection(
+                        collection_id,
+                    ))
+                })
+                .double_activate(move || {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::RenameCollection(collection_id))
+                }),
+        )
         .fill_width()
         .height(COLLECTION_ROW_HEIGHT)
 }

@@ -42,18 +42,24 @@ fn source_row(state: &FolderBrowserState, source: &SourceEntry) -> ui::View<GuiM
         source.label.clone()
     };
     let visual = ui::text_line(label, 24.0).padding_x(8.0);
+    let activate_id = id.clone();
+    let context_id = menu_id.clone();
     ui::interactive_row_underlay(visual)
         .input_id(source_row_input_id(source.id.as_str()))
-        .filter_mapped(move |message| {
-            if let Some(position) = message.secondary_position() {
-                return Some(GuiMessage::FolderBrowser(
-                    FolderBrowserMessage::OpenSourceContextMenu(menu_id.clone(), position),
-                ));
-            }
-            message
-                .is_single_activation()
-                .then(|| GuiMessage::FolderBrowser(FolderBrowserMessage::SelectSource(id.clone())))
-        })
+        .actions(
+            ui::InteractiveRowActions::new()
+                .secondary(move |position| {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::OpenSourceContextMenu(
+                        context_id.clone(),
+                        position,
+                    ))
+                })
+                .activate(move || {
+                    GuiMessage::FolderBrowser(FolderBrowserMessage::SelectSource(
+                        activate_id.clone(),
+                    ))
+                }),
+        )
         .key(format!("source-row-{row_key}"))
         .style(source_row_style(selected))
         .fill_width()

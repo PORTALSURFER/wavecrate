@@ -205,24 +205,24 @@ fn metadata_tag_category_header(
     ui::interactive_row_underlay(visual)
         .row(|row| row.tracked_drop_target(drag_active && !locked, drop_hover))
         .style(style)
-        .filter_mapped(move |message| {
-            if message.is_drop() {
-                return Some(GuiMessage::DropMetadataTagOnCategory {
-                    category_id: category_for_input.clone(),
-                });
-            }
-            if message.hover_drop_position().is_some() {
-                return Some(GuiMessage::HoverMetadataTagDropCategory {
-                    category_id: category_for_input.clone(),
-                });
-            }
-            if message.is_single_activation() {
-                return Some(GuiMessage::ToggleMetadataTagCategory(
-                    category_for_input.clone(),
-                ));
-            }
-            None
-        })
+        .actions(
+            ui::InteractiveRowActions::new()
+                .drop({
+                    let category_id = category_for_input.clone();
+                    move || GuiMessage::DropMetadataTagOnCategory {
+                        category_id: category_id.clone(),
+                    }
+                })
+                .hover_drop({
+                    let category_id = category_for_input.clone();
+                    move |_| GuiMessage::HoverMetadataTagDropCategory {
+                        category_id: category_id.clone(),
+                    }
+                })
+                .activate(move || {
+                    GuiMessage::ToggleMetadataTagCategory(category_for_input.clone())
+                }),
+        )
         .key(format!("metadata-tag-category-{}", category_id))
         .fill_width()
         .height(22.0)
@@ -263,34 +263,36 @@ fn metadata_tag_library_row(
             .tracked_drop_target(drag_active, active_drop_target);
     }
     badge
-        .filter_mapped(move |message| {
-            if let Some(position) = message.secondary_position() {
-                return Some(GuiMessage::OpenMetadataTagContextMenu {
-                    tag: tag_for_input.clone(),
-                    position,
-                });
-            }
-            if let Some(drag) = message.drag_message() {
-                return Some(GuiMessage::DragMetadataTag {
-                    tag: tag_for_input.clone(),
-                    drag,
-                });
-            }
-            if message.is_drop() {
-                return Some(GuiMessage::DropMetadataTagOnCategory {
-                    category_id: category_for_input.clone(),
-                });
-            }
-            if message.hover_drop_position().is_some() {
-                return Some(GuiMessage::HoverMetadataTagDropCategory {
-                    category_id: category_for_input.clone(),
-                });
-            }
-            if message.is_single_activation() {
-                return Some(GuiMessage::ToggleMetadataTag(tag_for_input.clone()));
-            }
-            None
-        })
+        .actions(
+            ui::InteractiveRowActions::new()
+                .secondary({
+                    let tag = tag_for_input.clone();
+                    move |position| GuiMessage::OpenMetadataTagContextMenu {
+                        tag: tag.clone(),
+                        position,
+                    }
+                })
+                .drag({
+                    let tag = tag_for_input.clone();
+                    move |drag| GuiMessage::DragMetadataTag {
+                        tag: tag.clone(),
+                        drag,
+                    }
+                })
+                .drop({
+                    let category_id = category_for_input.clone();
+                    move || GuiMessage::DropMetadataTagOnCategory {
+                        category_id: category_id.clone(),
+                    }
+                })
+                .hover_drop({
+                    let category_id = category_for_input;
+                    move |_| GuiMessage::HoverMetadataTagDropCategory {
+                        category_id: category_id.clone(),
+                    }
+                })
+                .activate(move || GuiMessage::ToggleMetadataTag(tag_for_input.clone())),
+        )
         .key(format!("metadata-tag-library-row-{tag}"))
         .width(width)
         .height(TAG_LIBRARY_PILL_HEIGHT)
@@ -306,19 +308,18 @@ fn metadata_tag_empty_category_target(
     let visual = ui::text_line("No tags yet", 20.0).padding(4.0);
     ui::interactive_row_underlay(visual)
         .row(|row| row.tracked_drop_target(drag_active && !locked, active_drop_target))
-        .filter_mapped(move |message| {
-            if message.is_drop() {
-                return Some(GuiMessage::DropMetadataTagOnCategory {
+        .actions(
+            ui::InteractiveRowActions::new()
+                .drop({
+                    let category_id = category_for_input.clone();
+                    move || GuiMessage::DropMetadataTagOnCategory {
+                        category_id: category_id.clone(),
+                    }
+                })
+                .hover_drop(move |_| GuiMessage::HoverMetadataTagDropCategory {
                     category_id: category_for_input.clone(),
-                });
-            }
-            if message.hover_drop_position().is_some() {
-                return Some(GuiMessage::HoverMetadataTagDropCategory {
-                    category_id: category_for_input.clone(),
-                });
-            }
-            None
-        })
+                }),
+        )
         .key(format!("metadata-tag-empty-category-{category_id}"))
         .fill_width()
         .height(20.0)
