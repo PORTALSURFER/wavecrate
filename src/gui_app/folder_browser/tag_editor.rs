@@ -1,7 +1,4 @@
-use radiant::{
-    prelude as ui,
-    widgets::{WidgetStyle, WidgetTone},
-};
+use radiant::prelude as ui;
 
 use crate::gui_app::metadata_tags::{MetadataTagCompletionOption, MetadataTagDisplayCategory};
 use crate::gui_app::metadata_tags::{metadata_tag_category_is_pinned, metadata_tag_category_style};
@@ -142,8 +139,8 @@ fn tag_entry_field(
 
     if row_count > MAX_TAG_FIELD_ROWS {
         ui::scroll(content)
-            .style(WidgetStyle::new(
-                WidgetTone::Neutral,
+            .style(ui::WidgetStyle::new(
+                ui::WidgetTone::Neutral,
                 ui::WidgetProminence::Subtle,
             ))
             .padding(3.0)
@@ -259,8 +256,8 @@ fn pending_category_tag_token(tag: &str) -> ui::View<GuiMessage> {
         .subtle()
         .passive()
         .key(format!("metadata-tag-pending-category-{tag}"))
-        .style(WidgetStyle::new(
-            WidgetTone::Accent,
+        .style(ui::WidgetStyle::new(
+            ui::WidgetTone::Accent,
             ui::WidgetProminence::Subtle,
         ))
         .size(tag_pill_width(tag), TAG_FIELD_CONTROL_HEIGHT)
@@ -268,8 +265,8 @@ fn pending_category_tag_token(tag: &str) -> ui::View<GuiMessage> {
 
 fn metadata_sidebar_panel(content: ui::View<GuiMessage>, height: f32) -> ui::View<GuiMessage> {
     content
-        .style(WidgetStyle::new(
-            WidgetTone::Neutral,
+        .style(ui::WidgetStyle::new(
+            ui::WidgetTone::Neutral,
             ui::WidgetProminence::Subtle,
         ))
         .padding(6.0)

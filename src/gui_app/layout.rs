@@ -151,6 +151,7 @@ fn metadata_tag_category_group(
                 category_id.as_str(),
                 locked,
                 drag_active,
+                category_hovered,
             ));
         } else {
             let pills = group.tags.into_iter().map(|tag| {
@@ -162,6 +163,7 @@ fn metadata_tag_category_group(
                     selected_tags,
                     drag_active,
                     drag_source,
+                    category_hovered,
                 )
             });
             children.push(
@@ -247,6 +249,7 @@ fn metadata_tag_library_row(
     selected_tags: &[String],
     drag_active: bool,
     drag_source: bool,
+    active_drop_target: bool,
 ) -> ui::View<GuiMessage> {
     let selected = selected_tags.iter().any(|selected| selected == &tag);
     let style = ui::WidgetStyle::new(
@@ -273,7 +276,7 @@ fn metadata_tag_library_row(
             .drag_active(drag_active)
             .drag_source(drag_source)
             .drag_source_motion(true)
-            .drop_target_mode(drag_active, true);
+            .tracked_drop_target(drag_active, active_drop_target);
     }
     badge
         .filter_mapped(move |message| {
@@ -313,6 +316,7 @@ fn metadata_tag_empty_category_target(
     category_id: &str,
     locked: bool,
     drag_active: bool,
+    active_drop_target: bool,
 ) -> ui::View<GuiMessage> {
     let category_for_input = category_id.to_string();
     let visual = ui::text("No tags yet")
@@ -321,7 +325,7 @@ fn metadata_tag_empty_category_target(
         .truncate()
         .padding(4.0);
     ui::interactive_row_underlay(visual)
-        .row(|row| row.drop_target_mode(drag_active && !locked, true))
+        .row(|row| row.tracked_drop_target(drag_active && !locked, active_drop_target))
         .filter_mapped(move |message| {
             if message.is_drop() {
                 return Some(GuiMessage::DropMetadataTagOnCategory {
