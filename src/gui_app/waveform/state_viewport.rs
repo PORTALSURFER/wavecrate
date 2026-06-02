@@ -1,9 +1,6 @@
 use radiant::gui::types::Vector2;
 
-use super::{
-    MIN_VISIBLE_FRAMES, WAVEFORM_WIDTH, WaveformState, WaveformViewport,
-    interaction::WaveformPanDrag,
-};
+use super::{MIN_VISIBLE_FRAMES, WAVEFORM_WIDTH, WaveformState, interaction::WaveformPanDrag};
 
 impl WaveformState {
     pub(super) fn absolute_ratio_from_visible(&self, visible_ratio: f32) -> f32 {
@@ -35,18 +32,12 @@ impl WaveformState {
 
     pub(super) fn update_active_pan(&mut self, drag: WaveformPanDrag, visible_ratio: f32) {
         let total = self.file.frames.max(1);
-        let viewport = drag.viewport.clamp(total, MIN_VISIBLE_FRAMES);
-        let visible = viewport.visible_items();
-        if visible >= total {
-            return;
-        }
-        let delta = ((visible_ratio - drag.anchor_visible_ratio) * visible as f32).round() as isize;
-        let start = viewport.start.saturating_add_signed(-delta);
-        self.viewport = WaveformViewport {
-            start,
-            end: start + visible,
-        }
-        .clamp(total, MIN_VISIBLE_FRAMES);
+        self.viewport = drag.viewport.pan_by_visible_ratio_drag(
+            total,
+            MIN_VISIBLE_FRAMES,
+            drag.anchor_visible_ratio,
+            visible_ratio,
+        );
     }
 
     fn zoom_around_anchor(&mut self, factor: f32, anchor_ratio: f32) {
