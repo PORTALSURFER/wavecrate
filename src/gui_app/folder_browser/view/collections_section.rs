@@ -77,25 +77,26 @@ fn collection_row(
         .height(COLLECTION_ROW_HEIGHT)
         .spacing(2.0);
     }
-    ui::input_underlay(
-        collection_visual(&collection),
-        collection_input(collection_id, &collection),
-    )
-    .key(format!("collection-row-{}", collection.collection.index()))
-    .fill_width()
-    .height(COLLECTION_ROW_HEIGHT)
+    collection_input(collection_id, collection_visual(&collection), &collection)
+        .key(format!("collection-row-{}", collection.collection.index()))
+        .fill_width()
+        .height(COLLECTION_ROW_HEIGHT)
 }
 
 /// Builds the transparent interaction layer for a collection row.
 fn collection_input(
     collection_id: wavecrate::sample_sources::SampleCollection,
+    visual: ui::View<GuiMessage>,
     collection: &SampleCollectionView,
 ) -> ui::View<GuiMessage> {
-    let input = ui::interactive_row()
-        .pointer_motion_during_interaction()
-        .pointer_motion_active(collection.drop_target)
-        .drop_target_mode(collection.drag_active, !collection.drop_target);
-    input
+    ui::interactive_row_underlay(visual)
+        .row(|row| {
+            row.pointer_motion_during_interaction()
+                .pointer_motion_active(collection.drop_target)
+                .drop_target_mode(collection.drag_active, !collection.drop_target)
+        })
+        .input_id(collection_row_input_id(collection_id))
+        .style(collection_input_style(collection))
         .filter_mapped(move |message| {
             if message.is_drop() {
                 return Some(GuiMessage::FolderBrowser(
@@ -119,8 +120,6 @@ fn collection_input(
             }
             None
         })
-        .id(collection_row_input_id(collection_id))
-        .style(collection_input_style(collection))
         .fill_width()
         .height(COLLECTION_ROW_HEIGHT)
 }
@@ -217,7 +216,8 @@ mod tests {
         let collection_id = collection.collection;
 
         assert!(matches!(
-            collection_input(collection_id, &collection).view_dispatch_widget_output(
+            collection_input(collection_id, collection_visual(&collection), &collection)
+                .view_dispatch_widget_output(
                 collection_row_input_id(collection_id),
                 ui::WidgetOutput::typed(ui::InteractiveRowMessage::DoubleActivate),
             ),
@@ -232,7 +232,8 @@ mod tests {
     fn collection_input_uses_drop_only_for_current_drop_target() {
         let collection = collection_view(true, true);
         let collection_id = collection.collection;
-        let surface = collection_input(collection_id, &collection).into_surface();
+        let surface = collection_input(collection_id, collection_visual(&collection), &collection)
+            .into_surface();
         let widget = surface
             .find_widget(collection_row_input_id(collection_id))
             .and_then(|widget| {
