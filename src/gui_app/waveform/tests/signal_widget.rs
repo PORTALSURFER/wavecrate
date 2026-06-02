@@ -9,21 +9,15 @@ fn signal_widget_paints_gpu_surface_without_app_overlay_handles() {
         state.edit_selection(),
         state.active_drag_kind(),
     );
-    let primitives = widget.paint_primitives_with_defaults(Rect::from_min_size(
-        Point::new(0.0, 0.0),
-        Vector2::new(200.0, 80.0),
-    ));
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
 
-    let surface = primitives
-        .iter()
-        .find_map(|primitive| {
-            primitive.gpu_surface().and_then(|surface| {
-                matches!(
-                    surface.content,
-                    GpuSurfaceContent::SignalSummaryBands { .. }
-                )
-                .then_some(surface)
-            })
+    let surface = plan
+        .gpu_surfaces()
+        .find(|surface| {
+            matches!(
+                surface.content,
+                GpuSurfaceContent::SignalSummaryBands { .. }
+            )
         })
         .expect("waveform gpu surface");
 
@@ -43,15 +37,9 @@ fn signal_widget_attaches_active_edit_fade_gain_preview() {
     let edit_selection =
         Some(wavecrate::selection::SelectionRange::new(0.0, 1.0).with_fade_in(1.0, 0.0));
     let widget = WaveformSignalWidget::new(Arc::clone(&file), viewport, edit_selection, None);
-    let primitives = widget.paint_primitives_with_defaults(Rect::from_min_size(
-        Point::new(0.0, 0.0),
-        Vector2::new(200.0, 80.0),
-    ));
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
 
-    let surface = primitives
-        .iter()
-        .find_map(PaintPrimitive::gpu_surface)
-        .expect("waveform gpu surface");
+    let surface = plan.gpu_surfaces().next().expect("waveform gpu surface");
 
     assert!(surface.revision > 0);
     let GpuSurfaceContent::SignalSummaryBands {
@@ -113,15 +101,9 @@ fn signal_widget_keeps_summary_cached_during_live_edit_fade_drag() {
             WaveformEditFadeHandle::InEnd,
         )),
     );
-    let primitives = widget.paint_primitives_with_defaults(Rect::from_min_size(
-        Point::new(0.0, 0.0),
-        Vector2::new(200.0, 80.0),
-    ));
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
 
-    let surface = primitives
-        .iter()
-        .find_map(PaintPrimitive::gpu_surface)
-        .expect("waveform gpu surface");
+    let surface = plan.gpu_surfaces().next().expect("waveform gpu surface");
 
     assert!(surface.revision > 0);
     let GpuSurfaceContent::SignalSummaryBands {

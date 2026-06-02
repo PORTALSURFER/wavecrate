@@ -1,13 +1,12 @@
 use radiant::{
     gui::types::{Point, Rect, Rgba8, Vector2},
     prelude::IntoView,
-    runtime::PaintPrimitive,
     widgets::{PointerButton, PointerModifiers, Widget, WidgetInput},
 };
 
 #[test]
 fn sample_row_hit_target_survives_frame_refresh_between_press_and_release() {
-    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(160.0, 22.0));
+    let bounds = Rect::from_size(160.0, 22.0);
     let mut hit_target = crate::gui_app::sample_browser_view::SampleFileHitTarget::new(
         false, false, false, false, false,
     );
@@ -121,11 +120,8 @@ fn selected_sample_browser_row_paints_strong_fill_and_left_marker() {
         true, false, false, false, false,
     );
     let bounds = Rect::from_min_size(Point::new(12.0, 8.0), Vector2::new(240.0, 22.0));
-    let primitives = widget.paint_primitives_with_defaults(bounds);
-    let fills = primitives
-        .iter()
-        .filter_map(PaintPrimitive::fill_rect)
-        .collect::<Vec<_>>();
+    let plan = widget.paint_plan_with_defaults(bounds);
+    let fills = plan.fill_rects().collect::<Vec<_>>();
 
     assert!(fills.iter().any(|fill| fill.rect == bounds
         && fill.color
@@ -149,7 +145,7 @@ fn selected_sample_browser_row_paints_strong_fill_and_left_marker() {
 
 #[test]
 fn sample_browser_row_hover_paints_bright_background_without_marker() {
-    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(180.0, 22.0));
+    let bounds = Rect::from_size(180.0, 22.0);
     let mut hit_target = crate::gui_app::sample_browser_view::SampleFileHitTarget::new(
         false, false, false, false, false,
     );
@@ -159,11 +155,8 @@ fn sample_browser_row_hover_paints_bright_background_without_marker() {
         None
     );
 
-    let primitives = hit_target.paint_primitives_with_defaults(bounds);
-    let fills = primitives
-        .iter()
-        .filter_map(PaintPrimitive::fill_rect)
-        .collect::<Vec<_>>();
+    let plan = hit_target.paint_plan_with_defaults(bounds);
+    let fills = plan.fill_rects().collect::<Vec<_>>();
 
     assert!(
         fills.iter().any(|fill| fill.rect == bounds

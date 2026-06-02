@@ -108,7 +108,7 @@ fn primary_press_on_outer_fade_handle_uses_distinct_handle() {
     state.edit_selection =
         Some(wavecrate::selection::SelectionRange::new(0.2, 0.6).with_fade_in(0.25, 0.2));
     let mut widget = waveform_widget_for_state(&state);
-    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
+    let bounds = Rect::from_size(200.0, 80.0);
 
     let output = widget
         .handle_input(bounds, WidgetInput::primary_press(Point::new(40.0, 40.0)))

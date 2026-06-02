@@ -66,7 +66,7 @@ fn double_click_on_outer_fade_handle_emits_silence_clear_interaction() {
             .with_fade_out_mute(0.25),
     );
     let mut widget = waveform_widget_for_state(&state);
-    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
+    let bounds = Rect::from_size(200.0, 80.0);
 
     let output = widget
         .handle_input(

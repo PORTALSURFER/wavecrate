@@ -6,7 +6,7 @@ use super::{
 };
 use radiant::{
     gui::types::{Point, Rect, Vector2},
-    runtime::{GpuSurfaceContent, PaintFillRect, PaintPrimitive, PaintStrokePolyline},
+    runtime::{GpuSurfaceContent, PaintFillRect, PaintStrokePolyline, SurfacePaintPlan},
     widgets::{PointerButton, Widget, WidgetInput},
 };
 use std::{fs, sync::Arc};
@@ -24,30 +24,21 @@ fn waveform_widget_for_state(state: &WaveformState) -> WaveformWidget {
     WaveformWidget::new(WaveformWidgetProps::from_state(state))
 }
 
-fn fill_rects(primitives: &[PaintPrimitive]) -> Vec<&PaintFillRect> {
-    primitives
-        .iter()
-        .filter_map(PaintPrimitive::fill_rect)
-        .collect()
+fn fill_rects(plan: &SurfacePaintPlan) -> Vec<&PaintFillRect> {
+    plan.fill_rects().collect()
 }
 
-fn stroke_polylines(primitives: &[PaintPrimitive]) -> Vec<&PaintStrokePolyline> {
-    primitives
-        .iter()
-        .filter_map(PaintPrimitive::stroke_polyline)
-        .collect()
+fn stroke_polylines(plan: &SurfacePaintPlan) -> Vec<&PaintStrokePolyline> {
+    plan.stroke_polylines().collect()
 }
 
 fn gpu_surface_revision_for_file(file: Arc<super::WaveformFile>) -> u64 {
     let viewport = super::WaveformViewport::full(file.frames);
     let widget = WaveformSignalWidget::new(file, viewport, None, None);
-    let primitives = widget.paint_primitives_with_defaults(Rect::from_min_size(
-        Point::new(0.0, 0.0),
-        Vector2::new(200.0, 80.0),
-    ));
-    primitives
-        .iter()
-        .find_map(|primitive| primitive.gpu_surface().map(|surface| surface.revision))
+    let plan = widget.paint_plan_with_defaults(Rect::from_size(200.0, 80.0));
+    plan.gpu_surfaces()
+        .map(|surface| surface.revision)
+        .next()
         .expect("waveform gpu surface")
 }
 

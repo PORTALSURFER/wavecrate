@@ -24,12 +24,10 @@ fn toolbar_icon_assets_parse_and_paint_through_radiant_icon_button() {
         super::super::toolbar_icon_glyph(icon, true, false).append_paint(
             &mut primitives,
             101,
-            Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(28.0, 24.0)),
+            Rect::from_size(28.0, 24.0),
         );
         assert!(
-            primitives
-                .iter()
-                .any(|primitive| matches!(primitive, radiant::runtime::PaintPrimitive::Svg(_))),
+            primitives.iter().any(|primitive| primitive.svg().is_some()),
             "toolbar icon cache should produce a retained Radiant SVG"
         );
         let frame = super::super::toolbar_icon_button(101, icon, true, false)

@@ -92,12 +92,10 @@ fn drop_target_paints_highlighted_label_text() {
     let bounds = row_bounds();
     let target = FolderTreeHitTarget::new("loops", false, true, true, false, true, true);
     let theme = ThemeTokens::default();
-    let primitives = target.paint_primitives(bounds, &LayoutOutput::default(), &theme);
+    let plan = target.paint_plan(bounds, &LayoutOutput::default(), &theme);
 
     assert!(
-        primitives
-            .iter()
-            .filter_map(PaintPrimitive::text_run)
+        plan.text_runs()
             .any(|run| run.text == "loops" && run.color != theme.text_primary),
         "folder drop targets should light up the label itself, not only the row marker"
     );
