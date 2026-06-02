@@ -186,7 +186,6 @@ impl GuiAppState {
             GuiMessage::CloseJobDetails => {
                 self.job_details_open = false;
             }
-            GuiMessage::Noop => {}
             GuiMessage::FocusRenameInput(input_id) => {
                 self.focus_rename_input(input_id, context);
             }

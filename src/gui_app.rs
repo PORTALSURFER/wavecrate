@@ -212,7 +212,6 @@ enum GuiMessage {
     CloseContextMenu,
     ToggleJobDetails,
     CloseJobDetails,
-    Noop,
     FocusRenameInput(u64),
     DeleteSelectedItem,
     ExtractPlaymarkedRange,

@@ -182,8 +182,37 @@ fn metadata_tag_category_header(
     drop_hover: bool,
 ) -> ui::View<GuiMessage> {
     let category_for_input = category_id.clone();
-    let input = ui::interactive_row()
-        .drop_target_mode(drag_active && !locked, true)
+    let style = ui::WidgetStyle::new(
+        if drop_hover {
+            ui::WidgetTone::Warning
+        } else {
+            ui::WidgetTone::Neutral
+        },
+        if drop_hover {
+            ui::WidgetProminence::Strong
+        } else {
+            ui::WidgetProminence::Subtle
+        },
+    );
+    let visual = ui::row([
+        ui::disclosure_button(!collapsed)
+            .passive()
+            .key(format!("metadata-tag-category-disclosure-{category_id}"))
+            .size(20.0, 18.0),
+        ui::text(label)
+            .key(format!("metadata-tag-category-label-{category_id}"))
+            .fill_width()
+            .height(22.0)
+            .truncate(),
+    ])
+    .style(style)
+    .padding_x(4.0)
+    .spacing(4.0)
+    .fill_width()
+    .height(22.0);
+    ui::interactive_row_underlay(visual)
+        .row(|row| row.drop_target_mode(drag_active && !locked, true))
+        .style(style)
         .filter_mapped(move |message| {
             if message.is_drop() {
                 return Some(GuiMessage::DropMetadataTagOnCategory {
@@ -202,38 +231,6 @@ fn metadata_tag_category_header(
             }
             None
         })
-        .key(format!("metadata-tag-category-hit-{category_id}"))
-        .fill_width()
-        .height(22.0);
-    let style = ui::WidgetStyle::new(
-        if drop_hover {
-            ui::WidgetTone::Warning
-        } else {
-            ui::WidgetTone::Neutral
-        },
-        if drop_hover {
-            ui::WidgetProminence::Strong
-        } else {
-            ui::WidgetProminence::Subtle
-        },
-    );
-    let visual = ui::row([
-        ui::disclosure_button(!collapsed)
-            .message(GuiMessage::Noop)
-            .key(format!("metadata-tag-category-disclosure-{category_id}"))
-            .size(20.0, 18.0),
-        ui::text(label)
-            .key(format!("metadata-tag-category-label-{category_id}"))
-            .fill_width()
-            .height(22.0)
-            .truncate(),
-    ])
-    .style(style)
-    .padding_x(4.0)
-    .spacing(4.0)
-    .fill_width()
-    .height(22.0);
-    ui::input_overlay(visual, input)
         .key(format!("metadata-tag-category-{}", category_id))
         .fill_width()
         .height(22.0)
@@ -314,8 +311,13 @@ fn metadata_tag_empty_category_target(
     drag_active: bool,
 ) -> ui::View<GuiMessage> {
     let category_for_input = category_id.to_string();
-    let input = ui::interactive_row()
-        .drop_target_mode(drag_active && !locked, true)
+    let visual = ui::text("No tags yet")
+        .height(20.0)
+        .fill_width()
+        .truncate()
+        .padding(4.0);
+    ui::interactive_row_underlay(visual)
+        .row(|row| row.drop_target_mode(drag_active && !locked, true))
         .filter_mapped(move |message| {
             if message.is_drop() {
                 return Some(GuiMessage::DropMetadataTagOnCategory {
@@ -329,15 +331,6 @@ fn metadata_tag_empty_category_target(
             }
             None
         })
-        .key(format!("metadata-tag-empty-category-hit-{category_id}"))
-        .fill_width()
-        .height(20.0);
-    let visual = ui::text("No tags yet")
-        .height(20.0)
-        .fill_width()
-        .truncate()
-        .padding(4.0);
-    ui::input_overlay(visual, input)
         .key(format!("metadata-tag-empty-category-{category_id}"))
         .fill_width()
         .height(20.0)
