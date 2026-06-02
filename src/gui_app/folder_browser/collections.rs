@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, path::PathBuf};
 use radiant::{
     gui::types::{Point, Rgba8},
     prelude as ui,
-    widgets::{DragHandleMessage, TextInputMessage},
+    widgets::{DragHandleMessage, TextInputMessage, TextInputMessageKind},
 };
 use wavecrate::sample_sources::SampleCollection;
 
@@ -199,18 +199,20 @@ impl FolderBrowserState {
 
     pub(in crate::gui_app) fn apply_collection_rename_input(
         &mut self,
-        message: TextInputMessage,
+        message: &TextInputMessage,
     ) -> Option<String> {
         let edit = self.collection_rename_edit.as_mut()?;
-        if message.is_completion_requested() {
-            return None;
-        }
-        if message.is_changed() {
-            edit.draft = message.into_value();
-            return None;
+        let parts = message.parts();
+        match parts.kind {
+            TextInputMessageKind::CompletionRequested => return None,
+            TextInputMessageKind::Changed => {
+                edit.draft = parts.value.to_owned();
+                return None;
+            }
+            TextInputMessageKind::Submitted => {}
         }
 
-        let label = message.value().trim();
+        let label = parts.value.trim();
         if label.is_empty() {
             self.collection_rename_edit = None;
             return Some(String::from("Collection rename cancelled"));

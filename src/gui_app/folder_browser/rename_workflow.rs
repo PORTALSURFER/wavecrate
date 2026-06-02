@@ -1,4 +1,4 @@
-use radiant::widgets::TextInputMessage;
+use radiant::widgets::{TextInputMessage, TextInputMessageKind};
 use std::{fs, path::PathBuf};
 
 use super::{
@@ -133,16 +133,17 @@ impl FolderBrowserState {
         &mut self,
         message: TextInputMessage,
     ) -> Option<String> {
-        if message.is_completion_requested() {
+        let parts = message.parts();
+        if parts.kind == TextInputMessageKind::CompletionRequested {
             return None;
         }
 
-        let value = message.value().to_owned();
-        if let Some(status) = self.apply_collection_rename_input(message.clone()) {
+        let value = parts.value.to_owned();
+        if let Some(status) = self.apply_collection_rename_input(&message) {
             return Some(status);
         }
 
-        if message.is_submitted() {
+        if parts.kind == TextInputMessageKind::Submitted {
             if self.file_rename_edit.is_some() {
                 Some(self.commit_file_rename(value))
             } else {

@@ -1,7 +1,7 @@
 use super::GuiAppState;
 use super::GuiMessage;
 use radiant::prelude as ui;
-use radiant::widgets::TextInputMessage;
+use radiant::widgets::{TextInputMessage, TextInputMessageKind};
 use std::time::Instant;
 
 #[cfg(test)]
@@ -78,11 +78,15 @@ impl GuiAppState {
         message: TextInputMessage,
         context: &mut ui::UpdateContext<GuiMessage>,
     ) {
-        if message.is_submitted() {
-            self.submit_metadata_tag_input(message.into_value(), context);
-        } else {
-            self.metadata_tag_draft = message.into_value();
-            self.reset_metadata_tag_completion_cycle();
+        let parts = message.parts();
+        match parts.kind {
+            TextInputMessageKind::Submitted => {
+                self.submit_metadata_tag_input(parts.value.to_owned(), context);
+            }
+            TextInputMessageKind::Changed | TextInputMessageKind::CompletionRequested => {
+                self.metadata_tag_draft = parts.value.to_owned();
+                self.reset_metadata_tag_completion_cycle();
+            }
         }
     }
 
