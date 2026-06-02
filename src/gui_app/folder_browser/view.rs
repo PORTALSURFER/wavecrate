@@ -46,7 +46,7 @@ pub(in crate::gui_app) fn folder_browser_view_mut(
     );
     ui::column([
         source_selector(state),
-        ui::text("Folders").height(22.0).fill_width(),
+        ui::text_line("Folders", 22.0),
         folder_tree_view(state),
         selected_folder_status(state),
         collections_section(state),
@@ -229,7 +229,7 @@ fn selected_folder_status(state: &FolderBrowserState) -> ui::View<GuiMessage> {
             )
         })
         .unwrap_or_else(|| String::from("No folder selected"));
-    ui::text(label).height(20.0).fill_width().truncate()
+    ui::text_line(label, 20.0)
 }
 
 fn filter_section() -> ui::View<GuiMessage> {

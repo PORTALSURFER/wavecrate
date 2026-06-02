@@ -115,22 +115,10 @@ pub(super) fn job_details_popover(progress: &FolderScanProgress) -> ui::View<Gui
         progress.detail.clone()
     };
     let content = ui::column([
-        ui::text(format!("Type: {}", progress.phase))
-            .height(20.0)
-            .fill_width()
-            .truncate(),
-        ui::text(format!("Source: {}", progress.label))
-            .height(20.0)
-            .fill_width()
-            .truncate(),
-        ui::text(format!("Progress: {total_label}"))
-            .height(20.0)
-            .fill_width()
-            .truncate(),
-        ui::text(format!("Current: {detail}"))
-            .height(20.0)
-            .fill_width()
-            .truncate(),
+        ui::text_line(format!("Type: {}", progress.phase), 20.0),
+        ui::text_line(format!("Source: {}", progress.label), 20.0),
+        ui::text_line(format!("Progress: {total_label}"), 20.0),
+        ui::text_line(format!("Current: {detail}"), 20.0),
     ])
     .spacing(5.0)
     .fill_width();

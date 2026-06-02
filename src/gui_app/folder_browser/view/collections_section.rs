@@ -120,10 +120,7 @@ fn collection_visual(collection: &SampleCollectionView) -> ui::View<GuiMessage> 
     let label = format!("{}  {}", collection.hotkey, collection.name);
     ui::row([
         collection_swatch(collection.color).width(16.0),
-        ui::text(label)
-            .truncate()
-            .fill_width()
-            .height(COLLECTION_ROW_HEIGHT),
+        ui::text_line(label, COLLECTION_ROW_HEIGHT),
         collection_count(collection.assigned_count),
     ])
     .padding_x(6.0)

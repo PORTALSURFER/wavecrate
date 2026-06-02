@@ -62,20 +62,13 @@ fn audio_settings_panel_rows(snapshot: &AudioSettingsSnapshot) -> Vec<ui::View<G
 }
 
 fn audio_engine_detail_row(snapshot: &AudioSettingsSnapshot) -> ui::View<GuiMessage> {
-    ui::text(snapshot.detail_label.clone())
-        .key("audio-settings-detail")
-        .fill_width()
-        .height(20.0)
-        .truncate()
+    ui::text_line(snapshot.detail_label.clone(), 20.0).key("audio-settings-detail")
 }
 
 fn audio_settings_error_row(error: &str) -> ui::View<GuiMessage> {
-    ui::text(error.to_string())
+    ui::text_line(error.to_string(), 20.0)
         .key("audio-settings-error")
         .style(ui::WidgetStyle::subtle(ui::WidgetTone::Danger))
-        .fill_width()
-        .height(20.0)
-        .truncate()
 }
 
 fn cache_maintenance_section() -> ui::View<GuiMessage> {

@@ -6,10 +6,7 @@ use super::{GuiAppState, GuiMessage, WAVEFORM_PANEL_HEIGHT, WAVEFORM_VIEW_HEIGHT
 pub(super) fn waveform_panel(state: &GuiAppState) -> ui::View<GuiMessage> {
     ui::column([
         waveform_panel_header(&state.waveform),
-        ui::text(waveform_title(&state.waveform))
-            .height(18.0)
-            .fill_width()
-            .truncate(),
+        ui::text_line(waveform_title(&state.waveform), 18.0),
         waveform_viewport_with_loading_state(state),
         waveform_scrollbar(&state.waveform),
     ])
@@ -20,7 +17,7 @@ pub(super) fn waveform_panel(state: &GuiAppState) -> ui::View<GuiMessage> {
 }
 
 fn waveform_panel_header(_waveform: &WaveformState) -> ui::View<GuiMessage> {
-    ui::text("Waveform").height(18.0).fill_width()
+    ui::text_line("Waveform", 18.0)
 }
 
 fn waveform_viewport_with_loading_state(state: &GuiAppState) -> ui::View<GuiMessage> {

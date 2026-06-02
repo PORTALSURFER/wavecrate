@@ -195,11 +195,7 @@ fn metadata_tag_category_header(
             .passive()
             .key(format!("metadata-tag-category-disclosure-{category_id}"))
             .size(20.0, 18.0),
-        ui::text(label)
-            .key(format!("metadata-tag-category-label-{category_id}"))
-            .fill_width()
-            .height(22.0)
-            .truncate(),
+        ui::text_line(label, 22.0).key(format!("metadata-tag-category-label-{category_id}")),
     ])
     .style(style)
     .padding_x(4.0)
@@ -307,11 +303,7 @@ fn metadata_tag_empty_category_target(
     active_drop_target: bool,
 ) -> ui::View<GuiMessage> {
     let category_for_input = category_id.to_string();
-    let visual = ui::text("No tags yet")
-        .height(20.0)
-        .fill_width()
-        .truncate()
-        .padding(4.0);
+    let visual = ui::text_line("No tags yet", 20.0).padding(4.0);
     ui::interactive_row_underlay(visual)
         .row(|row| row.tracked_drop_target(drag_active && !locked, active_drop_target))
         .filter_mapped(move |message| {

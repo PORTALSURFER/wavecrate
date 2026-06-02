@@ -41,11 +41,7 @@ fn source_row(state: &FolderBrowserState, source: &SourceEntry) -> ui::View<GuiM
     } else {
         source.label.clone()
     };
-    let visual = ui::text(label)
-        .truncate()
-        .fill_width()
-        .height(24.0)
-        .padding_x(8.0);
+    let visual = ui::text_line(label, 24.0).padding_x(8.0);
     ui::interactive_row_underlay(visual)
         .input_id(source_row_input_id(source.id.as_str()))
         .filter_mapped(move |message| {
