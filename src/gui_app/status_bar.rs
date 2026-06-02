@@ -71,9 +71,7 @@ pub(super) fn worker_progress_bar(state: &GuiAppState) -> ui::View<GuiMessage> {
         .max_track_height(8.0)
         .activatable();
     progress_bar
-        .mapped(|message| match message {
-            ui::ProgressBarMessage::Activate => GuiMessage::ToggleJobDetails,
-        })
+        .message(GuiMessage::ToggleJobDetails)
         .key("bottom-status-progress-bar")
         .width(track_width)
         .height(10.0)
