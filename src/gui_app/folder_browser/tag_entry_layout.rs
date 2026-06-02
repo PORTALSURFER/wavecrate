@@ -71,34 +71,16 @@ fn tag_field_rows_with_pending_category(
         content_width,
         tag_field_flow_metrics(),
     );
-    if ui::flow_trailing_item_starts_new_row(
-        tags.iter().map(|tag| tag_pill_width(tag)),
-        input_width,
-        MIN_TAG_INPUT_REMAINING_WIDTH,
-        content_width,
-        tag_field_flow_metrics(),
-    ) || rows.is_empty()
-    {
-        rows.push(Vec::new());
-    }
-
     let label = format!("{pending_category_tag} ->");
-    ui::push_flow_row_item(
+    ui::push_flow_row_group(
         &mut rows,
-        TagEntryRowItem::PendingCategory(label.clone()),
-        tag_pill_width(&label),
-        content_width,
-        tag_field_flow_metrics(),
-    );
-    let input_width = if rows.last().is_some_and(Vec::is_empty) {
-        content_width
-    } else {
-        input_width
-    };
-    ui::push_flow_row_item(
-        &mut rows,
-        TagEntryRowItem::Input(input_width),
-        input_width,
+        [
+            ui::FlowItem::new(
+                TagEntryRowItem::PendingCategory(label.clone()),
+                tag_pill_width(&label),
+            ),
+            ui::FlowItem::new(TagEntryRowItem::Input(input_width), input_width),
+        ],
         content_width,
         tag_field_flow_metrics(),
     );
@@ -180,4 +162,36 @@ pub(super) fn tag_input_width_for_placeholder(value: &str, placeholder: &str) ->
 
 pub(super) fn tag_pill_width(tag: &str) -> f32 {
     metadata_tag_pill_width(tag)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pending_category_and_input_wrap_as_one_group() {
+        let accepted = String::from("short");
+        let pending_label = "deep-kick ->";
+        let input_width = tag_input_width("sound-type");
+        let content_width =
+            tag_pill_width(&accepted) + TAG_FIELD_ITEM_GAP + tag_pill_width(pending_label) + 1.0;
+
+        let rows = tag_field_rows(
+            std::slice::from_ref(&accepted),
+            &[],
+            Some("deep-kick"),
+            input_width,
+            content_width,
+        );
+
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0], [TagEntryRowItem::Accepted(accepted)]);
+        assert_eq!(
+            rows[1],
+            [
+                TagEntryRowItem::PendingCategory(String::from(pending_label)),
+                TagEntryRowItem::Input(input_width),
+            ]
+        );
+    }
 }
