@@ -7,10 +7,9 @@ use super::GuiMessage;
 use super::tag_completion::tag_completion_panel_layer;
 use super::tag_entry_layout::{
     MAX_TAG_FIELD_ROWS, TAG_FIELD_CONTROL_HEIGHT, TAG_FIELD_HORIZONTAL_CHROME, TAG_FIELD_ITEM_GAP,
-    TAG_FIELD_LINE_GAP, TAG_FIELD_VERTICAL_CHROME, TagEntryRowItem,
-    metadata_tag_category_id_for_display, order_metadata_tags_for_display, rows_height,
-    tag_field_rows, tag_input_display_value, tag_input_width, tag_input_width_for_placeholder,
-    tag_pill_width,
+    TAG_FIELD_LINE_GAP, TagEntryRowItem, capped_rows_height, metadata_tag_category_id_for_display,
+    order_metadata_tags_for_display, rows_height, tag_field_rows, tag_input_display_value,
+    tag_input_width, tag_input_width_for_placeholder, tag_pill_width,
 };
 
 const METADATA_TAG_INPUT_ID: u64 = 0x5743_0000_0000_5447;
@@ -181,7 +180,7 @@ pub(super) fn tag_field_height(
         content_width,
     )
     .len();
-    rows_height(rows.clamp(1, MAX_TAG_FIELD_ROWS)) + TAG_FIELD_VERTICAL_CHROME
+    capped_rows_height(rows)
 }
 
 fn tag_text_input(

@@ -133,6 +133,16 @@ pub(super) fn rows_height(row_count: usize) -> f32 {
     ui::flow_rows_height(row_count, tag_field_flow_metrics())
 }
 
+pub(super) fn capped_rows_height(row_count: usize) -> f32 {
+    ui::capped_flow_rows_height(
+        row_count,
+        1,
+        MAX_TAG_FIELD_ROWS,
+        TAG_FIELD_VERTICAL_CHROME,
+        tag_field_flow_metrics(),
+    )
+}
+
 fn tag_field_flow_metrics() -> ui::FlowLayoutMetrics {
     ui::FlowLayoutMetrics::new(
         TAG_FIELD_ITEM_GAP,
