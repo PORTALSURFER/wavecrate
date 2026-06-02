@@ -134,15 +134,8 @@ pub(super) fn job_details_popover(progress: &FolderScanProgress) -> ui::View<Gui
     ])
     .spacing(5.0)
     .fill_width();
-    let panel = ui::panel_section_from_parts(
+    let panel = ui::closeable_panel_section_from_parts(
         ui::PanelSectionParts::new("Job Details", content)
-            .trailing(
-                ui::close_button()
-                    .subtle()
-                    .message(GuiMessage::CloseJobDetails)
-                    .width(24.0)
-                    .height(20.0),
-            )
             .style(ui::WidgetStyle::new(
                 ui::WidgetTone::Neutral,
                 ui::WidgetProminence::Strong,
@@ -151,6 +144,7 @@ pub(super) fn job_details_popover(progress: &FolderScanProgress) -> ui::View<Gui
             .spacing(5.0)
             .title_height(22.0)
             .height(132.0),
+        GuiMessage::CloseJobDetails,
     )
     .key("bottom-job-details-popover")
     .width(300.0)
