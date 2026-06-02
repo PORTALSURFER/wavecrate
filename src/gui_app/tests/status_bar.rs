@@ -71,7 +71,7 @@ fn bottom_status_bar_reports_normalization_progress() {
 
 #[test]
 fn bottom_status_progress_bar_click_opens_job_details() {
-    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(180.0, 10.0));
+    let bounds = Rect::from_size(180.0, 10.0);
     let mut progress = radiant::widgets::ProgressBarWidget::determinate(0.4).with_activation();
     assert_eq!(
         progress.handle_input(bounds, WidgetInput::primary_press(Point::new(90.0, 5.0)),),

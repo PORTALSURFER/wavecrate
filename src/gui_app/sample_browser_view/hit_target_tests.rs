@@ -187,7 +187,7 @@ fn suppressed_hover_clears_and_omits_stale_hover_paint() {
 #[test]
 /// Verifies cached sample rows paint the loaded marker.
 fn loaded_rows_paint_right_edge_marker() {
-    let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(120.0, 22.0));
+    let bounds = Rect::from_xy_size(10.0, 20.0, 120.0, 22.0);
     let target = SampleFileHitTarget::new(false, false, false, true, false);
     let plan = target.paint_plan_with_defaults(bounds);
 
@@ -209,7 +209,7 @@ fn loaded_rows_paint_right_edge_marker() {
 #[test]
 /// Verifies uncached sample rows do not paint the loaded marker.
 fn unloaded_rows_do_not_paint_loaded_marker() {
-    let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(120.0, 22.0));
+    let bounds = Rect::from_xy_size(10.0, 20.0, 120.0, 22.0);
     let target = SampleFileHitTarget::new(false, false, false, false, false);
     let plan = target.paint_plan_with_defaults(bounds);
 

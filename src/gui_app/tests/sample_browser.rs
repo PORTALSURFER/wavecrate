@@ -119,7 +119,7 @@ fn selected_sample_browser_row_paints_strong_fill_and_left_marker() {
     let widget = crate::gui_app::sample_browser_view::SampleFileHitTarget::new(
         true, false, false, false, false,
     );
-    let bounds = Rect::from_min_size(Point::new(12.0, 8.0), Vector2::new(240.0, 22.0));
+    let bounds = Rect::from_xy_size(12.0, 8.0, 240.0, 22.0);
     let plan = widget.paint_plan_with_defaults(bounds);
     let fills = plan.fill_rects().collect::<Vec<_>>();
 

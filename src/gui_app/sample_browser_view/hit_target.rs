@@ -1,7 +1,5 @@
 use radiant::gui::types::{Point, Rect, Rgba8};
 use radiant::layout::LayoutOutput;
-#[cfg(test)]
-use radiant::layout::Vector2;
 use radiant::prelude as ui;
 use radiant::runtime::PaintPrimitive;
 use radiant::theme::ThemeTokens;

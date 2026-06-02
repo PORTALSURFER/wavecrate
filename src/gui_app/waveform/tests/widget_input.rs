@@ -43,7 +43,7 @@ fn auxiliary_drag_pans_zoomed_waveform_viewport() {
 fn primary_press_emits_playback_ratio_matching_hover_cursor_ratio() {
     let state = WaveformState::synthetic_for_tests();
     let mut widget = waveform_widget_for_state(&state);
-    let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(200.0, 80.0));
+    let bounds = Rect::from_xy_size(10.0, 20.0, 200.0, 80.0);
 
     let output = widget
         .handle_input(bounds, WidgetInput::primary_press(Point::new(60.0, 40.0)))
@@ -65,7 +65,7 @@ fn primary_press_emits_playback_ratio_matching_hover_cursor_ratio() {
 fn secondary_press_emits_edit_selection_begin_ratio() {
     let state = WaveformState::synthetic_for_tests();
     let mut widget = waveform_widget_for_state(&state);
-    let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(200.0, 80.0));
+    let bounds = Rect::from_xy_size(10.0, 20.0, 200.0, 80.0);
 
     let output = widget
         .handle_input(
@@ -94,7 +94,7 @@ fn secondary_press_emits_edit_selection_begin_ratio() {
 fn empty_waveform_keeps_hover_cursor_but_emits_no_interactions() {
     let state = WaveformState::empty();
     let mut widget = waveform_widget_for_state(&state);
-    let bounds = Rect::from_min_size(Point::new(10.0, 20.0), Vector2::new(200.0, 80.0));
+    let bounds = Rect::from_xy_size(10.0, 20.0, 200.0, 80.0);
     let inside = Point::new(60.0, 40.0);
 
     assert!(
