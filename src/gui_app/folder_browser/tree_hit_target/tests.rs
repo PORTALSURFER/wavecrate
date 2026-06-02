@@ -1,5 +1,4 @@
 use super::*;
-use radiant::layout::Vector2;
 
 fn message_from(output: Option<WidgetOutput>) -> FolderTreeHitMessage {
     output
@@ -9,7 +8,7 @@ fn message_from(output: Option<WidgetOutput>) -> FolderTreeHitMessage {
 }
 
 fn row_bounds() -> Rect {
-    Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(120.0, 22.0))
+    Rect::from_size(120.0, 22.0)
 }
 
 #[test]

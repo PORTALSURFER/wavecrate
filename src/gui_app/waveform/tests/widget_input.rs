@@ -8,7 +8,7 @@ fn auxiliary_drag_pans_zoomed_waveform_viewport() {
         end: 36_000,
     };
     let mut widget = waveform_widget_for_state(&state);
-    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
+    let bounds = Rect::from_size(200.0, 80.0);
     let output = widget
         .handle_input(
             bounds,
@@ -123,7 +123,7 @@ fn primary_press_on_playmark_handle_starts_resize_instead_of_new_selection() {
     state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
     state.play_mark_ratio = Some(0.2);
     let mut widget = waveform_widget_for_state(&state);
-    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
+    let bounds = Rect::from_size(200.0, 80.0);
 
     let output = widget
         .handle_input(bounds, WidgetInput::primary_press(Point::new(120.0, 8.0)))
@@ -148,7 +148,7 @@ fn primary_press_on_playmark_top_handle_starts_move() {
     state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
     state.play_mark_ratio = Some(0.2);
     let mut widget = waveform_widget_for_state(&state);
-    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
+    let bounds = Rect::from_size(200.0, 80.0);
 
     let output = widget
         .handle_input(bounds, WidgetInput::primary_press(Point::new(80.0, 3.0)))
@@ -172,7 +172,7 @@ fn primary_press_on_play_selection_export_handle_starts_export_drag() {
     state.play_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
     state.play_mark_ratio = Some(0.2);
     let mut widget = waveform_widget_for_state(&state);
-    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
+    let bounds = Rect::from_size(200.0, 80.0);
 
     let output = widget
         .handle_input(bounds, WidgetInput::primary_press(Point::new(118.0, 76.0)))
@@ -197,7 +197,7 @@ fn secondary_press_on_edit_top_handle_starts_move() {
     state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
     state.edit_mark_ratio = Some(0.2);
     let mut widget = waveform_widget_for_state(&state);
-    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
+    let bounds = Rect::from_size(200.0, 80.0);
 
     let output = widget
         .handle_input(
@@ -227,7 +227,7 @@ fn primary_press_on_edit_fade_handle_starts_fade_drag_instead_of_playmark() {
     let mut state = WaveformState::synthetic_for_tests();
     state.edit_selection = Some(wavecrate::selection::SelectionRange::new(0.2, 0.6));
     let mut widget = waveform_widget_for_state(&state);
-    let bounds = Rect::from_min_size(Point::new(0.0, 0.0), Vector2::new(200.0, 80.0));
+    let bounds = Rect::from_size(200.0, 80.0);
 
     let output = widget
         .handle_input(bounds, WidgetInput::primary_press(Point::new(40.0, 4.0)))
