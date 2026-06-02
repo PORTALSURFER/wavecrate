@@ -116,10 +116,7 @@ impl FolderBrowserState {
                     .to_ascii_lowercase()
                     .cmp(&b.name.to_ascii_lowercase()),
             };
-            match self.file_sort.direction {
-                ui::SortDirection::Ascending => ordering,
-                ui::SortDirection::Descending => ordering.reverse(),
-            }
+            self.file_sort.direction.apply_ordering(ordering)
         });
     }
 }
